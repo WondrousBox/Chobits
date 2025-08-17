@@ -51,6 +51,10 @@ export const AIAssistant: React.FC = () => {
   
   const containerRef = useRef<HTMLDivElement>(null)
   const messageTimeoutRef = useRef<NodeJS.Timeout>()
+  // which hand is being grabbed and hand positions
+  const [dragSide, setDragSide] = useState<'left' | 'right' | null>(null)
+  const [handLeft, setHandLeft] = useState<Position>({ x: 40, y: 120 })
+  const [handRight, setHandRight] = useState<Position>({ x: 140, y: 120 })
 
   // auto-walk loop & animation control
   const autoWalkRef = useRef(false)
@@ -239,15 +243,29 @@ export const AIAssistant: React.FC = () => {
     e.preventDefault()
     setIsDragging(true)
     stopWalking()
-    // 确保拖拽期间不穿透
     setClickThrough(false)
-    // 记录指针相对窗口左上角的偏移
     setDragOffset({ x: e.clientX, y: e.clientY })
+    // decide which hand to grab based on click x relative to center, and snap that hand to pointer
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (rect) {
+      const centerX = rect.left + rect.width / 2
+      const localX = clamp(e.clientX - rect.left, 0, rect.width)
+      const localY = clamp(e.clientY - rect.top, 0, rect.height)
+      const side: 'left' | 'right' = e.clientX < centerX ? 'left' : 'right'
+      setDragSide(side)
+      if (side === 'left') setHandLeft({ x: localX, y: localY })
+      else setHandRight({ x: localX, y: localY })
+    } else {
+      setDragSide('right')
+    }
   }
 
   const handleMouseUp = useCallback((e?: MouseEvent) => {
     setIsDragging(false)
-    // 停止拖拽后，过一会儿继续走动
+    setDragSide(null)
+    // reset hands to default docked positions
+    setHandLeft({ x: 40, y: 120 })
+    setHandRight({ x: 140, y: 120 })
     setTimeout(() => {
       startWalking()
     }, 3000)
@@ -256,24 +274,30 @@ export const AIAssistant: React.FC = () => {
   const handleMouseMove = useCallback(async (e: MouseEvent) => {
     if (!isDragging) return
 
-    // 通过屏幕坐标 - 初始偏移 来移动窗口
+    // Move window
     const winX = e.screenX - dragOffset.x
     const winY = e.screenY - dragOffset.y
-
-    // 屏幕边界限制
     const boundedWinX = Math.max(0, Math.min(winX, screenSize.width - WINDOW_WIDTH))
     const boundedWinY = Math.max(0, Math.min(winY, screenSize.height - WINDOW_HEIGHT))
 
-    // 拖拽移动也做 30fps 节流
     const now = performance.now()
     if (!lastIpcSendRef.current || now - lastIpcSendRef.current >= FRAME_INTERVAL) {
       lastIpcSendRef.current = now
       await window.YUA.window.moveWindow(Math.round(boundedWinX), Math.round(boundedWinY))
     }
 
-    // 助手在窗口内部始终保持 100px 偏移
+    // Update grabbed hand to follow the mouse within component coordinates
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (rect) {
+      const localX = clamp(e.clientX - rect.left, 0, rect.width)
+      const localY = clamp(e.clientY - rect.top, 0, rect.height)
+      if (dragSide === 'left') setHandLeft({ x: localX, y: localY })
+      if (dragSide === 'right') setHandRight({ x: localX, y: localY })
+    }
+
+    // Keep body position padding
     setPosition({ x: PADDING, y: PADDING })
-  }, [isDragging, dragOffset, screenSize])
+  }, [isDragging, dragOffset, screenSize, dragSide])
 
   // 全局鼠标事件监听
   useEffect(() => {
@@ -410,6 +434,22 @@ export const AIAssistant: React.FC = () => {
     messageTimeoutRef.current = setTimeout(() => setShowMessage(false), 6000)
   }
 
+  // Shoulder anchor points (approx) in container coordinates
+  const SHOULDER_Y = 100
+  const SHOULDER_LEFT_X = 50
+  const SHOULDER_RIGHT_X = 130
+
+  // Compute line vars from anchor to hand
+  const dxL = handLeft.x - SHOULDER_LEFT_X
+  const dyL = handLeft.y - SHOULDER_Y
+  const lenL = Math.hypot(dxL, dyL)
+  const degL = Math.atan2(dyL, dxL) * 180 / Math.PI
+
+  const dxR = handRight.x - SHOULDER_RIGHT_X
+  const dyR = handRight.y - SHOULDER_Y
+  const lenR = Math.hypot(dxR, dyR)
+  const degR = Math.atan2(dyR, dxR) * 180 / Math.PI
+
   return (
     <div 
       ref={containerRef}
@@ -420,7 +460,30 @@ export const AIAssistant: React.FC = () => {
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      style={{ left: position.x, top: position.y, ['--foot-duration' as any]: FOOT_DURATION }}
+      style={{ 
+        left: position.x, 
+        top: position.y, 
+        ['--foot-duration' as any]: FOOT_DURATION,
+        // optional arm vars kept for compatibility
+        ['--arm-left-rot' as any]: isDragging ? (dragSide === 'left' ? '-75deg' : '60deg') : '20deg',
+        ['--arm-right-rot' as any]: isDragging ? (dragSide === 'right' ? '75deg' : '-60deg') : '-20deg',
+        ['--arm-left-len' as any]: isDragging ? (dragSide === 'left' ? '1.35' : '1.05') : '1',
+        ['--arm-right-len' as any]: isDragging ? (dragSide === 'right' ? '1.35' : '1.05') : '1',
+        // round hand positions
+        ['--hand-left-x' as any]: `${handLeft.x}px`,
+        ['--hand-left-y' as any]: `${handLeft.y}px`,
+        ['--hand-right-x' as any]: `${handRight.x}px`,
+        ['--hand-right-y' as any]: `${handRight.y}px`,
+        // stretchy arm line vars (used only visually when dragging)
+        ['--left-line-x' as any]: `${SHOULDER_LEFT_X}px`,
+        ['--left-line-y' as any]: `${SHOULDER_Y}px`,
+        ['--left-line-len' as any]: `${lenL}px`,
+        ['--left-line-rot' as any]: `${degL}deg`,
+        ['--right-line-x' as any]: `${SHOULDER_RIGHT_X}px`,
+        ['--right-line-y' as any]: `${SHOULDER_Y}px`,
+        ['--right-line-len' as any]: `${lenR}px`,
+        ['--right-line-rot' as any]: `${degR}deg`,
+      }}
     >
       {/* 消息气泡 */}
       {showMessage && (
@@ -437,6 +500,7 @@ export const AIAssistant: React.FC = () => {
       {/* AI助手角色 */}
       <div className="ai-character">
         <div className="character-body">
+          {/* 移除矩形手臂，改为圆形手掌 */}
           <div className="character-face">
             <div className="eyes">
               <div className="eye left"></div>
@@ -444,6 +508,18 @@ export const AIAssistant: React.FC = () => {
             </div>
             <div className="mouth"></div>
           </div>
+        </div>
+
+        {/* Arm stretchy lines (under hands) */}
+        <div className="arm-lines">
+          <div className="arm-line left" />
+          <div className="arm-line right" />
+        </div>
+
+        {/* 圆形双手（像双脚一样） */}
+        <div className="hands">
+          <div className="hand left"></div>
+          <div className="hand right"></div>
         </div>
         
         {/* 脚步动画 */}
