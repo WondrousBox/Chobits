@@ -9,12 +9,17 @@ type WindowBridgeParams = {
   "moveWindow": IPCParams<[number, number], boolean>;
   "getWindowPosition": IPCParams<[void], [number, number]>;
   "getScreenSize": IPCParams<[void], { width: number; height: number }>;
+  /**
+   * 设置窗口是否穿透点击
+   */
+  "setClickThrough": IPCParams<[boolean], boolean>;
 }
 
 const methods: Array<keyof WindowBridgeParams> = [
   "moveWindow",
   "getWindowPosition",
   "getScreenSize",
+  "setClickThrough",
 ];
 
 export type WindowBridgeType = {

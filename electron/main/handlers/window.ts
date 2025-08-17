@@ -23,4 +23,15 @@ export function initWindowHandlers(win: BrowserWindow) {
     const { width, height } = screen.getPrimaryDisplay().workAreaSize
     return { width, height }
   })
+
+  // Enable/disable click-through so padding area is usable for underlying apps
+  ipcMain.handle('setClickThrough', (_: IpcMainInvokeEvent, enable: boolean) => {
+    if (!win) return false
+    try {
+      win.setIgnoreMouseEvents(!!enable, { forward: true })
+      return true
+    } catch (e) {
+      return false
+    }
+  })
 }

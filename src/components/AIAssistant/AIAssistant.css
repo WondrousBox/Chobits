@@ -6,6 +6,11 @@
   user-select: none;
   z-index: 9999;
   transition: transform 0.3s ease;
+  /* Leave 100px padding inside the window on all sides */
+  top: 100px;
+  left: 100px;
+  /* Ensure the rest of the window is click-through if needed */
+  pointer-events: auto;
 }
 
 .ai-assistant-container:hover {
@@ -138,7 +143,11 @@
   height: 12px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border-radius: 10px;
-  animation: footStep 1s infinite ease-in-out;
+  /* Use CSS variable to control step speed */
+  animation-name: footStep;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+  animation-duration: var(--foot-duration, 0.6s);
 }
 
 .foot.left {
@@ -233,7 +242,8 @@
 }
 
 .walking .foot {
-  animation-duration: 0.6s;
+  /* Tie walking duration to variable as well */
+  animation-duration: var(--foot-duration, 0.6s);
 }
 
 @keyframes bodyWalk {
