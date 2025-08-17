@@ -48,13 +48,16 @@ async function createWindow() {
   win = new BrowserWindow({
     title: 'Main window',
     icon: path.join(process.env.VITE_PUBLIC, 'favicon.ico'),
-    width: 400,
-    height: 850,
-    frame: true, // 边框
-    transparent: true, // 透明背景
-    alwaysOnTop: true, // 始终置顶
-    resizable: true, // 可调整大小
-    skipTaskbar: true, // 显示在任务栏
+    // Assistant size: 180x220, plus 100px padding on each side
+    width: 380,
+    height: 420,
+    frame: false, // frameless for a floating assistant
+    transparent: true, // transparent background
+    backgroundColor: '#00000000',
+    alwaysOnTop: true, // stay on top
+    resizable: false, // fixed size to preserve 100px padding
+    skipTaskbar: true, // do not show in taskbar
+    hasShadow: false,
     webPreferences: {
       preload,
       // Warning: Enable nodeIntegration and disable contextIsolation is not secure in production
