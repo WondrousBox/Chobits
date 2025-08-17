@@ -4,10 +4,12 @@ import { screen } from "electron";
 
 export function initWindowHandlers(win: BrowserWindow) {
   // AI Assistant IPC handlers
-  ipcMain.handle('moveWindow', (_: IpcMainInvokeEvent, { x, y }) => {
-    if (win) {
-      win.setPosition(x, y)
-    }
+  ipcMain.handle('moveWindow', (_: IpcMainInvokeEvent, x: number, y: number) => {
+    if (!win) return false
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return false
+    // Electron expects integers
+    win.setPosition(Math.round(x), Math.round(y))
+    return true
   })
 
   ipcMain.handle('getWindowPosition', () => {
