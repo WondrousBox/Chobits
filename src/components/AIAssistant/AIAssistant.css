@@ -11,6 +11,11 @@
   left: 100px;
   /* Ensure the rest of the window is click-through if needed */
   pointer-events: auto;
+  /* default arm vars */
+  --arm-left-rot: 20deg;
+  --arm-right-rot: -20deg;
+  --arm-left-len: 1;
+  --arm-right-len: 1;
 }
 
 .ai-assistant-container:hover {
@@ -196,6 +201,143 @@
   font-size: 14px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
+
+/* Arms / Hands */
+.character-arms {
+  position: absolute;
+  top: 40px; /* shoulder height inside body */
+  left: 0;
+  right: 0;
+  height: 0; /* only used for positioning */
+  pointer-events: none;
+}
+
+.character-arm {
+  position: absolute;
+  width: 12px;
+  height: 48px;
+  background: linear-gradient(135deg, #7c8cf5 0%, #764ba2 100%);
+  border-radius: 10px;
+  transform-origin: top center;
+  box-shadow: 0 6px 14px rgba(0,0,0,0.15);
+  transition: transform 120ms ease;
+}
+
+.character-arm.left {
+  /* anchor slightly outside body on the left */
+  left: -10px;
+  transform: rotate(var(--arm-left-rot)) scaleY(var(--arm-left-len));
+}
+
+.character-arm.right {
+  /* anchor slightly outside body on the right */
+  right: -10px;
+  transform: rotate(var(--arm-right-rot)) scaleY(var(--arm-right-len));
+}
+
+.character-arm .hand-tip {
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 18px;
+  height: 18px;
+  background: #ffe08a;
+  border: 2px solid #eab308;
+  border-radius: 50%;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+}
+
+/* Subtle swing while walking (disabled during dragging via stronger transform vars) */
+.walking:not(.dragging) .character-arm.left {
+  animation: armSwingLeft var(--foot-duration, 0.6s) infinite ease-in-out;
+}
+.walking:not(.dragging) .character-arm.right {
+  animation: armSwingRight var(--foot-duration, 0.6s) infinite ease-in-out;
+}
+
+@keyframes armSwingLeft {
+  0%,100% { transform: rotate(25deg) scaleY(1); }
+  50% { transform: rotate(5deg) scaleY(1.02); }
+}
+@keyframes armSwingRight {
+  0%,100% { transform: rotate(-25deg) scaleY(1); }
+  50% { transform: rotate(-5deg) scaleY(1.02); }
+}
+
+/* Round Hands (circles like feet) */
+.hands {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.hand {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  background: #ffe08a;
+  border: 2px solid #eab308;
+  border-radius: 50%;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+  transform: translate(-50%, -50%);
+}
+
+.hand.left {
+  left: var(--hand-left-x, 40px);
+  top: var(--hand-left-y, 120px);
+}
+
+.hand.right {
+  left: var(--hand-right-x, 140px);
+  top: var(--hand-right-y, 120px);
+}
+
+/* optional subtle bob during walking */
+.walking:not(.dragging) .hand {
+  animation: handBob var(--foot-duration, 0.6s) infinite ease-in-out;
+}
+
+@keyframes handBob {
+  0%, 100% { transform: translate(-50%, -50%) translateY(0); }
+  50% { transform: translate(-50%, -50%) translateY(-2px); }
+}
+
+/* Stretchy arm lines (visible when dragging) */
+.arm-lines { position: absolute; inset: 0; pointer-events: none; }
+.arm-line { 
+  position: absolute;
+  left: 0; top: 0;
+  width: 0; height: 6px;
+  background: linear-gradient(90deg, #7c8cf5, #764ba2);
+  border-radius: 3px;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.18);
+  transform-origin: left center;
+  opacity: 0; transition: opacity 120ms ease;
+}
+.arm-line.left { 
+  left: var(--left-line-x, 60px);
+  top: var(--left-line-y, 100px);
+  width: var(--left-line-len, 0px);
+  transform: rotate(var(--left-line-rot, 0deg));
+}
+.arm-line.right {
+  left: var(--right-line-x, 120px);
+  top: var(--right-line-y, 100px);
+  width: var(--right-line-len, 0px);
+  transform: rotate(var(--right-line-rot, 0deg));
+}
+.dragging .arm-line { opacity: 1; }
+
+/* Dragging expression */
+.dragging .mouth {
+  width: 12px; height: 12px;
+  background: transparent;
+  border: 3px solid #ff6b6b;
+  border-radius: 50%;
+  animation: none;
+}
+.dragging .eye { transform: scale(1.15); }
 
 /* 动画 */
 @keyframes bubbleAppear {
