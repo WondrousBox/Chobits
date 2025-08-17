@@ -45,6 +45,9 @@ export const AIAssistant: React.FC = () => {
   const [dragOffset, setDragOffset] = useState<Position>({ x: 0, y: 0 })
   const [message, setMessage] = useState('你好！我是你的AI助手 ✨')
   const [showMessage, setShowMessage] = useState(true)
+  // 文件拖拽
+  const [isFileDragOver, setIsFileDragOver] = useState(false)
+  const dragCounterRef = useRef(0)
   
   const containerRef = useRef<HTMLDivElement>(null)
   const messageTimeoutRef = useRef<NodeJS.Timeout>()
@@ -82,6 +85,17 @@ export const AIAssistant: React.FC = () => {
     }
     
     getScreenInfo()
+  }, [])
+
+  // 拦截窗口级默认拖拽行为，防止 Electron 导航到文件
+  useEffect(() => {
+    const prevent = (e: DragEvent) => { e.preventDefault() }
+    window.addEventListener('dragover', prevent)
+    window.addEventListener('drop', prevent)
+    return () => {
+      window.removeEventListener('dragover', prevent)
+      window.removeEventListener('drop', prevent)
+    }
   }, [])
 
   // 动画移动窗口：曲线多段路径 + 30fps 节流 + 可选离散步进
@@ -327,12 +341,85 @@ export const AIAssistant: React.FC = () => {
     }, 5000)
   }
 
+  // 文件拖拽处理
+  const isFilesDrag = (e: React.DragEvent) => Array.from(e.dataTransfer?.types || []).includes('Files')
+
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!isFilesDrag(e)) return
+    e.preventDefault(); e.stopPropagation()
+    dragCounterRef.current++
+    setIsFileDragOver(true)
+    stopWalking()
+    setClickThrough(false)
+  }
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!isFilesDrag(e)) return
+    e.preventDefault(); e.stopPropagation()
+  }
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    if (!isFilesDrag(e)) return
+    e.preventDefault(); e.stopPropagation()
+    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1)
+    if (dragCounterRef.current === 0) {
+      setIsFileDragOver(false)
+      setTimeout(() => startWalking(), 1500)
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault(); e.stopPropagation()
+    dragCounterRef.current = 0
+    setIsFileDragOver(false)
+    setClickThrough(false)
+    stopWalking()
+
+    const items = Array.from(e.dataTransfer?.items || [])
+    const files = Array.from(e.dataTransfer?.files || [])
+    const details: string[] = []
+
+    items.forEach((item) => {
+      if (item.kind === 'file') {
+        const anyItem = item as any
+        let entry: any
+        try { entry = anyItem.webkitGetAsEntry?.() } catch {}
+        if (entry?.isDirectory) {
+          details.push(`文件夹“${entry.name}”`)
+        } else {
+          const f = item.getAsFile()
+          if (f) details.push(`文件“${f.name}”`)
+        }
+      }
+    })
+
+    if (details.length === 0 && files.length) {
+      details.push(...files.map(f => `文件“${f.name}”`))
+    }
+
+    if (details.length === 1) {
+      setMessage(`我收到了${details[0]} ✅`)
+    } else if (details.length > 1) {
+      const preview = details.slice(0, 3).join('、')
+      setMessage(`我收到了 ${details.length} 个项目：${preview}${details.length > 3 ? ' 等' : ''} ✅`)
+    } else {
+      setMessage('收到了一些内容，但我没识别到文件名 🤔')
+    }
+    setShowMessage(true)
+    if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current)
+    messageTimeoutRef.current = setTimeout(() => setShowMessage(false), 6000)
+  }
+
   return (
     <div 
       ref={containerRef}
-      className={`ai-assistant-container ${isWalking ? 'walking' : ''} ${isDragging ? 'dragging' : ''}`}
+      className={`ai-assistant-container ${isWalking ? 'walking' : ''} ${isDragging ? 'dragging' : ''} ${isFileDragOver ? 'drag-over' : ''}`}
       onMouseDown={handleMouseDown}
       onClick={handleClick}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
       style={{ left: position.x, top: position.y, ['--foot-duration' as any]: FOOT_DURATION }}
     >
       {/* 消息气泡 */}
@@ -340,6 +427,11 @@ export const AIAssistant: React.FC = () => {
         <div className="message-bubble">
           {message}
         </div>
+      )}
+      
+      {/* 拖拽提示 */}
+      {isFileDragOver && (
+        <div className="drop-hint">把文件拖给我吧 ⤓</div>
       )}
       
       {/* AI助手角色 */}
