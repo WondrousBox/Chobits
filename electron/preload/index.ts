@@ -1,4 +1,5 @@
 import { ipcRenderer, contextBridge } from 'electron'
+import { windowBridge } from './apis/window'
 
 // --------- Expose some API to the Renderer process ---------
 contextBridge.exposeInMainWorld('ipcRenderer', {
@@ -21,6 +22,11 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
 
   // You can expose other APTs you need here.
   // ...
+})
+
+// --------- AI Assistant API ---------
+contextBridge.exposeInMainWorld('YUA', {
+  window: windowBridge
 })
 
 // --------- Preload scripts loading ---------

@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import os from 'node:os'
 import { update } from './update'
+import { initHandlers } from './handlers'
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -47,14 +48,22 @@ async function createWindow() {
   win = new BrowserWindow({
     title: 'Main window',
     icon: path.join(process.env.VITE_PUBLIC, 'favicon.ico'),
+    width: 400,
+    height: 850,
+    frame: true, // 边框
+    transparent: true, // 透明背景
+    alwaysOnTop: true, // 始终置顶
+    resizable: true, // 可调整大小
+    skipTaskbar: true, // 显示在任务栏
     webPreferences: {
       preload,
       // Warning: Enable nodeIntegration and disable contextIsolation is not secure in production
-      // nodeIntegration: true,
+      nodeIntegration: true,
 
       // Consider using contextBridge.exposeInMainWorld
       // Read more on https://www.electronjs.org/docs/latest/tutorial/context-isolation
-      // contextIsolation: false,
+      contextIsolation: true,
+      spellcheck: true,
     },
   })
 
@@ -76,6 +85,8 @@ async function createWindow() {
     if (url.startsWith('https:')) shell.openExternal(url)
     return { action: 'deny' }
   })
+
+  initHandlers(win);
 
   // Auto update
   update(win)
