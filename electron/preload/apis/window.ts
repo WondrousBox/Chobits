@@ -17,6 +17,15 @@ type WindowBridgeParams = {
    * 打开或更新文件跟随窗口
    */
   "openFileListWindow": IPCParams<[Array<{ name: string; path: string; isDirectory: boolean }>], boolean>;
+  /** 打开上下文菜单窗口 */
+  "openMenuWindow": IPCParams<[void], boolean>;
+  /** 打开设置窗口 */
+  "openSettingsWindow": IPCParams<[void], boolean>;
+  /** 获取移动配置 */
+  "getMovementConfig": IPCParams<[void], { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number }>;
+  /** 更新移动配置 */
+  "updateMovementConfig": IPCParams<[Partial<{ walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number }>], { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number }>;
+
 }
 
 const methods: Array<keyof WindowBridgeParams> = [
@@ -25,6 +34,10 @@ const methods: Array<keyof WindowBridgeParams> = [
   "getScreenSize",
   "setClickThrough",
   "openFileListWindow",
+  "openMenuWindow",
+  "openSettingsWindow",
+  "getMovementConfig",
+  "updateMovementConfig",
 ];
 
 export type WindowBridgeType = {

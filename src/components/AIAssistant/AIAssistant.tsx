@@ -461,11 +461,17 @@ export const AIAssistant: React.FC = () => {
   const lenR = Math.hypot(dxR, dyR)
   const degR = Math.atan2(dyR, dxR) * 180 / Math.PI
 
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault()
+    window.YUA.window.openMenuWindow()
+  }
+
   return (
     <div 
       ref={containerRef}
       className={`ai-assistant-container ${isWalking ? 'walking' : ''} ${isDragging ? 'dragging' : ''} ${isFileDragOver ? 'drag-over' : ''}`}
       onMouseDown={handleMouseDown}
+      onContextMenu={handleContextMenu}
       onClick={handleClick}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
