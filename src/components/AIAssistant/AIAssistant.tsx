@@ -402,6 +402,7 @@ export const AIAssistant: React.FC = () => {
     const items = Array.from(e.dataTransfer?.items || [])
     const files = Array.from(e.dataTransfer?.files || [])
     const details: string[] = []
+    const fileListForIPC: Array<{ name: string; path: string; isDirectory: boolean }> = []
 
     items.forEach((item) => {
       if (item.kind === 'file') {
@@ -410,15 +411,20 @@ export const AIAssistant: React.FC = () => {
         try { entry = anyItem.webkitGetAsEntry?.() } catch {}
         if (entry?.isDirectory) {
           details.push(`文件夹“${entry.name}”`)
+          fileListForIPC.push({ name: entry.name, path: '', isDirectory: true })
         } else {
           const f = item.getAsFile()
-          if (f) details.push(`文件“${f.name}”`)
+          if (f) {
+            details.push(`文件“${f.name}”`)
+            fileListForIPC.push({ name: f.name, path: (f as any).path || '', isDirectory: false })
+          }
         }
       }
     })
 
     if (details.length === 0 && files.length) {
       details.push(...files.map(f => `文件“${f.name}”`))
+      files.forEach(f => fileListForIPC.push({ name: f.name, path: (f as any).path || '', isDirectory: false }))
     }
 
     if (details.length === 1) {
@@ -432,6 +438,11 @@ export const AIAssistant: React.FC = () => {
     setShowMessage(true)
     if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current)
     messageTimeoutRef.current = setTimeout(() => setShowMessage(false), 6000)
+
+    // 打开/更新文件列表窗口
+    if (fileListForIPC.length) {
+      window.YUA.window.openFileListWindow(fileListForIPC)
+    }
   }
 
   // Shoulder anchor points (approx) in container coordinates

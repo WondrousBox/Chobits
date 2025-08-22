@@ -13,6 +13,10 @@ type WindowBridgeParams = {
    * 设置窗口是否穿透点击
    */
   "setClickThrough": IPCParams<[boolean], boolean>;
+  /**
+   * 打开或更新文件跟随窗口
+   */
+  "openFileListWindow": IPCParams<[Array<{ name: string; path: string; isDirectory: boolean }>], boolean>;
 }
 
 const methods: Array<keyof WindowBridgeParams> = [
@@ -20,6 +24,7 @@ const methods: Array<keyof WindowBridgeParams> = [
   "getWindowPosition",
   "getScreenSize",
   "setClickThrough",
+  "openFileListWindow",
 ];
 
 export type WindowBridgeType = {
