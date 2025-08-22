@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import './settings.css'
 
 type MovementConfig = { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number }
@@ -28,12 +28,17 @@ export const SettingsPanel: React.FC = () => {
     setSaving(false)
   }
 
+  const close = () => window.ipcRenderer?.send('menu-command','close-settings')
+
   if (!config) return <div className='settings-wrapper'>加载中...</div>
 
   return (
-    <div className='settings-wrapper'>
+    <div className='settings-wrapper fade-in-scale'>
       <div className='settings-card glassy'>
-        <div className='settings-title'>⚙️ 移动参数设置</div>
+        <div className='settings-topbar' data-drag-region>
+          <span className='settings-title'>⚙️ 移动参数设置</span>
+          <button className='close-btn' onClick={close}>✕</button>
+        </div>
         <div className='settings-group'>
           <label>行走速度(px/s)
             <input type='number' value={config.walkSpeed} onChange={e=>update({ walkSpeed: +e.target.value })} />

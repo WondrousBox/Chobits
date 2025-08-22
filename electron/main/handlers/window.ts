@@ -328,13 +328,25 @@ export function initWindowHandlers(win: BrowserWindow) {
 
   // ---------------- Menu Command (转发给主渲染) ---------------
   ipcMain.on('menu-command', (_e, action: string) => {
-    if (action === 'open-settings') {
-      ;(ipcMain as any).handle?.('openSettingsWindow')
-      // 调用上面的 handler 也可以：
-      try { win?.webContents.send('menu-command', action) } catch {}
-      return
+    switch (action) {
+      case 'open-settings':
+        // 打开设置窗口
+        ;(async () => { try { await (ipcMain as any).handle?.('openSettingsWindow') } catch {} })()
+        break
+      case 'quit-app':
+        try { app.quit() } catch {}
+        return
+      case 'close-settings':
+        try { settingsWindow?.close() } catch {}
+        return
+      // 直接转发给主渲染进程（AI 精灵窗口）处理的行为
+      case 'toggle-walk':
+      case 'walk-once':
+        try { win?.webContents.send('menu-command', action) } catch {}
+        return
+      default:
+        try { win?.webContents.send('menu-command', action) } catch {}
+        return
     }
-    if (action === 'quit-app') { try { app.quit() } catch {} ; return }
-    try { win?.webContents.send('menu-command', action) } catch {}
   })
 }
