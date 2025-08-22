@@ -1,11 +1,16 @@
 import { ipcMain } from "electron";
 import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
-import { screen } from "electron";
+import { screen, app } from "electron";
+import fs from 'node:fs';
+import path from 'node:path';
 
 export function initWindowHandlers(win: BrowserWindow) {
   let fileListWindow: BrowserWindow | null = null
-  // 记录上一次放置的方向
-  let lastFollowerSide: 'right' | 'left' | 'bottom' | 'top' | null = null
+  // New follower windows: context menu + settings
+  let menuWindow: BrowserWindow | null = null
+  let settingsWindow: BrowserWindow | null = null
+  // 记录上一次放置的方向 (针对所有跟随窗口分别记录)
+  const lastFollowerSide = new Map<BrowserWindow, 'right' | 'left' | 'bottom' | 'top' | null>()
   let followerAnimTimer: NodeJS.Timeout | null = null
   let followerAnimRaf: number | null = null
   // 动画状态变量
@@ -27,6 +32,23 @@ export function initWindowHandlers(win: BrowserWindow) {
   function stopFollowerAnimation() {
     if (followerAnimTimer) { clearInterval(followerAnimTimer); followerAnimTimer = null }
     if (followerAnimRaf !== null) { try { caf(followerAnimRaf) } catch {} ; followerAnimRaf = null }
+  }
+
+  // Movement config persistence ------------------------------------------------
+  type MovementConfig = { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number }
+  const defaultConfig: MovementConfig = { walkSpeed: 500, fpsLimit: 30, movementMode: 'stepped', stepGrid: 12, pathCurveFactor: 0.15 }
+  const configDir = app.getPath('userData')
+  const configFile = path.join(configDir, 'movement-config.json')
+  let movementConfig: MovementConfig = defaultConfig
+  try {
+    if (fs.existsSync(configFile)) {
+      const txt = fs.readFileSync(configFile,'utf8')
+      const parsed = JSON.parse(txt)
+      movementConfig = { ...defaultConfig, ...parsed }
+    }
+  } catch { movementConfig = defaultConfig }
+  function saveConfig() {
+    try { fs.writeFileSync(configFile, JSON.stringify(movementConfig, null, 2), 'utf8') } catch {}
   }
 
   // 计算目标位置并返回方向
@@ -67,15 +89,15 @@ export function initWindowHandlers(win: BrowserWindow) {
     return { x: best.x, y: best.y, side: best.side }
   }
 
-  function animateFollowerTo(target: { x: number; y: number }) {
-    if (!fileListWindow || fileListWindow.isDestroyed()) return
+  function animateFollowerTo(followerWin: BrowserWindow, target: { x: number; y: number }) {
+    if (!followerWin || followerWin.isDestroyed()) return
     try {
-      const [cx, cy] = fileListWindow.getPosition()
+      const [cx, cy] = followerWin.getPosition()
       const dx = target.x - cx
       const dy = target.y - cy
       const dist = Math.hypot(dx, dy)
       // 小距离直接跳
-      if (dist < 8) { fileListWindow.setPosition(target.x, target.y); return }
+      if (dist < 8) { followerWin.setPosition(target.x, target.y); return }
       stopFollowerAnimation()
       followerAnimFrom = { x: cx, y: cy }
       followerAnimTo = target
@@ -83,59 +105,77 @@ export function initWindowHandlers(win: BrowserWindow) {
       followerAnimDur = Math.min(400, Math.max(160, dist * 3))
       followerAnimStart = performance.now()
       const step = (now: number) => {
-        if (!fileListWindow || fileListWindow.isDestroyed()) { stopFollowerAnimation(); return }
+        if (!followerWin || followerWin.isDestroyed()) { stopFollowerAnimation(); return }
         if (!followerAnimFrom || !followerAnimTo) { stopFollowerAnimation(); return }
         const t = (now - followerAnimStart) / followerAnimDur
         if (t >= 1) {
-          fileListWindow.setPosition(followerAnimTo.x, followerAnimTo.y)
+          followerWin.setPosition(followerAnimTo.x, followerAnimTo.y)
           stopFollowerAnimation(); return
         }
         // easeInOutQuad
         const tt = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
         const nx = Math.round(followerAnimFrom.x + (followerAnimTo.x - followerAnimFrom.x) * tt)
         const ny = Math.round(followerAnimFrom.y + (followerAnimTo.y - followerAnimFrom.y) * tt)
-        fileListWindow.setPosition(nx, ny)
+        followerWin.setPosition(nx, ny)
         followerAnimRaf = raf(step)
       }
       followerAnimRaf = raf(step)
     } catch {
       // 失败时直接跳到目标
-      try { fileListWindow?.setPosition(target.x, target.y) } catch {}
+      try { followerWin?.setPosition(target.x, target.y) } catch {}
     }
   }
 
-  function repositionFollower() {
-    if (!win || !fileListWindow || fileListWindow.isDestroyed()) return
+  function repositionFollower(followerWin: BrowserWindow | null) {
+    if (!win || !followerWin || followerWin.isDestroyed()) return
     try {
       const mainBounds = win.getBounds()
-      const followerBounds = fileListWindow.getBounds()
+      const followerBounds = followerWin.getBounds()
       const pos = computeFollowerPosition(mainBounds, followerBounds)
+      const lastSide = lastFollowerSide.get(followerWin) || null
       // 如果方向变化，则做动画，否则直接贴靠
-      if (lastFollowerSide && pos.side !== lastFollowerSide) {
-        animateFollowerTo({ x: pos.x, y: pos.y })
+      if (lastSide && pos.side !== lastSide) {
+        animateFollowerTo(followerWin, { x: pos.x, y: pos.y })
       } else {
         // 方向未变，保持紧随（直接设置）
-        fileListWindow.setPosition(pos.x, pos.y)
+        followerWin.setPosition(pos.x, pos.y)
       }
-      lastFollowerSide = pos.side
+      lastFollowerSide.set(followerWin, pos.side)
     } catch { }
+  }
+
+  function repositionAllFollowers() {
+    repositionFollower(fileListWindow)
+    repositionFollower(menuWindow)
+    // settingsWindow 不是跟随窗口，不自动贴靠
   }
 
   // 主窗口关闭时统一销毁子窗口
   win.on('closed', () => {
-    if (fileListWindow && !fileListWindow.isDestroyed()) {
-      try { fileListWindow.destroy() } catch { }
-    }
-    fileListWindow = null
+    ;[fileListWindow, menuWindow, settingsWindow].forEach(w => { try { w && !w.isDestroyed() && w.destroy() } catch {} })
+    fileListWindow = null; menuWindow = null; settingsWindow = null
     stopFollowerAnimation()
   })
 
-  // AI Assistant IPC handlers
+  // ---------------- Movement Config IPC --------------------
+  ipcMain.handle('getMovementConfig', () => {
+    return movementConfig
+  })
+  ipcMain.handle('updateMovementConfig', (_: IpcMainInvokeEvent, partial: Partial<MovementConfig>) => {
+    movementConfig = { ...movementConfig, ...partial }
+    saveConfig()
+    // 广播更新
+    try { win?.webContents.send('movement-config-updated', movementConfig) } catch {}
+    try { settingsWindow?.webContents.send('movement-config-updated', movementConfig) } catch {}
+    return movementConfig
+  })
+
+  // ---------------- Window Move & Click Through -------------
   ipcMain.handle('moveWindow', (_: IpcMainInvokeEvent, x: number, y: number) => {
     if (!win) return false
     if (!Number.isFinite(x) || !Number.isFinite(y)) return false
     win.setPosition(Math.round(x), Math.round(y))
-    repositionFollower()
+    repositionAllFollowers()
     return true
   })
 
@@ -151,7 +191,6 @@ export function initWindowHandlers(win: BrowserWindow) {
     return { width, height }
   })
 
-  // Enable/disable click-through so padding area is usable for underlying apps
   ipcMain.handle('setClickThrough', (_: IpcMainInvokeEvent, enable: boolean) => {
     if (!win) return false
     try {
@@ -162,7 +201,7 @@ export function initWindowHandlers(win: BrowserWindow) {
     }
   })
 
-  // Open / update file list follower window
+  // ---------------- File List Follower Window ----------------
   ipcMain.handle('openFileListWindow', async (_: IpcMainInvokeEvent, files: Array<{ name: string; path: string; isDirectory: boolean }>) => {
     if (!win) return false
     try {
@@ -174,21 +213,19 @@ export function initWindowHandlers(win: BrowserWindow) {
           frame: false,
           transparent: true,
           resizable: true,
-          // 取消子窗口置顶，使主精灵总在最上层但子窗口可被其他应用遮挡
           alwaysOnTop: false,
           skipTaskbar: true,
           show: true,
-          backgroundColor: '#00000000',
-          parent: win, // 关联父窗口，帮助层级管理
+            backgroundColor: '#00000000',
+          parent: win,
           webPreferences: {
             preload: (win as any).__preloadPath || undefined,
             nodeIntegration: true,
             contextIsolation: true,
           }
         })
-        // 初次定位直接无动画
-        lastFollowerSide = null
-        repositionFollower()
+        lastFollowerSide.set(fileListWindow, null)
+        repositionFollower(fileListWindow)
         const url = process.env.VITE_DEV_SERVER_URL
         if (url) {
           fileListWindow.loadURL(`${url}#filebox`)
@@ -196,9 +233,9 @@ export function initWindowHandlers(win: BrowserWindow) {
           const indexHtml = (process.env.APP_ROOT || '') + '/dist/index.html'
           ;(fileListWindow as any).loadFile(indexHtml, { hash: 'filebox' })
         }
-        fileListWindow.on('closed', () => { fileListWindow = null; stopFollowerAnimation(); lastFollowerSide = null })
+        fileListWindow.on('closed', () => { fileListWindow = null; stopFollowerAnimation(); lastFollowerSide.delete(fileListWindow as any) })
       } else {
-        repositionFollower()
+        repositionFollower(fileListWindow)
       }
       // Send/refresh file list
       fileListWindow!.webContents.send('update-file-list', files)
@@ -207,5 +244,97 @@ export function initWindowHandlers(win: BrowserWindow) {
     } catch (e) {
       return false
     }
+  })
+
+  // ---------------- Context Menu Follower Window -------------
+  ipcMain.handle('openMenuWindow', async () => {
+    if (!win) return false
+    try {
+      if (!menuWindow || menuWindow.isDestroyed()) {
+        const { BrowserWindow } = await import('electron')
+        menuWindow = new BrowserWindow({
+          width: 220,
+            height: 260,
+          frame: false,
+          transparent: true,
+          resizable: false,
+          alwaysOnTop: true,
+          skipTaskbar: true,
+          backgroundColor: '#00000000',
+          parent: win,
+          show: false,
+          webPreferences: {
+            preload: (win as any).__preloadPath || undefined,
+            nodeIntegration: true,
+            contextIsolation: true,
+          }
+        })
+        lastFollowerSide.set(menuWindow, null)
+        repositionFollower(menuWindow)
+        const url = process.env.VITE_DEV_SERVER_URL
+        if (url) menuWindow.loadURL(`${url}#menu`)
+        else {
+          const indexHtml = (process.env.APP_ROOT || '') + '/dist/index.html'
+          ;(menuWindow as any).loadFile(indexHtml, { hash: 'menu' })
+        }
+        menuWindow.on('blur', () => { try { menuWindow && menuWindow.close() } catch {} })
+        menuWindow.on('closed', () => { lastFollowerSide.delete(menuWindow as any); menuWindow = null })
+      } else {
+        repositionFollower(menuWindow)
+      }
+      menuWindow!.show() // focus for keyboard nav
+      return true
+    } catch { return false }
+  })
+
+  // ---------------- Settings Window (独立配置窗口) ------------
+  ipcMain.handle('openSettingsWindow', async () => {
+    if (!win) return false
+    try {
+      if (!settingsWindow || settingsWindow.isDestroyed()) {
+        const { BrowserWindow } = await import('electron')
+        settingsWindow = new BrowserWindow({
+          width: 420,
+          height: 480,
+          frame: false,
+          transparent: true,
+          resizable: false,
+          alwaysOnTop: true,
+          skipTaskbar: false,
+          backgroundColor: '#00000000',
+          parent: win,
+          show: false,
+          webPreferences: {
+            preload: (win as any).__preloadPath || undefined,
+            nodeIntegration: true,
+            contextIsolation: true,
+          }
+        })
+        const mainBounds = win.getBounds()
+        settingsWindow.setPosition(mainBounds.x + Math.max(0, (mainBounds.width - 420) / 2), mainBounds.y + Math.max(0, (mainBounds.height - 480) / 2))
+        const url = process.env.VITE_DEV_SERVER_URL
+        if (url) settingsWindow.loadURL(`${url}#settings`)
+        else {
+          const indexHtml = (process.env.APP_ROOT || '') + '/dist/index.html'
+          ;(settingsWindow as any).loadFile(indexHtml, { hash: 'settings' })
+        }
+        settingsWindow.on('closed', () => { settingsWindow = null })
+      }
+      settingsWindow!.show()
+      settingsWindow!.focus()
+      return true
+    } catch { return false }
+  })
+
+  // ---------------- Menu Command (转发给主渲染) ---------------
+  ipcMain.on('menu-command', (_e, action: string) => {
+    if (action === 'open-settings') {
+      ;(ipcMain as any).handle?.('openSettingsWindow')
+      // 调用上面的 handler 也可以：
+      try { win?.webContents.send('menu-command', action) } catch {}
+      return
+    }
+    if (action === 'quit-app') { try { app.quit() } catch {} ; return }
+    try { win?.webContents.send('menu-command', action) } catch {}
   })
 }

@@ -1,18 +1,19 @@
 // import UpdateElectron from '@/components/update'
 import { AIAssistant } from './components/AIAssistant'
 import FileBox from './components/FileBox'
+import AssistantMenu from './components/AssistantMenu/index'
+import SettingsPanel from './components/SettingsPanel/index'
 
 function App() {
-  const isFileBox = window.location.hash === '#filebox'
+  const hash = window.location.hash
+  const isFileBox = hash === '#filebox'
+  const isMenu = hash === '#menu'
+  const isSettings = hash === '#settings'
   return (
     <div className='App'>
       <div className="app-container">
-        {isFileBox ? <FileBox /> : <AIAssistant />}
+        {isFileBox ? <FileBox /> : isMenu ? <AssistantMenu /> : isSettings ? <SettingsPanel /> : <AIAssistant />}
       </div>
-      {/* <div className='flex-center'>
-        Place static files into the<code>/public</code> folder <img style={{ width: '5em' }} src='./node.svg' alt='Node logo' />
-      </div> */}
-      {/* <UpdateElectron /> */}
     </div>
   )
 }
