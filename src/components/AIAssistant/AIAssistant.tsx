@@ -7,13 +7,12 @@ const ASSISTANT_WIDTH = 180
 const ASSISTANT_HEIGHT = 220
 const WINDOW_WIDTH = ASSISTANT_WIDTH + PADDING * 2 // 380
 const WINDOW_HEIGHT = ASSISTANT_HEIGHT + PADDING * 2 // 420
-const WALK_SPEED = 500 // pixels per second
-// Movement tuning
-const FPS_LIMIT = 30
-const FRAME_INTERVAL = 1000 / FPS_LIMIT
-const MOVEMENT_MODE: 'stepped' | 'smooth' = 'stepped'
-const STEP_GRID = 12 // stepping granularity in px
-const PATH_CURVE_FACTOR = 0.15 // curve strength relative to distance
+let WALK_SPEED = 500
+let FPS_LIMIT = 30
+let FRAME_INTERVAL = 1000 / FPS_LIMIT
+let MOVEMENT_MODE: 'stepped' | 'smooth' = 'stepped'
+let STEP_GRID = 12
+let PATH_CURVE_FACTOR = 0.15
 
 // Helpers
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v))
@@ -25,7 +24,6 @@ const footDurationFromSpeed = (speed: number) => {
   const sec = MAX - (MAX - MIN) * norm
   return `${sec.toFixed(2)}s`
 }
-const FOOT_DURATION = footDurationFromSpeed(WALK_SPEED)
 
 interface Position {
   x: number
@@ -263,12 +261,12 @@ export const AIAssistant: React.FC = () => {
   const handleMouseUp = useCallback((e?: MouseEvent) => {
     setIsDragging(false)
     setDragSide(null)
-    // reset hands to default docked positions
     setHandLeft({ x: 40, y: 120 })
     setHandRight({ x: 140, y: 120 })
-    setTimeout(() => {
-      startWalking()
-    }, 3000)
+    // 仅在用户开启自动行走时恢复
+    if (walkEnabledRef.current) {
+      setTimeout(() => { startWalking() }, 1500)
+    }
   }, [startWalking])
 
   const handleMouseMove = useCallback(async (e: MouseEvent) => {
@@ -335,33 +333,15 @@ export const AIAssistant: React.FC = () => {
     }
   }, [isDragging, setClickThrough])
 
-  // 启动自动走动
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      startWalking()
-    }, 3000)
-    
-    return () => {
-      clearTimeout(timer)
-      stopWalking()
-      if (messageTimeoutRef.current) {
-        clearTimeout(messageTimeoutRef.current)
-      }
-    }
-  }, [startWalking, stopWalking])
-
   // 点击交互
   const handleClick = () => {
     stopWalking()
     setMessage('你好！有什么可以帮助你的吗？ 😊')
     setShowMessage(true)
-    
-    if (messageTimeoutRef.current) {
-      clearTimeout(messageTimeoutRef.current)
-    }
+    if (messageTimeoutRef.current) { clearTimeout(messageTimeoutRef.current) }
     messageTimeoutRef.current = setTimeout(() => {
       setShowMessage(false)
-      startWalking()
+      if (walkEnabledRef.current) startWalking()
     }, 5000)
   }
 
@@ -388,7 +368,7 @@ export const AIAssistant: React.FC = () => {
     dragCounterRef.current = Math.max(0, dragCounterRef.current - 1)
     if (dragCounterRef.current === 0) {
       setIsFileDragOver(false)
-      setTimeout(() => startWalking(), 1500)
+      if (walkEnabledRef.current) setTimeout(() => startWalking(), 1500)
     }
   }
 
@@ -466,6 +446,46 @@ export const AIAssistant: React.FC = () => {
     window.YUA.window.openMenuWindow()
   }
 
+  useEffect(() => {
+    const onMenuCommand = (_: any, action: string) => {
+      if (action === 'toggle-walk') {
+        if (autoWalkRef.current) { walkEnabledRef.current = false; stopWalking() } else { walkEnabledRef.current = true; startWalking() }
+      } else if (action === 'walk-once') {
+        ;(async () => {
+          stopWalking()
+          const size = screenSize
+          const maxX = Math.max(0, size.width - WINDOW_WIDTH)
+          const maxY = Math.max(0, size.height - WINDOW_HEIGHT)
+          await animateMoveWindow(Math.random() * maxX, Math.random() * maxY)
+          // 单次走完如果之前开启了自动行走则恢复
+          if (walkEnabledRef.current) startWalking()
+        })()
+      }
+    }
+    window.ipcRenderer?.on('menu-command', onMenuCommand)
+    return () => { window.ipcRenderer?.off('menu-command', onMenuCommand as any) }
+  }, [animateMoveWindow, screenSize, startWalking, stopWalking])
+
+  // 监听移动配置更新
+  useEffect(() => {
+    const handler = (_: any, cfg: any) => {
+      WALK_SPEED = cfg.walkSpeed
+      FPS_LIMIT = cfg.fpsLimit
+      FRAME_INTERVAL = 1000 / FPS_LIMIT
+      MOVEMENT_MODE = cfg.movementMode
+      STEP_GRID = cfg.stepGrid
+      PATH_CURVE_FACTOR = cfg.pathCurveFactor
+      setFootDuration(footDurationFromSpeed(WALK_SPEED))
+    }
+    window.ipcRenderer?.on('movement-config-updated', handler)
+    // 初始化获取一次
+    window.YUA.window.getMovementConfig().then(cfg => handler(null, cfg))
+    return () => { window.ipcRenderer?.off('movement-config-updated', handler as any) }
+  }, [])
+
+  const walkEnabledRef = useRef(false)
+  const [footDuration, setFootDuration] = useState(footDurationFromSpeed(WALK_SPEED))
+
   return (
     <div 
       ref={containerRef}
@@ -480,7 +500,7 @@ export const AIAssistant: React.FC = () => {
       style={{ 
         left: position.x, 
         top: position.y, 
-        ['--foot-duration' as any]: FOOT_DURATION,
+        ['--foot-duration' as any]: footDuration,
         // optional arm vars kept for compatibility
         ['--arm-left-rot' as any]: isDragging ? (dragSide === 'left' ? '-75deg' : '60deg') : '20deg',
         ['--arm-right-rot' as any]: isDragging ? (dragSide === 'right' ? '75deg' : '-60deg') : '-20deg',

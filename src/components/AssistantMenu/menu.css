@@ -7,3 +7,5 @@
 .menu-list li:active { transform:scale(.96); }
 .menu-list li.danger { color:#ff6b6b; }
 .menu-list li.danger:hover { background:rgba(255,107,107,0.18); }
+.fade-in { animation: menuFade .28s ease-out; }
+@keyframes menuFade { 0% { opacity:0; transform: translateY(8px) scale(.92); } 100% { opacity:1; transform:translateY(0) scale(1);} }
