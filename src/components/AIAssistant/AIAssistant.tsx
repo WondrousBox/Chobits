@@ -1,18 +1,16 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import './AIAssistant.css'
 
-// Constants to match Electron window sizing
-const PADDING = 100
+// Constants to match Electron window sizing (intrinsic assistant size only)
 const ASSISTANT_WIDTH = 180
 const ASSISTANT_HEIGHT = 220
-const WINDOW_WIDTH = ASSISTANT_WIDTH + PADDING * 2 // 380
-const WINDOW_HEIGHT = ASSISTANT_HEIGHT + PADDING * 2 // 420
 let WALK_SPEED = 500
 let FPS_LIMIT = 30
 let FRAME_INTERVAL = 1000 / FPS_LIMIT
 let MOVEMENT_MODE: 'stepped' | 'smooth' = 'stepped'
 let STEP_GRID = 12
 let PATH_CURVE_FACTOR = 0.15
+let ASSISTANT_PADDING = 100 // runtime dynamic padding (state mirror below)
 
 // Helpers
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v))
@@ -36,15 +34,19 @@ interface ScreenSize {
 }
 
 export const AIAssistant: React.FC = () => {
-  const [position, setPosition] = useState<Position>({ x: PADDING, y: PADDING })
-  const [screenSize, setScreenSize] = useState<ScreenSize>({ width: 1920, height: 1080 })
+  // Remove fixed PADDING; derive everything from paddingState
+  const [paddingState, setPadding] = useState(ASSISTANT_PADDING)
+  // Position of inner assistant (always kept at (padding,padding) within window)
+  const [position, setPosition] = useState<{ x: number; y: number }>({ x: paddingState, y: paddingState })
+  const [screenSize, setScreenSize] = useState<{ width: number; height: number }>({ width: 1920, height: 1080 })
   const [isDragging, setIsDragging] = useState(false)
   const [isWalking, setIsWalking] = useState(false)
-  const [dragOffset, setDragOffset] = useState<Position>({ x: 0, y: 0 })
+  const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [message, setMessage] = useState('你好！我是你的AI助手 ✨')
   const [showMessage, setShowMessage] = useState(true)
-  // 文件拖拽
   const [isFileDragOver, setIsFileDragOver] = useState(false)
+  // Debug overlay toggle for padding boundary
+  const [showPaddingDebug, setShowPaddingDebug] = useState(false)
   const dragCounterRef = useRef(0)
   
   const containerRef = useRef<HTMLDivElement>(null)
@@ -76,17 +78,30 @@ export const AIAssistant: React.FC = () => {
       try {
         const size = await window.YUA.window.getScreenSize()
         setScreenSize(size)
-        
-        const winX = Math.max(0, size.width - WINDOW_WIDTH - 20)
-        const winY = Math.max(0, size.height - WINDOW_HEIGHT - 40)
+        const cfg = await window.YUA.window.getMovementConfig()
+        ASSISTANT_PADDING = cfg.assistantPadding
+        setPadding(ASSISTANT_PADDING)
+        const winWidth = ASSISTANT_WIDTH + ASSISTANT_PADDING * 2
+        const winHeight = ASSISTANT_HEIGHT + ASSISTANT_PADDING * 2
+        const winX = Math.max(0, size.width - winWidth - 20)
+        const winY = Math.max(0, size.height - winHeight - 40)
         await window.YUA.window.moveWindow(winX, winY)
-        setPosition({ x: PADDING, y: PADDING })
-      } catch (error) {
-        console.error('Failed to get screen info:', error)
-      }
+        setPosition({ x: ASSISTANT_PADDING, y: ASSISTANT_PADDING })
+      } catch (error) { console.error('Failed to get screen info:', error) }
     }
     
     getScreenInfo()
+  }, [])
+
+  // Toggle debug overlay with Ctrl+Shift+P (or Cmd+Shift+P on mac)
+  useEffect(() => {
+    const keyHandler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.code === 'KeyP') {
+        setShowPaddingDebug(v => !v)
+      }
+    }
+    window.addEventListener('keydown', keyHandler)
+    return () => window.removeEventListener('keydown', keyHandler)
   }, [])
 
   // 拦截窗口级默认拖拽行为，防止 Electron 导航到文件
@@ -193,11 +208,13 @@ export const AIAssistant: React.FC = () => {
 
     const loop = async () => {
       while (autoWalkRef.current) {
-        // 目标窗口位置（在屏幕边界内）
-        const maxX = Math.max(0, screenSize.width - WINDOW_WIDTH)
-        const maxY = Math.max(0, screenSize.height - WINDOW_HEIGHT)
-        const targetX = Math.random() * maxX
-        const targetY = Math.random() * maxY
+        // Random target for outer window so that INNER assistant (hotspot) stays fully on screen.
+        const minX = -paddingState
+        const maxX = screenSize.width - ASSISTANT_WIDTH - paddingState
+        const minY = -paddingState
+        const maxY = screenSize.height - ASSISTANT_HEIGHT - paddingState
+        const targetX = Math.random() * (maxX - minX) + minX
+        const targetY = Math.random() * (maxY - minY) + minY
 
         setIsWalking(true)
         await animateMoveWindow(targetX, targetY)
@@ -223,7 +240,7 @@ export const AIAssistant: React.FC = () => {
     }
 
     loop()
-  }, [screenSize, animateMoveWindow])
+  }, [screenSize, animateMoveWindow, paddingState])
 
   const cancelAnimation = useCallback(() => {
     cancelAnimRef.current.cancelled = true
@@ -271,20 +288,21 @@ export const AIAssistant: React.FC = () => {
 
   const handleMouseMove = useCallback(async (e: MouseEvent) => {
     if (!isDragging) return
-
-    // Move window
     const winX = e.screenX - dragOffset.x
     const winY = e.screenY - dragOffset.y
-    const boundedWinX = Math.max(0, Math.min(winX, screenSize.width - WINDOW_WIDTH))
-    const boundedWinY = Math.max(0, Math.min(winY, screenSize.height - WINDOW_HEIGHT))
+    // Constrain so inner assistant rectangle remains fully visible
+    const minWinX = -paddingState
+    const maxWinX = screenSize.width - ASSISTANT_WIDTH - paddingState
+    const minWinY = -paddingState
+    const maxWinY = screenSize.height - ASSISTANT_HEIGHT - paddingState
+    const boundedWinX = clamp(winX, minWinX, maxWinX)
+    const boundedWinY = clamp(winY, minWinY, maxWinY)
 
     const now = performance.now()
     if (!lastIpcSendRef.current || now - lastIpcSendRef.current >= FRAME_INTERVAL) {
       lastIpcSendRef.current = now
       await window.YUA.window.moveWindow(Math.round(boundedWinX), Math.round(boundedWinY))
     }
-
-    // Update grabbed hand to follow the mouse within component coordinates
     const rect = containerRef.current?.getBoundingClientRect()
     if (rect) {
       const localX = clamp(e.clientX - rect.left, 0, rect.width)
@@ -292,10 +310,9 @@ export const AIAssistant: React.FC = () => {
       if (dragSide === 'left') setHandLeft({ x: localX, y: localY })
       if (dragSide === 'right') setHandRight({ x: localX, y: localY })
     }
-
-    // Keep body position padding
-    setPosition({ x: PADDING, y: PADDING })
-  }, [isDragging, dragOffset, screenSize, dragSide])
+    // Keep inner position anchored at padding offset (may have changed dynamically)
+    setPosition({ x: paddingState, y: paddingState })
+  }, [isDragging, dragOffset, screenSize, dragSide, paddingState])
 
   // 全局鼠标事件监听
   useEffect(() => {
@@ -454,40 +471,29 @@ export const AIAssistant: React.FC = () => {
         ;(async () => {
           stopWalking()
           const size = screenSize
-          const maxX = Math.max(0, size.width - WINDOW_WIDTH)
-          const maxY = Math.max(0, size.height - WINDOW_HEIGHT)
-          await animateMoveWindow(Math.random() * maxX, Math.random() * maxY)
-          // 单次走完如果之前开启了自动行走则恢复
+          // Bounds ensuring inner assistant stays fully in screen
+          const minX = -paddingState
+          const maxX = size.width - ASSISTANT_WIDTH - paddingState
+          const minY = -paddingState
+          const maxY = size.height - ASSISTANT_HEIGHT - paddingState
+          const targetX = Math.random() * (maxX - minX) + minX
+          const targetY = Math.random() * (maxY - minY) + minY
+          await animateMoveWindow(targetX, targetY)
           if (walkEnabledRef.current) startWalking()
         })()
+      } else if (action === 'toggle-padding-debug') {
+        setShowPaddingDebug(v => !v)
       }
     }
     window.ipcRenderer?.on('menu-command', onMenuCommand)
     return () => { window.ipcRenderer?.off('menu-command', onMenuCommand as any) }
-  }, [animateMoveWindow, screenSize, startWalking, stopWalking])
-
-  // 监听移动配置更新
-  useEffect(() => {
-    const handler = (_: any, cfg: any) => {
-      WALK_SPEED = cfg.walkSpeed
-      FPS_LIMIT = cfg.fpsLimit
-      FRAME_INTERVAL = 1000 / FPS_LIMIT
-      MOVEMENT_MODE = cfg.movementMode
-      STEP_GRID = cfg.stepGrid
-      PATH_CURVE_FACTOR = cfg.pathCurveFactor
-      setFootDuration(footDurationFromSpeed(WALK_SPEED))
-    }
-    window.ipcRenderer?.on('movement-config-updated', handler)
-    // 初始化获取一次
-    window.YUA.window.getMovementConfig().then(cfg => handler(null, cfg))
-    return () => { window.ipcRenderer?.off('movement-config-updated', handler as any) }
-  }, [])
+  }, [animateMoveWindow, screenSize, startWalking, stopWalking, paddingState])
 
   const walkEnabledRef = useRef(false)
   const [footDuration, setFootDuration] = useState(footDurationFromSpeed(WALK_SPEED))
 
   return (
-    <div 
+    <div
       ref={containerRef}
       className={`ai-assistant-container ${isWalking ? 'walking' : ''} ${isDragging ? 'dragging' : ''} ${isFileDragOver ? 'drag-over' : ''}`}
       onMouseDown={handleMouseDown}
@@ -497,10 +503,11 @@ export const AIAssistant: React.FC = () => {
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      style={{ 
-        left: position.x, 
-        top: position.y, 
+      style={{
+        left: position.x,
+        top: position.y,
         ['--foot-duration' as any]: footDuration,
+        padding: 0,
         // optional arm vars kept for compatibility
         ['--arm-left-rot' as any]: isDragging ? (dragSide === 'left' ? '-75deg' : '60deg') : '20deg',
         ['--arm-right-rot' as any]: isDragging ? (dragSide === 'right' ? '75deg' : '-60deg') : '-20deg',
@@ -522,6 +529,14 @@ export const AIAssistant: React.FC = () => {
         ['--right-line-rot' as any]: `${degR}deg`,
       }}
     >
+      {showPaddingDebug && (
+        <div style={{ position: 'absolute', left: -paddingState, top: -paddingState, width: ASSISTANT_WIDTH + paddingState * 2, height: ASSISTANT_HEIGHT + paddingState * 2, pointerEvents: 'none', boxSizing: 'border-box', border: '1px dashed rgba(0,255,120,0.45)', backdropFilter: 'none' }}>
+          <div style={{ position: 'absolute', left: paddingState, top: paddingState, width: ASSISTANT_WIDTH, height: ASSISTANT_HEIGHT, border: '1px solid rgba(255,80,0,0.5)', boxSizing: 'border-box' }} />
+          <div style={{ position: 'absolute', left: 0, top: 0, fontSize: 10, background: 'rgba(0,0,0,0.55)', color: '#0f0', padding: '2px 4px', fontFamily: 'monospace' }}>
+            padding={paddingState}
+          </div>
+        </div>
+      )}
       {/* 消息气泡 */}
       {showMessage && (
         <div className="message-bubble">
@@ -537,7 +552,6 @@ export const AIAssistant: React.FC = () => {
       {/* AI助手角色 */}
       <div className="ai-character">
         <div className="character-body">
-          {/* 移除矩形手臂，改为圆形手掌 */}
           <div className="character-face">
             <div className="eyes">
               <div className="eye left"></div>
