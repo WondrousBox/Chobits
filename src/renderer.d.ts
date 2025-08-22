@@ -9,8 +9,8 @@ declare global {
         openFileListWindow: (files: Array<{ name: string; path: string; isDirectory: boolean }>) => Promise<boolean>
         openMenuWindow: () => Promise<boolean>
         openSettingsWindow: () => Promise<boolean>
-        getMovementConfig: () => Promise<{ walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number }>
-        updateMovementConfig: (p: Partial<{ walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number }>) => Promise<{ walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number }>
+        getMovementConfig: () => Promise<{ walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number }>
+        updateMovementConfig: (p: Partial<{ walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number }>) => Promise<{ walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number }>
       }
     }
     ipcRenderer: any

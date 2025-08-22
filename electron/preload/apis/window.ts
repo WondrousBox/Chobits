@@ -22,9 +22,9 @@ type WindowBridgeParams = {
   /** 打开设置窗口 */
   "openSettingsWindow": IPCParams<[void], boolean>;
   /** 获取移动配置 */
-  "getMovementConfig": IPCParams<[void], { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number }>;
+  "getMovementConfig": IPCParams<[void], { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number }>;
   /** 更新移动配置 */
-  "updateMovementConfig": IPCParams<[Partial<{ walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number }>], { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number }>;
+  "updateMovementConfig": IPCParams<[Partial<{ walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number }>], { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number }>;
 
 }
 

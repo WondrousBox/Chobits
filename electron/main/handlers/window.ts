@@ -4,6 +4,10 @@ import { screen, app } from "electron";
 import fs from 'node:fs';
 import path from 'node:path';
 
+// Assistant intrinsic size
+const ASSISTANT_WIDTH = 180;
+const ASSISTANT_HEIGHT = 220;
+
 export function initWindowHandlers(win: BrowserWindow) {
   let fileListWindow: BrowserWindow | null = null
   // New follower windows: context menu + settings
@@ -35,8 +39,8 @@ export function initWindowHandlers(win: BrowserWindow) {
   }
 
   // Movement config persistence ------------------------------------------------
-  type MovementConfig = { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number }
-  const defaultConfig: MovementConfig = { walkSpeed: 500, fpsLimit: 30, movementMode: 'stepped', stepGrid: 12, pathCurveFactor: 0.15 }
+  type MovementConfig = { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number }
+  const defaultConfig: MovementConfig = { walkSpeed: 500, fpsLimit: 30, movementMode: 'stepped', stepGrid: 12, pathCurveFactor: 0.15, assistantPadding: 100 }
   const configDir = app.getPath('userData')
   const configFile = path.join(configDir, 'movement-config.json')
   let movementConfig: MovementConfig = defaultConfig
@@ -51,16 +55,35 @@ export function initWindowHandlers(win: BrowserWindow) {
     try { fs.writeFileSync(configFile, JSON.stringify(movementConfig, null, 2), 'utf8') } catch {}
   }
 
-  // 计算目标位置并返回方向
+  function adjustMainWindowForPadding(oldPadding: number, newPadding: number) {
+    if (!win || win.isDestroyed()) return
+    if (oldPadding === newPadding) return
+    try {
+      const b = win.getBounds()
+      // 旧的内层角色左上角
+      const innerX = b.x + oldPadding
+      const innerY = b.y + oldPadding
+      const newWidth = ASSISTANT_WIDTH + newPadding * 2
+      const newHeight = ASSISTANT_HEIGHT + newPadding * 2
+      const newX = innerX - newPadding
+      const newY = innerY - newPadding
+      win.setBounds({ x: newX, y: newY, width: newWidth, height: newHeight })
+      repositionAllFollowers()
+    } catch {}
+  }
+
+  // 计算目标位置并返回方向（基于内层角色区域而非整个窗口边框）
   function computeFollowerPosition(main: Electron.Rectangle, follower: { width: number; height: number }) {
     const gap = 12
-    const display = screen.getDisplayNearestPoint({ x: main.x + main.width / 2, y: main.y + main.height / 2 })
+    const padding = movementConfig.assistantPadding ?? 0
+    const anchor = { x: main.x + padding, y: main.y + padding, width: ASSISTANT_WIDTH, height: ASSISTANT_HEIGHT }
+    const display = screen.getDisplayNearestPoint({ x: anchor.x + anchor.width / 2, y: anchor.y + anchor.height / 2 })
     const work = display.workArea
     const candidates: Array<{ x: number; y: number; score: number; side: 'right' | 'left' | 'bottom' | 'top' }> = []
-    candidates.push({ x: main.x + main.width + gap, y: main.y, score: 100, side: 'right' })
-    candidates.push({ x: main.x - follower.width - gap, y: main.y, score: 90, side: 'left' })
-    candidates.push({ x: main.x, y: main.y + main.height + gap, score: 80, side: 'bottom' })
-    candidates.push({ x: main.x, y: main.y - follower.height - gap, score: 70, side: 'top' })
+    candidates.push({ x: anchor.x + anchor.width + gap, y: anchor.y, score: 100, side: 'right' })
+    candidates.push({ x: anchor.x - follower.width - gap, y: anchor.y, score: 90, side: 'left' })
+    candidates.push({ x: anchor.x, y: anchor.y + anchor.height + gap, score: 80, side: 'bottom' })
+    candidates.push({ x: anchor.x, y: anchor.y - follower.height - gap, score: 70, side: 'top' })
 
     const valid: typeof candidates = []
     for (const c of candidates) {
@@ -162,8 +185,12 @@ export function initWindowHandlers(win: BrowserWindow) {
     return movementConfig
   })
   ipcMain.handle('updateMovementConfig', (_: IpcMainInvokeEvent, partial: Partial<MovementConfig>) => {
+    const oldPadding = movementConfig.assistantPadding
     movementConfig = { ...movementConfig, ...partial }
     saveConfig()
+    if (partial.assistantPadding !== undefined) {
+      adjustMainWindowForPadding(oldPadding, movementConfig.assistantPadding)
+    }
     // 广播更新
     try { win?.webContents.send('movement-config-updated', movementConfig) } catch {}
     try { settingsWindow?.webContents.send('movement-config-updated', movementConfig) } catch {}
@@ -338,6 +365,7 @@ export function initWindowHandlers(win: BrowserWindow) {
         return
       case 'toggle-walk':
       case 'walk-once':
+      case 'toggle-padding-debug':
         try { win?.webContents.send('menu-command', action) } catch {}
         return
       default:
