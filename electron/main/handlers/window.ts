@@ -288,7 +288,7 @@ export function initWindowHandlers(win: BrowserWindow) {
   })
 
   // ---------------- Settings Window (独立配置窗口) ------------
-  ipcMain.handle('openSettingsWindow', async () => {
+  async function createOrShowSettingsWindow() {
     if (!win) return false
     try {
       if (!settingsWindow || settingsWindow.isDestroyed()) {
@@ -310,8 +310,13 @@ export function initWindowHandlers(win: BrowserWindow) {
             contextIsolation: true,
           }
         })
+        // 居中到主窗口所在屏幕
         const mainBounds = win.getBounds()
-        settingsWindow.setPosition(mainBounds.x + Math.max(0, (mainBounds.width - 420) / 2), mainBounds.y + Math.max(0, (mainBounds.height - 480) / 2))
+        const display = screen.getDisplayNearestPoint({ x: mainBounds.x + mainBounds.width / 2, y: mainBounds.y + mainBounds.height / 2 })
+        const work = display.workArea
+        const posX = Math.round(work.x + (work.width - 420) / 2)
+        const posY = Math.round(work.y + (work.height - 480) / 2)
+        settingsWindow.setPosition(posX, posY)
         const url = process.env.VITE_DEV_SERVER_URL
         if (url) settingsWindow.loadURL(`${url}#settings`)
         else {
@@ -324,22 +329,24 @@ export function initWindowHandlers(win: BrowserWindow) {
       settingsWindow!.focus()
       return true
     } catch { return false }
+  }
+
+  ipcMain.handle('openSettingsWindow', async () => {
+    return createOrShowSettingsWindow()
   })
 
   // ---------------- Menu Command (转发给主渲染) ---------------
   ipcMain.on('menu-command', (_e, action: string) => {
     switch (action) {
       case 'open-settings':
-        // 打开设置窗口
-        ;(async () => { try { await (ipcMain as any).handle?.('openSettingsWindow') } catch {} })()
-        break
+        createOrShowSettingsWindow()
+        return
       case 'quit-app':
         try { app.quit() } catch {}
         return
       case 'close-settings':
         try { settingsWindow?.close() } catch {}
         return
-      // 直接转发给主渲染进程（AI 精灵窗口）处理的行为
       case 'toggle-walk':
       case 'walk-once':
         try { win?.webContents.send('menu-command', action) } catch {}
