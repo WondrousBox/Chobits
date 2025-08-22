@@ -170,3 +170,9 @@ code {
     @apply bg-background text-foreground;
   }
 }
+
+/* --- Transparent overrides for frameless floating windows (must be last) --- */
+html, body, #root, .App, .app-container { background: transparent !important; }
+body { background-color: transparent !important; }
+:root { background: transparent !important; }
+@media (prefers-color-scheme: light) { :root { background: transparent !important; } }

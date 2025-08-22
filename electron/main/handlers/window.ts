@@ -215,15 +215,12 @@ export function initWindowHandlers(win: BrowserWindow) {
           resizable: true,
           alwaysOnTop: false,
           skipTaskbar: true,
-          show: true,
-            backgroundColor: '#00000000',
+          show: false,
+          backgroundColor: '#00000000',
           parent: win,
-          webPreferences: {
-            preload: (win as any).__preloadPath || undefined,
-            nodeIntegration: true,
-            contextIsolation: true,
-          }
+          webPreferences: { preload: (win as any).__preloadPath || undefined, nodeIntegration: true, contextIsolation: true }
         })
+        fileListWindow.once('ready-to-show', () => { try { fileListWindow && fileListWindow.showInactive() } catch {} })
         lastFollowerSide.set(fileListWindow, null)
         repositionFollower(fileListWindow)
         const url = process.env.VITE_DEV_SERVER_URL
@@ -241,9 +238,7 @@ export function initWindowHandlers(win: BrowserWindow) {
       fileListWindow!.webContents.send('update-file-list', files)
       fileListWindow!.showInactive() // show without stealing focus
       return true
-    } catch (e) {
-      return false
-    }
+    } catch (e) { return false }
   })
 
   // ---------------- Context Menu Follower Window -------------
@@ -254,7 +249,7 @@ export function initWindowHandlers(win: BrowserWindow) {
         const { BrowserWindow } = await import('electron')
         menuWindow = new BrowserWindow({
           width: 220,
-            height: 260,
+          height: 260,
           frame: false,
           transparent: true,
           resizable: false,
@@ -263,12 +258,9 @@ export function initWindowHandlers(win: BrowserWindow) {
           backgroundColor: '#00000000',
           parent: win,
           show: false,
-          webPreferences: {
-            preload: (win as any).__preloadPath || undefined,
-            nodeIntegration: true,
-            contextIsolation: true,
-          }
+          webPreferences: { preload: (win as any).__preloadPath || undefined, nodeIntegration: true, contextIsolation: true }
         })
+        menuWindow.once('ready-to-show', () => { try { menuWindow && menuWindow.show() } catch {} })
         lastFollowerSide.set(menuWindow, null)
         repositionFollower(menuWindow)
         const url = process.env.VITE_DEV_SERVER_URL
@@ -282,7 +274,8 @@ export function initWindowHandlers(win: BrowserWindow) {
       } else {
         repositionFollower(menuWindow)
       }
-      menuWindow!.show() // focus for keyboard nav
+      // 如果已存在且 ready，直接显示
+      if (menuWindow && menuWindow.isVisible()) menuWindow.focus(); else try { menuWindow?.show() } catch {}
       return true
     } catch { return false }
   })
@@ -304,12 +297,9 @@ export function initWindowHandlers(win: BrowserWindow) {
           backgroundColor: '#00000000',
           parent: win,
           show: false,
-          webPreferences: {
-            preload: (win as any).__preloadPath || undefined,
-            nodeIntegration: true,
-            contextIsolation: true,
-          }
+          webPreferences: { preload: (win as any).__preloadPath || undefined, nodeIntegration: true, contextIsolation: true }
         })
+        settingsWindow.once('ready-to-show', () => { try { settingsWindow && settingsWindow.show() } catch {} })
         // 居中到主窗口所在屏幕
         const mainBounds = win.getBounds()
         const display = screen.getDisplayNearestPoint({ x: mainBounds.x + mainBounds.width / 2, y: mainBounds.y + mainBounds.height / 2 })
@@ -325,8 +315,7 @@ export function initWindowHandlers(win: BrowserWindow) {
         }
         settingsWindow.on('closed', () => { settingsWindow = null })
       }
-      settingsWindow!.show()
-      settingsWindow!.focus()
+      if (settingsWindow && !settingsWindow.isVisible()) settingsWindow.show(); settingsWindow?.focus()
       return true
     } catch { return false }
   }

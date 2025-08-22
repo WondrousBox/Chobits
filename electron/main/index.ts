@@ -58,6 +58,7 @@ async function createWindow() {
     resizable: false, // fixed size to preserve 100px padding
     skipTaskbar: true, // do not show in taskbar
     hasShadow: false,
+    show: false, // 延迟显示，等待 ready-to-show 以防白屏闪烁
     webPreferences: {
       preload,
       // Warning: Enable nodeIntegration and disable contextIsolation is not secure in production
@@ -75,6 +76,12 @@ async function createWindow() {
   } else {
     win.loadFile(indexHtml)
   }
+
+  win.once('ready-to-show', () => {
+    if (!win || win.isDestroyed()) return
+    win.show()
+    if (VITE_DEV_SERVER_URL) win.webContents.openDevTools()
+  })
 
   // Test actively push message to the Electron-Renderer
   win.webContents.on('did-finish-load', () => {
