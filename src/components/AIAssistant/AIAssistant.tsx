@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import './AIAssistant.css'
+import { VideoSpriteManager } from '../../lib/VideoSpriteManager'
 
 // Constants to match Electron window sizing (intrinsic assistant size only)
 const ASSISTANT_WIDTH = 180
@@ -16,28 +17,10 @@ let ASSISTANT_PADDING = 100 // runtime dynamic padding (state mirror below)
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v))
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t
 const bezierQ = (p0: number, p1: number, p2: number, t: number) => (1 - t) ** 2 * p0 + 2 * (1 - t) * t * p1 + t ** 2 * p2
-const footDurationFromSpeed = (speed: number) => {
-  const MIN = 0.35, MAX = 0.9
-  const norm = clamp(speed / 800, 0, 1)
-  const sec = MAX - (MAX - MIN) * norm
-  return `${sec.toFixed(2)}s`
-}
-
-interface Position {
-  x: number
-  y: number
-}
-
-interface ScreenSize {
-  width: number
-  height: number
-}
 
 export const AIAssistant: React.FC = () => {
   // Remove fixed PADDING; derive everything from paddingState
   const [paddingState, setPadding] = useState(ASSISTANT_PADDING)
-  // Position of inner assistant (always kept at (padding,padding) within window)
-  const [position, setPosition] = useState<{ x: number; y: number }>({ x: paddingState, y: paddingState })
   const [screenSize, setScreenSize] = useState<{ width: number; height: number }>({ width: 1920, height: 1080 })
   const [isDragging, setIsDragging] = useState(false)
   const [isWalking, setIsWalking] = useState(false)
@@ -51,10 +34,7 @@ export const AIAssistant: React.FC = () => {
   
   const containerRef = useRef<HTMLDivElement>(null)
   const messageTimeoutRef = useRef<NodeJS.Timeout>()
-  // which hand is being grabbed and hand positions
-  const [dragSide, setDragSide] = useState<'left' | 'right' | null>(null)
-  const [handLeft, setHandLeft] = useState<Position>({ x: 40, y: 120 })
-  const [handRight, setHandRight] = useState<Position>({ x: 140, y: 120 })
+  // Removed dragSide / handLeft / handRight states (unused in UI)
 
   // auto-walk loop & animation control
   const autoWalkRef = useRef(false)
@@ -86,7 +66,6 @@ export const AIAssistant: React.FC = () => {
         const winX = Math.max(0, size.width - winWidth - 20)
         const winY = Math.max(0, size.height - winHeight - 40)
         await window.YUA.window.moveWindow(winX, winY)
-        setPosition({ x: ASSISTANT_PADDING, y: ASSISTANT_PADDING })
       } catch (error) { console.error('Failed to get screen info:', error) }
     }
     
@@ -97,7 +76,7 @@ export const AIAssistant: React.FC = () => {
   useEffect(() => {
     const keyHandler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.code === 'KeyP') {
-        setShowPaddingDebug(v => !v)
+        setShowPaddingDebug((v: boolean) => !v)
       }
     }
     window.addEventListener('keydown', keyHandler)
@@ -150,8 +129,6 @@ export const AIAssistant: React.FC = () => {
       last = { x, y }
     }
 
-    // 逐帧推进：按速度推进路径进度
-    const duration = acc / WALK_SPEED * 1000
     return new Promise<void>((resolve) => {
       let lastT = performance.now()
       let progressed = 0 // 已行进的距离
@@ -260,27 +237,10 @@ export const AIAssistant: React.FC = () => {
     stopWalking()
     setClickThrough(false)
     setDragOffset({ x: e.clientX, y: e.clientY })
-    // decide which hand to grab based on click x relative to center, and snap that hand to pointer
-    const rect = containerRef.current?.getBoundingClientRect()
-    if (rect) {
-      const centerX = rect.left + rect.width / 2
-      const localX = clamp(e.clientX - rect.left, 0, rect.width)
-      const localY = clamp(e.clientY - rect.top, 0, rect.height)
-      const side: 'left' | 'right' = e.clientX < centerX ? 'left' : 'right'
-      setDragSide(side)
-      if (side === 'left') setHandLeft({ x: localX, y: localY })
-      else setHandRight({ x: localX, y: localY })
-    } else {
-      setDragSide('right')
-    }
   }
 
   const handleMouseUp = useCallback((e?: MouseEvent) => {
     setIsDragging(false)
-    setDragSide(null)
-    setHandLeft({ x: 40, y: 120 })
-    setHandRight({ x: 140, y: 120 })
-    // 仅在用户开启自动行走时恢复
     if (walkEnabledRef.current) {
       setTimeout(() => { startWalking() }, 1500)
     }
@@ -303,16 +263,7 @@ export const AIAssistant: React.FC = () => {
       lastIpcSendRef.current = now
       await window.YUA.window.moveWindow(Math.round(boundedWinX), Math.round(boundedWinY))
     }
-    const rect = containerRef.current?.getBoundingClientRect()
-    if (rect) {
-      const localX = clamp(e.clientX - rect.left, 0, rect.width)
-      const localY = clamp(e.clientY - rect.top, 0, rect.height)
-      if (dragSide === 'left') setHandLeft({ x: localX, y: localY })
-      if (dragSide === 'right') setHandRight({ x: localX, y: localY })
-    }
-    // Keep inner position anchored at padding offset (may have changed dynamically)
-    setPosition({ x: paddingState, y: paddingState })
-  }, [isDragging, dragOffset, screenSize, dragSide, paddingState])
+  }, [isDragging, dragOffset, screenSize, paddingState])
 
   // 全局鼠标事件监听
   useEffect(() => {
@@ -396,12 +347,12 @@ export const AIAssistant: React.FC = () => {
     setClickThrough(false)
     stopWalking()
 
-    const items = Array.from(e.dataTransfer?.items || [])
-    const files = Array.from(e.dataTransfer?.files || [])
+    const items = Array.from(e.dataTransfer?.items || []) as DataTransferItem[]
+    const files = Array.from(e.dataTransfer?.files || []) as File[]
     const details: string[] = []
     const fileListForIPC: Array<{ name: string; path: string; isDirectory: boolean }> = []
 
-    items.forEach((item) => {
+    items.forEach((item: DataTransferItem) => {
       if (item.kind === 'file') {
         const anyItem = item as any
         let entry: any
@@ -420,8 +371,8 @@ export const AIAssistant: React.FC = () => {
     })
 
     if (details.length === 0 && files.length) {
-      details.push(...files.map(f => `文件“${f.name}”`))
-      files.forEach(f => fileListForIPC.push({ name: f.name, path: (f as any).path || '', isDirectory: false }))
+      details.push(...files.map((f: File) => `文件“${f.name}”`))
+      files.forEach((f: File) => fileListForIPC.push({ name: f.name, path: (f as any).path || '', isDirectory: false }))
     }
 
     if (details.length === 1) {
@@ -441,22 +392,6 @@ export const AIAssistant: React.FC = () => {
       window.YUA.window.openFileListWindow(fileListForIPC)
     }
   }
-
-  // Shoulder anchor points (approx) in container coordinates
-  const SHOULDER_Y = 100
-  const SHOULDER_LEFT_X = 50
-  const SHOULDER_RIGHT_X = 130
-
-  // Compute line vars from anchor to hand
-  const dxL = handLeft.x - SHOULDER_LEFT_X
-  const dyL = handLeft.y - SHOULDER_Y
-  const lenL = Math.hypot(dxL, dyL)
-  const degL = Math.atan2(dyL, dxL) * 180 / Math.PI
-
-  const dxR = handRight.x - SHOULDER_RIGHT_X
-  const dyR = handRight.y - SHOULDER_Y
-  const lenR = Math.hypot(dxR, dyR)
-  const degR = Math.atan2(dyR, dxR) * 180 / Math.PI
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -482,7 +417,7 @@ export const AIAssistant: React.FC = () => {
           if (walkEnabledRef.current) startWalking()
         })()
       } else if (action === 'toggle-padding-debug') {
-        setShowPaddingDebug(v => !v)
+        setShowPaddingDebug((v: boolean) => !v)
       }
     }
     window.ipcRenderer?.on('menu-command', onMenuCommand)
@@ -490,7 +425,20 @@ export const AIAssistant: React.FC = () => {
   }, [animateMoveWindow, screenSize, startWalking, stopWalking, paddingState])
 
   const walkEnabledRef = useRef(false)
-  const [footDuration, setFootDuration] = useState(footDurationFromSpeed(WALK_SPEED))
+
+  useEffect(() => {
+    // 初始化视频精灵 Canvas
+    const canvas = document.getElementById('video-sprite-layer') as HTMLCanvasElement | null
+    if (canvas) {
+      const mgr = VideoSpriteManager.get()
+      mgr.attachCanvas(canvas, 180, 180) // 与助手尺寸接近，可根据需要调整
+      mgr.setFPS(30)
+      // 预加载 idle 源
+      mgr.loadSource({ id: 'idle', url: '/idle.webm', preload: true, muted: true, loop: true }).then(() => {
+        try { mgr.createSprite({ sourceId: 'idle', x: 90, y: 90, anchorX: 0.5, anchorY: 0.5, width: 180, height: 180, autoplay: true, fadeInMs: 600 }) } catch {}
+      })
+    }
+  }, [])
 
   return (
     <div
@@ -503,31 +451,6 @@ export const AIAssistant: React.FC = () => {
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      style={{
-        left: position.x,
-        top: position.y,
-        ['--foot-duration' as any]: footDuration,
-        padding: 0,
-        // optional arm vars kept for compatibility
-        ['--arm-left-rot' as any]: isDragging ? (dragSide === 'left' ? '-75deg' : '60deg') : '20deg',
-        ['--arm-right-rot' as any]: isDragging ? (dragSide === 'right' ? '75deg' : '-60deg') : '-20deg',
-        ['--arm-left-len' as any]: isDragging ? (dragSide === 'left' ? '1.35' : '1.05') : '1',
-        ['--arm-right-len' as any]: isDragging ? (dragSide === 'right' ? '1.35' : '1.05') : '1',
-        // round hand positions
-        ['--hand-left-x' as any]: `${handLeft.x}px`,
-        ['--hand-left-y' as any]: `${handLeft.y}px`,
-        ['--hand-right-x' as any]: `${handRight.x}px`,
-        ['--hand-right-y' as any]: `${handRight.y}px`,
-        // stretchy arm line vars (used only visually when dragging)
-        ['--left-line-x' as any]: `${SHOULDER_LEFT_X}px`,
-        ['--left-line-y' as any]: `${SHOULDER_Y}px`,
-        ['--left-line-len' as any]: `${lenL}px`,
-        ['--left-line-rot' as any]: `${degL}deg`,
-        ['--right-line-x' as any]: `${SHOULDER_RIGHT_X}px`,
-        ['--right-line-y' as any]: `${SHOULDER_Y}px`,
-        ['--right-line-len' as any]: `${lenR}px`,
-        ['--right-line-rot' as any]: `${degR}deg`,
-      }}
     >
       {showPaddingDebug && (
         <div style={{ position: 'absolute', left: -paddingState, top: -paddingState, width: ASSISTANT_WIDTH + paddingState * 2, height: ASSISTANT_HEIGHT + paddingState * 2, pointerEvents: 'none', boxSizing: 'border-box', border: '1px dashed rgba(0,255,120,0.45)', backdropFilter: 'none' }}>
@@ -543,42 +466,14 @@ export const AIAssistant: React.FC = () => {
           {message}
         </div>
       )}
+
+      {/* 原来单独的 video 替换为统一精灵 Canvas */}
+      <canvas id="video-sprite-layer" style={{ position: 'absolute', left: 0, top: 0, width: 180, height: 180, pointerEvents: 'none' }} />
       
       {/* 拖拽提示 */}
       {isFileDragOver && (
         <div className="drop-hint">把文件拖给我吧 ⤓</div>
       )}
-      
-      {/* AI助手角色 */}
-      <div className="ai-character">
-        <div className="character-body">
-          <div className="character-face">
-            <div className="eyes">
-              <div className="eye left"></div>
-              <div className="eye right"></div>
-            </div>
-            <div className="mouth"></div>
-          </div>
-        </div>
-
-        {/* Arm stretchy lines (under hands) */}
-        <div className="arm-lines">
-          <div className="arm-line left" />
-          <div className="arm-line right" />
-        </div>
-
-        {/* 圆形双手（像双脚一样） */}
-        <div className="hands">
-          <div className="hand left"></div>
-          <div className="hand right"></div>
-        </div>
-        
-        {/* 脚步动画 */}
-        <div className="character-feet">
-          <div className="foot left"></div>
-          <div className="foot right"></div>
-        </div>
-      </div>
       
       {/* 状态指示器 */}
       <div className="status-indicator">
