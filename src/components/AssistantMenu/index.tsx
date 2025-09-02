@@ -4,9 +4,8 @@ import './menu.css'
 export const AssistantMenu: React.FC = () => {
   const send = (action: string) => window.ipcRenderer?.send('menu-command', action)
   return (
-    <div className='assistant-menu-wrapper fade-in'>
+    <div className='assistant-menu-wrapper'>
       <div className='menu-card glassy'>
-        <div className='menu-header'>AI 精灵菜单</div>
         <ul className='menu-list'>
           <li onClick={() => send('toggle-walk')}>🕹️ 暂停/继续 行走</li>
           <li onClick={() => send('walk-once')}>👣 立即随机走动</li>
