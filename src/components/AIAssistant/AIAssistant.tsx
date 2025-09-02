@@ -178,47 +178,6 @@ export const AIAssistant: React.FC = () => {
     })
   }, [])
 
-  // 自动走动循环（随机目标，逐步移动）
-  const startWalking = useCallback(() => {
-    if (autoWalkRef.current) return
-    autoWalkRef.current = true
-
-    const loop = async () => {
-      while (autoWalkRef.current) {
-        // Random target for outer window so that INNER assistant (hotspot) stays fully on screen.
-        const minX = -paddingState
-        const maxX = screenSize.width - ASSISTANT_WIDTH - paddingState
-        const minY = -paddingState
-        const maxY = screenSize.height - ASSISTANT_HEIGHT - paddingState
-        const targetX = Math.random() * (maxX - minX) + minX
-        const targetY = Math.random() * (maxY - minY) + minY
-
-        setIsWalking(true)
-        await animateMoveWindow(targetX, targetY)
-        setIsWalking(false)
-
-        // 随机显示消息
-        const messages = [
-          '我在四处走走 🚶‍♀️',
-          '看看有什么有趣的 👀',
-          '要和我聊天吗？ 💬',
-          '我在这里等你哦 😊',
-          '点击我和我互动吧！ 🎉'
-        ]
-        setMessage(messages[Math.floor(Math.random() * messages.length)])
-        setShowMessage(true)
-        if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current)
-        messageTimeoutRef.current = setTimeout(() => setShowMessage(false), 3000)
-
-        // 休息 3-7 秒
-        const pause = 3000 + Math.random() * 4000
-        await sleep(pause)
-      }
-    }
-
-    loop()
-  }, [screenSize, animateMoveWindow, paddingState])
-
   const cancelAnimation = useCallback(() => {
     cancelAnimRef.current.cancelled = true
     if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current)
@@ -241,10 +200,7 @@ export const AIAssistant: React.FC = () => {
 
   const handleMouseUp = useCallback((e?: MouseEvent) => {
     setIsDragging(false)
-    if (walkEnabledRef.current) {
-      setTimeout(() => { startWalking() }, 1500)
-    }
-  }, [startWalking])
+  }, [])
 
   const handleMouseMove = useCallback(async (e: MouseEvent) => {
     if (!isDragging) return
@@ -306,11 +262,6 @@ export const AIAssistant: React.FC = () => {
     stopWalking()
     setMessage('你好！有什么可以帮助你的吗？ 😊')
     setShowMessage(true)
-    if (messageTimeoutRef.current) { clearTimeout(messageTimeoutRef.current) }
-    messageTimeoutRef.current = setTimeout(() => {
-      setShowMessage(false)
-      if (walkEnabledRef.current) startWalking()
-    }, 5000)
   }
 
   // 文件拖拽处理
@@ -336,7 +287,6 @@ export const AIAssistant: React.FC = () => {
     dragCounterRef.current = Math.max(0, dragCounterRef.current - 1)
     if (dragCounterRef.current === 0) {
       setIsFileDragOver(false)
-      if (walkEnabledRef.current) setTimeout(() => startWalking(), 1500)
     }
   }
 
@@ -401,7 +351,7 @@ export const AIAssistant: React.FC = () => {
   useEffect(() => {
     const onMenuCommand = (_: any, action: string) => {
       if (action === 'toggle-walk') {
-        if (autoWalkRef.current) { walkEnabledRef.current = false; stopWalking() } else { walkEnabledRef.current = true; startWalking() }
+        if (autoWalkRef.current) { walkEnabledRef.current = false; stopWalking() }
       } else if (action === 'walk-once') {
         ;(async () => {
           stopWalking()
@@ -414,7 +364,6 @@ export const AIAssistant: React.FC = () => {
           const targetX = Math.random() * (maxX - minX) + minX
           const targetY = Math.random() * (maxY - minY) + minY
           await animateMoveWindow(targetX, targetY)
-          if (walkEnabledRef.current) startWalking()
         })()
       } else if (action === 'toggle-padding-debug') {
         setShowPaddingDebug((v: boolean) => !v)
@@ -422,7 +371,7 @@ export const AIAssistant: React.FC = () => {
     }
     window.ipcRenderer?.on('menu-command', onMenuCommand)
     return () => { window.ipcRenderer?.off('menu-command', onMenuCommand as any) }
-  }, [animateMoveWindow, screenSize, startWalking, stopWalking, paddingState])
+  }, [animateMoveWindow, screenSize, stopWalking, paddingState])
 
   const walkEnabledRef = useRef(false)
 
