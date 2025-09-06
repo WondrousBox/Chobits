@@ -17,7 +17,9 @@
     "build": "tsc && vite build && electron-builder",
     "preview": "vite preview",
     "pretest": "vite build --mode=test",
-    "test": "vitest run"
+    "test": "vitest run",
+    "download-ffmpeg-darwin-arm64": "mkdir -p resources/ffmpeg/darwin/arm64 && cd resources/ffmpeg/darwin/arm64 && wget https://github.com/YuQian2015/memo-build/releases/download/v1.0.0/ffmpeg-macos-ARM64 -O ffmpeg && wget https://github.com/YuQian2015/memo-build/releases/download/v1.0.0/ffprobe-macos-ARM64 -O ffprobe && chmod +x ffmpeg && chmod +x ffprobe",
+    "download-ffmpeg-win32-x64": "mkdirp resources/ffmpeg/win32/x64 && cd resources/ffmpeg/win32/x64 && npx download-cli https://github.com/YuQian2015/memo-build/releases/download/v1.0.0/ffmpeg.exe --out . --filename ffmpeg.exe && npx download-cli https://github.com/YuQian2015/memo-build/releases/download/v1.0.0/ffprobe.exe --out . --filename ffprobe.exe"
   },
   "dependencies": {
     "@radix-ui/react-select": "^2.2.5",
