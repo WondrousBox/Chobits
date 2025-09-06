@@ -31,7 +31,7 @@ export const AIAssistant: React.FC = () => {
   // Debug overlay toggle for padding boundary
   const [showPaddingDebug, setShowPaddingDebug] = useState(false)
   const dragCounterRef = useRef(0)
-  
+
   const containerRef = useRef<HTMLDivElement>(null)
   const messageTimeoutRef = useRef<NodeJS.Timeout>()
   // Removed dragSide / handLeft / handRight states (unused in UI)
@@ -47,10 +47,14 @@ export const AIAssistant: React.FC = () => {
   const setClickThrough = useCallback(async (enable: boolean) => {
     if (clickThroughRef.current === enable) return
     clickThroughRef.current = enable
-    try { await window.YUA.window.setClickThrough(enable) } catch {}
+    try { await window.YUA.window.setClickThrough(enable) } catch { }
   }, [])
 
   const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+
+  useEffect(() => {
+    window.YUA.ffmpeg.playSprite()
+  }, [])
 
   // 获取屏幕尺寸并定位初始窗口
   useEffect(() => {
@@ -68,7 +72,7 @@ export const AIAssistant: React.FC = () => {
         await window.YUA.window.moveWindow(winX, winY)
       } catch (error) { console.error('Failed to get screen info:', error) }
     }
-    
+
     getScreenInfo()
   }, [])
 
@@ -227,7 +231,7 @@ export const AIAssistant: React.FC = () => {
       const up = (e: MouseEvent) => handleMouseUp(e)
       document.addEventListener('mousemove', handleMouseMove)
       document.addEventListener('mouseup', up)
-      
+
       return () => {
         document.removeEventListener('mousemove', handleMouseMove)
         document.removeEventListener('mouseup', up)
@@ -306,7 +310,7 @@ export const AIAssistant: React.FC = () => {
       if (item.kind === 'file') {
         const anyItem = item as any
         let entry: any
-        try { entry = anyItem.webkitGetAsEntry?.() } catch {}
+        try { entry = anyItem.webkitGetAsEntry?.() } catch { }
         if (entry?.isDirectory) {
           details.push(`文件夹“${entry.name}”`)
           fileListForIPC.push({ name: entry.name, path: '', isDirectory: true })
@@ -353,7 +357,7 @@ export const AIAssistant: React.FC = () => {
       if (action === 'toggle-walk') {
         if (autoWalkRef.current) { walkEnabledRef.current = false; stopWalking() }
       } else if (action === 'walk-once') {
-        ;(async () => {
+        ; (async () => {
           stopWalking()
           const size = screenSize
           // Bounds ensuring inner assistant stays fully in screen
@@ -384,7 +388,7 @@ export const AIAssistant: React.FC = () => {
       mgr.setFPS(30)
       // 预加载 idle 源
       mgr.loadSource({ id: 'idle', url: '/idle.webm', preload: true, muted: true, loop: true }).then(() => {
-        try { mgr.createSprite({ sourceId: 'idle', x: 90, y: 90, anchorX: 0.5, anchorY: 0.5, width: 180, height: 180, autoplay: true, fadeInMs: 600 }) } catch {}
+        try { mgr.createSprite({ sourceId: 'idle', x: 90, y: 90, anchorX: 0.5, anchorY: 0.5, width: 180, height: 180, autoplay: true, fadeInMs: 600 }) } catch { }
       })
     }
   }, [])
@@ -418,12 +422,12 @@ export const AIAssistant: React.FC = () => {
 
       {/* 原来单独的 video 替换为统一精灵 Canvas */}
       <canvas id="video-sprite-layer" style={{ position: 'absolute', left: 0, top: 0, width: 180, height: 180, pointerEvents: 'none' }} />
-      
+
       {/* 拖拽提示 */}
       {isFileDragOver && (
         <div className="drop-hint">把文件拖给我吧 ⤓</div>
       )}
-      
+
       {/* 状态指示器 */}
       <div className="status-indicator">
         {isDragging ? '🫴' : isWalking ? '🚶‍♀️' : '😊'}
