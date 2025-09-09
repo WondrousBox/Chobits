@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import './AIAssistant.css'
-import { VideoSpriteManager } from '../../lib/VideoSpriteManager'
+import { VideoSpriteCanvas } from '../VideoSpriteCanvas'
 
 // Constants to match Electron window sizing (intrinsic assistant size only)
 const ASSISTANT_WIDTH = 180
@@ -379,19 +379,6 @@ export const AIAssistant: React.FC = () => {
 
   const walkEnabledRef = useRef(false)
 
-  useEffect(() => {
-    // 初始化视频精灵 Canvas
-    const canvas = document.getElementById('video-sprite-layer') as HTMLCanvasElement | null
-    if (canvas) {
-      const mgr = VideoSpriteManager.get()
-      mgr.attachCanvas(canvas, 180, 180) // 与助手尺寸接近，可根据需要调整
-      mgr.setFPS(30)
-      // 预加载 idle 源
-      mgr.loadSource({ id: 'idle', url: '/idle.webm', preload: true, muted: true, loop: true }).then(() => {
-        try { mgr.createSprite({ sourceId: 'idle', x: 90, y: 90, anchorX: 0.5, anchorY: 0.5, width: 180, height: 180, autoplay: true, fadeInMs: 600 }) } catch { }
-      })
-    }
-  }, [])
 
   return (
     <div
@@ -420,8 +407,21 @@ export const AIAssistant: React.FC = () => {
         </div>
       )}
 
-      {/* 原来单独的 video 替换为统一精灵 Canvas */}
-      <canvas id="video-sprite-layer" style={{ position: 'absolute', left: 0, top: 0, width: 180, height: 180, pointerEvents: 'none' }} />
+      {/* 精灵渲染层组件 */}
+      <VideoSpriteCanvas
+        width={180}
+        height={180}
+        fps={30}
+        sources={[{
+          id: 'idle',
+          url: '/idle.webm',
+          preload: true,
+          muted: true,
+          loop: true,
+          sprite: { x: 90, y: 90, anchorX: 0.5, anchorY: 0.5, width: 180, height: 180, autoplay: true, fadeInMs: 600 }
+        }]}
+        style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none' }}
+      />
 
       {/* 拖拽提示 */}
       {isFileDragOver && (
