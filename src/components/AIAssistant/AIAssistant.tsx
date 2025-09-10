@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import './AIAssistant.css'
 import { VideoSpriteCanvas } from '../VideoSpriteCanvas'
+import { bezierQ, clamp, lerp } from '@/utils/helpers'
 
 // Constants to match Electron window sizing (intrinsic assistant size only)
 const ASSISTANT_WIDTH = 180
@@ -12,12 +13,6 @@ let MOVEMENT_MODE: 'stepped' | 'smooth' = 'stepped'
 let STEP_GRID = 12
 let PATH_CURVE_FACTOR = 0.15
 let ASSISTANT_PADDING = 100 // runtime dynamic padding (state mirror below)
-
-// Helpers
-const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v))
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t
-const bezierQ = (p0: number, p1: number, p2: number, t: number) => (1 - t) ** 2 * p0 + 2 * (1 - t) * t * p1 + t ** 2 * p2
-
 export const AIAssistant: React.FC = () => {
   // Remove fixed PADDING; derive everything from paddingState
   const [paddingState, setPadding] = useState(ASSISTANT_PADDING)
@@ -53,7 +48,26 @@ export const AIAssistant: React.FC = () => {
   const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
   useEffect(() => {
-    window.YUA.ffmpeg.playSprite()
+    // window.YUA.ffmpeg.playSprite()
+
+    // 插入
+    (window as any).YUA.vector.insertVectors({
+      items: [{
+        id: 'doc-1',
+        content: '你好，世界',
+        metadata: { lang: 'zh' },
+        embedding: new Array(1536).fill(0).map((_, i) => Math.sin(i)) // 示例
+      }]
+    }).then((_res: any) => {
+      console.log('inserted', _res)
+    })
+
+    window.YUA.vector.searchVectors({
+      embedding: new Array(1536).fill(0),
+      k: 5
+    }).then((_res: any) => {
+      console.log(_res)
+    });
   }, [])
 
   // 获取屏幕尺寸并定位初始窗口
