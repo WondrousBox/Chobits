@@ -240,6 +240,8 @@ class VideoSpriteManagerImpl {
     for (const s of this.sprites) {
       if (!s.visible) continue
       const v = s._video
+      console.log(v.readyState );
+      
       if (s._playing && v.paused) { void v.play().catch(()=>{}) }
       if (v.readyState < 2) continue
 
