@@ -365,7 +365,6 @@ export function initWindowHandlers(win: BrowserWindow) {
         return
       case 'toggle-walk':
       case 'walk-once':
-      case 'toggle-padding-debug':
         try { win?.webContents.send('menu-command', action) } catch {}
         return
       default:
