@@ -18,13 +18,14 @@
     "preview": "vite preview",
     "pretest": "vite build --mode=test",
     "test": "vitest run",
+    "sqlite": "electron-rebuild -f -w better-sqlite3",
     "download-ffmpeg-darwin-arm64": "mkdir -p resources/ffmpeg/darwin/arm64 && cd resources/ffmpeg/darwin/arm64 && wget https://github.com/YuQian2015/memo-build/releases/download/v1.0.0/ffmpeg-macos-ARM64 -O ffmpeg && wget https://github.com/YuQian2015/memo-build/releases/download/v1.0.0/ffprobe-macos-ARM64 -O ffprobe && chmod +x ffmpeg && chmod +x ffprobe",
     "download-ffmpeg-win32-x64": "mkdirp resources/ffmpeg/win32/x64 && cd resources/ffmpeg/win32/x64 && npx download-cli https://github.com/YuQian2015/memo-build/releases/download/v1.0.0/ffmpeg.exe --out . --filename ffmpeg.exe && npx download-cli https://github.com/YuQian2015/memo-build/releases/download/v1.0.0/ffprobe.exe --out . --filename ffprobe.exe"
   },
   "dependencies": {
     "@radix-ui/react-select": "^2.2.5",
     "@radix-ui/react-slot": "^1.2.3",
-    "better-sqlite3": "^9.6.0",
+    "better-sqlite3": "^12.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "electron-updater": "^6.3.9",
@@ -35,6 +36,7 @@
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
+    "@electron/rebuild": "^3.6.0",
     "@playwright/test": "^1.48.2",
     "@types/better-sqlite3": "^7.6.13",
     "@types/fluent-ffmpeg": "^2.1.27",

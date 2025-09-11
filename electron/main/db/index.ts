@@ -119,13 +119,12 @@ export function searchVectors(queryEmbedding: number[], k: number, dim: number):
   database.exec('CREATE TEMP TABLE IF NOT EXISTS _q (id INTEGER PRIMARY KEY, embedding BLOB);');
   const upQ = database.prepare('INSERT OR REPLACE INTO _q(id, embedding) VALUES(1, ?)');
   upQ.run(queryBuf);
-  // Use documented pattern: where vss_search(column, (select embedding from _q where id=1)) limit k
+  // Use documented pattern: where vss_search(column, vss_search_params(query_vector, limit))
   const stmt = database.prepare(
     `SELECT d.id, d.content, d.metadata, v.distance AS distance
      FROM vss_docs v
      JOIN documents d ON d.rowid = v.rowid
-     WHERE vss_search(v.embedding, (SELECT embedding FROM _q WHERE id=1))
-     LIMIT ?;`
+     WHERE vss_search(v.embedding, vss_search_params((SELECT embedding FROM _q WHERE id=1), ?));`
   );
   const rows = stmt.all(k) as any[];
   return rows.map(r => ({
