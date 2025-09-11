@@ -24,7 +24,7 @@ export const AIAssistant: React.FC = () => {
   const [showMessage, setShowMessage] = useState(true)
   const [isFileDragOver, setIsFileDragOver] = useState(false)
   // Debug overlay toggle for padding boundary
-  const [showPaddingDebug, setShowPaddingDebug] = useState(false)
+  const [showPaddingDebug, setShowPaddingDebug] = useState(true)
   const dragCounterRef = useRef(0)
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -88,17 +88,6 @@ export const AIAssistant: React.FC = () => {
     }
 
     getScreenInfo()
-  }, [])
-
-  // Toggle debug overlay with Ctrl+Shift+P (or Cmd+Shift+P on mac)
-  useEffect(() => {
-    const keyHandler = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.code === 'KeyP') {
-        setShowPaddingDebug((v: boolean) => !v)
-      }
-    }
-    window.addEventListener('keydown', keyHandler)
-    return () => window.removeEventListener('keydown', keyHandler)
   }, [])
 
   // 拦截窗口级默认拖拽行为，防止 Electron 导航到文件
@@ -383,8 +372,6 @@ export const AIAssistant: React.FC = () => {
           const targetY = Math.random() * (maxY - minY) + minY
           await animateMoveWindow(targetX, targetY)
         })()
-      } else if (action === 'toggle-padding-debug') {
-        setShowPaddingDebug((v: boolean) => !v)
       }
     }
     window.ipcRenderer?.on('menu-command', onMenuCommand)
