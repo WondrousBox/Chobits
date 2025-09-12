@@ -276,30 +276,27 @@ export const AIAssistant: React.FC = () => {
   // 文件拖拽处理
   const isFilesDrag = (e: React.DragEvent) => Array.from(e.dataTransfer?.types || []).includes('Files')
 
-  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDragEnter = (e: React.DragEvent<HTMLElement>) => {
     if (!isFilesDrag(e)) return
-    e.preventDefault(); e.stopPropagation()
+    e.preventDefault();
+    e.stopPropagation()
     dragCounterRef.current++
     setIsFileDragOver(true)
     stopWalking()
     setClickThrough(false)
   }
 
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDragLeave = (e: React.DragEvent<HTMLElement>) => {
     if (!isFilesDrag(e)) return
-    e.preventDefault(); e.stopPropagation()
-  }
-
-  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
-    if (!isFilesDrag(e)) return
-    e.preventDefault(); e.stopPropagation()
+    e.preventDefault();
+    e.stopPropagation()
     dragCounterRef.current = Math.max(0, dragCounterRef.current - 1)
     if (dragCounterRef.current === 0) {
       setIsFileDragOver(false)
     }
   }
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = (e: React.DragEvent<HTMLElement>) => {
     e.preventDefault();
     e.stopPropagation()
     dragCounterRef.current = 0
@@ -386,9 +383,6 @@ export const AIAssistant: React.FC = () => {
       onMouseDown={handleMouseDown}
       onContextMenu={handleContextMenu}
       onClick={handleClick}
-      onDragEnter={handleDragEnter}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
       {showPaddingDebug && (
@@ -400,7 +394,10 @@ export const AIAssistant: React.FC = () => {
         </div>
       )}
       <MessageBubble state={messageState} />
-      <AimDropzone>
+      <AimDropzone
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+      >
         <VideoSprite />
       </AimDropzone>
 
