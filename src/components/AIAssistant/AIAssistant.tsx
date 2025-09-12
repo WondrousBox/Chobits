@@ -4,6 +4,7 @@ import { bezierQ, clamp, lerp } from '@/utils/helpers'
 import VideoSprite from './sprites'
 import Messages, { MessageBubble } from './messages'
 import type { MessageCategory, MessageContext } from "./messages"
+import AimDropzone from '../common/AimDropzone'
 
 // Constants to match Electron window sizing (intrinsic assistant size only)
 const ASSISTANT_WIDTH = 180
@@ -398,7 +399,9 @@ export const AIAssistant: React.FC = () => {
         </div>
       )}
       <MessageBubble state={messageState} />
-      <VideoSprite />
+      <AimDropzone>
+        <VideoSprite />
+      </AimDropzone>
 
       {/* 拖拽提示 */}
       {isFileDragOver && (
