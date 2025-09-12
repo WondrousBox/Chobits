@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import './AIAssistant.css'
 import { bezierQ, clamp, lerp } from '@/utils/helpers'
-import VideoSprite from '../VideoSprite'
+import VideoSprite from './sprites'
+import Messages, { MessageBubble } from './messages'
+import type { MessageCategory, MessageContext } from "./messages"
 
 // Constants to match Electron window sizing (intrinsic assistant size only)
 const ASSISTANT_WIDTH = 180
@@ -21,15 +23,13 @@ export const AIAssistant: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false)
   const [isWalking, setIsWalking] = useState(false)
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
-  const [message, setMessage] = useState('你好！我是你的AI助手 ✨')
-  const [showMessage, setShowMessage] = useState(true)
+  const [messageState, setMessageState] = useState<MessageCategory>('welcome')
   const [isFileDragOver, setIsFileDragOver] = useState(false)
   // Debug overlay toggle for padding boundary
   const [showPaddingDebug, setShowPaddingDebug] = useState(true)
   const dragCounterRef = useRef(0)
 
   const containerRef = useRef<HTMLDivElement>(null)
-  const messageTimeoutRef = useRef<NodeJS.Timeout>()
   // Removed dragSide / handLeft / handRight states (unused in UI)
 
   // auto-walk loop & animation control
@@ -268,8 +268,7 @@ export const AIAssistant: React.FC = () => {
   // 点击交互
   const handleClick = () => {
     stopWalking()
-    setMessage('你好！有什么可以帮助你的吗？ 😊')
-    setShowMessage(true)
+    setMessageState('click')
   }
 
   // 文件拖拽处理
@@ -299,7 +298,8 @@ export const AIAssistant: React.FC = () => {
   }
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault(); e.stopPropagation()
+    e.preventDefault();
+    e.stopPropagation()
     dragCounterRef.current = 0
     setIsFileDragOver(false)
     setClickThrough(false)
@@ -333,17 +333,12 @@ export const AIAssistant: React.FC = () => {
       files.forEach((f: File) => fileListForIPC.push({ name: f.name, path: (f as any).path || '', isDirectory: false }))
     }
 
+    setMessageState('drop')
     if (details.length === 1) {
-      setMessage(`我收到了${details[0]} ✅`)
+      const singleName = files[0]?.name || details[0].replace(/^文件“|文件夹“|”$/g, '')
     } else if (details.length > 1) {
-      const preview = details.slice(0, 3).join('、')
-      setMessage(`我收到了 ${details.length} 个项目：${preview}${details.length > 3 ? ' 等' : ''} ✅`)
-    } else {
-      setMessage('收到了一些内容，但我没识别到文件名 🤔')
+      const names = files.map(f => f.name)
     }
-    setShowMessage(true)
-    if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current)
-    messageTimeoutRef.current = setTimeout(() => setShowMessage(false), 6000)
 
     // 打开/更新文件列表窗口
     if (fileListForIPC.length) {
@@ -402,18 +397,12 @@ export const AIAssistant: React.FC = () => {
           </div>
         </div>
       )}
-      {/* 消息气泡 */}
-      {showMessage && (
-        <div className="message-bubble">
-          {message}
-        </div>
-      )}
-
+      <MessageBubble state={messageState} />
       <VideoSprite />
 
       {/* 拖拽提示 */}
       {isFileDragOver && (
-        <div className="drop-hint">把文件拖给我吧 ⤓</div>
+        <div className="drop-hint">{Messages.t('drag')}</div>
       )}
 
       {/* 状态指示器 */}
