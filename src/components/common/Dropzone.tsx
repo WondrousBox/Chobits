@@ -6,14 +6,16 @@ import { TbFileDownload } from "react-icons/tb";
 
 import { SelectedResourceFileType } from "@/types";
 
-interface AimDropzoneProps {
+interface DropzoneProps {
   children?: ReactNode;
   className?: string;
   customDropzone?: ReactNode;
   onDropFiles?: (files: SelectedResourceFileType[]) => void;
+  onDragEnter?: () => void;
+  onDragLeave?: () => void;
 }
 
-function AimDropzone({ children, customDropzone, className, onDropFiles }: AimDropzoneProps) {
+function Dropzone({ children, customDropzone, className, onDropFiles, onDragEnter, onDragLeave }: DropzoneProps) {
   const [isActive, setIsActive] = useState(false);
   const { t } = useTranslation();
   const { getRootProps } = useDropzone({
@@ -39,10 +41,12 @@ function AimDropzone({ children, customDropzone, className, onDropFiles }: AimDr
     onDragEnter: (e) => {
       console.log(e);
       console.log("enter");
+      onDragEnter?.();
       setIsActive(true);
     },
     onDragLeave: () => {
       console.log("leave");
+      onDragLeave?.();
       setIsActive(false);
     }
   });
@@ -92,4 +96,4 @@ function AimDropzone({ children, customDropzone, className, onDropFiles }: AimDr
   </>;
 }
 
-export default AimDropzone;
+export default Dropzone;
