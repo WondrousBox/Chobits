@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import Messages from '.'
 import type { MessageCategory, MessageContext } from './types'
+import { cn } from '@/lib/utils'
 
 export interface MessageBubbleProps {
   autoHideMs?: number // 0 or undefined to keep visible
@@ -59,7 +60,21 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   if (!visible) return null
 
   return (
-    <div className={`message-bubble${className ? ' ' + className : ''}`}>
+    <div
+      className={cn(
+        // position & placement
+        'absolute -top-[60px] left-1/2 -translate-x-1/2 transform',
+        // visuals
+        'bg-white/95 backdrop-blur-md border-2 border-indigo-500/30 rounded-[20px] shadow-lg',
+        // spacing & typography
+        'px-4 py-2 text-xs text-gray-700',
+        // layout behavior
+        'max-w-[200px] whitespace-normal break-words text-center',
+        // tail triangle (::after)
+        "after:content-[''] after:absolute after:top-full after:left-1/2 after:-translate-x-1/2 after:transform after:border-8 after:border-transparent after:border-t-white/95",
+        className
+      )}
+    >
       {content}
     </div>
   )
