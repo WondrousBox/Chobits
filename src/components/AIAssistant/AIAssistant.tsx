@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import './AIAssistant.css'
-import { VideoSpriteCanvas } from '../VideoSpriteCanvas'
 import { bezierQ, clamp, lerp } from '@/utils/helpers'
 
 // Constants to match Electron window sizing (intrinsic assistant size only)
@@ -13,6 +12,7 @@ let MOVEMENT_MODE: 'stepped' | 'smooth' = 'stepped'
 let STEP_GRID = 12
 let PATH_CURVE_FACTOR = 0.15
 let ASSISTANT_PADDING = 100 // runtime dynamic padding (state mirror below)
+const USE_PIXI = true
 export const AIAssistant: React.FC = () => {
   // Remove fixed PADDING; derive everything from paddingState
   const [paddingState, setPadding] = useState(ASSISTANT_PADDING)
@@ -408,21 +408,9 @@ export const AIAssistant: React.FC = () => {
         </div>
       )}
 
-      {/* 精灵渲染层组件 */}
-      <VideoSpriteCanvas
-        width={180}
-        height={180}
-        fps={30}
-        sources={[{
-          id: 'idle',
-          url: '/idle.webm',
-          preload: true,
-          muted: true,
-          loop: true,
-          sprite: { x: 90, y: 90, anchorX: 0.5, anchorY: 0.5, width: 180, height: 180, autoplay: true, fadeInMs: 600 }
-        }]}
-        style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none' }}
-      />
+      <video style={{ width: 180, height: 220, pointerEvents: 'none', userSelect: 'none', borderRadius: 8, backgroundColor: 'transparent', imageRendering: 'pixelated' }} autoPlay muted loop>
+        <source src="./idle.webm" type="video/mp4" />
+      </video>
 
       {/* 拖拽提示 */}
       {isFileDragOver && (
