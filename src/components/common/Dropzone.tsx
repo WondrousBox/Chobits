@@ -5,17 +5,19 @@ import { useTranslation } from "react-i18next";
 import { TbFileDownload } from "react-icons/tb";
 
 import { SelectedResourceFileType } from "@/types";
+import Messages from "../AIAssistant/messages";
 
 interface DropzoneProps {
   children?: ReactNode;
   className?: string;
   customDropzone?: ReactNode;
   onDropFiles?: (files: SelectedResourceFileType[]) => void;
-  onDragEnter?: () => void;
-  onDragLeave?: () => void;
+  onDragEnter?: (e: React.DragEvent<HTMLElement>) => void;
+  onDragLeave?: (e: React.DragEvent<HTMLElement>) => void;
+  onDragOver?: (e: React.DragEvent<HTMLElement>) => void;
 }
 
-function Dropzone({ children, customDropzone, className, onDropFiles, onDragEnter, onDragLeave }: DropzoneProps) {
+function Dropzone({ children, customDropzone, className, onDropFiles, onDragEnter, onDragLeave, onDragOver }: DropzoneProps) {
   const [isActive, setIsActive] = useState(false);
   const { t } = useTranslation();
   const { getRootProps } = useDropzone({
@@ -38,15 +40,18 @@ function Dropzone({ children, customDropzone, className, onDropFiles, onDragEnte
       console.log(fl);
       onDropFiles && onDropFiles(fl);
     },
+    onDragOver: (e) => {
+      onDragOver?.(e);
+    },
     onDragEnter: (e) => {
       console.log(e);
       console.log("enter");
-      onDragEnter?.();
+      onDragEnter?.(e);
       setIsActive(true);
     },
-    onDragLeave: () => {
+    onDragLeave: (e) => {
       console.log("leave");
-      onDragLeave?.();
+      onDragLeave?.(e);
       setIsActive(false);
     }
   });
