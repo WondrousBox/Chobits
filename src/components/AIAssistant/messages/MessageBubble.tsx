@@ -63,15 +63,13 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
     <div
       className={cn(
         // position & placement
-        'absolute -top-[60px] left-1/2 -translate-x-1/2 transform',
+        'absolute -top-[70px] left-1/2 -translate-x-1/2 z-10',
         // visuals
-        'bg-white/95 backdrop-blur-md border-2 border-indigo-500/30 rounded-[20px] shadow-lg',
+        'bg-white/90 rounded-xl shadow-lg',
         // spacing & typography
         'px-4 py-2 text-xs text-gray-700',
         // layout behavior
-        'max-w-[200px] whitespace-normal break-words text-center',
-        // tail triangle (::after)
-        "after:content-[''] after:absolute after:top-full after:left-1/2 after:-translate-x-1/2 after:transform after:border-8 after:border-transparent after:border-t-white/95",
+        'max-w-[300px] whitespace-normal break-words text-center',
         className
       )}
     >

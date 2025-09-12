@@ -1,25 +1,23 @@
 import { MessageCatalog, MessagesProvider, MessageCategory, MessageContext, MessageProducer } from './types'
 
-const asText = (m: MessageProducer | string, ctx?: MessageContext) =>
-  typeof m === 'function' ? m(ctx) : m
+const asText = (m: MessageProducer | string, ctx?: MessageContext) => typeof m === 'function' ? m(ctx) : m
 
 const catalog: MessageCatalog = {
   welcome: {
-    default: '你好！我是你的AI助手 ✨',
     variants: [
-      '嗨～很高兴见到你，我在这儿等你吩咐。',
+      '叽~',
+      '叽~很高兴见到你，我在这儿等你吩咐。',
       '欢迎回来！今天想做点什么？',
     ],
   },
   click: {
-    default: '你好！有什么可以帮助你的吗？ 😊',
+    default: '叽~有什么可以帮助你的吗？ 😊',
     variants: [
       '我在～需要我做点什么吗？',
       '收到点击～告诉我你的想法吧。',
     ],
   },
   hold: {
-    default: '按住拖动我到屏幕的任何位置。',
     variants: [
       '你可以把我拖到屏幕的任何位置。',
       '试试把我拖到屏幕的边缘，我会自动避让窗口。',
