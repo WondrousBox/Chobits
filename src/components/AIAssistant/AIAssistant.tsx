@@ -4,7 +4,7 @@ import { bezierQ, clamp, lerp } from '@/utils/helpers'
 import VideoSprite from './sprites'
 import Messages, { MessageBubble } from './messages'
 import type { MessageCategory, MessageContext } from "./messages"
-import AimDropzone from '../common/AimDropzone'
+import AimDropzone from '../common/Dropzone'
 
 // Constants to match Electron window sizing (intrinsic assistant size only)
 const ASSISTANT_WIDTH = 180
@@ -202,6 +202,7 @@ export const AIAssistant: React.FC = () => {
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault()
     setIsDragging(true)
+    setMessageState('hold')
     stopWalking()
     setClickThrough(false)
     setDragOffset({ x: e.clientX, y: e.clientY })
