@@ -2,6 +2,7 @@ import { ipcRenderer, contextBridge } from 'electron'
 import { windowBridge } from './apis/window'
 import { ffmpegBridge } from './apis/ffmpeg'
 import { vectorBridge } from './apis/vector'
+import { resourceBridge } from './apis/resource'
 
 // --------- Expose some API to the Renderer process ---------
 contextBridge.exposeInMainWorld('ipcRenderer', {
@@ -31,6 +32,7 @@ contextBridge.exposeInMainWorld('YUA', {
   window: windowBridge,
   ffmpeg: ffmpegBridge,
   vector: vectorBridge,
+  resource: resourceBridge,
 })
 
 // --------- Preload scripts loading ---------

@@ -11,13 +11,14 @@ interface DropzoneProps {
   children?: ReactNode;
   className?: string;
   customDropzone?: ReactNode;
+  onDrop?: (files: React.DragEvent<HTMLElement>) => void;
   onDropFiles?: (files: SelectedResourceFileType[]) => void;
   onDragEnter?: (e: React.DragEvent<HTMLElement>) => void;
   onDragLeave?: (e: React.DragEvent<HTMLElement>) => void;
   onDragOver?: (e: React.DragEvent<HTMLElement>) => void;
 }
 
-function Dropzone({ children, customDropzone, className, onDropFiles, onDragEnter, onDragLeave, onDragOver }: DropzoneProps) {
+function Dropzone({ children, customDropzone, className, onDropFiles, onDragEnter, onDragLeave, onDragOver, onDrop }: DropzoneProps) {
   const [isActive, setIsActive] = useState(false);
   const { t } = useTranslation();
   const { getRootProps } = useDropzone({
@@ -28,17 +29,20 @@ function Dropzone({ children, customDropzone, className, onDropFiles, onDragEnte
     //   'image/png': ['.png'],
     //   'text/html': ['.html', '.htm'],
     // },
-    onDrop: (list: File[]) => {
+    onDrop: (acceptedFiles: File[], fileRejections, event) => {
       setIsActive(false);
-      if (list.length === 0) { return; }
-      const fl: SelectedResourceFileType[] = list.map(i => ({
+      console.log(acceptedFiles, fileRejections, event);
+
+      if (acceptedFiles.length === 0) { return; }
+      const fl: SelectedResourceFileType[] = acceptedFiles.map(i => ({
         path: i.path,
         isUrl: false,
         name: i.name,
         size: i.size,
       }));
       console.log(fl);
-      onDropFiles && onDropFiles(fl);
+      onDrop?.(event);
+      onDropFiles?.(fl);
     },
     onDragOver: (e) => {
       onDragOver?.(e);

@@ -5,6 +5,7 @@ import VideoSprite from './sprites'
 import Messages, { MessageBubble } from './messages'
 import type { MessageCategory, MessageContext } from "./messages"
 import AimDropzone from '../common/Dropzone'
+import { SelectedResourceFileType } from '@/types'
 
 // Constants to match Electron window sizing (intrinsic assistant size only)
 const ASSISTANT_WIDTH = 180
@@ -327,6 +328,9 @@ export const AIAssistant: React.FC = () => {
       }
     })
 
+    console.log(items);
+    
+
     if (details.length === 0 && files.length) {
       details.push(...files.map((f: File) => `文件“${f.name}”`))
       files.forEach((f: File) => fileListForIPC.push({ name: f.name, path: (f as any).path || '', isDirectory: false }))
@@ -343,6 +347,73 @@ export const AIAssistant: React.FC = () => {
     if (fileListForIPC.length) {
       window.YUA.window.openFileListWindow(fileListForIPC)
     }
+
+    console.log(fileListForIPC);
+    
+
+    // 新增：将拖拽文件作为资源写入数据库（仅新增，不弹出管理）
+    (async () => {
+      try {
+        for (const f of fileListForIPC) {
+          if (f.isDirectory) continue
+          const id = (crypto as any).randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
+          const now = Date.now()
+          const resource = {
+            id,
+            type: 'file' as const,
+            title: f.name,
+            filePath: f.path,
+            sizeBytes: undefined as number | undefined,
+            collectedAt: now,
+            createdAt: now,
+            updatedAt: now,
+            status: 'new' as const,
+          }
+          try {
+            await (window as any).YUA.resource['addResource']({ resource })
+          } catch (e) {
+            console.warn('addResource failed', e)
+          }
+        }
+      } catch (e) { console.warn('batch resource add failed', e) }
+    })()
+  }
+
+  const handleDropFiles = (files: SelectedResourceFileType[]) => {
+    console.log(files);
+    dragCounterRef.current = 0
+    setIsFileDragOver(false)
+    setClickThrough(false)
+    stopWalking();
+
+    
+
+    // 新增：将拖拽文件作为资源写入数据库（仅新增，不弹出管理）
+    (async () => {
+      try {
+        for (const f of files) {
+          // if (f.isDirectory) continue
+          const id = (crypto as any).randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
+          const now = Date.now()
+          const resource = {
+            id,
+            type: 'file' as const,
+            title: f.name,
+            filePath: f.path,
+            sizeBytes: undefined as number | undefined,
+            collectedAt: now,
+            createdAt: now,
+            updatedAt: now,
+            status: 'new' as const,
+          }
+          try {
+            await (window as any).YUA.resource['addResource']({ resource })
+          } catch (e) {
+            console.warn('addResource failed', e)
+          }
+        }
+      } catch (e) { console.warn('batch resource add failed', e) }
+    })()
   }
 
   const handleContextMenu = (e: React.MouseEvent) => {
@@ -383,7 +454,7 @@ export const AIAssistant: React.FC = () => {
       onMouseDown={handleMouseDown}
       onContextMenu={handleContextMenu}
       onClick={handleClick}
-      onDrop={handleDrop}
+      // onDrop={handleDrop}
     >
       {showPaddingDebug && (
         <div style={{ position: 'absolute', left: -paddingState, top: -paddingState, width: ASSISTANT_WIDTH + paddingState * 2, height: ASSISTANT_HEIGHT + paddingState * 2, pointerEvents: 'none', boxSizing: 'border-box', border: '1px dashed rgba(0,255,120,0.45)', backdropFilter: 'none' }}>
@@ -397,6 +468,8 @@ export const AIAssistant: React.FC = () => {
       <AimDropzone
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
+        onDropFiles={handleDropFiles}
+        // onDrop={handleDrop}
       >
         <VideoSprite />
       </AimDropzone>

@@ -1,11 +1,15 @@
 // Use default import; better-sqlite3 exports a callable/constructable function.
 // Using namespace import causes 'is not a constructor' at runtime.
 import Database from 'better-sqlite3';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
 import path from 'node:path';
 import fs from 'node:fs';
 import { app } from 'electron';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
+import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
+import { inArray } from 'drizzle-orm';
+import { documents } from './schema';
 
 // We'll dynamically load the sqlite-vec extension (ship prebuilt per-platform binaries)
 
@@ -53,6 +57,15 @@ export function getDB() {
   return db;
 }
 
+let orm: any = null;
+
+export function getOrm() {
+  if (orm) return orm;
+  const db = getDB() as any;
+  orm = drizzle(db);
+  return orm;
+}
+
 function ensureVecLoaded(): boolean {
   if (!db) return false;
   if (!vecReady) return false;
@@ -66,30 +79,24 @@ function ensureVecLoaded(): boolean {
 
 function initSchema() {
   if (!db) return;
-  // Base tables
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS documents (
-      id TEXT PRIMARY KEY,
-      content TEXT NOT NULL,
-      metadata TEXT,
-      embedding BLOB -- store as binary float32 array
-    );
-    CREATE TABLE IF NOT EXISTS meta_kv (
-      k TEXT PRIMARY KEY,
-      v TEXT
-    );
-  `);
-  // NOTE: sqlite-vec typical usage: CREATE VIRTUAL TABLE vec_docs USING vec0(embedding float[1536]);
-  // We'll create lazily via ensureVecTable(dim) when first vector op occurs.
+  try {
+    const d = getOrm();
+    const migrationsFolder = path.resolve(process.cwd(), 'drizzle');
+    migrate(d, { migrationsFolder });
+    console.log('[db] migrations applied from', migrationsFolder);
+  } catch (e) {
+    console.warn('[db] failed to run migrations. Ensure you ran "pnpm run db:generate" or "pnpm run db:push" to create ./drizzle', e);
+  }
+  // vec_docs is managed by sqlite-vec extension; created lazily in ensureVecTable(dim)
 }
 
-function float32ArrayToBuffer(arr: number[]): Buffer {
+function float32ArrayToBuffer(arr: number[]): any {
   const buf = Buffer.allocUnsafe(arr.length * 4);
   for (let i = 0; i < arr.length; i++) buf.writeFloatLE(arr[i], i * 4);
   return buf;
 }
 
-function bufferToFloat32Array(buf: Buffer, dim: number): number[] {
+function bufferToFloat32Array(buf: any, dim: number): number[] {
   const out: number[] = new Array(dim);
   for (let i = 0; i < dim; i++) out[i] = buf.readFloatLE(i * 4);
   return out;
@@ -117,19 +124,28 @@ export function insertVectors(items: VectorInsertItem[], dim: number) {
   const database = getDB();
   ensureVecTable(dim);
   if (!database || !ensureVecLoaded()) return { inserted: 0 };
-  const insertDoc = database!.prepare(`INSERT OR REPLACE INTO documents(id, content, metadata, embedding) VALUES(@id, @content, @metadata, @embedding)`);
-  // vector32(@embedding) -> @embedding
-  const insertVec = database!.prepare(`INSERT OR REPLACE INTO vec_docs(rowid, embedding) VALUES((SELECT rowid FROM documents WHERE id=@id), @embedding)`);
+  const d = getOrm();
+  // Statements for vector index maintenance
+  const delVecById = database.prepare(
+    `DELETE FROM vec_docs WHERE rowid = (SELECT rowid FROM documents WHERE id=@id)`
+  );
+  const insertVec = database!.prepare(
+    `INSERT INTO vec_docs(rowid, embedding) VALUES((SELECT rowid FROM documents WHERE id=@id), @embedding)`
+  );
   const tx = database!.transaction((rows: VectorInsertItem[]) => {
     for (const r of rows) {
       const id = r.id || crypto.randomUUID();
       const embBuf = float32ArrayToBuffer(r.embedding);
-      insertDoc.run({
-        id,
-        content: r.content,
-        metadata: r.metadata ? JSON.stringify(r.metadata) : null,
-        embedding: embBuf
-      });
+      // Upsert into documents via Drizzle ORM
+      d.insert(documents)
+        .values({ id, content: r.content, metadata: r.metadata ? JSON.stringify(r.metadata) : null, embedding: embBuf })
+        .onConflictDoUpdate({
+          target: documents.id,
+          set: { content: r.content, metadata: r.metadata ? JSON.stringify(r.metadata) : null, embedding: embBuf },
+        })
+        .run?.();
+      // Ensure vec_docs has a single row per document rowid: delete then insert
+      delVecById.run({ id });
       insertVec.run({ id, embedding: embBuf });
     }
   });
@@ -166,17 +182,20 @@ export function deleteVectors(ids: string[]): { deleted: number } {
   if (!ids || ids.length === 0) return { deleted: 0 };
   const database = getDB();
   if (!database || !ensureVecLoaded()) return { deleted: 0 };
-  // Fetch rowids first to delete from vec table.
+  // Fetch rowids first to delete from vec table (rowid isn't in schema, use raw SQL)
   const selectRowids = database.prepare(`SELECT rowid FROM documents WHERE id IN (${ids.map(() => '?').join(',')})`);
   const rows = selectRowids.all(...ids) as { rowid: number }[];
   if (rows.length === 0) return { deleted: 0 };
   const rowIds = rows.map(r => r.rowid);
   const delVec = database.prepare(`DELETE FROM vec_docs WHERE rowid IN (${rowIds.map(() => '?').join(',')})`);
-  const delDoc = database.prepare(`DELETE FROM documents WHERE id IN (${ids.map(() => '?').join(',')})`);
+  const d = getOrm();
   const tx = database.transaction(() => {
     delVec.run(...rowIds);
-    delDoc.run(...ids);
+    // Delete from documents via Drizzle ORM
+    d.delete(documents).where(inArray(documents.id, ids)).run?.();
   });
   tx();
   return { deleted: rows.length };
 }
+
+export * as Schema from './schema';

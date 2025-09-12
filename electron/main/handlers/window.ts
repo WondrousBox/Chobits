@@ -13,6 +13,8 @@ export function initWindowHandlers(win: BrowserWindow) {
   // New follower windows: context menu + settings
   let menuWindow: BrowserWindow | null = null
   let settingsWindow: BrowserWindow | null = null
+  // 资源管理窗口
+  let resourcesWindow: BrowserWindow | null = null
   // 记录上一次放置的方向 (针对所有跟随窗口分别记录)
   const lastFollowerSide = new Map<BrowserWindow, 'right' | 'left' | 'bottom' | 'top' | null>()
   let followerAnimTimer: NodeJS.Timeout | null = null
@@ -412,5 +414,46 @@ export function initWindowHandlers(win: BrowserWindow) {
         try { win?.webContents.send('menu-command', action) } catch {}
         return
     }
+  })
+
+  ipcMain.handle('openResourcesWindow', async () => {
+    if (!win) return false
+    try {
+      if (!resourcesWindow || resourcesWindow.isDestroyed()) {
+        const { BrowserWindow } = await import('electron')
+        resourcesWindow = new BrowserWindow({
+          width: 720,
+          height: 520,
+          frame: false,
+          transparent: true,
+          resizable: true,
+          alwaysOnTop: false,
+          skipTaskbar: false,
+          backgroundColor: '#00000000',
+          parent: win,
+          show: false,
+          webPreferences: { preload: (win as any).__preloadPath || undefined, nodeIntegration: true, contextIsolation: true }
+        })
+        resourcesWindow.once('ready-to-show', () => { try { resourcesWindow && resourcesWindow.show() } catch {} })
+        // 居中
+        const mainBounds = win.getBounds()
+        const display = screen.getDisplayNearestPoint({ x: mainBounds.x + mainBounds.width / 2, y: mainBounds.y + mainBounds.height / 2 })
+        const work = display.workArea
+        resourcesWindow.setPosition(
+          Math.round(work.x + (work.width - 720) / 2),
+          Math.round(work.y + (work.height - 520) / 2),
+        )
+        const url = process.env.VITE_DEV_SERVER_URL
+        if (url) resourcesWindow.loadURL(`${url}#resources`)
+        else {
+          const indexHtml = (process.env.APP_ROOT || '') + '/dist/index.html'
+          ;(resourcesWindow as any).loadFile(indexHtml, { hash: 'resources' })
+        }
+        resourcesWindow.on('closed', () => { resourcesWindow = null })
+      } else {
+        try { resourcesWindow.show() } catch {}
+      }
+      return true
+    } catch { return false }
   })
 }
