@@ -424,14 +424,14 @@ export function initWindowHandlers(win: BrowserWindow) {
         resourcesWindow = new BrowserWindow({
           width: 720,
           height: 520,
-          frame: false,
-          transparent: true,
+          frame: true, // 标题栏
+          transparent: false, // 非透明
           resizable: true,
           alwaysOnTop: false,
           skipTaskbar: false,
-          backgroundColor: '#00000000',
-          parent: win,
+          backgroundColor: '#fff', // 白色背景
           show: false,
+          autoHideMenuBar: true, // 隐藏菜单栏
           webPreferences: { preload: (win as any).__preloadPath || undefined, nodeIntegration: true, contextIsolation: true }
         })
         resourcesWindow.once('ready-to-show', () => { try { resourcesWindow && resourcesWindow.show() } catch {} })

@@ -23,13 +23,13 @@ const Resources: React.FC = () => {
 
   const handleDelete = async (id: string) => {
     try {
-      await (window as any).YUA.resource['']({ id })
+      await window.YUA.resource.deleteResource({ id })
       setList(prev => prev.filter(i => i.id !== id))
     } catch (e) { console.warn('delete resource failed', e) }
   }
 
   return (
-    <div className='p-4 text-foreground'>
+    <div className='p-4 text-foreground bg-background'>
       <div className='text-xl mb-3'>📚 资源管理</div>
       <div className='mb-3'>共 {list.length} 个资源</div>
       <div className='space-y-2'>
