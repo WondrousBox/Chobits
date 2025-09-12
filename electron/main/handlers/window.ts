@@ -173,12 +173,53 @@ export function initWindowHandlers(win: BrowserWindow) {
     // settingsWindow 不是跟随窗口，不自动贴靠
   }
 
+  // ---------------- Hover monitor to manage click-through ---------------
+  // 在透明窗口上，为了让外部（Finder）拖拽能进入助手区域，我们需要在鼠标进入助手内层矩形时
+  // 自动关闭 ignoreMouseEvents（否则不会收到 dragenter/over 事件）。
+  let hoverTimer: NodeJS.Timeout | null = null
+  let lastInside = false
+  function isCursorInsideAssistant(): boolean {
+    if (!win || win.isDestroyed()) return false
+    try {
+      const p = screen.getCursorScreenPoint()
+      const b = win.getBounds()
+      const padding = movementConfig.assistantPadding ?? 0
+      const ax = b.x + padding
+      const ay = b.y + padding
+      const aw = ASSISTANT_WIDTH
+      const ah = ASSISTANT_HEIGHT
+      return p.x >= ax && p.x <= ax + aw && p.y >= ay && p.y <= ay + ah
+    } catch { return false }
+  }
+
+  function startHoverMonitor() {
+    stopHoverMonitor()
+    hoverTimer = setInterval(() => {
+      const inside = isCursorInsideAssistant()
+      if (inside !== lastInside) {
+        lastInside = inside
+        try {
+          // 鼠标在助手区域内：允许接收事件（包括外部拖拽）
+          // 区域外：继续穿透到底层应用
+          win.setIgnoreMouseEvents(!inside, { forward: true })
+        } catch {}
+      }
+    }, 33) // ~30fps 轮询
+  }
+  function stopHoverMonitor() {
+    if (hoverTimer) { clearInterval(hoverTimer); hoverTimer = null }
+  }
+
   // 主窗口关闭时统一销毁子窗口
   win.on('closed', () => {
     ;[fileListWindow, menuWindow, settingsWindow].forEach(w => { try { w && !w.isDestroyed() && w.destroy() } catch {} })
     fileListWindow = null; menuWindow = null; settingsWindow = null
     stopFollowerAnimation()
+    stopHoverMonitor()
   })
+
+  // 启动 hover 监控
+  startHoverMonitor()
 
   // ---------------- Movement Config IPC --------------------
   ipcMain.handle('getMovementConfig', () => {
