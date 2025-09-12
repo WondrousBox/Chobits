@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import './AIAssistant.css'
 import { bezierQ, clamp, lerp } from '@/utils/helpers'
+import VideoSprite from '../VideoSprite'
 
 // Constants to match Electron window sizing (intrinsic assistant size only)
 const ASSISTANT_WIDTH = 180
@@ -408,9 +409,7 @@ export const AIAssistant: React.FC = () => {
         </div>
       )}
 
-      <video style={{ width: 180, height: 220, pointerEvents: 'none', userSelect: 'none', borderRadius: 8, backgroundColor: 'transparent', imageRendering: 'pixelated' }} autoPlay muted loop>
-        <source src="./idle.webm" type="video/mp4" />
-      </video>
+      <VideoSprite />
 
       {/* 拖拽提示 */}
       {isFileDragOver && (
