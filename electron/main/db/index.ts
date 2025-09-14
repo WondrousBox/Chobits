@@ -77,6 +77,69 @@ function ensureVecLoaded(): boolean {
   }
 }
 
+function setupTriggers() {
+  if (!db) return;
+  try {
+    // Documents: soft delete -> remove vec_docs and upsert recycle_bin
+    db.exec(`CREATE TRIGGER IF NOT EXISTS trg_documents_soft_delete
+AFTER UPDATE OF deleted_at ON documents
+WHEN NEW.deleted_at IS NOT NULL AND (OLD.deleted_at IS NULL OR OLD.deleted_at != NEW.deleted_at)
+BEGIN
+  DELETE FROM vec_docs WHERE rowid = OLD.rowid;
+  INSERT INTO recycle_bin (id, entity_type, entity_id, title, summary, reason, deleted_at, deleted_by, payload, expire_at)
+  VALUES ('doc:' || NEW.id, 'document', NEW.id, COALESCE(NEW.title, substr(NEW.content,1,80)), substr(NEW.content,1,160), 'soft-delete', NEW.deleted_at, 'trigger', NULL, NULL)
+  ON CONFLICT(id) DO UPDATE SET deleted_at=excluded.deleted_at, title=excluded.title, summary=excluded.summary;
+END;`);
+
+    // Documents: restore -> reinsert vec_docs from stored embedding, remove recycle_bin
+    db.exec(`CREATE TRIGGER IF NOT EXISTS trg_documents_restore
+AFTER UPDATE OF deleted_at ON documents
+WHEN NEW.deleted_at IS NULL AND OLD.deleted_at IS NOT NULL
+BEGIN
+  DELETE FROM vec_docs WHERE rowid = NEW.rowid;
+  INSERT INTO vec_docs(rowid, embedding)
+    SELECT NEW.rowid, NEW.embedding
+    WHERE NEW.embedding IS NOT NULL;
+  DELETE FROM recycle_bin WHERE entity_type='document' AND entity_id=NEW.id;
+END;`);
+
+    // Documents: hard delete -> cleanup vec_docs & recycle_bin
+    db.exec(`CREATE TRIGGER IF NOT EXISTS trg_documents_delete
+AFTER DELETE ON documents
+BEGIN
+  DELETE FROM vec_docs WHERE rowid = OLD.rowid;
+  DELETE FROM recycle_bin WHERE entity_type='document' AND entity_id=OLD.id;
+END;`);
+
+    // Resources: soft delete -> upsert recycle_bin
+    db.exec(`CREATE TRIGGER IF NOT EXISTS trg_resources_soft_delete
+AFTER UPDATE OF deleted_at ON resources
+WHEN NEW.deleted_at IS NOT NULL AND (OLD.deleted_at IS NULL OR OLD.deleted_at != NEW.deleted_at)
+BEGIN
+  INSERT INTO recycle_bin (id, entity_type, entity_id, title, summary, reason, deleted_at, deleted_by, payload, expire_at)
+  VALUES ('res:' || NEW.id, 'resource', NEW.id, NEW.title, COALESCE(NEW.content_text, NEW.description), 'soft-delete', NEW.deleted_at, 'trigger', NULL, NULL)
+  ON CONFLICT(id) DO UPDATE SET deleted_at=excluded.deleted_at, title=excluded.title, summary=excluded.summary;
+END;`);
+
+    // Resources: restore -> remove recycle_bin
+    db.exec(`CREATE TRIGGER IF NOT EXISTS trg_resources_restore
+AFTER UPDATE OF deleted_at ON resources
+WHEN NEW.deleted_at IS NULL AND OLD.deleted_at IS NOT NULL
+BEGIN
+  DELETE FROM recycle_bin WHERE entity_type='resource' AND entity_id=NEW.id;
+END;`);
+
+    // Resources: hard delete -> cleanup recycle_bin
+    db.exec(`CREATE TRIGGER IF NOT EXISTS trg_resources_delete
+AFTER DELETE ON resources
+BEGIN
+  DELETE FROM recycle_bin WHERE entity_type='resource' AND entity_id=OLD.id;
+END;`);
+  } catch (e) {
+    console.warn('[db] setupTriggers failed', e);
+  }
+}
+
 function initSchema() {
   if (!db) return;
   try {
@@ -88,21 +151,9 @@ function initSchema() {
     console.warn('[db] failed to run migrations. Ensure you ran "pnpm run db:generate" or "pnpm run db:push" to create ./drizzle', e);
   }
   // vec_docs is managed by sqlite-vec extension; created lazily in ensureVecTable(dim)
+  setupTriggers();
 }
 
-function float32ArrayToBuffer(arr: number[]): any {
-  const buf = Buffer.allocUnsafe(arr.length * 4);
-  for (let i = 0; i < arr.length; i++) buf.writeFloatLE(arr[i], i * 4);
-  return buf;
-}
-
-function bufferToFloat32Array(buf: any, dim: number): number[] {
-  const out: number[] = new Array(dim);
-  for (let i = 0; i < dim; i++) out[i] = buf.readFloatLE(i * 4);
-  return out;
-}
-
-// Ensure sqlite-vec extension table exists for given dimension
 function ensureVecTable(dim: number) {
   if (!db) return;
   if (!ensureVecLoaded()) {
@@ -120,6 +171,36 @@ function ensureVecTable(dim: number) {
   }
 }
 
+function float32ArrayToBuffer(arr: number[]): any {
+  const buf = Buffer.allocUnsafe(arr.length * 4);
+  for (let i = 0; i < arr.length; i++) buf.writeFloatLE(arr[i], i * 4);
+  return buf;
+}
+
+function bufferToFloat32Array(buf: any, dim: number): number[] {
+  const out: number[] = new Array(dim);
+  for (let i = 0; i < dim; i++) out[i] = buf.readFloatLE(i * 4);
+  return out;
+}
+
+// Ensure sqlite-vec extension table exists for given dimension
+// function ensureVecTable(dim: number) {
+//   if (!db) return;
+//   if (!ensureVecLoaded()) {
+//     console.warn('[vector] sqlite-vec not ready, skip creating vec_docs');
+//     return;
+//   }
+//   // quick check
+//   const row = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='vec_docs'`).get();
+//   if (!row) {
+//     try {
+//       db.exec(`CREATE VIRTUAL TABLE vec_docs USING vec0(embedding float[${dim}]);`);
+//     } catch (e) {
+//       console.error('[vector] failed to create vec_docs table (vec0 not available)', e);
+//     }
+//   }
+// }
+
 export function insertVectors(items: VectorInsertItem[], dim: number) {
   const database = getDB();
   ensureVecTable(dim);
@@ -136,12 +217,28 @@ export function insertVectors(items: VectorInsertItem[], dim: number) {
     for (const r of rows) {
       const id = r.id || crypto.randomUUID();
       const embBuf = float32ArrayToBuffer(r.embedding);
+      const now = Date.now();
       // Upsert into documents via Drizzle ORM
       d.insert(documents)
-        .values({ id, content: r.content, metadata: r.metadata ? JSON.stringify(r.metadata) : null, embedding: embBuf })
+        .values({
+          id,
+          content: r.content,
+          metadata: r.metadata ? JSON.stringify(r.metadata) : null,
+          embedding: embBuf,
+          embedDim: dim,
+          embedAt: now,
+          updatedAt: now,
+        })
         .onConflictDoUpdate({
           target: documents.id,
-          set: { content: r.content, metadata: r.metadata ? JSON.stringify(r.metadata) : null, embedding: embBuf },
+          set: {
+            content: r.content,
+            metadata: r.metadata ? JSON.stringify(r.metadata) : null,
+            embedding: embBuf,
+            embedDim: dim,
+            embedAt: now,
+            updatedAt: now,
+          },
         })
         .run?.();
       // Ensure vec_docs has a single row per document rowid: delete then insert
@@ -196,6 +293,26 @@ export function deleteVectors(ids: string[]): { deleted: number } {
   });
   tx();
   return { deleted: rows.length };
+}
+
+export function rebuildVectors(ids: string[], dim: number): { restored: number } {
+  const database = getDB();
+  ensureVecTable(dim);
+  if (!database || !ensureVecLoaded()) return { restored: 0 };
+  // Re-insert into vec_docs from documents table using rowid & stored embedding
+  const delVec = database.prepare(`DELETE FROM vec_docs WHERE rowid = (SELECT rowid FROM documents WHERE id=?)`);
+  const insertFromDoc = database.prepare(
+    `INSERT INTO vec_docs(rowid, embedding)
+     SELECT rowid, embedding FROM documents WHERE id = ? AND embedding IS NOT NULL`
+  );
+  const tx = database.transaction((idsInner: string[]) => {
+    for (const id of idsInner) {
+      delVec.run(id);
+      insertFromDoc.run(id);
+    }
+  });
+  tx(ids);
+  return { restored: ids.length };
 }
 
 export * as Schema from './schema';
