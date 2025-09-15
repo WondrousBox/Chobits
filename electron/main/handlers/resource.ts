@@ -1,5 +1,5 @@
 import { BrowserWindow, ipcMain } from 'electron';
-import { addResource, listResources, getResource, deleteResource } from '../preload/apis/resource';
+import { addResource, listResources, getResource, deleteResource, updateResource } from '../preload/apis/resource';
 
 export function initResourceHandlers(_win: BrowserWindow) {
   ipcMain.handle('addResource', async (_event, payload: { resource: any }) => {
@@ -7,13 +7,15 @@ export function initResourceHandlers(_win: BrowserWindow) {
     return { success: true };
   });
   ipcMain.handle('listResource', async () => {
-    return await listResources();
+    // Hide soft-deleted items by default
+    return await listResources({ deletedAt: 0 });
   });
   ipcMain.handle('getResource', async (_event, payload: { id: string }) => {
     return await getResource(payload.id);
   });
   ipcMain.handle('deleteResource', async (_event, payload: { id: string }) => {
-    await deleteResource(payload.id);
+    // Soft delete: mark deletedAt to trigger recycle_bin entry via trigger
+    await updateResource(payload.id, { deletedAt: Date.now() });
     return { success: true };
   });
 }

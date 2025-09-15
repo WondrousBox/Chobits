@@ -23,6 +23,8 @@ type WindowBridgeParams = {
   "openSettingsWindow": IPCParams<[void], boolean>;
   /** 打开资源管理窗口 */
   "openResourcesWindow": IPCParams<[void], boolean>;
+  /** 打开回收站窗口 */
+  "openRecycleWindow": IPCParams<[void], boolean>;
   /** 获取移动配置 */
   "getMovementConfig": IPCParams<[void], { width: number; height: number } & { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number }>;
   /** 更新移动配置 */
@@ -39,6 +41,7 @@ const methods: Array<keyof WindowBridgeParams> = [
   "openMenuWindow",
   "openSettingsWindow",
   "openResourcesWindow",
+  "openRecycleWindow",
   "getMovementConfig",
   "updateMovementConfig",
 ];
