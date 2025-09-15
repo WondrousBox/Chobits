@@ -48,6 +48,9 @@ export const AIAssistant: React.FC = () => {
     try { await window.YUA.window.setClickThrough(enable) } catch { }
   }, [])
 
+  // Track last mouse position so we can compute inside state without requiring movement
+  const lastMousePosRef = useRef<{ clientX: number; clientY: number } | null>(null)
+
   const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
   useEffect(() => {
@@ -211,7 +214,20 @@ export const AIAssistant: React.FC = () => {
 
   const handleMouseUp = useCallback((e?: MouseEvent) => {
     setIsDragging(false)
-  }, [])
+    // Ensure click-through reflects current pointer position even if no mousemove fires
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (rect && e) {
+      const inside = e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom
+      setClickThrough(!inside)
+    } else if (rect && lastMousePosRef.current) {
+      const { clientX, clientY } = lastMousePosRef.current
+      const inside = clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom
+      setClickThrough(!inside)
+    } else {
+      // Safe default: not click-through after interaction end
+      setClickThrough(false)
+    }
+  }, [setClickThrough])
 
   const handleMouseMove = useCallback(async (e: MouseEvent) => {
     if (!isDragging) return
@@ -249,12 +265,23 @@ export const AIAssistant: React.FC = () => {
   // 根据鼠标是否在助手区域内自动切换点击穿透（仅在未拖拽时）
   useEffect(() => {
     let lastInside = false
-    // 初始设为可穿透，鼠标一进入助手区域会自动关闭穿透
-    setClickThrough(true)
+
+    // Initialize from current mouse position if available; avoid forcing click-through true
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (rect && lastMousePosRef.current) {
+      const { clientX, clientY } = lastMousePosRef.current
+      const inside = clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom
+      lastInside = inside
+      setClickThrough(!inside)
+    } else {
+      // Safer default to ensure UI stays interactive until first move
+      setClickThrough(false)
+    }
 
     const onMove = (e: MouseEvent) => {
+      lastMousePosRef.current = { clientX: e.clientX, clientY: e.clientY }
       const rect = containerRef.current?.getBoundingClientRect()
-      const inside = !!rect && e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom
+      const inside = !!rect && e.clientX >= (rect!.left) && e.clientX <= (rect!.right) && e.clientY >= (rect!.top) && e.clientY <= (rect!.bottom)
       if (!isDragging && inside !== lastInside) {
         lastInside = inside
         setClickThrough(!inside)
