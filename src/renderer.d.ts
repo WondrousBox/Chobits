@@ -9,7 +9,10 @@ declare global {
     YUA: {
       window: WindowBridgeType
       ffmpeg: FFmpegBridgeType
-      vector: VectorBridgeType
+      vector: VectorBridgeType & {
+        onEmbeddingJob(cb: (job: any) => void): () => void
+        onEmbeddingProgress(cb: (p: { id: string; done: number; total: number; status?: string }) => void): () => void
+      }
       resource: ResourceBridgeType
       trash: TrashBridgeType
     }

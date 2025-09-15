@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import './settings.css'
+import EmbeddingJobsPanel from '../EmbeddingJobs'
 
 // Include assistantPadding in type
 type MovementConfig = { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number }
@@ -67,6 +68,9 @@ export const SettingsPanel: React.FC = () => {
         </div>
         <div className='settings-actions'>
           <button onClick={persist} disabled={saving}>{saving ? '保存中...' : '保存'}</button>
+        </div>
+        <div style={{ marginTop: 16 }}>
+          <EmbeddingJobsPanel />
         </div>
       </div>
     </div>

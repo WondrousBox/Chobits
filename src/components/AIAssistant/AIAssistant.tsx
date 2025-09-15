@@ -370,7 +370,7 @@ export const AIAssistant: React.FC = () => {
             status: 'new' as const,
           }
           try {
-            await (window as any).YUA.resource['addResource']({ resource })
+            await window.YUA.resource.addResource({ resource })
           } catch (e) {
             console.warn('addResource failed', e)
           }
@@ -407,7 +407,7 @@ export const AIAssistant: React.FC = () => {
             status: 'new' as const,
           }
           try {
-            await (window as any).YUA.resource['addResource']({ resource })
+            await window.YUA.resource.addResource({ resource })
           } catch (e) {
             console.warn('addResource failed', e)
           }
