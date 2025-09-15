@@ -45,6 +45,7 @@
     "@electron/rebuild": "^3.6.0",
     "@playwright/test": "^1.48.2",
     "@radix-ui/react-scroll-area": "^1.2.10",
+    "@radix-ui/react-tabs": "^1.1.13",
     "@types/better-sqlite3": "^7.6.13",
     "@types/fluent-ffmpeg": "^2.1.27",
     "@types/node": "^24.2.0",

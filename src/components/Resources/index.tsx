@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from '../ui/button'
 import { ScrollArea } from '../ui/scroll-area'
+import { TbTrash } from 'react-icons/tb'
 
 interface ResourceItem {
   id: string
@@ -46,24 +48,16 @@ const Resources: React.FC = () => {
   )
 
   return (
-    <ScrollArea className='p-4 text-foreground bg-background h-full'>
+    <ScrollArea className='p-4 text-foreground h-full bg-muted'>
       <div className='flex items-center justify-between mb-3'>
         <div className='text-xl'>📚 资源管理</div>
         <div className='flex items-center gap-2'>
-          <Button
-            variant={viewMode === 'card' ? 'default' : 'secondary'}
-            size={'sm'}
-            onClick={() => setViewMode('card')}
-          >
-            卡片
-          </Button>
-          <Button
-            variant={viewMode === 'list' ? 'default' : 'secondary'}
-            size={'sm'}
-            onClick={() => setViewMode('list')}
-          >
-            列表
-          </Button>
+          <Tabs value={viewMode}>
+            <TabsList>
+              <TabsTrigger value="card" onClick={() => setViewMode('card')}>卡片</TabsTrigger>
+              <TabsTrigger value="list" onClick={() => setViewMode('list')}>列表</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
       </div>
       <div className='mb-3'>共 {list.length} 个资源</div>
@@ -75,7 +69,7 @@ const Resources: React.FC = () => {
               <div className='font-medium truncate'><Title item={item} /></div>
               <Meta item={item} />
               <div className='mt-auto flex items-center justify-end'>
-                <Button variant={'destructive'} size={'sm'} onClick={() => handleDelete(item.id)}>删除</Button>
+                <Button variant={'destructive'} size={'sm'} onClick={() => handleDelete(item.id)}><TbTrash />删除</Button>
               </div>
             </div>
           ))}
@@ -89,7 +83,7 @@ const Resources: React.FC = () => {
                 <Meta item={item} />
               </div>
               <div className='flex items-center gap-2 shrink-0'>
-                <Button variant={'destructive'} size={'sm'} onClick={() => handleDelete(item.id)}>删除</Button>
+                <Button variant={'destructive'} size={'sm'} onClick={() => handleDelete(item.id)}><TbTrash />删除</Button>
               </div>
             </div>
           ))}
