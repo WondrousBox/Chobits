@@ -26,9 +26,9 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
-    "@xenova/transformers": "^2.17.2",
     "@radix-ui/react-select": "^2.2.5",
     "@radix-ui/react-slot": "^1.2.3",
+    "@xenova/transformers": "^2.17.2",
     "better-sqlite3": "^12.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -44,6 +44,7 @@
   "devDependencies": {
     "@electron/rebuild": "^3.6.0",
     "@playwright/test": "^1.48.2",
+    "@radix-ui/react-scroll-area": "^1.2.10",
     "@types/better-sqlite3": "^7.6.13",
     "@types/fluent-ffmpeg": "^2.1.27",
     "@types/node": "^24.2.0",
