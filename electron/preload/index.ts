@@ -3,6 +3,7 @@ import { windowBridge } from './apis/window'
 import { ffmpegBridge } from './apis/ffmpeg'
 import { vectorBridge } from './apis/vector'
 import { resourceBridge } from './apis/resource'
+import { trashBridge } from './apis/trash'
 
 // --------- Expose some API to the Renderer process ---------
 contextBridge.exposeInMainWorld('ipcRenderer', {
@@ -33,6 +34,7 @@ contextBridge.exposeInMainWorld('YUA', {
   ffmpeg: ffmpegBridge,
   vector: vectorBridge,
   resource: resourceBridge,
+  trash: trashBridge,
 })
 
 // --------- Preload scripts loading ---------

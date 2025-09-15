@@ -4,6 +4,7 @@ import FileBox from './components/FileBox'
 import AssistantMenu from './components/AssistantMenu/index'
 import SettingsPanel from './components/SettingsPanel/index'
 import Resources from './components/Resources'
+import RecycleBinPage from './components/RecycleBin/Page'
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 
 function App() {
@@ -17,6 +18,7 @@ function App() {
             <Route path="/menu" element={<AssistantMenu />} />
             <Route path="/settings" element={<SettingsPanel />} />
             <Route path="/resources" element={<Resources />} />
+            <Route path="/recycle" element={<RecycleBinPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>

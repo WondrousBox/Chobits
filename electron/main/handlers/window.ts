@@ -15,6 +15,8 @@ export function initWindowHandlers(win: BrowserWindow) {
   let settingsWindow: BrowserWindow | null = null
   // 资源管理窗口
   let resourcesWindow: BrowserWindow | null = null
+  // 回收站窗口
+  let recycleWindow: BrowserWindow | null = null
   // 记录上一次放置的方向 (针对所有跟随窗口分别记录)
   const lastFollowerSide = new Map<BrowserWindow, 'right' | 'left' | 'bottom' | 'top' | null>()
   let followerAnimTimer: NodeJS.Timeout | null = null
@@ -214,8 +216,8 @@ export function initWindowHandlers(win: BrowserWindow) {
 
   // 主窗口关闭时统一销毁子窗口
   win.on('closed', () => {
-    ;[fileListWindow, menuWindow, settingsWindow].forEach(w => { try { w && !w.isDestroyed() && w.destroy() } catch {} })
-    fileListWindow = null; menuWindow = null; settingsWindow = null
+    ;[fileListWindow, menuWindow, settingsWindow, resourcesWindow, recycleWindow].forEach(w => { try { w && !w.isDestroyed() && w.destroy() } catch {} })
+    fileListWindow = null; menuWindow = null; settingsWindow = null; resourcesWindow = null; recycleWindow = null
     stopFollowerAnimation()
     stopHoverMonitor()
   })
@@ -452,6 +454,48 @@ export function initWindowHandlers(win: BrowserWindow) {
         resourcesWindow.on('closed', () => { resourcesWindow = null })
       } else {
         try { resourcesWindow.show() } catch {}
+      }
+      return true
+    } catch { return false }
+  })
+
+  // ---------------- Recycle Bin Window (独立窗口) ------------
+  ipcMain.handle('openRecycleWindow', async () => {
+    if (!win) return false
+    try {
+      if (!recycleWindow || recycleWindow.isDestroyed()) {
+        const { BrowserWindow } = await import('electron')
+        recycleWindow = new BrowserWindow({
+          width: 720,
+          height: 520,
+          frame: true,
+          transparent: false,
+          resizable: true,
+          alwaysOnTop: false,
+          skipTaskbar: false,
+          backgroundColor: '#fff',
+          show: false,
+          autoHideMenuBar: true,
+          webPreferences: { preload: (win as any).__preloadPath || undefined, nodeIntegration: true, contextIsolation: true }
+        })
+        recycleWindow.once('ready-to-show', () => { try { recycleWindow && recycleWindow.show() } catch {} })
+        // 居中到主窗口所在屏幕
+        const mainBounds = win.getBounds()
+        const display = screen.getDisplayNearestPoint({ x: mainBounds.x + mainBounds.width / 2, y: mainBounds.y + mainBounds.height / 2 })
+        const work = display.workArea
+        recycleWindow.setPosition(
+          Math.round(work.x + (work.width - 720) / 2),
+          Math.round(work.y + (work.height - 520) / 2),
+        )
+        const url = process.env.VITE_DEV_SERVER_URL
+        if (url) recycleWindow.loadURL(`${url}#recycle`)
+        else {
+          const indexHtml = (process.env.APP_ROOT || '') + '/dist/index.html'
+          ;(recycleWindow as any).loadFile(indexHtml, { hash: 'recycle' })
+        }
+        recycleWindow.on('closed', () => { recycleWindow = null })
+      } else {
+        try { recycleWindow.show() } catch {}
       }
       return true
     } catch { return false }
