@@ -41,7 +41,7 @@ function Dropzone({ children, customDropzone, className, onDropFiles, onDragEnte
         size: i.size,
       }));
       console.log(fl);
-      onDrop?.(event);
+      onDrop?.(event as any);
       onDropFiles?.(fl);
     },
     onDragOver: (e) => {
