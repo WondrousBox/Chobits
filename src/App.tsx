@@ -10,8 +10,8 @@ import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 function App() {
   return (
     <HashRouter>
-      <div className='App'>
-        <div className="app-container">
+      <div className='App w-full h-full'>
+        <div className="app-container w-full h-full overflow-hidden">
           <Routes>
             <Route path="/" element={<AIAssistant />} />
             <Route path="/filebox" element={<FileBox />} />

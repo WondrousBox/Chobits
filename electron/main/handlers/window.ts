@@ -8,6 +8,17 @@ import path from 'node:path';
 const ASSISTANT_WIDTH = 180;
 const ASSISTANT_HEIGHT = 220;
 
+// Open DevTools automatically in dev/test environments
+const SHOULD_OPEN_DEVTOOLS = !!process.env.VITE_DEV_SERVER_URL || (process.env.NODE_ENV && process.env.NODE_ENV !== 'production')
+function maybeOpenDevTools(w: BrowserWindow | null) {
+  try {
+    if (SHOULD_OPEN_DEVTOOLS && w && !w.isDestroyed()) {
+      // detach mode avoids overlaying frameless/transparent windows
+      w.webContents.openDevTools({ mode: 'detach' })
+    }
+  } catch {}
+}
+
 export function initWindowHandlers(win: BrowserWindow) {
   let fileListWindow: BrowserWindow | null = null
   // New follower windows: context menu + settings
@@ -302,6 +313,7 @@ export function initWindowHandlers(win: BrowserWindow) {
           const indexHtml = (process.env.APP_ROOT || '') + '/dist/index.html'
           ;(fileListWindow as any).loadFile(indexHtml, { hash: 'filebox' })
         }
+        maybeOpenDevTools(fileListWindow)
         fileListWindow.on('closed', () => { fileListWindow = null; stopFollowerAnimation(); lastFollowerSide.delete(fileListWindow as any) })
       } else {
         repositionFollower(fileListWindow)
@@ -385,6 +397,7 @@ export function initWindowHandlers(win: BrowserWindow) {
           const indexHtml = (process.env.APP_ROOT || '') + '/dist/index.html'
           ;(settingsWindow as any).loadFile(indexHtml, { hash: 'settings' })
         }
+        maybeOpenDevTools(settingsWindow)
         settingsWindow.on('closed', () => { settingsWindow = null })
       }
       if (settingsWindow && !settingsWindow.isVisible()) settingsWindow.show(); settingsWindow?.focus()
@@ -451,6 +464,7 @@ export function initWindowHandlers(win: BrowserWindow) {
           const indexHtml = (process.env.APP_ROOT || '') + '/dist/index.html'
           ;(resourcesWindow as any).loadFile(indexHtml, { hash: 'resources' })
         }
+        maybeOpenDevTools(resourcesWindow)
         resourcesWindow.on('closed', () => { resourcesWindow = null })
       } else {
         try { resourcesWindow.show() } catch {}
@@ -493,6 +507,7 @@ export function initWindowHandlers(win: BrowserWindow) {
           const indexHtml = (process.env.APP_ROOT || '') + '/dist/index.html'
           ;(recycleWindow as any).loadFile(indexHtml, { hash: 'recycle' })
         }
+        maybeOpenDevTools(recycleWindow)
         recycleWindow.on('closed', () => { recycleWindow = null })
       } else {
         try { recycleWindow.show() } catch {}
