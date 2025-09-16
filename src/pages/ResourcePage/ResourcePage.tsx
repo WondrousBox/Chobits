@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import ResourceList from '@/pages/ResourcePage/components/ResourceList'
 import { ResourceItem } from '@/types'
+import { TbCards, TbGrid3X3, TbGrid4X4, TbGridPattern, TbList } from 'react-icons/tb'
 
 const ResourcePage: React.FC = () => {
   const [list, setList] = useState<ResourceItem[]>([])
@@ -30,12 +31,12 @@ const ResourcePage: React.FC = () => {
   return (<>
     <div className='flex items-center justify-between bg-background text-foreground h-10 p-2'>
       <div>资源管理 <span className='text-xs text-muted-foreground ml-2'>共 {list.length} 个资源</span> </div>
-      <Tabs value={viewMode}>
+      {/* <Tabs value={viewMode}>
         <TabsList>
-          <TabsTrigger value="card" onClick={() => setViewMode('card')}>卡片</TabsTrigger>
-          <TabsTrigger value="list" onClick={() => setViewMode('list')}>列表</TabsTrigger>
+          <TabsTrigger value="card" onClick={() => setViewMode('card')}><TbGridPattern size={16} /> 卡片</TabsTrigger>
+          <TabsTrigger value="list" onClick={() => setViewMode('list')}><TbList size={16} /> 列表</TabsTrigger>
         </TabsList>
-      </Tabs>
+      </Tabs> */}
     </div>
     <div className='px-2 text-foreground h-full w-full bg-muted box-border overflow-y-auto' style={{ height: 'calc(100% - 48px)' }}>
       <ResourceList
