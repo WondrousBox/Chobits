@@ -187,8 +187,8 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({ items, onDelete, onD
                 onClick={(e) => handleItemClick(e, item.id, idx)}
               >
                 <div className='font-medium truncate'>{item.title || item.filePath || item.url || item.id}</div>
-                <div className='text-sm text-muted-foreground'>
-                  类型: {item.type} · 创建时间: {item.createdAt ? new Date(item.createdAt).toLocaleString() : '-'}
+                <div className='text-xs text-muted-foreground'>
+                  {item.type} · {item.createdAt ? new Date(item.createdAt).toLocaleString() : '-'}
                 </div>
               </div>
             )

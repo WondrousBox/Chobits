@@ -24,24 +24,6 @@
   box-shadow: 0 0 0 6px rgba(99, 102, 241, 0.15) inset, 0 12px 35px rgba(99, 102, 241, 0.25);
 }
 
-.drop-hint {
-  position: absolute;
-  top: -26px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(99,102,241,0.95);
-  color: #fff;
-  border-radius: 999px;
-  padding: 4px 10px;
-  font-size: 12px;
-  box-shadow: 0 6px 20px rgba(99,102,241,0.35);
-  white-space: nowrap;
-  z-index: 2;
-}
-
-/* 消息气泡：已迁移到 Tailwind 原子类 */
-
-
 /* 状态指示器 */
 .status-indicator {
   position: absolute;
