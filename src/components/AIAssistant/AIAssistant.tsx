@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import './AIAssistant.css'
+import './AIAssistant.scss'
 import { bezierQ, clamp, lerp } from '@/utils/helpers'
 import VideoSprite from './sprites'
 import Messages, { MessageBubble } from './messages'
 import type { MessageCategory, MessageContext } from "./messages"
-import AimDropzone from '../common/Dropzone'
+import Dropzone from '../common/Dropzone'
 import { SelectedResourceFileType } from '@/types'
 
 // Constants to match Electron window sizing (intrinsic assistant size only)
@@ -492,19 +492,15 @@ export const AIAssistant: React.FC = () => {
         </div>
       )}
       <MessageBubble state={messageState} />
-      <AimDropzone
+      <Dropzone
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
         onDropFiles={handleDropFiles}
         // onDrop={handleDrop}
+        customDropzoneInside={<div className="flex items-center justify-center absolute top-2 left-1/2 -translate-x-1/2 p-1 rounded-md bg-primary text-primary-foreground text-xs whitespace-nowrap z-10">{Messages.t('drag')}</div>}
       >
         <VideoSprite />
-      </AimDropzone>
-
-      {/* 拖拽提示 */}
-      {isFileDragOver && (
-        <div className="drop-hint">{Messages.t('drag')}</div>
-      )}
+      </Dropzone>
 
       {/* 状态指示器 */}
       <div className="status-indicator">
