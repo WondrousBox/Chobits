@@ -40,6 +40,10 @@ export type ResourceBridgeParams = {
   'listResource': IPCParams<[void], Resource[]>;
   'getResource': IPCParams<[{ id: string }], Resource | undefined>;
   'deleteResource': IPCParams<[{ id: string }], { success: true }>;
+  'deleteResources': IPCParams<[{ ids: string[] }], { success: true }>;
+  'openResource': IPCParams<[{ id: string }], { success: boolean }>;
+  'revealResource': IPCParams<[{ id: string }], { success: boolean }>;
+  'renameResource': IPCParams<[{ id: string; newName: string; renameFile?: boolean }], { success: boolean; fileRenamed?: boolean; newPath?: string }>;
 };
 
 const methods: Array<keyof ResourceBridgeParams> = [
@@ -47,6 +51,10 @@ const methods: Array<keyof ResourceBridgeParams> = [
   'listResource',
   'getResource',
   'deleteResource',
+  'deleteResources',
+  'openResource',
+  'revealResource',
+  'renameResource',
 ];
 
 export type ResourceBridgeType = {
