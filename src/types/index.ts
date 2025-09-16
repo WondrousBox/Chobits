@@ -29,3 +29,12 @@ export type SelectedResourceFileType = {
   extension?: string;
   isUrl?: boolean;
 };
+
+export interface ResourceItem {
+  id: string
+  title?: string
+  type: string
+  filePath?: string
+  url?: string
+  createdAt?: number
+}
