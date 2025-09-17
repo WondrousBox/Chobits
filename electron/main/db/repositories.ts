@@ -222,6 +222,39 @@ export const RecycleBinRepo = {
     const res = await db.delete(recycle_bin).where(inArray(recycle_bin.id, ids));
     return (res as any).changes ?? 0;
   },
+  /** 根据回收站ID恢复实体（文档/资源），并同步清理回收站索引 */
+  async restoreEntitiesByRecycleIds(ids: string[]): Promise<number> {
+    if (!ids?.length) return 0;
+    const db = getOrm();
+    const items = (await db.select().from(recycle_bin).where(inArray(recycle_bin.id, ids))) as any[];
+    if (!items.length) return 0;
+    const docIds = items.filter(i => i.entityType === 'document').map(i => i.entityId);
+    const resIds = items.filter(i => i.entityType === 'resource').map(i => i.entityId);
+    let restored = 0;
+    if (docIds.length) restored += await DocumentsRepo.restore(docIds);
+    if (resIds.length) restored += await ResourcesRepo.restore(resIds);
+    return restored;
+  },
+  /** 根据回收站ID彻底删除实体（文档/资源），并同步清理回收站索引 */
+  async purgeEntitiesByRecycleIds(ids: string[]): Promise<number> {
+    if (!ids?.length) return 0;
+    const db = getOrm();
+    const items = (await db.select().from(recycle_bin).where(inArray(recycle_bin.id, ids))) as any[];
+    if (!items.length) return 0;
+    const docIds = items.filter(i => i.entityType === 'document').map(i => i.entityId);
+    const resIds = items.filter(i => i.entityType === 'resource').map(i => i.entityId);
+    let deleted = 0;
+    if (docIds.length) deleted += await DocumentsRepo.deleteByIds(docIds);
+    if (resIds.length) deleted += await ResourcesRepo.deleteByIds(resIds);
+    return deleted;
+  },
+  /** 清空回收站（按可选筛选），并对实体执行彻底删除 */
+  async empty(filter: Partial<RecycleBinRow> = {}): Promise<number> {
+    const items = await this.list(filter, 10000, 0);
+    if (!items.length) return 0;
+    const ids = items.map(i => i.id);
+    return this.purgeEntitiesByRecycleIds(ids);
+  },
 };
 
 /**
@@ -231,6 +264,41 @@ export const RecycleBinRepo = {
  * - 推荐所有写操作用事务包裹（如批量）
  */
 export const ResourcesRepo = {
+  /** 新增或更新单条资源（主键冲突自动更新） */
+  async upsert(res: NewResource) {
+    const db = getOrm();
+    await db.insert(resources).values(res).onConflictDoUpdate({
+      target: resources.id,
+      set: { ...res },
+    });
+  },
+  /** 批量新增或更新资源（主键冲突自动更新） */
+  async bulkUpsert(list: NewResource[]) {
+    if (!list.length) return;
+    const db = getOrm();
+    await db.insert(resources).values(list).onConflictDoUpdate({
+      target: resources.id,
+      set: { ...list[0] },
+    });
+  },
+  /** 按ID获取资源 */
+  async getById(id: string): Promise<ResourceRow | undefined> {
+    const db = getOrm();
+    const rows = await db.select().from(resources).where(eq(resources.id, id)).limit(1);
+    return rows[0];
+  },
+  /** 判断资源是否存在 */
+  async exists(id: string): Promise<boolean> {
+    const db = getOrm();
+    const rows = await db.select().from(resources).where(eq(resources.id, id)).limit(1);
+    return !!rows.length;
+  },
+  /** 更新资源（部分字段） */
+  async update(id: string, patch: Partial<NewResource>): Promise<number> {
+    const db = getOrm();
+    const res = await db.update(resources).set({ ...patch, updatedAt: Date.now() } as any).where(eq(resources.id, id));
+    return (res as any).changes ?? 0;
+  },
   /** 批量物理删除资源，并清理回收站索引 */
   async deleteByIds(ids: string[]): Promise<number> {
     if (!ids.length) return 0;
@@ -238,6 +306,10 @@ export const ResourcesRepo = {
     const res = await db.delete(resources).where(inArray(resources.id, ids));
     await db.delete(recycle_bin).where(inArray(recycle_bin.entityId, ids));
     return (res as any).changes ?? 0;
+  },
+  /** 单条物理删除资源（便捷封装） */
+  async deleteById(id: string): Promise<number> {
+    return this.deleteByIds([id]);
   },
   /** 批量软删除资源：标记 deletedAt 并写入回收站索引 */
   async softDelete(ids: string[]): Promise<number> {

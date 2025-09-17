@@ -1,6 +1,5 @@
 import { BrowserWindow, ipcMain, shell } from 'electron';
-import { addResource, listResources, getResource, deleteResource, updateResource } from '../preload/apis/resource';
-import { WorkspacesRepo } from '../db/repositories';
+import { ResourcesRepo, WorkspacesRepo } from '../db/repositories';
 import { embeddingQueue } from '../embedding/queue';
 import { chunkText } from '../embedding/chunker';
 import { randomUUID } from 'node:crypto';
@@ -35,7 +34,7 @@ export function initResourceHandlers(_win: BrowserWindow) {
       }
     } catch {}
 
-    await addResource({ ...res, id, workspaceId, filePath });
+  await ResourcesRepo.upsert({ ...res, id, workspaceId, filePath } as any);
     // Auto-chunk & enqueue for embedding if text exists
     const text = res.contentText || res.description || res.title;
     if (typeof text === 'string' && text.trim().length > 0) {
@@ -51,20 +50,20 @@ export function initResourceHandlers(_win: BrowserWindow) {
   });
   ipcMain.handle('listResource', async () => {
     // Hide soft-deleted items by default
-    return await listResources({ deletedAt: 0 });
+  return await ResourcesRepo.list({ deletedAt: 0 } as any);
   });
   ipcMain.handle('getResource', async (_event, payload: { id: string }) => {
-    return await getResource(payload.id);
+  return await ResourcesRepo.getById(payload.id);
   });
   ipcMain.handle('deleteResource', async (_event, payload: { id: string }) => {
     // Soft delete: mark deletedAt to trigger recycle_bin entry via trigger
-    await updateResource(payload.id, { deletedAt: Date.now() });
+  await ResourcesRepo.update(payload.id, { deletedAt: Date.now() } as any);
     return { success: true };
   });
 
   ipcMain.handle('deleteResources', async (_event, payload: { ids: string[] }) => {
     const now = Date.now();
-    await Promise.all((payload.ids || []).map(id => updateResource(id, { deletedAt: now })));
+  await Promise.all((payload.ids || []).map(id => ResourcesRepo.update(id, { deletedAt: now } as any)));
     return { success: true };
   });
 
@@ -77,7 +76,7 @@ export function initResourceHandlers(_win: BrowserWindow) {
     await fs.mkdir(targetDir, { recursive: true });
     let moved = 0;
     for (const id of ids) {
-      const res = await getResource(id);
+  const res = await ResourcesRepo.getById(id);
       if (!res) continue;
       let newPath = res.filePath as string | undefined;
       try {
@@ -89,7 +88,7 @@ export function initResourceHandlers(_win: BrowserWindow) {
             newPath = target;
           }
         }
-        await updateResource(id, { workspaceId, ...(newPath ? { filePath: newPath } : {}) });
+  await ResourcesRepo.update(id, { workspaceId, ...(newPath ? { filePath: newPath } : {}) } as any);
         moved += 1;
       } catch (e) { console.warn('move resource failed', e);}    
     }
@@ -97,7 +96,7 @@ export function initResourceHandlers(_win: BrowserWindow) {
   });
 
   ipcMain.handle('openResource', async (_event, payload: { id: string }) => {
-    const res = await getResource(payload.id);
+  const res = await ResourcesRepo.getById(payload.id);
     if (!res) return { success: false };
     if (res.filePath) {
       await shell.openPath(res.filePath);
@@ -111,7 +110,7 @@ export function initResourceHandlers(_win: BrowserWindow) {
   });
 
   ipcMain.handle('revealResource', async (_event, payload: { id: string }) => {
-    const res = await getResource(payload.id);
+  const res = await ResourcesRepo.getById(payload.id);
     if (!res || !res.filePath) return { success: false };
     shell.showItemInFolder(res.filePath);
     return { success: true };
@@ -119,7 +118,7 @@ export function initResourceHandlers(_win: BrowserWindow) {
 
   ipcMain.handle('renameResource', async (_event, payload: { id: string; newName: string; renameFile?: boolean }) => {
     const { id, newName, renameFile } = payload;
-    const res = await getResource(id);
+  const res = await ResourcesRepo.getById(id);
     if (!res) return { success: false };
 
     let fileRenamed = false;
@@ -136,10 +135,10 @@ export function initResourceHandlers(_win: BrowserWindow) {
       }
     }
 
-    await updateResource(id, {
+    await ResourcesRepo.update(id, {
       title: newName,
       ...(newPath ? { filePath: newPath } : {}),
-    });
+    } as any);
 
     return { success: true, fileRenamed, newPath };
   });
