@@ -227,6 +227,7 @@ export function insertVectors(items: VectorInsertItem[], dim: number) {
           embedding: embBuf,
           embedDim: dim,
           embedAt: now,
+          workspaceId: r.metadata?.workspaceId || null,
           updatedAt: now,
         })
         .onConflictDoUpdate({
@@ -237,6 +238,7 @@ export function insertVectors(items: VectorInsertItem[], dim: number) {
             embedding: embBuf,
             embedDim: dim,
             embedAt: now,
+            workspaceId: r.metadata?.workspaceId || null,
             updatedAt: now,
           },
         })

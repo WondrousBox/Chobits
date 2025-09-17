@@ -1,5 +1,6 @@
 import { BrowserWindow, ipcMain, shell } from 'electron';
 import { addResource, listResources, getResource, deleteResource, updateResource } from '../preload/apis/resource';
+import { WorkspacesRepo } from '../db/repositories';
 import { embeddingQueue } from '../embedding/queue';
 import { chunkText } from '../embedding/chunker';
 import { randomUUID } from 'node:crypto';
@@ -10,7 +11,31 @@ export function initResourceHandlers(_win: BrowserWindow) {
   ipcMain.handle('addResource', async (_event, payload: { resource: any }) => {
     const res = payload.resource || {};
     const id = res.id || randomUUID();
-    await addResource({ ...res, id });
+    // Attach workspace: copy local file into default workspace if available
+    let workspaceId = res.workspaceId;
+    let filePath = res.filePath as string | undefined;
+    try {
+      const ws = await WorkspacesRepo.getDefault();
+      if (ws && ws.id) {
+        workspaceId = workspaceId || ws.id;
+        if (filePath && ws.rootPath) {
+          try {
+            const base = path.basename(filePath);
+            const targetDir = path.join(ws.rootPath, 'resources');
+            await fs.mkdir(targetDir, { recursive: true });
+            const target = path.join(targetDir, base);
+            if (filePath !== target) {
+              await fs.copyFile(filePath, target);
+              filePath = target;
+            }
+          } catch (e) {
+            console.warn('[workspace] copy file into workspace failed', e);
+          }
+        }
+      }
+    } catch {}
+
+    await addResource({ ...res, id, workspaceId, filePath });
     // Auto-chunk & enqueue for embedding if text exists
     const text = res.contentText || res.description || res.title;
     if (typeof text === 'string' && text.trim().length > 0) {
@@ -41,6 +66,34 @@ export function initResourceHandlers(_win: BrowserWindow) {
     const now = Date.now();
     await Promise.all((payload.ids || []).map(id => updateResource(id, { deletedAt: now })));
     return { success: true };
+  });
+
+  ipcMain.handle('moveResourcesToWorkspace', async (_event, payload: { ids: string[]; workspaceId: string }) => {
+    const { ids, workspaceId } = payload || { ids: [], workspaceId: '' };
+    if (!ids.length || !workspaceId) return { moved: 0 };
+    const ws = await WorkspacesRepo.getById(workspaceId);
+    if (!ws || !ws.rootPath) return { moved: 0 };
+    const targetDir = path.join(ws.rootPath, 'resources');
+    await fs.mkdir(targetDir, { recursive: true });
+    let moved = 0;
+    for (const id of ids) {
+      const res = await getResource(id);
+      if (!res) continue;
+      let newPath = res.filePath as string | undefined;
+      try {
+        if (res.filePath) {
+          const base = path.basename(res.filePath);
+          const target = path.join(targetDir, base);
+          if (res.filePath !== target) {
+            await fs.copyFile(res.filePath, target);
+            newPath = target;
+          }
+        }
+        await updateResource(id, { workspaceId, ...(newPath ? { filePath: newPath } : {}) });
+        moved += 1;
+      } catch (e) { console.warn('move resource failed', e);}    
+    }
+    return { moved };
   });
 
   ipcMain.handle('openResource', async (_event, payload: { id: string }) => {

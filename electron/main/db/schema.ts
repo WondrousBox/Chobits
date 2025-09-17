@@ -47,6 +47,8 @@ export const documents = sqliteTable('documents', {
 
   // 外部内容指针：当 content 很大或需文件存储时，指向外部路径
   contentPath: text('content_path'), // optional external storage pointer
+  // 归属工作空间（用于将用户数据统一复制到该空间）
+  workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'set null', onUpdate: 'cascade' }),
 }, (t) => ({
   // 按来源筛选（聚合/回溯来源资源）
   idxDocumentsSource: index('idx_documents_source').on(t.sourceId),
@@ -64,6 +66,8 @@ export const documents = sqliteTable('documents', {
   idxDocumentsChecksum: index('idx_documents_checksum').on(t.checksum),
   // 惟一性约束：同一父文档下，同一 checksum 只能出现一次（防重复分块/内容）
   uqDocumentsChecksumParent: uniqueIndex('uq_documents_checksum_parent').on(t.checksum, t.parentId),
+  // 按工作空间筛选
+  idxDocumentsWorkspace: index('idx_documents_workspace').on(t.workspaceId),
 }));
 
 export type DocumentRow = InferSelectModel<typeof documents>;
@@ -115,7 +119,11 @@ export const resources = sqliteTable('resources', {
   // 扩展字段
   metadata: text('metadata'), // 额外元数据（JSON字符串，低频字段如referrerUrl/sourceUrl/authorUrl/license/attribution/storageProvider/contentHtml/pages/wordCount/checksum/etag/hashSha256等可合并于此，便于扩展）
   embedding: blob('embedding'), // 可选向量（用于语义检索）
-});
+  // 归属工作空间
+  workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+}, (t) => ({
+  idxResourcesWorkspace: index('idx_resources_workspace').on(t.workspaceId),
+}));
 
 function sqliteCurrentMs() {
   // drizzle sqlite-core doesn't ship a helper for CURRENT_TIMESTAMP in ms; use unixepoch()*1000 via raw SQL default
@@ -160,3 +168,34 @@ export const recycle_bin = sqliteTable('recycle_bin', {
 
 export type RecycleBinRow = InferSelectModel<typeof recycle_bin>;
 export type NewRecycleBin = InferInsertModel<typeof recycle_bin>;
+
+/**
+ * workspaces：用户工作空间（用于集中存放用户采集/导入的数据副本）
+ * - rootPath: 磁盘路径（唯一）
+ * - isDefault: 是否默认工作空间（应用层保证唯一）
+ * - status: 当前状态（active|archived|error）
+ * - sizeBytes/fileCount/lastScanAt: 可选的统计信息
+ */
+export const workspaces = sqliteTable('workspaces', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  rootPath: text('root_path').notNull(),
+  description: text('description'),
+  isDefault: integer('is_default'), // 0/1
+  status: text('status', { enum: ['active', 'archived', 'error'] }),
+  sizeBytes: integer('size_bytes'),
+  fileCount: integer('file_count'),
+  lastScanAt: integer('last_scan_at'),
+  metadata: text('metadata'),
+
+  createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`),
+  updatedAt: integer('updated_at').default(sql`(unixepoch('now')*1000)`),
+  deletedAt: integer('deleted_at'),
+}, (t) => ({
+  uqWorkspacePath: uniqueIndex('uq_workspaces_root_path').on(t.rootPath),
+  idxWorkspaceDefault: index('idx_workspaces_is_default').on(t.isDefault),
+  idxWorkspaceDeleted: index('idx_workspaces_deleted_at').on(t.deletedAt),
+}));
+
+export type WorkspaceRow = InferSelectModel<typeof workspaces>;
+export type NewWorkspace = InferInsertModel<typeof workspaces>;
