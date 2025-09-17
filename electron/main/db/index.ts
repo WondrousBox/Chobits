@@ -183,6 +183,15 @@ function bufferToFloat32Array(buf: any, dim: number): number[] {
   return out;
 }
 
+function fitToDimLocal(vec: number[], targetDim: number): number[] {
+  if (!Array.isArray(vec)) return new Array(targetDim).fill(0);
+  if (vec.length === targetDim) return vec;
+  if (vec.length > targetDim) return vec.slice(0, targetDim);
+  const out = new Array(targetDim);
+  for (let i = 0; i < targetDim; i++) out[i] = i < vec.length ? vec[i] : 0;
+  return out;
+}
+
 // Ensure sqlite-vec extension table exists for given dimension
 // function ensureVecTable(dim: number) {
 //   if (!db) return;
@@ -216,7 +225,8 @@ export function insertVectors(items: VectorInsertItem[], dim: number) {
   const tx = database!.transaction((rows: VectorInsertItem[]) => {
     for (const r of rows) {
       const id = r.id || crypto.randomUUID();
-      const embBuf = float32ArrayToBuffer(r.embedding);
+      const fitted = fitToDimLocal(r.embedding, dim);
+      const embBuf = float32ArrayToBuffer(fitted);
       const now = Date.now();
       // Upsert into documents via Drizzle ORM
       d.insert(documents)
@@ -258,7 +268,7 @@ export function searchVectors(queryEmbedding: number[], k: number, dim: number):
   const database = getDB();
   ensureVecTable(dim);
   if (!database || !ensureVecLoaded()) return [];
-  const queryBuf = float32ArrayToBuffer(queryEmbedding);
+  const queryBuf = float32ArrayToBuffer(fitToDimLocal(queryEmbedding, dim));
   // Add k = ? constraint for sqlite-vec KNN queries
   const stmt = database.prepare(
     `SELECT d.id, d.content, d.metadata, v.distance AS distance
