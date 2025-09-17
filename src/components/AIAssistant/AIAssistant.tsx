@@ -78,6 +78,33 @@ export const AIAssistant: React.FC = () => {
     });
   }, [])
 
+  // 启动问候 + 工作空间检查
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        // 初始欢迎
+        setMessageState('welcome')
+        // 短暂停顿后显示“检查系统中”
+        await new Promise(r => setTimeout(r, 600))
+        if (!mounted) return
+        setMessageState('loading')
+        // 查询是否存在未删除的工作空间
+        const list = await window.YUA.workspace['workspace:list']({ filter: { deletedAt: 0 } as any, limit: 1, offset: 0 })
+        if (!mounted) return
+        if (!Array.isArray(list) || list.length === 0) {
+          // 未创建空间：提示并打开设置窗口
+          setMessageState('configure')
+          // 稍等片刻再弹窗，避免打断动画
+          setTimeout(() => { try { window.YUA.window.openWorkspaceWizardWindow() } catch {} }, 800)
+        }
+      } catch {
+        // 忽略错误，保持现有状态
+      }
+    })()
+    return () => { mounted = false }
+  }, [])
+
   // 获取屏幕尺寸并定位初始窗口
   useEffect(() => {
     const getScreenInfo = async () => {

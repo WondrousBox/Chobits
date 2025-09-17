@@ -18,8 +18,6 @@
 .settings-actions button:hover { background:#2563eb; }
 .settings-actions button:active { transform:scale(.95); }
 .settings-actions button:disabled { opacity:.5; cursor:not-allowed; }
-.fade-in-scale { animation: panelFade .32s cubic-bezier(.16,.84,.44,1); }
-@keyframes panelFade { 0% { opacity:0; transform: translateY(12px) scale(.9); } 100% { opacity:1; transform: translateY(0) scale(1);} }
 .settings-topbar { display:flex; justify-content:space-between; align-items:center; -webkit-app-region: drag; }
 .settings-topbar .close-btn { -webkit-app-region: no-drag; background:rgba(255,255,255,0.15); border:none; width:32px; height:32px; border-radius:10px; display:flex; align-items:center; justify-content:center; color:#fff; cursor:pointer; font-size:14px; transition:background .18s, transform .15s; }
 .settings-topbar .close-btn:hover { background:rgba(255,255,255,0.28); }

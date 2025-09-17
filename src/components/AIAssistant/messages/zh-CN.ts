@@ -10,6 +10,12 @@ const catalog: MessageCatalog = {
       '欢迎回来！今天想做点什么？',
     ],
   },
+  loading: {
+    default: '正在检查系统中…',
+  },
+  configure: {
+    default: '未检测到工作空间，请先创建一个。',
+  },
   click: {
     default: '叽~有什么可以帮助你的吗？ 😊',
     variants: [

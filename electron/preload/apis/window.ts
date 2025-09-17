@@ -21,6 +21,8 @@ type WindowBridgeParams = {
   "openMenuWindow": IPCParams<[void], boolean>;
   /** 打开设置窗口 */
   "openSettingsWindow": IPCParams<[void], boolean>;
+  /** 打开工作空间创建向导窗口 */
+  "openWorkspaceWizardWindow": IPCParams<[void], boolean>;
   /** 打开资源管理窗口 */
   "openResourcesWindow": IPCParams<[void], boolean>;
   /** 打开回收站窗口 */
@@ -29,6 +31,8 @@ type WindowBridgeParams = {
   "getMovementConfig": IPCParams<[void], { width: number; height: number } & { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number }>;
   /** 更新移动配置 */
   "updateMovementConfig": IPCParams<[Partial<{ walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number }>], { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number }>;
+  /** 建议默认工作空间路径 */
+  "suggestWorkspacePath": IPCParams<[void], { ok: boolean; path?: string }>;
 
 }
 
@@ -40,10 +44,12 @@ const methods: Array<keyof WindowBridgeParams> = [
   "openFileListWindow",
   "openMenuWindow",
   "openSettingsWindow",
+  "openWorkspaceWizardWindow",
   "openResourcesWindow",
   "openRecycleWindow",
   "getMovementConfig",
   "updateMovementConfig",
+  "suggestWorkspacePath",
 ];
 
 export type WindowBridgeType = {
