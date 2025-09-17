@@ -5,6 +5,7 @@ import { initFFmpegHandlers } from "./ffmpeg";
 import { initVectorHandlers } from './vector';
 import { initResourceHandlers } from './resource';
 import { initTrashHandlers } from './trash';
+import { initWorkspaceHandlers } from './workspace';
 
 export function initHandlers(win: BrowserWindow) {
 
@@ -16,4 +17,5 @@ export function initHandlers(win: BrowserWindow) {
   initVectorHandlers(win);
   initResourceHandlers(win);
   initTrashHandlers(win);
+  initWorkspaceHandlers(win);
 }

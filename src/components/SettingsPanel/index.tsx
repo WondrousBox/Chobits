@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import './settings.css'
 import EmbeddingJobsPanel from '../EmbeddingJobs'
 
@@ -8,12 +8,17 @@ type MovementConfig = { walkSpeed: number; fpsLimit: number; movementMode: 'step
 export const SettingsPanel: React.FC = () => {
   const [config, setConfig] = useState<MovementConfig | null>(null)
   const [saving, setSaving] = useState(false)
+  // Workspaces state
+  const [workspaces, setWorkspaces] = useState<any[]>([])
+  const defaultWorkspace = useMemo(()=> workspaces.find(w=>w.isDefault===1 && !w.deletedAt), [workspaces])
 
   useEffect(() => {
     let mounted = true
     window.YUA.window.getMovementConfig().then((c: MovementConfig) => { if (mounted) setConfig(c) })
     const listener = (_: any, c: MovementConfig) => setConfig(c)
     window.ipcRenderer?.on('movement-config-updated', listener)
+    // load workspaces
+    window.YUA.workspace['workspace:list']({ filter: { deletedAt: 0 }, limit: 100, offset: 0 }).then(list => { if (mounted) setWorkspaces(list) })
     return () => { mounted = false; window.ipcRenderer?.off('movement-config-updated', listener as any) }
   }, [])
 
@@ -68,6 +73,57 @@ export const SettingsPanel: React.FC = () => {
         </div>
         <div className='settings-actions'>
           <button onClick={persist} disabled={saving}>{saving ? '保存中...' : '保存'}</button>
+        </div>
+        {/* Workspace Management */}
+        <div className='settings-group' style={{ marginTop: 18 }}>
+          <div className='settings-title'>🗂 工作空间</div>
+          <div style={{ display:'flex', gap:8 }}>
+            <button onClick={async()=>{
+              const pick = await window.YUA.workspace['workspace:pickDir']()
+              if (pick.canceled || !pick.path) return
+              const id = (crypto as any).randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
+              const name = pick.path.split('/').pop() || 'Workspace'
+              await window.YUA.workspace['workspace:add']({ workspace: { id, name, rootPath: pick.path, isDefault: workspaces.length?0:1, status: 'active' }})
+              if (workspaces.length===0) await window.YUA.workspace['workspace:setDefault']({ id })
+              const list = await window.YUA.workspace['workspace:list']({ filter: { deletedAt: 0 }, limit: 100, offset: 0 })
+              setWorkspaces(list)
+            }}>选择文件夹并创建</button>
+            <button disabled={!defaultWorkspace} onClick={async()=>{
+              if (!defaultWorkspace) return
+              await window.YUA.workspace['workspace:open']({ id: defaultWorkspace.id })
+            }}>打开默认空间</button>
+            <button disabled={!defaultWorkspace} onClick={async()=>{
+              if (!defaultWorkspace) return
+              await window.YUA.workspace['workspace:reveal']({ id: defaultWorkspace.id })
+            }}>在访达中显示</button>
+          </div>
+          <div style={{ marginTop:8, display:'flex', flexDirection:'column', gap:6 }}>
+            {workspaces.map(w=> (
+              <div key={w.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'rgba(255,255,255,0.08)', padding:'8px 10px', borderRadius:10 }}>
+                <div style={{ display:'flex', flexDirection:'column' }}>
+                  <div style={{ fontWeight:600 }}>{w.name} {w.isDefault===1 && <span style={{ fontWeight:400, fontSize:12, opacity:.8 }}>(默认)</span>}</div>
+                  <div style={{ fontSize:12, opacity:.85 }}>{w.rootPath}</div>
+                  {(w.sizeBytes || w.fileCount || w.lastScanAt) && (
+                    <div style={{ fontSize:12, opacity:.8, marginTop:2 }}>
+                      {typeof w.fileCount==='number' ? `文件数: ${w.fileCount} ` : ''}
+                      {typeof w.sizeBytes==='number' ? `大小: ${(w.sizeBytes/1024/1024).toFixed(2)} MB ` : ''}
+                      {typeof w.lastScanAt==='number' ? `（${new Date(w.lastScanAt).toLocaleString()}）` : ''}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display:'flex', gap:8 }}>
+                  {w.isDefault===1 ? (
+                    <button disabled>已设为默认</button>
+                  ) : (
+                    <button onClick={async()=>{ await window.YUA.workspace['workspace:setDefault']({ id: w.id }); const list = await window.YUA.workspace['workspace:list']({ filter: { deletedAt: 0 }, limit: 100, offset: 0 }); setWorkspaces(list) }}>设为默认</button>
+                  )}
+                  <button onClick={async()=>{ await window.YUA.workspace['workspace:open']({ id: w.id }) }}>打开</button>
+                  <button onClick={async()=>{ await window.YUA.workspace['workspace:reveal']({ id: w.id }) }}>显示</button>
+                  <button onClick={async()=>{ await window.YUA.workspace['workspace:scanStats']({ id: w.id }); const list = await window.YUA.workspace['workspace:list']({ filter: { deletedAt: 0 }, limit: 100, offset: 0 }); setWorkspaces(list) }}>刷新统计</button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
         <div style={{ marginTop: 16 }}>
           <EmbeddingJobsPanel />

@@ -44,6 +44,7 @@ export type ResourceBridgeParams = {
   'openResource': IPCParams<[{ id: string }], { success: boolean }>;
   'revealResource': IPCParams<[{ id: string }], { success: boolean }>;
   'renameResource': IPCParams<[{ id: string; newName: string; renameFile?: boolean }], { success: boolean; fileRenamed?: boolean; newPath?: string }>;
+  'moveResourcesToWorkspace': IPCParams<[{ ids: string[]; workspaceId: string }], { moved: number }>;
 };
 
 const methods: Array<keyof ResourceBridgeParams> = [
@@ -55,6 +56,7 @@ const methods: Array<keyof ResourceBridgeParams> = [
   'openResource',
   'revealResource',
   'renameResource',
+  'moveResourcesToWorkspace',
 ];
 
 export type ResourceBridgeType = {

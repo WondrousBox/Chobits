@@ -22,7 +22,9 @@ CREATE TABLE `documents` (
 	`updated_at` integer DEFAULT (unixepoch('now')*1000),
 	`deleted_at` integer,
 	`content_path` text,
-	FOREIGN KEY (`source_id`) REFERENCES `resources`(`id`) ON UPDATE cascade ON DELETE set null
+	`workspace_id` text,
+	FOREIGN KEY (`source_id`) REFERENCES `resources`(`id`) ON UPDATE cascade ON DELETE set null,
+	FOREIGN KEY (`workspace_id`) REFERENCES `workspaces`(`id`) ON UPDATE cascade ON DELETE set null
 );
 --> statement-breakpoint
 CREATE INDEX `idx_documents_source` ON `documents` (`source_id`);--> statement-breakpoint
@@ -33,6 +35,7 @@ CREATE INDEX `idx_documents_status` ON `documents` (`status`);--> statement-brea
 CREATE INDEX `idx_documents_visibility` ON `documents` (`visibility`);--> statement-breakpoint
 CREATE INDEX `idx_documents_checksum` ON `documents` (`checksum`);--> statement-breakpoint
 CREATE UNIQUE INDEX `uq_documents_checksum_parent` ON `documents` (`checksum`,`parent_id`);--> statement-breakpoint
+CREATE INDEX `idx_documents_workspace` ON `documents` (`workspace_id`);--> statement-breakpoint
 CREATE TABLE `recycle_bin` (
 	`id` text PRIMARY KEY NOT NULL,
 	`entity_type` text,
@@ -81,5 +84,28 @@ CREATE TABLE `resources` (
 	`updated_at` integer DEFAULT (unixepoch('now')*1000),
 	`deleted_at` integer,
 	`metadata` text,
-	`embedding` blob
+	`embedding` blob,
+	`workspace_id` text,
+	FOREIGN KEY (`workspace_id`) REFERENCES `workspaces`(`id`) ON UPDATE cascade ON DELETE set null
 );
+--> statement-breakpoint
+CREATE INDEX `idx_resources_workspace` ON `resources` (`workspace_id`);--> statement-breakpoint
+CREATE TABLE `workspaces` (
+	`id` text PRIMARY KEY NOT NULL,
+	`name` text NOT NULL,
+	`root_path` text NOT NULL,
+	`description` text,
+	`is_default` integer,
+	`status` text,
+	`size_bytes` integer,
+	`file_count` integer,
+	`last_scan_at` integer,
+	`metadata` text,
+	`created_at` integer DEFAULT (unixepoch('now')*1000),
+	`updated_at` integer DEFAULT (unixepoch('now')*1000),
+	`deleted_at` integer
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `uq_workspaces_root_path` ON `workspaces` (`root_path`);--> statement-breakpoint
+CREATE INDEX `idx_workspaces_is_default` ON `workspaces` (`is_default`);--> statement-breakpoint
+CREATE INDEX `idx_workspaces_deleted_at` ON `workspaces` (`deleted_at`);

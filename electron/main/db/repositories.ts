@@ -1,5 +1,5 @@
 import { getOrm } from '.';
-import { documents, type NewDocument, type DocumentRow, recycle_bin, type NewRecycleBin, type RecycleBinRow } from './schema';
+import { documents, type NewDocument, type DocumentRow, recycle_bin, type NewRecycleBin, type RecycleBinRow, workspaces, type WorkspaceRow, type NewWorkspace } from './schema';
 import { eq, inArray, and, or, like, gte, lte, isNull, isNotNull } from 'drizzle-orm';
 import { rebuildVectors, deleteVectors } from '.';
 import { resources, type ResourceRow, type NewResource } from './schema';
@@ -311,3 +311,83 @@ export const ResourcesRepo = {
     return rows[0]?.count ?? 0;
   },
 };
+
+/**
+ * 工作空间表操作仓库
+ * - 负责增删改查、默认空间设置、软删/恢复
+ */
+export const WorkspacesRepo = {
+  /** 新增或更新工作空间 */
+  async upsert(ws: NewWorkspace) {
+    const db = getOrm();
+    await db.insert(workspaces).values(ws).onConflictDoUpdate({
+      target: workspaces.id,
+      set: { ...ws },
+    });
+  },
+  /** 按ID获取 */
+  async getById(id: string): Promise<WorkspaceRow | undefined> {
+    const db = getOrm();
+    const rows = await db.select().from(workspaces).where(eq(workspaces.id, id)).limit(1);
+    return rows[0];
+  },
+  /** 获取默认工作空间 */
+  async getDefault(): Promise<WorkspaceRow | undefined> {
+    const db = getOrm();
+    const rows = await db.select().from(workspaces).where(and(eq(workspaces.isDefault as any, 1), isNull(workspaces.deletedAt)) as any).limit(1);
+    return rows[0];
+  },
+  /** 设置默认空间（应用层确保唯一） */
+  async setDefault(id: string): Promise<void> {
+    const db = getOrm();
+    const now = Date.now();
+    const tx = (db as any).transaction(async () => {
+      await db.update(workspaces).set({ isDefault: 0 as any, updatedAt: now }).where(isNotNull(workspaces.isDefault as any));
+      await db.update(workspaces).set({ isDefault: 1 as any, updatedAt: now }).where(eq(workspaces.id, id));
+    });
+    await tx();
+  },
+  /** 列表（支持按软删过滤） */
+  async list(filter: Partial<WorkspaceRow> = {}, limit = 100, offset = 0): Promise<WorkspaceRow[]> {
+    const db = getOrm();
+    let query = db.select().from(workspaces);
+    const wheres: any[] = [];
+    if ((filter as any).status) wheres.push(eq(workspaces.status as any, (filter as any).status));
+    if ((filter as any).deletedAt === 0) wheres.push(isNull(workspaces.deletedAt));
+    if ((filter as any).deletedAt === 1) wheres.push(isNotNull(workspaces.deletedAt));
+    if (wheres.length) query = query.where(and(...wheres));
+    return query.limit(limit).offset(offset);
+  },
+  async count(filter: Partial<WorkspaceRow> = {}): Promise<number> {
+    const db = getOrm();
+    let query = db.select({ count: workspaces.id }).from(workspaces);
+    const wheres: any[] = [];
+    if ((filter as any).status) wheres.push(eq(workspaces.status as any, (filter as any).status));
+    if ((filter as any).deletedAt === 0) wheres.push(isNull(workspaces.deletedAt));
+    if ((filter as any).deletedAt === 1) wheres.push(isNotNull(workspaces.deletedAt));
+    if (wheres.length) query = query.where(and(...wheres));
+    const rows = await query;
+    return rows[0]?.count ?? 0;
+  },
+  /** 更新 */
+  async update(id: string, patch: Partial<NewWorkspace>): Promise<number> {
+    const db = getOrm();
+    const res = await db.update(workspaces).set({ ...patch, updatedAt: Date.now() } as any).where(eq(workspaces.id, id));
+    return (res as any).changes ?? 0;
+  },
+  /** 软删 */
+  async softDelete(ids: string[]): Promise<number> {
+    if (!ids.length) return 0;
+    const db = getOrm();
+    const res = await db.update(workspaces).set({ deletedAt: Date.now() }).where(inArray(workspaces.id, ids));
+    return (res as any).changes ?? 0;
+  },
+  /** 物理删除 */
+  async deleteByIds(ids: string[]): Promise<number> {
+    if (!ids.length) return 0;
+    const db = getOrm();
+    const res = await db.delete(workspaces).where(inArray(workspaces.id, ids));
+    return (res as any).changes ?? 0;
+  },
+};
+
