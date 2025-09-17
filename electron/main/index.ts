@@ -5,6 +5,7 @@ import path from 'node:path'
 import os from 'node:os'
 import { update } from './update'
 import { initHandlers } from './handlers'
+import { windowManager } from './window-manager'
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -95,6 +96,7 @@ async function createWindow() {
   })
 
   initHandlers(win);
+  try { windowManager.init(win) } catch {}
 
   // Auto update
   update(win)
