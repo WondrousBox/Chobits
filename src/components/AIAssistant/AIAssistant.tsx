@@ -56,21 +56,23 @@ export const AIAssistant: React.FC = () => {
   useEffect(() => {
     // window.YUA.ffmpeg.playSprite()
 
-    // 插入
+    // 插入（使用 384 维，匹配默认后端设置）
     (window as any).YUA.vector.insertVectors({
       items: [{
         id: 'doc-1',
         content: '你好，世界',
         metadata: { lang: 'zh' },
-        embedding: new Array(1536).fill(0).map((_, i) => Math.sin(i)) // 示例
-      }]
+        embedding: new Array(384).fill(0).map((_, i) => Math.sin(i)) // 示例
+      }],
+      dim: 384,
     }).then((_res: any) => {
       console.log('inserted', _res)
     })
 
     window.YUA.vector.searchVectors({
-      embedding: new Array(1536).fill(0),
-      k: 5
+      embedding: new Array(384).fill(0),
+      k: 5,
+      dim: 384,
     }).then((_res: any) => {
       console.log(_res)
     });
