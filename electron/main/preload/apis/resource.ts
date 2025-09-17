@@ -1,14 +1,11 @@
-import { getOrm } from '../../db';
-import { resources } from '../../db/schema';
-import { eq, like, and, isNull, isNotNull } from 'drizzle-orm';
+import { ResourcesRepo } from '../../db/repositories';
 
 /**
  * 资源表操作 API
  * - 支持新增、删除、更新、单条/批量查询、计数、存在性判断、筛选/分页等
  */
 export async function addResource(resource: any) {
-  const db = getOrm();
-  await db.insert(resources).values(resource);
+  await ResourcesRepo.upsert(resource);
 }
 
 /**
@@ -17,8 +14,7 @@ export async function addResource(resource: any) {
  * @param patch 需更新的字段对象
  */
 export async function updateResource(id: string, patch: Partial<any>) {
-  const db = getOrm();
-  await db.update(resources).set({ ...patch, updatedAt: Date.now() }).where(eq(resources.id, id));
+  await ResourcesRepo.update(id, patch);
 }
 
 /**
@@ -28,17 +24,7 @@ export async function updateResource(id: string, patch: Partial<any>) {
  * @param offset 偏移量
  */
 export async function listResources(filter: Partial<any> = {}, limit = 100, offset = 0) {
-  const db = getOrm();
-  let query = db.select().from(resources);
-  const wheres: any[] = [];
-  if (filter.type) wheres.push(eq(resources.type, filter.type));
-  if (filter.status) wheres.push(eq(resources.status, filter.status));
-  if (filter.visibility) wheres.push(eq(resources.visibility, filter.visibility));
-  if (filter.tags) wheres.push(like(resources.tags, `%${filter.tags}%`));
-  if (filter.deletedAt === 0) wheres.push(isNull(resources.deletedAt));
-  if (filter.deletedAt === 1) wheres.push(isNotNull(resources.deletedAt));
-  if (wheres.length) query = query.where(and(...wheres));
-  return query.limit(limit).offset(offset);
+  return ResourcesRepo.list(filter as any, limit, offset);
 }
 
 /**
@@ -46,8 +32,7 @@ export async function listResources(filter: Partial<any> = {}, limit = 100, offs
  * @param id 资源ID
  */
 export async function getResource(id: string) {
-  const db = getOrm();
-  return await db.select().from(resources).where(eq(resources.id, id)).get();
+  return ResourcesRepo.getById(id);
 }
 
 /**
@@ -55,8 +40,7 @@ export async function getResource(id: string) {
  * @param id 资源ID
  */
 export async function deleteResource(id: string) {
-  const db = getOrm();
-  await db.delete(resources).where(eq(resources.id, id));
+  await ResourcesRepo.deleteById(id);
 }
 
 /**
@@ -64,17 +48,7 @@ export async function deleteResource(id: string) {
  * @param filter 筛选条件对象
  */
 export async function countResources(filter: Partial<any> = {}) {
-  const db = getOrm();
-  let query = db.select({ count: resources.id }).from(resources);
-  const wheres: any[] = [];
-  if (filter.type) wheres.push(eq(resources.type, filter.type));
-  if (filter.status) wheres.push(eq(resources.status, filter.status));
-  if (filter.visibility) wheres.push(eq(resources.visibility, filter.visibility));
-  if (filter.deletedAt === 0) wheres.push(isNull(resources.deletedAt));
-  if (filter.deletedAt === 1) wheres.push(isNotNull(resources.deletedAt));
-  if (wheres.length) query = query.where(and(...wheres));
-  const rows = await query;
-  return rows[0]?.count ?? 0;
+  return ResourcesRepo.count(filter as any);
 }
 
 /**
@@ -82,7 +56,5 @@ export async function countResources(filter: Partial<any> = {}) {
  * @param id 资源ID
  */
 export async function existsResource(id: string) {
-  const db = getOrm();
-  const rows = await db.select().from(resources).where(eq(resources.id, id)).limit(1);
-  return !!rows.length;
+  return ResourcesRepo.exists(id);
 }

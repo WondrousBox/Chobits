@@ -1,17 +1,20 @@
 import { BrowserWindow, ipcMain } from 'electron';
-import { listTrash, restoreTrashByRecycleIds, purgeTrashByRecycleIds, emptyTrash } from '../preload/apis/trash';
+import { RecycleBinRepo } from '../db/repositories';
 
 export function initTrashHandlers(_win: BrowserWindow) {
   ipcMain.handle('trash:list', async (_e, payload: { filter?: any; limit?: number; offset?: number }) => {
-    return listTrash(payload?.filter || {}, payload?.limit ?? 100, payload?.offset ?? 0);
+    return RecycleBinRepo.list(payload?.filter || {}, payload?.limit ?? 100, payload?.offset ?? 0);
   });
   ipcMain.handle('trash:restore', async (_e, payload: { recycleIds: string[] }) => {
-    return restoreTrashByRecycleIds(payload.recycleIds || []);
+    const restored = await RecycleBinRepo.restoreEntitiesByRecycleIds(payload.recycleIds || []);
+    return { restored };
   });
   ipcMain.handle('trash:purge', async (_e, payload: { recycleIds: string[] }) => {
-    return purgeTrashByRecycleIds(payload.recycleIds || []);
+    const deleted = await RecycleBinRepo.purgeEntitiesByRecycleIds(payload.recycleIds || []);
+    return { deleted };
   });
   ipcMain.handle('trash:empty', async (_e, payload: { filter?: any }) => {
-    return emptyTrash(payload?.filter || {});
+    const deleted = await RecycleBinRepo.empty(payload?.filter || {});
+    return { deleted };
   });
 }
