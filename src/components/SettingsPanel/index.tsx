@@ -42,9 +42,9 @@ export const SettingsPanel: React.FC = () => {
   return (
     <div className='settings-wrapper fade-in-scale'>
       <div className='settings-card glassy'>
-        <div className='settings-topbar' data-drag-region>
+        <div className='settings-topbar drag-region' data-drag-region>
           <span className='settings-title'>⚙️ 移动参数设置</span>
-          <button className='close-btn' onClick={close}>✕</button>
+          <button className='close-btn' data-no-drag onClick={close}>✕</button>
         </div>
         <div className='settings-scroll'>
           <div className='settings-group'>
@@ -75,9 +75,9 @@ export const SettingsPanel: React.FC = () => {
           <button onClick={persist} disabled={saving}>{saving ? '保存中...' : '保存'}</button>
         </div>
         {/* Workspace Management */}
-        <div className='settings-group' style={{ marginTop: 18 }}>
+        <div className='settings-group mt-4'>
           <div className='settings-title'>🗂 工作空间</div>
-          <div style={{ display:'flex', gap:8 }}>
+          <div className='flex gap-2'>
             <button onClick={async()=>{
               const pick = await window.YUA.workspace['workspace:pickDir']()
               if (pick.canceled || !pick.path) return
@@ -97,21 +97,23 @@ export const SettingsPanel: React.FC = () => {
               await window.YUA.workspace['workspace:reveal']({ id: defaultWorkspace.id })
             }}>在访达中显示</button>
           </div>
-          <div style={{ marginTop:8, display:'flex', flexDirection:'column', gap:6 }}>
+          <div className='mt-2 flex flex-col gap-2'>
             {workspaces.map(w=> (
-              <div key={w.id} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'rgba(255,255,255,0.08)', padding:'8px 10px', borderRadius:10 }}>
-                <div style={{ display:'flex', flexDirection:'column' }}>
-                  <div style={{ fontWeight:600 }}>{w.name} {w.isDefault===1 && <span style={{ fontWeight:400, fontSize:12, opacity:.8 }}>(默认)</span>}</div>
-                  <div style={{ fontSize:12, opacity:.85 }}>{w.rootPath}</div>
+              <div key={w.id} className='flex items-center justify-between bg-white/10 px-2.5 py-2 rounded-[10px]'>
+                <div className='flex flex-col'>
+                  <div className='font-semibold'>
+                    {w.name} {w.isDefault===1 && <span className='font-normal text-xs opacity-80'>(默认)</span>}
+                  </div>
+                  <div className='text-xs opacity-80'>{w.rootPath}</div>
                   {(w.sizeBytes || w.fileCount || w.lastScanAt) && (
-                    <div style={{ fontSize:12, opacity:.8, marginTop:2 }}>
+                    <div className='text-xs opacity-80 mt-1'>
                       {typeof w.fileCount==='number' ? `文件数: ${w.fileCount} ` : ''}
                       {typeof w.sizeBytes==='number' ? `大小: ${(w.sizeBytes/1024/1024).toFixed(2)} MB ` : ''}
                       {typeof w.lastScanAt==='number' ? `（${new Date(w.lastScanAt).toLocaleString()}）` : ''}
                     </div>
                   )}
                 </div>
-                <div style={{ display:'flex', gap:8 }}>
+                <div className='flex gap-2'>
                   {w.isDefault===1 ? (
                     <button disabled>已设为默认</button>
                   ) : (
@@ -125,7 +127,7 @@ export const SettingsPanel: React.FC = () => {
             ))}
           </div>
         </div>
-        <div style={{ marginTop: 16 }}>
+        <div className='mt-4'>
           <EmbeddingJobsPanel />
         </div>
       </div>

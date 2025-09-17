@@ -24,6 +24,8 @@ export function initWindowHandlers(win: BrowserWindow) {
   // New follower windows: context menu + settings
   let menuWindow: BrowserWindow | null = null
   let settingsWindow: BrowserWindow | null = null
+  // 工作空间创建向导窗口
+  let workspaceWizardWindow: BrowserWindow | null = null
   // 资源管理窗口
   let resourcesWindow: BrowserWindow | null = null
   // 回收站窗口
@@ -227,8 +229,8 @@ export function initWindowHandlers(win: BrowserWindow) {
 
   // 主窗口关闭时统一销毁子窗口
   win.on('closed', () => {
-    ;[fileListWindow, menuWindow, settingsWindow, resourcesWindow, recycleWindow].forEach(w => { try { w && !w.isDestroyed() && w.destroy() } catch {} })
-    fileListWindow = null; menuWindow = null; settingsWindow = null; resourcesWindow = null; recycleWindow = null
+    ;[fileListWindow, menuWindow, settingsWindow, resourcesWindow, recycleWindow, workspaceWizardWindow].forEach(w => { try { w && !w.isDestroyed() && w.destroy() } catch {} })
+    fileListWindow = null; menuWindow = null; settingsWindow = null; resourcesWindow = null; recycleWindow = null; workspaceWizardWindow = null
     stopFollowerAnimation()
     stopHoverMonitor()
   })
@@ -409,11 +411,71 @@ export function initWindowHandlers(win: BrowserWindow) {
     return createOrShowSettingsWindow()
   })
 
+  // ---------------- Workspace Wizard Window (独立引导窗口) ------------
+  ipcMain.handle('openWorkspaceWizardWindow', async () => {
+    if (!win) return false
+    try {
+      if (!workspaceWizardWindow || workspaceWizardWindow.isDestroyed()) {
+        const { BrowserWindow } = await import('electron')
+        workspaceWizardWindow = new BrowserWindow({
+          width: 520,
+          height: 460,
+          frame: false,
+          transparent: true,
+          resizable: false,
+          alwaysOnTop: true,
+          skipTaskbar: false,
+          backgroundColor: '#00000000',
+          parent: win,
+          show: false,
+          webPreferences: { preload: (win as any).__preloadPath || undefined, nodeIntegration: true, contextIsolation: true }
+        })
+        workspaceWizardWindow.once('ready-to-show', () => { try { workspaceWizardWindow && workspaceWizardWindow.show() } catch {} })
+        // 居中到主窗口所在屏幕
+        const mainBounds = win.getBounds()
+        const display = screen.getDisplayNearestPoint({ x: mainBounds.x + mainBounds.width / 2, y: mainBounds.y + mainBounds.height / 2 })
+        const work = display.workArea
+        const w = 520, h = 460
+        workspaceWizardWindow.setPosition(
+          Math.round(work.x + (work.width - w) / 2),
+          Math.round(work.y + (work.height - h) / 2),
+        )
+        const url = process.env.VITE_DEV_SERVER_URL
+        if (url) workspaceWizardWindow.loadURL(`${url}#workspace-wizard`)
+        else {
+          const indexHtml = (process.env.APP_ROOT || '') + '/dist/index.html'
+          ;(workspaceWizardWindow as any).loadFile(indexHtml, { hash: 'workspace-wizard' })
+        }
+        maybeOpenDevTools(workspaceWizardWindow)
+        workspaceWizardWindow.on('closed', () => { workspaceWizardWindow = null })
+      }
+      if (workspaceWizardWindow && !workspaceWizardWindow.isVisible()) workspaceWizardWindow.show(); workspaceWizardWindow?.focus()
+      return true
+    } catch { return false }
+  })
+
+  // Suggest a default workspace path: ~/Documents/Chobits, fallback to incremented suffix
+  ipcMain.handle('suggestWorkspacePath', async () => {
+    try {
+      const docs = app.getPath('documents')
+      const base = path.join(docs, 'Chobits')
+      if (!fs.existsSync(base)) return { ok: true, path: base }
+      for (let i = 2; i < 50; i++) {
+        const candidate = `${base} ${i}`
+        if (!fs.existsSync(candidate)) return { ok: true, path: candidate }
+      }
+      return { ok: true, path: base + ' ' + Date.now() }
+    } catch { return { ok: false } }
+  })
+
   // ---------------- Menu Command (转发给主渲染) ---------------
   ipcMain.on('menu-command', (_e, action: string) => {
     switch (action) {
       case 'open-settings':
         createOrShowSettingsWindow()
+        return
+      case 'close-workspace-wizard':
+        try { workspaceWizardWindow?.close() } catch {}
         return
       case 'quit-app':
         try { app.quit() } catch {}
