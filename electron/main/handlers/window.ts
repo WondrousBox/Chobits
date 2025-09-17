@@ -3,6 +3,7 @@ import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
 import { screen, app } from "electron";
 import fs from 'node:fs';
 import path from 'node:path';
+import { windowManager } from '../window-manager'
 
 // Assistant intrinsic size
 const ASSISTANT_WIDTH = 180;
@@ -16,7 +17,7 @@ function maybeOpenDevTools(w: BrowserWindow | null) {
       // detach mode avoids overlaying frameless/transparent windows
       w.webContents.openDevTools({ mode: 'detach' })
     }
-  } catch {}
+  } catch { }
 }
 
 export function initWindowHandlers(win: BrowserWindow) {
@@ -52,7 +53,7 @@ export function initWindowHandlers(win: BrowserWindow) {
 
   function stopFollowerAnimation() {
     if (followerAnimTimer) { clearInterval(followerAnimTimer); followerAnimTimer = null }
-    if (followerAnimRaf !== null) { try { caf(followerAnimRaf) } catch {} ; followerAnimRaf = null }
+    if (followerAnimRaf !== null) { try { caf(followerAnimRaf) } catch { }; followerAnimRaf = null }
   }
 
   // Movement config persistence ------------------------------------------------
@@ -63,13 +64,13 @@ export function initWindowHandlers(win: BrowserWindow) {
   let movementConfig: MovementConfig = defaultConfig
   try {
     if (fs.existsSync(configFile)) {
-      const txt = fs.readFileSync(configFile,'utf8')
+      const txt = fs.readFileSync(configFile, 'utf8')
       const parsed = JSON.parse(txt)
       movementConfig = { ...defaultConfig, ...parsed }
     }
   } catch { movementConfig = defaultConfig }
   function saveConfig() {
-    try { fs.writeFileSync(configFile, JSON.stringify(movementConfig, null, 2), 'utf8') } catch {}
+    try { fs.writeFileSync(configFile, JSON.stringify(movementConfig, null, 2), 'utf8') } catch { }
   }
 
   function adjustMainWindowForPadding(oldPadding: number, newPadding: number) {
@@ -86,7 +87,7 @@ export function initWindowHandlers(win: BrowserWindow) {
       const newY = innerY - newPadding
       win.setBounds({ x: newX, y: newY, width: newWidth, height: newHeight })
       repositionAllFollowers()
-    } catch {}
+    } catch { }
   }
 
   // 计算目标位置并返回方向（基于内层角色区域而非整个窗口边框）
@@ -162,7 +163,7 @@ export function initWindowHandlers(win: BrowserWindow) {
       followerAnimRaf = raf(step)
     } catch {
       // 失败时直接跳到目标
-      try { followerWin?.setPosition(target.x, target.y) } catch {}
+      try { followerWin?.setPosition(target.x, target.y) } catch { }
     }
   }
 
@@ -219,7 +220,7 @@ export function initWindowHandlers(win: BrowserWindow) {
           // 鼠标在助手区域内：允许接收事件（包括外部拖拽）
           // 区域外：继续穿透到底层应用
           win.setIgnoreMouseEvents(!inside, { forward: true })
-        } catch {}
+        } catch { }
       }
     }, 33) // ~30fps 轮询
   }
@@ -229,7 +230,7 @@ export function initWindowHandlers(win: BrowserWindow) {
 
   // 主窗口关闭时统一销毁子窗口
   win.on('closed', () => {
-    ;[fileListWindow, menuWindow, settingsWindow, resourcesWindow, recycleWindow, workspaceWizardWindow].forEach(w => { try { w && !w.isDestroyed() && w.destroy() } catch {} })
+    ;[fileListWindow, menuWindow, settingsWindow, resourcesWindow, recycleWindow, workspaceWizardWindow].forEach(w => { try { w && !w.isDestroyed() && w.destroy() } catch { } })
     fileListWindow = null; menuWindow = null; settingsWindow = null; resourcesWindow = null; recycleWindow = null; workspaceWizardWindow = null
     stopFollowerAnimation()
     stopHoverMonitor()
@@ -237,6 +238,13 @@ export function initWindowHandlers(win: BrowserWindow) {
 
   // 启动 hover 监控
   startHoverMonitor()
+
+  // Bootstrap WindowManager with main window context
+  try {
+    windowManager.init(win, {
+      preloadPath: (win as any).__preloadPath
+    })
+  } catch { }
 
   // ---------------- Movement Config IPC --------------------
   ipcMain.handle('getMovementConfig', () => {
@@ -250,8 +258,8 @@ export function initWindowHandlers(win: BrowserWindow) {
       adjustMainWindowForPadding(oldPadding, movementConfig.assistantPadding)
     }
     // 广播更新
-    try { win?.webContents.send('movement-config-updated', movementConfig) } catch {}
-    try { settingsWindow?.webContents.send('movement-config-updated', movementConfig) } catch {}
+    try { win?.webContents.send('movement-config-updated', movementConfig) } catch { }
+    try { settingsWindow?.webContents.send('movement-config-updated', movementConfig) } catch { }
     return movementConfig
   })
 
@@ -290,39 +298,23 @@ export function initWindowHandlers(win: BrowserWindow) {
   ipcMain.handle('openFileListWindow', async (_: IpcMainInvokeEvent, files: Array<{ name: string; path: string; isDirectory: boolean }>) => {
     if (!win) return false
     try {
-      if (!fileListWindow || fileListWindow.isDestroyed()) {
-        const { BrowserWindow } = await import('electron')
-        fileListWindow = new BrowserWindow({
-          width: 260,
-          height: 320,
-          frame: false,
-          transparent: true,
-          resizable: true,
-          alwaysOnTop: false,
-          skipTaskbar: true,
-          show: false,
-          backgroundColor: '#00000000',
-          parent: win,
-          webPreferences: { preload: (win as any).__preloadPath || undefined, nodeIntegration: true, contextIsolation: true }
-        })
-        fileListWindow.once('ready-to-show', () => { try { fileListWindow && fileListWindow.showInactive() } catch {} })
-        lastFollowerSide.set(fileListWindow, null)
-        repositionFollower(fileListWindow)
-        const url = process.env.VITE_DEV_SERVER_URL
-        if (url) {
-          fileListWindow.loadURL(`${url}#filebox`)
-        } else {
-          const indexHtml = (process.env.APP_ROOT || '') + '/dist/index.html'
-          ;(fileListWindow as any).loadFile(indexHtml, { hash: 'filebox' })
-        }
-        maybeOpenDevTools(fileListWindow)
-        fileListWindow.on('closed', () => { fileListWindow = null; stopFollowerAnimation(); lastFollowerSide.delete(fileListWindow as any) })
+      let w = windowManager.get('fileList')
+      if (!w) {
+        w = await windowManager.create('fileList')
+        if (!w) return false
+        fileListWindow = w
+        w.once('ready-to-show', () => { try { w!.showInactive?.() } catch { } })
+        lastFollowerSide.set(w, null)
+        repositionFollower(w)
+        maybeOpenDevTools(w)
+        w.on('closed', () => { fileListWindow = null; stopFollowerAnimation(); lastFollowerSide.delete(w as any) })
       } else {
-        repositionFollower(fileListWindow)
+        fileListWindow = w
+        repositionFollower(w)
       }
       // Send/refresh file list
       fileListWindow!.webContents.send('update-file-list', files)
-      fileListWindow!.showInactive() // show without stealing focus
+      try { (fileListWindow as any).showInactive?.() } catch { }
       return true
     } catch (e) { return false }
   })
@@ -331,37 +323,21 @@ export function initWindowHandlers(win: BrowserWindow) {
   ipcMain.handle('openMenuWindow', async () => {
     if (!win) return false
     try {
-      if (!menuWindow || menuWindow.isDestroyed()) {
-        const { BrowserWindow } = await import('electron')
-        menuWindow = new BrowserWindow({
-          width: 220,
-          height: 260,
-          frame: false,
-          transparent: true,
-          resizable: false,
-          alwaysOnTop: true,
-          skipTaskbar: true,
-          backgroundColor: '#00000000',
-          parent: win,
-          show: false,
-          webPreferences: { preload: (win as any).__preloadPath || undefined, nodeIntegration: true, contextIsolation: true }
-        })
-        menuWindow.once('ready-to-show', () => { try { menuWindow && menuWindow.show() } catch {} })
-        lastFollowerSide.set(menuWindow, null)
-        repositionFollower(menuWindow)
-        const url = process.env.VITE_DEV_SERVER_URL
-        if (url) menuWindow.loadURL(`${url}#menu`)
-        else {
-          const indexHtml = (process.env.APP_ROOT || '') + '/dist/index.html'
-          ;(menuWindow as any).loadFile(indexHtml, { hash: 'menu' })
-        }
-        menuWindow.on('blur', () => { try { menuWindow && menuWindow.close() } catch {} })
-        menuWindow.on('closed', () => { lastFollowerSide.delete(menuWindow as any); menuWindow = null })
+      let w = windowManager.get('menu')
+      if (!w) {
+        w = await windowManager.create('menu')
+        if (!w) return false
+        menuWindow = w
+        w.once('ready-to-show', () => { try { w!.show() } catch { } })
+        lastFollowerSide.set(w, null)
+        repositionFollower(w)
+        w.on('closed', () => { lastFollowerSide.delete(w as any); menuWindow = null })
       } else {
-        repositionFollower(menuWindow)
+        menuWindow = w
+        repositionFollower(w)
       }
       // 如果已存在且 ready，直接显示
-      if (menuWindow && menuWindow.isVisible()) menuWindow.focus(); else try { menuWindow?.show() } catch {}
+      if (menuWindow && menuWindow.isVisible()) menuWindow.focus(); else try { menuWindow?.show() } catch { }
       return true
     } catch { return false }
   })
@@ -370,38 +346,15 @@ export function initWindowHandlers(win: BrowserWindow) {
   async function createOrShowSettingsWindow() {
     if (!win) return false
     try {
-      if (!settingsWindow || settingsWindow.isDestroyed()) {
-        const { BrowserWindow } = await import('electron')
-        settingsWindow = new BrowserWindow({
-          width: 420,
-          height: 480,
-          frame: false,
-          transparent: true,
-          resizable: false,
-          alwaysOnTop: true,
-          skipTaskbar: false,
-          backgroundColor: '#00000000',
-          parent: win,
-          show: false,
-          webPreferences: { preload: (win as any).__preloadPath || undefined, nodeIntegration: true, contextIsolation: true }
-        })
-        settingsWindow.once('ready-to-show', () => { try { settingsWindow && settingsWindow.show() } catch {} })
-        // 居中到主窗口所在屏幕
-        const mainBounds = win.getBounds()
-        const display = screen.getDisplayNearestPoint({ x: mainBounds.x + mainBounds.width / 2, y: mainBounds.y + mainBounds.height / 2 })
-        const work = display.workArea
-        const posX = Math.round(work.x + (work.width - 420) / 2)
-        const posY = Math.round(work.y + (work.height - 480) / 2)
-        settingsWindow.setPosition(posX, posY)
-        const url = process.env.VITE_DEV_SERVER_URL
-        if (url) settingsWindow.loadURL(`${url}#settings`)
-        else {
-          const indexHtml = (process.env.APP_ROOT || '') + '/dist/index.html'
-          ;(settingsWindow as any).loadFile(indexHtml, { hash: 'settings' })
-        }
-        maybeOpenDevTools(settingsWindow)
-        settingsWindow.on('closed', () => { settingsWindow = null })
-      }
+      let w = windowManager.get('settings')
+      if (!w) {
+        w = await windowManager.create('settings')
+        if (!w) return false
+        settingsWindow = w
+        w.once('ready-to-show', () => { try { w!.show() } catch { } })
+        maybeOpenDevTools(w)
+        w.on('closed', () => { settingsWindow = null })
+      } else { settingsWindow = w }
       if (settingsWindow && !settingsWindow.isVisible()) settingsWindow.show(); settingsWindow?.focus()
       return true
     } catch { return false }
@@ -415,40 +368,15 @@ export function initWindowHandlers(win: BrowserWindow) {
   ipcMain.handle('openWorkspaceWizardWindow', async () => {
     if (!win) return false
     try {
-      if (!workspaceWizardWindow || workspaceWizardWindow.isDestroyed()) {
-        const { BrowserWindow } = await import('electron')
-        workspaceWizardWindow = new BrowserWindow({
-          width: 520,
-          height: 460,
-          frame: false,
-          transparent: true,
-          resizable: false,
-          alwaysOnTop: true,
-          skipTaskbar: false,
-          backgroundColor: '#00000000',
-          parent: win,
-          show: false,
-          webPreferences: { preload: (win as any).__preloadPath || undefined, nodeIntegration: true, contextIsolation: true }
-        })
-        workspaceWizardWindow.once('ready-to-show', () => { try { workspaceWizardWindow && workspaceWizardWindow.show() } catch {} })
-        // 居中到主窗口所在屏幕
-        const mainBounds = win.getBounds()
-        const display = screen.getDisplayNearestPoint({ x: mainBounds.x + mainBounds.width / 2, y: mainBounds.y + mainBounds.height / 2 })
-        const work = display.workArea
-        const w = 520, h = 460
-        workspaceWizardWindow.setPosition(
-          Math.round(work.x + (work.width - w) / 2),
-          Math.round(work.y + (work.height - h) / 2),
-        )
-        const url = process.env.VITE_DEV_SERVER_URL
-        if (url) workspaceWizardWindow.loadURL(`${url}#workspace-wizard`)
-        else {
-          const indexHtml = (process.env.APP_ROOT || '') + '/dist/index.html'
-          ;(workspaceWizardWindow as any).loadFile(indexHtml, { hash: 'workspace-wizard' })
-        }
-        maybeOpenDevTools(workspaceWizardWindow)
-        workspaceWizardWindow.on('closed', () => { workspaceWizardWindow = null })
-      }
+      let w = windowManager.get('workspaceWizard')
+      if (!w) {
+        w = await windowManager.create('workspaceWizard')
+        if (!w) return false
+        workspaceWizardWindow = w
+        w.once('ready-to-show', () => { try { w!.show() } catch { } })
+        maybeOpenDevTools(w)
+        w.on('closed', () => { workspaceWizardWindow = null })
+      } else { workspaceWizardWindow = w }
       if (workspaceWizardWindow && !workspaceWizardWindow.isVisible()) workspaceWizardWindow.show(); workspaceWizardWindow?.focus()
       return true
     } catch { return false }
@@ -475,20 +403,20 @@ export function initWindowHandlers(win: BrowserWindow) {
         createOrShowSettingsWindow()
         return
       case 'close-workspace-wizard':
-        try { workspaceWizardWindow?.close() } catch {}
+        try { workspaceWizardWindow?.close() } catch { }
         return
       case 'quit-app':
-        try { app.quit() } catch {}
+        try { app.quit() } catch { }
         return
       case 'close-settings':
-        try { settingsWindow?.close() } catch {}
+        try { settingsWindow?.close() } catch { }
         return
       case 'toggle-walk':
       case 'walk-once':
-        try { win?.webContents.send('menu-command', action) } catch {}
+        try { win?.webContents.send('menu-command', action) } catch { }
         return
       default:
-        try { win?.webContents.send('menu-command', action) } catch {}
+        try { win?.webContents.send('menu-command', action) } catch { }
         return
     }
   })
@@ -496,41 +424,15 @@ export function initWindowHandlers(win: BrowserWindow) {
   ipcMain.handle('openResourcesWindow', async () => {
     if (!win) return false
     try {
-      if (!resourcesWindow || resourcesWindow.isDestroyed()) {
-        const { BrowserWindow } = await import('electron')
-        resourcesWindow = new BrowserWindow({
-          width: 720,
-          height: 520,
-          frame: true, // 标题栏
-          transparent: false, // 非透明
-          resizable: true,
-          alwaysOnTop: false,
-          skipTaskbar: false,
-          backgroundColor: '#fff', // 白色背景
-          show: false,
-          autoHideMenuBar: true, // 隐藏菜单栏
-          webPreferences: { preload: (win as any).__preloadPath || undefined, nodeIntegration: true, contextIsolation: true }
-        })
-        resourcesWindow.once('ready-to-show', () => { try { resourcesWindow && resourcesWindow.show() } catch {} })
-        // 居中
-        const mainBounds = win.getBounds()
-        const display = screen.getDisplayNearestPoint({ x: mainBounds.x + mainBounds.width / 2, y: mainBounds.y + mainBounds.height / 2 })
-        const work = display.workArea
-        resourcesWindow.setPosition(
-          Math.round(work.x + (work.width - 720) / 2),
-          Math.round(work.y + (work.height - 520) / 2),
-        )
-        const url = process.env.VITE_DEV_SERVER_URL
-        if (url) resourcesWindow.loadURL(`${url}#resources`)
-        else {
-          const indexHtml = (process.env.APP_ROOT || '') + '/dist/index.html'
-          ;(resourcesWindow as any).loadFile(indexHtml, { hash: 'resources' })
-        }
-        maybeOpenDevTools(resourcesWindow)
-        resourcesWindow.on('closed', () => { resourcesWindow = null })
-      } else {
-        try { resourcesWindow.show() } catch {}
-      }
+      let w = windowManager.get('resources')
+      if (!w) {
+        w = await windowManager.create('resources')
+        if (!w) return false
+        resourcesWindow = w
+        w.once('ready-to-show', () => { try { w!.show() } catch { } })
+        maybeOpenDevTools(w)
+        w.on('closed', () => { resourcesWindow = null })
+      } else { resourcesWindow = w; try { w.show() } catch { } }
       return true
     } catch { return false }
   })
@@ -539,41 +441,15 @@ export function initWindowHandlers(win: BrowserWindow) {
   ipcMain.handle('openRecycleWindow', async () => {
     if (!win) return false
     try {
-      if (!recycleWindow || recycleWindow.isDestroyed()) {
-        const { BrowserWindow } = await import('electron')
-        recycleWindow = new BrowserWindow({
-          width: 720,
-          height: 520,
-          frame: true,
-          transparent: false,
-          resizable: true,
-          alwaysOnTop: false,
-          skipTaskbar: false,
-          backgroundColor: '#fff',
-          show: false,
-          autoHideMenuBar: true,
-          webPreferences: { preload: (win as any).__preloadPath || undefined, nodeIntegration: true, contextIsolation: true }
-        })
-        recycleWindow.once('ready-to-show', () => { try { recycleWindow && recycleWindow.show() } catch {} })
-        // 居中到主窗口所在屏幕
-        const mainBounds = win.getBounds()
-        const display = screen.getDisplayNearestPoint({ x: mainBounds.x + mainBounds.width / 2, y: mainBounds.y + mainBounds.height / 2 })
-        const work = display.workArea
-        recycleWindow.setPosition(
-          Math.round(work.x + (work.width - 720) / 2),
-          Math.round(work.y + (work.height - 520) / 2),
-        )
-        const url = process.env.VITE_DEV_SERVER_URL
-        if (url) recycleWindow.loadURL(`${url}#recycle`)
-        else {
-          const indexHtml = (process.env.APP_ROOT || '') + '/dist/index.html'
-          ;(recycleWindow as any).loadFile(indexHtml, { hash: 'recycle' })
-        }
-        maybeOpenDevTools(recycleWindow)
-        recycleWindow.on('closed', () => { recycleWindow = null })
-      } else {
-        try { recycleWindow.show() } catch {}
-      }
+      let w = windowManager.get('recycle')
+      if (!w) {
+        w = await windowManager.create('recycle')
+        if (!w) return false
+        recycleWindow = w
+        w.once('ready-to-show', () => { try { w!.show() } catch { } })
+        maybeOpenDevTools(w)
+        w.on('closed', () => { recycleWindow = null })
+      } else { recycleWindow = w; try { w.show() } catch { } }
       return true
     } catch { return false }
   })
