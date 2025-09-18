@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Button } from '../ui/button'
-import { TbArrowRight, TbFolder, TbX } from 'react-icons/tb'
+import { TbArrowLeft, TbArrowRight, TbFolder, TbX } from 'react-icons/tb'
 import { Input } from '../ui/input'
 
 const WorkspaceWizard: React.FC = () => {
@@ -11,6 +11,7 @@ const WorkspaceWizard: React.FC = () => {
   const [busy, setBusy] = useState(false)
   const [hint, setHint] = useState<string>('')
   const [suggested, setSuggested] = useState<string>('')
+  const [showCreateForm, setShowCreateForm] = useState<boolean>(false)
 
   useEffect(() => {
     let mounted = true
@@ -47,7 +48,12 @@ const WorkspaceWizard: React.FC = () => {
     } finally { setBusy(false) }
   }
 
-  const onCreate = async () => createWith(pickedPath)
+  const onCreate = async () => {
+    setHint('')
+    const pick = await window.YUA.workspace['workspace:pickDir']()
+    if (pick.canceled || !pick.path) return
+    await createWith(pick.path, name || undefined)
+  }
 
   const onQuickCreate = async () => {
     if (!suggested) return onPickDir()
@@ -68,47 +74,53 @@ const WorkspaceWizard: React.FC = () => {
     setPickedPath('')
     setName('')
     setHint('')
+    setShowCreateForm(true)
+  }
+
+  const onBack = () => {
+    setHint('')
+    setShowCreateForm(false)
   }
 
   return (
     <div className='w-full h-full bg-background text-foreground'>
-      <div className='drag-region h-12'></div>
-      <div className='drag-region p-4 text-center'>
+      <div className='drag-region h-24'></div>
+      <div className='drag-region p-4 text-center w-96'>
         <div className='text-xl mb-2'>🗂 工作仓库</div>
-        <div className='text-xs text-muted-foreground'>为你的数据选择一个本地文件夹，用于集中存放与索引。</div>
+        <div className='text-xs text-muted-foreground'>为你的数据选择一个本地文件夹，用于集中存放。</div>
         {
           !!defaultWorkspace ? (
             <div className='p-2.5 rounded-[10px] border border-emerald-500/30 bg-emerald-500/15'>
-              <div className='font-semibold'>检测到已有默认空间</div>
+              <div className='font-semibold'>检测到已有默认仓库</div>
               <div className='text-[12px] opacity-85'>{defaultWorkspace.rootPath}</div>
               <div className='mt-2 no-drag'>
-                <Button size="sm" disabled={busy} onClick={onUseDefault}>使用它</Button>
+                <Button disabled={busy} onClick={onUseDefault}>使用它</Button>
               </div>
             </div>
-          ) : <div className='mt-6 mb-10 text-center no-drag space-x-4'>
-            <Button size="sm" variant="outline" disabled={busy} onClick={onCreateNew}>创建新仓库</Button>
-            <Button size="sm" onClick={onQuickCreate} disabled={busy}>快速开始 {suggested ? '' : '…'} <TbArrowRight /></Button>
-          </div>
+          ) : (
+            !showCreateForm && (
+              <div className='mt-6 mb-10 text-center no-drag space-x-4'>
+                <Button variant="outline" disabled={busy} onClick={onCreateNew}>创建新仓库</Button>
+                <Button onClick={onQuickCreate} disabled={busy}>快速开始 {suggested ? '' : '…'} <TbArrowRight /></Button>
+              </div>
+            )
+          )
         }
       </div>
-      <div className='flex flex-col gap-4 px-8'>
-        <div className='flex gap-2 items-center'>
-          <Input value={pickedPath} placeholder='请选择工作空间文件夹…' readOnly />
-          <Button className='shrink-0' variant={"outline"} size={"icon"} disabled={busy} onClick={onPickDir}>
-            <TbFolder />
-          </Button>
+      {showCreateForm && (
+        <div className='flex flex-col gap-4 px-8 w-96 mx-auto'>
+          <div className='flex gap-2 items-center'>
+            <Input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder='仓库名称' />
+          </div>
+          <div className='flex justify-between items-center gap-2'>
+            <Button size="icon" variant={'outline'} disabled={busy} onClick={onBack}><TbArrowLeft /></Button>
+            <Button className='flex-1' onClick={onCreate} disabled={busy || !name.trim()}>创建仓库</Button>
+          </div>
+          <div className='pb-2'>
+            {hint && <div className='text-red-500 text-xs'>{hint}</div>}
+          </div>
         </div>
-        <div className='flex gap-2 items-center'>
-          <Input value={name} onChange={e => setName(e.target.value)} placeholder='空间名称（可选）' />
-        </div>
-        <div className='flex gap-2'>
-          <Button size="sm" onClick={onCreate} disabled={!pickedPath || busy}>创建工作空间</Button>
-        </div>
-        <div className='pb-2'>
-          {hint && <div className='text-red-500 text-xs'>{hint}</div>}
-          <div className='text-xs text-muted-foreground'>提示：向导可在首次启动时自动弹出，也可在菜单中再次打开。</div>
-        </div>
-      </div>
+      )}
     </div>
   )
 }
