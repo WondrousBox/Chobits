@@ -58,10 +58,9 @@ export class WindowManager {
     const w = new BrowserWindow(opts)
     this.registry.set(key, w)
 
-    console.log("te")
     w.once('ready-to-show', () => {
       try {
-        console.log(conf.showOnReady);
+        console.log("ready-to-show", conf.showOnReady)
 
         if (conf.showOnReady === false) return
         w.show()
@@ -128,6 +127,18 @@ export class WindowManager {
   async show(key: WindowKey) {
     const w = this.get(key)
     if (w) { try { w.show(); w.focus() } catch { } }
+    return w
+  }
+
+  async hide(key: WindowKey) {
+    const w = this.get(key)
+    if (w) { try { w.hide() } catch { } }
+    return w
+  }
+
+  async close(key: WindowKey) {
+    const w = this.get(key)
+    if (w) { try { w.close() } catch { } }
     return w
   }
 

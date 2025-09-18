@@ -4,6 +4,7 @@ import { screen, app } from "electron";
 import fs from 'node:fs';
 import path from 'node:path';
 import { windowManager } from '../window-manager'
+import { WindowKey } from "../window-config";
 
 // Assistant intrinsic size
 const ASSISTANT_WIDTH = 180;
@@ -25,8 +26,6 @@ export function initWindowHandlers(win: BrowserWindow) {
   // New follower windows: context menu + settings
   let menuWindow: BrowserWindow | null = null
   let settingsWindow: BrowserWindow | null = null
-  // 工作空间创建向导窗口
-  let workspaceWizardWindow: BrowserWindow | null = null
   // 记录上一次放置的方向 (针对所有跟随窗口分别记录)
   const lastFollowerSide = new Map<BrowserWindow, 'right' | 'left' | 'bottom' | 'top' | null>()
   let followerAnimTimer: NodeJS.Timeout | null = null
@@ -226,13 +225,12 @@ export function initWindowHandlers(win: BrowserWindow) {
 
   // 主窗口关闭时统一销毁子窗口
   win.on('closed', () => {
-    [fileListWindow, menuWindow, settingsWindow, workspaceWizardWindow]
+    [fileListWindow, menuWindow, settingsWindow]
       .forEach(w => { try { w && !w.isDestroyed() && w.destroy() } catch { } });
 
     fileListWindow = null;
     menuWindow = null;
     settingsWindow = null;
-    workspaceWizardWindow = null;
     stopFollowerAnimation()
     stopHoverMonitor()
   })
@@ -365,24 +363,6 @@ export function initWindowHandlers(win: BrowserWindow) {
     return createOrShowSettingsWindow()
   })
 
-  // ---------------- Workspace Wizard Window (独立引导窗口) ------------
-  ipcMain.handle('openWorkspaceWizardWindow', async () => {
-    if (!win) return false
-    try {
-      let w = windowManager.get('workspaceWizard')
-      if (!w) {
-        w = await windowManager.create('workspaceWizard')
-        if (!w) return false
-        workspaceWizardWindow = w
-        w.once('ready-to-show', () => { try { w!.show() } catch { } })
-        maybeOpenDevTools(w)
-        w.on('closed', () => { workspaceWizardWindow = null })
-      } else { workspaceWizardWindow = w }
-      if (workspaceWizardWindow && !workspaceWizardWindow.isVisible()) workspaceWizardWindow.show(); workspaceWizardWindow?.focus()
-      return true
-    } catch { return false }
-  })
-
   // Suggest a default workspace path: ~/Documents/Chobits, fallback to incremented suffix
   ipcMain.handle('suggestWorkspacePath', async () => {
     try {
@@ -403,9 +383,6 @@ export function initWindowHandlers(win: BrowserWindow) {
       case 'open-settings':
         createOrShowSettingsWindow()
         return
-      case 'close-workspace-wizard':
-        try { workspaceWizardWindow?.close() } catch { }
-        return
       case 'quit-app':
         try { app.quit() } catch { }
         return
@@ -422,18 +399,20 @@ export function initWindowHandlers(win: BrowserWindow) {
     }
   })
 
-  ipcMain.handle('openResourcesWindow', async () => {
+  ipcMain.handle('openWindow', async (_: IpcMainInvokeEvent, key: WindowKey) => {
     if (!win) return false
     try {
-      await windowManager.createOrShow('resources')
+      await windowManager.createOrShow(key)
       return true
-    } catch { return false }
+    } catch {
+      return false
+    }
   })
 
-  ipcMain.handle('openRecycleWindow', async () => {
+  ipcMain.handle('closeWindow', async (_: IpcMainInvokeEvent, key: WindowKey) => {
     if (!win) return false
     try {
-      await windowManager.createOrShow('recycle')
+      await windowManager.close(key)
       return true
     } catch {
       return false

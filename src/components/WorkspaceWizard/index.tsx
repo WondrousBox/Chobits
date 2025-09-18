@@ -41,7 +41,7 @@ const WorkspaceWizard: React.FC = () => {
       await window.YUA.workspace['workspace:add']({ workspace: { id, name: wsName2, rootPath, isDefault: workspaces.length ? 0 : 1, status: 'active' } })
       if (workspaces.length === 0) await window.YUA.workspace['workspace:setDefault']({ id })
       await window.YUA.workspace['workspace:ensureDir']({ id })
-      window.ipcRenderer?.send('menu-command', 'close-workspace-wizard')
+      window.YUA.window.closeWindow("workspaceWizard")
     } catch (e) {
       setHint('创建失败，请更换路径或稍后再试')
     } finally { setBusy(false) }
@@ -60,7 +60,7 @@ const WorkspaceWizard: React.FC = () => {
     setBusy(true)
     try {
       await window.YUA.workspace['workspace:ensureDir']({ id: defaultWorkspace.id })
-      window.ipcRenderer?.send('menu-command', 'close-workspace-wizard')
+      window.YUA.window.closeWindow("workspaceWizard")
     } finally { setBusy(false) }
   }
 
@@ -72,7 +72,7 @@ const WorkspaceWizard: React.FC = () => {
             <div>🗂 工作空间</div>
             <div className='text-xs text-muted-foreground'>为你的数据选择一个本地文件夹，用于集中存放与索引。</div>
           </div>
-          <Button className='no-drag' size={"icon"} variant={'outline'} onClick={() => window.ipcRenderer?.send('menu-command', 'close-workspace-wizard')}>
+          <Button className='no-drag' size={"icon"} variant={'outline'} onClick={() => window.YUA.window.closeWindow("workspaceWizard")}>
             <TbX />
           </Button>
         </div>
