@@ -80,7 +80,6 @@ export const windowConfigs: WindowConfigMap = {
   },
   workspaceWizard: {
     routeHash: 'workspace-wizard',
-    parent: 'main',
     autoCenterOn: 'parent-display',
     showOnReady: false,
     openDevTools: true,

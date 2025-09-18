@@ -96,7 +96,7 @@ export const AIAssistant: React.FC = () => {
           // 未创建空间：提示并打开设置窗口
           setMessageState('configure')
           // 稍等片刻再弹窗，避免打断动画
-          setTimeout(() => { try { window.YUA.window.openWorkspaceWizardWindow() } catch {} }, 800)
+          setTimeout(() => { try { window.YUA.window.openWindow("workspaceWizard") } catch {} }, 800)
         }
       } catch {
         // 忽略错误，保持现有状态

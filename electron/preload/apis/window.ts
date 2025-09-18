@@ -1,6 +1,7 @@
 import { ipcRenderer } from "electron";
 
 import { IPCParams } from "../type";
+import { WindowKey } from "electron/main/window-config";
 
 type WindowBridgeParams = {
   /**
@@ -21,12 +22,8 @@ type WindowBridgeParams = {
   "openMenuWindow": IPCParams<[void], boolean>;
   /** 打开设置窗口 */
   "openSettingsWindow": IPCParams<[void], boolean>;
-  /** 打开工作空间创建向导窗口 */
-  "openWorkspaceWizardWindow": IPCParams<[void], boolean>;
-  /** 打开资源管理窗口 */
-  "openResourcesWindow": IPCParams<[void], boolean>;
-  /** 打开回收站窗口 */
-  "openRecycleWindow": IPCParams<[void], boolean>;
+  "openWindow": IPCParams<[WindowKey], boolean>;
+  "closeWindow": IPCParams<[WindowKey], boolean>;
   /** 获取移动配置 */
   "getMovementConfig": IPCParams<[void], { width: number; height: number } & { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number }>;
   /** 更新移动配置 */
@@ -44,9 +41,8 @@ const methods: Array<keyof WindowBridgeParams> = [
   "openFileListWindow",
   "openMenuWindow",
   "openSettingsWindow",
-  "openWorkspaceWizardWindow",
-  "openResourcesWindow",
-  "openRecycleWindow",
+  "openWindow",
+  "closeWindow",
   "getMovementConfig",
   "updateMovementConfig",
   "suggestWorkspacePath",
