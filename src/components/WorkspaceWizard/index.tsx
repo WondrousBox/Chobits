@@ -36,13 +36,15 @@ const WorkspaceWizard: React.FC = () => {
     setBusy(true)
     setHint('')
     try {
-      const id = (crypto as any).randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
       const wsName2 = (wsName || name || (rootPath.split('/').pop() || 'Workspace')).trim()
       if (!wsName2) { setHint('名称不能为空'); return }
-      await window.YUA.workspace['workspace:add']({ workspace: { id, name: wsName2, rootPath, isDefault: workspaces.length ? 0 : 1, status: 'active' } })
-      if (workspaces.length === 0) await window.YUA.workspace['workspace:setDefault']({ id })
-      await window.YUA.workspace['workspace:ensureDir']({ id })
-      window.YUA.window.closeWindow("workspaceWizard")
+      const res = await window.YUA.workspace['workspace:add']({ workspace: { name: wsName2, rootPath, isDefault: workspaces.length ? 0 : 1, status: 'active' } })
+      console.log(res);
+      if (res.success && res.data) {
+        if (workspaces.length === 0) await window.YUA.workspace['workspace:setDefault']({ id: res.data.id })
+        window.YUA.window.closeWindow("workspaceWizard")
+      }
+
     } catch (e) {
       setHint('创建失败，请更换路径或稍后再试')
     } finally { setBusy(false) }
@@ -65,7 +67,8 @@ const WorkspaceWizard: React.FC = () => {
     if (!defaultWorkspace) return
     setBusy(true)
     try {
-      await window.YUA.workspace['workspace:ensureDir']({ id: defaultWorkspace.id })
+      // 确保空间存在
+      // await window.YUA.workspace['workspace:ensureDir']({ id: defaultWorkspace.id })
       window.YUA.window.closeWindow("workspaceWizard")
     } finally { setBusy(false) }
   }

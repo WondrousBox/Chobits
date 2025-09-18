@@ -12,3 +12,15 @@ export type IPCParams<T = void, R = unknown> = {
    */
   response: R;
 };
+
+export type ResParams<T = void> = {
+  success: boolean;
+  data?: T;
+  message?: string;
+};
+
+export type PartialByKey<T, K extends keyof T> = Omit<T, K> &
+  Partial<Pick<T, K>>;
+
+export type RequiredByKey<T, K extends keyof T> = Omit<T, K> &
+  Required<Pick<T, K>>;

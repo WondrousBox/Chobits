@@ -1,10 +1,11 @@
 import { sqliteTable, text, blob, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { InferInsertModel, InferSelectModel, sql } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
 
 // documents：语义检索与内容管理的“权威表”，存储正文、元信息与向量及其元数据
 export const documents = sqliteTable('documents', {
   // 业务主键（全局唯一ID，非 rowid），用于关联与幂等写入
-  id: text('id').primaryKey(),
+  id: text('id').primaryKey().$defaultFn(() => randomUUID()),
   // 文档正文（建议为清洗后的纯文本；若很大可结合 contentPath 做外部存储）
   content: text('content').notNull(),
   // 低频/扩展元数据（JSON字符串，例如 UI 状态、额外属性等）
@@ -75,7 +76,7 @@ export type NewDocument = InferInsertModel<typeof documents>;
 
 // A rich, extensible resources table for internet content (images, videos, audio, text, links, files, documents, etc.)
 export const resources = sqliteTable('resources', {
-  id: text('id').primaryKey(), // 资源唯一ID
+  id: text('id').primaryKey().$defaultFn(() => randomUUID()), // 资源唯一ID
   type: text('type', { enum: ['image', 'video', 'audio', 'text', 'link', 'file', 'document', 'other'] }).notNull(), // 资源类型
   title: text('title'), // 标题
   description: text('description'), // 简要描述
@@ -150,7 +151,7 @@ export type NewResource = InferInsertModel<typeof resources>;
  * - expireAt: 过期时间（可选自动清理）
  */
 export const recycle_bin = sqliteTable('recycle_bin', {
-  id: text('id').primaryKey(), // 回收站索引主键（可用 entityType-entityId 拼接）
+  id: text('id').primaryKey().$defaultFn(() => randomUUID()), // 回收站索引主键（可用 entityType-entityId 拼接）
   entityType: text('entity_type'), // 实体类型（如 document/resource）
   entityId: text('entity_id'), // 实体主键
   title: text('title'), // 展示标题快照
@@ -177,7 +178,7 @@ export type NewRecycleBin = InferInsertModel<typeof recycle_bin>;
  * - sizeBytes/fileCount/lastScanAt: 可选的统计信息
  */
 export const workspaces = sqliteTable('workspaces', {
-  id: text('id').primaryKey(),
+  id: text('id').primaryKey().$defaultFn(() => randomUUID()),
   name: text('name').notNull(),
   rootPath: text('root_path').notNull(),
   description: text('description'),

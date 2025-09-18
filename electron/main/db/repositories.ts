@@ -4,6 +4,11 @@ import { eq, inArray, and, or, like, gte, lte, isNull, isNotNull } from 'drizzle
 import { rebuildVectors, deleteVectors } from '.';
 import { resources, type ResourceRow, type NewResource } from './schema';
 
+function omitId<T extends { id?: any }>(obj: T): Omit<T, 'id'> {
+  const { id, ...rest } = obj || ({} as any);
+  return rest as any;
+}
+
 /**
  * 文档表操作仓库
  * - 支持 upsert、批量 upsert、单条/批量删除、软删除、恢复、更新、分页、筛选、计数、存在性判断等
@@ -15,24 +20,30 @@ export const DocumentsRepo = {
    * 新增或更新单条文档（主键冲突自动更新）
    * @param doc 文档对象（所有字段均可填）
    */
-  async upsert(doc: NewDocument) {
+  async upsert(doc: NewDocument): Promise<DocumentRow | undefined> {
     const db = getOrm();
-    await db.insert(documents).values(doc).onConflictDoUpdate({
-      target: documents.id,
-      set: { ...doc },
-    });
+    const rows = await db
+      .insert(documents)
+      .values(doc as any)
+      .onConflictDoUpdate({ target: documents.id, set: omitId(doc as any) })
+      .returning()
+      .all();
+    return rows[0];
   },
   /**
    * 批量新增或更新文档（主键冲突自动更新）
    * @param docs 文档对象数组
    */
-  async bulkUpsert(docs: NewDocument[]) {
+  async bulkUpsert(docs: NewDocument[]): Promise<DocumentRow[]> {
     const db = getOrm();
-    if (!docs.length) return;
-    await db.insert(documents).values(docs).onConflictDoUpdate({
-      target: documents.id,
-      set: { ...docs[0] }, // 只取第一个字段结构，实际 excluded 由 drizzle 处理
-    });
+    if (!docs.length) return [];
+    const rows = await db
+      .insert(documents)
+      .values(docs as any)
+      .onConflictDoUpdate({ target: documents.id, set: omitId((docs[0] as any) || {}) })
+      .returning()
+      .all();
+    return rows;
   },
   /**
    * 根据主键获取文档
@@ -63,15 +74,19 @@ export const DocumentsRepo = {
    * @param ids 文档ID数组
    * @returns 实际标记数量
    */
-  async softDelete(ids: string[]): Promise<number> {
-    if (!ids.length) return 0;
+  async softDelete(ids: string[]): Promise<DocumentRow[]> {
+    if (!ids.length) return [];
     const db = getOrm();
     const now = Date.now();
     const tx = (db as any).transaction(async () => {
-      const res = await db.update(documents).set({ deletedAt: now }).where(inArray(documents.id, ids));
+      const updatedRows = await db
+        .update(documents)
+        .set({ deletedAt: now })
+        .where(inArray(documents.id, ids))
+        .returning()
+        .all();
       // 同步回收站索引
-      const rows = await db.select({ id: documents.id, title: documents.title, content: documents.content }).from(documents).where(inArray(documents.id, ids));
-      const items = rows.map((r: any) => ({
+      const items = updatedRows.map((r: any) => ({
         id: `doc:${r.id}`,
         entityType: 'document',
         entityId: r.id,
@@ -91,7 +106,7 @@ export const DocumentsRepo = {
       }
       // 删除向量表记录（软删也移除检索）
       deleteVectors(ids);
-      return (res as any).changes ?? 0;
+      return updatedRows;
     });
     return await tx();
   },
@@ -100,17 +115,22 @@ export const DocumentsRepo = {
    * @param ids 文档ID数组
    * @returns 实际恢复数量
    */
-  async restore(ids: string[]): Promise<number> {
-    if (!ids.length) return 0;
+  async restore(ids: string[]): Promise<DocumentRow[]> {
+    if (!ids.length) return [];
     const db = getOrm();
     const tx = (db as any).transaction(async () => {
-      const res = await db.update(documents).set({ deletedAt: null, updatedAt: Date.now() }).where(inArray(documents.id, ids));
+      const rows = await db
+        .update(documents)
+        .set({ deletedAt: null, updatedAt: Date.now() })
+        .where(inArray(documents.id, ids))
+        .returning()
+        .all();
       // 移除回收站索引
       await db.delete(recycle_bin).where(inArray(recycle_bin.entityId, ids));
       // 重建向量索引（使用已存储的 embedding )
       // 这里需要调用 rebuildVectors，要求调用方提供 dim；简单场景可从任一 embedding 取长度
       // 建议在上层传入 dim，这里暂不推断
-      return (res as any).changes ?? 0;
+      return rows;
     });
     return await tx();
   },
@@ -118,17 +138,17 @@ export const DocumentsRepo = {
   /**
    * 恢复并重建向量索引（需要调用方提供 dim）
    */
-  async restoreWithIndex(ids: string[], dim: number): Promise<number> {
-    if (!ids.length) return 0;
-    const updated = await this.restore(ids);
-    if (updated > 0) rebuildVectors(ids, dim);
-    return updated;
+  async restoreWithIndex(ids: string[], dim: number): Promise<DocumentRow[]> {
+    if (!ids.length) return [];
+    const rows = await this.restore(ids);
+    if (rows.length > 0) rebuildVectors(ids, dim);
+    return rows;
   },
 
   /**
    * 软删除并写入回收站（带索引）
    */
-  async softDeleteWithIndex(ids: string[]): Promise<number> {
+  async softDeleteWithIndex(ids: string[]): Promise<DocumentRow[]> {
     return this.softDelete(ids);
   },
 
@@ -231,8 +251,8 @@ export const RecycleBinRepo = {
     const docIds = items.filter(i => i.entityType === 'document').map(i => i.entityId);
     const resIds = items.filter(i => i.entityType === 'resource').map(i => i.entityId);
     let restored = 0;
-    if (docIds.length) restored += await DocumentsRepo.restore(docIds);
-    if (resIds.length) restored += await ResourcesRepo.restore(resIds);
+    if (docIds.length) restored += (await DocumentsRepo.restore(docIds)).length;
+    if (resIds.length) restored += (await ResourcesRepo.restore(resIds)).length;
     return restored;
   },
   /** 根据回收站ID彻底删除实体（文档/资源），并同步清理回收站索引 */
@@ -265,21 +285,27 @@ export const RecycleBinRepo = {
  */
 export const ResourcesRepo = {
   /** 新增或更新单条资源（主键冲突自动更新） */
-  async upsert(res: NewResource) {
+  async upsert(res: NewResource): Promise<ResourceRow | undefined> {
     const db = getOrm();
-    await db.insert(resources).values(res).onConflictDoUpdate({
-      target: resources.id,
-      set: { ...res },
-    });
+    const rows = await db
+      .insert(resources)
+      .values(res as any)
+      .onConflictDoUpdate({ target: resources.id, set: omitId(res as any) })
+      .returning()
+      .all();
+    return rows[0];
   },
   /** 批量新增或更新资源（主键冲突自动更新） */
-  async bulkUpsert(list: NewResource[]) {
-    if (!list.length) return;
+  async bulkUpsert(list: NewResource[]): Promise<ResourceRow[]> {
+    if (!list.length) return [];
     const db = getOrm();
-    await db.insert(resources).values(list).onConflictDoUpdate({
-      target: resources.id,
-      set: { ...list[0] },
-    });
+    const rows = await db
+      .insert(resources)
+      .values(list as any)
+      .onConflictDoUpdate({ target: resources.id, set: omitId((list[0] as any) || {}) })
+      .returning()
+      .all();
+    return rows;
   },
   /** 按ID获取资源 */
   async getById(id: string): Promise<ResourceRow | undefined> {
@@ -294,10 +320,11 @@ export const ResourcesRepo = {
     return !!rows.length;
   },
   /** 更新资源（部分字段） */
-  async update(id: string, patch: Partial<NewResource>): Promise<number> {
+  async update(id: string, patch: Partial<NewResource>): Promise<ResourceRow | undefined> {
     const db = getOrm();
-    const res = await db.update(resources).set({ ...patch, updatedAt: Date.now() } as any).where(eq(resources.id, id));
-    return (res as any).changes ?? 0;
+    await db.update(resources).set({ ...patch, updatedAt: Date.now() } as any).where(eq(resources.id, id));
+    const rows = await db.select().from(resources).where(eq(resources.id, id)).limit(1);
+    return rows[0];
   },
   /** 批量物理删除资源，并清理回收站索引 */
   async deleteByIds(ids: string[]): Promise<number> {
@@ -312,12 +339,12 @@ export const ResourcesRepo = {
     return this.deleteByIds([id]);
   },
   /** 批量软删除资源：标记 deletedAt 并写入回收站索引 */
-  async softDelete(ids: string[]): Promise<number> {
-    if (!ids.length) return 0;
+  async softDelete(ids: string[]): Promise<ResourceRow[]> {
+    if (!ids.length) return [];
     const db = getOrm();
     const now = Date.now();
     const tx = (db as any).transaction(async () => {
-      const res = await db.update(resources).set({ deletedAt: now }).where(inArray(resources.id, ids));
+      await db.update(resources).set({ deletedAt: now }).where(inArray(resources.id, ids));
       const rows = await db
         .select({ id: resources.id, title: resources.title, description: resources.description, contentText: resources.contentText })
         .from(resources)
@@ -340,18 +367,18 @@ export const ResourcesRepo = {
           set: { deletedAt: now },
         });
       }
-      return (res as any).changes ?? 0;
+      return await db.select().from(resources).where(inArray(resources.id, ids));
     });
     return await tx();
   },
   /** 批量恢复资源：清空 deletedAt 并删除回收站索引 */
-  async restore(ids: string[]): Promise<number> {
-    if (!ids.length) return 0;
+  async restore(ids: string[]): Promise<ResourceRow[]> {
+    if (!ids.length) return [];
     const db = getOrm();
     const tx = (db as any).transaction(async () => {
-      const res = await db.update(resources).set({ deletedAt: null, updatedAt: Date.now() }).where(inArray(resources.id, ids));
+      await db.update(resources).set({ deletedAt: null, updatedAt: Date.now() }).where(inArray(resources.id, ids));
       await db.delete(recycle_bin).where(inArray(recycle_bin.entityId, ids));
-      return (res as any).changes ?? 0;
+      return await db.select().from(resources).where(inArray(resources.id, ids));
     });
     return await tx();
   },
@@ -390,12 +417,15 @@ export const ResourcesRepo = {
  */
 export const WorkspacesRepo = {
   /** 新增或更新工作空间 */
-  async upsert(ws: NewWorkspace) {
+  async upsert(ws: NewWorkspace): Promise<WorkspaceRow | undefined> {
     const db = getOrm();
-    await db.insert(workspaces).values(ws).onConflictDoUpdate({
-      target: workspaces.id,
-      set: { ...ws },
-    });
+    const rows = await db
+      .insert(workspaces)
+      .values(ws as any)
+      .onConflictDoUpdate({ target: workspaces.id, set: omitId(ws as any) })
+      .returning()
+      .all();
+    return rows[0];
   },
   /** 按ID获取 */
   async getById(id: string): Promise<WorkspaceRow | undefined> {
@@ -410,7 +440,7 @@ export const WorkspacesRepo = {
     return rows[0];
   },
   /** 设置默认空间（应用层确保唯一） */
-  async setDefault(id: string): Promise<void> {
+  async setDefault(id: string): Promise<WorkspaceRow | undefined> {
     const db = getOrm();
     const now = Date.now();
     const tx = (db as any).transaction(async () => {
@@ -418,6 +448,8 @@ export const WorkspacesRepo = {
       await db.update(workspaces).set({ isDefault: 1 as any, updatedAt: now }).where(eq(workspaces.id, id));
     });
     await tx();
+    const rows = await db.select().from(workspaces).where(eq(workspaces.id, id)).limit(1);
+    return rows[0];
   },
   /** 列表（支持按软删过滤） */
   async list(filter: Partial<WorkspaceRow> = {}, limit = 100, offset = 0): Promise<WorkspaceRow[]> {
@@ -442,17 +474,18 @@ export const WorkspacesRepo = {
     return rows[0]?.count ?? 0;
   },
   /** 更新 */
-  async update(id: string, patch: Partial<NewWorkspace>): Promise<number> {
+  async update(id: string, patch: Partial<NewWorkspace>): Promise<WorkspaceRow | undefined> {
     const db = getOrm();
-    const res = await db.update(workspaces).set({ ...patch, updatedAt: Date.now() } as any).where(eq(workspaces.id, id));
-    return (res as any).changes ?? 0;
+    await db.update(workspaces).set({ ...patch, updatedAt: Date.now() } as any).where(eq(workspaces.id, id));
+    const rows = await db.select().from(workspaces).where(eq(workspaces.id, id)).limit(1);
+    return rows[0];
   },
   /** 软删 */
-  async softDelete(ids: string[]): Promise<number> {
-    if (!ids.length) return 0;
+  async softDelete(ids: string[]): Promise<WorkspaceRow[]> {
+    if (!ids.length) return [];
     const db = getOrm();
-    const res = await db.update(workspaces).set({ deletedAt: Date.now() }).where(inArray(workspaces.id, ids));
-    return (res as any).changes ?? 0;
+    await db.update(workspaces).set({ deletedAt: Date.now() }).where(inArray(workspaces.id, ids));
+    return await db.select().from(workspaces).where(inArray(workspaces.id, ids));
   },
   /** 物理删除 */
   async deleteByIds(ids: string[]): Promise<number> {
