@@ -1,5 +1,8 @@
 import type { BrowserWindowConstructorOptions } from 'electron'
 
+const HEADER_COMMANDS_HEIGHT = 50;
+const MACOS_TRAFFIC_LIGHTS_HEIGHT = 16;
+
 export type WindowKey =
   | 'fileList'
   | 'menu'
@@ -86,13 +89,16 @@ export const windowConfigs: WindowConfigMap = {
     options: {
       width: 520,
       height: 460,
-      frame: false,
-      transparent: true,
+      titleBarStyle: process.platform === "darwin" ? "hiddenInset" : undefined,
+      titleBarOverlay: true,
+      trafficLightPosition: {
+        x: 20,
+        y: HEADER_COMMANDS_HEIGHT / 2 - MACOS_TRAFFIC_LIGHTS_HEIGHT / 2,
+      },
       resizable: false,
       alwaysOnTop: true,
       skipTaskbar: false,
       show: false,
-      backgroundColor: '#00000000',
       webPreferences: { nodeIntegration: true, contextIsolation: true },
     },
   },
