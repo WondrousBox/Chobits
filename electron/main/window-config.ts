@@ -12,6 +12,7 @@ export interface WindowConfig {
   routeHash: string | (() => string)
   options: BrowserWindowConstructorOptions
   showOnReady?: boolean
+  openDevTools?: boolean
   autoCenterOn?: 'parent-display' | 'primary-display' | 'none'
   closeOnBlur?: boolean
   follower?: boolean
@@ -63,6 +64,7 @@ export const windowConfigs: WindowConfigMap = {
     parent: 'main',
     autoCenterOn: 'parent-display',
     showOnReady: false,
+    openDevTools: true,
     options: {
       width: 420,
       height: 480,
@@ -81,6 +83,7 @@ export const windowConfigs: WindowConfigMap = {
     parent: 'main',
     autoCenterOn: 'parent-display',
     showOnReady: false,
+    openDevTools: true,
     options: {
       width: 520,
       height: 460,
@@ -97,7 +100,8 @@ export const windowConfigs: WindowConfigMap = {
   resources: {
     routeHash: 'resources',
     autoCenterOn: 'parent-display',
-    showOnReady: false,
+    showOnReady: true,
+    openDevTools: true,
     options: {
       width: 720,
       height: 520,
@@ -115,7 +119,8 @@ export const windowConfigs: WindowConfigMap = {
   recycle: {
     routeHash: 'recycle',
     autoCenterOn: 'parent-display',
-    showOnReady: false,
+    showOnReady: true,
+    openDevTools: true,
     options: {
       width: 720,
       height: 520,

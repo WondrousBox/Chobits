@@ -6,6 +6,17 @@ const DEV_URL = process.env.VITE_DEV_SERVER_URL
 const APP_ROOT = process.env.APP_ROOT || app.getAppPath()
 const RENDERER_DIST = path.join(APP_ROOT, 'dist')
 
+// Open DevTools automatically in dev/test environments
+const SHOULD_OPEN_DEVTOOLS = !!process.env.VITE_DEV_SERVER_URL || (process.env.NODE_ENV && process.env.NODE_ENV !== 'production')
+function maybeOpenDevTools(w: BrowserWindow | null) {
+  try {
+    if (SHOULD_OPEN_DEVTOOLS && w && !w.isDestroyed()) {
+      // detach mode avoids overlaying frameless/transparent windows
+      w.webContents.openDevTools({ mode: 'detach' })
+    }
+  } catch { }
+}
+
 export class WindowManager {
   private static _instance: WindowManager | null = null
   static get instance() {
@@ -31,8 +42,8 @@ export class WindowManager {
     let w = this.get(key)
     if (!w) w = await this.create(key)
     if (!w) return null
-    try { if (!w.isVisible()) w.show() } catch {}
-    try { w.focus() } catch {}
+    try { if (!w.isVisible()) w.show() } catch { }
+    try { w.focus() } catch { }
     return w
   }
 
@@ -42,7 +53,7 @@ export class WindowManager {
     const opts = { ...conf.options }
     opts.webPreferences = { ...(conf.options.webPreferences || {}), preload: this.preloadPath }
     if (conf.parent === 'main' && this.mainWindow && !this.mainWindow.isDestroyed()) {
-      (opts as any).parent = this.mainWindow
+      opts.parent = this.mainWindow
     }
     const w = new BrowserWindow(opts)
     this.registry.set(key, w)
@@ -51,15 +62,15 @@ export class WindowManager {
     w.once('ready-to-show', () => {
       try {
         console.log(conf.showOnReady);
-        
+
         if (conf.showOnReady === false) return
         w.show()
-      } catch {}
+      } catch { }
     })
 
     // Auto-close registry cleanup
     w.on('closed', () => {
-      try { this.registry.delete(key) } catch {}
+      try { this.registry.delete(key) } catch { }
     })
 
     await this.loadRoute(w, conf)
@@ -69,7 +80,11 @@ export class WindowManager {
 
     // Close on blur
     if (conf.closeOnBlur) {
-      w.on('blur', () => { try { w.close() } catch {} })
+      w.on('blur', () => { try { w.close() } catch { } })
+    }
+
+    if (conf.openDevTools) {
+      maybeOpenDevTools(w)
     }
 
     return w
@@ -99,20 +114,20 @@ export class WindowManager {
         Math.round(work.x + (work.width - width) / 2),
         Math.round(work.y + (work.height - height) / 2)
       )
-    } catch {}
+    } catch { }
   }
 
   async destroy(key: WindowKey) {
     const w = this.get(key)
     if (w) {
-      try { w.destroy() } catch {}
+      try { w.destroy() } catch { }
       this.registry.delete(key)
     }
   }
 
   async show(key: WindowKey) {
     const w = this.get(key)
-    if (w) { try { w.show(); w.focus() } catch {} }
+    if (w) { try { w.show(); w.focus() } catch { } }
     return w
   }
 
