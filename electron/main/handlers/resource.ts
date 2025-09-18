@@ -34,7 +34,7 @@ export function initResourceHandlers(_win: BrowserWindow) {
       }
     } catch {}
 
-  await ResourcesRepo.upsert({ ...res, id, workspaceId, filePath } as any);
+  const row = await ResourcesRepo.upsert({ ...res, id, workspaceId, filePath } as any);
     // Auto-chunk & enqueue for embedding if text exists
     const text = res.contentText || res.description || res.title;
     if (typeof text === 'string' && text.trim().length > 0) {
@@ -46,7 +46,7 @@ export function initResourceHandlers(_win: BrowserWindow) {
       }));
       embeddingQueue.enqueue({ items, dim: 384, batchSize: 16 });
     }
-    return { success: true };
+    return { success: true, data: row };
   });
   ipcMain.handle('listResource', async () => {
     // Hide soft-deleted items by default
@@ -57,14 +57,14 @@ export function initResourceHandlers(_win: BrowserWindow) {
   });
   ipcMain.handle('deleteResource', async (_event, payload: { id: string }) => {
     // Soft delete: mark deletedAt to trigger recycle_bin entry via trigger
-  await ResourcesRepo.update(payload.id, { deletedAt: Date.now() } as any);
-    return { success: true };
+  const row = await ResourcesRepo.update(payload.id, { deletedAt: Date.now() } as any);
+    return { success: true, data: row };
   });
 
   ipcMain.handle('deleteResources', async (_event, payload: { ids: string[] }) => {
     const now = Date.now();
-  await Promise.all((payload.ids || []).map(id => ResourcesRepo.update(id, { deletedAt: now } as any)));
-    return { success: true };
+  const rows = await Promise.all((payload.ids || []).map(id => ResourcesRepo.update(id, { deletedAt: now } as any)));
+    return { success: true, deleted: rows.filter(Boolean).length, data: rows.filter(Boolean) };
   });
 
   ipcMain.handle('moveResourcesToWorkspace', async (_event, payload: { ids: string[]; workspaceId: string }) => {
@@ -75,6 +75,7 @@ export function initResourceHandlers(_win: BrowserWindow) {
     const targetDir = path.join(ws.rootPath, 'resources');
     await fs.mkdir(targetDir, { recursive: true });
     let moved = 0;
+    const updated: any[] = [];
     for (const id of ids) {
   const res = await ResourcesRepo.getById(id);
       if (!res) continue;
@@ -88,11 +89,12 @@ export function initResourceHandlers(_win: BrowserWindow) {
             newPath = target;
           }
         }
-  await ResourcesRepo.update(id, { workspaceId, ...(newPath ? { filePath: newPath } : {}) } as any);
+  const row = await ResourcesRepo.update(id, { workspaceId, ...(newPath ? { filePath: newPath } : {}) } as any);
+        if (row) updated.push(row);
         moved += 1;
       } catch (e) { console.warn('move resource failed', e);}    
     }
-    return { moved };
+    return { moved, data: updated };
   });
 
   ipcMain.handle('openResource', async (_event, payload: { id: string }) => {
@@ -135,11 +137,10 @@ export function initResourceHandlers(_win: BrowserWindow) {
       }
     }
 
-    await ResourcesRepo.update(id, {
+    const updated = await ResourcesRepo.update(id, {
       title: newName,
       ...(newPath ? { filePath: newPath } : {}),
     } as any);
-
-    return { success: true, fileRenamed, newPath };
+      return { success: true, fileRenamed, newPath, data: updated };
   });
 }

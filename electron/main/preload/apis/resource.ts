@@ -5,7 +5,7 @@ import { ResourcesRepo } from '../../db/repositories';
  * - 支持新增、删除、更新、单条/批量查询、计数、存在性判断、筛选/分页等
  */
 export async function addResource(resource: any) {
-  await ResourcesRepo.upsert(resource);
+  return ResourcesRepo.upsert(resource);
 }
 
 /**
@@ -14,7 +14,7 @@ export async function addResource(resource: any) {
  * @param patch 需更新的字段对象
  */
 export async function updateResource(id: string, patch: Partial<any>) {
-  await ResourcesRepo.update(id, patch);
+  return ResourcesRepo.update(id, patch);
 }
 
 /**
@@ -40,7 +40,7 @@ export async function getResource(id: string) {
  * @param id 资源ID
  */
 export async function deleteResource(id: string) {
-  await ResourcesRepo.deleteById(id);
+  return ResourcesRepo.deleteById(id);
 }
 
 /**
