@@ -87,8 +87,8 @@ export const windowConfigs: WindowConfigMap = {
     showOnReady: false,
     openDevTools: true,
     options: {
-      width: 520,
-      height: 460,
+      width: 440,
+      height: 440,
       titleBarStyle: process.platform === "darwin" ? "hiddenInset" : undefined,
       titleBarOverlay: true,
       trafficLightPosition: {
