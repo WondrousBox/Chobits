@@ -27,10 +27,6 @@ export function initWindowHandlers(win: BrowserWindow) {
   let settingsWindow: BrowserWindow | null = null
   // 工作空间创建向导窗口
   let workspaceWizardWindow: BrowserWindow | null = null
-  // 资源管理窗口
-  let resourcesWindow: BrowserWindow | null = null
-  // 回收站窗口
-  let recycleWindow: BrowserWindow | null = null
   // 记录上一次放置的方向 (针对所有跟随窗口分别记录)
   const lastFollowerSide = new Map<BrowserWindow, 'right' | 'left' | 'bottom' | 'top' | null>()
   let followerAnimTimer: NodeJS.Timeout | null = null
@@ -230,8 +226,13 @@ export function initWindowHandlers(win: BrowserWindow) {
 
   // 主窗口关闭时统一销毁子窗口
   win.on('closed', () => {
-    ;[fileListWindow, menuWindow, settingsWindow, resourcesWindow, recycleWindow, workspaceWizardWindow].forEach(w => { try { w && !w.isDestroyed() && w.destroy() } catch { } })
-    fileListWindow = null; menuWindow = null; settingsWindow = null; resourcesWindow = null; recycleWindow = null; workspaceWizardWindow = null
+    [fileListWindow, menuWindow, settingsWindow, workspaceWizardWindow]
+      .forEach(w => { try { w && !w.isDestroyed() && w.destroy() } catch { } });
+
+    fileListWindow = null;
+    menuWindow = null;
+    settingsWindow = null;
+    workspaceWizardWindow = null;
     stopFollowerAnimation()
     stopHoverMonitor()
   })
@@ -424,33 +425,18 @@ export function initWindowHandlers(win: BrowserWindow) {
   ipcMain.handle('openResourcesWindow', async () => {
     if (!win) return false
     try {
-      let w = windowManager.get('resources')
-      if (!w) {
-        w = await windowManager.create('resources')
-        if (!w) return false
-        resourcesWindow = w
-        w.once('ready-to-show', () => { try { w!.show() } catch { } })
-        maybeOpenDevTools(w)
-        w.on('closed', () => { resourcesWindow = null })
-      } else { resourcesWindow = w; try { w.show() } catch { } }
+      await windowManager.createOrShow('resources')
       return true
     } catch { return false }
   })
 
-  // ---------------- Recycle Bin Window (独立窗口) ------------
   ipcMain.handle('openRecycleWindow', async () => {
     if (!win) return false
     try {
-      let w = windowManager.get('recycle')
-      if (!w) {
-        w = await windowManager.create('recycle')
-        if (!w) return false
-        recycleWindow = w
-        w.once('ready-to-show', () => { try { w!.show() } catch { } })
-        maybeOpenDevTools(w)
-        w.on('closed', () => { recycleWindow = null })
-      } else { recycleWindow = w; try { w.show() } catch { } }
+      await windowManager.createOrShow('recycle')
       return true
-    } catch { return false }
+    } catch {
+      return false
+    }
   })
 }
