@@ -11,10 +11,12 @@ export type WindowKey =
   | 'resources'
   | 'recycle'
   | 'workspace'
+  | 'assistantPanel'
 
 export interface WindowConfig {
   routeHash: string | (() => string)
   options: BrowserWindowConstructorOptions
+  fillWorkArea?: boolean
   showOnReady?: boolean
   openDevTools?: boolean
   autoCenterOn?: 'parent-display' | 'primary-display' | 'none'
@@ -156,6 +158,26 @@ export const windowConfigs: WindowConfigMap = {
       },
       resizable: true,
       show: false,
+      webPreferences: { nodeIntegration: true, contextIsolation: true },
+    },
+  },
+  assistantPanel: {
+    routeHash: 'assistant-panel',
+    autoCenterOn: 'none',
+    showOnReady: false,
+    openDevTools: false,
+    fillWorkArea: false,
+    options: {
+      width: 800,
+      height: 600,
+      frame: false,
+      transparent: true,
+      resizable: true,
+      alwaysOnTop: true,
+      skipTaskbar: false,
+      backgroundColor: '#00000000',
+      show: false,
+      fullscreenable: false,
       webPreferences: { nodeIntegration: true, contextIsolation: true },
     },
   },
