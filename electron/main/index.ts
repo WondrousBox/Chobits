@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, ipcMain } from 'electron'
+import { app, BrowserWindow, shell, ipcMain, globalShortcut } from 'electron'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -96,15 +96,35 @@ async function createWindow() {
   })
 
   initHandlers(win);
-  try { windowManager.init(win) } catch {}
+  try { windowManager.init(win, { preloadPath: (win as any).__preloadPath }) } catch {}
 
   // Auto update
   update(win)
 }
 
-app.whenReady().then(createWindow)
+app.whenReady().then(async () => {
+  await createWindow()
+  // Register global shortcut for assistant panel toggle
+  try {
+    const reg = globalShortcut.register('CommandOrControl+K', () => {
+      try {
+        const existing = windowManager.get('assistantPanel' as any)
+        if (existing) {
+          if (existing.isVisible()) existing.close(); else windowManager.show('assistantPanel' as any)
+        } else {
+          windowManager.createOrShow('assistantPanel' as any)
+        }
+      } catch {}
+    })
+    if (!reg) console.warn('[shortcut] failed to register CommandOrControl+K')
+  } catch (e) {
+    console.warn('[shortcut] error registering CommandOrControl+K', e)
+  }
+})
 
 app.on('window-all-closed', () => {
+  try { globalShortcut.unregister('CommandOrControl+K') } catch {}
+  try { globalShortcut.unregisterAll() } catch {}
   win = null
   if (process.platform !== 'darwin') app.quit()
 })
@@ -124,6 +144,10 @@ app.on('activate', () => {
   } else {
     createWindow()
   }
+})
+
+app.on('will-quit', () => {
+  try { globalShortcut.unregisterAll() } catch {}
 })
 
 // New window example arg: new windows url
