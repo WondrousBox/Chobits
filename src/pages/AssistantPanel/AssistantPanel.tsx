@@ -99,6 +99,28 @@ const AssistantPanel: React.FC = () => {
     if (isCommandMode) { pickCommand(filteredCommands[commandIndex]); return }
     if (!query.trim()) return
     console.log('SEND:', query)
+    // 新增：发送文本时同时作为资源写入（类型 text）
+    ;(async () => {
+      try {
+        const id = (crypto as any)?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        const now = Date.now()
+        await window.YUA.resource.addResource({
+          resource: {
+            id,
+            type: 'text',
+            title: query.slice(0, 40),
+            contentText: query,
+            collectedAt: now,
+            createdAt: now,
+            updatedAt: now,
+            status: 'new'
+          } as any
+        })
+        console.debug('[resource] text saved as resource', id)
+      } catch (e) {
+        console.warn('[resource] save text failed', e)
+      }
+    })()
     setQuery('')
     setTimeout(() => inputRef.current?.focus(), 0)
   }

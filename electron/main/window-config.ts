@@ -111,8 +111,8 @@ export const windowConfigs: WindowConfigMap = {
     showOnReady: true,
     openDevTools: true,
     options: {
-      width: 720,
-      height: 520,
+      width: 1024,
+      height: 720,
       frame: true,
       transparent: false,
       resizable: true,
@@ -165,7 +165,7 @@ export const windowConfigs: WindowConfigMap = {
     routeHash: 'assistant-panel',
     autoCenterOn: 'none',
     showOnReady: false,
-    openDevTools: false,
+    openDevTools: true,
     fillWorkArea: false,
     options: {
       width: 800,
@@ -177,7 +177,6 @@ export const windowConfigs: WindowConfigMap = {
       skipTaskbar: false,
       backgroundColor: '#00000000',
       show: false,
-      fullscreenable: false,
       webPreferences: { nodeIntegration: true, contextIsolation: true },
     },
   },
