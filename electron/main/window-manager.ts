@@ -77,6 +77,17 @@ export class WindowManager {
     // Auto-center
     this.autoCenter(w, conf)
 
+    if (conf.fillWorkArea) {
+      try {
+        const display = screen.getPrimaryDisplay()
+        const { x, y, width, height } = display.workArea
+        // Defer to next tick to avoid resize flicker before content load
+        setTimeout(() => {
+          try { w.setBounds({ x, y, width, height }) } catch {}
+        }, 0)
+      } catch { }
+    }
+
     // Close on blur
     if (conf.closeOnBlur) {
       w.on('blur', () => { try { w.close() } catch { } })

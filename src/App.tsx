@@ -8,6 +8,7 @@ import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import ResourcePage from './pages/ResourcePage/ResourcePage'
 import WorkspaceWizard from './pages/WorkspacePage/components/WorkspaceWizard'
 import WorkspacePage from './pages/WorkspacePage/WorkspacePage'
+import AssistantPanel from './pages/AssistantPanel/AssistantPanel'
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
           <Route path="/resources" element={<ResourcePage />} />
           <Route path="/recycle" element={<RecycleBinPage />} />
           <Route path="/workspace" element={<WorkspacePage />} />
+          <Route path="/assistant-panel" element={<AssistantPanel />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
