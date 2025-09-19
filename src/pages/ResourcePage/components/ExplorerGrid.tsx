@@ -3,6 +3,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator,
 import { useState as useReactState } from 'react'
 import { TbTrash } from 'react-icons/tb'
 import { ResourceItem } from '@/types'
+import ResourceGalleryItem from './ResourceGalleryItem'
 
 export interface ExplorerGridProps {
   items: ResourceItem[]
@@ -167,7 +168,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({ items, onDelete, onD
       <ContextMenuTrigger asChild>
         <div
           ref={containerRef}
-          className='relative grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3 p-1 outline-none'
+          className='relative grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-5 p-4 outline-none'
           tabIndex={0}
           onPointerDown={handleBackgroundPointerDown}
           onPointerMove={handlePointerMove}
@@ -178,22 +179,13 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({ items, onDelete, onD
           {items.map((item, idx) => {
             const isSelected = selected.has(item.id)
             return (
-              <div
+              <ResourceGalleryItem
                 key={item.id}
-                ref={updateItemRef(item.id)}
-                data-explorer-item="true"
-                data-id={item.id}
-                className={`border border-border rounded p-3 flex flex-col gap-2 select-none cursor-default transition-colors ${isSelected ? 'bg-accent ring-2 ring-primary' : 'bg-background hover:bg-accent/40'}`}
-                onClick={(e) => handleItemClick(e, item.id, idx)}
-              >
-                <div className='font-medium truncate'>{item.title || item.filePath || item.url || item.id}</div>
-                { (item as any).workspaceId && (
-                  <div className='text-[10px] inline-flex self-start px-1.5 py-0.5 rounded bg-primary/15 text-primary'>WS: {(item as any).workspaceId.slice(0,8)}</div>
-                )}
-                <div className='text-xs text-muted-foreground'>
-                  {item.type} · {item.createdAt ? new Date(item.createdAt).toLocaleString() : '-'}
-                </div>
-              </div>
+                item={item}
+                selected={isSelected}
+                innerRef={updateItemRef(item.id)}
+                onClick={(e)=> handleItemClick(e, item.id, idx)}
+              />
             )
           })}
 
