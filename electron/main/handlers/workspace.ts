@@ -65,13 +65,6 @@ export function initWorkspaceHandlers(_win: BrowserWindow) {
     return { ok: true };
   });
 
-  ipcMain.handle('workspace:reveal', async (_e, payload: { id: string }) => {
-    const ws = await WorkspacesRepo.getById(payload.id);
-    if (!ws || !ws.rootPath) return { ok: false };
-    shell.showItemInFolder(path.join(ws.rootPath));
-    return { ok: true };
-  });
-
   ipcMain.handle('workspace:scanStats', async (_e, payload: { id: string }) => {
     const ws = await WorkspacesRepo.getById(payload.id);
     if (!ws || !ws.rootPath) return { ok: false };
