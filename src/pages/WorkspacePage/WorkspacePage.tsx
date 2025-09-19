@@ -1,7 +1,15 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import React, { useEffect, useMemo, useState } from 'react'
-import { TbFolderOpen, TbPlus, TbRefresh, TbScan, TbScanEye } from 'react-icons/tb'
+import { TbCheck, TbDots, TbDotsVertical, TbFolderOpen, TbPlus, TbRefresh, TbScanEye, TbTrash, TbStarFilled } from 'react-icons/tb'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 type Workspace = any
 
@@ -86,6 +94,29 @@ const WorkspacePage: React.FC = () => {
     return rows.filter(ws => (ws.name || '').toLowerCase().includes(q) || (ws.rootPath || '').toLowerCase().includes(q))
   }, [list, search])
 
+  // 脱敏用户路径: 将 /Users/<username> 前缀替换为 ~
+  const maskPath = (p?: string) => {
+    if (!p) return '-'
+    if (p.startsWith('~')) return p
+    // 支持的前缀形式：
+    // macOS: /Users/username
+    // Linux: /home/username
+    // Windows: C:\\Users\\username 或 C:/Users/username
+    const patterns = [
+      /^[A-Za-z]:\\\\Users\\\\[^\\]+/,       // Windows 反斜杠
+      /^[A-Za-z]:\/Users\/[^/]+/,            // Windows 使用正斜杠形式
+      /^\/Users\/[^/]+/,                     // macOS
+      /^\/home\/[^/]+/,                      // Linux
+    ]
+    for (const r of patterns) {
+      const m = p.match(r)
+      if (m) {
+        return '~' + p.slice(m[0].length)
+      }
+    }
+    return p
+  }
+
   return (
     <div className='h-full w-full flex flex-col bg-background text-foreground'>
       <div className='drag-region flex items-center justify-between px-2 py-2 border-b'>
@@ -105,32 +136,60 @@ const WorkspacePage: React.FC = () => {
       <div className='flex-1 overflow-auto p-4 space-y-3'>
         {error && <div className='text-red-500 text-sm'>{error}</div>}
         {filtered.map(ws => (
-          <div key={ws.id} className='p-3 rounded border bg-card text-card-foreground flex flex-col gap-2 transition-shadow hover:shadow-md'>
+          <div key={ws.id} className='p-3 rounded border bg-card text-card-foreground flex flex-col gap-2 transition-shadow hover:shadow-md relative'>
+            {ws.isDefault === 1 && (
+              <div className='absolute top-0 left-0 w-8 h-8'>
+                <TbStarFilled className='absolute top-1 left-1 w-4 h-4 text-primary drop-shadow' />
+              </div>
+            )}
             <div className='flex items-center justify-between'>
               <div className='font-semibold text-sm flex items-center gap-2'>
                 {editingId === ws.id ? (
-                  <input
+                  <Input
                     autoFocus
                     value={editingName}
                     onChange={e => setEditingName(e.target.value)}
                     onBlur={commitRename}
                     onKeyDown={e => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') { setEditingId(null) } }}
-                    className='px-1 py-0.5 text-sm border rounded bg-background'
-                    style={{ width: 140 }}
+                    className='h-8'
                   />
                 ) : (
-                  <span className='cursor-text hover:underline' onClick={() => { setEditingId(ws.id); setEditingName(ws.name || '') }}>{ws.name}</span>
+                  <span className='cursor-pointer' onClick={() => { setEditingId(ws.id); setEditingName(ws.name || '') }}>{ws.name}</span>
                 )}
-                {ws.isDefault === 1 && <span className='text-xs px-1.5 py-0.5 rounded bg-primary/15 text-primary'>默认</span>}
+                {/* 默认标记已移动为左上角星标 */}
               </div>
               <div className='flex items-center gap-2'>
-                {ws.isDefault !== 1 && <Button variant={"outline"} onClick={() => setDefault(ws.id)}>设为默认</Button>}
-                <Button size="sm" variant={"outline"} onClick={() => openFolder(ws.id)}><TbFolderOpen />打开</Button>
-                <Button size="sm" variant={"outline"} disabled={scanningIds.has(ws.id)} onClick={() => scan(ws.id)}>{scanningIds.has(ws.id) ? '扫描中...' : '扫描'}</Button>
-                <Button size="sm" variant={"destructive"} onClick={() => remove(ws.id)}>删除</Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="icon" className='w-8 h-8' variant={"outline"}><TbDotsVertical /></Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    {ws.isDefault !== 1 && (
+                      <DropdownMenuItem onSelect={() => setDefault(ws.id)}>
+                        <TbCheck /> 设为默认
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onSelect={() => openFolder(ws.id)}>
+                      <TbFolderOpen /> 打开
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={scanningIds.has(ws.id)}
+                      onSelect={() => { if (!scanningIds.has(ws.id)) scan(ws.id) }}
+                    >
+                      <TbScanEye /> {scanningIds.has(ws.id) ? '扫描中...' : '扫描'}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      variant='destructive'
+                      onSelect={() => remove(ws.id)}
+                    >
+                      <TbTrash /> 删除
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
-            <div className='text-xs opacity-80 break-all'>{ws.rootPath}</div>
+            <div className='text-xs opacity-80 break-all'>{maskPath(ws.rootPath)}</div>
             <div className='text-xs flex flex-wrap gap-4 opacity-70'>
               <span>文件数: {ws.fileCount ?? '-'}</span>
               <span>容量: {formatSize(ws.sizeBytes)}</span>
