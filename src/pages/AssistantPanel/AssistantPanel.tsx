@@ -134,13 +134,13 @@ const AssistantPanel: React.FC = () => {
         {/* 输入区 */}
         <div className="drag-region space-y-2 py-4">
           <div className="flex items-start gap-3 relative no-drag">
-            <div className="flex-1 relative group">
+            <div className="flex-1 relative">
               <Textarea
                 ref={inputRef}
                 value={query}
                 onChange={e => onChangeText(e.target.value)}
                 placeholder='输入问题，如：总结最近导入的 PDF...'
-                className="resize-none max-h-[220px] box-border bg-background text-foreground mx-1"
+                className="resize-none max-h-[220px] box-border bg-background text-foreground mx-1 pb-12"
                 style={{ width: 'calc(100% - 0.5rem)' }}
                 onInput={e => {
                   const el = e.currentTarget; el.style.height = 'auto'; el.style.height = Math.min(220, el.scrollHeight) + 'px'
@@ -167,18 +167,16 @@ const AssistantPanel: React.FC = () => {
                 </div>
               )}
             </div>
+
+          <div className="absolute w-full bottom-2 left-4 text-xs text-muted-foreground">
+            <span>{isCommandMode ? '输入命令关键字，↑↓ 选择，Enter 确认' : '输入 / 进入命令模式，Enter 发送， Shift+Enter 换行'}</span>
+          </div>
             <Button
               variant={"outline"}
               onClick={send}
               disabled={!query.trim()}
               className="absolute right-2 bottom-2 bg-gradient-to-r from-indigo-500 to-cyan-400 text-white hover:brightness-110 active:scale-95 transition-all">发送 <TbSend />
             </Button>
-          </div>
-          <div className="flex flex-wrap gap-2 text-[11px] text-white/50 select-none">
-            <span className="px-2 py-1 rounded-md bg-foreground/80 text-background">{isCommandMode ? '输入命令关键字，↑↓ 选择，Enter 确认' : '输入 / 进入命令模式'}</span>
-            <span className="px-2 py-1 rounded-md bg-foreground/80 text-background">Enter 发送</span>
-            <span className="px-2 py-1 rounded-md bg-foreground/80 text-background">Shift+Enter 换行</span>
-            {isCommandMode && <span className="px-2 py-1 rounded-md bg-foreground/80 text-background animate-pulse">↑↓ 选择 · Enter 确认</span>}
           </div>
         </div>
         <div className="drag-region space-y-2 bg-background p-4 rounded-md mb-4">
@@ -189,7 +187,6 @@ const AssistantPanel: React.FC = () => {
             ))}
           </div>
         </div>
-        {/* 主体功能区 */}
         <div className="flex-1 min-h-0 overflow-auto px-6 py-5 space-y-6 text-sm text-white/90 custom-scroll border bg-background">
           <section className="space-y-3">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50">提示</h3>
