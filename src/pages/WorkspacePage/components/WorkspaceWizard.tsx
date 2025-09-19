@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { TbArrowLeft, TbArrowRight } from 'react-icons/tb'
-import { Button } from '../ui/button'
-import { Input } from '../ui/input'
+import { TbArrowLeft, TbArrowRight, TbFolderOpen } from 'react-icons/tb'
+import { Button } from '../../../components/ui/button'
+import { Input } from '../../../components/ui/input'
 
 const WorkspaceWizard: React.FC = () => {
   const [workspaces, setWorkspaces] = useState<any[]>([])
@@ -66,18 +66,8 @@ const WorkspaceWizard: React.FC = () => {
 
   const onQuickCreate = async () => {
     if (!suggested) return onPickDir()
-    const quickName = suggested.split('/').pop() || 'Chobits'
+    const quickName = suggested.split('/').pop() || 'Chobits Workspace'
     await createWith(suggested, quickName)
-  }
-
-  const onUseDefault = async () => {
-    if (!defaultWorkspace) return
-    setBusy(true)
-    try {
-      // 确保空间存在
-      // await window.YUA.workspace['workspace:ensureDir']({ id: defaultWorkspace.id })
-      window.YUA.window.closeWindow("workspaceWizard")
-    } finally { setBusy(false) }
   }
 
   const onCreateNew = () => {
@@ -94,43 +84,35 @@ const WorkspaceWizard: React.FC = () => {
 
   return (
     <div className='w-full h-full bg-background text-foreground'>
-      <div className='drag-region h-24'></div>
-      <div className='drag-region p-4 text-center w-96'>
-        <div className='text-xl mb-2'>🗂 工作空间</div>
-        <div className='text-xs text-muted-foreground'>为你的数据选择一个本地文件夹，用于集中存放。</div>
+      <div className='drag-region h-32'></div>
+      <div className='drag-region text-center'>
+        <div className='text-xl mb-2'>🗂 创建工作空间</div>
+        <div className='text-xs text-muted-foreground'>选择一个本地文件夹用于集中存放数据</div>
         {
-          !!defaultWorkspace ? (
-            <div className='p-2.5 rounded-[10px] border border-emerald-500/30 bg-emerald-500/15'>
-              <div className='font-semibold'>检测到已有默认空间</div>
-              <div className='text-[12px] opacity-85'>{defaultWorkspace.rootPath}</div>
-              <div className='mt-2 no-drag'>
-                <Button disabled={busy} onClick={onUseDefault}>使用它</Button>
-              </div>
-            </div>
-          ) : (
+          !!defaultWorkspace ? null : (
             !showCreateForm && (
-              <div className='mt-6 mb-10 text-center no-drag space-x-4'>
-                <Button variant="outline" disabled={busy} onClick={onCreateNew}>创建新空间</Button>
+              <div className='mt-6 w-80 no-drag flex flex-col gap-2 mx-auto'>
                 <Button onClick={onQuickCreate} disabled={busy}>快速开始 {suggested ? '' : '…'} <TbArrowRight /></Button>
+                <Button variant="outline" disabled={busy} onClick={onCreateNew}>创建新空间</Button>
               </div>
             )
           )
         }
+        {
+          showCreateForm && (
+            <div className='mt-6 w-80 no-drag flex flex-col gap-2 mx-auto'>
+              <Input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder='空间名称' />
+              <div className='flex items-center gap-2'>
+                <Button size="icon" variant={'outline'} disabled={busy} onClick={onBack}><TbArrowLeft /></Button>
+                <Button className='flex-1' onClick={onCreate} disabled={busy || !name.trim()}><TbFolderOpen /> 创建空间</Button>
+              </div>
+              <div className='pb-2'>
+                {hint && <div className='text-red-500 text-xs'>{hint}</div>}
+              </div>
+            </div>
+          )
+        }
       </div>
-      {showCreateForm && (
-        <div className='flex flex-col gap-4 px-8 w-96 mx-auto'>
-          <div className='flex gap-2 items-center'>
-            <Input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder='空间名称' />
-          </div>
-          <div className='flex justify-between items-center gap-2'>
-            <Button size="icon" variant={'outline'} disabled={busy} onClick={onBack}><TbArrowLeft /></Button>
-            <Button className='flex-1' onClick={onCreate} disabled={busy || !name.trim()}>创建空间</Button>
-          </div>
-          <div className='pb-2'>
-            {hint && <div className='text-red-500 text-xs'>{hint}</div>}
-          </div>
-        </div>
-      )}
     </div>
   )
 }
