@@ -6,7 +6,7 @@ import SettingsPanel from './components/SettingsPanel/index'
 import RecycleBinPage from './components/RecycleBin/Page'
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import ResourcePage from './pages/ResourcePage/ResourcePage'
-import WorkspaceWizard from './components/WorkspaceWizard'
+import WorkspaceWizard from './pages/WorkspacePage/components/WorkspaceWizard'
 import WorkspacePage from './pages/WorkspacePage/WorkspacePage'
 
 function App() {
