@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import SuccessResult from '../../../components/common/SuccessResult'
 import { TbArrowLeft, TbArrowRight, TbFolderOpen } from 'react-icons/tb'
 import { Button } from '../../../components/ui/button'
 import { Input } from '../../../components/ui/input'
+import { DefaultWorkspaceName } from '../../../../electron/main/config'
+import SuccessResult from '../../../components/common/SuccessResult'
 
 const WorkspaceWizard: React.FC = () => {
   const [workspaces, setWorkspaces] = useState<any[]>([])
@@ -35,7 +36,6 @@ const WorkspaceWizard: React.FC = () => {
     const pick = await window.YUA.workspace['workspace:pickDir']()
     if (pick.canceled || !pick.path) return
     setPickedPath(pick.path)
-    if (!name) setName(pick.path.split('/').pop() || 'Workspace')
   }
 
   const createWith = async (rootPath: string, wsName?: string) => {
@@ -43,11 +43,10 @@ const WorkspaceWizard: React.FC = () => {
     setBusy(true)
     setHint('')
     try {
-      const wsName2 = (wsName || name || (rootPath.split('/').pop() || 'Workspace')).trim()
-      if (!wsName2) { setHint('名称不能为空'); return }
+      if (!wsName) { setHint('名称不能为空'); return }
       const res = await window.YUA.workspace['workspace:add']({
         workspace: {
-          name: wsName2,
+          name: wsName,
           rootPath,
           isDefault: workspaces.length ? 0 : 1,
           status: 'active'
@@ -66,7 +65,7 @@ const WorkspaceWizard: React.FC = () => {
     } finally { setBusy(false) }
   }
 
-  const onCreate = async () => {
+  const handleCreate = async () => {
     setHint('')
     const pick = await window.YUA.workspace['workspace:pickDir']()
     if (pick.canceled || !pick.path) return
@@ -75,8 +74,7 @@ const WorkspaceWizard: React.FC = () => {
 
   const onQuickCreate = async () => {
     if (!suggested) return onPickDir()
-    const quickName = suggested.split('/').pop() || 'Chobits Workspace'
-    await createWith(suggested, quickName)
+    await createWith(suggested, DefaultWorkspaceName)
   }
 
   const onCreateNew = () => {
@@ -143,7 +141,7 @@ const WorkspaceWizard: React.FC = () => {
                     {workspaces.length === 0 && (
                       <Button size="icon" variant={'outline'} disabled={busy} onClick={onBack}><TbArrowLeft /></Button>
                     )}
-                    <Button className='flex-1' onClick={onCreate} disabled={busy || !name.trim()}><TbFolderOpen /> 创建空间</Button>
+                    <Button className='flex-1' onClick={handleCreate} disabled={busy || !name.trim()}><TbFolderOpen /> 创建空间</Button>
                   </div>
                   <div className='pb-2'>
                     {hint && <div className='text-red-500 text-xs'>{hint}</div>}
