@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { windowManager } from '../window-manager'
 import { WindowKey } from "../window-config";
+import { getSuggestWorkspacePath } from "../utils";
 
 // Assistant intrinsic size
 const ASSISTANT_WIDTH = 180;
@@ -363,19 +364,7 @@ export function initWindowHandlers(win: BrowserWindow) {
     return createOrShowSettingsWindow()
   })
 
-  // Suggest a default workspace path: ~/Documents/Chobits, fallback to incremented suffix
-  ipcMain.handle('suggestWorkspacePath', async () => {
-    try {
-      const docs = app.getPath('documents')
-      const base = path.join(docs, 'Chobits')
-      if (!fs.existsSync(base)) return { ok: true, path: base }
-      for (let i = 2; i < 50; i++) {
-        const candidate = `${base} ${i}`
-        if (!fs.existsSync(candidate)) return { ok: true, path: candidate }
-      }
-      return { ok: true, path: base + ' ' + Date.now() }
-    } catch { return { ok: false } }
-  })
+  ipcMain.handle('suggestWorkspacePath', async () => getSuggestWorkspacePath())
 
   // ---------------- Menu Command (转发给主渲染) ---------------
   ipcMain.on('menu-command', (_e, action: string) => {
