@@ -98,8 +98,7 @@ const AssistantPanel: React.FC = () => {
   const send = () => {
     if (isCommandMode) { pickCommand(filteredCommands[commandIndex]); return }
     if (!query.trim()) return
-    // TODO: 发送到后端或上下文管理
-    // console.log('SEND:', query)
+    console.log('SEND:', query)
     setQuery('')
     setTimeout(() => inputRef.current?.focus(), 0)
   }
@@ -147,9 +146,6 @@ const AssistantPanel: React.FC = () => {
                   const el = e.currentTarget; el.style.height = 'auto'; el.style.height = Math.min(220, el.scrollHeight) + 'px'
                 }}
               />
-              {query && (
-                <button onClick={() => { setQuery(''); leaveCommandMode(); inputRef.current?.focus() }} className="absolute right-3 top-3 w-6 h-6 rounded-md bg-white/10 hover:bg-white/20 text-white/70 text-xs">✕</button>
-              )}
               {isCommandMode && (
                 <div className="absolute z-20 left-0 top-full mt-2 w-full rounded-2xl overflow-hidden border border-white/15 backdrop-blur-xl bg-[rgba(32,38,52,0.72)] shadow-xl">
                   <div className="max-h-72 overflow-auto py-2">
@@ -171,9 +167,11 @@ const AssistantPanel: React.FC = () => {
                 </div>
               )}
             </div>
-            <Button onClick={send} disabled={!query.trim()}
-              className="absolute right-2 bottom-2 rounded-full bg-gradient-to-r from-indigo-500 to-cyan-400 text-white 
-              hover:brightness-110 active:scale-95 transition-all">发送 <TbSend />
+            <Button
+              variant={"outline"}
+              onClick={send}
+              disabled={!query.trim()}
+              className="absolute right-2 bottom-2 bg-gradient-to-r from-indigo-500 to-cyan-400 text-white hover:brightness-110 active:scale-95 transition-all">发送 <TbSend />
             </Button>
           </div>
           <div className="flex flex-wrap gap-2 text-[11px] text-white/50 select-none">
