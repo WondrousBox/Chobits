@@ -7,6 +7,7 @@ import RecycleBinPage from './components/RecycleBin/Page'
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import ResourcePage from './pages/ResourcePage/ResourcePage'
 import WorkspaceWizard from './components/WorkspaceWizard'
+import WorkspacePage from './pages/WorkspacePage/WorkspacePage'
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
           <Route path="/workspace-wizard" element={<WorkspaceWizard />} />
           <Route path="/resources" element={<ResourcePage />} />
           <Route path="/recycle" element={<RecycleBinPage />} />
+          <Route path="/workspace" element={<WorkspacePage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

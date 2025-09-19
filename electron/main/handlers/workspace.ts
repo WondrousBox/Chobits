@@ -1,9 +1,8 @@
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron';
-import { WorkspacesRepo } from '../db/repositories';
-import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
+import { WorkspacesRepo } from '../db/repositories';
 
 function ensureDirSync(p: string) {
   if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });

@@ -10,6 +10,7 @@ export type WindowKey =
   | 'workspaceWizard'
   | 'resources'
   | 'recycle'
+  | 'workspace'
 
 export interface WindowConfig {
   routeHash: string | (() => string)
@@ -123,6 +124,25 @@ export const windowConfigs: WindowConfigMap = {
   },
   recycle: {
     routeHash: 'recycle',
+    autoCenterOn: 'parent-display',
+    showOnReady: true,
+    openDevTools: true,
+    options: {
+      width: 720,
+      height: 520,
+      frame: true,
+      transparent: false,
+      resizable: true,
+      alwaysOnTop: false,
+      skipTaskbar: false,
+      backgroundColor: '#ffffff',
+      show: false,
+      autoHideMenuBar: true,
+      webPreferences: { nodeIntegration: true, contextIsolation: true },
+    },
+  },
+  workspace: {
+    routeHash: 'workspace',
     autoCenterOn: 'parent-display',
     showOnReady: true,
     openDevTools: true,

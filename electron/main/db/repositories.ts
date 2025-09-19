@@ -10,7 +10,7 @@ function omitId<T extends { id?: any }>(obj: T): Omit<T, 'id'> {
 }
 
 /**
- * 文档表操作仓库
+ * 文档表操作空间
  * - 支持 upsert、批量 upsert、单条/批量删除、软删除、恢复、更新、分页、筛选、计数、存在性判断等
  * - 所有字段均支持写入和筛选
  * - 推荐所有写操作用事务包裹（如批量）
@@ -78,14 +78,14 @@ export const DocumentsRepo = {
     if (!ids.length) return [];
     const db = getOrm();
     const now = Date.now();
-    const tx = (db as any).transaction(async () => {
-      const updatedRows = await db
+    let updatedRows: any[] = [];
+    (db as any).transaction((tx: any) => {
+      updatedRows = tx
         .update(documents)
         .set({ deletedAt: now })
         .where(inArray(documents.id, ids))
         .returning()
         .all();
-      // 同步回收站索引
       const items = updatedRows.map((r: any) => ({
         id: `doc:${r.id}`,
         entityType: 'document',
@@ -99,16 +99,14 @@ export const DocumentsRepo = {
         expireAt: null,
       }));
       if (items.length) {
-        await db.insert(recycle_bin).values(items as any).onConflictDoUpdate({
+        tx.insert(recycle_bin).values(items as any).onConflictDoUpdate({
           target: recycle_bin.id,
           set: { deletedAt: now },
         });
       }
-      // 删除向量表记录（软删也移除检索）
       deleteVectors(ids);
-      return updatedRows;
     });
-    return await tx();
+    return updatedRows as any;
   },
   /**
    * 恢复软删除（清空 deletedAt）
@@ -118,21 +116,17 @@ export const DocumentsRepo = {
   async restore(ids: string[]): Promise<DocumentRow[]> {
     if (!ids.length) return [];
     const db = getOrm();
-    const tx = (db as any).transaction(async () => {
-      const rows = await db
+    let rows: any[] = [];
+    (db as any).transaction((tx: any) => {
+      rows = tx
         .update(documents)
         .set({ deletedAt: null, updatedAt: Date.now() })
         .where(inArray(documents.id, ids))
         .returning()
         .all();
-      // 移除回收站索引
-      await db.delete(recycle_bin).where(inArray(recycle_bin.entityId, ids));
-      // 重建向量索引（使用已存储的 embedding )
-      // 这里需要调用 rebuildVectors，要求调用方提供 dim；简单场景可从任一 embedding 取长度
-      // 建议在上层传入 dim，这里暂不推断
-      return rows;
+      tx.delete(recycle_bin).where(inArray(recycle_bin.entityId, ids));
     });
-    return await tx();
+    return rows as any;
   },
 
   /**
@@ -161,7 +155,7 @@ export const DocumentsRepo = {
   },
 };
 /**
- * 回收站操作仓库
+ * 回收站操作空间
  * - 支持 list、add、restore、purge、count、exists、批量操作
  * - 仅存索引和快照，实际数据操作回到原表
  */
@@ -278,7 +272,7 @@ export const RecycleBinRepo = {
 };
 
 /**
- * 资源表操作仓库
+ * 资源表操作空间
  * - 支持 upsert、批量 upsert、单条/批量删除、软删除、恢复、更新、分页、筛选、计数、存在性判断等
  * - 所有字段均支持写入和筛选
  * - 推荐所有写操作用事务包裹（如批量）
@@ -343,9 +337,10 @@ export const ResourcesRepo = {
     if (!ids.length) return [];
     const db = getOrm();
     const now = Date.now();
-    const tx = (db as any).transaction(async () => {
-      await db.update(resources).set({ deletedAt: now }).where(inArray(resources.id, ids));
-      const rows = await db
+    let resultRows: any[] = [];
+    (db as any).transaction((tx: any) => {
+      tx.update(resources).set({ deletedAt: now }).where(inArray(resources.id, ids));
+      const rows = tx
         .select({ id: resources.id, title: resources.title, description: resources.description, contentText: resources.contentText })
         .from(resources)
         .where(inArray(resources.id, ids));
@@ -362,25 +357,26 @@ export const ResourcesRepo = {
         expireAt: null,
       }));
       if (items.length) {
-        await db.insert(recycle_bin).values(items as any).onConflictDoUpdate({
+        tx.insert(recycle_bin).values(items as any).onConflictDoUpdate({
           target: recycle_bin.id,
           set: { deletedAt: now },
         });
       }
-      return await db.select().from(resources).where(inArray(resources.id, ids));
+      resultRows = tx.select().from(resources).where(inArray(resources.id, ids));
     });
-    return await tx();
+    return resultRows as any;
   },
   /** 批量恢复资源：清空 deletedAt 并删除回收站索引 */
   async restore(ids: string[]): Promise<ResourceRow[]> {
     if (!ids.length) return [];
     const db = getOrm();
-    const tx = (db as any).transaction(async () => {
-      await db.update(resources).set({ deletedAt: null, updatedAt: Date.now() }).where(inArray(resources.id, ids));
-      await db.delete(recycle_bin).where(inArray(recycle_bin.entityId, ids));
-      return await db.select().from(resources).where(inArray(resources.id, ids));
+    let rows: any[] = [];
+    (db as any).transaction((tx: any) => {
+      tx.update(resources).set({ deletedAt: null, updatedAt: Date.now() }).where(inArray(resources.id, ids));
+      tx.delete(recycle_bin).where(inArray(recycle_bin.entityId, ids));
+      rows = tx.select().from(resources).where(inArray(resources.id, ids));
     });
-    return await tx();
+    return rows as any;
   },
   /** 基础列表与计数（含软删筛选） */
   async list(filter: Partial<ResourceRow> = {}, limit = 100, offset = 0): Promise<ResourceRow[]> {
@@ -412,7 +408,7 @@ export const ResourcesRepo = {
 };
 
 /**
- * 工作空间表操作仓库
+ * 工作空间表操作空间
  * - 负责增删改查、默认空间设置、软删/恢复
  */
 export const WorkspacesRepo = {
@@ -443,11 +439,15 @@ export const WorkspacesRepo = {
   async setDefault(id: string): Promise<WorkspaceRow | undefined> {
     const db = getOrm();
     const now = Date.now();
-    const tx = (db as any).transaction(async () => {
-      await db.update(workspaces).set({ isDefault: 0 as any, updatedAt: now }).where(isNotNull(workspaces.isDefault as any));
-      await db.update(workspaces).set({ isDefault: 1 as any, updatedAt: now }).where(eq(workspaces.id, id));
+    // Drizzle (better-sqlite3) transactions must be synchronous. The callback
+    // cannot be async or return a Promise, otherwise you'll see:
+    // "Transaction function cannot return a promise".
+    (db as any).transaction((tx: any) => {
+      // 1) 清除旧默认（只更新当前为默认的行，避免全表无谓写放大）
+      tx.update(workspaces).set({ isDefault: 0 as any, updatedAt: now }).where(eq(workspaces.isDefault as any, 1));
+      // 2) 设定新默认
+      tx.update(workspaces).set({ isDefault: 1 as any, updatedAt: now }).where(eq(workspaces.id, id));
     });
-    await tx();
     const rows = await db.select().from(workspaces).where(eq(workspaces.id, id)).limit(1);
     return rows[0];
   },
