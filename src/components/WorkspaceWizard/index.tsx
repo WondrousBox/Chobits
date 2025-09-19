@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { TbArrowLeft, TbArrowRight } from 'react-icons/tb'
 import { Button } from '../ui/button'
-import { TbArrowLeft, TbArrowRight, TbFolder, TbX } from 'react-icons/tb'
 import { Input } from '../ui/input'
 
 const WorkspaceWizard: React.FC = () => {
@@ -38,7 +38,14 @@ const WorkspaceWizard: React.FC = () => {
     try {
       const wsName2 = (wsName || name || (rootPath.split('/').pop() || 'Workspace')).trim()
       if (!wsName2) { setHint('名称不能为空'); return }
-      const res = await window.YUA.workspace['workspace:add']({ workspace: { name: wsName2, rootPath, isDefault: workspaces.length ? 0 : 1, status: 'active' } })
+      const res = await window.YUA.workspace['workspace:add']({
+        workspace: {
+          name: wsName2,
+          rootPath,
+          isDefault: workspaces.length ? 0 : 1,
+          status: 'active'
+        }
+      })
       console.log(res);
       if (res.success && res.data) {
         if (workspaces.length === 0) await window.YUA.workspace['workspace:setDefault']({ id: res.data.id })
@@ -89,12 +96,12 @@ const WorkspaceWizard: React.FC = () => {
     <div className='w-full h-full bg-background text-foreground'>
       <div className='drag-region h-24'></div>
       <div className='drag-region p-4 text-center w-96'>
-        <div className='text-xl mb-2'>🗂 工作仓库</div>
+        <div className='text-xl mb-2'>🗂 工作空间</div>
         <div className='text-xs text-muted-foreground'>为你的数据选择一个本地文件夹，用于集中存放。</div>
         {
           !!defaultWorkspace ? (
             <div className='p-2.5 rounded-[10px] border border-emerald-500/30 bg-emerald-500/15'>
-              <div className='font-semibold'>检测到已有默认仓库</div>
+              <div className='font-semibold'>检测到已有默认空间</div>
               <div className='text-[12px] opacity-85'>{defaultWorkspace.rootPath}</div>
               <div className='mt-2 no-drag'>
                 <Button disabled={busy} onClick={onUseDefault}>使用它</Button>
@@ -103,7 +110,7 @@ const WorkspaceWizard: React.FC = () => {
           ) : (
             !showCreateForm && (
               <div className='mt-6 mb-10 text-center no-drag space-x-4'>
-                <Button variant="outline" disabled={busy} onClick={onCreateNew}>创建新仓库</Button>
+                <Button variant="outline" disabled={busy} onClick={onCreateNew}>创建新空间</Button>
                 <Button onClick={onQuickCreate} disabled={busy}>快速开始 {suggested ? '' : '…'} <TbArrowRight /></Button>
               </div>
             )
@@ -113,11 +120,11 @@ const WorkspaceWizard: React.FC = () => {
       {showCreateForm && (
         <div className='flex flex-col gap-4 px-8 w-96 mx-auto'>
           <div className='flex gap-2 items-center'>
-            <Input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder='仓库名称' />
+            <Input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder='空间名称' />
           </div>
           <div className='flex justify-between items-center gap-2'>
             <Button size="icon" variant={'outline'} disabled={busy} onClick={onBack}><TbArrowLeft /></Button>
-            <Button className='flex-1' onClick={onCreate} disabled={busy || !name.trim()}>创建仓库</Button>
+            <Button className='flex-1' onClick={onCreate} disabled={busy || !name.trim()}>创建空间</Button>
           </div>
           <div className='pb-2'>
             {hint && <div className='text-red-500 text-xs'>{hint}</div>}
