@@ -92,8 +92,13 @@ export const windowConfigs: WindowConfigMap = {
     options: {
       width: 440,
       height: 440,
-      titleBarStyle: process.platform === "darwin" ? "hiddenInset" : undefined,
-      titleBarOverlay: true,
+      titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
+      // titleBarOverlay: true,
+      titleBarOverlay: {
+        color: "#FFFFFF",
+        symbolColor: "#111111",
+        height: 32,
+      },
       trafficLightPosition: {
         x: 20,
         y: HEADER_COMMANDS_HEIGHT / 2 - MACOS_TRAFFIC_LIGHTS_HEIGHT / 2,
