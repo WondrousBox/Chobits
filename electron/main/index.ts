@@ -120,6 +120,31 @@ app.whenReady().then(async () => {
   } catch (e) {
     console.warn('[shortcut] error registering CommandOrControl+K', e)
   }
+
+  // Register global shortcuts to toggle DevTools
+  // Common Electron defaults are CommandOrControl+Shift+I and F12; we provide both.
+  const toggleDevtools = () => {
+    try {
+      if (!win || win.isDestroyed()) return
+      const wc = win.webContents
+      if (wc.isDevToolsOpened()) wc.closeDevTools(); else wc.openDevTools({ mode: 'detach' })
+    } catch (e) {
+      console.warn('[shortcut] toggle devtools error', e)
+    }
+  }
+  try {
+    const combos = ['CommandOrControl+Alt+I', 'CommandOrControl+Shift+I', 'F12']
+    combos.forEach(accel => {
+      try {
+        const ok = globalShortcut.register(accel, toggleDevtools)
+        if (!ok) console.warn(`[shortcut] failed to register ${accel}`)
+      } catch (e) {
+        console.warn(`[shortcut] error registering ${accel}`, e)
+      }
+    })
+  } catch (e) {
+    console.warn('[shortcut] unexpected error registering devtools shortcuts', e)
+  }
 })
 
 app.on('window-all-closed', () => {
