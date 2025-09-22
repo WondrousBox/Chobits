@@ -9,7 +9,6 @@ import * as path from 'node:path';
 export function initResourceHandlers(_win: BrowserWindow) {
   ipcMain.handle('addResource', async (_event, payload: { resource: any }) => {
     const res = payload.resource || {};
-    const id = res.id || randomUUID();
     // Attach workspace: copy local file into default workspace if available
     let workspaceId = res.workspaceId;
     let filePath = res.filePath as string | undefined;
@@ -32,17 +31,20 @@ export function initResourceHandlers(_win: BrowserWindow) {
           }
         }
       }
-    } catch {}
+    } catch { }
 
-  const row = await ResourcesRepo.upsert({ ...res, id, workspaceId, filePath } as any);
+    const row = await ResourcesRepo.upsert({ ...res, workspaceId, filePath } as any);
     // Auto-chunk & enqueue for embedding if text exists
     const text = res.contentText || res.description || res.title;
-    if (typeof text === 'string' && text.trim().length > 0) {
+
+    console.log(text);
+    
+    if (typeof text === 'string' && text.trim().length > 0 && row) {
       const chunks = chunkText(text);
       const items = chunks.map(c => ({
-        id: `${id}#${c.index}`,
+        id: `${row.id}#${c.index}`,
         content: c.content,
-        metadata: { parentId: id, chunkIndex: c.index, chunkCount: c.count, source: 'resource' },
+        metadata: { parentId: row.id, chunkIndex: c.index, chunkCount: c.count, source: 'resource' },
       }));
       embeddingQueue.enqueue({ items, dim: 384, batchSize: 16 });
     }
@@ -50,20 +52,20 @@ export function initResourceHandlers(_win: BrowserWindow) {
   });
   ipcMain.handle('listResource', async () => {
     // Hide soft-deleted items by default
-  return await ResourcesRepo.list({ deletedAt: 0 } as any);
+    return await ResourcesRepo.list({ deletedAt: 0 } as any);
   });
   ipcMain.handle('getResource', async (_event, payload: { id: string }) => {
-  return await ResourcesRepo.getById(payload.id);
+    return await ResourcesRepo.getById(payload.id);
   });
   ipcMain.handle('deleteResource', async (_event, payload: { id: string }) => {
     // Soft delete: mark deletedAt to trigger recycle_bin entry via trigger
-  const row = await ResourcesRepo.update(payload.id, { deletedAt: Date.now() } as any);
+    const row = await ResourcesRepo.update(payload.id, { deletedAt: Date.now() } as any);
     return { success: true, data: row };
   });
 
   ipcMain.handle('deleteResources', async (_event, payload: { ids: string[] }) => {
     const now = Date.now();
-  const rows = await Promise.all((payload.ids || []).map(id => ResourcesRepo.update(id, { deletedAt: now } as any)));
+    const rows = await Promise.all((payload.ids || []).map(id => ResourcesRepo.update(id, { deletedAt: now } as any)));
     return { success: true, deleted: rows.filter(Boolean).length, data: rows.filter(Boolean) };
   });
 
@@ -77,7 +79,7 @@ export function initResourceHandlers(_win: BrowserWindow) {
     let moved = 0;
     const updated: any[] = [];
     for (const id of ids) {
-  const res = await ResourcesRepo.getById(id);
+      const res = await ResourcesRepo.getById(id);
       if (!res) continue;
       let newPath = res.filePath as string | undefined;
       try {
@@ -89,16 +91,16 @@ export function initResourceHandlers(_win: BrowserWindow) {
             newPath = target;
           }
         }
-  const row = await ResourcesRepo.update(id, { workspaceId, ...(newPath ? { filePath: newPath } : {}) } as any);
+        const row = await ResourcesRepo.update(id, { workspaceId, ...(newPath ? { filePath: newPath } : {}) } as any);
         if (row) updated.push(row);
         moved += 1;
-      } catch (e) { console.warn('move resource failed', e);}    
+      } catch (e) { console.warn('move resource failed', e); }
     }
     return { moved, data: updated };
   });
 
   ipcMain.handle('openResource', async (_event, payload: { id: string }) => {
-  const res = await ResourcesRepo.getById(payload.id);
+    const res = await ResourcesRepo.getById(payload.id);
     if (!res) return { success: false };
     if (res.filePath) {
       await shell.openPath(res.filePath);
@@ -112,7 +114,7 @@ export function initResourceHandlers(_win: BrowserWindow) {
   });
 
   ipcMain.handle('revealResource', async (_event, payload: { id: string }) => {
-  const res = await ResourcesRepo.getById(payload.id);
+    const res = await ResourcesRepo.getById(payload.id);
     if (!res || !res.filePath) return { success: false };
     shell.showItemInFolder(res.filePath);
     return { success: true };
@@ -120,7 +122,7 @@ export function initResourceHandlers(_win: BrowserWindow) {
 
   ipcMain.handle('renameResource', async (_event, payload: { id: string; newName: string; renameFile?: boolean }) => {
     const { id, newName, renameFile } = payload;
-  const res = await ResourcesRepo.getById(id);
+    const res = await ResourcesRepo.getById(id);
     if (!res) return { success: false };
 
     let fileRenamed = false;
@@ -141,6 +143,6 @@ export function initResourceHandlers(_win: BrowserWindow) {
       title: newName,
       ...(newPath ? { filePath: newPath } : {}),
     } as any);
-      return { success: true, fileRenamed, newPath, data: updated };
+    return { success: true, fileRenamed, newPath, data: updated };
   });
 }

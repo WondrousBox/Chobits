@@ -179,10 +179,7 @@ const WorkspacePage: React.FC = () => {
                       <TbScanEye /> {scanningIds.has(ws.id) ? '扫描中...' : '扫描'}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      variant='destructive'
-                      onSelect={() => remove(ws.id)}
-                    >
+                    <DropdownMenuItem onSelect={() => remove(ws.id)}>
                       <TbTrash /> 删除
                     </DropdownMenuItem>
                   </DropdownMenuContent>
