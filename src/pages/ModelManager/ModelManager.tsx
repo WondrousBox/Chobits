@@ -1,3 +1,4 @@
+import DragAbleHeader from '@/components/common/DragableHeader';
 import React, { useEffect, useState } from 'react';
 
 const ModelManager: React.FC = () => {
@@ -15,12 +16,12 @@ const ModelManager: React.FC = () => {
     let mounted = true;
     (async () => {
       try {
-        const cfg = await (window as any).YUA.model['model:getConfig']();
-        const sup = await (window as any).YUA.model['model:listSupported']();
-        const inst = await (window as any).YUA.model['model:listInstalled']();
+        const cfg = await window.YUA.model['model:getConfig']();
+        const sup = await window.YUA.model['model:listSupported']();
+        const inst = await window.YUA.model['model:listInstalled']();
         if (!mounted) return;
-  setConfig(cfg);
-  if (cfg?.concurrency) setConcurrencyInput(cfg.concurrency);
+        setConfig(cfg);
+        if (cfg?.concurrency) setConcurrencyInput(cfg.concurrency);
         setSupported(sup);
         setInstalled(inst);
       } finally { if (mounted) setLoading(false); }
@@ -34,16 +35,16 @@ const ModelManager: React.FC = () => {
         return next;
       });
     };
-    (window as any).ipcRenderer.on('model:progress', listener);
+    window.ipcRenderer.on('model:progress', listener);
     return () => { mounted = false; };
   }, []);
 
   const pickDir = async () => {
     setPickBusy(true);
     try {
-      const r = await (window as any).YUA.model['model:pickDir']();
+      const r = await window.YUA.model['model:pickDir']();
       if (!r.canceled && r.path) {
-        const res = await (window as any).YUA.model['model:setConfig']({ rootDir: r.path });
+        const res = await window.YUA.model['model:setConfig']({ rootDir: r.path });
         if (res.ok) setConfig(res.data);
       }
     } finally { setPickBusy(false); }
@@ -54,15 +55,15 @@ const ModelManager: React.FC = () => {
     setHint('');
     try {
       if (concurrencyInput < 1 || concurrencyInput > 5) { setHint('并发范围 1~5'); return; }
-      const res = await (window as any).YUA.model['model:setConfig']({ concurrency: concurrencyInput });
+      const res = await window.YUA.model['model:setConfig']({ concurrency: concurrencyInput });
       if (res.ok) setConfig(res.data);
     } finally { setSavingConcurrency(false); }
   };
 
   const install = async (name: string, version: string) => {
-    setInstalling(name+version);
+    setInstalling(name + version);
     try {
-      const res = await (window as any).YUA.model['model:install']({ name, version });
+      const res = await window.YUA.model['model:install']({ name, version });
       if (res.ok && res.data) {
         setInstalled(prev => [...prev.filter(m => m.id !== res.data.id), res.data]);
       }
@@ -70,14 +71,14 @@ const ModelManager: React.FC = () => {
   };
 
   const retry = async (id: string) => {
-    const res = await (window as any).YUA.model['model:retry']({ id });
+    const res = await window.YUA.model['model:retry']({ id });
     if (res.ok) {
       setInstalled(prev => prev.map(m => m.id === id ? { ...m, status: 'queued', progressBytes: 0 } : m));
     }
   };
 
   const cancel = async (id: string) => {
-    const res = await (window as any).YUA.model['model:cancel']({ id });
+    const res = await window.YUA.model['model:cancel']({ id });
     if (res.ok) {
       setInstalled(prev => prev.map(m => m.id === id ? { ...m, status: 'cancelled' } : m));
     }
@@ -87,8 +88,8 @@ const ModelManager: React.FC = () => {
 
   return (
     <div className='p-4 space-y-6'>
+      <DragAbleHeader title="模型配置" />
       <section className='space-y-3'>
-        <h2 className='text-lg font-semibold'>模型配置</h2>
         <div className='flex flex-wrap items-center gap-2 text-sm'>
           <span className='font-medium'>目录:</span>
           <span className='px-2 py-0.5 rounded bg-muted text-xs'>{config?.rootDir || '未配置'}</span>
@@ -97,7 +98,7 @@ const ModelManager: React.FC = () => {
         <div className='flex flex-wrap items-center gap-2 text-sm'>
           <span className='font-medium'>下载并发:</span>
           <input type='number' className='w-16 border rounded px-1 py-0.5 text-xs' value={concurrencyInput}
-                 onChange={e => setConcurrencyInput(Number(e.target.value))} />
+            onChange={e => setConcurrencyInput(Number(e.target.value))} />
           <button className='px-2 py-1 border rounded text-xs' disabled={savingConcurrency} onClick={saveConcurrency}>保存</button>
           <span className='text-[10px] text-muted-foreground'>范围 1~5，过高会占用带宽</span>
         </div>
@@ -108,7 +109,7 @@ const ModelManager: React.FC = () => {
         {installed.length === 0 && <div className='text-xs text-muted-foreground border rounded px-2 py-4 text-center'>暂无模型，先在下方“可安装”列表选择一个进行安装。</div>}
         <ul className='space-y-1'>
           {installed.map(m => {
-            const percent = m.sizeBytes ? Math.round(((m.progressBytes||0)/(m.sizeBytes||1))*100) : 0;
+            const percent = m.sizeBytes ? Math.round(((m.progressBytes || 0) / (m.sizeBytes || 1)) * 100) : 0;
             return (
               <li key={m.id} className='text-sm flex flex-col gap-1 border px-3 py-2 rounded bg-background/60'>
                 <div className='flex items-center justify-between gap-4'>
@@ -119,18 +120,18 @@ const ModelManager: React.FC = () => {
                   </div>
                   <div className='flex gap-1'>
                     {m.status === 'downloading' && <button className='text-xs px-2 py-0.5 border rounded' onClick={() => cancel(m.id)}>取消</button>}
-                    {['failed','cancelled'].includes(m.status) && <button className='text-xs px-2 py-0.5 border rounded' onClick={() => retry(m.id)}>重试</button>}
+                    {['failed', 'cancelled'].includes(m.status) && <button className='text-xs px-2 py-0.5 border rounded' onClick={() => retry(m.id)}>重试</button>}
                   </div>
                 </div>
                 {m.status === 'downloading' && m.sizeBytes && (
                   <div className='w-full bg-muted h-2 rounded overflow-hidden'>
-                    <div className='h-full bg-blue-500 transition-all' style={{ width: percent+'%' }}></div>
+                    <div className='h-full bg-blue-500 transition-all' style={{ width: percent + '%' }}></div>
                   </div>
                 )}
                 {m.status === 'downloading' && (
                   <div className='text-[10px] text-muted-foreground flex justify-between'>
-                    <span>{percent}% {m.progressBytes && m.sizeBytes ? `(${(m.progressBytes/1024/1024).toFixed(2)}MB / ${(m.sizeBytes/1024/1024).toFixed(2)}MB)` : ''}</span>
-                    <span>{m.speedBps ? `${(m.speedBps/1024).toFixed(1)} KB/s` : ''} {m.etaMs ? `ETA ${(m.etaMs/1000).toFixed(1)}s` : ''}</span>
+                    <span>{percent}% {m.progressBytes && m.sizeBytes ? `(${(m.progressBytes / 1024 / 1024).toFixed(2)}MB / ${(m.sizeBytes / 1024 / 1024).toFixed(2)}MB)` : ''}</span>
+                    <span>{m.speedBps ? `${(m.speedBps / 1024).toFixed(1)} KB/s` : ''} {m.etaMs ? `ETA ${(m.etaMs / 1000).toFixed(1)}s` : ''}</span>
                   </div>
                 )}
                 {m.status === 'verifying' && (
@@ -156,7 +157,7 @@ const ModelManager: React.FC = () => {
                     <span>{s.displayName || s.name}</span>
                     <span className='text-[10px] rounded bg-muted px-1 py-0.5'>v{s.version}</span>
                   </div>
-                  <div className='text-[10px] text-muted-foreground'>~{s.sizeBytes ? (s.sizeBytes/1024/1024).toFixed(2)+'MB' : '?'} · {s.algo?.toUpperCase()}</div>
+                  <div className='text-[10px] text-muted-foreground'>~{s.sizeBytes ? (s.sizeBytes / 1024 / 1024).toFixed(2) + 'MB' : '?'} · {s.algo?.toUpperCase()}</div>
                 </div>
                 <button className='px-3 py-1 border rounded text-xs disabled:opacity-40' disabled={!config?.rootDir || busy} onClick={() => install(s.name, s.version)}>
                   {busy ? '安装中...' : '安装'}

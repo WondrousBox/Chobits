@@ -209,7 +209,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({ items, onDelete, onD
         <ContextMenuItem
           onSelect={async () => {
             // Move to workspace
-            const ws = await (window as any).YUA.workspace['workspace:list']({ filter: { deletedAt: 0 }, limit: 100, offset: 0 })
+            const ws = await window.YUA.workspace['workspace:list']({ filter: { deletedAt: 0 }, limit: 100, offset: 0 })
             if (!ws?.length) { alert('请先在设置中创建工作空间'); return }
             const names = ws.map((w:any, i:number)=> `${i+1}. ${w.name}${w.isDefault===1?'(默认)':''}`).join('\n')
             const pick = prompt(`移动到哪个工作空间?\n${names}`)
@@ -218,7 +218,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({ items, onDelete, onD
             if (isNaN(idx) || idx < 0 || idx >= ws.length) return
             const target = ws[idx]
             const ids = Array.from(selected)
-            await (window as any).YUA.resource['moveResourcesToWorkspace']?.({ ids, workspaceId: target.id })
+            await window.YUA.resource['moveResourcesToWorkspace']?.({ ids, workspaceId: target.id })
           }}
         >移动到工作空间…</ContextMenuItem>
         <ContextMenuSeparator />

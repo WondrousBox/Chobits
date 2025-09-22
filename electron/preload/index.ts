@@ -6,6 +6,14 @@ import { resourceBridge } from './apis/resource'
 import { trashBridge } from './apis/trash'
 import { workspaceBridge } from './apis/workspace'
 import { modelBridge } from './apis/model'
+import {
+  arch,
+  isLinux,
+  isMac,
+  isMacIntel,
+  isWindows,
+  platform,
+} from "../main/utils/os"
 
 // --------- Expose some API to the Renderer process ---------
 contextBridge.exposeInMainWorld('ipcRenderer', {
@@ -32,6 +40,14 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
 
 // --------- AI Assistant API ---------
 contextBridge.exposeInMainWorld('YUA', {
+  isMac,
+  isWindows,
+  isLinux,
+  isMacIntel,
+  platform,
+  arch,
+  isProd: process.env.NODE_ENV !== "development",
+  isDev: process.env.NODE_ENV === "development",
   window: windowBridge,
   ffmpeg: ffmpegBridge,
   vector: vectorBridge,

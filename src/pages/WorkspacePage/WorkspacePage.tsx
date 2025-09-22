@@ -26,7 +26,7 @@ const WorkspacePage: React.FC = () => {
     setLoading(true)
     setError(null)
     try {
-      const rows = await (window as any).YUA.workspace['workspace:list']({ filter: { deletedAt: 0 }, limit: 200, offset: 0 })
+      const rows = await window.YUA.workspace['workspace:list']({ filter: { deletedAt: 0 }, limit: 200, offset: 0 })
       setList(rows || [])
     } catch (e: any) {
       setError(e?.message || '加载失败')
@@ -37,7 +37,7 @@ const WorkspacePage: React.FC = () => {
 
   const setDefault = async (id: string) => {
     try {
-      await (window as any).YUA.workspace['workspace:setDefault']({ id })
+      await window.YUA.workspace['workspace:setDefault']({ id })
       load()
     } catch { }
   }
@@ -46,16 +46,16 @@ const WorkspacePage: React.FC = () => {
     const name = editingName.trim()
     if (!name) { setEditingId(null); return }
     try {
-      await (window as any).YUA.workspace['workspace:update']({ id: editingId, patch: { name } })
+      await window.YUA.workspace['workspace:update']({ id: editingId, patch: { name } })
       setEditingId(null)
       load()
     } catch { }
   }
-  const openFolder = async (id: string) => { try { await (window as any).YUA.workspace['workspace:open']({ id }) } catch { } }
+  const openFolder = async (id: string) => { try { await window.YUA.workspace['workspace:open']({ id }) } catch { } }
   const scan = async (id: string) => {
     if (scanningIds.has(id)) return
     setScanningIds(prev => new Set([...prev, id]))
-    try { await (window as any).YUA.workspace['workspace:scanStats']({ id }) } catch { }
+    try { await window.YUA.workspace['workspace:scanStats']({ id }) } catch { }
     finally {
       setScanningIds(prev => { const n = new Set(prev); n.delete(id); return n })
       load()
@@ -69,7 +69,7 @@ const WorkspacePage: React.FC = () => {
     const ws = list.find(w => w.id === id)
     const name = ws?.name || '未命名'
     if (!confirm(`确认删除工作空间: "${name}" ?\n此操作为软删除，可在数据库中恢复。`)) return
-    try { await (window as any).YUA.workspace['workspace:delete']({ id }); load() } catch { }
+    try { await window.YUA.workspace['workspace:delete']({ id }); load() } catch { }
   }
 
   function formatSize(bytes?: number) {
@@ -130,7 +130,7 @@ const WorkspacePage: React.FC = () => {
           />
           <Button size="sm" variant={"outline"} onClick={scanAll} disabled={filtered.length === 0 || scanningIds.size > 0}><TbScanEye /> {scanningIds.size > 0 ? '扫描中...' : '全部扫描'}</Button>
           <Button size="icon" className='w-8 h-8' variant={"outline"} onClick={load} disabled={loading}><TbRefresh /></Button>
-          <Button size="sm" onClick={() => (window as any).YUA.window.openWindow('workspaceWizard')}><TbPlus /> 新建</Button>
+          <Button size="sm" onClick={() => window.YUA.window.openWindow('workspaceWizard')}><TbPlus /> 新建</Button>
         </div>
       </div>
       <div className='flex-1 overflow-auto p-4 space-y-3'>

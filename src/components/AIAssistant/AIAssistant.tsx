@@ -57,7 +57,7 @@ export const AIAssistant: React.FC = () => {
     // window.YUA.ffmpeg.playSprite()
 
     // 插入（使用 384 维，匹配默认后端设置）
-    (window as any).YUA.vector.insertVectors({
+    window.YUA.vector.insertVectors({
       items: [{
         id: 'doc-1',
         content: '你好，世界',
