@@ -16,7 +16,7 @@ function isImage(path?: string) {
 
 const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onClick, innerRef }) => {
   const title = item.title || item.filePath || item.url || item.id
-  const imgSrc = isImage(item.filePath) ? (window as any).YUA?.resource?.getFileUrl?.({ path: item.filePath }) || item.filePath : undefined
+  const imgSrc = isImage(item.filePath) ? window.YUA?.resource?.getFileUrl?.({ path: item.filePath }) || item.filePath : undefined
   return (
     <div
       ref={innerRef}

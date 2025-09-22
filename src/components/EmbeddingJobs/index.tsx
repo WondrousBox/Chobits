@@ -23,8 +23,8 @@ export default function EmbeddingJobsPanel(props: Props) {
         return { ...prev, [p.id]: { ...old, done: p.done, total: p.total } };
       });
     };
-    unsub.current = (window as any).YUA.vector.onEmbeddingJob(onJob);
-    unsub2.current = (window as any).YUA.vector.onEmbeddingProgress((data: any) => {
+    unsub.current = window.YUA.vector.onEmbeddingJob(onJob);
+    unsub2.current = window.YUA.vector.onEmbeddingProgress((data: any) => {
       // vector.ts 主进程发送的 progress 中不含 id，这里用 job 事件同步获取，或扩展主进程带上 jobId
       // 为简化，这里尝试读取 data.id；若不存在，则不更新。
       if ((data as any).id) onProg(data as any);
@@ -35,7 +35,7 @@ export default function EmbeddingJobsPanel(props: Props) {
   const list = useMemo(() => Object.values(jobs).sort((a, b) => a.id.localeCompare(b.id)), [jobs]);
 
   const cancel = async (id: string) => {
-    await (window as any).YUA.vector['embedding:cancelJob']({ jobId: id });
+    await window.YUA.vector['embedding:cancelJob']({ jobId: id });
   };
 
   return (

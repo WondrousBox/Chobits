@@ -28,7 +28,7 @@ const ResourcePage: React.FC = () => {
 
   const load = async () => {
     try {
-      const rows = await (window as any).YUA.resource['listResource']()
+      const rows = await window.YUA.resource['listResource']()
       setList(rows || [])
     } catch (e) { console.warn('load resources failed', e) }
   }
@@ -38,7 +38,7 @@ const ResourcePage: React.FC = () => {
   useEffect(() => {
     let mounted = true
       ; (async () => {
-        const ws = await (window as any).YUA.workspace['workspace:list']({ filter: { deletedAt: 0 }, limit: 100, offset: 0 })
+        const ws = await window.YUA.workspace['workspace:list']({ filter: { deletedAt: 0 }, limit: 100, offset: 0 })
         if (mounted) setWorkspaces(ws || [])
       })()
     return () => { mounted = false }
