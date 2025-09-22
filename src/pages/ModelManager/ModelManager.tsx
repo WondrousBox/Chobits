@@ -1,5 +1,15 @@
 import DragAbleHeader from '@/components/common/DragableHeader';
+import { Button } from '@/components/ui/button';
 import React, { useEffect, useState } from 'react';
+import { TbSettings } from 'react-icons/tb';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 
 const ModelManager: React.FC = () => {
   const [config, setConfig] = useState<any>(null);
@@ -11,6 +21,7 @@ const ModelManager: React.FC = () => {
   const [concurrencyInput, setConcurrencyInput] = useState<number>(2);
   const [hint, setHint] = useState<string>('');
   const [installing, setInstalling] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -55,8 +66,8 @@ const ModelManager: React.FC = () => {
     setHint('');
     try {
       if (concurrencyInput < 1 || concurrencyInput > 5) { setHint('并发范围 1~5'); return; }
-      const res = await window.YUA.model['model:setConfig']({ concurrency: concurrencyInput });
-      if (res.ok) setConfig(res.data);
+      const res: any = await window.YUA.model['model:setConfig']({ concurrency: concurrencyInput } as any);
+      if (res.ok && res.data) setConfig(res.data);
     } finally { setSavingConcurrency(false); }
   };
 
@@ -65,7 +76,8 @@ const ModelManager: React.FC = () => {
     try {
       const res = await window.YUA.model['model:install']({ name, version });
       if (res.ok && res.data) {
-        setInstalled(prev => [...prev.filter(m => m.id !== res.data.id), res.data]);
+        const data: any = res.data;
+        setInstalled(prev => [...prev.filter(m => m.id !== data.id), data]);
       }
     } finally { setInstalling(null); }
   };
@@ -87,23 +99,57 @@ const ModelManager: React.FC = () => {
   if (loading) return <div className='p-4 text-xs text-muted-foreground'>加载中...</div>;
 
   return (
-    <div className='p-4 space-y-6'>
-      <DragAbleHeader title="模型配置" />
-      <section className='space-y-3'>
-        <div className='flex flex-wrap items-center gap-2 text-sm'>
-          <span className='font-medium'>目录:</span>
-          <span className='px-2 py-0.5 rounded bg-muted text-xs'>{config?.rootDir || '未配置'}</span>
-          <button className='px-2 py-1 border rounded text-xs' disabled={pickBusy} onClick={pickDir}>选择目录</button>
-        </div>
-        <div className='flex flex-wrap items-center gap-2 text-sm'>
-          <span className='font-medium'>下载并发:</span>
-          <input type='number' className='w-16 border rounded px-1 py-0.5 text-xs' value={concurrencyInput}
-            onChange={e => setConcurrencyInput(Number(e.target.value))} />
-          <button className='px-2 py-1 border rounded text-xs' disabled={savingConcurrency} onClick={saveConcurrency}>保存</button>
-          <span className='text-[10px] text-muted-foreground'>范围 1~5，过高会占用带宽</span>
-        </div>
-        {hint && <div className='text-xs text-red-500'>{hint}</div>}
-      </section>
+    <>
+      <DragAbleHeader
+        title="模型配置"
+        actions={
+          <Dialog open={showSettings} onOpenChange={setShowSettings}>
+            <DialogTrigger asChild><Button size={"icon"} variant={"outline"} title='打开模型设置'>
+              <TbSettings />
+            </Button></DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>模型设置</DialogTitle>
+                <DialogDescription>
+                  This action cannot be undone. This will permanently delete your account
+                  and remove your data from our servers.
+                </DialogDescription>
+              </DialogHeader>
+              <div className='space-y-4 text-sm'>
+                <div className='space-y-2'>
+                  <div className='flex flex-wrap items-center gap-2'>
+                    <span className='font-medium'>模型目录:</span>
+                    <span className='px-2 py-0.5 rounded bg-muted text-xs max-w-[240px] truncate'>{config?.rootDir || '未配置'}</span>
+                    <button className='px-2 py-1 border rounded text-xs disabled:opacity-50' disabled={pickBusy} onClick={pickDir}>选择目录</button>
+                  </div>
+                  <p className='text-[11px] text-muted-foreground leading-snug'>将下载的模型文件保存在该目录中。</p>
+                </div>
+                <div className='space-y-2'>
+                  <div className='flex flex-wrap items-center gap-2'>
+                    <span className='font-medium'>下载并发:</span>
+                    <input type='number' min={1} max={5} className='w-20 border rounded px-1 py-0.5 text-xs' value={concurrencyInput}
+                      onChange={e => setConcurrencyInput(Number(e.target.value))} />
+                    <span className='text-[10px] text-muted-foreground'>范围 1~5</span>
+                  </div>
+                  <p className='text-[11px] text-muted-foreground leading-snug'>过高并发可能占满网络或被服务器限速。</p>
+                </div>
+                {hint && <div className='text-xs text-red-500'>{hint}</div>}
+              </div>
+
+
+              <div className='flex justify-end gap-2 pt-2'>
+                <Button variant={"outline"} onClick={() => setShowSettings(false)}>取消</Button>
+                <Button
+                  disabled={savingConcurrency}
+                  onClick={async () => { await saveConcurrency(); setShowSettings(false); }}>
+                  {savingConcurrency ? '保存中...' : '保存'}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        }
+      />
+
       <section className='space-y-2'>
         <h2 className='text-lg font-semibold'>已安装 / 进行中</h2>
         {installed.length === 0 && <div className='text-xs text-muted-foreground border rounded px-2 py-4 text-center'>暂无模型，先在下方“可安装”列表选择一个进行安装。</div>}
@@ -167,7 +213,7 @@ const ModelManager: React.FC = () => {
           })}
         </ul>
       </section>
-    </div>
+    </>
   );
 };
 
