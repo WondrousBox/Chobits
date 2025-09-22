@@ -1,7 +1,7 @@
-import { Worker } from 'node:worker_threads';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { EventEmitter } from 'node:events';
+import { TransformersEmbeddingProvider } from './transformers';
+import { fitToDim } from './provider';
+import { insertVectors, VectorInsertItem } from '../db';
 
 export type IndexItem = { id?: string; content: string; metadata?: any };
 
@@ -28,10 +28,11 @@ type WorkerMessage =
   | { type: 'error'; jobId: string; message: string };
 
 export class EmbeddingQueue extends EventEmitter {
-  private worker: Worker | null = null;
   private jobs: Map<string, JobInfo> = new Map();
   private queue: EnqueuePayload[] = [];
   private running = false;
+  private cancelled: Set<string> = new Set();
+  private provider: TransformersEmbeddingProvider | null = null;
 
   constructor() {
     super();
@@ -41,6 +42,7 @@ export class EmbeddingQueue extends EventEmitter {
     const jobId = payload.jobId || crypto.randomUUID();
     this.jobs.set(jobId, { id: jobId, total: payload.items.length, done: 0, status: 'queued' });
     this.queue.push({ ...payload, jobId });
+    console.log('[embeddingQueue] enqueue', { jobId, items: payload.items.length, dim: payload.dim, batchSize: payload.batchSize, pending: this.queue.length, running: this.running });
     this.kick();
     return jobId;
   }
@@ -50,22 +52,28 @@ export class EmbeddingQueue extends EventEmitter {
   }
 
   cancel(jobId: string) {
-    // If queued, remove; if running, ask worker to cancel via message
+    // If queued, remove; if running, mark cancelled
     const idx = this.queue.findIndex(q => q.jobId === jobId);
     if (idx >= 0) {
       this.queue.splice(idx, 1);
       const j = this.jobs.get(jobId);
       if (j) j.status = 'cancelled';
       this.emit('job', this.jobs.get(jobId));
+      console.log('[embeddingQueue] cancel (queued)', { jobId });
       return true;
     }
-    if (this.worker) this.worker.postMessage({ type: 'cancel', jobId });
+    this.cancelled.add(jobId);
+    console.log('[embeddingQueue] cancel (running->flag)', { jobId });
     return true;
   }
 
   private kick() {
-    if (this.running) return;
+    if (this.running) {
+      // console.debug noisy; keep informational
+      return;
+    }
     if (this.queue.length === 0) return;
+    console.log('[embeddingQueue] kick start next job, queueSize(before shift)=', this.queue.length);
     this.running = true;
     const payload = this.queue.shift()!;
     const job = this.jobs.get(payload.jobId!);
@@ -73,63 +81,74 @@ export class EmbeddingQueue extends EventEmitter {
       job.status = 'running';
       this.emit('job', job);
     }
-    // Resolve compiled worker file (dist-electron/main/embedding/worker.js)
-    const workerPath = fileURLToPath(new URL('./worker.js', import.meta.url));
-    this.worker = new Worker(workerPath, { workerData: payload });
-    this.worker.on('message', (msg: WorkerMessage) => {
-      if (msg.type === 'progress') {
-        const j = this.jobs.get(msg.jobId);
-        if (j) {
-          j.done = msg.done;
-          this.emit('progress', { id: j.id, done: j.done, total: j.total });
-        }
-      } else if (msg.type === 'completed') {
-        const j = this.jobs.get(msg.jobId);
-        if (j) {
-          j.done = j.total;
-          j.status = 'completed';
-          this.emit('job', { ...j });
-        }
-        this.cleanupAndNext();
-      } else if (msg.type === 'error') {
-        const j = this.jobs.get(msg.jobId);
-        if (j) {
-          j.status = 'error';
-          j.error = msg.message;
-          this.emit('job', { ...j });
-        }
-        this.cleanupAndNext();
-      }
-    });
-    this.worker.on('error', (err) => {
+    // Inline processing
+    this.processInline(payload).catch(err => {
+      console.error('[embeddingQueue] inline processing error', { jobId: payload.jobId, error: err });
       const j = this.jobs.get(payload.jobId!);
-      if (j) {
-        j.status = 'error';
-        j.error = String(err);
-        this.emit('job', { ...j });
-      }
+      if (j) { j.status = 'error'; j.error = String(err?.message || err); this.emit('job', { ...j }); }
       this.cleanupAndNext();
-    });
-    this.worker.on('exit', (code) => {
-      if (code !== 0) {
-        const j = this.jobs.get(payload.jobId!);
-        if (j && j.status !== 'completed' && j.status !== 'cancelled') {
-          j.status = 'error';
-          j.error = `Worker exited with code ${code}`;
-          this.emit('job', { ...j });
-        }
-      }
     });
   }
 
   private cleanupAndNext() {
-    if (this.worker) {
-      this.worker.removeAllListeners();
-      this.worker.terminate().catch(() => void 0);
-      this.worker = null;
-    }
+    console.log('[embeddingQueue] cleanupAndNext');
     this.running = false;
     setImmediate(() => this.kick());
+  }
+
+  private async getProvider() {
+    if (!this.provider) {
+      this.provider = new TransformersEmbeddingProvider({ model: 'Xenova/gte-small', normalize: true });
+      console.log('[embeddingQueue] provider init start');
+      await this.provider.init();
+      console.log('[embeddingQueue] provider init done', { dim: this.provider.dim });
+    }
+    return this.provider;
+  }
+
+  private async processInline(payload: EnqueuePayload & { jobId?: string }) {
+    const jobId = payload.jobId!;
+    console.log('[embeddingQueue] inline job start', { jobId, items: payload.items.length, dim: payload.dim, batch: payload.batchSize });
+    const provider = await this.getProvider();
+    const batchSize = payload.batchSize || 16;
+    const job = this.jobs.get(jobId);
+    if (!job) return;
+    let done = 0;
+    for (let i = 0; i < payload.items.length; i += batchSize) {
+      if (this.cancelled.has(jobId)) {
+        job.status = 'cancelled';
+        this.emit('job', { ...job });
+        console.log('[embeddingQueue] inline job cancelled', { jobId, done });
+        this.cleanupAndNext();
+        return;
+      }
+      const slice = payload.items.slice(i, i + batchSize);
+      const texts = slice.map(s => s.content);
+      const embs = await provider.embedMany(texts);
+      const rows: VectorInsertItem[] = slice.map((s, idx) => ({
+        id: s.id,
+        content: s.content,
+        metadata: s.metadata,
+        embedding: fitToDim(embs[idx], payload.dim),
+      }));
+      insertVectors(rows, payload.dim);
+      done += slice.length;
+      job.done = done;
+      this.emit('progress', { id: job.id, done, total: job.total });
+      console.log('[embeddingQueue] inline progress', { jobId, done, total: job.total });
+    }
+    if (this.cancelled.has(jobId)) {
+      job.status = 'cancelled';
+      this.emit('job', { ...job });
+      console.log('[embeddingQueue] inline job cancelled (after loop)', { jobId });
+      this.cleanupAndNext();
+      return;
+    }
+    job.done = job.total;
+    job.status = 'completed';
+    this.emit('job', { ...job });
+    console.log('[embeddingQueue] inline job completed', { jobId });
+    this.cleanupAndNext();
   }
 }
 
