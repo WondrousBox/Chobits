@@ -164,6 +164,7 @@ export const windowConfigs: WindowConfigMap = {
       },
       resizable: true,
       show: false,
+      autoHideMenuBar: true,
       webPreferences: { nodeIntegration: true, contextIsolation: true },
     },
   },
@@ -194,13 +195,8 @@ export const windowConfigs: WindowConfigMap = {
     options: {
       width: 720,
       height: 560,
-      titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
-      // titleBarOverlay: true,
-      titleBarOverlay: {
-        color: "#FFFFFF",
-        symbolColor: "#111111",
-        height: 32,
-      },
+      titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
+      titleBarOverlay: true,
       trafficLightPosition: {
         x: 20,
         y: HEADER_COMMANDS_HEIGHT / 2 - MACOS_TRAFFIC_LIGHTS_HEIGHT / 2,
@@ -209,6 +205,7 @@ export const windowConfigs: WindowConfigMap = {
       alwaysOnTop: false,
       skipTaskbar: false,
       show: false,
+      autoHideMenuBar: true,
       webPreferences: { nodeIntegration: true, contextIsolation: true },
     },
   },
