@@ -14,7 +14,7 @@ function DragAbleHeader({ title, icon, actions, onClose }: DragAbleHeaderProps) 
       <div className="flex-1 text-lg">{title}</div>
       {icon && <div>{icon}</div>}
       {actions && <div className="no-drag">{actions}</div>}
-      {onClose && <Button onClick={onClose}>Close</Button>}
+      {onClose && <Button className="w-8 h-8" onClick={onClose}>Close</Button>}
     </div>
   )
 }

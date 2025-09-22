@@ -1,7 +1,7 @@
 import DragAbleHeader from '@/components/common/DragableHeader';
 import { Button } from '@/components/ui/button';
 import React, { useEffect, useState } from 'react';
-import { TbSettings } from 'react-icons/tb';
+import { TbFolder, TbSettings } from 'react-icons/tb';
 import {
   Dialog,
   DialogContent,
@@ -10,6 +10,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { Input } from '@/components/ui/input';
 
 const ModelManager: React.FC = () => {
   const [config, setConfig] = useState<any>(null);
@@ -104,47 +105,40 @@ const ModelManager: React.FC = () => {
         title="模型配置"
         actions={
           <Dialog open={showSettings} onOpenChange={setShowSettings}>
-            <DialogTrigger asChild><Button size={"icon"} variant={"outline"} title='打开模型设置'>
-              <TbSettings />
-            </Button></DialogTrigger>
-            <DialogContent>
+            <DialogTrigger asChild>
+              <Button size={"icon"} variant={"outline"} title='打开模型设置'>
+                <TbSettings />
+              </Button>
+            </DialogTrigger>
+            <DialogContent className='w-96'>
               <DialogHeader>
                 <DialogTitle>模型设置</DialogTitle>
                 <DialogDescription>
-                  This action cannot be undone. This will permanently delete your account
-                  and remove your data from our servers.
+                  配置模型存储目录和下载并发数量。
                 </DialogDescription>
               </DialogHeader>
               <div className='space-y-4 text-sm'>
                 <div className='space-y-2'>
-                  <div className='flex flex-wrap items-center gap-2'>
-                    <span className='font-medium'>模型目录:</span>
-                    <span className='px-2 py-0.5 rounded bg-muted text-xs max-w-[240px] truncate'>{config?.rootDir || '未配置'}</span>
-                    <button className='px-2 py-1 border rounded text-xs disabled:opacity-50' disabled={pickBusy} onClick={pickDir}>选择目录</button>
+                  <div>选择模型目录</div>
+                  <p>将下载的模型文件保存在该目录中。</p>
+                  <div className='flex items-center gap-2'>
+                    <Input value={config?.rootDir || '选择模型目录'} readOnly />
+                    <Button size={"icon"} disabled={pickBusy} onClick={pickDir}><TbFolder /></Button>
                   </div>
-                  <p className='text-[11px] text-muted-foreground leading-snug'>将下载的模型文件保存在该目录中。</p>
                 </div>
                 <div className='space-y-2'>
+                  <div>同时下载数量</div>
+                  <p>过高并发可能占满网络或被服务器限速。</p>
                   <div className='flex flex-wrap items-center gap-2'>
-                    <span className='font-medium'>下载并发:</span>
-                    <input type='number' min={1} max={5} className='w-20 border rounded px-1 py-0.5 text-xs' value={concurrencyInput}
-                      onChange={e => setConcurrencyInput(Number(e.target.value))} />
-                    <span className='text-[10px] text-muted-foreground'>范围 1~5</span>
+                    <Input type='number' min={1} max={5} value={concurrencyInput} onChange={e => setConcurrencyInput(Number(e.target.value))} />
                   </div>
-                  <p className='text-[11px] text-muted-foreground leading-snug'>过高并发可能占满网络或被服务器限速。</p>
                 </div>
                 {hint && <div className='text-xs text-red-500'>{hint}</div>}
               </div>
 
-
-              <div className='flex justify-end gap-2 pt-2'>
-                <Button variant={"outline"} onClick={() => setShowSettings(false)}>取消</Button>
-                <Button
-                  disabled={savingConcurrency}
-                  onClick={async () => { await saveConcurrency(); setShowSettings(false); }}>
-                  {savingConcurrency ? '保存中...' : '保存'}
-                </Button>
-              </div>
+              <Button disabled={savingConcurrency} onClick={async () => { await saveConcurrency(); setShowSettings(false); }}>
+                {savingConcurrency ? '保存中...' : '保存'}
+              </Button>
             </DialogContent>
           </Dialog>
         }

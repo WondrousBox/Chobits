@@ -2,6 +2,9 @@ import { EmbeddingProvider, EmbedOptions, getDefaultModels, getModelCacheDir, l2
 
 import { env, pipeline } from "@huggingface/transformers";
 
+// Could not load the "sharp" module using the win32-x64 runtime
+// https://stackoverflow.com/questions/77789610/could-not-load-the-sharp-module-using-the-win32-x64-runtime-strapi
+
 type Pipeline = any;
 
 export class TransformersEmbeddingProvider implements EmbeddingProvider {
