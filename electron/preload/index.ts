@@ -5,6 +5,7 @@ import { vectorBridge } from './apis/vector'
 import { resourceBridge } from './apis/resource'
 import { trashBridge } from './apis/trash'
 import { workspaceBridge } from './apis/workspace'
+import { modelBridge } from './apis/model'
 
 // --------- Expose some API to the Renderer process ---------
 contextBridge.exposeInMainWorld('ipcRenderer', {
@@ -37,6 +38,7 @@ contextBridge.exposeInMainWorld('YUA', {
   resource: resourceBridge,
   trash: trashBridge,
   workspace: workspaceBridge,
+  model: modelBridge,
 })
 
 // --------- Preload scripts loading ---------

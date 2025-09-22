@@ -12,6 +12,7 @@ export type WindowKey =
   | 'recycle'
   | 'workspace'
   | 'assistantPanel'
+  | 'modelManager'
 
 export interface WindowConfig {
   routeHash: string | (() => string)
@@ -182,6 +183,25 @@ export const windowConfigs: WindowConfigMap = {
       skipTaskbar: false,
       backgroundColor: '#00000000',
       show: false,
+      webPreferences: { nodeIntegration: true, contextIsolation: true },
+    },
+  },
+  modelManager: {
+    routeHash: 'model-manager',
+    autoCenterOn: 'parent-display',
+    showOnReady: false,
+    openDevTools: true,
+    options: {
+      width: 720,
+      height: 560,
+      frame: true,
+      transparent: false,
+      resizable: true,
+      alwaysOnTop: false,
+      skipTaskbar: false,
+      backgroundColor: '#ffffff',
+      show: false,
+      autoHideMenuBar: true,
       webPreferences: { nodeIntegration: true, contextIsolation: true },
     },
   },
