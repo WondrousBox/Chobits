@@ -9,11 +9,11 @@ interface DragAbleHeaderProps {
 
 function DragAbleHeader({ title, icon, actions, onClose }: DragAbleHeaderProps) {
   return (
-    <div className="flex items-center w-full drag-region gap-2">
+    <div className="flex items-center w-full drag-region gap-2 h-12 px-2 box-border">
       { window.YUA.isMac && <div className="w-20"></div>}
-      <div>{title}</div>
+      <div className="flex-1 text-lg">{title}</div>
       {icon && <div>{icon}</div>}
-      {actions && <div>{actions}</div>}
+      {actions && <div className="no-drag">{actions}</div>}
       {onClose && <Button onClick={onClose}>Close</Button>}
     </div>
   )
