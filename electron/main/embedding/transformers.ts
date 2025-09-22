@@ -1,5 +1,6 @@
 import { EmbeddingProvider, EmbedOptions, getDefaultModels, getModelCacheDir, l2Normalize } from './provider';
-import path from 'node:path';
+
+import { env, pipeline } from "@huggingface/transformers";
 
 type Pipeline = any;
 
@@ -18,12 +19,14 @@ export class TransformersEmbeddingProvider implements EmbeddingProvider {
 
   async init(): Promise<void> {
     if (this.pipeline) return;
-    // Lazy import to avoid increasing startup time
-    const { env, pipeline } = await import('@xenova/transformers');
     // set cache under user data
-    env.localModelPath = getModelCacheDir();
     env.allowLocalModels = true;
-    env.cacheDir = getModelCacheDir();
+    env.allowRemoteModels = false;
+    env.allowLocalModels = true;
+    env.localModelPath = getModelCacheDir();
+
+    console.log(env.cacheDir);
+    
     // Note: In Electron main, no WebGPU; CPU/WASM backend will be used.
     this.pipeline = await pipeline('feature-extraction', this.modelId, { quantized: true });
     // Probe dimension
