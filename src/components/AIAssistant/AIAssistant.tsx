@@ -529,7 +529,7 @@ export const AIAssistant: React.FC = () => {
         // onDrop={handleDrop}
         customDropzoneInside={<div className="flex items-center justify-center absolute top-2 left-1/2 -translate-x-1/2 p-1 rounded-md bg-primary text-primary-foreground text-xs whitespace-nowrap z-10">{Messages.t('drag')}</div>}
       >
-        <VideoSprite />
+        {/* <VideoSprite /> */}
       </Dropzone>
 
       {/* 状态指示器 */}

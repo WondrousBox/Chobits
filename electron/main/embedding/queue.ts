@@ -73,9 +73,9 @@ export class EmbeddingQueue extends EventEmitter {
       job.status = 'running';
       this.emit('job', job);
     }
-  // Resolve compiled worker file (dist-electron/main/embedding/worker.js)
-  const workerPath = fileURLToPath(new URL('./worker.js', import.meta.url));
-  this.worker = new Worker(workerPath, { workerData: payload });
+    // Resolve compiled worker file (dist-electron/main/embedding/worker.js)
+    const workerPath = fileURLToPath(new URL('./worker.js', import.meta.url));
+    this.worker = new Worker(workerPath, { workerData: payload });
     this.worker.on('message', (msg: WorkerMessage) => {
       if (msg.type === 'progress') {
         const j = this.jobs.get(msg.jobId);
