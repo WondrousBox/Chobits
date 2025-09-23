@@ -58,6 +58,12 @@ export class WindowManager {
     const w = new BrowserWindow(opts)
     this.registry.set(key, w)
 
+    // Broadcast maximize / unmaximize state changes to renderer so UI can update controls
+    try {
+      w.on('maximize', () => { try { w.webContents.send('window-maximize-changed', true) } catch {} })
+      w.on('unmaximize', () => { try { w.webContents.send('window-maximize-changed', false) } catch {} })
+    } catch {}
+
     w.once('ready-to-show', () => {
       try {
         console.log("ready-to-show", conf.showOnReady)
