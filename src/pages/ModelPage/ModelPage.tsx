@@ -1,7 +1,7 @@
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
-import React, { useEffect, useState } from 'react';
-import { TbFolder, TbSettings } from 'react-icons/tb';
+import React, { useEffect, useRef, useState } from 'react';
+import { TbSettings } from 'react-icons/tb';
 import {
   Dialog,
   DialogContent,
@@ -9,20 +9,21 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"
-import { Input } from '@/components/ui/input';
+} from "@/components/ui/dialog";
+import SelectModelFolder from './components/SelectModelFolder';
 
-const ModelManager: React.FC = () => {
-  const [config, setConfig] = useState<any>(null);
+const ModelPage: React.FC = () => {
+  const [config, setConfig] = useState<any>(null); // 仍保留整体 config 用于其它用途
+  const [rootDir, setRootDir] = useState<string | undefined>(undefined);
   const [installed, setInstalled] = useState<any[]>([]);
   const [supported, setSupported] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [pickBusy, setPickBusy] = useState(false);
-  const [savingConcurrency, setSavingConcurrency] = useState(false);
-  const [concurrencyInput, setConcurrencyInput] = useState<number>(2);
-  const [hint, setHint] = useState<string>('');
+  // 目录选择逻辑已移入子组件
+  // 已移除并发设置逻辑
   const [installing, setInstalling] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  // 记录是否已自动弹出（避免用户关闭后再次强制弹出导致困扰）
+  const autoOpenedRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -32,8 +33,8 @@ const ModelManager: React.FC = () => {
         const sup = await window.YUA.model['model:listSupported']();
         const inst = await window.YUA.model['model:listInstalled']();
         if (!mounted) return;
-        setConfig(cfg);
-        if (cfg?.concurrency) setConcurrencyInput(cfg.concurrency);
+  setConfig(cfg);
+  if (cfg?.rootDir) setRootDir(cfg.rootDir);
         setSupported(sup);
         setInstalled(inst);
       } finally { if (mounted) setLoading(false); }
@@ -51,26 +52,17 @@ const ModelManager: React.FC = () => {
     return () => { mounted = false; };
   }, []);
 
-  const pickDir = async () => {
-    setPickBusy(true);
-    try {
-      const r = await window.YUA.file['file:pickDir']({ allowCreate: true });
-      if (!r.canceled && r.path) {
-        const res = await window.YUA.model['model:setConfig']({ rootDir: r.path });
-        if (res.ok) setConfig(res.data);
-      }
-    } finally { setPickBusy(false); }
-  };
+  // 首次进入且未配置模型目录时自动弹出设置窗口
+  useEffect(() => {
+    if (!loading && !rootDir && !autoOpenedRef.current) {
+      autoOpenedRef.current = true;
+      setShowSettings(true);
+    }
+  }, [loading, rootDir]);
 
-  const saveConcurrency = async () => {
-    setSavingConcurrency(true);
-    setHint('');
-    try {
-      if (concurrencyInput < 1 || concurrencyInput > 5) { setHint('并发范围 1~5'); return; }
-      const res: any = await window.YUA.model['model:setConfig']({ concurrency: concurrencyInput } as any);
-      if (res.ok && res.data) setConfig(res.data);
-    } finally { setSavingConcurrency(false); }
-  };
+  // 由子组件处理 pickDir
+
+  // 并发保存逻辑已移除
 
   const install = async (name: string, version: string) => {
     setInstalling(name + version);
@@ -113,32 +105,15 @@ const ModelManager: React.FC = () => {
             <DialogContent className='w-96'>
               <DialogHeader>
                 <DialogTitle>模型设置</DialogTitle>
-                <DialogDescription>
-                  配置模型存储目录和下载并发数量。
-                </DialogDescription>
               </DialogHeader>
-              <div className='space-y-4 text-sm'>
-                <div className='space-y-2'>
-                  <div>选择模型目录</div>
-                  <p>将下载的模型文件保存在该目录中。</p>
-                  <div className='flex items-center gap-2'>
-                    <Input value={config?.rootDir || '选择模型目录'} readOnly />
-                    <Button size={"icon"} disabled={pickBusy} onClick={pickDir}><TbFolder /></Button>
-                  </div>
-                </div>
-                <div className='space-y-2'>
-                  <div>同时下载数量</div>
-                  <p>过高并发可能占满网络或被服务器限速。</p>
-                  <div className='flex flex-wrap items-center gap-2'>
-                    <Input type='number' min={1} max={5} value={concurrencyInput} onChange={e => setConcurrencyInput(Number(e.target.value))} />
-                  </div>
-                </div>
-                {hint && <div className='text-xs text-red-500'>{hint}</div>}
-              </div>
-
-              <Button disabled={savingConcurrency} onClick={async () => { await saveConcurrency(); setShowSettings(false); }}>
-                {savingConcurrency ? '保存中...' : '保存'}
-              </Button>
+              <SelectModelFolder
+                onRootDirChange={(dir) => {
+                  setRootDir(dir);
+                  setConfig((prev: any) => ({ ...(prev||{}), rootDir: dir }));
+                  if (dir) setShowSettings(false); // 自动关闭
+                }}
+                onNeedRootDir={() => { if (!autoOpenedRef.current) { autoOpenedRef.current = true; setShowSettings(true); } }}
+              />
             </DialogContent>
           </Dialog>
         }
@@ -199,7 +174,7 @@ const ModelManager: React.FC = () => {
                   </div>
                   <div className='text-[10px] text-muted-foreground'>~{s.sizeBytes ? (s.sizeBytes / 1024 / 1024).toFixed(2) + 'MB' : '?'} · {s.algo?.toUpperCase()}</div>
                 </div>
-                <button className='px-3 py-1 border rounded text-xs disabled:opacity-40' disabled={!config?.rootDir || busy} onClick={() => install(s.name, s.version)}>
+                <button className='px-3 py-1 border rounded text-xs disabled:opacity-40' disabled={!rootDir || busy} onClick={() => install(s.name, s.version)}>
                   {busy ? '安装中...' : '安装'}
                 </button>
               </li>
@@ -211,7 +186,7 @@ const ModelManager: React.FC = () => {
   );
 };
 
-export default ModelManager;
+export default ModelPage;
 
 // 轻量状态徽章组件
 const StatusBadge: React.FC<{ status?: string }> = ({ status }) => {

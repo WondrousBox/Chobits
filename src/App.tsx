@@ -9,7 +9,7 @@ import ResourcePage from './pages/ResourcePage/ResourcePage'
 import WorkspaceWizard from './pages/WorkspacePage/components/WorkspaceWizard'
 import WorkspacePage from './pages/WorkspacePage/WorkspacePage'
 import AssistantPanel from './pages/AssistantPanel/AssistantPanel'
-import ModelManager from './pages/ModelManager/ModelManager'
+import ModelPage from './pages/ModelPage/ModelPage'
 
 function App() {
   return (
@@ -25,7 +25,7 @@ function App() {
           <Route path="/recycle" element={<RecycleBinPage />} />
           <Route path="/workspace" element={<WorkspacePage />} />
           <Route path="/assistant-panel" element={<AssistantPanel />} />
-          <Route path="/model-manager" element={<ModelManager />} />
+          <Route path="/model-manager" element={<ModelPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
