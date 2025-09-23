@@ -38,7 +38,7 @@ const WorkspaceWizard: React.FC = () => {
 
   const onPickDir = async () => {
     setHint('')
-    const pick = await window.YUA.workspace['workspace:pickDir']()
+    const pick = await window.YUA.file['file:pickDir']({ allowCreate: true })
     if (pick.canceled || !pick.path) return
     setPickedPath(pick.path)
   }
@@ -72,7 +72,7 @@ const WorkspaceWizard: React.FC = () => {
 
   const handleCreate = async () => {
     setHint('')
-    const pick = await window.YUA.workspace['workspace:pickDir']()
+    const pick = await window.YUA.file['file:pickDir']({ allowCreate: true })
     if (pick.canceled || !pick.path) return
     await createWith(pick.path, name || undefined)
   }

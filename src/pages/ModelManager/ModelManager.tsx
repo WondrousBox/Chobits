@@ -1,4 +1,4 @@
-import DragAbleHeader from '@/components/common/DragableHeader';
+import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
 import React, { useEffect, useState } from 'react';
 import { TbFolder, TbSettings } from 'react-icons/tb';
@@ -54,7 +54,7 @@ const ModelManager: React.FC = () => {
   const pickDir = async () => {
     setPickBusy(true);
     try {
-      const r = await window.YUA.model['model:pickDir']();
+      const r = await window.YUA.file['file:pickDir']({ allowCreate: true });
       if (!r.canceled && r.path) {
         const res = await window.YUA.model['model:setConfig']({ rootDir: r.path });
         if (res.ok) setConfig(res.data);
@@ -101,12 +101,12 @@ const ModelManager: React.FC = () => {
 
   return (
     <>
-      <DragAbleHeader
+      <DragAbleTitle
         title="模型配置"
         actions={
           <Dialog open={showSettings} onOpenChange={setShowSettings}>
             <DialogTrigger asChild>
-              <Button size={"icon"} variant={"outline"} title='打开模型设置'>
+              <Button size={"icon"} className='w-8 h-8' variant={"outline"} title='打开模型设置'>
                 <TbSettings />
               </Button>
             </DialogTrigger>
