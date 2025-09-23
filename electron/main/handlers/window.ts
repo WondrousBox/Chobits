@@ -1,5 +1,5 @@
-import { ipcMain } from "electron";
-import type { BrowserWindow, IpcMainInvokeEvent } from "electron";
+import { ipcMain, BrowserWindow } from "electron";
+import type { IpcMainInvokeEvent } from "electron";
 import { screen, app } from "electron";
 import fs from 'node:fs';
 import path from 'node:path';
@@ -406,5 +406,63 @@ export function initWindowHandlers(win: BrowserWindow) {
     } catch {
       return false
     }
+  })
+
+  // ---------------- Generic window controls for the calling (sender) window --------------
+  ipcMain.handle('window-minimize', (event: IpcMainInvokeEvent) => {
+    try {
+      const browserWindow = BrowserWindow.fromWebContents(event.sender)
+      if (browserWindow && !browserWindow.isDestroyed()) {
+        browserWindow.minimize()
+        return true
+      }
+    } catch {}
+    return false
+  })
+
+  ipcMain.handle('window-maximize-or-restore', (event: IpcMainInvokeEvent) => {
+    try {
+      const browserWindow = BrowserWindow.fromWebContents(event.sender)
+      if (browserWindow && !browserWindow.isDestroyed()) {
+        if (browserWindow.isMaximized()) browserWindow.restore(); else browserWindow.maximize()
+        return { maximized: browserWindow.isMaximized() }
+      }
+    } catch {}
+    return { maximized: false }
+  })
+
+  ipcMain.handle('window-close-self', (event: IpcMainInvokeEvent) => {
+    try {
+      const browserWindow = BrowserWindow.fromWebContents(event.sender)
+      if (browserWindow && !browserWindow.isDestroyed()) {
+        browserWindow.close()
+        return true
+      }
+    } catch {}
+    return false
+  })
+
+  ipcMain.handle('window-is-maximized', (event: IpcMainInvokeEvent) => {
+    try {
+      const browserWindow = BrowserWindow.fromWebContents(event.sender)
+      if (browserWindow && !browserWindow.isDestroyed()) {
+        return browserWindow.isMaximized()
+      }
+    } catch {}
+    return false
+  })
+
+  ipcMain.handle('window-capabilities', (event: IpcMainInvokeEvent) => {
+    try {
+      const browserWindow = BrowserWindow.fromWebContents(event.sender)
+      if (browserWindow && !browserWindow.isDestroyed()) {
+        return {
+          minimizable: browserWindow.isMinimizable?.() ?? true,
+            maximizable: browserWindow.isMaximizable?.() ?? true,
+            resizable: browserWindow.isResizable?.() ?? true,
+        }
+      }
+    } catch {}
+    return { minimizable: false, maximizable: false, resizable: false }
   })
 }
