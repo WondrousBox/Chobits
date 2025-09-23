@@ -9,11 +9,13 @@ export type FileBridgeParams = {
       defaultPath: string;
       multi: boolean;
     }>?], { canceled: boolean; path?: string; paths?: string[] }>;
+  'file:openPath': IPCParams<[string], { ok: boolean; error?: string }>;
 };
 
 const methods: Array<keyof FileBridgeParams> = [
   'file:pickDir',
   'file:pickFile',
+  'file:openPath',
 ];
 
 export type FileBridgeType = {

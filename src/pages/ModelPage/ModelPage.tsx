@@ -33,8 +33,8 @@ const ModelPage: React.FC = () => {
         const sup = await window.YUA.model['model:listSupported']();
         const inst = await window.YUA.model['model:listInstalled']();
         if (!mounted) return;
-  setConfig(cfg);
-  if (cfg?.rootDir) setRootDir(cfg.rootDir);
+        setConfig(cfg);
+        if (cfg?.rootDir) setRootDir(cfg.rootDir);
         setSupported(sup);
         setInstalled(inst);
       } finally { if (mounted) setLoading(false); }
@@ -102,18 +102,13 @@ const ModelPage: React.FC = () => {
                 <TbSettings />
               </Button>
             </DialogTrigger>
-            <DialogContent className='w-96'>
+            <DialogContent hideClose className='w-80'>
               <DialogHeader>
-                <DialogTitle>模型设置</DialogTitle>
+                <DialogTitle></DialogTitle>
+                <DialogDescription>
+                </DialogDescription>
               </DialogHeader>
-              <SelectModelFolder
-                onRootDirChange={(dir) => {
-                  setRootDir(dir);
-                  setConfig((prev: any) => ({ ...(prev||{}), rootDir: dir }));
-                  if (dir) setShowSettings(false); // 自动关闭
-                }}
-                onNeedRootDir={() => { if (!autoOpenedRef.current) { autoOpenedRef.current = true; setShowSettings(true); } }}
-              />
+              <SelectModelFolder onConfigured={(cfg) => { setConfig(cfg); setRootDir(cfg.rootDir); setShowSettings(false); }} />
             </DialogContent>
           </Dialog>
         }

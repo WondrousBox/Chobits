@@ -510,7 +510,20 @@ export const AIAssistant: React.FC = () => {
       onMouseDown={handleMouseDown}
       onContextMenu={handleContextMenu}
       onClick={handleClick}
-      onDoubleClick={() => { try { window.YUA.window.openWindow('assistantPanel') } catch { } }}
+      onDoubleClick={async () => {
+        try {
+          const cfg = await window.YUA.model['model:getConfig']();
+          if (!cfg?.rootDir) {
+            // 未配置模型目录，先打开模型管理窗口让用户设置
+            await window.YUA.window.openWindow('modelManager' as any);
+          } else {
+            await window.YUA.window.openWindow('assistantPanel' as any);
+          }
+        } catch {
+          // 回退原行为
+          try { await window.YUA.window.openWindow('assistantPanel' as any); } catch { }
+        }
+      }}
       // onDrop={handleDrop}
     >
       {showPaddingDebug && (
