@@ -10,6 +10,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import SelectModelFolder from './components/SelectModelFolder';
 
 const ModelPage: React.FC = () => {
@@ -18,6 +19,7 @@ const ModelPage: React.FC = () => {
   const [installed, setInstalled] = useState<any[]>([]);
   const [supported, setSupported] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tabValue, setTabValue] = useState<'installed' | 'available'>('installed');
   // 目录选择逻辑已移入子组件
   // 已移除并发设置逻辑
   const [installing, setInstalling] = useState<string | null>(null);
@@ -114,69 +116,77 @@ const ModelPage: React.FC = () => {
         }
       />
 
-      <section className='space-y-2'>
-        <h2 className='text-lg font-semibold'>已安装 / 进行中</h2>
-        {installed.length === 0 && <div className='text-xs text-muted-foreground border rounded px-2 py-4 text-center'>暂无模型，先在下方“可安装”列表选择一个进行安装。</div>}
-        <ul className='space-y-1'>
-          {installed.map(m => {
-            const percent = m.sizeBytes ? Math.round(((m.progressBytes || 0) / (m.sizeBytes || 1)) * 100) : 0;
-            return (
-              <li key={m.id} className='text-sm flex flex-col gap-1 border px-3 py-2 rounded bg-background/60'>
-                <div className='flex items-center justify-between gap-4'>
-                  <div className='flex items-center gap-2 overflow-hidden'>
-                    <span className='font-medium truncate'>{m.displayName || m.name}</span>
-                    {m.version && <span className='text-[10px] rounded bg-muted px-1 py-0.5'>v{m.version}</span>}
-                    <StatusBadge status={m.status} />
+      <Tabs value={tabValue} onValueChange={setTabValue} className='space-y-4'>
+        <TabsList>
+          <TabsTrigger value="installed">已安装/进行中</TabsTrigger>
+          <TabsTrigger value="available">可安装</TabsTrigger>
+        </TabsList>
+      </Tabs>
+      {
+        tabValue === 'installed' && <>
+          {installed.length === 0 && <div className='text-xs text-muted-foreground border rounded px-2 py-4 text-center'>暂无模型，先在 “可安装” 标签页选择一个进行安装。</div>}
+          <ul className='space-y-1'>
+            {installed.map(m => {
+              const percent = m.sizeBytes ? Math.round(((m.progressBytes || 0) / (m.sizeBytes || 1)) * 100) : 0;
+              return (
+                <li key={m.id} className='text-sm flex flex-col gap-1 border px-3 py-2 rounded bg-background/60'>
+                  <div className='flex items-center justify-between gap-4'>
+                    <div className='flex items-center gap-2 overflow-hidden'>
+                      <span className='font-medium truncate'>{m.displayName || m.name}</span>
+                      {m.version && <span className='text-[10px] rounded bg-muted px-1 py-0.5'>v{m.version}</span>}
+                      <StatusBadge status={m.status} />
+                    </div>
+                    <div className='flex gap-1'>
+                      {m.status === 'downloading' && <button className='text-xs px-2 py-0.5 border rounded' onClick={() => cancel(m.id)}>取消</button>}
+                      {['failed', 'cancelled'].includes(m.status) && <button className='text-xs px-2 py-0.5 border rounded' onClick={() => retry(m.id)}>重试</button>}
+                    </div>
                   </div>
-                  <div className='flex gap-1'>
-                    {m.status === 'downloading' && <button className='text-xs px-2 py-0.5 border rounded' onClick={() => cancel(m.id)}>取消</button>}
-                    {['failed', 'cancelled'].includes(m.status) && <button className='text-xs px-2 py-0.5 border rounded' onClick={() => retry(m.id)}>重试</button>}
+                  {m.status === 'downloading' && m.sizeBytes && (
+                    <div className='w-full bg-muted h-2 rounded overflow-hidden'>
+                      <div className='h-full bg-blue-500 transition-all' style={{ width: percent + '%' }}></div>
+                    </div>
+                  )}
+                  {m.status === 'downloading' && (
+                    <div className='text-[10px] text-muted-foreground flex justify-between'>
+                      <span>{percent}% {m.progressBytes && m.sizeBytes ? `(${(m.progressBytes / 1024 / 1024).toFixed(2)}MB / ${(m.sizeBytes / 1024 / 1024).toFixed(2)}MB)` : ''}</span>
+                      <span>{m.speedBps ? `${(m.speedBps / 1024).toFixed(1)} KB/s` : ''} {m.etaMs ? `ETA ${(m.etaMs / 1000).toFixed(1)}s` : ''}</span>
+                    </div>
+                  )}
+                  {m.status === 'verifying' && (
+                    <div className='text-[10px] text-muted-foreground'>校验中…</div>
+                  )}
+                  {m.status === 'failed' && (
+                    <div className='text-[10px] text-red-500'>安装失败，可重试</div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      }
+      {
+        tabValue === 'available' && <>
+          <ul className='space-y-2'>
+            {supported.map(s => {
+              const busy = installing === (s.name + s.version);
+              return (
+                <li key={s.name + s.version} className='border p-3 rounded flex items-center justify-between bg-background/60'>
+                  <div className='flex flex-col gap-1'>
+                    <div className='text-sm font-medium flex items-center gap-2'>
+                      <span>{s.displayName || s.name}</span>
+                      <span className='text-[10px] rounded bg-muted px-1 py-0.5'>v{s.version}</span>
+                    </div>
+                    <div className='text-[10px] text-muted-foreground'>~{s.sizeBytes ? (s.sizeBytes / 1024 / 1024).toFixed(2) + 'MB' : '?'} · {s.algo?.toUpperCase()}</div>
                   </div>
-                </div>
-                {m.status === 'downloading' && m.sizeBytes && (
-                  <div className='w-full bg-muted h-2 rounded overflow-hidden'>
-                    <div className='h-full bg-blue-500 transition-all' style={{ width: percent + '%' }}></div>
-                  </div>
-                )}
-                {m.status === 'downloading' && (
-                  <div className='text-[10px] text-muted-foreground flex justify-between'>
-                    <span>{percent}% {m.progressBytes && m.sizeBytes ? `(${(m.progressBytes / 1024 / 1024).toFixed(2)}MB / ${(m.sizeBytes / 1024 / 1024).toFixed(2)}MB)` : ''}</span>
-                    <span>{m.speedBps ? `${(m.speedBps / 1024).toFixed(1)} KB/s` : ''} {m.etaMs ? `ETA ${(m.etaMs / 1000).toFixed(1)}s` : ''}</span>
-                  </div>
-                )}
-                {m.status === 'verifying' && (
-                  <div className='text-[10px] text-muted-foreground'>校验中…</div>
-                )}
-                {m.status === 'failed' && (
-                  <div className='text-[10px] text-red-500'>安装失败，可重试</div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      </section>
-      <section>
-        <h2 className='text-lg font-semibold mb-2'>可安装</h2>
-        <ul className='space-y-2'>
-          {supported.map(s => {
-            const busy = installing === (s.name + s.version);
-            return (
-              <li key={s.name + s.version} className='border p-3 rounded flex items-center justify-between bg-background/60'>
-                <div className='flex flex-col gap-1'>
-                  <div className='text-sm font-medium flex items-center gap-2'>
-                    <span>{s.displayName || s.name}</span>
-                    <span className='text-[10px] rounded bg-muted px-1 py-0.5'>v{s.version}</span>
-                  </div>
-                  <div className='text-[10px] text-muted-foreground'>~{s.sizeBytes ? (s.sizeBytes / 1024 / 1024).toFixed(2) + 'MB' : '?'} · {s.algo?.toUpperCase()}</div>
-                </div>
-                <button className='px-3 py-1 border rounded text-xs disabled:opacity-40' disabled={!rootDir || busy} onClick={() => install(s.name, s.version)}>
-                  {busy ? '安装中...' : '安装'}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </section>
+                  <button className='px-3 py-1 border rounded text-xs disabled:opacity-40' disabled={!rootDir || busy} onClick={() => install(s.name, s.version)}>
+                    {busy ? '安装中...' : '安装'}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      }
     </>
   );
 };
