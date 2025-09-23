@@ -40,7 +40,6 @@ export type SupportedModel = {
 export type ModelBridgeParams = {
   'model:getConfig': IPCParams<[void], ModelConfig | null>;
   'model:setConfig': IPCParams<[Partial<{ rootDir: string }>], { ok: boolean; data?: ModelConfig | null }>;
-  'model:pickDir': IPCParams<[void], { canceled: boolean; path?: string }>;
   'model:listSupported': IPCParams<[void], SupportedModel[]>;
   'model:listInstalled': IPCParams<[void], SimpleModel[]>;
   'model:install': IPCParams<[{ name: string; version: string }], { ok: boolean; data?: SimpleModel; error?: string }>;
@@ -53,7 +52,6 @@ export type ModelBridgeParams = {
 const methods: Array<keyof ModelBridgeParams> = [
   'model:getConfig',
   'model:setConfig',
-  'model:pickDir',
   'model:listSupported',
   'model:listInstalled',
   'model:install',

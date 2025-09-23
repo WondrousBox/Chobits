@@ -1,13 +1,13 @@
 import { Button } from "../ui/button";
 
-interface DragAbleHeaderProps {
+interface DragAbleTitleProps {
   title: string;
   icon?: React.ReactNode;
   actions?: React.ReactNode;
   onClose?: () => void;
 }
 
-function DragAbleHeader({ title, icon, actions, onClose }: DragAbleHeaderProps) {
+function DragAbleTitle({ title, icon, actions, onClose }: DragAbleTitleProps) {
   return (
     <div className="flex items-center w-full drag-region gap-2 h-12 px-2 box-border">
       { window.YUA.isMac && <div className="w-20"></div>}
@@ -19,4 +19,4 @@ function DragAbleHeader({ title, icon, actions, onClose }: DragAbleHeaderProps) 
   )
 }
 
-export default DragAbleHeader
+export default DragAbleTitle

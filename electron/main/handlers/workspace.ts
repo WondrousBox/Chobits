@@ -52,12 +52,6 @@ export function initWorkspaceHandlers(_win: BrowserWindow) {
     }
   });
 
-  ipcMain.handle('workspace:pickDir', async () => {
-    const res = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] });
-    if (res.canceled || res.filePaths.length === 0) return { canceled: true };
-    return { canceled: false, path: res.filePaths[0] };
-  });
-
   ipcMain.handle('workspace:open', async (_e, payload: { id: string }) => {
     const ws = await WorkspacesRepo.getById(payload.id);
     if (!ws || !ws.rootPath) return { ok: false };

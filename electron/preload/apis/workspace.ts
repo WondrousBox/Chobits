@@ -25,7 +25,6 @@ export type WorkspaceBridgeParams = {
   'workspace:setDefault': IPCParams<[{ id: string }], { success: true }>;
   'workspace:update': IPCParams<[{ id: string; patch: Partial<Workspace> }], { updated: number }>;
   'workspace:delete': IPCParams<[{ id: string; hard?: boolean }], { deleted: number }>;
-  'workspace:pickDir': IPCParams<[void], { canceled: boolean; path?: string }>;
   'workspace:open': IPCParams<[{ id: string }], { ok: boolean }>;
   'workspace:scanStats': IPCParams<[{ id: string }], { ok: boolean; sizeBytes?: number; fileCount?: number }>;
 };
@@ -38,7 +37,6 @@ const methods: Array<keyof WorkspaceBridgeParams> = [
   'workspace:setDefault',
   'workspace:update',
   'workspace:delete',
-  'workspace:pickDir',
   'workspace:open',
   'workspace:scanStats',
 ];

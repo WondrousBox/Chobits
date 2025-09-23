@@ -40,15 +40,9 @@ export function initModelHandlers(win: BrowserWindow) {
 
   ipcMain.handle('model:setConfig', async (_e, payload: { rootDir?: string }) => {
     const patch: any = {};
-    if (payload.rootDir) { ensureDir(payload.rootDir); patch.rootDir = payload.rootDir; }
+    if (payload.rootDir) { ensureDir(path.resolve(payload.rootDir, 'models')); patch.rootDir = payload.rootDir; }
     const updated = ModelStore.setConfig(patch);
     return { ok: true, data: updated };
-  });
-
-  ipcMain.handle('model:pickDir', async () => {
-    const res = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] });
-    if (res.canceled || res.filePaths.length === 0) return { canceled: true };
-    return { canceled: false, path: res.filePaths[0] };
   });
 
   ipcMain.handle('model:listSupported', async () => {

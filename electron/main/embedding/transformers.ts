@@ -1,3 +1,4 @@
+import { ModelStore } from '../model-store';
 import { EmbeddingProvider, EmbedOptions, getDefaultModels, getModelCacheDir, l2Normalize } from './provider';
 
 import { env, pipeline } from "@huggingface/transformers";
@@ -26,7 +27,7 @@ export class TransformersEmbeddingProvider implements EmbeddingProvider {
     env.allowLocalModels = true;
     env.allowRemoteModels = false;
     env.allowLocalModels = true;
-    env.localModelPath = getModelCacheDir();
+    env.localModelPath = ModelStore.getConfig().rootDir || getModelCacheDir();
 
     console.log(env.cacheDir);
     

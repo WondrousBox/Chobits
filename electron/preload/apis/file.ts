@@ -1,0 +1,30 @@
+import { ipcRenderer } from 'electron';
+import type { IPCParams } from '../type';
+
+export type FileBridgeParams = {
+  'file:pickDir': IPCParams<[Partial<{ allowCreate: boolean; defaultPath: string }>?], { canceled: boolean; path?: string }>;
+  'file:pickFile': IPCParams<[
+    Partial<{
+      filters: { name: string; extensions: string[] }[];
+      defaultPath: string;
+      multi: boolean;
+    }>?], { canceled: boolean; path?: string; paths?: string[] }>;
+};
+
+const methods: Array<keyof FileBridgeParams> = [
+  'file:pickDir',
+  'file:pickFile',
+];
+
+export type FileBridgeType = {
+  [K in keyof FileBridgeParams]: (
+    ...args: FileBridgeParams[K]['request']
+  ) => Promise<FileBridgeParams[K]['response']>;
+};
+
+const bridge: Record<string, any> = {};
+methods.forEach(m => {
+  bridge[m] = (...args: any[]) => ipcRenderer.invoke(m as string, ...args);
+});
+
+export const fileBridge = bridge as FileBridgeType;
