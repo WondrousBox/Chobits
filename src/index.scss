@@ -100,5 +100,9 @@ input {
   box-sizing: border-box;
 }
 
+button {
+  background-color: unset;
+}
+
 .fade-in-scale { animation: panelFade .32s cubic-bezier(.16,.84,.44,1); }
 @keyframes panelFade { 0% { opacity:0; transform: translateY(12px) scale(.9); } 100% { opacity:1; transform: translateY(0) scale(1);} }

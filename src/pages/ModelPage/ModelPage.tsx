@@ -1,7 +1,7 @@
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
 import React, { useEffect, useRef, useState } from 'react';
-import { TbSettings } from 'react-icons/tb';
+import { TbBox, TbSettings } from 'react-icons/tb';
 import {
   Dialog,
   DialogContent,
@@ -19,7 +19,7 @@ const ModelPage: React.FC = () => {
   const [installed, setInstalled] = useState<any[]>([]);
   const [supported, setSupported] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tabValue, setTabValue] = useState<'installed' | 'available'>('installed');
+  const [tabValue, setTabValue] = useState<'installed' | 'available'>('available');
   // 目录选择逻辑已移入子组件
   // 已移除并发设置逻辑
   const [installing, setInstalling] = useState<string | null>(null);
@@ -96,37 +96,40 @@ const ModelPage: React.FC = () => {
   return (
     <>
       <DragAbleTitle
-        title="模型配置"
+        title={<div className='flex items-center gap-2'><TbBox size={20} />模型管理</div>}
         actions={
-          <Dialog open={showSettings} onOpenChange={setShowSettings}>
-            <DialogTrigger asChild>
-              <Button size={"icon"} className='w-8 h-8' variant={"outline"} title='打开模型设置'>
-                <TbSettings />
-              </Button>
-            </DialogTrigger>
-            <DialogContent hideClose className='w-80'>
-              <DialogHeader>
-                <DialogTitle></DialogTitle>
-                <DialogDescription>
-                </DialogDescription>
-              </DialogHeader>
-              <SelectModelFolder onConfigured={(cfg) => { setConfig(cfg); setRootDir(cfg.rootDir); setShowSettings(false); }} />
-            </DialogContent>
-          </Dialog>
+          <>
+            <Tabs value={tabValue} onValueChange={(v) => setTabValue(v as 'installed' | 'available')} className='no-drag'>
+              <TabsList>
+                <TabsTrigger value="available">所有模型</TabsTrigger>
+                <TabsTrigger value="installed">已安装</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <Dialog open={showSettings} onOpenChange={setShowSettings}>
+              <DialogTrigger asChild>
+                <Button size={"icon"} className='w-8 h-8' variant={"outline"} title='打开模型设置'>
+                  <TbSettings />
+                </Button>
+              </DialogTrigger>
+              <DialogContent hideClose className='w-80'>
+                <DialogHeader>
+                  <DialogTitle></DialogTitle>
+                  <DialogDescription>
+                  </DialogDescription>
+                </DialogHeader>
+                <SelectModelFolder onConfigured={(cfg) => { setConfig(cfg); setRootDir(cfg.rootDir); setShowSettings(false); }} />
+              </DialogContent>
+            </Dialog>
+          </>
         }
       />
-
-      <Tabs value={tabValue} onValueChange={setTabValue} className='space-y-4'>
-        <TabsList>
-          <TabsTrigger value="installed">已安装/进行中</TabsTrigger>
-          <TabsTrigger value="available">可安装</TabsTrigger>
-        </TabsList>
-      </Tabs>
       {
         tabValue === 'installed' && <>
-          {installed.length === 0 && <div className='text-xs text-muted-foreground border rounded px-2 py-4 text-center'>暂无模型，先在 “可安装” 标签页选择一个进行安装。</div>}
+          {installed.filter(m => m.status === 'installed').length === 0 && <div className='text-xs text-muted-foreground border rounded px-2 text-center py-20'>
+            暂无已安装模型，先在 “所有模型” 中选择一个进行安装。
+          </div>}
           <ul className='space-y-1'>
-            {installed.map(m => {
+            {installed.filter(m => m.status === 'installed').map(m => {
               const percent = m.sizeBytes ? Math.round(((m.progressBytes || 0) / (m.sizeBytes || 1)) * 100) : 0;
               return (
                 <li key={m.id} className='text-sm flex flex-col gap-1 border px-3 py-2 rounded bg-background/60'>
@@ -169,18 +172,58 @@ const ModelPage: React.FC = () => {
           <ul className='space-y-2'>
             {supported.map(s => {
               const busy = installing === (s.name + s.version);
+              const rec = installed.find(m => m.name === s.name && m.version === s.version && m.status !== 'removed');
+              const status = rec?.status as string | undefined;
+              const percent = rec?.sizeBytes ? Math.round((((rec?.progressBytes as number) || 0) / ((rec?.sizeBytes as number) || 1)) * 100) : 0;
               return (
                 <li key={s.name + s.version} className='border p-3 rounded flex items-center justify-between bg-background/60'>
-                  <div className='flex flex-col gap-1'>
+                  <div className='flex flex-col gap-1 flex-1'>
                     <div className='text-sm font-medium flex items-center gap-2'>
                       <span>{s.displayName || s.name}</span>
                       <span className='text-[10px] rounded bg-muted px-1 py-0.5'>v{s.version}</span>
+                      {status && <StatusBadge status={status} />}
                     </div>
                     <div className='text-[10px] text-muted-foreground'>~{s.sizeBytes ? (s.sizeBytes / 1024 / 1024).toFixed(2) + 'MB' : '?'} · {s.algo?.toUpperCase()}</div>
+                    {status === 'downloading' && rec?.sizeBytes && (
+                      <div className='w-full bg-muted h-2 rounded overflow-hidden mt-1'>
+                        <div className='h-full bg-blue-500 transition-all' style={{ width: percent + '%' }}></div>
+                      </div>
+                    )}
+                    {status === 'downloading' && (
+                      <div className='text-[10px] text-muted-foreground flex justify-between'>
+                        <span>{percent}% {rec?.progressBytes && rec?.sizeBytes ? `(${((rec.progressBytes as number) / 1024 / 1024).toFixed(2)}MB / ${((rec.sizeBytes as number) / 1024 / 1024).toFixed(2)}MB)` : ''}</span>
+                        <span>{rec?.speedBps ? `${((rec.speedBps as number) / 1024).toFixed(1)} KB/s` : ''} {rec?.etaMs ? `ETA ${((rec.etaMs as number) / 1000).toFixed(1)}s` : ''}</span>
+                      </div>
+                    )}
+                    {status === 'verifying' && (
+                      <div className='text-[10px] text-muted-foreground'>校验中…</div>
+                    )}
+                    {status === 'failed' && (
+                      <div className='text-[10px] text-red-500'>安装失败，可重试</div>
+                    )}
                   </div>
-                  <button className='px-3 py-1 border rounded text-xs disabled:opacity-40' disabled={!rootDir || busy} onClick={() => install(s.name, s.version)}>
-                    {busy ? '安装中...' : '安装'}
-                  </button>
+                  <div className='ml-3 flex items-center gap-1'>
+                    {status === 'installed' && (
+                      <button className='px-3 py-1 border rounded text-xs disabled:opacity-40' disabled>
+                        已安装
+                      </button>
+                    )}
+                    {status === 'downloading' && rec?.id && (
+                      <button className='px-3 py-1 border rounded text-xs' onClick={() => cancel(rec.id)}>
+                        取消
+                      </button>
+                    )}
+                    {['failed', 'cancelled'].includes(status || '') && rec?.id && (
+                      <button className='px-3 py-1 border rounded text-xs' onClick={() => retry(rec.id)}>
+                        重试
+                      </button>
+                    )}
+                    {!status && (
+                      <button className='px-3 py-1 border rounded text-xs disabled:opacity-40' disabled={!rootDir || busy} onClick={() => install(s.name, s.version)}>
+                        {busy ? '安装中...' : '安装'}
+                      </button>
+                    )}
+                  </div>
                 </li>
               );
             })}
