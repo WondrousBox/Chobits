@@ -3,7 +3,7 @@ import { Button } from "../ui/button";
 import { useEffect, useState } from "react";
 
 interface DragAbleTitleProps {
-  title: string;
+  title: React.ReactNode | string;
   icon?: React.ReactNode;
   actions?: React.ReactNode;
   onClose?: () => void;
@@ -25,7 +25,7 @@ function DragAbleTitle({ title, icon, actions, onClose }: DragAbleTitleProps) {
     return () => { mounted = false }
   }, []);
   return (
-    <div className="flex items-center w-full drag-region gap-2 h-12 px-2 box-border">
+    <div className="flex items-center w-full drag-region gap-2 h-12 px-2 box-border bg-muted">
       {window.YUA.isMac && <div className="w-20"></div>}
       <div className="flex-1">{title}</div>
       {icon && <div>{icon}</div>}
