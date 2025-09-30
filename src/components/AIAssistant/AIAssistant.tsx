@@ -231,6 +231,25 @@ export const AIAssistant: React.FC = () => {
     setIsWalking(false)
   }, [cancelAnimation])
 
+  // 根据文件扩展名推断资源类型
+  type ResourceType = 'image' | 'video' | 'audio' | 'text' | 'link' | 'file' | 'document' | 'other'
+  const getResourceTypeFromFilename = (fileName: string): ResourceType => {
+    const ext = (fileName.split('.').pop() || '').toLowerCase()
+    if (!ext) return 'file'
+    const imageExt = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg', 'ico', 'bmp'])
+    const videoExt = new Set(['mp4', 'webm', 'mov', 'avi', 'mkv', 'flv', 'mpeg', 'mpg', 'm4v'])
+    const audioExt = new Set(['mp3', 'wav', 'ogg', 'aac', 'flac', 'm4a', 'opus'])
+    const documentExt = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'md', 'markdown'])
+    const textExt = new Set(['txt', 'csv', 'json', 'yaml', 'yml', 'xml', 'html', 'css', 'js', 'ts', 'jsx', 'tsx'])
+
+    if (imageExt.has(ext)) return 'image'
+    if (videoExt.has(ext)) return 'video'
+    if (audioExt.has(ext)) return 'audio'
+    if (documentExt.has(ext)) return 'document'
+    if (textExt.has(ext)) return 'text'
+    return 'file'
+  }
+
   // 鼠标事件处理（拖动时移动窗口）
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -416,7 +435,7 @@ export const AIAssistant: React.FC = () => {
           const now = Date.now()
           const resource = {
             id,
-            type: 'file' as const,
+            type: getResourceTypeFromFilename(f.name),
             title: f.name,
             filePath: f.path,
             sizeBytes: undefined as number | undefined,
@@ -451,10 +470,11 @@ export const AIAssistant: React.FC = () => {
           // if (f.isDirectory) continue
           const id = (crypto as any).randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
           const now = Date.now()
+          const safeName = f.name || (f.path ? (f.path.split(/[/\\]/).pop() || '') : '')
           const resource = {
-            id,
-            type: 'file' as const,
-            title: f.name,
+            // id,
+            type: getResourceTypeFromFilename(safeName),
+            title: safeName,
             filePath: f.path,
             sizeBytes: undefined as number | undefined,
             collectedAt: now,
@@ -539,10 +559,9 @@ export const AIAssistant: React.FC = () => {
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
         onDropFiles={handleDropFiles}
-        // onDrop={handleDrop}
         customDropzoneInside={<div className="flex items-center justify-center absolute top-2 left-1/2 -translate-x-1/2 p-1 rounded-md bg-primary text-primary-foreground text-xs whitespace-nowrap z-10">{Messages.t('drag')}</div>}
       >
-        {/* <VideoSprite /> */}
+        <VideoSprite />
       </Dropzone>
 
       {/* 状态指示器 */}
