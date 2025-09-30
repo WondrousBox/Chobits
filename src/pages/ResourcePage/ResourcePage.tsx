@@ -18,13 +18,26 @@ import {
 } from "@/components/ui/select"
 import ExplorerGrid from './components/ExplorerGrid'
 import { Button } from '@/components/ui/button'
-import { TbHome } from 'react-icons/tb'
+import { TbHome, TbPhoto, TbVideo, TbMusic, TbFileText, TbLink, TbFile, TbFileDescription, TbDots } from 'react-icons/tb'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 const ResourcePage: React.FC = () => {
   const [list, setList] = useState<ResourceItem[]>([])
   const [workspaces, setWorkspaces] = useState<any[]>([])
   const [wsFilter, setWsFilter] = useState<string>('') // empty means all
   const [typeFilter, setTypeFilter] = useState<string>('') // empty means all types
+
+  const typeOptions: { key: string; label: string; icon: React.ComponentType<{ className?: string }>; }[] = [
+    { key: '', label: '全部', icon: TbHome },
+    { key: 'image', label: '图片', icon: TbPhoto },
+    { key: 'video', label: '视频', icon: TbVideo },
+    { key: 'audio', label: '音频', icon: TbMusic },
+    { key: 'text', label: '文本', icon: TbFileText },
+    { key: 'link', label: '链接', icon: TbLink },
+    { key: 'file', label: '文件', icon: TbFile },
+    { key: 'document', label: '文档', icon: TbFileDescription },
+    { key: 'other', label: '其他', icon: TbDots },
+  ]
 
   const load = async () => {
     try {
@@ -39,7 +52,13 @@ const ResourcePage: React.FC = () => {
     let mounted = true
       ; (async () => {
         const ws = await window.YUA.workspace['workspace:list']({ filter: { deletedAt: 0 }, limit: 100, offset: 0 })
-        if (mounted) setWorkspaces(ws || [])
+        if (mounted) {
+          setWorkspaces(ws || [])
+          try {
+            const defaultId = Array.isArray(ws) ? (ws.find((w: any) => w.isDefault === 1)?.id) : undefined
+            if (!wsFilter && defaultId) setWsFilter(defaultId)
+          } catch { /* noop */ }
+        }
       })()
     return () => { mounted = false }
   }, [])
@@ -84,21 +103,25 @@ const ResourcePage: React.FC = () => {
       <div className='flex h-full'>
         <div className='w-12 h-full flex flex-col items-center box-border bg-muted space-y-1'>
           <SidebarTrigger />
-          <Button size={"icon"} onClick={() => setTypeFilter('')}>
-            <TbHome />
-          </Button>
-          <Button size={"icon"} variant={"outline"} onClick={() => setTypeFilter('')}>
-            <TbHome />
-          </Button>
-          <Button size={"icon"} variant={"outline"} onClick={() => setTypeFilter('')}>
-            <TbHome />
-          </Button>
-          <Button size={"icon"} variant={"outline"} onClick={() => setTypeFilter('')}>
-            <TbHome />
-          </Button>
-          <Button size={"icon"} variant={"outline"} onClick={() => setTypeFilter('')}>
-            <TbHome />
-          </Button>
+          <TooltipProvider delayDuration={0}>
+            {typeOptions.map(({ key, label, icon: Icon }) => (
+              <Tooltip key={key || 'all'}>
+                <TooltipTrigger asChild>
+                  <Button
+                    aria-label={label}
+                    size={"icon"}
+                    variant={typeFilter === key ? "default" : "outline"}
+                    onClick={() => setTypeFilter(prev => (prev === key ? '' : key))}
+                  >
+                    <Icon />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  <span>{label}</span>
+                </TooltipContent>
+              </Tooltip>
+            ))}
+          </TooltipProvider>
         </div>
         <div className='flex-1 h-full bg-secondary'>
           <div className='flex items-center justify-between h-12 px-2'>
