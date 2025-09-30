@@ -1,5 +1,5 @@
 import { ipcRenderer } from 'electron';
-import { IPCParams } from '../type';
+import { IPCParams, PartialByKey } from '../type';
 
 export type Resource = {
   id: string;
@@ -36,7 +36,7 @@ export type Resource = {
 };
 
 export type ResourceBridgeParams = {
-  'addResource': IPCParams<[{ resource: Resource }], { success: true }>;
+  'addResource': IPCParams<[{ resource: PartialByKey<Resource, "id"> }], { success: true }>;
   'listResource': IPCParams<[void], Resource[]>;
   'getResource': IPCParams<[{ id: string }], Resource | undefined>;
   'deleteResource': IPCParams<[{ id: string }], { success: true }>;

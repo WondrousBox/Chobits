@@ -20,6 +20,30 @@ interface DropzoneProps {
 
 function Dropzone({ children, customDropzone, customDropzoneInside, className, onDropFiles, onDragEnter, onDragLeave, onDragOver, onDrop }: DropzoneProps) {
   const { t } = useTranslation();
+  const getExt = (nameOrPath?: string) => {
+    if (!nameOrPath) return undefined;
+    const trimmed = nameOrPath.replace(/[\\/]+$/, "");
+    const base = trimmed.split(/[/\\]/).pop() || "";
+    if (!base) return undefined;
+    const parts = base.split(".");
+    if (parts.length <= 1) return undefined;
+    return parts.pop()?.toLowerCase();
+  }
+
+  const getTypeFromExt = (ext?: string) => {
+    if (!ext) return "file" as const;
+    const image = new Set(["jpg", "jpeg", "png", "gif", "webp", "avif", "svg", "ico", "bmp"]);
+    const video = new Set(["mp4", "webm", "mov", "avi", "mkv", "flv", "mpeg", "mpg", "m4v"]);
+    const audio = new Set(["mp3", "wav", "ogg", "aac", "flac", "m4a", "opus"]);
+    const document = new Set(["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "md", "markdown"]);
+    const text = new Set(["txt", "csv", "json", "yaml", "yml", "xml", "html", "css", "js", "ts", "jsx", "tsx"]);
+    if (image.has(ext)) return "image" as const;
+    if (video.has(ext)) return "video" as const;
+    if (audio.has(ext)) return "audio" as const;
+    if (document.has(ext)) return "document" as const;
+    if (text.has(ext)) return "text" as const;
+    return "file" as const;
+  }
   const { getRootProps, isDragActive } = useDropzone({
     noClick: true,
     noKeyboard: true,
@@ -32,12 +56,18 @@ function Dropzone({ children, customDropzone, customDropzoneInside, className, o
       console.log(acceptedFiles, fileRejections, event);
 
       if (acceptedFiles.length === 0) { return; }
-      const fl: SelectedResourceFileType[] = acceptedFiles.map(i => ({
-        path: i.path,
-        isUrl: false,
-        name: i.name,
-        size: i.size,
-      }));
+      const fl: SelectedResourceFileType[] = acceptedFiles.map(i => {
+        const ext = getExt(i.name || (i as any).path);
+        const type = getTypeFromExt(ext);
+        return {
+          path: (i as any).path,
+          name: i.name,
+          size: i.size,
+          extension: ext,
+          type,
+          file: i,
+        };
+      });
       console.log(fl);
       onDrop?.(event as any);
       onDropFiles?.(fl);

@@ -11,13 +11,15 @@ export interface ErrorType {
 
 
 export type ResourceTypes =
-  | "doc"
-  | "audio"
-  | "video"
   | "image"
-  | "subtitle"
+  | "video"
+  | "audio"
+  | "text"
   | "file"
-  | "url";
+  | "document"
+  | "link"
+  | "other";
+
 
 export type SelectedResourceFileType = {
   _id?: string;
@@ -27,7 +29,7 @@ export type SelectedResourceFileType = {
   size?: number;
   type?: ResourceTypes;
   extension?: string;
-  isUrl?: boolean;
+  file?: File;
 };
 
 export interface ResourceItem {
