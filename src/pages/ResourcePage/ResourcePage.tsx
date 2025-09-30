@@ -39,6 +39,15 @@ const ResourcePage: React.FC = () => {
     { key: 'other', label: '其他', icon: TbDots },
   ]
 
+  const visibleTypes = useMemo(() => {
+    const rows = list.filter((r: any) => !wsFilter || r.workspaceId === wsFilter)
+    const set = new Set<string>()
+    for (const r of rows) {
+      if (r?.type) set.add(r.type)
+    }
+    return set
+  }, [list, wsFilter])
+
   const load = async () => {
     try {
       const rows = await window.YUA.resource['listResource']()
@@ -104,7 +113,9 @@ const ResourcePage: React.FC = () => {
         <div className='w-12 h-full flex flex-col items-center box-border bg-muted space-y-1'>
           <SidebarTrigger />
           <TooltipProvider delayDuration={0}>
-            {typeOptions.map(({ key, label, icon: Icon }) => (
+            {typeOptions
+              .filter(({ key }) => key === '' || visibleTypes.has(key))
+              .map(({ key, label, icon: Icon }) => (
               <Tooltip key={key || 'all'}>
                 <TooltipTrigger asChild>
                   <Button
