@@ -137,13 +137,13 @@ const WorkspacePage: React.FC = () => {
         {error && <div className='text-red-500 text-sm'>{error}</div>}
         {filtered.map(ws => (
           <div key={ws.id} className='p-3 rounded border bg-card text-card-foreground flex flex-col gap-2 transition-shadow hover:shadow-md relative'>
-            {ws.isDefault === 1 && (
-              <div className='absolute top-0 left-0 w-8 h-8'>
-                <TbStarFilled className='absolute top-1 left-1 w-4 h-4 text-primary drop-shadow' />
-              </div>
-            )}
             <div className='flex items-center justify-between'>
               <div className='font-semibold text-sm flex items-center gap-2'>
+                {ws.isDefault === 1 && (
+                  <div className='text-primary bg-primary/20 px-2 py-1 rounded-md text-xs'>
+                    默认
+                  </div>
+                )}
                 {editingId === ws.id ? (
                   <Input
                     autoFocus
