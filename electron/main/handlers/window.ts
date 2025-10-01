@@ -388,14 +388,29 @@ export function initWindowHandlers(win: BrowserWindow) {
     }
   })
 
-  ipcMain.handle('openWindow', async (_: IpcMainInvokeEvent, key: WindowKey) => {
+  ipcMain.handle('openWindow', async (_: IpcMainInvokeEvent, key: WindowKey, payload?: any) => {
     if (!win) return false
     try {
-      await windowManager.createOrShow(key)
+      if (payload) {
+        (globalThis as any).__lastResourcePreviewPayload = (globalThis as any).__lastResourcePreviewPayload || {};
+        (globalThis as any).__lastResourcePreviewPayload[key] = payload
+      }
+      await windowManager.createOrShow(key, payload)
       return true
     } catch {
       return false
     }
+  })
+
+  ipcMain.handle('openWindowReady', (_: IpcMainInvokeEvent, key: WindowKey) => {
+    try {
+      const payload = ((globalThis as any).__lastResourcePreviewPayload || {})[key]
+      if (payload) _.sender.send('openWindowReadyData', payload)
+    } catch { }
+  })
+
+  ipcMain.handle('getWindowPayload', (_: IpcMainInvokeEvent, key: WindowKey) => {
+    try { return ((globalThis as any).__lastResourcePreviewPayload || {})[key] || null } catch { return null }
   })
 
   ipcMain.handle('closeWindow', async (_: IpcMainInvokeEvent, key: WindowKey) => {
@@ -416,7 +431,7 @@ export function initWindowHandlers(win: BrowserWindow) {
         browserWindow.minimize()
         return true
       }
-    } catch {}
+    } catch { }
     return false
   })
 
@@ -427,7 +442,7 @@ export function initWindowHandlers(win: BrowserWindow) {
         if (browserWindow.isMaximized()) browserWindow.restore(); else browserWindow.maximize()
         return { maximized: browserWindow.isMaximized() }
       }
-    } catch {}
+    } catch { }
     return { maximized: false }
   })
 
@@ -438,7 +453,7 @@ export function initWindowHandlers(win: BrowserWindow) {
         browserWindow.close()
         return true
       }
-    } catch {}
+    } catch { }
     return false
   })
 
@@ -448,7 +463,7 @@ export function initWindowHandlers(win: BrowserWindow) {
       if (browserWindow && !browserWindow.isDestroyed()) {
         return browserWindow.isMaximized()
       }
-    } catch {}
+    } catch { }
     return false
   })
 
@@ -458,11 +473,11 @@ export function initWindowHandlers(win: BrowserWindow) {
       if (browserWindow && !browserWindow.isDestroyed()) {
         return {
           minimizable: browserWindow.isMinimizable?.() ?? true,
-            maximizable: browserWindow.isMaximizable?.() ?? true,
-            resizable: browserWindow.isResizable?.() ?? true,
+          maximizable: browserWindow.isMaximizable?.() ?? true,
+          resizable: browserWindow.isResizable?.() ?? true,
         }
       }
-    } catch {}
+    } catch { }
     return { minimizable: false, maximizable: false, resizable: false }
   })
 }

@@ -13,6 +13,7 @@ export type WindowKey =
   | 'workspace'
   | 'assistantPanel'
   | 'modelManager'
+  | 'resourcePreview'
 
 export interface WindowConfig {
   routeHash: string | (() => string)
@@ -212,6 +213,40 @@ export const windowConfigs: WindowConfigMap = {
       resizable: false,
       alwaysOnTop: false,
       skipTaskbar: false,
+      show: false,
+      autoHideMenuBar: true,
+      webPreferences: { nodeIntegration: true, contextIsolation: true },
+    },
+  },
+  resourcePreview: {
+    routeHash: 'resource-preview',
+    parent: 'main',
+    autoCenterOn: 'parent-display',
+    showOnReady: false,
+    // closeOnBlur: true,
+    openDevTools: true,
+    options: {
+      width: 600,
+      height: 420,
+      // Mac 保留系统 traffic lights；Windows 使用自定义标题栏（frameless）
+      ...(process.platform === 'darwin'
+        ? {
+          titleBarStyle: 'hiddenInset' as const,
+          titleBarOverlay: true,
+          trafficLightPosition: {
+            x: 20,
+            y: HEADER_COMMANDS_HEIGHT / 2 - MACOS_TRAFFIC_LIGHTS_HEIGHT / 2,
+          },
+          frame: true,
+        }
+        : {
+          frame: false,
+        }),
+      transparent: false,
+      resizable: true,
+      alwaysOnTop: false,
+      skipTaskbar: false,
+      backgroundColor: '#ffffff',
       show: false,
       autoHideMenuBar: true,
       webPreferences: { nodeIntegration: true, contextIsolation: true },
