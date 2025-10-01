@@ -16,6 +16,7 @@ export type ResourceTypes =
   | "audio"
   | "text"
   | "file"
+  | "subtitle"
   | "document"
   | "link"
   | "other";

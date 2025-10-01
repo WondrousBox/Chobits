@@ -45,6 +45,10 @@ export type ResourceBridgeParams = {
   'revealResource': IPCParams<[{ id: string }], { success: boolean }>;
   'renameResource': IPCParams<[{ id: string; newName: string; renameFile?: boolean }], { success: boolean; fileRenamed?: boolean; newPath?: string }>;
   'moveResourcesToWorkspace': IPCParams<[{ ids: string[]; workspaceId: string }], { moved: number }>;
+  /** 上传原始文件数据到主进程，返回保存后的本地路径；若重复（同名且 hash 相同）则 duplicate=true */
+  'uploadResourceFile': IPCParams<[
+    { fileName: string; data: ArrayBuffer }
+  ], { success: boolean; filePath?: string; error?: string; duplicate?: boolean; hash?: string }>;
 };
 
 const methods: Array<keyof ResourceBridgeParams> = [
@@ -57,6 +61,7 @@ const methods: Array<keyof ResourceBridgeParams> = [
   'revealResource',
   'renameResource',
   'moveResourcesToWorkspace',
+  'uploadResourceFile',
 ];
 
 export type ResourceBridgeType = {
