@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { WorkspacesRepo } from '../db/repositories';
+import { addAllowedResourceRoot, addWorkspaceResourceRoot } from '../resource-protocol';
 
 function ensureDirSync(p: string) {
   if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
@@ -17,6 +18,12 @@ export function initWorkspaceHandlers(_win: BrowserWindow) {
     const p = ws.rootPath;
     const existed = fs.existsSync(p);
     if (!existed) ensureDirSync(p);
+    try {
+      const resDir = path.join(p, 'resources')
+      ensureDirSync(resDir)
+      addAllowedResourceRoot(resDir)
+      if (data?.id) addWorkspaceResourceRoot(data.id, resDir)
+    } catch {}
     return { success: true, data };
   });
 
@@ -34,6 +41,14 @@ export function initWorkspaceHandlers(_win: BrowserWindow) {
 
   ipcMain.handle('workspace:setDefault', async (_e, payload: { id: string }) => {
     const data = await WorkspacesRepo.setDefault(payload.id);
+    try {
+      if (data?.rootPath) {
+        const resDir = path.join(data.rootPath, 'resources')
+        ensureDirSync(resDir)
+        addAllowedResourceRoot(resDir)
+        if (data.id) addWorkspaceResourceRoot(data.id, resDir)
+      }
+    } catch {}
     return { success: true, data };
   });
 

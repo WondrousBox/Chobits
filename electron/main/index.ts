@@ -1,4 +1,5 @@
 import { app, BrowserWindow, shell, ipcMain, globalShortcut } from 'electron'
+import { setupResourceProtocol, addAllowedResourceRoot, addWorkspaceResourceRoot } from './resource-protocol'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -97,12 +98,29 @@ async function createWindow() {
 
   initHandlers(win);
   try { windowManager.init(win, { preloadPath: (win as any).__preloadPath }) } catch {}
+  // (workspace resource root addition moved to app.whenReady after protocol setup)
 
   // Auto update
   update(win)
 }
 
 app.whenReady().then(async () => {
+  // Setup custom resource protocol (modern protocol.handle API)
+  try {
+    await setupResourceProtocol()
+  } catch (e) {
+    console.warn('[protocol res] setup failed', e)
+  }
+  // Add workspace root if exists
+  try {
+    const { WorkspacesRepo } = await import('./db/repositories')
+    const ws = await WorkspacesRepo.getDefault()
+    if (ws?.rootPath) {
+      const resRoot = path.join(ws.rootPath, 'resources')
+      addAllowedResourceRoot(resRoot)
+      addWorkspaceResourceRoot(ws.id, resRoot)
+    }
+  } catch (e) { console.warn('[protocol res] add workspace root failed', e) }
   await createWindow()
   // Register global shortcut for assistant panel toggle
   try {
