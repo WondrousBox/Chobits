@@ -10,6 +10,7 @@ import WorkspaceWizard from './pages/WorkspacePage/components/WorkspaceWizard'
 import WorkspacePage from './pages/WorkspacePage/WorkspacePage'
 import AssistantPanel from './pages/AssistantPanel/AssistantPanel'
 import ModelPage from './pages/ModelPage/ModelPage'
+import ResourcePreviewWindow from '@/pages/ResourcePage/ResourcePreviewWindow'
 
 function App() {
   return (
@@ -26,6 +27,7 @@ function App() {
           <Route path="/workspace" element={<WorkspacePage />} />
           <Route path="/assistant-panel" element={<AssistantPanel />} />
           <Route path="/model-manager" element={<ModelPage />} />
+          <Route path="/resource-preview" element={<ResourcePreviewWindow />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

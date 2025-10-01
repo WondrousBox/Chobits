@@ -38,10 +38,20 @@ export class WindowManager {
     return w && !w.isDestroyed() ? w : null
   }
 
-  async createOrShow(key: WindowKey) {
+  async createOrShow(key: WindowKey, payload?: any): Promise<BrowserWindow | null> {
     let w = this.get(key)
     if (!w) w = await this.create(key)
     if (!w) return null
+    if (payload) {
+      // 等待 ready 后发送数据
+      if (w.webContents.isLoading()) {
+        w.webContents.once('did-finish-load', () => {
+          try { w.webContents.send('openWindowReadyData', payload) } catch { }
+        })
+      } else {
+        try { w.webContents.send('openWindowReadyData', payload) } catch { }
+      }
+    }
     try { if (!w.isVisible()) w.show() } catch { }
     try { w.focus() } catch { }
     return w
@@ -60,9 +70,9 @@ export class WindowManager {
 
     // Broadcast maximize / unmaximize state changes to renderer so UI can update controls
     try {
-      w.on('maximize', () => { try { w.webContents.send('window-maximize-changed', true) } catch {} })
-      w.on('unmaximize', () => { try { w.webContents.send('window-maximize-changed', false) } catch {} })
-    } catch {}
+      w.on('maximize', () => { try { w.webContents.send('window-maximize-changed', true) } catch { } })
+      w.on('unmaximize', () => { try { w.webContents.send('window-maximize-changed', false) } catch { } })
+    } catch { }
 
     w.once('ready-to-show', () => {
       try {
@@ -89,7 +99,7 @@ export class WindowManager {
         const { x, y, width, height } = display.workArea
         // Defer to next tick to avoid resize flicker before content load
         setTimeout(() => {
-          try { w.setBounds({ x, y, width, height }) } catch {}
+          try { w.setBounds({ x, y, width, height }) } catch { }
         }, 0)
       } catch { }
     }
