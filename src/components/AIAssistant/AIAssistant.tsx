@@ -467,29 +467,47 @@ export const AIAssistant: React.FC = () => {
     (async () => {
       try {
         for (const f of files) {
-          // if (f.isDirectory) continue
-          const id = (crypto as any).randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
-          const now = Date.now()
-          const safeName = f.name || (f.path ? (f.path.split(/[/\\]/).pop() || '') : '')
+          const now = Date.now();
+          const safeName = f.name || (f.path ? (f.path.split(/[/\\]/).pop() || '') : '');
+          let finalFilePath: string | undefined = f.path;
+          let fileHash: string | undefined;
+          // 如果有 File 对象（来自拖拽），优先通过 IPC 上传保存，避免直接引用原路径（可用于未来 web 来源）
+          if (f.file && typeof f.file.arrayBuffer === 'function') {
+            try {
+              const data = await f.file.arrayBuffer();
+              const uploaded = await (window as any).YUA?.resource?.uploadResourceFile?.({ fileName: safeName, data });
+              if (uploaded?.duplicate) {
+                console.info(`文件已存在且内容相同，跳过上传: ${safeName}`);
+                // 可以在这里显示 UI 提示（后续如需）
+                continue; // 跳过资源写入
+              }
+              if (uploaded?.success && uploaded.filePath) {
+                finalFilePath = uploaded.filePath;
+                fileHash = uploaded.hash;
+              }
+            } catch (e) {
+              console.warn('uploadResourceFile failed, fallback to original path', e);
+            }
+          }
           const resource = {
-            // id,
             type: getResourceTypeFromFilename(safeName),
             title: safeName,
-            filePath: f.path,
-            sizeBytes: undefined as number | undefined,
+            filePath: finalFilePath,
+            sizeBytes: f.size,
             collectedAt: now,
             createdAt: now,
             updatedAt: now,
             status: 'new' as const,
-          }
+            ...(fileHash ? { metadata: JSON.stringify({ hashSha256: fileHash }) } : {}),
+          };
           try {
-            await window.YUA.resource.addResource({ resource })
+            await window.YUA.resource.addResource({ resource });
           } catch (e) {
-            console.warn('addResource failed', e)
+            console.warn('addResource failed', e);
           }
         }
-      } catch (e) { console.warn('batch resource add failed', e) }
-    })()
+      } catch (e) { console.warn('batch resource add failed', e); }
+    })();
   }
 
   const handleContextMenu = (e: React.MouseEvent) => {

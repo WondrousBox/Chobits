@@ -2,9 +2,10 @@ import { BrowserWindow, ipcMain, shell } from 'electron';
 import { ResourcesRepo, WorkspacesRepo } from '../db/repositories';
 import { embeddingQueue } from '../embedding/queue';
 import { chunkText } from '../embedding/chunker';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
+import * as fscb from 'node:fs';
 
 export function initResourceHandlers(_win: BrowserWindow) {
   ipcMain.handle('addResource', async (_event, payload: { resource: any }) => {
@@ -144,5 +145,52 @@ export function initResourceHandlers(_win: BrowserWindow) {
       ...(newPath ? { filePath: newPath } : {}),
     } as any);
     return { success: true, fileRenamed, newPath, data: updated };
+  });
+
+  // 新增：直接从渲染进程接收文件二进制并保存到默认工作空间 resources 目录
+  ipcMain.handle('uploadResourceFile', async (_event, payload: { fileName: string; data: ArrayBuffer }) => {
+    try {
+      const { fileName, data } = payload || { fileName: '', data: new ArrayBuffer(0) };
+      if (!fileName || !data) return { success: false, error: 'invalid-params' };
+      const ws = await WorkspacesRepo.getDefault();
+      const baseDir = ws?.rootPath ? path.join(ws.rootPath, 'resources') : path.join(process.cwd(), 'uploads');
+      await fs.mkdir(baseDir, { recursive: true });
+
+      const incomingBuffer = Buffer.from(data as any);
+      const incomingHash = createHash('sha256').update(incomingBuffer).digest('hex');
+
+      let target = path.join(baseDir, fileName);
+      const ext = path.extname(fileName);
+      const nameNoExt = path.basename(fileName, ext);
+
+      // 若存在同名文件，检查 hash；相同则视为重复直接返回
+      if (fscb.existsSync(target)) {
+        try {
+          const existHash = await new Promise<string>((resolve, reject) => {
+            const h = createHash('sha256');
+            const rs = fscb.createReadStream(target);
+            rs.on('error', reject);
+            rs.on('data', (chunk) => h.update(chunk));
+            rs.on('end', () => resolve(h.digest('hex')));
+          });
+          if (existHash === incomingHash) {
+            return { success: false, duplicate: true, filePath: target, hash: incomingHash, error: 'duplicate' };
+          }
+        } catch (e) { /* ignore hash errors and proceed to rename */ }
+      }
+
+      // 仅当同名但不同 hash，执行重命名逻辑避免覆盖
+      let counter = 1;
+      while (fscb.existsSync(target)) {
+        target = path.join(baseDir, `${nameNoExt}(${counter})${ext}`);
+        counter++;
+      }
+
+      await fs.writeFile(target, incomingBuffer);
+      return { success: true, filePath: target, hash: incomingHash };
+    } catch (e: any) {
+      console.warn('uploadResourceFile failed', e);
+      return { success: false, error: e?.message || 'unknown-error' };
+    }
   });
 }
