@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { makeResSrc, isImageFile, isVideoFile, isAudioFile } from '@/lib/resourceProtocol'
 import type { ResourceItem } from '@/types'
+import { Button } from '@/components/ui/button'
+import DragAbleTitle from '@/components/common/DragAbleTitle'
 
-interface PreviewData extends ResourceItem {}
+interface PreviewData extends ResourceItem { }
 
 interface IncomingPayload {
   current: PreviewData
@@ -37,7 +39,7 @@ const ResourcePreviewWindow: React.FC = () => {
   useEffect(() => {
     const handler = (_e: any, payload: IncomingPayload | PreviewData) => {
       console.log(payload);
-      
+
       if ((payload as any).current) {
         const p = payload as IncomingPayload
         setData(p.current)
@@ -49,12 +51,12 @@ const ResourcePreviewWindow: React.FC = () => {
         setIndex(-1)
       }
       // 重置媒体
-      try { if (audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0 } } catch {}
-      try { if (videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime = 0 } } catch {}
+      try { if (audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0 } } catch { }
+      try { if (videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime = 0 } } catch { }
       // 轻微延迟后自动播放
-      setTimeout(()=> {
-        try { videoRef.current?.play()?.catch(()=>{}) } catch {}
-        try { audioRef.current?.play()?.catch(()=>{}) } catch {}
+      setTimeout(() => {
+        try { videoRef.current?.play()?.catch(() => { }) } catch { }
+        try { audioRef.current?.play()?.catch(() => { }) } catch { }
       }, 60)
     }
     // @ts-ignore
@@ -69,14 +71,14 @@ const ResourcePreviewWindow: React.FC = () => {
             // 模拟事件处理逻辑
             handler(null, cached)
           }
-        } catch {}
+        } catch { }
       }
     }, 120)
-    
+
     console.log(
       "ResourcePreviewWindow mounted with data: "
     );
-    
+
     window.YUA.window.openWindowReady('resourcePreview')
     return () => {
       // @ts-ignore
@@ -87,7 +89,7 @@ const ResourcePreviewWindow: React.FC = () => {
 
   // 加载文本类资源内容（如果是本地文件，尝试 fetch(makeResSrc()) 简单读取）
 
-  useEffect(()=> {
+  useEffect(() => {
     if (!data) { setTextContent(''); return }
     if (data.type === 'text' || data.type === 'document' || data.type === 'file') {
       // 优先使用 contentText
@@ -104,8 +106,8 @@ const ResourcePreviewWindow: React.FC = () => {
           fetch(src)
             .then(r => r.text())
             .then(t => setTextContent(t.slice(0, 20000)))
-            .catch(()=> setTextContent('（无法加载文本内容）'))
-            .finally(()=> setLoadingText(false))
+            .catch(() => setTextContent('（无法加载文本内容）'))
+            .finally(() => setLoadingText(false))
           return
         }
       }
@@ -118,7 +120,7 @@ const ResourcePreviewWindow: React.FC = () => {
   // END: resource subscription
 
   // 键盘快捷键
-  useEffect(()=> {
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -127,10 +129,10 @@ const ResourcePreviewWindow: React.FC = () => {
       if (e.key === ' ' || e.code === 'Space') {
         if (audioRef.current) {
           e.preventDefault()
-          if (audioRef.current.paused) audioRef.current.play().catch(()=>{}); else audioRef.current.pause()
+          if (audioRef.current.paused) audioRef.current.play().catch(() => { }); else audioRef.current.pause()
         } else if (videoRef.current) {
           e.preventDefault()
-          if (videoRef.current.paused) videoRef.current.play().catch(()=>{}); else videoRef.current.pause()
+          if (videoRef.current.paused) videoRef.current.play().catch(() => { }); else videoRef.current.pause()
         }
       }
       if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && (audioRef.current || videoRef.current)) {
@@ -138,7 +140,7 @@ const ResourcePreviewWindow: React.FC = () => {
         if (media) {
           e.preventDefault()
           const delta = e.key === 'ArrowLeft' ? -5 : 5
-          try { media.currentTime = Math.max(0, Math.min(media.duration || Infinity, media.currentTime + delta)) } catch {}
+          try { media.currentTime = Math.max(0, Math.min(media.duration || Infinity, media.currentTime + delta)) } catch { }
         }
       }
       if (e.key === 'PageUp') { e.preventDefault(); go(-1) }
@@ -149,11 +151,6 @@ const ResourcePreviewWindow: React.FC = () => {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [go, list.length])
-
-  const closeWindow = () => {
-    // @ts-ignore
-    window.ipcRenderer?.invoke('window-close-self')
-  }
 
   if (!data) {
     return (
@@ -167,21 +164,24 @@ const ResourcePreviewWindow: React.FC = () => {
   return (
     <div className='w-full h-full flex flex-col bg-background text-foreground overflow-hidden'>
       {/* Header */}
-      <div className='flex items-center justify-between px-3 h-10 shrink-0 border-b bg-muted/40 backdrop-blur-sm select-none gap-3'>
-        <div className='flex items-center gap-2 min-w-0 flex-1'>
-          {list.length > 0 && (
-            <>
-              <button onClick={()=> go(-1)} disabled={!list.length} className='px-2 py-1 text-[11px] rounded-md bg-accent/60 hover:bg-accent disabled:opacity-40'>上一条</button>
-              <button onClick={()=> go(1)} disabled={!list.length} className='px-2 py-1 text-[11px] rounded-md bg-accent/60 hover:bg-accent disabled:opacity-40'>下一条</button>
-              <span className='text-[10px] text-muted-foreground'>{index >=0 ? index + 1 : '-'} / {list.length || '-'}</span>
-            </>
-          )}
-          <div className='text-xs font-medium truncate' title={title}>{title}</div>
-        </div>
-        <div className='flex items-center gap-2'>
-          <button onClick={closeWindow} className='px-2 py-1 text-[11px] rounded-md bg-destructive/80 text-destructive-foreground hover:bg-destructive transition-colors'>关闭</button>
-        </div>
-      </div>
+      <DragAbleTitle
+        title={<div className='text-xs font-medium truncate'>{title}</div>}
+        actions={
+          <>
+            <div className='flex items-center gap-2 min-w-0 flex-1'>
+              {
+                list.length > 0 && (
+                  <>
+                    <Button onClick={() => go(-1)} disabled={!list.length}>上一条</Button>
+                    <Button onClick={() => go(1)} disabled={!list.length}>下一条</Button>
+                    <span className='text-[10px] text-muted-foreground'>{index >= 0 ? index + 1 : '-'} / {list.length || '-'}</span>
+                  </>
+                )
+              }
+            </div>
+          </>
+        }
+      />
       {/* Content */}
       <div className='flex-1 relative flex items-center justify-center p-2 bg-neutral-950/5'>
         {isImageFile(data.filePath) && fileSrc && (
@@ -199,7 +199,7 @@ const ResourcePreviewWindow: React.FC = () => {
         {!isImageFile(data.filePath) && !isVideoFile(data.filePath) && !isAudioFile(data.filePath) && (
           <div className='text-xs text-muted-foreground max-w-[80%] break-words'>
             <div className='mb-2 font-medium'>资源类型: {data.type}</div>
-            { (data.type === 'text' || textContent) && (
+            {(data.type === 'text' || textContent) && (
               <div className='w-full max-h-[70vh] overflow-auto rounded border bg-background/70 p-2 text-left whitespace-pre-wrap font-mono text-[11px] leading-relaxed shadow-inner'>
                 {loadingText ? '加载中…' : (textContent || '（无文本内容）')}
               </div>
