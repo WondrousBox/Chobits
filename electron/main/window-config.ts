@@ -25,6 +25,12 @@ export interface WindowConfig {
   closeOnBlur?: boolean
   follower?: boolean
   parent?: 'main' | undefined
+  /**
+   * If true, the window will open maximized on first show.
+   * - When showOnReady !== false, it maximizes right before showing on ready-to-show to avoid flicker.
+   * - When showOnReady === false, it maximizes on the first manual show.
+   */
+  startMaximized?: boolean
 }
 
 export type WindowConfigMap = Record<WindowKey, WindowConfig>
@@ -118,7 +124,7 @@ export const windowConfigs: WindowConfigMap = {
     showOnReady: true,
     openDevTools: true,
     options: {
-      width: 1024,
+      width: 1300,
       height: 720,
       frame: true,
       transparent: false,
@@ -225,6 +231,7 @@ export const windowConfigs: WindowConfigMap = {
     showOnReady: false,
     // closeOnBlur: true,
     openDevTools: true,
+    startMaximized: true,
     options: {
       width: 600,
       height: 420,
