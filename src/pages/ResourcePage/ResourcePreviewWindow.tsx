@@ -124,7 +124,7 @@ const ResourcePreviewWindow: React.FC = () => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        closeWindow()
+        try { window.YUA.window?.closeWindow('resourcePreview'); } catch { }
       }
       if (e.key === ' ' || e.code === 'Space') {
         if (audioRef.current) {

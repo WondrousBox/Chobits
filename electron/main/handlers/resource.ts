@@ -2,6 +2,7 @@ import { BrowserWindow, ipcMain, shell } from 'electron';
 import { ResourcesRepo, WorkspacesRepo } from '../db/repositories';
 import { embeddingQueue } from '../embedding/queue';
 import { chunkText } from '../embedding/chunker';
+import { generateThumbnailForResource, isTextLikeResource, detectBasicType } from '../utils/thumbnail';
 import { randomUUID, createHash } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
@@ -34,20 +35,45 @@ export function initResourceHandlers(_win: BrowserWindow) {
       }
     } catch { }
 
-    const row = await ResourcesRepo.upsert({ ...res, workspaceId, filePath } as any);
-    // Auto-chunk & enqueue for embedding if text exists
-    const text = res.contentText || res.description || res.title;
+    // Basic file type detection (if not provided)
+    const detected = detectBasicType(filePath, res.type);
+    if (!res.type && detected.type) res.type = detected.type;
+    if (!res.mimeType && detected.mimeType) res.mimeType = detected.mimeType;
 
-    console.log(text);
-    
-    if (typeof text === 'string' && text.trim().length > 0 && row) {
-      const chunks = chunkText(text);
-      const items = chunks.map(c => ({
-        id: `${row.id}#${c.index}`,
-        content: c.content,
-        metadata: { parentId: row.id, chunkIndex: c.index, chunkCount: c.count, source: 'resource' },
-      }));
-      embeddingQueue.enqueue({ items, dim: 384, batchSize: 16 });
+    const row = await ResourcesRepo.upsert({ ...res, workspaceId, filePath } as any);
+
+    // Conditionally enqueue embedding only for text-like resources
+    const isText = isTextLikeResource({ type: res.type, mimeType: res.mimeType, filePath });
+    if (isText) {
+      const text = res.contentText || res.description || res.title;
+      if (typeof text === 'string' && text.trim().length > 0 && row) {
+        try {
+          const chunks = chunkText(text);
+          const items = chunks.map(c => ({
+            id: `${row.id}#${c.index}`,
+            content: c.content,
+            metadata: { parentId: row.id, chunkIndex: c.index, chunkCount: c.count, source: 'resource' },
+          }));
+          embeddingQueue.enqueue({ items, dim: 384, batchSize: 16 });
+        } catch (e) { console.warn('[embedding] enqueue failed', e); }
+      }
+    }
+
+    // Generate thumbnail file (new strategy) if no path present
+    if (row && !(row as any).thumbnailPath) {
+      try {
+        const ws = await WorkspacesRepo.getDefault();
+        const baseDir = ws?.rootPath ? path.join(ws.rootPath, 'resources', '.thumbs') : path.join(process.cwd(), 'uploads', '.thumbs');
+        await fs.mkdir(baseDir, { recursive: true });
+        const thumb = await generateThumbnailForResource({ filePath, type: res.type, title: res.title });
+        if (thumb) {
+          const thumbPath = path.join(baseDir, `${row.id}.png`);
+            try { await fs.writeFile(thumbPath, thumb); } catch (e) { console.warn('[thumbnail] write file failed', e); }
+          await ResourcesRepo.update(row.id, { thumbnailPath: thumbPath } as any);
+          const updated = await ResourcesRepo.getById(row.id);
+          return { success: true, data: updated || row };
+        }
+      } catch (e) { console.warn('[thumbnail] generation failed', e); }
     }
     return { success: true, data: row };
   });
@@ -56,7 +82,23 @@ export function initResourceHandlers(_win: BrowserWindow) {
     return await ResourcesRepo.list({ deletedAt: 0 } as any);
   });
   ipcMain.handle('getResource', async (_event, payload: { id: string }) => {
-    return await ResourcesRepo.getById(payload.id);
+    const r: any = await ResourcesRepo.getById(payload.id);
+    if (!r) return r;
+    // Lazy migrate old blob thumbnail to file if path missing
+    if (r.thumbnail && !r.thumbnailPath) {
+      try {
+        const ws = await WorkspacesRepo.getDefault();
+        const baseDir = ws?.rootPath ? path.join(ws.rootPath, 'resources', '.thumbs') : path.join(process.cwd(), 'uploads', '.thumbs');
+        await fs.mkdir(baseDir, { recursive: true });
+        const thumbPath = path.join(baseDir, `${r.id}.png`);
+        if (!fscb.existsSync(thumbPath)) {
+          await fs.writeFile(thumbPath, r.thumbnail as Buffer);
+        }
+        await ResourcesRepo.update(r.id, { thumbnailPath: thumbPath } as any);
+        r.thumbnailPath = thumbPath;
+      } catch (e) { console.warn('[thumbnail] lazy migrate failed', e); }
+    }
+    return r;
   });
   ipcMain.handle('deleteResource', async (_event, payload: { id: string }) => {
     // Soft delete: mark deletedAt to trigger recycle_bin entry via trigger
