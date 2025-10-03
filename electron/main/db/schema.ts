@@ -98,7 +98,8 @@ export const resources = sqliteTable('resources', {
 
   // 内容载体
   contentText: text('content_text'), // 提取的纯文本内容
-  thumbnail: blob('thumbnail'), // 缩略图二进制
+  thumbnail: blob('thumbnail'), // 缩略图文件路径（新方案，优先使用）
+  thumbnailPath: text('thumbnail_path'), // 缩略图文件路径（新方案，优先使用）
   previewUrl: text('preview_url'), // 远程预览图/视频等
 
   // 分类与组织
