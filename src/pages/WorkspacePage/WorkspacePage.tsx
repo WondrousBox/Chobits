@@ -10,6 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import DragAbleTitle from '@/components/common/DragAbleTitle'
 
 type Workspace = any
 
@@ -119,9 +120,10 @@ const WorkspacePage: React.FC = () => {
 
   return (
     <div className='h-full w-full flex flex-col bg-background text-foreground'>
-      <div className='drag-region flex items-center justify-between px-2 py-2 border-b'>
-        <div className='font-medium pl-20'>工作空间管理 <span className='ml-2 text-xs text-muted-foreground'>{list.length} 个</span></div>
-        <div className='no-drag flex items-center gap-2'>
+      <DragAbleTitle 
+        title={<>工作空间管理 <span className='ml-2 text-xs text-muted-foreground'>{list.length} 个</span></>}
+        actions={
+          <div className='no-drag flex items-center gap-2'>
           <Input
             className='w-48 h-8'
             value={search}
@@ -132,7 +134,8 @@ const WorkspacePage: React.FC = () => {
           <Button size="icon" className='w-8 h-8' variant={"outline"} onClick={load} disabled={loading}><TbRefresh /></Button>
           <Button size="sm" onClick={() => window.YUA.window.openWindow('workspaceWizard')}><TbPlus /> 新建</Button>
         </div>
-      </div>
+        }
+      />
       <div className='flex-1 overflow-auto p-4 space-y-3'>
         {error && <div className='text-red-500 text-sm'>{error}</div>}
         {filtered.map(ws => (
