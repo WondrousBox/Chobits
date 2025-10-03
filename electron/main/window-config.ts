@@ -80,8 +80,8 @@ export const windowConfigs: WindowConfigMap = {
     showOnReady: false,
     openDevTools: true,
     options: {
-      width: 420,
-      height: 480,
+      width: 800,
+      height: 600,
       frame: false,
       transparent: true,
       resizable: false,
