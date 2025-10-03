@@ -163,6 +163,54 @@ export function initResourceHandlers(_win: BrowserWindow) {
     return { success: true };
   });
 
+  // 重建单个资源的缩略图
+  ipcMain.handle('rebuildResourceThumbnail', async (_event, payload: { id: string; size?: number; force?: boolean }) => {
+    const { id, size = 256 } = payload || ({} as any);
+    if (!id) return { success: false, error: 'invalid-id' };
+    const res = await ResourcesRepo.getById(id);
+    if (!res) return { success: false, error: 'not-found' };
+    try {
+      const ws = await WorkspacesRepo.getDefault();
+      const baseDir = ws?.rootPath ? path.join(ws.rootPath, 'resources', '.thumbs') : path.join(process.cwd(), 'uploads', '.thumbs');
+      await fs.mkdir(baseDir, { recursive: true });
+      const thumb = await generateThumbnailForResource({ filePath: (res as any).filePath || undefined, type: (res as any).type, title: (res as any).title }, { size });
+      if (!thumb) return { success: false, error: 'gen-failed' };
+      const thumbPath = path.join(baseDir, `${id}.png`);
+      await fs.writeFile(thumbPath, thumb);
+      const updated = await ResourcesRepo.update(id, { thumbnailPath: thumbPath } as any);
+      return { success: true, data: updated };
+    } catch (e: any) {
+      console.warn('[thumbnail] rebuild failed', e);
+      return { success: false, error: e?.message || 'unknown' };
+    }
+  });
+
+  // 清理默认工作空间下 .thumbs 中的孤儿缩略图（无对应资源）
+  ipcMain.handle('cleanupThumbnails', async () => {
+    try {
+      const ws = await WorkspacesRepo.getDefault();
+      const baseDir = ws?.rootPath ? path.join(ws.rootPath, 'resources', '.thumbs') : path.join(process.cwd(), 'uploads', '.thumbs');
+      await fs.mkdir(baseDir, { recursive: true });
+      const files = await fs.readdir(baseDir);
+      let removed = 0;
+      for (const f of files) {
+        if (!f.endsWith('.png')) continue;
+        const id = f.replace(/\.png$/i, '');
+        try {
+          const exists = await ResourcesRepo.exists(id);
+          if (!exists) {
+            await fs.unlink(path.join(baseDir, f));
+            removed += 1;
+          }
+        } catch { /* ignore */ }
+      }
+      return { success: true, removed };
+    } catch (e: any) {
+      console.warn('[thumbnail] cleanup failed', e);
+      return { success: false, error: e?.message || 'unknown' };
+    }
+  });
+
   ipcMain.handle('renameResource', async (_event, payload: { id: string; newName: string; renameFile?: boolean }) => {
     const { id, newName, renameFile } = payload;
     const res = await ResourcesRepo.getById(id);

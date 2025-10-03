@@ -15,6 +15,7 @@ function isImage(path?: string) { return isImageFile(path) }
 
 const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onClick, innerRef }) => {
   const title = item.title || item.filePath || item.url || item.id
+  const thumbSrc = (item as any).thumbnailPath ? makeResSrc((item as any).thumbnailPath) : undefined
 
   // (deprecated modal) replaced by dedicated preview window
   const isAudio = isAudioFile(item.filePath)
@@ -46,8 +47,8 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
       onClick={handleClick}
       className={`group relative aspect-video w-full overflow-hidden rounded-md border bg-card text-card-foreground shadow-sm transition-all cursor-pointer select-none ${selected ? 'ring-2 ring-primary border-primary/50' : 'hover:shadow-md hover:border-primary/30'} bg-gradient-to-br from-background to-muted`}
     >
-      {isImageFile(item.filePath) && (
-        <img src={item.filePath ? makeResSrc(item.filePath) : ''} alt={title} className='h-full w-full object-cover' draggable={false} />
+      {(thumbSrc || isImageFile(item.filePath)) && (
+        <img src={thumbSrc || (item.filePath ? makeResSrc(item.filePath) : '')} alt={title} className='h-full w-full object-cover' draggable={false} />
       )}
       {isVideoFile(item.filePath) && (
         <video

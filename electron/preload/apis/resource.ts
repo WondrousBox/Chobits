@@ -19,6 +19,7 @@ export type Resource = {
   filePath?: string;
   contentText?: string;
   thumbnail?: ArrayBuffer | Uint8Array;
+  thumbnailPath?: string;
   previewUrl?: string;
   tags?: string; // JSON string
   categories?: string; // JSON string
@@ -45,6 +46,8 @@ export type ResourceBridgeParams = {
   'revealResource': IPCParams<[{ id: string }], { success: boolean }>;
   'renameResource': IPCParams<[{ id: string; newName: string; renameFile?: boolean }], { success: boolean; fileRenamed?: boolean; newPath?: string }>;
   'moveResourcesToWorkspace': IPCParams<[{ ids: string[]; workspaceId: string }], { moved: number }>;
+  'rebuildResourceThumbnail': IPCParams<[{ id: string; size?: number; force?: boolean }], { success: boolean; data?: Resource; error?: string }>;
+  'cleanupThumbnails': IPCParams<[void], { success: boolean; removed?: number; error?: string }>;
   /** 上传原始文件数据到主进程，返回保存后的本地路径；若重复（同名且 hash 相同）则 duplicate=true */
   'uploadResourceFile': IPCParams<[
     { fileName: string; data: ArrayBuffer }
@@ -61,6 +64,8 @@ const methods: Array<keyof ResourceBridgeParams> = [
   'revealResource',
   'renameResource',
   'moveResourcesToWorkspace',
+  'rebuildResourceThumbnail',
+  'cleanupThumbnails',
   'uploadResourceFile',
 ];
 
