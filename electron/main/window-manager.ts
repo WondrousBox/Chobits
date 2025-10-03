@@ -67,6 +67,8 @@ export class WindowManager {
     }
     const w = new BrowserWindow(opts)
     this.registry.set(key, w)
+    // Track first manual show for startMaximized when showOnReady === false
+    let firstManualShowPending = true
 
     // Broadcast maximize / unmaximize state changes to renderer so UI can update controls
     try {
@@ -77,8 +79,11 @@ export class WindowManager {
     w.once('ready-to-show', () => {
       try {
         console.log("ready-to-show", conf.showOnReady)
-
         if (conf.showOnReady === false) return
+        // If configured to start maximized, do it before showing to avoid flicker
+        if (conf.startMaximized) {
+          try { w.maximize() } catch { }
+        }
         w.show()
       } catch { }
     })
@@ -93,7 +98,8 @@ export class WindowManager {
     // Auto-center
     this.autoCenter(w, conf)
 
-    if (conf.fillWorkArea) {
+    // If startMaximized is set, skip manual fillWorkArea adjustments as maximize will handle it
+    if (!conf.startMaximized && conf.fillWorkArea) {
       try {
         const display = screen.getPrimaryDisplay()
         const { x, y, width, height } = display.workArea
@@ -111,6 +117,19 @@ export class WindowManager {
 
     if (conf.openDevTools) {
       maybeOpenDevTools(w)
+    }
+
+    // When showOnReady is false, consumers may call show() later; maximize on first show if requested
+    if (conf.startMaximized) {
+      try {
+        w.on('show', () => {
+          try {
+            if (!firstManualShowPending) return
+            firstManualShowPending = false
+            if (!w.isMaximized()) w.maximize()
+          } catch { }
+        })
+      } catch { }
     }
 
     return w
