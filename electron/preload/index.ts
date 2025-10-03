@@ -7,6 +7,7 @@ import { trashBridge } from './apis/trash'
 import { workspaceBridge } from './apis/workspace'
 import { modelBridge } from './apis/model'
 import { fileBridge } from './apis/file'
+import { databaseBridge } from './apis/database'
 import {
   arch,
   isLinux,
@@ -57,6 +58,7 @@ contextBridge.exposeInMainWorld('YUA', {
   workspace: workspaceBridge,
   model: modelBridge,
   file: fileBridge,
+  database: databaseBridge,
 })
 
 // --------- Preload scripts loading ---------

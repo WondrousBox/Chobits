@@ -343,35 +343,12 @@ export function initWindowHandlers(win: BrowserWindow) {
   })
 
   // ---------------- Settings Window (独立配置窗口) ------------
-  async function createOrShowSettingsWindow() {
-    if (!win) return false
-    try {
-      let w = windowManager.get('settings')
-      if (!w) {
-        w = await windowManager.create('settings')
-        if (!w) return false
-        settingsWindow = w
-        w.once('ready-to-show', () => { try { w!.show() } catch { } })
-        maybeOpenDevTools(w)
-        w.on('closed', () => { settingsWindow = null })
-      } else { settingsWindow = w }
-      if (settingsWindow && !settingsWindow.isVisible()) settingsWindow.show(); settingsWindow?.focus()
-      return true
-    } catch { return false }
-  }
-
-  ipcMain.handle('openSettingsWindow', async () => {
-    return createOrShowSettingsWindow()
-  })
 
   ipcMain.handle('suggestWorkspacePath', async () => getSuggestWorkspacePath())
 
   // ---------------- Menu Command (转发给主渲染) ---------------
   ipcMain.on('menu-command', (_e, action: string) => {
     switch (action) {
-      case 'open-settings':
-        createOrShowSettingsWindow()
-        return
       case 'quit-app':
         try { app.quit() } catch { }
         return

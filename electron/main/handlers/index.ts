@@ -8,6 +8,7 @@ import { initTrashHandlers } from './trash';
 import { initWorkspaceHandlers } from './workspace';
 import { initModelHandlers } from './model';
 import { initFileHandlers } from './file';
+import { initDatabaseHandlers } from './database';
 
 export function initHandlers(win: BrowserWindow) {
 
@@ -22,4 +23,5 @@ export function initHandlers(win: BrowserWindow) {
   initWorkspaceHandlers(win);
   initModelHandlers(win);
   initFileHandlers(win);
+  initDatabaseHandlers(win);
 }
