@@ -39,5 +39,6 @@ export interface ResourceItem {
   type: string
   filePath?: string
   url?: string
+  thumbnailPath?: string
   createdAt?: number
 }
