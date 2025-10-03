@@ -20,8 +20,6 @@ type WindowBridgeParams = {
   "openFileListWindow": IPCParams<[Array<{ name: string; path: string; isDirectory: boolean }>], boolean>;
   /** 打开上下文菜单窗口 */
   "openMenuWindow": IPCParams<[void], boolean>;
-  /** 打开设置窗口 */
-  "openSettingsWindow": IPCParams<[void], boolean>;
   "openWindow": IPCParams<[WindowKey, any?], boolean>;
   "openWindowReady": IPCParams<[WindowKey], boolean>;
   "getWindowPayload": IPCParams<[WindowKey], any>;
@@ -52,7 +50,6 @@ const methods: Array<keyof WindowBridgeParams> = [
   "setClickThrough",
   "openFileListWindow",
   "openMenuWindow",
-  "openSettingsWindow",
   "openWindow",
   "openWindowReady",
   "getWindowPayload",

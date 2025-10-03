@@ -6,6 +6,7 @@ import type { TrashBridgeType } from '../electron/preload/apis/trash'
 import type { WorkspaceBridgeType } from '../electron/preload/apis/workspace'
 import type { ModelBridgeType } from '../electron/preload/apis/model'
 import type { FileBridgeType } from '../electron/preload/apis/file'
+import type { DatabaseBridgeType } from '../electron/preload/apis/database'
 
 declare global {
   interface Window {
@@ -30,6 +31,7 @@ declare global {
       workspace: WorkspaceBridgeType
       model: ModelBridgeType
       file: FileBridgeType
+      database: DatabaseBridgeType
     }
     ipcRenderer: any
   }

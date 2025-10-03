@@ -14,7 +14,7 @@ export const AssistantMenu: React.FC = () => {
           <li onClick={() => window.YUA.window.openWindow("recycle")}>🗑️ 回收站</li>
           <li onClick={() => window.YUA.window.openWindow("workspace")}>🗃️ 工作空间</li>
           <li onClick={() => window.YUA.window.openWindow("modelManager")}>🧩 模型管理</li>
-          <li onClick={() => send('open-settings')}>⚙️ 设置</li>
+          <li onClick={() => window.YUA.window.openWindow("settings")}>⚙️ 设置</li>
           <li className='danger' onClick={() => send('quit-app')}>❌ 退出</li>
         </ul>
       </div>
