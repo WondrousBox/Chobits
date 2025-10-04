@@ -3,6 +3,7 @@ import { ResourceItem } from '@/types'
 import { TbCopy, TbCheck, TbStar, TbHeart, TbEye, TbEyeOff, TbClock, TbFile, TbExternalLink, TbCalendar, TbUser, TbTag, TbPlayerPlay } from 'react-icons/tb'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatFileSize, formatDuration, formatTime, getResourceTypeIcon, getStatusColor, getRatingStars, parseTags, parseCategories } from '@/utils/resourceUtils'
+import { makeResSrc } from '@/lib/resourceProtocol'
 
 interface ListItemProps {
   item: ResourceItem
@@ -78,7 +79,7 @@ const ResourceListItem: React.FC<ListItemProps> = ({
       <div className='relative flex-shrink-0 w-16 h-16 rounded-md overflow-hidden bg-muted'>
         {item.thumbnailPath ? (
           <img 
-            src={item.thumbnailPath} 
+            src={makeResSrc(item.thumbnailPath)} 
             alt={item.title || ''} 
             className='w-full h-full object-cover'
           />

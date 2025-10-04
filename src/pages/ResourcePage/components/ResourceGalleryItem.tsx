@@ -175,18 +175,28 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
 
       {/* 媒体内容区域 */}
       <div className='relative h-full w-full'>
-        {(thumbSrc || isImageFile(item.filePath)) && (
-          <img src={thumbSrc || (item.filePath ? makeResSrc(item.filePath) : '')} alt={summary.title} className='h-full w-full object-cover' draggable={false} />
+        {/* 图片资源 - 直接显示 */}
+        {isImageFile(item.filePath) && (
+          <img src={item.filePath ? makeResSrc(item.filePath) : ''} alt={summary.title} className='h-full w-full object-cover' draggable={false} />
         )}
+        
+        {/* 视频资源 - 优先显示封面图，没有封面图则显示占位符 */}
         {isVideoFile(item.filePath) && (
-          <video
-            src={item.filePath ? makeResSrc(item.filePath) : ''}
-            className='h-full w-full object-cover'
-            muted
-            playsInline
-            preload='metadata'
-          />
+          <>
+            {thumbSrc ? (
+              <img src={thumbSrc} alt={summary.title} className='h-full w-full object-cover' draggable={false} />
+            ) : (
+              <div className='flex h-full w-full items-center justify-center bg-gradient-to-br from-purple-900/70 to-purple-700/40 text-white gap-2 text-[11px]'>
+                <span className='inline-flex items-center gap-1 opacity-90'>
+                  <span aria-hidden='true'>🎬</span>
+                  <span className='font-medium'>点击预览视频</span>
+                </span>
+              </div>
+            )}
+          </>
         )}
+        
+        {/* 音频资源 - 显示占位符 */}
         {isAudio && (
           <div className='flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-900/70 to-slate-700/40 text-white gap-2 text-[11px]'>
             <span className='inline-flex items-center gap-1 opacity-90'>
@@ -195,6 +205,8 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
             </span>
           </div>
         )}
+        
+        {/* 其他资源类型 - 显示类型图标 */}
         {!isImageFile(item.filePath) && !isVideoFile(item.filePath) && !isAudioFile(item.filePath) && (
           <div className='flex h-full w-full items-center justify-center text-xs text-muted-foreground'>
             <div className='text-center'>
