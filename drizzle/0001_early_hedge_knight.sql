@@ -1,1 +1,0 @@
-ALTER TABLE `resources` ADD `thumbnail_path` text;
