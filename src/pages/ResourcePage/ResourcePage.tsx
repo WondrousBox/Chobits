@@ -11,7 +11,8 @@ import ExplorerGrid from './components/ExplorerGrid'
 import ResourceListItem from './components/ResourceListItem'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { TbHome, TbPhoto, TbVideo, TbMusic, TbFileText, TbLink, TbFile, TbFileDescription, TbDots, TbList, TbSearch, TbFilter, TbSortAscending, TbSortDescending, TbGrid3X3 } from 'react-icons/tb'
+import { TbHome, TbPhoto, TbVideo, TbMusic, TbFileText, TbLink, TbFile, TbFileDescription, TbDots, TbList, TbSearch, TbFilter, TbSortAscending, TbSortDescending, TbGrid3X3, TbPlus, TbPlayerPlay } from 'react-icons/tb'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 const ResourcePage: React.FC = () => {
   const [list, setList] = useState<ResourceItem[]>([])
@@ -71,16 +72,16 @@ const ResourcePage: React.FC = () => {
 
   const filtered = useMemo(() => {
     let filtered = list.filter((r: any) => !wsFilter || r.workspaceId === wsFilter)
-    
+
     // 类型过滤
     if (typeFilter) {
       filtered = filtered.filter((r: any) => r.type === typeFilter)
     }
-    
+
     // 搜索过滤
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
-      filtered = filtered.filter((r: any) => 
+      filtered = filtered.filter((r: any) =>
         (r.title?.toLowerCase().includes(query)) ||
         (r.description?.toLowerCase().includes(query)) ||
         (r.authorName?.toLowerCase().includes(query)) ||
@@ -89,29 +90,29 @@ const ResourcePage: React.FC = () => {
         (r.tags?.toLowerCase().includes(query))
       )
     }
-    
+
     // 排序
     filtered.sort((a: any, b: any) => {
       let aValue = a[sortField]
       let bValue = b[sortField]
-      
+
       // 处理时间字段
       if (sortField === 'collectedAt' || sortField === 'createdAt') {
         aValue = aValue || 0
         bValue = bValue || 0
       }
-      
+
       // 处理字符串字段
       if (typeof aValue === 'string') {
         aValue = aValue.toLowerCase()
         bValue = (bValue || '').toLowerCase()
       }
-      
+
       if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1
       if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1
       return 0
     })
-    
+
     return filtered
   }, [list, wsFilter, typeFilter, searchQuery, sortField, sortOrder])
 
@@ -180,8 +181,16 @@ const ResourcePage: React.FC = () => {
             共 {filtered.length}/{list.length} 个资源
           </span>
         </div>
-        
+
         <div className='flex items-center gap-2'>
+          {/* 新增按钮 */}
+          <Button
+            size='icon'
+            onClick={() => window.YUA.window.openWindow('assistant')}
+          >
+            <TbPlus />
+          </Button>
+
           {/* 搜索框 */}
           <div className='relative'>
             <TbSearch className='absolute left-2 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4' />
@@ -192,7 +201,7 @@ const ResourcePage: React.FC = () => {
               className='pl-8 w-64'
             />
           </div>
-          
+
           {/* 排序选择器 */}
           <Select value={`${sortField}-${sortOrder}`} onValueChange={(value) => {
             const [field, order] = value.split('-') as [SortField, SortOrder]
@@ -213,7 +222,7 @@ const ResourcePage: React.FC = () => {
               <SelectItem value='rating-asc'>评分 ↑</SelectItem>
             </SelectContent>
           </Select>
-          
+
           {/* 视图模式切换 */}
           <div className='flex border rounded-md'>
             <Button
@@ -231,7 +240,7 @@ const ResourcePage: React.FC = () => {
               <TbList className='w-4 h-4' />
             </Button>
           </div>
-          
+
           {/* 工作空间选择器 */}
           <Select value={wsFilter} onValueChange={setWsFilter}>
             <SelectTrigger className='w-40'>
@@ -254,17 +263,17 @@ const ResourcePage: React.FC = () => {
           {typeOptions
             .filter(({ key }) => key === '' || visibleTypes.has(key))
             .map(({ key, label, icon: Icon }) => (
-            <Button
-              key={key || 'all'}
-              variant={typeFilter === key ? 'default' : 'outline'}
-              size='sm'
-              onClick={() => setTypeFilter(prev => (prev === key ? '' : key))}
-              className='h-8'
-            >
-              <Icon className='w-4 h-4 mr-1' />
-              {label}
-            </Button>
-          ))}
+              <Button
+                key={key || 'all'}
+                variant={typeFilter === key ? 'default' : 'outline'}
+                size='sm'
+                onClick={() => setTypeFilter(prev => (prev === key ? '' : key))}
+                className='h-8'
+              >
+                <Icon className='w-4 h-4 mr-1' />
+                {label}
+              </Button>
+            ))}
         </div>
       </div>
 
@@ -297,33 +306,35 @@ const ResourcePage: React.FC = () => {
       <div className='flex-1 overflow-hidden'>
         {/* 资源展示区域 */}
         <div className='h-full overflow-auto p-4'>
-            {viewMode === 'grid' ? (
-              <ExplorerGrid
-                items={filtered}
-                onDelete={handleDelete}
-                onDeleteMany={handleDeleteMany}
-              />
-            ) : (
-              <div className='space-y-2'>
-                {filtered.map((item) => (
-                  <ResourceListItem
-                    key={item.id}
-                    item={item}
-                    selected={selectedItems.has(item.id)}
-                    onClick={handleItemClick}
-                    onToggleFavorite={handleToggleFavorite}
-                    onToggleVisibility={handleToggleVisibility}
-                  />
-                ))}
-                {filtered.length === 0 && (
-                  <div className='text-center py-12 text-muted-foreground'>
-                    <div className='text-4xl mb-4'>📦</div>
-                    <div>没有找到资源</div>
-                    <div className='text-sm mt-2'>尝试调整筛选条件或添加新资源</div>
-                  </div>
-                )}
-              </div>
-            )}
+          {viewMode === 'grid' ? (
+            <ExplorerGrid
+              items={filtered}
+              onDelete={handleDelete}
+              onDeleteMany={handleDeleteMany}
+              onToggleFavorite={handleToggleFavorite}
+              onToggleVisibility={handleToggleVisibility}
+            />
+          ) : (
+            <div className='space-y-2'>
+              {filtered.map((item) => (
+                <ResourceListItem
+                  key={item.id}
+                  item={item}
+                  selected={selectedItems.has(item.id)}
+                  onClick={handleItemClick}
+                  onToggleFavorite={handleToggleFavorite}
+                  onToggleVisibility={handleToggleVisibility}
+                />
+              ))}
+              {filtered.length === 0 && (
+                <div className='text-center py-12 text-muted-foreground'>
+                  <div className='text-4xl mb-4'>📦</div>
+                  <div>没有找到资源</div>
+                  <div className='text-sm mt-2'>尝试调整筛选条件或添加新资源</div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
