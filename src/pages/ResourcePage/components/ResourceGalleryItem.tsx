@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react'
 import { makeResSrc, isImageFile, isVideoFile, isAudioFile } from '@/lib/resourceProtocol'
 import { ResourceItem } from '@/types'
+import { TbCopy, TbCheck } from 'react-icons/tb'
 
 interface GalleryItemProps {
   item: ResourceItem
@@ -16,6 +17,7 @@ function isImage(path?: string) { return isImageFile(path) }
 const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onClick, innerRef }) => {
   const title = item.title || item.filePath || item.url || item.id
   const thumbSrc = (item as any).thumbnailPath ? makeResSrc((item as any).thumbnailPath) : undefined
+  const [copied, setCopied] = useState(false)
 
   // (deprecated modal) replaced by dedicated preview window
   const isAudio = isAudioFile(item.filePath)
@@ -39,6 +41,19 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
     }
   }, [onClick, item, isAudio, isImageRes, isVideoRes])
 
+  const handleSourceClick = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation() // 阻止事件冒泡，避免触发资源选择
+    if (item.url) {
+      try {
+        await navigator.clipboard.writeText(item.url)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000) // 2秒后重置状态
+      } catch (err) {
+        console.warn('复制链接失败:', err)
+      }
+    }
+  }, [item.url])
+
   return (
     <div
       ref={innerRef}
@@ -47,6 +62,34 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
       onClick={handleClick}
       className={`group relative aspect-video w-full overflow-hidden rounded-md border bg-card text-card-foreground shadow-sm transition-all cursor-pointer select-none ${selected ? 'ring-2 ring-primary border-primary/50' : 'hover:shadow-md hover:border-primary/30'} bg-gradient-to-br from-background to-muted`}
     >
+      {/* 顶部来源信息 */}
+      {(item.domain || item.sourceName || item.authorName) && (
+        <div className='absolute inset-x-0 top-0 z-20 flex items-center justify-between bg-gradient-to-b from-black/80 via-black/40 to-transparent px-2 py-1.5'>
+          <div className='flex items-center gap-1 text-[10px] text-white/90'>
+            {item.domain && (
+              <span className='truncate max-w-[80px] bg-white/20 px-1.5 py-0.5 rounded text-[9px] font-medium'>
+                {item.domain}
+              </span>
+            )}
+            {(item.sourceName || item.authorName) && (
+              <span className='truncate max-w-[100px] text-white/80'>
+                {item.sourceName || item.authorName}
+              </span>
+            )}
+          </div>
+          {item.url && (
+            <button
+              onClick={handleSourceClick}
+              className='flex items-center gap-1 bg-white/20 hover:bg-white/30 px-2 py-1 rounded text-[9px] text-white transition-colors'
+              title={copied ? '已复制!' : '点击复制链接'}
+            >
+              {copied ? <TbCheck className='w-3 h-3' /> : <TbCopy className='w-3 h-3' />}
+              <span className='hidden group-hover:inline'>{copied ? '已复制!' : '复制链接'}</span>
+            </button>
+          )}
+        </div>
+      )}
+
       {(thumbSrc || isImageFile(item.filePath)) && (
         <img src={thumbSrc || (item.filePath ? makeResSrc(item.filePath) : '')} alt={title} className='h-full w-full object-cover' draggable={false} />
       )}
@@ -73,9 +116,12 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
           {item.type}
         </div>
       )}
+      
+      {/* 底部标题 */}
       <div className='absolute inset-x-0 bottom-0 z-10 flex flex-col gap-0.5 bg-gradient-to-t from-black/70 via-black/20 to-transparent px-1.5 pb-1 pt-6'>
         <span className='truncate text-[11px] font-medium text-white drop-shadow'>{title}</span>
       </div>
+      
       {selected && (
         <div className='absolute right-2 top-2 h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[10px] shadow ring-1 ring-black/20'>✓</div>
       )}

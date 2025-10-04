@@ -41,4 +41,9 @@ export interface ResourceItem {
   url?: string
   thumbnailPath?: string
   createdAt?: number
+  // 下载来源信息
+  domain?: string
+  sourceName?: string
+  authorName?: string
+  description?: string
 }
