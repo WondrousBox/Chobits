@@ -35,6 +35,16 @@ export function initVideoDownloadHandlers(win: BrowserWindow) {
   // 开始下载视频
   ipcMain.handle('video-downloader:download', async (event, options) => {
     try {
+      // 如果没有提供videoInfo，先获取视频信息
+      if (!options.videoInfo) {
+        try {
+          const videoInfo = await getVideoInfo(options.url);
+          options.videoInfo = videoInfo;
+        } catch (error) {
+          console.warn('[VideoDownload] Failed to get video info, proceeding without it:', error);
+        }
+      }
+      
       const taskId = await downloadManager.addTask(options);
       return { success: true, data: { taskId } };
     } catch (error) {
