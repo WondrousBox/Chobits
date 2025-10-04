@@ -9,6 +9,7 @@ import { initWorkspaceHandlers } from './workspace';
 import { initModelHandlers } from './model';
 import { initFileHandlers } from './file';
 import { initDatabaseHandlers } from './database';
+import { initVideoDownloadHandlers } from './video-download';
 
 export function initHandlers(win: BrowserWindow) {
 
@@ -24,4 +25,5 @@ export function initHandlers(win: BrowserWindow) {
   initModelHandlers(win);
   initFileHandlers(win);
   initDatabaseHandlers(win);
+  initVideoDownloadHandlers(win);
 }

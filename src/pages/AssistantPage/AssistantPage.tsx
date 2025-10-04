@@ -149,16 +149,50 @@ const AssistantPage: React.FC = () => {
     setTimeout(() => inputRef.current?.focus(), 0)
   }
 
-  const handleDownloadVideo = () => {
+  const handleDownloadVideo = async () => {
     console.log('下载视频:', query)
-    // TODO: 实现视频下载逻辑
-    // 这里可以调用相应的API来处理视频下载
+    try {
+      // 获取视频信息
+      const infoResult = await (window.YUA as any).videoDownloader.getVideoInfo(query)
+      if (!infoResult.success) {
+        console.error('获取视频信息失败:', infoResult.error)
+        return
+      }
+
+      const videoInfo = infoResult.data
+      console.log('视频信息:', videoInfo)
+
+      // 开始下载
+      const downloadResult = await (window.YUA as any).videoDownloader.downloadVideo({
+        url: query,
+        filename: videoInfo.filename || `${videoInfo.title}.${videoInfo.ext}`,
+        destination: './downloads'
+      })
+
+      if (downloadResult.success) {
+        console.log('下载任务已创建:', downloadResult.data.taskId)
+        // 可以在这里添加下载进度监听
+        const removeListener = (window.YUA as any).videoDownloader.onTaskProgress((task: any) => {
+          console.log('下载进度:', task.progress)
+        })
+        // 如果需要，可以在适当的时候调用 removeListener() 来移除监听器
+      } else {
+        console.error('创建下载任务失败:', downloadResult.error)
+      }
+    } catch (error) {
+      console.error('下载视频时出错:', error)
+    }
   }
 
-  const handleAnalyzeWeb = () => {
+  const handleAnalyzeWeb = async () => {
     console.log('分析网页:', query)
-    // TODO: 实现网页分析逻辑
-    // 这里可以调用相应的API来分析网页内容
+    try {
+      // 这里可以实现网页分析逻辑
+      // 例如：获取网页内容、提取关键信息等
+      console.log('网页分析功能待实现')
+    } catch (error) {
+      console.error('分析网页时出错:', error)
+    }
   }
 
   // 监听输入内容识别命令模式和URL
