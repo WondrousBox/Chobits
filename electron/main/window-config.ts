@@ -11,7 +11,7 @@ export type WindowKey =
   | 'resources'
   | 'recycle'
   | 'workspace'
-  | 'assistantPanel'
+  | 'assistant'
   | 'modelManager'
   | 'resourcePreview'
 
@@ -183,7 +183,7 @@ export const windowConfigs: WindowConfigMap = {
       webPreferences: { nodeIntegration: true, contextIsolation: true },
     },
   },
-  assistantPanel: {
+  assistant: {
     routeHash: 'assistant-panel',
     autoCenterOn: 'none',
     showOnReady: false,

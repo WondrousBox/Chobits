@@ -126,11 +126,11 @@ app.whenReady().then(async () => {
   try {
     const reg = globalShortcut.register('CommandOrControl+K', () => {
       try {
-        const existing = windowManager.get('assistantPanel' as any)
+        const existing = windowManager.get('assistant' as any)
         if (existing) {
-          if (existing.isVisible()) existing.close(); else windowManager.show('assistantPanel' as any)
+          if (existing.isVisible()) existing.close(); else windowManager.show('assistant' as any)
         } else {
-          windowManager.createOrShow('assistantPanel' as any)
+          windowManager.createOrShow('assistant' as any)
         }
       } catch {}
     })
