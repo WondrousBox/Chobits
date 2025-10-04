@@ -184,7 +184,7 @@ export const windowConfigs: WindowConfigMap = {
     },
   },
   assistant: {
-    routeHash: 'assistant-panel',
+    routeHash: 'assistant',
     autoCenterOn: 'none',
     showOnReady: false,
     openDevTools: true,
