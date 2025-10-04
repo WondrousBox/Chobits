@@ -457,4 +457,5 @@ export function initWindowHandlers(win: BrowserWindow) {
     } catch { }
     return { minimizable: false, maximizable: false, resizable: false }
   })
+
 }

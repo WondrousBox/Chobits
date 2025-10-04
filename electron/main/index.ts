@@ -46,6 +46,11 @@ let win: BrowserWindow | null = null
 const preload = path.join(__dirname, '../preload/index.mjs')
 const indexHtml = path.join(RENDERER_DIST, 'index.html')
 
+// 获取主窗口的函数
+export function getMainWindow(): BrowserWindow | null {
+  return win && !win.isDestroyed() ? win : null
+}
+
 async function createWindow() {
   win = new BrowserWindow({
     title: 'Main window',

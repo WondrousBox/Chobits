@@ -1,5 +1,6 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import { downloadManager, getVideoInfo, getThumbnail } from './video-downloader';
+import { getMainWindow } from '../index';
 
 export function initVideoDownloadHandlers(win: BrowserWindow) {
   console.log('[VideoDownload] Initializing video download handlers');
@@ -11,9 +12,9 @@ export function initVideoDownloadHandlers(win: BrowserWindow) {
       return { success: true, data: info };
     } catch (error) {
       console.error('[VideoDownload] Failed to get video info:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : String(error) 
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   });
@@ -25,9 +26,9 @@ export function initVideoDownloadHandlers(win: BrowserWindow) {
       return { success: true, data: thumbnail };
     } catch (error) {
       console.error('[VideoDownload] Failed to get thumbnail:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : String(error) 
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   });
@@ -44,14 +45,14 @@ export function initVideoDownloadHandlers(win: BrowserWindow) {
           console.warn('[VideoDownload] Failed to get video info, proceeding without it:', error);
         }
       }
-      
+
       const taskId = await downloadManager.addTask(options);
       return { success: true, data: { taskId } };
     } catch (error) {
       console.error('[VideoDownload] Failed to start download:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : String(error) 
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   });
@@ -63,9 +64,9 @@ export function initVideoDownloadHandlers(win: BrowserWindow) {
       return { success, data: { taskId } };
     } catch (error) {
       console.error('[VideoDownload] Failed to cancel download:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : String(error) 
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   });
@@ -77,9 +78,9 @@ export function initVideoDownloadHandlers(win: BrowserWindow) {
       return { success: true, data: tasks };
     } catch (error) {
       console.error('[VideoDownload] Failed to get tasks:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : String(error) 
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   });
@@ -91,9 +92,9 @@ export function initVideoDownloadHandlers(win: BrowserWindow) {
       return { success: true, data: task };
     } catch (error) {
       console.error('[VideoDownload] Failed to get task:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : String(error) 
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   });
@@ -105,31 +106,81 @@ export function initVideoDownloadHandlers(win: BrowserWindow) {
       return { success: true };
     } catch (error) {
       console.error('[VideoDownload] Failed to cleanup:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : String(error) 
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   });
 
   // 设置下载管理器事件监听器
   downloadManager.on('taskAdded', (task) => {
+    console.log('[VideoDownload] 任务已添加:', task.id);
   });
 
   downloadManager.on('taskStarted', (task) => {
+    console.log('[VideoDownload] 任务已开始:', task.id);
+    try {
+      const mainWindow = getMainWindow();
+      if (mainWindow) {
+        mainWindow.setProgressBar(0);
+      }
+    } catch (error) {
+      console.warn('[VideoDownload] 设置进度条失败:', error);
+    }
   });
 
   downloadManager.on('taskProgress', (task) => {
+    // 发送进度到渲染进程（用于其他UI更新）
     win.webContents.send('video-downloader:task-progress', task);
+
+    if (task.progress && task.progress.percent !== undefined) {
+      try {
+        const mainWindow = getMainWindow();
+        if (mainWindow) {
+          mainWindow.setProgressBar(task.progress.percent / 100);
+          console.log('[VideoDownload] 下载进度:', task.progress.percent + '%');
+        }
+      } catch (error) {
+        console.warn('[VideoDownload] 更新进度条失败:', error);
+      }
+    }
   });
 
   downloadManager.on('taskCompleted', (task) => {
+    console.log('[VideoDownload] 任务已完成:', task.id);
+    try {
+      const mainWindow = getMainWindow();
+      if (mainWindow) {
+        mainWindow.setProgressBar(-1);
+      }
+    } catch (error) {
+      console.warn('[VideoDownload] 重置进度条失败:', error);
+    }
   });
 
   downloadManager.on('taskFailed', (task) => {
+    console.log('[VideoDownload] 任务失败:', task.id, task.error);
+    try {
+      const mainWindow = getMainWindow();
+      if (mainWindow) {
+        mainWindow.setProgressBar(-1);
+      }
+    } catch (error) {
+      console.warn('[VideoDownload] 重置进度条失败:', error);
+    }
   });
 
   downloadManager.on('taskCancelled', (task) => {
+    console.log('[VideoDownload] 任务已取消:', task.id);
+    try {
+      const mainWindow = getMainWindow();
+      if (mainWindow) {
+        mainWindow.setProgressBar(-1);
+      }
+    } catch (error) {
+      console.warn('[VideoDownload] 重置进度条失败:', error);
+    }
   });
 
   console.log('[VideoDownload] Video download handlers initialized');
