@@ -14,7 +14,7 @@ const commandPalette: CommandItem[] = [
   { key: 'search', title: '检索', hint: '对向量库执行语义检索' },
 ]
 
-const AssistantPanel: React.FC = () => {
+const AssistantPage: React.FC = () => {
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const [query, setQuery] = useState('')
   const [isCommandMode, setIsCommandMode] = useState(false)
@@ -33,7 +33,7 @@ const AssistantPanel: React.FC = () => {
     return () => clearTimeout(t)
   }, [])
 
-  const reallyClose = () => { try { window.YUA.window.closeWindow('assistantPanel') } catch { } }
+  const reallyClose = () => { try { window.YUA.window.closeWindow('assistant') } catch { } }
   const close = useCallback(() => {
     if (closing) return
     setClosing(true)
@@ -236,4 +236,4 @@ const AssistantPanel: React.FC = () => {
   )
 }
 
-export default AssistantPanel
+export default AssistantPage

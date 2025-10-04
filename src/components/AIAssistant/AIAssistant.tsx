@@ -555,11 +555,11 @@ export const AIAssistant: React.FC = () => {
             // 未配置模型目录，先打开模型管理窗口让用户设置
             await window.YUA.window.openWindow('modelManager' as any);
           } else {
-            await window.YUA.window.openWindow('assistantPanel' as any);
+            await window.YUA.window.openWindow('assistant' as any);
           }
         } catch {
           // 回退原行为
-          try { await window.YUA.window.openWindow('assistantPanel' as any); } catch { }
+          try { await window.YUA.window.openWindow('assistant' as any); } catch { }
         }
       }}
       // onDrop={handleDrop}
