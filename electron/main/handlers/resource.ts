@@ -211,6 +211,12 @@ export function initResourceHandlers(_win: BrowserWindow) {
     }
   });
 
+  ipcMain.handle('updateResource', async (_event, payload: { id: string; patch: any }) => {
+    const { id, patch } = payload;
+    const updated = await ResourcesRepo.update(id, patch);
+    return { success: true, data: updated };
+  });
+
   ipcMain.handle('renameResource', async (_event, payload: { id: string; newName: string; renameFile?: boolean }) => {
     const { id, newName, renameFile } = payload;
     const res = await ResourcesRepo.getById(id);
