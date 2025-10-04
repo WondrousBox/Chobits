@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import React, { useEffect, useRef, useState, useCallback } from 'react'
-import { TbDotsVertical, TbSend, TbX, TbDownload, TbWorld } from 'react-icons/tb';
+import { TbDotsVertical, TbSend, TbX, TbDownload, TbWorld, TbLoader2 } from 'react-icons/tb';
 
 const actions = ['新对话', '总结文件', '生成代码', '提取要点', '翻译', '重写优化']
 type CommandItem = { key: string; title: string; hint?: string; ext?: string }
@@ -47,6 +47,8 @@ const AssistantPage: React.FC = () => {
   const [closing, setClosing] = useState(false)
   const [showVideoButton, setShowVideoButton] = useState(false)
   const [showWebButton, setShowWebButton] = useState(false)
+  const [isAnalyzingVideo, setIsAnalyzingVideo] = useState(false)
+  const [isAnalyzingWeb, setIsAnalyzingWeb] = useState(false)
 
   // 自动聚焦
   useEffect(() => { setTimeout(() => inputRef.current?.focus(), 10) }, [])
@@ -151,6 +153,7 @@ const AssistantPage: React.FC = () => {
 
   const handleDownloadVideo = async () => {
     console.log('下载视频:', query)
+    setIsAnalyzingVideo(true)
     try {
       // 获取视频信息
       const infoResult = await (window.YUA as any).videoDownloader.getVideoInfo(query)
@@ -170,27 +173,38 @@ const AssistantPage: React.FC = () => {
 
       if (downloadResult.success) {
         console.log('下载任务已创建:', downloadResult.data.taskId)
-        // 可以在这里添加下载进度监听
-        const removeListener = (window.YUA as any).videoDownloader.onTaskProgress((task: any) => {
-          console.log('下载进度:', task.progress)
-        })
-        // 如果需要，可以在适当的时候调用 removeListener() 来移除监听器
+        
+        // 下载任务已创建，进度将由主进程直接处理
+        console.log('下载任务已创建，进度将在主窗口任务栏中显示')
+        
+        // 关闭当前助手窗口
+        setTimeout(() => {
+          close()
+        }, 500) // 延迟500ms让用户看到成功反馈
+        
       } else {
         console.error('创建下载任务失败:', downloadResult.error)
       }
     } catch (error) {
       console.error('下载视频时出错:', error)
+    } finally {
+      setIsAnalyzingVideo(false)
     }
   }
 
   const handleAnalyzeWeb = async () => {
     console.log('分析网页:', query)
+    setIsAnalyzingWeb(true)
     try {
       // 这里可以实现网页分析逻辑
       // 例如：获取网页内容、提取关键信息等
       console.log('网页分析功能待实现')
+      // 模拟分析过程
+      await new Promise(resolve => setTimeout(resolve, 2000))
     } catch (error) {
       console.error('分析网页时出错:', error)
+    } finally {
+      setIsAnalyzingWeb(false)
     }
   }
 
@@ -284,18 +298,40 @@ const AssistantPage: React.FC = () => {
               <Button
                 variant={"outline"}
                 onClick={handleDownloadVideo}
-                className="bg-gradient-to-r from-red-500 to-pink-500 text-white hover:brightness-110 active:scale-95 transition-all"
+                disabled={isAnalyzingVideo}
+                className="bg-gradient-to-r from-red-500 to-pink-500 text-white hover:brightness-110 active:scale-95 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
               >
-                下载视频
+                {isAnalyzingVideo ? (
+                  <>
+                    <TbLoader2 className="animate-spin mr-2" />
+                    分析中...
+                  </>
+                ) : (
+                  <>
+                    <TbDownload className="mr-2" />
+                    下载视频
+                  </>
+                )}
               </Button>
             )}
             {showWebButton && (
               <Button
                 variant={"outline"}
                 onClick={handleAnalyzeWeb}
-                className="bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:brightness-110 active:scale-95 transition-all"
+                disabled={isAnalyzingWeb}
+                className="bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:brightness-110 active:scale-95 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
               >
-                分析网页
+                {isAnalyzingWeb ? (
+                  <>
+                    <TbLoader2 className="animate-spin mr-2" />
+                    分析中...
+                  </>
+                ) : (
+                  <>
+                    <TbWorld className="mr-2" />
+                    分析网页
+                  </>
+                )}
               </Button>
             )}
             <Button
