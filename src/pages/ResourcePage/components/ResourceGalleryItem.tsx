@@ -106,25 +106,6 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
         </div>
         
         <div className='flex items-center gap-1'>
-          {/* 播放按钮 */}
-          {(isAudio || isImageRes || isVideoRes) && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={handlePlayClick}
-                    className='flex items-center gap-1 bg-white/20 hover:bg-white/30 px-1.5 py-0.5 rounded text-[8px] text-white transition-colors'
-                  >
-                    <TbPlayerPlay className='w-3 h-3' />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>播放预览</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-          
           {/* 收藏按钮 */}
           <TooltipProvider>
             <Tooltip>
@@ -193,34 +174,57 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
       </div>
 
       {/* 媒体内容区域 */}
-      {(thumbSrc || isImageFile(item.filePath)) && (
-        <img src={thumbSrc || (item.filePath ? makeResSrc(item.filePath) : '')} alt={summary.title} className='h-full w-full object-cover' draggable={false} />
-      )}
-      {isVideoFile(item.filePath) && (
-        <video
-          src={item.filePath ? makeResSrc(item.filePath) : ''}
-          className='h-full w-full object-cover'
-          muted
-          playsInline
-          preload='metadata'
-        />
-      )}
-      {isAudio && (
-        <div className='flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-900/70 to-slate-700/40 text-white gap-2 text-[11px]'>
-          <span className='inline-flex items-center gap-1 opacity-90'>
-            <span aria-hidden='true'>🎵</span>
-            <span className='font-medium'>点击预览音频</span>
-          </span>
-        </div>
-      )}
-      {!isImageFile(item.filePath) && !isVideoFile(item.filePath) && !isAudioFile(item.filePath) && (
-        <div className='flex h-full w-full items-center justify-center text-xs text-muted-foreground'>
-          <div className='text-center'>
-            <div className='text-2xl mb-1'>{getResourceTypeIcon(item.type)}</div>
-            <div className='text-[10px] capitalize'>{item.type}</div>
+      <div className='relative h-full w-full'>
+        {(thumbSrc || isImageFile(item.filePath)) && (
+          <img src={thumbSrc || (item.filePath ? makeResSrc(item.filePath) : '')} alt={summary.title} className='h-full w-full object-cover' draggable={false} />
+        )}
+        {isVideoFile(item.filePath) && (
+          <video
+            src={item.filePath ? makeResSrc(item.filePath) : ''}
+            className='h-full w-full object-cover'
+            muted
+            playsInline
+            preload='metadata'
+          />
+        )}
+        {isAudio && (
+          <div className='flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-900/70 to-slate-700/40 text-white gap-2 text-[11px]'>
+            <span className='inline-flex items-center gap-1 opacity-90'>
+              <span aria-hidden='true'>🎵</span>
+              <span className='font-medium'>点击预览音频</span>
+            </span>
           </div>
-        </div>
-      )}
+        )}
+        {!isImageFile(item.filePath) && !isVideoFile(item.filePath) && !isAudioFile(item.filePath) && (
+          <div className='flex h-full w-full items-center justify-center text-xs text-muted-foreground'>
+            <div className='text-center'>
+              <div className='text-2xl mb-1'>{getResourceTypeIcon(item.type)}</div>
+              <div className='text-[10px] capitalize'>{item.type}</div>
+            </div>
+          </div>
+        )}
+        
+        {/* 悬停播放按钮 */}
+        {(isAudio || isImageRes || isVideoRes) && (
+          <div className='absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/20'>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={handlePlayClick}
+                    className='flex items-center justify-center w-12 h-12 bg-white/90 hover:bg-white rounded-full shadow-lg transition-all duration-200 hover:scale-110'
+                  >
+                    <TbPlayerPlay className='w-6 h-6 text-gray-800' />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>播放预览</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        )}
+      </div>
       
       {/* 底部信息栏 */}
       <div className='absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-2 py-2'>
