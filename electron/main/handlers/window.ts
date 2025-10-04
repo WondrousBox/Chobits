@@ -6,6 +6,7 @@ import path from 'node:path';
 import { windowManager } from '../window-manager'
 import { WindowKey } from "../window-config";
 import { getSuggestWorkspacePath } from "../utils";
+import { saveWindowState, WindowStateStore } from '../window-state-store';
 
 // Assistant intrinsic size
 const ASSISTANT_WIDTH = 180;
@@ -456,6 +457,33 @@ export function initWindowHandlers(win: BrowserWindow) {
       }
     } catch { }
     return { minimizable: false, maximizable: false, resizable: false }
+  })
+
+  // 窗口状态保存和恢复相关的 IPC 处理器
+  ipcMain.handle('window-save-state', (event: IpcMainInvokeEvent, key: WindowKey) => {
+    try {
+      const browserWindow = BrowserWindow.fromWebContents(event.sender)
+      if (browserWindow && !browserWindow.isDestroyed()) {
+        saveWindowState(browserWindow, key)
+        return true
+      }
+    } catch { }
+    return false
+  })
+
+  ipcMain.handle('window-get-state', (event: IpcMainInvokeEvent, key: WindowKey) => {
+    try {
+      return WindowStateStore.getState(key)
+    } catch { }
+    return null
+  })
+
+  ipcMain.handle('window-clear-state', (event: IpcMainInvokeEvent, key: WindowKey) => {
+    try {
+      WindowStateStore.removeState(key)
+      return true
+    } catch { }
+    return false
   })
 
 }

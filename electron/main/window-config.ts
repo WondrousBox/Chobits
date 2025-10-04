@@ -31,6 +31,10 @@ export interface WindowConfig {
    * - When showOnReady === false, it maximizes on the first manual show.
    */
   startMaximized?: boolean
+  /**
+   * If true, the window will remember its position and size for next time.
+   */
+  rememberState?: boolean
 }
 
 export type WindowConfigMap = Record<WindowKey, WindowConfig>
@@ -238,8 +242,9 @@ export const windowConfigs: WindowConfigMap = {
     autoCenterOn: 'parent-display',
     showOnReady: false,
     // closeOnBlur: true,
-    openDevTools: true,
-    startMaximized: true,
+    // openDevTools: true,
+    // startMaximized: true,
+    rememberState: true,
     options: {
       width: 600,
       height: 420,
