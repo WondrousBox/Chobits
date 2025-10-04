@@ -7,6 +7,7 @@ import path from "node:path";
 import fs from "node:fs";
 
 import ytdlpStatic from "../libs/ytdlp-static";
+import { WorkspacesRepo, ResourcesRepo } from "../db/repositories";
 
 // 默认文件夹配置
 const DEFAULT_FOLDERS = {
@@ -47,6 +48,77 @@ function generateUUID(): string {
 async function downloadImageFromUrl(url: string, filename: string, folder: string, destination?: string): Promise<string> {
   // 简化实现，实际应该下载图片
   return '';
+}
+
+// 获取当前工作空间的资源文件夹路径
+async function getCurrentWorkspaceResourcePath(): Promise<string> {
+  try {
+    const workspace = await WorkspacesRepo.getDefault();
+    if (workspace && workspace.rootPath) {
+      const resourcePath = path.join(workspace.rootPath, 'resources');
+      // 确保目录存在
+      if (!fs.existsSync(resourcePath)) {
+        fs.mkdirSync(resourcePath, { recursive: true });
+      }
+      return resourcePath;
+    }
+  } catch (error) {
+    console.warn('[VideoDownloader] Failed to get workspace resource path:', error);
+  }
+  
+  // 如果获取工作空间失败，回退到默认下载目录
+  const fallbackPath = path.join(process.cwd(), DEFAULT_FOLDERS.download);
+  if (!fs.existsSync(fallbackPath)) {
+    fs.mkdirSync(fallbackPath, { recursive: true });
+  }
+  return fallbackPath;
+}
+
+// 将下载的文件添加到资源数据库
+async function addDownloadedFileToResources(filePath: string, videoInfo: any, workspaceId?: string): Promise<void> {
+  try {
+    const stats = fs.statSync(filePath);
+    const filename = path.basename(filePath);
+    const ext = path.extname(filePath).toLowerCase();
+    
+    // 确定文件类型
+    let type = 'video';
+    if (['.mp3', '.wav', '.flac', '.aac'].includes(ext)) {
+      type = 'audio';
+    } else if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) {
+      type = 'image';
+    }
+
+    // 获取当前工作空间ID
+    let currentWorkspaceId = workspaceId;
+    if (!currentWorkspaceId) {
+      const workspace = await WorkspacesRepo.getDefault();
+      currentWorkspaceId = workspace?.id;
+    }
+
+    // 添加到资源数据库
+    await ResourcesRepo.upsert({
+      type,
+      title: videoInfo?.title || filename,
+      description: videoInfo?.description || '',
+      url: videoInfo?.webpage_url || '',
+      domain: videoInfo?.extractor || '',
+      sourceName: videoInfo?.uploader || '',
+      authorName: videoInfo?.uploader || '',
+      filePath,
+      sizeBytes: stats.size,
+      durationMs: videoInfo?.duration ? Math.round(videoInfo.duration * 1000) : undefined,
+      width: videoInfo?.width || undefined,
+      height: videoInfo?.height || undefined,
+      mimeType: videoInfo?.mime_type || undefined,
+      workspaceId: currentWorkspaceId,
+      collectedAt: Date.now(),
+    } as any);
+
+    console.log(`[VideoDownloader] Added file to resources: ${filePath}`);
+  } catch (error) {
+    console.warn('[VideoDownloader] Failed to add file to resources:', error);
+  }
 }
 
 function changeFileName(originalName: string, newName: string): string {
@@ -94,6 +166,7 @@ export interface DownloadOptions {
   destination?: string;
   thumbnailUrl?: string;
   quality?: number;
+  videoInfo?: any; // 视频信息，用于添加到资源数据库
   onProgress?: (progress: DownloadProgress) => void;
   onError?: (error: Error) => void;
   onCompleted?: (files: string[], thumbnails: string[]) => void;
@@ -151,6 +224,7 @@ export interface DownloadTask {
   url: string;
   filename?: string;
   destination?: string;
+  videoInfo?: any; // 视频信息
   status: DownloadStatus;
   progress: DownloadProgress;
   error?: string;
@@ -177,6 +251,7 @@ export class DownloadManager extends EventEmitter {
       url: options.url,
       filename: options.filename,
       destination: options.destination,
+      videoInfo: options.videoInfo,
       status: 'queued',
       progress: {}
     };
@@ -243,7 +318,10 @@ export class DownloadManager extends EventEmitter {
 
     try {
       await downloader.download({
-        ...task,
+        url: task.url,
+        filename: task.filename,
+        destination: task.destination,
+        videoInfo: task.videoInfo,
         onProgress: (progress) => {
           task.progress = progress;
           this.emit('taskProgress', task);
@@ -321,19 +399,24 @@ export class VideoDownloader implements Downloader {
       filename,
       destination,
       thumbnailUrl,
+      videoInfo,
       onProgress,
       onError,
       onCompleted,
     } = options;
 
+    // 获取当前工作空间的资源文件夹路径
+    const workspaceResourcePath = await getCurrentWorkspaceResourcePath();
+    const actualDestination = destination || workspaceResourcePath;
+
     const quality: string[] = [];
     const tempName = DEFAULT_FOLDERS.download + "_" + generateUUID();
     const tempFile = filename ? changeFileName(filename, tempName) : tempName + ".mp4";
-    const downloadPath = resolve(destination || __dirname, tempFile);
-    const destPath = resolve(destination || __dirname, filename || tempName + ".mp4");
+    const downloadPath = resolve(actualDestination, tempFile);
+    const destPath = resolve(actualDestination, filename || tempName + ".mp4");
 
     const thumbnail = thumbnailUrl
-      ? await downloadImageFromUrl(thumbnailUrl, getFileNameWithoutExtension(filename || tempFile), DEFAULT_FOLDERS.download, destination)
+      ? await downloadImageFromUrl(thumbnailUrl, getFileNameWithoutExtension(filename || tempFile), DEFAULT_FOLDERS.download, actualDestination)
       : "";
 
     let settings;
@@ -422,7 +505,7 @@ export class VideoDownloader implements Downloader {
         });
         isFunction(onError) && onError(new Error(title));
       })
-      .on("close", (code) => {
+      .on("close", async (code) => {
         if (isAborted) {
           return;
         }
@@ -441,6 +524,14 @@ ${downloadPath}
 ${destPath}`);
           compareAndRenameFiles(downloadPath, destPath);
         }
+
+        // 将下载的文件添加到资源数据库
+        try {
+          await addDownloadedFileToResources(destPath, videoInfo);
+        } catch (error) {
+          console.warn('[VideoDownloader] Failed to add file to resources:', error);
+        }
+
         isFunction(onCompleted) && onCompleted([destPath], [thumbnail]);
       });
   }

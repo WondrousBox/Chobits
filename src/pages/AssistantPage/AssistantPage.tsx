@@ -165,8 +165,7 @@ const AssistantPage: React.FC = () => {
       // 开始下载
       const downloadResult = await (window.YUA as any).videoDownloader.downloadVideo({
         url: query,
-        filename: videoInfo.filename || `${videoInfo.title}.${videoInfo.ext}`,
-        destination: './downloads'
+        filename: videoInfo.filename || `${videoInfo.title}.${videoInfo.ext}`
       })
 
       if (downloadResult.success) {
