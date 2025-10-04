@@ -1,10 +1,32 @@
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import React, { useEffect, useRef, useState, useCallback } from 'react'
-import { TbDotsVertical, TbSend, TbX } from 'react-icons/tb';
+import { TbDotsVertical, TbSend, TbX, TbDownload, TbWorld } from 'react-icons/tb';
 
 const actions = ['新对话', '总结文件', '生成代码', '提取要点', '翻译', '重写优化']
 type CommandItem = { key: string; title: string; hint?: string; ext?: string }
+
+// URL检测函数
+const isVideoUrl = (url: string): boolean => {
+  const videoPatterns = [
+    /^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\/.+/,
+    /^https?:\/\/(www\.)?bilibili\.com\/video\/.+/,
+    /^https?:\/\/(www\.)?vimeo\.com\/.+/,
+    /^https?:\/\/(www\.)?dailymotion\.com\/video\/.+/,
+    /^https?:\/\/(www\.)?twitch\.tv\/videos\/.+/,
+    /^https?:\/\/(www\.)?tiktok\.com\/@.+\/video\/.+/,
+    /^https?:\/\/(www\.)?douyin\.com\/video\/.+/,
+    /^https?:\/\/(www\.)?iqiyi\.com\/v_.+/,
+    /^https?:\/\/(www\.)?youku\.com\/v_show\/.+/,
+    /^https?:\/\/(www\.)?tencent\.com\/video\/.+/,
+  ]
+  return videoPatterns.some(pattern => pattern.test(url))
+}
+
+const isWebUrl = (text: string): boolean => {
+  const urlPattern = /^https?:\/\/[^\s]+$/
+  return urlPattern.test(text.trim())
+}
 const commandPalette: CommandItem[] = [
   { key: 'new', title: '新对话', hint: '开始一个空白对话' },
   { key: 'summarize', title: '总结当前资源', hint: '对最近导入的文件生成摘要' },
@@ -23,6 +45,8 @@ const AssistantPage: React.FC = () => {
   const [recentContext, setRecentContext] = useState<{ clipboard?: string; resources: Array<{ id: string; title: string }> }>({ resources: [] })
   const [opening, setOpening] = useState(true)
   const [closing, setClosing] = useState(false)
+  const [showVideoButton, setShowVideoButton] = useState(false)
+  const [showWebButton, setShowWebButton] = useState(false)
 
   // 自动聚焦
   useEffect(() => { setTimeout(() => inputRef.current?.focus(), 10) }, [])
@@ -125,7 +149,19 @@ const AssistantPage: React.FC = () => {
     setTimeout(() => inputRef.current?.focus(), 0)
   }
 
-  // 监听输入内容识别命令模式
+  const handleDownloadVideo = () => {
+    console.log('下载视频:', query)
+    // TODO: 实现视频下载逻辑
+    // 这里可以调用相应的API来处理视频下载
+  }
+
+  const handleAnalyzeWeb = () => {
+    console.log('分析网页:', query)
+    // TODO: 实现网页分析逻辑
+    // 这里可以调用相应的API来分析网页内容
+  }
+
+  // 监听输入内容识别命令模式和URL
   const onChangeText = (v: string) => {
     setQuery(v)
     const slashMatch = v.match(/^\/(\S*)$/)
@@ -136,13 +172,30 @@ const AssistantPage: React.FC = () => {
       const still = v.match(/^\/(\S*)$/)
       if (!still) leaveCommandMode()
     }
+    
+    // 检测URL并设置按钮状态
+    const trimmedQuery = v.trim()
+    if (isWebUrl(trimmedQuery)) {
+      if (isVideoUrl(trimmedQuery)) {
+        setShowVideoButton(true)
+        setShowWebButton(false)
+      } else {
+        setShowVideoButton(false)
+        setShowWebButton(true)
+      }
+    } else {
+      setShowVideoButton(false)
+      setShowWebButton(false)
+    }
   }
 
   return (
     <div className="w-full h-full font-sans pointer-events-auto select-none relative">
-      <div className="drag-region flex items-center justify-between w-full h-10">
+      <div className="drag-region flex items-center justify-between w-full mb-2">
         <div className='flex items-center gap-1'>
-          <div className='w-6 h-6 leading-6 text-center rounded-full bg-background text-foreground'><TbDotsVertical /></div>
+          <div className='w-6 h-6 flex items-center justify-center rounded-full bg-background text-foreground'>
+            <TbDotsVertical />
+          </div>
           <div className='rounded-full bg-background text-foreground py-1 px-2 text-xs'> 按 ESC 关闭</div>
         </div>
         <Button className='rounded-full no-drag' size={"icon"} variant={"outline"} onClick={close} >
@@ -150,11 +203,11 @@ const AssistantPage: React.FC = () => {
         </Button>
       </div>
       {/* 居中浮层 */}
-      <div className={`w-full max-h-[82vh] flex flex-col rounded-3xl overflow-hidden transition-all duration-180 ${opening ? 'opacity-0 scale-95' : closing ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
+      <div className={`w-full max-h-[82vh] flex flex-col overflow-hidden transition-all duration-180 ${opening ? 'opacity-0 scale-95' : closing ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
         {/* 顶部条 */}
 
         {/* 输入区 */}
-        <div className="drag-region space-y-2 py-4">
+        <div className="drag-region space-y-2">
           <div className="flex items-start gap-3 relative no-drag">
             <div className="flex-1 relative">
               <Textarea
@@ -193,12 +246,34 @@ const AssistantPage: React.FC = () => {
           <div className="absolute w-full bottom-2 left-4 text-xs text-muted-foreground">
             <span>{isCommandMode ? '输入命令关键字，↑↓ 选择，Enter 确认' : '输入 / 进入命令模式，Enter 发送， Shift+Enter 换行'}</span>
           </div>
+          <div className="absolute right-2 bottom-2 flex gap-2">
+            {showVideoButton && (
+              <Button
+                variant={"outline"}
+                onClick={handleDownloadVideo}
+                className="bg-gradient-to-r from-red-500 to-pink-500 text-white hover:brightness-110 active:scale-95 transition-all"
+              >
+                下载视频
+              </Button>
+            )}
+            {showWebButton && (
+              <Button
+                variant={"outline"}
+                onClick={handleAnalyzeWeb}
+                className="bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:brightness-110 active:scale-95 transition-all"
+              >
+                分析网页
+              </Button>
+            )}
             <Button
               variant={"outline"}
               onClick={send}
               disabled={!query.trim()}
-              className="absolute right-2 bottom-2 bg-gradient-to-r from-indigo-500 to-cyan-400 text-white hover:brightness-110 active:scale-95 transition-all">发送 <TbSend />
+              className="bg-gradient-to-r from-indigo-500 to-cyan-400 text-white hover:brightness-110 active:scale-95 transition-all"
+            >
+              发送 <TbSend />
             </Button>
+          </div>
           </div>
         </div>
         <div className="drag-region space-y-2 bg-background p-4 rounded-md mb-4">
@@ -209,22 +284,22 @@ const AssistantPage: React.FC = () => {
             ))}
           </div>
         </div>
-        <div className="flex-1 min-h-0 overflow-auto px-6 py-5 space-y-6 text-sm text-white/90 custom-scroll border bg-background">
+        <div className="flex-1 min-h-0 overflow-auto px-6 py-5 space-y-6 text-sm custom-scroll border bg-background">
           <section className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50">提示</h3>
-            <div className="text-[13px] leading-relaxed text-white/60">
+            <h3 className="text-xs font-semibold uppercase tracking-wider ">提示</h3>
+            <div className="text-[13px] leading-relaxed ">
               这里会集成：上下文选择、资源引用、历史对话、工作区检索、插件工具、向量检索结果 等内容。当前为 UI 骨架，可继续扩展。
             </div>
           </section>
           <section className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-white/50">自动上下文</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-wider ">自动上下文</h3>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col gap-3">
-              <div className="text-[12px] font-medium text-white/70">最近剪贴板</div>
-              <div className="text-[12px] text-white/55 break-words whitespace-pre-wrap min-h-[20px] max-h-32 overflow-auto">
+              <div className="text-[12px] font-medium">最近剪贴板</div>
+              <div className="text-[12px]  break-words whitespace-pre-wrap min-h-[20px] max-h-32 overflow-auto">
                 {recentContext.clipboard ? recentContext.clipboard : <span className="opacity-40">(空)</span>}
               </div>
-              <div className="text-[12px] font-medium text-white/70 pt-1">最近资源</div>
-              <ul className="text-[12px] text-white/60 list-disc pl-5 space-y-1 max-h-40 overflow-auto">
+              <div className="text-[12px] font-medium pt-1">最近资源</div>
+              <ul className="text-[12px] list-disc pl-5 space-y-1 max-h-40 overflow-auto">
                 {recentContext.resources.length === 0 && <li className="opacity-40 list-none pl-0">(暂无数据占位)</li>}
                 {recentContext.resources.map(r => <li key={r.id}>{r.title}</li>)}
               </ul>

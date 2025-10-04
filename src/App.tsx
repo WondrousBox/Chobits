@@ -25,7 +25,7 @@ function App() {
           <Route path="/resources" element={<ResourcePage />} />
           <Route path="/recycle" element={<RecycleBinPage />} />
           <Route path="/workspace" element={<WorkspacePage />} />
-          <Route path="/assistant-panel" element={<AssistantPage />} />
+          <Route path="/assistant" element={<AssistantPage />} />
           <Route path="/model-manager" element={<ModelPage />} />
           <Route path="/resource-preview" element={<ResourcePreviewWindow />} />
           <Route path="*" element={<Navigate to="/" replace />} />
