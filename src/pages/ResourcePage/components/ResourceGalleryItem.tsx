@@ -1,13 +1,16 @@
 import React, { useState, useCallback } from 'react'
 import { makeResSrc, isImageFile, isVideoFile, isAudioFile } from '@/lib/resourceProtocol'
 import { ResourceItem } from '@/types'
-import { TbCopy, TbCheck, TbStar, TbHeart, TbEye, TbEyeOff, TbClock, TbFile } from 'react-icons/tb'
-import { formatFileSize, formatDuration, formatTime, getResourceTypeIcon, getStatusColor, getVisibilityIcon, getRatingStars, getResourceSummary } from '@/utils/resourceUtils'
+import { TbCopy, TbCheck, TbStar, TbHeart, TbEye, TbEyeOff, TbClock, TbFile, TbPlayerPlay } from 'react-icons/tb'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { formatFileSize, formatDuration, formatTime, getResourceTypeIcon, getStatusColor, getRatingStars, getResourceSummary } from '@/utils/resourceUtils'
 
 interface GalleryItemProps {
   item: ResourceItem
   selected: boolean
   onClick: (e: React.MouseEvent, item: ResourceItem) => void
+  onToggleFavorite?: (id: string) => void
+  onToggleVisibility?: (id: string) => void
   innerRef?: (el: HTMLDivElement | null) => void
 }
 
@@ -15,7 +18,7 @@ interface GalleryItemProps {
 // legacy helper compatibility (if some other code imports isImage)
 function isImage(path?: string) { return isImageFile(path) }
 
-const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onClick, innerRef }) => {
+const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onClick, onToggleFavorite, onToggleVisibility, innerRef }) => {
   const [copied, setCopied] = useState(false)
   const summary = getResourceSummary(item)
   const thumbSrc = (item as any).thumbnailPath ? makeResSrc((item as any).thumbnailPath) : undefined
@@ -55,6 +58,31 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
     }
   }, [item.url])
 
+  const handleFavoriteClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    onToggleFavorite?.(item.id)
+  }, [item.id, onToggleFavorite])
+
+  const handleVisibilityClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    onToggleVisibility?.(item.id)
+  }, [item.id, onToggleVisibility])
+
+  const handlePlayClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (isAudio || isImageRes || isVideoRes) {
+      window.YUA.window.openWindow('resourcePreview', {
+        current: {
+          id: item.id,
+          title: item.title,
+          type: item.type,
+          filePath: item.filePath,
+          url: item.url
+        },
+      })
+    }
+  }, [item, isAudio, isImageRes, isVideoRes])
+
   return (
     <div
       ref={innerRef}
@@ -75,28 +103,91 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
              item.status === 'ready' ? '就绪' : 
              item.status === 'error' ? '错误' : ''}
           </span>
-          
-          {/* 可见性图标 */}
-          <span className='text-[9px]' title={`可见性: ${item.visibility || 'private'}`}>
-            {getVisibilityIcon(item.visibility)}
-          </span>
         </div>
         
         <div className='flex items-center gap-1'>
-          {/* 收藏状态 */}
-          {item.favorite === 1 && (
-            <TbHeart className='w-3 h-3 text-red-400' title='已收藏' />
+          {/* 播放按钮 */}
+          {(isAudio || isImageRes || isVideoRes) && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={handlePlayClick}
+                    className='flex items-center gap-1 bg-white/20 hover:bg-white/30 px-1.5 py-0.5 rounded text-[8px] text-white transition-colors'
+                  >
+                    <TbPlayerPlay className='w-3 h-3' />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>播放预览</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
+          
+          {/* 收藏按钮 */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={handleFavoriteClick}
+                  className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] text-white transition-colors ${
+                    item.favorite === 1 
+                      ? 'bg-red-500/80 hover:bg-red-500' 
+                      : 'bg-white/20 hover:bg-white/30'
+                  }`}
+                >
+                  <TbHeart className={`w-3 h-3 ${item.favorite === 1 ? 'fill-current' : ''}`} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{item.favorite === 1 ? '取消收藏' : '添加收藏'}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          
+          {/* 可见性按钮 */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={handleVisibilityClick}
+                  className='flex items-center gap-1 bg-white/20 hover:bg-white/30 px-1.5 py-0.5 rounded text-[8px] text-white transition-colors'
+                >
+                  {item.visibility === 'public' ? (
+                    <TbEye className='w-3 h-3' />
+                  ) : (
+                    <TbEyeOff className='w-3 h-3' />
+                  )}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{item.visibility === 'public' ? '设为私有' : '设为公开'}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           
           {/* 复制链接按钮 */}
           {item.url && (
-            <button
-              onClick={handleSourceClick}
-              className='flex items-center gap-1 bg-white/20 hover:bg-white/30 px-1.5 py-0.5 rounded text-[8px] text-white transition-colors'
-              title={copied ? '已复制!' : '点击复制链接'}
-            >
-              {copied ? <TbCheck className='w-3 h-3' /> : <TbCopy className='w-3 h-3' />}
-            </button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={handleSourceClick}
+                    className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] text-white transition-colors ${
+                      copied 
+                        ? 'bg-green-500/80 hover:bg-green-500' 
+                        : 'bg-white/20 hover:bg-white/30'
+                    }`}
+                  >
+                    {copied ? <TbCheck className='w-3 h-3' /> : <TbCopy className='w-3 h-3' />}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{copied ? '已复制!' : '复制链接'}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
         </div>
       </div>

@@ -1,7 +1,8 @@
 import React, { useState, useCallback } from 'react'
 import { ResourceItem } from '@/types'
-import { TbCopy, TbCheck, TbStar, TbHeart, TbEye, TbEyeOff, TbClock, TbFile, TbExternalLink, TbCalendar, TbUser, TbTag } from 'react-icons/tb'
-import { formatFileSize, formatDuration, formatTime, getResourceTypeIcon, getStatusColor, getVisibilityIcon, getRatingStars, parseTags, parseCategories } from '@/utils/resourceUtils'
+import { TbCopy, TbCheck, TbStar, TbHeart, TbEye, TbEyeOff, TbClock, TbFile, TbExternalLink, TbCalendar, TbUser, TbTag, TbPlayerPlay } from 'react-icons/tb'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { formatFileSize, formatDuration, formatTime, getResourceTypeIcon, getStatusColor, getRatingStars, parseTags, parseCategories } from '@/utils/resourceUtils'
 
 interface ListItemProps {
   item: ResourceItem
@@ -44,6 +45,25 @@ const ResourceListItem: React.FC<ListItemProps> = ({
     e.stopPropagation()
     onToggleVisibility?.(item.id)
   }, [item.id, onToggleVisibility])
+
+  const handlePlayClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    const isAudio = item.type === 'audio'
+    const isImageRes = item.type === 'image'
+    const isVideoRes = item.type === 'video'
+    
+    if (isAudio || isImageRes || isVideoRes) {
+      window.YUA.window.openWindow('resourcePreview', {
+        current: {
+          id: item.id,
+          title: item.title,
+          type: item.type,
+          filePath: item.filePath,
+          url: item.url
+        },
+      })
+    }
+  }, [item])
 
   return (
     <div
@@ -152,68 +172,119 @@ const ResourceListItem: React.FC<ListItemProps> = ({
       </div>
 
       {/* 右侧操作区域 */}
-      <div className='flex items-center gap-2'>
+      <div className='flex items-center gap-1'>
         {/* 评分 */}
         {item.rating && item.rating > 0 && (
-          <div className='flex items-center gap-1 text-yellow-500 text-sm'>
+          <div className='flex items-center gap-1 text-yellow-500 text-sm mr-2'>
             <TbStar className='w-4 h-4 fill-current' />
             <span>{item.rating}</span>
           </div>
         )}
 
+        {/* 播放按钮 */}
+        {(item.type === 'audio' || item.type === 'image' || item.type === 'video') && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={handlePlayClick}
+                  className='p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors'
+                >
+                  <TbPlayerPlay className='w-4 h-4' />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>播放预览</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+
         {/* 收藏按钮 */}
-        <button
-          onClick={handleFavoriteClick}
-          className={`p-1.5 rounded-md transition-colors ${
-            item.favorite === 1 
-              ? 'text-red-500 bg-red-50' 
-              : 'text-muted-foreground hover:text-red-500 hover:bg-red-50'
-          }`}
-          title={item.favorite === 1 ? '取消收藏' : '添加收藏'}
-        >
-          <TbHeart className={`w-4 h-4 ${item.favorite === 1 ? 'fill-current' : ''}`} />
-        </button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={handleFavoriteClick}
+                className={`p-1.5 rounded-md transition-colors ${
+                  item.favorite === 1 
+                    ? 'text-red-500 bg-red-50' 
+                    : 'text-muted-foreground hover:text-red-500 hover:bg-red-50'
+                }`}
+              >
+                <TbHeart className={`w-4 h-4 ${item.favorite === 1 ? 'fill-current' : ''}`} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{item.favorite === 1 ? '取消收藏' : '添加收藏'}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
 
         {/* 可见性按钮 */}
-        <button
-          onClick={handleVisibilityClick}
-          className='p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors'
-          title={`可见性: ${item.visibility || 'private'}`}
-        >
-          {item.visibility === 'public' ? (
-            <TbEye className='w-4 h-4' />
-          ) : (
-            <TbEyeOff className='w-4 h-4' />
-          )}
-        </button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={handleVisibilityClick}
+                className='p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors'
+              >
+                {item.visibility === 'public' ? (
+                  <TbEye className='w-4 h-4' />
+                ) : (
+                  <TbEyeOff className='w-4 h-4' />
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>{item.visibility === 'public' ? '设为私有' : '设为公开'}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
 
         {/* 复制链接按钮 */}
         {item.url && (
-          <button
-            onClick={handleSourceClick}
-            className={`p-1.5 rounded-md transition-colors ${
-              copied 
-                ? 'text-green-500 bg-green-50' 
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-            }`}
-            title={copied ? '已复制!' : '复制链接'}
-          >
-            {copied ? <TbCheck className='w-4 h-4' /> : <TbCopy className='w-4 h-4' />}
-          </button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={handleSourceClick}
+                  className={`p-1.5 rounded-md transition-colors ${
+                    copied 
+                      ? 'text-green-500 bg-green-50' 
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                  }`}
+                >
+                  {copied ? <TbCheck className='w-4 h-4' /> : <TbCopy className='w-4 h-4' />}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{copied ? '已复制!' : '复制链接'}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
 
         {/* 外部链接按钮 */}
         {item.url && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              window.open(item.url, '_blank')
-            }}
-            className='p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors'
-            title='在新窗口中打开'
-          >
-            <TbExternalLink className='w-4 h-4' />
-          </button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    window.open(item.url, '_blank')
+                  }}
+                  className='p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors'
+                >
+                  <TbExternalLink className='w-4 h-4' />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>在新窗口中打开</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
       </div>
 

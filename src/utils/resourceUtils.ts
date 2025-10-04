@@ -106,16 +106,6 @@ export function getStatusColor(status?: string): string {
   return colorMap[status || 'ready'] || 'text-gray-500'
 }
 
-// 获取可见性图标
-export function getVisibilityIcon(visibility?: string): string {
-  const iconMap: Record<string, string> = {
-    private: '🔒',
-    unlisted: '🔓',
-    public: '🌐'
-  }
-  return iconMap[visibility || 'private'] || '🔒'
-}
-
 // 获取评分星星
 export function getRatingStars(rating?: number): string {
   if (!rating) return ''

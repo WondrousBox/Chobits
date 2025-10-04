@@ -9,6 +9,8 @@ export interface ExplorerGridProps {
   items: ResourceItem[]
   onDelete?: (id: string) => void
   onDeleteMany?: (ids: string[]) => void
+  onToggleFavorite?: (id: string) => void
+  onToggleVisibility?: (id: string) => void
 }
 
 type Point = { x: number; y: number }
@@ -18,7 +20,7 @@ function rectsIntersect(a: Rect, b: Rect) {
   return !(a.left > b.right || a.right < b.left || a.top > b.bottom || a.bottom < b.top)
 }
 
-export const ExplorerGrid: React.FC<ExplorerGridProps> = ({ items, onDelete, onDeleteMany }) => {
+export const ExplorerGrid: React.FC<ExplorerGridProps> = ({ items, onDelete, onDeleteMany, onToggleFavorite, onToggleVisibility }) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
@@ -185,6 +187,8 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({ items, onDelete, onD
                 selected={isSelected}
                 innerRef={updateItemRef(item.id)}
                 onClick={(e)=> handleItemClick(e, item.id, idx)}
+                onToggleFavorite={onToggleFavorite}
+                onToggleVisibility={onToggleVisibility}
               />
             )
           })}
