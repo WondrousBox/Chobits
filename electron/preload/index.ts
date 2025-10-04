@@ -8,6 +8,7 @@ import { workspaceBridge } from './apis/workspace'
 import { modelBridge } from './apis/model'
 import { fileBridge } from './apis/file'
 import { databaseBridge } from './apis/database'
+import videoDownloaderAPI from './apis/video-downloader'
 import {
   arch,
   isLinux,
@@ -59,6 +60,7 @@ contextBridge.exposeInMainWorld('YUA', {
   model: modelBridge,
   file: fileBridge,
   database: databaseBridge,
+  videoDownloader: videoDownloaderAPI,
 })
 
 // --------- Preload scripts loading ---------

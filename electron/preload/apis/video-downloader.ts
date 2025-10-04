@@ -1,0 +1,44 @@
+import { contextBridge, ipcRenderer } from 'electron';
+
+// 视频下载相关的API接口
+const videoDownloaderAPI = {
+  // 获取视频信息
+  getVideoInfo: (url: string, timeoutMs?: number) => 
+    ipcRenderer.invoke('video-downloader:get-info', url, timeoutMs),
+
+  // 获取缩略图
+  getThumbnail: (url: string) => 
+    ipcRenderer.invoke('video-downloader:get-thumbnail', url),
+
+  // 开始下载视频
+  downloadVideo: (options: {
+    url: string;
+    filename?: string;
+    destination?: string;
+    quality?: number;
+  }) => 
+    ipcRenderer.invoke('video-downloader:download', options),
+
+  // 取消下载
+  cancelDownload: (taskId: string) => 
+    ipcRenderer.invoke('video-downloader:cancel', taskId),
+
+  // 获取下载任务列表
+  getTasks: () => 
+    ipcRenderer.invoke('video-downloader:get-tasks'),
+
+  // 获取特定任务信息
+  getTask: (taskId: string) => 
+    ipcRenderer.invoke('video-downloader:get-task', taskId),
+
+  // 清理已完成的任务
+  cleanup: () => 
+    ipcRenderer.invoke('video-downloader:cleanup'),
+
+  onTaskProgress: (callback: (task: any) => void) => {
+    ipcRenderer.on('video-downloader:task-progress', (_, task) => callback(task));
+  },
+};
+
+// 导出API
+export default videoDownloaderAPI;
