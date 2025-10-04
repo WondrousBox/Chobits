@@ -1,7 +1,8 @@
 import React, { useState, useCallback } from 'react'
 import { makeResSrc, isImageFile, isVideoFile, isAudioFile } from '@/lib/resourceProtocol'
 import { ResourceItem } from '@/types'
-import { TbCopy, TbCheck } from 'react-icons/tb'
+import { TbCopy, TbCheck, TbStar, TbHeart, TbEye, TbEyeOff, TbClock, TbFile } from 'react-icons/tb'
+import { formatFileSize, formatDuration, formatTime, getResourceTypeIcon, getStatusColor, getVisibilityIcon, getRatingStars, getResourceSummary } from '@/utils/resourceUtils'
 
 interface GalleryItemProps {
   item: ResourceItem
@@ -15,9 +16,9 @@ interface GalleryItemProps {
 function isImage(path?: string) { return isImageFile(path) }
 
 const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onClick, innerRef }) => {
-  const title = item.title || item.filePath || item.url || item.id
-  const thumbSrc = (item as any).thumbnailPath ? makeResSrc((item as any).thumbnailPath) : undefined
   const [copied, setCopied] = useState(false)
+  const summary = getResourceSummary(item)
+  const thumbSrc = (item as any).thumbnailPath ? makeResSrc((item as any).thumbnailPath) : undefined
 
   // (deprecated modal) replaced by dedicated preview window
   const isAudio = isAudioFile(item.filePath)
@@ -62,36 +63,47 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
       onClick={handleClick}
       className={`group relative aspect-video w-full overflow-hidden rounded-md border bg-card text-card-foreground shadow-sm transition-all cursor-pointer select-none ${selected ? 'ring-2 ring-primary border-primary/50' : 'hover:shadow-md hover:border-primary/30'} bg-gradient-to-br from-background to-muted`}
     >
-      {/* 顶部来源信息 */}
-      {(item.domain || item.sourceName || item.authorName) && (
-        <div className='absolute inset-x-0 top-0 z-20 flex items-center justify-between bg-gradient-to-b from-black/80 via-black/40 to-transparent px-2 py-1.5'>
-          <div className='flex items-center gap-1 text-[10px] text-white/90'>
-            {item.domain && (
-              <span className='truncate max-w-[80px] bg-white/20 px-1.5 py-0.5 rounded text-[9px] font-medium'>
-                {item.domain}
-              </span>
-            )}
-            {(item.sourceName || item.authorName) && (
-              <span className='truncate max-w-[100px] text-white/80'>
-                {item.sourceName || item.authorName}
-              </span>
-            )}
-          </div>
+      {/* 顶部状态栏 */}
+      <div className='absolute inset-x-0 top-0 z-20 flex items-center justify-between bg-gradient-to-b from-black/80 via-black/40 to-transparent px-2 py-1.5'>
+        <div className='flex items-center gap-1'>
+          {/* 资源类型图标 */}
+          <span className='text-[10px]'>{getResourceTypeIcon(item.type)}</span>
+          
+          {/* 状态指示器 */}
+          <span className={`text-[9px] ${getStatusColor(item.status)}`}>
+            {item.status === 'processing' ? '处理中' : 
+             item.status === 'ready' ? '就绪' : 
+             item.status === 'error' ? '错误' : ''}
+          </span>
+          
+          {/* 可见性图标 */}
+          <span className='text-[9px]' title={`可见性: ${item.visibility || 'private'}`}>
+            {getVisibilityIcon(item.visibility)}
+          </span>
+        </div>
+        
+        <div className='flex items-center gap-1'>
+          {/* 收藏状态 */}
+          {item.favorite === 1 && (
+            <TbHeart className='w-3 h-3 text-red-400' title='已收藏' />
+          )}
+          
+          {/* 复制链接按钮 */}
           {item.url && (
             <button
               onClick={handleSourceClick}
-              className='flex items-center gap-1 bg-white/20 hover:bg-white/30 px-2 py-1 rounded text-[9px] text-white transition-colors'
+              className='flex items-center gap-1 bg-white/20 hover:bg-white/30 px-1.5 py-0.5 rounded text-[8px] text-white transition-colors'
               title={copied ? '已复制!' : '点击复制链接'}
             >
               {copied ? <TbCheck className='w-3 h-3' /> : <TbCopy className='w-3 h-3' />}
-              <span className='hidden group-hover:inline'>{copied ? '已复制!' : '复制链接'}</span>
             </button>
           )}
         </div>
-      )}
+      </div>
 
+      {/* 媒体内容区域 */}
       {(thumbSrc || isImageFile(item.filePath)) && (
-        <img src={thumbSrc || (item.filePath ? makeResSrc(item.filePath) : '')} alt={title} className='h-full w-full object-cover' draggable={false} />
+        <img src={thumbSrc || (item.filePath ? makeResSrc(item.filePath) : '')} alt={summary.title} className='h-full w-full object-cover' draggable={false} />
       )}
       {isVideoFile(item.filePath) && (
         <video
@@ -105,7 +117,6 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
       {isAudio && (
         <div className='flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-900/70 to-slate-700/40 text-white gap-2 text-[11px]'>
           <span className='inline-flex items-center gap-1 opacity-90'>
-            {/* Simple music note icon (unicode) to avoid pulling extra libs */}
             <span aria-hidden='true'>🎵</span>
             <span className='font-medium'>点击预览音频</span>
           </span>
@@ -113,19 +124,96 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
       )}
       {!isImageFile(item.filePath) && !isVideoFile(item.filePath) && !isAudioFile(item.filePath) && (
         <div className='flex h-full w-full items-center justify-center text-xs text-muted-foreground'>
-          {item.type}
+          <div className='text-center'>
+            <div className='text-2xl mb-1'>{getResourceTypeIcon(item.type)}</div>
+            <div className='text-[10px] capitalize'>{item.type}</div>
+          </div>
         </div>
       )}
       
-      {/* 底部标题 */}
-      <div className='absolute inset-x-0 bottom-0 z-10 flex flex-col gap-0.5 bg-gradient-to-t from-black/70 via-black/20 to-transparent px-1.5 pb-1 pt-6'>
-        <span className='truncate text-[11px] font-medium text-white drop-shadow'>{title}</span>
+      {/* 底部信息栏 */}
+      <div className='absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-2 py-2'>
+        {/* 标题和描述 */}
+        <div className='mb-1'>
+          <div className='truncate text-[11px] font-medium text-white drop-shadow mb-0.5'>
+            {summary.title}
+          </div>
+          {summary.subtitle && (
+            <div className='truncate text-[9px] text-white/70'>
+              {summary.subtitle}
+            </div>
+          )}
+        </div>
+        
+        {/* 元数据信息 */}
+        <div className='flex items-center justify-between text-[9px] text-white/80'>
+          <div className='flex items-center gap-1.5'>
+            {/* 文件大小 */}
+            {item.sizeBytes && (
+              <span className='flex items-center gap-0.5'>
+                <TbFile className='w-3 h-3' />
+                {formatFileSize(item.sizeBytes)}
+              </span>
+            )}
+            
+            {/* 时长 */}
+            {item.durationMs && (
+              <span className='flex items-center gap-0.5'>
+                <TbClock className='w-3 h-3' />
+                {formatDuration(item.durationMs)}
+              </span>
+            )}
+            
+            {/* 分辨率 */}
+            {item.width && item.height && (
+              <span>{item.width}×{item.height}</span>
+            )}
+          </div>
+          
+          {/* 评分 */}
+          {item.rating && item.rating > 0 && (
+            <div className='flex items-center gap-0.5 text-yellow-400'>
+              <TbStar className='w-3 h-3 fill-current' />
+              <span>{item.rating}</span>
+            </div>
+          )}
+        </div>
+        
+        {/* 来源信息 */}
+        {(item.domain || item.sourceName || item.authorName) && (
+          <div className='mt-1 flex items-center gap-1 text-[9px] text-white/70'>
+            {item.domain && (
+              <span className='bg-white/20 px-1 py-0.5 rounded text-[8px] font-medium'>
+                {item.domain}
+              </span>
+            )}
+            {(item.sourceName || item.authorName) && (
+              <span className='truncate max-w-[120px]'>
+                {item.sourceName || item.authorName}
+              </span>
+            )}
+          </div>
+        )}
+        
+        {/* 标签 */}
+        {summary.tags.length > 0 && (
+          <div className='mt-1 flex flex-wrap gap-1'>
+            {summary.tags.slice(0, 3).map((tag, index) => (
+              <span key={index} className='bg-primary/20 text-primary-foreground px-1 py-0.5 rounded text-[8px]'>
+                #{tag}
+              </span>
+            ))}
+            {summary.tags.length > 3 && (
+              <span className='text-[8px] text-white/60'>+{summary.tags.length - 3}</span>
+            )}
+          </div>
+        )}
       </div>
       
+      {/* 选中状态指示器 */}
       {selected && (
         <div className='absolute right-2 top-2 h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[10px] shadow ring-1 ring-black/20'>✓</div>
       )}
-
     </div>
   )
 }

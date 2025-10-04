@@ -1,14 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { ResourceItem } from '@/types'
-
-import { SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarHeader,
-} from "@/components/ui/sidebar"
+import { ResourceItem, ViewMode, SortField, SortOrder } from '@/types'
 import {
   Select,
   SelectContent,
@@ -17,15 +8,21 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import ExplorerGrid from './components/ExplorerGrid'
+import ResourceListItem from './components/ResourceListItem'
 import { Button } from '@/components/ui/button'
-import { TbHome, TbPhoto, TbVideo, TbMusic, TbFileText, TbLink, TbFile, TbFileDescription, TbDots } from 'react-icons/tb'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Input } from '@/components/ui/input'
+import { TbHome, TbPhoto, TbVideo, TbMusic, TbFileText, TbLink, TbFile, TbFileDescription, TbDots, TbList, TbSearch, TbFilter, TbSortAscending, TbSortDescending, TbGrid3X3 } from 'react-icons/tb'
 
 const ResourcePage: React.FC = () => {
   const [list, setList] = useState<ResourceItem[]>([])
   const [workspaces, setWorkspaces] = useState<any[]>([])
   const [wsFilter, setWsFilter] = useState<string>('') // empty means all
   const [typeFilter, setTypeFilter] = useState<string>('') // empty means all types
+  const [viewMode, setViewMode] = useState<ViewMode>('grid')
+  const [searchQuery, setSearchQuery] = useState<string>('')
+  const [sortField, setSortField] = useState<SortField>('collectedAt')
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
 
   const typeOptions: { key: string; label: string; icon: React.ComponentType<{ className?: string }>; }[] = [
     { key: '', label: '全部', icon: TbHome },
@@ -73,12 +70,50 @@ const ResourcePage: React.FC = () => {
   }, [])
 
   const filtered = useMemo(() => {
-    return list.filter((r: any) => {
-      if (wsFilter && r.workspaceId !== wsFilter) return false
-      if (typeFilter && r.type !== typeFilter) return false
-      return true
+    let filtered = list.filter((r: any) => !wsFilter || r.workspaceId === wsFilter)
+    
+    // 类型过滤
+    if (typeFilter) {
+      filtered = filtered.filter((r: any) => r.type === typeFilter)
+    }
+    
+    // 搜索过滤
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase()
+      filtered = filtered.filter((r: any) => 
+        (r.title?.toLowerCase().includes(query)) ||
+        (r.description?.toLowerCase().includes(query)) ||
+        (r.authorName?.toLowerCase().includes(query)) ||
+        (r.sourceName?.toLowerCase().includes(query)) ||
+        (r.domain?.toLowerCase().includes(query)) ||
+        (r.tags?.toLowerCase().includes(query))
+      )
+    }
+    
+    // 排序
+    filtered.sort((a: any, b: any) => {
+      let aValue = a[sortField]
+      let bValue = b[sortField]
+      
+      // 处理时间字段
+      if (sortField === 'collectedAt' || sortField === 'createdAt') {
+        aValue = aValue || 0
+        bValue = bValue || 0
+      }
+      
+      // 处理字符串字段
+      if (typeof aValue === 'string') {
+        aValue = aValue.toLowerCase()
+        bValue = (bValue || '').toLowerCase()
+      }
+      
+      if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1
+      if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1
+      return 0
     })
-  }, [list, wsFilter, typeFilter])
+    
+    return filtered
+  }, [list, wsFilter, typeFilter, searchQuery, sortField, sortOrder])
 
   const handleDelete = async (id: string) => {
     try {
@@ -87,82 +122,211 @@ const ResourcePage: React.FC = () => {
     } catch (e) { console.warn('delete resource failed', e) }
   }
 
-  return (<SidebarProvider className='h-full'>
-    <Sidebar>
-      <SidebarHeader>123132123
-        <SidebarTrigger />
-      </SidebarHeader>
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Application</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem key="1">
-                <SidebarMenuButton asChild>
-                  <Button>1231</Button>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
-      <SidebarFooter>21312313</SidebarFooter>
-    </Sidebar>
-    <div className='bg-background text-foreground flex-1 h-full'>
-      <div className='flex h-full'>
-        <div className='w-12 h-full flex flex-col items-center box-border bg-muted space-y-1'>
-          <SidebarTrigger />
-          <TooltipProvider delayDuration={0}>
-            {typeOptions
-              .filter(({ key }) => key === '' || visibleTypes.has(key))
-              .map(({ key, label, icon: Icon }) => (
-              <Tooltip key={key || 'all'}>
-                <TooltipTrigger asChild>
-                  <Button
-                    aria-label={label}
-                    size={"icon"}
-                    variant={typeFilter === key ? "default" : "outline"}
-                    onClick={() => setTypeFilter(prev => (prev === key ? '' : key))}
-                  >
-                    <Icon />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="right">
-                  <span>{label}</span>
-                </TooltipContent>
-              </Tooltip>
-            ))}
-          </TooltipProvider>
+  const handleDeleteMany = async (ids: string[]) => {
+    try {
+      await window.YUA.resource.deleteResources({ ids })
+      setList(prev => prev.filter(i => !ids.includes(i.id)))
+      setSelectedItems(new Set())
+    } catch (e) { console.warn('delete many failed', e) }
+  }
+
+  const handleItemClick = (e: React.MouseEvent, item: ResourceItem) => {
+    if (e.ctrlKey || e.metaKey) {
+      // 多选模式
+      setSelectedItems(prev => {
+        const newSet = new Set(prev)
+        if (newSet.has(item.id)) {
+          newSet.delete(item.id)
+        } else {
+          newSet.add(item.id)
+        }
+        return newSet
+      })
+    } else {
+      // 单选模式
+      setSelectedItems(new Set([item.id]))
+    }
+  }
+
+  const handleToggleFavorite = async (id: string) => {
+    try {
+      const item = list.find(i => i.id === id)
+      if (item) {
+        const newFavorite = item.favorite === 1 ? 0 : 1
+        await window.YUA.resource.updateResource({ id, patch: { favorite: newFavorite } })
+        setList(prev => prev.map(i => i.id === id ? { ...i, favorite: newFavorite } : i))
+      }
+    } catch (e) { console.warn('toggle favorite failed', e) }
+  }
+
+  const handleToggleVisibility = async (id: string) => {
+    try {
+      const item = list.find(i => i.id === id)
+      if (item) {
+        const newVisibility = item.visibility === 'public' ? 'private' : 'public'
+        await window.YUA.resource.updateResource({ id, patch: { visibility: newVisibility } })
+        setList(prev => prev.map(i => i.id === id ? { ...i, visibility: newVisibility } : i))
+      }
+    } catch (e) { console.warn('toggle visibility failed', e) }
+  }
+
+  return (
+    <div className='h-full flex flex-col bg-background'>
+      {/* 顶部工具栏 */}
+      <div className='flex items-center justify-between p-4 border-b'>
+        <div className='flex items-center gap-4'>
+          <h1 className='text-lg font-semibold'>资源管理</h1>
+          <span className='text-sm text-muted-foreground'>
+            共 {filtered.length}/{list.length} 个资源
+          </span>
         </div>
-        <div className='flex-1 h-full bg-secondary'>
-          <div className='flex items-center justify-between h-12 px-2'>
-            <div>资源管理 <span className='text-xs text-muted-foreground ml-2'>共 {filtered.length}/{list.length} 个资源</span> </div>
-            <div className='flex items-center gap-2'>
-              <Select value={wsFilter} onValueChange={setWsFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="工作空间" />
-                </SelectTrigger>
-                <SelectContent>
-                  {workspaces.map(w => <SelectItem key={w.id} value={w.id}>{w.name}{w.isDefault === 1 ? '（默认）' : ''}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
+        
+        <div className='flex items-center gap-2'>
+          {/* 搜索框 */}
+          <div className='relative'>
+            <TbSearch className='absolute left-2 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4' />
+            <Input
+              placeholder='搜索资源...'
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className='pl-8 w-64'
+            />
           </div>
-          <div className='w-full box-border overflow-y-auto' style={{ height: 'calc(100% - 48px)' }}>
-            <div className='flex h-full gap-2'>
-              <div className='flex-1 h-full overflow-y-auto'>
-                <ExplorerGrid
-                  items={filtered}
-                  onDelete={handleDelete}
-                />
+          
+          {/* 排序选择器 */}
+          <Select value={`${sortField}-${sortOrder}`} onValueChange={(value) => {
+            const [field, order] = value.split('-') as [SortField, SortOrder]
+            setSortField(field)
+            setSortOrder(order)
+          }}>
+            <SelectTrigger className='w-40'>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='collectedAt-desc'>收集时间 ↓</SelectItem>
+              <SelectItem value='collectedAt-asc'>收集时间 ↑</SelectItem>
+              <SelectItem value='title-asc'>标题 A-Z</SelectItem>
+              <SelectItem value='title-desc'>标题 Z-A</SelectItem>
+              <SelectItem value='sizeBytes-desc'>文件大小 ↓</SelectItem>
+              <SelectItem value='sizeBytes-asc'>文件大小 ↑</SelectItem>
+              <SelectItem value='rating-desc'>评分 ↓</SelectItem>
+              <SelectItem value='rating-asc'>评分 ↑</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          {/* 视图模式切换 */}
+          <div className='flex border rounded-md'>
+            <Button
+              variant={viewMode === 'grid' ? 'default' : 'ghost'}
+              size='sm'
+              onClick={() => setViewMode('grid')}
+            >
+              <TbGrid3X3 className='w-4 h-4' />
+            </Button>
+            <Button
+              variant={viewMode === 'list' ? 'default' : 'ghost'}
+              size='sm'
+              onClick={() => setViewMode('list')}
+            >
+              <TbList className='w-4 h-4' />
+            </Button>
+          </div>
+          
+          {/* 工作空间选择器 */}
+          <Select value={wsFilter} onValueChange={setWsFilter}>
+            <SelectTrigger className='w-40'>
+              <SelectValue placeholder="工作空间" />
+            </SelectTrigger>
+            <SelectContent>
+              {workspaces.map(w => (
+                <SelectItem key={w.id} value={w.id}>
+                  {w.name}{w.isDefault === 1 ? '（默认）' : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {/* 类型过滤器 */}
+      <div className='flex items-center gap-2 p-4 border-b bg-muted/30'>
+        <div className='flex items-center gap-1'>
+          {typeOptions
+            .filter(({ key }) => key === '' || visibleTypes.has(key))
+            .map(({ key, label, icon: Icon }) => (
+            <Button
+              key={key || 'all'}
+              variant={typeFilter === key ? 'default' : 'outline'}
+              size='sm'
+              onClick={() => setTypeFilter(prev => (prev === key ? '' : key))}
+              className='h-8'
+            >
+              <Icon className='w-4 h-4 mr-1' />
+              {label}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      {/* 选中项操作栏 */}
+      {selectedItems.size > 0 && (
+        <div className='flex items-center justify-between p-2 bg-primary/10 border-b'>
+          <span className='text-sm text-primary'>
+            已选择 {selectedItems.size} 个项目
+          </span>
+          <div className='flex items-center gap-2'>
+            <Button
+              variant='destructive'
+              size='sm'
+              onClick={() => handleDeleteMany(Array.from(selectedItems))}
+            >
+              删除选中
+            </Button>
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={() => setSelectedItems(new Set())}
+            >
+              取消选择
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* 主内容区域 */}
+      <div className='flex-1 overflow-hidden'>
+        {/* 资源展示区域 */}
+        <div className='h-full overflow-auto p-4'>
+            {viewMode === 'grid' ? (
+              <ExplorerGrid
+                items={filtered}
+                onDelete={handleDelete}
+                onDeleteMany={handleDeleteMany}
+              />
+            ) : (
+              <div className='space-y-2'>
+                {filtered.map((item) => (
+                  <ResourceListItem
+                    key={item.id}
+                    item={item}
+                    selected={selectedItems.has(item.id)}
+                    onClick={handleItemClick}
+                    onToggleFavorite={handleToggleFavorite}
+                    onToggleVisibility={handleToggleVisibility}
+                  />
+                ))}
+                {filtered.length === 0 && (
+                  <div className='text-center py-12 text-muted-foreground'>
+                    <div className='text-4xl mb-4'>📦</div>
+                    <div>没有找到资源</div>
+                    <div className='text-sm mt-2'>尝试调整筛选条件或添加新资源</div>
+                  </div>
+                )}
               </div>
-            </div>
-          </div>
+            )}
         </div>
       </div>
     </div>
-
-  </SidebarProvider>
   )
 }
 

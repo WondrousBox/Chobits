@@ -40,6 +40,7 @@ export type ResourceBridgeParams = {
   'addResource': IPCParams<[{ resource: PartialByKey<Resource, "id"> }], { success: true }>;
   'listResource': IPCParams<[void], Resource[]>;
   'getResource': IPCParams<[{ id: string }], Resource | undefined>;
+  'updateResource': IPCParams<[{ id: string; patch: any }], { success: boolean; data?: any }>;
   'deleteResource': IPCParams<[{ id: string }], { success: true }>;
   'deleteResources': IPCParams<[{ ids: string[] }], { success: true }>;
   'openResource': IPCParams<[{ id: string }], { success: boolean }>;
@@ -58,6 +59,7 @@ const methods: Array<keyof ResourceBridgeParams> = [
   'addResource',
   'listResource',
   'getResource',
+  'updateResource',
   'deleteResource',
   'deleteResources',
   'openResource',
