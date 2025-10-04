@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "c57eb28a-1ed6-4080-b19a-8b87ffaa310a",
+  "id": "fcb935e6-4a9f-49c1-aabc-4189c9dfce0e",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "documents": {
@@ -499,6 +499,13 @@
         "thumbnail": {
           "name": "thumbnail",
           "type": "blob",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "thumbnail_path": {
+          "name": "thumbnail_path",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false

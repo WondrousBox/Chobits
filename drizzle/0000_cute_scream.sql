@@ -70,6 +70,7 @@ CREATE TABLE `resources` (
 	`file_path` text,
 	`content_text` text,
 	`thumbnail` blob,
+	`thumbnail_path` text,
 	`preview_url` text,
 	`tags` text,
 	`categories` text,
