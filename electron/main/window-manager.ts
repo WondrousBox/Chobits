@@ -1,6 +1,7 @@
 import { app, BrowserWindow, screen } from 'electron'
 import path from 'node:path'
 import { windowConfigs, type WindowConfig, type WindowKey } from './window-config'
+import { saveWindowState, restoreWindowState } from './window-state-store'
 
 const DEV_URL = process.env.VITE_DEV_SERVER_URL
 const APP_ROOT = process.env.APP_ROOT || app.getAppPath()
@@ -65,16 +66,15 @@ export class WindowManager {
     if (conf.parent === 'main' && this.mainWindow && !this.mainWindow.isDestroyed()) {
       opts.parent = this.mainWindow
     }
+
     const w = new BrowserWindow(opts)
     this.registry.set(key, w)
-    // Track first manual show for startMaximized when showOnReady === false
-    let firstManualShowPending = true
+    this.setupWindowEventHandlers(w, key, conf)
 
-    // Broadcast maximize / unmaximize state changes to renderer so UI can update controls
-    try {
-      w.on('maximize', () => { try { w.webContents.send('window-maximize-changed', true) } catch { } })
-      w.on('unmaximize', () => { try { w.webContents.send('window-maximize-changed', false) } catch { } })
-    } catch { }
+    // 如果启用了状态记忆，尝试恢复之前的状态
+    if (conf.rememberState) {
+      restoreWindowState(w, key)
+    }
 
     w.once('ready-to-show', () => {
       try {
@@ -86,11 +86,6 @@ export class WindowManager {
         }
         w.show()
       } catch { }
-    })
-
-    // Auto-close registry cleanup
-    w.on('closed', () => {
-      try { this.registry.delete(key) } catch { }
     })
 
     await this.loadRoute(w, conf)
@@ -124,8 +119,6 @@ export class WindowManager {
       try {
         w.on('show', () => {
           try {
-            if (!firstManualShowPending) return
-            firstManualShowPending = false
             if (!w.isMaximized()) w.maximize()
           } catch { }
         })
@@ -133,6 +126,48 @@ export class WindowManager {
     }
 
     return w
+  }
+
+  private setupWindowEventHandlers(w: BrowserWindow, key: WindowKey, conf: WindowConfig) {
+    // Track first manual show for startMaximized when showOnReady === false
+    let firstManualShowPending = true
+
+    // Broadcast maximize / unmaximize state changes to renderer so UI can update controls
+    try {
+      w.on('maximize', () => { 
+        try { w.webContents.send('window-maximize-changed', true) } catch { } 
+        // 保存窗口状态
+        if (conf.rememberState) {
+          saveWindowState(w, key)
+        }
+      })
+      w.on('unmaximize', () => { 
+        try { w.webContents.send('window-maximize-changed', false) } catch { } 
+        // 保存窗口状态
+        if (conf.rememberState) {
+          saveWindowState(w, key)
+        }
+      })
+    } catch { }
+
+    // 监听窗口大小和位置变化，保存状态
+    if (conf.rememberState) {
+      let saveTimeout: NodeJS.Timeout | null = null
+      const debouncedSave = () => {
+        if (saveTimeout) clearTimeout(saveTimeout)
+        saveTimeout = setTimeout(() => {
+          saveWindowState(w, key)
+        }, 500) // 500ms 防抖
+      }
+
+      w.on('resize', debouncedSave)
+      w.on('move', debouncedSave)
+    }
+
+    // Auto-close registry cleanup
+    w.on('closed', () => {
+      try { this.registry.delete(key) } catch { }
+    })
   }
 
   private async loadRoute(w: BrowserWindow, conf: WindowConfig) {

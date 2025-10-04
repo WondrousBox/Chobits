@@ -40,6 +40,12 @@ type WindowBridgeParams = {
   "window-is-maximized": IPCParams<[void], boolean>;
   /** 当前窗口能力（是否允许最小化/最大化/缩放） */
   "window-capabilities": IPCParams<[void], { minimizable: boolean; maximizable: boolean; resizable: boolean }>;
+  /** 保存窗口状态 */
+  "window-save-state": IPCParams<[WindowKey], boolean>;
+  /** 获取窗口状态 */
+  "window-get-state": IPCParams<[WindowKey], any>;
+  /** 清除窗口状态 */
+  "window-clear-state": IPCParams<[WindowKey], boolean>;
 
 }
 
@@ -62,6 +68,9 @@ const methods: Array<keyof WindowBridgeParams> = [
   "window-close-self",
   "window-is-maximized",
   "window-capabilities",
+  "window-save-state",
+  "window-get-state",
+  "window-clear-state",
 ];
 
 export type WindowBridgeType = {

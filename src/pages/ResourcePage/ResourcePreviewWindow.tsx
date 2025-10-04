@@ -162,7 +162,7 @@ const ResourcePreviewWindow: React.FC = () => {
   const fileSrc = data.filePath ? makeResSrc(data.filePath) : data.url
 
   return (
-    <div className='w-full h-full flex flex-col bg-background text-foreground overflow-hidden'>
+    <div className='w-full h-full bg-background text-foreground overflow-hidden'>
       {/* Header */}
       <DragAbleTitle
         title={<div className='text-xs font-medium truncate'>{title}</div>}
@@ -183,12 +183,12 @@ const ResourcePreviewWindow: React.FC = () => {
         }
       />
       {/* Content */}
-      <div className='flex-1 relative flex items-center justify-center p-2 bg-neutral-950/5'>
+      <div className='h-full relative flex items-center justify-center overflow-hidden' style={{ height: 'calc(100% - 36px)' }}>
         {isImageFile(data.filePath) && fileSrc && (
           <img src={fileSrc} alt={title} className='max-w-full max-h-full object-contain rounded-md shadow' />
         )}
         {isVideoFile(data.filePath) && fileSrc && (
-          <video ref={videoRef} src={fileSrc} controls autoPlay className='max-w-full max-h-full rounded-md shadow bg-black' />
+          <video ref={videoRef} src={fileSrc} controls autoPlay className='max-w-full max-h-full w-full h-full object-contain' />
         )}
         {isAudioFile(data.filePath) && fileSrc && (
           <div className='w-full max-w-xl flex flex-col items-stretch gap-3'>
