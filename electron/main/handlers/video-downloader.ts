@@ -5,9 +5,12 @@ import { resolve } from "node:path";
 import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
+import https from "node:https";
+import http from "node:http";
 
 import ytdlpStatic from "../libs/ytdlp-static";
 import { WorkspacesRepo, ResourcesRepo } from "../db/repositories";
+import { generateThumbnailForResource } from "../utils/thumbnail";
 
 // 默认文件夹配置
 const DEFAULT_FOLDERS = {
@@ -46,8 +49,123 @@ function generateUUID(): string {
 }
 
 async function downloadImageFromUrl(url: string, filename: string, folder: string, destination?: string): Promise<string> {
-  // 简化实现，实际应该下载图片
-  return '';
+  try {
+    if (!url || !filename) {
+      console.warn('[VideoDownloader] Invalid URL or filename for image download');
+      return '';
+    }
+
+
+    const actualDestination = destination || process.cwd();
+    const thumbnailsDir = path.join(actualDestination, '.thumbs');
+    
+    // 确保缩略图目录存在
+    if (!fs.existsSync(thumbnailsDir)) {
+      fs.mkdirSync(thumbnailsDir, { recursive: true });
+    }
+
+    // 确定文件扩展名
+    const urlPath = new URL(url).pathname;
+    const urlExt = path.extname(urlPath).toLowerCase();
+    const validExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+    const ext = validExts.includes(urlExt) ? urlExt : '.jpg';
+    
+    const thumbnailFilename = `${filename}.png`;
+    const thumbnailPath = path.join(thumbnailsDir, thumbnailFilename);
+
+    // 如果文件已存在，直接返回路径
+    if (fs.existsSync(thumbnailPath)) {
+      console.log(`[VideoDownloader] Thumbnail already exists: ${thumbnailPath}`);
+      return thumbnailPath;
+    }
+
+    return new Promise((resolve, reject) => {
+      const client = url.startsWith('https:') ? https : http;
+      
+      const request = client.get(url, (response) => {
+        if (response.statusCode !== 200) {
+          reject(new Error(`HTTP ${response.statusCode}: ${response.statusMessage}`));
+          return;
+        }
+
+        const contentType = response.headers['content-type'];
+        if (!contentType || !contentType.startsWith('image/')) {
+          reject(new Error(`Invalid content type: ${contentType}`));
+          return;
+        }
+
+        const fileStream = fs.createWriteStream(thumbnailPath);
+        response.pipe(fileStream);
+
+        fileStream.on('finish', () => {
+          fileStream.close();
+          console.log(`[VideoDownloader] Downloaded thumbnail: ${thumbnailPath}`);
+          resolve(thumbnailPath);
+        });
+
+        fileStream.on('error', (err) => {
+          fs.unlink(thumbnailPath, () => {}); // 删除部分下载的文件
+          reject(err);
+        });
+      });
+
+      request.on('error', (err) => {
+        reject(err);
+      });
+
+      request.setTimeout(30000, () => {
+        request.destroy();
+        reject(new Error('Download timeout'));
+      });
+    });
+  } catch (error) {
+    console.warn('[VideoDownloader] Failed to download image:', error);
+    return '';
+  }
+}
+
+// 使用ffmpeg生成视频封面图
+async function generateVideoThumbnail(videoPath: string, filename: string, destination?: string): Promise<string> {
+  try {
+    if (!fs.existsSync(videoPath)) {
+      console.warn('[VideoDownloader] Video file does not exist:', videoPath);
+      return '';
+    }
+
+    const actualDestination = destination || process.cwd();
+    const thumbnailsDir = path.join(actualDestination, '.thumbs');
+    
+    // 确保缩略图目录存在
+    if (!fs.existsSync(thumbnailsDir)) {
+      fs.mkdirSync(thumbnailsDir, { recursive: true });
+    }
+
+    const thumbnailFilename = `${filename}.png`;
+    const thumbnailPath = path.join(thumbnailsDir, thumbnailFilename);
+
+    // 如果文件已存在，直接返回路径
+    if (fs.existsSync(thumbnailPath)) {
+      console.log(`[VideoDownloader] Thumbnail already exists: ${thumbnailPath}`);
+      return thumbnailPath;
+    }
+
+    // 使用现有的generateThumbnailForResource函数生成缩略图
+    const thumbnailBuffer = await generateThumbnailForResource(
+      { filePath: videoPath, type: 'video', title: filename },
+      { size: 512, frameAtSeconds: 1.0 }
+    );
+
+    if (thumbnailBuffer) {
+      fs.writeFileSync(thumbnailPath, thumbnailBuffer);
+      console.log(`[VideoDownloader] Generated thumbnail: ${thumbnailPath}`);
+      return thumbnailPath;
+    }
+
+    return '';
+  } catch (error) {
+    console.warn('[VideoDownloader] Failed to generate video thumbnail:', error);
+    return '';
+  }
 }
 
 // 获取当前工作空间的资源文件夹路径
@@ -75,7 +193,7 @@ async function getCurrentWorkspaceResourcePath(): Promise<string> {
 }
 
 // 将下载的文件添加到资源数据库
-async function addDownloadedFileToResources(filePath: string, videoInfo: any, workspaceId?: string): Promise<void> {
+async function addDownloadedFileToResources(filePath: string, videoInfo: any, workspaceId?: string, thumbnailPath?: string): Promise<any> {
   try {
     const stats = fs.statSync(filePath);
     const filename = path.basename(filePath);
@@ -97,7 +215,7 @@ async function addDownloadedFileToResources(filePath: string, videoInfo: any, wo
     }
 
     // 添加到资源数据库
-    await ResourcesRepo.upsert({
+    const resource = await ResourcesRepo.upsert({
       type,
       title: videoInfo?.title || filename,
       description: videoInfo?.description || '',
@@ -111,13 +229,16 @@ async function addDownloadedFileToResources(filePath: string, videoInfo: any, wo
       width: videoInfo?.width || undefined,
       height: videoInfo?.height || undefined,
       mimeType: videoInfo?.mime_type || undefined,
+      thumbnailPath: thumbnailPath || undefined,
       workspaceId: currentWorkspaceId,
       collectedAt: Date.now(),
     } as any);
 
     console.log(`[VideoDownloader] Added file to resources: ${filePath}`);
+    return resource;
   } catch (error) {
     console.warn('[VideoDownloader] Failed to add file to resources:', error);
+    return null;
   }
 }
 
@@ -415,9 +536,8 @@ export class VideoDownloader implements Downloader {
     const downloadPath = resolve(actualDestination, tempFile);
     const destPath = resolve(actualDestination, filename || tempName + ".mp4");
 
-    const thumbnail = thumbnailUrl
-      ? await downloadImageFromUrl(thumbnailUrl, getFileNameWithoutExtension(filename || tempFile), DEFAULT_FOLDERS.download, actualDestination)
-      : "";
+    // 保存thumbnailUrl供后续使用
+    const videoThumbnailUrl = thumbnailUrl;
 
     let settings;
     try {
@@ -525,14 +645,43 @@ ${destPath}`);
           compareAndRenameFiles(downloadPath, destPath);
         }
 
-        // 将下载的文件添加到资源数据库
+        // 先将下载的文件添加到资源数据库（不包含缩略图路径）
+        let resourceId = '';
         try {
-          await addDownloadedFileToResources(destPath, videoInfo);
+          const resource = await addDownloadedFileToResources(destPath, videoInfo);
+          resourceId = resource?.id || '';
         } catch (error) {
           console.warn('[VideoDownloader] Failed to add file to resources:', error);
         }
 
-        isFunction(onCompleted) && onCompleted([destPath], [thumbnail]);
+        // 处理封面图
+        let finalThumbnailPath = '';
+        
+        // 如果有资源ID，尝试生成缩略图
+        if (resourceId) {
+          try {
+            // 先尝试下载封面图
+            if (videoThumbnailUrl) {
+              finalThumbnailPath = await downloadImageFromUrl(videoThumbnailUrl, resourceId, DEFAULT_FOLDERS.download, actualDestination);
+            }
+            
+            // 如果没有成功下载封面图，尝试使用ffmpeg生成
+            if (!finalThumbnailPath) {
+              finalThumbnailPath = await generateVideoThumbnail(destPath, resourceId, actualDestination);
+              console.log(`[VideoDownloader] Generated thumbnail: ${finalThumbnailPath}`);
+            }
+            
+            // 更新资源记录，添加缩略图路径
+            if (finalThumbnailPath) {
+              await ResourcesRepo.update(resourceId, { thumbnailPath: finalThumbnailPath } as any);
+              console.log(`[VideoDownloader] Updated resource with thumbnail: ${finalThumbnailPath}`);
+            }
+          } catch (error) {
+            console.warn('[VideoDownloader] Failed to process thumbnail:', error);
+          }
+        }
+
+        isFunction(onCompleted) && onCompleted([destPath], [finalThumbnailPath]);
       });
   }
 

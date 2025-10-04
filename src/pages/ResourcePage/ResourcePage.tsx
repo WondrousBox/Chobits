@@ -258,7 +258,7 @@ const ResourcePage: React.FC = () => {
       </div>
 
       {/* 类型过滤器 */}
-      <div className='flex items-center gap-2 p-4 border-b bg-muted/30'>
+      <div className='flex items-center justify-between gap-2 p-4 border-b bg-muted/30'>
         <div className='flex items-center gap-1'>
           {typeOptions
             .filter(({ key }) => key === '' || visibleTypes.has(key))
@@ -275,32 +275,34 @@ const ResourcePage: React.FC = () => {
               </Button>
             ))}
         </div>
+
+
+        {/* 选中项操作栏 */}
+        {selectedItems.size > 0 && (
+          <div className='flex items-center justify-between'>
+            <span className='text-sm text-primary'>
+              已选择 {selectedItems.size} 个项目
+            </span>
+            <div className='flex items-center gap-2'>
+              <Button
+                variant='destructive'
+                size='sm'
+                onClick={() => handleDeleteMany(Array.from(selectedItems))}
+              >
+                删除选中
+              </Button>
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={() => setSelectedItems(new Set())}
+              >
+                取消选择
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* 选中项操作栏 */}
-      {selectedItems.size > 0 && (
-        <div className='flex items-center justify-between p-2 bg-primary/10 border-b'>
-          <span className='text-sm text-primary'>
-            已选择 {selectedItems.size} 个项目
-          </span>
-          <div className='flex items-center gap-2'>
-            <Button
-              variant='destructive'
-              size='sm'
-              onClick={() => handleDeleteMany(Array.from(selectedItems))}
-            >
-              删除选中
-            </Button>
-            <Button
-              variant='outline'
-              size='sm'
-              onClick={() => setSelectedItems(new Set())}
-            >
-              取消选择
-            </Button>
-          </div>
-        </div>
-      )}
 
       {/* 主内容区域 */}
       <div className='flex-1 overflow-hidden'>
