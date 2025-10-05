@@ -25,8 +25,7 @@ const catalog: MessageCatalog = {
   },
   hold: {
     variants: [
-      '你可以把我拖到屏幕的任何位置。',
-      '试试把我拖到屏幕的边缘，我会自动避让窗口。',
+      '可以把我拖到任何位置。',
     ],
   },
   drag: {

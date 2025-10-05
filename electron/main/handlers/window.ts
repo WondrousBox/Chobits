@@ -3,10 +3,10 @@ import type { IpcMainInvokeEvent } from "electron";
 import { screen, app } from "electron";
 import fs from 'node:fs';
 import path from 'node:path';
-import { windowManager } from '../window-manager'
-import { WindowKey } from "../window-config";
+import { windowManager } from '../window/window-manager'
+import { WindowKey } from "../window/window-config";
 import { getSuggestWorkspacePath } from "../utils";
-import { saveWindowState, WindowStateStore } from '../window-state-store';
+import { saveWindowState, WindowStateStore } from '../window/window-state-store';
 
 // Assistant intrinsic size
 const ASSISTANT_WIDTH = 180;

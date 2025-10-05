@@ -1,4 +1,6 @@
 import { dialog, ipcMain, shell } from 'electron';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
 
 // Generic file/directory selection handlers
 export function initFileHandlers(win: Electron.BrowserWindow) {
@@ -32,6 +34,46 @@ export function initFileHandlers(win: Electron.BrowserWindow) {
       return { ok: false, error: result };
     } catch (e: any) {
       return { ok: false, error: String(e?.message || e) };
+    }
+  });
+
+  // 读取文件内容（用于文本类资源预览）
+  ipcMain.handle('file:readContent', async (_e, filePath: string, maxBytes?: number) => {
+    if (!filePath) return { success: false, error: 'EMPTY_PATH' };
+    
+    try {
+      // 检查文件是否存在
+      const stats = await fs.stat(filePath);
+      if (!stats.isFile()) {
+        return { success: false, error: 'NOT_A_FILE' };
+      }
+
+      // 检查文件大小，如果超过限制则截取
+      const maxSize = maxBytes || 20000; // 默认限制 20KB
+      if (stats.size > maxSize) {
+        // 读取文件的前 maxSize 字节
+        const buffer = Buffer.alloc(maxSize);
+        const fd = await fs.open(filePath, 'r');
+        await fd.read(buffer, 0, maxSize, 0);
+        await fd.close();
+        return { 
+          success: true, 
+          content: buffer.toString('utf8'),
+          truncated: true,
+          originalSize: stats.size
+        };
+      } else {
+        // 读取完整文件
+        const content = await fs.readFile(filePath, 'utf8');
+        return { 
+          success: true, 
+          content,
+          truncated: false,
+          originalSize: stats.size
+        };
+      }
+    } catch (e: any) {
+      return { success: false, error: String(e?.message || e) };
     }
   });
 }

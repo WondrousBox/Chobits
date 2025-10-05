@@ -31,7 +31,7 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     onClick(e, item)
-    if (isAudio || isImageRes || isVideoRes) {
+    if (isAudio || isImageRes || isVideoRes || item.type === 'text') {
       // 统一调用主进程打开资源预览窗口
       window.YUA.window.openWindow('resourcePreview', {
         current: {
@@ -71,7 +71,7 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
 
   const handlePlayClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
-    if (isAudio || isImageRes || isVideoRes) {
+    if (isAudio || isImageRes || isVideoRes || item.type === 'text') {
       window.YUA.window.openWindow('resourcePreview', {
         current: {
           id: item.id,
@@ -83,6 +83,21 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
       })
     }
   }, [item, isAudio, isImageRes, isVideoRes])
+
+  const handleTextPreviewClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (item.type === 'text') {
+      window.YUA.window.openWindow('resourcePreview', {
+        current: {
+          id: item.id,
+          title: item.title,
+          type: item.type,
+          filePath: item.filePath,
+          url: item.url
+        },
+      })
+    }
+  }, [item])
 
   return (
     <div
@@ -227,8 +242,18 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
           </div>
         )}
 
+        {/* 文本资源 - 显示特殊样式 */}
+        {item.type === 'text' && (
+          <div className='flex h-full w-full items-center justify-center bg-gradient-to-br from-blue-900/70 to-blue-700/40 text-white gap-2 text-[11px]'>
+            <span className='inline-flex items-center gap-1 opacity-90'>
+              <span aria-hidden='true'>📄</span>
+              <span className='font-medium'>点击预览文本</span>
+            </span>
+          </div>
+        )}
+
         {/* 其他资源类型 - 显示类型图标 */}
-        {!isImageFile(item.filePath) && !isVideoFile(item.filePath) && !isAudioFile(item.filePath) && (
+        {!isImageFile(item.filePath) && !isVideoFile(item.filePath) && !isAudioFile(item.filePath) && item.type !== 'text' && (
           <div className='flex h-full w-full items-center justify-center text-xs text-muted-foreground'>
             <div className='text-center'>
               <div className='text-2xl mb-1'>{getResourceTypeIcon(item.type)}</div>
@@ -237,15 +262,19 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
           </div>
         )}
 
-        {/* 悬停播放按钮 */}
-        {(isAudio || isImageRes || isVideoRes) && (
+        {/* 悬停播放/预览按钮 */}
+        {(isAudio || isImageRes || isVideoRes || item.type === 'text') && (
           <div className='absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/20'>
             <Button
-              onClick={handlePlayClick}
+              onClick={item.type === 'text' ? handleTextPreviewClick : handlePlayClick}
               variant='outline'
-              className='flex items-center justify-center w-12 h-12  rounded-full shadow-lg transition-all duration-200 hover:scale-110'
+              className='flex items-center justify-center w-12 h-12 rounded-full shadow-lg transition-all duration-200 hover:scale-110'
             >
-              <TbPlayerPlay />
+              {item.type === 'text' ? (
+                <span className='text-lg'>📄</span>
+              ) : (
+                <TbPlayerPlay />
+              )}
             </Button>
           </div>
         )}

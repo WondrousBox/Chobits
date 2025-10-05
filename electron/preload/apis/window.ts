@@ -1,7 +1,7 @@
 import { ipcRenderer } from "electron";
 
 import { IPCParams } from "../type";
-import { WindowKey } from "electron/main/window-config";
+import { WindowKey } from "electron/main/window/window-config";
 
 type WindowBridgeParams = {
   /**

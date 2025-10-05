@@ -10,12 +10,20 @@ export type FileBridgeParams = {
       multi: boolean;
     }>?], { canceled: boolean; path?: string; paths?: string[] }>;
   'file:openPath': IPCParams<[string], { ok: boolean; error?: string }>;
+  'file:readContent': IPCParams<[string, number?], { 
+    success: boolean; 
+    content?: string; 
+    error?: string; 
+    truncated?: boolean; 
+    originalSize?: number 
+  }>;
 };
 
 const methods: Array<keyof FileBridgeParams> = [
   'file:pickDir',
   'file:pickFile',
   'file:openPath',
+  'file:readContent',
 ];
 
 export type FileBridgeType = {
