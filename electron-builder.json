@@ -11,12 +11,16 @@
   ],
   "extraResources": [
     {
+      "from": "drizzle",
+      "to": "./drizzle"
+    },
+    {
       "from": "resources/ffmpeg/${platform}/${arch}",
-      "to": "./ffmpeg/"
+      "to": "./ffmpeg/${platform}/${arch}"
     },
     {
       "from": "resources/yt-dlp/${platform}/",
-      "to": "./yt-dlp/"
+      "to": "./yt-dlp/${platform}/"
     }
   ],
   "mac": {
