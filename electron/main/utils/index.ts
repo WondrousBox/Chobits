@@ -38,3 +38,25 @@ export function findUniqueFileName(filePath: string): string {
 
   return filePath;
 }
+
+export const Env = {
+  isLinux: function () {
+    return process.platform === "linux";
+  },
+  isMacOS() {
+    return process.platform === "darwin";
+  },
+  isWindows() {
+    return process.platform === "win32";
+  },
+  isProd: function () {
+    return process.env.NODE_ENV !== "development";
+  },
+  isDev: function () {
+    return process.env.NODE_ENV === "development";
+  },
+};
+
+export function getRealPath(prodPath: string, devPath: string, basePath: string = app.getAppPath()) {
+  return path.resolve(basePath, Env.isProd() ? prodPath : devPath);
+}

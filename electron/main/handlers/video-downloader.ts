@@ -11,21 +11,13 @@ import http from "node:http";
 import ytdlpStatic from "../libs/ytdlp-static";
 import { WorkspacesRepo, ResourcesRepo } from "../db/repositories";
 import { generateThumbnailForResource } from "../utils/thumbnail";
+import { getRealPath } from '../utils';
+import { getFfmpegPath } from '../utils/bin-path';
 
 // 默认文件夹配置
 const DEFAULT_FOLDERS = {
   download: './downloads'
 };
-
-// 工具函数
-function getRealPath(...paths: string[]): string {
-  for (const p of paths) {
-    if (fs.existsSync(p)) {
-      return p;
-    }
-  }
-  return paths[paths.length - 1];
-}
 
 function isFunction(fn: any): fn is Function {
   return typeof fn === 'function';
@@ -41,7 +33,7 @@ function cleanDownloadUrl(url: string): string {
 }
 
 function generateUUID(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
     const r = Math.random() * 16 | 0;
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
@@ -58,7 +50,7 @@ async function downloadImageFromUrl(url: string, filename: string, folder: strin
 
     const actualDestination = destination || process.cwd();
     const thumbnailsDir = path.join(actualDestination, '.thumbs');
-    
+
     // 确保缩略图目录存在
     if (!fs.existsSync(thumbnailsDir)) {
       fs.mkdirSync(thumbnailsDir, { recursive: true });
@@ -69,7 +61,7 @@ async function downloadImageFromUrl(url: string, filename: string, folder: strin
     const urlExt = path.extname(urlPath).toLowerCase();
     const validExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
     const ext = validExts.includes(urlExt) ? urlExt : '.jpg';
-    
+
     const thumbnailFilename = `${filename}.png`;
     const thumbnailPath = path.join(thumbnailsDir, thumbnailFilename);
 
@@ -81,7 +73,7 @@ async function downloadImageFromUrl(url: string, filename: string, folder: strin
 
     return new Promise((resolve, reject) => {
       const client = url.startsWith('https:') ? https : http;
-      
+
       const request = client.get(url, (response) => {
         if (response.statusCode !== 200) {
           reject(new Error(`HTTP ${response.statusCode}: ${response.statusMessage}`));
@@ -104,7 +96,7 @@ async function downloadImageFromUrl(url: string, filename: string, folder: strin
         });
 
         fileStream.on('error', (err) => {
-          fs.unlink(thumbnailPath, () => {}); // 删除部分下载的文件
+          fs.unlink(thumbnailPath, () => { }); // 删除部分下载的文件
           reject(err);
         });
       });
@@ -134,7 +126,7 @@ async function generateVideoThumbnail(videoPath: string, filename: string, desti
 
     const actualDestination = destination || process.cwd();
     const thumbnailsDir = path.join(actualDestination, '.thumbs');
-    
+
     // 确保缩略图目录存在
     if (!fs.existsSync(thumbnailsDir)) {
       fs.mkdirSync(thumbnailsDir, { recursive: true });
@@ -183,7 +175,7 @@ async function getCurrentWorkspaceResourcePath(): Promise<string> {
   } catch (error) {
     console.warn('[VideoDownloader] Failed to get workspace resource path:', error);
   }
-  
+
   // 如果获取工作空间失败，回退到默认下载目录
   const fallbackPath = path.join(process.cwd(), DEFAULT_FOLDERS.download);
   if (!fs.existsSync(fallbackPath)) {
@@ -198,7 +190,7 @@ async function addDownloadedFileToResources(filePath: string, videoInfo: any, wo
     const stats = fs.statSync(filePath);
     const filename = path.basename(filePath);
     const ext = path.extname(filePath).toLowerCase();
-    
+
     // 确定文件类型
     let type = 'video';
     if (['.mp3', '.wav', '.flac', '.aac'].includes(ext)) {
@@ -379,10 +371,10 @@ export class DownloadManager extends EventEmitter {
 
     this.tasks.set(taskId, task);
     this.emit('taskAdded', task);
-    
+
     // 开始下载
     this.processQueue();
-    
+
     return taskId;
   }
 
@@ -398,7 +390,7 @@ export class DownloadManager extends EventEmitter {
     task.status = 'cancelled';
     this.running.delete(taskId);
     this.emit('taskCancelled', task);
-    
+
     return true;
   }
 
@@ -482,11 +474,11 @@ export class DownloadManager extends EventEmitter {
   cleanup(): void {
     const completedTasks = Array.from(this.tasks.values())
       .filter(task => ['completed', 'failed', 'cancelled'].includes(task.status));
-    
+
     for (const task of completedTasks) {
       this.tasks.delete(task.id);
     }
-    
+
     this.emit('cleanup', completedTasks.length);
   }
 }
@@ -498,15 +490,12 @@ export class VideoDownloader implements Downloader {
   private ytdlPath: string;
 
   constructor() {
-    this.ffmpegPath = getRealPath(
-      `../addon/ffmpeg/${os.platform() === "darwin" ? "ffmpeg" : "ffmpeg.exe"}`,
-      `./resources/ffmpeg/${os.platform()}/${os.arch()}/${os.platform() === "darwin" ? "ffmpeg" : "ffmpeg.exe"}`,
-    );
+    this.ffmpegPath = getFfmpegPath("ffmpeg");
+    this.ytdlPath = getFfmpegPath("yt-dlp");
 
-    this.ytdlPath = getRealPath(
-      `../yt-dlp/${os.platform() === "darwin" ? "yt-dlp_macos" : "yt-dlp.exe"}`,
-      `./resources/yt-dlp/${os.platform()}/${os.platform() === "darwin" ? "yt-dlp_macos" : "yt-dlp.exe"}`,
-    );
+    console.log("ffmpegPath: ", this.ffmpegPath);
+    console.log("ytdlPath: ", this.ytdlPath);
+    console.log("ytdlpStatic: ", this.ytdlPath);
 
     ytdlpStatic.setBinaryPath(this.ytdlPath);
   }
@@ -656,7 +645,7 @@ ${destPath}`);
 
         // 处理封面图
         let finalThumbnailPath = '';
-        
+
         // 如果有资源ID，尝试生成缩略图
         if (resourceId) {
           try {
@@ -664,13 +653,13 @@ ${destPath}`);
             if (videoThumbnailUrl) {
               finalThumbnailPath = await downloadImageFromUrl(videoThumbnailUrl, resourceId, DEFAULT_FOLDERS.download, actualDestination);
             }
-            
+
             // 如果没有成功下载封面图，尝试使用ffmpeg生成
             if (!finalThumbnailPath) {
               finalThumbnailPath = await generateVideoThumbnail(destPath, resourceId, actualDestination);
               console.log(`[VideoDownloader] Generated thumbnail: ${finalThumbnailPath}`);
             }
-            
+
             // 更新资源记录，添加缩略图路径
             if (finalThumbnailPath) {
               await ResourcesRepo.update(resourceId, { thumbnailPath: finalThumbnailPath } as any);
@@ -733,7 +722,7 @@ export async function getVideoInfo(url: string, timeoutMs: number = 30000): Prom
 
   const args = [cleanDownloadUrl(url), "--prefer-free-formats"];
   const downloader = new VideoDownloader();
-  
+
   // 应用cookies和代理设置
   try {
     downloader['applyCookies'](downloader['getAgent'](args));
@@ -783,7 +772,7 @@ export async function getVideoInfo(url: string, timeoutMs: number = 30000): Prom
 export async function getThumbnail(url: string): Promise<string> {
   const args = [cleanDownloadUrl(url)];
   const downloader = new VideoDownloader();
-  
+
   try {
     downloader['applyCookies'](downloader['getAgent'](args));
   } catch (error) {

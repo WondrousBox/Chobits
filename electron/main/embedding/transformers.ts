@@ -30,9 +30,9 @@ export class TransformersEmbeddingProvider implements EmbeddingProvider {
     env.localModelPath = ModelStore.getConfig().rootDir || getModelCacheDir();
 
     console.log(env.cacheDir);
-    
+
     // Note: In Electron main, no WebGPU; CPU/WASM backend will be used.
-    this.pipeline = await pipeline('feature-extraction', this.modelId, { quantized: true });
+    this.pipeline = await pipeline('feature-extraction', this.modelId, {});
     // Probe dimension
     const test = await (this.pipeline as any)("hello world");
     const vec = Array.isArray(test) ? (Array.isArray(test[0]) ? test[0] : test) : test;

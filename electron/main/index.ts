@@ -7,6 +7,7 @@ import os from 'node:os'
 import { update } from './update'
 import { initHandlers } from './handlers'
 import { windowManager } from './window/window-manager'
+import { logger } from './logger'
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -105,6 +106,14 @@ async function createWindow() {
   try { windowManager.init(win, { preloadPath: (win as any).__preloadPath }) } catch {}
   // (workspace resource root addition moved to app.whenReady after protocol setup)
 
+  // https://github.com/electron/electron/issues/7049
+  // https://www.electronjs.org/docs/latest/breaking-changes#removed-crashed-event-on-webcontents-and-webview
+  win.webContents.on("render-process-gone", (event, details) => {
+    logger.log.error("webContents: render-process-gone", details);
+    win?.destroy();
+    createWindow();
+  });
+
   // Auto update
   update(win)
 }
@@ -169,6 +178,15 @@ app.whenReady().then(async () => {
     console.warn('[shortcut] unexpected error registering devtools shortcuts', e)
   }
 })
+
+process.on("uncaughtException", function (error) {
+  console.log("uncaughtException");
+  logger.log.error(error);
+});
+
+app.on("render-process-gone", (event, webContents, killed) => {
+  logger.log.error("App: render-process-gone", event, killed);
+});
 
 app.on('window-all-closed', () => {
   try { globalShortcut.unregister('CommandOrControl+K') } catch {}
