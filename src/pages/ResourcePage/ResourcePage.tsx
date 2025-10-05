@@ -266,7 +266,7 @@ const ResourcePage: React.FC = () => {
             .map(({ key, label, icon: Icon }) => (
               <Button
                 key={key || 'all'}
-                variant={typeFilter === key && !favoriteFilter ? 'default' : 'outline'}
+                variant={typeFilter === key && !(favoriteFilter && key === '') ? 'default' : 'outline'}
                 size='sm'
                 onClick={() => {
                   if (key === '') {
@@ -274,8 +274,7 @@ const ResourcePage: React.FC = () => {
                     setFavoriteFilter(false)
                     setTypeFilter('')
                   } else {
-                    // 点击其他类型时，取消收藏筛选并设置类型筛选
-                    setFavoriteFilter(false)
+                    // 点击其他类型时，只设置类型筛选，不与收藏筛选冲突
                     setTypeFilter(prev => (prev === key ? '' : key))
                   }
                 }}
@@ -344,9 +343,12 @@ const ResourcePage: React.FC = () => {
                   // 如果当前是收藏模式，点击后取消收藏筛选
                   setFavoriteFilter(false)
                 } else {
-                  // 如果当前不是收藏模式，点击后进入收藏模式并取消类型筛选
+                  // 如果当前不是收藏模式，点击后进入收藏模式
+                  // 如果当前选择的是"全部"类型，则取消类型筛选
                   setFavoriteFilter(true)
-                  setTypeFilter('')
+                  if (typeFilter === '') {
+                    setTypeFilter('')
+                  }
                 }
               }}
               className={`h-8 transition-colors ${
