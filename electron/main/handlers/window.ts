@@ -29,7 +29,8 @@ export function initWindowHandlers(win: BrowserWindow) {
   let menuWindow: BrowserWindow | null = null
   let settingsWindow: BrowserWindow | null = null
   // 记录上一次放置的方向 (针对所有跟随窗口分别记录)
-  const lastFollowerSide = new Map<BrowserWindow, 'right' | 'left' | 'bottom' | 'top' | null>()
+  type FollowerSide = 'right' | 'left' | 'bottom' | 'top' | 'overlap'
+  const lastFollowerSide = new Map<BrowserWindow, FollowerSide | null>()
   let followerAnimTimer: NodeJS.Timeout | null = null
   let followerAnimRaf: number | null = null
   // 动画状态变量
@@ -70,6 +71,10 @@ export function initWindowHandlers(win: BrowserWindow) {
     try { fs.writeFileSync(configFile, JSON.stringify(movementConfig, null, 2), 'utf8') } catch { }
   }
 
+  // Follower preferred mode (runtime adjustable)
+  type FollowerPreferMode = 'auto' | 'prefer-right' | 'prefer-left' | 'prefer-bottom' | 'prefer-top' | 'overlap-center'
+  let followerPreferMode: FollowerPreferMode = 'prefer-right'
+
   function adjustMainWindowForPadding(oldPadding: number, newPadding: number) {
     if (!win || win.isDestroyed()) return
     if (oldPadding === newPadding) return
@@ -88,17 +93,50 @@ export function initWindowHandlers(win: BrowserWindow) {
   }
 
   // 计算目标位置并返回方向（基于内层角色区域而非整个窗口边框）
-  function computeFollowerPosition(main: Electron.Rectangle, follower: { width: number; height: number }) {
+  function computeFollowerPosition(
+    main: Electron.Rectangle,
+    follower: { width: number; height: number },
+    preferMode?: FollowerPreferMode
+  ) {
     const gap = 12
     const padding = movementConfig.assistantPadding ?? 0
     const anchor = { x: main.x + padding, y: main.y + padding, width: ASSISTANT_WIDTH, height: ASSISTANT_HEIGHT }
     const display = screen.getDisplayNearestPoint({ x: anchor.x + anchor.width / 2, y: anchor.y + anchor.height / 2 })
     const work = display.workArea
-    const candidates: Array<{ x: number; y: number; score: number; side: 'right' | 'left' | 'bottom' | 'top' }> = []
-    candidates.push({ x: anchor.x + anchor.width + gap, y: anchor.y, score: 100, side: 'right' })
-    candidates.push({ x: anchor.x - follower.width - gap, y: anchor.y, score: 90, side: 'left' })
-    candidates.push({ x: anchor.x, y: anchor.y + anchor.height + gap, score: 80, side: 'bottom' })
-    candidates.push({ x: anchor.x, y: anchor.y - follower.height - gap, score: 70, side: 'top' })
+    const mode = preferMode || followerPreferMode || 'prefer-right'
+
+    // overlap-center 模式：把跟随窗口居中覆盖在助手区域上
+    if (mode === 'overlap-center') {
+      const centerX = Math.round(anchor.x + (anchor.width - follower.width) / 2)
+      const centerY = Math.round(anchor.y + (anchor.height - follower.height) / 2)
+      const x = Math.min(Math.max(centerX, work.x), work.x + work.width - follower.width)
+      const y = Math.min(Math.max(centerY, work.y), work.y + work.height - follower.height)
+      return { x, y, side: 'overlap' as FollowerSide }
+    }
+
+    const candidates: Array<{ x: number; y: number; score: number; side: FollowerSide }> = []
+    // 基础候选位置
+    const base: Array<{ x: number; y: number; side: FollowerSide; baseScore: number }> = [
+      { x: anchor.x + anchor.width + gap, y: anchor.y, side: 'right', baseScore: 100 },
+      { x: anchor.x - follower.width - gap, y: anchor.y, side: 'left', baseScore: 100 },
+      { x: anchor.x, y: anchor.y + anchor.height + gap, side: 'bottom', baseScore: 100 },
+      { x: anchor.x, y: anchor.y - follower.height - gap, side: 'top', baseScore: 100 },
+    ]
+
+    // 根据优先模式附加偏好分
+    const preferenceBoost = (side: FollowerSide): number => {
+      switch (mode) {
+        case 'prefer-right': return side === 'right' ? 20 : 0
+        case 'prefer-left': return side === 'left' ? 20 : 0
+        case 'prefer-bottom': return side === 'bottom' ? 20 : 0
+        case 'prefer-top': return side === 'top' ? 20 : 0
+        case 'auto': default: return 0
+      }
+    }
+
+    for (const b of base) {
+      candidates.push({ x: b.x, y: b.y, score: b.baseScore + preferenceBoost(b.side), side: b.side })
+    }
 
     const valid: typeof candidates = []
     for (const c of candidates) {
@@ -172,12 +210,12 @@ export function initWindowHandlers(win: BrowserWindow) {
     }
   }
 
-  function repositionFollower(followerWin: BrowserWindow | null) {
+  function repositionFollower(followerWin: BrowserWindow | null, preferMode?: FollowerPreferMode) {
     if (!win || !followerWin || followerWin.isDestroyed()) return
     try {
       const mainBounds = win.getBounds()
       const followerBounds = followerWin.getBounds()
-      const pos = computeFollowerPosition(mainBounds, followerBounds)
+      const pos = computeFollowerPosition(mainBounds, followerBounds, preferMode)
       const lastSide = lastFollowerSide.get(followerWin) || null
       // 如果方向变化，则做动画，否则直接贴靠
       if (lastSide && pos.side !== lastSide) {
@@ -269,6 +307,17 @@ export function initWindowHandlers(win: BrowserWindow) {
     try { win?.webContents.send('movement-config-updated', movementConfig) } catch { }
     try { settingsWindow?.webContents.send('movement-config-updated', movementConfig) } catch { }
     return movementConfig
+  })
+
+  // ---------------- Follower prefer mode IPC --------------------
+  ipcMain.handle('getFollowerPreferMode', () => {
+    return followerPreferMode
+  })
+  ipcMain.handle('setFollowerPreferMode', (_: IpcMainInvokeEvent, mode: FollowerPreferMode) => {
+    followerPreferMode = mode || 'prefer-right'
+    repositionAllFollowers()
+    try { win?.webContents.send('follower-prefer-mode-updated', followerPreferMode) } catch { }
+    return followerPreferMode
   })
 
   // ---------------- Window Move & Click Through -------------
