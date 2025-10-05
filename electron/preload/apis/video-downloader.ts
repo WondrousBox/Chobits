@@ -38,6 +38,23 @@ const videoDownloaderAPI = {
   onTaskProgress: (callback: (task: any) => void) => {
     ipcRenderer.on('video-downloader:task-progress', (_, task) => callback(task));
   },
+
+  onTaskStarted: (callback: (task: any) => void) => {
+    ipcRenderer.on('video-downloader:task-started', (_, task) => callback(task));
+  },
+
+  onTaskCompleted: (callback: (task: any) => void) => {
+    ipcRenderer.on('video-downloader:task-completed', (_, task) => callback(task));
+  },
+
+  onTaskFailed: (callback: (task: any) => void) => {
+    ipcRenderer.on('video-downloader:task-failed', (_, task) => callback(task));
+  },
+
+  // 关闭下载悬浮窗
+  closeDownloadFloating: () => {
+    ipcRenderer.send('download-floating:close');
+  },
 };
 
 // 导出API
