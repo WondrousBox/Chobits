@@ -102,8 +102,7 @@ const ResourcePreviewWindow: React.FC = () => {
         const lower = data.filePath.toLowerCase()
         if (/(\.txt|\.md|\.log|\.json|\.csv|\.ts|\.js|\.tsx|\.jsx|\.py|\.go|\.rs|\.java|\.c|\.cpp|\.yml|\.yaml|\.toml|\.ini)$/i.test(lower)) {
           setLoadingText(true)
-          // @ts-ignore
-          window.YUA.file.readContent(data.filePath, 20000)
+          window.YUA.file['file:readContent'](data.filePath, 20000)
             .then((result: any) => {
               if (result.success) {
                 let content = result.content || ''
@@ -206,10 +205,9 @@ const ResourcePreviewWindow: React.FC = () => {
           </div>
         )}
         {!isImageFile(data.filePath) && !isVideoFile(data.filePath) && !isAudioFile(data.filePath) && (
-          <div className='text-xs text-muted-foreground max-w-[80%] break-words'>
-            <div className='mb-2 font-medium'>资源类型: {data.type}</div>
+          <div className='w-full h-full text-xs text-muted-foreground break-words'>
             {(data.type === 'text' || textContent) && (
-              <div className='w-full max-h-[70vh] overflow-auto rounded border bg-background/70 p-2 text-left whitespace-pre-wrap font-mono text-[11px] leading-relaxed shadow-inner'>
+              <div className='w-full h-full box-border select-text overflow-auto rounded border px-2 text-left whitespace-pre-wrap font-mono text-xs leading-relaxed shadow-inner'>
                 {loadingText ? '加载中…' : (textContent || '（无文本内容）')}
               </div>
             )}
