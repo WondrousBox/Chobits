@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import './AIAssistant.scss'
 import { bezierQ, clamp, lerp } from '@/utils/helpers'
 import VideoSprite from './sprites'
 import Messages, { MessageBubble } from './messages'
@@ -27,9 +26,13 @@ export const AIAssistant: React.FC = () => {
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [messageState, setMessageState] = useState<MessageCategory>('welcome')
   const [isFileDragOver, setIsFileDragOver] = useState(false)
+  const [isDragReady, setIsDragReady] = useState(false)
+  const [dragProgress, setDragProgress] = useState(0)
   // Debug overlay toggle for padding boundary
   const [showPaddingDebug, setShowPaddingDebug] = useState(true)
   const dragCounterRef = useRef(0)
+  const dragTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const dragStartTimeRef = useRef<number>(0)
 
   const containerRef = useRef<HTMLDivElement>(null)
   // Removed dragSide / handLeft / handRight states (unused in UI)
@@ -253,15 +256,53 @@ export const AIAssistant: React.FC = () => {
   // 鼠标事件处理（拖动时移动窗口）
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault()
-    setIsDragging(true)
+    
+    // 清除之前的定时器
+    if (dragTimerRef.current) {
+      clearInterval(dragTimerRef.current)
+      dragTimerRef.current = null
+    }
+    
+    // 重置拖拽状态
+    setIsDragReady(false)
+    setDragProgress(0)
+    dragStartTimeRef.current = Date.now()
+    
+    // 设置消息状态
     setMessageState('hold')
     stopWalking()
     setClickThrough(false)
     setDragOffset({ x: e.clientX, y: e.clientY })
+    
+    // 开始拖拽准备定时器
+    dragTimerRef.current = setInterval(() => {
+      const elapsed = Date.now() - dragStartTimeRef.current
+      const progress = Math.min(elapsed / 1000, 1) // 1秒
+      setDragProgress(progress)
+      
+      if (progress >= 1) {
+        setIsDragReady(true)
+        setIsDragging(true)
+        if (dragTimerRef.current) {
+          clearInterval(dragTimerRef.current)
+          dragTimerRef.current = null
+        }
+      }
+    }, 16) // 约60fps更新
   }
 
   const handleMouseUp = useCallback((e?: MouseEvent) => {
+    // 清除拖拽定时器
+    if (dragTimerRef.current) {
+      clearInterval(dragTimerRef.current)
+      dragTimerRef.current = null
+    }
+    
+    // 重置拖拽状态
     setIsDragging(false)
+    setIsDragReady(false)
+    setDragProgress(0)
+    
     // Ensure click-through reflects current pointer position even if no mousemove fires
     const rect = containerRef.current?.getBoundingClientRect()
     if (rect && e) {
@@ -278,7 +319,7 @@ export const AIAssistant: React.FC = () => {
   }, [setClickThrough])
 
   const handleMouseMove = useCallback(async (e: MouseEvent) => {
-    if (!isDragging) return
+    if (!isDragging || !isDragReady) return
     const winX = e.screenX - dragOffset.x
     const winY = e.screenY - dragOffset.y
     // Constrain so inner assistant rectangle remains fully visible
@@ -294,11 +335,11 @@ export const AIAssistant: React.FC = () => {
       lastIpcSendRef.current = now
       await window.YUA.window.moveWindow(Math.round(boundedWinX), Math.round(boundedWinY))
     }
-  }, [isDragging, dragOffset, screenSize, paddingState])
+  }, [isDragging, isDragReady, dragOffset, screenSize, paddingState])
 
   // 全局鼠标事件监听
   useEffect(() => {
-    if (isDragging) {
+    if (isDragging || dragProgress > 0) {
       const up = (e: MouseEvent) => handleMouseUp(e)
       document.addEventListener('mousemove', handleMouseMove)
       document.addEventListener('mouseup', up)
@@ -308,7 +349,7 @@ export const AIAssistant: React.FC = () => {
         document.removeEventListener('mouseup', up)
       }
     }
-  }, [isDragging, handleMouseMove, handleMouseUp])
+  }, [isDragging, dragProgress, handleMouseMove, handleMouseUp])
 
   // 根据鼠标是否在助手区域内自动切换点击穿透（仅在未拖拽时）
   useEffect(() => {
@@ -330,7 +371,7 @@ export const AIAssistant: React.FC = () => {
       lastMousePosRef.current = { clientX: e.clientX, clientY: e.clientY }
       const rect = containerRef.current?.getBoundingClientRect()
       const inside = !!rect && e.clientX >= (rect!.left) && e.clientX <= (rect!.right) && e.clientY >= (rect!.top) && e.clientY <= (rect!.bottom)
-      if (!isDragging && inside !== lastInside) {
+      if (!isDragging && !dragProgress && inside !== lastInside) {
         lastInside = inside
         setClickThrough(!inside)
       }
@@ -341,7 +382,7 @@ export const AIAssistant: React.FC = () => {
       document.removeEventListener('mousemove', onMove)
       setClickThrough(false)
     }
-  }, [isDragging, setClickThrough])
+  }, [isDragging, dragProgress, setClickThrough])
 
   // 点击交互
   const handleClick = () => {
@@ -540,11 +581,27 @@ export const AIAssistant: React.FC = () => {
 
   const walkEnabledRef = useRef(false)
 
+  // 组件卸载时清理定时器
+  useEffect(() => {
+    return () => {
+      if (dragTimerRef.current) {
+        clearInterval(dragTimerRef.current)
+        dragTimerRef.current = null
+      }
+    }
+  }, [])
 
   return (
     <div
       ref={containerRef}
-      className={`ai-assistant-container ${isWalking ? 'walking' : ''} ${isDragging ? 'dragging' : ''} ${isFileDragOver ? 'drag-over' : ''}`}
+      className={`
+        fixed w-[180px] h-[220px] select-none z-[9999] 
+        transition-transform duration-300 ease-in-out
+        top-[100px] left-[100px] pointer-events-auto
+        ${isDragReady ? 'cursor-grabbing' : dragProgress > 0 ? 'cursor-wait' : 'cursor-grab'}
+        ${isFileDragOver ? 'outline-2 outline-dashed outline-indigo-500/60 outline-offset-[6px] shadow-[0_0_0_6px_rgba(99,102,241,0.15)_inset,0_12px_35px_rgba(99,102,241,0.25)]' : ''}
+        ${dragProgress > 0 ? 'ring-2 ring-blue-500/50 ring-offset-2' : ''}
+      `}
       onMouseDown={handleMouseDown}
       onContextMenu={handleContextMenu}
       onClick={handleClick}
@@ -582,8 +639,24 @@ export const AIAssistant: React.FC = () => {
         <VideoSprite />
       </Dropzone>
 
+      {/* 拖拽进度指示器 */}
+      {dragProgress > 0 && dragProgress < 1 && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="w-16 h-16 rounded-full border-4 border-blue-500/30 flex items-center justify-center">
+            <div 
+              className="w-12 h-12 rounded-full border-4 border-blue-500 border-t-transparent animate-spin"
+              style={{ 
+                animationDuration: '2s',
+                animationTimingFunction: 'linear',
+                animationIterationCount: 'infinite'
+              }}
+            />
+          </div>
+        </div>
+      )}
+      
       {/* 状态指示器 */}
-      <div className="status-indicator">
+      <div className="absolute -bottom-[10px] -right-[10px] w-[30px] h-[30px] bg-white/90 border-2 border-indigo-500 rounded-full flex items-center justify-center text-sm shadow-[0_2px_10px_rgba(0,0,0,0.1)]">
         {isDragging ? '🫴' : isWalking ? '🚶‍♀️' : '😊'}
       </div>
     </div>
