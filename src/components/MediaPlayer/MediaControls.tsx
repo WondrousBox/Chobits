@@ -1,0 +1,315 @@
+import React, { useState, useCallback } from 'react'
+import { Button } from '@/components/ui/button'
+import { 
+  TbPlayerPlay, 
+  TbPlayerPause, 
+  TbVolume, 
+  TbVolumeOff, 
+  TbMaximize, 
+  TbMinimize,
+  TbSettings
+} from 'react-icons/tb'
+
+// 播放/暂停按钮组件
+interface PlayPauseButtonProps {
+  isPlaying: boolean
+  onTogglePlay: () => void
+  type: 'video' | 'audio'
+}
+
+const PlayPauseButton: React.FC<PlayPauseButtonProps> = ({ isPlaying, onTogglePlay, type }) => {
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      onClick={onTogglePlay}
+      className={`w-8 h-8 p-0 hover:bg-white/20 ${type === 'video' ? 'text-white' : 'text-foreground'}`}
+    >
+      {isPlaying ? <TbPlayerPause size={16} /> : <TbPlayerPlay size={16} />}
+    </Button>
+  )
+}
+
+// 音量控制组件
+interface VolumeControlProps {
+  volume: number
+  onVolumeChange: (volume: number) => void
+  onToggleMute: () => void
+  type: 'video' | 'audio'
+}
+
+const VolumeControl: React.FC<VolumeControlProps> = ({ volume, onVolumeChange, onToggleMute, type }) => {
+  const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVolume = parseFloat(e.target.value)
+    onVolumeChange(newVolume)
+  }, [onVolumeChange])
+
+  return (
+    <div className="relative flex items-center group">
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={onToggleMute}
+        className={`w-8 h-8 p-0 hover:bg-white/20 ${type === 'video' ? 'text-white' : 'text-foreground'}`}
+      >
+        {volume === 0 ? <TbVolumeOff size={16} /> : <TbVolume size={16} />}
+      </Button>
+
+      {/* 音量滑块 - 音频模式时水平展开 */}
+      <div className={`flex items-center transition-all duration-300 overflow-hidden w-0 opacity-0 group-hover:w-16 group-hover:opacity-100`}>
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.1"
+          value={volume}
+          onChange={handleVolumeChange}
+          className={`w-full h-1 rounded-full appearance-none cursor-pointer slider ${
+            type === 'video' ? 'bg-white/30' : 'bg-muted-foreground/30'
+          }`}
+          style={{
+            background: type === 'video' 
+              ? `linear-gradient(to right, white 0%, white ${volume * 100}%, rgba(255,255,255,0.3) ${volume * 100}%, rgba(255,255,255,0.3) 100%)`
+              : `linear-gradient(to right, hsl(var(--foreground)) 0%, hsl(var(--foreground)) ${volume * 100}%, hsl(var(--muted-foreground) / 0.3) ${volume * 100}%, hsl(var(--muted-foreground) / 0.3) 100%)`
+          }}
+        />
+      </div>
+    </div>
+  )
+}
+
+// 时间显示组件
+interface TimeDisplayProps {
+  currentTime: number
+  duration: number
+  type: 'video' | 'audio'
+}
+
+const TimeDisplay: React.FC<TimeDisplayProps> = ({ currentTime, duration, type }) => {
+  const formatTime = useCallback((time: number) => {
+    const minutes = Math.floor(time / 60)
+    const seconds = Math.floor(time % 60)
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+  }, [])
+
+  return (
+    <div className={`text-xs px-2 font-mono ${type === 'video' ? 'text-white' : 'text-muted-foreground'}`}>
+      {formatTime(currentTime)} / {formatTime(duration)}
+    </div>
+  )
+}
+
+// 播放速度控制组件
+interface PlaybackRateControlProps {
+  playbackRate: number
+  onPlaybackRateChange: (rate: number) => void
+  type: 'video' | 'audio'
+}
+
+const PlaybackRateControl: React.FC<PlaybackRateControlProps> = ({ playbackRate, onPlaybackRateChange, type }) => {
+  const [showPlaybackRateMenu, setShowPlaybackRateMenu] = useState(false)
+  const playbackRates = [0.5, 0.75, 1, 1.25, 1.5, 2]
+
+  return (
+    <div className="relative">
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={() => setShowPlaybackRateMenu(!showPlaybackRateMenu)}
+        className={`w-8 h-8 p-0 hover:bg-white/20 ${type === 'video' ? 'text-white' : 'text-foreground'}`}
+      >
+        <TbSettings size={16} />
+      </Button>
+      {showPlaybackRateMenu && (
+        <div className={`absolute bottom-full mb-2 right-0 rounded-md p-1 min-w-[80px] ${
+          type === 'video' ? 'bg-black/80' : 'bg-background border'
+        }`}>
+          {playbackRates.map(rate => (
+            <button
+              key={rate}
+              onClick={() => {
+                onPlaybackRateChange(rate)
+                setShowPlaybackRateMenu(false)
+              }}
+              className={`w-full px-2 py-1 text-xs hover:bg-white/20 rounded ${
+                type === 'video' 
+                  ? `text-white ${playbackRate === rate ? 'bg-white/30' : ''}`
+                  : `text-foreground ${playbackRate === rate ? 'bg-muted' : ''}`
+              }`}
+            >
+              {rate}x
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// 全屏按钮组件
+interface FullscreenButtonProps {
+  isFullscreen: boolean
+  onToggleFullscreen: () => void
+}
+
+const FullscreenButton: React.FC<FullscreenButtonProps> = ({ isFullscreen, onToggleFullscreen }) => {
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      onClick={onToggleFullscreen}
+      className="w-8 h-8 p-0 text-white hover:bg-white/20"
+    >
+      {isFullscreen ? <TbMinimize size={16} /> : <TbMaximize size={16} />}
+    </Button>
+  )
+}
+
+interface MediaControlsProps {
+  isPlaying: boolean
+  currentTime: number
+  duration: number
+  volume: number
+  playbackRate: number
+  isFullscreen: boolean
+  showControls: boolean
+  onTogglePlay: () => void
+  onSeek: (time: number) => void
+  onVolumeChange: (volume: number) => void
+  onPlaybackRateChange: (rate: number) => void
+  onToggleFullscreen: () => void
+  onMouseEnter?: () => void
+  onMouseLeave?: () => void
+  type: 'video' | 'audio'
+}
+
+export const MediaControls: React.FC<MediaControlsProps> = ({
+  isPlaying,
+  currentTime,
+  duration,
+  volume,
+  playbackRate,
+  isFullscreen,
+  showControls,
+  onTogglePlay,
+  onSeek,
+  onVolumeChange,
+  onPlaybackRateChange,
+  onToggleFullscreen,
+  onMouseEnter,
+  onMouseLeave,
+  type
+}) => {
+  const [previousVolume, setPreviousVolume] = useState(1) // 记住静音前的音量
+
+  // 进度条点击处理
+  const handleProgressClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const clickX = e.clientX - rect.left
+    const percentage = clickX / rect.width
+    const newTime = percentage * duration
+    onSeek(newTime)
+  }, [duration, onSeek])
+
+  // 音量变化处理（包含记忆逻辑）
+  const handleVolumeChange = useCallback((newVolume: number) => {
+    onVolumeChange(newVolume)
+    // 更新记忆的音量（只有在非静音时更新）
+    if (newVolume > 0) {
+      setPreviousVolume(newVolume)
+    }
+  }, [onVolumeChange])
+
+  // 切换静音状态
+  const toggleMute = useCallback(() => {
+    if (volume === 0) {
+      // 如果当前是静音，恢复到之前的音量
+      onVolumeChange(previousVolume)
+    } else {
+      // 如果当前有音量，先记住当前音量，然后设置为静音
+      setPreviousVolume(volume)
+      onVolumeChange(0)
+    }
+  }, [volume, previousVolume, onVolumeChange])
+
+  const controlsClass = type === 'video'
+    ? `absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'
+    }`
+    : 'flex items-center justify-between gap-3 p-3 bg-background/90 rounded-lg border'
+
+  return (
+    <div
+      className={controlsClass}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
+      {/* 进度条 */}
+      <div className="mb-2">
+        <div
+          className="w-full h-1 bg-white/30 rounded-full cursor-pointer hover:h-2 transition-all"
+          onClick={handleProgressClick}
+        >
+          <div
+            className="h-full bg-white rounded-full transition-all"
+            style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+          />
+        </div>
+      </div>
+
+      {/* 控制按钮 */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center">
+          <PlayPauseButton
+            isPlaying={isPlaying}
+            onTogglePlay={onTogglePlay}
+            type={type}
+          />
+          <VolumeControl
+            volume={volume}
+            onVolumeChange={handleVolumeChange}
+            onToggleMute={toggleMute}
+            type={type}
+          />
+          <TimeDisplay
+            currentTime={currentTime}
+            duration={duration}
+            type={type}
+          />
+        </div>
+
+        <div className="flex items-center gap-2">
+          <PlaybackRateControl
+            playbackRate={playbackRate}
+            onPlaybackRateChange={onPlaybackRateChange}
+            type={type}
+          />
+          {type === 'video' && (
+            <FullscreenButton
+              isFullscreen={isFullscreen}
+              onToggleFullscreen={onToggleFullscreen}
+            />
+          )}
+        </div>
+      </div>
+
+      <style>{`
+        .slider::-webkit-slider-thumb {
+          appearance: none;
+          width: 12px;
+          height: 12px;
+          border-radius: 50%;
+          background: white;
+          cursor: pointer;
+        }
+        .slider::-moz-range-thumb {
+          width: 12px;
+          height: 12px;
+          border-radius: 50%;
+          background: white;
+          cursor: pointer;
+          border: none;
+        }
+      `}</style>
+    </div>
+  )
+}
