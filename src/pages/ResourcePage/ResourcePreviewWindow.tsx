@@ -3,6 +3,7 @@ import { makeResSrc, isImageFile, isVideoFile, isAudioFile } from '@/lib/resourc
 import type { ResourceItem } from '@/types'
 import { Button } from '@/components/ui/button'
 import DragAbleTitle from '@/components/common/DragAbleTitle'
+import { MediaPlayer } from '@/components/MediaPlayer'
 
 interface PreviewData extends ResourceItem { }
 
@@ -18,8 +19,6 @@ const ResourcePreviewWindow: React.FC = () => {
   const [index, setIndex] = useState<number>(-1)
   const [textContent, setTextContent] = useState<string>('')
   const [loadingText, setLoadingText] = useState(false)
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-  const videoRef = useRef<HTMLVideoElement | null>(null)
 
   const go = useCallback((dir: 1 | -1) => {
     setIndex(prev => {
@@ -50,14 +49,6 @@ const ResourcePreviewWindow: React.FC = () => {
         setList([])
         setIndex(-1)
       }
-      // 重置媒体
-      try { if (audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0 } } catch { }
-      try { if (videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime = 0 } } catch { }
-      // 轻微延迟后自动播放
-      setTimeout(() => {
-        try { videoRef.current?.play()?.catch(() => { }) } catch { }
-        try { audioRef.current?.play()?.catch(() => { }) } catch { }
-      }, 60)
     }
     // @ts-ignore
     window.ipcRenderer?.on('openWindowReadyData', handler)
@@ -134,27 +125,12 @@ const ResourcePreviewWindow: React.FC = () => {
         e.preventDefault();
         try { window.YUA.window?.closeWindow('resourcePreview'); } catch { }
       }
-      if (e.key === ' ' || e.code === 'Space') {
-        if (audioRef.current) {
-          e.preventDefault()
-          if (audioRef.current.paused) audioRef.current.play().catch(() => { }); else audioRef.current.pause()
-        } else if (videoRef.current) {
-          e.preventDefault()
-          if (videoRef.current.paused) videoRef.current.play().catch(() => { }); else videoRef.current.pause()
-        }
-      }
-      if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && (audioRef.current || videoRef.current)) {
-        const media = audioRef.current || videoRef.current
-        if (media) {
-          e.preventDefault()
-          const delta = e.key === 'ArrowLeft' ? -5 : 5
-          try { media.currentTime = Math.max(0, Math.min(media.duration || Infinity, media.currentTime + delta)) } catch { }
-        }
-      }
       if (e.key === 'PageUp') { e.preventDefault(); go(-1) }
       if (e.key === 'PageDown') { e.preventDefault(); go(1) }
-      if ((e.key === 'ArrowLeft' && !audioRef.current && !videoRef.current) && list.length) { go(-1) }
-      if ((e.key === 'ArrowRight' && !audioRef.current && !videoRef.current) && list.length) { go(1) }
+      if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && list.length) { 
+        e.preventDefault()
+        go(e.key === 'ArrowLeft' ? -1 : 1)
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -196,13 +172,22 @@ const ResourcePreviewWindow: React.FC = () => {
           <img src={fileSrc} alt={title} className='max-w-full max-h-full object-contain rounded-md shadow' />
         )}
         {isVideoFile(data.filePath) && fileSrc && (
-          <video ref={videoRef} src={fileSrc} controls autoPlay className='max-w-full max-h-full w-full h-full object-contain' />
+          <MediaPlayer
+            src={fileSrc}
+            type="video"
+            title={title}
+            autoPlay={true}
+            className="w-full h-full"
+          />
         )}
         {isAudioFile(data.filePath) && fileSrc && (
-          <div className='w-full max-w-xl flex flex-col items-stretch gap-3'>
-            <audio ref={audioRef} src={fileSrc} controls autoPlay className='w-full' />
-            <div className='text-[11px] text-muted-foreground px-1'>音频预览 - {title}</div>
-          </div>
+          <MediaPlayer
+            src={fileSrc}
+            type="audio"
+            title={title}
+            autoPlay={true}
+            className="w-full max-w-xl"
+          />
         )}
         {!isImageFile(data.filePath) && !isVideoFile(data.filePath) && !isAudioFile(data.filePath) && (
           <div className='w-full h-full text-xs text-muted-foreground break-words'>
