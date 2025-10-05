@@ -240,21 +240,13 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
         {/* 悬停播放按钮 */}
         {(isAudio || isImageRes || isVideoRes) && (
           <div className='absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/20'>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={handlePlayClick}
-                    className='flex items-center justify-center w-12 h-12 bg-white/90 hover:bg-white rounded-full shadow-lg transition-all duration-200 hover:scale-110'
-                  >
-                    <TbPlayerPlay className='w-6 h-6 text-gray-800' />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>播放预览</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <Button
+              onClick={handlePlayClick}
+              variant='outline'
+              className='flex items-center justify-center w-12 h-12  rounded-full shadow-lg transition-all duration-200 hover:scale-110'
+            >
+              <TbPlayerPlay />
+            </Button>
           </div>
         )}
       </div>
