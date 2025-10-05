@@ -259,12 +259,14 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({ items, onDelete, onD
           onSelect={() => {
             const ids = Array.from(selected)
             if (ids.length === 0) return
-            if (window?.YUA?.resource?.deleteResources) {
-              window.YUA.resource.deleteResources({ ids })
-            } else if (onDeleteMany) {
+            // 优先使用父组件传递的删除函数，确保本地状态同步更新
+            if (onDeleteMany) {
               onDeleteMany(ids)
-            } else {
-              ids.forEach(id => onDelete?.(id))
+            } else if (onDelete) {
+              ids.forEach(id => onDelete(id))
+            } else if (window?.YUA?.resource?.deleteResources) {
+              // 如果没有传递删除函数，则直接调用主进程 API（不推荐）
+              window.YUA.resource.deleteResources({ ids })
             }
           }}
         >

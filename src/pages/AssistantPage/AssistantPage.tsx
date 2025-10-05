@@ -303,12 +303,12 @@ const AssistantPage: React.FC = () => {
               >
                 {isAnalyzingVideo ? (
                   <>
-                    <TbLoader2 className="animate-spin mr-2" />
+                    <TbLoader2 className="animate-spin" />
                     分析中...
                   </>
                 ) : (
                   <>
-                    <TbDownload className="mr-2" />
+                    <TbDownload />
                     下载视频
                   </>
                 )}
@@ -323,12 +323,12 @@ const AssistantPage: React.FC = () => {
               >
                 {isAnalyzingWeb ? (
                   <>
-                    <TbLoader2 className="animate-spin mr-2" />
+                    <TbLoader2 className="animate-spin" />
                     分析中...
                   </>
                 ) : (
                   <>
-                    <TbWorld className="mr-2" />
+                    <TbWorld />
                     分析网页
                   </>
                 )}

@@ -4,6 +4,7 @@ import { ResourceItem } from '@/types'
 import { TbCopy, TbCheck, TbStar, TbHeart, TbEye, TbEyeOff, TbClock, TbFile, TbPlayerPlay } from 'react-icons/tb'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { formatFileSize, formatDuration, formatTime, getResourceTypeIcon, getStatusColor, getRatingStars, getResourceSummary } from '@/utils/resourceUtils'
+import { Button } from '@/components/ui/button'
 
 interface GalleryItemProps {
   item: ResourceItem
@@ -94,82 +95,102 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
       {/* 顶部状态栏 */}
       <div className='absolute inset-x-0 top-0 z-20 flex items-center justify-between bg-gradient-to-b from-black/80 via-black/40 to-transparent px-2 py-1.5'>
         <div className='flex items-center gap-1'>
-          {/* 资源类型图标 */}
-          <span className='text-[10px]'>{getResourceTypeIcon(item.type)}</span>
-          
+
+          {/* 来源信息 */}
+          {(item.domain || item.sourceName || item.authorName) && (
+            <div className='mt-1 flex items-center gap-1 text-[9px] text-white/70'>
+              {item.domain && (
+                <span className='bg-white/20 px-1 py-0.5 rounded text-[8px] font-medium'>
+                  {item.domain}
+                </span>
+              )}
+              {(item.sourceName || item.authorName) && (
+                <span className='truncate max-w-[120px]'>
+                  {item.sourceName || item.authorName}
+                </span>
+              )}
+            </div>
+          )}
+
           {/* 状态指示器 */}
           <span className={`text-[9px] ${getStatusColor(item.status)}`}>
-            {item.status === 'processing' ? '处理中' : 
-             item.status === 'ready' ? '就绪' : 
-             item.status === 'error' ? '错误' : ''}
+            {item.status === 'processing' ? '处理中' :
+              item.status === 'ready' ? '就绪' :
+                item.status === 'error' ? '错误' : ''}
           </span>
         </div>
-        
+
         <div className='flex items-center gap-1'>
+
+          {/* 可见性按钮 - 悬停时显示 */}
+          <div className='opacity-0 group-hover:opacity-100 transition-opacity duration-200'>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size='icon'
+                    className='w-8 h-8 bg-white/20 hover:bg-white/30'
+                    onClick={handleVisibilityClick}
+                  >
+                    {item.visibility === 'public' ? (
+                      <TbEye className='w-3 h-3' />
+                    ) : (
+                      <TbEyeOff className='w-3 h-3' />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {item.visibility === 'public' ? '设为私有' : '设为公开'}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+
+          {/* 复制链接按钮 - 悬停时显示 */}
+          {item.url && (
+            <div className='opacity-0 group-hover:opacity-100 transition-opacity duration-200'>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      onClick={handleSourceClick}
+                      size='icon'
+                      className={`w-8 h-8 transition-colors ${copied
+                        ? 'bg-green-500/80 hover:bg-green-500'
+                        : 'bg-white/20 hover:bg-white/30'
+                        }`}
+                    >
+                      {copied ? <TbCheck className='w-3 h-3' /> : <TbCopy className='w-3 h-3' />}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {copied ? '已复制!' : '复制链接'}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          )}
+
           {/* 收藏按钮 */}
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <button
+                <Button
+                  size='icon'
                   onClick={handleFavoriteClick}
-                  className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] text-white transition-colors ${
-                    item.favorite === 1 
-                      ? 'bg-red-500/80 hover:bg-red-500' 
-                      : 'bg-white/20 hover:bg-white/30'
-                  }`}
+                  className={`w-8 h-8 transition-colors ${item.favorite === 1
+                    ? 'bg-red-500/80 hover:bg-red-500'
+                    : 'bg-white/20 hover:bg-white/30'
+                    }`}
                 >
                   <TbHeart className={`w-3 h-3 ${item.favorite === 1 ? 'fill-current' : ''}`} />
-                </button>
+                </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>{item.favorite === 1 ? '取消收藏' : '添加收藏'}</p>
+                {item.favorite === 1 ? '取消收藏' : '添加收藏'}
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          
-          {/* 可见性按钮 */}
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={handleVisibilityClick}
-                  className='flex items-center gap-1 bg-white/20 hover:bg-white/30 px-1.5 py-0.5 rounded text-[8px] text-white transition-colors'
-                >
-                  {item.visibility === 'public' ? (
-                    <TbEye className='w-3 h-3' />
-                  ) : (
-                    <TbEyeOff className='w-3 h-3' />
-                  )}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{item.visibility === 'public' ? '设为私有' : '设为公开'}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          
-          {/* 复制链接按钮 */}
-          {item.url && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={handleSourceClick}
-                    className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] text-white transition-colors ${
-                      copied 
-                        ? 'bg-green-500/80 hover:bg-green-500' 
-                        : 'bg-white/20 hover:bg-white/30'
-                    }`}
-                  >
-                    {copied ? <TbCheck className='w-3 h-3' /> : <TbCopy className='w-3 h-3' />}
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{copied ? '已复制!' : '复制链接'}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
         </div>
       </div>
 
@@ -179,7 +200,7 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
         {isImageFile(item.filePath) && (
           <img src={item.filePath ? makeResSrc(item.filePath) : ''} alt={summary.title} className='h-full w-full object-cover' draggable={false} />
         )}
-        
+
         {/* 视频资源 - 优先显示封面图，没有封面图则显示占位符 */}
         {isVideoFile(item.filePath) && (
           <>
@@ -195,7 +216,7 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
             )}
           </>
         )}
-        
+
         {/* 音频资源 - 显示占位符 */}
         {isAudio && (
           <div className='flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-900/70 to-slate-700/40 text-white gap-2 text-[11px]'>
@@ -205,7 +226,7 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
             </span>
           </div>
         )}
-        
+
         {/* 其他资源类型 - 显示类型图标 */}
         {!isImageFile(item.filePath) && !isVideoFile(item.filePath) && !isAudioFile(item.filePath) && (
           <div className='flex h-full w-full items-center justify-center text-xs text-muted-foreground'>
@@ -215,7 +236,7 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
             </div>
           </div>
         )}
-        
+
         {/* 悬停播放按钮 */}
         {(isAudio || isImageRes || isVideoRes) && (
           <div className='absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/20'>
@@ -237,7 +258,7 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
           </div>
         )}
       </div>
-      
+
       {/* 底部信息栏 */}
       <div className='absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-2 py-2'>
         {/* 标题和描述 */}
@@ -251,7 +272,7 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
             </div>
           )}
         </div>
-        
+
         {/* 元数据信息 */}
         <div className='flex items-center justify-between text-[9px] text-white/80'>
           <div className='flex items-center gap-1.5'>
@@ -262,7 +283,7 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
                 {formatFileSize(item.sizeBytes)}
               </span>
             )}
-            
+
             {/* 时长 */}
             {item.durationMs && (
               <span className='flex items-center gap-0.5'>
@@ -270,13 +291,13 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
                 {formatDuration(item.durationMs)}
               </span>
             )}
-            
+
             {/* 分辨率 */}
             {item.width && item.height && (
               <span>{item.width}×{item.height}</span>
             )}
           </div>
-          
+
           {/* 评分 */}
           {item.rating && item.rating > 0 && (
             <div className='flex items-center gap-0.5 text-yellow-400'>
@@ -285,23 +306,8 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
             </div>
           )}
         </div>
-        
-        {/* 来源信息 */}
-        {(item.domain || item.sourceName || item.authorName) && (
-          <div className='mt-1 flex items-center gap-1 text-[9px] text-white/70'>
-            {item.domain && (
-              <span className='bg-white/20 px-1 py-0.5 rounded text-[8px] font-medium'>
-                {item.domain}
-              </span>
-            )}
-            {(item.sourceName || item.authorName) && (
-              <span className='truncate max-w-[120px]'>
-                {item.sourceName || item.authorName}
-              </span>
-            )}
-          </div>
-        )}
-        
+
+
         {/* 标签 */}
         {summary.tags.length > 0 && (
           <div className='mt-1 flex flex-wrap gap-1'>
@@ -316,7 +322,7 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
           </div>
         )}
       </div>
-      
+
       {/* 选中状态指示器 */}
       {selected && (
         <div className='absolute right-2 top-2 h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[10px] shadow ring-1 ring-black/20'>✓</div>
