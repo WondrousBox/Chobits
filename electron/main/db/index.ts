@@ -10,6 +10,7 @@ const require = createRequire(import.meta.url);
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { inArray } from 'drizzle-orm';
 import { documents } from './schema';
+import { binPathLog } from '../logger';
 
 // We'll dynamically load the sqlite-vec extension (ship prebuilt per-platform binaries)
 
@@ -144,7 +145,21 @@ function initSchema() {
   if (!db) return;
   try {
     const d = getOrm();
-    const migrationsFolder = path.resolve(process.cwd(), 'drizzle');
+    
+    // 在开发环境中使用项目根目录的 drizzle 文件夹
+    // 在打包后的应用中，使用 resources/drizzle 文件夹
+    let migrationsFolder: string;
+    
+    if (app.isPackaged) {
+      // 打包后的应用，drizzle 文件夹在 resources 目录下
+      migrationsFolder = path.join(process.resourcesPath, 'drizzle');
+    } else {
+      // 开发环境，使用项目根目录
+      migrationsFolder = path.resolve(process.cwd(), 'drizzle');
+    }
+
+    binPathLog(migrationsFolder, "migrationsFolder");
+    
     migrate(d, { migrationsFolder });
     console.log('[db] migrations applied from', migrationsFolder);
   } catch (e) {

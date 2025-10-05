@@ -36,15 +36,18 @@ export default class Logger {
   }
 }
 
+export const logger = Logger.create(LOG_LEVEL);
+
+logger.log.info(
+  `----------------------------- Starting [${dayjs().format("YYYY-MM-DD HH:mm:ss")}] ---------------------------------------`
+);
+
 export function devLog(...args: any[]) {
   if (process.env.NODE_ENV === "development") {
     console.log(...args);
   }
 }
 
-
-export const logger = Logger.create(LOG_LEVEL);
-
-logger.log.info(
-  `----------------------------- Starting [${dayjs().format("YYYY-MM-DD HH:mm:ss")}] ---------------------------------------`
-);
+export function binPathLog(binPath: string, name?: string) {
+    console.log(`========= ${name ? `${name} ` : ""}: ${binPath}`);
+}

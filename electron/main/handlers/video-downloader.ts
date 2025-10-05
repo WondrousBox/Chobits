@@ -13,6 +13,7 @@ import { WorkspacesRepo, ResourcesRepo } from "../db/repositories";
 import { generateThumbnailForResource } from "../utils/thumbnail";
 import { getRealPath } from '../utils';
 import { getFfmpegPath } from '../utils/bin-path';
+import { binPathLog } from '../logger';
 
 // 默认文件夹配置
 const DEFAULT_FOLDERS = {
@@ -493,9 +494,8 @@ export class VideoDownloader implements Downloader {
     this.ffmpegPath = getFfmpegPath("ffmpeg");
     this.ytdlPath = getFfmpegPath("yt-dlp");
 
-    console.log("ffmpegPath: ", this.ffmpegPath);
-    console.log("ytdlPath: ", this.ytdlPath);
-    console.log("ytdlpStatic: ", this.ytdlPath);
+    binPathLog(this.ffmpegPath, "ffmpeg");
+    binPathLog(this.ytdlPath, "yt-dlp");
 
     ytdlpStatic.setBinaryPath(this.ytdlPath);
   }
