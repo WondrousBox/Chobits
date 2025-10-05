@@ -11,8 +11,9 @@ import ExplorerGrid from './components/ExplorerGrid'
 import ResourceListItem from './components/ResourceListItem'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { TbHome, TbPhoto, TbVideo, TbMusic, TbFileText, TbLink, TbFile, TbFileDescription, TbDots, TbList, TbSearch, TbFilter, TbSortAscending, TbSortDescending, TbGrid3X3, TbPlus, TbPlayerPlay } from 'react-icons/tb'
+import { TbHome, TbPhoto, TbVideo, TbMusic, TbFileText, TbLink, TbFile, TbFileDescription, TbDots, TbList, TbSearch, TbFilter, TbSortAscending, TbSortDescending, TbGrid3X3, TbPlus, TbPlayerPlay, TbRefresh } from 'react-icons/tb'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import DragAbleTitle from '@/components/common/DragAbleTitle'
 
 const ResourcePage: React.FC = () => {
   const [list, setList] = useState<ResourceItem[]>([])
@@ -173,42 +174,79 @@ const ResourcePage: React.FC = () => {
 
   return (
     <div className='h-full flex flex-col bg-background'>
-      {/* 顶部工具栏 */}
-      <div className='flex items-center justify-between p-4 border-b'>
-        <div className='flex items-center gap-4'>
-          <h1 className='text-lg font-semibold'>资源管理</h1>
-          <span className='text-sm text-muted-foreground'>
-            共 {filtered.length}/{list.length} 个资源
-          </span>
-        </div>
-
-        <div className='flex items-center gap-2'>
-          {/* 新增按钮 */}
-          <Button
-            size='icon'
-            onClick={() => window.YUA.window.openWindow('assistant')}
-          >
-            <TbPlus />
-          </Button>
-
-          {/* 搜索框 */}
-          <div className='relative'>
-            <TbSearch className='absolute left-2 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4' />
-            <Input
-              placeholder='搜索资源...'
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className='pl-8 w-64'
-            />
+      <DragAbleTitle
+        title={
+          <div className='flex items-center gap-4'>
+            <h1 className='text-lg font-semibold'>资源管理</h1>
+            <span className='text-sm text-muted-foreground'>
+              共 {filtered.length}/{list.length} 个资源
+            </span>
           </div>
+        }
+        actions={
+          <>
+            <div className='flex items-center gap-2'>
+              <Button size='icon' className='w-8 h-8' onClick={() => window.YUA.window.openWindow('assistant')}>
+                <TbPlus />
+              </Button>
+              <Button size='icon' className='w-8 h-8' variant='ghost' onClick={load} >
+                <TbRefresh />
+              </Button>
 
-          {/* 排序选择器 */}
+              {/* 搜索框 */}
+              <div className='relative'>
+                <TbSearch className='absolute left-2 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4' />
+                <Input
+                  placeholder='搜索资源...'
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className='pl-8 h-8 w-40'
+                />
+              </div>
+
+              {/* 工作空间选择器 */}
+              <Select value={wsFilter} onValueChange={setWsFilter}>
+                <SelectTrigger className='w-40 h-8'>
+                  <SelectValue placeholder="工作空间" />
+                </SelectTrigger>
+                <SelectContent>
+                  {workspaces.map(w => (
+                    <SelectItem key={w.id} value={w.id}>
+                      {w.name}{w.isDefault === 1 ? '（默认）' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </>
+        }
+      />
+
+
+      {/* 类型过滤器 */}
+      <div className='flex items-center justify-between gap-2 p-2 border-b bg-muted/30'>
+        <div className='flex items-center gap-1'>
+          {typeOptions
+            .filter(({ key }) => key === '' || visibleTypes.has(key))
+            .map(({ key, label, icon: Icon }) => (
+              <Button
+                key={key || 'all'}
+                variant={typeFilter === key ? 'default' : 'outline'}
+                size='sm'
+                onClick={() => setTypeFilter(prev => (prev === key ? '' : key))}
+                className='h-8'
+              >
+                <Icon />
+                {label}
+              </Button>
+            ))}
+
           <Select value={`${sortField}-${sortOrder}`} onValueChange={(value) => {
             const [field, order] = value.split('-') as [SortField, SortOrder]
             setSortField(field)
             setSortOrder(order)
           }}>
-            <SelectTrigger className='w-40'>
+            <SelectTrigger className='w-40 h-8'>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -222,58 +260,6 @@ const ResourcePage: React.FC = () => {
               <SelectItem value='rating-asc'>评分 ↑</SelectItem>
             </SelectContent>
           </Select>
-
-          {/* 视图模式切换 */}
-          <div className='flex border rounded-md'>
-            <Button
-              variant={viewMode === 'grid' ? 'default' : 'ghost'}
-              size='sm'
-              onClick={() => setViewMode('grid')}
-            >
-              <TbGrid3X3 className='w-4 h-4' />
-            </Button>
-            <Button
-              variant={viewMode === 'list' ? 'default' : 'ghost'}
-              size='sm'
-              onClick={() => setViewMode('list')}
-            >
-              <TbList className='w-4 h-4' />
-            </Button>
-          </div>
-
-          {/* 工作空间选择器 */}
-          <Select value={wsFilter} onValueChange={setWsFilter}>
-            <SelectTrigger className='w-40'>
-              <SelectValue placeholder="工作空间" />
-            </SelectTrigger>
-            <SelectContent>
-              {workspaces.map(w => (
-                <SelectItem key={w.id} value={w.id}>
-                  {w.name}{w.isDefault === 1 ? '（默认）' : ''}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {/* 类型过滤器 */}
-      <div className='flex items-center justify-between gap-2 p-4 border-b bg-muted/30'>
-        <div className='flex items-center gap-1'>
-          {typeOptions
-            .filter(({ key }) => key === '' || visibleTypes.has(key))
-            .map(({ key, label, icon: Icon }) => (
-              <Button
-                key={key || 'all'}
-                variant={typeFilter === key ? 'default' : 'outline'}
-                size='sm'
-                onClick={() => setTypeFilter(prev => (prev === key ? '' : key))}
-                className='h-8'
-              >
-                <Icon className='w-4 h-4 mr-1' />
-                {label}
-              </Button>
-            ))}
         </div>
 
 
@@ -301,13 +287,24 @@ const ResourcePage: React.FC = () => {
             </div>
           </div>
         )}
+
+        <div className='flex items-center gap-2'>
+          <div className='flex border rounded-md'>
+            <Button className='w-8 h-8' variant={viewMode === 'grid' ? 'default' : 'ghost'} size='icon' onClick={() => setViewMode('grid')}>
+              <TbGrid3X3 />
+            </Button>
+            <Button className='w-8 h-8' variant={viewMode === 'list' ? 'default' : 'ghost'} size='icon' onClick={() => setViewMode('list')}>
+              <TbList />
+            </Button>
+          </div>
+        </div>
       </div>
 
 
       {/* 主内容区域 */}
       <div className='flex-1 overflow-hidden'>
         {/* 资源展示区域 */}
-        <div className='h-full overflow-auto p-4'>
+        <div className='h-full overflow-auto'>
           {viewMode === 'grid' ? (
             <ExplorerGrid
               items={filtered}

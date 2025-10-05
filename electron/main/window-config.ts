@@ -127,10 +127,24 @@ export const windowConfigs: WindowConfigMap = {
     autoCenterOn: 'parent-display',
     showOnReady: true,
     openDevTools: true,
+    rememberState: true,
     options: {
       width: 1300,
       height: 720,
-      frame: true,
+      // Mac 保留系统 traffic lights；Windows 使用自定义标题栏（frameless）
+      ...(process.platform === 'darwin'
+        ? {
+          titleBarStyle: 'hiddenInset' as const,
+          titleBarOverlay: true,
+          trafficLightPosition: {
+            x: 20,
+            y: HEADER_COMMANDS_HEIGHT / 2 - MACOS_TRAFFIC_LIGHTS_HEIGHT / 2,
+          },
+          frame: true,
+        }
+        : {
+          frame: false,
+        }),
       transparent: false,
       resizable: true,
       alwaysOnTop: false,
