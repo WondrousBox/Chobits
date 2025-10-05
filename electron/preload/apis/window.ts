@@ -11,6 +11,14 @@ type WindowBridgeParams = {
   "getWindowPosition": IPCParams<[void], [number, number]>;
   "getScreenSize": IPCParams<[void], { width: number; height: number }>;
   /**
+   * 设置窗口大小
+   */
+  "setWindowSize": IPCParams<[string, number, number, boolean?], { success: boolean; bounds?: { x: number; y: number; width: number; height: number }; error?: string }>;
+  /**
+   * 获取窗口大小
+   */
+  "getWindowSize": IPCParams<[string], { success: boolean; bounds?: { x: number; y: number; width: number; height: number }; error?: string }>;
+  /**
    * 设置窗口是否穿透点击
    */
   "setClickThrough": IPCParams<[boolean], boolean>;
@@ -53,6 +61,8 @@ const methods: Array<keyof WindowBridgeParams> = [
   "moveWindow",
   "getWindowPosition",
   "getScreenSize",
+  "setWindowSize",
+  "getWindowSize",
   "setClickThrough",
   "openFileListWindow",
   "openMenuWindow",

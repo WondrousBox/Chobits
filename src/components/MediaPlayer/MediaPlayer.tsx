@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { MediaControls } from './MediaControls'
+import { CenterPlayButton } from './CenterPlayButton'
 
 interface MediaPlayerProps {
   src: string
@@ -7,6 +8,7 @@ interface MediaPlayerProps {
   title?: string
   autoPlay?: boolean
   className?: string
+  onVideoLoaded?: (videoElement: HTMLVideoElement) => void
 }
 
 export const MediaPlayer: React.FC<MediaPlayerProps> = ({
@@ -14,7 +16,8 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
   type,
   title,
   autoPlay = false,
-  className = ''
+  className = '',
+  onVideoLoaded
 }) => {
   const mediaRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -136,7 +139,13 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
     const handlePlay = () => setIsPlaying(true)
     const handlePause = () => setIsPlaying(false)
     const handleTimeUpdate = () => updateTime()
-    const handleLoadedMetadata = () => updateTime()
+    const handleLoadedMetadata = () => {
+      updateTime()
+      // 如果是视频，通知父组件视频已加载
+      if (type === 'video' && onVideoLoaded) {
+        onVideoLoaded(media as HTMLVideoElement)
+      }
+    }
     const handleVolumeChange = () => {
       if (media) setVolume(media.volume)
     }
@@ -164,7 +173,7 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
       media.removeEventListener('ratechange', handleRateChange)
       document.removeEventListener('fullscreenchange', handleFullscreenChange)
     }
-  }, [updateTime])
+  }, [updateTime, type, onVideoLoaded])
 
   // 监听键盘事件
   useEffect(() => {
@@ -213,6 +222,13 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
     }
   }, [type, togglePlay])
 
+  // 双击视频画面全屏
+  const handleVideoDoubleClick = useCallback(() => {
+    if (type === 'video') {
+      toggleFullscreen()
+    }
+  }, [type, toggleFullscreen])
+
   if (type === 'video') {
     return (
       <div 
@@ -227,6 +243,11 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({
           className="w-full h-full object-contain cursor-pointer"
           playsInline
           onClick={handleVideoClick}
+          onDoubleClick={handleVideoDoubleClick}
+        />
+        <CenterPlayButton
+          isPlaying={isPlaying}
+          onTogglePlay={togglePlay}
         />
         <MediaControls
           isPlaying={isPlaying}

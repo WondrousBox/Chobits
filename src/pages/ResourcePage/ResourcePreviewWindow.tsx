@@ -20,6 +20,50 @@ const ResourcePreviewWindow: React.FC = () => {
   const [textContent, setTextContent] = useState<string>('')
   const [loadingText, setLoadingText] = useState(false)
 
+  // 处理视频加载完成，调整窗口大小
+  const handleVideoLoaded = useCallback(async (videoElement: HTMLVideoElement) => {
+    try {
+      const videoWidth = videoElement.videoWidth
+      const videoHeight = videoElement.videoHeight
+      
+      if (videoWidth > 0 && videoHeight > 0) {
+        // 获取屏幕尺寸
+        const screenSize = await window.YUA.window.getScreenSize()
+        
+        // 计算视频宽高比
+        const aspectRatio = videoWidth / videoHeight
+        
+        // 设置控制栏高度（包括标题栏）
+        const controlHeight = 36 + 80 // 标题栏 + 控制栏
+        const availableHeight = screenSize.height - controlHeight
+        const availableWidth = screenSize.width
+        
+        let windowWidth: number
+        let windowHeight: number
+        
+        // 根据视频宽高比和屏幕尺寸计算最佳窗口大小
+        if (aspectRatio > availableWidth / availableHeight) {
+          // 视频更宽，以宽度为准
+          windowWidth = Math.min(videoWidth, availableWidth)
+          windowHeight = Math.floor(windowWidth / aspectRatio) + controlHeight
+        } else {
+          // 视频更高，以高度为准
+          windowHeight = Math.min(videoHeight + controlHeight, availableHeight)
+          windowWidth = Math.floor((windowHeight - controlHeight) * aspectRatio)
+        }
+        
+        // 确保窗口大小合理
+        windowWidth = Math.max(400, Math.min(windowWidth, availableWidth))
+        windowHeight = Math.max(300, Math.min(windowHeight, availableHeight))
+        
+        // 调整窗口大小并居中
+        await window.YUA.window.setWindowSize('resourcePreview', windowWidth, windowHeight, true)
+      }
+    } catch (error) {
+      console.warn('调整视频窗口大小失败:', error)
+    }
+  }, [])
+
   const go = useCallback((dir: 1 | -1) => {
     setIndex(prev => {
       if (!list.length) return prev
@@ -178,6 +222,7 @@ const ResourcePreviewWindow: React.FC = () => {
             title={title}
             autoPlay={true}
             className="w-full h-full"
+            onVideoLoaded={handleVideoLoaded}
           />
         )}
         {isAudioFile(data.filePath) && fileSrc && (
