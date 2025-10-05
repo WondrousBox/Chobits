@@ -2,12 +2,18 @@
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
   "appId": "YourAppID",
   "asar": true,
+  "asarUnpack": [
+    "node_modules/better-sqlite3/**/*",
+    "node_modules/sqlite-vec/**/*"
+  ],
   "directories": {
     "output": "release/${version}"
   },
   "files": [
     "dist-electron",
-    "dist"
+    "dist",
+    "node_modules/better-sqlite3/**/*",
+    "node_modules/sqlite-vec/**/*"
   ],
   "extraResources": [
     {
