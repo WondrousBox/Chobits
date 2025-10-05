@@ -3,7 +3,7 @@ import path from 'node:path'
 import os from 'node:os'
 import { screen } from 'electron'
 import type { BrowserWindow } from 'electron'
-import type { WindowKey } from './window-config'
+import type { WindowKey } from './window/window-config'
 
 export interface WindowState {
   x: number

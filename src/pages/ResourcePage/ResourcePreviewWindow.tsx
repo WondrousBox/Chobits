@@ -87,7 +87,7 @@ const ResourcePreviewWindow: React.FC = () => {
     }
   }, [])
 
-  // 加载文本类资源内容（如果是本地文件，尝试 fetch(makeResSrc()) 简单读取）
+  // 加载文本类资源内容（通过主进程读取文件内容）
 
   useEffect(() => {
     if (!data) { setTextContent(''); return }
@@ -97,15 +97,24 @@ const ResourcePreviewWindow: React.FC = () => {
         setTextContent((data as any).contentText || '')
         return
       }
-      // 简单读取：如果是纯文本扩展名（.txt .md .log .json）尝试通过 fetch(makeResSrc())
+      // 通过主进程读取文件内容
       if (data.filePath) {
         const lower = data.filePath.toLowerCase()
         if (/(\.txt|\.md|\.log|\.json|\.csv|\.ts|\.js|\.tsx|\.jsx|\.py|\.go|\.rs|\.java|\.c|\.cpp|\.yml|\.yaml|\.toml|\.ini)$/i.test(lower)) {
-          const src = makeResSrc(data.filePath)
           setLoadingText(true)
-          fetch(src)
-            .then(r => r.text())
-            .then(t => setTextContent(t.slice(0, 20000)))
+          // @ts-ignore
+          window.YUA.file.readContent(data.filePath, 20000)
+            .then((result: any) => {
+              if (result.success) {
+                let content = result.content || ''
+                if (result.truncated) {
+                  content += `\n\n...（文件已截取，原始大小: ${Math.round(result.originalSize / 1024)}KB）`
+                }
+                setTextContent(content)
+              } else {
+                setTextContent('（无法加载文本内容）')
+              }
+            })
             .catch(() => setTextContent('（无法加载文本内容）'))
             .finally(() => setLoadingText(false))
           return
