@@ -256,7 +256,7 @@ export const windowConfigs: WindowConfigMap = {
     autoCenterOn: 'parent-display',
     showOnReady: false,
     // closeOnBlur: true,
-    // openDevTools: true,
+    openDevTools: true,
     // startMaximized: true,
     rememberState: true,
     options: {
