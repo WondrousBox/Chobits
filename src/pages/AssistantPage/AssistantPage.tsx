@@ -11,6 +11,7 @@ const isVideoUrl = (url: string): boolean => {
   const videoPatterns = [
     /^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\/.+/,
     /^https?:\/\/(www\.)?bilibili\.com\/video\/.+/,
+    /^https?:\/\/(www\.)?bilibili\.com\/bangumi\/play\/.+/,
     /^https?:\/\/(www\.)?vimeo\.com\/.+/,
     /^https?:\/\/(www\.)?dailymotion\.com\/video\/.+/,
     /^https?:\/\/(www\.)?twitch\.tv\/videos\/.+/,
