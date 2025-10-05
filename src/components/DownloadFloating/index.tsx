@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { TbX, TbPlayerPause, TbPlayerPlay, TbDownload } from 'react-icons/tb'
+import { TbX, TbPlayerPause, TbPlayerPlay, TbDownload, TbCheck, TbAlertCircle, TbClock, TbChevronDown, TbChevronUp } from 'react-icons/tb'
 
 interface DownloadTask {
   id: string
@@ -114,15 +114,17 @@ const DownloadFloating: React.FC = () => {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'downloading':
-        return <TbDownload className="animate-spin" />
+        return <TbDownload className="w-4 h-4 text-blue-500 animate-pulse" />
       case 'completed':
-        return <div className="w-2 h-2 bg-green-500 rounded-full" />
+        return <TbCheck className="w-4 h-4 text-green-500" />
       case 'failed':
-        return <div className="w-2 h-2 bg-red-500 rounded-full" />
+        return <TbAlertCircle className="w-4 h-4 text-red-500" />
       case 'cancelled':
-        return <div className="w-2 h-2 bg-gray-500 rounded-full" />
+        return <TbX className="w-4 h-4 text-gray-500" />
+      case 'queued':
+        return <TbClock className="w-4 h-4 text-yellow-500" />
       default:
-        return <div className="w-2 h-2 bg-blue-500 rounded-full" />
+        return <TbDownload className="w-4 h-4 text-blue-500" />
     }
   }
 
@@ -155,26 +157,26 @@ const DownloadFloating: React.FC = () => {
   return (
     <div 
       ref={containerRef}
-      className={`fixed top-5 right-5 w-80 bg-white/95 backdrop-blur-md rounded-xl shadow-lg border border-white/20 z-[10000] transition-all duration-300 ease-in-out select-none hover:shadow-xl hover:-translate-y-0.5 ${isCollapsed ? 'h-10' : ''}`}
+      className={`fixed top-5 right-5 w-80 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-white/30 z-[10000] transition-all duration-300 ease-in-out select-none hover:shadow-2xl hover:-translate-y-1 ${isCollapsed ? 'h-12' : ''}`}
     >
-      <div className="flex items-center justify-between px-3 py-2 border-b border-black/5 cursor-pointer">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100/50 cursor-pointer">
+        <div className="flex items-center gap-3">
           {getStatusIcon(currentTask.status)}
-          <span className="text-sm font-medium">下载进度</span>
+          <span className="text-sm font-semibold text-gray-800">下载进度</span>
         </div>
         <div className="flex items-center gap-1">
           <Button
             variant="ghost"
             size="sm"
-            className="w-6 h-6 p-0"
+            className="w-7 h-7 p-0 hover:bg-gray-100 rounded-lg"
             onClick={handleCollapse}
           >
-            {isCollapsed ? '▼' : '▲'}
+            {isCollapsed ? <TbChevronDown className="w-4 h-4" /> : <TbChevronUp className="w-4 h-4" />}
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            className="w-6 h-6 p-0"
+            className="w-7 h-7 p-0 hover:bg-gray-100 rounded-lg"
             onClick={handleClose}
           >
             <TbX className="w-4 h-4" />
@@ -183,35 +185,51 @@ const DownloadFloating: React.FC = () => {
       </div>
 
       {!isCollapsed && (
-        <div className="p-3">
-          <div className="mb-2">
-            <div className="text-xs font-medium text-gray-800 mb-1 truncate" title={currentTask.filename || currentTask.url}>
+        <div className="p-4">
+          <div className="mb-3">
+            <div className="text-sm font-medium text-gray-900 mb-1 truncate" title={currentTask.filename || currentTask.url}>
               {currentTask.filename || currentTask.videoInfo?.title || '未知文件'}
             </div>
-            <div className="text-xs text-gray-500">
+            <div className="text-xs text-gray-500 flex items-center gap-1">
+              {getStatusIcon(currentTask.status)}
               {getStatusText(currentTask)}
             </div>
           </div>
 
           {currentTask.status === 'downloading' && currentTask.progress.percent !== undefined && (
-            <div className="mb-2">
-              <div className="w-full h-1 bg-black/10 rounded-sm overflow-hidden mb-1">
+            <div className="mb-3">
+              <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden mb-2">
                 <div 
-                  className="h-full bg-gradient-to-r from-blue-500 to-blue-700 rounded-sm transition-all duration-300 ease-out"
+                  className="h-full bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 rounded-full transition-all duration-500 ease-out relative"
                   style={{ width: `${currentTask.progress.percent}%` }}
-                />
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-pulse"></div>
+                </div>
               </div>
-              <div className="text-xs text-gray-500 text-center">
-                {currentTask.progress.percent.toFixed(1)}%
-                {currentTask.progress.downloadSpeed && ` • ${currentTask.progress.downloadSpeed}`}
-                {currentTask.progress.eta && ` • ${currentTask.progress.eta}`}
+              <div className="flex justify-between items-center text-xs text-gray-600">
+                <span className="font-medium">{currentTask.progress.percent.toFixed(1)}%</span>
+                <div className="flex items-center gap-2">
+                  {currentTask.progress.downloadSpeed && (
+                    <span className="flex items-center gap-1">
+                      <TbDownload className="w-3 h-3" />
+                      {currentTask.progress.downloadSpeed}
+                    </span>
+                  )}
+                  {currentTask.progress.eta && (
+                    <span className="flex items-center gap-1">
+                      <TbClock className="w-3 h-3" />
+                      {currentTask.progress.eta}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           )}
 
           {currentTask.status === 'failed' && currentTask.error && (
-            <div className="text-xs text-red-600 bg-red-50 px-2 py-1.5 rounded-md mb-2">
-              错误: {currentTask.error}
+            <div className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg mb-3 flex items-start gap-2">
+              <TbAlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <span>错误: {currentTask.error}</span>
             </div>
           )}
 
@@ -221,7 +239,7 @@ const DownloadFloating: React.FC = () => {
                 variant="outline"
                 size="sm"
                 onClick={() => handleCancel(currentTask.id)}
-                className="text-xs"
+                className="text-xs px-3 py-1.5 h-8 hover:bg-red-50 hover:border-red-200 hover:text-red-600"
               >
                 <TbPlayerPause className="w-3 h-3 mr-1" />
                 取消
@@ -232,8 +250,20 @@ const DownloadFloating: React.FC = () => {
                 variant="outline"
                 size="sm"
                 onClick={() => handleCancel(currentTask.id)}
-                className="text-xs"
+                className="text-xs px-3 py-1.5 h-8 hover:bg-green-50 hover:border-green-200 hover:text-green-600"
               >
+                <TbCheck className="w-3 h-3 mr-1" />
+                关闭
+              </Button>
+            )}
+            {currentTask.status === 'failed' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleCancel(currentTask.id)}
+                className="text-xs px-3 py-1.5 h-8 hover:bg-gray-50"
+              >
+                <TbX className="w-3 h-3 mr-1" />
                 关闭
               </Button>
             )}
