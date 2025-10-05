@@ -11,7 +11,7 @@ import ExplorerGrid from './components/ExplorerGrid'
 import ResourceListItem from './components/ResourceListItem'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { TbHome, TbPhoto, TbVideo, TbMusic, TbFileText, TbLink, TbFile, TbFileDescription, TbDots, TbList, TbSearch, TbFilter, TbSortAscending, TbSortDescending, TbGrid3X3, TbPlus, TbPlayerPlay, TbRefresh } from 'react-icons/tb'
+import { TbHome, TbPhoto, TbVideo, TbMusic, TbFileText, TbLink, TbFile, TbFileDescription, TbDots, TbList, TbSearch, TbFilter, TbSortAscending, TbSortDescending, TbGrid3X3, TbPlus, TbPlayerPlay, TbRefresh, TbHeart } from 'react-icons/tb'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import DragAbleTitle from '@/components/common/DragAbleTitle'
 
@@ -20,6 +20,7 @@ const ResourcePage: React.FC = () => {
   const [workspaces, setWorkspaces] = useState<any[]>([])
   const [wsFilter, setWsFilter] = useState<string>('') // empty means all
   const [typeFilter, setTypeFilter] = useState<string>('') // empty means all types
+  const [favoriteFilter, setFavoriteFilter] = useState<boolean>(false) // false means all, true means favorites only
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [sortField, setSortField] = useState<SortField>('collectedAt')
@@ -45,6 +46,11 @@ const ResourcePage: React.FC = () => {
       if (r?.type) set.add(r.type)
     }
     return set
+  }, [list, wsFilter])
+
+  const hasFavorites = useMemo(() => {
+    const rows = list.filter((r: any) => !wsFilter || r.workspaceId === wsFilter)
+    return rows.some((r: any) => r.favorite === 1)
   }, [list, wsFilter])
 
   const load = async () => {
@@ -77,6 +83,11 @@ const ResourcePage: React.FC = () => {
     // 类型过滤
     if (typeFilter) {
       filtered = filtered.filter((r: any) => r.type === typeFilter)
+    }
+
+    // 收藏过滤
+    if (favoriteFilter) {
+      filtered = filtered.filter((r: any) => r.favorite === 1)
     }
 
     // 搜索过滤
@@ -115,12 +126,20 @@ const ResourcePage: React.FC = () => {
     })
 
     return filtered
-  }, [list, wsFilter, typeFilter, searchQuery, sortField, sortOrder])
+  }, [list, wsFilter, typeFilter, favoriteFilter, searchQuery, sortField, sortOrder])
 
   const handleDelete = async (id: string) => {
     try {
       await window.YUA.resource.deleteResource({ id })
       setList(prev => prev.filter(i => i.id !== id))
+      
+      // 如果当前在收藏模式下，且删除后没有收藏内容了，自动切换到非收藏模式
+      if (favoriteFilter) {
+        const remainingFavorites = list.filter(i => i.id !== id && i.favorite === 1)
+        if (remainingFavorites.length === 0) {
+          setFavoriteFilter(false)
+        }
+      }
     } catch (e) { console.warn('delete resource failed', e) }
   }
 
@@ -129,6 +148,14 @@ const ResourcePage: React.FC = () => {
       await window.YUA.resource.deleteResources({ ids })
       setList(prev => prev.filter(i => !ids.includes(i.id)))
       setSelectedItems(new Set())
+      
+      // 如果当前在收藏模式下，且删除后没有收藏内容了，自动切换到非收藏模式
+      if (favoriteFilter) {
+        const remainingFavorites = list.filter(i => !ids.includes(i.id) && i.favorite === 1)
+        if (remainingFavorites.length === 0) {
+          setFavoriteFilter(false)
+        }
+      }
     } catch (e) { console.warn('delete many failed', e) }
   }
 
@@ -157,6 +184,14 @@ const ResourcePage: React.FC = () => {
         const newFavorite = item.favorite === 1 ? 0 : 1
         await window.YUA.resource.updateResource({ id, patch: { favorite: newFavorite } })
         setList(prev => prev.map(i => i.id === id ? { ...i, favorite: newFavorite } : i))
+        
+        // 如果当前在收藏模式下，且取消收藏后没有收藏内容了，自动切换到非收藏模式
+        if (favoriteFilter && newFavorite === 0) {
+          const remainingFavorites = list.filter(i => i.id !== id && i.favorite === 1)
+          if (remainingFavorites.length === 0) {
+            setFavoriteFilter(false)
+          }
+        }
       }
     } catch (e) { console.warn('toggle favorite failed', e) }
   }
@@ -231,9 +266,19 @@ const ResourcePage: React.FC = () => {
             .map(({ key, label, icon: Icon }) => (
               <Button
                 key={key || 'all'}
-                variant={typeFilter === key ? 'default' : 'outline'}
+                variant={typeFilter === key && !favoriteFilter ? 'default' : 'outline'}
                 size='sm'
-                onClick={() => setTypeFilter(prev => (prev === key ? '' : key))}
+                onClick={() => {
+                  if (key === '') {
+                    // 点击"全部"时，取消收藏筛选
+                    setFavoriteFilter(false)
+                    setTypeFilter('')
+                  } else {
+                    // 点击其他类型时，取消收藏筛选并设置类型筛选
+                    setFavoriteFilter(false)
+                    setTypeFilter(prev => (prev === key ? '' : key))
+                  }
+                }}
                 className='h-8'
               >
                 <Icon />
@@ -289,6 +334,31 @@ const ResourcePage: React.FC = () => {
         )}
 
         <div className='flex items-center gap-2'>
+          {/* 收藏筛选按钮 - 只在存在收藏内容时显示 */}
+          {hasFavorites && (
+            <Button
+              variant={favoriteFilter ? 'default' : 'outline'}
+              size='sm'
+              onClick={() => {
+                if (favoriteFilter) {
+                  // 如果当前是收藏模式，点击后取消收藏筛选
+                  setFavoriteFilter(false)
+                } else {
+                  // 如果当前不是收藏模式，点击后进入收藏模式并取消类型筛选
+                  setFavoriteFilter(true)
+                  setTypeFilter('')
+                }
+              }}
+              className={`h-8 transition-colors ${
+                favoriteFilter 
+                  ? 'bg-red-500 hover:bg-red-600 text-white' 
+                  : 'hover:text-red-500 hover:bg-red-50'
+              }`}
+            >
+              <TbHeart className={`w-4 h-4 ${favoriteFilter ? 'fill-current' : ''}`} />
+              收藏
+            </Button>
+          )}
           <div className='flex border rounded-md'>
             <Button className='w-8 h-8' variant={viewMode === 'grid' ? 'default' : 'ghost'} size='icon' onClick={() => setViewMode('grid')}>
               <TbGrid3X3 />
