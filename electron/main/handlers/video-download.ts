@@ -1,5 +1,5 @@
 import { ipcMain, BrowserWindow, screen } from 'electron';
-import { downloadManager, getVideoInfo, getThumbnail } from './video-downloader';
+import { downloadManager, getVideoInfo, getThumbnail, getSetting, setSetting } from './video-downloader';
 import { getMainWindow } from '../index';
 import { windowManager } from '../window/window-manager';
 
@@ -235,6 +235,36 @@ export function initVideoDownloadHandlers(win: BrowserWindow) {
       }
     } catch (error) {
       console.warn('[VideoDownload] 重置进度条失败:', error);
+    }
+  });
+
+  // 获取外部资源设置
+  ipcMain.handle('video-downloader:get-external-resource-settings', async () => {
+    try {
+      const settings = getSetting();
+      return { success: true, data: settings };
+    } catch (error) {
+      console.error('[VideoDownload] Failed to get external resource settings:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+
+  // 设置外部资源设置
+  ipcMain.handle('video-downloader:set-external-resource-settings', async (event, settings) => {
+    try {
+      Object.keys(settings).forEach(key => {
+        setSetting(key as any, settings[key]);
+      });
+      return { success: true };
+    } catch (error) {
+      console.error('[VideoDownload] Failed to set external resource settings:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
     }
   });
 

@@ -259,12 +259,68 @@ function getHttpProxy(): any {
   return null;
 }
 
-function getSetting(key?: string): any {
-  // 简化实现，返回默认设置
-  return {
+// 外部资源设置存储
+type ExternalResourceSettings = {
+  externalResourceMode: string;
+  externalResourceCookies: boolean;
+  preferredBrowser: string;
+};
+
+const SETTINGS_DIR = path.join(os.homedir(), '.chobits');
+const SETTINGS_FILE = path.join(SETTINGS_DIR, 'external-resource-settings.json');
+
+function ensureSettingsDir() {
+  if (!fs.existsSync(SETTINGS_DIR)) {
+    fs.mkdirSync(SETTINGS_DIR, { recursive: true });
+  }
+}
+
+function readSettings(): ExternalResourceSettings {
+  ensureSettingsDir();
+  const defaultSettings: ExternalResourceSettings = {
     externalResourceMode: "1",
-    externalResourceCookies: false
+    externalResourceCookies: false,
+    preferredBrowser: "chrome"
   };
+  
+  if (!fs.existsSync(SETTINGS_FILE)) {
+    writeSettings(defaultSettings);
+    return defaultSettings;
+  }
+  
+  try {
+    const content = fs.readFileSync(SETTINGS_FILE, 'utf8');
+    const settings = JSON.parse(content);
+    return { ...defaultSettings, ...settings };
+  } catch (error) {
+    console.warn("[VideoDownloader] Failed to read settings, using defaults:", error);
+    return defaultSettings;
+  }
+}
+
+function writeSettings(settings: ExternalResourceSettings) {
+  ensureSettingsDir();
+  try {
+    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf8');
+  } catch (error) {
+    console.warn("[VideoDownloader] Failed to write settings:", error);
+  }
+}
+
+function getSetting(key?: string): any {
+  const settings = readSettings();
+  
+  if (key) {
+    return settings[key as keyof ExternalResourceSettings];
+  }
+  
+  return settings;
+}
+
+function setSetting(key: keyof ExternalResourceSettings, value: any): void {
+  const settings = readSettings();
+  settings[key] = value;
+  writeSettings(settings);
 }
 
 // 下载器接口
@@ -680,10 +736,33 @@ ${destPath}`);
 
   private applyCookies(args: string[]): string[] {
     try {
-      const settings = getSetting("externalResourceCookies");
+      const useCookies = getSetting("externalResourceCookies");
+      const preferredBrowser = getSetting("preferredBrowser");
 
-      if (settings) {
-        args.push("--cookies-from-browser", "chrome");
+      if (useCookies) {
+        // 尝试多种浏览器，按优先级排序
+        const browsers = [preferredBrowser, "chrome", "firefox", "edge", "safari"].filter((browser, index, arr) => arr.indexOf(browser) === index);
+        let cookieApplied = false;
+        
+        for (const browser of browsers) {
+          try {
+            args.push("--cookies-from-browser", browser);
+            cookieApplied = true;
+            console.log(`[VideoDownloader] Using cookies from ${browser}`);
+            break;
+          } catch (error) {
+            console.warn(`[VideoDownloader] Failed to use cookies from ${browser}:`, error);
+            // 移除失败的浏览器参数
+            const lastIndex = args.lastIndexOf("--cookies-from-browser");
+            if (lastIndex !== -1) {
+              args.splice(lastIndex, 2);
+            }
+          }
+        }
+        
+        if (!cookieApplied) {
+          console.warn("[VideoDownloader] Could not apply cookies from any browser, continuing without cookies");
+        }
       }
     } catch (error) {
       console.warn("[VideoDownloader] Failed to apply cookies:", error);
@@ -720,7 +799,7 @@ ${destPath}`);
 export async function getVideoInfo(url: string, timeoutMs: number = 30000): Promise<VideoInfo> {
   console.log("[VideoDownloader] Starting info fetch for:", url);
 
-  const args = [cleanDownloadUrl(url), "--prefer-free-formats"];
+  const args = [cleanDownloadUrl(url), "--prefer-free-formats", "--dump-json", "--no-playlist"];
   const downloader = new VideoDownloader();
 
   // 应用cookies和代理设置
@@ -784,3 +863,6 @@ export async function getThumbnail(url: string): Promise<string> {
 
 // 创建全局下载管理器实例
 export const downloadManager = new DownloadManager();
+
+// 导出设置管理函数供 IPC 使用
+export { getSetting, setSetting };
