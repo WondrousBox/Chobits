@@ -127,8 +127,16 @@ export function initWindowHandlers(win: BrowserWindow) {
     return { x: best.x, y: best.y, side: best.side }
   }
 
-  function animateFollowerTo(followerWin: BrowserWindow, target: { x: number; y: number }) {
+  function animateFollowerTo(
+    followerWin: BrowserWindow,
+    target: { x: number; y: number },
+    noAnimation?: boolean
+  ) {
     if (!followerWin || followerWin.isDestroyed()) return
+    if (noAnimation) {
+      followerWin.setPosition(target.x, target.y)
+      return
+    }
     try {
       const [cx, cy] = followerWin.getPosition()
       const dx = target.x - cx
@@ -173,7 +181,7 @@ export function initWindowHandlers(win: BrowserWindow) {
       const lastSide = lastFollowerSide.get(followerWin) || null
       // 如果方向变化，则做动画，否则直接贴靠
       if (lastSide && pos.side !== lastSide) {
-        animateFollowerTo(followerWin, { x: pos.x, y: pos.y })
+        animateFollowerTo(followerWin, { x: pos.x, y: pos.y }, true)
       } else {
         // 方向未变，保持紧随（直接设置）
         followerWin.setPosition(pos.x, pos.y)
@@ -185,7 +193,6 @@ export function initWindowHandlers(win: BrowserWindow) {
   function repositionAllFollowers() {
     repositionFollower(fileListWindow)
     repositionFollower(menuWindow)
-    // settingsWindow 不是跟随窗口，不自动贴靠
   }
 
   // ---------------- Hover monitor to manage click-through ---------------
@@ -289,7 +296,7 @@ export function initWindowHandlers(win: BrowserWindow) {
   ipcMain.handle('setWindowSize', (_: IpcMainInvokeEvent, windowKey: string, width: number, height: number, center?: boolean) => {
     try {
       let targetWindow: BrowserWindow | null = null
-      
+
       // 根据窗口键获取目标窗口
       if (windowKey === 'main') {
         targetWindow = win
@@ -297,25 +304,25 @@ export function initWindowHandlers(win: BrowserWindow) {
         // 从窗口管理器获取其他窗口
         targetWindow = windowManager.get(windowKey as any)
       }
-      
+
       if (!targetWindow || targetWindow.isDestroyed()) {
         return { success: false, error: 'Window not found' }
       }
-      
+
       // 获取当前屏幕信息
       const display = screen.getDisplayNearestPoint(targetWindow.getBounds())
       const workArea = display.workArea
-      
+
       // 确保窗口大小不超过屏幕工作区域
       const maxWidth = workArea.width
       const maxHeight = workArea.height
       const finalWidth = Math.min(width, maxWidth)
       const finalHeight = Math.min(height, maxHeight)
-      
+
       // 计算窗口位置
       let x = targetWindow.getPosition()[0]
       let y = targetWindow.getPosition()[1]
-      
+
       if (center) {
         // 居中显示
         x = workArea.x + Math.floor((workArea.width - finalWidth) / 2)
@@ -326,10 +333,10 @@ export function initWindowHandlers(win: BrowserWindow) {
         x = Math.max(workArea.x, Math.min(x, workArea.x + workArea.width - finalWidth))
         y = Math.max(workArea.y, Math.min(y, workArea.y + workArea.height - finalHeight))
       }
-      
+
       // 设置窗口大小和位置
       targetWindow.setBounds({ x, y, width: finalWidth, height: finalHeight })
-      
+
       return { success: true, bounds: { x, y, width: finalWidth, height: finalHeight } }
     } catch (error) {
       return { success: false, error: String(error) }
@@ -340,17 +347,17 @@ export function initWindowHandlers(win: BrowserWindow) {
   ipcMain.handle('getWindowSize', (_: IpcMainInvokeEvent, windowKey: string) => {
     try {
       let targetWindow: BrowserWindow | null = null
-      
+
       if (windowKey === 'main') {
         targetWindow = win
       } else {
         targetWindow = windowManager.get(windowKey as any)
       }
-      
+
       if (!targetWindow || targetWindow.isDestroyed()) {
         return { success: false, error: 'Window not found' }
       }
-      
+
       const bounds = targetWindow.getBounds()
       return { success: true, bounds }
     } catch (error) {
@@ -386,8 +393,6 @@ export function initWindowHandlers(win: BrowserWindow) {
         fileListWindow = w
         repositionFollower(w)
       }
-      // Send/refresh file list
-      fileListWindow!.webContents.send('update-file-list', files)
       try { (fileListWindow as any).showInactive?.() } catch { }
       return true
     } catch (e) { return false }

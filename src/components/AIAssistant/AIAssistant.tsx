@@ -84,27 +84,27 @@ export const AIAssistant: React.FC = () => {
   // 启动问候 + 工作空间检查
   useEffect(() => {
     let mounted = true
-    ;(async () => {
-      try {
-        // 初始欢迎
-        setMessageState('welcome')
-        // 短暂停顿后显示“检查系统中”
-        await new Promise(r => setTimeout(r, 600))
-        if (!mounted) return
-        setMessageState('loading')
-        // 查询是否存在未删除的工作空间
-        const list = await window.YUA.workspace['workspace:list']({ filter: { deletedAt: 0 } as any, limit: 1, offset: 0 })
-        if (!mounted) return
-        if (!Array.isArray(list) || list.length === 0) {
-          // 未创建空间：提示并打开设置窗口
-          setMessageState('configure')
-          // 稍等片刻再弹窗，避免打断动画
-          setTimeout(() => { try { window.YUA.window.openWindow("workspaceWizard") } catch {} }, 800)
+      ; (async () => {
+        try {
+          // 初始欢迎
+          setMessageState('welcome')
+          // 短暂停顿后显示“检查系统中”
+          await new Promise(r => setTimeout(r, 600))
+          if (!mounted) return
+          setMessageState('loading')
+          // 查询是否存在未删除的工作空间
+          const list = await window.YUA.workspace['workspace:list']({ filter: { deletedAt: 0 } as any, limit: 1, offset: 0 })
+          if (!mounted) return
+          if (!Array.isArray(list) || list.length === 0) {
+            // 未创建空间：提示并打开设置窗口
+            setMessageState('configure')
+            // 稍等片刻再弹窗，避免打断动画
+            setTimeout(() => { try { window.YUA.window.openWindow("workspaceWizard") } catch { } }, 800)
+          }
+        } catch {
+          // 忽略错误，保持现有状态
         }
-      } catch {
-        // 忽略错误，保持现有状态
-      }
-    })()
+      })()
     return () => { mounted = false }
   }, [])
 
@@ -256,31 +256,32 @@ export const AIAssistant: React.FC = () => {
   // 鼠标事件处理（拖动时移动窗口）
   const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault()
-    
+
     // 清除之前的定时器
     if (dragTimerRef.current) {
       clearInterval(dragTimerRef.current)
       dragTimerRef.current = null
     }
-    
+
     // 重置拖拽状态
     setIsDragReady(false)
     setDragProgress(0)
     dragStartTimeRef.current = Date.now()
-    
-    // 设置消息状态
-    setMessageState('hold')
+
     stopWalking()
     setClickThrough(false)
     setDragOffset({ x: e.clientX, y: e.clientY })
-    
+
     // 开始拖拽准备定时器
     dragTimerRef.current = setInterval(() => {
       const elapsed = Date.now() - dragStartTimeRef.current
-      const progress = Math.min(elapsed / 1000, 1) // 1秒
+      const progress = Math.min(elapsed / 500, 1) // 1秒
       setDragProgress(progress)
-      
+
       if (progress >= 1) {
+
+        // 设置消息状态
+        setMessageState('hold')
         setIsDragReady(true)
         setIsDragging(true)
         if (dragTimerRef.current) {
@@ -297,12 +298,12 @@ export const AIAssistant: React.FC = () => {
       clearInterval(dragTimerRef.current)
       dragTimerRef.current = null
     }
-    
+
     // 重置拖拽状态
     setIsDragging(false)
     setIsDragReady(false)
     setDragProgress(0)
-    
+
     // Ensure click-through reflects current pointer position even if no mousemove fires
     const rect = containerRef.current?.getBoundingClientRect()
     if (rect && e) {
@@ -445,7 +446,7 @@ export const AIAssistant: React.FC = () => {
     })
 
     console.log(items);
-    
+
 
     if (details.length === 0 && files.length) {
       details.push(...files.map((f: File) => `文件“${f.name}”`))
@@ -465,7 +466,7 @@ export const AIAssistant: React.FC = () => {
     }
 
     console.log(fileListForIPC);
-    
+
 
     // 新增：将拖拽文件作为资源写入数据库（仅新增，不弹出管理）
     (async () => {
@@ -502,7 +503,7 @@ export const AIAssistant: React.FC = () => {
     setClickThrough(false)
     stopWalking();
 
-    
+
 
     // 新增：将拖拽文件作为资源写入数据库（仅新增，不弹出管理）
     (async () => {
@@ -619,7 +620,7 @@ export const AIAssistant: React.FC = () => {
           try { await window.YUA.window.openWindow('assistant' as any); } catch { }
         }
       }}
-      // onDrop={handleDrop}
+    // onDrop={handleDrop}
     >
       {showPaddingDebug && (
         <div style={{ position: 'absolute', left: -paddingState, top: -paddingState, width: ASSISTANT_WIDTH + paddingState * 2, height: ASSISTANT_HEIGHT + paddingState * 2, pointerEvents: 'none', boxSizing: 'border-box', border: '1px dashed rgba(0,255,120,0.45)', backdropFilter: 'none' }}>
@@ -643,9 +644,9 @@ export const AIAssistant: React.FC = () => {
       {dragProgress > 0 && dragProgress < 1 && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="w-16 h-16 rounded-full border-4 border-blue-500/30 flex items-center justify-center">
-            <div 
+            <div
               className="w-12 h-12 rounded-full border-4 border-blue-500 border-t-transparent animate-spin"
-              style={{ 
+              style={{
                 animationDuration: '2s',
                 animationTimingFunction: 'linear',
                 animationIterationCount: 'infinite'
@@ -654,7 +655,7 @@ export const AIAssistant: React.FC = () => {
           </div>
         </div>
       )}
-      
+
       {/* 状态指示器 */}
       <div className="absolute -bottom-[10px] -right-[10px] w-[30px] h-[30px] bg-white/90 border-2 border-indigo-500 rounded-full flex items-center justify-center text-sm shadow-[0_2px_10px_rgba(0,0,0,0.1)]">
         {isDragging ? '🫴' : isWalking ? '🚶‍♀️' : '😊'}
