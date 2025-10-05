@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { 
   TbPlayerPlay, 
@@ -146,6 +146,104 @@ const PlaybackRateControl: React.FC<PlaybackRateControlProps> = ({ playbackRate,
   )
 }
 
+// 进度滑块组件
+interface ProgressSliderProps {
+  currentTime: number
+  duration: number
+  onSeek: (time: number) => void
+  onSeekStart?: () => void
+  onSeekEnd?: () => void
+  type: 'video' | 'audio'
+}
+
+const ProgressSlider: React.FC<ProgressSliderProps> = ({ 
+  currentTime, 
+  duration, 
+  onSeek, 
+  onSeekStart,
+  onSeekEnd,
+  type 
+}) => {
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragValue, setDragValue] = useState(0)
+  const seekTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // 计算进度百分比
+  const progress = duration > 0 ? (currentTime / duration) * 100 : 0
+  const displayValue = isDragging ? dragValue : progress
+
+  // 节流的 seek 函数，避免过于频繁的更新
+  const throttledSeek = useCallback((time: number) => {
+    if (seekTimeoutRef.current) {
+      clearTimeout(seekTimeoutRef.current)
+    }
+    
+    seekTimeoutRef.current = setTimeout(() => {
+      onSeek(time)
+    }, 16) // 约 60fps 的更新频率
+  }, [onSeek])
+
+  // 滑块变化处理
+  const handleSliderChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseFloat(e.target.value)
+    setDragValue(value)
+    const newTime = (value / 100) * duration
+    throttledSeek(newTime)
+  }, [duration, throttledSeek])
+
+  // 开始拖拽
+  const handleMouseDown = useCallback(() => {
+    setIsDragging(true)
+    setDragValue(progress)
+    onSeekStart?.()
+  }, [progress, onSeekStart])
+
+  // 结束拖拽
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false)
+    // 清除所有待处理的 seek 请求
+    if (seekTimeoutRef.current) {
+      clearTimeout(seekTimeoutRef.current)
+    }
+    // 立即执行最后一次 seek，确保最终位置准确
+    const finalTime = (dragValue / 100) * duration
+    onSeek(finalTime)
+    onSeekEnd?.()
+  }, [dragValue, duration, onSeek, onSeekEnd])
+
+  // 组件卸载时清理定时器
+  useEffect(() => {
+    return () => {
+      if (seekTimeoutRef.current) {
+        clearTimeout(seekTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  return (
+    <div className="mb-2">
+      <input
+        type="range"
+        min="0"
+        max="100"
+        step="0.1"
+        value={displayValue}
+        onChange={handleSliderChange}
+        onMouseDown={handleMouseDown}
+        onMouseUp={handleMouseUp}
+        className={`w-full h-1 rounded-full appearance-none cursor-pointer progress-slider ${
+          type === 'video' ? 'bg-white/30' : 'bg-muted-foreground/30'
+        }`}
+        style={{
+          background: type === 'video'
+            ? `linear-gradient(to right, white 0%, white ${displayValue}%, rgba(255,255,255,0.3) ${displayValue}%, rgba(255,255,255,0.3) 100%)`
+            : `linear-gradient(to right, hsl(var(--foreground)) 0%, hsl(var(--foreground)) ${displayValue}%, hsl(var(--muted-foreground) / 0.3) ${displayValue}%, hsl(var(--muted-foreground) / 0.3) 100%)`
+        }}
+      />
+    </div>
+  )
+}
+
 // 全屏按钮组件
 interface FullscreenButtonProps {
   isFullscreen: boolean
@@ -202,15 +300,6 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
 }) => {
   const [previousVolume, setPreviousVolume] = useState(1) // 记住静音前的音量
 
-  // 进度条点击处理
-  const handleProgressClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    const clickX = e.clientX - rect.left
-    const percentage = clickX / rect.width
-    const newTime = percentage * duration
-    onSeek(newTime)
-  }, [duration, onSeek])
-
   // 音量变化处理（包含记忆逻辑）
   const handleVolumeChange = useCallback((newVolume: number) => {
     onVolumeChange(newVolume)
@@ -232,6 +321,23 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
     }
   }, [volume, previousVolume, onVolumeChange])
 
+  // 开始拖拽进度条
+  const handleSeekStart = useCallback(() => {
+    // 拖拽开始时不需要特殊处理
+  }, [])
+
+  // 结束拖拽进度条
+  const handleSeekEnd = useCallback(() => {
+    // 拖拽结束后总是进入播放状态
+    if (!isPlaying) {
+      // 如果当前是暂停状态，则开始播放
+      setTimeout(() => {
+        onTogglePlay()
+      }, 100)
+    }
+    // 如果当前已经是播放状态，则不需要做任何操作
+  }, [isPlaying, onTogglePlay])
+
   const controlsClass = type === 'video'
     ? `absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'
     }`
@@ -244,17 +350,14 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
       onMouseLeave={onMouseLeave}
     >
       {/* 进度条 */}
-      <div className="mb-2">
-        <div
-          className="w-full h-1 bg-white/30 rounded-full cursor-pointer hover:h-2 transition-all"
-          onClick={handleProgressClick}
-        >
-          <div
-            className="h-full bg-white rounded-full transition-all"
-            style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
-          />
-        </div>
-      </div>
+      <ProgressSlider
+        currentTime={currentTime}
+        duration={duration}
+        onSeek={onSeek}
+        onSeekStart={handleSeekStart}
+        onSeekEnd={handleSeekEnd}
+        type={type}
+      />
 
       {/* 控制按钮 */}
       <div className="flex items-center justify-between">
@@ -308,6 +411,30 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
           background: white;
           cursor: pointer;
           border: none;
+        }
+        .progress-slider::-webkit-slider-thumb {
+          appearance: none;
+          width: 14px;
+          height: 14px;
+          border-radius: 50%;
+          background: white;
+          cursor: pointer;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .progress-slider::-moz-range-thumb {
+          width: 14px;
+          height: 14px;
+          border-radius: 50%;
+          background: white;
+          cursor: pointer;
+          border: none;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .progress-slider:hover::-webkit-slider-thumb {
+          transform: scale(1.1);
+        }
+        .progress-slider:hover::-moz-range-thumb {
+          transform: scale(1.1);
         }
       `}</style>
     </div>
