@@ -9,6 +9,16 @@
     "dist-electron",
     "dist"
   ],
+  "extraResources": [
+    {
+      "from": "resources/ffmpeg/${platform}/${arch}",
+      "to": "./ffmpeg/"
+    },
+    {
+      "from": "resources/yt-dlp/${platform}/",
+      "to": "./yt-dlp/"
+    }
+  ],
   "mac": {
     "artifactName": "${productName}_${version}.${ext}",
     "target": [

@@ -3,7 +3,7 @@ import path from 'node:path'
 import os from 'node:os'
 import { screen } from 'electron'
 import type { BrowserWindow } from 'electron'
-import type { WindowKey } from './window/window-config'
+import type { WindowKey } from './window-config'
 
 export interface WindowState {
   x: number
@@ -14,7 +14,7 @@ export interface WindowState {
   isMinimized: boolean
 }
 
-type WindowStateMap = Record<WindowKey, WindowState | undefined>
+type WindowStateMap = Partial<Record<WindowKey, WindowState | undefined>>
 
 const STORE_DIR = path.join(os.homedir(), '.chobits')
 const WINDOW_STATE_FILE = path.join(STORE_DIR, 'window-states.json')
