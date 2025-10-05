@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import Messages from '.'
 import type { MessageCategory, MessageContext } from './types'
-import { cn } from '@/lib/utils'
+import clsx from 'clsx'
 
 export interface MessageBubbleProps {
   autoHideMs?: number // 0 or undefined to keep visible
@@ -61,9 +61,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
 
   return (
     <div
-      className={cn(
+      className={clsx([
         // position & placement
-        'absolute -top-[70px] left-1/2 -translate-x-1/2 z-10',
+        'absolute -top-[32px] left-1/2 -translate-x-1/2 z-10 w-full',
         // visuals
         'bg-white/90 rounded-xl shadow-lg',
         // spacing & typography
@@ -71,7 +71,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         // layout behavior
         'max-w-[300px] whitespace-normal break-words text-center',
         className
-      )}
+      ])}
     >
       {content}
     </div>
