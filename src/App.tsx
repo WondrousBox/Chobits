@@ -11,6 +11,7 @@ import WorkspacePage from './pages/WorkspacePage/WorkspacePage'
 import AssistantPage from './pages/AssistantPage/AssistantPage'
 import ModelPage from './pages/ModelPage/ModelPage'
 import ResourcePreviewWindow from '@/pages/ResourcePage/ResourcePreviewWindow'
+import DownloadFloating from '@/components/DownloadFloating'
 
 function App() {
   return (
@@ -28,6 +29,7 @@ function App() {
           <Route path="/assistant" element={<AssistantPage />} />
           <Route path="/model-manager" element={<ModelPage />} />
           <Route path="/resource-preview" element={<ResourcePreviewWindow />} />
+          <Route path="/download-floating" element={<DownloadFloating />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

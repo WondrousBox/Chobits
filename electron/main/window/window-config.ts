@@ -14,6 +14,7 @@ export type WindowKey =
   | 'assistant'
   | 'modelManager'
   | 'resourcePreview'
+  | 'downloadFloating'
 
 export interface WindowConfig {
   routeHash: string | (() => string)
@@ -283,6 +284,24 @@ export const windowConfigs: WindowConfigMap = {
       backgroundColor: '#ffffff',
       show: false,
       autoHideMenuBar: true,
+      webPreferences: { nodeIntegration: true, contextIsolation: true },
+    },
+  },
+  downloadFloating: {
+    routeHash: 'download-floating',
+    autoCenterOn: 'none',
+    showOnReady: false,
+    openDevTools: false,
+    options: {
+      width: 320,
+      height: 120,
+      frame: false,
+      transparent: true,
+      resizable: false,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      show: false,
+      backgroundColor: '#00000000',
       webPreferences: { nodeIntegration: true, contextIsolation: true },
     },
   },

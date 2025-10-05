@@ -1,6 +1,7 @@
-import { ipcMain, BrowserWindow } from 'electron';
+import { ipcMain, BrowserWindow, screen } from 'electron';
 import { downloadManager, getVideoInfo, getThumbnail } from './video-downloader';
 import { getMainWindow } from '../index';
+import { windowManager } from '../window/window-manager';
 
 export function initVideoDownloadHandlers(win: BrowserWindow) {
   console.log('[VideoDownload] Initializing video download handlers');
@@ -113,17 +114,53 @@ export function initVideoDownloadHandlers(win: BrowserWindow) {
     }
   });
 
+  // 关闭下载悬浮窗
+  ipcMain.on('download-floating:close', () => {
+    try {
+      windowManager.close('downloadFloating');
+    } catch (error) {
+      console.error('[VideoDownload] Failed to close download floating window:', error);
+    }
+  });
+
   // 设置下载管理器事件监听器
   downloadManager.on('taskAdded', (task) => {
     console.log('[VideoDownload] 任务已添加:', task.id);
   });
 
-  downloadManager.on('taskStarted', (task) => {
+  downloadManager.on('taskStarted', async (task) => {
     console.log('[VideoDownload] 任务已开始:', task.id);
     try {
       const mainWindow = getMainWindow();
       if (mainWindow) {
         mainWindow.setProgressBar(0);
+      }
+      
+      // 创建或显示下载悬浮窗
+      console.log('[VideoDownload] 正在创建下载悬浮窗...')
+      const downloadWindow = await windowManager.createOrShow('downloadFloating', { task });
+      console.log('[VideoDownload] 下载悬浮窗创建结果:', downloadWindow ? '成功' : '失败')
+      if (downloadWindow) {
+        // 设置窗口位置（右上角）
+        const primaryDisplay = screen.getPrimaryDisplay();
+        const { width: screenWidth } = primaryDisplay.workAreaSize;
+        const windowWidth = 320;
+        const windowHeight = 120;
+        
+        downloadWindow.setBounds({
+          x: screenWidth - windowWidth - 20,
+          y: 20,
+          width: windowWidth,
+          height: windowHeight
+        });
+        
+        // 显示窗口
+        downloadWindow.show();
+        downloadWindow.focus();
+        
+        // 发送任务开始事件到下载悬浮窗
+        console.log('[VideoDownload] 发送任务开始事件到下载悬浮窗:', task.id)
+        downloadWindow.webContents.send('video-downloader:task-started', task);
       }
     } catch (error) {
       console.warn('[VideoDownload] 设置进度条失败:', error);
@@ -133,6 +170,12 @@ export function initVideoDownloadHandlers(win: BrowserWindow) {
   downloadManager.on('taskProgress', (task) => {
     // 发送进度到渲染进程（用于其他UI更新）
     win.webContents.send('video-downloader:task-progress', task);
+    
+    // 发送进度到下载悬浮窗
+    const downloadWindow = windowManager.get('downloadFloating');
+    if (downloadWindow && !downloadWindow.isDestroyed()) {
+      downloadWindow.webContents.send('video-downloader:task-progress', task);
+    }
 
     if (task.progress && task.progress.percent !== undefined) {
       try {
@@ -154,6 +197,12 @@ export function initVideoDownloadHandlers(win: BrowserWindow) {
       if (mainWindow) {
         mainWindow.setProgressBar(-1);
       }
+      
+      // 发送完成事件到下载悬浮窗
+      const downloadWindow = windowManager.get('downloadFloating');
+      if (downloadWindow && !downloadWindow.isDestroyed()) {
+        downloadWindow.webContents.send('video-downloader:task-completed', task);
+      }
     } catch (error) {
       console.warn('[VideoDownload] 重置进度条失败:', error);
     }
@@ -165,6 +214,12 @@ export function initVideoDownloadHandlers(win: BrowserWindow) {
       const mainWindow = getMainWindow();
       if (mainWindow) {
         mainWindow.setProgressBar(-1);
+      }
+      
+      // 发送失败事件到下载悬浮窗
+      const downloadWindow = windowManager.get('downloadFloating');
+      if (downloadWindow && !downloadWindow.isDestroyed()) {
+        downloadWindow.webContents.send('video-downloader:task-failed', task);
       }
     } catch (error) {
       console.warn('[VideoDownload] 重置进度条失败:', error);
