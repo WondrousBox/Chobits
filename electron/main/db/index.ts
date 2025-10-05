@@ -28,6 +28,44 @@ function ensureDir(dir: string) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
+function getSqliteVecPath(): string | null {
+  try {
+    // 在开发环境中，直接使用 node_modules
+    if (!app.isPackaged) {
+      const sqliteVecPath = path.join(process.cwd(), 'node_modules', 'sqlite-vec');
+      if (fs.existsSync(sqliteVecPath)) {
+        console.log('[vector] Found sqlite-vec in dev mode:', sqliteVecPath);
+        return sqliteVecPath;
+      }
+    }
+    
+    // 在打包后的应用中，尝试多个可能的路径
+    const possiblePaths = [
+      path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', 'sqlite-vec'),
+      path.join(process.resourcesPath, 'node_modules', 'sqlite-vec'),
+      path.join(app.getAppPath(), 'node_modules', 'sqlite-vec'),
+    ];
+    
+    console.log('[vector] Searching for sqlite-vec in packaged app...');
+    console.log('[vector] process.resourcesPath:', process.resourcesPath);
+    console.log('[vector] app.getAppPath():', app.getAppPath());
+    
+    for (const possiblePath of possiblePaths) {
+      console.log('[vector] Checking path:', possiblePath);
+      if (fs.existsSync(possiblePath)) {
+        console.log('[vector] Found sqlite-vec at:', possiblePath);
+        return possiblePath;
+      }
+    }
+    
+    console.warn('[vector] sqlite-vec not found in any expected location');
+    return null;
+  } catch (e) {
+    console.warn('[vector] Error finding sqlite-vec path:', e);
+    return null;
+  }
+}
+
 export function getDB() {
   if (db) return db;
   const userDir = app.getPath('userData');
@@ -42,14 +80,42 @@ export function getDB() {
   initSchema();
   // load sqlite-vec (idempotent)
   try {
-    const sqlite_vec = require('sqlite-vec');
-    sqlite_vec.load(db as any);
-    const versionRow = (db as any).prepare('select vec_version() as v').get();
-    if (versionRow?.v) {
-      vecReady = true;
-      console.log('[vector] sqlite-vec version', versionRow.v);
-    } else {
-      console.warn('[vector] sqlite-vec loaded but vec_version() unavailable');
+    console.log('[vector] Attempting to load sqlite-vec extension...');
+    
+    // 首先尝试直接 require sqlite-vec（适用于大多数情况）
+    try {
+      const sqlite_vec = require('sqlite-vec');
+      sqlite_vec.load(db as any);
+      const versionRow = (db as any).prepare('select vec_version() as v').get();
+      if (versionRow?.v) {
+        vecReady = true;
+        console.log('[vector] sqlite-vec loaded successfully, version:', versionRow.v);
+        return db;
+      } else {
+        console.warn('[vector] sqlite-vec loaded but vec_version() unavailable');
+      }
+    } catch (requireError: any) {
+      console.log('[vector] Direct require failed, trying path-based loading:', requireError?.message || requireError);
+      
+      // 如果直接 require 失败，尝试从特定路径加载
+      const sqliteVecPath = getSqliteVecPath();
+      if (sqliteVecPath) {
+        try {
+          const sqlite_vec = require(sqliteVecPath);
+          sqlite_vec.load(db as any);
+          const versionRow = (db as any).prepare('select vec_version() as v').get();
+          if (versionRow?.v) {
+            vecReady = true;
+            console.log('[vector] sqlite-vec loaded from path, version:', versionRow.v);
+            return db;
+          }
+        } catch (pathError: any) {
+          console.warn('[vector] Path-based loading also failed:', pathError?.message || pathError);
+        }
+      }
+      
+      // 如果所有方法都失败，抛出原始错误
+      throw requireError;
     }
   } catch (e) {
     vecReady = false;
