@@ -285,6 +285,79 @@ export function initWindowHandlers(win: BrowserWindow) {
     return { width, height }
   })
 
+  // 设置窗口大小
+  ipcMain.handle('setWindowSize', (_: IpcMainInvokeEvent, windowKey: string, width: number, height: number, center?: boolean) => {
+    try {
+      let targetWindow: BrowserWindow | null = null
+      
+      // 根据窗口键获取目标窗口
+      if (windowKey === 'main') {
+        targetWindow = win
+      } else {
+        // 从窗口管理器获取其他窗口
+        targetWindow = windowManager.get(windowKey as any)
+      }
+      
+      if (!targetWindow || targetWindow.isDestroyed()) {
+        return { success: false, error: 'Window not found' }
+      }
+      
+      // 获取当前屏幕信息
+      const display = screen.getDisplayNearestPoint(targetWindow.getBounds())
+      const workArea = display.workArea
+      
+      // 确保窗口大小不超过屏幕工作区域
+      const maxWidth = workArea.width
+      const maxHeight = workArea.height
+      const finalWidth = Math.min(width, maxWidth)
+      const finalHeight = Math.min(height, maxHeight)
+      
+      // 计算窗口位置
+      let x = targetWindow.getPosition()[0]
+      let y = targetWindow.getPosition()[1]
+      
+      if (center) {
+        // 居中显示
+        x = workArea.x + Math.floor((workArea.width - finalWidth) / 2)
+        y = workArea.y + Math.floor((workArea.height - finalHeight) / 2)
+      } else {
+        // 保持当前位置，但确保窗口在屏幕内
+        const currentBounds = targetWindow.getBounds()
+        x = Math.max(workArea.x, Math.min(x, workArea.x + workArea.width - finalWidth))
+        y = Math.max(workArea.y, Math.min(y, workArea.y + workArea.height - finalHeight))
+      }
+      
+      // 设置窗口大小和位置
+      targetWindow.setBounds({ x, y, width: finalWidth, height: finalHeight })
+      
+      return { success: true, bounds: { x, y, width: finalWidth, height: finalHeight } }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
+
+  // 获取窗口当前大小
+  ipcMain.handle('getWindowSize', (_: IpcMainInvokeEvent, windowKey: string) => {
+    try {
+      let targetWindow: BrowserWindow | null = null
+      
+      if (windowKey === 'main') {
+        targetWindow = win
+      } else {
+        targetWindow = windowManager.get(windowKey as any)
+      }
+      
+      if (!targetWindow || targetWindow.isDestroyed()) {
+        return { success: false, error: 'Window not found' }
+      }
+      
+      const bounds = targetWindow.getBounds()
+      return { success: true, bounds }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
+
   ipcMain.handle('setClickThrough', (_: IpcMainInvokeEvent, enable: boolean) => {
     if (!win) return false
     try {
