@@ -10,6 +10,7 @@ import { initModelHandlers } from './model';
 import { initFileHandlers } from './file';
 import { initDatabaseHandlers } from './database';
 import { initVideoDownloadHandlers } from './video-download';
+import { initFolderHandlers } from './folder';
 
 export function initHandlers(win: BrowserWindow) {
 
@@ -20,6 +21,7 @@ export function initHandlers(win: BrowserWindow) {
   initFFmpegHandlers(win);
   initVectorHandlers(win);
   initResourceHandlers(win);
+  initFolderHandlers?.(win);
   initTrashHandlers(win);
   initWorkspaceHandlers(win);
   initModelHandlers(win);
