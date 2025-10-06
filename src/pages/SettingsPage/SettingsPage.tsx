@@ -15,14 +15,15 @@ import {
   SidebarMenuItem, 
   SidebarProvider 
 } from '../../components/ui/sidebar';
-import { TbDatabase, TbFolderOpen, TbSettings, TbBrain, TbCpu } from 'react-icons/tb';
+import { TbDatabase, TbFolderOpen, TbSettings, TbBrain, TbCpu, TbBox } from 'react-icons/tb';
 import Workspace from './components/Workspace'
+import ModelPage from '../ModelPage/ModelPage';
 
 // Include assistantPadding in type
 type MovementConfig = { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number }
 
 // 设置分类类型
-type SettingsCategory = 'movement' | 'database' | 'embedding' | 'external-resource' | 'workspace'
+type SettingsCategory = 'movement' | 'database' | 'embedding' | 'external-resource' | 'workspace' | 'model'
 
 // 设置分类配置
 const settingsCategories = [
@@ -49,6 +50,12 @@ const settingsCategories = [
     label: '工作空间',
     icon: TbFolderOpen,
     description: '工作空间管理与默认空间设置'
+  },
+  {
+    id: 'model' as SettingsCategory,
+    label: '模型管理',
+    icon: TbBox,
+    description: '下载与管理本地模型文件'
   },
   {
     id: 'external-resource' as SettingsCategory,
@@ -373,6 +380,17 @@ export const SettingsPage: React.FC = () => {
     </div>
   )
 
+  // 渲染模型管理（内嵌）
+  const renderModelSettings = () => (
+    <div className='space-y-6'>
+      <div className='bg-card border border-border rounded-lg overflow-hidden'>
+        <div className='h-[70vh]'>
+          <ModelPage />
+        </div>
+      </div>
+    </div>
+  )
+
   // 根据当前分类渲染对应内容
   const renderCurrentCategoryContent = () => {
     switch (activeCategory) {
@@ -384,6 +402,8 @@ export const SettingsPage: React.FC = () => {
         return renderEmbeddingSettings()
       case 'workspace':
         return renderWorkspaceSettings()
+      case 'model':
+        return renderModelSettings()
       case 'external-resource':
         return renderExternalResourceSettings()
       default:
