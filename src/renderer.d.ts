@@ -8,6 +8,7 @@ import type { ModelBridgeType } from '../electron/preload/apis/model'
 import type { FileBridgeType } from '../electron/preload/apis/file'
 import type { DatabaseBridgeType } from '../electron/preload/apis/database'
 import type videoDownloaderAPI from '../electron/preload/apis/video-downloader'
+import type { FolderBridgeType } from '../electron/preload/apis/folder'
 
 declare global {
   interface Window {
@@ -33,6 +34,7 @@ declare global {
       model: ModelBridgeType
       file: FileBridgeType
       database: DatabaseBridgeType
+      folder: FolderBridgeType
       videoDownloader: typeof videoDownloaderAPI
     }
     ipcRenderer: any

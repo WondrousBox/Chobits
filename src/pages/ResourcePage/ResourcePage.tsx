@@ -11,9 +11,11 @@ import ExplorerGrid from './components/ExplorerGrid'
 import ResourceListItem from './components/ResourceListItem'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { TbHome, TbPhoto, TbVideo, TbMusic, TbFileText, TbLink, TbFile, TbFileDescription, TbDots, TbList, TbSearch, TbFilter, TbSortAscending, TbSortDescending, TbGrid3X3, TbPlus, TbPlayerPlay, TbRefresh, TbHeart } from 'react-icons/tb'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import DragAbleTitle from '@/components/common/DragAbleTitle'
+import FolderSidebar, { type UIFolder } from './components/FolderSidebar'
 
 const ResourcePage: React.FC = () => {
   const [list, setList] = useState<ResourceItem[]>([])
@@ -26,6 +28,12 @@ const ResourcePage: React.FC = () => {
   const [sortField, setSortField] = useState<SortField>('collectedAt')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set())
+  const [folders, setFolders] = useState<UIFolder[]>([])
+  const [folderFilter, setFolderFilter] = useState<string>('') // '' 表示全部
+  const folderAPI: any = (window as any).YUA?.folder
+  const [renameOpen, setRenameOpen] = useState(false)
+  const [renameId, setRenameId] = useState<string>('')
+  const [renameName, setRenameName] = useState<string>('')
 
   const typeOptions: { key: string; label: string; icon: React.ComponentType<{ className?: string }>; }[] = [
     { key: '', label: '全部', icon: TbHome },
@@ -60,7 +68,15 @@ const ResourcePage: React.FC = () => {
     } catch (e) { console.warn('load resources failed', e) }
   }
 
-  useEffect(() => { load() }, [])
+  const loadFolders = async (workspaceId?: string) => {
+    try {
+      const wsId = workspaceId || wsFilter || undefined
+      const rows = await folderAPI['folder.list']({ workspaceId: wsId, deletedAt: 0 })
+      setFolders((rows || []).map((r: any) => ({ id: r.id, name: r.name, parentId: r.parentId || null })))
+    } catch (e) { console.warn('load folders failed', e) }
+  }
+
+  useEffect(() => { load(); loadFolders() }, [])
 
   useEffect(() => {
     let mounted = true
@@ -71,6 +87,7 @@ const ResourcePage: React.FC = () => {
           try {
             const defaultId = Array.isArray(ws) ? (ws.find((w: any) => w.isDefault === 1)?.id) : undefined
             if (!wsFilter && defaultId) setWsFilter(defaultId)
+            if (defaultId) loadFolders(defaultId)
           } catch { /* noop */ }
         }
       })()
@@ -79,6 +96,7 @@ const ResourcePage: React.FC = () => {
 
   const filtered = useMemo(() => {
     let filtered = list.filter((r: any) => !wsFilter || r.workspaceId === wsFilter)
+    if (folderFilter) filtered = filtered.filter((r: any) => (r as any).folderId === folderFilter)
 
     // 类型过滤
     if (typeFilter) {
@@ -374,9 +392,44 @@ const ResourcePage: React.FC = () => {
 
 
       {/* 主内容区域 */}
-      <div className='flex-1 overflow-hidden'>
+      <div className='flex-1 overflow-hidden flex'>
+        {/* 左侧文件夹 */}
+        <FolderSidebar
+          folders={folders}
+          selectedId={folderFilter || undefined}
+          onSelect={(id) => setFolderFilter(id as string)}
+          onCreate={async () => {
+            try {
+              const d = new Date()
+              const name = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+              const wsId = wsFilter || undefined
+              const res = await folderAPI['folder.create']({ name, parentId: folderFilter || null, workspaceId: wsId })
+              if ((res as any)?.success) {
+                await loadFolders(wsId)
+              }
+            } catch (e) { console.warn('create folder failed', e) }
+          }}
+          onRename={async (id) => {
+            try {
+              const f = folders.find(f => f.id === id)
+              setRenameId(id)
+              setRenameName(f?.name || '')
+              setRenameOpen(true)
+            } catch (e) { console.warn('open rename modal failed', e) }
+          }}
+          onDelete={async (id) => {
+            try {
+              if (!confirm('删除该文件夹？（不影响已存在的资源文件）')) return
+              const r = await folderAPI['folder.softDelete']({ ids: [id] })
+              if ((r as any)?.success) {
+                if (folderFilter === id) setFolderFilter('')
+                await loadFolders(wsFilter || undefined)
+              }
+            } catch (e) { console.warn('delete folder failed', e) }
+          }}
+        />
         {/* 资源展示区域 */}
-        <div className='h-full overflow-auto'>
+        <div className='h-full overflow-auto flex-1'>
           {viewMode === 'grid' ? (
             <ExplorerGrid
               items={filtered}
@@ -408,6 +461,34 @@ const ResourcePage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* 重命名文件夹模态框 */}
+      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
+        <DialogContent className='sm:max-w-md'>
+          <DialogHeader>
+            <DialogTitle>重命名文件夹</DialogTitle>
+          </DialogHeader>
+          <div className='py-2'>
+            <Input value={renameName} onChange={(e) => setRenameName(e.target.value)} placeholder='输入新名称' />
+          </div>
+          <DialogFooter>
+            <Button size='sm' variant='outline' onClick={() => setRenameOpen(false)}>取消</Button>
+            <Button size='sm' onClick={async () => {
+              try {
+                const name = renameName.trim()
+                if (!renameId || !name) { setRenameOpen(false); return }
+                const r = await folderAPI['folder.rename']({ id: renameId, name })
+                if ((r as any)?.success) await loadFolders(wsFilter || undefined)
+              } catch (e) { console.warn('rename folder failed', e) }
+              finally {
+                setRenameOpen(false)
+                setRenameId('')
+                setRenameName('')
+              }
+            }}>确定</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
