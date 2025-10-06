@@ -260,17 +260,27 @@ export function initWindowHandlers(win: BrowserWindow) {
         w = await windowManager.create('menu')
         if (!w) return false
         menuWindow = w
-        w.once('ready-to-show', () => { try { w!.show() } catch { } })
+        w.once('ready-to-show', () => {
+          try {
+            // 菜单显示前暂停主窗口悬停监控，避免期间进行鼠标穿透计算
+            stopHoverMonitor()
+            w!.show()
+          } catch { }
+        })
         // 使用新的窗口管理器跟随功能
         windowManager.updateFollowerPositionsManually()
-        w.on('closed', () => { /* 动画清理已迁移到窗口管理器 */; menuWindow = null })
+        // 菜单显示期间暂停监控，关闭/隐藏后恢复
+        w.on('show', () => { try { stopHoverMonitor() } catch { } })
+        w.on('hide', () => { try { startHoverMonitor() } catch { } })
+        w.on('closed', () => { menuWindow = null; try { startHoverMonitor() } catch { } })
       } else {
         menuWindow = w
         // 使用新的窗口管理器跟随功能
         windowManager.updateFollowerPositionsManually()
+        try { stopHoverMonitor() } catch { }
       }
       // 如果已存在且 ready，直接显示
-      if (menuWindow && menuWindow.isVisible()) menuWindow.focus(); else try { menuWindow?.show() } catch { }
+      if (menuWindow && menuWindow.isVisible()) menuWindow.focus(); else try { stopHoverMonitor(); menuWindow?.show() } catch { }
       return true
     } catch { return false }
   })

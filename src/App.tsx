@@ -20,7 +20,7 @@ function App() {
         <Routes>
           <Route path="/" element={<AIAssistant />} />
           <Route path="/filebox" element={<FileBox />} />
-          <Route path="/menu" element={<AssistantMenuPage characterPosition={{ x: 300, y: 300 }} />} />
+          <Route path="/menu" element={<AssistantMenuPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/workspace-wizard" element={<WorkspaceWizard />} />
           <Route path="/resources" element={<ResourcePage />} />
