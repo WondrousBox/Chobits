@@ -3,11 +3,11 @@ import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AIAssistant } from './components/AIAssistant'
 import FileBox from './components/FileBox'
 import AssistantMenuPage from './pages/AssistantMenuPage/AssistantMenuPage'
-import SettingsPanel from './components/SettingsPanel/index'
+import SettingsPage from './pages/SettingsPage/SettingsPage'
 import RecycleBinPage from './components/RecycleBin/Page'
 import ResourcePage from './pages/ResourcePage/ResourcePage'
-import WorkspaceWizard from './pages/WorkspacePage/components/WorkspaceWizard'
-import WorkspacePage from './pages/WorkspacePage/WorkspacePage'
+import WorkspaceWizard from './pages/WorkspacePage/WorkspaceWizard'
+import WorkspacePage from './pages/SettingsPage/components/Workspace'
 import AssistantPage from './pages/AssistantPage/AssistantPage'
 import ModelPage from './pages/ModelPage/ModelPage'
 import ResourcePreviewWindow from '@/pages/ResourcePage/ResourcePreviewWindow'
@@ -20,9 +20,8 @@ function App() {
         <Routes>
           <Route path="/" element={<AIAssistant />} />
           <Route path="/filebox" element={<FileBox />} />
-          {/* <Route path="/menu" element={<AssistantMenu />} /> */}
           <Route path="/menu" element={<AssistantMenuPage characterPosition={{ x: 300, y: 300 }} />} />
-          <Route path="/settings" element={<SettingsPanel />} />
+          <Route path="/settings" element={<SettingsPage />} />
           <Route path="/workspace-wizard" element={<WorkspaceWizard />} />
           <Route path="/resources" element={<ResourcePage />} />
           <Route path="/recycle" element={<RecycleBinPage />} />

@@ -14,7 +14,7 @@ import DragAbleTitle from '@/components/common/DragAbleTitle'
 
 type Workspace = any
 
-const WorkspacePage: React.FC = () => {
+const Workspace: React.FC = () => {
   const [list, setList] = useState<Workspace[]>([])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
@@ -204,5 +204,5 @@ const WorkspacePage: React.FC = () => {
   )
 }
 
-export default WorkspacePage
+export default Workspace
 
