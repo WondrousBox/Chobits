@@ -10,10 +10,11 @@ interface MenuItem {
 }
 
 interface AssistantMenuPageProps {
-  characterPosition: { x: number; y: number }
 }
 
-const AssistantMenuPage: React.FC<AssistantMenuPageProps> = ({ characterPosition }) => {
+const characterPosition: { x: number; y: number } = { x: 300, y: 300 }
+
+const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
   const [selectedIndex, setSelectedIndex] = useState(0)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -131,6 +132,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = ({ characterPosition
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.2 }}
+        onClick={() => window.YUA.window.closeWindow("menu")}
       >
         {/* 背景遮罩 */}
         <motion.div
@@ -186,23 +188,18 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = ({ characterPosition
                 }}
                 initial={{
                   scale: 0,
-                  opacity: 0,
-                  rotate: -180
+                  opacity: 0
                 }}
                 animate={{
                   scale: 1,
-                  opacity: 1,
-                  rotate: 0
+                  opacity: 1
                 }}
                 exit={{
                   scale: 0,
-                  opacity: 0,
-                  rotate: 180
+                  opacity: 0
                 }}
                 transition={{
                   type: "spring",
-                  stiffness: 300,
-                  damping: 20,
                   delay: index * 0.06,
                   duration: 0.5
                 }}
