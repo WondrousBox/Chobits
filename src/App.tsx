@@ -2,7 +2,7 @@
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AIAssistant } from './components/AIAssistant'
 import FileBox from './components/FileBox'
-import AssistantMenu from './components/AssistantMenu/index'
+import AssistantMenu, { RadialMenu } from './components/AssistantMenu/index'
 import SettingsPanel from './components/SettingsPanel/index'
 import RecycleBinPage from './components/RecycleBin/Page'
 import ResourcePage from './pages/ResourcePage/ResourcePage'
@@ -20,7 +20,8 @@ function App() {
         <Routes>
           <Route path="/" element={<AIAssistant />} />
           <Route path="/filebox" element={<FileBox />} />
-          <Route path="/menu" element={<AssistantMenu />} />
+          {/* <Route path="/menu" element={<AssistantMenu />} /> */}
+          <Route path="/menu" element={<RadialMenu onClose={() => {}} characterPosition={{ x: 300, y: 300 }} />} />
           <Route path="/settings" element={<SettingsPanel />} />
           <Route path="/workspace-wizard" element={<WorkspaceWizard />} />
           <Route path="/resources" element={<ResourcePage />} />
