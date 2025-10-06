@@ -10,11 +10,10 @@ interface MenuItem {
 }
 
 interface RadialMenuProps {
-  onClose: () => void
   characterPosition: { x: number; y: number }
 }
 
-export const RadialMenu: React.FC<RadialMenuProps> = ({ onClose, characterPosition }) => {
+export const RadialMenu: React.FC<RadialMenuProps> = ({ characterPosition }) => {
   const [selectedIndex, setSelectedIndex] = useState(0)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -89,7 +88,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ onClose, characterPositi
     const handleKeyDown = (e: KeyboardEvent) => {
       // ESC 键关闭菜单
       if (e.key === 'Escape') {
-        onClose()
+        window.YUA.window.closeWindow("menu")
         return
       }
 
@@ -98,7 +97,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ onClose, characterPositi
       if (numKey >= 1 && numKey <= 9 && numKey <= menuItems.length) {
         e.preventDefault()
         menuItems[numKey - 1].action()
-        onClose()
+        window.YUA.window.closeWindow("menu")
         return
       }
 
@@ -112,13 +111,13 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ onClose, characterPositi
       } else if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault()
         menuItems[selectedIndex].action()
-        onClose()
+        window.YUA.window.closeWindow("menu")
       }
     }
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [selectedIndex, menuItems, onClose])
+  }, [selectedIndex, menuItems])
 
   // 计算菜单项位置
   const getItemPosition = (index: number, total: number) => {
@@ -148,7 +147,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ onClose, characterPositi
         {/* 背景遮罩 */}
         <motion.div 
           className="absolute inset-0"
-          onClick={onClose}
+          onClick={() => window.YUA.window.closeWindow("menu")}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -209,7 +208,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ onClose, characterPositi
                 }}
                 onClick={() => {
                   item.action()
-                  onClose()
+                  window.YUA.window.closeWindow("menu")
                 }}
                 onMouseEnter={() => setSelectedIndex(index)}
               >
@@ -242,7 +241,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ onClose, characterPositi
                   className="absolute -right-2 top-1/2 transform -translate-y-1/2 translate-x-full bg-[rgba(30,30,40,0.9)] text-white text-sm px-2 py-1 rounded whitespace-nowrap backdrop-blur-md border border-white/20"
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.1 + 0.4 }}
+                  transition={{ delay: index * 0.1 + 0.2 }}
                 >
                   {item.label}
                 </motion.div>
