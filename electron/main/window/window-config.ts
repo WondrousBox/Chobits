@@ -66,8 +66,8 @@ export const windowConfigs: WindowConfigMap = {
     closeOnBlur: true,
     showOnReady: false,
     options: {
-      width: 220,
-      height: 260,
+      width: 600,
+      height: 600,
       frame: false,
       transparent: true,
       resizable: false,
