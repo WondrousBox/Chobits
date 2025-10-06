@@ -16,7 +16,6 @@ let MOVEMENT_MODE: 'stepped' | 'smooth' = 'stepped'
 let STEP_GRID = 12
 let PATH_CURVE_FACTOR = 0.15
 let ASSISTANT_PADDING = 100 // runtime dynamic padding (state mirror below)
-const USE_PIXI = true
 export const AIAssistant: React.FC = () => {
   // Remove fixed PADDING; derive everything from paddingState
   const [paddingState, setPadding] = useState(ASSISTANT_PADDING)

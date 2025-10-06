@@ -21,7 +21,7 @@ function App() {
           <Route path="/" element={<AIAssistant />} />
           <Route path="/filebox" element={<FileBox />} />
           {/* <Route path="/menu" element={<AssistantMenu />} /> */}
-          <Route path="/menu" element={<RadialMenu onClose={() => {}} characterPosition={{ x: 300, y: 300 }} />} />
+          <Route path="/menu" element={<RadialMenu characterPosition={{ x: 300, y: 300 }} />} />
           <Route path="/settings" element={<SettingsPanel />} />
           <Route path="/workspace-wizard" element={<WorkspaceWizard />} />
           <Route path="/resources" element={<ResourcePage />} />
