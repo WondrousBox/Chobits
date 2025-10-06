@@ -114,6 +114,8 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = ({ characterPosition
     return { x, y }
   }
 
+  const selectedPosition = getItemPosition(selectedIndex, menuItems.length)
+
   return (
     <AnimatePresence>
       <motion.div
@@ -142,6 +144,27 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = ({ characterPosition
 
         {/* 菜单项容器 */}
         <div className="relative w-full h-full">
+          {/* 中心到高亮项的连线 */}
+          <svg
+            className="absolute inset-0"
+            width={600}
+            height={600}
+            viewBox="0 0 600 600"
+            aria-hidden
+          >
+            <line
+              x1={300}
+              y1={300}
+              x2={300 + selectedPosition.x}
+              y2={300 + selectedPosition.y}
+              stroke="rgba(255,255,255,0.6)"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+            <circle cx={300} cy={300} r={3} fill="rgba(255,255,255,0.9)" />
+            <circle cx={300 + selectedPosition.x} cy={300 + selectedPosition.y} r={3} fill="rgba(255,255,255,0.9)" />
+          </svg>
+
           {menuItems.map((item, index) => {
             const position = getItemPosition(index, menuItems.length)
             const isSelected = index === selectedIndex
