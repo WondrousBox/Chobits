@@ -194,8 +194,8 @@ export const windowConfigs: WindowConfigMap = {
     showOnReady: true,
     openDevTools: true,
     options: {
-      width: 720,
-      height: 520,
+      width: 1000,
+      height: 600,
       ...(process.platform === 'darwin'
         ? {
           titleBarStyle: 'hiddenInset' as const,
