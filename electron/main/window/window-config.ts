@@ -1,6 +1,6 @@
 import type { BrowserWindowConstructorOptions } from 'electron'
 
-const HEADER_COMMANDS_HEIGHT = 50;
+const HEADER_COMMANDS_HEIGHT = 36;
 const MACOS_TRAFFIC_LIGHTS_HEIGHT = 16;
 
 // 跟随窗口位置偏好模式
