@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import './recycle.css'
+import { Button } from '@/components/ui/button'
 
 type TrashItem = {
   id: string;
@@ -69,31 +69,37 @@ const RecycleBinPage: React.FC = () => {
   return (
     <div className='p-4 text-foreground bg-background'>
       <div className='text-xl mb-3'>🗑️ 回收站</div>
-      <div className='recycle-toolbar'>
-        <div className='left'>
-          <button onClick={() => setTab('all')} className={tab==='all'?'active':''}>全部</button>
-          <button onClick={() => setTab('resource')} className={tab==='resource'?'active':''}>资源</button>
-          <button onClick={() => setTab('document')} className={tab==='document'?'active':''}>文档</button>
+      <div className='flex items-center justify-between gap-2 mb-3'>
+        <div className='flex items-center gap-1.5'>
+          <Button size={'sm'} variant={tab==='all' ? 'default' : 'outline'} onClick={() => setTab('all')}>全部</Button>
+          <Button size={'sm'} variant={tab==='resource' ? 'default' : 'outline'} onClick={() => setTab('resource')}>资源</Button>
+          <Button size={'sm'} variant={tab==='document' ? 'default' : 'outline'} onClick={() => setTab('document')}>文档</Button>
         </div>
-        <div className='right'>
-          <button onClick={selectAll}>全选</button>
-          <button onClick={clearSel}>清空选择</button>
-          <button onClick={restore} disabled={!selected.size}>恢复</button>
-          <button onClick={purge} disabled={!selected.size} className='danger'>彻底删除</button>
-          <button onClick={empty} className='danger'>清空回收站</button>
+        <div className='flex items-center gap-1.5'>
+          <Button size={'sm'} variant={'outline'} onClick={selectAll}>全选</Button>
+          <Button size={'sm'} variant={'outline'} onClick={clearSel}>清空选择</Button>
+          <Button size={'sm'} onClick={restore} disabled={!selected.size}>恢复</Button>
+          <Button size={'sm'} variant={'destructive'} onClick={purge} disabled={!selected.size}>彻底删除</Button>
+          <Button size={'sm'} variant={'destructive'} onClick={empty}>清空回收站</Button>
         </div>
       </div>
-      <div className='recycle-list'>
-        {loading && <div className='empty'>加载中...</div>}
-        {!loading && filtered.length === 0 && <div className='empty'>暂无数据</div>}
+      <div className='max-h-[60vh] overflow-auto border rounded-lg'>
+        {loading && <div className='p-5 text-center text-gray-400'>加载中...</div>}
+        {!loading && filtered.length === 0 && <div className='p-5 text-center text-gray-400'>暂无数据</div>}
         {!loading && filtered.map(item => (
-          <div className={`recycle-item ${selected.has(item.id)?'selected':''}`} key={item.id} onClick={() => toggleSelect(item.id)}>
-            <div className='type'>{item.entityType === 'resource' ? '📚' : '📄'}</div>
-            <div className='body'>
-              <div className='title'>{item.title || item.entityId}</div>
-              <div className='summary'>{item.summary || ''}</div>
+          <div
+            key={item.id}
+            onClick={() => toggleSelect(item.id)}
+            className={`flex items-start p-2 gap-2.5 border-b border-neutral-800 cursor-pointer ${selected.has(item.id) ? 'bg-gray-800' : ''}`}
+          >
+            <div className='w-7'>{item.entityType === 'resource' ? '📚' : '📄'}</div>
+            <div className='flex-1'>
+              <div className='font-semibold text-gray-200'>{item.title || item.entityId}</div>
+              <div className='text-xs text-gray-400 mt-0.5'>{item.summary || ''}</div>
             </div>
-            <div className='meta'>{item.deletedAt ? new Date(item.deletedAt).toLocaleString() : ''}</div>
+            <div className='text-xs text-gray-500 whitespace-nowrap'>
+              {item.deletedAt ? new Date(item.deletedAt).toLocaleString() : ''}
+            </div>
           </div>
         ))}
       </div>

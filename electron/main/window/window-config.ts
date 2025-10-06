@@ -196,7 +196,19 @@ export const windowConfigs: WindowConfigMap = {
     options: {
       width: 720,
       height: 520,
-      frame: true,
+      ...(process.platform === 'darwin'
+        ? {
+          titleBarStyle: 'hiddenInset' as const,
+          titleBarOverlay: true,
+          trafficLightPosition: {
+            x: 20,
+            y: HEADER_COMMANDS_HEIGHT / 2 - MACOS_TRAFFIC_LIGHTS_HEIGHT / 2,
+          },
+          frame: true,
+        }
+        : {
+          frame: false,
+        }),
       transparent: false,
       resizable: true,
       alwaysOnTop: false,
