@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { TbArrowBackUp, TbCheck, TbSquare, TbTrash, TbX } from 'react-icons/tb';
+import DragAbleTitle from '@/components/common/DragAbleTitle';
 
 type TrashItem = {
   id: string;
@@ -14,12 +16,6 @@ const RecycleBinPage: React.FC = () => {
   const [items, setItems] = useState<TrashItem[]>([])
   const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [tab, setTab] = useState<'all' | 'resource' | 'document'>('all')
-
-  const filtered = useMemo(() => {
-    if (tab === 'all') return items
-    return items.filter(i => i.entityType === tab)
-  }, [items, tab])
 
   const load = async () => {
     setLoading(true)
@@ -41,7 +37,7 @@ const RecycleBinPage: React.FC = () => {
     })
   }
 
-  const selectAll = () => setSelected(new Set(filtered.map(i => i.id)))
+  const selectAll = () => setSelected(new Set(items.map(i => i.id)))
   const clearSel = () => setSelected(new Set())
 
   const restore = async () => {
@@ -67,37 +63,43 @@ const RecycleBinPage: React.FC = () => {
   }
 
   return (
-    <div className='p-4 text-foreground bg-background'>
-      <div className='text-xl mb-3'>🗑️ 回收站</div>
-      <div className='flex items-center justify-between gap-2 mb-3'>
-        <div className='flex items-center gap-1.5'>
-          <Button size={'sm'} variant={tab==='all' ? 'default' : 'outline'} onClick={() => setTab('all')}>全部</Button>
-          <Button size={'sm'} variant={tab==='resource' ? 'default' : 'outline'} onClick={() => setTab('resource')}>资源</Button>
-          <Button size={'sm'} variant={tab==='document' ? 'default' : 'outline'} onClick={() => setTab('document')}>文档</Button>
-        </div>
-        <div className='flex items-center gap-1.5'>
-          <Button size={'sm'} variant={'outline'} onClick={selectAll}>全选</Button>
-          <Button size={'sm'} variant={'outline'} onClick={clearSel}>清空选择</Button>
-          <Button size={'sm'} onClick={restore} disabled={!selected.size}>恢复</Button>
-          <Button size={'sm'} variant={'destructive'} onClick={purge} disabled={!selected.size}>彻底删除</Button>
-          <Button size={'sm'} variant={'destructive'} onClick={empty}>清空回收站</Button>
-        </div>
-      </div>
-      <div className='max-h-[60vh] overflow-auto border rounded-lg'>
-        {loading && <div className='p-5 text-center text-gray-400'>加载中...</div>}
-        {!loading && filtered.length === 0 && <div className='p-5 text-center text-gray-400'>暂无数据</div>}
-        {!loading && filtered.map(item => (
+    <div className='bg-background'>
+      <DragAbleTitle
+        title={<div className='flex items-center gap-2'><TbTrash size={20} />回收站</div>}
+        actions={
+          <div className='flex items-center gap-2'>
+            <Button size={'sm'} variant={'ghost'} onClick={selectAll}>全选</Button>
+            {selected.size > 0 && <Button size={'sm'} variant={'ghost'} onClick={clearSel}><TbX />清空选择</Button>}
+            {
+              selected.size > 0 && <Button size={'sm'} variant={'ghost'} onClick={restore} disabled={!selected.size}>
+                <TbArrowBackUp />恢复
+              </Button>
+            }
+            {
+              selected.size > 0 && <Button size={'sm'} variant={'ghost'} onClick={purge} disabled={!selected.size}>
+                <TbTrash /> 彻底删除
+              </Button>
+            }
+            <Button size={'sm'} variant={'destructive'} onClick={empty}><TbTrash />清空回收站</Button>
+          </div>
+        }
+      />
+
+      <div className='overflow-auto bg-muted' style={{ height: 'calc(100vh - 36px)' }}>
+        {loading && <div className='p-5 text-center'>加载中...</div>}
+        {!loading && items.length === 0 && <div className='p-5 text-center'>暂无数据</div>}
+        {!loading && items.map(item => (
           <div
             key={item.id}
             onClick={() => toggleSelect(item.id)}
-            className={`flex items-start p-2 gap-2.5 border-b border-neutral-800 cursor-pointer ${selected.has(item.id) ? 'bg-gray-800' : ''}`}
+            className={`flex items-start p-2 m-2 rounded-md gap-2 cursor-pointer ${selected.has(item.id) ? 'bg-primary/20' : 'bg-background'}`}
           >
-            <div className='w-7'>{item.entityType === 'resource' ? '📚' : '📄'}</div>
+            {selected.has(item.id) ? <TbCheck className='text-primary' size={20} /> : <TbSquare size={20} />}
             <div className='flex-1'>
-              <div className='font-semibold text-gray-200'>{item.title || item.entityId}</div>
-              <div className='text-xs text-gray-400 mt-0.5'>{item.summary || ''}</div>
+              <div>{item.title || item.entityId}</div>
+              <div className='text-xs text-muted-foreground'>{item.summary || ''}</div>
             </div>
-            <div className='text-xs text-gray-500 whitespace-nowrap'>
+            <div className='text-xs whitespace-nowrap'>
               {item.deletedAt ? new Date(item.deletedAt).toLocaleString() : ''}
             </div>
           </div>
