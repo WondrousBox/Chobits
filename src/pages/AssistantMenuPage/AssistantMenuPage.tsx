@@ -22,49 +22,49 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = ({ characterPosition
       id: 'toggle-walk',
       label: '暂停/继续 行走',
       icon: '🕹️',
-      shortcut: '1',
+      shortcut: 'a',
       action: () => window.ipcRenderer?.send('menu-command', 'toggle-walk')
     },
     {
       id: 'walk-once',
       label: '立即随机走动',
       icon: '👣',
-      shortcut: '2',
+      shortcut: 'w',
       action: () => window.ipcRenderer?.send('menu-command', 'walk-once')
     },
     {
       id: 'file-list',
       label: '文件列表',
       icon: '📁',
-      shortcut: '3',
+      shortcut: 'f',
       action: () => window.YUA.window.openFileListWindow([])
     },
     {
       id: 'resources',
       label: '资源管理',
       icon: '📚',
-      shortcut: '4',
+      shortcut: 'r',
       action: () => window.YUA.window.openWindow("resources")
     },
     {
       id: 'recycle',
       label: '回收站',
       icon: '🗑️',
-      shortcut: '5',
+      shortcut: 'b',
       action: () => window.YUA.window.openWindow("recycle")
     },
     {
       id: 'settings',
       label: '设置',
       icon: '⚙️',
-      shortcut: '8',
+      shortcut: 's',
       action: () => window.YUA.window.openWindow("settings")
     },
     {
       id: 'quit',
       label: '退出',
       icon: '❌',
-      shortcut: '9',
+      shortcut: 'q',
       action: () => window.ipcRenderer?.send('menu-command', 'quit-app')
     }
   ]
@@ -131,7 +131,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = ({ characterPosition
         transition={{ duration: 0.2 }}
       >
         {/* 背景遮罩 */}
-        <motion.div 
+        <motion.div
           className="absolute inset-0"
           onClick={() => window.YUA.window.closeWindow("menu")}
           initial={{ opacity: 0 }}
@@ -139,41 +139,40 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = ({ characterPosition
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
         />
-        
+
         {/* 菜单项容器 */}
         <div className="relative w-full h-full">
           {menuItems.map((item, index) => {
             const position = getItemPosition(index, menuItems.length)
             const isSelected = index === selectedIndex
-            
+
             return (
               <motion.div
                 key={item.id}
                 className={`
                   absolute w-16 h-16 rounded-full flex items-center justify-center
                   cursor-pointer
-                  ${isSelected 
-                    ? 'bg-blue-500/90 shadow-xl ring-2 ring-blue-300/50' 
-                    : 'bg-[rgba(30,30,40,0.85)] hover:bg-[rgba(30,30,40,0.95)]'
+                  ${isSelected
+                    ? 'bg-muted text-muted-foreground shadow-xl ring-2'
+                    : 'bg-foreground text-background'
                   }
-                  backdrop-blur-md border border-white/30
                 `}
                 style={{
                   left: `calc(50% + ${position.x}px - 32px)`,
                   top: `calc(50% + ${position.y}px - 32px)`,
                 }}
-                initial={{ 
-                  scale: 0, 
+                initial={{
+                  scale: 0,
                   opacity: 0,
                   rotate: -180
                 }}
-                animate={{ 
-                  scale: isSelected ? 1.1 : 1, 
+                animate={{
+                  scale: 1,
                   opacity: 1,
                   rotate: 0
                 }}
-                exit={{ 
-                  scale: 0, 
+                exit={{
+                  scale: 0,
                   opacity: 0,
                   rotate: 180
                 }}
@@ -181,16 +180,8 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = ({ characterPosition
                   type: "spring",
                   stiffness: 300,
                   damping: 20,
-                  delay: index * 0.1,
+                  delay: index * 0.06,
                   duration: 0.5
-                }}
-                whileHover={{ 
-                  scale: 1.05,
-                  transition: { duration: 0.2 }
-                }}
-                whileTap={{ 
-                  scale: 0.95,
-                  transition: { duration: 0.1 }
                 }}
                 onClick={() => {
                   item.action()
@@ -198,45 +189,18 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = ({ characterPosition
                 }}
                 onMouseEnter={() => setSelectedIndex(index)}
               >
-                <motion.div 
-                  className="text-2xl"
-                  animate={{ 
-                    rotate: isSelected ? [0, -10, 10, -10, 0] : 0 
-                  }}
-                  transition={{ 
-                    duration: 0.5,
-                    repeat: isSelected ? Infinity : 0,
-                    repeatDelay: 1
-                  }}
-                >
+                <div className="text-2xl">
                   {item.icon}
-                </motion.div>
-                
-                {/* 快捷键提示 */}
-                <motion.div 
-                  className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 text-xs text-white/70 font-mono"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 + 0.3 }}
-                >
-                  {item.shortcut}
-                </motion.div>
-                
-                {/* 标签 */}
-                <motion.div 
-                  className="absolute -right-2 top-1/2 transform -translate-y-1/2 translate-x-full bg-[rgba(30,30,40,0.9)] text-white text-sm px-2 py-1 rounded whitespace-nowrap backdrop-blur-md border border-white/20"
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.1 + 0.2 }}
-                >
-                  {item.label}
-                </motion.div>
+                </div>
+                <div className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 text-xs text-white/70 font-mono whitespace-nowrap">
+                  {item.label} <span className='uppercase'>({item.shortcut})</span>
+                </div>
               </motion.div>
             )
           })}
-          
+
           {/* 中心提示 */}
-          <motion.div 
+          <motion.div
             className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-white/60 text-xs text-center bg-[rgba(0,0,0,0.3)] px-3 py-2 rounded-lg backdrop-blur-sm border border-white/10"
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
