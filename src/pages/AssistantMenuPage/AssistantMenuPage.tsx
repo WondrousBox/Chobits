@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 interface MenuItem {
@@ -52,13 +52,6 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = ({ characterPosition
       icon: '🗑️',
       shortcut: '5',
       action: () => window.YUA.window.openWindow("recycle")
-    },
-    {
-      id: 'model-manager',
-      label: '模型管理',
-      icon: '🧩',
-      shortcut: '7',
-      action: () => window.YUA.window.openWindow("modelManager")
     },
     {
       id: 'settings',

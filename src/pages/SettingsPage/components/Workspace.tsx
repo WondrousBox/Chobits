@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import React, { useEffect, useMemo, useState } from 'react'
-import { TbCheck, TbDots, TbDotsVertical, TbFolderOpen, TbPlus, TbRefresh, TbScanEye, TbTrash, TbStarFilled } from 'react-icons/tb'
+import { TbCheck, TbDotsVertical, TbFolderOpen, TbPlus, TbRefresh, TbScanEye, TbTrash } from 'react-icons/tb'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,12 +10,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import DragAbleTitle from '@/components/common/DragAbleTitle'
-
-type Workspace = any
 
 const Workspace: React.FC = () => {
-  const [list, setList] = useState<Workspace[]>([])
+  const [list, setList] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -120,22 +117,18 @@ const Workspace: React.FC = () => {
 
   return (
     <div className='h-full w-full flex flex-col bg-background text-foreground'>
-      <DragAbleTitle 
-        title={<>工作空间管理 <span className='ml-2 text-xs text-muted-foreground'>{list.length} 个</span></>}
-        actions={
-          <div className='no-drag flex items-center gap-2'>
-          <Input
-            className='w-48 h-8'
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder='搜索 名称/路径...'
-          />
-          <Button size="sm" variant={"outline"} onClick={scanAll} disabled={filtered.length === 0 || scanningIds.size > 0}><TbScanEye /> {scanningIds.size > 0 ? '扫描中...' : '全部扫描'}</Button>
-          <Button size="icon" className='w-8 h-8' variant={"outline"} onClick={load} disabled={loading}><TbRefresh /></Button>
-          <Button size="sm" onClick={() => window.YUA.window.openWindow('workspaceWizard')}><TbPlus /> 新建</Button>
-        </div>
-        }
+      <> <span className='ml-2 text-xs text-muted-foreground'>{list.length} 个</span></>
+      <div className='no-drag flex items-center gap-2'>
+      <Input
+        className='w-48 h-8'
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        placeholder='搜索 名称/路径...'
       />
+      <Button size="sm" variant={"outline"} onClick={scanAll} disabled={filtered.length === 0 || scanningIds.size > 0}><TbScanEye /> {scanningIds.size > 0 ? '扫描中...' : '全部扫描'}</Button>
+      <Button size="icon" className='w-8 h-8' variant={"outline"} onClick={load} disabled={loading}><TbRefresh /></Button>
+      <Button size="sm" onClick={() => window.YUA.window.openWindow('workspaceWizard')}><TbPlus /> 新建</Button>
+    </div>
       <div className='flex-1 overflow-auto p-4 space-y-3'>
         {error && <div className='text-red-500 text-sm'>{error}</div>}
         {filtered.map(ws => (
