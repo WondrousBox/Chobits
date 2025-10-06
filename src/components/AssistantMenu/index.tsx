@@ -133,7 +133,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ onClose, characterPositi
     <AnimatePresence>
       <motion.div
         ref={menuRef}
-        className="fixed inset-0 pointer-events-auto z-[10000]"
+        className="fixed inset-0 pointer-events-auto z-[10000] bg-transparent"
         style={{
           left: characterPosition.x - 300,
           top: characterPosition.y - 300,
@@ -147,7 +147,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ onClose, characterPositi
       >
         {/* 背景遮罩 */}
         <motion.div 
-          className="absolute inset-0 bg-black/20 backdrop-blur-sm"
+          className="absolute inset-0"
           onClick={onClose}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
