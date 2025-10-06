@@ -24,7 +24,13 @@ export interface WindowConfig {
   openDevTools?: boolean
   autoCenterOn?: 'parent-display' | 'primary-display' | 'none'
   closeOnBlur?: boolean
-  follower?: boolean
+  /**
+   * 窗口跟随配置
+   * - true: 跟随主窗口移动
+   * - false: 不跟随
+   * - 'auto': 由窗口管理器自动决定是否跟随
+   */
+  followMain?: boolean | 'auto'
   parent?: 'main' | undefined
   /**
    * If true, the window will open maximized on first show.
@@ -43,7 +49,7 @@ export type WindowConfigMap = Record<WindowKey, WindowConfig>
 export const windowConfigs: WindowConfigMap = {
   fileList: {
     routeHash: 'filebox',
-    follower: true,
+    followMain: true,
     parent: 'main',
     showOnReady: false,
     options: {
@@ -61,7 +67,7 @@ export const windowConfigs: WindowConfigMap = {
   },
   menu: {
     routeHash: 'menu',
-    follower: true,
+    followMain: true,
     parent: 'main',
     closeOnBlur: true,
     showOnReady: false,
