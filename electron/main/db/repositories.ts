@@ -1,5 +1,5 @@
 import { getOrm } from '.';
-import { documents, type NewDocument, type DocumentRow, recycle_bin, type NewRecycleBin, type RecycleBinRow, workspaces, type WorkspaceRow, type NewWorkspace } from './schema';
+import { documents, type NewDocument, type DocumentRow, recycle_bin, type NewRecycleBin, type RecycleBinRow, workspaces, type WorkspaceRow, type NewWorkspace, folders, type FolderRow, type NewFolder } from './schema';
 import { eq, inArray, and, or, like, gte, lte, isNull, isNotNull } from 'drizzle-orm';
 import { rebuildVectors, deleteVectors } from '.';
 import { resources, type ResourceRow, type NewResource } from './schema';
@@ -404,6 +404,104 @@ export const ResourcesRepo = {
     if (wheres.length) query = query.where(and(...wheres));
     const rows = await query;
     return rows[0]?.count ?? 0;
+  },
+};
+
+/**
+ * 文件夹表操作空间
+ * - 支持 upsert、批量 upsert、查询、软删/恢复、重命名、移动（变更 parentId）
+ */
+export const FoldersRepo = {
+  /** 新增或更新文件夹（同 ID 冲突时更新） */
+  async upsert(folder: NewFolder): Promise<FolderRow | undefined> {
+    const db = getOrm();
+    const rows = await db
+      .insert(folders)
+      .values(folder as any)
+      .onConflictDoUpdate({ target: folders.id, set: omitId(folder as any) })
+      .returning()
+      .all();
+    return rows[0];
+  },
+  /** 批量 upsert 文件夹 */
+  async bulkUpsert(list: NewFolder[]): Promise<FolderRow[]> {
+    if (!list.length) return [];
+    const db = getOrm();
+    const rows = await db
+      .insert(folders)
+      .values(list as any)
+      .onConflictDoUpdate({ target: folders.id, set: omitId((list[0] as any) || {}) })
+      .returning()
+      .all();
+    return rows;
+  },
+  /** 按 ID 获取 */
+  async getById(id: string): Promise<FolderRow | undefined> {
+    const db = getOrm();
+    const rows = await db.select().from(folders).where(eq(folders.id, id)).limit(1);
+    return rows[0];
+  },
+  /** 列表（按父级、工作空间等筛选） */
+  async list(filter: Partial<FolderRow> = {}, limit = 100, offset = 0): Promise<FolderRow[]> {
+    const db = getOrm();
+    let query = db.select().from(folders);
+    const wheres: any[] = [];
+    if ((filter as any).workspaceId) wheres.push(eq(folders.workspaceId, (filter as any).workspaceId));
+    if ((filter as any).parentId === null) wheres.push(isNull(folders.parentId));
+    if ((filter as any).parentId) wheres.push(eq(folders.parentId, (filter as any).parentId));
+    if ((filter as any).deletedAt === 0) wheres.push(isNull(folders.deletedAt));
+    if ((filter as any).deletedAt === 1) wheres.push(isNotNull(folders.deletedAt));
+    if (wheres.length) query = query.where(and(...wheres));
+    return query.limit(limit).offset(offset);
+  },
+  /** 计数 */
+  async count(filter: Partial<FolderRow> = {}): Promise<number> {
+    const db = getOrm();
+    let query = db.select({ count: folders.id }).from(folders);
+    const wheres: any[] = [];
+    if ((filter as any).workspaceId) wheres.push(eq(folders.workspaceId, (filter as any).workspaceId));
+    if ((filter as any).parentId === null) wheres.push(isNull(folders.parentId));
+    if ((filter as any).parentId) wheres.push(eq(folders.parentId, (filter as any).parentId));
+    if ((filter as any).deletedAt === 0) wheres.push(isNull(folders.deletedAt));
+    if ((filter as any).deletedAt === 1) wheres.push(isNotNull(folders.deletedAt));
+    if (wheres.length) query = query.where(and(...wheres));
+    const rows = await query;
+    return rows[0]?.count ?? 0;
+  },
+  /** 重命名 */
+  async rename(id: string, newName: string): Promise<FolderRow | undefined> {
+    const db = getOrm();
+    await db.update(folders).set({ name: newName, updatedAt: Date.now() } as any).where(eq(folders.id, id));
+    const rows = await db.select().from(folders).where(eq(folders.id, id)).limit(1);
+    return rows[0];
+  },
+  /** 移动到新父目录（支持置空为根） */
+  async move(id: string, newParentId: string | null): Promise<FolderRow | undefined> {
+    const db = getOrm();
+    await db.update(folders).set({ parentId: newParentId, updatedAt: Date.now() } as any).where(eq(folders.id, id));
+    const rows = await db.select().from(folders).where(eq(folders.id, id)).limit(1);
+    return rows[0];
+  },
+  /** 软删除 */
+  async softDelete(ids: string[]): Promise<FolderRow[]> {
+    if (!ids.length) return [];
+    const db = getOrm();
+    await db.update(folders).set({ deletedAt: Date.now() } as any).where(inArray(folders.id, ids));
+    return await db.select().from(folders).where(inArray(folders.id, ids));
+  },
+  /** 恢复 */
+  async restore(ids: string[]): Promise<FolderRow[]> {
+    if (!ids.length) return [];
+    const db = getOrm();
+    await db.update(folders).set({ deletedAt: null, updatedAt: Date.now() } as any).where(inArray(folders.id, ids));
+    return await db.select().from(folders).where(inArray(folders.id, ids));
+  },
+  /** 物理删除（谨慎） */
+  async deleteByIds(ids: string[]): Promise<number> {
+    if (!ids.length) return 0;
+    const db = getOrm();
+    const res = await db.delete(folders).where(inArray(folders.id, ids));
+    return (res as any).changes ?? 0;
   },
 };
 

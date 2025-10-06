@@ -74,6 +74,28 @@ export const documents = sqliteTable('documents', {
 export type DocumentRow = InferSelectModel<typeof documents>;
 export type NewDocument = InferInsertModel<typeof documents>;
 
+/**
+ * folders：资源文件夹（支持子文件夹，名称可重命名；磁盘目录使用 ID 命名）
+ */
+export const folders = sqliteTable('folders', {
+  id: text('id').primaryKey().$defaultFn(() => randomUUID()),
+  name: text('name').notNull(),
+  description: text('description'),
+  parentId: text('parent_id').references(() => folders.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+  workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+  metadata: text('metadata'),
+  createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`),
+  updatedAt: integer('updated_at').default(sql`(unixepoch('now')*1000)`),
+  deletedAt: integer('deleted_at'),
+}, (t) => ({
+  idxFoldersParent: index('idx_folders_parent').on(t.parentId),
+  idxFoldersWorkspace: index('idx_folders_workspace').on(t.workspaceId),
+  uqFoldersNameUnderParent: uniqueIndex('uq_folders_ws_parent_name').on(t.workspaceId, t.parentId, t.name),
+}));
+
+export type FolderRow = InferSelectModel<typeof folders>;
+export type NewFolder = InferInsertModel<typeof folders>;
+
 // A rich, extensible resources table for internet content (images, videos, audio, text, links, files, documents, etc.)
 export const resources = sqliteTable('resources', {
   id: text('id').primaryKey().$defaultFn(() => randomUUID()), // 资源唯一ID
@@ -123,8 +145,11 @@ export const resources = sqliteTable('resources', {
   embedding: blob('embedding'), // 可选向量（用于语义检索）
   // 归属工作空间
   workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+  // 归属文件夹（可为空，表示在根目录）
+  folderId: text('folder_id').references(() => folders.id, { onDelete: 'set null', onUpdate: 'cascade' }),
 }, (t) => ({
   idxResourcesWorkspace: index('idx_resources_workspace').on(t.workspaceId),
+  idxResourcesFolder: index('idx_resources_folder').on(t.folderId),
 }));
 
 function sqliteCurrentMs() {

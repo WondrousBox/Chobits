@@ -8,6 +8,7 @@ import { workspaceBridge } from './apis/workspace'
 import { modelBridge } from './apis/model'
 import { fileBridge } from './apis/file'
 import { databaseBridge } from './apis/database'
+import { folderBridge } from './apis/folder'
 import videoDownloaderAPI from './apis/video-downloader'
 import {
   arch,
@@ -60,6 +61,7 @@ contextBridge.exposeInMainWorld('YUA', {
   model: modelBridge,
   file: fileBridge,
   database: databaseBridge,
+  folder: folderBridge,
   videoDownloader: videoDownloaderAPI,
 })
 
