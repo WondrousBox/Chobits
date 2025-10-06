@@ -54,13 +54,6 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = ({ characterPosition
       action: () => window.YUA.window.openWindow("recycle")
     },
     {
-      id: 'workspace',
-      label: '工作空间',
-      icon: '🗃️',
-      shortcut: '6',
-      action: () => window.YUA.window.openWindow("workspace")
-    },
-    {
       id: 'model-manager',
       label: '模型管理',
       icon: '🧩',

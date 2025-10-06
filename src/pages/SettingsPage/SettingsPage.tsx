@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import EmbeddingJobsPanel from '../EmbeddingJobs'
-import DragAbleTitle from '../common/DragAbleTitle';
-import { Button } from '../ui/button';
+import EmbeddingJobsPanel from '../../components/EmbeddingJobs'
+import DragAbleTitle from '../../components/common/DragAbleTitle';
+import { Button } from '../../components/ui/button';
 import { 
   Sidebar, 
   SidebarContent, 
@@ -14,14 +14,15 @@ import {
   SidebarMenuButton, 
   SidebarMenuItem, 
   SidebarProvider 
-} from '../ui/sidebar';
+} from '../../components/ui/sidebar';
 import { TbDatabase, TbFolderOpen, TbSettings, TbBrain, TbCpu } from 'react-icons/tb';
+import Workspace from './components/Workspace'
 
 // Include assistantPadding in type
 type MovementConfig = { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number }
 
 // 设置分类类型
-type SettingsCategory = 'movement' | 'database' | 'embedding' | 'external-resource'
+type SettingsCategory = 'movement' | 'database' | 'embedding' | 'external-resource' | 'workspace'
 
 // 设置分类配置
 const settingsCategories = [
@@ -44,6 +45,12 @@ const settingsCategories = [
     description: '向量嵌入任务管理'
   },
   {
+    id: 'workspace' as SettingsCategory,
+    label: '工作空间',
+    icon: TbFolderOpen,
+    description: '工作空间管理与默认空间设置'
+  },
+  {
     id: 'external-resource' as SettingsCategory,
     label: '外部资源',
     icon: TbFolderOpen,
@@ -58,7 +65,7 @@ type ExternalResourceSettings = {
   preferredBrowser: string;
 };
 
-export const SettingsPanel: React.FC = () => {
+export const SettingsPage: React.FC = () => {
   const [config, setConfig] = useState<MovementConfig | null>(null)
   const [saving, setSaving] = useState(false)
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>('movement')
@@ -355,6 +362,17 @@ export const SettingsPanel: React.FC = () => {
     </div>
   )
 
+  // 渲染工作空间（内嵌）
+  const renderWorkspaceSettings = () => (
+    <div className='space-y-6'>
+      <div className='bg-card border border-border rounded-lg overflow-hidden'>
+        <div className='h-[70vh]'>
+          <Workspace />
+        </div>
+      </div>
+    </div>
+  )
+
   // 根据当前分类渲染对应内容
   const renderCurrentCategoryContent = () => {
     switch (activeCategory) {
@@ -364,6 +382,8 @@ export const SettingsPanel: React.FC = () => {
         return renderDatabaseSettings()
       case 'embedding':
         return renderEmbeddingSettings()
+      case 'workspace':
+        return renderWorkspaceSettings()
       case 'external-resource':
         return renderExternalResourceSettings()
       default:
@@ -443,4 +463,4 @@ export const SettingsPanel: React.FC = () => {
   )
 }
 
-export default SettingsPanel
+export default SettingsPage

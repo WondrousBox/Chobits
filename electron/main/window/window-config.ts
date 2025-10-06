@@ -13,7 +13,6 @@ export type WindowKey =
   | 'workspaceWizard'
   | 'resources'
   | 'recycle'
-  | 'workspace'
   | 'assistant'
   | 'modelManager'
   | 'resourcePreview'
@@ -203,33 +202,6 @@ export const windowConfigs: WindowConfigMap = {
       alwaysOnTop: false,
       skipTaskbar: false,
       backgroundColor: '#ffffff',
-      show: false,
-      autoHideMenuBar: true,
-      webPreferences: { nodeIntegration: true, contextIsolation: true },
-    },
-  },
-  workspace: {
-    routeHash: 'workspace',
-    showOnReady: true,
-    openDevTools: true,
-    options: {
-      width: 900,
-      height: 600,
-      // Mac 保留系统 traffic lights；Windows 使用自定义标题栏（frameless）
-      ...(process.platform === 'darwin'
-        ? {
-          titleBarStyle: 'hiddenInset' as const,
-          titleBarOverlay: true,
-          trafficLightPosition: {
-            x: 20,
-            y: HEADER_COMMANDS_HEIGHT / 2 - MACOS_TRAFFIC_LIGHTS_HEIGHT / 2,
-          },
-          frame: true,
-        }
-        : {
-          frame: false,
-        }),
-      resizable: true,
       show: false,
       autoHideMenuBar: true,
       webPreferences: { nodeIntegration: true, contextIsolation: true },

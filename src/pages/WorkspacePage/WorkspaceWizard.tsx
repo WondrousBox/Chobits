@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { TbArrowLeft, TbArrowRight, TbFolderOpen } from 'react-icons/tb'
-import { Button } from '../../../components/ui/button'
-import { Input } from '../../../components/ui/input'
-import { DefaultWorkspaceName } from '../../../../electron/main/config'
-import SuccessResult from '../../../components/common/SuccessResult'
+import { Button } from '../../components/ui/button'
+import { Input } from '../../components/ui/input'
+import { DefaultWorkspaceName } from '../../../electron/main/config'
+import SuccessResult from '../../components/common/SuccessResult'
 
 const WorkspaceWizard: React.FC = () => {
   const [workspaces, setWorkspaces] = useState<any[]>([])
