@@ -3,6 +3,9 @@ import type { BrowserWindowConstructorOptions } from 'electron'
 const HEADER_COMMANDS_HEIGHT = 50;
 const MACOS_TRAFFIC_LIGHTS_HEIGHT = 16;
 
+// 跟随窗口位置偏好模式
+export type FollowerPreferMode = 'auto' | 'prefer-right' | 'prefer-left' | 'prefer-bottom' | 'prefer-top' | 'overlap-center'
+
 export type WindowKey =
   | 'fileList'
   | 'menu'
@@ -31,6 +34,26 @@ export interface WindowConfig {
    * - 'auto': 由窗口管理器自动决定是否跟随
    */
   followMain?: boolean | 'auto'
+  /**
+   * 跟随窗口位置偏好模式
+   * - 'auto': 自动选择最佳位置
+   * - 'prefer-right': 优先右侧
+   * - 'prefer-left': 优先左侧
+   * - 'prefer-bottom': 优先底部
+   * - 'prefer-top': 优先顶部
+   * - 'overlap-center': 重叠居中
+   */
+  followerPreferMode?: FollowerPreferMode
+  /**
+   * 当使用 overlap-center 模式时，是否启用半透明效果以避免遮挡精灵
+   * 默认: false
+   */
+  enableOverlapTransparency?: boolean
+  /**
+   * 当使用 overlap-center 模式时，是否强制居中（忽略屏幕边界限制）
+   * 默认: false
+   */
+  forceCenterAlignment?: boolean
   parent?: 'main' | undefined
   /**
    * If true, the window will open maximized on first show.
@@ -50,6 +73,7 @@ export const windowConfigs: WindowConfigMap = {
   fileList: {
     routeHash: 'filebox',
     followMain: true,
+    followerPreferMode: 'prefer-right',
     parent: 'main',
     showOnReady: false,
     options: {
@@ -68,6 +92,9 @@ export const windowConfigs: WindowConfigMap = {
   menu: {
     routeHash: 'menu',
     followMain: true,
+    followerPreferMode: 'overlap-center',
+    enableOverlapTransparency: true,
+    forceCenterAlignment: true,
     parent: 'main',
     closeOnBlur: true,
     showOnReady: false,

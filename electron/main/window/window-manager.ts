@@ -1,6 +1,6 @@
 import { app, BrowserWindow, screen } from 'electron'
 import path from 'node:path'
-import { windowConfigs, type WindowConfig, type WindowKey } from './window-config'
+import { windowConfigs, type WindowConfig, type WindowKey, type FollowerPreferMode } from './window-config'
 import { saveWindowState, restoreWindowState } from './window-state-store'
 
 const DEV_URL = process.env.VITE_DEV_SERVER_URL
@@ -13,14 +13,14 @@ const ASSISTANT_HEIGHT = 220;
 
 // 跟随窗口位置类型
 type FollowerSide = 'right' | 'left' | 'bottom' | 'top' | 'overlap'
-type FollowerPreferMode = 'auto' | 'prefer-right' | 'prefer-left' | 'prefer-bottom' | 'prefer-top' | 'overlap-center'
 
 // 计算跟随窗口位置的函数
 function computeFollowerPosition(
   main: Electron.Rectangle,
   follower: { width: number; height: number },
   preferMode?: FollowerPreferMode,
-  assistantPadding: number = 100
+  assistantPadding: number = 100,
+  forceCenterAlignment: boolean = false
 ) {
   const gap = 12
   const padding = assistantPadding
@@ -31,11 +31,19 @@ function computeFollowerPosition(
 
   // overlap-center 模式：把跟随窗口居中覆盖在助手区域上
   if (mode === 'overlap-center') {
+    // 计算助手区域的中心点
     const centerX = Math.round(anchor.x + (anchor.width - follower.width) / 2)
     const centerY = Math.round(anchor.y + (anchor.height - follower.height) / 2)
-    const x = Math.min(Math.max(centerX, work.x), work.x + work.width - follower.width)
-    const y = Math.min(Math.max(centerY, work.y), work.y + work.height - follower.height)
-    return { x, y, side: 'overlap' as FollowerSide }
+    
+    if (forceCenterAlignment) {
+      // 强制居中，忽略屏幕边界限制
+      return { x: centerX, y: centerY, side: 'overlap' as FollowerSide }
+    } else {
+      // 确保窗口在屏幕范围内
+      const x = Math.min(Math.max(centerX, work.x), work.x + work.width - follower.width)
+      const y = Math.min(Math.max(centerY, work.y), work.y + work.height - follower.height)
+      return { x, y, side: 'overlap' as FollowerSide }
+    }
   }
 
   const candidates: Array<{ x: number; y: number; score: number; side: FollowerSide }> = []
@@ -122,7 +130,6 @@ export class WindowManager {
   private mainWindow: BrowserWindow | null = null
   private preloadPath: string | undefined
   private followerWindows = new Set<WindowKey>()
-  private followerPreferMode: FollowerPreferMode = 'prefer-right'
   private assistantPadding: number = 100
   
   // 动画相关状态
@@ -176,22 +183,35 @@ export class WindowManager {
       
       const windowBounds = window.getBounds()
       
+      // 使用窗口特定的跟随偏好模式，如果没有配置则使用默认值
+      const preferMode = config.followerPreferMode || 'prefer-right'
+      const forceCenterAlignment = config.forceCenterAlignment || false
+      
       // 使用智能位置计算逻辑
       const position = computeFollowerPosition(
         mainBounds,
         { width: windowBounds.width, height: windowBounds.height },
-        this.followerPreferMode,
-        this.assistantPadding
+        preferMode,
+        this.assistantPadding,
+        forceCenterAlignment
       )
       
       const lastSide = this.lastFollowerSide.get(windowKey) || null
-      // 如果方向变化，则做动画，否则直接贴靠
-      if (lastSide && position.side !== lastSide) {
-        this.animateFollowerTo(windowKey, window, { x: position.x, y: position.y }, true)
-      } else {
-        // 方向未变，保持紧随（直接设置）
+      
+      // 对于 overlap-center 模式，始终跟随移动（因为位置会随着主窗口移动而变化）
+      if (preferMode === 'overlap-center') {
+        // 直接设置位置，确保始终跟随
         window.setPosition(position.x, position.y)
+      } else {
+        // 其他模式：如果方向变化，则做动画，否则直接贴靠
+        if (lastSide && position.side !== lastSide) {
+          this.animateFollowerTo(windowKey, window, { x: position.x, y: position.y }, true)
+        } else {
+          // 方向未变，保持紧随（直接设置）
+          window.setPosition(position.x, position.y)
+        }
       }
+      
       this.lastFollowerSide.set(windowKey, position.side)
     } catch (error) {
       console.error('Error repositioning follower window:', error)
@@ -294,6 +314,15 @@ export class WindowManager {
     // 如果配置了跟随主窗口，添加到跟随窗口集合
     if (conf.followMain === true) {
       this.followerWindows.add(key)
+    }
+    
+    // 如果启用了重叠半透明效果，设置窗口透明度
+    if (conf.followerPreferMode === 'overlap-center' && conf.enableOverlapTransparency) {
+      try {
+        w.setOpacity(0.95)
+      } catch (error) {
+        console.warn('Failed to set window opacity:', error)
+      }
     }
     
     this.setupWindowEventHandlers(w, key, conf)
@@ -481,11 +510,15 @@ export class WindowManager {
   }
 
   /**
-   * 设置跟随偏好模式
+   * 设置特定窗口的跟随偏好模式
    */
-  setFollowerPreferMode(mode: FollowerPreferMode) {
-    this.followerPreferMode = mode
-    this.updateFollowerPositions()
+  setWindowFollowerPreferMode(windowKey: WindowKey, mode: FollowerPreferMode) {
+    const config = windowConfigs[windowKey]
+    if (config) {
+      // 更新配置（注意：这会修改全局配置，实际项目中可能需要持久化）
+      config.followerPreferMode = mode
+      this.updateFollowerPositions()
+    }
   }
 
   /**
@@ -497,10 +530,11 @@ export class WindowManager {
   }
 
   /**
-   * 获取当前跟随偏好模式
+   * 获取特定窗口的跟随偏好模式
    */
-  getFollowerPreferMode(): FollowerPreferMode {
-    return this.followerPreferMode
+  getWindowFollowerPreferMode(windowKey: WindowKey): FollowerPreferMode {
+    const config = windowConfigs[windowKey]
+    return config?.followerPreferMode || 'prefer-right'
   }
 
   /**
