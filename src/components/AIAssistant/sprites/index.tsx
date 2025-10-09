@@ -1,4 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
+import videoSpriteConfig from '@/config/videoSprite'
+import { makeResSrc } from '@/lib/resourceProtocol'
 
 export default function VideoSprite() {
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -23,28 +25,36 @@ export default function VideoSprite() {
     const d = v.duration
     if (!Number.isFinite(d) || d <= 0) return
 
-    // Jump back to start before the last second to avoid hitting the natural end
-    const remaining = d - v.currentTime
-    // If the video is very short (< 1s), use a small cutoff to still loop early
-    const cutoff = d > 1 ? 1 : Math.max(0.05, Math.min(0.2, d * 0.2))
-    if (remaining <= cutoff + 1e-3) {
-      v.currentTime = 0
-      // Keep playing seamlessly
-      v.play().catch(() => {})
+    if (videoSpriteConfig.loopStrategy === 'early') {
+      const remaining = d - v.currentTime
+      const cutoffBase = d > 1 ? 1 : Math.max(0.05, Math.min(0.2, d * 0.2))
+      const cutoff = Number.isFinite(videoSpriteConfig.cutoffSeconds || NaN)
+        ? Math.max(0.01, Math.min(d * 0.9, videoSpriteConfig.cutoffSeconds as number))
+        : cutoffBase
+      if (remaining <= cutoff + 1e-3) {
+        v.currentTime = 0
+        v.play().catch(() => {})
+      }
     }
   }
+
+  const source = useMemo(() => {
+    if (videoSpriteConfig.src) return videoSpriteConfig.src
+    if (videoSpriteConfig.localPath) return makeResSrc(videoSpriteConfig.localPath)
+    return '/idle.webm'
+  }, [])
 
   return (
     <video
       ref={videoRef}
-      style={{ width: 180, height: 220, userSelect: 'none' }}
-      autoPlay
-      muted
-      playsInline
-      // custom early-loop, so no native loop
+      style={{ width: videoSpriteConfig.width ?? 180, height: videoSpriteConfig.height ?? 220, userSelect: 'none' }}
+      autoPlay={videoSpriteConfig.autoplay ?? true}
+      muted={videoSpriteConfig.muted ?? true}
+      playsInline={videoSpriteConfig.playsInline ?? true}
+      loop={videoSpriteConfig.loopStrategy === 'native'}
       onTimeUpdate={handleTimeUpdate}
     >
-      <source src="/idle.webm" type="video/webm" />
+      <source src={source} type={videoSpriteConfig.type || 'video/webm'} />
     </video>
   )
 }

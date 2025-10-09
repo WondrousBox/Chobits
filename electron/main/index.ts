@@ -125,6 +125,16 @@ app.whenReady().then(async () => {
   } catch (e) {
     console.warn('[protocol res] setup failed', e)
   }
+  // Allow serving files from public (dev) or renderer dist (prod) via res://local
+  try {
+    if (process.env.VITE_PUBLIC) {
+      addAllowedResourceRoot(process.env.VITE_PUBLIC)
+    }
+    // Additionally, add explicit public dir under APP_ROOT for safety in dev
+    addAllowedResourceRoot(path.join(process.env.APP_ROOT, 'public'))
+  } catch (e) {
+    console.warn('[protocol res] add public root failed', e)
+  }
   // Add workspace root if exists
   try {
     const { WorkspacesRepo } = await import('./db/repositories')
