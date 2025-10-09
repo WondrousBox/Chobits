@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef } from 'react'
-import videoSpriteConfig from '@/config/videoSprite'
-import { makeResSrc } from '@/lib/resourceProtocol'
+import { useSpritePlayer } from '@/context/SpritePlayerContext'
+import { resolveSpriteSrc } from '@/lib/spriteSource'
 
 export default function VideoSprite() {
   const videoRef = useRef<HTMLVideoElement | null>(null)
+  const { current } = useSpritePlayer()
 
   useEffect(() => {
     const v = videoRef.current
@@ -25,11 +26,13 @@ export default function VideoSprite() {
     const d = v.duration
     if (!Number.isFinite(d) || d <= 0) return
 
-    if (videoSpriteConfig.loopStrategy === 'early') {
+    const loopStrategy = (current?.loopStrategy ?? 'early')
+    const cutoffSeconds = current?.cutoffSeconds
+    if (loopStrategy === 'early') {
       const remaining = d - v.currentTime
       const cutoffBase = d > 1 ? 1 : Math.max(0.05, Math.min(0.2, d * 0.2))
-      const cutoff = Number.isFinite(videoSpriteConfig.cutoffSeconds || NaN)
-        ? Math.max(0.01, Math.min(d * 0.9, videoSpriteConfig.cutoffSeconds as number))
+      const cutoff = Number.isFinite(cutoffSeconds || NaN)
+        ? Math.max(0.01, Math.min(d * 0.9, cutoffSeconds as number))
         : cutoffBase
       if (remaining <= cutoff + 1e-3) {
         v.currentTime = 0
@@ -38,23 +41,45 @@ export default function VideoSprite() {
     }
   }
 
-  const source = useMemo(() => {
-    if (videoSpriteConfig.src) return videoSpriteConfig.src
-    if (videoSpriteConfig.localPath) return makeResSrc(videoSpriteConfig.localPath)
-    return '/idle.webm'
-  }, [])
+  const computed = useMemo(() => {
+    const anim = current
+    if (!anim) {
+      return {
+        srcUrl: '/idle.webm',
+        type: 'video/webm',
+        width: 180,
+        height: 220,
+        autoplay: true,
+        muted: true,
+        playsInline: true,
+        loopStrategy: 'early' as const,
+      }
+    }
+    const { url, type } = resolveSpriteSrc(anim.source)
+    return {
+      srcUrl: url,
+      type: type || 'video/webm',
+      width: anim.width ?? 180,
+      height: anim.height ?? 220,
+      autoplay: anim.autoplay ?? true,
+      muted: anim.muted ?? true,
+      playsInline: anim.playsInline ?? true,
+      loopStrategy: anim.loopStrategy ?? 'early',
+      cutoffSeconds: anim.cutoffSeconds,
+    }
+  }, [current])
 
   return (
     <video
       ref={videoRef}
-      style={{ width: videoSpriteConfig.width ?? 180, height: videoSpriteConfig.height ?? 220, userSelect: 'none' }}
-      autoPlay={videoSpriteConfig.autoplay ?? true}
-      muted={videoSpriteConfig.muted ?? true}
-      playsInline={videoSpriteConfig.playsInline ?? true}
-      loop={videoSpriteConfig.loopStrategy === 'native'}
+      style={{ width: computed.width ?? 180, height: computed.height ?? 220, userSelect: 'none' }}
+      autoPlay={computed.autoplay ?? true}
+      muted={computed.muted ?? true}
+      playsInline={computed.playsInline ?? true}
+      loop={computed.loopStrategy === 'native'}
       onTimeUpdate={handleTimeUpdate}
     >
-      <source src={source} type={videoSpriteConfig.type || 'video/webm'} />
+      <source src={computed.srcUrl} type={computed.type || 'video/webm'} />
     </video>
   )
 }
