@@ -2,7 +2,7 @@
 import os from "node:os";
 import { getRealPath } from ".";
 
-export function getFfmpegPath(binName: "ffmpeg" | "yt-dlp") {
+export function getFfmpegPath(binName: "ffmpeg" | "yt-dlp" | "sprites" | "resources"): string {
   switch (binName) {
     case "ffmpeg":
       return getRealPath(
@@ -13,6 +13,16 @@ export function getFfmpegPath(binName: "ffmpeg" | "yt-dlp") {
       return getRealPath(
         `../yt-dlp/${os.platform()}/${os.platform() === "darwin" ? "yt-dlp_macos" : "yt-dlp.exe"}`,
         `./resources/yt-dlp/${os.platform()}/${os.platform() === "darwin" ? "yt-dlp_macos" : "yt-dlp.exe"}`,
+      );
+    case "resources":
+      return getRealPath(
+        `../resources`,
+        `./resources`,
+      );
+    case "sprites":
+      return getRealPath(
+        `../sprites`,
+        `./resources/sprites`,
       );
     default:
       return getRealPath(

@@ -10,6 +10,7 @@ import { fileBridge } from './apis/file'
 import { databaseBridge } from './apis/database'
 import { folderBridge } from './apis/folder'
 import videoDownloaderAPI from './apis/video-downloader'
+import { spriteBridge } from './apis/sprite'
 import {
   arch,
   isLinux,
@@ -63,6 +64,7 @@ contextBridge.exposeInMainWorld('YUA', {
   database: databaseBridge,
   folder: folderBridge,
   videoDownloader: videoDownloaderAPI,
+  sprite: spriteBridge,
 })
 
 // --------- Preload scripts loading ---------

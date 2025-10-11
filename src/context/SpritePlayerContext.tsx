@@ -1,45 +1,47 @@
-import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { SpriteAnimation } from '@/types/sprite'
-import builtinSprites from '@/config/sprites'
-import { spriteRegistry } from '@/lib/spriteRegistry'
-
-// 初始化注册内置动画（只注册一次）
-if (spriteRegistry.list().length === 0) {
-  spriteRegistry.register(...builtinSprites)
-}
 
 interface SpritePlayerContextValue {
   currentId: string | null
   current?: SpriteAnimation
   setCurrent: (id: string) => void
-  register: (...anims: SpriteAnimation[]) => void
   list: () => SpriteAnimation[]
 }
 
 const SpritePlayerContext = createContext<SpritePlayerContextValue | null>(null)
 
 export const SpritePlayerProvider: React.FC<React.PropsWithChildren<{}>> = ({ children }) => {
-  const [currentId, setCurrentId] = useState<string | null>(() => {
-    return spriteRegistry.list()[0]?.meta.id ?? null
-  })
+  const [anims, setAnims] = useState<SpriteAnimation[]>([])
+  const [currentId, setCurrentId] = useState<string | null>(null)
+
+  useEffect(() => {
+    let stopped = false
+    const load = async () => {
+      try {
+        const items: SpriteAnimation[] = await window.YUA.sprite.list()
+        if (stopped) return
+        setAnims(items)
+        setCurrentId(prev => prev ?? items[0]?.meta.id ?? null)
+      } catch {
+        // fallback: nothing
+      }
+    }
+    load()
+    return () => { stopped = true }
+  }, [])
 
   const setCurrent = useCallback((id: string) => {
-    if (spriteRegistry.get(id)) setCurrentId(id)
-  }, [])
+    if (anims.find(a => a.meta.id === id)) setCurrentId(id)
+  }, [anims])
 
-  const register = useCallback((...anims: SpriteAnimation[]) => {
-    spriteRegistry.register(...anims)
-  }, [])
-
-  const list = useCallback(() => spriteRegistry.list(), [])
+  const list = useCallback(() => anims, [anims])
 
   const value = useMemo(() => ({
     currentId,
-    current: currentId ? spriteRegistry.get(currentId) : undefined,
+    current: currentId ? anims.find(a => a.meta.id === currentId) : undefined,
     setCurrent,
-    register,
     list,
-  }), [currentId, setCurrent, register, list])
+  }), [currentId, anims, setCurrent, list])
 
   return (
     <SpritePlayerContext.Provider value={value}>

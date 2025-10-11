@@ -11,6 +11,7 @@ import { initFileHandlers } from './file';
 import { initDatabaseHandlers } from './database';
 import { initVideoDownloadHandlers } from './video-download';
 import { initFolderHandlers } from './folder';
+import { initSpriteHandlers } from './sprite';
 
 export function initHandlers(win: BrowserWindow) {
 
@@ -28,4 +29,5 @@ export function initHandlers(win: BrowserWindow) {
   initFileHandlers(win);
   initDatabaseHandlers(win);
   initVideoDownloadHandlers(win);
+  initSpriteHandlers(win);
 }
