@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "items": [
+    {
+      "meta": {
+        "id": "idle-default",
+        "title": "Idle 默认站立",
+        "description": "默认的待机动画",
+        "tags": [
+          "idle",
+          "default"
+        ]
+      },
+      "source": {
+        "localPath": "./idle.webm",
+        "type": "video/webm"
+      },
+      "width": 180,
+      "height": 220,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loopStrategy": "early"
+    }
+  ]
+}

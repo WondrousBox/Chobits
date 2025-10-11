@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { TbDatabase, TbFolderOpen, TbSettings, TbBrain, TbCpu, TbBox, TbFile3D } from 'react-icons/tb'
+import { TbDatabase, TbFolderOpen, TbSettings, TbBrain, TbCpu, TbBox, TbFile3D, TbMoodKid } from 'react-icons/tb'
 import EmbeddingJobsPanel from '../../components/EmbeddingJobs'
 import DragAbleTitle from '../../components/common/DragAbleTitle'
 import { Button } from '../../components/ui/button'
@@ -15,12 +15,13 @@ import {
 } from '../../components/ui/sidebar'
 import Workspace from './components/Workspace'
 import ModelPage from '../ModelPage/ModelPage'
+import SpriteManager from './components/SpriteManager'
 
 // Include assistantPadding in type
 type MovementConfig = { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number }
 
 // 设置分类类型
-type SettingsCategory = 'movement' | 'database' | 'embedding' | 'external-resource' | 'workspace' | 'model'
+type SettingsCategory = 'movement' | 'database' | 'embedding' | 'external-resource' | 'workspace' | 'model' | 'sprites'
 
 // 设置分类配置
 const settingsCategories: { id: SettingsCategory; label: string; icon: React.ElementType; description: string }[] = [
@@ -53,6 +54,12 @@ const settingsCategories: { id: SettingsCategory; label: string; icon: React.Ele
     label: '模型管理',
     icon: TbBox,
     description: '下载与管理本地模型文件'
+  },
+  {
+    id: 'sprites',
+    label: '精灵管理',
+    icon: TbMoodKid,
+    description: '导入/删除动画，设为当前精灵'
   },
   {
     id: 'external-resource',
@@ -367,6 +374,16 @@ export const SettingsPage: React.FC = () => {
     </div>
   )
 
+  const renderSpriteSettings = () => (
+    <div className='space-y-6'>
+      <div className='bg-card border border-border rounded-lg overflow-hidden'>
+        <div className='h-[70vh] overflow-auto'>
+          <SpriteManager />
+        </div>
+      </div>
+    </div>
+  )
+
   // 根据当前分类渲染对应内容
   const renderCurrentCategoryContent = () => {
     switch (activeCategory) {
@@ -380,6 +397,8 @@ export const SettingsPage: React.FC = () => {
         return renderWorkspaceSettings()
       case 'model':
         return renderModelSettings()
+      case 'sprites':
+        return renderSpriteSettings()
       case 'external-resource':
         return renderExternalResourceSettings()
       default:
