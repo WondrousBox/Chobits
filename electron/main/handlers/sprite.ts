@@ -35,7 +35,22 @@ async function readIndex(): Promise<SpriteIndex> {
   try {
     const raw = await fs.readFile(idxPath, 'utf-8')
     const data = JSON.parse(raw)
-    if (Array.isArray(data.items)) return { version: 1, items: data.items as SpriteAnimation[] }
+    if (Array.isArray(data.items)) {
+      // Normalize relative localPath to absolute path under the same-level folder of `dir` (i.e., parent of sprites dir)
+      const baseDir = path.dirname(dir)
+      const items = (data.items as SpriteAnimation[]).map((item) => {
+        const lp = (item as any)?.source?.localPath
+        // Skip if not a string
+        if (typeof lp !== 'string') return item
+        // Treat URL-like strings (e.g. resource://, file://, http://) as-is
+        const isUrlLike = /^[a-zA-Z]+:\/\//.test(lp)
+        if (isUrlLike || path.isAbsolute(lp)) return item
+        // Resolve relative path against the parent of the sprites directory
+        const resolved = path.resolve(baseDir, lp)
+        return { ...item, source: { ...item.source, localPath: resolved } }
+      })
+      return { version: 1, items }
+    }
   } catch {}
   return { version: 1, items: [] }
 }
