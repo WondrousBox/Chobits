@@ -119,7 +119,20 @@ export const windowConfigs: WindowConfigMap = {
     options: {
       width: 800,
       height: 600,
-      frame: false,
+      // Mac 保留系统 traffic lights；Windows 使用自定义标题栏（frameless）
+      ...(process.platform === 'darwin'
+        ? {
+          titleBarStyle: 'hiddenInset' as const,
+          titleBarOverlay: true,
+          trafficLightPosition: {
+            x: 20,
+            y: HEADER_COMMANDS_HEIGHT / 2 - MACOS_TRAFFIC_LIGHTS_HEIGHT / 2,
+          },
+          frame: true,
+        }
+        : {
+          frame: false,
+        }),
       transparent: true,
       resizable: false,
       alwaysOnTop: true,

@@ -2,6 +2,7 @@ import { app, protocol } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import fscb from 'node:fs'
+import { Readable } from 'node:stream'
 
 // Register scheme privileges early (module import time)
 protocol.registerSchemesAsPrivileged([
@@ -12,6 +13,7 @@ protocol.registerSchemesAsPrivileged([
       secure: true,
       supportFetchAPI: true,
       corsEnabled: true,
+      stream: true,
     },
   },
 ])
@@ -109,6 +111,14 @@ export async function setupResourceProtocol() {
         const ext = path.extname(abs).toLowerCase()
         const mime = MIME_MAP[ext] || guessMime(ext) || 'application/octet-stream'
 
+        // Common headers for CORS/media friendliness
+        const baseHeaders: Record<string, string> = {
+          'Content-Type': mime,
+          'Access-Control-Allow-Origin': '*',
+          'Cross-Origin-Resource-Policy': 'cross-origin',
+          'Accept-Ranges': 'bytes',
+        }
+
         // Support simple Range requests for media (video/audio)
         const range = request.headers.get('Range')
         if (range) {
@@ -123,22 +133,34 @@ export async function setupResourceProtocol() {
               if (isNaN(end) || end >= size) end = size - 1
               if (start > end) return new Response('Range Not Satisfiable', { status: 416 })
               const chunkSize = end - start + 1
-              const stream = fscb.createReadStream(abs, { start, end })
+              // Use Web ReadableStream for better cross-platform support
+              const nodeStream = fscb.createReadStream(abs, { start, end })
+              const webStream = (Readable as any).toWeb ? (Readable as any).toWeb(nodeStream) : (nodeStream as any)
               const headers: Record<string, string> = {
-                'Content-Type': mime,
+                ...baseHeaders,
                 'Content-Range': `bytes ${start}-${end}/${size}`,
-                'Accept-Ranges': 'bytes',
                 'Content-Length': String(chunkSize),
               }
-              // Cast Node stream to any (Response can handle it internally in Electron runtime)
-              return new Response(stream as any, { status: 206, headers })
+              return new Response(webStream, { status: 206, headers })
             }
+          } catch {}
+        }
+
+        // Handle HEAD request (metadata only)
+        if (request.method === 'HEAD') {
+          try {
+            const stat = fscb.statSync(abs)
+            const headers: Record<string, string> = {
+              ...baseHeaders,
+              'Content-Length': String(stat.size),
+            }
+            return new Response(null, { status: 200, headers })
           } catch {}
         }
 
         // Non-range: small/normal file read fully (images, text, small media)
         const buf = await fs.readFile(abs)
-        return new Response(new Uint8Array(buf), { status: 200, headers: { 'Content-Type': mime } })
+        return new Response(new Uint8Array(buf), { status: 200, headers: { ...baseHeaders, 'Content-Length': String(buf.byteLength) } })
       } catch (e: any) {
         return new Response('Internal Error', { status: 500 })
       }
