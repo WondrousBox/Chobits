@@ -1,4 +1,4 @@
-import { sqliteTable, text, blob, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, blob, integer, index, uniqueIndex, AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { InferInsertModel, InferSelectModel, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 
@@ -81,7 +81,7 @@ export const folders = sqliteTable('folders', {
   id: text('id').primaryKey().$defaultFn(() => randomUUID()),
   name: text('name').notNull(),
   description: text('description'),
-  parentId: text('parent_id').references(() => folders.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+  parentId: text('parent_id').references((): AnySQLiteColumn => folders.id, { onDelete: 'set null', onUpdate: 'cascade' }),
   workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'set null', onUpdate: 'cascade' }),
   metadata: text('metadata'),
   createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`),

@@ -319,6 +319,7 @@ function getSetting(key?: string): any {
 
 function setSetting(key: keyof ExternalResourceSettings, value: any): void {
   const settings = readSettings();
+  // @ts-ignore
   settings[key] = value;
   writeSettings(settings);
 }
