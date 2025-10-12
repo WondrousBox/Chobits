@@ -4,7 +4,10 @@
   "asar": true,
   "asarUnpack": [
     "node_modules/better-sqlite3/**/*",
-    "node_modules/sqlite-vec/**/*"
+    "node_modules/sqlite-vec/**/*",
+    "node_modules/sharp/**/*",
+    "node_modules/@img/sharp-*/**/*",
+    "node_modules/@img/sharp-libvips-*/**/*"
   ],
   "directories": {
     "output": "release/${version}"
@@ -13,7 +16,10 @@
     "dist-electron",
     "dist",
     "node_modules/better-sqlite3/**/*",
-    "node_modules/sqlite-vec/**/*"
+    "node_modules/sqlite-vec/**/*",
+    "node_modules/sharp/**/*",
+    "node_modules/@img/sharp-*/**/*",
+    "node_modules/@img/sharp-libvips-*/**/*"
   ],
   "extraResources": [
     {
@@ -23,6 +29,10 @@
     {
       "from": "resources/ffmpeg/${platform}/${arch}",
       "to": "./ffmpeg/${platform}/${arch}"
+    },
+    {
+      "from": "resources/sprites",
+      "to": "./sprites"
     },
     {
       "from": "resources/yt-dlp/${platform}/",
