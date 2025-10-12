@@ -78,8 +78,12 @@ export default function VideoSprite() {
       playsInline={computed.playsInline ?? true}
       loop={computed.loopStrategy === 'native'}
       onTimeUpdate={handleTimeUpdate}
+      src={computed.srcUrl}
+      onError={(e) => {
+        // 简单错误日志，便于排查路径/权限问题
+        console.warn('Sprite video failed to load', computed.srcUrl, e)
+      }}
     >
-      <source src={computed.srcUrl} type={computed.type || 'video/webm'} />
     </video>
   )
 }
