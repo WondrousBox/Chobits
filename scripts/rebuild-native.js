@@ -27,6 +27,14 @@ try {
   console.log('🔨 重建 sqlite-vec...');
   execSync('npx @electron/rebuild -f -w sqlite-vec', { stdio: 'inherit' });
 
+  // 重建 sharp（可选）
+  try {
+    console.log('🔨 重建 sharp...');
+    execSync('npx @electron/rebuild -f -w sharp', { stdio: 'inherit' });
+  } catch (e) {
+    console.log('ℹ️ 跳过重建 sharp（未安装或非必要）');
+  }
+
   console.log('✅ 原生模块重建完成！');
 } catch (error) {
   console.error('❌ 重建失败:', error.message);
