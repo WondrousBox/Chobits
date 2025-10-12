@@ -37,7 +37,7 @@ async function readIndex(): Promise<SpriteIndex> {
     const data = JSON.parse(raw)
     if (Array.isArray(data.items)) {
       // Normalize relative localPath to absolute path under the same-level folder of `dir` (i.e., parent of sprites dir)
-      const baseDir = path.dirname(dir)
+      const baseDir = path.dirname(idxPath)
       const items = (data.items as SpriteAnimation[]).map((item) => {
         const lp = (item as any)?.source?.localPath
         // Skip if not a string
