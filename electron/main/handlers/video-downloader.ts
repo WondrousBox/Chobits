@@ -11,8 +11,7 @@ import http from "node:http";
 import ytdlpStatic from "../libs/ytdlp-static";
 import { WorkspacesRepo, ResourcesRepo } from "../db/repositories";
 import { generateThumbnailForResource } from "../utils/thumbnail";
-import { getRealPath } from '../utils';
-import { getFfmpegPath } from '../utils/bin-path';
+import { getResourcePath } from '../utils/resources-path';
 import { binPathLog } from '../logger';
 
 // 默认文件夹配置
@@ -548,8 +547,8 @@ export class VideoDownloader implements Downloader {
   private ytdlPath: string;
 
   constructor() {
-    this.ffmpegPath = getFfmpegPath("ffmpeg");
-    this.ytdlPath = getFfmpegPath("yt-dlp");
+    this.ffmpegPath = getResourcePath("ffmpeg");
+    this.ytdlPath = getResourcePath("yt-dlp");
 
     binPathLog(this.ffmpegPath, "ffmpeg");
     binPathLog(this.ytdlPath, "yt-dlp");

@@ -5,7 +5,7 @@ import fscb from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import type { SpriteAnimation } from '@/types/sprite'
 import { addAllowedResourceRoot } from '../resource-protocol'
-import { getFfmpegPath } from '../utils/bin-path'
+import { getResourcePath } from '../utils/resources-path'
 
 type SpriteIndex = {
   version: 1
@@ -18,7 +18,7 @@ async function ensureDirs(dir: string) {
 
 async function getWorkspaceSpritesDir(): Promise<string> {
   // Global shared resources folder (not tied to workspace), similar to ffmpeg path
-  const baseResources = getFfmpegPath('resources')
+  const baseResources = getResourcePath('resources')
   // Make sure our custom protocol can serve this directory
   try { addAllowedResourceRoot(baseResources) } catch {}
   const spritesDir = path.join(baseResources, 'sprites')
