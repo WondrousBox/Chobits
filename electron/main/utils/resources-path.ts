@@ -2,7 +2,7 @@
 import os from "node:os";
 import { getRealPath } from ".";
 
-export function getFfmpegPath(binName: "ffmpeg" | "yt-dlp" | "sprites" | "resources"): string {
+export function getResourcePath(binName: "ffmpeg" | "yt-dlp" | "sprites" | "resources"): string {
   switch (binName) {
     case "ffmpeg":
       return getRealPath(
@@ -16,7 +16,7 @@ export function getFfmpegPath(binName: "ffmpeg" | "yt-dlp" | "sprites" | "resour
       );
     case "resources":
       return getRealPath(
-        `../resources`,
+        `../`,
         `./resources`,
       );
     case "sprites":
