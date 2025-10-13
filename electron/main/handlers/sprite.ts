@@ -2,6 +2,7 @@ import { BrowserWindow, ipcMain } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import fscb from 'node:fs'
+import os from 'node:os'
 import { randomUUID } from 'node:crypto'
 import type { SpriteAnimation } from '@/types/sprite'
 import { addAllowedResourceRoot } from '../resource-protocol'
@@ -16,18 +17,23 @@ async function ensureDirs(dir: string) {
   try { await fs.mkdir(dir, { recursive: true }) } catch {}
 }
 
-async function getWorkspaceSpritesDir(): Promise<string> {
-  // Global shared resources folder (not tied to workspace), similar to ffmpeg path
-  const baseResources = getResourcePath('resources')
-  // Make sure our custom protocol can serve this directory
-  try { addAllowedResourceRoot(baseResources) } catch {}
-  const spritesDir = path.join(baseResources, 'sprites')
-  await ensureDirs(spritesDir)
+const SETTINGS_DIR = path.join(os.homedir(), '.chobits')
+
+async function getDefaultSpritesDir(): Promise<string> {
+  // Packaged resources (read-only)
+  const spritesDir = getResourcePath('sprites')
+  try { addAllowedResourceRoot(spritesDir) } catch {}
   return spritesDir
 }
 
-async function readIndex(): Promise<SpriteIndex> {
-  const dir = await getWorkspaceSpritesDir()
+async function getUserSpritesDir(): Promise<string> {
+  const userDir = path.join(SETTINGS_DIR, 'sprites')
+  await ensureDirs(userDir)
+  try { addAllowedResourceRoot(userDir) } catch {}
+  return userDir
+}
+
+async function readIndex(dir: string): Promise<SpriteIndex> {
   const idxPath = path.join(dir, 'index.json')
   if (!fscb.existsSync(idxPath)) {
     return { version: 1, items: [] }
@@ -36,7 +42,7 @@ async function readIndex(): Promise<SpriteIndex> {
     const raw = await fs.readFile(idxPath, 'utf-8')
     const data = JSON.parse(raw)
     if (Array.isArray(data.items)) {
-      // Normalize relative localPath to absolute path under the same-level folder of `dir` (i.e., parent of sprites dir)
+      // Normalize relative localPath to absolute path under the index.json directory
       const baseDir = path.dirname(idxPath)
       const items = (data.items as SpriteAnimation[]).map((item) => {
         const lp = (item as any)?.source?.localPath
@@ -55,8 +61,8 @@ async function readIndex(): Promise<SpriteIndex> {
   return { version: 1, items: [] }
 }
 
-async function writeIndex(index: SpriteIndex) {
-  const dir = await getWorkspaceSpritesDir()
+async function writeUserIndex(index: SpriteIndex) {
+  const dir = await getUserSpritesDir()
   const idxPath = path.join(dir, 'index.json')
   await fs.writeFile(idxPath, JSON.stringify(index, null, 2), 'utf-8')
 }
@@ -73,13 +79,21 @@ function inferMimeFromExt(ext: string): string | undefined {
 
 export function initSpriteHandlers(_win: BrowserWindow) {
   ipcMain.handle('sprite:list', async () => {
-    const idx = await readIndex()
-    return idx.items
+    const [defDir, userDir] = await Promise.all([getDefaultSpritesDir(), getUserSpritesDir()])
+    const [defIdx, userIdx] = await Promise.all([readIndex(defDir), readIndex(userDir)])
+    // Merge: user overrides default on same id
+    const map = new Map<string, SpriteAnimation>()
+    for (const it of defIdx.items) map.set(it.meta.id, it)
+    for (const it of userIdx.items) map.set(it.meta.id, it)
+    return Array.from(map.values())
   })
 
   ipcMain.handle('sprite:get', async (_e, payload: { id: string }) => {
-    const idx = await readIndex()
-    return idx.items.find(i => i.meta.id === payload.id)
+    const [defDir, userDir] = await Promise.all([getDefaultSpritesDir(), getUserSpritesDir()])
+    const [defIdx, userIdx] = await Promise.all([readIndex(defDir), readIndex(userDir)])
+    const foundUser = userIdx.items.find(i => i.meta.id === payload.id)
+    if (foundUser) return foundUser
+    return defIdx.items.find(i => i.meta.id === payload.id)
   })
 
   ipcMain.handle('sprite:register', async (_e, payload: { animation?: Partial<SpriteAnimation> & { filePath?: string } }) => {
@@ -87,7 +101,7 @@ export function initSpriteHandlers(_win: BrowserWindow) {
     const srcPath = anim.filePath
     const id = anim.meta?.id || randomUUID()
     const title = anim.meta?.title || id
-    const spritesDir = await getWorkspaceSpritesDir()
+    const spritesDir = await getUserSpritesDir()
 
     let finalPath: string | undefined
     let type = anim.source?.type
@@ -103,8 +117,28 @@ export function initSpriteHandlers(_win: BrowserWindow) {
       await fs.copyFile(srcPath, finalPath)
       type = type || inferMimeFromExt(ext) || 'video/webm'
     } else if (anim.source?.localPath) {
-      // trust provided localPath if inside spritesDir
-      finalPath = anim.source.localPath
+      // trust provided localPath ONLY if it is inside user spritesDir
+      const provided = path.resolve(anim.source.localPath)
+      const userRoot = path.resolve(spritesDir)
+      if (provided === userRoot || provided.startsWith(userRoot + path.sep)) {
+        finalPath = provided
+      } else {
+        // reject by copying into user dir instead of referencing external location
+        try {
+          const ext = path.extname(provided) || '.webm'
+          const baseName = `${id}${ext}`
+          finalPath = path.join(spritesDir, baseName)
+          let counter = 1
+          while (fscb.existsSync(finalPath)) {
+            finalPath = path.join(spritesDir, `${id}-${counter}${ext}`)
+            counter++
+          }
+          await fs.copyFile(provided, finalPath)
+          type = type || inferMimeFromExt(ext) || 'video/webm'
+        } catch {
+          // fallback: no file copied
+        }
+      }
     }
 
     const newItem: SpriteAnimation = {
@@ -120,23 +154,31 @@ export function initSpriteHandlers(_win: BrowserWindow) {
       durationMs: anim.durationMs,
     }
 
-    const idx = await readIndex()
+    const idx = await readIndex(spritesDir)
     const existedIdx = idx.items.findIndex(i => i.meta.id === id)
     if (existedIdx >= 0) idx.items.splice(existedIdx, 1, newItem); else idx.items.push(newItem)
-    await writeIndex(idx)
+    await writeUserIndex(idx)
     return newItem
   })
 
   ipcMain.handle('sprite:remove', async (_e, payload: { id: string; deleteFile?: boolean }) => {
     const { id, deleteFile } = payload || ({} as any)
-    const idx = await readIndex()
+    const userDir = await getUserSpritesDir()
+    const idx = await readIndex(userDir)
     const i = idx.items.findIndex(a => a.meta.id === id)
-    if (i === -1) return { ok: false }
+    if (i === -1) {
+      // Not removable (likely a default sprite)
+      return { ok: false }
+    }
     const [removed] = idx.items.splice(i, 1)
-    await writeIndex(idx)
+    await writeUserIndex(idx)
     try {
       if (deleteFile && removed?.source?.localPath) {
-        await fs.unlink(removed.source.localPath).catch(() => {})
+        const p = path.resolve(removed.source.localPath)
+        const root = path.resolve(userDir)
+        if (p === root || p.startsWith(root + path.sep)) {
+          await fs.unlink(p).catch(() => {})
+        }
       }
     } catch {}
     return { ok: true }
