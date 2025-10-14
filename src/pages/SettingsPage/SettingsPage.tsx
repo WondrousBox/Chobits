@@ -374,16 +374,6 @@ export const SettingsPage: React.FC = () => {
     </div>
   )
 
-  const renderSpriteSettings = () => (
-    <div className='space-y-6'>
-      <div className='bg-card border border-border rounded-lg overflow-hidden'>
-        <div className='h-[70vh] overflow-auto'>
-          <SpriteManager />
-        </div>
-      </div>
-    </div>
-  )
-
   // 根据当前分类渲染对应内容
   const renderCurrentCategoryContent = () => {
     switch (activeCategory) {
@@ -398,7 +388,7 @@ export const SettingsPage: React.FC = () => {
       case 'model':
         return renderModelSettings()
       case 'sprites':
-        return renderSpriteSettings()
+        return <SpriteManager />
       case 'external-resource':
         return renderExternalResourceSettings()
       default:
@@ -458,7 +448,7 @@ export const SettingsPage: React.FC = () => {
             </div>
           </div>
 
-          <div className='w-full overflow-auto h-[calc(100%-72px)]'>
+          <div className='w-full overflow-y-auto overflow-x-hidden h-[calc(100%-72px)]'>
             {renderCurrentCategoryContent()}
           </div>
         </div>

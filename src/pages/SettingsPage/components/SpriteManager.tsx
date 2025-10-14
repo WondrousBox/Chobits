@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import type { SpriteAnimation } from '@/types/sprite'
 import { Button } from '@/components/ui/button'
-import { useSpritePlayer } from '@/context/SpritePlayerContext'
 import { makeResSrc } from '@/lib/resourceProtocol'
+import { TbPlayerPlay } from 'react-icons/tb'
 
 function baseName(p: string) {
   const parts = p.replace(/\\/g, '/').split('/')
@@ -10,11 +10,67 @@ function baseName(p: string) {
   return last
 }
 
+// 小型预览组件：只有在 hover 时才真正挂载 <video>，离开时卸载，避免同时占用大量资源
+// 精灵预览：静止首帧，hover 播放循环
+function SpritePreview({ src, type, width, height }: { src: string; type: string; width: number; height: number }) {
+  const videoRef = React.useRef<HTMLVideoElement | null>(null)
+
+  // 初始：停在首帧
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v) return
+    v.pause()
+    try { v.currentTime = 0 } catch { }
+  }, [src])
+
+  const handleEnter = useCallback(() => {
+    const v = videoRef.current
+    if (v) {
+      v.loop = true
+      v.play().catch(() => { })
+    }
+  }, [])
+
+  const handleLeave = useCallback(() => {
+    const v = videoRef.current
+    if (v) {
+      v.pause()
+      try { v.currentTime = 0 } catch { }
+    }
+  }, [])
+
+  return (
+    <div
+      className='group relative inline-block rounded-md overflow-hidden select-none transition hover:ring-2 hover:ring-primary/70 hover:shadow-md ring-offset-1'
+      style={{ width, height }}
+      onMouseEnter={handleEnter}
+      onMouseLeave={handleLeave}
+      aria-label='鼠标悬停预览'
+    >
+      <video
+        ref={videoRef}
+        width={width}
+        height={height}
+        muted
+        playsInline
+        // 不自动播放，只有 hover / always 时才 play()
+        preload='metadata'
+        className='h-full w-full object-cover bg-muted pointer-events-none'
+      >
+        <source src={src} type={type} />
+      </video>
+      <div className='pointer-events-none absolute bottom-1 right-1 rounded bg-black/55 px-1.5 py-[2px] text-[10px] leading-none text-white opacity-0 group-hover:opacity-100 transition-opacity'>
+        <TbPlayerPlay className='w-4 h-4' />
+      </div>
+    </div>
+  )
+}
+
 export default function SpriteManager() {
   const [list, setList] = useState<SpriteAnimation[]>([])
   const [loading, setLoading] = useState(false)
   const [adding, setAdding] = useState(false)
-  const { currentId, setCurrent } = useSpritePlayer()
+  // 去除“设为当前”功能后不再需要状态上下文
 
   const refresh = async () => {
     setLoading(true)
@@ -41,9 +97,9 @@ export default function SpriteManager() {
         multi: false,
       })
       if (pick.canceled || !pick.path) return
-  const title = baseName(pick.path)
-  const id = 'sprite-' + Math.random().toString(36).slice(2, 10)
-  await window.YUA.sprite.register({ filePath: pick.path, meta: { id, title } })
+      const title = baseName(pick.path)
+      const id = 'sprite-' + Math.random().toString(36).slice(2, 10)
+      await window.YUA.sprite.register({ filePath: pick.path, meta: { id, title } })
       await refresh()
     } catch (e) {
       console.warn('sprite:register failed', e)
@@ -62,8 +118,8 @@ export default function SpriteManager() {
   }
 
   return (
-    <div className='space-y-4 p-2'>
-      <div className='flex justify-between items-center'>
+    <div className='h-full'>
+      <div className='flex justify-between items-center px-2'>
         <div className='text-sm text-muted-foreground'>已注册动画：{list.length}</div>
         <div className='flex gap-2'>
           <Button size='sm' onClick={refresh} disabled={loading}>刷新</Button>
@@ -71,18 +127,15 @@ export default function SpriteManager() {
         </div>
       </div>
 
-      <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'>
+      <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 overflow-y-auto' style={{ height: 'calc(100% - 32px)' }}>
         {list.map(item => {
-          const isCurrent = item.meta.id === currentId
           const src = item.source?.localPath ? makeResSrc(item.source.localPath) : (item.source?.src || '')
           const type = item.source?.type || 'video/webm'
           return (
             <div key={item.meta.id} className='bg-card border border-border rounded-lg p-3 flex gap-3'>
               <div className='shrink-0'>
                 {src ? (
-                  <video width={120} height={140} muted playsInline autoPlay loop className='rounded-md bg-muted'>
-                    <source src={src} type={type} />
-                  </video>
+                  <SpritePreview src={src} type={type} width={120} height={140} />
                 ) : (
                   <div className='w-[120px] h-[140px] rounded-md bg-muted' />
                 )}
@@ -92,9 +145,6 @@ export default function SpriteManager() {
                 <div className='text-xs text-muted-foreground truncate'>{item.meta.id}</div>
                 <div className='text-xs text-muted-foreground truncate'>{item.width}x{item.height} · {item.source?.type}</div>
                 <div className='mt-auto flex gap-2'>
-                  {!isCurrent && (
-                    <Button size='sm' variant='outline' onClick={() => setCurrent(item.meta.id)}>设为当前</Button>
-                  )}
                   <Button size='sm' variant='destructive' onClick={() => onRemove(item.meta.id)}>删除</Button>
                 </div>
               </div>

@@ -117,8 +117,10 @@ export const windowConfigs: WindowConfigMap = {
     showOnReady: false,
     openDevTools: true,
     options: {
-      width: 800,
-      height: 600,
+      width: 1200,
+      height: 800,
+      minWidth: 1000,
+      minHeight: 600,
       // Mac 保留系统 traffic lights；Windows 使用自定义标题栏（frameless）
       ...(process.platform === 'darwin'
         ? {
@@ -133,9 +135,9 @@ export const windowConfigs: WindowConfigMap = {
         : {
           frame: false,
         }),
-      transparent: true,
-      resizable: false,
-      alwaysOnTop: true,
+      transparent: false,
+      resizable: true,
+      alwaysOnTop: false,
       skipTaskbar: false,
       show: false,
       backgroundColor: '#00000000',
