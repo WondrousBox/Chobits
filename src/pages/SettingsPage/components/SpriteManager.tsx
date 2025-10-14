@@ -127,7 +127,8 @@ export default function SpriteManager() {
         </div>
       </div>
 
-      <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 overflow-y-auto' style={{ height: 'calc(100% - 32px)' }}>
+  {/* 防止窗口增高时 Grid 行被平均拉伸：content-start(items-start) 让多余空间留在容器底部 */}
+  <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 overflow-y-auto content-start items-start' style={{ height: 'calc(100% - 32px)' }}>
         {list.map(item => {
           const src = item.source?.localPath ? makeResSrc(item.source.localPath) : (item.source?.src || '')
           const type = item.source?.type || 'video/webm'
