@@ -4,7 +4,7 @@ import fs from 'node:fs/promises'
 import fscb from 'node:fs'
 import os from 'node:os'
 import { randomUUID } from 'node:crypto'
-import type { SpriteAnimation } from '@/types/sprite'
+import type { SpriteAnimation } from '@/components/AIAssistant/messages/types'
 import { addAllowedResourceRoot } from '../resource-protocol'
 import { getResourcePath } from '../utils/resources-path'
 
@@ -88,6 +88,23 @@ export function initSpriteHandlers(_win: BrowserWindow) {
     return Array.from(map.values())
   })
 
+  ipcMain.handle('sprite:listByEvent', async (_e, payload: { eventType?: SpriteAnimation['meta']['eventType'] }) => {
+    const { eventType } = payload || {}
+    const all = await (ipcMain as any).invoke?.('sprite:list')?.catch?.(() => undefined)
+    if (Array.isArray(all)) {
+      if (!eventType) return all
+      return all.filter((s: SpriteAnimation) => s.meta?.eventType === eventType)
+    }
+    // fallback manual list
+    const [defDir, userDir] = await Promise.all([getDefaultSpritesDir(), getUserSpritesDir()])
+    const [defIdx, userIdx] = await Promise.all([readIndex(defDir), readIndex(userDir)])
+    const map = new Map<string, SpriteAnimation>()
+    for (const it of defIdx.items) map.set(it.meta.id, it)
+    for (const it of userIdx.items) map.set(it.meta.id, it)
+    const arr = Array.from(map.values())
+    return eventType ? arr.filter(a => a.meta?.eventType === eventType) : arr
+  })
+
   ipcMain.handle('sprite:get', async (_e, payload: { id: string }) => {
     const [defDir, userDir] = await Promise.all([getDefaultSpritesDir(), getUserSpritesDir()])
     const [defIdx, userIdx] = await Promise.all([readIndex(defDir), readIndex(userDir)])
@@ -142,7 +159,7 @@ export function initSpriteHandlers(_win: BrowserWindow) {
     }
 
     const newItem: SpriteAnimation = {
-      meta: { id, title, description: anim.meta?.description, tags: anim.meta?.tags, coverSrc: anim.meta?.coverSrc },
+      meta: { id, title, description: anim.meta?.description, tags: anim.meta?.tags, coverSrc: anim.meta?.coverSrc, eventType: anim.meta?.eventType },
       source: { localPath: finalPath!, type: type || 'video/webm' },
       width: anim.width ?? 180,
       height: anim.height ?? 220,
@@ -182,5 +199,32 @@ export function initSpriteHandlers(_win: BrowserWindow) {
       }
     } catch {}
     return { ok: true }
+  })
+
+  ipcMain.handle('sprite:updateMeta', async (_e, payload: { id: string; meta: Partial<SpriteAnimation['meta']> }) => {
+    const { id, meta } = payload || ({} as any)
+    if (!id || !meta) return { ok: false }
+    const [defDir, userDir] = await Promise.all([getDefaultSpritesDir(), getUserSpritesDir()])
+    const [defIdx, userIdx] = await Promise.all([readIndex(defDir), readIndex(userDir)])
+    const userIndexItem = userIdx.items.find(i => i.meta.id === id)
+    if (userIndexItem) {
+      userIndexItem.meta = { ...userIndexItem.meta, ...meta, id: userIndexItem.meta.id }
+      await writeUserIndex(userIdx)
+      return { ok: true, item: userIndexItem }
+    }
+    const defItem = defIdx.items.find(i => i.meta.id === id)
+    if (defItem) {
+      // Create an override entry in user index (do not copy file; reference same localPath)
+      const newItem: SpriteAnimation = {
+        ...defItem,
+        meta: { ...defItem.meta, ...meta, id: defItem.meta.id },
+      }
+      const uIdx = await readIndex(userDir)
+      const existed = uIdx.items.findIndex(i => i.meta.id === id)
+      if (existed >= 0) uIdx.items.splice(existed, 1, newItem); else uIdx.items.push(newItem)
+      await writeUserIndex(uIdx)
+      return { ok: true, item: newItem }
+    }
+    return { ok: false }
   })
 }

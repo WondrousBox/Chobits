@@ -1,8 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import type { SpriteAnimation } from '@/types/sprite'
 import { Button } from '@/components/ui/button'
 import { makeResSrc } from '@/lib/resourceProtocol'
 import { TbPlayerPlay } from 'react-icons/tb'
+import type { SpriteAnimation, SpriteEventType } from '@/components/AIAssistant/messages/types'
+import { ALL_SPRITE_EVENT_TYPES, SpriteEventGroups, AdditionalSpriteEventGroups } from '@/components/AIAssistant/messages/types'
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
+import { Input } from '@/components/ui/input'
 
 function baseName(p: string) {
   const parts = p.replace(/\\/g, '/').split('/')
@@ -69,14 +72,28 @@ function SpritePreview({ src, type, width, height }: { src: string; type: string
 export default function SpriteManager() {
   const [list, setList] = useState<SpriteAnimation[]>([])
   const [loading, setLoading] = useState(false)
-  const [adding, setAdding] = useState(false)
-  // 去除“设为当前”功能后不再需要状态上下文
+  const [addingMap, setAddingMap] = useState<Record<string, boolean>>({}) // 某分类中的添加状态
+  const [categories, setCategories] = useState<string[]>([]) // 事件分类列表
+  const [activeAddCat, setActiveAddCat] = useState<string | null>(null) // 当前触发的添加分类（用于弹窗后回填）
+  const [query, setQuery] = useState('') // 搜索框
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({}) // 分类折叠状态
+  const [globalCat, setGlobalCat] = useState<string>('') // 全局导入选择的分类
+  // 默认的内置分类：使用全部预设事件类型（不包含 custom）
+  const BUILTIN = React.useMemo(() => ALL_SPRITE_EVENT_TYPES.filter(c => c !== 'custom'), [])
 
   const refresh = async () => {
     setLoading(true)
     try {
       const items = await window.YUA.sprite.list()
       setList(items || [])
+      // 统计分类（meta.eventType）
+      const setCat = new Set<string>()
+      for (const it of items || []) {
+        if (it.meta?.eventType) setCat.add(it.meta.eventType)
+      }
+      // 合并内置分类，保持稳定顺序
+      const merged = [...BUILTIN, ...Array.from(setCat).filter(c => !BUILTIN.includes(c))]
+      setCategories(merged)
     } catch (e) {
       console.warn('sprite:list failed', e)
     } finally {
@@ -86,9 +103,11 @@ export default function SpriteManager() {
 
   useEffect(() => { refresh() }, [])
 
-  const onImport = async () => {
+  const onImport = async (eventType?: string) => {
     try {
-      setAdding(true)
+      const cat = eventType || activeAddCat || ''
+      setActiveAddCat(cat || null)
+      setAddingMap(m => ({ ...m, [cat]: true }))
       const pick = await window.YUA.file['file:pickFile']({
         filters: [
           { name: 'Videos', extensions: ['webm', 'mp4', 'mov', 'mkv', 'ogg', 'ogv'] },
@@ -99,12 +118,13 @@ export default function SpriteManager() {
       if (pick.canceled || !pick.path) return
       const title = baseName(pick.path)
       const id = 'sprite-' + Math.random().toString(36).slice(2, 10)
-      await window.YUA.sprite.register({ filePath: pick.path, meta: { id, title } })
+      await window.YUA.sprite.register({ filePath: pick.path, meta: { id, title, eventType: cat || undefined } })
       await refresh()
     } catch (e) {
       console.warn('sprite:register failed', e)
     } finally {
-      setAdding(false)
+      setAddingMap(m => ({ ...m, [activeAddCat || '']: false }))
+      setActiveAddCat(null)
     }
   }
 
@@ -117,41 +137,173 @@ export default function SpriteManager() {
     }
   }
 
+  // 按分类分组
+  const filteredList = React.useMemo(() => {
+    if (!query.trim()) return list
+    const q = query.trim().toLowerCase()
+    return list.filter(it => {
+      return (
+        it.meta.title.toLowerCase().includes(q) ||
+        it.meta.id.toLowerCase().includes(q) ||
+        (it.meta.eventType?.toLowerCase().includes(q)) ||
+        (it.meta.tags?.some(t => t.toLowerCase().includes(q)))
+      )
+    })
+  }, [list, query])
+
+  const grouped: Record<string, SpriteAnimation[]> = {}
+  for (const it of filteredList) {
+    const cat = it.meta?.eventType || 'uncategorized'
+      ; (grouped[cat] ||= []).push(it)
+  }
+  // 基于原始 categories 顺序，只保留当前有条目的分类 (隐藏空分类)。如果搜索导致全部被过滤，fallback 显示“无结果”。
+  const allCategories = categories.filter(c => grouped[c]?.length) // 已有分类且非空
+  if (grouped['uncategorized']?.length && !allCategories.includes('uncategorized')) allCategories.push('uncategorized')
+  const hasAny = allCategories.length > 0
+
+  const toggleCollapse = (cat: string) => setCollapsed(m => ({ ...m, [cat]: !m[cat] }))
+
   return (
     <div className='h-full'>
       <div className='flex justify-between items-center px-2'>
         <div className='text-sm text-muted-foreground'>已注册动画：{list.length}</div>
-        <div className='flex gap-2'>
-          <Button size='sm' onClick={refresh} disabled={loading}>刷新</Button>
-          <Button size='sm' onClick={onImport} disabled={adding}>{adding ? '导入中…' : '导入视频'}</Button>
+        <div className='flex gap-2 items-center'>
+          <Input
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder='搜索 (名称 / ID / 分类 / 标签)'
+            className='h-8 w-48'
+          />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant='outline' size='sm' className='w-40 justify-between'>
+                {globalCat || '未分类'}
+                <span className='opacity-60 text-xs'>▼</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align='start' className='max-h-[460px]'>
+              <DropdownMenuItem onClick={() => setGlobalCat('')}>未分类</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>消息语义</DropdownMenuLabel>
+              {Object.entries(SpriteEventGroups).map(([group, items]) => (
+                <DropdownMenuSub key={group}>
+                  <DropdownMenuSubTrigger>{group}</DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    {items.map(ev => (
+                      <DropdownMenuItem key={ev} onClick={() => setGlobalCat(ev)}>{ev}</DropdownMenuItem>
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>扩展动画</DropdownMenuLabel>
+              {Object.entries(AdditionalSpriteEventGroups).map(([group, items]) => (
+                <DropdownMenuSub key={group}>
+                  <DropdownMenuSubTrigger>{group}</DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    {items.map(ev => (
+                      <DropdownMenuItem key={ev} onClick={() => setGlobalCat(ev)}>{ev}</DropdownMenuItem>
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setGlobalCat('')}>清除选择</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button size='sm' onClick={() => onImport(globalCat || undefined)} disabled={!!addingMap[globalCat || '']}>{addingMap[globalCat || ''] ? '导入中…' : '导入视频'}</Button>
+          <Button size='sm' variant='outline' onClick={refresh} disabled={loading}>刷新</Button>
         </div>
       </div>
 
-  {/* 防止窗口增高时 Grid 行被平均拉伸：content-start(items-start) 让多余空间留在容器底部 */}
-  <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 overflow-y-auto content-start items-start' style={{ height: 'calc(100% - 32px)' }}>
-        {list.map(item => {
-          const src = item.source?.localPath ? makeResSrc(item.source.localPath) : (item.source?.src || '')
-          const type = item.source?.type || 'video/webm'
-          return (
-            <div key={item.meta.id} className='bg-card border border-border rounded-lg p-3 flex gap-3'>
-              <div className='shrink-0'>
-                {src ? (
-                  <SpritePreview src={src} type={type} width={120} height={140} />
-                ) : (
-                  <div className='w-[120px] h-[140px] rounded-md bg-muted' />
-                )}
+      {/* 防止窗口增高时 Grid 行被平均拉伸：content-start(items-start) 让多余空间留在容器底部 */}
+      <div className='overflow-y-auto pr-1' style={{ height: 'calc(100% - 32px)' }}>
+        {hasAny ? allCategories.map(cat => (
+          <div key={cat} className='mb-4 last:mb-0 border border-border/40 rounded-md'>
+            <div className='flex items-center justify-between px-2 py-1 bg-muted/40 rounded-t-md'>
+              <div className='flex items-center gap-2'>
+                <button
+                  onClick={() => toggleCollapse(cat)}
+                  className='w-5 h-5 flex items-center justify-center rounded hover:bg-background/50 text-xs border border-border/50'
+                  aria-label={collapsed[cat] ? '展开分类' : '折叠分类'}
+                >{collapsed[cat] ? '+' : '-'}</button>
+                <div className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>{cat === 'uncategorized' ? '未分类' : cat}</div>
+                <div className='text-[10px] text-muted-foreground/70'>({grouped[cat]?.length || 0})</div>
               </div>
-              <div className='flex-1 min-w-0 flex flex-col gap-2'>
-                <div className='font-medium text-foreground truncate'>{item.meta.title || item.meta.id}</div>
-                <div className='text-xs text-muted-foreground truncate'>{item.meta.id}</div>
-                <div className='text-xs text-muted-foreground truncate'>{item.width}x{item.height} · {item.source?.type}</div>
-                <div className='mt-auto flex gap-2'>
-                  <Button size='sm' variant='destructive' onClick={() => onRemove(item.meta.id)}>删除</Button>
-                </div>
+              <div className='flex items-center gap-2'>
+                <Button size='sm' variant='outline' onClick={() => onImport(cat)} disabled={addingMap[cat]}>{addingMap[cat] ? '导入中…' : '添加'}</Button>
               </div>
             </div>
-          )
-        })}
+            {!collapsed[cat] && (
+              <div className='p-2'>
+                <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 content-start items-start'>
+                  {grouped[cat]?.map(item => {
+                    const src = item.source?.localPath ? makeResSrc(item.source.localPath) : (item.source?.src || '')
+                    const type = item.source?.type || 'video/webm'
+                    return (
+                      <div key={item.meta.id} className='bg-card border border-border rounded-lg p-3 flex gap-3'>
+                        <div className='shrink-0'>
+                          {src ? (
+                            <SpritePreview src={src} type={type} width={120} height={140} />
+                          ) : (
+                            <div className='w-[120px] h-[140px] rounded-md bg-muted' />
+                          )}
+                        </div>
+                        <div className='flex-1 min-w-0 flex flex-col gap-2'>
+                          <div className='font-medium text-foreground truncate'>{item.meta.title || item.meta.id}</div>
+                          {item.meta.eventType && <div className='text-[10px] font-mono text-primary/70'>{item.meta.eventType}</div>}
+                          <div className='text-xs text-muted-foreground truncate'>{item.meta.id}</div>
+                          <div className='text-xs text-muted-foreground truncate'>{item.width}x{item.height} · {item.source?.type}</div>
+                          <div className='mt-auto flex gap-2'>
+                            {!item.meta.eventType && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button size='sm' variant='outline'>分类</Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent side='top' align='start'>
+                                  <DropdownMenuLabel>消息语义</DropdownMenuLabel>
+                                  {Object.entries(SpriteEventGroups).map(([group, items]) => (
+                                    <DropdownMenuSub key={group}>
+                                      <DropdownMenuSubTrigger>{group}</DropdownMenuSubTrigger>
+                                      <DropdownMenuSubContent>
+                                        {items.map(ev => (
+                                          <DropdownMenuItem key={ev} onClick={async () => { await window.YUA.sprite.updateMeta(item.meta.id, { eventType: ev as SpriteEventType }); await refresh() }}>{ev}</DropdownMenuItem>
+                                        ))}
+                                      </DropdownMenuSubContent>
+                                    </DropdownMenuSub>
+                                  ))}
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuLabel>扩展动画</DropdownMenuLabel>
+                                  {Object.entries(AdditionalSpriteEventGroups).map(([group, items]) => (
+                                    <DropdownMenuSub key={group}>
+                                      <DropdownMenuSubTrigger>{group}</DropdownMenuSubTrigger>
+                                      <DropdownMenuSubContent>
+                                        {items.map(ev => (
+                                          <DropdownMenuItem key={ev} onClick={async () => { await window.YUA.sprite.updateMeta(item.meta.id, { eventType: ev as SpriteEventType }); await refresh() }}>{ev}</DropdownMenuItem>
+                                        ))}
+                                      </DropdownMenuSubContent>
+                                    </DropdownMenuSub>
+                                  ))}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
+                            <Button size='sm' variant='destructive' onClick={() => onRemove(item.meta.id)}>删除</Button>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                  {/* 分类尾部添加卡片 */}
+                  <div className='border border-dashed border-border/60 rounded-lg flex items-center justify-center p-4 min-h-[120px]'>
+                    <Button size='sm' onClick={() => onImport(cat)} disabled={addingMap[cat]} variant='ghost'>+ 添加{cat === 'uncategorized' ? '' : `（${cat}）`}</Button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )) : (
+          <div className='text-center text-xs text-muted-foreground py-8'>无匹配结果</div>
+        )}
       </div>
     </div>
   )

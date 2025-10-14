@@ -1,6 +1,5 @@
 // Helper functions for building URLs to custom resource protocol
-
-import { SpriteSource } from "@/types/sprite"
+import type { SpriteAnimation } from '@/components/AIAssistant/messages/types'
 
 export function makeResSrc(absPath: string) {
   const forward = absPath.replace(/\\/g, '/')
@@ -25,7 +24,7 @@ export function isAudioFile(p?: string) {
   return /\.(mp3|wav|m4a|flac|ogg|opus)$/i.test(p)
 }
 
-export function resolveSpriteSrc(source: SpriteSource): { url: string; type?: string } {
+export function resolveSpriteSrc(source: SpriteAnimation['source']): { url: string; type?: string } {
   if (source.src) return { url: source.src, type: source.type }
   if (source.localPath) return { url: makeResSrc(source.localPath), type: source.type }
   // fallback（理论上不应触发）
