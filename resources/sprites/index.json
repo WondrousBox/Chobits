@@ -9,7 +9,8 @@
         "tags": [
           "idle",
           "default"
-        ]
+        ],
+        "eventType": "idle"
       },
       "source": {
         "localPath": "./idle.webm",
