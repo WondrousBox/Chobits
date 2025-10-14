@@ -11,6 +11,9 @@
     }
   ],
   "cSpell.words": [
-    "Chobits"
+    "Chobits",
+    "ffprobe",
+    "huggingface",
+    "ytdlp"
   ]
 }
