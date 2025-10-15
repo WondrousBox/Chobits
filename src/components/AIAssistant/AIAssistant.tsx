@@ -16,6 +16,8 @@ import useFileDrop from './hooks/useFileDrop'
 import DragProgressIndicator from './ui/DragProgressIndicator'
 import StatusIndicator from './ui/StatusIndicator'
 import PaddingDebugOverlay from './ui/PaddingDebugOverlay'
+import useSpriteEventController from './hooks/useSpriteEventController'
+import { dispatchSpriteEvent } from './events/spriteEvents'
 
 export const AIAssistant: React.FC = () => {
   const { padding: paddingState, screenSize, messageState, setMessageState } = useAssistantInit()
@@ -23,10 +25,11 @@ export const AIAssistant: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null)
   const { setClickThrough } = useClickThrough(containerRef, [])
   const { animateMoveWindow, stopWalking, isWalking } = useWalkAnimation()
+  useSpriteEventController()
   const { bind: dragBind, isDragging, isDragReady, dragProgress } = useDragMove(containerRef, {
     screenSize,
     padding: paddingState,
-    onHoldStart: () => setMessageState('hold'),
+    onHoldStart: () => { setMessageState('hold'); dispatchSpriteEvent('hold:start') },
     onDragStateChange: (dragging) => {
       if (dragging) setClickThrough(false)
     }
@@ -37,6 +40,7 @@ export const AIAssistant: React.FC = () => {
   const handleClick = () => {
     stopWalking()
     setMessageState('click')
+    dispatchSpriteEvent('click')
   }
 
   // keep dev vector probe to preserve previous behavior
@@ -64,10 +68,36 @@ export const AIAssistant: React.FC = () => {
     window.YUA.window.openMenuWindow()
   }
 
+  // drive sprite states from drag/walk flags
+  React.useEffect(() => {
+    if (isDragging) {
+      dispatchSpriteEvent('drag:start')
+    } else if (isWalking) {
+      dispatchSpriteEvent('walk:start')
+    } else {
+      dispatchSpriteEvent('idle')
+    }
+  }, [isDragging, isWalking])
+
+  // reflect file drag-over on sprite
+  React.useEffect(() => {
+    if (isFileDragOver) {
+      dispatchSpriteEvent('drag:start')
+    } else if (!isDragging && !isWalking) {
+      dispatchSpriteEvent('idle')
+    }
+  }, [isFileDragOver, isDragging, isWalking])
+
+  const onDropFiles = React.useCallback(async (files: any) => {
+    dispatchSpriteEvent('drop')
+    await handleDropFiles(files)
+  }, [handleDropFiles])
+
   React.useEffect(() => {
     const onMenuCommand = (_: any, action: string) => {
       if (action === 'toggle-walk') {
         stopWalking()
+        dispatchSpriteEvent('idle')
       } else if (action === 'walk-once') {
         ; (async () => {
           stopWalking()
@@ -78,7 +108,10 @@ export const AIAssistant: React.FC = () => {
           const maxY = size.height - ASSISTANT_HEIGHT - paddingState
           const targetX = Math.random() * (maxX - minX) + minX
           const targetY = Math.random() * (maxY - minY) + minY
+          dispatchSpriteEvent('walk:start')
           await animateMoveWindow(targetX, targetY)
+          dispatchSpriteEvent('walk:end')
+          dispatchSpriteEvent('idle')
         })()
       }
     }
@@ -123,7 +156,7 @@ export const AIAssistant: React.FC = () => {
       <Dropzone
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
-        onDropFiles={handleDropFiles}
+        onDropFiles={onDropFiles}
         customDropzoneInside={<div className="flex items-center justify-center absolute top-2 left-1/2 -translate-x-1/2 p-1 rounded-md bg-primary text-primary-foreground text-xs whitespace-nowrap z-10">{Messages.t('drag')}</div>}
       >
         <VideoSprite />
