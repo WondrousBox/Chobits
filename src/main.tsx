@@ -1,7 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
-import { SpritePlayerProvider } from '@/context/SpritePlayerContext'
+import { SpritePlayerProvider } from '@/components/AIAssistant/context/SpritePlayerContext'
 
 import './index.scss'
 
