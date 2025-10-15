@@ -265,6 +265,10 @@ export function initWindowHandlers(win: BrowserWindow) {
             // 菜单显示前暂停主窗口悬停监控，避免期间进行鼠标穿透计算
             stopHoverMonitor()
             w!.show()
+            // macOS: the first show may cause bounds/layout adjustments; re-align once after show
+            if (process.platform === 'darwin') {
+              setTimeout(() => { try { windowManager.updateFollowerPositionsManually() } catch { } }, 0)
+            }
           } catch { }
         })
         // 使用新的窗口管理器跟随功能

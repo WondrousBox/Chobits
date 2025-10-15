@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { makeResSrc } from '@/lib/resourceProtocol'
-import { TbPlayerPlay, TbTrash } from 'react-icons/tb'
+import { TbTrash } from 'react-icons/tb'
 import type { SpriteAnimation, SpriteEventType } from '@/components/AIAssistant/messages/types'
 import { ALL_SPRITE_EVENT_TYPES, SpriteEventGroups, AdditionalSpriteEventGroups } from '@/components/AIAssistant/messages/types'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'

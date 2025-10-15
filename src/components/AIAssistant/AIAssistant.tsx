@@ -16,6 +16,9 @@ let MOVEMENT_MODE: 'stepped' | 'smooth' = 'stepped'
 let STEP_GRID = 12
 let PATH_CURVE_FACTOR = 0.15
 let ASSISTANT_PADDING = 100 // runtime dynamic padding (state mirror below)
+
+// Debug overlay toggle for padding boundary
+const showPaddingDebug = false // debug overlay toggle
 export const AIAssistant: React.FC = () => {
   // Remove fixed PADDING; derive everything from paddingState
   const [paddingState, setPadding] = useState(ASSISTANT_PADDING)
@@ -27,8 +30,6 @@ export const AIAssistant: React.FC = () => {
   const [isFileDragOver, setIsFileDragOver] = useState(false)
   const [isDragReady, setIsDragReady] = useState(false)
   const [dragProgress, setDragProgress] = useState(0)
-  // Debug overlay toggle for padding boundary
-  const [showPaddingDebug, setShowPaddingDebug] = useState(true)
   const dragCounterRef = useRef(0)
   const dragTimerRef = useRef<NodeJS.Timeout | null>(null)
   const dragStartTimeRef = useRef<number>(0)
@@ -274,7 +275,7 @@ export const AIAssistant: React.FC = () => {
     // 开始拖拽准备定时器
     dragTimerRef.current = setInterval(() => {
       const elapsed = Date.now() - dragStartTimeRef.current
-      const progress = Math.min(elapsed / 500, 1) // 1秒
+      const progress = Math.min(elapsed / 250, 1) // 1秒
       setDragProgress(progress)
 
       if (progress >= 1) {
@@ -598,9 +599,9 @@ export const AIAssistant: React.FC = () => {
         fixed w-[180px] h-[220px] select-none z-[9999] 
         transition-transform duration-300 ease-in-out
         top-[100px] left-[100px] pointer-events-auto
-        ${isDragReady ? 'cursor-grabbing' : dragProgress > 0 ? 'cursor-wait' : 'cursor-grab'}
+        ${isDragReady ? 'cursor-grabbing' : dragProgress > 0 ? '' : 'cursor-grab'}
         ${isFileDragOver ? 'outline-2 outline-dashed outline-indigo-500/60 outline-offset-[6px] shadow-[0_0_0_6px_rgba(99,102,241,0.15)_inset,0_12px_35px_rgba(99,102,241,0.25)]' : ''}
-        ${dragProgress > 0 ? 'ring-2 ring-blue-500/50 ring-offset-2' : ''}
+        ${dragProgress > 0 ? 'opacity-70' : ''}
       `}
       onMouseDown={handleMouseDown}
       onContextMenu={handleContextMenu}
@@ -656,7 +657,7 @@ export const AIAssistant: React.FC = () => {
       )}
 
       {/* 状态指示器 */}
-      <div className="absolute -bottom-[10px] -right-[10px] w-[30px] h-[30px] bg-white/90 border-2 border-indigo-500 rounded-full flex items-center justify-center text-sm shadow-[0_2px_10px_rgba(0,0,0,0.1)]">
+      <div className="absolute top-0 right-[10px] w-[30px] h-[30px] bg-white/90 border-2 border-indigo-500 rounded-full flex items-center justify-center text-sm shadow-[0_2px_10px_rgba(0,0,0,0.1)]">
         {isDragging ? '🫴' : isWalking ? '🚶‍♀️' : '😊'}
       </div>
     </div>
