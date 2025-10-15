@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { bezierQ, clamp, lerp } from '@/utils/helpers'
-import VideoSprite from './sprites'
+import VideoSprite from './VideoSprite'
 import Messages, { MessageBubble } from './messages'
-import type { MessageCategory, MessageContext } from "./messages"
+import type { MessageCategory } from "./messages"
 import Dropzone from '../common/Dropzone'
 import { SelectedResourceFileType } from '@/types'
 
