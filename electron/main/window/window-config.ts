@@ -106,14 +106,14 @@ export const windowConfigs: WindowConfigMap = {
       alwaysOnTop: true,
       skipTaskbar: true,
       show: false,
+      // On macOS, window shadow adds margins to getBounds(). Disable to improve visual alignment.
+      ...(process.platform === 'darwin' ? { hasShadow: false as const } : {}),
       backgroundColor: '#00000000',
       webPreferences: { nodeIntegration: true, contextIsolation: true },
     },
   },
   settings: {
     routeHash: 'settings',
-    parent: 'main',
-    autoCenterOn: 'parent-display',
     showOnReady: false,
     openDevTools: true,
     options: {

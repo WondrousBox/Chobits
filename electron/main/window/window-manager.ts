@@ -182,15 +182,23 @@ export class WindowManager {
       if (!config || config.followMain !== true) return
       
       const windowBounds = window.getBounds()
+      // On macOS, getBounds includes the shadow; for overlap-center we want content size to align visually
+      const contentBounds = (() => {
+        try { return window.getContentBounds() } catch { return windowBounds }
+      })()
       
       // 使用窗口特定的跟随偏好模式，如果没有配置则使用默认值
       const preferMode = config.followerPreferMode || 'prefer-right'
       const forceCenterAlignment = config.forceCenterAlignment || false
       
       // 使用智能位置计算逻辑
+      const followerSize = (process.platform === 'darwin' || preferMode === 'overlap-center')
+        ? { width: contentBounds.width, height: contentBounds.height }
+        : { width: windowBounds.width, height: windowBounds.height }
+
       const position = computeFollowerPosition(
         mainBounds,
-        { width: windowBounds.width, height: windowBounds.height },
+        followerSize,
         preferMode,
         this.assistantPadding,
         forceCenterAlignment
@@ -404,6 +412,15 @@ export class WindowManager {
           saveWindowState(w, key)
         }
       })
+    } catch { }
+
+    // Ensure follower windows are re-aligned after show on macOS (position may adjust when shown)
+    try {
+      if (conf.followMain === true) {
+        w.on('show', () => {
+          try { this.updateFollowerPositions() } catch { }
+        })
+      }
     } catch { }
 
     // 监听窗口大小和位置变化，保存状态
