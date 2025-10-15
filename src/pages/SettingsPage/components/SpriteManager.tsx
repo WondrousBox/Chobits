@@ -44,7 +44,7 @@ function SpritePreview({ src, type, width, height }: { src: string; type: string
 
   return (
     <div
-      className='group relative inline-block rounded-md overflow-hidden select-none transition hover:ring-2 hover:ring-primary/70 hover:shadow-md ring-offset-1'
+      className='group relative inline-block rounded-md overflow-hidden select-none transition cursor-pointer'
       style={{ width, height }}
       onMouseEnter={handleEnter}
       onMouseLeave={handleLeave}
@@ -62,9 +62,6 @@ function SpritePreview({ src, type, width, height }: { src: string; type: string
       >
         <source src={src} type={type} />
       </video>
-      <div className='pointer-events-none absolute bottom-1 right-1 rounded bg-black/55 px-1.5 py-[2px] text-[10px] leading-none text-white opacity-0 group-hover:opacity-100 transition-opacity'>
-        <TbPlayerPlay className='w-4 h-4' />
-      </div>
     </div>
   )
 }
@@ -223,11 +220,13 @@ export default function SpriteManager() {
           <div key={cat} className='mb-4 last:mb-0 border border-border/40 rounded-md'>
             <div className='flex items-center justify-between px-2 py-1 bg-muted/40 rounded-t-md'>
               <div className='flex items-center gap-2'>
-                <button
+                <Button
+                  size={"icon"}
+                  className='w-8 h-8'
                   onClick={() => toggleCollapse(cat)}
-                  className='w-5 h-5 flex items-center justify-center rounded hover:bg-background/50 text-xs border border-border/50'
                   aria-label={collapsed[cat] ? '展开分类' : '折叠分类'}
-                >{collapsed[cat] ? '+' : '-'}</button>
+                  variant={"outline"}
+                >{collapsed[cat] ? '+' : '-'}</Button>
                 <div className='text-xs font-semibold uppercase tracking-wide text-muted-foreground'>{cat === 'uncategorized' ? '未分类' : cat}</div>
                 <div className='text-[10px] text-muted-foreground/70'>({grouped[cat]?.length || 0})</div>
               </div>
@@ -244,7 +243,7 @@ export default function SpriteManager() {
                   {grouped[cat]?.map(item => {
                     const src = item.source?.localPath ? makeResSrc(item.source.localPath) : (item.source?.src || '')
                     const type = item.source?.type || 'video/webm'
-                      const PW = 200, PH = 240 // 基础预览尺寸（列最小宽 200 时刚好贴合）
+                    const PW = 200, PH = 240 // 基础预览尺寸（列最小宽 200 时刚好贴合）
                     return (
                       <div key={item.meta.id} className='group bg-card border border-border rounded-lg flex flex-col gap-2 w-full max-w-[220px] shadow-sm hover:shadow-md transition-shadow'>
                         <div className='relative rounded-md overflow-hidden flex justify-center'>
@@ -254,16 +253,51 @@ export default function SpriteManager() {
                             <div style={{ width: PW, height: PH }} className='rounded-md bg-muted' />
                           )}
                           {/* 顶部右上角删除按钮（hover 显示） */}
-                          <div className='absolute top-1 right-1 z-20 opacity-0 group-hover:opacity-100 transition-opacity'>
+                          <div className='absolute top-1 right-1 z-20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1'>
+                            {!item.meta.eventType && (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button size='sm' variant='outline'>分类</Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent side='top' align='start'>
+                                  <DropdownMenuLabel>消息语义</DropdownMenuLabel>
+                                  {Object.entries(SpriteEventGroups).map(([group, items]) => (
+                                    <DropdownMenuSub key={group}>
+                                      <DropdownMenuSubTrigger>{group}</DropdownMenuSubTrigger>
+                                      <DropdownMenuSubContent>
+                                        {items.map(ev => (
+                                          <DropdownMenuItem key={ev} onClick={async () => { await window.YUA.sprite.updateMeta(item.meta.id, { eventType: ev as SpriteEventType }); await refresh() }}>{ev}</DropdownMenuItem>
+                                        ))}
+                                      </DropdownMenuSubContent>
+                                    </DropdownMenuSub>
+                                  ))}
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuLabel>扩展动画</DropdownMenuLabel>
+                                  {Object.entries(AdditionalSpriteEventGroups).map(([group, items]) => (
+                                    <DropdownMenuSub key={group}>
+                                      <DropdownMenuSubTrigger>{group}</DropdownMenuSubTrigger>
+                                      <DropdownMenuSubContent>
+                                        {items.map(ev => (
+                                          <DropdownMenuItem key={ev} onClick={async () => { await window.YUA.sprite.updateMeta(item.meta.id, { eventType: ev as SpriteEventType }); await refresh() }}>{ev}</DropdownMenuItem>
+                                        ))}
+                                      </DropdownMenuSubContent>
+                                    </DropdownMenuSub>
+                                  ))}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
+
                             <Button
                               size='icon'
                               variant='destructive'
-                              className='h-7 w-7 p-0 shadow hover:scale-105 transition'
+                              className='w-8 h-8'
                               title='删除'
                               onClick={() => onRemove(item.meta.id)}
                             >
                               <TbTrash className='h-4 w-4' />
                             </Button>
+
+
                           </div>
                           {/* 信息覆盖层：默认显示，hover 隐藏 */}
                           <div className='pointer-events-none absolute inset-0 flex flex-col justify-end p-3 bg-gradient-to-t from-black/70 via-black/30 to-transparent text-white opacity-100 group-hover:opacity-0 transition-opacity duration-200'>
@@ -273,45 +307,10 @@ export default function SpriteManager() {
                             {item.meta.eventType && (
                               <div className='mt-1 text-[10px] inline-block px-1 py-[1px] rounded bg-primary/70 text-white w-fit'>{item.meta.eventType}</div>
                             )}
-                          {/* 结束覆盖层 */}
+                            {/* 结束覆盖层 */}
                           </div>
                           {/* 结束相对容器 */}
                         </div>
-                        {/* 操作区：仅在需要分类时显示 */}
-                        {!item.meta.eventType && (
-                          <div className='flex items-center gap-2'>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button size='sm' variant='outline'>分类</Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent side='top' align='start'>
-                                <DropdownMenuLabel>消息语义</DropdownMenuLabel>
-                                {Object.entries(SpriteEventGroups).map(([group, items]) => (
-                                  <DropdownMenuSub key={group}>
-                                    <DropdownMenuSubTrigger>{group}</DropdownMenuSubTrigger>
-                                    <DropdownMenuSubContent>
-                                      {items.map(ev => (
-                                        <DropdownMenuItem key={ev} onClick={async () => { await window.YUA.sprite.updateMeta(item.meta.id, { eventType: ev as SpriteEventType }); await refresh() }}>{ev}</DropdownMenuItem>
-                                      ))}
-                                    </DropdownMenuSubContent>
-                                  </DropdownMenuSub>
-                                ))}
-                                <DropdownMenuSeparator />
-                                <DropdownMenuLabel>扩展动画</DropdownMenuLabel>
-                                {Object.entries(AdditionalSpriteEventGroups).map(([group, items]) => (
-                                  <DropdownMenuSub key={group}>
-                                    <DropdownMenuSubTrigger>{group}</DropdownMenuSubTrigger>
-                                    <DropdownMenuSubContent>
-                                      {items.map(ev => (
-                                        <DropdownMenuItem key={ev} onClick={async () => { await window.YUA.sprite.updateMeta(item.meta.id, { eventType: ev as SpriteEventType }); await refresh() }}>{ev}</DropdownMenuItem>
-                                      ))}
-                                    </DropdownMenuSubContent>
-                                  </DropdownMenuSub>
-                                ))}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        )}
                       </div>
                     )
                   })}
