@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { useSpritePlayer } from '@/context/SpritePlayerContext'
+import { useSpritePlayer } from '@/components/AIAssistant/context/SpritePlayerContext'
 import { resolveSpriteSrc } from '@/lib/resourceProtocol'
 
 export default function VideoSprite() {
