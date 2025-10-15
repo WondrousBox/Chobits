@@ -20,7 +20,6 @@ export function useDragMove(
   const { screenSize, padding, onHoldStart, onDragStateChange } = options
   const [isDragging, setIsDragging] = useState(false)
   const [isDragReady, setIsDragReady] = useState(false)
-  const [dragProgress, setDragProgress] = useState(0)
   const dragTimerRef = useRef<NodeJS.Timeout | null>(null)
   const dragStartTimeRef = useRef<number>(0)
   const dragOffset = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
@@ -30,14 +29,12 @@ export function useDragMove(
     e.preventDefault()
     if (dragTimerRef.current) { clearInterval(dragTimerRef.current); dragTimerRef.current = null }
     setIsDragReady(false)
-    setDragProgress(0)
     dragStartTimeRef.current = Date.now()
     dragOffset.current = { x: e.clientX, y: e.clientY }
 
     dragTimerRef.current = setInterval(() => {
       const elapsed = Date.now() - dragStartTimeRef.current
       const progress = Math.min(elapsed / 250, 1)
-      setDragProgress(progress)
       if (progress >= 1) {
         onHoldStart?.()
         setIsDragReady(true)
@@ -53,7 +50,6 @@ export function useDragMove(
     setIsDragging(false)
     onDragStateChange?.(false)
     setIsDragReady(false)
-    setDragProgress(0)
   }, [onDragStateChange])
 
   const handleMouseMove = useCallback(async (e: MouseEvent) => {
@@ -76,7 +72,7 @@ export function useDragMove(
 
   // global listeners during dragging
   useEffect(() => {
-    if (isDragging || dragProgress > 0) {
+    if (isDragging) {
       const up = (e: MouseEvent) => handleMouseUp()
       document.addEventListener('mousemove', handleMouseMove)
       document.addEventListener('mouseup', up)
@@ -85,11 +81,11 @@ export function useDragMove(
         document.removeEventListener('mouseup', up)
       }
     }
-  }, [isDragging, dragProgress, handleMouseMove, handleMouseUp])
+  }, [isDragging, handleMouseMove, handleMouseUp])
 
   useEffect(() => () => { if (dragTimerRef.current) { clearInterval(dragTimerRef.current); dragTimerRef.current = null } }, [])
 
-  return { bind: { onMouseDown: handleMouseDown }, isDragging, isDragReady, dragProgress }
+  return { bind: { onMouseDown: handleMouseDown }, isDragging, isDragReady }
 }
 
 export default useDragMove

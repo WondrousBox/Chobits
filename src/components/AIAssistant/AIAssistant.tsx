@@ -13,7 +13,6 @@ import useClickThrough from './hooks/useClickThrough'
 import useDragMove from './hooks/useDragMove'
 import useWalkAnimation from './hooks/useWalkAnimation'
 import useFileDrop from './hooks/useFileDrop'
-import DragProgressIndicator from './ui/DragProgressIndicator'
 import StatusIndicator from './ui/StatusIndicator'
 import PaddingDebugOverlay from './ui/PaddingDebugOverlay'
 import useSpriteEventController from './hooks/useSpriteEventController'
@@ -161,8 +160,6 @@ export const AIAssistant: React.FC = () => {
       >
         <VideoSprite />
       </Dropzone>
-
-      <DragProgressIndicator progress={dragProgress} />
 
       <StatusIndicator isDragging={isDragging} isWalking={isWalking} />
     </div>
