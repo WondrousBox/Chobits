@@ -2,7 +2,7 @@
  * useDragMove
  * - 负责：长按进入拖拽，拖动时移动 Electron 窗口并保持助手可见；含 30fps IPC 节流。
  * - 输入：{ screenSize, padding, onHoldStart?, onDragStateChange? }
- * - 返回：{ bind: { onMouseDown }, isDragging, isDragReady, dragProgress }
+ * - 返回：{ bind: { onMouseDown }, isDragging, isDragReady }
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { clamp } from '@/utils/helpers'
@@ -26,27 +26,25 @@ export function useDragMove(
   const lastIpcSendRef = useRef(0)
 
   const handleMouseDown = (e: React.MouseEvent) => {
+    // Only respond to left-click; ignore right/middle clicks
+    if (e.button !== 0) return
     e.preventDefault()
-    if (dragTimerRef.current) { clearInterval(dragTimerRef.current); dragTimerRef.current = null }
+    if (dragTimerRef.current) { clearTimeout(dragTimerRef.current); dragTimerRef.current = null }
     setIsDragReady(false)
     dragStartTimeRef.current = Date.now()
     dragOffset.current = { x: e.clientX, y: e.clientY }
 
-    dragTimerRef.current = setInterval(() => {
-      const elapsed = Date.now() - dragStartTimeRef.current
-      const progress = Math.min(elapsed / 250, 1)
-      if (progress >= 1) {
-        onHoldStart?.()
-        setIsDragReady(true)
-        setIsDragging(true)
-        onDragStateChange?.(true)
-        if (dragTimerRef.current) { clearInterval(dragTimerRef.current); dragTimerRef.current = null }
-      }
-    }, 16)
+    dragTimerRef.current = setTimeout(() => {
+      onHoldStart?.()
+      setIsDragReady(true)
+      setIsDragging(true)
+      onDragStateChange?.(true)
+      if (dragTimerRef.current) { clearTimeout(dragTimerRef.current); dragTimerRef.current = null }
+    }, 250)
   }
 
   const handleMouseUp = useCallback(() => {
-    if (dragTimerRef.current) { clearInterval(dragTimerRef.current); dragTimerRef.current = null }
+    if (dragTimerRef.current) { clearTimeout(dragTimerRef.current); dragTimerRef.current = null }
     setIsDragging(false)
     onDragStateChange?.(false)
     setIsDragReady(false)
@@ -83,7 +81,7 @@ export function useDragMove(
     }
   }, [isDragging, handleMouseMove, handleMouseUp])
 
-  useEffect(() => () => { if (dragTimerRef.current) { clearInterval(dragTimerRef.current); dragTimerRef.current = null } }, [])
+  useEffect(() => () => { if (dragTimerRef.current) { clearTimeout(dragTimerRef.current); dragTimerRef.current = null } }, [])
 
   return { bind: { onMouseDown: handleMouseDown }, isDragging, isDragReady }
 }

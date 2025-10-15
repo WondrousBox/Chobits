@@ -3,7 +3,7 @@
  * - 职责：拼装 UI（VideoSprite、MessageBubble、指示器）与行为 hooks（初始化、拖动、穿透、行走、文件拖拽）。
  * - 约束：不在此文件内编写复杂业务逻辑/IPC 调用，逻辑统一下沉到 hooks/services。
  */
-import React, { useRef } from 'react'
+import React, { useEffect, useRef } from 'react'
 import VideoSprite from './VideoSprite'
 import Messages, { MessageBubble } from './messages'
 import Dropzone from '../common/Dropzone'
@@ -25,7 +25,7 @@ export const AIAssistant: React.FC = () => {
   const { setClickThrough } = useClickThrough(containerRef, [])
   const { animateMoveWindow, stopWalking, isWalking } = useWalkAnimation()
   useSpriteEventController()
-  const { bind: dragBind, isDragging, isDragReady, dragProgress } = useDragMove(containerRef, {
+  const { bind: dragBind, isDragging, isDragReady } = useDragMove(containerRef, {
     screenSize,
     padding: paddingState,
     onHoldStart: () => { setMessageState('hold'); dispatchSpriteEvent('hold:start') },
@@ -43,7 +43,7 @@ export const AIAssistant: React.FC = () => {
   }
 
   // keep dev vector probe to preserve previous behavior
-  React.useEffect(() => {
+  useEffect(() => {
     // window.YUA.ffmpeg.playSprite()
     window.YUA.vector.insertVectors({
       items: [{
@@ -68,7 +68,7 @@ export const AIAssistant: React.FC = () => {
   }
 
   // drive sprite states from drag/walk flags
-  React.useEffect(() => {
+  useEffect(() => {
     if (isDragging) {
       dispatchSpriteEvent('drag:start')
     } else if (isWalking) {
@@ -79,7 +79,7 @@ export const AIAssistant: React.FC = () => {
   }, [isDragging, isWalking])
 
   // reflect file drag-over on sprite
-  React.useEffect(() => {
+  useEffect(() => {
     if (isFileDragOver) {
       dispatchSpriteEvent('drag:start')
     } else if (!isDragging && !isWalking) {
@@ -92,31 +92,51 @@ export const AIAssistant: React.FC = () => {
     await handleDropFiles(files)
   }, [handleDropFiles])
 
-  React.useEffect(() => {
-    const onMenuCommand = (_: any, action: string) => {
+  // --- 稳定订阅 menu-command，避免依赖变化导致重复绑定 ---
+  const screenSizeRef = useRef(screenSize)
+  const paddingRef = useRef(paddingState)
+  const animateMoveWindowRef = useRef(animateMoveWindow)
+  const stopWalkingRef = useRef(stopWalking)
+  const lastMenuActionAtRef = useRef<Record<string, number>>({})
+
+  useEffect(() => { screenSizeRef.current = screenSize }, [screenSize])
+  useEffect(() => { paddingRef.current = paddingState }, [paddingState])
+  useEffect(() => { animateMoveWindowRef.current = animateMoveWindow }, [animateMoveWindow])
+  useEffect(() => { stopWalkingRef.current = stopWalking }, [stopWalking])
+
+  useEffect(() => {
+    const onMenuCommand = async (_: any, action: string) => {
+      // 防抖/去重：忽略极短时间内的重复事件
+      const now = performance.now()
+      const last = lastMenuActionAtRef.current[action] || 0
+      if (now - last < 100) return
+      lastMenuActionAtRef.current[action] = now
+
       if (action === 'toggle-walk') {
-        stopWalking()
+        stopWalkingRef.current()
         dispatchSpriteEvent('idle')
-      } else if (action === 'walk-once') {
-        ; (async () => {
-          stopWalking()
-          const size = screenSize
-          const minX = -paddingState
-          const maxX = size.width - ASSISTANT_WIDTH - paddingState
-          const minY = -paddingState
-          const maxY = size.height - ASSISTANT_HEIGHT - paddingState
-          const targetX = Math.random() * (maxX - minX) + minX
-          const targetY = Math.random() * (maxY - minY) + minY
-          dispatchSpriteEvent('walk:start')
-          await animateMoveWindow(targetX, targetY)
-          dispatchSpriteEvent('walk:end')
-          dispatchSpriteEvent('idle')
-        })()
+        return
+      }
+
+      if (action === 'walk-once') {
+        const size = screenSizeRef.current
+        const padding = paddingRef.current
+        const minX = -padding
+        const maxX = size.width - ASSISTANT_WIDTH - padding
+        const minY = -padding
+        const maxY = size.height - ASSISTANT_HEIGHT - padding
+        const targetX = Math.random() * (maxX - minX) + minX
+        const targetY = Math.random() * (maxY - minY) + minY
+        dispatchSpriteEvent('walk:start')
+        await animateMoveWindowRef.current(targetX, targetY)
+        dispatchSpriteEvent('walk:end')
+        dispatchSpriteEvent('idle')
       }
     }
+
     window.ipcRenderer?.on('menu-command', onMenuCommand)
     return () => { window.ipcRenderer?.off('menu-command', onMenuCommand as any) }
-  }, [animateMoveWindow, screenSize, stopWalking, paddingState])
+  }, [])
 
   const walkEnabledRef = useRef(false)
 
@@ -127,9 +147,8 @@ export const AIAssistant: React.FC = () => {
         fixed w-[180px] h-[220px] select-none z-[9999] 
         transition-transform duration-300 ease-in-out
         top-[100px] left-[100px] pointer-events-auto
-        ${isDragReady ? 'cursor-grabbing' : dragProgress > 0 ? '' : 'cursor-grab'}
+        ${isDragReady ? 'cursor-grabbing opacity-70' : 'cursor-grab'}
         ${isFileDragOver ? 'outline-2 outline-dashed outline-indigo-500/60 outline-offset-[6px] shadow-[0_0_0_6px_rgba(99,102,241,0.15)_inset,0_12px_35px_rgba(99,102,241,0.25)]' : ''}
-        ${dragProgress > 0 ? 'opacity-70' : ''}
       `}
       onMouseDown={dragBind.onMouseDown}
       onContextMenu={handleContextMenu}
