@@ -12,6 +12,7 @@ import { initDatabaseHandlers } from './database';
 import { initVideoDownloadHandlers } from './video-download';
 import { initFolderHandlers } from './folder';
 import { initSpriteHandlers } from './sprite';
+import { initStatusHandlers } from './status';
 
 export function initHandlers(win: BrowserWindow) {
 
@@ -30,4 +31,5 @@ export function initHandlers(win: BrowserWindow) {
   initDatabaseHandlers(win);
   initVideoDownloadHandlers(win);
   initSpriteHandlers(win);
+  initStatusHandlers(win);
 }
