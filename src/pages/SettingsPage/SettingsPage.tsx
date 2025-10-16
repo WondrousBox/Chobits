@@ -232,7 +232,7 @@ export const SettingsPage: React.FC = () => {
       <div className='bg-card border border-border rounded-lg p-2'>
         <div className='text-md font-semibold text-foreground'>数据库</div>
         <div className='flex items-center justify-center gap-2 mt-2'>
-          <div className='px-3 py-2 bg-muted rounded-md text-sm text-muted-foreground flex-1'>用户数据目录/data/app.db</div>
+          <div className='px-3 py-2 bg-muted rounded-md text-sm text-muted-foreground flex-1'>用户数据目录/data/</div>
           <Button variant="outline" onClick={openDatabaseLocation}> <TbFolderOpen />打开位置</Button>
         </div>
       </div>
