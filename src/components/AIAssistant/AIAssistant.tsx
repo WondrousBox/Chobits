@@ -96,13 +96,11 @@ export const AIAssistant: React.FC = () => {
   const screenSizeRef = useRef(screenSize)
   const paddingRef = useRef(paddingState)
   const animateMoveWindowRef = useRef(animateMoveWindow)
-  const stopWalkingRef = useRef(stopWalking)
   const lastMenuActionAtRef = useRef<Record<string, number>>({})
 
   useEffect(() => { screenSizeRef.current = screenSize }, [screenSize])
   useEffect(() => { paddingRef.current = paddingState }, [paddingState])
   useEffect(() => { animateMoveWindowRef.current = animateMoveWindow }, [animateMoveWindow])
-  useEffect(() => { stopWalkingRef.current = stopWalking }, [stopWalking])
 
   useEffect(() => {
     const onMenuCommand = async (_: any, action: string) => {
@@ -111,12 +109,6 @@ export const AIAssistant: React.FC = () => {
       const last = lastMenuActionAtRef.current[action] || 0
       if (now - last < 100) return
       lastMenuActionAtRef.current[action] = now
-
-      if (action === 'toggle-walk') {
-        stopWalkingRef.current()
-        dispatchSpriteEvent('idle')
-        return
-      }
 
       if (action === 'walk-once') {
         const size = screenSizeRef.current

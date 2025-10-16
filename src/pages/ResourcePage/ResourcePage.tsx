@@ -230,7 +230,7 @@ const ResourcePage: React.FC = () => {
       <DragAbleTitle
         title={
           <div className='flex items-center gap-4'>
-            <h1 className='text-lg font-semibold'>资源管理</h1>
+            <h1 className='text-lg font-semibold'>资源库</h1>
             <span className='text-sm text-muted-foreground'>
               共 {filtered.length}/{list.length} 个资源
             </span>

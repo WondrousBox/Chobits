@@ -3,7 +3,7 @@ import { WorkspacesRepo, FoldersRepo } from '../db/repositories';
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 
-// 基于资源管理的上下文，复用默认工作空间根路径，按文件夹 ID 命名本地文件夹
+// 基于资源库的上下文，复用默认工作空间根路径，按文件夹 ID 命名本地文件夹
 export function initFolderHandlers(_win: BrowserWindow) {
   ipcMain.handle('folder.create', async (_event, payload: { name: string; parentId?: string | null; workspaceId?: string; description?: string }) => {
     const { name, parentId = null } = payload || ({} as any);

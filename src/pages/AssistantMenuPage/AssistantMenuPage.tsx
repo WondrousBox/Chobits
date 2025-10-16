@@ -20,11 +20,18 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
 
   const menuItems: MenuItem[] = [
     {
-      id: 'toggle-walk',
-      label: '暂停/继续 行走',
-      icon: '🕹️',
-      shortcut: 'a',
-      action: () => window.ipcRenderer?.send('menu-command', 'toggle-walk')
+      id: 'status',
+      label: '状态',
+      icon: '💬',
+      shortcut: 'i',
+      action: () => window.YUA.window.openFileListWindow([])
+    },
+    {
+      id: 'resources',
+      label: '资源库',
+      icon: '📚',
+      shortcut: 'r',
+      action: () => window.YUA.window.openWindow("resources")
     },
     {
       id: 'walk-once',
@@ -32,20 +39,6 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
       icon: '👣',
       shortcut: 'w',
       action: () => window.ipcRenderer?.send('menu-command', 'walk-once')
-    },
-    {
-      id: 'file-list',
-      label: '文件列表',
-      icon: '📁',
-      shortcut: 'f',
-      action: () => window.YUA.window.openFileListWindow([])
-    },
-    {
-      id: 'resources',
-      label: '资源管理',
-      icon: '📚',
-      shortcut: 'r',
-      action: () => window.YUA.window.openWindow("resources")
     },
     {
       id: 'recycle',
