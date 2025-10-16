@@ -1,5 +1,6 @@
 import { ipcMain, shell, app } from 'electron';
 import path from 'node:path';
+import { Env } from '../utils';
 
 export function initDatabaseHandlers(_win: Electron.BrowserWindow) {
   // 获取数据库路径
@@ -7,7 +8,7 @@ export function initDatabaseHandlers(_win: Electron.BrowserWindow) {
     try {
       const userDir = app.getPath('userData');
       const dbDir = path.join(userDir, 'data');
-      const dbPath = path.join(dbDir, 'app.db');
+      const dbPath = path.join(dbDir, Env.isDev() ? 'app-dev.db' : 'app.db');
       return { ok: true, path: dbPath, dir: dbDir };
     } catch (error) {
       return { ok: false, error: String(error) };

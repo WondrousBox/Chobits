@@ -11,6 +11,7 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { inArray } from 'drizzle-orm';
 import { documents } from './schema';
 import { binPathLog } from '../logger';
+import { Env } from '../utils';
 
 // We'll dynamically load the sqlite-vec extension (ship prebuilt per-platform binaries)
 
@@ -71,7 +72,7 @@ export function getDB() {
   const userDir = app.getPath('userData');
   const dbDir = path.join(userDir, 'data');
   ensureDir(dbDir);
-  const dbPath = path.join(dbDir, 'app.db');
+  const dbPath = path.join(dbDir,  Env.isDev() ? 'app-dev.db' : 'app.db');
   db = new (Database as any)(dbPath);
   // PRAGMA for performance (safe defaults)
   console.log("dbPath", dbPath);
