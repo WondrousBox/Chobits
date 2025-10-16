@@ -140,8 +140,19 @@ export class WindowManager {
   private followerAnimTo: { x: number; y: number } | null = null
   private followerAnimDur = 0
   private lastFollowerSide = new Map<WindowKey, FollowerSide | null>()
+  // Callbacks to control hover monitor from handlers
+  private onBeforeFollowerShow?: () => void
+  private onAfterFollowerHide?: () => void
 
-  init(mainWindow: BrowserWindow, options: { preloadPath?: string, assistantPadding?: number }) {
+  init(
+    mainWindow: BrowserWindow,
+    options: {
+      preloadPath?: string
+      assistantPadding?: number
+      onBeforeFollowerShow?: () => void
+      onAfterFollowerHide?: () => void
+    }
+  ) {
     this.mainWindow = mainWindow
     this.preloadPath = options.preloadPath || (mainWindow as any).__preloadPath
     
@@ -149,6 +160,9 @@ export class WindowManager {
     if (options.assistantPadding !== undefined) {
       this.assistantPadding = options.assistantPadding
     }
+    // 保存用于暂停/恢复 hover 监控的回调
+    this.onBeforeFollowerShow = options.onBeforeFollowerShow
+    this.onAfterFollowerHide = options.onAfterFollowerHide
     
     // 监听主窗口移动事件，自动更新跟随窗口位置
     this.setupMainWindowTracking()
@@ -292,6 +306,7 @@ export class WindowManager {
     let w = this.get(key)
     if (!w) w = await this.create(key)
     if (!w) return null
+    const conf = windowConfigs[key]
     if (payload) {
       // 等待 ready 后发送数据
       if (w.webContents.isLoading()) {
@@ -302,7 +317,15 @@ export class WindowManager {
         try { w.webContents.send('openWindowReadyData', payload) } catch { }
       }
     }
-    try { if (!w.isVisible()) w.show() } catch { }
+    try {
+      if (!w.isVisible()) {
+        if (conf?.preferShowInactive) {
+          try { w?.showInactive?.() } catch { try { w.show() } catch {} }
+        } else {
+          w.show()
+        }
+      }
+    } catch { }
     try { w.focus() } catch { }
     return w
   }
@@ -414,11 +437,31 @@ export class WindowManager {
       })
     } catch { }
 
-    // Ensure follower windows are re-aligned after show on macOS (position may adjust when shown)
+    // 在显示/隐藏时处理 hover 监控暂停/恢复，以及确保 macOS 上对齐
     try {
       if (conf.followMain === true) {
         w.on('show', () => {
-          try { this.updateFollowerPositions() } catch { }
+          try {
+            // 某些透明跟随窗口显示时需要暂停 hover 监控，避免穿透计算干扰
+            if (conf.suspendHoverMonitorOnShow) {
+              try { this.onBeforeFollowerShow?.() } catch {}
+            }
+            this.updateFollowerPositions()
+          } catch { }
+        })
+        w.on('hide', () => {
+          try {
+            if (conf.suspendHoverMonitorOnShow) {
+              try { this.onAfterFollowerHide?.() } catch {}
+            }
+          } catch { }
+        })
+        w.on('closed', () => {
+          try {
+            if (conf.suspendHoverMonitorOnShow) {
+              try { this.onAfterFollowerHide?.() } catch {}
+            }
+          } catch { }
         })
       }
     } catch { }
@@ -481,6 +524,29 @@ export class WindowManager {
       try { w.destroy() } catch { }
       this.registry.delete(key)
     }
+  }
+
+  /**
+   * 销毁所有窗口（可选排除指定 key）
+   * - 会调用 BrowserWindow.destroy()，并清理内部注册表/跟随集合/方向缓存
+   */
+  async destroyAll(exclude: WindowKey[] = []) {
+    const excludeSet = new Set<WindowKey>(exclude)
+    const entries = Array.from(this.registry.entries())
+    for (const [key, w] of entries) {
+      if (excludeSet.has(key)) continue
+      try {
+        if (w && !w.isDestroyed()) {
+          w.destroy()
+        }
+      } catch { }
+      // 清理内部状态
+      try { this.registry.delete(key) } catch { }
+      try { this.followerWindows.delete(key) } catch { }
+      try { this.lastFollowerSide.delete(key) } catch { }
+    }
+    // 停止可能残留的动画
+    try { this.stopFollowerAnimation() } catch { }
   }
 
   async show(key: WindowKey) {

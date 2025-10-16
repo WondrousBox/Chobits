@@ -35,7 +35,15 @@ export function useFileDrop(onStopWalking?: () => void, onClickThrough?: (enable
     setIsFileDragOver(false)
     onClickThrough?.(false)
     onStopWalking?.()
+    // 回退到原有逻辑
     await addResourcesFromDataTransfer(e.dataTransfer!)
+    try {
+      const files = Array.from(e.dataTransfer?.files || []) as any[]
+      const payload = files.map(f => ({ name: f.name, path: (f as any).path as string | undefined }))
+      if (payload.length) {
+        await window.YUA.window.openWindow('fileActionsMenu', { files: payload, source: 'drop' })
+      }
+    } catch { }
   }
 
   const handleDropFiles = async (files: SelectedResourceFileType[]) => {
@@ -43,7 +51,14 @@ export function useFileDrop(onStopWalking?: () => void, onClickThrough?: (enable
     setIsFileDragOver(false)
     onClickThrough?.(false)
     onStopWalking?.()
+    // 回退
     await addResourcesFromSelectedFiles(files)
+    try {
+      const payload = files.map(f => ({ name: f.name || (f.path ? (f.path.split(/[/\\]/).pop() || '') : ''), path: f.path }))
+      if (payload.length) {
+        await window.YUA.window.openWindow('fileActionsMenu', { files: payload, source: 'drop' })
+      }
+    } catch { }
   }
 
   return { isFileDragOver, handleDragEnter, handleDragLeave, handleDrop, handleDropFiles }

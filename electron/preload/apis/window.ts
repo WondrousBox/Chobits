@@ -22,12 +22,6 @@ type WindowBridgeParams = {
    * 设置窗口是否穿透点击
    */
   "setClickThrough": IPCParams<[boolean], boolean>;
-  /**
-   * 打开或更新文件跟随窗口
-   */
-  "openFileListWindow": IPCParams<[Array<{ name: string; path: string; isDirectory: boolean }>], boolean>;
-  /** 打开上下文菜单窗口 */
-  "openMenuWindow": IPCParams<[void], boolean>;
   "openWindow": IPCParams<[WindowKey, any?], boolean>;
   "openWindowReady": IPCParams<[WindowKey], boolean>;
   "getWindowPayload": IPCParams<[WindowKey], any>;
@@ -64,8 +58,6 @@ const methods: Array<keyof WindowBridgeParams> = [
   "setWindowSize",
   "getWindowSize",
   "setClickThrough",
-  "openFileListWindow",
-  "openMenuWindow",
   "openWindow",
   "openWindowReady",
   "getWindowPayload",
