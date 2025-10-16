@@ -1,7 +1,7 @@
 // import UpdateElectron from '@/components/update'
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AIAssistant } from './components/AIAssistant'
-import FileBox from './components/FileBox'
+import StatusPage from './pages/StatusPage/StatusPage'
 import AssistantMenuPage from './pages/AssistantMenuPage/AssistantMenuPage'
 import SettingsPage from './pages/SettingsPage/SettingsPage'
 import RecycleBinPage from './pages/RecycleBinPage/RecycleBinPage'
@@ -20,7 +20,7 @@ function App() {
       <div className="w-full h-full overflow-hidden">
         <Routes>
           <Route path="/" element={<AIAssistant />} />
-          <Route path="/filebox" element={<FileBox />} />
+          <Route path="/status" element={<StatusPage />} />
           <Route path="/menu" element={<AssistantMenuPage />} />
           <Route path="/file-actions" element={<FileActionsMenu />} />
           <Route path="/settings" element={<SettingsPage />} />

@@ -7,7 +7,7 @@ const MACOS_TRAFFIC_LIGHTS_HEIGHT = 16;
 export type FollowerPreferMode = 'auto' | 'prefer-right' | 'prefer-left' | 'prefer-bottom' | 'prefer-top' | 'overlap-center'
 
 export type WindowKey =
-  | 'fileList'
+  | 'status'
   | 'menu'
   | 'fileActionsMenu'
   | 'settings'
@@ -78,8 +78,8 @@ export interface WindowConfig {
 export type WindowConfigMap = Record<WindowKey, WindowConfig>
 
 export const windowConfigs: WindowConfigMap = {
-  fileList: {
-    routeHash: 'filebox',
+  status: {
+    routeHash: 'status',
     followMain: true,
     followerPreferMode: 'prefer-right',
     preferShowInactive: true,
