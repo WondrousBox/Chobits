@@ -12,6 +12,7 @@ import AssistantPage from './pages/AssistantPage/AssistantPage'
 import ModelPage from './pages/ModelPage/ModelPage'
 import ResourcePreviewWindow from '@/pages/ResourcePage/ResourcePreviewWindow'
 import DownloadFloating from '@/components/DownloadFloating'
+import FileActionsMenu from '@/pages/FileActionsMenu/FileActionsMenu'
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
           <Route path="/" element={<AIAssistant />} />
           <Route path="/filebox" element={<FileBox />} />
           <Route path="/menu" element={<AssistantMenuPage />} />
+          <Route path="/file-actions" element={<FileActionsMenu />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/workspace-wizard" element={<WorkspaceWizard />} />
           <Route path="/resources" element={<ResourcePage />} />

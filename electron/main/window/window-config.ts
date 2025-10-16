@@ -9,6 +9,7 @@ export type FollowerPreferMode = 'auto' | 'prefer-right' | 'prefer-left' | 'pref
 export type WindowKey =
   | 'fileList'
   | 'menu'
+  | 'fileActionsMenu'
   | 'settings'
   | 'workspaceWizard'
   | 'resources'
@@ -26,6 +27,14 @@ export interface WindowConfig {
   openDevTools?: boolean
   autoCenterOn?: 'parent-display' | 'primary-display' | 'none'
   closeOnBlur?: boolean
+  /**
+   * 当窗口显示时，是否临时暂停主窗口的 hover 监控（用于透明跟随窗口防止穿透干扰）
+   */
+  suspendHoverMonitorOnShow?: boolean
+  /**
+   * 当通过管理器显示窗口时，优先使用 showInactive（若可用），避免抢夺焦点。
+   */
+  preferShowInactive?: boolean
   /**
    * 窗口跟随配置
    * - true: 跟随主窗口移动
@@ -73,6 +82,7 @@ export const windowConfigs: WindowConfigMap = {
     routeHash: 'filebox',
     followMain: true,
     followerPreferMode: 'prefer-right',
+    preferShowInactive: true,
     parent: 'main',
     showOnReady: false,
     options: {
@@ -94,6 +104,7 @@ export const windowConfigs: WindowConfigMap = {
     followerPreferMode: 'overlap-center',
     enableOverlapTransparency: true,
     forceCenterAlignment: true,
+    suspendHoverMonitorOnShow: true,
     parent: 'main',
     closeOnBlur: true,
     showOnReady: false,
@@ -107,6 +118,30 @@ export const windowConfigs: WindowConfigMap = {
       skipTaskbar: true,
       show: false,
       // On macOS, window shadow adds margins to getBounds(). Disable to improve visual alignment.
+      ...(process.platform === 'darwin' ? { hasShadow: false as const } : {}),
+      backgroundColor: '#00000000',
+      webPreferences: { nodeIntegration: true, contextIsolation: true },
+    },
+  },
+  fileActionsMenu: {
+    routeHash: 'file-actions',
+    followMain: true,
+    followerPreferMode: 'overlap-center',
+    enableOverlapTransparency: true,
+    forceCenterAlignment: true,
+    suspendHoverMonitorOnShow: true,
+    parent: 'main',
+    closeOnBlur: true,
+    showOnReady: false,
+    options: {
+      width: 640,
+      height: 640,
+      frame: false,
+      transparent: true,
+      resizable: false,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      show: false,
       ...(process.platform === 'darwin' ? { hasShadow: false as const } : {}),
       backgroundColor: '#00000000',
       webPreferences: { nodeIntegration: true, contextIsolation: true },

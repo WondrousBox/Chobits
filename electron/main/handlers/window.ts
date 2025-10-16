@@ -24,11 +24,6 @@ function maybeOpenDevTools(w: BrowserWindow | null) {
 }
 
 export function initWindowHandlers(win: BrowserWindow) {
-  let fileListWindow: BrowserWindow | null = null
-  // New follower windows: context menu + settings
-  let menuWindow: BrowserWindow | null = null
-  let settingsWindow: BrowserWindow | null = null
-
   // Movement config persistence ------------------------------------------------
   type MovementConfig = { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number }
   const defaultConfig: MovementConfig = { walkSpeed: 500, fpsLimit: 30, movementMode: 'stepped', stepGrid: 12, pathCurveFactor: 0.15, assistantPadding: 100 }
@@ -85,13 +80,7 @@ export function initWindowHandlers(win: BrowserWindow) {
 
   // 主窗口关闭时统一销毁子窗口
   win.on('closed', () => {
-    [fileListWindow, menuWindow, settingsWindow]
-      .forEach(w => { try { w && !w.isDestroyed() && w.destroy() } catch { } });
-
-    fileListWindow = null;
-    menuWindow = null;
-    settingsWindow = null;
-    // stopFollowerAnimation 已迁移到窗口管理器中
+    windowManager.destroyAll();
     stopHoverMonitor()
   })
 
@@ -102,7 +91,9 @@ export function initWindowHandlers(win: BrowserWindow) {
   try {
     windowManager.init(win, {
       preloadPath: (win as any).__preloadPath,
-      assistantPadding: movementConfig.assistantPadding
+      assistantPadding: movementConfig.assistantPadding,
+      onBeforeFollowerShow: () => { try { stopHoverMonitor() } catch {} },
+      onAfterFollowerHide: () => { try { startHoverMonitor() } catch {} },
     })
   } catch { }
 
@@ -120,7 +111,7 @@ export function initWindowHandlers(win: BrowserWindow) {
     }
     // 广播更新
     try { win?.webContents.send('movement-config-updated', movementConfig) } catch { }
-    try { settingsWindow?.webContents.send('movement-config-updated', movementConfig) } catch { }
+    try { windowManager.get("settings")?.webContents.send('movement-config-updated', movementConfig) } catch { }
     return movementConfig
   })
 
@@ -227,70 +218,6 @@ export function initWindowHandlers(win: BrowserWindow) {
     }
   })
 
-  // ---------------- File List Follower Window ----------------
-  ipcMain.handle('openFileListWindow', async (_: IpcMainInvokeEvent, files: Array<{ name: string; path: string; isDirectory: boolean }>) => {
-    if (!win) return false
-    try {
-      let w = windowManager.get('fileList')
-      if (!w) {
-        w = await windowManager.create('fileList')
-        if (!w) return false
-        fileListWindow = w
-        w.once('ready-to-show', () => { try { w!.showInactive?.() } catch { } })
-        // 使用新的窗口管理器跟随功能
-        windowManager.updateFollowerPositionsManually()
-        maybeOpenDevTools(w)
-        w.on('closed', () => { fileListWindow = null; /* 动画清理已迁移到窗口管理器 */ })
-      } else {
-        fileListWindow = w
-        // 使用新的窗口管理器跟随功能
-        windowManager.updateFollowerPositionsManually()
-      }
-      try { (fileListWindow as any).showInactive?.() } catch { }
-      return true
-    } catch (e) { return false }
-  })
-
-  // ---------------- Context Menu Follower Window -------------
-  ipcMain.handle('openMenuWindow', async () => {
-    if (!win) return false
-    try {
-      let w = windowManager.get('menu')
-      if (!w) {
-        w = await windowManager.create('menu')
-        if (!w) return false
-        menuWindow = w
-        w.once('ready-to-show', () => {
-          try {
-            // 菜单显示前暂停主窗口悬停监控，避免期间进行鼠标穿透计算
-            stopHoverMonitor()
-            w!.show()
-            // macOS: the first show may cause bounds/layout adjustments; re-align once after show
-            if (process.platform === 'darwin') {
-              setTimeout(() => { try { windowManager.updateFollowerPositionsManually() } catch { } }, 0)
-            }
-          } catch { }
-        })
-        // 使用新的窗口管理器跟随功能
-        windowManager.updateFollowerPositionsManually()
-        // 菜单显示期间暂停监控，关闭/隐藏后恢复
-        w.on('show', () => { try { stopHoverMonitor() } catch { } })
-        w.on('hide', () => { try { startHoverMonitor() } catch { } })
-        w.on('closed', () => { menuWindow = null; try { startHoverMonitor() } catch { } })
-      } else {
-        menuWindow = w
-        // 使用新的窗口管理器跟随功能
-        windowManager.updateFollowerPositionsManually()
-        try { stopHoverMonitor() } catch { }
-      }
-      // 如果已存在且 ready，直接显示
-      if (menuWindow && menuWindow.isVisible()) menuWindow.focus(); else try { stopHoverMonitor(); menuWindow?.show() } catch { }
-      return true
-    } catch { return false }
-  })
-
-  // ---------------- Settings Window (独立配置窗口) ------------
-
   ipcMain.handle('suggestWorkspacePath', async () => getSuggestWorkspacePath())
 
   // ---------------- Menu Command (转发给主渲染) ---------------
@@ -298,9 +225,6 @@ export function initWindowHandlers(win: BrowserWindow) {
     switch (action) {
       case 'quit-app':
         try { app.quit() } catch { }
-        return
-      case 'close-settings':
-        try { settingsWindow?.close() } catch { }
         return
       case 'walk-once':
         try { win?.webContents.send('menu-command', action) } catch { }
@@ -315,8 +239,8 @@ export function initWindowHandlers(win: BrowserWindow) {
     if (!win) return false
     try {
       if (payload) {
-        (globalThis as any).__lastResourcePreviewPayload = (globalThis as any).__lastResourcePreviewPayload || {};
-        (globalThis as any).__lastResourcePreviewPayload[key] = payload
+        (globalThis as any).__lastWindowPayload = ((globalThis as any).__lastWindowPayload || {});
+        (globalThis as any).__lastWindowPayload[key] = payload
       }
       await windowManager.createOrShow(key, payload)
       return true
@@ -327,13 +251,13 @@ export function initWindowHandlers(win: BrowserWindow) {
 
   ipcMain.handle('openWindowReady', (_: IpcMainInvokeEvent, key: WindowKey) => {
     try {
-      const payload = ((globalThis as any).__lastResourcePreviewPayload || {})[key]
+      const payload = ((globalThis as any).__lastWindowPayload || {})[key]
       if (payload) _.sender.send('openWindowReadyData', payload)
     } catch { }
   })
 
   ipcMain.handle('getWindowPayload', (_: IpcMainInvokeEvent, key: WindowKey) => {
-    try { return ((globalThis as any).__lastResourcePreviewPayload || {})[key] || null } catch { return null }
+    try { return ((globalThis as any).__lastWindowPayload || {})[key] || null } catch { return null }
   })
 
   ipcMain.handle('closeWindow', async (_: IpcMainInvokeEvent, key: WindowKey) => {

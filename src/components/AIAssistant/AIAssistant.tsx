@@ -64,7 +64,7 @@ export const AIAssistant: React.FC = () => {
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault()
-    window.YUA.window.openMenuWindow()
+    window.YUA.window.openWindow("menu")
   }
 
   // drive sprite states from drag/walk flags

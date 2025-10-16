@@ -24,7 +24,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
       label: '状态',
       icon: '💬',
       shortcut: 'i',
-      action: () => window.YUA.window.openFileListWindow([])
+      action: () => window.YUA.window.openWindow("fileList")
     },
     {
       id: 'resources',

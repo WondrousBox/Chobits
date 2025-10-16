@@ -3,7 +3,7 @@
  * - 行为：
  *   - DataTransfer：解析条目（目录跳过）、可选打开文件列表窗口、入库资源。
  *   - SelectedFiles：若有 File 对象优先上传（去重），然后入库。
- * - 副作用：调用 window.YUA.resource.addResource、window.YUA.resource.uploadResourceFile、window.YUA.window.openFileListWindow。
+ * - 副作用：调用 window.YUA.resource.addResource、window.YUA.resource.uploadResourceFile。
  */
 import { getResourceTypeFromFilename } from '../utils/resource'
 import type { SelectedResourceFileType } from '@/types'
@@ -26,10 +26,6 @@ export async function addResourcesFromDataTransfer(dt: DataTransfer) {
       }
     }
   })
-
-  if (fileListForIPC.length) {
-    try { await window.YUA.window.openFileListWindow(fileListForIPC) } catch { /* noop */ }
-  }
 
   // Insert to DB
   for (const f of fileListForIPC) {
