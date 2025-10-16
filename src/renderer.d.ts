@@ -10,6 +10,7 @@ import type { DatabaseBridgeType } from '../electron/preload/apis/database'
 import type videoDownloaderAPI from '../electron/preload/apis/video-downloader'
 import type { FolderBridgeType } from '../electron/preload/apis/folder'
 import type { SpriteBridgeType } from '../electron/preload/apis/sprite'
+import type { StatusBridgeType } from '../electron/preload/apis/status'
 
 declare global {
   interface Window {
@@ -38,6 +39,7 @@ declare global {
       folder: FolderBridgeType
       videoDownloader: typeof videoDownloaderAPI
       sprite: SpriteBridgeType
+      status: StatusBridgeType
     }
     ipcRenderer: any
   }
