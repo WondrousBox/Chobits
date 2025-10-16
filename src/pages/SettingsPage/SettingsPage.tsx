@@ -33,9 +33,9 @@ const settingsCategories: { id: SettingsCategory; label: string; icon: React.Ele
   },
   {
     id: 'database',
-    label: '数据库',
+    label: '数据',
     icon: TbDatabase,
-    description: '数据库相关设置'
+    description: '数据相关设置'
   },
   {
     id: 'embedding',
@@ -228,49 +228,12 @@ export const SettingsPage: React.FC = () => {
 
   // 渲染数据库设置
   const renderDatabaseSettings = () => (
-    <div className='space-y-6'>
-      <div className='bg-card border border-border rounded-lg p-6'>
-        <div className='flex items-start justify-between'>
-          <div className='space-y-2'>
-            <div className='flex items-center gap-2'>
-              <TbDatabase className='w-5 h-5 text-primary' />
-              <h3 className='text-lg font-semibold text-foreground'>数据库位置</h3>
-            </div>
-            <p className='text-sm text-muted-foreground max-w-md'>
-              数据库文件存储在应用的用户数据目录中。点击下方按钮可以在文件管理器中打开数据库所在目录。
-            </p>
-          </div>
-          <Button
-            variant="outline"
-            onClick={openDatabaseLocation}
-            className='flex items-center gap-2 px-4 py-2 border-border hover:bg-accent hover:text-accent-foreground transition-colors'
-          >
-            <TbFolderOpen className='w-4 h-4' />
-            打开位置
-          </Button>
-        </div>
-      </div>
-
-      <div className='bg-card border border-border rounded-lg p-6'>
-        <div className='space-y-4'>
-          <div className='flex items-center gap-2'>
-            <TbCpu className='w-5 h-5 text-primary' />
-            <h3 className='text-lg font-semibold text-foreground'>数据库信息</h3>
-          </div>
-          <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-            <div className='space-y-2'>
-              <label className='text-sm font-medium text-foreground'>数据库类型</label>
-              <div className='px-3 py-2 bg-muted rounded-md text-sm text-muted-foreground'>
-                SQLite
-              </div>
-            </div>
-            <div className='space-y-2'>
-              <label className='text-sm font-medium text-foreground'>存储位置</label>
-              <div className='px-3 py-2 bg-muted rounded-md text-sm text-muted-foreground'>
-                用户数据目录/data/app.db
-              </div>
-            </div>
-          </div>
+    <div className='px-2'>
+      <div className='bg-card border border-border rounded-lg p-2'>
+        <div className='text-md font-semibold text-foreground'>数据库</div>
+        <div className='flex items-center justify-center gap-2 mt-2'>
+          <div className='px-3 py-2 bg-muted rounded-md text-sm text-muted-foreground flex-1'>用户数据目录/data/app.db</div>
+          <Button variant="outline" onClick={openDatabaseLocation}> <TbFolderOpen />打开位置</Button>
         </div>
       </div>
     </div>

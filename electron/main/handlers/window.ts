@@ -302,7 +302,6 @@ export function initWindowHandlers(win: BrowserWindow) {
       case 'close-settings':
         try { settingsWindow?.close() } catch { }
         return
-      case 'toggle-walk':
       case 'walk-once':
         try { win?.webContents.send('menu-command', action) } catch { }
         return
