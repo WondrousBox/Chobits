@@ -12,6 +12,7 @@ import { folderBridge } from './apis/folder'
 import videoDownloaderAPI from './apis/video-downloader'
 import { spriteBridge } from './apis/sprite'
 import { statusBridge } from './apis/status'
+import { aiBridge } from '../main/ai/ipc-renderer'
 import {
   arch,
   isLinux,
@@ -67,6 +68,7 @@ contextBridge.exposeInMainWorld('YUA', {
   videoDownloader: videoDownloaderAPI,
   sprite: spriteBridge,
   status: statusBridge,
+  ai: aiBridge,
 })
 
 // --------- Preload scripts loading ---------

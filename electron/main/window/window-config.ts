@@ -15,6 +15,7 @@ export type WindowKey =
   | 'resources'
   | 'recycle'
   | 'assistant'
+  | 'chatDemo'
   | 'modelManager'
   | 'resourcePreview'
   | 'downloadFloating'
@@ -314,6 +315,39 @@ export const windowConfigs: WindowConfigMap = {
       resizable: false,
       alwaysOnTop: false,
       skipTaskbar: false,
+      show: false,
+      autoHideMenuBar: true,
+      webPreferences: { nodeIntegration: true, contextIsolation: true },
+    },
+  },
+  chatDemo: {
+    routeHash: 'chat-demo',
+    autoCenterOn: 'parent-display',
+    showOnReady: false,
+    openDevTools: true,
+    rememberState: true,
+    options: {
+      width: 1000,
+      height: 720,
+      // Mac 保留系统 traffic lights；Windows 使用自定义标题栏（frameless）
+      ...(process.platform === 'darwin'
+        ? {
+          titleBarStyle: 'hiddenInset' as const,
+          titleBarOverlay: true,
+          trafficLightPosition: {
+            x: 20,
+            y: HEADER_COMMANDS_HEIGHT / 2 - MACOS_TRAFFIC_LIGHTS_HEIGHT / 2,
+          },
+          frame: true,
+        }
+        : {
+          frame: false,
+        }),
+      transparent: false,
+      resizable: true,
+      alwaysOnTop: false,
+      skipTaskbar: false,
+      backgroundColor: '#ffffff',
       show: false,
       autoHideMenuBar: true,
       webPreferences: { nodeIntegration: true, contextIsolation: true },

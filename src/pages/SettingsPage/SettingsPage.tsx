@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { TbDatabase, TbFolderOpen, TbSettings, TbBrain, TbCpu, TbBox, TbFile3D, TbMoodKid } from 'react-icons/tb'
+import AiSettings from './components/AiSettings'
 import EmbeddingJobsPanel from '../../components/EmbeddingJobs'
 import DragAbleTitle from '../../components/common/DragAbleTitle'
 import { Button } from '../../components/ui/button'
@@ -21,7 +22,7 @@ import SpriteManager from './components/SpriteManager'
 type MovementConfig = { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number }
 
 // 设置分类类型
-type SettingsCategory = 'movement' | 'database' | 'embedding' | 'external-resource' | 'workspace' | 'model' | 'sprites'
+type SettingsCategory = 'movement' | 'database' | 'embedding' | 'ai' | 'external-resource' | 'workspace' | 'model' | 'sprites'
 
 // 设置分类配置
 const settingsCategories: { id: SettingsCategory; label: string; icon: React.ElementType; description: string }[] = [
@@ -42,6 +43,12 @@ const settingsCategories: { id: SettingsCategory; label: string; icon: React.Ele
     label: '嵌入任务',
     icon: TbBrain,
     description: '向量嵌入任务管理'
+  },
+  {
+    id: 'ai',
+    label: 'AI 设置',
+    icon: TbCpu,
+    description: 'AI 提供商、API Key、对话参数'
   },
   {
     id: 'workspace',
@@ -239,9 +246,6 @@ export const SettingsPage: React.FC = () => {
     </div>
   )
 
-  // 渲染嵌入任务设置
-  const renderEmbeddingSettings = () => <EmbeddingJobsPanel />
-
   // 渲染外部资源设置
   const renderExternalResourceSettings = () => (
     <div className='space-y-6'>
@@ -345,11 +349,13 @@ export const SettingsPage: React.FC = () => {
       case 'database':
         return renderDatabaseSettings()
       case 'embedding':
-        return renderEmbeddingSettings()
+        return <EmbeddingJobsPanel />
       case 'workspace':
         return renderWorkspaceSettings()
       case 'model':
         return renderModelSettings()
+      case 'ai':
+        return <AiSettings />
       case 'sprites':
         return <SpriteManager />
       case 'external-resource':

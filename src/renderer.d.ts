@@ -11,6 +11,7 @@ import type videoDownloaderAPI from '../electron/preload/apis/video-downloader'
 import type { FolderBridgeType } from '../electron/preload/apis/folder'
 import type { SpriteBridgeType } from '../electron/preload/apis/sprite'
 import type { StatusBridgeType } from '../electron/preload/apis/status'
+import type { AIApi } from '../electron/main/ai/types'
 
 declare global {
   interface Window {
@@ -40,6 +41,7 @@ declare global {
       videoDownloader: typeof videoDownloaderAPI
       sprite: SpriteBridgeType
       status: StatusBridgeType
+      ai: AIApi
     }
     ipcRenderer: any
   }
