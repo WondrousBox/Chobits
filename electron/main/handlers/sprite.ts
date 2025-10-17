@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import fscb from 'node:fs'
@@ -17,7 +17,7 @@ async function ensureDirs(dir: string) {
   try { await fs.mkdir(dir, { recursive: true }) } catch {}
 }
 
-const SETTINGS_DIR = path.join(os.homedir(), '.chobits')
+const SETTINGS_DIR = path.join(app.getPath("home"), '.chobits')
 
 async function getDefaultSpritesDir(): Promise<string> {
   // Packaged resources (read-only)

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import { app } from 'electron';
 
 export type StoredModel = {
   id: string;
@@ -31,7 +32,7 @@ type StoreShape = {
   models: StoredModel[];
 };
 
-const STORE_DIR = path.join(os.homedir(), '.chobits');
+const STORE_DIR = path.join(app.getPath("home"), '.chobits');
 const STORE_FILE = path.join(STORE_DIR, 'models.json');
 
 function ensureStore() {
