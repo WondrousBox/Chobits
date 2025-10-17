@@ -85,6 +85,7 @@ export const windowConfigs: WindowConfigMap = {
     preferShowInactive: true,
     parent: 'main',
     showOnReady: false,
+    openDevTools: true,
     options: {
       width: 260,
       height: 320,

@@ -93,7 +93,6 @@ export function initStatusHandlers(_win: BrowserWindow) {
 
     return {
       ok: true,
-      database: { path: dbPath, dir: dbDir },
       workspace: ws || null,
       resources: {
         total: resTotal,
