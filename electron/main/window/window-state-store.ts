@@ -1,7 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import os from 'node:os'
-import { screen } from 'electron'
+import { app, screen } from 'electron'
 import type { BrowserWindow } from 'electron'
 import type { WindowKey } from './window-config'
 
@@ -16,7 +15,7 @@ export interface WindowState {
 
 type WindowStateMap = Partial<Record<WindowKey, WindowState | undefined>>
 
-const STORE_DIR = path.join(os.homedir(), '.chobits')
+const STORE_DIR = path.join(app.getPath("home"), '.chobits')
 const WINDOW_STATE_FILE = path.join(STORE_DIR, 'window-states.json')
 
 function ensureStore() {

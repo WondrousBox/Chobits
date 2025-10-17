@@ -7,21 +7,7 @@ import { windowManager } from '../window/window-manager'
 import { WindowKey } from "../window/window-config";
 import { getSuggestWorkspacePath } from "../utils";
 import { saveWindowState, WindowStateStore } from '../window/window-state-store';
-
-// Assistant intrinsic size
-const ASSISTANT_WIDTH = 180;
-const ASSISTANT_HEIGHT = 220;
-
-// Open DevTools automatically in dev/test environments
-const SHOULD_OPEN_DEVTOOLS = !!process.env.VITE_DEV_SERVER_URL || (process.env.NODE_ENV && process.env.NODE_ENV !== 'production')
-function maybeOpenDevTools(w: BrowserWindow | null) {
-  try {
-    if (SHOULD_OPEN_DEVTOOLS && w && !w.isDestroyed()) {
-      // detach mode avoids overlaying frameless/transparent windows
-      w.webContents.openDevTools({ mode: 'detach' })
-    }
-  } catch { }
-}
+import { ASSISTANT_HEIGHT, ASSISTANT_WIDTH } from "../config";
 
 export function initWindowHandlers(win: BrowserWindow) {
   // Movement config persistence ------------------------------------------------

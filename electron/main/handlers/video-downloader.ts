@@ -13,6 +13,7 @@ import { WorkspacesRepo, ResourcesRepo } from "../db/repositories";
 import { generateThumbnailForResource } from "../utils/thumbnail";
 import { getResourcePath } from '../utils/resources-path';
 import { binPathLog } from '../logger';
+import { app } from 'electron';
 
 // 默认文件夹配置
 const DEFAULT_FOLDERS = {
@@ -265,7 +266,7 @@ type ExternalResourceSettings = {
   preferredBrowser: string;
 };
 
-const SETTINGS_DIR = path.join(os.homedir(), '.chobits');
+const SETTINGS_DIR = path.join(app.getPath("home"), '.chobits');
 const SETTINGS_FILE = path.join(SETTINGS_DIR, 'external-resource-settings.json');
 
 function ensureSettingsDir() {

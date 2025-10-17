@@ -1,12 +1,11 @@
 import { BrowserWindow, ipcMain, app } from 'electron'
 import path from 'node:path'
-import os from 'node:os'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
 import { getDB } from '../db'
 import { WorkspacesRepo } from '../db/repositories'
 
-const SETTINGS_DIR = path.join(os.homedir(), '.chobits')
+const SETTINGS_DIR = path.join(app.getPath("home"), '.chobits')
 const ROLE_FILE = path.join(SETTINGS_DIR, 'role.json')
 
 type RoleProfile = {
