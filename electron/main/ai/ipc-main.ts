@@ -1,0 +1,120 @@
+import { BrowserWindow, ipcMain } from 'electron';
+import { registerProvider, listProviders, registerAgent, listAgents, getProvider } from './registry';
+import { ChatService } from './chat-service';
+import { DummyProvider } from './providers/dummy';
+import { BasicAgent } from './agents/basic';
+import { RAGAgent } from './agents/rag';
+import { getAllSecrets, setProviderSecrets as setSecretsStore } from './settings-store';
+import { OpenAIProvider } from './providers/openai';
+import { AnthropicProvider } from './providers/anthropic';
+import { GeminiProvider } from './providers/gemini';
+import { OllamaProvider } from './providers/ollama';
+import { DeepSeekProvider } from './providers/deepseek';
+import { QwenProvider } from './providers/qwen';
+import { ZhipuProvider } from './providers/zhipu';
+import { InstancesStore } from './instances-store';
+import { PromptsStore } from './prompts-store';
+import { getAllInstanceSecrets as getAllInstSecrets, setInstanceSecrets as setInstSecrets } from './settings-store';
+
+export function initAIHandlers(win: BrowserWindow) {
+  // Bootstrapping built-in provider(s) and agent(s)
+  // Register built-in providers
+  registerProvider(new DummyProvider());
+  registerProvider(new OpenAIProvider());
+  registerProvider(new AnthropicProvider());
+  registerProvider(new GeminiProvider());
+  registerProvider(new OllamaProvider());
+  registerProvider(new DeepSeekProvider());
+  registerProvider(new QwenProvider());
+  registerProvider(new ZhipuProvider());
+  registerAgent(BasicAgent);
+  registerAgent(RAGAgent);
+
+  const chat = new ChatService(win);
+  chat.registerIpc();
+
+  // Settings & registry inspection
+  ipcMain.handle('ai:getProviders', async () => {
+    const providers = listProviders();
+    const rows = await Promise.all(providers.map(async (p) => ({
+      id: p.id,
+      label: p.label,
+      configured: !!(await Promise.resolve((p.isConfigured?.() as any) ?? true)),
+      schema: p.getConfigSchema?.(),
+    })));
+    return rows;
+  });
+
+  ipcMain.handle('ai:getProviderSecrets', async (_e, payload: { providerId: string }) => {
+    const p = getProvider(payload.providerId);
+    const schema = p?.getConfigSchema?.();
+    const keys = (schema?.fields || []).map(f => f.key);
+    const values = await getAllSecrets(payload.providerId, keys);
+    return values;
+  });
+
+  ipcMain.handle('ai:setProviderSecrets', async (_e, payload: { providerId: string; secrets: Record<string, string> }) => {
+    await setSecretsStore(payload.providerId, payload.secrets);
+    const p = getProvider(payload.providerId);
+    if (p?.setSecrets) await Promise.resolve(p.setSecrets(payload.secrets));
+    return { ok: true };
+  });
+
+  ipcMain.handle('ai:getAgents', async () => {
+    return listAgents().map((a) => ({ id: a.id, label: a.label, description: a.description }));
+  });
+
+  ipcMain.handle('ai:listModels', async (_e, payload: { providerId: string; instanceId?: string }) => {
+    const p = getProvider(payload.providerId);
+    if (!p) return [];
+    try {
+      if (p.listModels) {
+        let opts: any = undefined;
+        if (payload.instanceId) {
+          const inst = InstancesStore.get(payload.instanceId);
+          if (inst) {
+            const schema = p.getConfigSchema?.();
+            const keys = (schema?.fields || []).map(f => f.key);
+            const secrets = await getAllInstSecrets(payload.instanceId, keys);
+            opts = { secrets };
+          }
+        }
+        return await Promise.resolve(p.listModels(opts));
+      }
+      return [];
+    } catch (err) {
+      return [];
+    }
+  });
+
+  // Provider Instances CRUD
+  ipcMain.handle('ai:listInstances', async (_e, payload?: { providerId?: string }) => {
+    return InstancesStore.list(payload?.providerId);
+  });
+  ipcMain.handle('ai:createInstance', async (_e, payload: { providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any> }) => {
+    return InstancesStore.create(payload as any);
+  });
+  ipcMain.handle('ai:updateInstance', async (_e, payload: { id: string; patch: any }) => {
+    return InstancesStore.update(payload.id, payload.patch);
+  });
+  ipcMain.handle('ai:deleteInstance', async (_e, payload: { id: string }) => {
+    return { ok: InstancesStore.delete(payload.id) };
+  });
+  // Instance secrets
+  ipcMain.handle('ai:getInstanceSecrets', async (_e, payload: { instanceId: string }) => {
+    const inst = InstancesStore.get(payload.instanceId);
+    const schema = getProvider(inst?.providerId || '')?.getConfigSchema?.();
+    const keys = (schema?.fields || []).map(f => f.key);
+    return await getAllInstSecrets(payload.instanceId, keys);
+  });
+  ipcMain.handle('ai:setInstanceSecrets', async (_e, payload: { instanceId: string; secrets: Record<string, string> }) => {
+    await setInstSecrets(payload.instanceId, payload.secrets);
+    return { ok: true };
+  });
+
+  // Prompt Templates CRUD
+  ipcMain.handle('ai:listPromptTemplates', async () => PromptsStore.list());
+  ipcMain.handle('ai:createPromptTemplate', async (_e, payload: { name: string; type: 'system'|'user'; content: string; tags?: string[] }) => PromptsStore.create(payload));
+  ipcMain.handle('ai:updatePromptTemplate', async (_e, payload: { id: string; patch: any }) => PromptsStore.update(payload.id, payload.patch));
+  ipcMain.handle('ai:deletePromptTemplate', async (_e, payload: { id: string }) => ({ ok: PromptsStore.delete(payload.id) }));
+}

@@ -13,6 +13,7 @@ import { initVideoDownloadHandlers } from './video-download';
 import { initFolderHandlers } from './folder';
 import { initSpriteHandlers } from './sprite';
 import { initStatusHandlers } from './status';
+import { initAIHandlers } from '../ai/ipc-main';
 
 export function initHandlers(win: BrowserWindow) {
 
@@ -32,4 +33,5 @@ export function initHandlers(win: BrowserWindow) {
   initVideoDownloadHandlers(win);
   initSpriteHandlers(win);
   initStatusHandlers(win);
+  initAIHandlers(win);
 }
