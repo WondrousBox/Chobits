@@ -18,7 +18,7 @@ import { useEffect, useRef, useState } from 'react';
 
 export default function ChatDemo() {
   const [input, setInput] = useState('你好，介绍一下你自己');
-  const [output, setOutput] = useState('');
+  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string; createdAt?: number }>>([]);
   const [loading, setLoading] = useState(false);
   const [providers, setProviders] = useState<any[]>([]);
   const [agents, setAgents] = useState<any[]>([]);
@@ -29,6 +29,8 @@ export default function ChatDemo() {
   const [agentId, setAgentId] = useState('basic');
   const disposerRef = useRef<{ dispose: () => void; cancel: () => Promise<any> } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const listEndRef = useRef<HTMLDivElement | null>(null);
+  const assistantIndexRef = useRef<number>(-1);
 
   useEffect(() => {
     (async () => {
@@ -60,17 +62,72 @@ export default function ChatDemo() {
   }, [providers]);
 
   const start = async () => {
-    if (!instanceId) {
-      setOutput('请先选择 服务商 · 实例');
-      return;
-    }
-    setOutput('');
+    if (!instanceId) return;
+    const content = input.trim();
+    if (!content) return;
+
+    // 1) 追加用户消息 + 占位的助手消息
+    const userMsg = { role: 'user' as const, content, createdAt: Date.now() };
+    setMessages(prev => {
+      const next = [...prev, userMsg, { role: 'assistant' as const, content: '', createdAt: Date.now() }];
+      assistantIndexRef.current = next.length - 1;
+      return next;
+    });
+    setInput('');
     setLoading(true);
+
+    // 2) 构造上下文（包含历史消息 + 新用户消息）
+    const history = [...messages, userMsg].map(m => ({ role: m.role, content: m.content, createdAt: m.createdAt }));
+
     const disposer = await window.YUA.ai.chatStream(
-      { messages: [{ role: 'user', content: input }], providerId, providerInstanceId: instanceId, agentId, stream: true },
+      { messages: history as any, providerId, providerInstanceId: instanceId, agentId, stream: true },
       (ev: any) => {
-        if (ev?.type === 'delta' && ev.data?.text) setOutput((s) => s + ev.data.text);
-        if (ev?.type === 'error') setOutput((s) => s + `\n[错误] ${ev.data?.message || ''}`);
+        if (ev?.type === 'delta' && ev.data?.text) {
+          const delta: string = ev.data.text;
+          setMessages(prev => {
+            const idx = assistantIndexRef.current;
+            if (idx < 0 || idx >= prev.length) return prev;
+            const copy = prev.slice();
+            const m = copy[idx];
+            copy[idx] = { ...m, content: (m.content || '') + delta };
+            return copy;
+          });
+        }
+        if (ev?.type === 'message_completed' && ev.data?.message?.content) {
+          // Ensure final content reflected, in case no deltas were sent
+          const full: string = ev.data.message.content;
+          setMessages(prev => {
+            const idx = assistantIndexRef.current;
+            if (idx < 0 || idx >= prev.length) return prev;
+            const copy = prev.slice();
+            const m = copy[idx];
+            copy[idx] = { ...m, content: full, createdAt: ev.data.message.createdAt || m.createdAt };
+            return copy;
+          });
+          setLoading(false);
+        }
+        if (ev?.type === 'message_completed') {
+          setLoading(false);
+          disposerRef.current?.dispose?.();
+          disposerRef.current = null;
+        }
+        if (ev?.type === 'done') {
+          // 兼容 dummy provider 的 done 事件
+          setLoading(false);
+          disposerRef.current?.dispose?.();
+          disposerRef.current = null;
+        }
+        if (ev?.type === 'error') {
+          setMessages(prev => {
+            const idx = assistantIndexRef.current;
+            if (idx < 0 || idx >= prev.length) return prev;
+            const copy = prev.slice();
+            const m = copy[idx];
+            copy[idx] = { ...m, content: (m.content || '') + `\n[错误] ${ev.data?.message || ''}` };
+            return copy;
+          });
+          setLoading(false);
+        }
       }
     );
     disposerRef.current = disposer;
@@ -90,15 +147,35 @@ export default function ChatDemo() {
     el.style.height = Math.min(el.scrollHeight, 200) + 'px'; // 最大 200px，超出可滚动
   }, [input]);
 
+  // 新消息或增量时，滚动到底部
+  useEffect(() => {
+    listEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [messages, loading]);
+
   return (
     <div className="w-full h-full bg-background text-foreground overflow-hidden flex flex-col">
       {/* 顶部可拖拽导航栏 */}
       <DragAbleTitle title={<span>🗨️ 聊天</span>} />
 
       {/* 中部内容区（可滚动） */}
-      <div className="flex-1 min-h-0 overflow-auto p-3 space-y-3">
-        {/* 输出区 */}
-        <pre className="whitespace-pre-wrap rounded border p-2 bg-muted/20 min-h-[160px]">{output}</pre>
+      <div className="flex-1 min-h-0 overflow-auto p-3" onWheel={() => { /* 保留滚动 */ }}>
+        <div className="flex flex-col gap-2">
+          {messages.map((m, i) => (
+            <div key={i} className={m.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
+              <div className={
+                'max-w-[80%] rounded-2xl px-3 py-2 whitespace-pre-wrap break-words ' +
+                (m.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground')
+              }>
+                {m.content || (loading && i === messages.length - 1 ? (
+                  <span className="inline-flex items-center gap-2 text-muted-foreground">
+                    <TbLoader2 className="h-4 w-4 animate-spin" /> 正在思考...
+                  </span>
+                ) : '')}
+              </div>
+            </div>
+          ))}
+          <div ref={listEndRef} />
+        </div>
       </div>
 
       <div className="relative border rounded-md bg-background box-border my-2 mx-2 w-[calc(100%-1rem)]">

@@ -39,27 +39,40 @@ export class ChatService {
   }
 
   private async chatStream(req: ChatRequest & { requestId?: string }) {
-
-    console.log(req);
-    
     req = await this.withInstance(req);
     const requestId = req.abortId || req['requestId'] || safeUuid();
     const eventsChannel = `ai:stream:${requestId}`;
     const ctrl = new AbortController();
     this.controllers.set(requestId, ctrl);
+    let emittedDelta = false;
+    let emittedCompleted = false;
     const emit = (event: StreamEvent) => {
-      try { this.win.webContents.send(eventsChannel, event); } catch {}
+      console.log(event);
+      
+      try {
+        if (event?.type === 'delta' && (event as any).data?.text) emittedDelta = true;
+        if (event?.type === 'message_completed') emittedCompleted = true;
+        this.win.webContents.send(eventsChannel, event);
+      } catch {}
     };
     const ctx = { window: this.win, emit, getProvider: (id?: string) => getProvider(id) };
     try {
+      // Immediately notify renderer that stream channel is ready
+      emit({ type: 'connected' } as any);
+      
+      let finalResp: ChatResponse | undefined;
       const agent: AgentDefinition | undefined = getAgent(req.agentId);
       if (agent) {
         // Let agent orchestrate but pass emit for progressive events
-        await agent.handleChat(ctx, { ...req, stream: true, abortId: requestId }, ctrl.signal);
+        finalResp = await agent.handleChat(ctx, { ...req, stream: true, abortId: requestId }, ctrl.signal);
       } else {
         const prov = getProvider(req.providerId);
         if (!prov?.chat) throw new Error('No provider available');
-        await prov.chat({ ...req, stream: true, abortId: requestId }, emit, ctrl.signal);
+        finalResp = await prov.chat({ ...req, stream: true, abortId: requestId }, emit, ctrl.signal);
+      }
+      // Fallback: if provider/agent didn't emit message_completed, but returned a final response, push it now
+      if (!emittedCompleted && finalResp?.message) {
+        emit({ type: 'message_completed', data: { message: finalResp.message } } as any);
       }
       emit({ type: 'done' });
     } catch (err: any) {
