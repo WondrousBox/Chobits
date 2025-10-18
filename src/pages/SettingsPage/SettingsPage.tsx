@@ -17,12 +17,13 @@ import {
 import Workspace from './components/Workspace'
 import ModelPage from '../ModelPage/ModelPage'
 import SpriteManager from './components/SpriteManager'
+import PromptSetting from './components/PromptSetting'
 
 // Include assistantPadding in type
 type MovementConfig = { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number }
 
 // 设置分类类型
-type SettingsCategory = 'movement' | 'database' | 'embedding' | 'ai' | 'external-resource' | 'workspace' | 'model' | 'sprites'
+type SettingsCategory = 'movement' | 'database' | 'embedding' | 'ai' | 'prompt' | 'external-resource' | 'workspace' | 'model' | 'sprites'
 
 // 设置分类配置
 const settingsCategories: { id: SettingsCategory; label: string; icon: React.ElementType; description: string }[] = [
@@ -49,6 +50,12 @@ const settingsCategories: { id: SettingsCategory; label: string; icon: React.Ele
     label: 'AI 设置',
     icon: TbCpu,
     description: 'AI 提供商、API Key、对话参数'
+  },
+  {
+    id: 'prompt',
+    label: '提示词管理',
+    icon: TbCpu,
+    description: '提示词管理与设置'
   },
   {
     id: 'workspace',
@@ -356,6 +363,8 @@ export const SettingsPage: React.FC = () => {
         return renderModelSettings()
       case 'ai':
         return <AiSettings />
+      case 'prompt':
+        return <PromptSetting />
       case 'sprites':
         return <SpriteManager />
       case 'external-resource':
