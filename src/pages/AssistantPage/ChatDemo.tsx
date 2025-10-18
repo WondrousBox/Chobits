@@ -1,19 +1,30 @@
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from '@/components/ui/dropdown-menu';
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { TbSend, TbLoader2 } from 'react-icons/tb';
 import { useEffect, useRef, useState } from 'react';
 
 export default function ChatDemo() {
-  const NONE_VALUE = '__none__'
   const [input, setInput] = useState('你好，介绍一下你自己');
   const [output, setOutput] = useState('');
   const [loading, setLoading] = useState(false);
   const [providers, setProviders] = useState<any[]>([]);
   const [agents, setAgents] = useState<any[]>([]);
   const [providerId, setProviderId] = useState('openai');
-  const [instances, setInstances] = useState<any[]>([]);
+  // providerId -> instances[]
+  const [instancesMap, setInstancesMap] = useState<Record<string, any[]>>({});
   const [instanceId, setInstanceId] = useState<string>('');
   const [agentId, setAgentId] = useState('basic');
   const disposerRef = useRef<{ dispose: () => void; cancel: () => Promise<any> } | null>(null);
@@ -26,22 +37,37 @@ export default function ChatDemo() {
     })();
   }, []);
 
+  // Prefetch instances for all providers once provider list is ready
   useEffect(() => {
     (async () => {
-      if (!providerId) return;
+      if (!providers?.length) return;
       try {
-        const list = await window.YUA.ai.listInstances(providerId);
-        setInstances(list || []);
-        setInstanceId(list?.[0]?.id || '');
-      } catch { }
+        const entries = await Promise.all(
+          providers.map(async (p) => {
+            try {
+              const list = await window.YUA.ai.listInstances(p.id);
+              return [p.id, list || []] as const;
+            } catch {
+              return [p.id, []] as const;
+            }
+          })
+        );
+        const map = Object.fromEntries(entries);
+        setInstancesMap(map);
+        // If current provider has instances and no instance selected yet, keep empty to use provider directly by default
+      } catch { /* noop */ }
     })();
-  }, [providerId]);
+  }, [providers]);
 
   const start = async () => {
+    if (!instanceId) {
+      setOutput('请先选择 服务商 · 实例');
+      return;
+    }
     setOutput('');
     setLoading(true);
     const disposer = await window.YUA.ai.chatStream(
-      { messages: [{ role: 'user', content: input }], providerId, providerInstanceId: instanceId || undefined, agentId, stream: true },
+      { messages: [{ role: 'user', content: input }], providerId, providerInstanceId: instanceId, agentId, stream: true },
       (ev: any) => {
         if (ev?.type === 'delta' && ev.data?.text) setOutput((s) => s + ev.data.text);
         if (ev?.type === 'error') setOutput((s) => s + `\n[错误] ${ev.data?.message || ''}`);
@@ -83,11 +109,11 @@ export default function ChatDemo() {
           className="resize-none min-h-0 max-h-52 overflow-auto pr-24 pb-16 box-border"
           value={input}
           onChange={e => setInput(e.target.value)}
-          placeholder="输入消息，Enter 发送，Shift+Enter 换行"
+          placeholder="输入消息，Enter 发送（需先选择实例），Shift+Enter 换行"
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
-              if (!loading) start();
+              if (!loading && instanceId) start();
             }
           }}
         />
@@ -96,7 +122,7 @@ export default function ChatDemo() {
         {!loading ? (
           <Button
             onClick={start}
-            disabled={!input.trim()}
+            disabled={!input.trim() || !instanceId}
             className="absolute bottom-3 right-3 rounded-full h-9 w-9 p-0"
             aria-label="发送"
           >
@@ -117,32 +143,63 @@ export default function ChatDemo() {
         {/* 底部内嵌操作栏（与输入框同框） */}
         <div className="absolute bottom-3 left-3 right-16 flex items-center gap-1.5 overflow-x-auto">
           <div className="shrink-0">
-            <Select value={providerId} onValueChange={setProviderId}>
-              <SelectTrigger className="h-7 px-2 text-[11px] w-auto min-w-[120px] border-0 bg-muted/30 hover:bg-muted/50 rounded-md">
-                <SelectValue placeholder="选择服务商" />
-              </SelectTrigger>
-              <SelectContent className="text-xs">
-                {providers.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="shrink-0">
-            <Select
-              value={instanceId && instanceId.length ? instanceId : NONE_VALUE}
-              onValueChange={(v) => setInstanceId(v === NONE_VALUE ? '' : v)}
-            >
-              <SelectTrigger className="h-7 px-2 text-[11px] w-auto min-w-[150px] border-0 bg-muted/30 hover:bg-muted/50 rounded-md">
-                <SelectValue placeholder="直接使用服务商" />
-              </SelectTrigger>
-              <SelectContent className="text-xs">
-                <SelectItem value={NONE_VALUE}>直接使用服务商</SelectItem>
-                {instances.map((it) => (
-                  <SelectItem key={it.id} value={it.id}>{it.name || it.id}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="h-7 px-2 text-[11px] w-auto min-w-[220px] border-0 bg-muted/30 hover:bg-muted/50 rounded-md flex items-center justify-between"
+                  aria-label="选择 服务商 · 实例"
+                >
+                  <span className="truncate text-left">
+                    {(() => {
+                      if (!instanceId) return '选择 服务商 · 实例';
+                      const provider = providers.find(p => p.id === providerId);
+                      const providerLabel = provider?.label || providerId || '服务商';
+                      const currentInstances = instancesMap[providerId] || [];
+                      const instance = currentInstances.find(it => it.id === instanceId);
+                      const instanceLabel = instance?.name || instanceId;
+                      return `${providerLabel} · ${instanceLabel}`;
+                    })()}
+                  </span>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="text-xs min-w-[220px]">
+                <DropdownMenuLabel>选择 服务商 · 实例</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {providers.map((p) => {
+                  const list = instancesMap[p.id] || [];
+                  return (
+                    <DropdownMenuSub key={p.id}>
+                      <DropdownMenuSubTrigger>{p.label}</DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent className="text-xs">
+                        {list.length === 0 ? (
+                          <DropdownMenuItem
+                            onSelect={async (e) => {
+                              e.preventDefault();
+                              try { await window.YUA.window.openWindow('settings' as any, { category: 'ai', aiProviderId: p.id }); } catch {}
+                            }}
+                          >
+                            未配置实例，去配置…
+                          </DropdownMenuItem>
+                        ) : (
+                          list.map((it) => (
+                          <DropdownMenuItem
+                            key={it.id}
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              setProviderId(p.id);
+                              setInstanceId(it.id);
+                            }}
+                          >
+                            {it.name || it.id}
+                          </DropdownMenuItem>
+                          ))
+                        )}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           <div className="shrink-0">
             <Select value={agentId} onValueChange={setAgentId}>
