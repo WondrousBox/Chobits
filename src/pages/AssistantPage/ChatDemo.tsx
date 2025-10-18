@@ -173,8 +173,7 @@ export default function ChatDemo() {
                       <DropdownMenuSubContent className="text-xs">
                         {list.length === 0 ? (
                           <DropdownMenuItem
-                            onSelect={async (e) => {
-                              e.preventDefault();
+                            onSelect={async () => {
                               try { await window.YUA.window.openWindow('settings' as any, { category: 'ai', aiProviderId: p.id }); } catch {}
                             }}
                           >
@@ -184,8 +183,7 @@ export default function ChatDemo() {
                           list.map((it) => (
                           <DropdownMenuItem
                             key={it.id}
-                            onSelect={(e) => {
-                              e.preventDefault();
+                            onSelect={() => {
                               setProviderId(p.id);
                               setInstanceId(it.id);
                             }}
