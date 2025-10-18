@@ -36,7 +36,7 @@ Preload：
 Renderer：
 - `src/lib/aiClient.ts`：简单客户端封装，便于在组件中调用
 - `src/pages/SettingsPage/components/AiSettings.tsx`：统一的 Provider 配置表单（根据 schema 动态渲染）
-- `src/pages/SettingsPage/SettingsPage.tsx`：新增 “AI 设置” 分类入口
+- `src/pages/SettingsPage/SettingsPage.tsx`：新增 “对话设置” 分类入口
 
 
 ## 3. 关键接口（Contract）
@@ -126,7 +126,7 @@ Agent 通过 `handleChat(ctx, req, signal)` 实现自定义对话策略：
 ## 8. API Key 配置与 UI
 
 - 存储：当前版使用 `userData/ai-settings.json`（仅主进程可访问）
-- 界面：`Settings → AI 设置`，动态渲染各 Provider 的配置 schema 字段
+- 界面：`Settings → 对话设置`，动态渲染各 Provider 的配置 schema 字段
 - 升级建议：
   - 使用 drizzle DB 表持久化 Provider 配置（含启用状态、字段等）
   - 秘钥值使用 `keytar` 存入系统凭证库，仅存引用/标识在 DB
@@ -167,7 +167,7 @@ Provider 适配要点：
 ## 12. 实施计划（Milestones）
 
 1) 基础设施（已完成）
-   - Provider/Agent Registry、ChatService（流式+取消）、IPC、Preload API、AI 设置 UI 基础
+   - Provider/Agent Registry、ChatService（流式+取消）、IPC、Preload API、对话设置 UI 基础
 2) Provider 接入（进行中）
    - OpenAI（chat+embed）→ Anthropic → Gemini → Ollama → 本地 Transformers 对齐
 3) Agent 实现
