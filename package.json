@@ -20,6 +20,7 @@
     "preview": "vite preview",
     "pretest": "vite build --mode=test",
     "test": "vitest run",
+    "build:icon": "electron-icon-builder --input=./build/icon.png --output=./build --flatten",
     "rebuild:sqlite": "electron-rebuild -f -w better-sqlite3",
     "rebuild:sqlite-vec": "electron-rebuild -f -w sqlite-vec",
     "rebuild": "node scripts/rebuild-native.js",
@@ -50,9 +51,9 @@
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^0.67.0",
     "@electron/rebuild": "^3.6.0",
     "@google/generative-ai": "^0.24.1",
-    "@anthropic-ai/sdk": "^0.67.0",
     "@langchain/community": "^0.3.57",
     "@langchain/core": "^0.3.78",
     "@langchain/openai": "^0.6.16",
@@ -78,6 +79,7 @@
     "drizzle-kit": "^0.31.4",
     "electron": "^33.2.0",
     "electron-builder": "^24.13.3",
+    "electron-icon-builder": "^2.0.1",
     "electron-log": "^5.4.3",
     "framer-motion": "^12.23.12",
     "https-proxy-agent": "^7.0.6",

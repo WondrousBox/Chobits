@@ -27,6 +27,7 @@ process.env.APP_ROOT = path.join(__dirname, '../..')
 export const MAIN_DIST = path.join(process.env.APP_ROOT, 'dist-electron')
 export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 export const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL
+export const DOCKER_ICON = "icon.png"
 
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
   ? path.join(process.env.APP_ROOT, 'public')
@@ -76,6 +77,12 @@ async function createWindow() {
     },
   })
   ;(win as any).__preloadPath = preload
+
+  // 设置 Mac 平台 Docker 上的图标
+  if (process.platform === "darwin") {
+    app.dock.setIcon(path.join(process.env.VITE_PUBLIC, DOCKER_ICON));
+    // win.setVibrancy('under-window')
+  }
 
   if (VITE_DEV_SERVER_URL) { // #298
     win.loadURL(VITE_DEV_SERVER_URL)

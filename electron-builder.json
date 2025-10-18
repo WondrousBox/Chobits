@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
-  "appId": "YourAppID",
+  "appId": "com.chobits.ai",
   "asar": true,
   "asarUnpack": [
     "node_modules/better-sqlite3/**/*",
@@ -40,11 +40,19 @@
     }
   ],
   "mac": {
-    "artifactName": "${productName}_${version}.${ext}",
+    "artifactName": "${productName}_${version}_${platform}_${arch}.${ext}",
     "target": [
       "dmg",
       "zip"
-    ]
+    ],
+    "icon": "build/icons/icon.icns",
+    "entitlements": "public/entitlements.plist",
+    "entitlementsInherit": "public/entitlements.plist",
+    "extendInfo": {
+      "NSMicrophoneUsageDescription": "Please allow this program to access your microphone",
+      "NSCameraUsageDescription": "Please allow this program to access your camera",
+      "NSSpeechRecognitionUsageDescription": "Please allow this program to access speech recognition service",
+    }
   },
   "win": {
     "target": [
@@ -55,7 +63,7 @@
         ]
       }
     ],
-    "artifactName": "${productName}_${version}.${ext}"
+    "artifactName": "${productName}_${version}_${platform}_${arch}.${ext}"
   },
   "nsis": {
     "oneClick": false,

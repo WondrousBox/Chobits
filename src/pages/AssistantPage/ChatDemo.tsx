@@ -1,4 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { useEffect, useRef, useState } from 'react';
 
 export default function ChatDemo() {
   const [input, setInput] = useState('你好，介绍一下你自己');
@@ -52,11 +54,11 @@ export default function ChatDemo() {
   return (
     <div className="p-3 space-y-3">
       <div className="flex gap-2">
-        <input className="flex-1 rounded border px-2 py-1" value={input} onChange={e => setInput(e.target.value)} />
+        <Input value={input} onChange={e => setInput(e.target.value)} />
         {!loading ? (
-          <button onClick={start} className="rounded bg-blue-600 px-3 py-1 text-white">开始</button>
+          <Button onClick={start} className="rounded">开始</Button>
         ) : (
-          <button onClick={stop} className="rounded bg-gray-600 px-3 py-1 text-white">停止</button>
+          <Button onClick={stop} variant={"destructive"} className="rounded">停止</Button>
         )}
       </div>
       <div className="flex gap-2">
