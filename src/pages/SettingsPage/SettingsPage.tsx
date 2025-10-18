@@ -47,7 +47,7 @@ const settingsCategories: { id: SettingsCategory; label: string; icon: React.Ele
   },
   {
     id: 'ai',
-    label: 'AI 设置',
+    label: '对话设置',
     icon: TbCpu,
     description: 'AI 提供商、API Key、对话参数'
   },

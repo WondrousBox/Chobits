@@ -1,4 +1,7 @@
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 
@@ -158,7 +161,7 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
 
   return (
     <div className="h-full w-full flex">
-      <div className="h-full w-60 overflow-y-auto border-solid border-r border-r-ring p-2 box-border">
+      <div className="h-full w-60 overflow-y-auto border-ring p-2 box-border" style={{ borderRightWidth: 1, borderRightStyle: 'solid' }}>
         <div className="space-y-1">
           {providers.map(p => (
             <Button
@@ -175,14 +178,13 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
           ))}
         </div>
       </div>
-
       {/* Right: Instances */}
-      <div className="h-full flex-1 overflow-y-auto">
+      <div className="h-full flex-1 px-2 overflow-y-auto">
         {selectedProvider ? (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="text-lg font-semibold">{selectedProvider.label} · 配置实例</div>
-              <button className="rounded bg-blue-600 px-3 py-1 text-white" onClick={() => { setCreating(true); setDraft({ name: '', model: '', systemPrompt: '', secrets: {} }); }}>新建实例</button>
+              <Button onClick={() => { setCreating(true); setDraft({ name: '', model: '', systemPrompt: '', secrets: {} }); }}>新建实例</Button>
             </div>
 
             {creating && (
@@ -190,22 +192,28 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
                 <div className="grid gap-2">
                   <label className="grid gap-1">
                     <span className="text-sm text-gray-600">名称</span>
-                    <input className="rounded border px-2 py-1" value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} />
+                    <Input className="rounded border px-2 py-1" value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} />
                     {errors.__new__?.name && <span className="text-xs text-red-600">{errors.__new__?.name}</span>}
                   </label>
                   <label className="grid gap-1">
                     <span className="text-sm text-gray-600">模型</span>
-                    <select className="rounded border px-2 py-1" value={draft.model || ''} onChange={e => setDraft(d => ({ ...d, model: e.target.value }))}>
-                      <option value="">选择模型</option>
-                      {(models[selectedProvider.id] || []).map(m => (<option key={m.id} value={m.id}>{m.label || m.id}</option>))}
-                    </select>
+                    <Select value={draft.model || ''} onValueChange={(val) => setDraft(d => ({ ...d, model: val }))}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="选择模型" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(models[selectedProvider.id] || []).map(m => (
+                          <SelectItem key={m.id} value={m.id}>{m.label || m.id}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </label>
                   <label className="grid gap-1">
                     <span className="text-sm text-gray-600">系统提示词</span>
                     <textarea className="rounded border px-2 py-1 min-h-[80px]" value={draft.systemPrompt || ''} onChange={e => setDraft(d => ({ ...d, systemPrompt: e.target.value }))} />
                     <div className="flex flex-wrap gap-2 text-xs">
                       {templates.filter(t => t.type === 'system').slice(0, 6).map(t => (
-                        <button key={t.id} className="px-2 py-1 border rounded hover:bg-gray-50" onClick={() => insertTemplateInto(t, (v) => setDraft(d => ({ ...d, systemPrompt: v })), draft.systemPrompt || '')}>{t.name}</button>
+                        <Button key={t.id} className="px-2 py-1 border rounded hover:bg-gray-50" onClick={() => insertTemplateInto(t, (v) => setDraft(d => ({ ...d, systemPrompt: v })), draft.systemPrompt || '')}>{t.name}</Button>
                       ))}
                     </div>
                   </label>
@@ -213,7 +221,7 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
                     {(selectedProvider.schema?.fields || []).map(f => (
                       <label key={f.key} className="grid gap-1">
                         <span className="text-sm text-gray-600">{f.label}</span>
-                        <input
+                        <Input
                           className="rounded border px-2 py-1"
                           type={f.type === 'password' ? 'password' : 'text'}
                           value={draft.secrets[f.key] || ''}
@@ -225,8 +233,12 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <button className="rounded bg-blue-600 px-3 py-1 text-white" onClick={onCreateInstance}>保存</button>
-                  <button className="rounded bg-gray-300 px-3 py-1" onClick={() => { setCreating(false); setErrors(prev => ({ ...prev, __new__: {} })); }}>取消</button>
+                  <Button
+                    variant={"outline"}
+                    onClick={() => { setCreating(false); setErrors(prev => ({ ...prev, __new__: {} })); }}>取消</Button>
+                  <Button
+                    variant={"default"}
+                    onClick={onCreateInstance}>保存</Button>
                 </div>
               </div>
             )}
@@ -246,21 +258,27 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
                     <div className="mt-2 grid gap-3">
                       <label className="grid gap-1">
                         <span className="text-sm text-gray-600">名称</span>
-                        <input className="rounded border px-2 py-1" value={inst.name} onChange={e => setInstances(list => list.map(x => x.id === inst.id ? { ...x, name: e.target.value } : x))} />
+                        <Input className="rounded border px-2 py-1" value={inst.name} onChange={e => setInstances(list => list.map(x => x.id === inst.id ? { ...x, name: e.target.value } : x))} />
                       </label>
                       <label className="grid gap-1">
                         <span className="text-sm text-gray-600">模型</span>
-                        <select className="rounded border px-2 py-1" value={inst.model || ''} onChange={e => setInstances(list => list.map(x => x.id === inst.id ? { ...x, model: e.target.value } : x))}>
-                          <option value="">选择模型</option>
-                          {(models[inst.providerId] || []).map(m => (<option key={m.id} value={m.id}>{m.label || m.id}</option>))}
-                        </select>
+                        <Select value={inst.model || ''} onValueChange={(val) => setInstances(list => list.map(x => x.id === inst.id ? { ...x, model: val } : x))}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="选择模型" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(models[inst.providerId] || []).map(m => (
+                              <SelectItem key={m.id} value={m.id}>{m.label || m.id}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </label>
                       <label className="grid gap-1">
                         <span className="text-sm text-gray-600">系统提示词</span>
                         <textarea className="rounded border px-2 py-1 min-h-[80px]" value={inst.systemPrompt || ''} onChange={e => setInstances(list => list.map(x => x.id === inst.id ? { ...x, systemPrompt: e.target.value } : x))} />
                         <div className="flex flex-wrap gap-2 text-xs">
                           {templates.filter(t => t.type === 'system').slice(0, 6).map(t => (
-                            <button key={t.id} className="px-2 py-1 border rounded hover:bg-gray-50" onClick={() => setInstances(list => list.map(x => x.id === inst.id ? { ...x, systemPrompt: ((x.systemPrompt || '') + ((x.systemPrompt) ? '\n' : '') + t.content) } : x))}>{t.name}</button>
+                            <Button key={t.id} className="px-2 py-1 border rounded hover:bg-gray-50" onClick={() => setInstances(list => list.map(x => x.id === inst.id ? { ...x, systemPrompt: ((x.systemPrompt || '') + ((x.systemPrompt) ? '\n' : '') + t.content) } : x))}>{t.name}</Button>
                           ))}
                         </div>
                       </label>
@@ -268,8 +286,7 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
                         {(selectedProvider?.schema?.fields || []).map(f => (
                           <label key={f.key} className="grid gap-1">
                             <span className="text-sm text-gray-600">{f.label}</span>
-                            <input
-                              className="rounded border px-2 py-1"
+                            <Input
                               type={f.type === 'password' ? 'password' : 'text'}
                               value={instanceSecrets[inst.id]?.[f.key] || ''}
                               onChange={e => setInstanceSecrets(prev => ({ ...prev, [inst.id]: { ...(prev[inst.id] || {}), [f.key]: e.target.value } }))}
@@ -279,8 +296,8 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
                         ))}
                       </div>
                       <div className="flex gap-2">
-                        <button className="rounded bg-blue-600 px-3 py-1 text-white" onClick={() => onSaveInstance(inst)}>保存</button>
-                        <button className="rounded bg-gray-300 px-3 py-1" onClick={() => setExpanded(e => ({ ...e, [inst.id]: false }))}>收起</button>
+                        <Button onClick={() => onSaveInstance(inst)}>保存</Button>
+                        <Button variant="outline" onClick={() => setExpanded(e => ({ ...e, [inst.id]: false }))}>收起</Button>
                       </div>
                     </div>
                   )}
