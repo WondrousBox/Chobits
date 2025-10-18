@@ -7,7 +7,7 @@ type Instance = { id: string; providerId: string; name: string; model?: string; 
 type ModelOpt = { id: string; label?: string };
 type Template = { id: string; name: string; type: 'system' | 'user'; content: string };
 
-export default function AiSettings() {
+export default function AiSettings({ initialProviderId }: { initialProviderId?: string }) {
   const [providers, setProviders] = useState<ProviderRow[]>([]);
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const [instances, setInstances] = useState<Instance[]>([]);
@@ -26,11 +26,20 @@ export default function AiSettings() {
     (async () => {
       const provs = await (window as any).YUA.ai.getProviders();
       setProviders(provs || []);
-      setSelectedProviderId(provs?.[0]?.id || null);
+      const defaultId = (initialProviderId && (provs || []).some((p: ProviderRow) => p.id === initialProviderId))
+        ? initialProviderId
+        : (provs?.[0]?.id || null);
+      setSelectedProviderId(defaultId);
       const tmpl = await (window as any).YUA.ai.listPromptTemplates().catch(() => []);
       setTemplates(tmpl || []);
     })();
-  }, []);
+  }, [initialProviderId]);
+
+  // 如果 initialProviderId 在挂载后才到达，且当前未选择，则进行一次性选择
+  useEffect(() => {
+    if (!initialProviderId || !providers.length) return;
+    setSelectedProviderId(prev => prev ?? (providers.some(p => p.id === initialProviderId) ? initialProviderId : prev));
+  }, [initialProviderId, providers]);
 
   useEffect(() => {
     if (!selectedProviderId) return;

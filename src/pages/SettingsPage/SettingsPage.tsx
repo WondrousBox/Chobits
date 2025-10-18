@@ -94,6 +94,7 @@ export const SettingsPage: React.FC = () => {
   const [config, setConfig] = useState<MovementConfig | null>(null)
   const [saving, setSaving] = useState(false)
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>('movement')
+  const [initialAiProviderId, setInitialAiProviderId] = useState<string | null>(null)
   const [externalSettings, setExternalSettings] = useState<ExternalResourceSettings>({
     externalResourceMode: "1",
     externalResourceCookies: false,
@@ -101,6 +102,14 @@ export const SettingsPage: React.FC = () => {
   })
   useEffect(() => {
     let mounted = true
+    // 读取窗口打开时传入的 payload，用于直接跳转到指定分类/AI 提供商
+    ;(async () => {
+      try {
+        const payload = await window.YUA.window.getWindowPayload('settings' as any)
+        if (payload?.category) setActiveCategory(payload.category)
+        if (payload?.aiProviderId) setInitialAiProviderId(payload.aiProviderId)
+      } catch {}
+    })()
     window.YUA.window.getMovementConfig().then((c: MovementConfig) => { if (mounted) setConfig(c) })
     const listener = (_: any, c: MovementConfig) => setConfig(c)
     window.ipcRenderer?.on('movement-config-updated', listener)
@@ -362,7 +371,7 @@ export const SettingsPage: React.FC = () => {
       case 'model':
         return renderModelSettings()
       case 'ai':
-        return <AiSettings />
+        return <AiSettings initialProviderId={initialAiProviderId || undefined} />
       case 'prompt':
         return <PromptSetting />
       case 'sprites':
