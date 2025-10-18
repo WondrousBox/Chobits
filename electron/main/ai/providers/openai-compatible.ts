@@ -38,9 +38,12 @@ export class OpenAICompatibleProvider implements ProviderAdapter {
   }
 
   async chat(req: ChatRequest, onStream?: (event: StreamEvent) => void, signal?: AbortSignal): Promise<ChatResponse> {
-  const override = (req.extras as any)?.secrets as any;
-  const client = this.client(override);
-  const model = (req.extras?.model as string) || override?.model || this.secrets.model || this.defaults.model || 'gpt-3.5-turbo';
+    const override = (req.extras as any)?.secrets as any;
+    console.log("+++++++++++");
+    console.log(override);
+    
+    const client = this.client(override);
+    const model = (req.extras?.model as string) || override?.model || this.secrets.model || this.defaults.model || 'gpt-3.5-turbo';
     const messages = req.messages.map((m) => ({ role: m.role as any, content: m.content }));
     if (req.stream && onStream) {
       const stream = await client.chat.completions.create({ model, messages, temperature: req.temperature, max_tokens: req.maxTokens as any, stream: true }, { signal });
@@ -55,14 +58,25 @@ export class OpenAICompatibleProvider implements ProviderAdapter {
       onStream({ type: 'message_completed', data: { message: { role: 'assistant', content: finalText, createdAt: Date.now() } } });
       return { message: { role: 'assistant', content: finalText, createdAt: Date.now() }, providerId: this.id };
     }
+
+    console.log(messages);
+    
+    console.log("==========");
+
     const resp = await client.chat.completions.create({ model, messages, temperature: req.temperature, max_tokens: req.maxTokens as any }, { signal });
+    
+    console.log(resp);
+    
     const text = resp?.choices?.[0]?.message?.content || '';
+
+    console.log(text);
+    
     return { message: { role: 'assistant', content: text, createdAt: Date.now() }, providerId: this.id };
   }
 
   async embed(req: EmbeddingRequest): Promise<EmbeddingResponse> {
-  const client = this.client((req as any)?.extras?.secrets);
-  const model = (req.model as string) || (req as any)?.extras?.secrets?.model || this.secrets.model || 'text-embedding-3-small';
+    const client = this.client((req as any)?.extras?.secrets);
+    const model = (req.model as string) || (req as any)?.extras?.secrets?.model || this.secrets.model || 'text-embedding-3-small';
     const res = await client.embeddings.create({ model, input: req.texts });
     const vectors = (res as any).data.map((d: any) => d.embedding as number[]);
     const dim = vectors[0]?.length || 0;
