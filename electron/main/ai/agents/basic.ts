@@ -6,6 +6,9 @@ export const BasicAgent: AgentDefinition = {
   description: 'Direct provider chat without tools',
   async handleChat(ctx: AgentContext, req: ChatRequest, signal?: AbortSignal): Promise<ChatResponse> {
     const provider = ctx.getProvider(req.providerId);
+
+    console.log(provider);
+    
     if (!provider?.chat) {
       return { message: { role: 'assistant', content: 'No provider or chat capability available.' } };
     }

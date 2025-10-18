@@ -21,8 +21,8 @@ export default function ChatDemo() {
 
   useEffect(() => {
     (async () => {
-      try { setProviders(await (window as any).YUA.ai.getProviders()); } catch { }
-      try { setAgents(await (window as any).YUA.ai.getAgents()); } catch { }
+      try { setProviders(await window.YUA.ai.getProviders()); } catch { }
+      try { setAgents(await window.YUA.ai.getAgents()); } catch { }
     })();
   }, []);
 
@@ -30,7 +30,7 @@ export default function ChatDemo() {
     (async () => {
       if (!providerId) return;
       try {
-        const list = await (window as any).YUA.ai.listInstances(providerId);
+        const list = await window.YUA.ai.listInstances(providerId);
         setInstances(list || []);
         setInstanceId(list?.[0]?.id || '');
       } catch { }
@@ -40,7 +40,7 @@ export default function ChatDemo() {
   const start = async () => {
     setOutput('');
     setLoading(true);
-    const disposer = await (window as any).YUA.ai.chatStream(
+    const disposer = await window.YUA.ai.chatStream(
       { messages: [{ role: 'user', content: input }], providerId, providerInstanceId: instanceId || undefined, agentId, stream: true },
       (ev: any) => {
         if (ev?.type === 'delta' && ev.data?.text) setOutput((s) => s + ev.data.text);

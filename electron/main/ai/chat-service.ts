@@ -39,6 +39,9 @@ export class ChatService {
   }
 
   private async chatStream(req: ChatRequest & { requestId?: string }) {
+
+    console.log(req);
+    
     req = await this.withInstance(req);
     const requestId = req.abortId || req['requestId'] || safeUuid();
     const eventsChannel = `ai:stream:${requestId}`;
