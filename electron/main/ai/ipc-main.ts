@@ -30,7 +30,7 @@ export function initAIHandlers(win: BrowserWindow) {
   registerAgent(BasicAgent);
   registerAgent(RAGAgent);
 
-  const chat = new ChatService(win);
+  const chat = new ChatService(win)
   chat.registerIpc();
 
   // Settings & registry inspection

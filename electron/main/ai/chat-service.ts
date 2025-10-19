@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain } from 'electron';
+import { BrowserWindow, ipcMain, WebContents } from 'electron';
 import { randomUUID } from 'node:crypto';
 import { AgentDefinition, ChatRequest, StreamEvent, ChatResponse } from './types';
 import { getAgent, getProvider } from './registry';
@@ -12,21 +12,22 @@ function safeUuid() {
 
 export class ChatService {
   private controllers = new Map<string, AbortController>();
-  constructor(private win: BrowserWindow) {}
+  // Use defaultWin as a fallback when sender window is unavailable
+  constructor(private defaultWin?: BrowserWindow) {}
 
   registerIpc() {
-    ipcMain.handle('ai:chat', async (_e, req: ChatRequest) => this.chat(req));
-    ipcMain.handle('ai:chatStream', async (_e, req: ChatRequest & { requestId?: string }) => this.chatStream(req));
+    ipcMain.handle('ai:chat', async (e, req: ChatRequest) => this.chat(BrowserWindow.fromWebContents(e.sender) || this.defaultWin, req));
+    ipcMain.handle('ai:chatStream', async (e, req: ChatRequest & { requestId?: string }) => this.chatStream(e.sender, req));
     ipcMain.handle('ai:cancel', async (_e, payload: { requestId: string }) => this.cancel(payload.requestId));
     ipcMain.handle('ai:embed', async (_e, payload: { texts: string[]; providerId?: string; model?: string; normalize?: boolean }) => this.embed(payload));
   }
 
-  private async chat(req: ChatRequest): Promise<ChatResponse> {
+  private async chat(win: BrowserWindow | undefined, req: ChatRequest): Promise<ChatResponse> {
     // Merge instance config if provided
     req = await this.withInstance(req);
     const agent: AgentDefinition | undefined = getAgent(req.agentId);
     const ctx = {
-      window: this.win,
+      window: win || this.defaultWin,
       emit: (_e: StreamEvent) => {},
       getProvider: (id?: string) => getProvider(id),
     };
@@ -38,48 +39,53 @@ export class ChatService {
     return agent.handleChat(ctx, { ...req, stream: false });
   }
 
-  private async chatStream(req: ChatRequest & { requestId?: string }) {
-    req = await this.withInstance(req);
+  private async chatStream(sender: WebContents, req: ChatRequest & { requestId?: string }) {
+    // Prepare identifiers and controller
     const requestId = req.abortId || req['requestId'] || safeUuid();
     const eventsChannel = `ai:stream:${requestId}`;
     const ctrl = new AbortController();
     this.controllers.set(requestId, ctrl);
+
+    // Define emitter and context upfront
     let emittedDelta = false;
     let emittedCompleted = false;
     const emit = (event: StreamEvent) => {
-      console.log(event);
-      
       try {
         if (event?.type === 'delta' && (event as any).data?.text) emittedDelta = true;
         if (event?.type === 'message_completed') emittedCompleted = true;
-        this.win.webContents.send(eventsChannel, event);
+        (sender || this.defaultWin?.webContents)?.send(eventsChannel, event);
       } catch {}
     };
-    const ctx = { window: this.win, emit, getProvider: (id?: string) => getProvider(id) };
-    try {
-      // Immediately notify renderer that stream channel is ready
-      emit({ type: 'connected' } as any);
-      
-      let finalResp: ChatResponse | undefined;
-      const agent: AgentDefinition | undefined = getAgent(req.agentId);
-      if (agent) {
-        // Let agent orchestrate but pass emit for progressive events
-        finalResp = await agent.handleChat(ctx, { ...req, stream: true, abortId: requestId }, ctrl.signal);
-      } else {
-        const prov = getProvider(req.providerId);
-        if (!prov?.chat) throw new Error('No provider available');
-        finalResp = await prov.chat({ ...req, stream: true, abortId: requestId }, emit, ctrl.signal);
+
+    // Start the actual streaming on next tick to avoid missing early events
+    setTimeout(async () => {
+      try {
+        const resolvedReq = await this.withInstance(req);
+        const ctx = { window: BrowserWindow.fromWebContents(sender) || this.defaultWin, emit, getProvider: (id?: string) => getProvider(id) };
+        // Notify renderer that channel is ready (after the renderer has had a chance to attach listener)
+        emit({ type: 'connected' } as any);
+
+        let finalResp: ChatResponse | undefined;
+        const agent: AgentDefinition | undefined = getAgent(resolvedReq.agentId);
+        if (agent) {
+          finalResp = await agent.handleChat(ctx, { ...resolvedReq, stream: true, abortId: requestId }, ctrl.signal);
+        } else {
+          const prov = getProvider(resolvedReq.providerId);
+          if (!prov?.chat) throw new Error('No provider available');
+          finalResp = await prov.chat({ ...resolvedReq, stream: true, abortId: requestId }, emit, ctrl.signal);
+        }
+        if (!emittedCompleted && finalResp?.message) {
+          emit({ type: 'message_completed', data: { message: finalResp.message } } as any);
+        }
+        emit({ type: 'done' });
+      } catch (err: any) {
+        emit({ type: 'error', data: { message: err?.message || 'chat error' } });
+      } finally {
+        this.controllers.delete(requestId);
       }
-      // Fallback: if provider/agent didn't emit message_completed, but returned a final response, push it now
-      if (!emittedCompleted && finalResp?.message) {
-        emit({ type: 'message_completed', data: { message: finalResp.message } } as any);
-      }
-      emit({ type: 'done' });
-    } catch (err: any) {
-      emit({ type: 'error', data: { message: err?.message || 'chat error' } });
-    } finally {
-      this.controllers.delete(requestId);
-    }
+    }, 0);
+
+    // Return immediately so renderer can attach listeners to eventsChannel
     return { requestId, eventsChannel };
   }
 
