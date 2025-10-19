@@ -104,4 +104,9 @@ export type AIApi = {
   createPromptTemplate(payload: { name: string; type: 'system'|'user'; content: string; tags?: string[] }): Promise<any>;
   updatePromptTemplate(id: string, patch: any): Promise<any>;
   deletePromptTemplate(id: string): Promise<{ ok: boolean }>;
+  // Conversations
+  listConversations(payload?: { includeDeleted?: boolean; limit?: number; offset?: number }): Promise<any[]>;
+  listMessages(conversationId: string, limit?: number, offset?: number): Promise<any[]>;
+  renameConversation(id: string, title: string): Promise<{ ok: boolean; row?: any }>;
+  deleteConversation(id: string): Promise<{ ok: boolean }>;
 }

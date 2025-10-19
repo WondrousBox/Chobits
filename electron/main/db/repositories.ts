@@ -1,6 +1,6 @@
 import { getOrm } from '.';
-import { documents, type NewDocument, type DocumentRow, recycle_bin, type NewRecycleBin, type RecycleBinRow, workspaces, type WorkspaceRow, type NewWorkspace, folders, type FolderRow, type NewFolder } from './schema';
-import { eq, inArray, and, or, like, gte, lte, isNull, isNotNull } from 'drizzle-orm';
+import { documents, type NewDocument, type DocumentRow, recycle_bin, type NewRecycleBin, type RecycleBinRow, workspaces, type WorkspaceRow, type NewWorkspace, folders, type FolderRow, type NewFolder, conversations, type ConversationRow, type NewConversation, chat_messages, type ChatMessageRow, type NewChatMessage } from './schema';
+import { eq, inArray, and, or, like, gte, lte, isNull, isNotNull, desc, count, max } from 'drizzle-orm';
 import { rebuildVectors, deleteVectors } from '.';
 import { resources, type ResourceRow, type NewResource } from './schema';
 
@@ -591,6 +591,120 @@ export const WorkspacesRepo = {
     const db = getOrm();
     const res = await db.delete(workspaces).where(inArray(workspaces.id, ids));
     return (res as any).changes ?? 0;
+  },
+};
+
+/**
+ * 会话与消息表操作空间
+ */
+export const ChatRepo = {
+  /**
+   * 确保会话存在；若传入 conversationId 则返回该会话（若存在），否则新建
+   */
+  async ensureConversation(payload: Partial<NewConversation> & { id?: string }): Promise<ConversationRow> {
+    const db = getOrm();
+    const id = payload.id;
+    if (id) {
+      const rows = await db.select().from(conversations).where(eq(conversations.id, id)).limit(1);
+      if (rows[0]) return rows[0];
+    }
+    const now = Date.now();
+    const values: any = {
+      title: payload.title ?? null,
+      workspaceId: payload.workspaceId ?? null,
+      agentId: payload.agentId ?? null,
+      providerId: payload.providerId ?? null,
+      providerInstanceId: payload.providerInstanceId ?? null,
+      messagesCount: 0,
+      lastMessageAt: now,
+      pinned: payload.pinned ?? 0,
+      metadata: payload.metadata ?? null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    if (id) values.id = id;
+    const rows = await db.insert(conversations).values(values).returning().all();
+    return rows[0];
+  },
+
+  /**
+   * 新增一条消息，自动维护 seq、会话计数与 lastMessageAt
+   */
+  async addMessage(conversationId: string, message: Omit<NewChatMessage, 'id' | 'conversationId' | 'seq'>): Promise<ChatMessageRow> {
+    const db = getOrm();
+    // 计算下一个 seq
+    const seqRow = (await db
+      .select({ m: max(chat_messages.seq).as('max') })
+      .from(chat_messages)
+      .where(eq(chat_messages.conversationId, conversationId)))[0] as any;
+    const nextSeq = (seqRow?.m ?? 0) + 1;
+    const now = Date.now();
+    const rows = await db
+      .insert(chat_messages)
+      .values({
+        conversationId,
+        role: message.role,
+        content: message.content,
+        name: message.name ?? null,
+        toolCallId: message.toolCallId ?? null,
+        metadata: message.metadata ?? null,
+        seq: nextSeq,
+        createdAt: (message as any).createdAt ?? now,
+        updatedAt: now,
+      } as any)
+      .returning()
+      .all();
+
+    // 更新会话计数与时间，并在首条用户消息时自动生成标题
+    const conv = await db.select().from(conversations).where(eq(conversations.id, conversationId)).limit(1);
+    const prevCount = conv[0]?.messagesCount ?? 0;
+    const countVal = prevCount + 1;
+    const patch: any = { messagesCount: countVal, lastMessageAt: now, updatedAt: now };
+    if ((!conv[0]?.title || conv[0]?.title === null) && message.role === 'user' && nextSeq === 1) {
+      const raw = (message.content || '').trim();
+      const short = raw.length > 40 ? raw.slice(0, 40) + '…' : raw;
+      patch.title = short || '新对话';
+    }
+    await db.update(conversations)
+      .set(patch)
+      .where(eq(conversations.id, conversationId));
+    return rows[0];
+  },
+
+  async listConversations(filter: { includeDeleted?: boolean } = {}, limit = 100, offset = 0): Promise<ConversationRow[]> {
+    const db = getOrm();
+    let q = db.select().from(conversations);
+    const wheres: any[] = [];
+    if (!filter.includeDeleted) wheres.push(isNull(conversations.deletedAt));
+    if (wheres.length) q = q.where(and(...wheres));
+    return q.orderBy(desc(conversations.pinned as any), desc(conversations.lastMessageAt as any), desc(conversations.updatedAt as any)).limit(limit).offset(offset);
+  },
+
+  async listMessages(conversationId: string, limit = 1000, offset = 0): Promise<ChatMessageRow[]> {
+    const db = getOrm();
+    return db
+      .select()
+      .from(chat_messages)
+      .where(and(eq(chat_messages.conversationId, conversationId), isNull(chat_messages.deletedAt)))
+      .orderBy(chat_messages.seq as any)
+      .limit(limit)
+      .offset(offset);
+  },
+
+  async renameConversation(id: string, title: string): Promise<ConversationRow | undefined> {
+    const db = getOrm();
+    const now = Date.now();
+    await db.update(conversations).set({ title, updatedAt: now } as any).where(eq(conversations.id, id));
+    const rows = await db.select().from(conversations).where(eq(conversations.id, id)).limit(1);
+    return rows[0];
+  },
+
+  async softDeleteConversation(id: string): Promise<ConversationRow | undefined> {
+    const db = getOrm();
+    const now = Date.now();
+    await db.update(conversations).set({ deletedAt: now, updatedAt: now } as any).where(eq(conversations.id, id));
+    const rows = await db.select().from(conversations).where(eq(conversations.id, id)).limit(1);
+    return rows[0];
   },
 };
 

@@ -4,6 +4,7 @@ import { AgentDefinition, ChatRequest, StreamEvent, ChatResponse } from './types
 import { getAgent, getProvider } from './registry';
 import { InstancesStore } from './instances-store';
 import { getAllInstanceSecrets } from './settings-store';
+import { ChatRepo } from '../db/repositories';
 
 // local UUID fallback if uuid not present
 function safeUuid() {
@@ -25,6 +26,24 @@ export class ChatService {
   private async chat(win: BrowserWindow | undefined, req: ChatRequest): Promise<ChatResponse> {
     // Merge instance config if provided
     req = await this.withInstance(req);
+    // Ensure conversation and persist last user message (if any)
+    const conv = await ChatRepo.ensureConversation({
+      id: req.conversationId,
+      agentId: req.agentId,
+      providerId: req.providerId,
+      providerInstanceId: (req as any).providerInstanceId,
+    });
+    const last = (req.messages || []).slice().reverse().find(m => m.role === 'user');
+    if (last) {
+      await ChatRepo.addMessage(conv.id, {
+        role: 'user',
+        content: last.content,
+        name: last.name,
+        toolCallId: last.toolCallId,
+        metadata: last.metadata ? JSON.stringify(last.metadata) as any : null,
+        createdAt: last.createdAt || Date.now(),
+      } as any);
+    }
     const agent: AgentDefinition | undefined = getAgent(req.agentId);
     const ctx = {
       window: win || this.defaultWin,
@@ -34,9 +53,24 @@ export class ChatService {
     if (!agent) {
       const prov = getProvider(req.providerId);
       if (!prov?.chat) return { message: { role: 'assistant', content: 'No provider available.' } };
-      return prov.chat({ ...req, stream: false });
+      const resp = await prov.chat({ ...req, stream: false });
+      // persist assistant reply
+      await ChatRepo.addMessage(conv.id, {
+        role: 'assistant',
+        content: resp.message?.content || '',
+        createdAt: resp.message?.createdAt || Date.now(),
+        metadata: resp.metadata ? JSON.stringify(resp.metadata) as any : null,
+      } as any);
+      return { ...resp, metadata: { ...(resp.metadata || {}), conversationId: conv.id } } as any;
     }
-    return agent.handleChat(ctx, { ...req, stream: false });
+    const resp = await agent.handleChat(ctx, { ...req, stream: false });
+    await ChatRepo.addMessage(conv.id, {
+      role: 'assistant',
+      content: resp.message?.content || '',
+      createdAt: resp.message?.createdAt || Date.now(),
+      metadata: resp.metadata ? JSON.stringify(resp.metadata) as any : null,
+    } as any);
+    return { ...resp, metadata: { ...(resp.metadata || {}), conversationId: conv.id } } as any;
   }
 
   private async chatStream(sender: WebContents, req: ChatRequest & { requestId?: string }) {
@@ -61,9 +95,30 @@ export class ChatService {
     setTimeout(async () => {
       try {
         const resolvedReq = await this.withInstance(req);
-        const ctx = { window: BrowserWindow.fromWebContents(sender) || this.defaultWin, emit, getProvider: (id?: string) => getProvider(id) };
+        // Ensure conversation and persist the last user message once per request
+        const conv = await ChatRepo.ensureConversation({
+          id: resolvedReq.conversationId,
+          agentId: resolvedReq.agentId,
+          providerId: resolvedReq.providerId,
+          providerInstanceId: (resolvedReq as any).providerInstanceId,
+        });
+        const last = (resolvedReq.messages || []).slice().reverse().find(m => m.role === 'user');
+        if (last) {
+          try {
+            await ChatRepo.addMessage(conv.id, {
+              role: 'user',
+              content: last.content,
+              name: last.name,
+              toolCallId: last.toolCallId,
+              metadata: last.metadata ? JSON.stringify(last.metadata) as any : null,
+              createdAt: last.createdAt || Date.now(),
+            } as any);
+          } catch {}
+        }
+  const ctx = { window: BrowserWindow.fromWebContents(sender) || this.defaultWin, emit, getProvider: (id?: string) => getProvider(id) };
         // Notify renderer that channel is ready (after the renderer has had a chance to attach listener)
-        emit({ type: 'connected' } as any);
+  emit({ type: 'connected' } as any);
+  emit({ type: 'metadata', data: { conversationId: conv.id } });
 
         let finalResp: ChatResponse | undefined;
         const agent: AgentDefinition | undefined = getAgent(resolvedReq.agentId);
@@ -77,6 +132,22 @@ export class ChatService {
         if (!emittedCompleted && finalResp?.message) {
           emit({ type: 'message_completed', data: { message: finalResp.message } } as any);
         }
+        // Always send conversationId metadata at end as well (idempotent for renderer)
+        emit({ type: 'metadata', data: { conversationId: conv.id } });
+        // Persist assistant message at the end (regardless of who emitted deltas)
+        try {
+          const msg = finalResp?.message;
+          if (msg) {
+            await ChatRepo.addMessage(conv.id, {
+              role: 'assistant',
+              content: msg.content || '',
+              name: msg.name,
+              toolCallId: msg.toolCallId,
+              metadata: msg.metadata ? JSON.stringify(msg.metadata) as any : null,
+              createdAt: msg.createdAt || Date.now(),
+            } as any);
+          }
+        } catch {}
         emit({ type: 'done' });
       } catch (err: any) {
         emit({ type: 'error', data: { message: err?.message || 'chat error' } });
