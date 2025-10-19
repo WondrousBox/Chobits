@@ -73,6 +73,11 @@ export const aiBridge = {
   async createPromptTemplate(payload: { name: string; type: 'system'|'user'; content: string; tags?: string[] }) { return ipcRenderer.invoke('ai:createPromptTemplate', payload); },
   async updatePromptTemplate(id: string, patch: any) { return ipcRenderer.invoke('ai:updatePromptTemplate', { id, patch }); },
   async deletePromptTemplate(id: string) { return ipcRenderer.invoke('ai:deletePromptTemplate', { id }); },
+  // Conversations & messages
+  async listConversations(payload?: { includeDeleted?: boolean; limit?: number; offset?: number }) { return ipcRenderer.invoke('ai:listConversations', payload); },
+  async listMessages(conversationId: string, limit?: number, offset?: number) { return ipcRenderer.invoke('ai:listMessages', { conversationId, limit, offset }); },
+  async renameConversation(id: string, title: string) { return ipcRenderer.invoke('ai:renameConversation', { id, title }); },
+  async deleteConversation(id: string) { return ipcRenderer.invoke('ai:deleteConversation', { id }); },
 };
 
 export default aiBridge;

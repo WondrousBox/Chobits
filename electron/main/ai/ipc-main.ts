@@ -15,6 +15,7 @@ import { ZhipuProvider } from './providers/zhipu';
 import { InstancesStore } from './instances-store';
 import { PromptsStore } from './prompts-store';
 import { getAllInstanceSecrets as getAllInstSecrets, setInstanceSecrets as setInstSecrets } from './settings-store';
+import { ChatRepo } from '../db/repositories';
 
 export function initAIHandlers(win: BrowserWindow) {
   // Bootstrapping built-in provider(s) and agent(s)
@@ -117,4 +118,21 @@ export function initAIHandlers(win: BrowserWindow) {
   ipcMain.handle('ai:createPromptTemplate', async (_e, payload: { name: string; type: 'system'|'user'; content: string; tags?: string[] }) => PromptsStore.create(payload));
   ipcMain.handle('ai:updatePromptTemplate', async (_e, payload: { id: string; patch: any }) => PromptsStore.update(payload.id, payload.patch));
   ipcMain.handle('ai:deletePromptTemplate', async (_e, payload: { id: string }) => ({ ok: PromptsStore.delete(payload.id) }));
+
+  // Conversations & Messages (history)
+  ipcMain.handle('ai:listConversations', async (_e, payload?: { includeDeleted?: boolean; limit?: number; offset?: number }) => {
+    const rows = await ChatRepo.listConversations({ includeDeleted: payload?.includeDeleted }, payload?.limit ?? 200, payload?.offset ?? 0);
+    return rows;
+  });
+  ipcMain.handle('ai:listMessages', async (_e, payload: { conversationId: string; limit?: number; offset?: number }) => {
+    return ChatRepo.listMessages(payload.conversationId, payload?.limit ?? 2000, payload?.offset ?? 0);
+  });
+  ipcMain.handle('ai:renameConversation', async (_e, payload: { id: string; title: string }) => {
+    const row = await ChatRepo.renameConversation(payload.id, payload.title);
+    return row ? { ok: true, row } : { ok: false };
+  });
+  ipcMain.handle('ai:deleteConversation', async (_e, payload: { id: string }) => {
+    const row = await ChatRepo.softDeleteConversation(payload.id);
+    return row ? { ok: true } : { ok: false };
+  });
 }
