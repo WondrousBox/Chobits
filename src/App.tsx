@@ -14,6 +14,7 @@ import ModelPage from './pages/ModelPage/ModelPage'
 import ResourcePreviewWindow from '@/pages/ResourcePage/ResourcePreviewWindow'
 import DownloadFloating from '@/components/DownloadFloating'
 import FileActionsMenu from '@/pages/FileActionsMenu/FileActionsMenu'
+import { Toaster } from '@/components/ui/sonner'
 
 function App() {
   return (
@@ -36,6 +37,7 @@ function App() {
           <Route path="/download-floating" element={<DownloadFloating />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        <Toaster />
       </div>
     </HashRouter>
   )

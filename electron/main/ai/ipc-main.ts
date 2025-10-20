@@ -135,4 +135,8 @@ export function initAIHandlers(win: BrowserWindow) {
     const row = await ChatRepo.softDeleteConversation(payload.id);
     return row ? { ok: true } : { ok: false };
   });
+  ipcMain.handle('ai:restoreConversation', async (_e, payload: { id: string }) => {
+    const row = await ChatRepo.restoreConversation(payload.id);
+    return row ? { ok: true } : { ok: false };
+  });
 }

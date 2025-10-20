@@ -706,5 +706,14 @@ export const ChatRepo = {
     const rows = await db.select().from(conversations).where(eq(conversations.id, id)).limit(1);
     return rows[0];
   },
+
+  /** 恢复会话（清空 deletedAt） */
+  async restoreConversation(id: string): Promise<ConversationRow | undefined> {
+    const db = getOrm();
+    const now = Date.now();
+    await db.update(conversations).set({ deletedAt: null, updatedAt: now } as any).where(eq(conversations.id, id));
+    const rows = await db.select().from(conversations).where(eq(conversations.id, id)).limit(1);
+    return rows[0];
+  },
 };
 
