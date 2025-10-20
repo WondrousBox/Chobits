@@ -203,6 +203,45 @@ AFTER DELETE ON resources
 BEGIN
   DELETE FROM recycle_bin WHERE entity_type='resource' AND entity_id=OLD.id;
 END;`);
+
+    // Conversations: soft delete -> upsert recycle_bin
+    db.exec(`CREATE TRIGGER IF NOT EXISTS trg_conversations_soft_delete
+AFTER UPDATE OF deleted_at ON conversations
+WHEN NEW.deleted_at IS NOT NULL AND (OLD.deleted_at IS NULL OR OLD.deleted_at != NEW.deleted_at)
+BEGIN
+  INSERT INTO recycle_bin (id, entity_type, entity_id, title, summary, reason, deleted_at, deleted_by, payload, expire_at)
+  VALUES (
+    'conv:' || NEW.id,
+    'conversation',
+    NEW.id,
+    COALESCE(
+      NEW.title,
+      (SELECT substr(content, 1, 80) FROM chat_messages WHERE conversation_id = NEW.id AND role = 'user' ORDER BY seq LIMIT 1)
+    ),
+    (SELECT substr(content, 1, 160) FROM chat_messages WHERE conversation_id = NEW.id ORDER BY seq DESC LIMIT 1),
+    'soft-delete',
+    NEW.deleted_at,
+    'trigger',
+    NULL,
+    NULL
+  )
+  ON CONFLICT(id) DO UPDATE SET deleted_at=excluded.deleted_at, title=excluded.title, summary=excluded.summary;
+END;`);
+
+    // Conversations: restore -> remove recycle_bin
+    db.exec(`CREATE TRIGGER IF NOT EXISTS trg_conversations_restore
+AFTER UPDATE OF deleted_at ON conversations
+WHEN NEW.deleted_at IS NULL AND OLD.deleted_at IS NOT NULL
+BEGIN
+  DELETE FROM recycle_bin WHERE entity_type='conversation' AND entity_id=NEW.id;
+END;`);
+
+    // Conversations: hard delete -> cleanup recycle_bin
+    db.exec(`CREATE TRIGGER IF NOT EXISTS trg_conversations_delete
+AFTER DELETE ON conversations
+BEGIN
+  DELETE FROM recycle_bin WHERE entity_type='conversation' AND entity_id=OLD.id;
+END;`);
   } catch (e) {
     console.warn('[db] setupTriggers failed', e);
   }

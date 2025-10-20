@@ -5,7 +5,7 @@ import DragAbleTitle from '@/components/common/DragAbleTitle';
 
 type TrashItem = {
   id: string;
-  entityType: 'document' | 'resource';
+  entityType: 'document' | 'resource' | 'conversation';
   entityId: string;
   title?: string | null;
   summary?: string | null;
