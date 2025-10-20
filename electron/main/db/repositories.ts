@@ -244,9 +244,16 @@ export const RecycleBinRepo = {
     if (!items.length) return 0;
     const docIds = items.filter(i => i.entityType === 'document').map(i => i.entityId);
     const resIds = items.filter(i => i.entityType === 'resource').map(i => i.entityId);
+    const convIds = items.filter(i => i.entityType === 'conversation').map(i => i.entityId);
     let restored = 0;
     if (docIds.length) restored += (await DocumentsRepo.restore(docIds)).length;
     if (resIds.length) restored += (await ResourcesRepo.restore(resIds)).length;
+    if (convIds.length) {
+      for (const id of convIds) {
+        const row = await ChatRepo.restoreConversation(id);
+        if (row) restored += 1;
+      }
+    }
     return restored;
   },
   /** 根据回收站ID彻底删除实体（文档/资源），并同步清理回收站索引 */
@@ -257,9 +264,11 @@ export const RecycleBinRepo = {
     if (!items.length) return 0;
     const docIds = items.filter(i => i.entityType === 'document').map(i => i.entityId);
     const resIds = items.filter(i => i.entityType === 'resource').map(i => i.entityId);
+    const convIds = items.filter(i => i.entityType === 'conversation').map(i => i.entityId);
     let deleted = 0;
     if (docIds.length) deleted += await DocumentsRepo.deleteByIds(docIds);
     if (resIds.length) deleted += await ResourcesRepo.deleteByIds(resIds);
+    if (convIds.length) deleted += await ChatRepo.deleteConversations(convIds);
     return deleted;
   },
   /** 清空回收站（按可选筛选），并对实体执行彻底删除 */
@@ -714,6 +723,21 @@ export const ChatRepo = {
     await db.update(conversations).set({ deletedAt: null, updatedAt: now } as any).where(eq(conversations.id, id));
     const rows = await db.select().from(conversations).where(eq(conversations.id, id)).limit(1);
     return rows[0];
+  },
+
+  /** 物理删除会话（及其消息）并清理回收站索引 */
+  async deleteConversations(ids: string[]): Promise<number> {
+    if (!ids?.length) return 0;
+    const db = getOrm();
+    // Drizzle doesn't expose chat_messages table here for delete cascade because FK already has ON DELETE CASCADE.
+    // Delete conversations; FK should cascade to messages. Also cleanup recycle_bin.
+    let deleted = 0;
+    (db as any).transaction((tx: any) => {
+      const res = tx.delete(conversations).where(inArray(conversations.id, ids));
+      deleted = ((res as any)?.changes ?? 0);
+      tx.delete(recycle_bin).where(inArray(recycle_bin.entityId, ids));
+    });
+    return deleted;
   },
 };
 
