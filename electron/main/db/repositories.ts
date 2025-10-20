@@ -64,9 +64,9 @@ export const DocumentsRepo = {
     const db = getOrm();
     // 删除向量表记录
     deleteVectors(ids);
-    const res = await db.delete(documents).where(inArray(documents.id, ids));
+    const res = await db.delete(documents).where(inArray(documents.id, ids)).run();
     // 清理回收站索引（若有残留）
-    await db.delete(recycle_bin).where(inArray(recycle_bin.entityId, ids));
+    await db.delete(recycle_bin).where(inArray(recycle_bin.entityId, ids)).run();
     return (res as any).changes ?? 0;
   },
   /**
@@ -102,7 +102,7 @@ export const DocumentsRepo = {
         tx.insert(recycle_bin).values(items as any).onConflictDoUpdate({
           target: recycle_bin.id,
           set: { deletedAt: now },
-        });
+        }).run?.();
       }
       deleteVectors(ids);
     });
@@ -124,7 +124,7 @@ export const DocumentsRepo = {
         .where(inArray(documents.id, ids))
         .returning()
         .all();
-      tx.delete(recycle_bin).where(inArray(recycle_bin.entityId, ids));
+      tx.delete(recycle_bin).where(inArray(recycle_bin.entityId, ids)).run?.();
     });
     return rows as any;
   },
@@ -168,7 +168,7 @@ export const RecycleBinRepo = {
     await db.insert(recycle_bin).values(item).onConflictDoUpdate({
       target: recycle_bin.id,
       set: { ...item },
-    });
+    }).run();
   },
   /**
    * 批量新增回收站索引
@@ -179,7 +179,7 @@ export const RecycleBinRepo = {
     await db.insert(recycle_bin).values(items).onConflictDoUpdate({
       target: recycle_bin.id,
       set: { ...items[0] },
-    });
+    }).run();
   },
   /**
    * 回收站列表（支持筛选/分页）
@@ -224,7 +224,7 @@ export const RecycleBinRepo = {
   async purge(ids: string[]): Promise<number> {
     if (!ids.length) return 0;
     const db = getOrm();
-    const res = await db.delete(recycle_bin).where(inArray(recycle_bin.id, ids));
+    const res = await db.delete(recycle_bin).where(inArray(recycle_bin.id, ids)).run();
     return (res as any).changes ?? 0;
   },
   /**
@@ -233,7 +233,7 @@ export const RecycleBinRepo = {
   async restore(ids: string[]): Promise<number> {
     if (!ids.length) return 0;
     const db = getOrm();
-    const res = await db.delete(recycle_bin).where(inArray(recycle_bin.id, ids));
+    const res = await db.delete(recycle_bin).where(inArray(recycle_bin.id, ids)).run();
     return (res as any).changes ?? 0;
   },
   /** 根据回收站ID恢复实体（文档/资源），并同步清理回收站索引 */
@@ -258,7 +258,6 @@ export const RecycleBinRepo = {
   },
   /** 根据回收站ID彻底删除实体（文档/资源），并同步清理回收站索引 */
   async purgeEntitiesByRecycleIds(ids: string[]): Promise<number> {
-    console.log(ids);
     
     if (!ids?.length) return 0;
     const db = getOrm();
@@ -327,7 +326,7 @@ export const ResourcesRepo = {
   /** 更新资源（部分字段） */
   async update(id: string, patch: Partial<NewResource>): Promise<ResourceRow | undefined> {
     const db = getOrm();
-    await db.update(resources).set({ ...patch, updatedAt: Date.now() } as any).where(eq(resources.id, id));
+    await db.update(resources).set({ ...patch, updatedAt: Date.now() } as any).where(eq(resources.id, id)).run();
     const rows = await db.select().from(resources).where(eq(resources.id, id)).limit(1);
     return rows[0];
   },
@@ -335,8 +334,8 @@ export const ResourcesRepo = {
   async deleteByIds(ids: string[]): Promise<number> {
     if (!ids.length) return 0;
     const db = getOrm();
-    const res = await db.delete(resources).where(inArray(resources.id, ids));
-    await db.delete(recycle_bin).where(inArray(recycle_bin.entityId, ids));
+    const res = await db.delete(resources).where(inArray(resources.id, ids)).run();
+    await db.delete(recycle_bin).where(inArray(recycle_bin.entityId, ids)).run();
     return (res as any).changes ?? 0;
   },
   /** 单条物理删除资源（便捷封装） */
@@ -350,7 +349,7 @@ export const ResourcesRepo = {
     const now = Date.now();
     let resultRows: any[] = [];
     (db as any).transaction((tx: any) => {
-      tx.update(resources).set({ deletedAt: now }).where(inArray(resources.id, ids));
+      tx.update(resources).set({ deletedAt: now }).where(inArray(resources.id, ids)).run?.();
       const rows = tx
         .select({ id: resources.id, title: resources.title, description: resources.description, contentText: resources.contentText })
         .from(resources)
@@ -371,7 +370,7 @@ export const ResourcesRepo = {
         tx.insert(recycle_bin).values(items as any).onConflictDoUpdate({
           target: recycle_bin.id,
           set: { deletedAt: now },
-        });
+        }).run?.();
       }
       resultRows = tx.select().from(resources).where(inArray(resources.id, ids));
     });
@@ -383,8 +382,8 @@ export const ResourcesRepo = {
     const db = getOrm();
     let rows: any[] = [];
     (db as any).transaction((tx: any) => {
-      tx.update(resources).set({ deletedAt: null, updatedAt: Date.now() }).where(inArray(resources.id, ids));
-      tx.delete(recycle_bin).where(inArray(recycle_bin.entityId, ids));
+      tx.update(resources).set({ deletedAt: null, updatedAt: Date.now() }).where(inArray(resources.id, ids)).run?.();
+      tx.delete(recycle_bin).where(inArray(recycle_bin.entityId, ids)).run?.();
       rows = tx.select().from(resources).where(inArray(resources.id, ids));
     });
     return rows as any;
@@ -482,14 +481,14 @@ export const FoldersRepo = {
   /** 重命名 */
   async rename(id: string, newName: string): Promise<FolderRow | undefined> {
     const db = getOrm();
-    await db.update(folders).set({ name: newName, updatedAt: Date.now() } as any).where(eq(folders.id, id));
+    await db.update(folders).set({ name: newName, updatedAt: Date.now() } as any).where(eq(folders.id, id)).run();
     const rows = await db.select().from(folders).where(eq(folders.id, id)).limit(1);
     return rows[0];
   },
   /** 移动到新父目录（支持置空为根） */
   async move(id: string, newParentId: string | null): Promise<FolderRow | undefined> {
     const db = getOrm();
-    await db.update(folders).set({ parentId: newParentId, updatedAt: Date.now() } as any).where(eq(folders.id, id));
+    await db.update(folders).set({ parentId: newParentId, updatedAt: Date.now() } as any).where(eq(folders.id, id)).run();
     const rows = await db.select().from(folders).where(eq(folders.id, id)).limit(1);
     return rows[0];
   },
@@ -497,21 +496,21 @@ export const FoldersRepo = {
   async softDelete(ids: string[]): Promise<FolderRow[]> {
     if (!ids.length) return [];
     const db = getOrm();
-    await db.update(folders).set({ deletedAt: Date.now() } as any).where(inArray(folders.id, ids));
+    await db.update(folders).set({ deletedAt: Date.now() } as any).where(inArray(folders.id, ids)).run();
     return await db.select().from(folders).where(inArray(folders.id, ids));
   },
   /** 恢复 */
   async restore(ids: string[]): Promise<FolderRow[]> {
     if (!ids.length) return [];
     const db = getOrm();
-    await db.update(folders).set({ deletedAt: null, updatedAt: Date.now() } as any).where(inArray(folders.id, ids));
+    await db.update(folders).set({ deletedAt: null, updatedAt: Date.now() } as any).where(inArray(folders.id, ids)).run();
     return await db.select().from(folders).where(inArray(folders.id, ids));
   },
   /** 物理删除（谨慎） */
   async deleteByIds(ids: string[]): Promise<number> {
     if (!ids.length) return 0;
     const db = getOrm();
-    const res = await db.delete(folders).where(inArray(folders.id, ids));
+    const res = await db.delete(folders).where(inArray(folders.id, ids)).run();
     return (res as any).changes ?? 0;
   },
 };
@@ -553,9 +552,9 @@ export const WorkspacesRepo = {
     // "Transaction function cannot return a promise".
     (db as any).transaction((tx: any) => {
       // 1) 清除旧默认（只更新当前为默认的行，避免全表无谓写放大）
-      tx.update(workspaces).set({ isDefault: 0 as any, updatedAt: now }).where(eq(workspaces.isDefault as any, 1));
+      tx.update(workspaces).set({ isDefault: 0 as any, updatedAt: now }).where(eq(workspaces.isDefault as any, 1)).run?.();
       // 2) 设定新默认
-      tx.update(workspaces).set({ isDefault: 1 as any, updatedAt: now }).where(eq(workspaces.id, id));
+      tx.update(workspaces).set({ isDefault: 1 as any, updatedAt: now }).where(eq(workspaces.id, id)).run?.();
     });
     const rows = await db.select().from(workspaces).where(eq(workspaces.id, id)).limit(1);
     return rows[0];
@@ -585,7 +584,7 @@ export const WorkspacesRepo = {
   /** 更新 */
   async update(id: string, patch: Partial<NewWorkspace>): Promise<WorkspaceRow | undefined> {
     const db = getOrm();
-    await db.update(workspaces).set({ ...patch, updatedAt: Date.now() } as any).where(eq(workspaces.id, id));
+    await db.update(workspaces).set({ ...patch, updatedAt: Date.now() } as any).where(eq(workspaces.id, id)).run();
     const rows = await db.select().from(workspaces).where(eq(workspaces.id, id)).limit(1);
     return rows[0];
   },
@@ -593,14 +592,14 @@ export const WorkspacesRepo = {
   async softDelete(ids: string[]): Promise<WorkspaceRow[]> {
     if (!ids.length) return [];
     const db = getOrm();
-    await db.update(workspaces).set({ deletedAt: Date.now() }).where(inArray(workspaces.id, ids));
+    await db.update(workspaces).set({ deletedAt: Date.now() }).where(inArray(workspaces.id, ids)).run();
     return await db.select().from(workspaces).where(inArray(workspaces.id, ids));
   },
   /** 物理删除 */
   async deleteByIds(ids: string[]): Promise<number> {
     if (!ids.length) return 0;
     const db = getOrm();
-    const res = await db.delete(workspaces).where(inArray(workspaces.id, ids));
+    const res = await db.delete(workspaces).where(inArray(workspaces.id, ids)).run();
     return (res as any).changes ?? 0;
   },
 };
@@ -678,7 +677,8 @@ export const ChatRepo = {
     }
     await db.update(conversations)
       .set(patch)
-      .where(eq(conversations.id, conversationId));
+      .where(eq(conversations.id, conversationId))
+      .run();
     return rows[0];
   },
 
@@ -705,7 +705,7 @@ export const ChatRepo = {
   async renameConversation(id: string, title: string): Promise<ConversationRow | undefined> {
     const db = getOrm();
     const now = Date.now();
-    await db.update(conversations).set({ title, updatedAt: now } as any).where(eq(conversations.id, id));
+    await db.update(conversations).set({ title, updatedAt: now } as any).where(eq(conversations.id, id)).run();
     const rows = await db.select().from(conversations).where(eq(conversations.id, id)).limit(1);
     return rows[0];
   },
@@ -713,7 +713,7 @@ export const ChatRepo = {
   async softDeleteConversation(id: string): Promise<ConversationRow | undefined> {
     const db = getOrm();
     const now = Date.now();
-    await db.update(conversations).set({ deletedAt: now, updatedAt: now } as any).where(eq(conversations.id, id));
+    await db.update(conversations).set({ deletedAt: now, updatedAt: now } as any).where(eq(conversations.id, id)).run();
     const rows = await db.select().from(conversations).where(eq(conversations.id, id)).limit(1);
     return rows[0];
   },
@@ -722,7 +722,7 @@ export const ChatRepo = {
   async restoreConversation(id: string): Promise<ConversationRow | undefined> {
     const db = getOrm();
     const now = Date.now();
-    await db.update(conversations).set({ deletedAt: null, updatedAt: now } as any).where(eq(conversations.id, id));
+    await db.update(conversations).set({ deletedAt: null, updatedAt: now } as any).where(eq(conversations.id, id)).run();
     const rows = await db.select().from(conversations).where(eq(conversations.id, id)).limit(1);
     return rows[0];
   },
@@ -737,7 +737,7 @@ export const ChatRepo = {
     (db as any).transaction((tx: any) => {
       const res = tx.delete(conversations).where(inArray(conversations.id, ids)).run?.();
       deleted = ((res as any)?.changes ?? 0);
-      tx.delete(recycle_bin).where(inArray(recycle_bin.entityId, ids));
+      tx.delete(recycle_bin).where(inArray(recycle_bin.entityId, ids)).run?.();
     });
     return deleted;
   },
