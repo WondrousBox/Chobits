@@ -75,6 +75,7 @@
     "@vitejs/plugin-react": "^4.3.3",
     "anthropic": "^0.0.0",
     "autoprefixer": "^10.4.20",
+    "highlight.js": "^11.11.1",
     "dayjs": "^1.11.18",
     "drizzle-kit": "^0.31.4",
     "electron": "^33.2.0",
