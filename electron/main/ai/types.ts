@@ -109,4 +109,5 @@ export type AIApi = {
   listMessages(conversationId: string, limit?: number, offset?: number): Promise<any[]>;
   renameConversation(id: string, title: string): Promise<{ ok: boolean; row?: any }>;
   deleteConversation(id: string): Promise<{ ok: boolean }>;
+  restoreConversation(id: string): Promise<{ ok: boolean }>;
 }

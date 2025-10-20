@@ -78,6 +78,7 @@ export const aiBridge = {
   async listMessages(conversationId: string, limit?: number, offset?: number) { return ipcRenderer.invoke('ai:listMessages', { conversationId, limit, offset }); },
   async renameConversation(id: string, title: string) { return ipcRenderer.invoke('ai:renameConversation', { id, title }); },
   async deleteConversation(id: string) { return ipcRenderer.invoke('ai:deleteConversation', { id }); },
+  async restoreConversation(id: string) { return ipcRenderer.invoke('ai:restoreConversation', { id }); },
 };
 
 export default aiBridge;

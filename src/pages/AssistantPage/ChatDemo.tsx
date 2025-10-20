@@ -14,12 +14,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { TbSend, TbLoader2, TbTrash, TbRefresh, TbEdit, TbPlus } from 'react-icons/tb';
+import { toast } from 'sonner';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import MarkdownMessage from '@/components/common/MarkdownMessage';
 import { formatRelativeTime, formatDateTime } from '@/lib/time';
 
 export default function ChatDemo() {
-  const [input, setInput] = useState('你好，介绍一下你自己');
+  const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string; createdAt?: number }>>([]);
   const [loading, setLoading] = useState(false);
   const [providers, setProviders] = useState<any[]>([]);
@@ -77,7 +78,7 @@ export default function ChatDemo() {
     try {
       const rows = await window.YUA.ai.listConversations({ includeDeleted: false, limit: 200 });
       setConversations(rows || []);
-    } catch {}
+    } catch { }
     setLoadingConvs(false);
   };
   useEffect(() => { loadConversations(); }, []);
@@ -90,7 +91,7 @@ export default function ChatDemo() {
       const rows = await window.YUA.ai.listMessages(id, 2000, 0);
       const mapped = (rows || []).map((r: any) => ({ role: r.role, content: r.content, createdAt: r.createdAt }));
       setMessages(mapped);
-    } catch {}
+    } catch { }
   };
 
   // Start a brand new conversation (reset state)
@@ -118,12 +119,33 @@ export default function ChatDemo() {
     await loadConversations();
   };
 
-  // Soft delete a conversation
+  // Soft delete a conversation with undo via toast
   const deleteConversation = async (id: string) => {
-    if (!confirm('确认删除该对话？该操作可在未来支持恢复。')) return;
-    await window.YUA.ai.deleteConversation(id);
-    await loadConversations();
-    if (selectedConvId === id) newConversation();
+    const prevSelected = selectedConvId;
+    try {
+      await window.YUA.ai.deleteConversation(id);
+      // Optimistic: remove from list immediately
+      setConversations(prev => prev.filter(c => c.id !== id));
+      if (prevSelected === id) newConversation();
+
+      toast.success('已删除会话', {
+        description: '你可以在几秒内撤回该操作',
+        action: {
+          label: '撤回',
+          onClick: async () => {
+            await window.YUA.ai.restoreConversation(id);
+            await loadConversations();
+            // If this conversation was focused before, reselect it
+            if (prevSelected === id) {
+              await selectConversation(id);
+            }
+          },
+        },
+        duration: 5000,
+      });
+    } catch (e) {
+      toast.error('删除失败');
+    }
   };
 
   const start = async () => {
@@ -255,8 +277,8 @@ export default function ChatDemo() {
         {/* 左侧：历史会话 */}
         <div className="w-64 border-r shrink-0 flex flex-col">
           <div className="p-2 flex items-center gap-2">
-            <Button size="sm" variant="secondary" onClick={newConversation} className="h-7 text-xs"><TbPlus className="w-4 h-4 mr-1"/>新对话</Button>
-            <Button size="sm" variant="ghost" onClick={loadConversations} className="h-7 text-xs" title="刷新列表"><TbRefresh className="w-4 h-4"/></Button>
+            <Button size="sm" variant="secondary" onClick={newConversation} className="h-7 text-xs"><TbPlus className="w-4 h-4 mr-1" />新对话</Button>
+            <Button size="sm" variant="ghost" onClick={loadConversations} className="h-7 text-xs" title="刷新列表"><TbRefresh className="w-4 h-4" /></Button>
           </div>
           <div className="px-2 pb-2 text-xs text-muted-foreground flex items-center justify-between">
             <span>最近会话</span>
@@ -281,10 +303,10 @@ export default function ChatDemo() {
                     </div>
                   </div>
                   <button className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-muted" title="重命名" onClick={(e) => { e.stopPropagation(); renameConversation(c.id); }}>
-                    <TbEdit className="w-4 h-4"/>
+                    <TbEdit className="w-4 h-4" />
                   </button>
                   <button className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-muted" title="删除" onClick={(e) => { e.stopPropagation(); deleteConversation(c.id); }}>
-                    <TbTrash className="w-4 h-4"/>
+                    <TbTrash className="w-4 h-4" />
                   </button>
                 </div>
               ))}
@@ -391,22 +413,22 @@ export default function ChatDemo() {
                         {list.length === 0 ? (
                           <DropdownMenuItem
                             onSelect={async () => {
-                              try { await window.YUA.window.openWindow('settings' as any, { category: 'ai', aiProviderId: p.id }); } catch {}
+                              try { await window.YUA.window.openWindow('settings' as any, { category: 'ai', aiProviderId: p.id }); } catch { }
                             }}
                           >
                             未配置实例，去配置…
                           </DropdownMenuItem>
                         ) : (
                           list.map((it) => (
-                          <DropdownMenuItem
-                            key={it.id}
-                            onSelect={() => {
-                              setProviderId(p.id);
-                              setInstanceId(it.id);
-                            }}
-                          >
-                            {it.name || it.id}
-                          </DropdownMenuItem>
+                            <DropdownMenuItem
+                              key={it.id}
+                              onSelect={() => {
+                                setProviderId(p.id);
+                                setInstanceId(it.id);
+                              }}
+                            >
+                              {it.name || it.id}
+                            </DropdownMenuItem>
                           ))
                         )}
                       </DropdownMenuSubContent>
