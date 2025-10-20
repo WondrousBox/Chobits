@@ -4,6 +4,7 @@ import App from './App'
 import { SpritePlayerProvider } from '@/components/AIAssistant/context/SpritePlayerContext'
 
 import './index.scss'
+import 'highlight.js/styles/github-dark.css'
 
 import './demos/ipc'
 // If you want use Node.js, the`nodeIntegration` needs to be enabled in the Main process.

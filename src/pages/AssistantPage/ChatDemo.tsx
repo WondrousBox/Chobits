@@ -16,6 +16,7 @@ import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { TbSend, TbLoader2, TbTrash, TbRefresh, TbEdit, TbPlus } from 'react-icons/tb';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import MarkdownMessage from '@/components/common/MarkdownMessage';
+import { formatRelativeTime, formatDateTime } from '@/lib/time';
 
 export default function ChatDemo() {
   const [input, setInput] = useState('你好，介绍一下你自己');
@@ -243,8 +244,8 @@ export default function ChatDemo() {
               <Button size="sm" variant="ghost" type="button" onClick={() => { setEditingTitle(false); }}>取消</Button>
             </form>
           )}
-          <span className="text-xs text-muted-foreground whitespace-nowrap">
-            {currentConversation?.lastMessageAt ? new Date(currentConversation.lastMessageAt).toLocaleString() : ''}
+          <span className="text-xs text-muted-foreground whitespace-nowrap" title={formatDateTime(currentConversation?.lastMessageAt)}>
+            {formatRelativeTime(currentConversation?.lastMessageAt)}
           </span>
         </div>
       } />
@@ -274,9 +275,9 @@ export default function ChatDemo() {
                 <div key={c.id} className={`group flex items-center gap-2 px-2 py-1.5 cursor-pointer hover:bg-muted/50 ${selectedConvId === c.id ? 'bg-muted' : ''}`} onClick={() => selectConversation(c.id)}>
                   <div className="flex-1 min-w-0">
                     <div className="truncate text-sm">{c.title || '未命名会话'}</div>
-                    <div className="text-[11px] text-muted-foreground">
+                    <div className="text-[11px] text-muted-foreground" title={formatDateTime(c.lastMessageAt)}>
                       {(c.messagesCount ?? 0)} 条 • {c.providerId || '-'}{c.providerInstanceId ? `/${c.providerInstanceId}` : ''}
-                      {c.lastMessageAt ? ` • ${new Date(c.lastMessageAt).toLocaleString()}` : ''}
+                      {c.lastMessageAt ? ` • ${formatRelativeTime(c.lastMessageAt)}` : ''}
                     </div>
                   </div>
                   <button className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-muted" title="重命名" onClick={(e) => { e.stopPropagation(); renameConversation(c.id); }}>
