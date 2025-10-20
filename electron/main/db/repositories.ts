@@ -258,17 +258,19 @@ export const RecycleBinRepo = {
   },
   /** 根据回收站ID彻底删除实体（文档/资源），并同步清理回收站索引 */
   async purgeEntitiesByRecycleIds(ids: string[]): Promise<number> {
+    console.log(ids);
+    
     if (!ids?.length) return 0;
     const db = getOrm();
     const items = (await db.select().from(recycle_bin).where(inArray(recycle_bin.id, ids))) as any[];
     if (!items.length) return 0;
     const docIds = items.filter(i => i.entityType === 'document').map(i => i.entityId);
     const resIds = items.filter(i => i.entityType === 'resource').map(i => i.entityId);
-    const convIds = items.filter(i => i.entityType === 'conversation').map(i => i.entityId);
+    const conversationIds = items.filter(i => i.entityType === 'conversation').map(i => i.entityId);
     let deleted = 0;
     if (docIds.length) deleted += await DocumentsRepo.deleteByIds(docIds);
     if (resIds.length) deleted += await ResourcesRepo.deleteByIds(resIds);
-    if (convIds.length) deleted += await ChatRepo.deleteConversations(convIds);
+    if (conversationIds.length) deleted += await ChatRepo.deleteConversations(conversationIds);
     return deleted;
   },
   /** 清空回收站（按可选筛选），并对实体执行彻底删除 */
@@ -733,7 +735,7 @@ export const ChatRepo = {
     // Delete conversations; FK should cascade to messages. Also cleanup recycle_bin.
     let deleted = 0;
     (db as any).transaction((tx: any) => {
-      const res = tx.delete(conversations).where(inArray(conversations.id, ids));
+      const res = tx.delete(conversations).where(inArray(conversations.id, ids)).run?.();
       deleted = ((res as any)?.changes ?? 0);
       tx.delete(recycle_bin).where(inArray(recycle_bin.entityId, ids));
     });

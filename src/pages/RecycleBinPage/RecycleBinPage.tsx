@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { TbArrowBackUp, TbCheck, TbSquare, TbTrash, TbX } from 'react-icons/tb';
 import DragAbleTitle from '@/components/common/DragAbleTitle';
+import { toast } from 'sonner';
 
 type TrashItem = {
   id: string;
@@ -49,10 +50,18 @@ const RecycleBinPage: React.FC = () => {
 
   const purge = async () => {
     if (!selected.size) return
-    if (!confirm('彻底删除所选项目？该操作不可恢复。')) return
-    await window.YUA.trash['trash:purge']({ recycleIds: Array.from(selected) })
-    await load()
-    clearSel()
+    try {
+      const res = await window.YUA.trash['trash:purge']({ recycleIds: Array.from(selected) })
+      if ((res as any)?.deleted > 0) {
+        toast.success(`已彻底删除 ${((res as any)?.deleted ?? 0)} 项`)
+      } else {
+        toast.info('没有可删除的项目，可能已被删除或类型暂不支持')
+      }
+      await load()
+      clearSel()
+    } catch (e: any) {
+      toast.error('彻底删除失败', { description: e?.message || String(e) })
+    }
   }
 
   const empty = async () => {
