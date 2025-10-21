@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { TbLoader2, TbSend } from 'react-icons/tb';
 import { useChatSelection } from './context/ChatSelectionContext';
+import TintableSvg from '@/components/common/TintableSvg';
 
 export interface ChatInputBarProps {
   // Triggered when user hits send (Enter or button)
@@ -191,7 +192,14 @@ export default function ChatInputBar({ onStart, onStop, loading, placeholder, cl
                   const list = getOrderedInstances(p.id);
                   return (
                     <DropdownMenuSub key={p.id}>
-                      <DropdownMenuSubTrigger>{p.label}</DropdownMenuSubTrigger>
+                      <DropdownMenuSubTrigger>
+                        <span className="flex items-center gap-2">
+                          {p?.schema?.icon && (
+                            <TintableSvg src={p.schema.icon} className="w-4 h-4" alt={p.label} />
+                          )}
+                          <span>{p.label}</span>
+                        </span>
+                      </DropdownMenuSubTrigger>
                       <DropdownMenuSubContent>
                         {list.length === 0 ? (
                           <DropdownMenuItem

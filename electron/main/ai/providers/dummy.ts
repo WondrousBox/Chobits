@@ -1,4 +1,5 @@
 import { ProviderAdapter, ProviderConfig, ProviderSecrets, ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, StreamEvent } from '../types';
+import { loadProviderSchema } from '../schema-loader';
 
 export class DummyProvider implements ProviderAdapter {
   readonly id = 'dummy';
@@ -7,7 +8,7 @@ export class DummyProvider implements ProviderAdapter {
 
   isConfigured(): boolean { return true; }
   getConfigSchema(): ProviderConfig {
-    return {
+    const fallback: ProviderConfig = {
       id: this.id,
       label: this.label,
       enabled: true,
@@ -15,6 +16,7 @@ export class DummyProvider implements ProviderAdapter {
         { key: 'note', label: 'This is a dummy provider for testing', type: 'text' },
       ],
     };
+    return loadProviderSchema(this.id, fallback);
   }
   setSecrets(secrets: ProviderSecrets) { this.secrets = secrets; }
   getSecrets(): ProviderSecrets { return this.secrets; }

@@ -1,4 +1,5 @@
 import { ProviderAdapter, ProviderConfig, ProviderSecrets, ChatRequest, ChatResponse, StreamEvent, EmbeddingRequest, EmbeddingResponse } from '../types';
+import { loadProviderSchema } from '../schema-loader';
 
 type OllamaSecrets = { baseUrl?: string; model?: string };
 
@@ -9,7 +10,7 @@ export class OllamaProvider implements ProviderAdapter {
 
   isConfigured(): boolean { return true; }
   getConfigSchema(): ProviderConfig {
-    return {
+    const fallback: ProviderConfig = {
       id: this.id,
       label: this.label,
       enabled: true,
@@ -18,6 +19,7 @@ export class OllamaProvider implements ProviderAdapter {
         { key: 'model', label: '默认模型（如 llama3.1）', type: 'text' },
       ],
     };
+    return loadProviderSchema(this.id, fallback);
   }
   setSecrets(secrets: ProviderSecrets) { this.secrets = { ...this.secrets, ...(secrets as any) }; }
   getSecrets(): ProviderSecrets { return this.secrets; }

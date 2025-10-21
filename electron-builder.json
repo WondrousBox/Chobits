@@ -27,6 +27,10 @@
       "to": "./drizzle"
     },
     {
+      "from": "resources/providers",
+      "to": "./providers"
+    },
+    {
       "from": "resources/ffmpeg/${platform}/${arch}",
       "to": "./ffmpeg/${platform}/${arch}"
     },

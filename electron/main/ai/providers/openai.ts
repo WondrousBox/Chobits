@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { ProviderAdapter, ProviderConfig, ProviderSecrets, ChatRequest, ChatResponse, StreamEvent, EmbeddingRequest, EmbeddingResponse } from '../types';
+import { loadProviderSchema } from '../schema-loader';
 
 type OpenAISecrets = { apiKey?: string; baseUrl?: string; organization?: string; model?: string };
 
@@ -10,7 +11,7 @@ export class OpenAIProvider implements ProviderAdapter {
 
   isConfigured(): boolean { return !!this.secrets.apiKey; }
   getConfigSchema(): ProviderConfig {
-    return {
+    const fallback: ProviderConfig = {
       id: this.id,
       label: this.label,
       enabled: true,
@@ -20,6 +21,7 @@ export class OpenAIProvider implements ProviderAdapter {
         { key: 'model', label: '默认模型（如 gpt-4o-mini）', type: 'text' },
       ],
     };
+    return loadProviderSchema(this.id, fallback);
   }
   setSecrets(secrets: ProviderSecrets) { this.secrets = { ...this.secrets, ...(secrets as any) }; }
   getSecrets(): ProviderSecrets { return this.secrets; }

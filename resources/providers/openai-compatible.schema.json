@@ -1,0 +1,15 @@
+{
+  "id": "openai-compatible",
+  "label": "OpenAI Compatible",
+  "enabled": true,
+  "icon": "providers/icons/openai.svg",
+  "locales": {
+    "en": { "label": "OpenAI Compatible", "fields": { "apiKey": "API Key", "baseUrl": "Base URL", "model": "Default model" } },
+    "zh-CN": { "label": "OpenAI 兼容", "fields": { "apiKey": "API Key", "baseUrl": "Base URL", "model": "默认模型" } }
+  },
+  "fields": [
+    { "key": "apiKey", "label": "API Key", "type": "password", "required": true },
+    { "key": "baseUrl", "label": "Base URL", "type": "text" },
+    { "key": "model", "label": "默认模型", "type": "text" }
+  ]
+}

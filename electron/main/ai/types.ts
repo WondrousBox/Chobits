@@ -48,7 +48,22 @@ export type EmbeddingResponse = { vectors: number[][]; dim: number; model?: stri
 
 // Provider configuration (API keys etc.)
 export type ProviderSecrets = Record<string, string | undefined>; // e.g. { apiKey: 'sk-...' }
-export type ProviderConfig = { id: string; label: string; enabled: boolean; fields: Array<{ key: string; label: string; type: 'text'|'password'|'select'; required?: boolean; options?: Array<{label:string; value:string}> }>; };
+export type ProviderConfig = {
+  id: string;
+  label: string;
+  enabled: boolean;
+  // Optional icon path; can be absolute, a res:// URL, or a resource-relative path resolved by renderer
+  icon?: string;
+  // Optional i18n locales: e.g., { en: { label: 'OpenAI', fields: { apiKey: 'API Key' } }, zh: { label: '开放AI' } }
+  locales?: Record<string, { label?: string; fields?: Record<string, string> }>;
+  fields: Array<{
+    key: string;
+    label: string;
+    type: 'text'|'password'|'select';
+    required?: boolean;
+    options?: Array<{label:string; value:string}>;
+  }>;
+};
 
 // Provider adapter contracts (chat + embeddings are optional capabilities)
 export interface ProviderAdapter {

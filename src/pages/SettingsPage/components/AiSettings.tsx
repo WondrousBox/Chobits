@@ -4,8 +4,9 @@ import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
+import TintableSvg from '@/components/common/TintableSvg';
 
-type ProviderRow = { id: string; label: string; configured?: boolean; schema?: { fields?: Array<{ key: string; label: string; type: string; required?: boolean; options?: any[] }> } };
+type ProviderRow = { id: string; label: string; configured?: boolean; schema?: { icon?: string; locales?: Record<string, { label?: string; fields?: Record<string, string> }>; fields?: Array<{ key: string; label: string; type: string; required?: boolean; options?: any[] }> } };
 type Instance = { id: string; providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any>; createdAt?: number };
 type ModelOpt = { id: string; label?: string };
 type Template = { id: string; name: string; type: 'system' | 'user'; content: string };
@@ -24,16 +25,23 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
   const [draft, setDraft] = useState<{ name: string; model?: string; systemPrompt?: string; secrets: Record<string, string> }>({ name: '', model: '', systemPrompt: '', secrets: {} });
 
   const selectedProvider = useMemo(() => providers.find(p => p.id === selectedProviderId) || null, [providers, selectedProviderId]);
+  const currentLang = navigator.language?.toLowerCase?.() || 'en';
+  const pickLocale = (locales?: Record<string, { label?: string; fields?: Record<string, string> }>) => {
+    if (!locales) return undefined;
+    const exact = locales[currentLang] || locales[currentLang.replace(/-.+$/, '')];
+    const fallback = locales['en'] || Object.values(locales)[0];
+    return exact || fallback;
+  };
 
   useEffect(() => {
     (async () => {
-      const provs = await (window as any).YUA.ai.getProviders();
+      const provs = await window.YUA.ai.getProviders();
       setProviders(provs || []);
       const defaultId = (initialProviderId && (provs || []).some((p: ProviderRow) => p.id === initialProviderId))
         ? initialProviderId
         : (provs?.[0]?.id || null);
       setSelectedProviderId(defaultId);
-      const tmpl = await (window as any).YUA.ai.listPromptTemplates().catch(() => []);
+      const tmpl = await window.YUA.ai.listPromptTemplates().catch(() => []);
       setTemplates(tmpl || []);
     })();
   }, [initialProviderId]);
@@ -47,14 +55,16 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
   useEffect(() => {
     if (!selectedProviderId) return;
     (async () => {
-      const list = await (window as any).YUA.ai.listInstances(selectedProviderId);
+      const list = await window.YUA.ai.listInstances(selectedProviderId);
       setInstances(list || []);
       try {
-        const ms = await (window as any).YUA.ai.listModels(selectedProviderId);
+        const ms = await window.YUA.ai.listModels(selectedProviderId);
         if (Array.isArray(ms) && ms.length) setModels(prev => ({ ...prev, [selectedProviderId]: ms }));
       } catch { }
     })();
   }, [selectedProviderId]);
+
+  // duplicated declarations removed
 
   const schemaForProvider = (p?: ProviderRow | null) => {
     const shape: Record<string, z.ZodTypeAny> = {};
@@ -69,13 +79,13 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
     const inst = instances.find(i => i.id === instanceId);
     if (!inst) return;
     try {
-      const ms = await (window as any).YUA.ai.listModels(inst.providerId, inst.id);
+  const ms = await (window as any).YUA.ai.listModels(inst.providerId, inst.id);
       if (Array.isArray(ms) && ms.length) setModels(prev => ({ ...prev, [inst.providerId]: ms }));
     } catch { }
   };
 
   const loadInstanceSecrets = async (instanceId: string) => {
-    const s = await (window as any).YUA.ai.getInstanceSecrets(instanceId).catch(() => ({}));
+    const s = await window.YUA.ai.getInstanceSecrets(instanceId).catch(() => ({}));
     setInstanceSecrets(prev => ({ ...prev, [instanceId]: s || {} }));
   };
 
@@ -92,9 +102,9 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
       return;
     }
     setErrors(prev => ({ ...prev, __new__: {} }));
-    const created = await (window as any).YUA.ai.createInstance({ providerId: selectedProvider.id, name: draft.name, model: draft.model, systemPrompt: draft.systemPrompt, config: {} });
-    if (created?.id) await (window as any).YUA.ai.setInstanceSecrets(created.id, draft.secrets);
-    const list = await (window as any).YUA.ai.listInstances(selectedProvider.id);
+    const created = await window.YUA.ai.createInstance({ providerId: selectedProvider.id, name: draft.name, model: draft.model, systemPrompt: draft.systemPrompt, config: {} });
+    if (created?.id) await window.YUA.ai.setInstanceSecrets(created.id, draft.secrets);
+    const list = await window.YUA.ai.listInstances(selectedProvider.id);
     setInstances(list || []);
     setCreating(false);
     setDraft({ name: '', model: '', systemPrompt: '', secrets: {} });
@@ -110,15 +120,15 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
       return;
     }
     setErrors(prev => ({ ...prev, [inst.id]: {} }));
-    await (window as any).YUA.ai.updateInstance(inst.id, { name: inst.name, model: inst.model, systemPrompt: inst.systemPrompt });
-    await (window as any).YUA.ai.setInstanceSecrets(inst.id, instanceSecrets[inst.id] || {});
-    const list = await (window as any).YUA.ai.listInstances(inst.providerId);
+    await window.YUA.ai.updateInstance(inst.id, { name: inst.name, model: inst.model, systemPrompt: inst.systemPrompt });
+    await window.YUA.ai.setInstanceSecrets(inst.id, instanceSecrets[inst.id] || {});
+    const list = await window.YUA.ai.listInstances(inst.providerId);
     setInstances(list || []);
   };
 
   const onQuickTest = async (inst: Instance) => {
     try {
-      await (window as any).YUA.ai.chat({
+      await window.YUA.ai.chat({
         providerInstanceId: inst.id,
         messages: [{ role: 'system', content: 'You are a connectivity test.' }, { role: 'user', content: 'ping' }],
         stream: false,
@@ -134,7 +144,7 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
   };
 
   const refreshTemplates = async () => {
-    const tmpl = await (window as any).YUA.ai.listPromptTemplates().catch(() => []);
+    const tmpl = await window.YUA.ai.listPromptTemplates().catch(() => []);
     setTemplates(tmpl || []);
   };
 
@@ -163,7 +173,10 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
     <div className="h-full w-full flex">
       <div className="h-full w-60 overflow-y-auto border-ring p-2 box-border" style={{ borderRightWidth: 1, borderRightStyle: 'solid' }}>
         <div className="space-y-1">
-          {providers.map(p => (
+          {providers.map(p => {
+            const loc = pickLocale(p.schema?.locales);
+            const label = loc?.label || p.label;
+            return (
             <Button
               key={p.id}
               variant={selectedProviderId === p.id ? "default" : "outline"}
@@ -171,11 +184,15 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
               onClick={() => setSelectedProviderId(p.id)}
             >
               <div className="w-full flex items-center justify-between">
-                <span>{p.label}</span>
+                <span className="flex items-center gap-2">
+                  {p.schema?.icon && (<TintableSvg src={p.schema?.icon || ""} alt={label} className="w-4 h-4" />)}
+                  <span>{label}</span>
+                </span>
                 <span className={`text-xs ${p.configured ? 'text-green-600' : 'text-gray-400'}`}>{p.configured ? '已配置' : '未配置'}</span>
               </div>
             </Button>
-          ))}
+            )
+          })}
         </div>
       </div>
       {/* Right: Instances */}
@@ -183,7 +200,10 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
         {selectedProvider ? (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <div className="text-lg font-semibold">{selectedProvider.label} · 配置实例</div>
+              <div className="text-lg font-semibold flex items-center gap-2">
+                {selectedProvider.schema?.icon && (<TintableSvg src={selectedProvider.schema?.icon!} alt={selectedProvider.label} className="w-5 h-5" />)}
+                <span>{(pickLocale(selectedProvider.schema?.locales)?.label) || selectedProvider.label} · 配置实例</span>
+              </div>
               <Button onClick={() => { setCreating(true); setDraft({ name: '', model: '', systemPrompt: '', secrets: {} }); }}>新建实例</Button>
             </div>
 
@@ -218,9 +238,12 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
                     </div>
                   </label>
                   <div className="grid gap-2 md:grid-cols-2">
-                    {(selectedProvider.schema?.fields || []).map(f => (
+                    {(selectedProvider.schema?.fields || []).map(f => {
+                      const loc = pickLocale(selectedProvider.schema?.locales);
+                      const label = (loc?.fields?.[f.key]) || f.label;
+                      return (
                       <label key={f.key} className="grid gap-1">
-                        <span className="text-sm text-gray-600">{f.label}</span>
+                        <span className="text-sm text-gray-600">{label}</span>
                         <Input
                           className="rounded border px-2 py-1"
                           type={f.type === 'password' ? 'password' : 'text'}
@@ -229,7 +252,8 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
                         />
                         {errors.__new__?.[f.key] && <span className="text-xs text-red-600">{errors.__new__?.[f.key]}</span>}
                       </label>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -251,7 +275,7 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
                     <div className="flex gap-2">
                       <button className="text-blue-600" onClick={async () => { setExpanded(e => ({ ...e, [inst.id]: !e[inst.id] })); if (!instanceSecrets[inst.id]) await loadInstanceSecrets(inst.id); await refreshInstanceModels(inst.id); }}>编辑</button>
                       <button className="text-gray-600" onClick={() => onQuickTest(inst)}>测试</button>
-                      <button className="text-red-600" onClick={async () => { if (!confirm('删除该实例？')) return; await (window as any).YUA.ai.deleteInstance(inst.id); const list = await (window as any).YUA.ai.listInstances(inst.providerId); setInstances(list || []); }}>删除</button>
+                      <button className="text-red-600" onClick={async () => { if (!confirm('删除该实例？')) return; await window.YUA.ai.deleteInstance(inst.id); const list = await window.YUA.ai.listInstances(inst.providerId); setInstances(list || []); }}>删除</button>
                     </div>
                   </div>
                   {expanded[inst.id] && (
@@ -283,9 +307,12 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
                         </div>
                       </label>
                       <div className="grid gap-2 md:grid-cols-2">
-                        {(selectedProvider?.schema?.fields || []).map(f => (
+                        {(selectedProvider?.schema?.fields || []).map(f => {
+                          const loc = pickLocale(selectedProvider.schema?.locales);
+                          const label = (loc?.fields?.[f.key]) || f.label;
+                          return (
                           <label key={f.key} className="grid gap-1">
-                            <span className="text-sm text-gray-600">{f.label}</span>
+                            <span className="text-sm text-gray-600">{label}</span>
                             <Input
                               type={f.type === 'password' ? 'password' : 'text'}
                               value={instanceSecrets[inst.id]?.[f.key] || ''}
@@ -293,7 +320,8 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
                             />
                             {errors[inst.id]?.[f.key] && <span className="text-xs text-red-600">{errors[inst.id]?.[f.key]}</span>}
                           </label>
-                        ))}
+                          )
+                        })}
                       </div>
                       <div className="flex gap-2">
                         <Button onClick={() => onSaveInstance(inst)}>保存</Button>
