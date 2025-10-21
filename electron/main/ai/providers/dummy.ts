@@ -1,5 +1,6 @@
 import { ProviderAdapter, ProviderConfig, ProviderSecrets, ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, StreamEvent } from '../types';
 import { loadProviderSchema } from '../schema-loader';
+import { loadProviderModels } from '../models-loader';
 
 export class DummyProvider implements ProviderAdapter {
   readonly id = 'dummy';
@@ -20,6 +21,7 @@ export class DummyProvider implements ProviderAdapter {
   }
   setSecrets(secrets: ProviderSecrets) { this.secrets = secrets; }
   getSecrets(): ProviderSecrets { return this.secrets; }
+  async listModels() { return loadProviderModels(this.id); }
 
   async chat(req: ChatRequest, onStream?: (event: StreamEvent) => void): Promise<ChatResponse> {
     const last = req.messages[req.messages.length - 1];

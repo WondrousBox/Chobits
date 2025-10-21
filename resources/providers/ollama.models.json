@@ -1,0 +1,9 @@
+{
+  "models": [
+    { "id": "llama3.1", "label": "LLaMA 3.1", "type": "chat", "tags": ["local"] },
+    { "id": "llama3.2", "label": "LLaMA 3.2", "type": "chat", "tags": ["local"] },
+    { "id": "qwen2.5", "label": "Qwen 2.5", "type": "chat", "tags": ["local"] },
+    { "id": "phi3", "label": "Phi-3", "type": "chat", "tags": ["local"] },
+    { "id": "nomic-embed-text", "label": "nomic-embed-text", "type": "embedding", "tags": ["local"] }
+  ]
+}

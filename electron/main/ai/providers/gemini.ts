@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { ProviderAdapter, ProviderConfig, ProviderSecrets, ChatRequest, ChatResponse, StreamEvent, EmbeddingRequest, EmbeddingResponse } from '../types';
 import { loadProviderSchema } from '../schema-loader';
+import { loadProviderModels } from '../models-loader';
 
 type GeminiSecrets = { apiKey?: string; model?: string };
 
@@ -58,11 +59,8 @@ export class GeminiProvider implements ProviderAdapter {
   }
 
   async listModels() {
-    // Gemini API requires Model Garden listing from Google Cloud; provide curated shortlist
-    return [
-      { id: 'gemini-1.5-flash' },
-      { id: 'gemini-1.5-pro' },
-      { id: 'gemini-2.0-flash' },
-    ];
+    const curated = loadProviderModels(this.id);
+    if (curated.length) return curated;
+    return [];
   }
 }

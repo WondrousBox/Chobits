@@ -8,7 +8,7 @@ import TintableSvg from '@/components/common/TintableSvg';
 
 type ProviderRow = { id: string; label: string; configured?: boolean; schema?: { icon?: string; locales?: Record<string, { label?: string; fields?: Record<string, string> }>; fields?: Array<{ key: string; label: string; type: string; required?: boolean; options?: any[] }> } };
 type Instance = { id: string; providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any>; createdAt?: number };
-type ModelOpt = { id: string; label?: string };
+type ModelOpt = { id: string; label?: string; type?: string; context?: number; pricing?: any; tags?: string[]; description?: string };
 type Template = { id: string; name: string; type: 'system' | 'user'; content: string };
 
 export default function AiSettings({ initialProviderId }: { initialProviderId?: string }) {
@@ -222,9 +222,17 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
                         <SelectValue placeholder="选择模型" />
                       </SelectTrigger>
                       <SelectContent>
-                        {(models[selectedProvider.id] || []).map(m => (
-                          <SelectItem key={m.id} value={m.id}>{m.label || m.id}</SelectItem>
-                        ))}
+                        {(models[selectedProvider.id] || []).map(m => {
+                          const meta: any = m;
+                          const ctx = meta?.context ? `${Math.round(meta.context/1000)}k` : '';
+                          const extra = [meta?.type, ctx && `${ctx} ctx`].filter(Boolean).join(' · ');
+                          return (
+                            <SelectItem key={m.id} value={m.id}>
+                              <span>{m.label || m.id}</span>
+                              {extra && <span className="text-xs text-gray-500 ml-1">({extra})</span>}
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   </label>
@@ -291,9 +299,17 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
                             <SelectValue placeholder="选择模型" />
                           </SelectTrigger>
                           <SelectContent>
-                            {(models[inst.providerId] || []).map(m => (
-                              <SelectItem key={m.id} value={m.id}>{m.label || m.id}</SelectItem>
-                            ))}
+                            {(models[inst.providerId] || []).map(m => {
+                              const meta: any = m;
+                              const ctx = meta?.context ? `${Math.round(meta.context/1000)}k` : '';
+                              const extra = [meta?.type, ctx && `${ctx} ctx`].filter(Boolean).join(' · ');
+                              return (
+                                <SelectItem key={m.id} value={m.id}>
+                                  <span>{m.label || m.id}</span>
+                                  {extra && <span className="text-xs text-gray-500 ml-1">({extra})</span>}
+                                </SelectItem>
+                              );
+                            })}
                           </SelectContent>
                         </Select>
                       </label>

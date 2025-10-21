@@ -1,0 +1,6 @@
+{
+  "models": [
+    { "id": "qwen2.5", "label": "Qwen 2.5", "type": "chat", "tags": ["general"] },
+    { "id": "qwen2.5-coder", "label": "Qwen 2.5 Coder", "type": "chat", "tags": ["code"] }
+  ]
+}

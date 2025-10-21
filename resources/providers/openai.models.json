@@ -1,0 +1,47 @@
+{
+  "models": [
+    {
+      "id": "gpt-4o-mini",
+      "label": "GPT-4o mini",
+      "type": "chat",
+      "context": 128000,
+      "pricing": { "prompt": 0.00015, "completion": 0.0006, "unit": "1K tokens", "currency": "USD" },
+      "capabilities": { "vision": true, "function_call": true, "json": true },
+      "tags": ["fast", "cheap", "general"],
+      "description": "Small omni model for general chat and tools."
+    },
+    {
+      "id": "gpt-4o",
+      "label": "GPT-4o",
+      "type": "chat",
+      "context": 128000,
+      "pricing": { "prompt": 0.005, "completion": 0.015, "unit": "1K tokens", "currency": "USD" },
+      "capabilities": { "vision": true, "function_call": true, "json": true },
+      "tags": ["quality", "omni"],
+      "description": "High-quality omni model."
+    },
+    {
+      "id": "o4-mini",
+      "label": "o4 mini (reasoning)",
+      "type": "chat",
+      "context": 200000,
+      "capabilities": { "reasoning": true },
+      "tags": ["reasoning"],
+      "description": "Light reasoning model."
+    },
+    {
+      "id": "text-embedding-3-small",
+      "label": "text-embedding-3-small",
+      "type": "embedding",
+      "context": 8192,
+      "description": "Fast/cheap embeddings"
+    },
+    {
+      "id": "text-embedding-3-large",
+      "label": "text-embedding-3-large",
+      "type": "embedding",
+      "context": 8192,
+      "description": "High-quality embeddings"
+    }
+  ]
+}

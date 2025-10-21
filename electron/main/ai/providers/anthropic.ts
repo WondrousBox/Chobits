@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { ProviderAdapter, ProviderConfig, ProviderSecrets, ChatRequest, ChatResponse, StreamEvent, EmbeddingRequest, EmbeddingResponse } from '../types';
 import { loadProviderSchema } from '../schema-loader';
+import { loadProviderModels } from '../models-loader';
 
 type AnthropicSecrets = { apiKey?: string; baseUrl?: string; model?: string };
 
@@ -65,10 +66,8 @@ export class AnthropicProvider implements ProviderAdapter {
   }
 
   async listModels() {
-    return [
-      { id: 'claude-3-5-sonnet-latest' },
-      { id: 'claude-3-7-sonnet-latest' },
-      { id: 'claude-3-5-haiku-latest' },
-    ];
+    const curated = loadProviderModels(this.id);
+    if (curated.length) return curated;
+    return [];
   }
 }

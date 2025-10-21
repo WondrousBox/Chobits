@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { ProviderAdapter, ProviderConfig, ProviderSecrets, ChatRequest, ChatResponse, StreamEvent, EmbeddingRequest, EmbeddingResponse } from '../types';
 import { loadProviderSchema } from '../schema-loader';
+import { loadProviderModels } from '../models-loader';
 
 type OpenAISecrets = { apiKey?: string; baseUrl?: string; organization?: string; model?: string };
 
@@ -68,23 +69,16 @@ export class OpenAIProvider implements ProviderAdapter {
   }
 
   async listModels(opts?: { secrets?: Partial<OpenAISecrets> }) {
+    // Prefer curated JSON if present; otherwise, try live API; finally fallback
+    const curated = loadProviderModels(this.id);
+    if (curated.length) return curated;
     try {
       const client = this.client(opts?.secrets);
-      // openai v4 SDK: client.models.list() -> AsyncIterable
-      const items: Array<{ id: string; label?: string }> = [];
-      const it = await client.models.list();
-      // it is a pagination object; coerce to array
-      const data = Array.isArray((it as any).data) ? (it as any).data : [];
-      for (const m of data) items.push({ id: m.id });
+      const res: any = await client.models.list();
+      const data = Array.isArray(res?.data) ? res.data : [];
+      const items = data.map((m: any) => ({ id: m.id }));
       if (items.length) return items;
     } catch {}
-    // Fallback curated set
-    return [
-      { id: 'gpt-4o' },
-      { id: 'gpt-4o-mini' },
-      { id: 'o4-mini' },
-      { id: 'text-embedding-3-small' },
-      { id: 'text-embedding-3-large' },
-    ];
+    return [];
   }
 }
