@@ -4,10 +4,11 @@ import { screen, app } from "electron";
 import fs from 'node:fs';
 import path from 'node:path';
 import { windowManager } from '../window/window-manager'
-import { WindowKey } from "../window/window-config";
+import { registerWindowConfig, unregisterWindowConfig, listWindowKeys, getWindowConfig } from "../window/window-config";
 import { getSuggestWorkspacePath } from "../utils";
 import { saveWindowState, WindowStateStore } from '../window/window-state-store';
 import { ASSISTANT_HEIGHT, ASSISTANT_WIDTH } from "../config";
+import { WindowConfig, WindowKey } from "../window/types";
 
 export function initWindowHandlers(win: BrowserWindow) {
   // Movement config persistence ------------------------------------------------
@@ -78,8 +79,8 @@ export function initWindowHandlers(win: BrowserWindow) {
     windowManager.init(win, {
       preloadPath: (win as any).__preloadPath,
       assistantPadding: movementConfig.assistantPadding,
-      onBeforeFollowerShow: () => { try { stopHoverMonitor() } catch {} },
-      onAfterFollowerHide: () => { try { startHoverMonitor() } catch {} },
+      onBeforeFollowerShow: () => { try { stopHoverMonitor() } catch { } },
+      onAfterFollowerHide: () => { try { startHoverMonitor() } catch { } },
     })
   } catch { }
 
@@ -254,6 +255,43 @@ export function initWindowHandlers(win: BrowserWindow) {
     } catch {
       return false
     }
+  })
+
+  // ------- Dynamic window config registry IPC -------
+  ipcMain.handle('window-register-config', async (_: IpcMainInvokeEvent, key: WindowKey, config: WindowConfig, options?: { persist?: boolean; openNow?: boolean; payload?: any }) => {
+    try {
+      registerWindowConfig(key, config, !!options?.persist)
+      if (options?.openNow) {
+        await windowManager.createOrShow(key as any, options?.payload)
+      }
+      return { ok: true }
+    } catch (e: any) {
+      const msg = e?.message ? String(e.message) : String(e)
+      return { ok: false, error: msg }
+    }
+  })
+
+  ipcMain.handle('window-unregister-config', async (_: IpcMainInvokeEvent, key: WindowKey, options?: { persist?: boolean; closeIfOpen?: boolean; removeState?: boolean }) => {
+    try {
+      if (options?.closeIfOpen) {
+        try { await windowManager.close(key as any) } catch { }
+      }
+      if (options?.removeState) {
+        try { WindowStateStore.removeState(key as any) } catch { }
+      }
+      unregisterWindowConfig(key, !!options?.persist)
+      return { ok: true }
+    } catch (e) {
+      return { ok: false, error: String(e) }
+    }
+  })
+
+  ipcMain.handle('window-list-configs', () => {
+    try { return listWindowKeys() } catch { return [] }
+  })
+
+  ipcMain.handle('window-get-config', (_: IpcMainInvokeEvent, key: WindowKey) => {
+    try { return getWindowConfig(key) } catch { return undefined }
   })
 
   // ---------------- Generic window controls for the calling (sender) window --------------

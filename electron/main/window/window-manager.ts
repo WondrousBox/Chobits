@@ -1,7 +1,8 @@
 import { app, BrowserWindow, screen } from 'electron'
 import path from 'node:path'
-import { windowConfigs, type WindowConfig, type WindowKey, type FollowerPreferMode } from './window-config'
+import { windowConfigs } from './window-config'
 import { saveWindowState, restoreWindowState } from './window-state-store'
+import { FollowerPreferMode, WindowConfig, WindowKey } from './types'
 
 const DEV_URL = process.env.VITE_DEV_SERVER_URL
 const APP_ROOT = process.env.APP_ROOT || app.getAppPath()
