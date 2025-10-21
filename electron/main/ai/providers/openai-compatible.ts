@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { ProviderAdapter, ProviderConfig, ProviderSecrets, ChatRequest, ChatResponse, StreamEvent, EmbeddingRequest, EmbeddingResponse } from '../types';
 import { loadProviderSchema } from '../schema-loader';
+import { loadProviderModels } from '../models-loader';
 
 export class OpenAICompatibleProvider implements ProviderAdapter {
   readonly id: string;
@@ -78,6 +79,8 @@ export class OpenAICompatibleProvider implements ProviderAdapter {
   }
 
   async listModels(opts?: { secrets?: { apiKey?: string; baseUrl?: string; model?: string } }) {
+    const curated = loadProviderModels(this.id);
+    if (curated.length) return curated;
     try {
       const client = this.client(opts?.secrets);
       const res: any = await (client as any).models.list();

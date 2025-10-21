@@ -1,5 +1,6 @@
 import { ProviderAdapter, ProviderConfig, ProviderSecrets, ChatRequest, ChatResponse, StreamEvent, EmbeddingRequest, EmbeddingResponse } from '../types';
 import { loadProviderSchema } from '../schema-loader';
+import { loadProviderModels } from '../models-loader';
 
 type OllamaSecrets = { baseUrl?: string; model?: string };
 
@@ -85,14 +86,10 @@ export class OllamaProvider implements ProviderAdapter {
       const models = Array.isArray(data?.models) ? data.models : Array.isArray(data?.data) ? data.data : [];
       return models.map((m: any) => ({ id: m.name || m.model || m.id || '' })).filter((m: any) => m.id);
     } catch {
-      // Fallback common local names
-      return [
-        { id: 'llama3.1' },
-        { id: 'llama3.2' },
-        { id: 'qwen2.5' },
-        { id: 'phi3' },
-        { id: 'nomic-embed-text' },
-      ];
+      // Prefer curated JSON as fallback
+      const curated = loadProviderModels(this.id);
+      if (curated.length) return curated;
+      return [];
     }
   }
 }

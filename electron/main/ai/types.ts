@@ -77,8 +77,8 @@ export interface ProviderAdapter {
   chat?(req: ChatRequest, onStream?: (event: StreamEvent) => void, signal?: AbortSignal): Promise<ChatResponse>;
   // Embeddings
   embed?(req: EmbeddingRequest): Promise<EmbeddingResponse>;
-  // Models
-  listModels?(opts?: { secrets?: ProviderSecrets }): Promise<Array<{ id: string; label?: string }>>;
+  // Models: return id + optional metadata; UI will use label if provided
+  listModels?(opts?: { secrets?: ProviderSecrets }): Promise<Array<{ id: string; label?: string; [k: string]: any }>>;
 }
 
 // Agent contracts
@@ -101,7 +101,7 @@ export type StartStreamPayload = { requestId: string; eventsChannel: string } & 
 export type AIApi = {
   getProviders(): Promise<any[]>;
   getAgents(): Promise<any[]>;
-  listModels(providerId: string): Promise<Array<{ id: string; label?: string }>>;
+  listModels(providerId: string): Promise<Array<{ id: string; label?: string; [k: string]: any }>>;
   getProviderSecrets(providerId: string): Promise<Record<string, string>>;
   setProviderSecrets(providerId: string, secrets: Record<string, string>): Promise<{ ok: boolean }>;
   chat(payload: any): Promise<{ message: { role: string; content: string } }>;

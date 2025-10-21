@@ -1,0 +1,6 @@
+{
+  "models": [
+    { "id": "deepseek-chat", "label": "DeepSeek Chat", "type": "chat", "tags": ["general"] },
+    { "id": "deepseek-reasoner", "label": "DeepSeek Reasoner", "type": "chat", "tags": ["reasoning"] }
+  ]
+}
