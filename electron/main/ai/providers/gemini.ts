@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { ProviderAdapter, ProviderConfig, ProviderSecrets, ChatRequest, ChatResponse, StreamEvent, EmbeddingRequest, EmbeddingResponse } from '../types';
+import { loadProviderSchema } from '../schema-loader';
 
 type GeminiSecrets = { apiKey?: string; model?: string };
 
@@ -10,7 +11,7 @@ export class GeminiProvider implements ProviderAdapter {
 
   isConfigured(): boolean { return !!this.secrets.apiKey; }
   getConfigSchema(): ProviderConfig {
-    return {
+    const fallback: ProviderConfig = {
       id: this.id,
       label: this.label,
       enabled: true,
@@ -19,6 +20,7 @@ export class GeminiProvider implements ProviderAdapter {
         { key: 'model', label: '默认模型（如 gemini-1.5-flash）', type: 'text' },
       ],
     };
+    return loadProviderSchema(this.id, fallback);
   }
   setSecrets(secrets: ProviderSecrets) { this.secrets = { ...this.secrets, ...(secrets as any) }; }
   getSecrets(): ProviderSecrets { return this.secrets; }
