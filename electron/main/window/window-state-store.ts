@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { app, screen } from 'electron'
 import type { BrowserWindow } from 'electron'
-import type { WindowKey } from './window-config'
+import { WindowKey } from './types'
 
 export interface WindowState {
   x: number

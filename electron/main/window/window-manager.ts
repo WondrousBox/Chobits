@@ -2,7 +2,7 @@ import { app, BrowserWindow, screen } from 'electron'
 import path from 'node:path'
 import { windowConfigs } from './window-config'
 import { saveWindowState, restoreWindowState } from './window-state-store'
-import { FollowerPreferMode, WindowConfig, WindowKey } from './types'
+import { FollowerPreferMode, FollowerSide, WindowConfig, WindowKey } from './types'
 
 const DEV_URL = process.env.VITE_DEV_SERVER_URL
 const APP_ROOT = process.env.APP_ROOT || app.getAppPath()
@@ -11,9 +11,6 @@ const RENDERER_DIST = path.join(APP_ROOT, 'dist')
 // Assistant intrinsic size
 const ASSISTANT_WIDTH = 180;
 const ASSISTANT_HEIGHT = 220;
-
-// 跟随窗口位置类型
-type FollowerSide = 'right' | 'left' | 'bottom' | 'top' | 'overlap'
 
 // 计算跟随窗口位置的函数
 function computeFollowerPosition(

@@ -19,6 +19,8 @@ export type WindowKey =
   | 'downloadFloating'
   | string
 
+// 跟随窗口位置类型
+export type FollowerSide = 'right' | 'left' | 'bottom' | 'top' | 'overlap'
 
 export interface WindowConfig {
   routeHash: string | (() => string)
