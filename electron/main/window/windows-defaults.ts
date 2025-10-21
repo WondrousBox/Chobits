@@ -315,6 +315,37 @@ const faultWindowConfigs: Record<WindowKey, WindowConfig> = {
       "webPreferences": { "nodeIntegration": true, "contextIsolation": true }
     }
   }
+  ,
+  "tagger": {
+    "routeHash": "tagger",
+    "autoCenterOn": "parent-display",
+    "showOnReady": false,
+    "openDevTools": true,
+    "rememberState": true,
+    "options": {
+      "width": 1100,
+      "height": 720,
+      "frame": false,
+      "transparent": false,
+      "resizable": true,
+      "alwaysOnTop": false,
+      "skipTaskbar": false,
+      "backgroundColor": "#ffffff",
+      "show": false,
+      "autoHideMenuBar": true,
+      "webPreferences": { "nodeIntegration": true, "contextIsolation": true }
+    },
+    "platformOverlays": {
+      "darwin": {
+        "options": {
+          "titleBarStyle": "hiddenInset",
+          "titleBarOverlay": true,
+          "trafficLightPosition": { "x": 20, "y": 10 },
+          "frame": true
+        }
+      }
+    }
+  }
 }
 
 export default faultWindowConfigs;

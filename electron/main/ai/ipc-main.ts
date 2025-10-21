@@ -4,6 +4,7 @@ import { ChatService } from './chat-service';
 import { DummyProvider } from './providers/dummy';
 import { BasicAgent } from './agents/basic';
 import { RAGAgent } from './agents/rag';
+import { TaggerAgent } from './agents/tagger';
 import { getAllSecrets, setProviderSecrets as setSecretsStore } from './settings-store';
 import { OpenAIProvider } from './providers/openai';
 import { AnthropicProvider } from './providers/anthropic';
@@ -30,6 +31,7 @@ export function initAIHandlers(win: BrowserWindow) {
   registerProvider(new ZhipuProvider());
   registerAgent(BasicAgent);
   registerAgent(RAGAgent);
+  registerAgent(TaggerAgent);
 
   const chat = new ChatService(win)
   chat.registerIpc();
