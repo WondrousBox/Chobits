@@ -76,14 +76,24 @@ export default function ChatInputBar({ onStart, onStop, loading, placeholder, cl
     onStop?.();
   };
 
-  const providerInstanceLabel = (() => {
-    if (!instanceId) return '选择 服务商 · 实例';
-    const provider = providers.find(p => p.id === providerId);
-    const providerLabel = provider?.label || providerId || '服务商';
+  const providerInstanceContent = (() => {
+    const baseClass = 'truncate text-left text-xs text-muted-foreground';
+    if (!instanceId) return <span className={baseClass}>选择 服务商 · 实例</span>;
+    const provider = providers.find(p => p.id === providerId) as any;
+    const icon = provider?.schema?.icon as string | undefined;
     const currentInstances = instancesMap[providerId] || [];
     const instance = currentInstances.find((it: any) => it.id === instanceId);
     const instanceLabel = instance?.name || instanceId;
-    return `${providerLabel} · ${instanceLabel}`;
+    if (icon) {
+      return (
+        <span className={`flex items-center gap-2 ${baseClass}`}>
+          <TintableSvg src={icon} className="w-4 h-4" alt={provider?.label || providerId} />
+          <span className="truncate">{instanceLabel}</span>
+        </span>
+      );
+    }
+    const providerLabel = provider?.label || providerId || '服务商';
+    return <span className={baseClass}>{providerLabel} · {instanceLabel}</span>;
   })();
 
   // Flatten and filter instances across providers for global search
@@ -153,7 +163,7 @@ export default function ChatInputBar({ onStart, onStop, loading, placeholder, cl
                 size="sm"
                 className='rounded-full'
               >
-                <span className="truncate text-left text-xs text-muted-foreground">{providerInstanceLabel}</span>
+                {providerInstanceContent}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="min-w-[260px]">
