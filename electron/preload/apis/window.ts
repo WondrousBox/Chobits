@@ -1,7 +1,8 @@
 import { ipcRenderer } from "electron";
 
 import { IPCParams } from "../type";
-import { WindowKey } from "electron/main/window/window-config";
+import { WindowKey } from "electron/main/window/types";
+import type { WindowConfig } from "electron/main/window/types";
 
 type WindowBridgeParams = {
   /**
@@ -48,6 +49,14 @@ type WindowBridgeParams = {
   "window-get-state": IPCParams<[WindowKey], any>;
   /** 清除窗口状态 */
   "window-clear-state": IPCParams<[WindowKey], boolean>;
+  /** 注册/覆盖窗口配置 */
+  "window-register-config": IPCParams<[WindowKey, WindowConfig, { persist?: boolean; openNow?: boolean; payload?: any }?], { ok: boolean; error?: string }>;
+  /** 取消注册窗口配置 */
+  "window-unregister-config": IPCParams<[WindowKey, { persist?: boolean; closeIfOpen?: boolean; removeState?: boolean }?], { ok: boolean; error?: string }>;
+  /** 列出所有窗口 key */
+  "window-list-configs": IPCParams<[void], string[]>;
+  /** 获取窗口配置 */
+  "window-get-config": IPCParams<[WindowKey], WindowConfig | undefined>;
 
 }
 
@@ -73,6 +82,10 @@ const methods: Array<keyof WindowBridgeParams> = [
   "window-save-state",
   "window-get-state",
   "window-clear-state",
+  "window-register-config",
+  "window-unregister-config",
+  "window-list-configs",
+  "window-get-config",
 ];
 
 export type WindowBridgeType = {

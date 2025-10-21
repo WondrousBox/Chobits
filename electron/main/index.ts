@@ -7,6 +7,7 @@ import os from 'node:os'
 import { update } from './update'
 import { initHandlers } from './handlers'
 import { windowManager } from './window/window-manager'
+import { initWindowConfigs } from './window/window-config'
 import { logger } from './logger'
 
 const require = createRequire(import.meta.url)
@@ -126,6 +127,8 @@ async function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  // Initialize dynamic window configs (defaults + user overrides)
+  try { initWindowConfigs() } catch (e) { console.warn('[windows] init configs failed', e) }
   // Setup custom resource protocol (modern protocol.handle API)
   try {
     await setupResourceProtocol()
