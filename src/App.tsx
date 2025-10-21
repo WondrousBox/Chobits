@@ -15,12 +15,14 @@ import ResourcePreviewWindow from '@/pages/ResourcePage/ResourcePreviewWindow'
 import DownloadFloating from '@/components/DownloadFloating'
 import FileActionsMenu from '@/pages/FileActionsMenu/FileActionsMenu'
 import { Toaster } from '@/components/ui/sonner'
+import { ChatSelectionProvider } from '@/components/AIAssistant/context/ChatSelectionContext'
 
 function App() {
   return (
     <HashRouter>
-      <div className="w-full h-full overflow-hidden">
-        <Routes>
+      <ChatSelectionProvider>
+        <div className="w-full h-full overflow-hidden">
+          <Routes>
           <Route path="/" element={<AIAssistant />} />
           <Route path="/status" element={<StatusPage />} />
           <Route path="/menu" element={<AssistantMenuPage />} />
@@ -36,9 +38,10 @@ function App() {
           <Route path="/resource-preview" element={<ResourcePreviewWindow />} />
           <Route path="/download-floating" element={<DownloadFloating />} />
           <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-        <Toaster />
-      </div>
+          </Routes>
+          <Toaster />
+        </div>
+      </ChatSelectionProvider>
     </HashRouter>
   )
 }

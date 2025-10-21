@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   DropdownMenu,
@@ -13,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { TbLoader2, TbSend } from 'react-icons/tb';
+import { useChatSelection } from './context/ChatSelectionContext';
 
 export interface ChatInputBarProps {
   // Triggered when user hits send (Enter or button)
@@ -35,43 +37,10 @@ export interface ChatInputBarProps {
 export default function ChatInputBar({ onStart, onStop, loading, placeholder, className }: ChatInputBarProps) {
   const [input, setInput] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const [query, setQuery] = useState('');
 
-  // provider/instances/agents are fully encapsulated here
-  const [providers, setProviders] = useState<any[]>([]);
-  const [agents, setAgents] = useState<any[]>([]);
-  const [providerId, setProviderId] = useState<string>('openai');
-  const [instancesMap, setInstancesMap] = useState<Record<string, any[]>>({});
-  const [instanceId, setInstanceId] = useState<string>('');
-  const [agentId, setAgentId] = useState<string>('basic');
-
-  // Fetch providers and agents on mount
-  useEffect(() => {
-    (async () => {
-      try { setProviders(await window.YUA.ai.getProviders()); } catch { /* noop */ }
-      try { setAgents(await window.YUA.ai.getAgents()); } catch { /* noop */ }
-    })();
-  }, []);
-
-  // Prefetch instances list for all providers
-  useEffect(() => {
-    (async () => {
-      if (!providers?.length) return;
-      try {
-        const entries = await Promise.all(
-          providers.map(async (p) => {
-            try {
-              const list = await (window as any).YUA.ai.listInstances(p.id);
-              return [p.id, list || []] as const;
-            } catch {
-              return [p.id, []] as const;
-            }
-          })
-        );
-        const map = Object.fromEntries(entries);
-        setInstancesMap(map);
-      } catch { /* noop */ }
-    })();
-  }, [providers]);
+  // consume shared provider/instance/agent state
+  const { providers, agents, instancesMap, providerId, instanceId, agentId, setProviderId, setInstanceId, setAgentId, getOrderedInstances } = useChatSelection();
 
   // Textarea auto height
   useEffect(() => {
@@ -115,6 +84,20 @@ export default function ChatInputBar({ onStart, onStop, loading, placeholder, cl
     const instanceLabel = instance?.name || instanceId;
     return `${providerLabel} · ${instanceLabel}`;
   })();
+
+  // Flatten and filter instances across providers for global search
+  const trimmed = query.trim().toLowerCase();
+  const filteredResults = trimmed
+    ? providers.flatMap((p: any) =>
+        (getOrderedInstances ? getOrderedInstances(p.id) : (instancesMap[p.id] || []))
+          .filter((it: any) => {
+            const name = (it.name || '').toString().toLowerCase();
+            const id = (it.id || '').toString().toLowerCase();
+            return name.includes(trimmed) || id.includes(trimmed);
+          })
+          .map((it: any) => ({ p, it }))
+      )
+    : [];
 
   return (
     <div className={`relative box-border my-2 mx-2 max-w-[800px] w-[calc(100%-1rem)] ${className || ''}`}>
@@ -172,38 +155,70 @@ export default function ChatInputBar({ onStart, onStop, loading, placeholder, cl
                 <span className="truncate text-left text-xs text-muted-foreground">{providerInstanceLabel}</span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              {providers.map((p) => {
-                const list = instancesMap[p.id] || [];
-                return (
-                  <DropdownMenuSub key={p.id}>
-                    <DropdownMenuSubTrigger>{p.label}</DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent>
-                      {list.length === 0 ? (
-                        <DropdownMenuItem
-                          onSelect={async () => {
-                            try { await (window as any).YUA.window.openWindow('settings' as any, { category: 'ai', aiProviderId: p.id }); } catch { }
-                          }}
-                        >
-                          未配置实例，去配置…
-                        </DropdownMenuItem>
-                      ) : (
-                        list.map((it: any) => (
+            <DropdownMenuContent className="min-w-[260px]">
+              {/* Search box */}
+              <div className="p-2">
+                <Input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="搜索实例..."
+                  className="h-8 text-xs"
+                />
+              </div>
+              {/* Results when searching */}
+              {trimmed ? (
+                <div className="max-h-60 overflow-auto">
+                  {filteredResults.length === 0 ? (
+                    <div className="px-2 pb-2 text-xs text-muted-foreground">未找到匹配实例</div>
+                  ) : (
+                    filteredResults.map(({ p, it }: any) => (
+                      <DropdownMenuItem
+                        key={`${p.id}:${it.id}`}
+                        onSelect={() => {
+                          setProviderId(p.id);
+                          setInstanceId(it.id);
+                        }}
+                      >
+                        <span className="truncate">{it.name || it.id}</span>
+                        <span className="ml-2 text-muted-foreground text-xs">@{p.label}</span>
+                      </DropdownMenuItem>
+                    ))
+                  )}
+                </div>
+              ) : (
+                // Default: grouped by provider
+                providers.map((p) => {
+                  const list = getOrderedInstances(p.id);
+                  return (
+                    <DropdownMenuSub key={p.id}>
+                      <DropdownMenuSubTrigger>{p.label}</DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent>
+                        {list.length === 0 ? (
                           <DropdownMenuItem
-                            key={it.id}
-                            onSelect={() => {
-                              setProviderId(p.id);
-                              setInstanceId(it.id);
+                            onSelect={async () => {
+                              try { await (window as any).YUA.window.openWindow('settings' as any, { category: 'ai', aiProviderId: p.id }); } catch { }
                             }}
                           >
-                            {it.name || it.id}
+                            未配置实例，去配置…
                           </DropdownMenuItem>
-                        ))
-                      )}
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                );
-              })}
+                        ) : (
+                          list.map((it: any) => (
+                            <DropdownMenuItem
+                              key={it.id}
+                              onSelect={() => {
+                                setProviderId(p.id);
+                                setInstanceId(it.id);
+                              }}
+                            >
+                              {it.name || it.id}
+                            </DropdownMenuItem>
+                          ))
+                        )}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  );
+                })
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
