@@ -27,6 +27,13 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
       action: () => window.YUA.window.openWindow("status")
     },
     {
+      id: 'tagger',
+      label: '总结打标',
+      icon: '🏷️',
+      shortcut: 't',
+      action: () => window.YUA.window.openWindow("tagger")
+    },
+    {
       id: 'chat',
       label: '聊天',
       icon: '🗨️',

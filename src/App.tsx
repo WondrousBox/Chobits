@@ -12,6 +12,7 @@ import AssistantPage from './pages/AssistantPage/AssistantPage'
 import ChatDemo from './pages/AssistantPage/ChatDemo'
 import ModelPage from './pages/ModelPage/ModelPage'
 import ResourcePreviewWindow from '@/pages/ResourcePage/ResourcePreviewWindow'
+import TaggingPage from './pages/TaggingPage/TaggingPage'
 import DownloadFloating from '@/components/DownloadFloating'
 import FileActionsMenu from '@/pages/FileActionsMenu/FileActionsMenu'
 import { Toaster } from '@/components/ui/sonner'
@@ -35,6 +36,7 @@ function App() {
           <Route path="/assistant" element={<AssistantPage />} />
           <Route path="/chat-demo" element={<ChatDemo />} />
           <Route path="/model-manager" element={<ModelPage />} />
+          <Route path="/tagger" element={<TaggingPage />} />
           <Route path="/resource-preview" element={<ResourcePreviewWindow />} />
           <Route path="/download-floating" element={<DownloadFloating />} />
           <Route path="*" element={<Navigate to="/" replace />} />
