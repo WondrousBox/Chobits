@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useChatSelection } from './context/ChatSelectionContext';
-import ServiceInstanceSelect from '@/components/common/ServiceInstanceSelect';
+import ServiceInstanceSelect from '@/components/AIAssistant/ServiceInstanceSelect';
 import ChatInput from '@/components/AIAssistant/ChatInput';
 
 export interface ChatInputBarProps {

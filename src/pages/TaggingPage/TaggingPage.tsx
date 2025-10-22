@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import ServiceInstanceSelect from '@/components/common/ServiceInstanceSelect';
+import ServiceInstanceSelect from '@/components/AIAssistant/ServiceInstanceSelect';
 
 type ProgressMeta = { phase: 'start' | 'progress'; total: number; startIndex?: number; index?: number; segmentTags?: string[]; aggTop?: string[] };
 

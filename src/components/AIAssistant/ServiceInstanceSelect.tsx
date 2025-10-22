@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import TintableSvg from '@/components/common/TintableSvg'
-import { InstanceRow, ProviderRow, useProvidersInstances } from '@/hooks/useProvidersInstances'
+import { InstanceRow, ProviderRow, useProvidersInstances } from '@/components/AIAssistant/hooks/useProvidersInstances'
 
 export interface ServiceInstanceSelectProps {
   providerId?: string
