@@ -43,7 +43,7 @@ export default function ChatInputBar({ onStart, onStop, loading, placeholder, cl
       className={className}
       footerLeft={(
         <>
-          <div className="shrink-0">
+          <div className="shrink-0 no-drag">
             <ServiceInstanceSelect
               providerId={providerId}
               instanceId={instanceId}
@@ -53,7 +53,7 @@ export default function ChatInputBar({ onStart, onStop, loading, placeholder, cl
               orderInstances={(list, pid) => (getOrderedInstances ? getOrderedInstances(pid) : list)}
             />
           </div>
-          <div className="shrink-0">
+          <div className="shrink-0 no-drag">
             <Select value={agentId} onValueChange={setAgentId}>
               <SelectTrigger className="h-8 rounded-full text-xs text-muted-foreground">
                 <SelectValue placeholder="选择 Agent" />
