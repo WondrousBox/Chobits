@@ -7,7 +7,7 @@ import MarkdownMessage from '@/components/common/MarkdownMessage';
 import { formatRelativeTime, formatDateTime } from '@/lib/time';
 import ChatInputBar from '@/components/AIAssistant/ChatInputBar';
 
-export default function ChatDemo() {
+export default function ChatPage() {
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string; createdAt?: number }>>([]);
   const [loading, setLoading] = useState(false);
   // Provider/instance/agent are managed inside ChatInputBar now

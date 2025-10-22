@@ -13,7 +13,7 @@ export type WindowKey =
   | 'resources'
   | 'recycle'
   | 'assistant'
-  | 'chatDemo'
+  | 'chat'
   | 'modelManager'
   | 'resourcePreview'
   | 'downloadFloating'
