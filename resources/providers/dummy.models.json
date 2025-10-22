@@ -1,6 +1,0 @@
-{
-  "models": [
-    { "id": "dummy-chat", "label": "Dummy Chat", "type": "chat" },
-    { "id": "dummy-embed", "label": "Dummy Embedding", "type": "embedding" }
-  ]
-}

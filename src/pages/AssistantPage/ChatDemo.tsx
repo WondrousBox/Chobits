@@ -143,12 +143,6 @@ export default function ChatDemo() {
           disposerRef.current?.dispose?.();
           disposerRef.current = null;
         }
-        if (ev?.type === 'done') {
-          // 兼容 dummy provider 的 done 事件
-          setLoading(false);
-          disposerRef.current?.dispose?.();
-          disposerRef.current = null;
-        }
         if (ev?.type === 'error') {
           setMessages(prev => {
             const idx = assistantIndexRef.current;
