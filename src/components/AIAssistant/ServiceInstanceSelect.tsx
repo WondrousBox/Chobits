@@ -24,6 +24,8 @@ export interface ServiceInstanceSelectProps {
   placeholder?: string
   searchEnabled?: boolean
   orderInstances?: (instances: InstanceRow[], providerId: string) => InstanceRow[]
+  // Notify open state changes (useful to adjust window size when menu opens in small windows)
+  onOpenChange?: (open: boolean) => void
 }
 
 /**
@@ -41,6 +43,7 @@ export default function ServiceInstanceSelect(props: ServiceInstanceSelectProps)
     placeholder = '选择 服务商 · 实例',
     searchEnabled = true,
     orderInstances,
+    onOpenChange,
   } = props
 
   const { providers, instancesMap, getInstances } = useProvidersInstances()
@@ -80,7 +83,8 @@ export default function ServiceInstanceSelect(props: ServiceInstanceSelectProps)
     : []
 
   return (
-    <DropdownMenu>
+    <DropdownMenu onOpenChange={onOpenChange}
+    >
       <DropdownMenuTrigger asChild>
         <Button variant={buttonVariant} size={buttonSize} className={`rounded-full ${className || ''}`}>
           {displayLabel}

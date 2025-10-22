@@ -36,6 +36,8 @@ const AssistantPage: React.FC = () => {
   const [isAnalyzingWeb, setIsAnalyzingWeb] = useState(false)
   const contentRootRef = useRef<HTMLDivElement | null>(null)
   const inputBlockRef = useRef<HTMLDivElement | null>(null)
+  // 控制当实例下拉展开时，暂停自动尺寸调整
+  const instanceMenuOpenRef = useRef<boolean>(false)
 
   const placeholders = [
     '输入问题，如：总结最近导入的 PDF...',
@@ -182,6 +184,31 @@ const AssistantPage: React.FC = () => {
     return () => clearInterval(t)
   }, [query, placeholders.length])
 
+  // 统一封装：根据内容高度调整窗口大小
+  const resizeToContent = useCallback(async () => {
+    try {
+      const html = document.documentElement
+      const blockEl = inputBlockRef.current
+      const blockRect = blockEl?.getBoundingClientRect()
+      const extraMargin = 12
+      const contentHeight = Math.ceil((blockRect?.bottom ?? window.innerHeight) + extraMargin)
+      const currentWidth = window.innerWidth || html.clientWidth
+      let maxW = Number.POSITIVE_INFINITY
+      let maxH = Number.POSITIVE_INFINITY
+      try {
+        const screen = await (window as any).YUA.window.getScreenSize()
+        maxW = screen.width
+        maxH = screen.height
+      } catch { }
+      const minW = 360
+      const minH = 100
+      const desiredWidth = Math.max(minW, Math.min(currentWidth, maxW))
+      const padding = 0
+      const desiredHeight = Math.max(minH, Math.min(contentHeight + padding, maxH))
+      await (window as any).YUA.window.setWindowSize('assistant', desiredWidth, desiredHeight)
+    } catch { }
+  }, [])
+
   // 根据内容高度动态调整窗口大小（含首次渲染）
   useEffect(() => {
     let disposed = false
@@ -189,37 +216,12 @@ const AssistantPage: React.FC = () => {
 
     const adjustWindowSize = async () => {
       try {
-        // 避免频繁调用：简单防抖
         if (debounceTimer) window.clearTimeout(debounceTimer)
         debounceTimer = window.setTimeout(async () => {
           if (disposed) return
-          const html = document.documentElement
-          // 以“输入区”的可视底部作为目标高度（再加少量边距）
-          const blockEl = inputBlockRef.current
-          const blockRect = blockEl?.getBoundingClientRect()
-          const extraMargin = 12 // 覆盖 ChatInput 自身的 my-2 以及底部安全边距
-          const contentHeight = Math.ceil((blockRect?.bottom ?? window.innerHeight) + extraMargin)
-          // 宽度保持不变，使用当前窗口宽度
-          const currentWidth = window.innerWidth || html.clientWidth
-
-          // 获取屏幕工作区限制
-          let maxW = Number.POSITIVE_INFINITY
-          let maxH = Number.POSITIVE_INFINITY
-          try {
-            const screen = await window.YUA.window.getScreenSize()
-            maxW = screen.width
-            maxH = screen.height
-          } catch { }
-
-          const minW = 360
-          const minH = 100
-          const desiredWidth = Math.max(minW, Math.min(currentWidth, maxW))
-          // 给一点安全边距，避免阴影裁切
-          const padding = 0
-          const desiredHeight = Math.max(minH, Math.min(contentHeight + padding, maxH))
-
-          // assistant 窗口不需要在每次调整时居中，避免跳动
-          await window.YUA.window.setWindowSize('assistant', desiredWidth, desiredHeight)
+          // 菜单展开时不做自动收缩，避免刚撑开又被收回
+          if (instanceMenuOpenRef.current) return
+          await resizeToContent()
         }, 90)
       } catch { }
     }
@@ -242,7 +244,29 @@ const AssistantPage: React.FC = () => {
       try { ro.disconnect() } catch { }
       window.removeEventListener('resize', onWinResize)
     }
-  }, [])
+  }, [resizeToContent])
+
+  // 当实例选择菜单展开时，临时增高窗口；关闭后恢复到内容高度
+  const handleInstanceMenuOpenChange = useCallback(async (open: boolean) => {
+    try {
+      instanceMenuOpenRef.current = open
+      const html = document.documentElement
+      const currentWidth = window.innerWidth || html.clientWidth
+      let maxH = Number.POSITIVE_INFINITY
+      try {
+        const screen = await (window as any).YUA.window.getScreenSize()
+        maxH = screen.height
+      } catch { }
+      if (open) {
+        // 预留足够空间给下拉面板
+        const extra = 360
+        const desiredHeight = Math.min(Math.max(window.innerHeight + extra, 420), maxH)
+        await (window as any).YUA.window.setWindowSize('assistant', currentWidth, desiredHeight)
+      } else {
+        await resizeToContent()
+      }
+    } catch { }
+  }, [resizeToContent])
 
   return (
     <div ref={contentRootRef} className="w-full h-full font-sans pointer-events-auto select-none relative drag-region">
@@ -262,6 +286,7 @@ const AssistantPage: React.FC = () => {
                 placeholder={placeholders[phIndex % placeholders.length]}
                 autoFocus
                 onStart={send}
+                onInstanceMenuOpenChange={handleInstanceMenuOpenChange}
                 footerLeft={(
                   <></>
                 )}

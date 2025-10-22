@@ -29,6 +29,8 @@ export interface ChatInputProps {
   autoFocus?: boolean;
   // Optional keydown handler; call e.preventDefault() to stop default submit behavior
   onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>, value: string) => void;
+  // Notify when built-in instance selector menu opens/closes (e.g., to resize small windows)
+  onInstanceMenuOpenChange?: (open: boolean) => void;
 }
 
 export default function ChatInput({
@@ -46,6 +48,7 @@ export default function ChatInput({
   disabled = false,
   autoFocus = false,
   onKeyDown,
+  onInstanceMenuOpenChange,
 }: ChatInputProps) {
   // Standardized chat selection (provider/instance) available for all chat inputs
   // This makes instance selection a built-in part of ChatInput rather than requiring parent injection
@@ -171,6 +174,7 @@ export default function ChatInput({
             buttonVariant="outline"
             buttonSize="sm"
             orderInstances={(list, pid) => (getOrderedInstances ? getOrderedInstances(pid) : list)}
+            onOpenChange={onInstanceMenuOpenChange}
           />
         </div>
         {/* Extra left-side content from parent (optional) */}
