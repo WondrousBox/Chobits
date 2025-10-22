@@ -3,6 +3,9 @@ import { documents, type NewDocument, type DocumentRow, recycle_bin, type NewRec
 import { eq, inArray, and, or, like, gte, lte, isNull, isNotNull, desc, count, max } from 'drizzle-orm';
 import { rebuildVectors, deleteVectors } from '.';
 import { resources, type ResourceRow, type NewResource } from './schema';
+import * as fs from 'node:fs/promises';
+import * as fscb from 'node:fs';
+import path from 'node:path';
 
 function omitId<T extends { id?: any }>(obj: T): Omit<T, 'id'> {
   const { id, ...rest } = obj || ({} as any);
@@ -334,9 +337,47 @@ export const ResourcesRepo = {
   async deleteByIds(ids: string[]): Promise<number> {
     if (!ids.length) return 0;
     const db = getOrm();
-    const res = await db.delete(resources).where(inArray(resources.id, ids)).run();
-    await db.delete(recycle_bin).where(inArray(recycle_bin.entityId, ids)).run();
-    return (res as any).changes ?? 0;
+
+    // 1) 预取将要删除的资源行，收集文件/缩略图路径
+    const toDeleteRows = await db.select().from(resources).where(inArray(resources.id, ids));
+    const filePaths: string[] = [];
+    const thumbPaths: string[] = [];
+    for (const r of toDeleteRows as any[]) {
+      if (r?.filePath) filePaths.push(r.filePath);
+      if (r?.thumbnailPath) thumbPaths.push(r.thumbnailPath);
+      // 同时尝试旧字段 thumbnail 为 BLOB 的场景：无法直接删除文件，忽略
+    }
+
+    // 2) 删除与该资源相关的向量/文档（按文档ID前缀 `${resId}#` 约定生成）
+    //    这里通过 LIKE 查询找出所有块文档的 ID，再调用 deleteVectors 做 vec_docs + documents 清理
+    const docIds: string[] = [];
+    for (const rid of ids) {
+      const rows = await db
+        .select({ id: documents.id })
+        .from(documents)
+        .where(like(documents.id, `${rid}#%`));
+      for (const r of rows as any[]) docIds.push(r.id);
+    }
+    if (docIds.length) {
+      try { deleteVectors(docIds); } catch (e) { /* best-effort */ }
+    }
+
+    // 3) 删除资源表与回收站索引（事务内）
+    let changes = 0;
+    (db as any).transaction((tx: any) => {
+      const res = tx.delete(resources).where(inArray(resources.id, ids)).run?.();
+      changes = ((res as any)?.changes ?? 0);
+      tx.delete(recycle_bin).where(inArray(recycle_bin.entityId, ids)).run?.();
+    });
+
+    // 4) 尝试删除磁盘上的实际文件与缩略图（容错，不影响主流程）
+    const tryUnlink = async (p?: string) => {
+      if (!p) return;
+      try { if (fscb.existsSync(p)) await fs.unlink(p); } catch { /* ignore */ }
+    };
+    await Promise.all([...filePaths.map(tryUnlink), ...thumbPaths.map(tryUnlink)]);
+
+    return changes;
   },
   /** 单条物理删除资源（便捷封装） */
   async deleteById(id: string): Promise<number> {
