@@ -1,10 +1,19 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 import TintableSvg from '@/components/common/TintableSvg';
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty"
+import InstanceFormDialog, { InstanceFormValues } from './InstanceFormDialog';
+import { TbBox } from 'react-icons/tb';
 
 type ProviderRow = { id: string; label: string; configured?: boolean; schema?: { icon?: string; locales?: Record<string, { label?: string; fields?: Record<string, string> }>; fields?: Array<{ key: string; label: string; type: string; required?: boolean; options?: any[] }> } };
 type Instance = { id: string; providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any>; createdAt?: number };
@@ -16,13 +25,13 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const [instances, setInstances] = useState<Instance[]>([]);
   const [models, setModels] = useState<Record<string, ModelOpt[]>>({});
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [instanceSecrets, setInstanceSecrets] = useState<Record<string, Record<string, string>>>({});
   const [errors, setErrors] = useState<Record<string, Record<string, string>>>({});
   const [templates, setTemplates] = useState<Template[]>([]);
 
-  const [creating, setCreating] = useState(false);
-  const [draft, setDraft] = useState<{ name: string; model?: string; systemPrompt?: string; secrets: Record<string, string> }>({ name: '', model: '', systemPrompt: '', secrets: {} });
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
+  const [editing, setEditing] = useState<Instance | null>(null);
 
   const selectedProvider = useMemo(() => providers.find(p => p.id === selectedProviderId) || null, [providers, selectedProviderId]);
   const currentLang = navigator.language?.toLowerCase?.() || 'en';
@@ -79,7 +88,7 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
     const inst = instances.find(i => i.id === instanceId);
     if (!inst) return;
     try {
-  const ms = await (window as any).YUA.ai.listModels(inst.providerId, inst.id);
+      const ms = await (window as any).YUA.ai.listModels(inst.providerId, inst.id);
       if (Array.isArray(ms) && ms.length) setModels(prev => ({ ...prev, [inst.providerId]: ms }));
     } catch { }
   };
@@ -89,11 +98,11 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
     setInstanceSecrets(prev => ({ ...prev, [instanceId]: s || {} }));
   };
 
-  const onCreateInstance = async () => {
+  const onCreateInstance = async (vals: InstanceFormValues) => {
     if (!selectedProvider) return;
-    const nameOk = (draft.name || '').trim().length > 0;
+    const nameOk = (vals.name || '').trim().length > 0;
     const schema = schemaForProvider(selectedProvider);
-    const parsed = schema.safeParse(draft.secrets);
+    const parsed = schema.safeParse(vals.secrets);
     if (!nameOk || !parsed.success) {
       const errs: Record<string, string> = {};
       if (!nameOk) errs['name'] = '名称必填';
@@ -102,17 +111,16 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
       return;
     }
     setErrors(prev => ({ ...prev, __new__: {} }));
-    const created = await window.YUA.ai.createInstance({ providerId: selectedProvider.id, name: draft.name, model: draft.model, systemPrompt: draft.systemPrompt, config: {} });
-    if (created?.id) await window.YUA.ai.setInstanceSecrets(created.id, draft.secrets);
+    const created = await window.YUA.ai.createInstance({ providerId: selectedProvider.id, name: vals.name, model: vals.model, systemPrompt: vals.systemPrompt, config: {} });
+    if (created?.id) await window.YUA.ai.setInstanceSecrets(created.id, vals.secrets);
     const list = await window.YUA.ai.listInstances(selectedProvider.id);
     setInstances(list || []);
-    setCreating(false);
-    setDraft({ name: '', model: '', systemPrompt: '', secrets: {} });
+    setModalOpen(false);
   };
 
-  const onSaveInstance = async (inst: Instance) => {
+  const onSaveInstance = async (inst: Instance, vals: InstanceFormValues) => {
     const schema = schemaForProvider(selectedProvider);
-    const parsed = schema.safeParse(instanceSecrets[inst.id] || {});
+    const parsed = schema.safeParse(vals.secrets || {});
     if (!parsed.success) {
       const errs: Record<string, string> = {};
       parsed.error.issues.forEach(i => { const k = i.path[0] as string; errs[k] = i.message; });
@@ -120,10 +128,11 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
       return;
     }
     setErrors(prev => ({ ...prev, [inst.id]: {} }));
-    await window.YUA.ai.updateInstance(inst.id, { name: inst.name, model: inst.model, systemPrompt: inst.systemPrompt });
-    await window.YUA.ai.setInstanceSecrets(inst.id, instanceSecrets[inst.id] || {});
+    await window.YUA.ai.updateInstance(inst.id, { name: vals.name, model: vals.model, systemPrompt: vals.systemPrompt });
+    await window.YUA.ai.setInstanceSecrets(inst.id, vals.secrets || {});
     const list = await window.YUA.ai.listInstances(inst.providerId);
     setInstances(list || []);
+    setModalOpen(false);
   };
 
   const onQuickTest = async (inst: Instance) => {
@@ -149,16 +158,7 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
   };
 
   const insertTemplateSmart = async (t: Template) => {
-    const expandedIds = Object.keys(expanded).filter(k => expanded[k]);
-    if (creating) {
-      setDraft(d => ({ ...d, systemPrompt: (d.systemPrompt || '') + ((d.systemPrompt && d.systemPrompt.length) ? '\n' : '') + t.content }));
-      return;
-    }
-    if (expandedIds.length === 1) {
-      const targetId = expandedIds[0];
-      setInstances(list => list.map(x => x.id === targetId ? { ...x, systemPrompt: (x.systemPrompt || '') + ((x.systemPrompt && x.systemPrompt.length) ? '\n' : '') + t.content } : x));
-      return;
-    }
+    // When using dialog, template insertion is handled inside the form dialog; keep this as a fallback utility.
     try {
       await navigator.clipboard.writeText(t.content);
       alert('没有可插入的编辑目标，内容已复制到剪贴板');
@@ -169,190 +169,114 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
 
   // prompt setting filtered logic moved into component
 
+  const modalModels: ModelOpt[] = modalMode === 'edit'
+    ? (editing ? (models[editing.providerId] || []) : [])
+    : (selectedProvider ? (models[selectedProvider.id] || []) : []);
+
+  const modalInitialValues: InstanceFormValues = modalMode === 'create'
+    ? { name: '', model: '', systemPrompt: '', secrets: {} }
+    : {
+      name: editing?.name || '',
+      model: editing?.model || '',
+      systemPrompt: editing?.systemPrompt || '',
+      secrets: editing ? (instanceSecrets[editing.id] || {}) : {},
+    };
+
+  const modalErrors: Record<string, string> = modalMode === 'create'
+    ? (errors.__new__ || {})
+    : (editing ? (errors[editing.id] || {}) : {});
+
   return (
-    <div className="h-full w-full flex">
-      <div className="h-full w-60 overflow-y-auto border-ring p-2 box-border" style={{ borderRightWidth: 1, borderRightStyle: 'solid' }}>
-        <div className="space-y-1">
-          {providers.map(p => {
-            const loc = pickLocale(p.schema?.locales);
-            const label = loc?.label || p.label;
-            return (
-            <Button
-              key={p.id}
-              variant={selectedProviderId === p.id ? "default" : "outline"}
-              className='w-full'
-              onClick={() => setSelectedProviderId(p.id)}
-            >
-              <div className="w-full flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  {p.schema?.icon && (<TintableSvg src={p.schema?.icon || ""} alt={label} className="w-4 h-4" />)}
-                  <span>{label}</span>
-                </span>
-                <span className={`text-xs ${p.configured ? 'text-green-600' : 'text-gray-400'}`}>{p.configured ? '已配置' : '未配置'}</span>
-              </div>
-            </Button>
-            )
-          })}
+    <>
+      <div className="h-full w-full flex">
+        <div className="h-full w-60 overflow-y-auto border-ring p-2 box-border" style={{ borderRightWidth: 1, borderRightStyle: 'solid' }}>
+          <div className="space-y-1">
+            {providers.map(p => {
+              const loc = pickLocale(p.schema?.locales);
+              const label = loc?.label || p.label;
+              return (
+                <Button
+                  key={p.id}
+                  variant={selectedProviderId === p.id ? "default" : "outline"}
+                  className='w-full'
+                  onClick={() => setSelectedProviderId(p.id)}
+                >
+                  <div className="w-full flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      {p.schema?.icon && (<TintableSvg src={p.schema?.icon || ""} alt={label} className="w-4 h-4" />)}
+                      <span>{label}</span>
+                    </span>
+                    <span className={`text-xs ${p.configured ? 'text-green-600' : 'text-gray-400'}`}>{p.configured ? '已配置' : '未配置'}</span>
+                  </div>
+                </Button>
+              )
+            })}
+          </div>
+        </div>
+        {/* Right: Instances */}
+        <div className="h-full flex-1 px-2 overflow-y-auto">
+          {selectedProvider ? (
+            <div className="space-y-3">
+              {instances.length > 0 ? (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div></div>
+                    <Button size="sm" onClick={() => { setModalMode('create'); setEditing(null); setModalOpen(true); setErrors(prev => ({ ...prev, __new__: {} })); }}>新建实例</Button>
+                  </div>
+                  <div className="grid gap-2">
+                    {instances.map(inst => (
+                      <div key={inst.id} className="border rounded p-3">
+                        <div className="flex items-center justify-between">
+                          <div className="font-medium">{inst.name} <span className="text-xs text-gray-500">({inst.model || '未选模型'})</span></div>
+                          <div className="flex gap-2">
+                            <button className="text-blue-600" onClick={async () => { if (!instanceSecrets[inst.id]) await loadInstanceSecrets(inst.id); await refreshInstanceModels(inst.id); setEditing(inst); setModalMode('edit'); setModalOpen(true); }}>编辑</button>
+                            <button className="text-gray-600" onClick={() => onQuickTest(inst)}>测试</button>
+                            <button className="text-red-600" onClick={async () => { if (!confirm('删除该实例？')) return; await window.YUA.ai.deleteInstance(inst.id); const list = await window.YUA.ai.listInstances(inst.providerId); setInstances(list || []); }}>删除</button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <Empty>
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <TbBox />
+                    </EmptyMedia>
+                    <EmptyTitle>没有配置</EmptyTitle>
+                    <EmptyDescription>未找到对话设置，点击新建实例来创建</EmptyDescription>
+                  </EmptyHeader>
+                  <EmptyContent>
+                    <Button size="sm" onClick={() => { setModalMode('create'); setEditing(null); setModalOpen(true); setErrors(prev => ({ ...prev, __new__: {} })); }}>新建实例</Button>
+                  </EmptyContent>
+                </Empty>
+              )}
+            </div>
+          ) : (
+            <div>暂无服务商</div>
+          )}
         </div>
       </div>
-      {/* Right: Instances */}
-      <div className="h-full flex-1 px-2 overflow-y-auto">
-        {selectedProvider ? (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="text-lg font-semibold flex items-center gap-2">
-                {selectedProvider.schema?.icon && (<TintableSvg src={selectedProvider.schema?.icon!} alt={selectedProvider.label} className="w-5 h-5" />)}
-                <span>{(pickLocale(selectedProvider.schema?.locales)?.label) || selectedProvider.label} · 配置实例</span>
-              </div>
-              <Button onClick={() => { setCreating(true); setDraft({ name: '', model: '', systemPrompt: '', secrets: {} }); }}>新建实例</Button>
-            </div>
 
-            {creating && (
-              <div className="border rounded p-3 space-y-2">
-                <div className="grid gap-2">
-                  <label className="grid gap-1">
-                    <span className="text-sm text-gray-600">名称</span>
-                    <Input className="rounded border px-2 py-1" value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} />
-                    {errors.__new__?.name && <span className="text-xs text-red-600">{errors.__new__?.name}</span>}
-                  </label>
-                  <label className="grid gap-1">
-                    <span className="text-sm text-gray-600">模型</span>
-                    <Select value={draft.model || ''} onValueChange={(val) => setDraft(d => ({ ...d, model: val }))}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="选择模型" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(models[selectedProvider.id] || []).map(m => {
-                          const meta: any = m;
-                          const ctx = meta?.context ? `${Math.round(meta.context/1000)}k` : '';
-                          const extra = [meta?.type, ctx && `${ctx} ctx`].filter(Boolean).join(' · ');
-                          return (
-                            <SelectItem key={m.id} value={m.id}>
-                              <span>{m.label || m.id}</span>
-                              {extra && <span className="text-xs text-gray-500 ml-1">({extra})</span>}
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
-                  </label>
-                  <label className="grid gap-1">
-                    <span className="text-sm text-gray-600">系统提示词</span>
-                    <textarea className="rounded border px-2 py-1 min-h-[80px]" value={draft.systemPrompt || ''} onChange={e => setDraft(d => ({ ...d, systemPrompt: e.target.value }))} />
-                    <div className="flex flex-wrap gap-2 text-xs">
-                      {templates.filter(t => t.type === 'system').slice(0, 6).map(t => (
-                        <Button key={t.id} className="px-2 py-1 border rounded hover:bg-gray-50" onClick={() => insertTemplateInto(t, (v) => setDraft(d => ({ ...d, systemPrompt: v })), draft.systemPrompt || '')}>{t.name}</Button>
-                      ))}
-                    </div>
-                  </label>
-                  <div className="grid gap-2 md:grid-cols-2">
-                    {(selectedProvider.schema?.fields || []).map(f => {
-                      const loc = pickLocale(selectedProvider.schema?.locales);
-                      const label = (loc?.fields?.[f.key]) || f.label;
-                      return (
-                      <label key={f.key} className="grid gap-1">
-                        <span className="text-sm text-gray-600">{label}</span>
-                        <Input
-                          className="rounded border px-2 py-1"
-                          type={f.type === 'password' ? 'password' : 'text'}
-                          value={draft.secrets[f.key] || ''}
-                          onChange={e => setDraft(d => ({ ...d, secrets: { ...(d.secrets || {}), [f.key]: e.target.value } }))}
-                        />
-                        {errors.__new__?.[f.key] && <span className="text-xs text-red-600">{errors.__new__?.[f.key]}</span>}
-                      </label>
-                      )
-                    })}
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant={"outline"}
-                    onClick={() => { setCreating(false); setErrors(prev => ({ ...prev, __new__: {} })); }}>取消</Button>
-                  <Button
-                    variant={"default"}
-                    onClick={onCreateInstance}>保存</Button>
-                </div>
-              </div>
-            )}
-
-            <div className="grid gap-2">
-              {instances.map(inst => (
-                <div key={inst.id} className="border rounded p-3">
-                  <div className="flex items-center justify-between">
-                    <div className="font-medium">{inst.name} <span className="text-xs text-gray-500">({inst.model || '未选模型'})</span></div>
-                    <div className="flex gap-2">
-                      <button className="text-blue-600" onClick={async () => { setExpanded(e => ({ ...e, [inst.id]: !e[inst.id] })); if (!instanceSecrets[inst.id]) await loadInstanceSecrets(inst.id); await refreshInstanceModels(inst.id); }}>编辑</button>
-                      <button className="text-gray-600" onClick={() => onQuickTest(inst)}>测试</button>
-                      <button className="text-red-600" onClick={async () => { if (!confirm('删除该实例？')) return; await window.YUA.ai.deleteInstance(inst.id); const list = await window.YUA.ai.listInstances(inst.providerId); setInstances(list || []); }}>删除</button>
-                    </div>
-                  </div>
-                  {expanded[inst.id] && (
-                    <div className="mt-2 grid gap-3">
-                      <label className="grid gap-1">
-                        <span className="text-sm text-gray-600">名称</span>
-                        <Input className="rounded border px-2 py-1" value={inst.name} onChange={e => setInstances(list => list.map(x => x.id === inst.id ? { ...x, name: e.target.value } : x))} />
-                      </label>
-                      <label className="grid gap-1">
-                        <span className="text-sm text-gray-600">模型</span>
-                        <Select value={inst.model || ''} onValueChange={(val) => setInstances(list => list.map(x => x.id === inst.id ? { ...x, model: val } : x))}>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="选择模型" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {(models[inst.providerId] || []).map(m => {
-                              const meta: any = m;
-                              const ctx = meta?.context ? `${Math.round(meta.context/1000)}k` : '';
-                              const extra = [meta?.type, ctx && `${ctx} ctx`].filter(Boolean).join(' · ');
-                              return (
-                                <SelectItem key={m.id} value={m.id}>
-                                  <span>{m.label || m.id}</span>
-                                  {extra && <span className="text-xs text-gray-500 ml-1">({extra})</span>}
-                                </SelectItem>
-                              );
-                            })}
-                          </SelectContent>
-                        </Select>
-                      </label>
-                      <label className="grid gap-1">
-                        <span className="text-sm text-gray-600">系统提示词</span>
-                        <textarea className="rounded border px-2 py-1 min-h-[80px]" value={inst.systemPrompt || ''} onChange={e => setInstances(list => list.map(x => x.id === inst.id ? { ...x, systemPrompt: e.target.value } : x))} />
-                        <div className="flex flex-wrap gap-2 text-xs">
-                          {templates.filter(t => t.type === 'system').slice(0, 6).map(t => (
-                            <Button key={t.id} className="px-2 py-1 border rounded hover:bg-gray-50" onClick={() => setInstances(list => list.map(x => x.id === inst.id ? { ...x, systemPrompt: ((x.systemPrompt || '') + ((x.systemPrompt) ? '\n' : '') + t.content) } : x))}>{t.name}</Button>
-                          ))}
-                        </div>
-                      </label>
-                      <div className="grid gap-2 md:grid-cols-2">
-                        {(selectedProvider?.schema?.fields || []).map(f => {
-                          const loc = pickLocale(selectedProvider.schema?.locales);
-                          const label = (loc?.fields?.[f.key]) || f.label;
-                          return (
-                          <label key={f.key} className="grid gap-1">
-                            <span className="text-sm text-gray-600">{label}</span>
-                            <Input
-                              type={f.type === 'password' ? 'password' : 'text'}
-                              value={instanceSecrets[inst.id]?.[f.key] || ''}
-                              onChange={e => setInstanceSecrets(prev => ({ ...prev, [inst.id]: { ...(prev[inst.id] || {}), [f.key]: e.target.value } }))}
-                            />
-                            {errors[inst.id]?.[f.key] && <span className="text-xs text-red-600">{errors[inst.id]?.[f.key]}</span>}
-                          </label>
-                          )
-                        })}
-                      </div>
-                      <div className="flex gap-2">
-                        <Button onClick={() => onSaveInstance(inst)}>保存</Button>
-                        <Button variant="outline" onClick={() => setExpanded(e => ({ ...e, [inst.id]: false }))}>收起</Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div>暂无服务商</div>
-        )}
-      </div>
-    </div>
+      {/* Shared Create/Edit Modal */}
+      {selectedProvider && (
+        <InstanceFormDialog
+          open={modalOpen}
+          mode={modalMode}
+          title={modalMode === 'create' ? '新建实例' : `编辑实例 · ${editing?.name || ''}`}
+          provider={selectedProvider!}
+          models={modalModels}
+          templates={templates}
+          initialValues={modalInitialValues}
+          errors={modalErrors}
+          onClose={() => setModalOpen(false)}
+          onSubmit={(vals) => {
+            if (modalMode === 'create') return onCreateInstance(vals);
+            if (modalMode === 'edit' && editing) return onSaveInstance(editing, vals);
+          }}
+        />
+      )}
+    </>
   );
 }

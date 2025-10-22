@@ -45,7 +45,7 @@ const TaggingPage: React.FC = () => {
       try {
         const rows = await window.YUA.ai.getProviders();
         setProviders(rows);
-        const preferred = rows.find((p: any) => p.configured && p.id !== 'dummy') || rows.find((p: any) => p.configured) || rows[0];
+        const preferred = rows.find((p: any) => p.configured) || rows[0];
         setProviderId(preferred?.id);
       } catch { }
     })();

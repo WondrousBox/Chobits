@@ -1,9 +1,0 @@
-{
-  "id": "dummy",
-  "label": "Dummy (local)",
-  "enabled": true,
-  "icon": "providers/icons/dummy.svg",
-  "fields": [
-    { "key": "note", "label": "This is a dummy provider for testing", "type": "text" }
-  ]
-}

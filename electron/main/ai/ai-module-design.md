@@ -26,7 +26,7 @@ Main 侧新增：
 - `electron/main/ai/registry.ts`：Provider/Agent 注册表（register/get/list）
 - `electron/main/ai/chat-service.ts`：对话服务，负责流式处理、取消、与 IPC 集成
 - `electron/main/ai/settings-store.ts`：秘钥配置的简易持久化（userData/ai-settings.json），可替换为 DB+keytar
-- `electron/main/ai/providers/*`：各服务商适配器（示例：`dummy.ts`）
+- `electron/main/ai/providers/*`：各服务商适配器（如：`openai.ts` 等）
 - `electron/main/ai/agents/*`：智能体定义（示例：`basic.ts`）
 - `electron/main/handlers/ai.ts`：AI 相关 IPC 处理器入口（初始化 Provider/Agent、注册 ChatService、秘钥读写）
 
@@ -182,10 +182,10 @@ Provider 适配要点：
 
 ## 13. 使用说明（Quick Try）
 
-- 流式对话（Dummy Provider 示例）：
+- 流式对话（示例）：
 ```ts
 const disposer = await window.YUA.ai.chatStream(
-  { messages: [{ role: 'user', content: 'Hello there' }], providerId: 'dummy', agentId: 'basic', stream: true },
+  { messages: [{ role: 'user', content: 'Hello there' }], providerId: 'openai', agentId: 'basic', stream: true },
   (ev) => console.log('stream:', ev)
 )
 // 取消
