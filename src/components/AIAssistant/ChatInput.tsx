@@ -3,6 +3,8 @@ import clsx from 'clsx';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { TbLoader2, TbSend } from 'react-icons/tb';
+import ServiceInstanceSelect from '@/components/AIAssistant/ServiceInstanceSelect';
+import { useChatSelection } from './context/ChatSelectionContext';
 
 export interface ChatInputProps {
   // Controlled value; if omitted, component manages its own state
@@ -45,6 +47,10 @@ export default function ChatInput({
   autoFocus = false,
   onKeyDown,
 }: ChatInputProps) {
+  // Standardized chat selection (provider/instance) available for all chat inputs
+  // This makes instance selection a built-in part of ChatInput rather than requiring parent injection
+  const { providerId, instanceId, setProviderId, setInstanceId, getOrderedInstances } = useChatSelection();
+
   const isControlled = useMemo(() => value !== undefined, [value]);
   const [inner, setInner] = useState<string>(defaultValue ?? '');
   const text = isControlled ? (value as string) : inner;
@@ -156,6 +162,18 @@ export default function ChatInput({
 
       {/* Bottom toolbar */}
       <div className="absolute bottom-2 left-2 right-16 flex items-center gap-2 overflow-x-auto drag-region ">
+        {/* Built-in: Service Instance selector (standard across all chat inputs) */}
+        <div className="shrink-0 no-drag">
+          <ServiceInstanceSelect
+            providerId={providerId}
+            instanceId={instanceId}
+            onChange={(pid, iid) => { setProviderId(pid); setInstanceId(iid); }}
+            buttonVariant="outline"
+            buttonSize="sm"
+            orderInstances={(list, pid) => (getOrderedInstances ? getOrderedInstances(pid) : list)}
+          />
+        </div>
+        {/* Extra left-side content from parent (optional) */}
         {footerLeft}
         <div className="shrink-0 text-xs text-muted-foreground">
           {'Enter 发送， Shift+Enter 换行'}

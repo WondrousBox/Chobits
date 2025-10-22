@@ -1,8 +1,5 @@
-import { useEffect } from 'react';
-import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useChatSelection } from './context/ChatSelectionContext';
-import ServiceInstanceSelect from '@/components/AIAssistant/ServiceInstanceSelect';
 import ChatInput from '@/components/AIAssistant/ChatInput';
 
 export interface ChatInputBarProps {
@@ -25,11 +22,7 @@ export interface ChatInputBarProps {
 
 export default function ChatInputBar({ onStart, onStop, loading, placeholder, className }: ChatInputBarProps) {
   // consume shared provider/instance/agent state
-  const { agents, providerId, instanceId, agentId, setProviderId, setInstanceId, setAgentId, getOrderedInstances } = useChatSelection();
-  
-  useEffect(() => {
-    // ensure instance selection exists when starting
-  }, [instanceId]);
+  const { agents, providerId, instanceId, agentId, setAgentId } = useChatSelection();
 
   return (
     <ChatInput
@@ -43,16 +36,6 @@ export default function ChatInputBar({ onStart, onStop, loading, placeholder, cl
       className={className}
       footerLeft={(
         <>
-          <div className="shrink-0 no-drag">
-            <ServiceInstanceSelect
-              providerId={providerId}
-              instanceId={instanceId}
-              onChange={(pid, iid) => { setProviderId(pid); setInstanceId(iid); }}
-              buttonVariant="outline"
-              buttonSize="sm"
-              orderInstances={(list, pid) => (getOrderedInstances ? getOrderedInstances(pid) : list)}
-            />
-          </div>
           <div className="shrink-0 no-drag">
             <Select value={agentId} onValueChange={setAgentId}>
               <SelectTrigger className="h-8 rounded-full text-xs text-muted-foreground">
