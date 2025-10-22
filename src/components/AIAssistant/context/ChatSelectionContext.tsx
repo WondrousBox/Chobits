@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { useProvidersInstances } from '@/hooks/useProvidersInstances';
+import { useProvidersInstances } from '@/components/AIAssistant/hooks/useProvidersInstances';
 
 type Provider = any;
 type Agent = any;
