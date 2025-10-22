@@ -1,9 +1,7 @@
 import { Button } from '@/components/ui/button';
-import React, { useEffect, useState, useCallback } from 'react'
-import { TbDotsVertical, TbX, TbDownload, TbWorld, TbLoader2 } from 'react-icons/tb';
+import React, { useEffect, useState, useCallback, useRef } from 'react'
+import { TbX, TbDownload, TbWorld, TbLoader2, TbMicrophone } from 'react-icons/tb';
 import ChatInput from '@/components/AIAssistant/ChatInput';
-
-type CommandItem = { key: string; title: string; hint?: string; ext?: string }
 
 // URL检测函数
 const isVideoUrl = (url: string): boolean => {
@@ -27,25 +25,27 @@ const isWebUrl = (text: string): boolean => {
   const urlPattern = /^https?:\/\/[^\s]+$/
   return urlPattern.test(text.trim())
 }
-const commandPalette: CommandItem[] = [
-  { key: 'new', title: '新对话', hint: '开始一个空白对话' },
-  { key: 'summarize', title: '总结当前资源', hint: '对最近导入的文件生成摘要' },
-  { key: 'code', title: '生成代码', hint: '根据描述输出代码片段' },
-  { key: 'optimize', title: '优化文本', hint: '润色或改写所选文本' },
-  { key: 'translate', title: '翻译', hint: '翻译到指定语言' },
-  { key: 'search', title: '检索', hint: '对向量库执行语义检索' },
-]
-
 const AssistantPage: React.FC = () => {
   const [query, setQuery] = useState('')
-  // 指令由 ChatInput 内部处理
-  const [recentContext, setRecentContext] = useState<{ clipboard?: string; resources: Array<{ id: string; title: string }> }>({ resources: [] })
+  const [phIndex, setPhIndex] = useState(() => Math.floor(Math.random() * 7))
   const [opening, setOpening] = useState(true)
   const [closing, setClosing] = useState(false)
   const [showVideoButton, setShowVideoButton] = useState(false)
   const [showWebButton, setShowWebButton] = useState(false)
   const [isAnalyzingVideo, setIsAnalyzingVideo] = useState(false)
   const [isAnalyzingWeb, setIsAnalyzingWeb] = useState(false)
+  const contentRootRef = useRef<HTMLDivElement | null>(null)
+  const inputBlockRef = useRef<HTMLDivElement | null>(null)
+
+  const placeholders = [
+    '输入问题，如：总结最近导入的 PDF...',
+    '粘贴一段文字，让我帮你提炼要点',
+    '帮我把这段中文翻译成英文',
+    '写一个 TypeScript 函数组件示例',
+    '下载这个视频并提取字幕（粘贴 URL: https://example.com/video/xxx）',
+    '分析这个网页并输出摘要（粘贴 URL: https://example.com/）',
+    '检索资源库中关于「会议纪要」的内容',
+  ]
 
   // 自动聚焦由 ChatInput 控制
 
@@ -71,27 +71,7 @@ const AssistantPage: React.FC = () => {
     return () => window.removeEventListener('keydown', onKey)
   }, [close])
 
-  // 自动收集上下文：最近资源 + 剪贴板
-  useEffect(() => {
-    let aborted = false
-      ; (async () => {
-        try {
-          // 最近资源：示例调用（真实实现可添加 API 排序条件）
-          let resources: any[] = []
-          try {
-            // 假设存在获取资源列表的 API（此处为占位，需按后端接口替换）
-            // resources = await window.YUA.resource.listRecent({ limit: 5 })
-          } catch { }
-          // 剪贴板
-          let clip: string | undefined
-          try { clip = await navigator.clipboard.readText(); if (clip && clip.length > 160) clip = clip.slice(0, 157) + '…' } catch { }
-          if (!aborted) setRecentContext({ clipboard: clip, resources: resources.slice(0, 5).map(r => ({ id: r.id, title: r.title })) })
-        } catch { }
-      })()
-    return () => { aborted = true }
-  }, [])
-
-  const pickCommand = (cmd?: CommandItem) => { /* ChatInput will handle insertion; keep for optional side-effects */ }
+  // 已移除自动上下文收集逻辑（剪贴板/最近资源）
 
   const send = async (content: string) => {
     if (!content.trim()) return
@@ -192,35 +172,96 @@ const AssistantPage: React.FC = () => {
     }
   }
 
+  // 轮换占位文案：仅在输入为空时，每 2 秒切换一次
+  useEffect(() => {
+    const isEmpty = !query.trim()
+    if (!isEmpty) return
+    const t = setInterval(() => {
+      setPhIndex((i) => (i + 1) % placeholders.length)
+    }, 3000)
+    return () => clearInterval(t)
+  }, [query, placeholders.length])
+
+  // 根据内容高度动态调整窗口大小（含首次渲染）
+  useEffect(() => {
+    let disposed = false
+    let debounceTimer: number | null = null
+
+    const adjustWindowSize = async () => {
+      try {
+        // 避免频繁调用：简单防抖
+        if (debounceTimer) window.clearTimeout(debounceTimer)
+        debounceTimer = window.setTimeout(async () => {
+          if (disposed) return
+          const html = document.documentElement
+          // 以“输入区”的可视底部作为目标高度（再加少量边距）
+          const blockEl = inputBlockRef.current
+          const blockRect = blockEl?.getBoundingClientRect()
+          const extraMargin = 12 // 覆盖 ChatInput 自身的 my-2 以及底部安全边距
+          const contentHeight = Math.ceil((blockRect?.bottom ?? window.innerHeight) + extraMargin)
+          // 宽度保持不变，使用当前窗口宽度
+          const currentWidth = window.innerWidth || html.clientWidth
+
+          // 获取屏幕工作区限制
+          let maxW = Number.POSITIVE_INFINITY
+          let maxH = Number.POSITIVE_INFINITY
+          try {
+            const screen = await window.YUA.window.getScreenSize()
+            maxW = screen.width
+            maxH = screen.height
+          } catch { }
+
+          const minW = 360
+          const minH = 100
+          const desiredWidth = Math.max(minW, Math.min(currentWidth, maxW))
+          // 给一点安全边距，避免阴影裁切
+          const padding = 0
+          const desiredHeight = Math.max(minH, Math.min(contentHeight + padding, maxH))
+
+          // assistant 窗口不需要在每次调整时居中，避免跳动
+          await window.YUA.window.setWindowSize('assistant', desiredWidth, desiredHeight)
+        }, 90)
+      } catch { }
+    }
+
+    // 首次渲染后调整一次
+    adjustWindowSize()
+
+    // 监听内容尺寸变化
+    const target = inputBlockRef.current || contentRootRef.current || document.body
+    const ro = new ResizeObserver(() => adjustWindowSize())
+    try { ro.observe(target) } catch { /* noop */ }
+
+    // 监听窗口尺寸变化（例如开发者工具导致布局变化）
+    const onWinResize = () => adjustWindowSize()
+    window.addEventListener('resize', onWinResize)
+
+    return () => {
+      disposed = true
+      if (debounceTimer) window.clearTimeout(debounceTimer)
+      try { ro.disconnect() } catch { }
+      window.removeEventListener('resize', onWinResize)
+    }
+  }, [])
+
   return (
-    <div className="w-full h-full font-sans pointer-events-auto select-none relative">
-      <div className="drag-region flex items-center justify-between w-full mb-2">
-        <div className='flex items-center gap-1'>
-          <div className='w-6 h-6 flex items-center justify-center rounded-full bg-background text-foreground'>
-            <TbDotsVertical />
-          </div>
-          <div className='rounded-full bg-background text-foreground py-1 px-2 text-xs'> 按 ESC 关闭</div>
-        </div>
-        <Button className='rounded-full no-drag' size={"icon"} variant={"outline"} onClick={close} >
+    <div ref={contentRootRef} className="w-full h-full font-sans pointer-events-auto select-none relative drag-region">
+      {/* 居中浮层 */}
+      <div className={`w-full flex flex-col overflow-hidden transition-all duration-180 ${opening ? 'opacity-0 scale-95' : closing ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
+        <Button className='rounded-full no-drag absolute top-2 right-2 z-10' size={"icon"} variant={"ghost"} onClick={close} >
           <TbX />
         </Button>
-      </div>
-      {/* 居中浮层 */}
-      <div className={`w-full max-h-[82vh] flex flex-col overflow-hidden transition-all duration-180 ${opening ? 'opacity-0 scale-95' : closing ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
-        {/* 顶部条 */}
 
         {/* 输入区（统一使用 ChatInput，内置指令匹配） */}
         <div className="drag-region space-y-2">
-          <div className="flex items-start gap-3 relative no-drag">
+          <div ref={inputBlockRef} className="flex items-start gap-3 relative no-drag">
             <div className="flex-1 relative">
               <ChatInput
                 value={query}
                 onChange={onChangeText}
-                placeholder="输入问题，如：总结最近导入的 PDF..."
+                placeholder={placeholders[phIndex % placeholders.length]}
                 autoFocus
                 onStart={send}
-                commands={commandPalette}
-                onCommandPick={pickCommand}
                 footerLeft={(
                   <></>
                 )}
@@ -231,19 +272,12 @@ const AssistantPage: React.FC = () => {
                         variant={"outline"}
                         onClick={handleDownloadVideo}
                         disabled={isAnalyzingVideo}
-                        className="bg-gradient-to-r from-red-500 to-pink-500 text-white hover:brightness-110 active:scale-95 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+                        size={"icon"}
+                        className="no-drag rounded-full bg-gradient-to-r from-red-500 to-pink-500 text-white hover:brightness-110 active:scale-95 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
                       >
-                        {isAnalyzingVideo ? (
-                          <>
-                            <TbLoader2 className="animate-spin" />
-                            分析中...
-                          </>
-                        ) : (
-                          <>
-                            <TbDownload />
-                            下载视频
-                          </>
-                        )}
+                        {
+                          isAnalyzingVideo ? <TbLoader2 className="animate-spin" /> : <TbDownload />
+                        }
                       </Button>
                     )}
                     {showWebButton && (
@@ -251,21 +285,22 @@ const AssistantPage: React.FC = () => {
                         variant={"outline"}
                         onClick={handleAnalyzeWeb}
                         disabled={isAnalyzingWeb}
-                        className="bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:brightness-110 active:scale-95 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+                        size={"icon"}
+                        className="no-drag rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:brightness-110 active:scale-95 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
                       >
-                        {isAnalyzingWeb ? (
-                          <>
-                            <TbLoader2 className="animate-spin" />
-                            分析中...
-                          </>
-                        ) : (
-                          <>
-                            <TbWorld />
-                            分析网页
-                          </>
-                        )}
+                        {
+                          isAnalyzingWeb ? <TbLoader2 className="animate-spin" /> : <TbWorld />
+                        }
                       </Button>
                     )}
+
+                      <Button
+                        variant={"outline"}
+                        size={"icon"}
+                        className="no-drag rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:brightness-110 active:scale-95 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+                      >
+                        <TbMicrophone />
+                      </Button>
                   </>
                 )}
               />
