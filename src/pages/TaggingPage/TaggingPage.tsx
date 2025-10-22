@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import ServiceInstanceSelect from '@/components/common/ServiceInstanceSelect';
 
 type ProgressMeta = { phase: 'start' | 'progress'; total: number; startIndex?: number; index?: number; segmentTags?: string[]; aggTop?: string[] };
 
@@ -24,11 +24,11 @@ const TaggingPage: React.FC = () => {
   const [progress, setProgress] = useState<{ index: number; total: number; aggTop: string[] }>({ index: 0, total: 0, aggTop: [] });
   const [finalTags, setFinalTags] = useState<string[] | null>(null);
   const [initialAgg, setInitialAgg] = useState<Record<string, number>>({});
-  const [providers, setProviders] = useState<Array<{ id: string; label: string; configured: boolean }>>([]);
   const [providerId, setProviderId] = useState<string | undefined>(undefined);
+  const [instanceId, setInstanceId] = useState<string | undefined>(undefined);
   const streamRef = useRef<StreamApi | null>(null);
 
-  const canStart = useMemo(() => confirmed && segments.length > 0 && !running, [confirmed, segments, running]);
+  const canStart = useMemo(() => confirmed && segments.length > 0 && !running && !!providerId && !!instanceId, [confirmed, segments, running, providerId, instanceId]);
 
   const doSegment = () => {
     const segs = (useSmart ? smartChunks(input, maxChars, overlap) : chunkText(input, maxChars, overlap));
@@ -40,16 +40,7 @@ const TaggingPage: React.FC = () => {
     setInitialAgg({});
   };
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const rows = await window.YUA.ai.getProviders();
-        setProviders(rows);
-        const preferred = rows.find((p: any) => p.configured) || rows[0];
-        setProviderId(preferred?.id);
-      } catch { }
-    })();
-  }, []);
+  // Provider/Instance selection is handled by ServiceInstanceSelect; no manual fetching needed here
 
   const handleStart = async (resume = false) => {
     if (running) return;
@@ -59,6 +50,7 @@ const TaggingPage: React.FC = () => {
     const payload = {
       agentId: 'tagger',
       providerId,
+      providerInstanceId: instanceId,
       stream: true,
       messages: [{ role: 'user', content: input }],
       extras: {
@@ -110,19 +102,14 @@ const TaggingPage: React.FC = () => {
         {/* Controls */}
         <div className="flex items-center">
           <div className="col-span-12 sm:col-span-4 lg:col-span-3">
-            <div className="text-xs text-muted-foreground mb-1">模型提供商</div>
-            <Select value={providerId || ''} onValueChange={setProviderId as any}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="选择提供商" />
-              </SelectTrigger>
-              <SelectContent>
-                {providers.map(p => (
-                  <SelectItem key={p.id} value={p.id} disabled={!p.configured}>
-                    {p.label}{p.configured ? '' : '（未配置）'}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="text-xs text-muted-foreground mb-1">模型服务实例</div>
+            <ServiceInstanceSelect
+              providerId={providerId}
+              instanceId={instanceId}
+              onChange={(pid, iid) => { setProviderId(pid); setInstanceId(iid) }}
+              buttonVariant="outline"
+              className="w-full"
+            />
           </div>
           <div className="col-span-4">
             <div className="text-xs text-muted-foreground mb-1">最大标签数</div>
