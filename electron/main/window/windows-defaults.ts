@@ -236,8 +236,8 @@ const faultWindowConfigs: Record<WindowKey, WindowConfig> = {
       }
     }
   },
-  "chatDemo": {
-    "routeHash": "chat-demo",
+  "chat": {
+    "routeHash": "chat",
     "autoCenterOn": "parent-display",
     "showOnReady": false,
     "openDevTools": true,

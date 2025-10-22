@@ -38,7 +38,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
       label: '聊天',
       icon: '🗨️',
       shortcut: 'c',
-      action: () => window.YUA.window.openWindow("chatDemo")
+      action: () => window.YUA.window.openWindow("chat")
     },
     {
       id: 'resources',

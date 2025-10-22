@@ -9,7 +9,7 @@ import ResourcePage from './pages/ResourcePage/ResourcePage'
 import WorkspaceWizard from './pages/WorkspacePage/WorkspaceWizard'
 import WorkspacePage from './pages/SettingsPage/components/Workspace'
 import AssistantPage from './pages/AssistantPage/AssistantPage'
-import ChatDemo from './pages/AssistantPage/ChatDemo'
+import ChatPage from './pages/AssistantPage/ChatPage'
 import ModelPage from './pages/ModelPage/ModelPage'
 import ResourcePreviewWindow from '@/pages/ResourcePage/ResourcePreviewWindow'
 import TaggingPage from './pages/TaggingPage/TaggingPage'
@@ -34,7 +34,7 @@ function App() {
           <Route path="/recycle" element={<RecycleBinPage />} />
           <Route path="/workspace" element={<WorkspacePage />} />
           <Route path="/assistant" element={<AssistantPage />} />
-          <Route path="/chat-demo" element={<ChatDemo />} />
+          <Route path="/chat" element={<ChatPage />} />
           <Route path="/model-manager" element={<ModelPage />} />
           <Route path="/tagger" element={<TaggingPage />} />
           <Route path="/resource-preview" element={<ResourcePreviewWindow />} />

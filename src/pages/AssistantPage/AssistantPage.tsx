@@ -1,9 +1,8 @@
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import React, { useEffect, useRef, useState, useCallback } from 'react'
-import { TbDotsVertical, TbSend, TbX, TbDownload, TbWorld, TbLoader2 } from 'react-icons/tb';
+import React, { useEffect, useState, useCallback } from 'react'
+import { TbDotsVertical, TbX, TbDownload, TbWorld, TbLoader2 } from 'react-icons/tb';
+import ChatInput from '@/components/AIAssistant/ChatInput';
 
-const actions = ['新对话', '总结文件', '生成代码', '提取要点', '翻译', '重写优化']
 type CommandItem = { key: string; title: string; hint?: string; ext?: string }
 
 // URL检测函数
@@ -38,11 +37,8 @@ const commandPalette: CommandItem[] = [
 ]
 
 const AssistantPage: React.FC = () => {
-  const inputRef = useRef<HTMLTextAreaElement>(null)
   const [query, setQuery] = useState('')
-  const [isCommandMode, setIsCommandMode] = useState(false)
-  const [commandFilter, setCommandFilter] = useState('')
-  const [commandIndex, setCommandIndex] = useState(0)
+  // 指令由 ChatInput 内部处理
   const [recentContext, setRecentContext] = useState<{ clipboard?: string; resources: Array<{ id: string; title: string }> }>({ resources: [] })
   const [opening, setOpening] = useState(true)
   const [closing, setClosing] = useState(false)
@@ -51,8 +47,7 @@ const AssistantPage: React.FC = () => {
   const [isAnalyzingVideo, setIsAnalyzingVideo] = useState(false)
   const [isAnalyzingWeb, setIsAnalyzingWeb] = useState(false)
 
-  // 自动聚焦
-  useEffect(() => { setTimeout(() => inputRef.current?.focus(), 10) }, [])
+  // 自动聚焦由 ChatInput 控制
 
   // 进场动画结束标记
   useEffect(() => {
@@ -67,22 +62,14 @@ const AssistantPage: React.FC = () => {
     setTimeout(() => reallyClose(), 160) // 与动画时长匹配
   }, [closing])
 
-  // ESC 关闭
+  // ESC 关闭（仅全局监听 ESC）
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { e.preventDefault(); close(); return }
-      if (isCommandMode) {
-        if (e.key === 'ArrowDown') { e.preventDefault(); setCommandIndex(i => Math.min(filteredCommands.length - 1, i + 1)); return }
-        if (e.key === 'ArrowUp') { e.preventDefault(); setCommandIndex(i => Math.max(0, i - 1)); return }
-        if (e.key === 'Enter') { e.preventDefault(); pickCommand(filteredCommands[commandIndex]); return }
-        if (e.key === 'Tab') { e.preventDefault(); pickCommand(filteredCommands[commandIndex]); return }
-      } else {
-        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); return }
-      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [close, isCommandMode, commandIndex])
+  }, [close])
 
   // 自动收集上下文：最近资源 + 剪贴板
   useEffect(() => {
@@ -104,52 +91,29 @@ const AssistantPage: React.FC = () => {
     return () => { aborted = true }
   }, [])
 
-  const filteredCommands = isCommandMode ? commandPalette.filter(c => {
-    if (!commandFilter) return true
-    return c.title.includes(commandFilter) || c.key.includes(commandFilter)
-  }) : []
+  const pickCommand = (cmd?: CommandItem) => { /* ChatInput will handle insertion; keep for optional side-effects */ }
 
-  const enterCommandMode = () => {
-    setIsCommandMode(true); setCommandFilter(''); setCommandIndex(0)
-  }
-  const leaveCommandMode = () => { setIsCommandMode(false); setCommandFilter(''); setCommandIndex(0) }
-
-  const pickCommand = (cmd?: CommandItem) => {
-    if (!cmd) return
-    // 将命令转换为结构化提示占位（后续可替换）
-    setQuery(prev => prev.replace(/^\/[^\s]*?$/, `/${cmd.key} `))
-    leaveCommandMode()
-    setTimeout(() => inputRef.current?.focus(), 0)
-  }
-
-  const send = () => {
-    if (isCommandMode) { pickCommand(filteredCommands[commandIndex]); return }
-    if (!query.trim()) return
-    console.log('SEND:', query)
-    // 新增：发送文本时同时作为资源写入（类型 text）
-    ;(async () => {
-      try {
-        const id = (crypto as any)?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
-        const now = Date.now()
-        await window.YUA.resource.addResource({
-          resource: {
-            id,
-            type: 'text',
-            title: query.slice(0, 40),
-            contentText: query,
-            collectedAt: now,
-            createdAt: now,
-            updatedAt: now,
-            status: 'new'
-          } as any
-        })
-        console.debug('[resource] text saved as resource', id)
-      } catch (e) {
-        console.warn('[resource] save text failed', e)
-      }
-    })()
-    setQuery('')
-    setTimeout(() => inputRef.current?.focus(), 0)
+  const send = async (content: string) => {
+    if (!content.trim()) return
+    try {
+      const id = (crypto as any)?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
+      const now = Date.now()
+      await window.YUA.resource.addResource({
+        resource: {
+          id,
+          type: 'text',
+          title: content.slice(0, 40),
+          contentText: content,
+          collectedAt: now,
+          createdAt: now,
+          updatedAt: now,
+          status: 'new'
+        } as any
+      })
+      console.debug('[resource] text saved as resource', id)
+    } catch (e) {
+      console.warn('[resource] save text failed', e)
+    }
   }
 
   const handleDownloadVideo = async () => {
@@ -174,15 +138,15 @@ const AssistantPage: React.FC = () => {
 
       if (downloadResult.success) {
         console.log('下载任务已创建:', downloadResult.data.taskId)
-        
+
         // 下载任务已创建，进度将由主进程直接处理
         console.log('下载任务已创建，进度将在主窗口任务栏中显示')
-        
+
         // 关闭当前助手窗口
         setTimeout(() => {
           close()
         }, 500) // 延迟500ms让用户看到成功反馈
-        
+
       } else {
         console.error('创建下载任务失败:', downloadResult.error)
       }
@@ -212,15 +176,6 @@ const AssistantPage: React.FC = () => {
   // 监听输入内容识别命令模式和URL
   const onChangeText = (v: string) => {
     setQuery(v)
-    const slashMatch = v.match(/^\/(\S*)$/)
-    if (slashMatch) {
-      if (!isCommandMode) enterCommandMode()
-      setCommandFilter(slashMatch[1])
-    } else if (isCommandMode) {
-      const still = v.match(/^\/(\S*)$/)
-      if (!still) leaveCommandMode()
-    }
-    
     // 检测URL并设置按钮状态
     const trimmedQuery = v.trim()
     if (isWebUrl(trimmedQuery)) {
@@ -254,127 +209,68 @@ const AssistantPage: React.FC = () => {
       <div className={`w-full max-h-[82vh] flex flex-col overflow-hidden transition-all duration-180 ${opening ? 'opacity-0 scale-95' : closing ? 'opacity-0 scale-95' : 'opacity-100 scale-100'}`}>
         {/* 顶部条 */}
 
-        {/* 输入区 */}
+        {/* 输入区（统一使用 ChatInput，内置指令匹配） */}
         <div className="drag-region space-y-2">
           <div className="flex items-start gap-3 relative no-drag">
             <div className="flex-1 relative">
-              <Textarea
-                ref={inputRef}
+              <ChatInput
                 value={query}
-                onChange={e => onChangeText(e.target.value)}
-                placeholder='输入问题，如：总结最近导入的 PDF...'
-                className="resize-none max-h-[220px] box-border bg-background text-foreground mx-1 pb-12"
-                style={{ width: 'calc(100% - 0.5rem)' }}
-                onInput={e => {
-                  const el = e.currentTarget; el.style.height = 'auto'; el.style.height = Math.min(220, el.scrollHeight) + 'px'
-                }}
-              />
-              {isCommandMode && (
-                <div className="absolute z-20 left-0 top-full mt-2 w-full rounded-2xl overflow-hidden border border-white/15 backdrop-blur-xl bg-[rgba(32,38,52,0.72)] shadow-xl">
-                  <div className="max-h-72 overflow-auto py-2">
-                    {filteredCommands.length === 0 && (
-                      <div className="px-4 py-3 text-sm text-white/50">无匹配命令</div>
-                    )}
-                    {filteredCommands.map((c, i) => (
-                      <button
-                        key={c.key}
-                        onMouseDown={e => { e.preventDefault(); pickCommand(c) }}
-                        onMouseEnter={() => setCommandIndex(i)}
-                        className={`w-full text-left px-4 py-2.5 flex flex-col gap-1 transition-colors ${i === commandIndex ? 'bg-white/15 text-white' : 'text-white/80 hover:bg-white/10'}`}
+                onChange={onChangeText}
+                placeholder="输入问题，如：总结最近导入的 PDF..."
+                autoFocus
+                onStart={send}
+                commands={commandPalette}
+                onCommandPick={pickCommand}
+                footerLeft={(
+                  <></>
+                )}
+                footerRightExtra={(
+                  <>
+                    {showVideoButton && (
+                      <Button
+                        variant={"outline"}
+                        onClick={handleDownloadVideo}
+                        disabled={isAnalyzingVideo}
+                        className="bg-gradient-to-r from-red-500 to-pink-500 text-white hover:brightness-110 active:scale-95 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
                       >
-                        <span className="text-[13px] font-medium">/{c.key} <span className="ml-2 opacity-70 font-normal">{c.title}</span></span>
-                        {c.hint && <span className="text-[11px] leading-snug opacity-60">{c.hint}</span>}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-          <div className="absolute w-full bottom-2 left-4 text-xs text-muted-foreground">
-            <span>{isCommandMode ? '输入命令关键字，↑↓ 选择，Enter 确认' : '输入 / 进入命令模式，Enter 发送， Shift+Enter 换行'}</span>
-          </div>
-          <div className="absolute right-2 bottom-2 flex gap-2">
-            {showVideoButton && (
-              <Button
-                variant={"outline"}
-                onClick={handleDownloadVideo}
-                disabled={isAnalyzingVideo}
-                className="bg-gradient-to-r from-red-500 to-pink-500 text-white hover:brightness-110 active:scale-95 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
-              >
-                {isAnalyzingVideo ? (
-                  <>
-                    <TbLoader2 className="animate-spin" />
-                    分析中...
-                  </>
-                ) : (
-                  <>
-                    <TbDownload />
-                    下载视频
-                  </>
-                )}
-              </Button>
-            )}
-            {showWebButton && (
-              <Button
-                variant={"outline"}
-                onClick={handleAnalyzeWeb}
-                disabled={isAnalyzingWeb}
-                className="bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:brightness-110 active:scale-95 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
-              >
-                {isAnalyzingWeb ? (
-                  <>
-                    <TbLoader2 className="animate-spin" />
-                    分析中...
-                  </>
-                ) : (
-                  <>
-                    <TbWorld />
-                    分析网页
+                        {isAnalyzingVideo ? (
+                          <>
+                            <TbLoader2 className="animate-spin" />
+                            分析中...
+                          </>
+                        ) : (
+                          <>
+                            <TbDownload />
+                            下载视频
+                          </>
+                        )}
+                      </Button>
+                    )}
+                    {showWebButton && (
+                      <Button
+                        variant={"outline"}
+                        onClick={handleAnalyzeWeb}
+                        disabled={isAnalyzingWeb}
+                        className="bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:brightness-110 active:scale-95 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+                      >
+                        {isAnalyzingWeb ? (
+                          <>
+                            <TbLoader2 className="animate-spin" />
+                            分析中...
+                          </>
+                        ) : (
+                          <>
+                            <TbWorld />
+                            分析网页
+                          </>
+                        )}
+                      </Button>
+                    )}
                   </>
                 )}
-              </Button>
-            )}
-            <Button
-              variant={"outline"}
-              onClick={send}
-              disabled={!query.trim()}
-              className="bg-gradient-to-r from-indigo-500 to-cyan-400 text-white hover:brightness-110 active:scale-95 transition-all"
-            >
-              发送 <TbSend />
-            </Button>
-          </div>
-          </div>
-        </div>
-        <div className="drag-region space-y-2 bg-background p-4 rounded-md mb-4">
-          <div className="text-xs">常用功能</div>
-          <div className="no-drag flex flex-wrap gap-2">
-            {actions.map(a => (
-              <Button size="sm" variant={"outline"} key={a}>{a}</Button>
-            ))}
-          </div>
-        </div>
-        <div className="flex-1 min-h-0 overflow-auto px-6 py-5 space-y-6 text-sm custom-scroll border bg-background">
-          <section className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider ">提示</h3>
-            <div className="text-[13px] leading-relaxed ">
-              这里会集成：上下文选择、资源引用、历史对话、工作区检索、插件工具、向量检索结果 等内容。当前为 UI 骨架，可继续扩展。
+              />
             </div>
-          </section>
-          <section className="space-y-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider ">自动上下文</h3>
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col gap-3">
-              <div className="text-[12px] font-medium">最近剪贴板</div>
-              <div className="text-[12px]  break-words whitespace-pre-wrap min-h-[20px] max-h-32 overflow-auto">
-                {recentContext.clipboard ? recentContext.clipboard : <span className="opacity-40">(空)</span>}
-              </div>
-              <div className="text-[12px] font-medium pt-1">最近资源</div>
-              <ul className="text-[12px] list-disc pl-5 space-y-1 max-h-40 overflow-auto">
-                {recentContext.resources.length === 0 && <li className="opacity-40 list-none pl-0">(暂无数据占位)</li>}
-                {recentContext.resources.map(r => <li key={r.id}>{r.title}</li>)}
-              </ul>
-            </div>
-          </section>
+          </div>
         </div>
       </div>
     </div>
