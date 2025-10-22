@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { useProvidersInstances } from '@/hooks/useProvidersInstances';
 
 type Provider = any;
 type Agent = any;
@@ -28,9 +29,9 @@ const LS_KEYS = {
 };
 
 export function ChatSelectionProvider({ children }: { children: React.ReactNode }) {
-  const [providers, setProviders] = useState<Provider[]>([]);
+  // Providers & instances come from shared hook
+  const { providers, instancesMap, refresh: refreshProviders } = useProvidersInstances();
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [instancesMap, setInstancesMap] = useState<Record<string, Instance[]>>({});
   const [providerId, setProviderId] = useState<string>(() => localStorage.getItem(LS_KEYS.providerId) || 'openai');
   const [instanceId, setInstanceId] = useState<string>(() => localStorage.getItem(LS_KEYS.instanceId) || '');
   const [agentId, setAgentId] = useState<string>(() => localStorage.getItem(LS_KEYS.agentId) || 'basic');
@@ -50,32 +51,14 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
   useEffect(() => { try { localStorage.setItem(LS_KEYS.recents, JSON.stringify(recents)); } catch {/* noop */} }, [recents]);
 
   const refresh = async () => {
-    try { setProviders(await (window as any).YUA.ai.getProviders()); } catch { /* noop */ }
+    try { await refreshProviders(); } catch { /* noop */ }
     try { setAgents(await (window as any).YUA.ai.getAgents()); } catch { /* noop */ }
   };
 
   // Initial fetch
   useEffect(() => { refresh(); }, []);
 
-  // Fetch instances for all providers when list changes
-  useEffect(() => {
-    (async () => {
-      if (!providers?.length) return;
-      try {
-        const entries = await Promise.all(
-          providers.map(async (p: any) => {
-            try {
-              const list = await (window as any).YUA.ai.listInstances(p.id);
-              return [p.id, list || []] as const;
-            } catch {
-              return [p.id, []] as const;
-            }
-          })
-        );
-        setInstancesMap(Object.fromEntries(entries));
-      } catch { /* noop */ }
-    })();
-  }, [providers]);
+  // instancesMap is now provided by useProvidersInstances
 
   // Ensure current providerId exists; fall back to first provider
   useEffect(() => {
