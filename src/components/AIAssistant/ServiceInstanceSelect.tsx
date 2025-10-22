@@ -90,7 +90,7 @@ export default function ServiceInstanceSelect(props: ServiceInstanceSelectProps)
           {displayLabel}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent className="min-w-[260px]">
+      <DropdownMenuContent className="min-w-[260px] no-drag">
         {searchEnabled && (
           <div className="p-2">
             <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索实例..." className="h-8 text-xs" />
@@ -117,7 +117,7 @@ export default function ServiceInstanceSelect(props: ServiceInstanceSelectProps)
             const list = orderInstances ? orderInstances(instancesMap[p.id] || [], p.id) : getInstances(p.id)
             return (
               <DropdownMenuSub key={p.id}>
-                <DropdownMenuSubTrigger>
+                <DropdownMenuSubTrigger className='no-drag'>
                   <span className="flex items-center gap-2">
                     {p?.schema?.icon && (
                       <TintableSvg src={p.schema.icon} className="w-4 h-4" alt={p.label} />
@@ -125,7 +125,7 @@ export default function ServiceInstanceSelect(props: ServiceInstanceSelectProps)
                     <span>{p.label}</span>
                   </span>
                 </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
+                <DropdownMenuSubContent className='no-drag'>
                   {list.length > 0 && (
                     list.map((it) => (
                       <DropdownMenuItem key={it.id} onSelect={() => onChange(p.id, it.id)}>
