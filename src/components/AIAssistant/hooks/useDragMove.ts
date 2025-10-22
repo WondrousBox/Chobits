@@ -24,6 +24,23 @@ export function useDragMove(
   const dragStartTimeRef = useRef<number>(0)
   const dragOffset = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
   const lastIpcSendRef = useRef(0)
+  // cleanup function for listeners used during the "hold to drag" pending phase
+  const holdPhaseCleanupRef = useRef<() => void>(() => {})
+
+  const cancelHold = useCallback(() => {
+    // cancel the pending long-press timer and reset state
+    if (dragTimerRef.current) {
+      clearTimeout(dragTimerRef.current)
+      dragTimerRef.current = null
+    }
+    setIsDragReady(false)
+    setIsDragging(false)
+    onDragStateChange?.(false)
+    // remove temporary listeners for the hold phase
+    holdPhaseCleanupRef.current?.()
+    // reset to no-op
+    holdPhaseCleanupRef.current = () => {}
+  }, [onDragStateChange])
 
   const handleMouseDown = (e: React.MouseEvent) => {
     // Only respond to left-click; ignore right/middle clicks
@@ -34,11 +51,28 @@ export function useDragMove(
     dragStartTimeRef.current = Date.now()
     dragOffset.current = { x: e.clientX, y: e.clientY }
 
+    // Prepare one-off listeners to detect early release before the long-press delay
+    // If the user releases the mouse or the window loses focus before the delay,
+    // we cancel the pending drag activation.
+    const onEarlyUp = () => cancelHold()
+    const onBlur = () => cancelHold()
+    // mouseleave on document can be noisy; prefer pointerup/mouseup + blur.
+    document.addEventListener('mouseup', onEarlyUp)
+    window.addEventListener('blur', onBlur)
+    holdPhaseCleanupRef.current = () => {
+      document.removeEventListener('mouseup', onEarlyUp)
+      window.removeEventListener('blur', onBlur)
+    }
+
     dragTimerRef.current = setTimeout(() => {
+      // only proceed if still pressed (i.e., not canceled)
       onHoldStart?.()
       setIsDragReady(true)
       setIsDragging(true)
       onDragStateChange?.(true)
+      // hold phase is over; remove its listeners
+      holdPhaseCleanupRef.current?.()
+      holdPhaseCleanupRef.current = () => {}
       if (dragTimerRef.current) { clearTimeout(dragTimerRef.current); dragTimerRef.current = null }
     }, 250)
   }
@@ -81,7 +115,11 @@ export function useDragMove(
     }
   }, [isDragging, handleMouseMove, handleMouseUp])
 
-  useEffect(() => () => { if (dragTimerRef.current) { clearTimeout(dragTimerRef.current); dragTimerRef.current = null } }, [])
+  useEffect(() => () => {
+    if (dragTimerRef.current) { clearTimeout(dragTimerRef.current); dragTimerRef.current = null }
+    holdPhaseCleanupRef.current?.()
+    holdPhaseCleanupRef.current = () => {}
+  }, [])
 
   return { bind: { onMouseDown: handleMouseDown }, isDragging, isDragReady }
 }
