@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import TintableSvg from '@/components/common/TintableSvg'
 import { InstanceRow, ProviderRow, useProvidersInstances } from '@/components/AIAssistant/hooks/useProvidersInstances'
+import { TbSettings } from 'react-icons/tb'
 
 export interface ServiceInstanceSelectProps {
   providerId?: string
@@ -68,14 +69,14 @@ export default function ServiceInstanceSelect(props: ServiceInstanceSelectProps)
   const trimmed = query.trim().toLowerCase()
   const filteredResults = (searchEnabled && trimmed)
     ? providers.flatMap((p: ProviderRow) =>
-        (orderInstances ? orderInstances(instancesMap[p.id] || [], p.id) : getInstances(p.id))
-          .filter((it: InstanceRow) => {
-            const name = (it.name || '').toString().toLowerCase()
-            const id = (it.id || '').toString().toLowerCase()
-            return name.includes(trimmed) || id.includes(trimmed)
-          })
-          .map((it: InstanceRow) => ({ p, it }))
-      )
+      (orderInstances ? orderInstances(instancesMap[p.id] || [], p.id) : getInstances(p.id))
+        .filter((it: InstanceRow) => {
+          const name = (it.name || '').toString().toLowerCase()
+          const id = (it.id || '').toString().toLowerCase()
+          return name.includes(trimmed) || id.includes(trimmed)
+        })
+        .map((it: InstanceRow) => ({ p, it }))
+    )
     : []
 
   return (
@@ -121,21 +122,21 @@ export default function ServiceInstanceSelect(props: ServiceInstanceSelectProps)
                   </span>
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
-                  {list.length === 0 ? (
-                    <DropdownMenuItem
-                      onSelect={async () => {
-                        try { await (window as any).YUA.window.openWindow('settings' as any, { category: 'ai', aiProviderId: p.id }) } catch { /* ignore */ }
-                      }}
-                    >
-                      未配置实例，去配置…
-                    </DropdownMenuItem>
-                  ) : (
+                  {list.length > 0 && (
                     list.map((it) => (
                       <DropdownMenuItem key={it.id} onSelect={() => onChange(p.id, it.id)}>
                         {it.name || it.id}
                       </DropdownMenuItem>
                     ))
                   )}
+                  <DropdownMenuItem
+                    className='justify-center'
+                    onSelect={async () => {
+                      try { await (window as any).YUA.window.openWindow('settings' as any, { category: 'ai', aiProviderId: p.id }) } catch { /* ignore */ }
+                    }}
+                  >
+                    <TbSettings />添加/管理配置
+                  </DropdownMenuItem>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
             )
