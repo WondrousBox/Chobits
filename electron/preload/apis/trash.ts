@@ -24,9 +24,7 @@ export type TrashBridgeParams = {
 const methods: Array<keyof TrashBridgeParams> = ['trash:list', 'trash:restore', 'trash:purge', 'trash:empty'];
 
 export type TrashBridgeType = {
-  [K in keyof TrashBridgeParams]: (
-    ...args: TrashBridgeParams[K]['request']
-  ) => Promise<TrashBridgeParams[K]['response']>;
+  [K in keyof TrashBridgeParams]: (...args: TrashBridgeParams[K]['request']) => Promise<TrashBridgeParams[K]['response']>;
 };
 
 const bridge: Record<string, any> = {};

@@ -1,14 +1,14 @@
-import { BrowserWindow, ipcMain, shell } from 'electron';
+import { ipcMain, shell } from 'electron';
 import { ResourcesRepo, WorkspacesRepo } from '../db/repositories';
 import { embeddingQueue } from '../embedding/queue';
 import { chunkText } from '../embedding/chunker';
 import { generateThumbnailForResource, isTextLikeResource, detectBasicType } from '../utils/thumbnail';
-import { randomUUID, createHash } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as fscb from 'node:fs';
 
-export function initResourceHandlers(_win: BrowserWindow) {
+export function initResourceHandlers(): void {
   ipcMain.handle('addResource', async (_event, payload: { resource: any }) => {
     const res = payload.resource || {};
     // Attach workspace: copy local file into default workspace if available
@@ -49,13 +49,15 @@ export function initResourceHandlers(_win: BrowserWindow) {
       if (typeof text === 'string' && text.trim().length > 0 && row) {
         try {
           const chunks = chunkText(text);
-          const items = chunks.map(c => ({
+          const items = chunks.map((c) => ({
             id: `${row.id}#${c.index}`,
             content: c.content,
-            metadata: { parentId: row.id, chunkIndex: c.index, chunkCount: c.count, source: 'resource' },
+            metadata: { parentId: row.id, chunkIndex: c.index, chunkCount: c.count, source: 'resource' }
           }));
           embeddingQueue.enqueue({ items, dim: 384, batchSize: 16 });
-        } catch (e) { console.warn('[embedding] enqueue failed', e); }
+        } catch (e) {
+          console.warn('[embedding] enqueue failed', e);
+        }
       }
     }
 
@@ -68,12 +70,18 @@ export function initResourceHandlers(_win: BrowserWindow) {
         const thumb = await generateThumbnailForResource({ filePath, type: res.type, title: res.title });
         if (thumb) {
           const thumbPath = path.join(baseDir, `${row.id}.png`);
-            try { await fs.writeFile(thumbPath, thumb); } catch (e) { console.warn('[thumbnail] write file failed', e); }
+          try {
+            await fs.writeFile(thumbPath, thumb);
+          } catch (e) {
+            console.warn('[thumbnail] write file failed', e);
+          }
           await ResourcesRepo.update(row.id, { thumbnailPath: thumbPath } as any);
           const updated = await ResourcesRepo.getById(row.id);
           return { success: true, data: updated || row };
         }
-      } catch (e) { console.warn('[thumbnail] generation failed', e); }
+      } catch (e) {
+        console.warn('[thumbnail] generation failed', e);
+      }
     }
     return { success: true, data: row };
   });
@@ -96,7 +104,9 @@ export function initResourceHandlers(_win: BrowserWindow) {
         }
         await ResourcesRepo.update(r.id, { thumbnailPath: thumbPath } as any);
         r.thumbnailPath = thumbPath;
-      } catch (e) { console.warn('[thumbnail] lazy migrate failed', e); }
+      } catch (e) {
+        console.warn('[thumbnail] lazy migrate failed', e);
+      }
     }
     return r;
   });
@@ -108,7 +118,7 @@ export function initResourceHandlers(_win: BrowserWindow) {
 
   ipcMain.handle('deleteResources', async (_event, payload: { ids: string[] }) => {
     const now = Date.now();
-    const rows = await Promise.all((payload.ids || []).map(id => ResourcesRepo.update(id, { deletedAt: now } as any)));
+    const rows = await Promise.all((payload.ids || []).map((id) => ResourcesRepo.update(id, { deletedAt: now } as any)));
     return { success: true, deleted: rows.filter(Boolean).length, data: rows.filter(Boolean) };
   });
 
@@ -137,7 +147,9 @@ export function initResourceHandlers(_win: BrowserWindow) {
         const row = await ResourcesRepo.update(id, { workspaceId, ...(newPath ? { filePath: newPath } : {}) } as any);
         if (row) updated.push(row);
         moved += 1;
-      } catch (e) { console.warn('move resource failed', e); }
+      } catch (e) {
+        console.warn('move resource failed', e);
+      }
     }
     return { moved, data: updated };
   });
@@ -202,7 +214,9 @@ export function initResourceHandlers(_win: BrowserWindow) {
             await fs.unlink(path.join(baseDir, f));
             removed += 1;
           }
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       }
       return { success: true, removed };
     } catch (e: any) {
@@ -238,7 +252,7 @@ export function initResourceHandlers(_win: BrowserWindow) {
 
     const updated = await ResourcesRepo.update(id, {
       title: newName,
-      ...(newPath ? { filePath: newPath } : {}),
+      ...(newPath ? { filePath: newPath } : {})
     } as any);
     return { success: true, fileRenamed, newPath, data: updated };
   });
@@ -272,7 +286,9 @@ export function initResourceHandlers(_win: BrowserWindow) {
           if (existHash === incomingHash) {
             return { success: false, duplicate: true, filePath: target, hash: incomingHash, error: 'duplicate' };
           }
-        } catch (e) { /* ignore hash errors and proceed to rename */ }
+        } catch (e) {
+          /* ignore hash errors and proceed to rename */
+        }
       }
 
       // 仅当同名但不同 hash，执行重命名逻辑避免覆盖

@@ -18,7 +18,7 @@ export type Workspace = {
 };
 
 export type WorkspaceBridgeParams = {
-  'workspace:add': IPCParams<[{ workspace: PartialByKey<Workspace, "id"> }], ResParams<Workspace>>;
+  'workspace:add': IPCParams<[{ workspace: PartialByKey<Workspace, 'id'> }], ResParams<Workspace>>;
   'workspace:list': IPCParams<[{ filter?: Partial<Workspace>; limit?: number; offset?: number }], Workspace[]>;
   'workspace:get': IPCParams<[{ id: string }], Workspace | undefined>;
   'workspace:getDefault': IPCParams<[void], Workspace | undefined>;
@@ -38,13 +38,11 @@ const methods: Array<keyof WorkspaceBridgeParams> = [
   'workspace:update',
   'workspace:delete',
   'workspace:open',
-  'workspace:scanStats',
+  'workspace:scanStats'
 ];
 
 export type WorkspaceBridgeType = {
-  [K in keyof WorkspaceBridgeParams]: (
-    ...args: WorkspaceBridgeParams[K]['request']
-  ) => Promise<WorkspaceBridgeParams[K]['response']>;
+  [K in keyof WorkspaceBridgeParams]: (...args: WorkspaceBridgeParams[K]['request']) => Promise<WorkspaceBridgeParams[K]['response']>;
 };
 
 const bridge: Record<string, any> = {};
