@@ -1,7 +1,7 @@
-import { BrowserWindow, ipcMain } from 'electron';
+import { ipcMain } from 'electron';
 import { RecycleBinRepo } from '../db/repositories';
 
-export function initTrashHandlers(_win: BrowserWindow) {
+export function initTrashHandlers(): void {
   ipcMain.handle('trash:list', async (_e, payload: { filter?: any; limit?: number; offset?: number }) => {
     return RecycleBinRepo.list(payload?.filter || {}, payload?.limit ?? 100, payload?.offset ?? 0);
   });

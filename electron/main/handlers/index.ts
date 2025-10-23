@@ -1,7 +1,7 @@
-import { BrowserWindow } from "electron";
+import { BrowserWindow } from 'electron';
 
-import { initWindowHandlers } from "./window";
-import { initFFmpegHandlers } from "./ffmpeg";
+import { initWindowHandlers } from './window';
+import { initFFmpegHandlers } from './ffmpeg';
 import { initVectorHandlers } from './vector';
 import { initResourceHandlers } from './resource';
 import { initTrashHandlers } from './trash';
@@ -15,18 +15,16 @@ import { initSpriteHandlers } from './sprite';
 import { initStatusHandlers } from './status';
 import { initAIHandlers } from '../ai/ipc-main';
 
-export function initHandlers(win: BrowserWindow) {
-
+export function initHandlers(win: BrowserWindow): void {
   console.log(process.versions);
-  
 
   initWindowHandlers(win);
   initFFmpegHandlers(win);
   initVectorHandlers(win);
-  initResourceHandlers(win);
+  initResourceHandlers();
   initFolderHandlers?.(win);
-  initTrashHandlers(win);
-  initWorkspaceHandlers(win);
+  initTrashHandlers();
+  initWorkspaceHandlers();
   initModelHandlers(win);
   initFileHandlers(win);
   initDatabaseHandlers(win);

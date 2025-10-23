@@ -1,17 +1,15 @@
-import { app, BrowserWindow, shell, ipcMain, globalShortcut } from 'electron'
-import { setupResourceProtocol, addAllowedResourceRoot, addWorkspaceResourceRoot } from './resource-protocol'
-import { createRequire } from 'node:module'
-import { fileURLToPath } from 'node:url'
-import path from 'node:path'
-import os from 'node:os'
-import { update } from './update'
-import { initHandlers } from './handlers'
-import { windowManager } from './window/window-manager'
-import { initWindowConfigs } from './window/window-config'
-import { logger } from './logger'
+import { app, BrowserWindow, shell, ipcMain, globalShortcut } from 'electron';
+import { setupResourceProtocol, addAllowedResourceRoot, addWorkspaceResourceRoot } from './resource-protocol';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+import os from 'node:os';
+import { update } from './update';
+import { initHandlers } from './handlers';
+import { windowManager } from './window/window-manager';
+import { initWindowConfigs } from './window/window-config';
+import { logger } from './logger';
 
-const require = createRequire(import.meta.url)
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // The built directory structure
 //
@@ -23,38 +21,36 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // ├─┬ dist
 // │ └── index.html    > Electron-Renderer
 //
-process.env.APP_ROOT = path.join(__dirname, '../..')
+process.env.APP_ROOT = path.join(__dirname, '../..');
 
-export const MAIN_DIST = path.join(process.env.APP_ROOT, 'dist-electron')
-export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
-export const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL
-export const DOCKER_ICON = "icon.png"
+export const MAIN_DIST = path.join(process.env.APP_ROOT, 'dist-electron');
+export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist');
+export const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL;
+export const DOCKER_ICON = 'icon.png';
 
-process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
-  ? path.join(process.env.APP_ROOT, 'public')
-  : RENDERER_DIST
+process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST;
 
 // Disable GPU Acceleration for Windows 7
-if (os.release().startsWith('6.1')) app.disableHardwareAcceleration()
+if (os.release().startsWith('6.1')) app.disableHardwareAcceleration();
 
 // Set application name for Windows 10+ notifications
-if (process.platform === 'win32') app.setAppUserModelId(app.getName())
+if (process.platform === 'win32') app.setAppUserModelId(app.getName());
 
 if (!app.requestSingleInstanceLock()) {
-  app.quit()
-  process.exit(0)
+  app.quit();
+  process.exit(0);
 }
 
-let win: BrowserWindow | null = null
-const preload = path.join(__dirname, '../preload/index.mjs')
-const indexHtml = path.join(RENDERER_DIST, 'index.html')
+let win: BrowserWindow | null = null;
+const preload = path.join(__dirname, '../preload/index.mjs');
+const indexHtml = path.join(RENDERER_DIST, 'index.html');
 
 // 获取主窗口的函数
 export function getMainWindow(): BrowserWindow | null {
-  return win && !win.isDestroyed() ? win : null
+  return win && !win.isDestroyed() ? win : null;
 }
 
-async function createWindow() {
+async function createWindow(): Promise<void> {
   win = new BrowserWindow({
     title: 'Main window',
     icon: path.join(process.env.VITE_PUBLIC, 'favicon.ico'),
@@ -74,167 +70,194 @@ async function createWindow() {
       // Warning: Enable nodeIntegration and disable contextIsolation is not secure in production
       nodeIntegration: true,
       contextIsolation: true,
-      spellcheck: true,
-    },
-  })
-  ;(win as any).__preloadPath = preload
+      spellcheck: true
+    }
+  });
+  (win as any).__preloadPath = preload;
 
   // 设置 Mac 平台 Docker 上的图标
-  if (process.platform === "darwin") {
+  if (process.platform === 'darwin') {
     app.dock.setIcon(path.join(process.env.VITE_PUBLIC, DOCKER_ICON));
     // win.setVibrancy('under-window')
   }
 
-  if (VITE_DEV_SERVER_URL) { // #298
-    win.loadURL(VITE_DEV_SERVER_URL)
+  if (VITE_DEV_SERVER_URL) {
+    // #298
+    win.loadURL(VITE_DEV_SERVER_URL);
     // Open devTool if the app is not packaged
-    win.webContents.openDevTools()
+    win.webContents.openDevTools();
   } else {
-    win.loadFile(indexHtml)
+    win.loadFile(indexHtml);
   }
 
   win.once('ready-to-show', () => {
-    if (!win || win.isDestroyed()) return
-    win.show()
-    if (VITE_DEV_SERVER_URL) win.webContents.openDevTools()
-  })
+    if (!win || win.isDestroyed()) return;
+    win.show();
+    if (VITE_DEV_SERVER_URL) win.webContents.openDevTools();
+  });
 
   // Test actively push message to the Electron-Renderer
   win.webContents.on('did-finish-load', () => {
-    win?.webContents.send('main-process-message', new Date().toLocaleString())
-  })
+    win?.webContents.send('main-process-message', new Date().toLocaleString());
+  });
 
   // Make all links open with the browser, not with the application
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https:')) shell.openExternal(url)
-    return { action: 'deny' }
-  })
+    if (url.startsWith('https:')) shell.openExternal(url);
+    return { action: 'deny' };
+  });
 
   initHandlers(win);
-  try { windowManager.init(win, { preloadPath: (win as any).__preloadPath }) } catch {}
+  try {
+    windowManager.init(win, { preloadPath: (win as any).__preloadPath });
+  } catch {
+    //
+  }
   // (workspace resource root addition moved to app.whenReady after protocol setup)
 
   // https://github.com/electron/electron/issues/7049
   // https://www.electronjs.org/docs/latest/breaking-changes#removed-crashed-event-on-webcontents-and-webview
-  win.webContents.on("render-process-gone", (event, details) => {
-    logger.log.error("webContents: render-process-gone", details);
+  win.webContents.on('render-process-gone', (event, details) => {
+    logger.log.error('webContents: render-process-gone', details);
     win?.destroy();
     createWindow();
   });
 
   // Auto update
-  update(win)
+  update(win);
 }
 
 app.whenReady().then(async () => {
   // Initialize dynamic window configs (defaults + user overrides)
-  try { initWindowConfigs() } catch (e) { console.warn('[windows] init configs failed', e) }
+  try {
+    initWindowConfigs();
+  } catch (e) {
+    console.warn('[windows] init configs failed', e);
+  }
   // Setup custom resource protocol (modern protocol.handle API)
   try {
-    await setupResourceProtocol()
+    await setupResourceProtocol();
   } catch (e) {
-    console.warn('[protocol res] setup failed', e)
+    console.warn('[protocol res] setup failed', e);
   }
   // Allow serving files from public (dev) or renderer dist (prod) via res://local
   try {
     if (process.env.VITE_PUBLIC) {
-      addAllowedResourceRoot(process.env.VITE_PUBLIC)
+      addAllowedResourceRoot(process.env.VITE_PUBLIC);
     }
     // Additionally, add explicit public dir under APP_ROOT for safety in dev
-    addAllowedResourceRoot(path.join(process.env.APP_ROOT, 'public'))
+    addAllowedResourceRoot(path.join(process.env.APP_ROOT, 'public'));
   } catch (e) {
-    console.warn('[protocol res] add public root failed', e)
+    console.warn('[protocol res] add public root failed', e);
   }
   // Add workspace root if exists
   try {
-    const { WorkspacesRepo } = await import('./db/repositories')
-    const ws = await WorkspacesRepo.getDefault()
+    const { WorkspacesRepo } = await import('./db/repositories');
+    const ws = await WorkspacesRepo.getDefault();
     if (ws?.rootPath) {
-      const resRoot = path.join(ws.rootPath, 'resources')
-      addAllowedResourceRoot(resRoot)
-      addWorkspaceResourceRoot(ws.id, resRoot)
+      const resRoot = path.join(ws.rootPath, 'resources');
+      addAllowedResourceRoot(resRoot);
+      addWorkspaceResourceRoot(ws.id, resRoot);
     }
-  } catch (e) { console.warn('[protocol res] add workspace root failed', e) }
-  await createWindow()
+  } catch (e) {
+    console.warn('[protocol res] add workspace root failed', e);
+  }
+  await createWindow();
   // Register global shortcut for assistant panel toggle
   try {
     const reg = globalShortcut.register('CommandOrControl+K', () => {
       try {
-        const existing = windowManager.get('assistant' as any)
+        const existing = windowManager.get('assistant' as any);
         if (existing) {
-          if (existing.isVisible()) existing.close(); else windowManager.show('assistant' as any)
+          if (existing.isVisible()) existing.close();
+          else windowManager.show('assistant' as any);
         } else {
-          windowManager.createOrShow('assistant' as any)
+          windowManager.createOrShow('assistant' as any);
         }
-      } catch {}
-    })
-    if (!reg) console.warn('[shortcut] failed to register CommandOrControl+K')
+      } catch {
+        //
+      }
+    });
+    if (!reg) console.warn('[shortcut] failed to register CommandOrControl+K');
   } catch (e) {
-    console.warn('[shortcut] error registering CommandOrControl+K', e)
+    console.warn('[shortcut] error registering CommandOrControl+K', e);
   }
 
   // Register global shortcuts to toggle DevTools
   // Common Electron defaults are CommandOrControl+Shift+I and F12; we provide both.
-  const toggleDevtools = () => {
+  const toggleDevtools = (): void => {
     try {
-      if (!win || win.isDestroyed()) return
-      const wc = win.webContents
-      if (wc.isDevToolsOpened()) wc.closeDevTools(); else wc.openDevTools({ mode: 'detach' })
+      if (!win || win.isDestroyed()) return;
+      const wc = win.webContents;
+      if (wc.isDevToolsOpened()) wc.closeDevTools();
+      else wc.openDevTools({ mode: 'detach' });
     } catch (e) {
-      console.warn('[shortcut] toggle devtools error', e)
+      console.warn('[shortcut] toggle devtools error', e);
     }
-  }
+  };
   try {
-    const combos = ['CommandOrControl+Alt+I', 'CommandOrControl+Shift+I', 'F12']
-    combos.forEach(accel => {
+    const combos = ['CommandOrControl+Alt+I', 'CommandOrControl+Shift+I', 'F12'];
+    combos.forEach((accel) => {
       try {
-        const ok = globalShortcut.register(accel, toggleDevtools)
-        if (!ok) console.warn(`[shortcut] failed to register ${accel}`)
+        const ok = globalShortcut.register(accel, toggleDevtools);
+        if (!ok) console.warn(`[shortcut] failed to register ${accel}`);
       } catch (e) {
-        console.warn(`[shortcut] error registering ${accel}`, e)
+        console.warn(`[shortcut] error registering ${accel}`, e);
       }
-    })
+    });
   } catch (e) {
-    console.warn('[shortcut] unexpected error registering devtools shortcuts', e)
+    console.warn('[shortcut] unexpected error registering devtools shortcuts', e);
   }
-})
+});
 
-process.on("uncaughtException", function (error) {
-  console.log("uncaughtException");
+process.on('uncaughtException', function (error) {
+  console.log('uncaughtException');
   logger.log.error(error);
 });
 
-app.on("render-process-gone", (event, webContents, killed) => {
-  logger.log.error("App: render-process-gone", event, killed);
+app.on('render-process-gone', (event, webContents, killed) => {
+  logger.log.error('App: render-process-gone', event, killed);
 });
 
 app.on('window-all-closed', () => {
-  try { globalShortcut.unregister('CommandOrControl+K') } catch {}
-  try { globalShortcut.unregisterAll() } catch {}
-  win = null
-  if (process.platform !== 'darwin') app.quit()
-})
+  try {
+    globalShortcut.unregister('CommandOrControl+K');
+  } catch {
+    //
+  }
+  try {
+    globalShortcut.unregisterAll();
+  } catch {
+    //
+  }
+  win = null;
+  if (process.platform !== 'darwin') app.quit();
+});
 
 app.on('second-instance', () => {
   if (win) {
     // Focus on the main window if the user tried to open another
-    if (win.isMinimized()) win.restore()
-    win.focus()
+    if (win.isMinimized()) win.restore();
+    win.focus();
   }
-})
+});
 
 app.on('activate', () => {
-  const allWindows = BrowserWindow.getAllWindows()
+  const allWindows = BrowserWindow.getAllWindows();
   if (allWindows.length) {
-    allWindows[0].focus()
+    allWindows[0].focus();
   } else {
-    createWindow()
+    createWindow();
   }
-})
+});
 
 app.on('will-quit', () => {
-  try { globalShortcut.unregisterAll() } catch {}
-})
+  try {
+    globalShortcut.unregisterAll();
+  } catch {
+    //
+  }
+});
 
 // New window example arg: new windows url
 ipcMain.handle('open-win', (_, arg) => {
@@ -242,13 +265,13 @@ ipcMain.handle('open-win', (_, arg) => {
     webPreferences: {
       preload,
       nodeIntegration: true,
-      contextIsolation: false,
-    },
-  })
+      contextIsolation: false
+    }
+  });
 
   if (VITE_DEV_SERVER_URL) {
-    childWindow.loadURL(`${VITE_DEV_SERVER_URL}#${arg}`)
+    childWindow.loadURL(`${VITE_DEV_SERVER_URL}#${arg}`);
   } else {
-    childWindow.loadFile(indexHtml, { hash: arg })
+    childWindow.loadFile(indexHtml, { hash: arg });
   }
-})
+});

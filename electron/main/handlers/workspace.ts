@@ -1,15 +1,15 @@
-import { BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { ipcMain, shell } from 'electron';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { WorkspacesRepo } from '../db/repositories';
 import { addAllowedResourceRoot, addWorkspaceResourceRoot } from '../resource-protocol';
 
-function ensureDirSync(p: string) {
+function ensureDirSync(p: string): void {
   if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
 }
 
-export function initWorkspaceHandlers(_win: BrowserWindow) {
+export function initWorkspaceHandlers(): void {
   ipcMain.handle('workspace:add', async (_e, payload: { workspace: any }) => {
     const ws = payload.workspace || {};
     const data = await WorkspacesRepo.upsert({ ...ws });
@@ -19,11 +19,13 @@ export function initWorkspaceHandlers(_win: BrowserWindow) {
     const existed = fs.existsSync(p);
     if (!existed) ensureDirSync(p);
     try {
-      const resDir = path.join(p, 'resources')
-      ensureDirSync(resDir)
-      addAllowedResourceRoot(resDir)
-      if (data?.id) addWorkspaceResourceRoot(data.id, resDir)
-    } catch {}
+      const resDir = path.join(p, 'resources');
+      ensureDirSync(resDir);
+      addAllowedResourceRoot(resDir);
+      if (data?.id) addWorkspaceResourceRoot(data.id, resDir);
+    } catch {
+      //
+    }
     return { success: true, data };
   });
 
@@ -43,12 +45,14 @@ export function initWorkspaceHandlers(_win: BrowserWindow) {
     const data = await WorkspacesRepo.setDefault(payload.id);
     try {
       if (data?.rootPath) {
-        const resDir = path.join(data.rootPath, 'resources')
-        ensureDirSync(resDir)
-        addAllowedResourceRoot(resDir)
-        if (data.id) addWorkspaceResourceRoot(data.id, resDir)
+        const resDir = path.join(data.rootPath, 'resources');
+        ensureDirSync(resDir);
+        addAllowedResourceRoot(resDir);
+        if (data.id) addWorkspaceResourceRoot(data.id, resDir);
       }
-    } catch {}
+    } catch {
+      //
+    }
     return { success: true, data };
   });
 
@@ -80,7 +84,7 @@ export function initWorkspaceHandlers(_win: BrowserWindow) {
     const root = ws.rootPath;
     let size = 0;
     let files = 0;
-    async function walk(p: string) {
+    async function walk(p: string): Promise<void> {
       const entries = await fsp.readdir(p, { withFileTypes: true });
       for (const ent of entries) {
         const full = path.join(p, ent.name);
@@ -91,10 +95,16 @@ export function initWorkspaceHandlers(_win: BrowserWindow) {
             size += st.size;
             files += 1;
           }
-        } catch {}
+        } catch {
+          //
+        }
       }
     }
-    try { await walk(root); } catch {}
+    try {
+      await walk(root);
+    } catch {
+      //
+    }
     await WorkspacesRepo.update(ws.id, { sizeBytes: size as any, fileCount: files as any, lastScanAt: Date.now() as any });
     return { ok: true, sizeBytes: size, fileCount: files };
   });

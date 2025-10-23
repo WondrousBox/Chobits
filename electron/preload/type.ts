@@ -19,9 +19,6 @@ export type ResParams<T = void> = {
   message?: string;
 };
 
-export type PartialByKey<T, K extends keyof T> = Omit<T, K> &
-  Partial<Pick<T, K>>;
+export type PartialByKey<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
 
-export type RequiredByKey<T, K extends keyof T> = Omit<T, K> &
-  Required<Pick<T, K>>;
-
+export type RequiredByKey<T, K extends keyof T> = Omit<T, K> & Required<Pick<T, K>>;
