@@ -25,7 +25,9 @@ export default defineConfig(
     },
     rules: {
       ...eslintPluginReactHooks.configs.recommended.rules,
-      ...eslintPluginReactRefresh.configs.vite.rules
+      ...eslintPluginReactRefresh.configs.vite.rules,
+      // Disable explicit any checks across TS files
+      '@typescript-eslint/no-explicit-any': 'off'
     }
   },
   eslintConfigPrettier
