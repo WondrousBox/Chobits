@@ -14,7 +14,7 @@ const SUPPORTED_MODELS = [
     checksum: 'demo-checksum-embed',
     algo: 'sha256',
     sourceType: 'http',
-    sourceUrl: 'https://example.com/models/mini-embed.bin', // 占位
+    sourceUrl: 'https://example.com/models/mini-embed.bin' // 占位
   },
   {
     name: 'mini-llm',
@@ -24,15 +24,19 @@ const SUPPORTED_MODELS = [
     checksum: 'demo-checksum-llm',
     algo: 'sha256',
     sourceType: 'http',
-    sourceUrl: 'https://example.com/models/mini-llm.bin',
+    sourceUrl: 'https://example.com/models/mini-llm.bin'
   }
 ];
 
-function ensureDir(p: string) { if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true }); }
+function ensureDir(p: string) {
+  if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
+}
 
 export function initModelHandlers(win: BrowserWindow) {
   modelDownloader.on('progress', (info: any) => {
-    try { win.webContents.send('model:progress', info); } catch {}
+    try {
+      win.webContents.send('model:progress', info);
+    } catch { }
   });
   ipcMain.handle('model:getConfig', async () => {
     return ModelStore.getConfig();
@@ -40,7 +44,10 @@ export function initModelHandlers(win: BrowserWindow) {
 
   ipcMain.handle('model:setConfig', async (_e, payload: { rootDir?: string }) => {
     const patch: any = {};
-    if (payload.rootDir) { ensureDir(path.resolve(payload.rootDir, 'models')); patch.rootDir = payload.rootDir; }
+    if (payload.rootDir) {
+      ensureDir(path.resolve(payload.rootDir, 'models'));
+      patch.rootDir = payload.rootDir;
+    }
     const updated = ModelStore.setConfig(patch);
     return { ok: true, data: updated };
   });
@@ -55,7 +62,7 @@ export function initModelHandlers(win: BrowserWindow) {
 
   // MVP install: 仅写入记录并模拟下载（后续替换为真实 downloader）
   ipcMain.handle('model:install', async (_e, payload: { name: string; version: string }) => {
-    const sup = SUPPORTED_MODELS.find(m => m.name === payload.name && m.version === payload.version);
+    const sup = SUPPORTED_MODELS.find((m) => m.name === payload.name && m.version === payload.version);
     if (!sup) return { ok: false, error: 'NOT_SUPPORTED' };
     const cfg = ModelStore.getConfig();
     if (!cfg?.rootDir) return { ok: false, error: 'NO_ROOT_DIR' };
@@ -71,7 +78,7 @@ export function initModelHandlers(win: BrowserWindow) {
       sourceUrl: sup.sourceUrl,
       installPath: path.join(cfg.rootDir, `${sup.name}-${sup.version}.bin`),
       status: 'queued',
-      progressBytes: 0,
+      progressBytes: 0
     };
     ModelStore.upsert(row);
     // 模拟立即完成（后续用真实下载逻辑替换）
@@ -83,7 +90,9 @@ export function initModelHandlers(win: BrowserWindow) {
   ipcMain.handle('model:uninstall', async (_e, payload: { id: string }) => {
     const model = ModelStore.get(payload.id);
     if (!model) return { ok: false, error: 'NOT_FOUND' };
-    try { if (model.installPath && fs.existsSync(model.installPath)) fs.rmSync(model.installPath, { force: true }); } catch {}
+    try {
+      if (model.installPath && fs.existsSync(model.installPath)) fs.rmSync(model.installPath, { force: true });
+    } catch { }
     ModelStore.patch(model.id, { status: 'removed' });
     return { ok: true };
   });

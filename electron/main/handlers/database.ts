@@ -2,7 +2,7 @@ import { ipcMain, shell, app } from 'electron';
 import path from 'node:path';
 import { Env } from '../utils';
 
-export function initDatabaseHandlers(_win: Electron.BrowserWindow) {
+export function initDatabaseHandlers(): void {
   // 获取数据库路径
   ipcMain.handle('database:getPath', async () => {
     try {
@@ -20,13 +20,13 @@ export function initDatabaseHandlers(_win: Electron.BrowserWindow) {
     try {
       const userDir = app.getPath('userData');
       const dbDir = path.join(userDir, 'data');
-      
+
       // 确保目录存在
       const fs = await import('node:fs');
       if (!fs.existsSync(dbDir)) {
         fs.mkdirSync(dbDir, { recursive: true });
       }
-      
+
       // 打开数据库目录
       const result = await shell.openPath(dbDir);
       if (result === '') {

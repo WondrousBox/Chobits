@@ -1,16 +1,15 @@
 import { EventEmitter } from 'node:events';
-import { HttpsProxyAgent } from "https-proxy-agent";
-import { SocksProxyAgent } from "socks-proxy-agent";
-import { resolve } from "node:path";
-import os from "node:os";
-import path from "node:path";
-import fs from "node:fs";
-import https from "node:https";
-import http from "node:http";
+import { HttpsProxyAgent } from 'https-proxy-agent';
+import { SocksProxyAgent } from 'socks-proxy-agent';
+import { resolve } from 'node:path';
+import path from 'node:path';
+import fs from 'node:fs';
+import https from 'node:https';
+import http from 'node:http';
 
-import ytdlpStatic from "../libs/ytdlp-static";
-import { WorkspacesRepo, ResourcesRepo } from "../db/repositories";
-import { generateThumbnailForResource } from "../utils/thumbnail";
+import ytdlpStatic from '../libs/ytdlp-static';
+import { WorkspacesRepo, ResourcesRepo } from '../db/repositories';
+import { generateThumbnailForResource } from '../utils/thumbnail';
 import { getResourcePath } from '../utils/resources-path';
 import { binPathLog } from '../logger';
 import { app } from 'electron';
@@ -35,8 +34,8 @@ function cleanDownloadUrl(url: string): string {
 
 function generateUUID(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
 }
@@ -47,7 +46,6 @@ async function downloadImageFromUrl(url: string, filename: string, folder: strin
       console.warn('[VideoDownloader] Invalid URL or filename for image download');
       return '';
     }
-
 
     const actualDestination = destination || process.cwd();
     const thumbnailsDir = path.join(actualDestination, '.thumbs');
@@ -143,10 +141,7 @@ async function generateVideoThumbnail(videoPath: string, filename: string, desti
     }
 
     // 使用现有的generateThumbnailForResource函数生成缩略图
-    const thumbnailBuffer = await generateThumbnailForResource(
-      { filePath: videoPath, type: 'video', title: filename },
-      { size: 512, frameAtSeconds: 1.0 }
-    );
+    const thumbnailBuffer = await generateThumbnailForResource({ filePath: videoPath, type: 'video', title: filename }, { size: 512, frameAtSeconds: 1.0 });
 
     if (thumbnailBuffer) {
       fs.writeFileSync(thumbnailPath, thumbnailBuffer);
@@ -224,7 +219,7 @@ async function addDownloadedFileToResources(filePath: string, videoInfo: any, wo
       mimeType: videoInfo?.mime_type || undefined,
       thumbnailPath: thumbnailPath || undefined,
       workspaceId: currentWorkspaceId,
-      collectedAt: Date.now(),
+      collectedAt: Date.now()
     } as any);
 
     console.log(`[VideoDownloader] Added file to resources: ${filePath}`);
@@ -266,7 +261,7 @@ type ExternalResourceSettings = {
   preferredBrowser: string;
 };
 
-const SETTINGS_DIR = path.join(app.getPath("home"), '.chobits');
+const SETTINGS_DIR = path.join(app.getPath('home'), '.chobits');
 const SETTINGS_FILE = path.join(SETTINGS_DIR, 'external-resource-settings.json');
 
 function ensureSettingsDir() {
@@ -278,22 +273,22 @@ function ensureSettingsDir() {
 function readSettings(): ExternalResourceSettings {
   ensureSettingsDir();
   const defaultSettings: ExternalResourceSettings = {
-    externalResourceMode: "1",
+    externalResourceMode: '1',
     externalResourceCookies: false,
-    preferredBrowser: "chrome"
+    preferredBrowser: 'chrome'
   };
-  
+
   if (!fs.existsSync(SETTINGS_FILE)) {
     writeSettings(defaultSettings);
     return defaultSettings;
   }
-  
+
   try {
     const content = fs.readFileSync(SETTINGS_FILE, 'utf8');
     const settings = JSON.parse(content);
     return { ...defaultSettings, ...settings };
   } catch (error) {
-    console.warn("[VideoDownloader] Failed to read settings, using defaults:", error);
+    console.warn('[VideoDownloader] Failed to read settings, using defaults:', error);
     return defaultSettings;
   }
 }
@@ -303,17 +298,17 @@ function writeSettings(settings: ExternalResourceSettings) {
   try {
     fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf8');
   } catch (error) {
-    console.warn("[VideoDownloader] Failed to write settings:", error);
+    console.warn('[VideoDownloader] Failed to write settings:', error);
   }
 }
 
 function getSetting(key?: string): any {
   const settings = readSettings();
-  
+
   if (key) {
     return settings[key as keyof ExternalResourceSettings];
   }
-  
+
   return settings;
 }
 
@@ -362,17 +357,23 @@ export interface VideoInfo {
   categories: string[];
   tags: string[];
   quality: string;
-  automatic_captions?: Record<string, {
-    ext: string;
-    url: string;
-    protocol?: string;
-    name?: string;
-  }[]>;
-  subtitles: Record<string, {
-    ext: string;
-    url: string;
-    name: string;
-  }[]>;
+  automatic_captions?: Record<
+    string,
+    {
+      ext: string;
+      url: string;
+      protocol?: string;
+      name?: string;
+    }[]
+  >;
+  subtitles: Record<
+    string,
+    {
+      ext: string;
+      url: string;
+      name: string;
+    }[]
+  >;
   chapters: Array<{
     start_time: number;
     end_time: number;
@@ -467,7 +468,7 @@ export class DownloadManager extends EventEmitter {
     if (this.running.size >= this.maxConcurrent) return;
 
     const queuedTasks = Array.from(this.tasks.values())
-      .filter(task => task.status === 'queued')
+      .filter((task) => task.status === 'queued')
       .slice(0, this.maxConcurrent - this.running.size);
 
     for (const task of queuedTasks) {
@@ -530,8 +531,7 @@ export class DownloadManager extends EventEmitter {
 
   // 清理已完成的任务
   cleanup(): void {
-    const completedTasks = Array.from(this.tasks.values())
-      .filter(task => ['completed', 'failed', 'cancelled'].includes(task.status));
+    const completedTasks = Array.from(this.tasks.values()).filter((task) => ['completed', 'failed', 'cancelled'].includes(task.status));
 
     for (const task of completedTasks) {
       this.tasks.delete(task.id);
@@ -548,11 +548,11 @@ export class VideoDownloader implements Downloader {
   private ytdlPath: string;
 
   constructor() {
-    this.ffmpegPath = getResourcePath("ffmpeg");
-    this.ytdlPath = getResourcePath("yt-dlp");
+    this.ffmpegPath = getResourcePath('ffmpeg');
+    this.ytdlPath = getResourcePath('yt-dlp');
 
-    binPathLog(this.ffmpegPath, "ffmpeg");
-    binPathLog(this.ytdlPath, "yt-dlp");
+    binPathLog(this.ffmpegPath, 'ffmpeg');
+    binPathLog(this.ytdlPath, 'yt-dlp');
 
     ytdlpStatic.setBinaryPath(this.ytdlPath);
   }
@@ -561,26 +561,17 @@ export class VideoDownloader implements Downloader {
     this.controller = new AbortController();
     const { signal } = this.controller;
 
-    const {
-      url,
-      filename,
-      destination,
-      thumbnailUrl,
-      videoInfo,
-      onProgress,
-      onError,
-      onCompleted,
-    } = options;
+    const { url, filename, destination, thumbnailUrl, videoInfo, onProgress, onError, onCompleted } = options;
 
     // 获取当前工作空间的资源文件夹路径
     const workspaceResourcePath = await getCurrentWorkspaceResourcePath();
     const actualDestination = destination || workspaceResourcePath;
 
     const quality: string[] = [];
-    const tempName = DEFAULT_FOLDERS.download + "_" + generateUUID();
-    const tempFile = filename ? changeFileName(filename, tempName) : tempName + ".mp4";
+    const tempName = DEFAULT_FOLDERS.download + '_' + generateUUID();
+    const tempFile = filename ? changeFileName(filename, tempName) : tempName + '.mp4';
     const downloadPath = resolve(actualDestination, tempFile);
-    const destPath = resolve(actualDestination, filename || tempName + ".mp4");
+    const destPath = resolve(actualDestination, filename || tempName + '.mp4');
 
     // 保存thumbnailUrl供后续使用
     const videoThumbnailUrl = thumbnailUrl;
@@ -589,61 +580,60 @@ export class VideoDownloader implements Downloader {
     try {
       settings = getSetting();
     } catch (error) {
-      console.warn("[VideoDownloader] Failed to get settings:", error);
+      console.warn('[VideoDownloader] Failed to get settings:', error);
       settings = {};
     }
 
-    console.log("[VideoDownloader] ffmpegPath: ", this.ffmpegPath);
-    console.log("[VideoDownloader] --> tempPath: " + downloadPath);
-    console.log("[VideoDownloader] --> destPath: " + destPath);
+    console.log('[VideoDownloader] ffmpegPath: ', this.ffmpegPath);
+    console.log('[VideoDownloader] --> tempPath: ' + downloadPath);
+    console.log('[VideoDownloader] --> destPath: ' + destPath);
 
-    const args = [cleanDownloadUrl(url), ...quality, "-o", downloadPath, "--ffmpeg-location", this.ffmpegPath];
+    const args = [cleanDownloadUrl(url), ...quality, '-o', downloadPath, '--ffmpeg-location', this.ffmpegPath];
 
-    if (settings?.externalResourceMode === "2") {
-      args.push("-f", "bv*[height<=480]+ba/b[height<=480] / wv*+ba/w");
+    if (settings?.externalResourceMode === '2') {
+      args.push('-f', 'bv*[height<=480]+ba/b[height<=480] / wv*+ba/w');
     }
 
     this.applyCookies(this.getAgent(args));
 
-    console.log("[VideoDownloader] --> args: ", args);
+    console.log('[VideoDownloader] --> args: ', args);
 
     const dl = ytdlpStatic.exec(args, undefined, signal);
     const downloadRegex = /\s*([\s\S]*%)\s*of\s*([\s\S]*)\s*at\s*([\s\S]*s)\s*ETA\s*([\s\S]*)\s*/;
     const mergeRegex = /Merging formats into "([\s\S]*)"/;
-    let mergeFile = "";
+    let mergeFile = '';
     let isAborted = false;
 
-    dl
-      .on("ytDlpEvent", (eventType: string, eventData: string) => {
-        if (eventType === "Merger") {
-          const match = eventData.match(mergeRegex);
-          if (match) {
-            mergeFile = match[1];
-          }
+    dl.on('ytDlpEvent', (eventType: string, eventData: string) => {
+      if (eventType === 'Merger') {
+        const match = eventData.match(mergeRegex);
+        if (match) {
+          mergeFile = match[1];
         }
-        if (eventType === "download") {
-          const match = eventData.match(downloadRegex);
-          if (match) {
-            const progress = match[1];
-            const totalSize = match[2];
-            const downloadSpeed = match[3];
-            const eta = match[4];
-            isFunction(onProgress) &&
-              onProgress({
-                percent: Number(progress.replace("%", "")),
-                downloadSpeed,
-                totalSize,
-                eta,
-              });
-          }
-        } else {
+      }
+      if (eventType === 'download') {
+        const match = eventData.match(downloadRegex);
+        if (match) {
+          const progress = match[1];
+          const totalSize = match[2];
+          const downloadSpeed = match[3];
+          const eta = match[4];
           isFunction(onProgress) &&
             onProgress({
-              statusText: "Transcoding...",
+              percent: Number(progress.replace('%', '')),
+              downloadSpeed,
+              totalSize,
+              eta
             });
         }
-      })
-      .on("error", (error: any) => {
+      } else {
+        isFunction(onProgress) &&
+          onProgress({
+            statusText: 'Transcoding...'
+          });
+      }
+    })
+      .on('error', (error: any) => {
         if (isAborted) {
           return;
         }
@@ -652,30 +642,30 @@ export class VideoDownloader implements Downloader {
         sendMainWindowError({
           error,
           data: {
-            title: "Failed to retrieve media file",
-            body: filename,
+            title: 'Failed to retrieve media file',
+            body: filename
           },
           notification: true
         });
       })
-      .on("abort", (code) => {
-        const title = "Media processing has been interrupted. ";
+      .on('abort', (code) => {
+        const title = 'Media processing has been interrupted. ';
         isAborted = true;
-        console.log(title + "pid: " + code);
+        console.log(title + 'pid: ' + code);
         sendMainWindowError({
           error: title,
           data: {
             title,
-            body: filename,
+            body: filename
           }
         });
         isFunction(onError) && onError(new Error(title));
       })
-      .on("close", async (code) => {
+      .on('close', async (code) => {
         if (isAborted) {
           return;
         }
-        console.log("[VideoDownloader] all done, code:", code);
+        console.log('[VideoDownloader] all done, code:', code);
 
         if (mergeFile) {
           console.log(`[VideoDownloader] rename merged file
@@ -737,36 +727,36 @@ ${destPath}`);
 
   private applyCookies(args: string[]): string[] {
     try {
-      const useCookies = getSetting("externalResourceCookies");
-      const preferredBrowser = getSetting("preferredBrowser");
+      const useCookies = getSetting('externalResourceCookies');
+      const preferredBrowser = getSetting('preferredBrowser');
 
       if (useCookies) {
         // 尝试多种浏览器，按优先级排序
-        const browsers = [preferredBrowser, "chrome", "firefox", "edge", "safari"].filter((browser, index, arr) => arr.indexOf(browser) === index);
+        const browsers = [preferredBrowser, 'chrome', 'firefox', 'edge', 'safari'].filter((browser, index, arr) => arr.indexOf(browser) === index);
         let cookieApplied = false;
-        
+
         for (const browser of browsers) {
           try {
-            args.push("--cookies-from-browser", browser);
+            args.push('--cookies-from-browser', browser);
             cookieApplied = true;
             console.log(`[VideoDownloader] Using cookies from ${browser}`);
             break;
           } catch (error) {
             console.warn(`[VideoDownloader] Failed to use cookies from ${browser}:`, error);
             // 移除失败的浏览器参数
-            const lastIndex = args.lastIndexOf("--cookies-from-browser");
+            const lastIndex = args.lastIndexOf('--cookies-from-browser');
             if (lastIndex !== -1) {
               args.splice(lastIndex, 2);
             }
           }
         }
-        
+
         if (!cookieApplied) {
-          console.warn("[VideoDownloader] Could not apply cookies from any browser, continuing without cookies");
+          console.warn('[VideoDownloader] Could not apply cookies from any browser, continuing without cookies');
         }
       }
     } catch (error) {
-      console.warn("[VideoDownloader] Failed to apply cookies:", error);
+      console.warn('[VideoDownloader] Failed to apply cookies:', error);
     }
 
     return args;
@@ -779,17 +769,17 @@ ${destPath}`);
         // 使用公共方法获取代理URL
         const proxyUrl = (agent as any).proxy?.href || (agent as any).proxy?.toString();
         if (proxyUrl) {
-          args.push("--proxy", proxyUrl, "--socket-timeout", "60");
+          args.push('--proxy', proxyUrl, '--socket-timeout', '60');
         }
       } else if (agent instanceof SocksProxyAgent) {
         // 使用公共方法获取代理信息
         const proxyInfo = (agent as any).proxy;
         if (proxyInfo?.host && proxyInfo?.port) {
-          args.push("--proxy", `socks://${proxyInfo.host}:${proxyInfo.port}`, "--socket-timeout", "60");
+          args.push('--proxy', `socks://${proxyInfo.host}:${proxyInfo.port}`, '--socket-timeout', '60');
         }
       }
     } catch (error) {
-      console.warn("[VideoDownloader] Failed to get proxy agent:", error);
+      console.warn('[VideoDownloader] Failed to get proxy agent:', error);
     }
 
     return args;
@@ -798,16 +788,16 @@ ${destPath}`);
 
 // 获取视频信息的函数
 export async function getVideoInfo(url: string, timeoutMs: number = 30000): Promise<VideoInfo> {
-  console.log("[VideoDownloader] Starting info fetch for:", url);
+  console.log('[VideoDownloader] Starting info fetch for:', url);
 
-  const args = [cleanDownloadUrl(url), "--prefer-free-formats", "--dump-json", "--no-playlist"];
+  const args = [cleanDownloadUrl(url), '--prefer-free-formats', '--dump-json', '--no-playlist'];
   const downloader = new VideoDownloader();
 
   // 应用cookies和代理设置
   try {
     downloader['applyCookies'](downloader['getAgent'](args));
   } catch (error) {
-    console.warn("[VideoDownloader] Failed to apply cookies/proxy:", error);
+    console.warn('[VideoDownloader] Failed to apply cookies/proxy:', error);
   }
 
   const controller = new AbortController();
@@ -835,13 +825,12 @@ export async function getVideoInfo(url: string, timeoutMs: number = 30000): Prom
     return info;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error("[VideoDownloader] Error fetching info:", errorMessage);
+    console.error('[VideoDownloader] Error fetching info:', errorMessage);
 
     if (signal.aborted) {
       throw new Error(`Operation aborted: ${timeoutError?.message || errorMessage}`);
     }
     throw new Error(`Failed to fetch video info: ${errorMessage}`);
-
   } finally {
     timeoutError = undefined;
     clearTimeout(timeoutId);
@@ -856,7 +845,7 @@ export async function getThumbnail(url: string): Promise<string> {
   try {
     downloader['applyCookies'](downloader['getAgent'](args));
   } catch (error) {
-    console.warn("[VideoDownloader] Failed to apply cookies/proxy for thumbnail:", error);
+    console.warn('[VideoDownloader] Failed to apply cookies/proxy for thumbnail:', error);
   }
 
   return ytdlpStatic.getThumbnail(args);

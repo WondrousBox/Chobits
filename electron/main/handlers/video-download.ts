@@ -135,31 +135,31 @@ export function initVideoDownloadHandlers(win: BrowserWindow) {
       if (mainWindow) {
         mainWindow.setProgressBar(0);
       }
-      
+
       // 创建或显示下载悬浮窗
-      console.log('[VideoDownload] 正在创建下载悬浮窗...')
+      console.log('[VideoDownload] 正在创建下载悬浮窗...');
       const downloadWindow = await windowManager.createOrShow('downloadFloating', { task });
-      console.log('[VideoDownload] 下载悬浮窗创建结果:', downloadWindow ? '成功' : '失败')
+      console.log('[VideoDownload] 下载悬浮窗创建结果:', downloadWindow ? '成功' : '失败');
       if (downloadWindow) {
         // 设置窗口位置（右上角）
         const primaryDisplay = screen.getPrimaryDisplay();
         const { width: screenWidth } = primaryDisplay.workAreaSize;
         const windowWidth = 320;
         const windowHeight = 120;
-        
+
         downloadWindow.setBounds({
           x: screenWidth - windowWidth - 20,
           y: 20,
           width: windowWidth,
           height: windowHeight
         });
-        
+
         // 显示窗口
         downloadWindow.show();
         downloadWindow.focus();
-        
+
         // 发送任务开始事件到下载悬浮窗
-        console.log('[VideoDownload] 发送任务开始事件到下载悬浮窗:', task.id)
+        console.log('[VideoDownload] 发送任务开始事件到下载悬浮窗:', task.id);
         downloadWindow.webContents.send('video-downloader:task-started', task);
       }
     } catch (error) {
@@ -170,7 +170,7 @@ export function initVideoDownloadHandlers(win: BrowserWindow) {
   downloadManager.on('taskProgress', (task) => {
     // 发送进度到渲染进程（用于其他UI更新）
     win.webContents.send('video-downloader:task-progress', task);
-    
+
     // 发送进度到下载悬浮窗
     const downloadWindow = windowManager.get('downloadFloating');
     if (downloadWindow && !downloadWindow.isDestroyed()) {
@@ -197,7 +197,7 @@ export function initVideoDownloadHandlers(win: BrowserWindow) {
       if (mainWindow) {
         mainWindow.setProgressBar(-1);
       }
-      
+
       // 发送完成事件到下载悬浮窗
       const downloadWindow = windowManager.get('downloadFloating');
       if (downloadWindow && !downloadWindow.isDestroyed()) {
@@ -215,7 +215,7 @@ export function initVideoDownloadHandlers(win: BrowserWindow) {
       if (mainWindow) {
         mainWindow.setProgressBar(-1);
       }
-      
+
       // 发送失败事件到下载悬浮窗
       const downloadWindow = windowManager.get('downloadFloating');
       if (downloadWindow && !downloadWindow.isDestroyed()) {
@@ -255,7 +255,7 @@ export function initVideoDownloadHandlers(win: BrowserWindow) {
   // 设置外部资源设置
   ipcMain.handle('video-downloader:set-external-resource-settings', async (event, settings) => {
     try {
-      Object.keys(settings).forEach(key => {
+      Object.keys(settings).forEach((key) => {
         setSetting(key as any, settings[key]);
       });
       return { success: true };

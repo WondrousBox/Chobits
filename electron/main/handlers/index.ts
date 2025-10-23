@@ -27,7 +27,7 @@ export function initHandlers(win: BrowserWindow): void {
   initWorkspaceHandlers();
   initModelHandlers(win);
   initFileHandlers(win);
-  initDatabaseHandlers(win);
+  initDatabaseHandlers();
   initVideoDownloadHandlers(win);
   initSpriteHandlers(win);
   initStatusHandlers(win);
