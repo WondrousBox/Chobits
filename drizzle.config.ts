@@ -5,5 +5,5 @@ export default defineConfig({
   out: './drizzle',
   dialect: 'sqlite',
   strict: true,
-  verbose: true,
+  verbose: true
 });
