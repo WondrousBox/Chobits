@@ -1,21 +1,23 @@
-import { app } from "electron"
-import path from "path"
-import fs from 'fs'
+import { app } from 'electron';
+import path from 'path';
+import fs from 'fs';
 
-import { DefaultWorkspaceName } from "../config"
+import { DefaultWorkspaceName } from '../config';
 
 // Suggest a default workspace path: ~/Documents/ChobitsWorkspace, fallback to incremented suffix
-export function getSuggestWorkspacePath() {
+export function getSuggestWorkspacePath(): { ok: boolean; path?: string } {
   try {
-    const docs = app.getPath('documents')
-    const base = path.join(docs, DefaultWorkspaceName)
-    if (!fs.existsSync(base)) return { ok: true, path: base }
+    const docs = app.getPath('documents');
+    const base = path.join(docs, DefaultWorkspaceName);
+    if (!fs.existsSync(base)) return { ok: true, path: base };
     for (let i = 2; i < 50; i++) {
-      const candidate = `${base} ${i}`
-      if (!fs.existsSync(candidate)) return { ok: true, path: candidate }
+      const candidate = `${base} ${i}`;
+      if (!fs.existsSync(candidate)) return { ok: true, path: candidate };
     }
-    return { ok: true, path: base + ' ' + Date.now() }
-  } catch { return { ok: false } }
+    return { ok: true, path: base + ' ' + Date.now() };
+  } catch {
+    return { ok: false };
+  }
 }
 
 /**
@@ -31,7 +33,7 @@ export function findUniqueFileName(filePath: string): string {
   let counter = 1;
 
   while (fs.existsSync(filePath)) {
-    const nameWithSuffix = `${baseName.split(".")[0]}_${counter}${path.extname(baseName)}`;
+    const nameWithSuffix = `${baseName.split('.')[0]}_${counter}${path.extname(baseName)}`;
     filePath = path.join(dirName, nameWithSuffix);
     counter++;
   }
@@ -41,27 +43,31 @@ export function findUniqueFileName(filePath: string): string {
 
 export const Env = {
   isLinux: function () {
-    return process.platform === "linux";
+    return process.platform === 'linux';
   },
   isMacOS() {
-    return process.platform === "darwin";
+    return process.platform === 'darwin';
   },
   isWindows() {
-    return process.platform === "win32";
+    return process.platform === 'win32';
   },
   isProd: function () {
-    return process.env.NODE_ENV === "production";
+    return process.env.NODE_ENV === 'production';
   },
   isDev: function () {
     // Treat anything other than production as dev-like (includes 'development' and 'test')
-    return process.env.NODE_ENV !== "production";
-  },
+    return process.env.NODE_ENV !== 'production';
+  }
 };
 
-export function getRealPath(prodPath: string, devPath: string, basePath?: string) {
+export function getRealPath(prodPath: string, devPath: string, basePath?: string): string {
   let base = basePath;
   if (!base) {
-    try { base = (app as any)?.getAppPath?.(); } catch {}
+    try {
+      base = (app as any)?.getAppPath?.();
+    } catch {
+      // ignore
+    }
   }
   if (!base) {
     // In non-Electron contexts (tests), fall back to process.cwd()

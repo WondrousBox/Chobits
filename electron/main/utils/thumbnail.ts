@@ -13,7 +13,9 @@ async function getSharp(): Promise<SharpModule | null> {
         // Some environments may only install platform-specific binary packages; the entry is still 'sharp'.
         const m: any = await import('sharp');
         return m.default || m;
-      } catch { return null; }
+      } catch {
+        return null;
+      }
     })();
   }
   return sharpPromise;
@@ -22,7 +24,40 @@ async function getSharp(): Promise<SharpModule | null> {
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.tiff', '.svg']);
 const VIDEO_EXT = new Set(['.mp4', '.mov', '.mkv', '.webm', '.avi']);
 const AUDIO_EXT = new Set(['.mp3', '.wav', '.flac', '.aac', '.m4a', '.ogg']);
-const TEXT_EXT = new Set(['.txt', '.md', '.markdown', '.json', '.js', '.ts', '.tsx', '.jsx', '.py', '.java', '.c', '.cc', '.cpp', '.h', '.hpp', '.cs', '.go', '.rs', '.sh', '.bash', '.zsh', '.yaml', '.yml', '.toml', '.ini', '.csv', '.log', '.html', '.css', '.scss', '.xml', '.mdx']);
+const TEXT_EXT = new Set([
+  '.txt',
+  '.md',
+  '.markdown',
+  '.json',
+  '.js',
+  '.ts',
+  '.tsx',
+  '.jsx',
+  '.py',
+  '.java',
+  '.c',
+  '.cc',
+  '.cpp',
+  '.h',
+  '.hpp',
+  '.cs',
+  '.go',
+  '.rs',
+  '.sh',
+  '.bash',
+  '.zsh',
+  '.yaml',
+  '.yml',
+  '.toml',
+  '.ini',
+  '.csv',
+  '.log',
+  '.html',
+  '.css',
+  '.scss',
+  '.xml',
+  '.mdx'
+]);
 
 export function detectBasicType(filePath?: string, declaredType?: string): { type?: string; mimeType?: string } {
   if (!filePath) return { type: declaredType };
@@ -100,20 +135,30 @@ async function extractVideoFrame(filePath: string, at: number, size: number): Pr
           .screenshots({ count: 1, timemarks: [at], filename: path.basename(temp), folder: dir })
           .on('end', () => resolve())
           .on('error', (err: any) => reject(err));
-      } catch (e) { reject(e); }
+      } catch (e) {
+        reject(e);
+      }
     });
     if (fscb.existsSync(temp)) {
       const sharp = await getSharp();
       const buf = await fs.readFile(temp);
       if (sharp) {
-        try { return await sharp(buf).resize(size, size, { fit: 'cover' }).png().toBuffer(); } catch {}
+        try {
+          return await sharp(buf).resize(size, size, { fit: 'cover' }).png().toBuffer();
+        } catch {
+          // ignore
+        }
       }
       return buf;
     }
   } catch (e) {
     console.warn('[thumbnail] video frame extract failed', e);
   } finally {
-    try { if (fscb.existsSync(temp)) await fs.unlink(temp); } catch {}
+    try {
+      if (fscb.existsSync(temp)) await fs.unlink(temp);
+    } catch {
+      // ignore
+    }
   }
   return null;
 }
@@ -130,10 +175,14 @@ async function generatePlaceholder(kind: string, label?: string, size = 256): Pr
     other: '#6B7280'
   };
   const bg = palette[kind] || '#6B7280';
-  const svg = `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg"><rect width="${size}" height="${size}" rx="${Math.round(size*0.08)}" fill="${bg}"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="${Math.round(size*0.32)}" fill="#FFFFFF" font-weight="700">${short}</text></svg>`;
+  const svg = `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg"><rect width="${size}" height="${size}" rx="${Math.round(size * 0.08)}" fill="${bg}"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="${Math.round(size * 0.32)}" fill="#FFFFFF" font-weight="700">${short}</text></svg>`;
   const svgBuffer = Buffer.from(svg);
   if (sharp) {
-    try { return await sharp(svgBuffer).png().toBuffer(); } catch {}
+    try {
+      return await sharp(svgBuffer).png().toBuffer();
+    } catch {
+      // ignore
+    }
   }
   return svgBuffer; // fallback (consumer must detect SVG)
 }

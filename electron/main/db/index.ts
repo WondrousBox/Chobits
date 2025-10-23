@@ -25,7 +25,7 @@ export interface VectorInsertItem {
   embedding: number[]; // assume float vector
 }
 
-function ensureDir(dir: string) {
+function ensureDir(dir: string): void {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
@@ -39,18 +39,18 @@ function getSqliteVecPath(): string | null {
         return sqliteVecPath;
       }
     }
-    
+
     // 在打包后的应用中，尝试多个可能的路径
     const possiblePaths = [
       path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', 'sqlite-vec'),
       path.join(process.resourcesPath, 'node_modules', 'sqlite-vec'),
-      path.join(app.getAppPath(), 'node_modules', 'sqlite-vec'),
+      path.join(app.getAppPath(), 'node_modules', 'sqlite-vec')
     ];
-    
+
     console.log('[vector] Searching for sqlite-vec in packaged app...');
     console.log('[vector] process.resourcesPath:', process.resourcesPath);
     console.log('[vector] app.getAppPath():', app.getAppPath());
-    
+
     for (const possiblePath of possiblePaths) {
       console.log('[vector] Checking path:', possiblePath);
       if (fs.existsSync(possiblePath)) {
@@ -58,7 +58,7 @@ function getSqliteVecPath(): string | null {
         return possiblePath;
       }
     }
-    
+
     console.warn('[vector] sqlite-vec not found in any expected location');
     return null;
   } catch (e) {
@@ -67,22 +67,22 @@ function getSqliteVecPath(): string | null {
   }
 }
 
-export function getDB() {
+export function getDB(): Database.Database | null {
   if (db) return db;
   const userDir = app.getPath('userData');
   const dbDir = path.join(userDir, 'data');
   ensureDir(dbDir);
-  const dbPath = path.join(dbDir,  Env.isDev() ? 'app-dev.db' : 'app.db');
+  const dbPath = path.join(dbDir, Env.isDev() ? 'app-dev.db' : 'app.db');
   db = new (Database as any)(dbPath);
   // PRAGMA for performance (safe defaults)
-  console.log("dbPath", dbPath);
+  console.log('dbPath', dbPath);
   db!.pragma('journal_mode = WAL');
   db!.pragma('synchronous = NORMAL');
   initSchema();
   // load sqlite-vec (idempotent)
   try {
     console.log('[vector] Attempting to load sqlite-vec extension...');
-    
+
     // 首先尝试直接 require sqlite-vec（适用于大多数情况）
     try {
       const sqlite_vec = require('sqlite-vec');
@@ -97,7 +97,7 @@ export function getDB() {
       }
     } catch (requireError: any) {
       console.log('[vector] Direct require failed, trying path-based loading:', requireError?.message || requireError);
-      
+
       // 如果直接 require 失败，尝试从特定路径加载
       const sqliteVecPath = getSqliteVecPath();
       if (sqliteVecPath) {
@@ -114,7 +114,7 @@ export function getDB() {
           console.warn('[vector] Path-based loading also failed:', pathError?.message || pathError);
         }
       }
-      
+
       // 如果所有方法都失败，抛出原始错误
       throw requireError;
     }
@@ -127,7 +127,7 @@ export function getDB() {
 
 let orm: any = null;
 
-export function getOrm() {
+export function getOrm(): any {
   if (orm) return orm;
   const db = getDB() as any;
   orm = drizzle(db);
@@ -145,7 +145,7 @@ function ensureVecLoaded(): boolean {
   }
 }
 
-function setupTriggers() {
+function setupTriggers(): void {
   if (!db) return;
   try {
     // Documents: soft delete -> remove vec_docs and upsert recycle_bin
@@ -247,15 +247,15 @@ END;`);
   }
 }
 
-function initSchema() {
+function initSchema(): void {
   if (!db) return;
   try {
     const d = getOrm();
-    
+
     // 在开发环境中使用项目根目录的 drizzle 文件夹
     // 在打包后的应用中，使用 resources/drizzle 文件夹
     let migrationsFolder: string;
-    
+
     if (app.isPackaged) {
       // 打包后的应用，drizzle 文件夹在 resources 目录下
       migrationsFolder = path.join(process.resourcesPath, 'drizzle');
@@ -264,8 +264,8 @@ function initSchema() {
       migrationsFolder = path.resolve(process.cwd(), 'drizzle');
     }
 
-    binPathLog(migrationsFolder, "migrationsFolder");
-    
+    binPathLog(migrationsFolder, 'migrationsFolder');
+
     migrate(d, { migrationsFolder });
     console.log('[db] migrations applied from', migrationsFolder);
   } catch (e) {
@@ -275,7 +275,7 @@ function initSchema() {
   setupTriggers();
 }
 
-function ensureVecTable(dim: number) {
+function ensureVecTable(dim: number): void {
   if (!db) return;
   if (!ensureVecLoaded()) {
     console.warn('[vector] sqlite-vec not ready, skip creating vec_docs');
@@ -298,6 +298,7 @@ function float32ArrayToBuffer(arr: number[]): any {
   return buf;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function bufferToFloat32Array(buf: any, dim: number): number[] {
   const out: number[] = new Array(dim);
   for (let i = 0; i < dim; i++) out[i] = buf.readFloatLE(i * 4);
@@ -331,18 +332,14 @@ function fitToDimLocal(vec: number[], targetDim: number): number[] {
 //   }
 // }
 
-export function insertVectors(items: VectorInsertItem[], dim: number) {
+export function insertVectors(items: VectorInsertItem[], dim: number): { inserted: number } {
   const database = getDB();
   ensureVecTable(dim);
   if (!database || !ensureVecLoaded()) return { inserted: 0 };
   const d = getOrm();
   // Statements for vector index maintenance
-  const delVecById = database.prepare(
-    `DELETE FROM vec_docs WHERE rowid = (SELECT rowid FROM documents WHERE id=@id)`
-  );
-  const insertVec = database!.prepare(
-    `INSERT INTO vec_docs(rowid, embedding) VALUES((SELECT rowid FROM documents WHERE id=@id), @embedding)`
-  );
+  const delVecById = database.prepare(`DELETE FROM vec_docs WHERE rowid = (SELECT rowid FROM documents WHERE id=@id)`);
+  const insertVec = database!.prepare(`INSERT INTO vec_docs(rowid, embedding) VALUES((SELECT rowid FROM documents WHERE id=@id), @embedding)`);
   const tx = database!.transaction((rows: VectorInsertItem[]) => {
     for (const r of rows) {
       const id = r.id || crypto.randomUUID();
@@ -359,7 +356,7 @@ export function insertVectors(items: VectorInsertItem[], dim: number) {
           embedDim: dim,
           embedAt: now,
           workspaceId: r.metadata?.workspaceId || null,
-          updatedAt: now,
+          updatedAt: now
         })
         .onConflictDoUpdate({
           target: documents.id,
@@ -370,8 +367,8 @@ export function insertVectors(items: VectorInsertItem[], dim: number) {
             embedDim: dim,
             embedAt: now,
             workspaceId: r.metadata?.workspaceId || null,
-            updatedAt: now,
-          },
+            updatedAt: now
+          }
         })
         .run?.();
       // Ensure vec_docs has a single row per document rowid: delete then insert
@@ -383,7 +380,13 @@ export function insertVectors(items: VectorInsertItem[], dim: number) {
   return { inserted: items.length };
 }
 
-export interface VectorSearchResult { id: string; content: string; metadata: any; score: number; embedding?: number[] }
+export interface VectorSearchResult {
+  id: string;
+  content: string;
+  metadata: any;
+  score: number;
+  embedding?: number[];
+}
 
 export function searchVectors(queryEmbedding: number[], k: number, dim: number): VectorSearchResult[] {
   const database = getDB();
@@ -400,7 +403,7 @@ export function searchVectors(queryEmbedding: number[], k: number, dim: number):
      LIMIT ?`
   );
   const rows = stmt.all(queryBuf, k, k) as any[];
-  return rows.map(r => ({
+  return rows.map((r) => ({
     id: r.id,
     content: r.content,
     metadata: r.metadata ? JSON.parse(r.metadata) : null,
@@ -416,7 +419,7 @@ export function deleteVectors(ids: string[]): { deleted: number } {
   const selectRowids = database.prepare(`SELECT rowid FROM documents WHERE id IN (${ids.map(() => '?').join(',')})`);
   const rows = selectRowids.all(...ids) as { rowid: number }[];
   if (rows.length === 0) return { deleted: 0 };
-  const rowIds = rows.map(r => r.rowid);
+  const rowIds = rows.map((r) => r.rowid);
   const delVec = database.prepare(`DELETE FROM vec_docs WHERE rowid IN (${rowIds.map(() => '?').join(',')})`);
   const d = getOrm();
   const tx = database.transaction(() => {

@@ -1,13 +1,32 @@
 import { getOrm } from '.';
-import { documents, type NewDocument, type DocumentRow, recycle_bin, type NewRecycleBin, type RecycleBinRow, workspaces, type WorkspaceRow, type NewWorkspace, folders, type FolderRow, type NewFolder, conversations, type ConversationRow, type NewConversation, chat_messages, type ChatMessageRow, type NewChatMessage } from './schema';
-import { eq, inArray, and, or, like, gte, lte, isNull, isNotNull, desc, count, max } from 'drizzle-orm';
+import {
+  documents,
+  type NewDocument,
+  type DocumentRow,
+  recycle_bin,
+  type NewRecycleBin,
+  type RecycleBinRow,
+  workspaces,
+  type WorkspaceRow,
+  type NewWorkspace,
+  folders,
+  type FolderRow,
+  type NewFolder,
+  conversations,
+  type ConversationRow,
+  type NewConversation,
+  chat_messages,
+  type ChatMessageRow,
+  type NewChatMessage
+} from './schema';
+import { eq, inArray, and, like, gte, lte, isNull, isNotNull, desc, max } from 'drizzle-orm';
 import { rebuildVectors, deleteVectors } from '.';
 import { resources, type ResourceRow, type NewResource } from './schema';
 import * as fs from 'node:fs/promises';
 import * as fscb from 'node:fs';
-import path from 'node:path';
 
 function omitId<T extends { id?: any }>(obj: T): Omit<T, 'id'> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { id, ...rest } = obj || ({} as any);
   return rest as any;
 }
@@ -83,12 +102,7 @@ export const DocumentsRepo = {
     const now = Date.now();
     let updatedRows: any[] = [];
     (db as any).transaction((tx: any) => {
-      updatedRows = tx
-        .update(documents)
-        .set({ deletedAt: now })
-        .where(inArray(documents.id, ids))
-        .returning()
-        .all();
+      updatedRows = tx.update(documents).set({ deletedAt: now }).where(inArray(documents.id, ids)).returning().all();
       const items = updatedRows.map((r: any) => ({
         id: `doc:${r.id}`,
         entityType: 'document',
@@ -99,13 +113,16 @@ export const DocumentsRepo = {
         deletedAt: now,
         deletedBy: 'system',
         payload: JSON.stringify({ id: r.id }),
-        expireAt: null,
+        expireAt: null
       }));
       if (items.length) {
-        tx.insert(recycle_bin).values(items as any).onConflictDoUpdate({
-          target: recycle_bin.id,
-          set: { deletedAt: now },
-        }).run?.();
+        tx.insert(recycle_bin)
+          .values(items as any)
+          .onConflictDoUpdate({
+            target: recycle_bin.id,
+            set: { deletedAt: now }
+          })
+          .run?.();
       }
       deleteVectors(ids);
     });
@@ -121,12 +138,7 @@ export const DocumentsRepo = {
     const db = getOrm();
     let rows: any[] = [];
     (db as any).transaction((tx: any) => {
-      rows = tx
-        .update(documents)
-        .set({ deletedAt: null, updatedAt: Date.now() })
-        .where(inArray(documents.id, ids))
-        .returning()
-        .all();
+      rows = tx.update(documents).set({ deletedAt: null, updatedAt: Date.now() }).where(inArray(documents.id, ids)).returning().all();
       tx.delete(recycle_bin).where(inArray(recycle_bin.entityId, ids)).run?.();
     });
     return rows as any;
@@ -155,7 +167,7 @@ export const DocumentsRepo = {
   async purgeWithIndex(ids: string[]): Promise<number> {
     const deleted = await this.deleteByIds(ids);
     return deleted;
-  },
+  }
 };
 /**
  * 回收站操作空间
@@ -168,10 +180,14 @@ export const RecycleBinRepo = {
    */
   async add(item: NewRecycleBin) {
     const db = getOrm();
-    await db.insert(recycle_bin).values(item).onConflictDoUpdate({
-      target: recycle_bin.id,
-      set: { ...item },
-    }).run();
+    await db
+      .insert(recycle_bin)
+      .values(item)
+      .onConflictDoUpdate({
+        target: recycle_bin.id,
+        set: { ...item }
+      })
+      .run();
   },
   /**
    * 批量新增回收站索引
@@ -179,10 +195,14 @@ export const RecycleBinRepo = {
   async bulkAdd(items: NewRecycleBin[]) {
     const db = getOrm();
     if (!items.length) return;
-    await db.insert(recycle_bin).values(items).onConflictDoUpdate({
-      target: recycle_bin.id,
-      set: { ...items[0] },
-    }).run();
+    await db
+      .insert(recycle_bin)
+      .values(items)
+      .onConflictDoUpdate({
+        target: recycle_bin.id,
+        set: { ...items[0] }
+      })
+      .run();
   },
   /**
    * 回收站列表（支持筛选/分页）
@@ -245,9 +265,9 @@ export const RecycleBinRepo = {
     const db = getOrm();
     const items = (await db.select().from(recycle_bin).where(inArray(recycle_bin.id, ids))) as any[];
     if (!items.length) return 0;
-    const docIds = items.filter(i => i.entityType === 'document').map(i => i.entityId);
-    const resIds = items.filter(i => i.entityType === 'resource').map(i => i.entityId);
-    const convIds = items.filter(i => i.entityType === 'conversation').map(i => i.entityId);
+    const docIds = items.filter((i) => i.entityType === 'document').map((i) => i.entityId);
+    const resIds = items.filter((i) => i.entityType === 'resource').map((i) => i.entityId);
+    const convIds = items.filter((i) => i.entityType === 'conversation').map((i) => i.entityId);
     let restored = 0;
     if (docIds.length) restored += (await DocumentsRepo.restore(docIds)).length;
     if (resIds.length) restored += (await ResourcesRepo.restore(resIds)).length;
@@ -261,14 +281,13 @@ export const RecycleBinRepo = {
   },
   /** 根据回收站ID彻底删除实体（文档/资源），并同步清理回收站索引 */
   async purgeEntitiesByRecycleIds(ids: string[]): Promise<number> {
-    
     if (!ids?.length) return 0;
     const db = getOrm();
     const items = (await db.select().from(recycle_bin).where(inArray(recycle_bin.id, ids))) as any[];
     if (!items.length) return 0;
-    const docIds = items.filter(i => i.entityType === 'document').map(i => i.entityId);
-    const resIds = items.filter(i => i.entityType === 'resource').map(i => i.entityId);
-    const conversationIds = items.filter(i => i.entityType === 'conversation').map(i => i.entityId);
+    const docIds = items.filter((i) => i.entityType === 'document').map((i) => i.entityId);
+    const resIds = items.filter((i) => i.entityType === 'resource').map((i) => i.entityId);
+    const conversationIds = items.filter((i) => i.entityType === 'conversation').map((i) => i.entityId);
     let deleted = 0;
     if (docIds.length) deleted += await DocumentsRepo.deleteByIds(docIds);
     if (resIds.length) deleted += await ResourcesRepo.deleteByIds(resIds);
@@ -279,9 +298,9 @@ export const RecycleBinRepo = {
   async empty(filter: Partial<RecycleBinRow> = {}): Promise<number> {
     const items = await this.list(filter, 10000, 0);
     if (!items.length) return 0;
-    const ids = items.map(i => i.id);
+    const ids = items.map((i) => i.id);
     return this.purgeEntitiesByRecycleIds(ids);
-  },
+  }
 };
 
 /**
@@ -329,7 +348,11 @@ export const ResourcesRepo = {
   /** 更新资源（部分字段） */
   async update(id: string, patch: Partial<NewResource>): Promise<ResourceRow | undefined> {
     const db = getOrm();
-    await db.update(resources).set({ ...patch, updatedAt: Date.now() } as any).where(eq(resources.id, id)).run();
+    await db
+      .update(resources)
+      .set({ ...patch, updatedAt: Date.now() } as any)
+      .where(eq(resources.id, id))
+      .run();
     const rows = await db.select().from(resources).where(eq(resources.id, id)).limit(1);
     return rows[0];
   },
@@ -359,21 +382,29 @@ export const ResourcesRepo = {
       for (const r of rows as any[]) docIds.push(r.id);
     }
     if (docIds.length) {
-      try { deleteVectors(docIds); } catch (e) { /* best-effort */ }
+      try {
+        deleteVectors(docIds);
+      } catch (e) {
+        console.log(e);
+      }
     }
 
     // 3) 删除资源表与回收站索引（事务内）
     let changes = 0;
     (db as any).transaction((tx: any) => {
       const res = tx.delete(resources).where(inArray(resources.id, ids)).run?.();
-      changes = ((res as any)?.changes ?? 0);
+      changes = (res as any)?.changes ?? 0;
       tx.delete(recycle_bin).where(inArray(recycle_bin.entityId, ids)).run?.();
     });
 
     // 4) 尝试删除磁盘上的实际文件与缩略图（容错，不影响主流程）
-    const tryUnlink = async (p?: string) => {
+    const tryUnlink = async (p?: string): Promise<void> => {
       if (!p) return;
-      try { if (fscb.existsSync(p)) await fs.unlink(p); } catch { /* ignore */ }
+      try {
+        if (fscb.existsSync(p)) await fs.unlink(p);
+      } catch {
+        /* ignore */
+      }
     };
     await Promise.all([...filePaths.map(tryUnlink), ...thumbPaths.map(tryUnlink)]);
 
@@ -391,10 +422,7 @@ export const ResourcesRepo = {
     let resultRows: any[] = [];
     (db as any).transaction((tx: any) => {
       tx.update(resources).set({ deletedAt: now }).where(inArray(resources.id, ids)).run?.();
-      const rows = tx
-        .select({ id: resources.id, title: resources.title, description: resources.description, contentText: resources.contentText })
-        .from(resources)
-        .where(inArray(resources.id, ids));
+      const rows = tx.select({ id: resources.id, title: resources.title, description: resources.description, contentText: resources.contentText }).from(resources).where(inArray(resources.id, ids));
       const items = rows.map((r: any) => ({
         id: `res:${r.id}`,
         entityType: 'resource',
@@ -405,13 +433,16 @@ export const ResourcesRepo = {
         deletedAt: now,
         deletedBy: 'system',
         payload: JSON.stringify({ id: r.id }),
-        expireAt: null,
+        expireAt: null
       }));
       if (items.length) {
-        tx.insert(recycle_bin).values(items as any).onConflictDoUpdate({
-          target: recycle_bin.id,
-          set: { deletedAt: now },
-        }).run?.();
+        tx.insert(recycle_bin)
+          .values(items as any)
+          .onConflictDoUpdate({
+            target: recycle_bin.id,
+            set: { deletedAt: now }
+          })
+          .run?.();
       }
       resultRows = tx.select().from(resources).where(inArray(resources.id, ids));
     });
@@ -455,7 +486,7 @@ export const ResourcesRepo = {
     if (wheres.length) query = query.where(and(...wheres));
     const rows = await query;
     return rows[0]?.count ?? 0;
-  },
+  }
 };
 
 /**
@@ -522,14 +553,22 @@ export const FoldersRepo = {
   /** 重命名 */
   async rename(id: string, newName: string): Promise<FolderRow | undefined> {
     const db = getOrm();
-    await db.update(folders).set({ name: newName, updatedAt: Date.now() } as any).where(eq(folders.id, id)).run();
+    await db
+      .update(folders)
+      .set({ name: newName, updatedAt: Date.now() } as any)
+      .where(eq(folders.id, id))
+      .run();
     const rows = await db.select().from(folders).where(eq(folders.id, id)).limit(1);
     return rows[0];
   },
   /** 移动到新父目录（支持置空为根） */
   async move(id: string, newParentId: string | null): Promise<FolderRow | undefined> {
     const db = getOrm();
-    await db.update(folders).set({ parentId: newParentId, updatedAt: Date.now() } as any).where(eq(folders.id, id)).run();
+    await db
+      .update(folders)
+      .set({ parentId: newParentId, updatedAt: Date.now() } as any)
+      .where(eq(folders.id, id))
+      .run();
     const rows = await db.select().from(folders).where(eq(folders.id, id)).limit(1);
     return rows[0];
   },
@@ -537,14 +576,22 @@ export const FoldersRepo = {
   async softDelete(ids: string[]): Promise<FolderRow[]> {
     if (!ids.length) return [];
     const db = getOrm();
-    await db.update(folders).set({ deletedAt: Date.now() } as any).where(inArray(folders.id, ids)).run();
+    await db
+      .update(folders)
+      .set({ deletedAt: Date.now() } as any)
+      .where(inArray(folders.id, ids))
+      .run();
     return await db.select().from(folders).where(inArray(folders.id, ids));
   },
   /** 恢复 */
   async restore(ids: string[]): Promise<FolderRow[]> {
     if (!ids.length) return [];
     const db = getOrm();
-    await db.update(folders).set({ deletedAt: null, updatedAt: Date.now() } as any).where(inArray(folders.id, ids)).run();
+    await db
+      .update(folders)
+      .set({ deletedAt: null, updatedAt: Date.now() } as any)
+      .where(inArray(folders.id, ids))
+      .run();
     return await db.select().from(folders).where(inArray(folders.id, ids));
   },
   /** 物理删除（谨慎） */
@@ -553,7 +600,7 @@ export const FoldersRepo = {
     const db = getOrm();
     const res = await db.delete(folders).where(inArray(folders.id, ids)).run();
     return (res as any).changes ?? 0;
-  },
+  }
 };
 
 /**
@@ -581,7 +628,11 @@ export const WorkspacesRepo = {
   /** 获取默认工作空间 */
   async getDefault(): Promise<WorkspaceRow | undefined> {
     const db = getOrm();
-    const rows = await db.select().from(workspaces).where(and(eq(workspaces.isDefault as any, 1), isNull(workspaces.deletedAt)) as any).limit(1);
+    const rows = await db
+      .select()
+      .from(workspaces)
+      .where(and(eq(workspaces.isDefault as any, 1), isNull(workspaces.deletedAt)) as any)
+      .limit(1);
     return rows[0];
   },
   /** 设置默认空间（应用层确保唯一） */
@@ -593,9 +644,15 @@ export const WorkspacesRepo = {
     // "Transaction function cannot return a promise".
     (db as any).transaction((tx: any) => {
       // 1) 清除旧默认（只更新当前为默认的行，避免全表无谓写放大）
-      tx.update(workspaces).set({ isDefault: 0 as any, updatedAt: now }).where(eq(workspaces.isDefault as any, 1)).run?.();
+      tx.update(workspaces)
+        .set({ isDefault: 0 as any, updatedAt: now })
+        .where(eq(workspaces.isDefault as any, 1))
+        .run?.();
       // 2) 设定新默认
-      tx.update(workspaces).set({ isDefault: 1 as any, updatedAt: now }).where(eq(workspaces.id, id)).run?.();
+      tx.update(workspaces)
+        .set({ isDefault: 1 as any, updatedAt: now })
+        .where(eq(workspaces.id, id))
+        .run?.();
     });
     const rows = await db.select().from(workspaces).where(eq(workspaces.id, id)).limit(1);
     return rows[0];
@@ -625,7 +682,11 @@ export const WorkspacesRepo = {
   /** 更新 */
   async update(id: string, patch: Partial<NewWorkspace>): Promise<WorkspaceRow | undefined> {
     const db = getOrm();
-    await db.update(workspaces).set({ ...patch, updatedAt: Date.now() } as any).where(eq(workspaces.id, id)).run();
+    await db
+      .update(workspaces)
+      .set({ ...patch, updatedAt: Date.now() } as any)
+      .where(eq(workspaces.id, id))
+      .run();
     const rows = await db.select().from(workspaces).where(eq(workspaces.id, id)).limit(1);
     return rows[0];
   },
@@ -642,7 +703,7 @@ export const WorkspacesRepo = {
     const db = getOrm();
     const res = await db.delete(workspaces).where(inArray(workspaces.id, ids)).run();
     return (res as any).changes ?? 0;
-  },
+  }
 };
 
 /**
@@ -671,7 +732,7 @@ export const ChatRepo = {
       pinned: payload.pinned ?? 0,
       metadata: payload.metadata ?? null,
       createdAt: now,
-      updatedAt: now,
+      updatedAt: now
     };
     if (id) values.id = id;
     const rows = await db.insert(conversations).values(values).returning().all();
@@ -684,10 +745,12 @@ export const ChatRepo = {
   async addMessage(conversationId: string, message: Omit<NewChatMessage, 'id' | 'conversationId' | 'seq'>): Promise<ChatMessageRow> {
     const db = getOrm();
     // 计算下一个 seq
-    const seqRow = (await db
-      .select({ m: max(chat_messages.seq).as('max') })
-      .from(chat_messages)
-      .where(eq(chat_messages.conversationId, conversationId)))[0] as any;
+    const seqRow = (
+      await db
+        .select({ m: max(chat_messages.seq).as('max') })
+        .from(chat_messages)
+        .where(eq(chat_messages.conversationId, conversationId))
+    )[0] as any;
     const nextSeq = (seqRow?.m ?? 0) + 1;
     const now = Date.now();
     const rows = await db
@@ -701,7 +764,7 @@ export const ChatRepo = {
         metadata: message.metadata ?? null,
         seq: nextSeq,
         createdAt: (message as any).createdAt ?? now,
-        updatedAt: now,
+        updatedAt: now
       } as any)
       .returning()
       .all();
@@ -716,10 +779,7 @@ export const ChatRepo = {
       const short = raw.length > 40 ? raw.slice(0, 40) + '…' : raw;
       patch.title = short || '新对话';
     }
-    await db.update(conversations)
-      .set(patch)
-      .where(eq(conversations.id, conversationId))
-      .run();
+    await db.update(conversations).set(patch).where(eq(conversations.id, conversationId)).run();
     return rows[0];
   },
 
@@ -729,7 +789,10 @@ export const ChatRepo = {
     const wheres: any[] = [];
     if (!filter.includeDeleted) wheres.push(isNull(conversations.deletedAt));
     if (wheres.length) q = q.where(and(...wheres));
-    return q.orderBy(desc(conversations.pinned as any), desc(conversations.lastMessageAt as any), desc(conversations.updatedAt as any)).limit(limit).offset(offset);
+    return q
+      .orderBy(desc(conversations.pinned as any), desc(conversations.lastMessageAt as any), desc(conversations.updatedAt as any))
+      .limit(limit)
+      .offset(offset);
   },
 
   async listMessages(conversationId: string, limit = 1000, offset = 0): Promise<ChatMessageRow[]> {
@@ -746,7 +809,11 @@ export const ChatRepo = {
   async renameConversation(id: string, title: string): Promise<ConversationRow | undefined> {
     const db = getOrm();
     const now = Date.now();
-    await db.update(conversations).set({ title, updatedAt: now } as any).where(eq(conversations.id, id)).run();
+    await db
+      .update(conversations)
+      .set({ title, updatedAt: now } as any)
+      .where(eq(conversations.id, id))
+      .run();
     const rows = await db.select().from(conversations).where(eq(conversations.id, id)).limit(1);
     return rows[0];
   },
@@ -754,7 +821,11 @@ export const ChatRepo = {
   async softDeleteConversation(id: string): Promise<ConversationRow | undefined> {
     const db = getOrm();
     const now = Date.now();
-    await db.update(conversations).set({ deletedAt: now, updatedAt: now } as any).where(eq(conversations.id, id)).run();
+    await db
+      .update(conversations)
+      .set({ deletedAt: now, updatedAt: now } as any)
+      .where(eq(conversations.id, id))
+      .run();
     const rows = await db.select().from(conversations).where(eq(conversations.id, id)).limit(1);
     return rows[0];
   },
@@ -763,7 +834,11 @@ export const ChatRepo = {
   async restoreConversation(id: string): Promise<ConversationRow | undefined> {
     const db = getOrm();
     const now = Date.now();
-    await db.update(conversations).set({ deletedAt: null, updatedAt: now } as any).where(eq(conversations.id, id)).run();
+    await db
+      .update(conversations)
+      .set({ deletedAt: null, updatedAt: now } as any)
+      .where(eq(conversations.id, id))
+      .run();
     const rows = await db.select().from(conversations).where(eq(conversations.id, id)).limit(1);
     return rows[0];
   },
@@ -777,10 +852,9 @@ export const ChatRepo = {
     let deleted = 0;
     (db as any).transaction((tx: any) => {
       const res = tx.delete(conversations).where(inArray(conversations.id, ids)).run?.();
-      deleted = ((res as any)?.changes ?? 0);
+      deleted = (res as any)?.changes ?? 0;
       tx.delete(recycle_bin).where(inArray(recycle_bin.entityId, ids)).run?.();
     });
     return deleted;
-  },
+  }
 };
-

@@ -1,6 +1,6 @@
-export const DefaultWorkspaceName = 'ChobitsWorkspace'
+export const DefaultWorkspaceName = 'ChobitsWorkspace';
 
-export const LOG_LEVEL = "error";
+export const LOG_LEVEL = 'error';
 
 // Assistant intrinsic size
 export const ASSISTANT_WIDTH = 180;
