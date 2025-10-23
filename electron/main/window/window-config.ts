@@ -1,6 +1,7 @@
 import { app } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
+import { writeFileSync, readFileSync } from "@aim-packages/file-utils"
 import faultWindowConfigs from './windows-defaults';
 import { WindowConfig, WindowKey } from './types';
 
@@ -46,7 +47,7 @@ function applyPlatformOverlay(conf: WindowConfig): WindowConfig {
 function readJsonSafe(file: string): any | null {
   try {
     if (!fs.existsSync(file)) return null
-    const txt = fs.readFileSync(file, 'utf8')
+    const txt = readFileSync(file, 'utf8')
     return JSON.parse(txt)
   } catch {
     return null
@@ -57,7 +58,7 @@ function writeJsonSafe(file: string, data: any) {
   try {
     const dir = path.dirname(file)
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-    fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf8')
+    writeFileSync(file, JSON.stringify(data, null, 2), 'utf8')
   } catch { }
 }
 

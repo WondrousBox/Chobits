@@ -51,6 +51,7 @@
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
+    "@aim-packages/file-utils": "^0.0.9",
     "@anthropic-ai/sdk": "^0.67.0",
     "@electron/rebuild": "^3.6.0",
     "@google/generative-ai": "^0.24.1",
