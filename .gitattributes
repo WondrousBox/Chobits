@@ -1,0 +1,18 @@
+# Normalize all text files to LF in the repo
+* text=auto eol=lf
+
+# Common binary types
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.webm binary
+*.mp4 binary
+*.mov binary
+*.zip binary
+*.7z binary
+*.exe binary
+*.dll binary
+*.node binary
