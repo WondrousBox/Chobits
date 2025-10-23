@@ -1,4 +1,3 @@
 singleQuote: true
-semi: false
-printWidth: 400
+printWidth: 200
 trailingComma: none
