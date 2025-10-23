@@ -3,134 +3,162 @@
  * - 职责：拼装 UI（VideoSprite、MessageBubble、指示器）与行为 hooks（初始化、拖动、穿透、行走、文件拖拽）。
  * - 约束：不在此文件内编写复杂业务逻辑/IPC 调用，逻辑统一下沉到 hooks/services。
  */
-import React, { useEffect, useRef } from 'react'
-import VideoSprite from './VideoSprite'
-import Messages, { MessageBubble } from './messages'
-import Dropzone from '../common/Dropzone'
-import { ASSISTANT_HEIGHT, ASSISTANT_WIDTH, SHOW_PADDING_DEBUG } from './constants'
-import useAssistantInit from './hooks/useAssistantInit'
-import useClickThrough from './hooks/useClickThrough'
-import useDragMove from './hooks/useDragMove'
-import useWalkAnimation from './hooks/useWalkAnimation'
-import useFileDrop from './hooks/useFileDrop'
-import StatusIndicator from './ui/StatusIndicator'
-import PaddingDebugOverlay from './ui/PaddingDebugOverlay'
-import useSpriteEventController from './hooks/useSpriteEventController'
-import { dispatchSpriteEvent } from './events/spriteEvents'
+import React, { useEffect, useRef } from 'react';
+import VideoSprite from './VideoSprite';
+import Messages, { MessageBubble } from './messages';
+import Dropzone from '../common/Dropzone';
+import { ASSISTANT_HEIGHT, ASSISTANT_WIDTH, SHOW_PADDING_DEBUG } from './constants';
+import useAssistantInit from './hooks/useAssistantInit';
+import useClickThrough from './hooks/useClickThrough';
+import useDragMove from './hooks/useDragMove';
+import useWalkAnimation from './hooks/useWalkAnimation';
+import useFileDrop from './hooks/useFileDrop';
+import StatusIndicator from './ui/StatusIndicator';
+import PaddingDebugOverlay from './ui/PaddingDebugOverlay';
+import useSpriteEventController from './hooks/useSpriteEventController';
+import { dispatchSpriteEvent } from './events/spriteEvents';
 
 export const AIAssistant: React.FC = () => {
-  const { padding: paddingState, screenSize, messageState, setMessageState } = useAssistantInit()
+  const { padding: paddingState, screenSize, messageState, setMessageState } = useAssistantInit();
 
-  const containerRef = useRef<HTMLDivElement>(null)
-  const { setClickThrough } = useClickThrough(containerRef, [])
-  const { animateMoveWindow, stopWalking, isWalking } = useWalkAnimation()
-  useSpriteEventController()
-  const { bind: dragBind, isDragging, isDragReady } = useDragMove(containerRef, {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { setClickThrough } = useClickThrough(containerRef, []);
+  const { animateMoveWindow, stopWalking, isWalking } = useWalkAnimation();
+  useSpriteEventController();
+  const {
+    bind: dragBind,
+    isDragging,
+    isDragReady
+  } = useDragMove(containerRef, {
     screenSize,
     padding: paddingState,
-    onHoldStart: () => { setMessageState('hold'); dispatchSpriteEvent('hold:start') },
+    onHoldStart: () => {
+      setMessageState('hold');
+      dispatchSpriteEvent('hold:start');
+    },
     onDragStateChange: (dragging) => {
-      if (dragging) setClickThrough(false)
+      if (dragging) setClickThrough(false);
     }
-  })
-  const { isFileDragOver, handleDragEnter, handleDragLeave, handleDropFiles } = useFileDrop(stopWalking, setClickThrough)
+  });
+  const { isFileDragOver, handleDragEnter, handleDragLeave, handleDropFiles } = useFileDrop(stopWalking, setClickThrough);
 
   // 点击交互
   const handleClick = () => {
-    stopWalking()
-    setMessageState('click')
-    dispatchSpriteEvent('click')
-  }
+    stopWalking();
+    setMessageState('click');
+    dispatchSpriteEvent('click');
+  };
 
   // keep dev vector probe to preserve previous behavior
   useEffect(() => {
     // window.YUA.ffmpeg.playSprite()
-    window.YUA.vector.insertVectors({
-      items: [{
-        id: 'doc-1',
-        content: '你好，世界',
-        metadata: { lang: 'zh' },
-        embedding: new Array(384).fill(0).map((_, i) => Math.sin(i))
-      }],
-      dim: 384,
-    }).then((_res: any) => { console.log('inserted', _res) })
+    window.YUA.vector
+      .insertVectors({
+        items: [
+          {
+            id: 'doc-1',
+            content: '你好，世界',
+            metadata: { lang: 'zh' },
+            embedding: new Array(384).fill(0).map((_, i) => Math.sin(i))
+          }
+        ],
+        dim: 384
+      })
+      .then((_res: any) => {
+        console.log('inserted', _res);
+      });
 
-    window.YUA.vector.searchVectors({
-      embedding: new Array(384).fill(0),
-      k: 5,
-      dim: 384,
-    }).then((_res: any) => { console.log(_res) })
-  }, [])
+    window.YUA.vector
+      .searchVectors({
+        embedding: new Array(384).fill(0),
+        k: 5,
+        dim: 384
+      })
+      .then((_res: any) => {
+        console.log(_res);
+      });
+  }, []);
 
   const handleContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault()
-    window.YUA.window.openWindow("menu")
-  }
+    e.preventDefault();
+    window.YUA.window.openWindow('menu');
+  };
 
   // drive sprite states from drag/walk flags
   useEffect(() => {
     if (isDragging) {
-      dispatchSpriteEvent('drag:start')
+      dispatchSpriteEvent('drag:start');
     } else if (isWalking) {
-      dispatchSpriteEvent('walk:start')
+      dispatchSpriteEvent('walk:start');
     } else {
-      dispatchSpriteEvent('idle')
+      dispatchSpriteEvent('idle');
     }
-  }, [isDragging, isWalking])
+  }, [isDragging, isWalking]);
 
   // reflect file drag-over on sprite
   useEffect(() => {
     if (isFileDragOver) {
-      dispatchSpriteEvent('drag:start')
+      dispatchSpriteEvent('drag:start');
     } else if (!isDragging && !isWalking) {
-      dispatchSpriteEvent('idle')
+      dispatchSpriteEvent('idle');
     }
-  }, [isFileDragOver, isDragging, isWalking])
+  }, [isFileDragOver, isDragging, isWalking]);
 
-  const onDropFiles = React.useCallback(async (files: any) => {
-    dispatchSpriteEvent('drop')
-    await handleDropFiles(files)
-  }, [handleDropFiles])
+  const onDropFiles = React.useCallback(
+    async (files: any) => {
+      dispatchSpriteEvent('drop');
+      await handleDropFiles(files);
+    },
+    [handleDropFiles]
+  );
 
   // --- 稳定订阅 menu-command，避免依赖变化导致重复绑定 ---
-  const screenSizeRef = useRef(screenSize)
-  const paddingRef = useRef(paddingState)
-  const animateMoveWindowRef = useRef(animateMoveWindow)
-  const lastMenuActionAtRef = useRef<Record<string, number>>({})
+  const screenSizeRef = useRef(screenSize);
+  const paddingRef = useRef(paddingState);
+  const animateMoveWindowRef = useRef(animateMoveWindow);
+  const lastMenuActionAtRef = useRef<Record<string, number>>({});
 
-  useEffect(() => { screenSizeRef.current = screenSize }, [screenSize])
-  useEffect(() => { paddingRef.current = paddingState }, [paddingState])
-  useEffect(() => { animateMoveWindowRef.current = animateMoveWindow }, [animateMoveWindow])
+  useEffect(() => {
+    screenSizeRef.current = screenSize;
+  }, [screenSize]);
+  useEffect(() => {
+    paddingRef.current = paddingState;
+  }, [paddingState]);
+  useEffect(() => {
+    animateMoveWindowRef.current = animateMoveWindow;
+  }, [animateMoveWindow]);
 
   useEffect(() => {
     const onMenuCommand = async (_: any, action: string) => {
       // 防抖/去重：忽略极短时间内的重复事件
-      const now = performance.now()
-      const last = lastMenuActionAtRef.current[action] || 0
-      if (now - last < 100) return
-      lastMenuActionAtRef.current[action] = now
+      const now = performance.now();
+      const last = lastMenuActionAtRef.current[action] || 0;
+      if (now - last < 100) return;
+      lastMenuActionAtRef.current[action] = now;
 
       if (action === 'walk-once') {
-        const size = screenSizeRef.current
-        const padding = paddingRef.current
-        const minX = -padding
-        const maxX = size.width - ASSISTANT_WIDTH - padding
-        const minY = -padding
-        const maxY = size.height - ASSISTANT_HEIGHT - padding
-        const targetX = Math.random() * (maxX - minX) + minX
-        const targetY = Math.random() * (maxY - minY) + minY
-        dispatchSpriteEvent('walk:start')
-        await animateMoveWindowRef.current(targetX, targetY)
-        dispatchSpriteEvent('walk:end')
-        dispatchSpriteEvent('idle')
+        const size = screenSizeRef.current;
+        const padding = paddingRef.current;
+        const minX = -padding;
+        const maxX = size.width - ASSISTANT_WIDTH - padding;
+        const minY = -padding;
+        const maxY = size.height - ASSISTANT_HEIGHT - padding;
+        const targetX = Math.random() * (maxX - minX) + minX;
+        const targetY = Math.random() * (maxY - minY) + minY;
+        dispatchSpriteEvent('walk:start');
+        await animateMoveWindowRef.current(targetX, targetY);
+        dispatchSpriteEvent('walk:end');
+        dispatchSpriteEvent('idle');
       }
-    }
+    };
 
-    window.ipcRenderer?.on('menu-command', onMenuCommand)
-    return () => { window.ipcRenderer?.off('menu-command', onMenuCommand as any) }
-  }, [])
+    window.ipcRenderer?.on('menu-command', onMenuCommand);
+    return () => {
+      window.ipcRenderer?.off('menu-command', onMenuCommand as any);
+    };
+  }, []);
 
-  const walkEnabledRef = useRef(false)
+  const walkEnabledRef = useRef(false);
 
   return (
     <div
@@ -156,7 +184,9 @@ export const AIAssistant: React.FC = () => {
           }
         } catch {
           // 回退原行为
-          try { await window.YUA.window.openWindow('assistant' as any); } catch { }
+          try {
+            await window.YUA.window.openWindow('assistant' as any);
+          } catch { }
         }
       }}
     // onDrop={handleDrop}
@@ -167,12 +197,16 @@ export const AIAssistant: React.FC = () => {
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
         onDropFiles={onDropFiles}
-        customDropzoneInside={<div className="flex items-center justify-center absolute top-2 left-1/2 -translate-x-1/2 p-1 rounded-md bg-primary text-primary-foreground text-xs whitespace-nowrap z-10">{Messages.t('drag')}</div>}
+        customDropzoneInside={
+          <div className="flex items-center justify-center absolute top-2 left-1/2 -translate-x-1/2 p-1 rounded-md bg-primary text-primary-foreground text-xs whitespace-nowrap z-10">
+            {Messages.t('drag')}
+          </div>
+        }
       >
         <VideoSprite />
       </Dropzone>
 
       <StatusIndicator isDragging={isDragging} isWalking={isWalking} />
     </div>
-  )
-}
+  );
+};
