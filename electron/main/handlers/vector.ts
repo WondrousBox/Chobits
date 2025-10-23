@@ -41,12 +41,12 @@ export function initVectorHandlers(win: BrowserWindow) {
   ipcMain.handle('indexDocuments', async (_e, payload: { items: Array<{ id?: string; content: string; metadata?: any }>; dim?: number }) => {
     const prov = await getProvider();
     const dim = payload.dim || DEFAULT_DIM;
-    const embeddings = await prov.embedMany(payload.items.map(i => i.content));
+    const embeddings = await prov.embedMany(payload.items.map((i) => i.content));
     const items: VectorInsertItem[] = payload.items.map((i, idx) => ({
       id: i.id,
       content: i.content,
       metadata: i.metadata,
-      embedding: fitToDim(embeddings[idx], dim),
+      embedding: fitToDim(embeddings[idx], dim)
     }));
     return insertVectors(items, dim);
   });
@@ -62,10 +62,14 @@ export function initVectorHandlers(win: BrowserWindow) {
 
   // Queue-based background indexing
   const sendProgress = (job: any) => {
-    try { win.webContents.send('embedding:job', job); } catch {}
+    try {
+      win.webContents.send('embedding:job', job);
+    } catch { }
   };
   const sendTick = (progress: any) => {
-    try { win.webContents.send('embedding:progress', progress); } catch {}
+    try {
+      win.webContents.send('embedding:progress', progress);
+    } catch { }
   };
   embeddingQueue.on('job', sendProgress);
   embeddingQueue.on('progress', sendTick);
