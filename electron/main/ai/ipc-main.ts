@@ -17,7 +17,7 @@ import { PromptsStore } from './prompts-store';
 import { getAllInstanceSecrets as getAllInstSecrets, setInstanceSecrets as setInstSecrets } from './settings-store';
 import { ChatRepo } from '../db/repositories';
 
-export function initAIHandlers(win: BrowserWindow) {
+export function init(win: BrowserWindow): void {
   // Bootstrapping built-in provider(s) and agent(s)
   // Register built-in providers
   registerProvider(new OpenAIProvider());
@@ -31,25 +31,27 @@ export function initAIHandlers(win: BrowserWindow) {
   registerAgent(RAGAgent);
   registerAgent(TaggerAgent);
 
-  const chat = new ChatService(win)
+  const chat = new ChatService(win);
   chat.registerIpc();
 
   // Settings & registry inspection
   ipcMain.handle('ai:getProviders', async () => {
     const providers = listProviders();
-    const rows = await Promise.all(providers.map(async (p) => ({
-      id: p.id,
-      label: p.label,
-      configured: !!(await Promise.resolve((p.isConfigured?.() as any) ?? true)),
-      schema: p.getConfigSchema?.(),
-    })));
+    const rows = await Promise.all(
+      providers.map(async (p) => ({
+        id: p.id,
+        label: p.label,
+        configured: !!(await Promise.resolve((p.isConfigured?.() as any) ?? true)),
+        schema: p.getConfigSchema?.()
+      }))
+    );
     return rows;
   });
 
   ipcMain.handle('ai:getProviderSecrets', async (_e, payload: { providerId: string }) => {
     const p = getProvider(payload.providerId);
     const schema = p?.getConfigSchema?.();
-    const keys = (schema?.fields || []).map(f => f.key);
+    const keys = (schema?.fields || []).map((f) => f.key);
     const values = await getAllSecrets(payload.providerId, keys);
     return values;
   });
@@ -75,7 +77,7 @@ export function initAIHandlers(win: BrowserWindow) {
           const inst = InstancesStore.get(payload.instanceId);
           if (inst) {
             const schema = p.getConfigSchema?.();
-            const keys = (schema?.fields || []).map(f => f.key);
+            const keys = (schema?.fields || []).map((f) => f.key);
             const secrets = await getAllInstSecrets(payload.instanceId, keys);
             opts = { secrets };
           }
@@ -84,6 +86,7 @@ export function initAIHandlers(win: BrowserWindow) {
       }
       return [];
     } catch (err) {
+      console.log(err);
       return [];
     }
   });
@@ -105,7 +108,7 @@ export function initAIHandlers(win: BrowserWindow) {
   ipcMain.handle('ai:getInstanceSecrets', async (_e, payload: { instanceId: string }) => {
     const inst = InstancesStore.get(payload.instanceId);
     const schema = getProvider(inst?.providerId || '')?.getConfigSchema?.();
-    const keys = (schema?.fields || []).map(f => f.key);
+    const keys = (schema?.fields || []).map((f) => f.key);
     return await getAllInstSecrets(payload.instanceId, keys);
   });
   ipcMain.handle('ai:setInstanceSecrets', async (_e, payload: { instanceId: string; secrets: Record<string, string> }) => {
@@ -115,7 +118,7 @@ export function initAIHandlers(win: BrowserWindow) {
 
   // Prompt Templates CRUD
   ipcMain.handle('ai:listPromptTemplates', async () => PromptsStore.list());
-  ipcMain.handle('ai:createPromptTemplate', async (_e, payload: { name: string; type: 'system'|'user'; content: string; tags?: string[] }) => PromptsStore.create(payload));
+  ipcMain.handle('ai:createPromptTemplate', async (_e, payload: { name: string; type: 'system' | 'user'; content: string; tags?: string[] }) => PromptsStore.create(payload));
   ipcMain.handle('ai:updatePromptTemplate', async (_e, payload: { id: string; patch: any }) => PromptsStore.update(payload.id, payload.patch));
   ipcMain.handle('ai:deletePromptTemplate', async (_e, payload: { id: string }) => ({ ok: PromptsStore.delete(payload.id) }));
 
