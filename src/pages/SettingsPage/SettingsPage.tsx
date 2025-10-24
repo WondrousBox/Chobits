@@ -149,15 +149,8 @@ export const SettingsPage: React.FC = () => {
     setSaving(false);
   };
 
-  const openDatabaseLocation = async () => {
-    try {
-      const result = await (window.YUA as any).database['database:openLocation']();
-      if (!result.ok) {
-        console.error('打开数据库位置失败:', result.error);
-      }
-    } catch (error) {
-      console.error('打开数据库位置失败:', error);
-    }
+  const openDatabaseLocation = async (): Promise<void> => {
+    window.YUA.database['database:openLocation']();
   };
 
   // 渲染移动参数设置
