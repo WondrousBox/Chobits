@@ -15,12 +15,21 @@ export function init(win: BrowserWindow): void {
     win?.webContents.send('menu-command', action);
   });
 
-  ipcMain.handle('openWindow', async (_: IpcMainInvokeEvent, key: WindowKey, payload?: any) => {
+  ipcMain.handle('openWindow', async (event: IpcMainInvokeEvent, key: WindowKey, payload?: any) => {
     if (!win) return false;
     try {
       if (payload) {
         (globalThis as any).__lastWindowPayload = (globalThis as any).__lastWindowPayload || {};
         (globalThis as any).__lastWindowPayload[key] = payload;
+      }
+      // Record opener (the sender window) so that when the opened window closes, we can restore focus to the opener
+      try {
+        const opener = BrowserWindow.fromWebContents(event.sender) || null;
+        if (opener && !opener.isDestroyed()) {
+          windowManager.setOpener(key, opener);
+        }
+      } catch {
+        // noop
       }
       await windowManager.createOrShow(key, payload);
       return true;

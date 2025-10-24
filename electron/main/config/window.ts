@@ -268,7 +268,6 @@ const faultWindowConfigs: Record<WindowKey, WindowConfig> = {
   },
   resourcePreview: {
     routeHash: 'resource-preview',
-    parent: 'main',
     autoCenterOn: 'parent-display',
     showOnReady: false,
     openDevTools: true,
