@@ -131,6 +131,8 @@ export class WindowManager {
   private preloadPath: string | undefined;
   private followerWindows = new Set<WindowKey>();
   private assistantPadding: number = 100;
+  // Track which window opened which (childKey -> opener BrowserWindow)
+  private openersByChild = new Map<WindowKey, BrowserWindow>();
 
   // 动画相关状态
   private followerAnimTimer: NodeJS.Timeout | null = null;
@@ -555,6 +557,28 @@ export class WindowManager {
       } catch {
         //
       }
+      // If this window was opened by another window, bring that opener to front when this closes
+      try {
+        const opener = this.openersByChild.get(key) || null;
+        this.openersByChild.delete(key);
+        if (opener && !opener.isDestroyed()) {
+          try {
+            if (!opener.isVisible()) {
+              // show() will also restore if minimized on Windows
+              opener.show();
+            }
+          } catch {
+            //
+          }
+          try {
+            opener.focus();
+          } catch {
+            //
+          }
+        }
+      } catch {
+        //
+      }
     });
   }
 
@@ -761,6 +785,31 @@ export class WindowManager {
     } catch (error) {
       console.error('Error adjusting main window padding:', error);
     }
+  }
+
+  /**
+   * Record the opener of a window (childKey) so that when the child closes,
+   * the opener can be shown and focused if it still exists.
+   */
+  setOpener(childKey: WindowKey, opener: BrowserWindow | null | undefined): void {
+    try {
+      if (opener && !opener.isDestroyed()) {
+        this.openersByChild.set(childKey, opener);
+      } else {
+        this.openersByChild.delete(childKey);
+      }
+    } catch {
+      //
+    }
+  }
+
+  /**
+   * Get the opener window of a given child key, if still alive.
+   */
+  getOpener(childKey: WindowKey): BrowserWindow | null {
+    const w = this.openersByChild.get(childKey) || null;
+    if (w && !w.isDestroyed()) return w;
+    return null;
   }
 }
 
