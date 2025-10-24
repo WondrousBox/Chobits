@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import RadialMenu, { RadialMenuItem } from '../../components/common/RadialMenu/RadialMenu';
 
 type FileInfo = { name: string; path?: string; mime?: string };
 
@@ -10,10 +10,10 @@ type ActionItem = {
   run: () => Promise<void> | void;
 };
 
-function extOf(name?: string) {
+function extOf(name?: string): string {
   return (name?.split('.').pop() || '').toLowerCase();
 }
-function guessKind(file: FileInfo) {
+function guessKind(file: FileInfo): 'doc' | 'audio' | 'video' | 'image' | 'pdf' | 'other' {
   const ext = extOf(file.name);
   const mime = (file.mime || '').toLowerCase();
   if (/docx?/.test(ext) || /word/.test(mime)) return 'doc';
@@ -27,17 +27,18 @@ function guessKind(file: FileInfo) {
 const FileActionsMenu: React.FC = () => {
   const [files, setFiles] = useState<FileInfo[]>([]);
   const primary = files[0];
-  alert(primary);
   const kind = primary ? guessKind(primary) : 'other';
 
   useEffect(() => {
     // 接收主进程传来的文件数据
-    const handler = (_: any, payload: any) => {
+    const handler = (_: any, payload: any): void => {
       try {
         if (payload?.files && Array.isArray(payload.files)) {
           setFiles(payload.files as FileInfo[]);
         }
-      } catch { }
+      } catch (err) {
+        console.warn('[FileActionsMenu] failed to parse files from payload', err);
+      }
     };
     window.ipcRenderer?.on('openWindowReadyData', handler);
     // 主动请求一次（若已经存在缓存）
@@ -45,74 +46,96 @@ const FileActionsMenu: React.FC = () => {
       try {
         const data = await window.YUA.window.getWindowPayload('fileActionsMenu' as any);
         if (data?.files) setFiles(data.files);
-      } catch { }
+      } catch (err) {
+        console.warn('[FileActionsMenu] getWindowPayload error', err);
+      }
     })();
     return () => {
       try {
         window.ipcRenderer?.off('openWindowReadyData', handler as any);
-      } catch { }
+      } catch (err) {
+        console.warn('[FileActionsMenu] remove listener error', err);
+      }
     };
   }, []);
 
   const actions = useMemo<ActionItem[]>(() => {
     const list: ActionItem[] = [];
-    const closeAfter = async (fn: () => Promise<void> | void) => {
+    const closeAfter = async (fn: () => Promise<void> | void): Promise<void> => {
       try {
         await fn();
       } finally {
         try {
           await window.YUA.window.closeWindow('fileActionsMenu' as any);
-        } catch { }
+        } catch (err) {
+          console.warn('[FileActionsMenu] close window error', err);
+        }
       }
     };
-    const summarizeDoc = () =>
+    const summarizeDoc = (): Promise<void> =>
       closeAfter(async () => {
         // 资源已添加，打开助手窗口继续处理
         try {
           await window.YUA.window.openWindow('assistant' as any);
-        } catch { }
+        } catch (err) {
+          console.warn('[FileActionsMenu] open assistant error', err);
+        }
       });
-    const makeCards = () =>
+    const makeCards = (): Promise<void> =>
       closeAfter(async () => {
         try {
           await window.YUA.window.openWindow('assistant' as any);
-        } catch { }
+        } catch (err) {
+          console.warn('[FileActionsMenu] open assistant error', err);
+        }
       });
-    const transcribeAudio = () =>
+    const transcribeAudio = (): Promise<void> =>
       closeAfter(async () => {
         try {
           /* TODO: 调用转写 */
-        } catch { }
+        } catch (err) {
+          console.warn('[FileActionsMenu] transcribe audio error', err);
+        }
       });
-    const convertAudio = () =>
+    const convertAudio = (): Promise<void> =>
       closeAfter(async () => {
         try {
           /* TODO: ffmpeg 转码 */
-        } catch { }
+        } catch (err) {
+          console.warn('[FileActionsMenu] convert audio error', err);
+        }
       });
-    const transcodeVideo = () =>
+    const transcodeVideo = (): Promise<void> =>
       closeAfter(async () => {
         try {
           /* TODO: ffmpeg 转码 */
-        } catch { }
+        } catch (err) {
+          console.warn('[FileActionsMenu] transcode video error', err);
+        }
       });
-    const extractKeyframes = () =>
+    const extractKeyframes = (): Promise<void> =>
       closeAfter(async () => {
         try {
           /* TODO: 关键帧提取 */
-        } catch { }
+        } catch (err) {
+          console.warn('[FileActionsMenu] extract keyframes error', err);
+        }
       });
-    const analyzeImage = () =>
+    const analyzeImage = (): Promise<void> =>
       closeAfter(async () => {
         try {
           await window.YUA.window.openWindow('assistant' as any);
-        } catch { }
+        } catch (err) {
+          console.warn('[FileActionsMenu] open assistant error', err);
+        }
       });
-    const parsePdf = () =>
+    const parsePdf = (): Promise<void> =>
       closeAfter(async () => {
         try {
           await window.YUA.window.openWindow('assistant' as any);
-        } catch { }
+        } catch (err) {
+          console.warn('[FileActionsMenu] open assistant error', err);
+        }
       });
 
     if (kind === 'doc') {
@@ -137,62 +160,17 @@ const FileActionsMenu: React.FC = () => {
       // generic: already added
     }
     return list;
-  }, [files, kind]);
+  }, [kind]);
 
-  console.log(actions);
-  alert(kind);
+  // Build radial menu items from available actions
+  const radialItems: RadialMenuItem[] = useMemo(() => {
+    return actions.map((a) => ({ id: a.id, label: a.label, icon: a.icon, action: () => a.run() }));
+  }, [actions]);
 
-  return (
-    <AnimatePresence>
-      <motion.div
-        className="fixed inset-0 pointer-events-auto z-[10000] bg-transparent"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.18 }}
-        onClick={() => window.YUA.window.closeWindow('fileActionsMenu' as any)}
-      >
-        <div className="relative w-full h-full">
-          <div className="absolute inset-0" />
-          <div
-            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[540px] rounded-3xl border border-white/15 backdrop-blur-xl bg-[rgba(20,22,30,0.78)] shadow-2xl p-6 text-white select-none"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="text-sm opacity-80 mb-3">已添加到资源库 · 选择下一步操作</div>
-            {primary && (
-              <div className="mb-5 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center text-lg">{files.length > 1 ? '📦' : '📄'}</div>
-                <div className="flex-1 min-w-0">
-                  <div className="truncate text-[13px] font-medium">{files.length > 1 ? `${files.length} 个文件` : primary.name}</div>
-                  {primary.path && <div className="truncate text-[11px] opacity-60">{primary.path}</div>}
-                </div>
-              </div>
-            )}
-            <div className="grid grid-cols-2 gap-3">
-              {actions.map((a) => (
-                <button
-                  key={a.id}
-                  className="group rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 active:scale-[0.99] transition-all p-4 text-left flex items-center gap-3"
-                  onClick={() => a.run()}
-                >
-                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-xl">{a.icon}</div>
-                  <div className="flex-1">
-                    <div className="text-[13px] font-medium">{a.label}</div>
-                    {/* 可加提示 */}
-                  </div>
-                </button>
-              ))}
-            </div>
-            <div className="mt-4 flex justify-end">
-              <button className="text-xs opacity-70 hover:opacity-100" onClick={() => window.YUA.window.closeWindow('fileActionsMenu' as any)}>
-                取消
-              </button>
-            </div>
-          </div>
-        </div>
-      </motion.div>
-    </AnimatePresence>
-  );
+  // If there are no actions yet (data not ready), don't render the menu
+  if (radialItems.length === 0) return null;
+
+  return <RadialMenu items={radialItems} open onClose={() => window.YUA.window.closeWindow('fileActionsMenu' as any)} />;
 };
 
 export default FileActionsMenu;
