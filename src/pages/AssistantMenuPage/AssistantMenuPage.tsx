@@ -45,11 +45,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         label: '资源库',
         icon: '📚',
         shortcut: 'r',
-        action: () => window.YUA.window.openWindow('resources'),
-        children: [
-          { id: 'library', label: '浏览库', icon: '📖', action: () => window.YUA.window.openWindow('resources') },
-          { id: 'import', label: '导入', icon: '⬇️', action: () => window.ipcRenderer?.send('menu-command', 'resource-import') }
-        ]
+        action: () => window.YUA.window.openWindow('resources')
       },
       {
         id: 'recycle',

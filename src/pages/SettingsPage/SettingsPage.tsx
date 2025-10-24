@@ -346,7 +346,7 @@ export const SettingsPage: React.FC = () => {
       <SidebarProvider>
         <Sidebar className="top-9 h-[calc(100vh-36px)]">
           <SidebarContent>
-            <SidebarGroup>
+            <SidebarGroup className="box-border">
               <SidebarGroupContent>
                 <SidebarMenu className="pl-0">
                   {settingsCategories.map((category) => {
