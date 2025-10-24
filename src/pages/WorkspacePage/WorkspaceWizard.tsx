@@ -123,11 +123,11 @@ const WorkspaceWizard: React.FC = () => {
   }
 
   return (
-    <div className="w-full h-full bg-background text-foreground overflow-hidden relative">
-      <div className="drag-region h-32"></div>
-      <div className="drag-region text-center relative">
-        <div className="text-xl mb-2">🗂 创建工作空间</div>
-        <div className="text-xs text-muted-foreground">选择一个本地文件夹用于集中存放数据</div>
+    <div className="w-full h-full drag-region bg-background text-foreground overflow-hidden relative">
+      <div className="h-32"></div>
+      <div className="text-center relative">
+        <div className="text-xl mb-2">🗂 创建「 工作空间 」</div>
+        <div className="text-xs text-muted-foreground"> 「 工作空间 」 将被用于集中存放数据</div>
         <div className="relative mt-4">
           {(showQuickPanel || showCreateForm) && (
             <AnimatePresence initial={false} mode="wait">
