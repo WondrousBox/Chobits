@@ -20,7 +20,11 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         label: '状态',
         icon: '💬',
         shortcut: 'i',
-        action: () => window.YUA.window.openWindow('status')
+        action: () => window.YUA.window.openWindow('status'),
+        children: [
+          { id: 'status', label: '状态', icon: '📖', action: () => window.YUA.window.openWindow('status') },
+          { id: 'walk', label: '立即随机走动', icon: '👣', action: () => window.ipcRenderer?.send('menu-command', 'walk-once') }
+        ]
       },
       {
         id: 'tagger',
@@ -44,16 +48,8 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         action: () => window.YUA.window.openWindow('resources'),
         children: [
           { id: 'library', label: '浏览库', icon: '📖', action: () => window.YUA.window.openWindow('resources') },
-          { id: 'import', label: '导入', icon: '⬇️', action: () => window.ipcRenderer?.send('menu-command', 'resource-import') },
-          { id: 'search', label: '搜索', icon: '🔎', action: () => window.ipcRenderer?.send('menu-command', 'resource-search') }
+          { id: 'import', label: '导入', icon: '⬇️', action: () => window.ipcRenderer?.send('menu-command', 'resource-import') }
         ]
-      },
-      {
-        id: 'walk-once',
-        label: '立即随机走动',
-        icon: '👣',
-        shortcut: 'w',
-        action: () => window.ipcRenderer?.send('menu-command', 'walk-once')
       },
       {
         id: 'recycle',
@@ -67,12 +63,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         label: '设置',
         icon: '⚙️',
         shortcut: 's',
-        action: () => window.YUA.window.openWindow('settings'),
-        children: [
-          { id: 'general', label: '通用', icon: '🧩', action: () => window.YUA.window.openWindow('settings') },
-          { id: 'models', label: '模型', icon: '🧠', action: () => window.YUA.window.openWindow('models') },
-          { id: 'workspace', label: '工作区', icon: '🗂️', action: () => window.YUA.window.openWindow('workspace') }
-        ]
+        action: () => window.YUA.window.openWindow('settings')
       }
     ],
     []
