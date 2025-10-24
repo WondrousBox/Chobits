@@ -1,4 +1,4 @@
-import { WindowConfig, WindowKey } from './types';
+import { WindowConfig, WindowKey } from '../window/types';
 
 const HEADER_COMMANDS_HEIGHT = 36;
 const MACOS_TRAFFIC_LIGHTS_HEIGHT = 16;

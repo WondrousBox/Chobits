@@ -7,6 +7,7 @@ import { update } from './update';
 import { initHandlers } from './handlers';
 import { windowManager } from './window/window-manager';
 import { initWindowConfigs } from './window/window-config';
+import defaultWindowConfigs from './config/window';
 import { logger } from './logger';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -108,11 +109,6 @@ async function createWindow(): Promise<void> {
   });
 
   initHandlers(win);
-  try {
-    windowManager.init(win, { preloadPath: (win as any).__preloadPath });
-  } catch {
-    //
-  }
   // (workspace resource root addition moved to app.whenReady after protocol setup)
 
   // https://github.com/electron/electron/issues/7049
@@ -130,7 +126,7 @@ async function createWindow(): Promise<void> {
 app.whenReady().then(async () => {
   // Initialize dynamic window configs (defaults + user overrides)
   try {
-    initWindowConfigs();
+    initWindowConfigs(defaultWindowConfigs);
   } catch (e) {
     console.warn('[windows] init configs failed', e);
   }

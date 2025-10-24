@@ -10,7 +10,7 @@ import { saveWindowState, WindowStateStore } from '../window/window-state-store'
 import { ASSISTANT_HEIGHT, ASSISTANT_WIDTH } from '../config';
 import { WindowConfig, WindowKey } from '../window/types';
 
-export function initWindowHandlers(win: BrowserWindow) {
+export function initWindowHandlers(win: BrowserWindow): void {
   // Movement config persistence ------------------------------------------------
   type MovementConfig = { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number };
   const defaultConfig: MovementConfig = { walkSpeed: 500, fpsLimit: 30, movementMode: 'stepped', stepGrid: 12, pathCurveFactor: 0.15, assistantPadding: 100 };
@@ -26,10 +26,12 @@ export function initWindowHandlers(win: BrowserWindow) {
   } catch {
     movementConfig = defaultConfig;
   }
-  function saveConfig() {
+  function saveConfig(): void {
     try {
       fs.writeFileSync(configFile, JSON.stringify(movementConfig, null, 2), 'utf8');
-    } catch { }
+    } catch {
+      //
+    }
   }
 
   // ---------------- Hover monitor to manage click-through ---------------
@@ -84,22 +86,20 @@ export function initWindowHandlers(win: BrowserWindow) {
   startHoverMonitor();
 
   // Bootstrap WindowManager with main window context
-  try {
-    windowManager.init(win, {
-      preloadPath: (win as any).__preloadPath,
-      assistantPadding: movementConfig.assistantPadding,
-      onBeforeFollowerShow: () => {
-        try {
-          stopHoverMonitor();
-        } catch { }
-      },
-      onAfterFollowerHide: () => {
-        try {
-          startHoverMonitor();
-        } catch { }
-      }
-    });
-  } catch { }
+  windowManager.init(win, {
+    preloadPath: (win as any).__preloadPath,
+    assistantPadding: movementConfig.assistantPadding,
+    anchorHeight: ASSISTANT_HEIGHT,
+    anchorWidth: ASSISTANT_WIDTH,
+    serverUrl: process.env.VITE_DEV_SERVER_URL,
+    rendererDist: path.join(process.env.APP_ROOT || app.getAppPath(), 'dist'),
+    onBeforeFollowerShow: () => {
+      stopHoverMonitor();
+    },
+    onAfterFollowerHide: () => {
+      startHoverMonitor();
+    }
+  });
 
   // ---------------- Movement Config IPC --------------------
   ipcMain.handle('getMovementConfig', () => {

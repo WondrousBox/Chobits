@@ -2,7 +2,6 @@ import { app } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { writeFileSync, readFileSync } from '@aim-packages/file-utils';
-import faultWindowConfigs from './windows-defaults';
 import { WindowConfig, WindowKey } from './types';
 
 export type WindowConfigMap = Record<WindowKey, WindowConfig>;
@@ -13,6 +12,8 @@ const WINDOW_USER_CONFIG_FILE_NAME = 'windows.json';
 // %appData%/AppName/data/
 const STORE_DIR: string = path.join(app.getPath('userData'), 'data');
 const WINDOW_USER_CONFIG_FILE = path.join(STORE_DIR, WINDOW_USER_CONFIG_FILE_NAME);
+
+let defaultWindowConfigs: WindowConfigMap = {};
 
 function ensureStore(): void {
   if (!fs.existsSync(STORE_DIR)) {
@@ -70,14 +71,15 @@ function writeJsonSafe(file: string, data: any): void {
 /**
  * 初始化窗口配置：读取默认 JSON 和用户 JSON，合并并应用平台覆盖。
  */
-export function initWindowConfigs(): void {
+export function initWindowConfigs(configs: Record<WindowKey, WindowConfig>): void {
   ensureStore();
   const userRaw = readJsonSafe(WINDOW_USER_CONFIG_FILE) || {};
+  defaultWindowConfigs = configs;
 
   const merged: Record<string, WindowConfig> = {};
-  const keys = new Set<WindowKey>([...Object.keys(faultWindowConfigs), ...Object.keys(userRaw)]);
+  const keys = new Set<WindowKey>([...Object.keys(defaultWindowConfigs), ...Object.keys(userRaw)]);
   keys.forEach((key) => {
-    const defConf = faultWindowConfigs[key];
+    const defConf = defaultWindowConfigs[key];
     const usrConf = userRaw[key];
     // 不允许用户覆盖默认窗口配置：如果默认存在且用户也提供了同名配置，直接忽略用户版本
     let conf: WindowConfig | null;
@@ -116,7 +118,7 @@ export function getWindowConfig(key: WindowKey): WindowConfig | undefined {
  */
 export function registerWindowConfig(key: WindowKey, config: WindowConfig, persist = false): void {
   // 禁止注册与默认窗口同名的 key
-  if (faultWindowConfigs[key]) {
+  if (defaultWindowConfigs[key]) {
     throw new Error(`Key '${String(key)}' is a default window and cannot be overridden.`);
   }
   // 禁止重复注册（无论是已加载的默认还是用户键）
