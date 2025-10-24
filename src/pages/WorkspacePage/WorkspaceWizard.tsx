@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { TbArrowLeft, TbArrowRight, TbFolderOpen } from 'react-icons/tb';
-import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
-import SuccessResult from '../../components/common/SuccessResult';
-import { Workspace } from 'electron/preload/apis/workspace';
+import type { Workspace } from 'electron/preload/apis/workspace';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import SuccessResult from '@/components/common/SuccessResult';
 
 const WorkspaceWizard: React.FC = () => {
   const [workspaces, setWorkspaces] = useState<any[]>([]);
@@ -144,7 +144,6 @@ const WorkspaceWizard: React.FC = () => {
                       快速开始 <TbArrowRight />
                     </Button>
                     <Button variant="outline" disabled={busy} onClick={onCreateNew}>
-                      {' '}
                       创建新空间
                     </Button>
                   </div>

@@ -18,7 +18,7 @@ export type Workspace = {
 };
 
 export type WorkspaceBridgeParams = {
-  'workspace:quickStart': IPCParams<[void], { success: boolean; data?: Workspace }>;
+  'workspace:quickStart': IPCParams<[void], { success: boolean; data?: PartialByKey<Workspace, 'id'> }>;
   'workspace:add': IPCParams<[{ workspace: PartialByKey<Workspace, 'id'> }], ResParams<Workspace>>;
   'workspace:list': IPCParams<[{ filter?: Partial<Workspace>; limit?: number; offset?: number }], Workspace[]>;
   'workspace:get': IPCParams<[{ id: string }], Workspace | undefined>;
