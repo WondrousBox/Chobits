@@ -9,6 +9,13 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
   const menuItems: RadialMenuItem[] = useMemo(
     () => [
       {
+        id: 'quit',
+        label: '退出',
+        icon: '❌',
+        shortcut: 'q',
+        action: () => window.ipcRenderer?.send('menu-command', 'quit-app')
+      },
+      {
         id: 'status',
         label: '状态',
         icon: '💬',
@@ -66,13 +73,6 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
           { id: 'models', label: '模型', icon: '🧠', action: () => window.YUA.window.openWindow('models') },
           { id: 'workspace', label: '工作区', icon: '🗂️', action: () => window.YUA.window.openWindow('workspace') }
         ]
-      },
-      {
-        id: 'quit',
-        label: '退出',
-        icon: '❌',
-        shortcut: 'q',
-        action: () => window.ipcRenderer?.send('menu-command', 'quit-app')
       }
     ],
     []
