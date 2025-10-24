@@ -5,6 +5,8 @@ import type { Workspace } from 'electron/preload/apis/workspace';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import SuccessResult from '@/components/common/SuccessResult';
+import TermWithTooltip from '@/components/common/TermWithTooltip';
+import { getTerm } from '@/lib/terms';
 
 const WorkspaceWizard: React.FC = () => {
   const [workspaces, setWorkspaces] = useState<any[]>([]);
@@ -126,8 +128,11 @@ const WorkspaceWizard: React.FC = () => {
     <div className="w-full h-full drag-region bg-background text-foreground overflow-hidden relative">
       <div className="h-32"></div>
       <div className="text-center relative">
-        <div className="text-xl mb-2">🗂 创建「 工作空间 」</div>
-        <div className="text-xs text-muted-foreground"> 「 工作空间 」 将被用于集中存放数据</div>
+        <div className="text-xl mb-2">
+          🗂 创建
+          <TermWithTooltip {...getTerm('workspace')} />
+        </div>
+        <div className="text-xs text-muted-foreground">工作空间将被用于集中存放数据</div>
         <div className="relative mt-4">
           {(showQuickPanel || showCreateForm) && (
             <AnimatePresence initial={false} mode="wait">
