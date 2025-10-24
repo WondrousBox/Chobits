@@ -1,8 +1,10 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import React, { useEffect, useMemo, useState } from 'react';
 import { TbCheck, TbDotsVertical, TbFolderOpen, TbPlus, TbRefresh, TbScanEye, TbTrash } from 'react-icons/tb';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { maskPath } from '@/utils/helpers';
 
 const Workspace: React.FC = () => {
   const [list, setList] = useState<any[]>([]);
@@ -12,8 +14,11 @@ const Workspace: React.FC = () => {
   const [editingName, setEditingName] = useState('');
   const [scanningIds, setScanningIds] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<{ id: string; name: string } | null>(null);
+  const [confirmName, setConfirmName] = useState('');
+  const [deletingBusy, setDeletingBusy] = useState(false);
 
-  const load = async () => {
+  const load = async (): Promise<void> => {
     setLoading(true);
     setError(null);
     try {
@@ -30,13 +35,15 @@ const Workspace: React.FC = () => {
     load();
   }, []);
 
-  const setDefault = async (id: string) => {
+  const setDefault = async (id: string): Promise<void> => {
     try {
       await window.YUA.workspace['workspace:setDefault']({ id });
       load();
-    } catch { }
+    } catch {
+      /* ignore */
+    }
   };
-  const commitRename = async () => {
+  const commitRename = async (): Promise<void> => {
     if (!editingId) return;
     const name = editingName.trim();
     if (!name) {
@@ -47,19 +54,24 @@ const Workspace: React.FC = () => {
       await window.YUA.workspace['workspace:update']({ id: editingId, patch: { name } });
       setEditingId(null);
       load();
-    } catch { }
+    } catch {
+      /* ignore */
+    }
   };
-  const openFolder = async (id: string) => {
+  const openFolder = async (id: string): Promise<void> => {
     try {
       await window.YUA.workspace['workspace:open']({ id });
-    } catch { }
+    } catch {
+      /* ignore */
+    }
   };
-  const scan = async (id: string) => {
+  const scan = async (id: string): Promise<void> => {
     if (scanningIds.has(id)) return;
     setScanningIds((prev) => new Set([...prev, id]));
     try {
       await window.YUA.workspace['workspace:scanStats']({ id });
     } catch {
+      /* ignore */
     } finally {
       setScanningIds((prev) => {
         const n = new Set(prev);
@@ -69,23 +81,35 @@ const Workspace: React.FC = () => {
       load();
     }
   };
-  const scanAll = async () => {
+  const scanAll = async (): Promise<void> => {
     const ids = filtered.map((ws) => ws.id);
     for (const id of ids) {
       await scan(id);
     }
   };
-  const remove = async (id: string) => {
+  const remove = (id: string): void => {
     const ws = list.find((w) => w.id === id);
-    const name = ws?.name || '未命名';
-    if (!confirm(`确认删除工作空间: "${name}" ?\n此操作为软删除，可在数据库中恢复。`)) return;
-    try {
-      await window.YUA.workspace['workspace:delete']({ id });
-      load();
-    } catch { }
+    setDeleting({ id, name: ws?.name || '未命名' });
+    setConfirmName('');
   };
 
-  function formatSize(bytes?: number) {
+  const confirmDelete = async (): Promise<void> => {
+    if (!deleting) return;
+    if (confirmName.trim() !== (deleting.name || '').trim()) return;
+    setDeletingBusy(true);
+    try {
+      await window.YUA.workspace['workspace:delete']({ id: deleting.id });
+      setDeleting(null);
+      setConfirmName('');
+      load();
+    } catch {
+      // ignore
+    } finally {
+      setDeletingBusy(false);
+    }
+  };
+
+  function formatSize(bytes?: number): string {
     if (bytes == null) return '-';
     if (bytes < 1024) return bytes + ' B';
     const units = ['KB', 'MB', 'GB', 'TB'];
@@ -97,7 +121,7 @@ const Workspace: React.FC = () => {
     }
     return v.toFixed(v >= 100 ? 0 : v >= 10 ? 1 : 2) + ' ' + units[i];
   }
-  function formatTime(ts?: number) {
+  function formatTime(ts?: number): string {
     if (!ts) return '-';
     const d = new Date(ts);
     return d.toLocaleString();
@@ -110,36 +134,58 @@ const Workspace: React.FC = () => {
     return rows.filter((ws) => (ws.name || '').toLowerCase().includes(q) || (ws.rootPath || '').toLowerCase().includes(q));
   }, [list, search]);
 
-  // 脱敏用户路径: 将 /Users/<username> 前缀替换为 ~
-  const maskPath = (p?: string) => {
-    if (!p) return '-';
-    if (p.startsWith('~')) return p;
-    // 支持的前缀形式：
-    // macOS: /Users/username
-    // Linux: /home/username
-    // Windows: C:\\Users\\username 或 C:/Users/username
-    const patterns = [
-      /^[A-Za-z]:\\\\Users\\\\[^\\]+/, // Windows 反斜杠
-      /^[A-Za-z]:\/Users\/[^/]+/, // Windows 使用正斜杠形式
-      /^\/Users\/[^/]+/, // macOS
-      /^\/home\/[^/]+/ // Linux
-    ];
-    for (const r of patterns) {
-      const m = p.match(r);
-      if (m) {
-        return '~' + p.slice(m[0].length);
-      }
-    }
-    return p;
-  };
-
   return (
     <div className="h-full w-full flex flex-col bg-background text-foreground">
-      <>
-        {' '}
-        <span className="ml-2 text-xs text-muted-foreground">{list.length} 个</span>
-      </>
-      <div className="no-drag flex items-center gap-2">
+      {/* 删除确认对话框 */}
+      <Dialog
+        open={!!deleting}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleting(null);
+            setConfirmName('');
+            setDeletingBusy(false);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>删除工作空间</DialogTitle>
+            <DialogDescription>此操作不可撤销。请在下方输入工作空间名称以确认删除。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <div className="text-sm">需要输入的名称：</div>
+            <div className="text-sm font-mono bg-accent/40 text-accent-foreground px-2 py-1 rounded select-text">{deleting?.name}</div>
+            <Input
+              autoFocus
+              placeholder="请输入上方名称以确认删除"
+              value={confirmName}
+              onChange={(e) => setConfirmName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && confirmName.trim() === (deleting?.name || '').trim() && !deletingBusy) {
+                  confirmDelete();
+                }
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleting(null);
+                setConfirmName('');
+                setDeletingBusy(false);
+              }}
+              disabled={deletingBusy}
+            >
+              取消
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete} disabled={!deleting || confirmName.trim() !== (deleting.name || '').trim() || deletingBusy}>
+              {deletingBusy ? '删除中...' : '确认删除'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <div className="flex items-center gap-2 px-2">
         <Input className="w-48 h-8" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="搜索 名称/路径..." />
         <Button size="sm" variant={'outline'} onClick={scanAll} disabled={filtered.length === 0 || scanningIds.size > 0}>
           <TbScanEye /> {scanningIds.size > 0 ? '扫描中...' : '全部扫描'}
@@ -151,10 +197,10 @@ const Workspace: React.FC = () => {
           <TbPlus /> 新建
         </Button>
       </div>
-      <div className="flex-1 overflow-auto p-4 space-y-3">
+      <div className="flex-1 overflow-auto p-2 space-y-3">
         {error && <div className="text-red-500 text-sm">{error}</div>}
         {filtered.map((ws) => (
-          <div key={ws.id} className="p-3 rounded border bg-card text-card-foreground flex flex-col gap-2 transition-shadow hover:shadow-md relative">
+          <div key={ws.id} className="p-2 rounded border border-ring border-solid bg-card text-card-foreground flex flex-col gap-2 relative">
             <div className="flex items-center justify-between">
               <div className="font-semibold text-sm flex items-center gap-2">
                 {ws.isDefault === 1 && <div className="text-primary bg-primary/20 px-2 py-1 rounded-md text-xs">默认</div>}
