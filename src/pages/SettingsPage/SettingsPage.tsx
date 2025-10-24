@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Input } from '@/components/ui/input';
 import { TbDatabase, TbFolderOpen, TbSettings, TbBrain, TbCpu, TbBox, TbFile3D, TbMoodKid, TbFolder, TbMessage2 } from 'react-icons/tb';
 import AiSettings from './components/AiSettings';
 import EmbeddingJobsPanel from '../../components/EmbeddingJobs';
@@ -9,7 +10,6 @@ import Workspace from './components/Workspace';
 import ModelPage from '../ModelPage/ModelPage';
 import SpriteManager from './components/SpriteManager';
 import PromptSetting from './components/PromptSetting';
-import { Input } from '@/components/ui/input';
 
 // Include assistantPadding in type
 type MovementConfig = { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number };
@@ -149,8 +149,6 @@ export const SettingsPage: React.FC = () => {
     setSaving(false);
   };
 
-  const close = () => window.YUA.window.closeWindow('settings');
-
   const openDatabaseLocation = async () => {
     try {
       const result = await (window.YUA as any).database['database:openLocation']();
@@ -283,28 +281,6 @@ export const SettingsPage: React.FC = () => {
     </div>
   );
 
-  // 渲染工作空间（内嵌）
-  const renderWorkspaceSettings = () => (
-    <div className="space-y-6">
-      <div className="bg-card border border-border rounded-lg overflow-hidden">
-        <div className="h-[70vh]">
-          <Workspace />
-        </div>
-      </div>
-    </div>
-  );
-
-  // 渲染模型管理（内嵌）
-  const renderModelSettings = () => (
-    <div className="space-y-6">
-      <div className="bg-card border border-border rounded-lg overflow-hidden">
-        <div className="h-[70vh]">
-          <ModelPage />
-        </div>
-      </div>
-    </div>
-  );
-
   // 根据当前分类渲染对应内容
   const renderCurrentCategoryContent = () => {
     switch (activeCategory) {
@@ -330,9 +306,25 @@ export const SettingsPage: React.FC = () => {
       case 'embedding':
         return <EmbeddingJobsPanel />;
       case 'workspace':
-        return renderWorkspaceSettings();
+        return (
+          <div className="space-y-6">
+            <div className="bg-card border border-border rounded-lg overflow-hidden">
+              <div className="h-[70vh]">
+                <Workspace />
+              </div>
+            </div>
+          </div>
+        );
       case 'model':
-        return renderModelSettings();
+        return (
+          <div className="space-y-6">
+            <div className="bg-card border border-border rounded-lg overflow-hidden">
+              <div className="h-[70vh]">
+                <ModelPage />
+              </div>
+            </div>
+          </div>
+        );
       case 'ai':
         return <AiSettings initialProviderId={initialAiProviderId || undefined} />;
       case 'prompt':
