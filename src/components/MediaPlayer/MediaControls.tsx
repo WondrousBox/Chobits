@@ -1,57 +1,42 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react'
-import { Button } from '@/components/ui/button'
-import { 
-  TbPlayerPlay, 
-  TbPlayerPause, 
-  TbVolume, 
-  TbVolumeOff, 
-  TbMaximize, 
-  TbMinimize,
-  TbSettings
-} from 'react-icons/tb'
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { TbPlayerPlay, TbPlayerPause, TbVolume, TbVolumeOff, TbMaximize, TbMinimize, TbSettings } from 'react-icons/tb';
 
 // 播放/暂停按钮组件
 interface PlayPauseButtonProps {
-  isPlaying: boolean
-  onTogglePlay: () => void
-  type: 'video' | 'audio'
+  isPlaying: boolean;
+  onTogglePlay: () => void;
+  type: 'video' | 'audio';
 }
 
 const PlayPauseButton: React.FC<PlayPauseButtonProps> = ({ isPlaying, onTogglePlay, type }) => {
   return (
-    <Button
-      size="sm"
-      variant="ghost"
-      onClick={onTogglePlay}
-      className={`w-8 h-8 p-0 hover:bg-white/20 ${type === 'video' ? 'text-white' : 'text-foreground'}`}
-    >
+    <Button size="sm" variant="ghost" onClick={onTogglePlay} className={`w-8 h-8 p-0 hover:bg-white/20 ${type === 'video' ? 'text-white' : 'text-foreground'}`}>
       {isPlaying ? <TbPlayerPause size={16} /> : <TbPlayerPlay size={16} />}
     </Button>
-  )
-}
+  );
+};
 
 // 音量控制组件
 interface VolumeControlProps {
-  volume: number
-  onVolumeChange: (volume: number) => void
-  onToggleMute: () => void
-  type: 'video' | 'audio'
+  volume: number;
+  onVolumeChange: (volume: number) => void;
+  onToggleMute: () => void;
+  type: 'video' | 'audio';
 }
 
 const VolumeControl: React.FC<VolumeControlProps> = ({ volume, onVolumeChange, onToggleMute, type }) => {
-  const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const newVolume = parseFloat(e.target.value)
-    onVolumeChange(newVolume)
-  }, [onVolumeChange])
+  const handleVolumeChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newVolume = parseFloat(e.target.value);
+      onVolumeChange(newVolume);
+    },
+    [onVolumeChange]
+  );
 
   return (
     <div className="relative flex items-center group">
-      <Button
-        size="sm"
-        variant="ghost"
-        onClick={onToggleMute}
-        className={`w-8 h-8 p-0 hover:bg-white/20 ${type === 'video' ? 'text-white' : 'text-foreground'}`}
-      >
+      <Button size="sm" variant="ghost" onClick={onToggleMute} className={`w-8 h-8 p-0 hover:bg-white/20 ${type === 'video' ? 'text-white' : 'text-foreground'}`}>
         {volume === 0 ? <TbVolumeOff size={16} /> : <TbVolume size={16} />}
       </Button>
 
@@ -64,51 +49,50 @@ const VolumeControl: React.FC<VolumeControlProps> = ({ volume, onVolumeChange, o
           step="0.1"
           value={volume}
           onChange={handleVolumeChange}
-          className={`w-full h-1 rounded-full appearance-none cursor-pointer slider ${
-            type === 'video' ? 'bg-white/30' : 'bg-muted-foreground/30'
-          }`}
+          className={`w-full h-1 rounded-full appearance-none cursor-pointer slider ${type === 'video' ? 'bg-white/30' : 'bg-muted-foreground/30'}`}
           style={{
-            background: type === 'video' 
-              ? `linear-gradient(to right, white 0%, white ${volume * 100}%, rgba(255,255,255,0.3) ${volume * 100}%, rgba(255,255,255,0.3) 100%)`
-              : `linear-gradient(to right, hsl(var(--foreground)) 0%, hsl(var(--foreground)) ${volume * 100}%, hsl(var(--muted-foreground) / 0.3) ${volume * 100}%, hsl(var(--muted-foreground) / 0.3) 100%)`
+            background:
+              type === 'video'
+                ? `linear-gradient(to right, white 0%, white ${volume * 100}%, rgba(255,255,255,0.3) ${volume * 100}%, rgba(255,255,255,0.3) 100%)`
+                : `linear-gradient(to right, hsl(var(--foreground)) 0%, hsl(var(--foreground)) ${volume * 100}%, hsl(var(--muted-foreground) / 0.3) ${volume * 100}%, hsl(var(--muted-foreground) / 0.3) 100%)`
           }}
         />
       </div>
     </div>
-  )
-}
+  );
+};
 
 // 时间显示组件
 interface TimeDisplayProps {
-  currentTime: number
-  duration: number
-  type: 'video' | 'audio'
+  currentTime: number;
+  duration: number;
+  type: 'video' | 'audio';
 }
 
 const TimeDisplay: React.FC<TimeDisplayProps> = ({ currentTime, duration, type }) => {
   const formatTime = useCallback((time: number) => {
-    const minutes = Math.floor(time / 60)
-    const seconds = Math.floor(time % 60)
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
-  }, [])
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }, []);
 
   return (
     <div className={`text-xs px-2 font-mono ${type === 'video' ? 'text-white' : 'text-muted-foreground'}`}>
       {formatTime(currentTime)} / {formatTime(duration)}
     </div>
-  )
-}
+  );
+};
 
 // 播放速度控制组件
 interface PlaybackRateControlProps {
-  playbackRate: number
-  onPlaybackRateChange: (rate: number) => void
-  type: 'video' | 'audio'
+  playbackRate: number;
+  onPlaybackRateChange: (rate: number) => void;
+  type: 'video' | 'audio';
 }
 
 const PlaybackRateControl: React.FC<PlaybackRateControlProps> = ({ playbackRate, onPlaybackRateChange, type }) => {
-  const [showPlaybackRateMenu, setShowPlaybackRateMenu] = useState(false)
-  const playbackRates = [0.5, 0.75, 1, 1.25, 1.5, 2]
+  const [showPlaybackRateMenu, setShowPlaybackRateMenu] = useState(false);
+  const playbackRates = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
   return (
     <div className="relative">
@@ -121,21 +105,16 @@ const PlaybackRateControl: React.FC<PlaybackRateControlProps> = ({ playbackRate,
         <TbSettings size={16} />
       </Button>
       {showPlaybackRateMenu && (
-        <div className={`absolute bottom-full mb-2 right-0 rounded-md p-1 min-w-[80px] ${
-          type === 'video' ? 'bg-black/80' : 'bg-background border'
-        }`}>
-          {playbackRates.map(rate => (
+        <div className={`absolute bottom-full mb-2 right-0 rounded-md p-1 min-w-[80px] ${type === 'video' ? 'bg-black/80' : 'bg-background border'}`}>
+          {playbackRates.map((rate) => (
             <button
               key={rate}
               onClick={() => {
-                onPlaybackRateChange(rate)
-                setShowPlaybackRateMenu(false)
+                onPlaybackRateChange(rate);
+                setShowPlaybackRateMenu(false);
               }}
-              className={`w-full px-2 py-1 text-xs hover:bg-white/20 rounded ${
-                type === 'video' 
-                  ? `text-white ${playbackRate === rate ? 'bg-white/30' : ''}`
-                  : `text-foreground ${playbackRate === rate ? 'bg-muted' : ''}`
-              }`}
+              className={`w-full px-2 py-1 text-xs hover:bg-white/20 rounded ${type === 'video' ? `text-white ${playbackRate === rate ? 'bg-white/30' : ''}` : `text-foreground ${playbackRate === rate ? 'bg-muted' : ''}`
+                }`}
             >
               {rate}x
             </button>
@@ -143,82 +122,81 @@ const PlaybackRateControl: React.FC<PlaybackRateControlProps> = ({ playbackRate,
         </div>
       )}
     </div>
-  )
-}
+  );
+};
 
 // 进度滑块组件
 interface ProgressSliderProps {
-  currentTime: number
-  duration: number
-  onSeek: (time: number) => void
-  onSeekStart?: () => void
-  onSeekEnd?: () => void
-  type: 'video' | 'audio'
+  currentTime: number;
+  duration: number;
+  onSeek: (time: number) => void;
+  onSeekStart?: () => void;
+  onSeekEnd?: () => void;
+  type: 'video' | 'audio';
 }
 
-const ProgressSlider: React.FC<ProgressSliderProps> = ({ 
-  currentTime, 
-  duration, 
-  onSeek, 
-  onSeekStart,
-  onSeekEnd,
-  type 
-}) => {
-  const [isDragging, setIsDragging] = useState(false)
-  const [dragValue, setDragValue] = useState(0)
-  const seekTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+const ProgressSlider: React.FC<ProgressSliderProps> = ({ currentTime, duration, onSeek, onSeekStart, onSeekEnd, type }) => {
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragValue, setDragValue] = useState(0);
+  const seekTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // 计算进度百分比
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0
-  const displayValue = isDragging ? dragValue : progress
+  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const displayValue = isDragging ? dragValue : progress;
 
   // 节流的 seek 函数，避免过于频繁的更新
-  const throttledSeek = useCallback((time: number) => {
-    if (seekTimeoutRef.current) {
-      clearTimeout(seekTimeoutRef.current)
-    }
-    
-    seekTimeoutRef.current = setTimeout(() => {
-      onSeek(time)
-    }, 16) // 约 60fps 的更新频率
-  }, [onSeek])
+  const throttledSeek = useCallback(
+    (time: number) => {
+      if (seekTimeoutRef.current) {
+        clearTimeout(seekTimeoutRef.current);
+      }
+
+      seekTimeoutRef.current = setTimeout(() => {
+        onSeek(time);
+      }, 16); // 约 60fps 的更新频率
+    },
+    [onSeek]
+  );
 
   // 滑块变化处理
-  const handleSliderChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = parseFloat(e.target.value)
-    setDragValue(value)
-    const newTime = (value / 100) * duration
-    throttledSeek(newTime)
-  }, [duration, throttledSeek])
+  const handleSliderChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value = parseFloat(e.target.value);
+      setDragValue(value);
+      const newTime = (value / 100) * duration;
+      throttledSeek(newTime);
+    },
+    [duration, throttledSeek]
+  );
 
   // 开始拖拽
   const handleMouseDown = useCallback(() => {
-    setIsDragging(true)
-    setDragValue(progress)
-    onSeekStart?.()
-  }, [progress, onSeekStart])
+    setIsDragging(true);
+    setDragValue(progress);
+    onSeekStart?.();
+  }, [progress, onSeekStart]);
 
   // 结束拖拽
   const handleMouseUp = useCallback(() => {
-    setIsDragging(false)
+    setIsDragging(false);
     // 清除所有待处理的 seek 请求
     if (seekTimeoutRef.current) {
-      clearTimeout(seekTimeoutRef.current)
+      clearTimeout(seekTimeoutRef.current);
     }
     // 立即执行最后一次 seek，确保最终位置准确
-    const finalTime = (dragValue / 100) * duration
-    onSeek(finalTime)
-    onSeekEnd?.()
-  }, [dragValue, duration, onSeek, onSeekEnd])
+    const finalTime = (dragValue / 100) * duration;
+    onSeek(finalTime);
+    onSeekEnd?.();
+  }, [dragValue, duration, onSeek, onSeekEnd]);
 
   // 组件卸载时清理定时器
   useEffect(() => {
     return () => {
       if (seekTimeoutRef.current) {
-        clearTimeout(seekTimeoutRef.current)
+        clearTimeout(seekTimeoutRef.current);
       }
-    }
-  }, [])
+    };
+  }, []);
 
   return (
     <div className="mb-2">
@@ -231,54 +209,48 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({
         onChange={handleSliderChange}
         onMouseDown={handleMouseDown}
         onMouseUp={handleMouseUp}
-        className={`w-full h-1 rounded-full appearance-none cursor-pointer progress-slider ${
-          type === 'video' ? 'bg-white/30' : 'bg-muted-foreground/30'
-        }`}
+        className={`w-full h-1 rounded-full appearance-none cursor-pointer progress-slider ${type === 'video' ? 'bg-white/30' : 'bg-muted-foreground/30'}`}
         style={{
-          background: type === 'video'
-            ? `linear-gradient(to right, white 0%, white ${displayValue}%, rgba(255,255,255,0.3) ${displayValue}%, rgba(255,255,255,0.3) 100%)`
-            : `linear-gradient(to right, hsl(var(--foreground)) 0%, hsl(var(--foreground)) ${displayValue}%, hsl(var(--muted-foreground) / 0.3) ${displayValue}%, hsl(var(--muted-foreground) / 0.3) 100%)`
+          background:
+            type === 'video'
+              ? `linear-gradient(to right, white 0%, white ${displayValue}%, rgba(255,255,255,0.3) ${displayValue}%, rgba(255,255,255,0.3) 100%)`
+              : `linear-gradient(to right, hsl(var(--foreground)) 0%, hsl(var(--foreground)) ${displayValue}%, hsl(var(--muted-foreground) / 0.3) ${displayValue}%, hsl(var(--muted-foreground) / 0.3) 100%)`
         }}
       />
     </div>
-  )
-}
+  );
+};
 
 // 全屏按钮组件
 interface FullscreenButtonProps {
-  isFullscreen: boolean
-  onToggleFullscreen: () => void
+  isFullscreen: boolean;
+  onToggleFullscreen: () => void;
 }
 
 const FullscreenButton: React.FC<FullscreenButtonProps> = ({ isFullscreen, onToggleFullscreen }) => {
   return (
-    <Button
-      size="sm"
-      variant="ghost"
-      onClick={onToggleFullscreen}
-      className="w-8 h-8 p-0 text-white hover:bg-white/20"
-    >
+    <Button size="sm" variant="ghost" onClick={onToggleFullscreen} className="w-8 h-8 p-0 text-white hover:bg-white/20">
       {isFullscreen ? <TbMinimize size={16} /> : <TbMaximize size={16} />}
     </Button>
-  )
-}
+  );
+};
 
 interface MediaControlsProps {
-  isPlaying: boolean
-  currentTime: number
-  duration: number
-  volume: number
-  playbackRate: number
-  isFullscreen: boolean
-  showControls: boolean
-  onTogglePlay: () => void
-  onSeek: (time: number) => void
-  onVolumeChange: (volume: number) => void
-  onPlaybackRateChange: (rate: number) => void
-  onToggleFullscreen: () => void
-  onMouseEnter?: () => void
-  onMouseLeave?: () => void
-  type: 'video' | 'audio'
+  isPlaying: boolean;
+  currentTime: number;
+  duration: number;
+  volume: number;
+  playbackRate: number;
+  isFullscreen: boolean;
+  showControls: boolean;
+  onTogglePlay: () => void;
+  onSeek: (time: number) => void;
+  onVolumeChange: (volume: number) => void;
+  onPlaybackRateChange: (rate: number) => void;
+  onToggleFullscreen: () => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
+  type: 'video' | 'audio';
 }
 
 export const MediaControls: React.FC<MediaControlsProps> = ({
@@ -298,33 +270,36 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
   onMouseLeave,
   type
 }) => {
-  const [previousVolume, setPreviousVolume] = useState(1) // 记住静音前的音量
+  const [previousVolume, setPreviousVolume] = useState(1); // 记住静音前的音量
 
   // 音量变化处理（包含记忆逻辑）
-  const handleVolumeChange = useCallback((newVolume: number) => {
-    onVolumeChange(newVolume)
-    // 更新记忆的音量（只有在非静音时更新）
-    if (newVolume > 0) {
-      setPreviousVolume(newVolume)
-    }
-  }, [onVolumeChange])
+  const handleVolumeChange = useCallback(
+    (newVolume: number) => {
+      onVolumeChange(newVolume);
+      // 更新记忆的音量（只有在非静音时更新）
+      if (newVolume > 0) {
+        setPreviousVolume(newVolume);
+      }
+    },
+    [onVolumeChange]
+  );
 
   // 切换静音状态
   const toggleMute = useCallback(() => {
     if (volume === 0) {
       // 如果当前是静音，恢复到之前的音量
-      onVolumeChange(previousVolume)
+      onVolumeChange(previousVolume);
     } else {
       // 如果当前有音量，先记住当前音量，然后设置为静音
-      setPreviousVolume(volume)
-      onVolumeChange(0)
+      setPreviousVolume(volume);
+      onVolumeChange(0);
     }
-  }, [volume, previousVolume, onVolumeChange])
+  }, [volume, previousVolume, onVolumeChange]);
 
   // 开始拖拽进度条
   const handleSeekStart = useCallback(() => {
     // 拖拽开始时不需要特殊处理
-  }, [])
+  }, []);
 
   // 结束拖拽进度条
   const handleSeekEnd = useCallback(() => {
@@ -332,66 +307,33 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
     if (!isPlaying) {
       // 如果当前是暂停状态，则开始播放
       setTimeout(() => {
-        onTogglePlay()
-      }, 100)
+        onTogglePlay();
+      }, 100);
     }
     // 如果当前已经是播放状态，则不需要做任何操作
-  }, [isPlaying, onTogglePlay])
+  }, [isPlaying, onTogglePlay]);
 
-  const controlsClass = type === 'video'
-    ? `absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'
-    }`
-    : 'flex items-center justify-between gap-3 p-3 bg-background/90 rounded-lg border'
+  const controlsClass =
+    type === 'video'
+      ? `absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`
+      : 'flex items-center justify-between gap-3 p-3 bg-background/90 rounded-lg border';
 
   return (
-    <div
-      className={controlsClass}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-    >
+    <div className={controlsClass} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
       {/* 进度条 */}
-      <ProgressSlider
-        currentTime={currentTime}
-        duration={duration}
-        onSeek={onSeek}
-        onSeekStart={handleSeekStart}
-        onSeekEnd={handleSeekEnd}
-        type={type}
-      />
+      <ProgressSlider currentTime={currentTime} duration={duration} onSeek={onSeek} onSeekStart={handleSeekStart} onSeekEnd={handleSeekEnd} type={type} />
 
       {/* 控制按钮 */}
       <div className="flex items-center justify-between">
         <div className="flex items-center">
-          <PlayPauseButton
-            isPlaying={isPlaying}
-            onTogglePlay={onTogglePlay}
-            type={type}
-          />
-          <VolumeControl
-            volume={volume}
-            onVolumeChange={handleVolumeChange}
-            onToggleMute={toggleMute}
-            type={type}
-          />
-          <TimeDisplay
-            currentTime={currentTime}
-            duration={duration}
-            type={type}
-          />
+          <PlayPauseButton isPlaying={isPlaying} onTogglePlay={onTogglePlay} type={type} />
+          <VolumeControl volume={volume} onVolumeChange={handleVolumeChange} onToggleMute={toggleMute} type={type} />
+          <TimeDisplay currentTime={currentTime} duration={duration} type={type} />
         </div>
 
         <div className="flex items-center gap-2">
-          <PlaybackRateControl
-            playbackRate={playbackRate}
-            onPlaybackRateChange={onPlaybackRateChange}
-            type={type}
-          />
-          {type === 'video' && (
-            <FullscreenButton
-              isFullscreen={isFullscreen}
-              onToggleFullscreen={onToggleFullscreen}
-            />
-          )}
+          <PlaybackRateControl playbackRate={playbackRate} onPlaybackRateChange={onPlaybackRateChange} type={type} />
+          {type === 'video' && <FullscreenButton isFullscreen={isFullscreen} onToggleFullscreen={onToggleFullscreen} />}
         </div>
       </div>
 
@@ -438,5 +380,5 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
         }
       `}</style>
     </div>
-  )
-}
+  );
+};

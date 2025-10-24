@@ -31,7 +31,7 @@ const TaggingPage: React.FC = () => {
   const canStart = useMemo(() => confirmed && segments.length > 0 && !running && !!providerId && !!instanceId, [confirmed, segments, running, providerId, instanceId]);
 
   const doSegment = () => {
-    const segs = (useSmart ? smartChunks(input, maxChars, overlap) : chunkText(input, maxChars, overlap));
+    const segs = useSmart ? smartChunks(input, maxChars, overlap) : chunkText(input, maxChars, overlap);
     setSegments(segs);
     setConfirmed(false);
     setFinalTags(null);
@@ -54,10 +54,10 @@ const TaggingPage: React.FC = () => {
       stream: true,
       messages: [{ role: 'user', content: input }],
       extras: {
-        segments: segments.map(s => s.content),
+        segments: segments.map((s) => s.content),
         maxLabels,
         startIndex,
-        initialAgg,
+        initialAgg
       }
     } as any;
 
@@ -86,19 +86,21 @@ const TaggingPage: React.FC = () => {
 
   const handlePause = async () => {
     if (!running || !streamRef.current) return;
-    try { await streamRef.current.cancel(); } catch { }
+    try {
+      await streamRef.current.cancel();
+    } catch { }
     // Capture paused index and aggTop as seed
     setPausedAt(progress.index - 1);
     // Convert aggTop to initialAgg seeds (score=1 each) – best-effort resume
-    const seeds: Record<string, number> = Object.fromEntries((progress.aggTop || []).map(t => [t, 1]));
-    setInitialAgg(prev => ({ ...prev, ...seeds }));
+    const seeds: Record<string, number> = Object.fromEntries((progress.aggTop || []).map((t) => [t, 1]));
+    setInitialAgg((prev) => ({ ...prev, ...seeds }));
     setRunning(false);
   };
 
   return (
     <div className="w-full h-full">
       <DragAbleTitle title={<span>🧩 文本分段与总结打标</span>} />
-      <div className='w-full h-[calc(100%-36px)]'>
+      <div className="w-full h-[calc(100%-36px)]">
         {/* Controls */}
         <div className="flex items-center">
           <div className="col-span-12 sm:col-span-4 lg:col-span-3">
@@ -106,35 +108,42 @@ const TaggingPage: React.FC = () => {
             <ServiceInstanceSelect
               providerId={providerId}
               instanceId={instanceId}
-              onChange={(pid, iid) => { setProviderId(pid); setInstanceId(iid) }}
+              onChange={(pid, iid) => {
+                setProviderId(pid);
+                setInstanceId(iid);
+              }}
               buttonVariant="outline"
               className="w-full"
             />
           </div>
           <div className="col-span-4">
             <div className="text-xs text-muted-foreground mb-1">最大标签数</div>
-            <Input type="number" min={1} max={50} value={maxLabels} onChange={e => setMaxLabels(Number(e.target.value))} />
+            <Input type="number" min={1} max={50} value={maxLabels} onChange={(e) => setMaxLabels(Number(e.target.value))} />
           </div>
           <div className="col-span-4">
             <div className="text-xs text-muted-foreground mb-1">分段字符数</div>
-            <Input type="number" min={200} max={4000} value={maxChars} onChange={e => setMaxChars(Number(e.target.value))} />
+            <Input type="number" min={200} max={4000} value={maxChars} onChange={(e) => setMaxChars(Number(e.target.value))} />
           </div>
           <div className="col-span-4">
             <div className="text-xs text-muted-foreground mb-1">重叠</div>
-            <Input type="number" min={0} max={1000} value={overlap} onChange={e => setOverlap(Number(e.target.value))} />
+            <Input type="number" min={0} max={1000} value={overlap} onChange={(e) => setOverlap(Number(e.target.value))} />
           </div>
           <div className="col-span-6 flex items-center gap-2">
-            <input id="smart" type="checkbox" className="accent-black" checked={useSmart} onChange={e => setUseSmart(e.target.checked)} />
-            <label htmlFor="smart" className="text-sm">智能分段</label>
+            <input id="smart" type="checkbox" className="accent-black" checked={useSmart} onChange={(e) => setUseSmart(e.target.checked)} />
+            <label htmlFor="smart" className="text-sm">
+              智能分段
+            </label>
           </div>
           <div className="col-span-6 text-right">
-            <Button variant="secondary" onClick={doSegment}>分段预览</Button>
+            <Button variant="secondary" onClick={doSegment}>
+              分段预览
+            </Button>
           </div>
         </div>
         <div className="w-full flex gap-4" style={{ height: 'calc(100% - 156px)' }}>
           {/* Left panel */}
           <div className="flex flex-col flex-1 gap-3 overflow-y-auto ">
-            <Textarea value={input} onChange={e => setInput(e.target.value)} className="h-full font-mono text-sm box-border resize-none" placeholder="在此粘贴需要打标的长文本..." />
+            <Textarea value={input} onChange={(e) => setInput(e.target.value)} className="h-full font-mono text-sm box-border resize-none" placeholder="在此粘贴需要打标的长文本..." />
           </div>
 
           {/* Right panel: Segments */}
@@ -143,9 +152,11 @@ const TaggingPage: React.FC = () => {
             <div className="flex-1 border rounded-lg">
               <ScrollArea className="h-full">
                 <div className="divide-y">
-                  {segments.map(s => (
+                  {segments.map((s) => (
                     <div key={s.index} className="p-3">
-                      <div className="text-xs text-muted-foreground mb-1">#{s.index + 1} · {s.content.length}字</div>
+                      <div className="text-xs text-muted-foreground mb-1">
+                        #{s.index + 1} · {s.content.length}字
+                      </div>
                       <div className="text-sm whitespace-pre-wrap break-words">{s.content}</div>
                     </div>
                   ))}
@@ -157,12 +168,19 @@ const TaggingPage: React.FC = () => {
         </div>
 
         {/* Progress & Final tags */}
-        <div className="text-sm text-muted-foreground">进度：{progress.index}/{progress.total}，当前Top：{progress.aggTop.join('、') || '-'}{running ? '（运行中）' : ''}</div>
+        <div className="text-sm text-muted-foreground">
+          进度：{progress.index}/{progress.total}，当前Top：{progress.aggTop.join('、') || '-'}
+          {running ? '（运行中）' : ''}
+        </div>
         {finalTags && (
           <div className="mt-2 p-3 border rounded-lg">
             <div className="text-sm font-medium mb-2">最终标签（≤{maxLabels}）</div>
             <div className="flex flex-wrap gap-2">
-              {finalTags.map(t => <span key={t} className="px-2 py-1 rounded-md bg-secondary text-secondary-foreground text-xs">{t}</span>)}
+              {finalTags.map((t) => (
+                <span key={t} className="px-2 py-1 rounded-md bg-secondary text-secondary-foreground text-xs">
+                  {t}
+                </span>
+              ))}
             </div>
           </div>
         )}
@@ -170,17 +188,27 @@ const TaggingPage: React.FC = () => {
         {/* Actions */}
         <div className="flex items-center gap-3">
           <label className="inline-flex items-center gap-2">
-            <input type="checkbox" className="accent-black" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} />
+            <input type="checkbox" className="accent-black" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
             <span className="text-sm text-muted-foreground">我已确认分段结果</span>
           </label>
           <div className="ml-auto flex items-center gap-2">
             {!running && (
               <>
-                <Button disabled={!canStart} onClick={() => handleStart(false)}>开始打标</Button>
-                {pausedAt !== null && <Button variant="outline" onClick={() => handleStart(true)}>继续</Button>}
+                <Button disabled={!canStart} onClick={() => handleStart(false)}>
+                  开始打标
+                </Button>
+                {pausedAt !== null && (
+                  <Button variant="outline" onClick={() => handleStart(true)}>
+                    继续
+                  </Button>
+                )}
               </>
             )}
-            {running && <Button variant="destructive" onClick={handlePause}>暂停</Button>}
+            {running && (
+              <Button variant="destructive" onClick={handlePause}>
+                暂停
+              </Button>
+            )}
           </div>
         </div>
       </div>

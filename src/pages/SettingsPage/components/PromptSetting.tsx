@@ -28,11 +28,11 @@ export default function PromptSetting() {
   }, []);
 
   const startEditTemplate = (t: Template) => {
-    setEditingTmpl(prev => ({ ...prev, [t.id]: { name: t.name, type: t.type, content: t.content } }));
+    setEditingTmpl((prev) => ({ ...prev, [t.id]: { name: t.name, type: t.type, content: t.content } }));
   };
 
   const cancelEditTemplate = (id: string) => {
-    setEditingTmpl(prev => {
+    setEditingTmpl((prev) => {
       const { [id]: _omit, ...rest } = prev;
       return rest;
     });
@@ -41,14 +41,20 @@ export default function PromptSetting() {
   const saveEditTemplate = async (id: string) => {
     const payload = editingTmpl[id];
     if (!payload) return;
-    if (!payload.name.trim()) { alert('名称必填'); return; }
+    if (!payload.name.trim()) {
+      alert('名称必填');
+      return;
+    }
     await (window as any).YUA.ai.updatePromptTemplate(id, payload);
     await refresh();
     cancelEditTemplate(id);
   };
 
   const createTemplate = async () => {
-    if (!newTmpl.name.trim()) { alert('名称必填'); return; }
+    if (!newTmpl.name.trim()) {
+      alert('名称必填');
+      return;
+    }
     await (window as any).YUA.ai.createPromptTemplate(newTmpl);
     setNewTmpl({ name: '', type: 'user', content: '' });
     await refresh();
@@ -72,9 +78,7 @@ export default function PromptSetting() {
 
   const filteredTemplates = useMemo(() => {
     const q = tmplSearch.trim().toLowerCase();
-    return (templates || []).filter(t => (
-      !q || t.name.toLowerCase().includes(q) || t.content.toLowerCase().includes(q)
-    ));
+    return (templates || []).filter((t) => !q || t.name.toLowerCase().includes(q) || t.content.toLowerCase().includes(q));
   }, [templates, tmplSearch]);
 
   return (
@@ -82,12 +86,7 @@ export default function PromptSetting() {
       <div className="flex items-center justify-between mb-2">
         <div className="text-sm font-semibold">提示词模板</div>
         <div className="flex items-center gap-2 mb-2">
-          <Input
-            className="flex-1 h-8"
-            placeholder="搜索名称或内容…"
-            value={tmplSearch}
-            onChange={e => setTmplSearch(e.target.value)}
-          />
+          <Input className="flex-1 h-8" placeholder="搜索名称或内容…" value={tmplSearch} onChange={(e) => setTmplSearch(e.target.value)} />
           {tmplSearch && (
             <Button variant="ghost" size="sm" onClick={() => setTmplSearch('')}>
               清空
@@ -95,24 +94,25 @@ export default function PromptSetting() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <div className="text-xs text-muted-foreground">{filteredTemplates.length} / {templates?.length ?? 0}</div>
-          <Button size="sm" onClick={() => setCreateOpen(true)}>新建</Button>
+          <div className="text-xs text-muted-foreground">
+            {filteredTemplates.length} / {templates?.length ?? 0}
+          </div>
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            新建
+          </Button>
         </div>
       </div>
 
       <ScrollArea className="h-56 pr-1">
         <div className="space-y-2">
-          {filteredTemplates.map(t => {
+          {filteredTemplates.map((t) => {
             const ed = editingTmpl[t.id];
             return (
               <div key={t.id} className="border rounded-md p-2">
                 {ed ? (
                   <div className="grid gap-2 text-xs">
                     <div className="flex items-center gap-2">
-                      <Select
-                        value={ed.type}
-                        onValueChange={(val) => setEditingTmpl(prev => ({ ...prev, [t.id]: { ...ed, type: val as 'system' | 'user' } }))}
-                      >
+                      <Select value={ed.type} onValueChange={(val) => setEditingTmpl((prev) => ({ ...prev, [t.id]: { ...ed, type: val as 'system' | 'user' } }))}>
                         <SelectTrigger className="w-[120px] h-8">
                           <SelectValue />
                         </SelectTrigger>
@@ -121,35 +121,60 @@ export default function PromptSetting() {
                           <SelectItem value="user">用户</SelectItem>
                         </SelectContent>
                       </Select>
-                      <Input className="flex-1 h-8" value={ed.name} onChange={e => setEditingTmpl(prev => ({ ...prev, [t.id]: { ...ed, name: e.target.value } }))} />
+                      <Input className="flex-1 h-8" value={ed.name} onChange={(e) => setEditingTmpl((prev) => ({ ...prev, [t.id]: { ...ed, name: e.target.value } }))} />
                     </div>
-                    <Textarea className="min-h-[70px]" value={ed.content} onChange={e => setEditingTmpl(prev => ({ ...prev, [t.id]: { ...ed, content: e.target.value } }))} />
+                    <Textarea className="min-h-[70px]" value={ed.content} onChange={(e) => setEditingTmpl((prev) => ({ ...prev, [t.id]: { ...ed, content: e.target.value } }))} />
                     <div className="flex gap-2">
-                      <Button size="sm" onClick={() => saveEditTemplate(t.id)}>保存</Button>
-                      <Button size="sm" variant="secondary" onClick={() => cancelEditTemplate(t.id)}>取消</Button>
+                      <Button size="sm" onClick={() => saveEditTemplate(t.id)}>
+                        保存
+                      </Button>
+                      <Button size="sm" variant="secondary" onClick={() => cancelEditTemplate(t.id)}>
+                        取消
+                      </Button>
                     </div>
                   </div>
                 ) : (
                   <div className="flex items-start gap-2">
                     <div className="flex-1 min-w-0">
                       <div className="text-xs text-muted-foreground">[{t.type === 'system' ? '系统' : '用户'}]</div>
-                      <div className="font-medium text-sm truncate" title={t.name}>{t.name}</div>
-                      <div className="text-xs text-muted-foreground line-clamp-2 whitespace-pre-wrap" title={t.content}>{t.content}</div>
+                      <div className="font-medium text-sm truncate" title={t.name}>
+                        {t.name}
+                      </div>
+                      <div className="text-xs text-muted-foreground line-clamp-2 whitespace-pre-wrap" title={t.content}>
+                        {t.content}
+                      </div>
                     </div>
                     <div className="flex flex-col gap-1 text-xs shrink-0">
-                      <Button variant="link" className="h-7 px-0" onClick={() => startEditTemplate(t)}>编辑</Button>
-                      <Button variant="link" className="h-7 px-0 text-foreground" onClick={() => insertHere(t)}>插入</Button>
-                      <Button variant="link" className="h-7 px-0 text-foreground" onClick={async () => { try { await navigator.clipboard.writeText(t.content); alert('已复制'); } catch { alert('复制失败'); } }}>复制</Button>
-                      <Button variant="link" className="h-7 px-0 text-destructive" onClick={() => deleteTemplate(t.id)}>删除</Button>
+                      <Button variant="link" className="h-7 px-0" onClick={() => startEditTemplate(t)}>
+                        编辑
+                      </Button>
+                      <Button variant="link" className="h-7 px-0 text-foreground" onClick={() => insertHere(t)}>
+                        插入
+                      </Button>
+                      <Button
+                        variant="link"
+                        className="h-7 px-0 text-foreground"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(t.content);
+                            alert('已复制');
+                          } catch {
+                            alert('复制失败');
+                          }
+                        }}
+                      >
+                        复制
+                      </Button>
+                      <Button variant="link" className="h-7 px-0 text-destructive" onClick={() => deleteTemplate(t.id)}>
+                        删除
+                      </Button>
                     </div>
                   </div>
                 )}
               </div>
             );
           })}
-          {filteredTemplates.length === 0 && (
-            <div className="text-xs text-muted-foreground text-center py-4">无匹配模板</div>
-          )}
+          {filteredTemplates.length === 0 && <div className="text-xs text-muted-foreground text-center py-4">无匹配模板</div>}
         </div>
       </ScrollArea>
 
@@ -159,11 +184,19 @@ export default function PromptSetting() {
             <DialogTitle>新建模板</DialogTitle>
           </DialogHeader>
           <div className="grid gap-2 text-xs">
-            <Input className="flex-1 h-8" placeholder="模板名称" value={newTmpl.name} onChange={e => setNewTmpl(prev => ({ ...prev, name: e.target.value }))} />
-            <Textarea className="min-h-[120px] block w-full box-border" placeholder="模板内容" value={newTmpl.content} onChange={e => setNewTmpl(prev => ({ ...prev, content: e.target.value }))} />
+            <Input className="flex-1 h-8" placeholder="模板名称" value={newTmpl.name} onChange={(e) => setNewTmpl((prev) => ({ ...prev, name: e.target.value }))} />
+            <Textarea className="min-h-[120px] block w-full box-border" placeholder="模板内容" value={newTmpl.content} onChange={(e) => setNewTmpl((prev) => ({ ...prev, content: e.target.value }))} />
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => { setCreateOpen(false); setNewTmpl({ name: '', type: 'user', content: '' }); }}>取消</Button>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setCreateOpen(false);
+                setNewTmpl({ name: '', type: 'user', content: '' });
+              }}
+            >
+              取消
+            </Button>
             <Button onClick={createTemplate}>创建</Button>
           </DialogFooter>
         </DialogContent>

@@ -1,51 +1,41 @@
-import React, { useState, useCallback } from 'react'
-import { TbPlayerPlay } from 'react-icons/tb'
+import React, { useState, useCallback } from 'react';
+import { TbPlayerPlay } from 'react-icons/tb';
 
 interface CenterPlayButtonProps {
-  isPlaying: boolean
-  onTogglePlay: () => void
-  className?: string
+  isPlaying: boolean;
+  onTogglePlay: () => void;
+  className?: string;
 }
 
-export const CenterPlayButton: React.FC<CenterPlayButtonProps> = ({
-  isPlaying,
-  onTogglePlay,
-  className = ''
-}) => {
-  const [isAnimating, setIsAnimating] = useState(false)
+export const CenterPlayButton: React.FC<CenterPlayButtonProps> = ({ isPlaying, onTogglePlay, className = '' }) => {
+  const [isAnimating, setIsAnimating] = useState(false);
 
   const handleClick = useCallback(() => {
-    if (isPlaying) return // 如果正在播放，不显示按钮
-    
+    if (isPlaying) return; // 如果正在播放，不显示按钮
+
     // 开始动画
-    setIsAnimating(true)
-    
+    setIsAnimating(true);
+
     // 延迟触发播放，让动画有时间执行
     setTimeout(() => {
-      onTogglePlay()
-    }, 150) // 在动画进行到一半时触发播放
-    
+      onTogglePlay();
+    }, 150); // 在动画进行到一半时触发播放
+
     // 动画完成后重置状态
     setTimeout(() => {
-      setIsAnimating(false)
-    }, 300)
-  }, [isPlaying, onTogglePlay])
+      setIsAnimating(false);
+    }, 300);
+  }, [isPlaying, onTogglePlay]);
 
   // 只在暂停时显示按钮
-  if (isPlaying) return null
+  if (isPlaying) return null;
 
   return (
-    <div 
-      className={`absolute inset-0 flex items-center justify-center pointer-events-none ${className}`}
-      onClick={handleClick}
-    >
-      <div 
+    <div className={`absolute inset-0 flex items-center justify-center pointer-events-none ${className}`} onClick={handleClick}>
+      <div
         className={`
           pointer-events-auto cursor-pointer transition-all duration-300 ease-out
-          ${isAnimating 
-            ? 'scale-150 opacity-0' 
-            : 'scale-100 opacity-100 hover:scale-110'
-          }
+          ${isAnimating ? 'scale-150 opacity-0' : 'scale-100 opacity-100 hover:scale-110'}
         `}
         style={{
           background: 'rgba(0, 0, 0, 0.6)',
@@ -55,12 +45,8 @@ export const CenterPlayButton: React.FC<CenterPlayButtonProps> = ({
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)'
         }}
       >
-        <TbPlayerPlay 
-          size={48} 
-          className="text-white ml-1" 
-          style={{ fill: 'white' }}
-        />
+        <TbPlayerPlay size={48} className="text-white ml-1" style={{ fill: 'white' }} />
       </div>
     </div>
-  )
-}
+  );
+};
