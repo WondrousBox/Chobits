@@ -15,11 +15,11 @@ export default function EmbeddingJobsPanel(props: Props) {
 
   useEffect(() => {
     const onJob = (job: Job) => {
-      setJobs(prev => ({ ...prev, [job.id]: job }));
+      setJobs((prev) => ({ ...prev, [job.id]: job }));
     };
     const onProg = (p: { id: string; done: number; total: number }) => {
-      setJobs(prev => {
-        const old = prev[p.id] || { id: p.id, total: p.total, done: 0, status: 'running' } as Job;
+      setJobs((prev) => {
+        const old = prev[p.id] || ({ id: p.id, total: p.total, done: 0, status: 'running' } as Job);
         return { ...prev, [p.id]: { ...old, done: p.done, total: p.total } };
       });
     };
@@ -29,7 +29,10 @@ export default function EmbeddingJobsPanel(props: Props) {
       // 为简化，这里尝试读取 data.id；若不存在，则不更新。
       if ((data as any).id) onProg(data as any);
     });
-    return () => { unsub.current?.(); unsub2.current?.(); };
+    return () => {
+      unsub.current?.();
+      unsub2.current?.();
+    };
   }, []);
 
   const list = useMemo(() => Object.values(jobs).sort((a, b) => a.id.localeCompare(b.id)), [jobs]);
@@ -47,14 +50,16 @@ export default function EmbeddingJobsPanel(props: Props) {
         <div style={{ color: '#888' }}>No jobs</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {list.map(job => {
+          {list.map((job) => {
             const pct = job.total ? Math.round((job.done / job.total) * 100) : 0;
             return (
               <div key={job.id} style={{ border: '1px solid #ddd', padding: 8, borderRadius: 6 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                   <div style={{ fontFamily: 'monospace' }}>{job.id}</div>
                   <div>
-                    <span style={{ marginRight: 12 }}>{pct}% ({job.done}/{job.total})</span>
+                    <span style={{ marginRight: 12 }}>
+                      {pct}% ({job.done}/{job.total})
+                    </span>
                     <span style={{ color: job.status === 'error' ? '#b00' : '#555' }}>{job.status}</span>
                   </div>
                 </div>

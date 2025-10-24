@@ -1,12 +1,12 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import App from './App'
-import { SpritePlayerProvider } from '@/components/AIAssistant/context/SpritePlayerContext'
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+import { SpritePlayerProvider } from '@/components/AIAssistant/context/SpritePlayerContext';
 
-import './index.scss'
-import 'highlight.js/styles/github-dark.css'
+import './index.scss';
+import 'highlight.js/styles/github-dark.css';
 
-import './demos/ipc'
+import './demos/ipc';
 // If you want use Node.js, the`nodeIntegration` needs to be enabled in the Main process.
 // import './demos/node'
 
@@ -15,7 +15,7 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
     <SpritePlayerProvider>
       <App />
     </SpritePlayerProvider>
-  </React.StrictMode>,
-)
+  </React.StrictMode>
+);
 
-postMessage({ payload: 'removeLoading' }, '*')
+postMessage({ payload: 'removeLoading' }, '*');

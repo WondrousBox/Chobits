@@ -1,161 +1,161 @@
-import React, { useState, useEffect, useRef } from 'react'
-import { Button } from '@/components/ui/button'
-import { TbX, TbPlayerPause, TbPlayerPlay, TbDownload, TbCheck, TbAlertCircle, TbClock, TbChevronDown, TbChevronUp } from 'react-icons/tb'
+import React, { useState, useEffect, useRef } from 'react';
+import { Button } from '@/components/ui/button';
+import { TbX, TbPlayerPause, TbDownload, TbCheck, TbAlertCircle, TbClock, TbChevronDown, TbChevronUp } from 'react-icons/tb';
 
 interface DownloadTask {
-  id: string
-  url: string
-  filename?: string
-  status: 'queued' | 'downloading' | 'completed' | 'failed' | 'cancelled'
+  id: string;
+  url: string;
+  filename?: string;
+  status: 'queued' | 'downloading' | 'completed' | 'failed' | 'cancelled';
   progress: {
-    percent?: number
-    totalSize?: string
-    downloadSpeed?: string
-    eta?: string
-    statusText?: string
-  }
-  error?: string
-  videoInfo?: any
+    percent?: number;
+    totalSize?: string;
+    downloadSpeed?: string;
+    eta?: string;
+    statusText?: string;
+  };
+  error?: string;
+  videoInfo?: any;
 }
 
 const DownloadFloating: React.FC = () => {
-  const [tasks, setTasks] = useState<DownloadTask[]>([])
-  const [isVisible, setIsVisible] = useState(false)
-  const [isCollapsed, setIsCollapsed] = useState(false)
-  const containerRef = useRef<HTMLDivElement>(null)
+  const [tasks, setTasks] = useState<DownloadTask[]>([]);
+  const [isVisible, setIsVisible] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    console.log('[DownloadFloating] 组件已挂载，开始监听事件')
-    
+    console.log('[DownloadFloating] 组件已挂载，开始监听事件');
+
     // 监听下载任务进度
     const handleTaskProgress = (_: any, task: DownloadTask) => {
-      console.log('[DownloadFloating] 收到任务进度:', task.id, task.progress)
-      setTasks(prev => {
-        const updated = prev.map(t => t.id === task.id ? task : t)
-        return updated
-      })
-    }
+      console.log('[DownloadFloating] 收到任务进度:', task.id, task.progress);
+      setTasks((prev) => {
+        const updated = prev.map((t) => (t.id === task.id ? task : t));
+        return updated;
+      });
+    };
 
     // 监听任务开始
     const handleTaskStarted = (_: any, task: DownloadTask) => {
-      console.log('[DownloadFloating] 收到任务开始:', task.id)
-      setTasks(prev => {
-        const exists = prev.find(t => t.id === task.id)
+      console.log('[DownloadFloating] 收到任务开始:', task.id);
+      setTasks((prev) => {
+        const exists = prev.find((t) => t.id === task.id);
         if (!exists) {
-          return [...prev, task]
+          return [...prev, task];
         }
-        return prev.map(t => t.id === task.id ? task : t)
-      })
-      setIsVisible(true)
-    }
+        return prev.map((t) => (t.id === task.id ? task : t));
+      });
+      setIsVisible(true);
+    };
 
     // 监听任务完成
     const handleTaskCompleted = (_: any, task: DownloadTask) => {
-      setTasks(prev => prev.map(t => t.id === task.id ? task : t))
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? task : t)));
       // 3秒后自动隐藏
       setTimeout(() => {
-        setTasks(prev => {
-          const filtered = prev.filter(t => t.id !== task.id)
+        setTasks((prev) => {
+          const filtered = prev.filter((t) => t.id !== task.id);
           if (filtered.length === 0) {
-            setIsVisible(false)
+            setIsVisible(false);
           }
-          return filtered
-        })
-      }, 3000)
-    }
+          return filtered;
+        });
+      }, 3000);
+    };
 
     // 监听任务失败
     const handleTaskFailed = (_: any, task: DownloadTask) => {
-      setTasks(prev => prev.map(t => t.id === task.id ? task : t))
-    }
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? task : t)));
+    };
 
     // 监听窗口数据
     const handleWindowData = (_: any, data: any) => {
       if (data && data.task) {
-        setTasks([data.task])
-        setIsVisible(true)
+        setTasks([data.task]);
+        setIsVisible(true);
       }
-    }
+    };
 
     // 注册事件监听器
-    window.ipcRenderer?.on('video-downloader:task-progress', handleTaskProgress)
-    window.ipcRenderer?.on('video-downloader:task-started', handleTaskStarted)
-    window.ipcRenderer?.on('video-downloader:task-completed', handleTaskCompleted)
-    window.ipcRenderer?.on('video-downloader:task-failed', handleTaskFailed)
-    window.ipcRenderer?.on('openWindowReadyData', handleWindowData)
+    window.ipcRenderer?.on('video-downloader:task-progress', handleTaskProgress);
+    window.ipcRenderer?.on('video-downloader:task-started', handleTaskStarted);
+    window.ipcRenderer?.on('video-downloader:task-completed', handleTaskCompleted);
+    window.ipcRenderer?.on('video-downloader:task-failed', handleTaskFailed);
+    window.ipcRenderer?.on('openWindowReadyData', handleWindowData);
 
     return () => {
-      window.ipcRenderer?.off('video-downloader:task-progress', handleTaskProgress)
-      window.ipcRenderer?.off('video-downloader:task-started', handleTaskStarted)
-      window.ipcRenderer?.off('video-downloader:task-completed', handleTaskCompleted)
-      window.ipcRenderer?.off('video-downloader:task-failed', handleTaskFailed)
-      window.ipcRenderer?.off('openWindowReadyData', handleWindowData)
-    }
-  }, [])
+      window.ipcRenderer?.off('video-downloader:task-progress', handleTaskProgress);
+      window.ipcRenderer?.off('video-downloader:task-started', handleTaskStarted);
+      window.ipcRenderer?.off('video-downloader:task-completed', handleTaskCompleted);
+      window.ipcRenderer?.off('video-downloader:task-failed', handleTaskFailed);
+      window.ipcRenderer?.off('openWindowReadyData', handleWindowData);
+    };
+  }, []);
 
   const handleCancel = (taskId: string) => {
-    window.ipcRenderer?.invoke('video-downloader:cancel', taskId)
-    setTasks(prev => prev.filter(t => t.id !== taskId))
+    window.ipcRenderer?.invoke('video-downloader:cancel', taskId);
+    setTasks((prev) => prev.filter((t) => t.id !== taskId));
     if (tasks.length === 1) {
-      setIsVisible(false)
+      setIsVisible(false);
     }
-  }
+  };
 
   const handleClose = () => {
-    setIsVisible(false)
+    setIsVisible(false);
     // 关闭窗口
-    window.ipcRenderer?.send('download-floating:close')
-  }
+    window.ipcRenderer?.send('download-floating:close');
+  };
 
   const handleCollapse = () => {
-    setIsCollapsed(!isCollapsed)
-  }
+    setIsCollapsed(!isCollapsed);
+  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'downloading':
-        return <TbDownload className="w-4 h-4 text-blue-500 animate-pulse" />
+        return <TbDownload className="w-4 h-4 text-blue-500 animate-pulse" />;
       case 'completed':
-        return <TbCheck className="w-4 h-4 text-green-500" />
+        return <TbCheck className="w-4 h-4 text-green-500" />;
       case 'failed':
-        return <TbAlertCircle className="w-4 h-4 text-red-500" />
+        return <TbAlertCircle className="w-4 h-4 text-red-500" />;
       case 'cancelled':
-        return <TbX className="w-4 h-4 text-gray-500" />
+        return <TbX className="w-4 h-4 text-gray-500" />;
       case 'queued':
-        return <TbClock className="w-4 h-4 text-yellow-500" />
+        return <TbClock className="w-4 h-4 text-yellow-500" />;
       default:
-        return <TbDownload className="w-4 h-4 text-blue-500" />
+        return <TbDownload className="w-4 h-4 text-blue-500" />;
     }
-  }
+  };
 
   const getStatusText = (task: DownloadTask) => {
     if (task.status === 'downloading' && task.progress.statusText) {
-      return task.progress.statusText
+      return task.progress.statusText;
     }
     switch (task.status) {
       case 'queued':
-        return '等待中...'
+        return '等待中...';
       case 'downloading':
-        return '下载中...'
+        return '下载中...';
       case 'completed':
-        return '下载完成'
+        return '下载完成';
       case 'failed':
-        return '下载失败'
+        return '下载失败';
       case 'cancelled':
-        return '已取消'
+        return '已取消';
       default:
-        return '未知状态'
+        return '未知状态';
     }
-  }
+  };
 
   if (!isVisible || tasks.length === 0) {
-    return null
+    return null;
   }
 
-  const currentTask = tasks[0] // 显示第一个任务
+  const currentTask = tasks[0]; // 显示第一个任务
 
   return (
-    <div 
+    <div
       ref={containerRef}
       className={`fixed top-5 right-5 w-80 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-white/30 z-[10000] transition-all duration-300 ease-in-out select-none hover:shadow-2xl hover:-translate-y-1 ${isCollapsed ? 'h-12' : ''}`}
     >
@@ -165,20 +165,10 @@ const DownloadFloating: React.FC = () => {
           <span className="text-sm font-semibold text-gray-800">下载进度</span>
         </div>
         <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-7 h-7 p-0 hover:bg-gray-100 rounded-lg"
-            onClick={handleCollapse}
-          >
+          <Button variant="ghost" size="sm" className="w-7 h-7 p-0 hover:bg-gray-100 rounded-lg" onClick={handleCollapse}>
             {isCollapsed ? <TbChevronDown className="w-4 h-4" /> : <TbChevronUp className="w-4 h-4" />}
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-7 h-7 p-0 hover:bg-gray-100 rounded-lg"
-            onClick={handleClose}
-          >
+          <Button variant="ghost" size="sm" className="w-7 h-7 p-0 hover:bg-gray-100 rounded-lg" onClick={handleClose}>
             <TbX className="w-4 h-4" />
           </Button>
         </div>
@@ -199,7 +189,7 @@ const DownloadFloating: React.FC = () => {
           {currentTask.status === 'downloading' && currentTask.progress.percent !== undefined && (
             <div className="mb-3">
               <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden mb-2">
-                <div 
+                <div
                   className="h-full bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700 rounded-full transition-all duration-500 ease-out relative"
                   style={{ width: `${currentTask.progress.percent}%` }}
                 >
@@ -235,34 +225,19 @@ const DownloadFloating: React.FC = () => {
 
           <div className="flex justify-end gap-2">
             {currentTask.status === 'downloading' && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleCancel(currentTask.id)}
-                className="text-xs px-3 py-1.5 h-8 hover:bg-red-50 hover:border-red-200 hover:text-red-600"
-              >
+              <Button variant="outline" size="sm" onClick={() => handleCancel(currentTask.id)} className="text-xs px-3 py-1.5 h-8 hover:bg-red-50 hover:border-red-200 hover:text-red-600">
                 <TbPlayerPause className="w-3 h-3 mr-1" />
                 取消
               </Button>
             )}
             {currentTask.status === 'completed' && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleCancel(currentTask.id)}
-                className="text-xs px-3 py-1.5 h-8 hover:bg-green-50 hover:border-green-200 hover:text-green-600"
-              >
+              <Button variant="outline" size="sm" onClick={() => handleCancel(currentTask.id)} className="text-xs px-3 py-1.5 h-8 hover:bg-green-50 hover:border-green-200 hover:text-green-600">
                 <TbCheck className="w-3 h-3 mr-1" />
                 关闭
               </Button>
             )}
             {currentTask.status === 'failed' && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleCancel(currentTask.id)}
-                className="text-xs px-3 py-1.5 h-8 hover:bg-gray-50"
-              >
+              <Button variant="outline" size="sm" onClick={() => handleCancel(currentTask.id)} className="text-xs px-3 py-1.5 h-8 hover:bg-gray-50">
                 <TbX className="w-3 h-3 mr-1" />
                 关闭
               </Button>
@@ -271,7 +246,7 @@ const DownloadFloating: React.FC = () => {
         </div>
       )}
     </div>
-  )
-}
+  );
+};
 
-export default DownloadFloating
+export default DownloadFloating;
