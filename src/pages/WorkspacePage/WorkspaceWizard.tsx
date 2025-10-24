@@ -3,18 +3,16 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { TbArrowLeft, TbArrowRight, TbFolderOpen } from 'react-icons/tb';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-import { DefaultWorkspaceName } from '../../../electron/main/config';
 import SuccessResult from '../../components/common/SuccessResult';
+import { Workspace } from 'electron/preload/apis/workspace';
 
 const WorkspaceWizard: React.FC = () => {
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   // 数据就绪后再开始渲染（防止首次渲染出现面板切换动画闪烁）
   const [ready, setReady] = useState(false);
-  const [pickedPath, setPickedPath] = useState<string>('');
   const [name, setName] = useState<string>('');
   const [busy, setBusy] = useState(false);
   const [hint, setHint] = useState<string>('');
-  const [suggested, setSuggested] = useState<string>('');
   const [showCreateForm, setShowCreateForm] = useState<boolean>(false);
   const [created, setCreated] = useState(false);
 
@@ -25,10 +23,10 @@ const WorkspaceWizard: React.FC = () => {
         const list = await window.YUA.workspace['workspace:list']({ filter: { deletedAt: 0 } as any, limit: 100, offset: 0 });
         if (!mounted) return;
         setWorkspaces(list);
-        // 如果已有工作空间，则直接展示创建表单（不显示快速面板，避免动画切换）
-        if (list.length > 0) setShowCreateForm(true);
-        const res = await window.YUA.window.suggestWorkspacePath().catch(() => null);
-        if (mounted && res?.ok && res.path) setSuggested(res.path);
+        if (list.length > 0) {
+          // 如果已有工作空间，则直接展示创建表单（不显示快速面板，避免动画切换）
+          setShowCreateForm(true);
+        }
       } finally {
         if (mounted) setReady(true);
       }
@@ -38,71 +36,66 @@ const WorkspaceWizard: React.FC = () => {
     };
   }, []);
 
-  const onPickDir = async () => {
-    setHint('');
+  const handleCreate = async (): Promise<void> => {
     const pick = await window.YUA.file['file:pickDir']({ allowCreate: true });
     if (pick.canceled || !pick.path) return;
-    setPickedPath(pick.path);
-  };
-
-  const createWith = async (rootPath: string, wsName?: string) => {
-    if (!rootPath) {
-      setHint('请选择或输入一个有效的路径');
+    if (!name) {
+      setHint('名称不能为空');
       return;
     }
     setBusy(true);
     setHint('');
     try {
-      if (!wsName) {
-        setHint('名称不能为空');
-        return;
-      }
       const res = await window.YUA.workspace['workspace:add']({
         workspace: {
-          name: wsName,
-          rootPath,
+          name: name,
+          rootPath: pick.path,
           isDefault: workspaces.length ? 0 : 1,
           status: 'active'
         }
       });
-      console.log(res);
-      if (res.success && res.data) {
-        if (workspaces.length === 0) await window.YUA.workspace['workspace:setDefault']({ id: res.data.id });
-        setCreated(true);
-        // 300ms 动画 + 额外 1000ms 停留后关闭 (总 ~1300ms) 交由组件 autoClose 控制也可，这里保留旧逻辑以保持行为一致
-        setTimeout(() => {
-          try {
-            window.YUA.window.closeWindow('workspaceWizard');
-          } catch { }
-        }, 2300);
-      }
+      await handleCreateResult(res);
     } catch (e) {
+      console.log(e);
       setHint('创建失败，请更换路径或稍后再试');
     } finally {
       setBusy(false);
     }
   };
 
-  const handleCreate = async () => {
+  const onQuickCreate = async (): Promise<void> => {
+    setBusy(true);
     setHint('');
-    const pick = await window.YUA.file['file:pickDir']({ allowCreate: true });
-    if (pick.canceled || !pick.path) return;
-    await createWith(pick.path, name || undefined);
+    try {
+      const res = await window.YUA.workspace['workspace:quickStart']();
+      await handleCreateResult(res);
+    } catch (e) {
+      console.log(e);
+      setHint('创建失败，请更换路径或稍后再试');
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const onQuickCreate = async () => {
-    if (!suggested) return onPickDir();
-    await createWith(suggested, DefaultWorkspaceName);
+  const handleCreateResult = async (res: { success: boolean; data?: Workspace }): Promise<void> => {
+    console.log(res);
+    if (res.success && res.data) {
+      if (workspaces.length === 0) await window.YUA.workspace['workspace:setDefault']({ id: res.data.id });
+      setCreated(true);
+      // 300ms 动画 + 额外 1000ms 停留后关闭 (总 ~1300ms) 交由组件 autoClose 控制也可，这里保留旧逻辑以保持行为一致
+      setTimeout(() => {
+        window.YUA.window.closeWindow('workspaceWizard');
+      }, 2300);
+    }
   };
 
-  const onCreateNew = () => {
-    setPickedPath('');
+  const onCreateNew = (): void => {
     setName('');
     setHint('');
     setShowCreateForm(true);
   };
 
-  const onBack = () => {
+  const onBack = (): void => {
     if (workspaces.length > 0) return; // cannot go back when existing workspaces present
     setHint('');
     setShowCreateForm(false);
@@ -136,7 +129,7 @@ const WorkspaceWizard: React.FC = () => {
         <div className="text-xl mb-2">🗂 创建工作空间</div>
         <div className="text-xs text-muted-foreground">选择一个本地文件夹用于集中存放数据</div>
         <div className="relative mt-4">
-          {showQuickPanel || showCreateForm ? (
+          {(showQuickPanel || showCreateForm) && (
             <AnimatePresence initial={false} mode="wait">
               {showQuickPanel && (
                 <motion.div
@@ -148,9 +141,10 @@ const WorkspaceWizard: React.FC = () => {
                 >
                   <div className="mt-6 w-80 no-drag flex flex-col gap-2 mx-auto">
                     <Button onClick={onQuickCreate} disabled={busy}>
-                      快速开始 {suggested ? '' : '…'} <TbArrowRight />
+                      快速开始 <TbArrowRight />
                     </Button>
                     <Button variant="outline" disabled={busy} onClick={onCreateNew}>
+                      {' '}
                       创建新空间
                     </Button>
                   </div>
@@ -181,7 +175,7 @@ const WorkspaceWizard: React.FC = () => {
                 </motion.div>
               )}
             </AnimatePresence>
-          ) : null}
+          )}
         </div>
       </div>
     </div>
