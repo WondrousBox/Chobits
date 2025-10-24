@@ -39,6 +39,8 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
   const [isSubMenuOpen, setIsSubMenuOpen] = useState(false);
   const [activeParentIndex, setActiveParentIndex] = useState<number | null>(null);
   const [subSelectedIndex, setSubSelectedIndex] = useState(0);
+  // When returning from level-2 to level-1, skip staggered entrance animation for level-1 items
+  const [skipL1Stagger, setSkipL1Stagger] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const { level1, level2 } = { ...defaultRadii, ...(radii ?? {}) } as Required<typeof defaultRadii>;
@@ -60,6 +62,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
       // ESC to close / back
       if (e.key === 'Escape') {
         if (isSubMenuOpen) {
+          setSkipL1Stagger(true);
           setIsSubMenuOpen(false);
           setActiveParentIndex(null);
           return;
@@ -139,6 +142,14 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [open, selectedIndex, subSelectedIndex, isSubMenuOpen, activeParentIndex, items, onClose]);
 
+  // Reset the one-shot flag after level-1 is shown again
+  useEffect(() => {
+    if (!isSubMenuOpen && skipL1Stagger) {
+      const id = setTimeout(() => setSkipL1Stagger(false), 0);
+      return () => clearTimeout(id);
+    }
+  }, [isSubMenuOpen, skipL1Stagger]);
+
   const getItemPosition = (index: number, total: number, radius: number): { x: number; y: number } => {
     const angle = (index * 2 * Math.PI) / Math.max(total, 1) - Math.PI / 2; // start from top
     const x = Math.cos(angle) * radius;
@@ -169,6 +180,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
         transition={{ duration: 0.2 }}
         onClick={() => {
           if (isSubMenuOpen) {
+            setSkipL1Stagger(true);
             setIsSubMenuOpen(false);
             setActiveParentIndex(null);
           } else {
@@ -181,6 +193,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
           className="absolute inset-0"
           onClick={() => {
             if (isSubMenuOpen) {
+              setSkipL1Stagger(true);
               setIsSubMenuOpen(false);
               setActiveParentIndex(null);
             } else {
@@ -235,7 +248,8 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
                       initial={{ scale: 0, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
                       exit={{ scale: 0, opacity: 0 }}
-                      transition={{ type: 'spring', delay: index * 0.06, duration: 0.5, layout: { duration: 0.35 } }}
+                      // Skip staggered delay when returning from level-2 to level-1
+                      transition={{ type: 'spring', delay: skipL1Stagger ? 0 : index * 0.06, duration: 0.5, layout: { duration: 0.35 } }}
                       onClick={(e) => {
                         e.stopPropagation();
                         if (item.children && item.children.length > 0) {
@@ -277,6 +291,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
                   transition={{ type: 'spring', duration: 0.4, layout: { duration: 0.35 } }}
                   onClick={(e) => {
                     e.stopPropagation();
+                    setSkipL1Stagger(true);
                     setIsSubMenuOpen(false);
                     setActiveParentIndex(null);
                   }}
