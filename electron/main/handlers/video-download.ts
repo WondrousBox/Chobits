@@ -3,7 +3,7 @@ import { downloadManager, getVideoInfo, getThumbnail, getSetting, setSetting } f
 import { getMainWindow } from '../index';
 import { windowManager } from '../window/window-manager';
 
-export function initVideoDownloadHandlers(win: BrowserWindow) {
+export function initVideoDownloadHandlers(win: BrowserWindow): void {
   console.log('[VideoDownload] Initializing video download handlers');
 
   // 获取视频信息

@@ -1,16 +1,14 @@
-import { app, BrowserWindow, screen } from 'electron';
+import { BrowserWindow, screen } from 'electron';
 import path from 'node:path';
 import { windowConfigs } from './window-config';
 import { saveWindowState, restoreWindowState } from './window-state-store';
 import { FollowerPreferMode, FollowerSide, WindowConfig, WindowKey } from './types';
 
-const DEV_URL = process.env.VITE_DEV_SERVER_URL;
-const APP_ROOT = process.env.APP_ROOT || app.getAppPath();
-const RENDERER_DIST = path.join(APP_ROOT, 'dist');
+let SERVER_URL = '';
+let RENDERER_DIST = '';
 
-// Assistant intrinsic size
-const ASSISTANT_WIDTH = 180;
-const ASSISTANT_HEIGHT = 220;
+let ANCHOR_WIDTH = -1;
+let ANCHOR_HEIGHT = -1;
 
 // 计算跟随窗口位置的函数
 function computeFollowerPosition(
@@ -19,10 +17,10 @@ function computeFollowerPosition(
   preferMode?: FollowerPreferMode,
   assistantPadding: number = 100,
   forceCenterAlignment: boolean = false
-) {
+): { x: number; y: number; side: FollowerSide } {
   const gap = 12;
   const padding = assistantPadding;
-  const anchor = { x: main.x + padding, y: main.y + padding, width: ASSISTANT_WIDTH, height: ASSISTANT_HEIGHT };
+  const anchor = { x: main.x + padding, y: main.y + padding, width: ANCHOR_WIDTH === -1 ? main.width : ANCHOR_WIDTH, height: ANCHOR_HEIGHT === -1 ? main.height : ANCHOR_HEIGHT };
   const display = screen.getDisplayNearestPoint({ x: anchor.x + anchor.width / 2, y: anchor.y + anchor.height / 2 });
   const work = display.workArea;
   const mode = preferMode || 'prefer-right';
@@ -82,7 +80,7 @@ function computeFollowerPosition(
   }
   if (valid.length === 0) {
     // 允许越界，找最小出界
-    function overflowArea(c: (typeof candidates)[number]) {
+    function overflowArea(c: (typeof candidates)[number]): number {
       const ox = Math.max(0, work.x - c.x) + Math.max(0, c.x + follower.width - (work.x + work.width));
       const oy = Math.max(0, work.y - c.y) + Math.max(0, c.y + follower.height - (work.y + work.height));
       return ox * follower.height + oy * follower.width;
@@ -107,25 +105,23 @@ const raf = (cb: (ts: number) => void): number => {
   if (hasNativeRaf) return (globalThis as any).requestAnimationFrame(cb);
   return setTimeout(() => cb(performance.now()), 16) as unknown as number;
 };
-const caf = (id: number) => {
+const caf = (id: number): void => {
   if (hasNativeRaf) (globalThis as any).cancelAnimationFrame(id);
   else clearTimeout(id as any);
 };
 
 // Open DevTools automatically in dev/test environments
-const SHOULD_OPEN_DEVTOOLS = !!process.env.VITE_DEV_SERVER_URL || (process.env.NODE_ENV && process.env.NODE_ENV !== 'production');
-function maybeOpenDevTools(w: BrowserWindow | null) {
-  try {
-    if (SHOULD_OPEN_DEVTOOLS && w && !w.isDestroyed()) {
-      // detach mode avoids overlaying frameless/transparent windows
-      w.webContents.openDevTools({ mode: 'detach' });
-    }
-  } catch { }
+const SHOULD_OPEN_DEVTOOLS = !!SERVER_URL || (process.env.NODE_ENV && process.env.NODE_ENV !== 'production');
+function maybeOpenDevTools(w: BrowserWindow | null): void {
+  if (SHOULD_OPEN_DEVTOOLS && w && !w.isDestroyed()) {
+    // detach mode avoids overlaying frameless/transparent windows
+    w.webContents.openDevTools({ mode: 'detach' });
+  }
 }
 
 export class WindowManager {
   private static _instance: WindowManager | null = null;
-  static get instance() {
+  static get instance(): WindowManager {
     if (!this._instance) this._instance = new WindowManager();
     return this._instance;
   }
@@ -153,13 +149,29 @@ export class WindowManager {
     options: {
       preloadPath?: string;
       assistantPadding?: number;
+      anchorWidth?: number;
+      anchorHeight?: number;
+      serverUrl?: string;
+      rendererDist?: string;
       onBeforeFollowerShow?: () => void;
       onAfterFollowerHide?: () => void;
     }
-  ) {
+  ): void {
     this.mainWindow = mainWindow;
     this.preloadPath = options.preloadPath || (mainWindow as any).__preloadPath;
 
+    if (options.anchorWidth !== undefined) {
+      ANCHOR_WIDTH = options.anchorWidth;
+    }
+    if (options.anchorHeight !== undefined) {
+      ANCHOR_HEIGHT = options.anchorHeight;
+    }
+    if (options.serverUrl) {
+      SERVER_URL = options.serverUrl;
+    }
+    if (options.rendererDist) {
+      RENDERER_DIST = options.rendererDist;
+    }
     // 设置初始助手内边距
     if (options.assistantPadding !== undefined) {
       this.assistantPadding = options.assistantPadding;
@@ -172,7 +184,7 @@ export class WindowManager {
     this.setupMainWindowTracking();
   }
 
-  private setupMainWindowTracking() {
+  private setupMainWindowTracking(): void {
     if (!this.mainWindow) return;
 
     // 监听主窗口移动和大小变化
@@ -180,7 +192,7 @@ export class WindowManager {
     this.mainWindow.on('resize', () => this.updateFollowerPositions());
   }
 
-  private updateFollowerPositions() {
+  private updateFollowerPositions(): void {
     if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
 
     const mainBounds = this.mainWindow.getBounds();
@@ -194,7 +206,7 @@ export class WindowManager {
     });
   }
 
-  private repositionFollowerWindow(windowKey: WindowKey, window: BrowserWindow, mainBounds: Electron.Rectangle) {
+  private repositionFollowerWindow(windowKey: WindowKey, window: BrowserWindow, mainBounds: Electron.Rectangle): void {
     try {
       const config = windowConfigs[windowKey];
       if (!config || config.followMain !== true) return;
@@ -241,7 +253,7 @@ export class WindowManager {
     }
   }
 
-  private stopFollowerAnimation() {
+  private stopFollowerAnimation(): void {
     if (this.followerAnimTimer) {
       clearInterval(this.followerAnimTimer);
       this.followerAnimTimer = null;
@@ -249,12 +261,14 @@ export class WindowManager {
     if (this.followerAnimRaf !== null) {
       try {
         caf(this.followerAnimRaf);
-      } catch { }
+      } catch {
+        //
+      }
       this.followerAnimRaf = null;
     }
   }
 
-  private animateFollowerTo(windowKey: WindowKey, window: BrowserWindow, target: { x: number; y: number }, noAnimation?: boolean) {
+  private animateFollowerTo(windowKey: WindowKey, window: BrowserWindow, target: { x: number; y: number }, noAnimation?: boolean): void {
     if (!window || window.isDestroyed()) return;
     if (noAnimation) {
       window.setPosition(target.x, target.y);
@@ -276,7 +290,7 @@ export class WindowManager {
       // 动画时长与距离相关（像素 / 3 但限制范围）
       this.followerAnimDur = Math.min(400, Math.max(160, dist * 3));
       this.followerAnimStart = performance.now();
-      const step = (now: number) => {
+      const step = (now: number): void => {
         if (!window || window.isDestroyed()) {
           this.stopFollowerAnimation();
           return;
@@ -303,11 +317,13 @@ export class WindowManager {
       // 失败时直接跳到目标
       try {
         window?.setPosition(target.x, target.y);
-      } catch { }
+      } catch {
+        //
+      }
     }
   }
 
-  get(key: WindowKey) {
+  get(key: WindowKey): BrowserWindow | null {
     const w = this.registry.get(key);
     return w && !w.isDestroyed() ? w : null;
   }
@@ -323,12 +339,16 @@ export class WindowManager {
         w.webContents.once('did-finish-load', () => {
           try {
             w.webContents.send('openWindowReadyData', payload);
-          } catch { }
+          } catch {
+            //
+          }
         });
       } else {
         try {
           w.webContents.send('openWindowReadyData', payload);
-        } catch { }
+        } catch {
+          //
+        }
       }
     }
     try {
@@ -339,17 +359,31 @@ export class WindowManager {
           } catch {
             try {
               w.show();
-            } catch { }
+            } catch {
+              //
+            }
           }
         } else {
           w.show();
         }
       }
-    } catch { }
+    } catch {
+      //
+    }
     try {
       w.focus();
-    } catch { }
+    } catch {
+      //
+    }
     return w;
+  }
+
+  setAnchorWidth(width: number): void {
+    ANCHOR_WIDTH = width;
+  }
+
+  setAnchorHeight(height: number): void {
+    ANCHOR_HEIGHT = height;
   }
 
   async create(key: WindowKey): Promise<BrowserWindow | null> {
@@ -393,10 +427,14 @@ export class WindowManager {
         if (conf.startMaximized) {
           try {
             w.maximize();
-          } catch { }
+          } catch {
+            //
+          }
         }
         w.show();
-      } catch { }
+      } catch {
+        //
+      }
     });
 
     await this.loadRoute(w, conf);
@@ -413,9 +451,13 @@ export class WindowManager {
         setTimeout(() => {
           try {
             w.setBounds({ x, y, width, height });
-          } catch { }
+          } catch {
+            //
+          }
         }, 0);
-      } catch { }
+      } catch {
+        //
+      }
     }
 
     // Close on blur
@@ -423,7 +465,9 @@ export class WindowManager {
       w.on('blur', () => {
         try {
           w.close();
-        } catch { }
+        } catch {
+          //
+        }
       });
     }
 
@@ -437,79 +481,60 @@ export class WindowManager {
         w.on('show', () => {
           try {
             if (!w.isMaximized()) w.maximize();
-          } catch { }
+          } catch {
+            //
+          }
         });
-      } catch { }
+      } catch {
+        //
+      }
     }
 
     return w;
   }
 
-  private setupWindowEventHandlers(w: BrowserWindow, key: WindowKey, conf: WindowConfig) {
-    // Track first manual show for startMaximized when showOnReady === false
-    const firstManualShowPending = true;
-
+  private setupWindowEventHandlers(w: BrowserWindow, key: WindowKey, conf: WindowConfig): void {
     // Broadcast maximize / unmaximize state changes to renderer so UI can update controls
-    try {
-      w.on('maximize', () => {
-        try {
-          w.webContents.send('window-maximize-changed', true);
-        } catch { }
-        // 保存窗口状态
-        if (conf.rememberState) {
-          saveWindowState(w, key);
-        }
-      });
-      w.on('unmaximize', () => {
-        try {
-          w.webContents.send('window-maximize-changed', false);
-        } catch { }
-        // 保存窗口状态
-        if (conf.rememberState) {
-          saveWindowState(w, key);
-        }
-      });
-    } catch { }
+    w.on('maximize', () => {
+      w.webContents.send('window-maximize-changed', true);
+      // 保存窗口状态
+      if (conf.rememberState) {
+        saveWindowState(w, key);
+      }
+    });
+    w.on('unmaximize', () => {
+      w.webContents.send('window-maximize-changed', false);
+      // 保存窗口状态
+      if (conf.rememberState) {
+        saveWindowState(w, key);
+      }
+    });
 
     // 在显示/隐藏时处理 hover 监控暂停/恢复，以及确保 macOS 上对齐
-    try {
-      if (conf.followMain === true) {
-        w.on('show', () => {
-          try {
-            // 某些透明跟随窗口显示时需要暂停 hover 监控，避免穿透计算干扰
-            if (conf.suspendHoverMonitorOnShow) {
-              try {
-                this.onBeforeFollowerShow?.();
-              } catch { }
-            }
-            this.updateFollowerPositions();
-          } catch { }
-        });
-        w.on('hide', () => {
-          try {
-            if (conf.suspendHoverMonitorOnShow) {
-              try {
-                this.onAfterFollowerHide?.();
-              } catch { }
-            }
-          } catch { }
-        });
-        w.on('closed', () => {
-          try {
-            if (conf.suspendHoverMonitorOnShow) {
-              try {
-                this.onAfterFollowerHide?.();
-              } catch { }
-            }
-          } catch { }
-        });
-      }
-    } catch { }
+    if (conf.followMain === true) {
+      w.on('show', () => {
+        // 某些透明跟随窗口显示时需要暂停 hover 监控，避免穿透计算干扰
+        if (conf.suspendHoverMonitorOnShow) {
+          this.onBeforeFollowerShow?.();
+        }
+        this.updateFollowerPositions();
+      });
+      w.on('hide', () => {
+        if (conf.suspendHoverMonitorOnShow) {
+          this.onAfterFollowerHide?.();
+        }
+      });
+      w.on('closed', () => {
+        if (conf.suspendHoverMonitorOnShow) {
+          this.onAfterFollowerHide?.();
+        }
+      });
+    }
 
     // 监听窗口大小和位置变化，保存状态
     if (conf.rememberState) {
       let saveTimeout: NodeJS.Timeout | null = null;
-      const debouncedSave = () => {
+      const debouncedSave = (): void => {
         if (saveTimeout) clearTimeout(saveTimeout);
         saveTimeout = setTimeout(() => {
           saveWindowState(w, key);
@@ -527,21 +552,23 @@ export class WindowManager {
         this.followerWindows.delete(key);
         this.lastFollowerSide.delete(key);
         this.stopFollowerAnimation();
-      } catch { }
+      } catch {
+        //
+      }
     });
   }
 
-  private async loadRoute(w: BrowserWindow, conf: WindowConfig) {
+  private async loadRoute(w: BrowserWindow, conf: WindowConfig): Promise<void> {
     const hash = typeof conf.routeHash === 'function' ? conf.routeHash() : conf.routeHash;
-    if (DEV_URL) {
-      await w.loadURL(`${DEV_URL}#${hash}`);
+    if (SERVER_URL) {
+      await w.loadURL(`${SERVER_URL}#${hash}`);
     } else {
       const indexHtml = path.join(RENDERER_DIST, 'index.html');
       await (w as any).loadFile(indexHtml, { hash });
     }
   }
 
-  private autoCenter(w: BrowserWindow, conf: WindowConfig) {
+  private autoCenter(w: BrowserWindow, conf: WindowConfig): void {
     if (!conf.autoCenterOn || conf.autoCenterOn === 'none') return;
     try {
       let display = screen.getPrimaryDisplay();
@@ -552,15 +579,19 @@ export class WindowManager {
       const work = display.workArea;
       const { width = 400, height = 300 } = w.getBounds();
       w.setPosition(Math.round(work.x + (work.width - width) / 2), Math.round(work.y + (work.height - height) / 2));
-    } catch { }
+    } catch {
+      //
+    }
   }
 
-  async destroy(key: WindowKey) {
+  async destroy(key: WindowKey): Promise<void> {
     const w = this.get(key);
     if (w) {
       try {
         w.destroy();
-      } catch { }
+      } catch {
+        //
+      }
       this.registry.delete(key);
     }
   }
@@ -569,7 +600,7 @@ export class WindowManager {
    * 销毁所有窗口（可选排除指定 key）
    * - 会调用 BrowserWindow.destroy()，并清理内部注册表/跟随集合/方向缓存
    */
-  async destroyAll(exclude: WindowKey[] = []) {
+  async destroyAll(exclude: WindowKey[] = []): Promise<void> {
     const excludeSet = new Set<WindowKey>(exclude);
     const entries = Array.from(this.registry.entries());
     for (const [key, w] of entries) {
@@ -578,56 +609,72 @@ export class WindowManager {
         if (w && !w.isDestroyed()) {
           w.destroy();
         }
-      } catch { }
+      } catch {
+        //
+      }
       // 清理内部状态
       try {
         this.registry.delete(key);
-      } catch { }
+      } catch {
+        //
+      }
       try {
         this.followerWindows.delete(key);
-      } catch { }
+      } catch {
+        //
+      }
       try {
         this.lastFollowerSide.delete(key);
-      } catch { }
+      } catch {
+        //
+      }
     }
     // 停止可能残留的动画
     try {
       this.stopFollowerAnimation();
-    } catch { }
+    } catch {
+      //
+    }
   }
 
-  async show(key: WindowKey) {
+  async show(key: WindowKey): Promise<BrowserWindow | null> {
     const w = this.get(key);
     if (w) {
       try {
         w.show();
         w.focus();
-      } catch { }
+      } catch {
+        //
+      }
     }
     return w;
   }
 
-  async hide(key: WindowKey) {
+  async hide(key: WindowKey): Promise<BrowserWindow | null> {
     const w = this.get(key);
     if (w) {
       try {
         w.hide();
-      } catch { }
+      } catch {
+        //
+      }
     }
     return w;
   }
 
-  async close(key: WindowKey) {
+  async close(key: WindowKey): Promise<BrowserWindow | null> {
     const w = this.get(key);
     if (w) {
       try {
         w.close();
-      } catch { }
+      } catch {
+        //
+      }
     }
     return w;
   }
 
-  all() {
+  all(): Map<WindowKey, BrowserWindow> {
     return new Map(this.registry);
   }
 
@@ -699,8 +746,8 @@ export class WindowManager {
       // 旧的内层角色左上角
       const innerX = b.x + oldPadding;
       const innerY = b.y + oldPadding;
-      const newWidth = ASSISTANT_WIDTH + newPadding * 2;
-      const newHeight = ASSISTANT_HEIGHT + newPadding * 2;
+      const newWidth = ANCHOR_WIDTH + newPadding * 2;
+      const newHeight = ANCHOR_HEIGHT + newPadding * 2;
       const newX = innerX - newPadding;
       const newY = innerY - newPadding;
 
