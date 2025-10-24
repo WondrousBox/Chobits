@@ -5,6 +5,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { TbCheck, TbDotsVertical, TbFolderOpen, TbPlus, TbRefresh, TbScanEye, TbTrash } from 'react-icons/tb';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { maskPath } from '@/utils/helpers';
+import prettyBytes from 'pretty-bytes';
+import { formatRelativeTime } from '@/lib/time';
 
 const Workspace: React.FC = () => {
   const [list, setList] = useState<any[]>([]);
@@ -109,24 +111,6 @@ const Workspace: React.FC = () => {
     }
   };
 
-  function formatSize(bytes?: number): string {
-    if (bytes == null) return '-';
-    if (bytes < 1024) return bytes + ' B';
-    const units = ['KB', 'MB', 'GB', 'TB'];
-    let v = bytes / 1024;
-    let i = 0;
-    while (v >= 1024 && i < units.length - 1) {
-      v /= 1024;
-      i++;
-    }
-    return v.toFixed(v >= 100 ? 0 : v >= 10 ? 1 : 2) + ' ' + units[i];
-  }
-  function formatTime(ts?: number): string {
-    if (!ts) return '-';
-    const d = new Date(ts);
-    return d.toLocaleString();
-  }
-
   const filtered = useMemo(() => {
     const rows = list.slice().sort((a: any, b: any) => (b.isDefault || 0) - (a.isDefault || 0) || (a.name || '').localeCompare(b.name || ''));
     if (!search.trim()) return rows;
@@ -203,7 +187,7 @@ const Workspace: React.FC = () => {
           <div key={ws.id} className="p-2 rounded border border-ring border-solid bg-card text-card-foreground flex flex-col gap-2 relative">
             <div className="flex items-center justify-between">
               <div className="font-semibold text-sm flex items-center gap-2">
-                {ws.isDefault === 1 && <div className="text-primary bg-primary/20 px-2 py-1 rounded-md text-xs">默认</div>}
+                {ws.isDefault === 1 && <div className="text-primary bg-primary/20 px-2 py-1 rounded-md text-xs whitespace-nowrap">默认</div>}
                 {editingId === ws.id ? (
                   <Input
                     autoFocus
@@ -266,8 +250,8 @@ const Workspace: React.FC = () => {
             <div className="text-xs opacity-80 break-all">{maskPath(ws.rootPath)}</div>
             <div className="text-xs flex flex-wrap gap-4 opacity-70">
               <span>文件数: {ws.fileCount ?? '-'}</span>
-              <span>容量: {formatSize(ws.sizeBytes)}</span>
-              {ws.lastScanAt && <span>上次扫描: {formatTime(ws.lastScanAt)}</span>}
+              <span>容量: {prettyBytes(ws.sizeBytes)}</span>
+              {ws.lastScanAt && <span>上次扫描: {formatRelativeTime(ws.lastScanAt)}</span>}
             </div>
             {ws.description && <div className="text-xs opacity-70">{ws.description}</div>}
           </div>
