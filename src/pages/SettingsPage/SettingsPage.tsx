@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { TbDatabase, TbFolderOpen, TbSettings, TbBrain, TbCpu, TbBox, TbFile3D, TbMoodKid } from 'react-icons/tb';
+import { TbDatabase, TbFolderOpen, TbSettings, TbBrain, TbCpu, TbBox, TbFile3D, TbMoodKid, TbFolder, TbMessage2 } from 'react-icons/tb';
 import AiSettings from './components/AiSettings';
 import EmbeddingJobsPanel from '../../components/EmbeddingJobs';
 import DragAbleTitle from '../../components/common/DragAbleTitle';
@@ -9,12 +9,13 @@ import Workspace from './components/Workspace';
 import ModelPage from '../ModelPage/ModelPage';
 import SpriteManager from './components/SpriteManager';
 import PromptSetting from './components/PromptSetting';
+import { Input } from '@/components/ui/input';
 
 // Include assistantPadding in type
 type MovementConfig = { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number };
 
 // 设置分类类型
-type SettingsCategory = 'movement' | 'database' | 'embedding' | 'ai' | 'prompt' | 'external-resource' | 'workspace' | 'model' | 'sprites';
+type SettingsCategory = 'movement' | 'folder' | 'embedding' | 'ai' | 'prompt' | 'external-resource' | 'workspace' | 'model' | 'sprites';
 
 // 设置分类配置
 const settingsCategories: { id: SettingsCategory; label: string; icon: React.ElementType; description: string }[] = [
@@ -25,10 +26,10 @@ const settingsCategories: { id: SettingsCategory; label: string; icon: React.Ele
     description: '角色移动相关设置'
   },
   {
-    id: 'database',
-    label: '数据',
-    icon: TbDatabase,
-    description: '数据相关设置'
+    id: 'folder',
+    label: '文件夹',
+    icon: TbFolder,
+    description: '文件夹相关设置'
   },
   {
     id: 'embedding',
@@ -39,7 +40,7 @@ const settingsCategories: { id: SettingsCategory; label: string; icon: React.Ele
   {
     id: 'ai',
     label: '对话设置',
-    icon: TbCpu,
+    icon: TbMessage2,
     description: 'AI 提供商、API Key、对话参数'
   },
   {
@@ -164,26 +165,16 @@ export const SettingsPage: React.FC = () => {
   // 渲染移动参数设置
   const renderMovementSettings = () => (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 px-2">
         <div className="space-y-4">
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">行走速度 (px/s)</label>
-            <input
-              type="number"
-              value={config?.walkSpeed || 0}
-              onChange={(e) => update({ walkSpeed: +e.target.value })}
-              className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-            />
+            <Input type="number" value={config?.walkSpeed || 0} onChange={(e) => update({ walkSpeed: +e.target.value })} />
           </div>
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">FPS 限制</label>
-            <input
-              type="number"
-              value={config?.fpsLimit || 0}
-              onChange={(e) => update({ fpsLimit: +e.target.value })}
-              className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-            />
+            <Input type="number" value={config?.fpsLimit || 0} onChange={(e) => update({ fpsLimit: +e.target.value })} />
           </div>
 
           <div className="space-y-2">
@@ -202,33 +193,17 @@ export const SettingsPage: React.FC = () => {
         <div className="space-y-4">
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">步进网格 (px)</label>
-            <input
-              type="number"
-              value={config?.stepGrid || 0}
-              onChange={(e) => update({ stepGrid: +e.target.value })}
-              className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-            />
+            <Input type="number" value={config?.stepGrid || 0} onChange={(e) => update({ stepGrid: +e.target.value })} />
           </div>
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">路径弯曲系数</label>
-            <input
-              type="number"
-              step="0.01"
-              value={config?.pathCurveFactor || 0}
-              onChange={(e) => update({ pathCurveFactor: +e.target.value })}
-              className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-            />
+            <Input type="number" step="0.01" value={config?.pathCurveFactor || 0} onChange={(e) => update({ pathCurveFactor: +e.target.value })} />
           </div>
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">角色内边距 (px)</label>
-            <input
-              type="number"
-              value={config?.assistantPadding || 0}
-              onChange={(e) => update({ assistantPadding: +e.target.value })}
-              className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-            />
+            <Input type="number" value={config?.assistantPadding || 0} onChange={(e) => update({ assistantPadding: +e.target.value })} />
           </div>
         </div>
       </div>
@@ -237,23 +212,6 @@ export const SettingsPage: React.FC = () => {
         <Button onClick={persist} disabled={saving} className="px-6 py-2 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
           {saving ? '保存中...' : '保存设置'}
         </Button>
-      </div>
-    </div>
-  );
-
-  // 渲染数据库设置
-  const renderDatabaseSettings = () => (
-    <div className="px-2">
-      <div className="bg-card border border-border rounded-lg p-2">
-        <div className="text-md font-semibold text-foreground">数据库</div>
-        <div className="flex items-center justify-center gap-2 mt-2">
-          <div className="px-3 py-2 bg-muted rounded-md text-sm text-muted-foreground flex-1">用户数据目录/data/</div>
-          <Button variant="outline" onClick={openDatabaseLocation}>
-            {' '}
-            <TbFolderOpen />
-            打开位置
-          </Button>
-        </div>
       </div>
     </div>
   );
@@ -352,8 +310,23 @@ export const SettingsPage: React.FC = () => {
     switch (activeCategory) {
       case 'movement':
         return renderMovementSettings();
-      case 'database':
-        return renderDatabaseSettings();
+      case 'folder':
+        return (
+          <div className="px-2">
+            <div className="bg-card border border-border rounded-lg p-2">
+              <div className="flex items-center text-foreground gap-1">
+                <TbDatabase /> 数据库
+              </div>
+              <div className="flex items-center justify-center gap-2 mt-2">
+                <div className="px-3 py-2 bg-muted rounded-md text-sm text-muted-foreground flex-1">用户数据目录/data/</div>
+                <Button variant="outline" onClick={openDatabaseLocation}>
+                  <TbFolderOpen />
+                  打开位置
+                </Button>
+              </div>
+            </div>
+          </div>
+        );
       case 'embedding':
         return <EmbeddingJobsPanel />;
       case 'workspace':
