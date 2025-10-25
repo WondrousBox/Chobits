@@ -178,6 +178,34 @@ export type ResourceRow = InferSelectModel<typeof resources>;
 export type NewResource = InferInsertModel<typeof resources>;
 
 /**
+ * resource_tags：资源与标签的归一化表
+ * - 冗余资源的 workspaceId 以便快速在工作空间下聚合
+ * - 维持去重约束（resourceId + tag 唯一）与常用索引
+ */
+export const resource_tags = sqliteTable(
+  'resource_tags',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    resourceId: text('resource_id')
+      .references(() => resources.id, { onDelete: 'cascade', onUpdate: 'cascade' })
+      .notNull(),
+    workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+    tag: text('tag').notNull(),
+    createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`)
+  },
+  (t) => ({
+    uqResourceTag: uniqueIndex('uq_resource_tag').on(t.resourceId, t.tag),
+    idxTag: index('idx_resource_tags_tag').on(t.tag),
+    idxWorkspace: index('idx_resource_tags_workspace').on(t.workspaceId)
+  })
+);
+
+export type ResourceTagRow = InferSelectModel<typeof resource_tags>;
+export type NewResourceTag = InferInsertModel<typeof resource_tags>;
+
+/**
  * recycle_bin：统一回收站索引表，仅存索引和快照，不复制原表数据
  * - entityType: 实体类型（如 document/resource）
  * - entityId: 实体主键

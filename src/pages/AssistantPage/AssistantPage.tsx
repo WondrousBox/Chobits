@@ -2,7 +2,6 @@ import { Button } from '@/components/ui/button';
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { TbX, TbDownload, TbWorld, TbLoader2, TbMicrophone } from 'react-icons/tb';
 import ChatInput from '@/components/AIAssistant/ChatInput';
-import { useChatSelection } from '@/components/AIAssistant/context/ChatSelectionContext';
 
 // URL检测函数
 const isVideoUrl = (url: string): boolean => {
@@ -40,8 +39,7 @@ const AssistantPage: React.FC = () => {
   // 控制当实例下拉展开时，暂停自动尺寸调整
   const instanceMenuOpenRef = useRef<boolean>(false);
 
-  // 从全局选择上下文中获取当前 provider/instance（与 ChatInput 的选择保持一致）
-  const { providerId, instanceId } = useChatSelection();
+  // 实例选择由 ChatInput 自行管理；主进程在新增资源后会自动打标签，无需渲染进程参与
 
   const placeholders = [
     '输入问题，如：总结最近导入的 PDF...',
@@ -98,17 +96,7 @@ const AssistantPage: React.FC = () => {
         } as any
       });
 
-      if (res.success) {
-        console.log(res.data);
-        // 使用当前选择的 provider 和 instanceId 进行临时对话（如：打标签）
-        const tagRes = await window.YUA.ai.chatEphemeral({
-          messages: [{ role: 'user', content }],
-          providerId,
-          agentId: 'tagger',
-          providerInstanceId: instanceId || undefined
-        });
-        console.log(tagRes);
-      }
+      if (res.success) console.log(res.data);
     } catch (e) {
       console.warn('[resource] save text failed', e);
     }

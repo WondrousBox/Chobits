@@ -16,6 +16,7 @@ import { InstancesStore } from './instances-store';
 import { PromptsStore } from './prompts-store';
 import { getAllInstanceSecrets as getAllInstSecrets, setInstanceSecrets as setInstSecrets } from './settings-store';
 import { ChatRepo } from '../db/repositories';
+import { TaggingService } from './tagging-service';
 
 export function init(win: BrowserWindow): void {
   // Bootstrapping built-in provider(s) and agent(s)
@@ -33,6 +34,8 @@ export function init(win: BrowserWindow): void {
 
   const chat = new ChatService(win);
   chat.registerIpc();
+  // Register AI utility IPCs (e.g., auto-tagging)
+  TaggingService.registerIpc();
 
   // Settings & registry inspection
   ipcMain.handle('ai:getProviders', async () => {
