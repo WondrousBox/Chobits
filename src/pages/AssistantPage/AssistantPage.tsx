@@ -57,15 +57,10 @@ const AssistantPage: React.FC = () => {
     return () => clearTimeout(t);
   }, []);
 
-  const reallyClose = () => {
-    try {
-      window.YUA.window.closeWindow('assistant');
-    } catch { }
-  };
   const close = useCallback(() => {
     if (closing) return;
     setClosing(true);
-    setTimeout(() => reallyClose(), 160); // 与动画时长匹配
+    setTimeout(() => window.YUA.window.closeWindow('assistant'), 160); // 与动画时长匹配
   }, [closing]);
 
   // ESC 关闭（仅全局监听 ESC）
@@ -88,7 +83,7 @@ const AssistantPage: React.FC = () => {
     try {
       const id = (crypto as any)?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const now = Date.now();
-      await window.YUA.resource.addResource({
+      await window.YUA.resource['resource:add']({
         resource: {
           id,
           type: 'text',

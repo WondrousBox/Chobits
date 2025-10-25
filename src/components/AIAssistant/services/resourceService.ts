@@ -5,32 +5,36 @@
  *   - SelectedFiles：若有 File 对象优先上传（去重），然后入库。
  * - 副作用：调用 window.YUA.resource.addResource、window.YUA.resource.uploadResourceFile。
  */
-import { getResourceTypeFromFilename } from '../utils/resource'
-import type { SelectedResourceFileType } from '@/types'
+import { getResourceTypeFromFilename } from '../utils/resource';
+import type { SelectedResourceFileType } from '@/types';
 
 export async function addResourcesFromDataTransfer(dt: DataTransfer) {
-  const items = Array.from(dt.items || []) as DataTransferItem[]
-  const files = Array.from(dt.files || []) as File[]
-  const fileListForIPC: Array<{ name: string; path: string; isDirectory: boolean }> = []
+  const items = Array.from(dt.items || []) as DataTransferItem[];
+  const files = Array.from(dt.files || []) as File[];
+  const fileListForIPC: Array<{ name: string; path: string; isDirectory: boolean }> = [];
 
   items.forEach((item: DataTransferItem) => {
     if (item.kind === 'file') {
-      const anyItem = item as any
-      let entry: any
-      try { entry = anyItem.webkitGetAsEntry?.() } catch { /* noop */ }
+      const anyItem = item as any;
+      let entry: any;
+      try {
+        entry = anyItem.webkitGetAsEntry?.();
+      } catch {
+        /* noop */
+      }
       if (entry?.isDirectory) {
-        fileListForIPC.push({ name: entry.name, path: '', isDirectory: true })
+        fileListForIPC.push({ name: entry.name, path: '', isDirectory: true });
       } else {
-        const f = item.getAsFile()
-        if (f) fileListForIPC.push({ name: f.name, path: (f as any).path || '', isDirectory: false })
+        const f = item.getAsFile();
+        if (f) fileListForIPC.push({ name: f.name, path: (f as any).path || '', isDirectory: false });
       }
     }
-  })
+  });
 
   // Insert to DB
   for (const f of fileListForIPC) {
-    if (f.isDirectory) continue
-    const now = Date.now()
+    if (f.isDirectory) continue;
+    const now = Date.now();
     const resource = {
       id: (crypto as any).randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       type: getResourceTypeFromFilename(f.name),
@@ -40,16 +44,20 @@ export async function addResourcesFromDataTransfer(dt: DataTransfer) {
       collectedAt: now,
       createdAt: now,
       updatedAt: now,
-      status: 'new' as const,
+      status: 'new' as const
+    };
+    try {
+      await window.YUA.resource['resource:add']({ resource });
+    } catch {
+      /* noop */
     }
-    try { await window.YUA.resource.addResource({ resource }) } catch { /* noop */ }
   }
 }
 
 export async function addResourcesFromSelectedFiles(files: SelectedResourceFileType[]) {
   for (const f of files) {
     const now = Date.now();
-    const safeName = f.name || (f.path ? (f.path.split(/[/\\]/).pop() || '') : '');
+    const safeName = f.name || (f.path ? f.path.split(/[/\\]/).pop() || '' : '');
     let finalFilePath: string | undefined = f.path;
     let fileHash: string | undefined;
 
@@ -64,7 +72,9 @@ export async function addResourcesFromSelectedFiles(files: SelectedResourceFileT
           finalFilePath = uploaded.filePath;
           fileHash = uploaded.hash;
         }
-      } catch { /* noop */ }
+      } catch {
+        /* noop */
+      }
     }
 
     const resource = {
@@ -76,8 +86,12 @@ export async function addResourcesFromSelectedFiles(files: SelectedResourceFileT
       createdAt: now,
       updatedAt: now,
       status: 'new' as const,
-      ...(fileHash ? { metadata: JSON.stringify({ hashSha256: fileHash }) } : {}),
+      ...(fileHash ? { metadata: JSON.stringify({ hashSha256: fileHash }) } : {})
     };
-    try { await window.YUA.resource.addResource({ resource }); } catch { /* noop */ }
+    try {
+      await window.YUA.resource['resource:add']({ resource });
+    } catch {
+      /* noop */
+    }
   }
 }

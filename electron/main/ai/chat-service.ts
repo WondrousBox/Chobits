@@ -1,22 +1,28 @@
 import { BrowserWindow, ipcMain, WebContents } from 'electron';
 import { randomUUID } from 'node:crypto';
-import { AgentDefinition, ChatRequest, StreamEvent, ChatResponse } from './types';
+import { AgentDefinition, ChatRequest, StreamEvent, ChatResponse, EmbeddingResponse } from './types';
 import { getAgent, getProvider } from './registry';
 import { InstancesStore } from './instances-store';
 import { getAllInstanceSecrets } from './settings-store';
 import { ChatRepo } from '../db/repositories';
 
 // local UUID fallback if uuid not present
-function safeUuid() {
-  try { return randomUUID(); } catch { return `${Date.now()}-${Math.random().toString(36).slice(2)}`; }
+function safeUuid(): string {
+  try {
+    return randomUUID();
+  } catch {
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
 }
 
 export class ChatService {
   private controllers = new Map<string, AbortController>();
   // Use defaultWin as a fallback when sender window is unavailable
-  constructor(private defaultWin?: BrowserWindow) {}
+  constructor(private defaultWin?: BrowserWindow) {
+    //
+  }
 
-  registerIpc() {
+  registerIpc(): void {
     ipcMain.handle('ai:chat', async (e, req: ChatRequest) => this.chat(BrowserWindow.fromWebContents(e.sender) || this.defaultWin, req));
     ipcMain.handle('ai:chatStream', async (e, req: ChatRequest & { requestId?: string }) => this.chatStream(e.sender, req));
     ipcMain.handle('ai:cancel', async (_e, payload: { requestId: string }) => this.cancel(payload.requestId));
@@ -31,24 +37,27 @@ export class ChatService {
       id: req.conversationId,
       agentId: req.agentId,
       providerId: req.providerId,
-      providerInstanceId: (req as any).providerInstanceId,
+      providerInstanceId: (req as any).providerInstanceId
     });
-    const last = (req.messages || []).slice().reverse().find(m => m.role === 'user');
+    const last = (req.messages || [])
+      .slice()
+      .reverse()
+      .find((m) => m.role === 'user');
     if (last) {
       await ChatRepo.addMessage(conv.id, {
         role: 'user',
         content: last.content,
         name: last.name,
         toolCallId: last.toolCallId,
-        metadata: last.metadata ? JSON.stringify(last.metadata) as any : null,
-        createdAt: last.createdAt || Date.now(),
+        metadata: last.metadata ? (JSON.stringify(last.metadata) as any) : null,
+        createdAt: last.createdAt || Date.now()
       } as any);
     }
     const agent: AgentDefinition | undefined = getAgent(req.agentId);
     const ctx = {
       window: win || this.defaultWin,
-      emit: (_e: StreamEvent) => {},
-      getProvider: (id?: string) => getProvider(id),
+      emit: (_e: StreamEvent) => { },
+      getProvider: (id?: string) => getProvider(id)
     };
     if (!agent) {
       const prov = getProvider(req.providerId);
@@ -59,7 +68,7 @@ export class ChatService {
         role: 'assistant',
         content: resp.message?.content || '',
         createdAt: resp.message?.createdAt || Date.now(),
-        metadata: resp.metadata ? JSON.stringify(resp.metadata) as any : null,
+        metadata: resp.metadata ? (JSON.stringify(resp.metadata) as any) : null
       } as any);
       return { ...resp, metadata: { ...(resp.metadata || {}), conversationId: conv.id } } as any;
     }
@@ -68,12 +77,12 @@ export class ChatService {
       role: 'assistant',
       content: resp.message?.content || '',
       createdAt: resp.message?.createdAt || Date.now(),
-      metadata: resp.metadata ? JSON.stringify(resp.metadata) as any : null,
+      metadata: resp.metadata ? (JSON.stringify(resp.metadata) as any) : null
     } as any);
     return { ...resp, metadata: { ...(resp.metadata || {}), conversationId: conv.id } } as any;
   }
 
-  private async chatStream(sender: WebContents, req: ChatRequest & { requestId?: string }) {
+  private async chatStream(sender: WebContents, req: ChatRequest & { requestId?: string }): Promise<{ requestId: string; eventsChannel: string }> {
     // Prepare identifiers and controller
     const requestId = req.abortId || req['requestId'] || safeUuid();
     const eventsChannel = `ai:stream:${requestId}`;
@@ -88,7 +97,7 @@ export class ChatService {
         if (event?.type === 'delta' && (event as any).data?.text) emittedDelta = true;
         if (event?.type === 'message_completed') emittedCompleted = true;
         (sender || this.defaultWin?.webContents)?.send(eventsChannel, event);
-      } catch {}
+      } catch { }
     };
 
     // Start the actual streaming on next tick to avoid missing early events
@@ -100,9 +109,12 @@ export class ChatService {
           id: resolvedReq.conversationId,
           agentId: resolvedReq.agentId,
           providerId: resolvedReq.providerId,
-          providerInstanceId: (resolvedReq as any).providerInstanceId,
+          providerInstanceId: (resolvedReq as any).providerInstanceId
         });
-        const last = (resolvedReq.messages || []).slice().reverse().find(m => m.role === 'user');
+        const last = (resolvedReq.messages || [])
+          .slice()
+          .reverse()
+          .find((m) => m.role === 'user');
         if (last) {
           try {
             await ChatRepo.addMessage(conv.id, {
@@ -110,15 +122,15 @@ export class ChatService {
               content: last.content,
               name: last.name,
               toolCallId: last.toolCallId,
-              metadata: last.metadata ? JSON.stringify(last.metadata) as any : null,
-              createdAt: last.createdAt || Date.now(),
+              metadata: last.metadata ? (JSON.stringify(last.metadata) as any) : null,
+              createdAt: last.createdAt || Date.now()
             } as any);
-          } catch {}
+          } catch { }
         }
-  const ctx = { window: BrowserWindow.fromWebContents(sender) || this.defaultWin, emit, getProvider: (id?: string) => getProvider(id) };
+        const ctx = { window: BrowserWindow.fromWebContents(sender) || this.defaultWin, emit, getProvider: (id?: string) => getProvider(id) };
         // Notify renderer that channel is ready (after the renderer has had a chance to attach listener)
-  emit({ type: 'connected' } as any);
-  emit({ type: 'metadata', data: { conversationId: conv.id } });
+        emit({ type: 'connected' } as any);
+        emit({ type: 'metadata', data: { conversationId: conv.id } });
 
         let finalResp: ChatResponse | undefined;
         const agent: AgentDefinition | undefined = getAgent(resolvedReq.agentId);
@@ -143,11 +155,11 @@ export class ChatService {
               content: msg.content || '',
               name: msg.name,
               toolCallId: msg.toolCallId,
-              metadata: msg.metadata ? JSON.stringify(msg.metadata) as any : null,
-              createdAt: msg.createdAt || Date.now(),
+              metadata: msg.metadata ? (JSON.stringify(msg.metadata) as any) : null,
+              createdAt: msg.createdAt || Date.now()
             } as any);
           }
-        } catch {}
+        } catch { }
         emit({ type: 'done' });
       } catch (err: any) {
         emit({ type: 'error', data: { message: err?.message || 'chat error' } });
@@ -160,14 +172,14 @@ export class ChatService {
     return { requestId, eventsChannel };
   }
 
-  private cancel(requestId: string) {
+  private cancel(requestId: string): { ok: boolean } {
     const c = this.controllers.get(requestId);
     if (c) c.abort();
     this.controllers.delete(requestId);
     return { ok: true };
   }
 
-  private async embed(payload: { texts: string[]; providerId?: string; model?: string; normalize?: boolean }) {
+  private async embed(payload: { texts: string[]; providerId?: string; model?: string; normalize?: boolean }): Promise<EmbeddingResponse> {
     const prov = getProvider(payload.providerId);
     if (!prov?.embed) throw new Error('Provider has no embeddings');
     return prov.embed(payload);
@@ -184,10 +196,12 @@ export class ChatService {
     // Load secrets for this instance to allow provider overrides
     try {
       const schema = getProvider(inst.providerId)?.getConfigSchema?.();
-      const keys = (schema?.fields || []).map(f => f.key);
+      const keys = (schema?.fields || []).map((f) => f.key);
       const secrets = await getAllInstanceSecrets(instId, keys);
       if (Object.keys(secrets).length) extras.secrets = secrets;
-    } catch {}
+    } catch {
+      //
+    }
     // Prepend system prompt
     const messages = [...(req.messages || [])];
     if (inst.systemPrompt) messages.unshift({ role: 'system', content: inst.systemPrompt });

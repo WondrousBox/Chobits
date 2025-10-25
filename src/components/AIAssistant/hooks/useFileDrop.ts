@@ -3,65 +3,68 @@
  * - 负责：Dropzone 的文件拖拽状态（进入/离开/落下）并调用资源服务入库；可回调停止行走与关闭穿透。
  * - 返回：{ isFileDragOver, handleDragEnter, handleDragLeave, handleDrop, handleDropFiles }
  */
-import { useRef, useState } from 'react'
-import type { SelectedResourceFileType } from '@/types'
-import { addResourcesFromDataTransfer, addResourcesFromSelectedFiles } from '../services/resourceService'
+import { useRef, useState } from 'react';
+import type { SelectedResourceFileType } from '@/types';
+import { addResourcesFromDataTransfer, addResourcesFromSelectedFiles } from '../services/resourceService';
 
 export function useFileDrop(onStopWalking?: () => void, onClickThrough?: (enable: boolean) => void) {
-  const [isFileDragOver, setIsFileDragOver] = useState(false)
-  const dragCounterRef = useRef(0)
+  const [isFileDragOver, setIsFileDragOver] = useState(false);
+  const dragCounterRef = useRef(0);
 
-  const isFilesDrag = (e: React.DragEvent) => Array.from(e.dataTransfer?.types || []).includes('Files')
+  const isFilesDrag = (e: React.DragEvent) => Array.from(e.dataTransfer?.types || []).includes('Files');
 
   const handleDragEnter = (e: React.DragEvent<HTMLElement>) => {
-    if (!isFilesDrag(e)) return
-    e.preventDefault(); e.stopPropagation()
-    dragCounterRef.current++
-    setIsFileDragOver(true)
-    onStopWalking?.()
-    onClickThrough?.(false)
-  }
+    if (!isFilesDrag(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+    setIsFileDragOver(true);
+    onStopWalking?.();
+    onClickThrough?.(false);
+  };
 
   const handleDragLeave = (e: React.DragEvent<HTMLElement>) => {
-    if (!isFilesDrag(e)) return
-    e.preventDefault(); e.stopPropagation()
-    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1)
-    if (dragCounterRef.current === 0) setIsFileDragOver(false)
-  }
+    if (!isFilesDrag(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
+    if (dragCounterRef.current === 0) setIsFileDragOver(false);
+  };
 
   const handleDrop = async (e: React.DragEvent<HTMLElement>) => {
-    e.preventDefault(); e.stopPropagation()
-    dragCounterRef.current = 0
-    setIsFileDragOver(false)
-    onClickThrough?.(false)
-    onStopWalking?.()
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current = 0;
+    setIsFileDragOver(false);
+    onClickThrough?.(false);
+    onStopWalking?.();
     // 回退到原有逻辑
-    await addResourcesFromDataTransfer(e.dataTransfer!)
+    await addResourcesFromDataTransfer(e.dataTransfer!);
     try {
-      const files = Array.from(e.dataTransfer?.files || []) as any[]
-      const payload = files.map(f => ({ name: f.name, path: (f as any).path as string | undefined }))
+      const files = Array.from(e.dataTransfer?.files || []) as any[];
+      const payload = files.map((f) => ({ name: f.name, path: (f as any).path as string | undefined }));
       if (payload.length) {
-        await window.YUA.window.openWindow('fileActionsMenu', { files: payload, source: 'drop' })
+        await window.YUA.window.openWindow('fileActionsMenu', { files: payload, source: 'drop' });
       }
     } catch { }
-  }
+  };
 
   const handleDropFiles = async (files: SelectedResourceFileType[]) => {
-    dragCounterRef.current = 0
-    setIsFileDragOver(false)
-    onClickThrough?.(false)
-    onStopWalking?.()
+    dragCounterRef.current = 0;
+    setIsFileDragOver(false);
+    onClickThrough?.(false);
+    onStopWalking?.();
     // 回退
-    await addResourcesFromSelectedFiles(files)
+    await addResourcesFromSelectedFiles(files);
     try {
-      const payload = files.map(f => ({ name: f.name || (f.path ? (f.path.split(/[/\\]/).pop() || '') : ''), path: f.path }))
+      const payload = files.map((f) => ({ name: f.name || (f.path ? f.path.split(/[/\\]/).pop() || '' : ''), path: f.path }));
       if (payload.length) {
-        await window.YUA.window.openWindow('fileActionsMenu', { files: payload, source: 'drop' })
+        await window.YUA.window.openWindow('fileActionsMenu', { files: payload, source: 'drop' });
       }
     } catch { }
-  }
+  };
 
-  return { isFileDragOver, handleDragEnter, handleDragLeave, handleDrop, handleDropFiles }
+  return { isFileDragOver, handleDragEnter, handleDragLeave, handleDrop, handleDropFiles };
 }
 
-export default useFileDrop
+export default useFileDrop;
