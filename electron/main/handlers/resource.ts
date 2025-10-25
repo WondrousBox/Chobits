@@ -1,13 +1,12 @@
 import { ipcMain, shell } from 'electron';
-import { ResourcesRepo, WorkspacesRepo } from '../db/repositories';
-import { embeddingQueue } from '../embedding/queue';
-import { chunkText } from '../embedding/chunker';
-import { generateThumbnailForResource, isTextLikeResource, detectBasicType } from '../utils/thumbnail';
+import { ResourcesRepo, WorkspacesRepo, TagsRepo } from '../db/repositories';
+import { generateThumbnailForResource, detectBasicType } from '../utils/thumbnail';
 import { createHash } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as fscb from 'node:fs';
 import { Resource } from 'electron/preload/apis/resource';
+import { TaggingService } from '../ai/tagging-service';
 
 export function initResourceHandlers(): void {
   ipcMain.handle('resource:add', async (_event, payload: { resource: Resource }) => {
@@ -34,14 +33,40 @@ export function initResourceHandlers(): void {
           }
         }
       }
-    } catch { }
+    } catch {
+      /* noop */
+    }
 
     // Basic file type detection (if not provided)
     const detected = detectBasicType(filePath, res.type);
-    if (!res.type && detected.type) res.type = detected.type;
+    if (!res.type && detected.type) res.type = detected.type as any;
     if (!res.mimeType && detected.mimeType) res.mimeType = detected.mimeType;
 
     const row = await ResourcesRepo.upsert({ ...res, workspaceId, filePath } as any);
+
+    // Fire-and-forget: auto-tag text resources via AI TaggingService (no renderer involvement)
+    try {
+      const text = (res as any).contentText || (res as any).description || (res as any).title || '';
+      const textStr = (typeof text === 'string' ? text : '').trim();
+      if (row && textStr) {
+        setTimeout(async () => {
+          try {
+            const tags = await TaggingService.autoTagText(textStr, { maxLabels: 8 });
+            if (Array.isArray(tags) && tags.length) {
+              try {
+                await ResourcesRepo.update((row as any).id, { tags: JSON.stringify(tags) } as any);
+              } catch {
+                /* ignore update errors */
+              }
+            }
+          } catch (e) {
+            console.warn('[auto-tag] failed', e);
+          }
+        }, 0);
+      }
+    } catch {
+      /* ignore auto-tag failures */
+    }
 
     // Conditionally enqueue embedding only for text-like resources
     // const isText = isTextLikeResource({ type: res.type, mimeType: res.mimeType, filePath });
@@ -258,6 +283,52 @@ export function initResourceHandlers(): void {
     return { success: true, fileRenamed, newPath, data: updated };
   });
 
+  // 列出标签（默认按当前默认工作空间聚合；若 scope=global 则全局聚合）
+  ipcMain.handle('tags:listAll', async (_event, payload?: { workspaceId?: string; scope?: 'workspace' | 'global' }) => {
+    let wsId = payload?.workspaceId;
+    if (!wsId && payload?.scope !== 'global') {
+      try {
+        const ws = await WorkspacesRepo.getDefault();
+        wsId = ws?.id || undefined;
+      } catch {
+        /* ignore */
+      }
+    }
+    const rows = await TagsRepo.listAll(wsId);
+    return rows;
+  });
+
+  // 回填归一化标签表：从 resources.tags 同步到 resource_tags（默认仅同步当前默认工作空间）
+  ipcMain.handle('tags:backfill', async (_event, payload?: { workspaceId?: string }) => {
+    let wsId = payload?.workspaceId;
+    if (!wsId) {
+      try {
+        const ws = await WorkspacesRepo.getDefault();
+        wsId = ws?.id || undefined;
+      } catch {
+        /* ignore */
+      }
+    }
+    const count = await TagsRepo.backfillFromResources(wsId);
+    return { success: true, processed: count };
+  });
+
+  // 按标签筛选资源（默认仅返回未软删的资源）
+  ipcMain.handle('listResourcesByTag', async (_event, payload: { tag: string; workspaceId?: string; includeDeleted?: boolean; limit?: number; offset?: number }) => {
+    const { tag, includeDeleted, limit, offset } = payload || ({} as any);
+    if (!tag) return [];
+    let wsId = payload.workspaceId;
+    if (!wsId) {
+      try {
+        const ws = await WorkspacesRepo.getDefault();
+        wsId = ws?.id || undefined;
+      } catch {
+        /* ignore */
+      }
+    }
+    return ResourcesRepo.listByTag(tag, { workspaceId: wsId, includeDeleted, limit, offset });
+  });
+
   // 新增：直接从渲染进程接收文件二进制并保存到默认工作空间 resources 目录
   ipcMain.handle('uploadResourceFile', async (_event, payload: { fileName: string; data: ArrayBuffer }) => {
     try {
@@ -287,7 +358,7 @@ export function initResourceHandlers(): void {
           if (existHash === incomingHash) {
             return { success: false, duplicate: true, filePath: target, hash: incomingHash, error: 'duplicate' };
           }
-        } catch (e) {
+        } catch {
           /* ignore hash errors and proceed to rename */
         }
       }
@@ -307,3 +378,5 @@ export function initResourceHandlers(): void {
     }
   });
 }
+
+// keep file local helpers minimal; tagging moved to TaggingService

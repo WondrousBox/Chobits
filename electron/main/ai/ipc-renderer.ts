@@ -175,6 +175,10 @@ export const aiBridge = {
   },
   async restoreConversation(id: string) {
     return ipcRenderer.invoke('ai:restoreConversation', { id });
+  },
+  // Utilities
+  async autoTagText(text: string, maxLabels?: number): Promise<{ success: true; tags: string[] }> {
+    return ipcRenderer.invoke('ai:autoTagText', { text, maxLabels });
   }
 };
 

@@ -21,7 +21,8 @@ import {
 } from './schema';
 import { eq, inArray, and, like, gte, lte, isNull, isNotNull, desc, max } from 'drizzle-orm';
 import { rebuildVectors, deleteVectors } from '.';
-import { resources, type ResourceRow, type NewResource } from './schema';
+import { resources, resource_tags, type ResourceRow, type NewResource } from './schema';
+import { sql } from 'drizzle-orm';
 import * as fs from 'node:fs/promises';
 import * as fscb from 'node:fs';
 
@@ -319,7 +320,43 @@ export const ResourcesRepo = {
       .onConflictDoUpdate({ target: resources.id, set: omitId(res as any) })
       .returning()
       .all();
-    return rows[0];
+    const row = rows[0];
+    // 同步归一化标签表
+    try {
+      const tags = safeParseTags((res as any).tags);
+      if (row && tags) await TagsRepo.replaceForResource(row.id, (row as any).workspaceId || null, tags);
+    } catch {
+      /* ignore */
+    }
+    return row;
+  },
+  /** 根据标签筛选资源（可选按工作空间、是否包含软删、分页） */
+  async listByTag(tag: string, opts: { workspaceId?: string; includeDeleted?: boolean; limit?: number; offset?: number } = {}): Promise<ResourceRow[]> {
+    const db = getOrm();
+    const limit = opts.limit ?? 100;
+    const offset = opts.offset ?? 0;
+    let q = db.select().from(resources).innerJoin(resource_tags, eq(resource_tags.resourceId, resources.id));
+    const wheres: any[] = [eq(resource_tags.tag, tag)];
+    if (opts.workspaceId) wheres.push(eq(resource_tags.workspaceId, opts.workspaceId));
+    if (!opts.includeDeleted) wheres.push(isNull(resources.deletedAt));
+    q = (q as any)
+      .where(and(...wheres))
+      .orderBy(desc(resources.updatedAt as any))
+      .limit(limit)
+      .offset(offset);
+    const rows = (await q) as any[];
+    return rows.map((r) => (r as any).resources ?? (r as any));
+  },
+  /** 统计某标签下资源数量（可选按工作空间、是否包含软删） */
+  async countByTag(tag: string, opts: { workspaceId?: string; includeDeleted?: boolean } = {}): Promise<number> {
+    const db = getOrm();
+    let q = db.select({ count: resources.id }).from(resources).innerJoin(resource_tags, eq(resource_tags.resourceId, resources.id));
+    const wheres: any[] = [eq(resource_tags.tag, tag)];
+    if (opts.workspaceId) wheres.push(eq(resource_tags.workspaceId, opts.workspaceId));
+    if (!opts.includeDeleted) wheres.push(isNull(resources.deletedAt));
+    q = (q as any).where(and(...wheres));
+    const rows = (await q) as any[];
+    return rows[0]?.count ?? 0;
   },
   /** 批量新增或更新资源（主键冲突自动更新） */
   async bulkUpsert(list: NewResource[]): Promise<ResourceRow[]> {
@@ -354,7 +391,17 @@ export const ResourcesRepo = {
       .where(eq(resources.id, id))
       .run();
     const rows = await db.select().from(resources).where(eq(resources.id, id)).limit(1);
-    return rows[0];
+    const row = rows[0];
+    // 如果本次更新包含 tags 字段，则同步归一化标签表
+    if (row && Object.prototype.hasOwnProperty.call(patch, 'tags')) {
+      try {
+        const tags = safeParseTags((patch as any).tags);
+        if (tags) await TagsRepo.replaceForResource(id, (row as any).workspaceId || null, tags);
+      } catch {
+        /* ignore */
+      }
+    }
+    return row;
   },
   /** 批量物理删除资源，并清理回收站索引 */
   async deleteByIds(ids: string[]): Promise<number> {
@@ -488,6 +535,80 @@ export const ResourcesRepo = {
     return rows[0]?.count ?? 0;
   }
 };
+
+/** 标签归一化表操作 */
+export const TagsRepo = {
+  /** 替换某资源的标签集合（先清空再插入） */
+  async replaceForResource(resourceId: string, workspaceId: string | null, tags: string[]): Promise<number> {
+    const db = getOrm();
+    let inserted = 0;
+    (db as any).transaction((tx: any) => {
+      tx.delete(resource_tags).where(eq(resource_tags.resourceId, resourceId)).run?.();
+      const values = (tags || [])
+        .map((t) => (t || '').trim())
+        .filter(Boolean)
+        .map((t) => ({ resourceId, workspaceId, tag: t }) as any);
+      if (values.length) {
+        tx.insert(resource_tags).values(values).onConflictDoNothing?.().run?.();
+        // 如果 onConflictDoNothing 不可用，res 可能为 undefined；此处并不依赖返回值
+        inserted = values.length;
+      }
+    });
+    return inserted;
+  },
+  /** 聚合列出标签及数量（可选按工作空间过滤） */
+  async listAll(workspaceId?: string): Promise<Array<{ tag: string; count: number }>> {
+    const db = getOrm();
+    // 仅统计未软删的资源标签
+    let q = db
+      .select({ tag: resource_tags.tag, count: sql<number>`count(*)`.as('count') })
+      .from(resource_tags)
+      .innerJoin(resources, eq(resource_tags.resourceId, resources.id));
+    const wheres: any[] = [isNull(resources.deletedAt)];
+    if (workspaceId) wheres.push(eq(resource_tags.workspaceId, workspaceId));
+    q = (q as any).where(and(...wheres));
+    const rows = await (q as any).groupBy(resource_tags.tag);
+    // drizzle 返回的 count 字段类型可能是 bigint/number 字符串，这里标准化为 number
+    return (rows as any[]).map((r) => ({ tag: r.tag as string, count: Number((r as any).count) }));
+  },
+  /**
+   * 从 resources.tags 反向填充归一化标签表（默认仅处理未软删资源）
+   * @param workspaceId 可选工作空间，仅回填该空间下资源
+   * @returns 处理的资源数量
+   */
+  async backfillFromResources(workspaceId?: string): Promise<number> {
+    const db = getOrm();
+    let q = db.select().from(resources).where(isNull(resources.deletedAt));
+    if (workspaceId) q = (q as any).where(and(isNull(resources.deletedAt), eq(resources.workspaceId, workspaceId)));
+    const rows = (await q) as any[];
+    let processed = 0;
+    for (const r of rows) {
+      const tags = safeParseTags(r.tags);
+      if (Array.isArray(tags)) {
+        try {
+          await this.replaceForResource(r.id, r.workspaceId || null, tags);
+          processed += 1;
+        } catch {
+          /* ignore individual failures */
+        }
+      }
+    }
+    return processed;
+  }
+};
+
+function safeParseTags(v: unknown): string[] | null {
+  try {
+    if (Array.isArray(v)) return (v as any).map((s: any) => String(s)).filter(Boolean);
+    if (typeof v === 'string') {
+      const json = JSON.parse(v);
+      return Array.isArray(json) ? json.map((s) => String(s)).filter(Boolean) : null;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * 文件夹表操作空间

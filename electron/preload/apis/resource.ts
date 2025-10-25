@@ -52,6 +52,12 @@ export type ResourceBridgeParams = {
   cleanupThumbnails: IPCParams<[void], { success: boolean; removed?: number; error?: string }>;
   /** 上传原始文件数据到主进程，返回保存后的本地路径；若重复（同名且 hash 相同）则 duplicate=true */
   uploadResourceFile: IPCParams<[{ fileName: string; data: ArrayBuffer }], { success: boolean; filePath?: string; error?: string; duplicate?: boolean; hash?: string }>;
+  /** 标签聚合列表（默认按当前默认工作空间；scope=global 时全局） */
+  'tags:listAll': IPCParams<[{ workspaceId?: string; scope?: 'workspace' | 'global' }], Array<{ tag: string; count: number }>>;
+  /** 按标签筛选资源 */
+  listResourcesByTag: IPCParams<[{ tag: string; workspaceId?: string; includeDeleted?: boolean; limit?: number; offset?: number }], Resource[]>;
+  /** 从 resources.tags 回填 resource_tags（默认按当前默认工作空间） */
+  'tags:backfill': IPCParams<[{ workspaceId?: string }], { success: boolean; processed: number }>;
 };
 
 const methods: Array<keyof ResourceBridgeParams> = [
@@ -67,7 +73,10 @@ const methods: Array<keyof ResourceBridgeParams> = [
   'moveResourcesToWorkspace',
   'rebuildResourceThumbnail',
   'cleanupThumbnails',
-  'uploadResourceFile'
+  'uploadResourceFile',
+  'tags:listAll',
+  'listResourcesByTag',
+  'tags:backfill'
 ];
 
 export type ResourceBridgeType = {

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ResourceItem, ViewMode, SortField, SortOrder } from '@/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import ExplorerGrid from './components/ExplorerGrid';
@@ -6,28 +6,7 @@ import ResourceListItem from './components/ResourceListItem';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import {
-  TbHome,
-  TbPhoto,
-  TbVideo,
-  TbMusic,
-  TbFileText,
-  TbLink,
-  TbFile,
-  TbFileDescription,
-  TbDots,
-  TbList,
-  TbSearch,
-  TbFilter,
-  TbSortAscending,
-  TbSortDescending,
-  TbGrid3X3,
-  TbPlus,
-  TbPlayerPlay,
-  TbRefresh,
-  TbHeart
-} from 'react-icons/tb';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { TbHome, TbPhoto, TbVideo, TbMusic, TbFileText, TbLink, TbFile, TbFileDescription, TbDots, TbList, TbSearch, TbGrid3X3, TbPlus, TbRefresh, TbHeart } from 'react-icons/tb';
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import FolderSidebar, { type UIFolder } from './components/FolderSidebar';
 
@@ -35,6 +14,8 @@ const ResourcePage: React.FC = () => {
   const [list, setList] = useState<ResourceItem[]>([]);
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [wsFilter, setWsFilter] = useState<string>(''); // empty means all
+  const [tags, setTags] = useState<Array<{ tag: string; count: number }>>([]);
+  const [tagFilter, setTagFilter] = useState<string>(''); // '' means all
   const [typeFilter, setTypeFilter] = useState<string>(''); // empty means all types
   const [favoriteFilter, setFavoriteFilter] = useState<boolean>(false); // false means all, true means favorites only
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
@@ -75,29 +56,51 @@ const ResourcePage: React.FC = () => {
     return rows.some((r: any) => r.favorite === 1);
   }, [list, wsFilter]);
 
-  const load = async () => {
+  const load = useCallback(async (): Promise<void> => {
     try {
-      const rows = await window.YUA.resource['listResource']();
+      let rows: any[] = [];
+      if (tagFilter) {
+        rows = await window.YUA.resource['listResourcesByTag']({ tag: tagFilter, workspaceId: wsFilter || undefined, includeDeleted: false, limit: 1000, offset: 0 });
+      } else {
+        rows = await window.YUA.resource['listResource']();
+      }
       setList(rows || []);
     } catch (e) {
       console.warn('load resources failed', e);
     }
-  };
+  }, [tagFilter, wsFilter]);
 
-  const loadFolders = async (workspaceId?: string) => {
-    try {
-      const wsId = workspaceId || wsFilter || undefined;
-      const rows = await folderAPI['folder.list']({ workspaceId: wsId, deletedAt: 0 });
-      setFolders((rows || []).map((r: any) => ({ id: r.id, name: r.name, parentId: r.parentId || null })));
-    } catch (e) {
-      console.warn('load folders failed', e);
-    }
-  };
+  const loadTags = useCallback(
+    async (workspaceId?: string): Promise<void> => {
+      try {
+        const wsId = workspaceId || wsFilter || undefined;
+        const rows = await window.YUA.resource['tags:listAll']({ workspaceId: wsId, scope: 'workspace' });
+        setTags(rows || []);
+      } catch (e) {
+        console.warn('load tags failed', e);
+      }
+    },
+    [wsFilter]
+  );
+
+  const loadFolders = useCallback(
+    async (workspaceId?: string): Promise<void> => {
+      try {
+        const wsId = workspaceId || wsFilter || undefined;
+        const rows = await folderAPI['folder.list']({ workspaceId: wsId, deletedAt: 0 });
+        setFolders((rows || []).map((r: any) => ({ id: r.id, name: r.name, parentId: r.parentId || null })));
+      } catch (e) {
+        console.warn('load folders failed', e);
+      }
+    },
+    [folderAPI, wsFilter]
+  );
 
   useEffect(() => {
     load();
     loadFolders();
-  }, []);
+    loadTags();
+  }, [load, loadFolders, loadTags]);
 
   useEffect(() => {
     let mounted = true;
@@ -108,7 +111,10 @@ const ResourcePage: React.FC = () => {
         try {
           const defaultId = Array.isArray(ws) ? ws.find((w: any) => w.isDefault === 1)?.id : undefined;
           if (!wsFilter && defaultId) setWsFilter(defaultId);
-          if (defaultId) loadFolders(defaultId);
+          if (defaultId) {
+            loadFolders(defaultId);
+            loadTags(defaultId);
+          }
         } catch {
           /* noop */
         }
@@ -117,10 +123,14 @@ const ResourcePage: React.FC = () => {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [loadFolders, loadTags, wsFilter]);
 
   const filtered = useMemo(() => {
     let filtered = list.filter((r: any) => !wsFilter || r.workspaceId === wsFilter);
+    // 标签过滤（当后端按标签查询时，这里也保持二次防御）
+    if (tagFilter) {
+      filtered = filtered.filter((r: any) => (r.tags || '').includes(tagFilter));
+    }
     if (folderFilter) filtered = filtered.filter((r: any) => (r as any).folderId === folderFilter);
 
     // 类型过滤
@@ -170,9 +180,9 @@ const ResourcePage: React.FC = () => {
     });
 
     return filtered;
-  }, [list, wsFilter, typeFilter, favoriteFilter, searchQuery, sortField, sortOrder]);
+  }, [list, wsFilter, typeFilter, favoriteFilter, searchQuery, sortField, sortOrder, folderFilter, tagFilter]);
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string): Promise<void> => {
     try {
       await window.YUA.resource.deleteResource({ id });
       setList((prev) => prev.filter((i) => i.id !== id));
@@ -189,7 +199,7 @@ const ResourcePage: React.FC = () => {
     }
   };
 
-  const handleDeleteMany = async (ids: string[]) => {
+  const handleDeleteMany = async (ids: string[]): Promise<void> => {
     try {
       await window.YUA.resource.deleteResources({ ids });
       setList((prev) => prev.filter((i) => !ids.includes(i.id)));
@@ -207,7 +217,7 @@ const ResourcePage: React.FC = () => {
     }
   };
 
-  const handleItemClick = (e: React.MouseEvent, item: ResourceItem) => {
+  const handleItemClick = (e: React.MouseEvent, item: ResourceItem): void => {
     if (e.ctrlKey || e.metaKey) {
       // 多选模式
       setSelectedItems((prev) => {
@@ -225,7 +235,7 @@ const ResourcePage: React.FC = () => {
     }
   };
 
-  const handleToggleFavorite = async (id: string) => {
+  const handleToggleFavorite = async (id: string): Promise<void> => {
     try {
       const item = list.find((i) => i.id === id);
       if (item) {
@@ -246,7 +256,7 @@ const ResourcePage: React.FC = () => {
     }
   };
 
-  const handleToggleVisibility = async (id: string) => {
+  const handleToggleVisibility = async (id: string): Promise<void> => {
     try {
       const item = list.find((i) => i.id === id);
       if (item) {
@@ -276,7 +286,15 @@ const ResourcePage: React.FC = () => {
               <Button size="icon" className="w-8 h-8" onClick={() => window.YUA.window.openWindow('assistant')}>
                 <TbPlus />
               </Button>
-              <Button size="icon" className="w-8 h-8" variant="ghost" onClick={load}>
+              <Button
+                size="icon"
+                className="w-8 h-8"
+                variant="ghost"
+                onClick={() => {
+                  load();
+                  loadTags();
+                }}
+              >
                 <TbRefresh />
               </Button>
 
@@ -296,6 +314,30 @@ const ResourcePage: React.FC = () => {
                     <SelectItem key={w.id} value={w.id}>
                       {w.name}
                       {w.isDefault === 1 ? '（默认）' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* 标签筛选器 */}
+              <Select
+                value={tagFilter}
+                onValueChange={(v) => {
+                  setTagFilter(v);
+                  // 切换标签时重新加载
+                  setTimeout(() => load(), 0);
+                }}
+              >
+                <SelectTrigger className="w-56 h-8">
+                  <SelectValue placeholder="标签（全部）" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem key="__all" value="">
+                    全部标签
+                  </SelectItem>
+                  {tags.map((t) => (
+                    <SelectItem key={t.tag} value={t.tag}>
+                      {t.tag}（{t.count}）
                     </SelectItem>
                   ))}
                 </SelectContent>
