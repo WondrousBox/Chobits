@@ -111,7 +111,7 @@ export function initResourceHandlers(): void {
     }
     return { success: true, data: row };
   });
-  ipcMain.handle('listResource', async () => {
+  ipcMain.handle('resource:list', async () => {
     // Hide soft-deleted items by default
     return await ResourcesRepo.list({ deletedAt: 0 } as any);
   });
