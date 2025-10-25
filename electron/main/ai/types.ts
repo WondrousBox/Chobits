@@ -18,6 +18,7 @@ export type ChatRequest = {
   messages: ChatMessage[];
   agentId?: string; // which agent to use
   providerId?: string; // which provider adapter to use
+  providerInstanceId?: string; // which provider instance to use
   stream?: boolean;
   temperature?: number;
   maxTokens?: number;
@@ -106,10 +107,10 @@ export type AIApi = {
   setProviderSecrets(providerId: string, secrets: Record<string, string>): Promise<{ ok: boolean }>;
   chat(payload: any): Promise<{ message: { role: string; content: string } }>;
   // Stateless chat (no history persistence)
-  chatEphemeral(payload: any): Promise<{ message: { role: string; content: string } }>;
+  chatEphemeral(payload: ChatRequest): Promise<{ message: { role: string; content: string } }>;
   // Stateless streaming chat (no history persistence)
   chatStreamEphemeral(payload: any, onEvent: (ev: { type: string; data?: any }) => void): Promise<{ requestId: string; dispose: () => void; cancel: () => Promise<any> }>;
-  chatStream(payload: any, onEvent: (ev: { type: string; data?: any }) => void): Promise<{ requestId: string; dispose: () => void; cancel: () => Promise<any> }>;
+  chatStream(payload: ChatRequest, onEvent: (ev: { type: string; data?: any }) => void): Promise<{ requestId: string; dispose: () => void; cancel: () => Promise<any> }>;
   embed(payload: { texts: string[]; providerId?: string; model?: string; normalize?: boolean }): Promise<{ vectors: number[][]; dim: number }>;
   // Instances
   listInstances(providerId?: string): Promise<any[]>;

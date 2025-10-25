@@ -15,7 +15,9 @@ export class OpenAICompatibleProvider implements ProviderAdapter {
     this.defaults = { baseUrl: opts.baseUrl, model: opts.model };
   }
 
-  isConfigured(): boolean { return !!this.secrets.apiKey; }
+  isConfigured(): boolean {
+    return !!this.secrets.apiKey;
+  }
   getConfigSchema(): ProviderConfig {
     const fallback: ProviderConfig = {
       id: this.id,
@@ -24,13 +26,17 @@ export class OpenAICompatibleProvider implements ProviderAdapter {
       fields: [
         { key: 'apiKey', label: 'API Key', type: 'password', required: true },
         { key: 'baseUrl', label: 'Base URL', type: 'text' },
-        { key: 'model', label: '默认模型', type: 'text' },
-      ],
+        { key: 'model', label: '默认模型', type: 'text' }
+      ]
     };
     return loadProviderSchema(this.id, fallback);
   }
-  setSecrets(secrets: ProviderSecrets) { this.secrets = { ...this.defaults, ...(this.secrets || {}), ...(secrets as any) }; }
-  getSecrets(): ProviderSecrets { return this.secrets; }
+  setSecrets(secrets: ProviderSecrets) {
+    this.secrets = { ...this.defaults, ...(this.secrets || {}), ...(secrets as any) };
+  }
+  getSecrets(): ProviderSecrets {
+    return this.secrets;
+  }
 
   private client(override?: { apiKey?: string; baseUrl?: string }) {
     const cfg: any = {};
@@ -43,7 +49,7 @@ export class OpenAICompatibleProvider implements ProviderAdapter {
   async chat(req: ChatRequest, onStream?: (event: StreamEvent) => void, signal?: AbortSignal): Promise<ChatResponse> {
     const override = (req.extras as any)?.secrets as any;
     console.log(override, req);
-    
+
     const client = this.client(override);
     const model = (req.extras?.model as string) || override?.model || this.secrets.model || this.defaults.model || 'gpt-3.5-turbo';
     const messages = req.messages.map((m) => ({ role: m.role as any, content: m.content }));
@@ -61,11 +67,11 @@ export class OpenAICompatibleProvider implements ProviderAdapter {
       return { message: { role: 'assistant', content: finalText, createdAt: Date.now() }, providerId: this.id };
     }
     const resp = await client.chat.completions.create({ model, messages, temperature: req.temperature, max_tokens: req.maxTokens as any }, { signal });
-    
+
     const text = resp?.choices?.[0]?.message?.content || '';
 
     console.log(text);
-    
+
     return { message: { role: 'assistant', content: text, createdAt: Date.now() }, providerId: this.id };
   }
 
@@ -89,7 +95,7 @@ export class OpenAICompatibleProvider implements ProviderAdapter {
     } catch {
       // Best-effort fallbacks: use configured/default model if present
       const ids = [opts?.secrets?.model, this.secrets.model, this.defaults.model].filter(Boolean) as string[];
-      return Array.from(new Set(ids)).map(id => ({ id }));
+      return Array.from(new Set(ids)).map((id) => ({ id }));
     }
   }
 }
