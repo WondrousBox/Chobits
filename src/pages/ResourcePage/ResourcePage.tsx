@@ -62,7 +62,7 @@ const ResourcePage: React.FC = () => {
       if (tagFilter) {
         rows = await window.YUA.resource['listResourcesByTag']({ tag: tagFilter, workspaceId: wsFilter || undefined, includeDeleted: false, limit: 1000, offset: 0 });
       } else {
-        rows = await window.YUA.resource['listResource']();
+        rows = await window.YUA.resource['resource:list']();
       }
       setList(rows || []);
     } catch (e) {
