@@ -93,14 +93,17 @@ export class ChatService {
       window: win || this.defaultWin,
       getProvider: (id?: string) => getProvider(id)
     };
+
+    const requestParams = { ...resolved, stream: false };
     if (!agent) {
       const prov = getProvider(resolved.providerId);
       if (!prov?.chat) return { message: { role: 'assistant', content: 'No provider available.' } } as any;
-      const resp = await prov.chat({ ...resolved, stream: false });
+      const resp = await prov.chat(requestParams);
       // Ensure no conversationId is injected in metadata
       return { ...resp, metadata: { ...(resp.metadata || {}) } } as any;
     }
-    const resp = await agent.handleChat(ctx, { ...resolved, stream: false });
+    const resp = await agent.handleChat(ctx, requestParams);
+    console.log(resp);
     return { ...resp, metadata: { ...(resp.metadata || {}) } } as any;
   }
 

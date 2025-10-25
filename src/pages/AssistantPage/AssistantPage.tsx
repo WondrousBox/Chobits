@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { TbX, TbDownload, TbWorld, TbLoader2, TbMicrophone } from 'react-icons/tb';
 import ChatInput from '@/components/AIAssistant/ChatInput';
+import { useChatSelection } from '@/components/AIAssistant/context/ChatSelectionContext';
 
 // URL检测函数
 const isVideoUrl = (url: string): boolean => {
@@ -38,6 +39,9 @@ const AssistantPage: React.FC = () => {
   const inputBlockRef = useRef<HTMLDivElement | null>(null);
   // 控制当实例下拉展开时，暂停自动尺寸调整
   const instanceMenuOpenRef = useRef<boolean>(false);
+
+  // 从全局选择上下文中获取当前 provider/instance（与 ChatInput 的选择保持一致）
+  const { providerId, instanceId } = useChatSelection();
 
   const placeholders = [
     '输入问题，如：总结最近导入的 PDF...',
@@ -81,11 +85,9 @@ const AssistantPage: React.FC = () => {
   const send = async (content: string) => {
     if (!content.trim()) return;
     try {
-      const id = (crypto as any)?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const now = Date.now();
-      await window.YUA.resource['resource:add']({
+      const res = await window.YUA.resource['resource:add']({
         resource: {
-          id,
           type: 'text',
           title: content.slice(0, 40),
           contentText: content,
@@ -95,7 +97,18 @@ const AssistantPage: React.FC = () => {
           status: 'new'
         } as any
       });
-      console.debug('[resource] text saved as resource', id);
+
+      if (res.success) {
+        console.log(res.data);
+        // 使用当前选择的 provider 和 instanceId 进行临时对话（如：打标签）
+        const tagRes = await window.YUA.ai.chatEphemeral({
+          messages: [{ role: 'user', content }],
+          providerId,
+          agentId: 'tagger',
+          providerInstanceId: instanceId || undefined
+        });
+        console.log(tagRes);
+      }
     } catch (e) {
       console.warn('[resource] save text failed', e);
     }

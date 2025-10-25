@@ -44,23 +44,23 @@ export function initResourceHandlers(): void {
     const row = await ResourcesRepo.upsert({ ...res, workspaceId, filePath } as any);
 
     // Conditionally enqueue embedding only for text-like resources
-    const isText = isTextLikeResource({ type: res.type, mimeType: res.mimeType, filePath });
-    if (isText) {
-      const text = res.contentText || res.description || res.title;
-      if (typeof text === 'string' && text.trim().length > 0 && row) {
-        try {
-          const chunks = chunkText(text);
-          const items = chunks.map((c) => ({
-            id: `${row.id}#${c.index}`,
-            content: c.content,
-            metadata: { parentId: row.id, chunkIndex: c.index, chunkCount: c.count, source: 'resource' }
-          }));
-          embeddingQueue.enqueue({ items, dim: 384, batchSize: 16 });
-        } catch (e) {
-          console.warn('[embedding] enqueue failed', e);
-        }
-      }
-    }
+    // const isText = isTextLikeResource({ type: res.type, mimeType: res.mimeType, filePath });
+    // if (isText) {
+    //   const text = res.contentText || res.description || res.title;
+    //   if (typeof text === 'string' && text.trim().length > 0 && row) {
+    //     try {
+    //       const chunks = chunkText(text);
+    //       const items = chunks.map((c) => ({
+    //         id: `${row.id}#${c.index}`,
+    //         content: c.content,
+    //         metadata: { parentId: row.id, chunkIndex: c.index, chunkCount: c.count, source: 'resource' }
+    //       }));
+    //       embeddingQueue.enqueue({ items, dim: 384, batchSize: 16 });
+    //     } catch (e) {
+    //       console.warn('[embedding] enqueue failed', e);
+    //     }
+    //   }
+    // }
 
     // Generate thumbnail file (new strategy) if no path present
     if (row && !(row as any).thumbnailPath) {
