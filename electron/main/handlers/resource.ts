@@ -7,9 +7,10 @@ import { createHash } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as fscb from 'node:fs';
+import { Resource } from 'electron/preload/apis/resource';
 
 export function initResourceHandlers(): void {
-  ipcMain.handle('addResource', async (_event, payload: { resource: any }) => {
+  ipcMain.handle('resource:add', async (_event, payload: { resource: Resource }) => {
     const res = payload.resource || {};
     // Attach workspace: copy local file into default workspace if available
     let workspaceId = res.workspaceId;

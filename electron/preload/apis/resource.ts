@@ -4,6 +4,7 @@ import { IPCParams, PartialByKey } from '../type';
 export type Resource = {
   id: string;
   type: 'image' | 'video' | 'audio' | 'text' | 'link' | 'file' | 'document' | 'other';
+  workspaceId?: string;
   title?: string;
   description?: string;
   url?: string;
@@ -37,26 +38,24 @@ export type Resource = {
 };
 
 export type ResourceBridgeParams = {
-  'addResource': IPCParams<[{ resource: PartialByKey<Resource, "id"> }], { success: true }>;
-  'listResource': IPCParams<[void], Resource[]>;
-  'getResource': IPCParams<[{ id: string }], Resource | undefined>;
-  'updateResource': IPCParams<[{ id: string; patch: any }], { success: boolean; data?: any }>;
-  'deleteResource': IPCParams<[{ id: string }], { success: true }>;
-  'deleteResources': IPCParams<[{ ids: string[] }], { success: true }>;
-  'openResource': IPCParams<[{ id: string }], { success: boolean }>;
-  'revealResource': IPCParams<[{ id: string }], { success: boolean }>;
-  'renameResource': IPCParams<[{ id: string; newName: string; renameFile?: boolean }], { success: boolean; fileRenamed?: boolean; newPath?: string }>;
-  'moveResourcesToWorkspace': IPCParams<[{ ids: string[]; workspaceId: string }], { moved: number }>;
-  'rebuildResourceThumbnail': IPCParams<[{ id: string; size?: number; force?: boolean }], { success: boolean; data?: Resource; error?: string }>;
-  'cleanupThumbnails': IPCParams<[void], { success: boolean; removed?: number; error?: string }>;
+  'resource:add': IPCParams<[{ resource: PartialByKey<Resource, 'id'> }], { success: true }>;
+  listResource: IPCParams<[void], Resource[]>;
+  getResource: IPCParams<[{ id: string }], Resource | undefined>;
+  updateResource: IPCParams<[{ id: string; patch: any }], { success: boolean; data?: any }>;
+  deleteResource: IPCParams<[{ id: string }], { success: true }>;
+  deleteResources: IPCParams<[{ ids: string[] }], { success: true }>;
+  openResource: IPCParams<[{ id: string }], { success: boolean }>;
+  revealResource: IPCParams<[{ id: string }], { success: boolean }>;
+  renameResource: IPCParams<[{ id: string; newName: string; renameFile?: boolean }], { success: boolean; fileRenamed?: boolean; newPath?: string }>;
+  moveResourcesToWorkspace: IPCParams<[{ ids: string[]; workspaceId: string }], { moved: number }>;
+  rebuildResourceThumbnail: IPCParams<[{ id: string; size?: number; force?: boolean }], { success: boolean; data?: Resource; error?: string }>;
+  cleanupThumbnails: IPCParams<[void], { success: boolean; removed?: number; error?: string }>;
   /** 上传原始文件数据到主进程，返回保存后的本地路径；若重复（同名且 hash 相同）则 duplicate=true */
-  'uploadResourceFile': IPCParams<[
-    { fileName: string; data: ArrayBuffer }
-  ], { success: boolean; filePath?: string; error?: string; duplicate?: boolean; hash?: string }>;
+  uploadResourceFile: IPCParams<[{ fileName: string; data: ArrayBuffer }], { success: boolean; filePath?: string; error?: string; duplicate?: boolean; hash?: string }>;
 };
 
 const methods: Array<keyof ResourceBridgeParams> = [
-  'addResource',
+  'resource:add',
   'listResource',
   'getResource',
   'updateResource',
@@ -68,17 +67,15 @@ const methods: Array<keyof ResourceBridgeParams> = [
   'moveResourcesToWorkspace',
   'rebuildResourceThumbnail',
   'cleanupThumbnails',
-  'uploadResourceFile',
+  'uploadResourceFile'
 ];
 
 export type ResourceBridgeType = {
-  [K in keyof ResourceBridgeParams]: (
-    ...args: ResourceBridgeParams[K]["request"]
-  ) => Promise<ResourceBridgeParams[K]["response"]>;
+  [K in keyof ResourceBridgeParams]: (...args: ResourceBridgeParams[K]['request']) => Promise<ResourceBridgeParams[K]['response']>;
 };
 
 const bridge: Record<string, any> = {};
-methods.forEach(m => {
+methods.forEach((m) => {
   bridge[m] = (...args: ResourceBridgeParams[typeof m]['request']) => ipcRenderer.invoke(m as string, ...args);
 });
 
