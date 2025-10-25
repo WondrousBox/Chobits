@@ -25,8 +25,11 @@ export class ChatService {
   registerIpc(): void {
     ipcMain.handle('ai:chat', async (e, req: ChatRequest) => this.chat(BrowserWindow.fromWebContents(e.sender) || this.defaultWin, req));
     ipcMain.handle('ai:chatStream', async (e, req: ChatRequest & { requestId?: string }) => this.chatStream(e.sender, req));
+    ipcMain.handle('ai:chatStreamEphemeral', async (e, req: ChatRequest & { requestId?: string }) => this.chatStreamEphemeral(e.sender, req));
     ipcMain.handle('ai:cancel', async (_e, payload: { requestId: string }) => this.cancel(payload.requestId));
     ipcMain.handle('ai:embed', async (_e, payload: { texts: string[]; providerId?: string; model?: string; normalize?: boolean }) => this.embed(payload));
+    // Stateless chat (no history persistence)
+    ipcMain.handle('ai:chatEphemeral', async (e, req: ChatRequest) => this.chatEphemeral(BrowserWindow.fromWebContents(e.sender) || this.defaultWin, req));
   }
 
   private async chat(win: BrowserWindow | undefined, req: ChatRequest): Promise<ChatResponse> {
@@ -56,7 +59,6 @@ export class ChatService {
     const agent: AgentDefinition | undefined = getAgent(req.agentId);
     const ctx = {
       window: win || this.defaultWin,
-      emit: (_e: StreamEvent) => { },
       getProvider: (id?: string) => getProvider(id)
     };
     if (!agent) {
@@ -80,6 +82,71 @@ export class ChatService {
       metadata: resp.metadata ? (JSON.stringify(resp.metadata) as any) : null
     } as any);
     return { ...resp, metadata: { ...(resp.metadata || {}), conversationId: conv.id } } as any;
+  }
+
+  // Ephemeral chat: call provider/agent and return response without touching conversation history
+  async chatEphemeral(win: BrowserWindow | undefined, req: ChatRequest): Promise<ChatResponse> {
+    // Still allow instance merge (model, secrets, system prompt), but do NOT persist anything
+    const resolved = await this.withInstance(req);
+    const agent: AgentDefinition | undefined = getAgent(resolved.agentId);
+    const ctx = {
+      window: win || this.defaultWin,
+      getProvider: (id?: string) => getProvider(id)
+    };
+    if (!agent) {
+      const prov = getProvider(resolved.providerId);
+      if (!prov?.chat) return { message: { role: 'assistant', content: 'No provider available.' } } as any;
+      const resp = await prov.chat({ ...resolved, stream: false });
+      // Ensure no conversationId is injected in metadata
+      return { ...resp, metadata: { ...(resp.metadata || {}) } } as any;
+    }
+    const resp = await agent.handleChat(ctx, { ...resolved, stream: false });
+    return { ...resp, metadata: { ...(resp.metadata || {}) } } as any;
+  }
+
+  // Streaming Ephemeral chat: stream events without persisting any history
+  private async chatStreamEphemeral(sender: WebContents, req: ChatRequest & { requestId?: string }): Promise<{ requestId: string; eventsChannel: string }> {
+    const requestId = req.abortId || (req as any)['requestId'] || safeUuid();
+    const eventsChannel = `ai:stream:${requestId}`;
+    const ctrl = new AbortController();
+    this.controllers.set(requestId, ctrl);
+
+    let emittedCompleted = false;
+    const emit = (event: StreamEvent): void => {
+      try {
+        if (event?.type === 'message_completed') emittedCompleted = true;
+        (sender || this.defaultWin?.webContents)?.send(eventsChannel, event);
+      } catch { }
+    };
+
+    setTimeout(async () => {
+      try {
+        const resolvedReq = await this.withInstance(req);
+        const ctx = { window: BrowserWindow.fromWebContents(sender) || this.defaultWin, emit, getProvider: (id?: string) => getProvider(id) };
+        // Notify renderer that channel is ready
+        emit({ type: 'connected' } as any);
+
+        let finalResp: ChatResponse | undefined;
+        const agent: AgentDefinition | undefined = getAgent(resolvedReq.agentId);
+        if (agent) {
+          finalResp = await agent.handleChat(ctx, { ...resolvedReq, stream: true, abortId: requestId }, ctrl.signal);
+        } else {
+          const prov = getProvider(resolvedReq.providerId);
+          if (!prov?.chat) throw new Error('No provider available');
+          finalResp = await prov.chat({ ...resolvedReq, stream: true, abortId: requestId }, emit, ctrl.signal);
+        }
+        if (!emittedCompleted && finalResp?.message) {
+          emit({ type: 'message_completed', data: { message: finalResp.message } } as any);
+        }
+        emit({ type: 'done' });
+      } catch (err: any) {
+        emit({ type: 'error', data: { message: err?.message || 'chat error' } });
+      } finally {
+        this.controllers.delete(requestId);
+      }
+    }, 0);
+
+    return { requestId, eventsChannel };
   }
 
   private async chatStream(sender: WebContents, req: ChatRequest & { requestId?: string }): Promise<{ requestId: string; eventsChannel: string }> {

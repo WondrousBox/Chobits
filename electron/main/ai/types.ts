@@ -26,7 +26,7 @@ export type ChatRequest = {
 };
 
 export type StreamEvent =
-  | { type: 'delta'; data: { text?: string; toolCall?: any; } }
+  | { type: 'delta'; data: { text?: string; toolCall?: any } }
   | { type: 'message_completed'; data: { message: ChatMessage } }
   | { type: 'tool_call'; data: { name: string; args: any; callId: string } }
   | { type: 'tool_result'; data: { callId: string; result: any } }
@@ -59,9 +59,9 @@ export type ProviderConfig = {
   fields: Array<{
     key: string;
     label: string;
-    type: 'text'|'password'|'select';
+    type: 'text' | 'password' | 'select';
     required?: boolean;
-    options?: Array<{label:string; value:string}>;
+    options?: Array<{ label: string; value: string }>;
   }>;
 };
 
@@ -78,7 +78,7 @@ export interface ProviderAdapter {
   // Embeddings
   embed?(req: EmbeddingRequest): Promise<EmbeddingResponse>;
   // Models: return id + optional metadata; UI will use label if provided
-  listModels?(opts?: { secrets?: ProviderSecrets }): Promise<Array<{ id: string; label?: string; [k: string]: any }>>;
+  listModels?(opts?: { secrets?: ProviderSecrets }): Promise<Array<{ id: string; label?: string;[k: string]: any }>>;
 }
 
 // Agent contracts
@@ -101,10 +101,14 @@ export type StartStreamPayload = { requestId: string; eventsChannel: string } & 
 export type AIApi = {
   getProviders(): Promise<any[]>;
   getAgents(): Promise<any[]>;
-  listModels(providerId: string): Promise<Array<{ id: string; label?: string; [k: string]: any }>>;
+  listModels(providerId: string): Promise<Array<{ id: string; label?: string;[k: string]: any }>>;
   getProviderSecrets(providerId: string): Promise<Record<string, string>>;
   setProviderSecrets(providerId: string, secrets: Record<string, string>): Promise<{ ok: boolean }>;
   chat(payload: any): Promise<{ message: { role: string; content: string } }>;
+  // Stateless chat (no history persistence)
+  chatEphemeral(payload: any): Promise<{ message: { role: string; content: string } }>;
+  // Stateless streaming chat (no history persistence)
+  chatStreamEphemeral(payload: any, onEvent: (ev: { type: string; data?: any }) => void): Promise<{ requestId: string; dispose: () => void; cancel: () => Promise<any> }>;
   chatStream(payload: any, onEvent: (ev: { type: string; data?: any }) => void): Promise<{ requestId: string; dispose: () => void; cancel: () => Promise<any> }>;
   embed(payload: { texts: string[]; providerId?: string; model?: string; normalize?: boolean }): Promise<{ vectors: number[][]; dim: number }>;
   // Instances
@@ -116,7 +120,7 @@ export type AIApi = {
   setInstanceSecrets(instanceId: string, secrets: Record<string, string>): Promise<{ ok: boolean }>;
   // Prompt templates
   listPromptTemplates(): Promise<any[]>;
-  createPromptTemplate(payload: { name: string; type: 'system'|'user'; content: string; tags?: string[] }): Promise<any>;
+  createPromptTemplate(payload: { name: string; type: 'system' | 'user'; content: string; tags?: string[] }): Promise<any>;
   updatePromptTemplate(id: string, patch: any): Promise<any>;
   deletePromptTemplate(id: string): Promise<{ ok: boolean }>;
   // Conversations
@@ -125,4 +129,4 @@ export type AIApi = {
   renameConversation(id: string, title: string): Promise<{ ok: boolean; row?: any }>;
   deleteConversation(id: string): Promise<{ ok: boolean }>;
   restoreConversation(id: string): Promise<{ ok: boolean }>;
-}
+};

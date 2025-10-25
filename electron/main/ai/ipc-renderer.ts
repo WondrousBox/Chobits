@@ -21,6 +21,9 @@ export const aiBridge = {
   async chat(payload: any) {
     return ipcRenderer.invoke('ai:chat', payload);
   },
+  async chatEphemeral(payload: any) {
+    return ipcRenderer.invoke('ai:chatEphemeral', payload);
+  },
   async chatStream(payload: any, onEvent?: StreamCallback) {
     const res = await ipcRenderer.invoke('ai:chatStream', payload);
     const channel: string = res.eventsChannel;
@@ -63,6 +66,55 @@ export const aiBridge = {
     };
 
     // auto cleanup on end-like events
+    const autoCleanup = (ev: any): void => {
+      if (ev?.type === 'done' || ev?.type === 'error') {
+        cleanup();
+        api.off(autoCleanup as any);
+      }
+    };
+    listeners.add(autoCleanup as any);
+
+    return api;
+  },
+  async chatStreamEphemeral(payload: any, onEvent?: StreamCallback) {
+    const res = await ipcRenderer.invoke('ai:chatStreamEphemeral', payload);
+    const channel: string = res.eventsChannel;
+    const listeners = new Set<StreamCallback>();
+    const handler = (_event: any, ev: any): void => {
+      listeners.forEach((cb) => {
+        try {
+          cb(ev);
+        } catch {
+          //
+        }
+      });
+    };
+    ipcRenderer.on(channel, handler);
+
+    if (onEvent) listeners.add(onEvent);
+
+    const cleanup = (): void => {
+      try {
+        ipcRenderer.off(channel, handler);
+      } catch {
+        //
+      }
+      listeners.clear();
+    };
+
+    const api = {
+      requestId: res.requestId as string,
+      on(cb: StreamCallback) {
+        listeners.add(cb);
+        return () => listeners.delete(cb);
+      },
+      off(cb: StreamCallback) {
+        listeners.delete(cb);
+      },
+      dispose: cleanup,
+      cancel: () => ipcRenderer.invoke('ai:cancel', { requestId: res.requestId })
+    };
+
     const autoCleanup = (ev: any): void => {
       if (ev?.type === 'done' || ev?.type === 'error') {
         cleanup();
