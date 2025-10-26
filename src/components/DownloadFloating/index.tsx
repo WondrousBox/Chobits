@@ -28,7 +28,7 @@ const DownloadFloating: React.FC = () => {
     console.log('[DownloadFloating] 组件已挂载，开始监听事件');
 
     // 监听下载任务进度
-    const handleTaskProgress = (_: any, task: DownloadTask) => {
+    const handleTaskProgress = (_: any, task: DownloadTask): void => {
       console.log('[DownloadFloating] 收到任务进度:', task.id, task.progress);
       setTasks((prev) => {
         const updated = prev.map((t) => (t.id === task.id ? task : t));
@@ -37,7 +37,7 @@ const DownloadFloating: React.FC = () => {
     };
 
     // 监听任务开始
-    const handleTaskStarted = (_: any, task: DownloadTask) => {
+    const handleTaskStarted = (_: any, task: DownloadTask): void => {
       console.log('[DownloadFloating] 收到任务开始:', task.id);
       setTasks((prev) => {
         const exists = prev.find((t) => t.id === task.id);
@@ -50,27 +50,20 @@ const DownloadFloating: React.FC = () => {
     };
 
     // 监听任务完成
-    const handleTaskCompleted = (_: any, task: DownloadTask) => {
+    const handleTaskCompleted = (_: any, task: DownloadTask): void => {
       setTasks((prev) => prev.map((t) => (t.id === task.id ? task : t)));
-      // 3秒后自动隐藏
-      setTimeout(() => {
-        setTasks((prev) => {
-          const filtered = prev.filter((t) => t.id !== task.id);
-          if (filtered.length === 0) {
-            setIsVisible(false);
-          }
-          return filtered;
-        });
-      }, 3000);
+      // 下载完成后直接关闭悬浮窗以避免遮挡界面
+      setIsVisible(false);
+      window.ipcRenderer?.send('download-floating:close');
     };
 
     // 监听任务失败
-    const handleTaskFailed = (_: any, task: DownloadTask) => {
+    const handleTaskFailed = (_: any, task: DownloadTask): void => {
       setTasks((prev) => prev.map((t) => (t.id === task.id ? task : t)));
     };
 
     // 监听窗口数据
-    const handleWindowData = (_: any, data: any) => {
+    const handleWindowData = (_: any, data: any): void => {
       if (data && data.task) {
         setTasks([data.task]);
         setIsVisible(true);
@@ -93,7 +86,7 @@ const DownloadFloating: React.FC = () => {
     };
   }, []);
 
-  const handleCancel = (taskId: string) => {
+  const handleCancel = (taskId: string): void => {
     window.ipcRenderer?.invoke('video-downloader:cancel', taskId);
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
     if (tasks.length === 1) {
@@ -101,17 +94,17 @@ const DownloadFloating: React.FC = () => {
     }
   };
 
-  const handleClose = () => {
+  const handleClose = (): void => {
     setIsVisible(false);
     // 关闭窗口
     window.ipcRenderer?.send('download-floating:close');
   };
 
-  const handleCollapse = () => {
+  const handleCollapse = (): void => {
     setIsCollapsed(!isCollapsed);
   };
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: string): React.ReactNode => {
     switch (status) {
       case 'downloading':
         return <TbDownload className="w-4 h-4 text-blue-500 animate-pulse" />;
@@ -128,7 +121,7 @@ const DownloadFloating: React.FC = () => {
     }
   };
 
-  const getStatusText = (task: DownloadTask) => {
+  const getStatusText = (task: DownloadTask): string => {
     if (task.status === 'downloading' && task.progress.statusText) {
       return task.progress.statusText;
     }
@@ -231,7 +224,7 @@ const DownloadFloating: React.FC = () => {
               </Button>
             )}
             {currentTask.status === 'completed' && (
-              <Button variant="outline" size="sm" onClick={() => handleCancel(currentTask.id)} className="text-xs px-3 py-1.5 h-8 hover:bg-green-50 hover:border-green-200 hover:text-green-600">
+              <Button variant="outline" size="sm" onClick={handleClose} className="text-xs px-3 py-1.5 h-8 hover:bg-green-50 hover:border-green-200 hover:text-green-600">
                 <TbCheck className="w-3 h-3 mr-1" />
                 关闭
               </Button>
