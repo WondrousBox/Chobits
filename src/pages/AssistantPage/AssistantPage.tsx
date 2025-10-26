@@ -306,7 +306,6 @@ const AssistantPage: React.FC = () => {
                       <Button
                         variant={'outline'}
                         onClick={handleDownloadVideo}
-                        disabled={isAnalyzingVideo}
                         size={'icon'}
                         className="no-drag rounded-full bg-gradient-to-r from-red-500 to-pink-500 text-white hover:brightness-110 active:scale-95 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
                       >
