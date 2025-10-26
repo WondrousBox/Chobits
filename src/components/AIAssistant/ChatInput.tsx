@@ -48,7 +48,7 @@ export default function ChatInput({
   disabled = false,
   autoFocus = false,
   onKeyDown,
-  onInstanceMenuOpenChange,
+  onInstanceMenuOpenChange
 }: ChatInputProps) {
   // Standardized chat selection (provider/instance) available for all chat inputs
   // This makes instance selection a built-in part of ChatInput rather than requiring parent injection
@@ -65,7 +65,6 @@ export default function ChatInput({
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [showScrollbar, setShowScrollbar] = useState(false);
-  
 
   // Auto focus
   useEffect(() => {
@@ -121,7 +120,7 @@ export default function ChatInput({
           disabled ? 'opacity-60 cursor-not-allowed' : ''
         )}
         value={text}
-        onChange={e => setText(e.target.value)}
+        onChange={(e) => setText(e.target.value)}
         placeholder={placeholder ?? '输入消息'}
         onKeyDown={(e) => {
           onKeyDown?.(e, text);
@@ -135,42 +134,26 @@ export default function ChatInput({
 
       {/* Send / Stop */}
       {!loading ? (
-        <Button
-          onClick={doStart}
-          size="icon"
-          disabled={disabled || !(text || '').trim()}
-          className="absolute bottom-2 right-2 rounded-full"
-          aria-label="发送"
-        >
+        <Button onClick={doStart} size="icon" disabled={disabled || !(text || '').trim()} className="absolute bottom-2 right-2 rounded-full" aria-label="发送">
           <TbSend className="h-4 w-4" />
         </Button>
       ) : (
-        <Button
-          onClick={doStop}
-          size="icon"
-          variant={"destructive"}
-          className="absolute bottom-2 right-2 rounded-full"
-          aria-label="停止"
-        >
+        <Button onClick={doStop} size="icon" variant={'destructive'} className="absolute bottom-2 right-2 rounded-full" aria-label="停止">
           <TbLoader2 className="h-4 w-4 animate-spin" />
         </Button>
       )}
 
-      {/* Extra right actions (placed left to the send/stop button) */}
-      {footerRightExtra && (
-        <div className="absolute bottom-2 right-14 flex items-center gap-2 drag-region">
-          {footerRightExtra}
-        </div>
-      )}
-
       {/* Bottom toolbar */}
-      <div className="absolute bottom-2 left-2 right-16 flex items-center gap-2 overflow-x-auto drag-region ">
+      <div className="absolute bottom-2 left-2 right-16 flex items-center gap-2 overflow-x-auto">
         {/* Built-in: Service Instance selector (standard across all chat inputs) */}
-        <div className="shrink-0 no-drag">
+        <div className="shrink-0">
           <ServiceInstanceSelect
             providerId={providerId}
             instanceId={instanceId}
-            onChange={(pid, iid) => { setProviderId(pid); setInstanceId(iid); }}
+            onChange={(pid, iid) => {
+              setProviderId(pid);
+              setInstanceId(iid);
+            }}
             buttonVariant="outline"
             buttonSize="sm"
             orderInstances={(list, pid) => (getOrderedInstances ? getOrderedInstances(pid) : list)}
@@ -179,9 +162,8 @@ export default function ChatInput({
         </div>
         {/* Extra left-side content from parent (optional) */}
         {footerLeft}
-        <div className="shrink-0 text-xs text-muted-foreground">
-          {'Enter 发送， Shift+Enter 换行'}
-        </div>
+        <div className="shrink-0 flex-1 text-xs text-muted-foreground drag-region">{'Enter 发送， Shift+Enter 换行'}</div>
+        {footerRightExtra}
       </div>
     </div>
   );

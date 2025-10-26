@@ -29,6 +29,8 @@ const ResourcePage: React.FC = () => {
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameId, setRenameId] = useState<string>('');
   const [renameName, setRenameName] = useState<string>('');
+  // Radix Select: SelectItem value cannot be an empty string
+  const ALL_TAG_VALUE = '__all__';
 
   const typeOptions: { key: string; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { key: '', label: '全部', icon: TbHome },
@@ -321,9 +323,10 @@ const ResourcePage: React.FC = () => {
 
               {/* 标签筛选器 */}
               <Select
-                value={tagFilter}
+                value={tagFilter === '' ? ALL_TAG_VALUE : tagFilter}
                 onValueChange={(v) => {
-                  setTagFilter(v);
+                  const next = v === ALL_TAG_VALUE ? '' : v;
+                  setTagFilter(next);
                   // 切换标签时重新加载
                   setTimeout(() => load(), 0);
                 }}
@@ -332,7 +335,7 @@ const ResourcePage: React.FC = () => {
                   <SelectValue placeholder="标签（全部）" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem key="__all" value="">
+                  <SelectItem key="__all" value={ALL_TAG_VALUE}>
                     全部标签
                   </SelectItem>
                   {tags.map((t) => (
