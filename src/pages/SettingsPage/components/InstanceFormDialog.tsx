@@ -72,7 +72,7 @@ export function InstanceFormDialog(props: {
     const meta: any = m;
     const ctx = meta?.context ? `${Math.round(meta.context / 1000)}k` : '';
     const extra = [meta?.type, ctx && `${ctx} ctx`].filter(Boolean).join(' · ');
-    return extra ? <span className="text-xs text-gray-500 ml-1">({extra})</span> : null;
+    return extra ? <span className="text-xs text-muted-foreground ml-1">({extra})</span> : null;
   };
 
   return (

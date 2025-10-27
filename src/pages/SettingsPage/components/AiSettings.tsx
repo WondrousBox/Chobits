@@ -34,7 +34,7 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
 
   const selectedProvider = useMemo(() => providers.find((p) => p.id === selectedProviderId) || null, [providers, selectedProviderId]);
   const currentLang = navigator.language?.toLowerCase?.() || 'en';
-  const pickLocale = (locales?: Record<string, { label?: string; fields?: Record<string, string> }>) => {
+  const pickLocale = (locales?: Record<string, { label?: string; fields?: Record<string, string> }>): { label?: string; fields?: Record<string, string> } | undefined => {
     if (!locales) return undefined;
     const exact = locales[currentLang] || locales[currentLang.replace(/-.+$/, '')];
     const fallback = locales['en'] || Object.values(locales)[0];
@@ -221,8 +221,9 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
                             {inst.name} <span className="text-xs text-gray-500">({inst.model || '未选模型'})</span>
                           </div>
                           <div className="flex gap-2">
-                            <button
-                              className="text-blue-600"
+                            <Button
+                              size="sm"
+                              variant="outline"
                               onClick={async () => {
                                 if (!instanceSecrets[inst.id]) await loadInstanceSecrets(inst.id);
                                 await refreshInstanceModels(inst.id);
@@ -232,12 +233,13 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
                               }}
                             >
                               编辑
-                            </button>
-                            <button className="text-gray-600" onClick={() => onQuickTest(inst)}>
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => onQuickTest(inst)}>
                               测试
-                            </button>
-                            <button
-                              className="text-red-600"
+                            </Button>
+                            <Button
+                              variant={'destructive'}
+                              size="sm"
                               onClick={async () => {
                                 if (!confirm('删除该实例？')) return;
                                 await window.YUA.ai.deleteInstance(inst.id);
@@ -246,7 +248,7 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
                               }}
                             >
                               删除
-                            </button>
+                            </Button>
                           </div>
                         </div>
                       </div>

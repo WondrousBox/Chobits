@@ -100,12 +100,14 @@ export const SettingsPage: React.FC = () => {
         const payload = await window.YUA.window.getWindowPayload('settings' as any);
         if (payload?.category) setActiveCategory(payload.category);
         if (payload?.aiProviderId) setInitialAiProviderId(payload.aiProviderId);
-      } catch { }
+      } catch {
+        // ignore
+      }
     })();
     window.YUA.window.getMovementConfig().then((c: MovementConfig) => {
       if (mounted) setConfig(c);
     });
-    const listener = (_: any, c: MovementConfig) => setConfig(c);
+    const listener = (_: any, c: MovementConfig): void => setConfig(c);
     window.ipcRenderer?.on('movement-config-updated', listener);
 
     // 加载外部资源设置
@@ -117,7 +119,7 @@ export const SettingsPage: React.FC = () => {
     };
   }, []);
 
-  const loadExternalSettings = async () => {
+  const loadExternalSettings = async (): Promise<void> => {
     try {
       const settings = await (window.YUA as any).videoDownloader['getExternalResourceSettings']();
       if (settings) {
@@ -128,7 +130,7 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
-  const saveExternalSettings = async () => {
+  const saveExternalSettings = async (): Promise<void> => {
     try {
       await (window.YUA as any).videoDownloader['setExternalResourceSettings'](externalSettings);
     } catch (error) {
@@ -136,13 +138,13 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
-  const update = (partial: Partial<MovementConfig>) => {
+  const update = (partial: Partial<MovementConfig>): void => {
     if (!config) return;
     const next = { ...config, ...partial };
     setConfig(next);
   };
 
-  const persist = async () => {
+  const persist = async (): Promise<void> => {
     if (!config) return;
     setSaving(true);
     await window.YUA.window.updateMovementConfig(config);
@@ -154,7 +156,7 @@ export const SettingsPage: React.FC = () => {
   };
 
   // 渲染移动参数设置
-  const renderMovementSettings = () => (
+  const renderMovementSettings = (): JSX.Element => (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 px-2">
         <div className="space-y-4">
@@ -208,7 +210,7 @@ export const SettingsPage: React.FC = () => {
   );
 
   // 渲染外部资源设置
-  const renderExternalResourceSettings = () => (
+  const renderExternalResourceSettings = (): JSX.Element => (
     <div className="space-y-6">
       <div className="bg-card border border-border rounded-lg p-6">
         <div className="space-y-6">
@@ -275,7 +277,7 @@ export const SettingsPage: React.FC = () => {
   );
 
   // 根据当前分类渲染对应内容
-  const renderCurrentCategoryContent = () => {
+  const renderCurrentCategoryContent = (): JSX.Element => {
     switch (activeCategory) {
       case 'movement':
         return renderMovementSettings();
