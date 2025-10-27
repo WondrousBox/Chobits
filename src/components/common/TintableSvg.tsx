@@ -11,18 +11,18 @@ export type TintableSvgProps = {
   color?: string;
 };
 
-function isAbsoluteOrProtocol(src: string) {
+function isAbsoluteOrProtocol(src: string): boolean {
   return /^(https?:)?\/\//.test(src) || src.startsWith('res://') || src.startsWith('/') || src.startsWith('data:');
 }
 
-function normalizeSrc(src: string) {
+function normalizeSrc(src: string): string {
   if (isAbsoluteOrProtocol(src)) return src;
   // Treat as app resource relative path
   const forward = src.replace(/\\/g, '/');
   return 'res://local/' + encodeURIComponent(forward);
 }
 
-function shouldMono(src: string, force?: boolean) {
+function shouldMono(src: string, force?: boolean): boolean {
   if (typeof force === 'boolean') return force;
   // URL override markers
   const monoMarked = /(#|\?)mono(=1)?\b/.test(src) || /[?&]tint(=1)?\b/.test(src);
@@ -42,7 +42,7 @@ function shouldMono(src: string, force?: boolean) {
   return false;
 }
 
-function stripTintMarkers(src: string) {
+function stripTintMarkers(src: string): string {
   return src
     .replace(/#mono\b/, '')
     .replace(/([?&])mono=1\b/, '$1')
@@ -54,7 +54,7 @@ function stripTintMarkers(src: string) {
     .replace(/[?&]$/, '');
 }
 
-export default function TintableSvg({ src, className, alt, title, monochrome, color }: TintableSvgProps) {
+export default function TintableSvg({ src, className, alt, title, monochrome, color }: TintableSvgProps): JSX.Element {
   const mono = shouldMono(src, monochrome);
   const normalized = normalizeSrc(src);
   const cleaned = stripTintMarkers(normalized);
@@ -73,16 +73,8 @@ export default function TintableSvg({ src, className, alt, title, monochrome, co
     maskSize: 'contain',
     WebkitMaskPosition: 'center',
     maskPosition: 'center',
-    display: 'inline-block',
+    display: 'inline-block'
   };
 
-  return (
-    <span
-      className={className}
-      style={style}
-      role="img"
-      aria-label={alt}
-      title={title || alt}
-    />
-  );
+  return <span className={className} style={style} role="img" aria-label={alt} title={title || alt} />;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -32,34 +32,43 @@ export function InstanceFormDialog(props: {
   title?: string;
   provider: ProviderRow;
   models: ModelOpt[];
-  templates: Template[];
   initialValues: InstanceFormValues;
   errors?: Record<string, string>;
   onClose: () => void;
   onSubmit: (values: InstanceFormValues) => void;
-}) {
-  const { open, mode, title, provider, models, templates, initialValues, errors, onClose, onSubmit } = props;
+}): JSX.Element {
+  const { open, mode, title, provider, models, initialValues, errors, onClose, onSubmit } = props;
   const [values, setValues] = useState<InstanceFormValues>(initialValues);
+  const [templates, setTemplates] = useState<Template[]>([]);
 
+  // Initialize form values when dialog is opened via onOpenChange to avoid lint warning on setState in effect
+
+  // Fetch prompt templates internally when dialog opens
   useEffect(() => {
-    if (open) setValues(initialValues);
-  }, [open, initialValues]);
+    if (!open) return;
+    (async () => {
+      try {
+        const tmpl = await (window as any).YUA.ai.listPromptTemplates().catch(() => []);
+        setTemplates(tmpl || []);
+      } catch {
+        setTemplates([]);
+      }
+    })();
+  }, [open]);
 
   const currentLang = (typeof navigator !== 'undefined' ? navigator.language?.toLowerCase?.() : 'en') || 'en';
-  const pickLocale = (locales?: Record<string, { label?: string; fields?: Record<string, string> }>) => {
+  const pickLocale = (locales?: Record<string, { label?: string; fields?: Record<string, string> }>): { label?: string; fields?: Record<string, string> } | undefined => {
     if (!locales) return undefined;
     const exact = locales[currentLang] || locales[currentLang.replace(/-.+$/, '')];
     const fallback = locales['en'] || Object.values(locales)[0];
     return exact || fallback;
   };
 
-  const locale = useMemo(() => pickLocale(provider.schema?.locales), [provider]);
+  const locale = pickLocale(provider.schema?.locales);
 
-  const appendTemplate = (t: Template) => {
-    setValues((v) => ({ ...v, systemPrompt: (v.systemPrompt || '') + (v.systemPrompt ? '\n' : '') + t.content }));
-  };
+  // Note: appendTemplate previously supported chip-append. No longer used.
 
-  const renderModelExtra = (m: ModelOpt) => {
+  const renderModelExtra = (m: ModelOpt): JSX.Element | null => {
     const meta: any = m;
     const ctx = meta?.context ? `${Math.round(meta.context / 1000)}k` : '';
     const extra = [meta?.type, ctx && `${ctx} ctx`].filter(Boolean).join(' · ');
@@ -70,14 +79,18 @@ export function InstanceFormDialog(props: {
     <Dialog
       open={open}
       onOpenChange={(o) => {
-        if (!o) onClose();
+        if (!o) {
+          onClose();
+        } else {
+          setValues(initialValues);
+        }
       }}
     >
       <DialogContent className="sm:max-w-2xl" hideClose={false}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            {provider.schema?.icon && <TintableSvg src={provider.schema?.icon!} alt={provider.label} className="w-10 h-10" />}
-            {pickLocale(provider.schema?.locales)?.label || provider.label}
+            {provider.schema?.icon && <TintableSvg src={provider.schema?.icon || ''} alt={provider.label} className="w-10 h-10" />}
+            <span>{title || pickLocale(provider.schema?.locales)?.label || provider.label}</span>
           </DialogTitle>
           <DialogDescription className="h-0"></DialogDescription>
         </DialogHeader>
@@ -117,22 +130,31 @@ export function InstanceFormDialog(props: {
               </SelectContent>
             </Select>
           </label>
+
+          <label className="grid gap-1">
+            <span className="text-sm text-muted-foreground">系统提示词</span>
+            <Select
+              value={templates.find((t) => t.type === 'system' && t.content === (values.systemPrompt || ''))?.id || ''}
+              onValueChange={(val) => {
+                const t = templates.find((x) => x.id === val);
+                if (t) setValues((v) => ({ ...v, systemPrompt: t.content }));
+              }}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder={templates.length ? '选择模板' : '暂无模板，请先创建提示词模板'} />
+              </SelectTrigger>
+              <SelectContent>
+                {templates.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </label>
         </div>
 
-        <label className="grid gap-1">
-          <span className="text-sm text-muted-foreground">系统提示词</span>
-          <textarea className="rounded border px-2 py-1 min-h-[100px]" value={values.systemPrompt || ''} onChange={(e) => setValues((v) => ({ ...v, systemPrompt: e.target.value }))} />
-          <div className="flex flex-wrap gap-2 text-xs">
-            {templates
-              .filter((t) => t.type === 'system')
-              .slice(0, 8)
-              .map((t) => (
-                <Button key={t.id} className="px-2 py-1 border rounded hover:bg-gray-50" onClick={() => appendTemplate(t)}>
-                  {t.name}
-                </Button>
-              ))}
-          </div>
-        </label>
+        <div className="grid gap-1">{!!values.systemPrompt && <pre className="rounded border p-2 bg-muted/30 min-h-[60px] whitespace-pre-wrap text-xs">{values.systemPrompt}</pre>}</div>
 
         <DialogFooter>
           <div className="flex w-full justify-end gap-2">
