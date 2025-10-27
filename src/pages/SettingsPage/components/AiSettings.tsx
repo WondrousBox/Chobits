@@ -17,7 +17,7 @@ type ProviderRow = {
   };
 };
 type Instance = { id: string; providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any>; createdAt?: number };
-type ModelOpt = { id: string; label?: string; type?: string; context?: number; pricing?: any; tags?: string[]; description?: string };
+type ModelOpt = { id: string; label?: string; type?: string; context?: number; pricing?: any; tags?: string[]; description?: string; free?: boolean };
 // Templates are now loaded within InstanceFormDialog
 
 export default function AiSettings({ initialProviderId }: { initialProviderId?: string }): JSX.Element {
@@ -67,6 +67,66 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
   }, [selectedProviderId]);
 
   // duplicated declarations removed
+
+  const isFree = (m?: ModelOpt | null): boolean => {
+    if (!m) return false;
+    return (m as any)?.free === true || (Array.isArray(m.tags) && m.tags.includes('free'));
+  };
+
+  const typeDisplay = (t?: string): string => {
+    switch ((t || '').toLowerCase()) {
+      case 'chat':
+        return '对话';
+      case 'vision':
+        return '视觉';
+      case 'image':
+        return '图像';
+      case 'video':
+        return '视频';
+      case 'audio':
+        return '音频';
+      case 'embedding':
+        return '向量';
+      case 'realtime':
+        return '实时';
+      case 'tool':
+      case 'tooling':
+        return '工具';
+      default:
+        return t || '';
+    }
+  };
+
+  const typeColorClasses = (t?: string): string => {
+    switch ((t || '').toLowerCase()) {
+      case 'chat':
+        return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'vision':
+        return 'bg-purple-100 text-purple-700 border-purple-200';
+      case 'image':
+        return 'bg-rose-100 text-rose-700 border-rose-200';
+      case 'video':
+        return 'bg-amber-100 text-amber-700 border-amber-200';
+      case 'audio':
+        return 'bg-teal-100 text-teal-700 border-teal-200';
+      case 'embedding':
+        return 'bg-cyan-100 text-cyan-700 border-cyan-200';
+      case 'realtime':
+        return 'bg-violet-100 text-violet-700 border-violet-200';
+      case 'tool':
+      case 'tooling':
+        return 'bg-slate-100 text-slate-700 border-slate-200';
+      default:
+        return 'bg-gray-100 text-gray-700 border-gray-200';
+    }
+  };
+
+  const renderContextPill = (m?: ModelOpt | null): JSX.Element | null => {
+    if (!m?.context) return null;
+    const k = Math.round((m.context as number) / 1000);
+    if (!k) return null;
+    return <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-100 text-sky-700 border border-sky-200">{k}k ctx</span>;
+  };
 
   const schemaForProvider = (p?: ProviderRow | null): z.ZodObject<Record<string, z.ZodTypeAny>> => {
     const shape: Record<string, z.ZodTypeAny> = {};
@@ -217,8 +277,21 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
                     {instances.map((inst) => (
                       <div key={inst.id} className="border rounded p-3">
                         <div className="flex items-center justify-between">
-                          <div className="font-medium">
-                            {inst.name} <span className="text-xs text-gray-500">({inst.model || '未选模型'})</span>
+                          <div className="font-medium flex items-center gap-2">
+                            <span>{inst.name}</span>
+                            <span className="text-xs text-gray-500">({inst.model || '未选模型'})</span>
+                            {(() => {
+                              const ms = models[inst.providerId] || [];
+                              const m = ms.find((x) => x.id === (inst.model || ''));
+                              if (!m) return null;
+                              return (
+                                <span className="flex items-center gap-1">
+                                  {isFree(m) && <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 border border-green-200">免费</span>}
+                                  {m.type && <span className={`text-[10px] px-1.5 py-0.5 rounded border ${typeColorClasses(m.type)}`}>{typeDisplay(m.type)}</span>}
+                                  {renderContextPill(m)}
+                                </span>
+                              );
+                            })()}
                           </div>
                           <div className="flex gap-2">
                             <Button
