@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import PromptTemplateFormDialog, { type PromptTemplateFormValues } from './PromptTemplateFormDialog';
+import { TbPencil, TbTrash } from 'react-icons/tb';
 
 type Template = { id: string; name: string; type: 'system' | 'user'; content: string };
 
@@ -60,23 +61,14 @@ export default function PromptSetting(): JSX.Element {
     await refresh();
   };
 
-  const insertHere = async (t: Template): Promise<void> => {
-    try {
-      await navigator.clipboard.writeText(t.content);
-      alert('内容已复制，可粘贴到目标位置');
-    } catch {
-      alert('无法复制到剪贴板，请手动选择后复制');
-    }
-  };
-
   const filteredTemplates = useMemo(() => {
     const q = tmplSearch.trim().toLowerCase();
     return (templates || []).filter((t) => !q || t.name.toLowerCase().includes(q) || t.content.toLowerCase().includes(q));
   }, [templates, tmplSearch]);
 
   return (
-    <div className="mt-4">
-      <div className="flex items-center justify-between mb-2">
+    <div className="h-full">
+      <div className="flex items-center justify-between px-2 mb-2">
         <div className="flex items-center gap-2">
           <Input className="flex-1 h-8" placeholder="搜索名称或内容…" value={tmplSearch} onChange={(e) => setTmplSearch(e.target.value)} />
           {tmplSearch && (
@@ -90,42 +82,23 @@ export default function PromptSetting(): JSX.Element {
         </Button>
       </div>
 
-      <ScrollArea className="h-56 pr-1">
+      <ScrollArea className="px-2" style={{ height: 'calc(100% - 40px)' }}>
         <div className="space-y-2">
           {filteredTemplates.map((t) => (
-            <div key={t.id} className="border rounded-md p-2">
-              <div className="flex items-start gap-2">
+            <div key={t.id} className="border rounded-md p-2 border-solid box-border">
+              <div className="flex items-start gap-1">
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm truncate" title={t.name}>
                     {t.name}
                   </div>
-                  <div className="text-xs text-muted-foreground line-clamp-2 whitespace-pre-wrap" title={t.content}>
-                    {t.content}
-                  </div>
+                  <div className="text-xs text-muted-foreground line-clamp-2 whitespace-pre-wrap">{t.content}</div>
                 </div>
-                <div className="flex flex-col gap-1 text-xs shrink-0">
-                  <Button variant="link" className="h-7 px-0" onClick={() => openEdit(t)}>
-                    编辑
+                <div className="flex gap-1 text-xs shrink-0">
+                  <Button size="icon" className="w-8 h-8" variant={'outline'} onClick={() => openEdit(t)}>
+                    <TbPencil />
                   </Button>
-                  <Button variant="link" className="h-7 px-0 text-foreground" onClick={() => insertHere(t)}>
-                    插入
-                  </Button>
-                  <Button
-                    variant="link"
-                    className="h-7 px-0 text-foreground"
-                    onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(t.content);
-                        alert('已复制');
-                      } catch {
-                        alert('复制失败');
-                      }
-                    }}
-                  >
-                    复制
-                  </Button>
-                  <Button variant="link" className="h-7 px-0 text-destructive" onClick={() => deleteTemplate(t.id)}>
-                    删除
+                  <Button size="icon" className="w-8 h-8" variant={'destructive'} onClick={() => deleteTemplate(t.id)}>
+                    <TbTrash />
                   </Button>
                 </div>
               </div>
