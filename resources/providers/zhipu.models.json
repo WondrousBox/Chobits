@@ -6,7 +6,7 @@
     { "id": "glm-4-5-x", "label": "GLM-4.5-X", "type": "chat", "tags": ["fast"], "description": "GLM-4.5的极速推理版本" },
     { "id": "glm-4-5-air", "label": "GLM-4.5-Air", "type": "chat", "tags": ["value", "cheap"], "description": "超高性价比语言模型" },
     { "id": "glm-4-5-airx", "label": "GLM-4.5-AirX", "type": "chat", "tags": ["fast", "value"], "description": "GLM-4.5-Air的极速推理版本" },
-    { "id": "glm-4-5-flash", "label": "GLM-4.5-Flash", "type": "chat", "tags": ["free", "fast"], "description": "完全免费的语言模型" },
+    { "id": "glm-4-5-flash", "label": "GLM-4.5-Flash", "type": "chat", "free": true, "tags": ["free", "fast"], "description": "完全免费的语言模型" },
     { "id": "glm-4-air-250414", "label": "GLM-4-Air-250414", "type": "chat", "tags": ["value"], "description": "GLM-4系列高性价比语言模型" },
     { "id": "glm-4-long", "label": "GLM-4-Long", "type": "chat", "tags": ["long-context"], "description": "GLM-4系列超长输入模型" },
     { "id": "glm-4-airx", "label": "GLM-4-AirX", "type": "chat", "tags": ["fast", "value"], "description": "GLM-4-Air的极速推理版本" },
@@ -15,15 +15,15 @@
     { "id": "glm-4-5v", "label": "GLM-4.5V", "type": "vision", "capabilities": { "vision": true }, "tags": ["flagship", "vision", "latest"], "description": "100B级通用视觉模型新标杆" },
     { "id": "glm-4-1v-thinking", "label": "GLM-4.1V-Thinking", "type": "vision", "capabilities": { "vision": true, "reasoning": true }, "tags": ["vision", "reasoning"], "description": "10B级通用视觉模型新标杆" },
     { "id": "glm-4v-plus-0111", "label": "GLM-4V-Plus-0111", "type": "vision", "capabilities": { "vision": true, "video": true }, "tags": ["flagship", "vision", "video"], "description": "支持图片和视频理解" },
-    { "id": "glm-4v-flash", "label": "GLM-4V-Flash", "type": "vision", "capabilities": { "vision": true }, "tags": ["free", "vision", "fast"], "description": "支持图片理解，完全免费" },
+    { "id": "glm-4v-flash", "label": "GLM-4V-Flash", "type": "vision", "capabilities": { "vision": true }, "free": true, "tags": ["free", "vision", "fast"], "description": "支持图片理解，完全免费" },
 
     { "id": "cogview-4", "label": "CogView-4", "type": "image", "capabilities": { "image_generation": true }, "tags": ["flagship", "image"], "description": "支持生成高清美感图片" },
-    { "id": "cogview-3-flash", "label": "CogView-3-Flash", "type": "image", "capabilities": { "image_generation": true }, "tags": ["free", "image", "fast"], "description": "支持文生图，完全免费" },
+    { "id": "cogview-3-flash", "label": "CogView-3-Flash", "type": "image", "capabilities": { "image_generation": true }, "free": true, "tags": ["free", "image", "fast"], "description": "支持文生图，完全免费" },
 
     { "id": "cogvideox-3", "label": "CogVideoX-3", "type": "video", "capabilities": { "video_generation": true }, "tags": ["video", "latest"], "description": "支持生成高质量视频" },
     { "id": "vidu-q1", "label": "Vidu Q1", "type": "video", "capabilities": { "video_generation": true }, "tags": ["video", "latest"], "description": "聚焦高质量视频创作" },
     { "id": "vidu-2", "label": "Vidu 2", "type": "video", "capabilities": { "video_generation": true }, "tags": ["video", "latest", "speed"], "description": "聚焦视频生成质量和速度平衡" },
-    { "id": "cogvideox-flash", "label": "CogVideoX-Flash", "type": "video", "capabilities": { "video_generation": true }, "tags": ["video", "free", "fast"], "description": "支持视频生成，完全免费" },
+    { "id": "cogvideox-flash", "label": "CogVideoX-Flash", "type": "video", "capabilities": { "video_generation": true }, "free": true, "tags": ["video", "free", "fast"], "description": "支持视频生成，完全免费" },
 
     { "id": "cogtts", "label": "CogTTS", "type": "audio", "capabilities": { "tts": true }, "tags": ["audio", "latest"], "description": "语音合成模型" },
     { "id": "glm-4-voice", "label": "GLM-4-Voice", "type": "audio", "capabilities": { "tts": true, "asr": true, "realtime": true }, "tags": ["audio", "voice"], "description": "端到端语音模型" },
