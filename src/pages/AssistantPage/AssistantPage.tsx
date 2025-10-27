@@ -67,7 +67,7 @@ const AssistantPage: React.FC = () => {
 
   // ESC 关闭（仅全局监听 ESC）
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
+    const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
         e.preventDefault();
         close();
@@ -80,7 +80,7 @@ const AssistantPage: React.FC = () => {
 
   // 已移除自动上下文收集逻辑（剪贴板/最近资源）
 
-  const send = async (content: string) => {
+  const send = async (content: string): Promise<void> => {
     if (!content.trim()) return;
     try {
       const now = Date.now();
@@ -102,7 +102,7 @@ const AssistantPage: React.FC = () => {
     }
   };
 
-  const handleDownloadVideo = async () => {
+  const handleDownloadVideo = async (): Promise<void> => {
     console.log('下载视频:', query);
     setIsAnalyzingVideo(true);
     try {
@@ -142,7 +142,7 @@ const AssistantPage: React.FC = () => {
     }
   };
 
-  const handleAnalyzeWeb = async () => {
+  const handleAnalyzeWeb = async (): Promise<void> => {
     console.log('分析网页:', query);
     setIsAnalyzingWeb(true);
     try {
@@ -159,7 +159,7 @@ const AssistantPage: React.FC = () => {
   };
 
   // 监听输入内容识别命令模式和URL
-  const onChangeText = (v: string) => {
+  const onChangeText = (v: string): void => {
     setQuery(v);
     // 检测URL并设置按钮状态
     const trimmedQuery = v.trim();
@@ -198,18 +198,18 @@ const AssistantPage: React.FC = () => {
       const currentWidth = window.innerWidth || html.clientWidth;
       let maxW = Number.POSITIVE_INFINITY;
       let maxH = Number.POSITIVE_INFINITY;
-      try {
-        const screen = await (window as any).YUA.window.getScreenSize();
-        maxW = screen.width;
-        maxH = screen.height;
-      } catch { }
+      const screen = await (window as any).YUA.window.getScreenSize();
+      maxW = screen.width;
+      maxH = screen.height;
       const minW = 360;
       const minH = 100;
       const desiredWidth = Math.max(minW, Math.min(currentWidth, maxW));
       const padding = 0;
       const desiredHeight = Math.max(minH, Math.min(contentHeight + padding, maxH));
       await (window as any).YUA.window.setWindowSize('assistant', desiredWidth, desiredHeight);
-    } catch { }
+    } catch {
+      //
+    }
   }, []);
 
   // 根据内容高度动态调整窗口大小（含首次渲染）
@@ -217,7 +217,7 @@ const AssistantPage: React.FC = () => {
     let disposed = false;
     let debounceTimer: number | null = null;
 
-    const adjustWindowSize = async () => {
+    const adjustWindowSize = async (): Promise<void> => {
       try {
         if (debounceTimer) window.clearTimeout(debounceTimer);
         debounceTimer = window.setTimeout(async () => {
@@ -226,7 +226,9 @@ const AssistantPage: React.FC = () => {
           if (instanceMenuOpenRef.current) return;
           await resizeToContent();
         }, 90);
-      } catch { }
+      } catch {
+        //
+      }
     };
 
     // 首次渲染后调整一次
@@ -242,7 +244,7 @@ const AssistantPage: React.FC = () => {
     }
 
     // 监听窗口尺寸变化（例如开发者工具导致布局变化）
-    const onWinResize = () => adjustWindowSize();
+    const onWinResize = (): Promise<void> => adjustWindowSize();
     window.addEventListener('resize', onWinResize);
 
     return () => {
@@ -250,7 +252,9 @@ const AssistantPage: React.FC = () => {
       if (debounceTimer) window.clearTimeout(debounceTimer);
       try {
         ro.disconnect();
-      } catch { }
+      } catch {
+        //
+      }
       window.removeEventListener('resize', onWinResize);
     };
   }, [resizeToContent]);
@@ -263,10 +267,8 @@ const AssistantPage: React.FC = () => {
         const html = document.documentElement;
         const currentWidth = window.innerWidth || html.clientWidth;
         let maxH = Number.POSITIVE_INFINITY;
-        try {
-          const screen = await (window as any).YUA.window.getScreenSize();
-          maxH = screen.height;
-        } catch { }
+        const screen = await (window as any).YUA.window.getScreenSize();
+        maxH = screen.height;
         if (open) {
           // 预留足够空间给下拉面板
           const extra = 360;
@@ -275,7 +277,9 @@ const AssistantPage: React.FC = () => {
         } else {
           await resizeToContent();
         }
-      } catch { }
+      } catch {
+        //
+      }
     },
     [resizeToContent]
   );
@@ -299,36 +303,19 @@ const AssistantPage: React.FC = () => {
                 autoFocus
                 onStart={send}
                 onInstanceMenuOpenChange={handleInstanceMenuOpenChange}
-                footerLeft={<></>}
                 footerRightExtra={
                   <>
                     {showVideoButton && (
-                      <Button
-                        variant={'outline'}
-                        onClick={handleDownloadVideo}
-                        size={'icon'}
-                        className="no-drag rounded-full bg-gradient-to-r from-red-500 to-pink-500 text-white hover:brightness-110 active:scale-95 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
-                      >
+                      <Button onClick={handleDownloadVideo} variant={'outline'} size={'icon'} className="rounded-full bg-gradient-to-r from-red-500 to-pink-500 text-white">
                         {isAnalyzingVideo ? <TbLoader2 className="animate-spin" /> : <TbDownload />}
                       </Button>
                     )}
                     {showWebButton && (
-                      <Button
-                        variant={'outline'}
-                        onClick={handleAnalyzeWeb}
-                        disabled={isAnalyzingWeb}
-                        size={'icon'}
-                        className="no-drag rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:brightness-110 active:scale-95 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
-                      >
+                      <Button onClick={handleAnalyzeWeb} variant={'outline'} size={'icon'} disabled={isAnalyzingWeb} className="rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white">
                         {isAnalyzingWeb ? <TbLoader2 className="animate-spin" /> : <TbWorld />}
                       </Button>
                     )}
-
-                    <Button
-                      variant={'outline'}
-                      size={'icon'}
-                      className="no-drag rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:brightness-110 active:scale-95 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
-                    >
+                    <Button variant={'outline'} size={'icon'} className="rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white">
                       <TbMicrophone />
                     </Button>
                   </>

@@ -250,7 +250,7 @@ const Workspace: React.FC = () => {
             <div className="text-xs opacity-80 break-all">{maskPath(ws.rootPath)}</div>
             <div className="text-xs flex flex-wrap gap-4 opacity-70">
               <span>文件数: {ws.fileCount ?? '-'}</span>
-              <span>容量: {prettyBytes(ws.sizeBytes)}</span>
+              <span>容量: {prettyBytes(ws.sizeBytes || 0)}</span>
               {ws.lastScanAt && <span>上次扫描: {formatRelativeTime(ws.lastScanAt)}</span>}
             </div>
             {ws.description && <div className="text-xs opacity-70">{ws.description}</div>}
