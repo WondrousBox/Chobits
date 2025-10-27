@@ -1,6 +1,4 @@
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 import TintableSvg from '@/components/common/TintableSvg';
@@ -20,16 +18,15 @@ type ProviderRow = {
 };
 type Instance = { id: string; providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any>; createdAt?: number };
 type ModelOpt = { id: string; label?: string; type?: string; context?: number; pricing?: any; tags?: string[]; description?: string };
-type Template = { id: string; name: string; type: 'system' | 'user'; content: string };
+// Templates are now loaded within InstanceFormDialog
 
-export default function AiSettings({ initialProviderId }: { initialProviderId?: string }) {
+export default function AiSettings({ initialProviderId }: { initialProviderId?: string }): JSX.Element {
   const [providers, setProviders] = useState<ProviderRow[]>([]);
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const [instances, setInstances] = useState<Instance[]>([]);
   const [models, setModels] = useState<Record<string, ModelOpt[]>>({});
   const [instanceSecrets, setInstanceSecrets] = useState<Record<string, Record<string, string>>>({});
   const [errors, setErrors] = useState<Record<string, Record<string, string>>>({});
-  const [templates, setTemplates] = useState<Template[]>([]);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
@@ -50,16 +47,10 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
       setProviders(provs || []);
       const defaultId = initialProviderId && (provs || []).some((p: ProviderRow) => p.id === initialProviderId) ? initialProviderId : provs?.[0]?.id || null;
       setSelectedProviderId(defaultId);
-      const tmpl = await window.YUA.ai.listPromptTemplates().catch(() => []);
-      setTemplates(tmpl || []);
     })();
   }, [initialProviderId]);
 
-  // 如果 initialProviderId 在挂载后才到达，且当前未选择，则进行一次性选择
-  useEffect(() => {
-    if (!initialProviderId || !providers.length) return;
-    setSelectedProviderId((prev) => prev ?? (providers.some((p) => p.id === initialProviderId) ? initialProviderId : prev));
-  }, [initialProviderId, providers]);
+  // 如果 initialProviderId 在挂载后才到达，首个 effect 已根据依赖更新，这里可省略二次设置以避免不必要的状态同步告警
 
   useEffect(() => {
     if (!selectedProviderId) return;
@@ -69,13 +60,15 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
       try {
         const ms = await window.YUA.ai.listModels(selectedProviderId);
         if (Array.isArray(ms) && ms.length) setModels((prev) => ({ ...prev, [selectedProviderId]: ms }));
-      } catch { }
+      } catch {
+        /* ignore */
+      }
     })();
   }, [selectedProviderId]);
 
   // duplicated declarations removed
 
-  const schemaForProvider = (p?: ProviderRow | null) => {
+  const schemaForProvider = (p?: ProviderRow | null): z.ZodObject<Record<string, z.ZodTypeAny>> => {
     const shape: Record<string, z.ZodTypeAny> = {};
     (p?.schema?.fields || []).forEach((f) => {
       const base = z.string().trim();
@@ -84,21 +77,23 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
     return z.object(shape);
   };
 
-  const refreshInstanceModels = async (instanceId: string) => {
+  const refreshInstanceModels = async (instanceId: string): Promise<void> => {
     const inst = instances.find((i) => i.id === instanceId);
     if (!inst) return;
     try {
       const ms = await (window as any).YUA.ai.listModels(inst.providerId, inst.id);
       if (Array.isArray(ms) && ms.length) setModels((prev) => ({ ...prev, [inst.providerId]: ms }));
-    } catch { }
+    } catch {
+      /* ignore */
+    }
   };
 
-  const loadInstanceSecrets = async (instanceId: string) => {
+  const loadInstanceSecrets = async (instanceId: string): Promise<void> => {
     const s = await window.YUA.ai.getInstanceSecrets(instanceId).catch(() => ({}));
     setInstanceSecrets((prev) => ({ ...prev, [instanceId]: s || {} }));
   };
 
-  const onCreateInstance = async (vals: InstanceFormValues) => {
+  const onCreateInstance = async (vals: InstanceFormValues): Promise<void> => {
     if (!selectedProvider) return;
     const nameOk = (vals.name || '').trim().length > 0;
     const schema = schemaForProvider(selectedProvider);
@@ -122,7 +117,7 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
     setModalOpen(false);
   };
 
-  const onSaveInstance = async (inst: Instance, vals: InstanceFormValues) => {
+  const onSaveInstance = async (inst: Instance, vals: InstanceFormValues): Promise<void> => {
     const schema = schemaForProvider(selectedProvider);
     const parsed = schema.safeParse(vals.secrets || {});
     if (!parsed.success) {
@@ -142,7 +137,7 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
     setModalOpen(false);
   };
 
-  const onQuickTest = async (inst: Instance) => {
+  const onQuickTest = async (inst: Instance): Promise<void> => {
     try {
       await window.YUA.ai.chat({
         providerInstanceId: inst.id,
@@ -158,28 +153,11 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
     }
   };
 
-  const insertTemplateInto = (t: Template, setter: (v: string) => void, current: string) => {
-    setter((current || '') + (current ? '\n' : '') + t.content);
-  };
-
-  const refreshTemplates = async () => {
-    const tmpl = await window.YUA.ai.listPromptTemplates().catch(() => []);
-    setTemplates(tmpl || []);
-  };
-
-  const insertTemplateSmart = async (t: Template) => {
-    // When using dialog, template insertion is handled inside the form dialog; keep this as a fallback utility.
-    try {
-      await navigator.clipboard.writeText(t.content);
-      alert('没有可插入的编辑目标，内容已复制到剪贴板');
-    } catch {
-      alert('没有可插入的编辑目标，且无法复制到剪贴板');
-    }
-  };
-
   // prompt setting filtered logic moved into component
 
-  const modalModels: ModelOpt[] = modalMode === 'edit' ? (editing ? models[editing.providerId] || [] : []) : selectedProvider ? models[selectedProvider.id] || [] : [];
+  const modalModels: ModelOpt[] = (modalMode === 'edit' ? (editing ? models[editing.providerId] || [] : []) : selectedProvider ? models[selectedProvider.id] || [] : []).filter((m) => {
+    return m.type == 'chat';
+  });
 
   const modalInitialValues: InstanceFormValues =
     modalMode === 'create'
@@ -314,7 +292,6 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
           title={modalMode === 'create' ? '新建实例' : `编辑实例 · ${editing?.name || ''}`}
           provider={selectedProvider!}
           models={modalModels}
-          templates={templates}
           initialValues={modalInitialValues}
           errors={modalErrors}
           onClose={() => setModalOpen(false)}
