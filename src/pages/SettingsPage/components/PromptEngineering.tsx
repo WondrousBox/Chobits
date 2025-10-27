@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 
-export default function PromptEngineering() {
+export default function PromptEngineering(): JSX.Element {
   const [template, setTemplate] = useState<string>('你是一位专业助手。请根据以下指令回答：\n\n${instruction}');
   const [variablesJson, setVariablesJson] = useState<string>('{\n  "instruction": "介绍一下你自己"\n}');
 
@@ -14,7 +14,7 @@ export default function PromptEngineering() {
     }
   }, [variablesJson]);
 
-  const render = () => {
+  const render = (): string => {
     if (!parsedVars.ok) return template;
     let out = template;
     for (const [k, v] of Object.entries(parsedVars.obj || {})) {
