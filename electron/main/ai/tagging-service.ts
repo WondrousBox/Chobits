@@ -3,6 +3,7 @@ import { InstancesStore } from './instances-store';
 import { getProvider } from './registry';
 import { getAllInstanceSecrets } from './settings-store';
 import { TaggerAgent } from './agents/tagger';
+import { loadSelectionStrategy, scoreCandidate, isFreeProvider } from './selection-strategy';
 import { chunkText } from '../embedding/chunker';
 
 export type BestInstance = {
@@ -12,11 +13,30 @@ export type BestInstance = {
   model?: string;
 };
 
+type Candidate = { providerId: string; instanceId: string; updatedAt: number; weight: number; secrets?: Record<string, string>; model?: string };
+
 export const TaggingService = {
+  /**
+   * 自动选择“最佳聊天实例”的原则说明：
+   * 1) 仅考虑已注册且实现了 chat() 能力的 Provider 对应的实例；
+   * 2) 若该 Provider 的配置 schema 有必填字段，则优先那些“已配置齐所有必填秘钥”的实例；
+   * 3) 结合最近更新时间（updatedAt）给予轻微加权；
+   * 4) 最终按权重与最近更新时间降序排序，取第一名；
+   * 5) 若没有可用实例，则回退到可聊天的 Provider（优先 ollama，再退到第一个可用 Provider）。
+   *
+   * 同时支持通过用户可编辑的 JSON（位于 userData/ai-selection-strategy.json）预设偏好：
+   * - preferredProviders: 按顺序的偏好 Provider 列表（越靠前加分越多）
+   * - freeProviders: 认为“免费/本地”的 Provider 列表（如 ollama）
+   * - providerWeights / modelWeights: 针对特定 Provider/Model 的微调权重
+   * - boosts.recentHalfLifeHours / recentBase: 控制“最近使用”加分的衰减
+   * - flags.freeOnly: 若为 true，则仅在 freeProviders 范围内选择
+   * 如未创建该文件，会自动写入一个默认模板，用户可自行修改以生效。
+   */
   async chooseBestChatInstance(): Promise<BestInstance> {
     const all = InstancesStore.list();
-    type Cand = { providerId: string; instanceId: string; updatedAt: number; weight: number; secrets?: Record<string, string>; model?: string };
-    const cands: Cand[] = [];
+    const candidates: Candidate[] = [];
+    // 读取（并在首次缺失时生成）用户策略
+    const strategy = loadSelectionStrategy();
     for (const inst of all) {
       const prov = getProvider(inst.providerId);
       if (!prov || typeof (prov as any).chat !== 'function') continue;
@@ -30,8 +50,21 @@ export const TaggingService = {
         secrets = {};
       }
       const hasAllRequired = requiredKeys.length ? requiredKeys.every((k) => !!secrets[k]) : true;
-      const weight = (hasAllRequired ? 100 : 10) + Math.min(50, Math.floor(((inst as any).updatedAt || 0) / 1e12));
-      cands.push({
+      // 基础权重：是否齐全 + 非线性微弱“时间”项（兼容旧逻辑）
+      let weight = (hasAllRequired ? 100 : 10) + Math.min(50, Math.floor(((inst as any).updatedAt || 0) / 1e12));
+      // 若启用了“仅免费”模式，则非免费 Provider 直接跳过
+      if (strategy.flags?.freeOnly && !isFreeProvider(inst.providerId, strategy)) continue;
+      // 应用用户策略加权（偏好、免费、Provider/Model 定制、最近使用衰减等）
+      weight += scoreCandidate(
+        {
+          providerId: inst.providerId,
+          model: (inst as any).model,
+          updatedAt: (inst as any).updatedAt || 0,
+          hasAllRequired
+        },
+        strategy
+      );
+      candidates.push({
         providerId: inst.providerId,
         instanceId: inst.id,
         updatedAt: (inst as any).updatedAt || 0,
@@ -40,8 +73,8 @@ export const TaggingService = {
         model: (inst as any).model
       });
     }
-    cands.sort((a, b) => b.weight - a.weight || b.updatedAt - a.updatedAt);
-    const best = cands[0];
+    candidates.sort((a, b) => b.weight - a.weight || b.updatedAt - a.updatedAt);
+    const best = candidates[0];
     if (best) return { providerId: best.providerId, instanceId: best.instanceId, secrets: best.secrets, model: best.model };
     // Fallbacks: pick any provider that supports chat (e.g., Ollama)
     const provFallback = getProvider('ollama') || getProvider();

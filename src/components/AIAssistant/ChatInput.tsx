@@ -49,7 +49,7 @@ export default function ChatInput({
   autoFocus = false,
   onKeyDown,
   onInstanceMenuOpenChange
-}: ChatInputProps) {
+}: ChatInputProps): JSX.Element {
   // Standardized chat selection (provider/instance) available for all chat inputs
   // This makes instance selection a built-in part of ChatInput rather than requiring parent injection
   const { providerId, instanceId, setProviderId, setInstanceId, getOrderedInstances } = useChatSelection();
@@ -57,7 +57,7 @@ export default function ChatInput({
   const isControlled = useMemo(() => value !== undefined, [value]);
   const [inner, setInner] = useState<string>(defaultValue ?? '');
   const text = isControlled ? (value as string) : inner;
-  const setText = (v: string) => {
+  const setText = (v: string): void => {
     if (disabled) return;
     if (isControlled) onChange?.(v);
     else setInner(v);
@@ -91,7 +91,7 @@ export default function ChatInput({
     if (isOverflowing && isFocused && atEnd) el.scrollTop = el.scrollHeight;
   }, [text]);
 
-  const doStart = async () => {
+  const doStart = async (): Promise<void> => {
     if (disabled || loading) return;
     const content = (text || '').trim();
     if (!content) return;
@@ -103,7 +103,7 @@ export default function ChatInput({
     }
   };
 
-  const doStop = () => {
+  const doStop = (): void => {
     if (disabled) return;
     onStop?.();
   };
@@ -132,19 +132,8 @@ export default function ChatInput({
         }}
       />
 
-      {/* Send / Stop */}
-      {!loading ? (
-        <Button onClick={doStart} size="icon" disabled={disabled || !(text || '').trim()} className="absolute bottom-2 right-2 rounded-full" aria-label="发送">
-          <TbSend className="h-4 w-4" />
-        </Button>
-      ) : (
-        <Button onClick={doStop} size="icon" variant={'destructive'} className="absolute bottom-2 right-2 rounded-full" aria-label="停止">
-          <TbLoader2 className="h-4 w-4 animate-spin" />
-        </Button>
-      )}
-
       {/* Bottom toolbar */}
-      <div className="absolute bottom-2 left-2 right-16 flex items-center gap-2 overflow-x-auto">
+      <div className="absolute bottom-2 flex items-center gap-2 overflow-x-auto w-[calc(100%-1rem)] px-2">
         {/* Built-in: Service Instance selector (standard across all chat inputs) */}
         <div className="shrink-0">
           <ServiceInstanceSelect
@@ -164,6 +153,17 @@ export default function ChatInput({
         {footerLeft}
         <div className="shrink-0 flex-1 text-xs text-muted-foreground drag-region">{'Enter 发送， Shift+Enter 换行'}</div>
         {footerRightExtra}
+
+        {/* Send / Stop */}
+        {!loading ? (
+          <Button onClick={doStart} size="icon" disabled={disabled || !(text || '').trim()} className="rounded-full" aria-label="发送">
+            <TbSend />
+          </Button>
+        ) : (
+          <Button onClick={doStop} size="icon" variant={'destructive'} className="rounded-full" aria-label="停止">
+            <TbLoader2 className="animate-spin" />
+          </Button>
+        )}
       </div>
     </div>
   );

@@ -21,6 +21,10 @@
   },
   "editor.formatOnSave": true, // Prettier auto format on save
   "editor.defaultFormatter": "esbenp.prettier-vscode",
+  
+  "[json]": {
+    "editor.formatOnSave": false
+  },
   "[typescriptreact]": {
     "editor.defaultFormatter": "vscode.typescript-language-features"
   }

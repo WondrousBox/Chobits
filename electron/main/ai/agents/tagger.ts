@@ -1,7 +1,7 @@
 import { AgentDefinition, AgentContext, ChatRequest, ChatResponse } from '../types';
 
 // Basic tag cleanup/normalization
-function normalize(tag: string) {
+function normalize(tag: string): string {
   return (tag || '')
     .trim()
     .replace(/^[-#@\s]+|[-#@\s]+$/g, '')
@@ -9,7 +9,7 @@ function normalize(tag: string) {
     .toLowerCase();
 }
 
-function uniqPush(map: Map<string, { label: string; score: number }>, t: string, weight = 1) {
+function uniqPush(map: Map<string, { label: string; score: number }>, t: string, weight = 1): void {
   const clean = t.trim();
   if (!clean) return;
   const key = normalize(clean);
@@ -32,7 +32,9 @@ function parseTagsFromText(txt: string): string[] {
         .map((v: any) => String(v))
         .map((s: string) => s.trim())
         .filter(Boolean);
-  } catch { }
+  } catch {
+    // Ignore
+  }
   // Fallback: split by commas/newlines
   return (txt || '')
     .split(/[\n,、，]/)
@@ -48,7 +50,7 @@ async function tagOneSegment(ctx: AgentContext, req: ChatRequest, seg: string, m
     role: 'system' as const,
     content: [
       '你是一个资深文本归纳与主题提取助手。',
-      '目标：从给定文本中提炼出主题/话题标签，尽量短小、泛化，避免冗长描述。',
+      '目标：从给定文本中提炼出主题/话题标签，尽量短小、泛化，避免冗长描述，控制在一个单词或者短语内。',
       `最多返回 ${maxPerSeg} 个中文标签，按相关性降序。`,
       '仅返回 JSON 数组，例如：["标签1","标签2"...]；不要包含解释性文字。'
     ].join('\n')
