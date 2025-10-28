@@ -55,7 +55,7 @@ const ResourcePreviewWindow: React.FC = () => {
         windowHeight = Math.max(300, Math.min(windowHeight, availableHeight));
 
         // 调整窗口大小并居中
-        await window.YUA.window.setWindowSize('resourcePreview', windowWidth, windowHeight, true);
+        await window.YUA.window['window:size:set']('resourcePreview', windowWidth, windowHeight, true);
       }
     } catch (error) {
       console.warn('调整视频窗口大小失败:', error);

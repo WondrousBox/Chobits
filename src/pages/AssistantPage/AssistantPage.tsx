@@ -206,7 +206,7 @@ const AssistantPage: React.FC = () => {
       const desiredWidth = Math.max(minW, Math.min(currentWidth, maxW));
       const padding = 0;
       const desiredHeight = Math.max(minH, Math.min(contentHeight + padding, maxH));
-      await (window as any).YUA.window.setWindowSize('assistant', desiredWidth, desiredHeight);
+      await (window as any).YUA.window['window:size:set']('assistant', desiredWidth, desiredHeight);
     } catch {
       //
     }
@@ -273,7 +273,7 @@ const AssistantPage: React.FC = () => {
           // 预留足够空间给下拉面板
           const extra = 360;
           const desiredHeight = Math.min(Math.max(window.innerHeight + extra, 420), maxH);
-          await (window as any).YUA.window.setWindowSize('assistant', currentWidth, desiredHeight);
+          await window.YUA.window['window:size:set']('assistant', currentWidth, desiredHeight);
         } else {
           await resizeToContent();
         }
