@@ -274,7 +274,7 @@ export function init(win: BrowserWindow): void {
         y = workArea.y + Math.floor((workArea.height - finalHeight) / 2);
       } else {
         // 保持当前位置，但确保窗口在屏幕内
-        const currentBounds = targetWindow.getBounds();
+        // const currentBounds = targetWindow.getBounds();
         x = Math.max(workArea.x, Math.min(x, workArea.x + workArea.width - finalWidth));
         y = Math.max(workArea.y, Math.min(y, workArea.y + workArea.height - finalHeight));
       }

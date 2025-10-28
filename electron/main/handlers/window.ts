@@ -1,8 +1,9 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import type { IpcMainInvokeEvent } from 'electron';
-import { screen, app } from 'electron';
+import { screen, app, systemPreferences } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { windowManager } from '../window/window-manager';
 import { ASSISTANT_HEIGHT, ASSISTANT_WIDTH } from '../config';
 import { init } from '../window/icp-main';
@@ -34,45 +35,118 @@ export function initWindowHandlers(win: BrowserWindow): void {
   // ---------------- Hover monitor to manage click-through ---------------
   // 在透明窗口上，为了让外部（Finder）拖拽能进入助手区域，我们需要在鼠标进入助手内层矩形时
   // 自动关闭 ignoreMouseEvents（否则不会收到 dragenter/over 事件）。
-  let hoverTimer: NodeJS.Timeout | null = null;
-  let lastInside = false;
-  function isCursorInsideAssistant(): boolean {
-    console.log('===========');
+  // 优先使用全局系统级鼠标事件钩子（uiohook-napi），不可用时回退到低频轮询。
+  const require = createRequire(import.meta.url);
 
-    if (!win || win.isDestroyed()) return false;
+  // 缓存窗口边界，避免每次事件都调用 getBounds()
+  let cachedBounds = win.getBounds();
+  function refreshBounds(): void {
     try {
-      const p = screen.getCursorScreenPoint();
-      const b = win.getBounds();
-      const padding = movementConfig.assistantPadding ?? 0;
-      const ax = b.x + padding;
-      const ay = b.y + padding;
-      const aw = ASSISTANT_WIDTH;
-      const ah = ASSISTANT_HEIGHT;
-      return p.x >= ax && p.x <= ax + aw && p.y >= ay && p.y <= ay + ah;
+      if (!win || win.isDestroyed()) return;
+      cachedBounds = win.getBounds();
     } catch {
-      return false;
+      /* ignore */
+    }
+  }
+  win.on('move', refreshBounds);
+  win.on('resize', refreshBounds);
+
+  let lastInside = false;
+  function pointInside(x: number, y: number): boolean {
+    const padding = movementConfig.assistantPadding ?? 0;
+    const ax = cachedBounds.x + padding;
+    const ay = cachedBounds.y + padding;
+    const aw = ASSISTANT_WIDTH;
+    const ah = ASSISTANT_HEIGHT;
+    return x >= ax && x <= ax + aw && y >= ay && y <= ay + ah;
+  }
+
+  function applyInsideState(inside: boolean): void {
+    if (inside === lastInside) return;
+    lastInside = inside;
+    try {
+      // 鼠标在助手区域内：允许接收事件（包括外部拖拽）
+      // 区域外：继续穿透到底层应用
+      win.setIgnoreMouseEvents(!inside, { forward: true });
+    } catch {
+      /* ignore */
     }
   }
 
-  function startHoverMonitor() {
-    stopHoverMonitor();
-    hoverTimer = setInterval(() => {
-      const inside = isCursorInsideAssistant();
-      if (inside !== lastInside) {
-        lastInside = inside;
-        try {
-          // 鼠标在助手区域内：允许接收事件（包括外部拖拽）
-          // 区域外：继续穿透到底层应用
-          win.setIgnoreMouseEvents(!inside, { forward: true });
-        } catch { }
-      }
-    }, 33); // ~30fps 轮询
+  // 轮询回退
+  let hoverTimer: NodeJS.Timeout | null = null;
+  function pollOnce(): void {
+    try {
+      const p = screen.getCursorScreenPoint();
+      applyInsideState(pointInside(p.x, p.y));
+    } catch {
+      /* ignore */
+    }
   }
-  function stopHoverMonitor() {
+  function startPolling(): void {
+    stopPolling();
+    hoverTimer = setInterval(pollOnce, 33); // ~30fps 轮询
+  }
+  function stopPolling(): void {
     if (hoverTimer) {
       clearInterval(hoverTimer);
       hoverTimer = null;
     }
+  }
+
+  // 全局钩子
+  let uIOhook: any | null = null;
+  let hookActive = false;
+  function startHook(): void {
+    stopHook();
+    // macOS: 检查辅助功能授权，未授权时引导用户授权
+    if (process.platform === 'darwin') {
+      try {
+        const trusted = systemPreferences.isTrustedAccessibilityClient(false);
+        if (!trusted) systemPreferences.isTrustedAccessibilityClient(true);
+      } catch {
+        /* ignore */
+      }
+    }
+    try {
+      const mod = require('uiohook-napi');
+      uIOhook = mod?.uIOhook ?? mod; // 兼容不同导出形式
+      if (!uIOhook || typeof uIOhook.on !== 'function') throw new Error('uIOhook not available');
+      uIOhook.on('mousemove', (e: { x: number; y: number }) => {
+        applyInsideState(pointInside(e.x, e.y));
+      });
+      uIOhook.start();
+      hookActive = true;
+    } catch {
+      // 模块不可用或启动失败，回退轮询
+      hookActive = false;
+      startPolling();
+    }
+  }
+  function stopHook(): void {
+    if (hookActive && uIOhook) {
+      try {
+        uIOhook.removeAllListeners?.('mousemove');
+        uIOhook.stop?.();
+      } catch {
+        /* ignore */
+      }
+    }
+    hookActive = false;
+  }
+
+  function startHoverMonitor(): void {
+    stopHoverMonitor();
+    try {
+      startHook();
+      if (!hookActive) startPolling();
+    } catch {
+      startPolling();
+    }
+  }
+  function stopHoverMonitor(): void {
+    stopHook();
+    stopPolling();
   }
 
   // 主窗口关闭时统一销毁子窗口
@@ -111,14 +185,20 @@ export function initWindowHandlers(win: BrowserWindow): void {
     if (partial.assistantPadding !== undefined) {
       // 使用窗口管理器的内边距调整功能，它会自动更新跟随窗口位置
       windowManager.adjustMainWindowForPadding(oldPadding, movementConfig.assistantPadding);
+      // 重新计算缓存边界（padding 影响命中区域）
+      refreshBounds();
     }
     // 广播更新
     try {
       win?.webContents.send('movement-config-updated', movementConfig);
-    } catch { }
+    } catch {
+      /* ignore */
+    }
     try {
       windowManager.get('settings')?.webContents.send('movement-config-updated', movementConfig);
-    } catch { }
+    } catch {
+      /* ignore */
+    }
     return movementConfig;
   });
 
