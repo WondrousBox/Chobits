@@ -6,7 +6,13 @@ import { getWindowConfig, listWindowKeys, registerWindowConfig, unregisterWindow
 import { windowManager } from './window-manager';
 
 export function init(win: BrowserWindow): void {
-  ipcMain.handle('setClickThrough', (_event: IpcMainInvokeEvent, enable: boolean) => {
+  ipcMain.handle('getScreenSize', () => {
+    const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+    return { width, height };
+  });
+
+  // ---------------- Click Through -------------
+  ipcMain.handle('window:click:through', (_event: IpcMainInvokeEvent, enable: boolean) => {
     if (!win) return false;
     try {
       win.setIgnoreMouseEvents(!!enable, { forward: true });
@@ -68,6 +74,27 @@ export function init(win: BrowserWindow): void {
     } catch {
       return false;
     }
+  });
+  ipcMain.handle('window:move', (_: IpcMainInvokeEvent, position: { x: number; y: number }, key?: WindowKey) => {
+    let currentWin: BrowserWindow | null = win;
+    if (key) {
+      currentWin = windowManager.get(key);
+    }
+    if (!currentWin) return false;
+    if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) return false;
+    currentWin.setPosition(Math.round(position.x), Math.round(position.y));
+    return true;
+  });
+
+  ipcMain.handle('window:position:get', (_: IpcMainInvokeEvent, key?: WindowKey) => {
+    let currentWin: BrowserWindow | null = win;
+    if (key) {
+      currentWin = windowManager.get(key);
+    }
+    if (currentWin) {
+      return currentWin.getPosition();
+    }
+    return [0, 0];
   });
 
   // ------- Dynamic window config registry IPC -------

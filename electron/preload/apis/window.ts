@@ -9,8 +9,8 @@ type WindowBridgeParams = {
   /**
    * 移动窗口
    */
-  moveWindow: IPCParams<[number, number], boolean>;
-  getWindowPosition: IPCParams<[void], [number, number]>;
+  'window:move': IPCParams<[{ x: number; y: number }, WindowKey?], boolean>;
+  'window:position:get': IPCParams<[WindowKey?], [number, number]>;
   getScreenSize: IPCParams<[void], { width: number; height: number }>;
   /**
    * 设置窗口大小
@@ -23,7 +23,7 @@ type WindowBridgeParams = {
   /**
    * 设置窗口是否穿透点击
    */
-  setClickThrough: IPCParams<[boolean], boolean>;
+  'window:click:through': IPCParams<[boolean], boolean>;
   'window:open': IPCParams<[WindowKey, any?], boolean>;
   'window:open:ready': IPCParams<[WindowKey], boolean>;
   'window:payload:get': IPCParams<[WindowKey], any>;
@@ -65,12 +65,12 @@ type WindowBridgeParams = {
 };
 
 const methods: Array<keyof WindowBridgeParams> = [
-  'moveWindow',
-  'getWindowPosition',
+  'window:move',
+  'window:position:get',
   'getScreenSize',
   'window:size:set',
   'window:size:get',
-  'setClickThrough',
+  'window:click:through',
   'window:open',
   'window:open:ready',
   'window:payload:get',
