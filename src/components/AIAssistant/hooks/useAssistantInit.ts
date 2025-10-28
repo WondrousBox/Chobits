@@ -45,7 +45,7 @@ export function useAssistantInit() {
   useEffect(() => {
     const getScreenInfo = async () => {
       try {
-        const size = await window.YUA.window.getScreenSize();
+        const size = await window.YUA.window['screen:size:get']();
         setScreenSize(size);
         const cfg = await window.YUA.window.getMovementConfig();
         const pad = cfg.assistantPadding;

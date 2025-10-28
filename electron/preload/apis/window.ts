@@ -11,7 +11,7 @@ type WindowBridgeParams = {
    */
   'window:move': IPCParams<[{ x: number; y: number }, WindowKey?], boolean>;
   'window:position:get': IPCParams<[WindowKey?], [number, number]>;
-  getScreenSize: IPCParams<[void], { width: number; height: number }>;
+  'screen:size:get': IPCParams<[void], { width: number; height: number }>;
   /**
    * 设置窗口大小
    */
@@ -67,7 +67,7 @@ type WindowBridgeParams = {
 const methods: Array<keyof WindowBridgeParams> = [
   'window:move',
   'window:position:get',
-  'getScreenSize',
+  'screen:size:get',
   'window:size:set',
   'window:size:get',
   'window:click:through',

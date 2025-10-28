@@ -26,7 +26,7 @@ const ResourcePreviewWindow: React.FC = () => {
 
       if (videoWidth > 0 && videoHeight > 0) {
         // 获取屏幕尺寸
-        const screenSize = await window.YUA.window.getScreenSize();
+        const screenSize = await window.YUA.window['screen:size:get']();
 
         // 计算视频宽高比
         const aspectRatio = videoWidth / videoHeight;

@@ -198,7 +198,7 @@ const AssistantPage: React.FC = () => {
       const currentWidth = window.innerWidth || html.clientWidth;
       let maxW = Number.POSITIVE_INFINITY;
       let maxH = Number.POSITIVE_INFINITY;
-      const screen = await (window as any).YUA.window.getScreenSize();
+      const screen = await (window as any).YUA.window['screen:size:get']();
       maxW = screen.width;
       maxH = screen.height;
       const minW = 360;
@@ -267,7 +267,7 @@ const AssistantPage: React.FC = () => {
         const html = document.documentElement;
         const currentWidth = window.innerWidth || html.clientWidth;
         let maxH = Number.POSITIVE_INFINITY;
-        const screen = await (window as any).YUA.window.getScreenSize();
+        const screen = await (window as any).YUA.window['screen:size:get']();
         maxH = screen.height;
         if (open) {
           // 预留足够空间给下拉面板
