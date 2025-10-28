@@ -54,7 +54,7 @@ export function useAssistantInit() {
         const winHeight = ASSISTANT_HEIGHT + pad * 2;
         const winX = Math.max(0, size.width - winWidth - 20);
         const winY = Math.max(0, size.height - winHeight - 40);
-        await window.YUA.window.moveWindow(winX, winY);
+        await window.YUA.window['window:move']({ x: winX, y: winY });
       } catch (error) {
         console.error('Failed to get screen info:', error);
       }

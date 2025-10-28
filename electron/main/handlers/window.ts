@@ -37,6 +37,8 @@ export function initWindowHandlers(win: BrowserWindow): void {
   let hoverTimer: NodeJS.Timeout | null = null;
   let lastInside = false;
   function isCursorInsideAssistant(): boolean {
+    console.log('===========');
+
     if (!win || win.isDestroyed()) return false;
     try {
       const p = screen.getCursorScreenPoint();
@@ -118,26 +120,6 @@ export function initWindowHandlers(win: BrowserWindow): void {
       windowManager.get('settings')?.webContents.send('movement-config-updated', movementConfig);
     } catch { }
     return movementConfig;
-  });
-
-  // ---------------- Window Move & Click Through -------------
-  ipcMain.handle('moveWindow', (_: IpcMainInvokeEvent, x: number, y: number) => {
-    if (!win) return false;
-    if (!Number.isFinite(x) || !Number.isFinite(y)) return false;
-    win.setPosition(Math.round(x), Math.round(y));
-    return true;
-  });
-
-  ipcMain.handle('getWindowPosition', () => {
-    if (win) {
-      return win.getPosition();
-    }
-    return [0, 0];
-  });
-
-  ipcMain.handle('getScreenSize', () => {
-    const { width, height } = screen.getPrimaryDisplay().workAreaSize;
-    return { width, height };
   });
 
   init(win);
