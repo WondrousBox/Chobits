@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { screen, app, BrowserWindow, ipcMain } from 'electron';
 import type { IpcMainInvokeEvent } from 'electron';
 import { saveWindowState, WindowState, WindowStateStore } from './window-state-store';
 import { WindowConfig, WindowKey } from './types';
@@ -6,6 +6,17 @@ import { getWindowConfig, listWindowKeys, registerWindowConfig, unregisterWindow
 import { windowManager } from './window-manager';
 
 export function init(win: BrowserWindow): void {
+  ipcMain.handle('setClickThrough', (_event: IpcMainInvokeEvent, enable: boolean) => {
+    if (!win) return false;
+    try {
+      win.setIgnoreMouseEvents(!!enable, { forward: true });
+      return true;
+    } catch (e) {
+      console.log(e);
+      return false;
+    }
+  });
+
   // ---------------- window:command (转发给主渲染进程的事件) ---------------
   ipcMain.on('window:command', (_e, action: { type: string; payload?: any }) => {
     if (action.type === 'quit-app') {
@@ -14,6 +25,8 @@ export function init(win: BrowserWindow): void {
     }
     win?.webContents.send('window:command', action);
   });
+
+  // ---------------- Child window open/close IPC --------------
 
   ipcMain.handle('window:open', async (event: IpcMainInvokeEvent, key: WindowKey, payload?: any) => {
     if (!win) return false;
@@ -56,6 +69,7 @@ export function init(win: BrowserWindow): void {
       return false;
     }
   });
+
   // ------- Dynamic window config registry IPC -------
   ipcMain.handle('window:config:register', async (_: IpcMainInvokeEvent, key: WindowKey, config: WindowConfig, options?: { persist?: boolean; openNow?: boolean; payload?: any }) => {
     try {
@@ -174,7 +188,80 @@ export function init(win: BrowserWindow): void {
     return { minimizable: false, maximizable: false, resizable: false };
   });
 
-  // 窗口状态保存和恢复相关的 IPC 处理器
+  // 获取窗口当前大小
+  ipcMain.handle('window:size:get', (_: IpcMainInvokeEvent, windowKey: string) => {
+    try {
+      let targetWindow: BrowserWindow | null = null;
+
+      if (windowKey === 'main') {
+        targetWindow = win;
+      } else {
+        targetWindow = windowManager.get(windowKey as any);
+      }
+
+      if (!targetWindow || targetWindow.isDestroyed()) {
+        return { success: false, error: 'Window not found' };
+      }
+
+      const bounds = targetWindow.getBounds();
+      return { success: true, bounds };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  // 设置窗口大小
+  ipcMain.handle('window:size:set', (_: IpcMainInvokeEvent, windowKey: string, width: number, height: number, center?: boolean) => {
+    try {
+      let targetWindow: BrowserWindow | null = null;
+
+      // 根据窗口键获取目标窗口
+      if (windowKey === 'main') {
+        targetWindow = win;
+      } else {
+        // 从窗口管理器获取其他窗口
+        targetWindow = windowManager.get(windowKey as any);
+      }
+
+      if (!targetWindow || targetWindow.isDestroyed()) {
+        return { success: false, error: 'Window not found' };
+      }
+
+      // 获取当前屏幕信息
+      const display = screen.getDisplayNearestPoint(targetWindow.getBounds());
+      const workArea = display.workArea;
+
+      // 确保窗口大小不超过屏幕工作区域
+      const maxWidth = workArea.width;
+      const maxHeight = workArea.height;
+      const finalWidth = Math.min(width, maxWidth);
+      const finalHeight = Math.min(height, maxHeight);
+
+      // 计算窗口位置
+      let x = targetWindow.getPosition()[0];
+      let y = targetWindow.getPosition()[1];
+
+      if (center) {
+        // 居中显示
+        x = workArea.x + Math.floor((workArea.width - finalWidth) / 2);
+        y = workArea.y + Math.floor((workArea.height - finalHeight) / 2);
+      } else {
+        // 保持当前位置，但确保窗口在屏幕内
+        const currentBounds = targetWindow.getBounds();
+        x = Math.max(workArea.x, Math.min(x, workArea.x + workArea.width - finalWidth));
+        y = Math.max(workArea.y, Math.min(y, workArea.y + workArea.height - finalHeight));
+      }
+
+      // 设置窗口大小和位置
+      targetWindow.setBounds({ x, y, width: finalWidth, height: finalHeight });
+
+      return { success: true, bounds: { x, y, width: finalWidth, height: finalHeight } };
+    } catch (error) {
+      return { success: false, error: String(error) };
+    }
+  });
+
+  // ------- Window state persistence -------
   ipcMain.handle('window:state:save', (event: IpcMainInvokeEvent, key: WindowKey): boolean => {
     try {
       const browserWindow = BrowserWindow.fromWebContents(event.sender);
