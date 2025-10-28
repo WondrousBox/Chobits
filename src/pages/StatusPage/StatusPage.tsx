@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import EmbeddingJobsPanel from '@/components/EmbeddingJobs';
 import { Button } from '@/components/ui/button';
-import { TbFolderOpen, TbHeart, TbHeartFilled, TbRefresh, TbX } from 'react-icons/tb';
+import { TbFolderOpen, TbHeartFilled, TbRefresh, TbX } from 'react-icons/tb';
+import prettyBytes from 'pretty-bytes';
 
 type RoleProfile = {
   name: string;
@@ -21,18 +22,6 @@ type Overview = {
   system: { userDataDir: string };
 };
 
-const fmtBytes = (n?: number) => {
-  if (!n || n <= 0) return '0 B';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let i = 0;
-  let v = n;
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024;
-    i++;
-  }
-  return `${v.toFixed(2)} ${units[i]}`;
-};
-
 export const StatusPage: React.FC = () => {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [role, setRole] = useState<RoleProfile | null>(null);
@@ -40,7 +29,7 @@ export const StatusPage: React.FC = () => {
 
   useEffect(() => {
     let mounted = true;
-    const load = async () => {
+    const load = async (): Promise<void> => {
       try {
         const [ov, roleRes] = await Promise.all([(window as any).YUA.status['status:getOverview'](), (window as any).YUA.status['status:getRole']()]);
         console.log(ov);
@@ -95,18 +84,16 @@ export const StatusPage: React.FC = () => {
               当前空间: <span className="font-mono">{overview.workspace.name}</span>
             </div>
             <div>文件数：{overview.workspace.fileCount ?? '-'}</div>
-            <div>占用：{fmtBytes(overview.workspace.sizeBytes)}</div>
+            <div>占用：{prettyBytes(overview.workspace.sizeBytes || 0)}</div>
             <div className="mt-3 flex gap-2">
               <Button
                 className="h-8"
                 variant={'outline'}
                 onClick={async () => {
                   if (!overview?.workspace?.id) return;
-                  try {
-                    await (window as any).YUA.workspace['workspace:scanStats']({ id: overview.workspace.id });
-                    const ov = await (window as any).YUA.status['status:getOverview']();
-                    setOverview(ov);
-                  } catch { }
+                  await (window as any).YUA.workspace['workspace:scanStats']({ id: overview.workspace.id });
+                  const ov = await (window as any).YUA.status['status:getOverview']();
+                  setOverview(ov);
                 }}
               >
                 <TbRefresh />
@@ -117,9 +104,7 @@ export const StatusPage: React.FC = () => {
                 variant={'outline'}
                 className="w-8 h-8"
                 onClick={async () => {
-                  try {
-                    await (window as any).YUA.workspace['workspace:open']({ id: overview!.workspace!.id });
-                  } catch { }
+                  window.YUA.workspace['workspace:open']({ id: overview!.workspace!.id });
                 }}
               >
                 <TbFolderOpen />
@@ -134,7 +119,7 @@ export const StatusPage: React.FC = () => {
             <div className="font-medium mb-2">资源统计</div>
             <div className="text-sm grid grid-cols-2 gap-2">
               <div>总数：{overview?.resources.total ?? 0}</div>
-              <div>总大小：{fmtBytes(overview?.resources.totalSizeBytes)}</div>
+              <div>总大小：{prettyBytes(overview?.resources.totalSizeBytes || 0)}</div>
               <div>
                 缩略图：有 {overview?.resources.thumbnails.withThumb ?? 0} / 无 {overview?.resources.thumbnails.withoutThumb ?? 0}
               </div>
@@ -147,7 +132,7 @@ export const StatusPage: React.FC = () => {
                     <div key={t.type} className="flex items-center justify-between">
                       <span>{t.type || 'other'}</span>
                       <span className="text-muted-foreground">
-                        {t.count} • {fmtBytes(t.size)}
+                        {t.count} • {prettyBytes(t.size || 0)}
                       </span>
                     </div>
                   ))}
