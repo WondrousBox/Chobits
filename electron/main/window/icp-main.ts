@@ -6,7 +6,7 @@ import { getWindowConfig, listWindowKeys, registerWindowConfig, unregisterWindow
 import { windowManager } from './window-manager';
 
 export function init(win: BrowserWindow): void {
-  ipcMain.handle('getScreenSize', () => {
+  ipcMain.handle('screen:size:get', () => {
     const { width, height } = screen.getPrimaryDisplay().workAreaSize;
     return { width, height };
   });
@@ -310,6 +310,7 @@ export function init(win: BrowserWindow): void {
     }
     return undefined;
   });
+
   ipcMain.handle('window:state:clear', (event: IpcMainInvokeEvent, key: WindowKey): boolean => {
     try {
       WindowStateStore.removeState(key);
