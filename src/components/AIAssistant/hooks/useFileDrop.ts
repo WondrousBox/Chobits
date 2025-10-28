@@ -44,7 +44,7 @@ export function useFileDrop(onStopWalking?: () => void, onClickThrough?: (enable
       const files = Array.from(e.dataTransfer?.files || []) as any[];
       const payload = files.map((f) => ({ name: f.name, path: (f as any).path as string | undefined }));
       if (payload.length) {
-        await window.YUA.window.openWindow('fileActionsMenu', { files: payload, source: 'drop' });
+        await window.YUA.window['window:open']('fileActionsMenu', { files: payload, source: 'drop' });
       }
     } catch { }
   };
@@ -59,7 +59,7 @@ export function useFileDrop(onStopWalking?: () => void, onClickThrough?: (enable
     try {
       const payload = files.map((f) => ({ name: f.name || (f.path ? f.path.split(/[/\\]/).pop() || '' : ''), path: f.path }));
       if (payload.length) {
-        await window.YUA.window.openWindow('fileActionsMenu', { files: payload, source: 'drop' });
+        await window.YUA.window['window:open']('fileActionsMenu', { files: payload, source: 'drop' });
       }
     } catch { }
   };

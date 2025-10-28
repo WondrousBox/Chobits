@@ -36,7 +36,7 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
       onClick(e, item);
       if (isAudio || isImageRes || isVideoRes || item.type === 'text') {
         // 统一调用主进程打开资源预览窗口
-        window.YUA.window.openWindow('resourcePreview', {
+        window.YUA.window['window:open']('resourcePreview', {
           current: {
             id: item.id,
             title: item.title,
@@ -87,7 +87,7 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
     (e: React.MouseEvent) => {
       e.stopPropagation();
       if (isAudio || isImageRes || isVideoRes || item.type === 'text') {
-        window.YUA.window.openWindow('resourcePreview', {
+        window.YUA.window['window:open']('resourcePreview', {
           current: {
             id: item.id,
             title: item.title,
@@ -105,7 +105,7 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
     (e: React.MouseEvent) => {
       e.stopPropagation();
       if (item.type === 'text') {
-        window.YUA.window.openWindow('resourcePreview', {
+        window.YUA.window['window:open']('resourcePreview', {
           current: {
             id: item.id,
             title: item.title,

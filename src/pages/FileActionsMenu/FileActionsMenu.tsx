@@ -40,19 +40,19 @@ const FileActionsMenu: React.FC = () => {
         console.warn('[FileActionsMenu] failed to parse files from payload', err);
       }
     };
-    window.ipcRenderer?.on('openWindowReadyData', handler);
+    window.ipcRenderer?.on('on:window:open:ready', handler);
     // 主动请求一次（若已经存在缓存）
     (async () => {
       try {
-        const data = await window.YUA.window.getWindowPayload('fileActionsMenu' as any);
+        const data = await window.YUA.window['window:payload:get']('fileActionsMenu' as any);
         if (data?.files) setFiles(data.files);
       } catch (err) {
-        console.warn('[FileActionsMenu] getWindowPayload error', err);
+        console.warn('[FileActionsMenu] window:payload:get error', err);
       }
     })();
     return () => {
       try {
-        window.ipcRenderer?.off('openWindowReadyData', handler as any);
+        window.ipcRenderer?.off('on:window:open:ready', handler as any);
       } catch (err) {
         console.warn('[FileActionsMenu] remove listener error', err);
       }
@@ -66,7 +66,7 @@ const FileActionsMenu: React.FC = () => {
         await fn();
       } finally {
         try {
-          await window.YUA.window.closeWindow('fileActionsMenu' as any);
+          await window.YUA.window['window:close']('fileActionsMenu' as any);
         } catch (err) {
           console.warn('[FileActionsMenu] close window error', err);
         }
@@ -76,7 +76,7 @@ const FileActionsMenu: React.FC = () => {
       closeAfter(async () => {
         // 资源已添加，打开助手窗口继续处理
         try {
-          await window.YUA.window.openWindow('assistant' as any);
+          await window.YUA.window['window:open']('assistant' as any);
         } catch (err) {
           console.warn('[FileActionsMenu] open assistant error', err);
         }
@@ -84,7 +84,7 @@ const FileActionsMenu: React.FC = () => {
     const makeCards = (): Promise<void> =>
       closeAfter(async () => {
         try {
-          await window.YUA.window.openWindow('assistant' as any);
+          await window.YUA.window['window:open']('assistant' as any);
         } catch (err) {
           console.warn('[FileActionsMenu] open assistant error', err);
         }
@@ -124,7 +124,7 @@ const FileActionsMenu: React.FC = () => {
     const analyzeImage = (): Promise<void> =>
       closeAfter(async () => {
         try {
-          await window.YUA.window.openWindow('assistant' as any);
+          await window.YUA.window['window:open']('assistant' as any);
         } catch (err) {
           console.warn('[FileActionsMenu] open assistant error', err);
         }
@@ -132,7 +132,7 @@ const FileActionsMenu: React.FC = () => {
     const parsePdf = (): Promise<void> =>
       closeAfter(async () => {
         try {
-          await window.YUA.window.openWindow('assistant' as any);
+          await window.YUA.window['window:open']('assistant' as any);
         } catch (err) {
           console.warn('[FileActionsMenu] open assistant error', err);
         }
@@ -170,7 +170,7 @@ const FileActionsMenu: React.FC = () => {
   // If there are no actions yet (data not ready), don't render the menu
   if (radialItems.length === 0) return null;
 
-  return <RadialMenu items={radialItems} open onClose={() => window.YUA.window.closeWindow('fileActionsMenu' as any)} />;
+  return <RadialMenu items={radialItems} open onClose={() => window.YUA.window['window:close']('fileActionsMenu' as any)} />;
 };
 
 export default FileActionsMenu;

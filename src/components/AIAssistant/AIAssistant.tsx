@@ -81,7 +81,7 @@ export const AIAssistant: React.FC = () => {
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
-    window.YUA.window.openWindow('menu');
+    window.YUA.window['window:open']('menu');
   };
 
   // drive sprite states from drag/walk flags
@@ -112,7 +112,7 @@ export const AIAssistant: React.FC = () => {
     [handleDropFiles]
   );
 
-  // --- 稳定订阅 menu-command，避免依赖变化导致重复绑定 ---
+  // --- 稳定订阅 window:command，避免依赖变化导致重复绑定 ---
   const screenSizeRef = useRef(screenSize);
   const paddingRef = useRef(paddingState);
   const animateMoveWindowRef = useRef(animateMoveWindow);
@@ -152,9 +152,9 @@ export const AIAssistant: React.FC = () => {
       }
     };
 
-    window.ipcRenderer?.on('menu-command', onMenuCommand);
+    window.ipcRenderer?.on('window:command', onMenuCommand);
     return () => {
-      window.ipcRenderer?.off('menu-command', onMenuCommand as any);
+      window.ipcRenderer?.off('window:command', onMenuCommand as any);
     };
   }, []);
 
@@ -178,14 +178,14 @@ export const AIAssistant: React.FC = () => {
           const cfg = await window.YUA.model['model:getConfig']();
           if (!cfg?.rootDir) {
             // 未配置模型目录，先打开模型管理窗口让用户设置
-            await window.YUA.window.openWindow('modelManager' as any);
+            await window.YUA.window['window:open']('modelManager' as any);
           } else {
-            await window.YUA.window.openWindow('assistant' as any);
+            await window.YUA.window['window:open']('assistant' as any);
           }
         } catch {
           // 回退原行为
           try {
-            await window.YUA.window.openWindow('assistant' as any);
+            await window.YUA.window['window:open']('assistant' as any);
           } catch { }
         }
       }}

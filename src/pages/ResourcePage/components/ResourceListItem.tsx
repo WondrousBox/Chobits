@@ -58,7 +58,7 @@ const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, onClick, on
       const isVideoRes = item.type === 'video';
 
       if (isAudio || isImageRes || isVideoRes) {
-        window.YUA.window.openWindow('resourcePreview', {
+        window.YUA.window['window:open']('resourcePreview', {
           current: {
             id: item.id,
             title: item.title,

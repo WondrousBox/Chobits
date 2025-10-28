@@ -340,14 +340,14 @@ export class WindowManager {
       if (w.webContents.isLoading()) {
         w.webContents.once('did-finish-load', () => {
           try {
-            w.webContents.send('openWindowReadyData', payload);
+            w.webContents.send('on:window:open:ready', payload);
           } catch {
             //
           }
         });
       } else {
         try {
-          w.webContents.send('openWindowReadyData', payload);
+          w.webContents.send('on:window:open:ready', payload);
         } catch {
           //
         }

@@ -13,17 +13,17 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         label: '退出',
         icon: '❌',
         shortcut: 'q',
-        action: () => window.ipcRenderer?.send('menu-command', 'quit-app')
+        action: () => window.ipcRenderer?.send('window:command', { type: 'quit-app' })
       },
       {
         id: 'status',
         label: '状态',
         icon: '💬',
         shortcut: 'i',
-        action: () => window.YUA.window.openWindow('status'),
+        action: () => window.YUA.window['window:open']('status'),
         children: [
-          { id: 'status', label: '状态', icon: '📖', action: () => window.YUA.window.openWindow('status') },
-          { id: 'walk', label: '立即随机走动', icon: '👣', action: () => window.ipcRenderer?.send('menu-command', 'walk-once') }
+          { id: 'status', label: '状态', icon: '📖', action: () => window.YUA.window['window:open']('status') },
+          { id: 'walk', label: '立即随机走动', icon: '👣', action: () => window.ipcRenderer?.send('window:command', { type: 'walk-once' }) }
         ]
       },
       {
@@ -31,40 +31,40 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         label: '总结打标',
         icon: '🏷️',
         shortcut: 't',
-        action: () => window.YUA.window.openWindow('tagger')
+        action: () => window.YUA.window['window:open']('tagger')
       },
       {
         id: 'chat',
         label: '聊天',
         icon: '🗨️',
         shortcut: 'c',
-        action: () => window.YUA.window.openWindow('chat')
+        action: () => window.YUA.window['window:open']('chat')
       },
       {
         id: 'resources',
         label: '资源库',
         icon: '📚',
         shortcut: 'r',
-        action: () => window.YUA.window.openWindow('resources')
+        action: () => window.YUA.window['window:open']('resources')
       },
       {
         id: 'recycle',
         label: '回收站',
         icon: '🗑️',
         shortcut: 'b',
-        action: () => window.YUA.window.openWindow('recycle')
+        action: () => window.YUA.window['window:open']('recycle')
       },
       {
         id: 'settings',
         label: '设置',
         icon: '⚙️',
         shortcut: 's',
-        action: () => window.YUA.window.openWindow('settings')
+        action: () => window.YUA.window['window:open']('settings')
       }
     ],
     []
   );
-  return <RadialMenu items={menuItems} open anchor={characterPosition} onClose={() => window.YUA.window.closeWindow('menu')} />;
+  return <RadialMenu items={menuItems} open anchor={characterPosition} onClose={() => window.YUA.window['window:close']('menu')} />;
 };
 
 export default AssistantMenuPage;
