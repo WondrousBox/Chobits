@@ -97,7 +97,7 @@ export const SettingsPage: React.FC = () => {
     // 读取窗口打开时传入的 payload，用于直接跳转到指定分类/AI 提供商
     (async () => {
       try {
-        const payload = await window.YUA.window.getWindowPayload('settings' as any);
+        const payload = await window.YUA.window['window:payload:get']('settings' as any);
         if (payload?.category) setActiveCategory(payload.category);
         if (payload?.aiProviderId) setInitialAiProviderId(payload.aiProviderId);
       } catch {

@@ -285,7 +285,7 @@ const ResourcePage: React.FC = () => {
         actions={
           <>
             <div className="flex items-center gap-2">
-              <Button size="icon" className="w-8 h-8" onClick={() => window.YUA.window.openWindow('assistant')}>
+              <Button size="icon" className="w-8 h-8" onClick={() => window.YUA.window['window:open']('assistant')}>
                 <TbPlus />
               </Button>
               <Button

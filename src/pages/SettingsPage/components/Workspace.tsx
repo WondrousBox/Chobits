@@ -177,7 +177,7 @@ const Workspace: React.FC = () => {
         <Button size="icon" className="w-8 h-8" variant={'outline'} onClick={load} disabled={loading}>
           <TbRefresh />
         </Button>
-        <Button size="sm" onClick={() => window.YUA.window.openWindow('workspaceWizard')}>
+        <Button size="sm" onClick={() => window.YUA.window['window:open']('workspaceWizard')}>
           <TbPlus /> 新建
         </Button>
       </div>

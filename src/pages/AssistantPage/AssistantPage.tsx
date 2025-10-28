@@ -62,7 +62,7 @@ const AssistantPage: React.FC = () => {
   const close = useCallback(() => {
     if (closing) return;
     setClosing(true);
-    setTimeout(() => window.YUA.window.closeWindow('assistant'), 160); // 与动画时长匹配
+    setTimeout(() => window.YUA.window['window:close']('assistant'), 160); // 与动画时长匹配
   }, [closing]);
 
   // ESC 关闭（仅全局监听 ESC）

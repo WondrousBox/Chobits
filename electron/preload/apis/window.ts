@@ -3,6 +3,7 @@ import { ipcRenderer } from 'electron';
 import { IPCParams } from '../type';
 import { WindowKey } from 'electron/main/window/types';
 import type { WindowConfig } from 'electron/main/window/types';
+import { WindowState } from 'electron/main/window/window-state-store';
 
 type WindowBridgeParams = {
   /**
@@ -23,10 +24,10 @@ type WindowBridgeParams = {
    * 设置窗口是否穿透点击
    */
   setClickThrough: IPCParams<[boolean], boolean>;
-  openWindow: IPCParams<[WindowKey, any?], boolean>;
-  openWindowReady: IPCParams<[WindowKey], boolean>;
-  getWindowPayload: IPCParams<[WindowKey], any>;
-  closeWindow: IPCParams<[WindowKey], boolean>;
+  'window:open': IPCParams<[WindowKey, any?], boolean>;
+  'window:open:ready': IPCParams<[WindowKey], boolean>;
+  'window:payload:get': IPCParams<[WindowKey], any>;
+  'window:close': IPCParams<[WindowKey], boolean>;
   /** 获取移动配置 */
   getMovementConfig: IPCParams<
     [void],
@@ -38,29 +39,29 @@ type WindowBridgeParams = {
     { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number }
   >;
   /** 最小化当前窗口 */
-  'window-minimize': IPCParams<[void], boolean>;
+  'window:minimize': IPCParams<[void], boolean>;
   /** 最大化或还原当前窗口 */
-  'window-maximize-or-restore': IPCParams<[void], { maximized: boolean }>;
+  'window:maximize': IPCParams<[void], { maximized: boolean }>;
   /** 关闭当前窗口 */
-  'window-close-self': IPCParams<[void], boolean>;
+  'window:close:self': IPCParams<[void], boolean>;
   /** 当前窗口是否已最大化 */
-  'window-is-maximized': IPCParams<[void], boolean>;
+  'window:maximized:get': IPCParams<[void], boolean>;
   /** 当前窗口能力（是否允许最小化/最大化/缩放） */
-  'window-capabilities': IPCParams<[void], { minimizable: boolean; maximizable: boolean; resizable: boolean }>;
+  'window:capabilities:get': IPCParams<[void], { minimizable: boolean; maximizable: boolean; resizable: boolean }>;
   /** 保存窗口状态 */
-  'window-save-state': IPCParams<[WindowKey], boolean>;
+  'window:state:save': IPCParams<[WindowKey], boolean>;
   /** 获取窗口状态 */
-  'window-get-state': IPCParams<[WindowKey], any>;
+  'window:state:get': IPCParams<[WindowKey], WindowState | undefined>;
   /** 清除窗口状态 */
-  'window-clear-state': IPCParams<[WindowKey], boolean>;
+  'window:state:clear': IPCParams<[WindowKey], boolean>;
   /** 注册/覆盖窗口配置 */
-  'window-register-config': IPCParams<[WindowKey, WindowConfig, { persist?: boolean; openNow?: boolean; payload?: any }?], { ok: boolean; error?: string }>;
+  'window:config:register': IPCParams<[WindowKey, WindowConfig, { persist?: boolean; openNow?: boolean; payload?: any }?], { ok: boolean; error?: string }>;
   /** 取消注册窗口配置 */
-  'window-unregister-config': IPCParams<[WindowKey, { persist?: boolean; closeIfOpen?: boolean; removeState?: boolean }?], { ok: boolean; error?: string }>;
+  'window:config:unregister': IPCParams<[WindowKey, { persist?: boolean; closeIfOpen?: boolean; removeState?: boolean }?], { ok: boolean; error?: string }>;
   /** 列出所有窗口 key */
-  'window-list-configs': IPCParams<[void], string[]>;
+  'window:config:list': IPCParams<[void], string[]>;
   /** 获取窗口配置 */
-  'window-get-config': IPCParams<[WindowKey], WindowConfig | undefined>;
+  'window:config:get': IPCParams<[WindowKey], WindowConfig | undefined>;
 };
 
 const methods: Array<keyof WindowBridgeParams> = [
@@ -70,24 +71,24 @@ const methods: Array<keyof WindowBridgeParams> = [
   'setWindowSize',
   'getWindowSize',
   'setClickThrough',
-  'openWindow',
-  'openWindowReady',
-  'getWindowPayload',
-  'closeWindow',
+  'window:open',
+  'window:open:ready',
+  'window:payload:get',
+  'window:close',
   'getMovementConfig',
   'updateMovementConfig',
-  'window-minimize',
-  'window-maximize-or-restore',
-  'window-close-self',
-  'window-is-maximized',
-  'window-capabilities',
-  'window-save-state',
-  'window-get-state',
-  'window-clear-state',
-  'window-register-config',
-  'window-unregister-config',
-  'window-list-configs',
-  'window-get-config'
+  'window:minimize',
+  'window:maximize',
+  'window:close:self',
+  'window:maximized:get',
+  'window:capabilities:get',
+  'window:state:save',
+  'window:state:get',
+  'window:state:clear',
+  'window:config:register',
+  'window:config:unregister',
+  'window:config:list',
+  'window:config:get'
 ];
 
 export type WindowBridgeType = {

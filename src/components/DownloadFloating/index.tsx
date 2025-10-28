@@ -75,14 +75,14 @@ const DownloadFloating: React.FC = () => {
     window.ipcRenderer?.on('video-downloader:task-started', handleTaskStarted);
     window.ipcRenderer?.on('video-downloader:task-completed', handleTaskCompleted);
     window.ipcRenderer?.on('video-downloader:task-failed', handleTaskFailed);
-    window.ipcRenderer?.on('openWindowReadyData', handleWindowData);
+    window.ipcRenderer?.on('on:window:open:ready', handleWindowData);
 
     return () => {
       window.ipcRenderer?.off('video-downloader:task-progress', handleTaskProgress);
       window.ipcRenderer?.off('video-downloader:task-started', handleTaskStarted);
       window.ipcRenderer?.off('video-downloader:task-completed', handleTaskCompleted);
       window.ipcRenderer?.off('video-downloader:task-failed', handleTaskFailed);
-      window.ipcRenderer?.off('openWindowReadyData', handleWindowData);
+      window.ipcRenderer?.off('on:window:open:ready', handleWindowData);
     };
   }, []);
 

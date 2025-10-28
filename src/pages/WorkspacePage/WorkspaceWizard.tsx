@@ -86,7 +86,7 @@ const WorkspaceWizard: React.FC = () => {
       setCreated(true);
       // 300ms 动画 + 额外 1000ms 停留后关闭 (总 ~1300ms) 交由组件 autoClose 控制也可，这里保留旧逻辑以保持行为一致
       setTimeout(() => {
-        window.YUA.window.closeWindow('workspaceWizard');
+        window.YUA.window['window:close']('workspaceWizard');
       }, 2300);
     }
   };

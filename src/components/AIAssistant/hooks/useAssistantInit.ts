@@ -28,7 +28,7 @@ export function useAssistantInit() {
           setMessageState('configure');
           setTimeout(() => {
             try {
-              window.YUA.window.openWindow('workspaceWizard');
+              window.YUA.window['window:open']('workspaceWizard');
             } catch { }
           }, 800);
         }

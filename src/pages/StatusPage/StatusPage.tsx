@@ -70,7 +70,7 @@ export const StatusPage: React.FC = () => {
           variant={'outline'}
           className="w-8 h-8"
           onClick={() => {
-            window.YUA.window.closeWindow('status');
+            window.YUA.window['window:close']('status');
           }}
         >
           <TbX />

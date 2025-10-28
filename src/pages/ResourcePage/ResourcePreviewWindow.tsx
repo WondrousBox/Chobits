@@ -1,21 +1,19 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { makeResSrc, isImageFile, isVideoFile, isAudioFile } from '@/lib/resourceProtocol';
 import type { ResourceItem } from '@/types';
 import { Button } from '@/components/ui/button';
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { MediaPlayer } from '@/components/MediaPlayer';
 
-interface PreviewData extends ResourceItem { }
-
 interface IncomingPayload {
-  current: PreviewData;
-  list?: PreviewData[];
+  current: ResourceItem;
+  list?: ResourceItem[];
   index?: number;
 }
 
 const ResourcePreviewWindow: React.FC = () => {
-  const [data, setData] = useState<PreviewData | null>(null);
-  const [list, setList] = useState<PreviewData[]>([]);
+  const [data, setData] = useState<ResourceItem | null>(null);
+  const [list, setList] = useState<ResourceItem[]>([]);
   const [index, setIndex] = useState<number>(-1);
   const [textContent, setTextContent] = useState<string>('');
   const [loadingText, setLoadingText] = useState(false);
@@ -83,7 +81,7 @@ const ResourcePreviewWindow: React.FC = () => {
 
   // 监听资源数据推送
   useEffect(() => {
-    const handler = (_e: any, payload: IncomingPayload | PreviewData) => {
+    const handler = (_e: any, payload: IncomingPayload | ResourceItem): void => {
       console.log(payload);
 
       if ((payload as any).current) {
@@ -92,19 +90,17 @@ const ResourcePreviewWindow: React.FC = () => {
         setList(p.list || []);
         setIndex(typeof p.index === 'number' ? p.index : p.list ? p.list.findIndex((r) => r.id === p.current.id) : -1);
       } else {
-        setData(payload as PreviewData);
+        setData(payload as ResourceItem);
         setList([]);
         setIndex(-1);
       }
     };
-    // @ts-ignore
-    window.ipcRenderer?.on('openWindowReadyData', handler);
+    window.ipcRenderer?.on('on:window:open:ready', handler);
     // 如果 120ms 后仍未接收到数据，主动拉取缓存（避免 race）
     const timer = setTimeout(async () => {
       if (!data) {
         try {
-          // @ts-ignore
-          const cached = await window.YUA.window.getWindowPayload('resourcePreview');
+          const cached = await window.YUA.window['window:payload:get']('resourcePreview');
           if (cached && !data) {
             // 模拟事件处理逻辑
             handler(null, cached);
@@ -115,10 +111,9 @@ const ResourcePreviewWindow: React.FC = () => {
 
     console.log('ResourcePreviewWindow mounted with data: ');
 
-    window.YUA.window.openWindowReady('resourcePreview');
+    window.YUA.window['window:open:ready']('resourcePreview');
     return () => {
-      // @ts-ignore
-      window.ipcRenderer?.off('openWindowReadyData', handler);
+      window.ipcRenderer?.off('on:window:open:ready', handler);
       clearTimeout(timer);
     };
   }, []);
@@ -168,12 +163,10 @@ const ResourcePreviewWindow: React.FC = () => {
 
   // 键盘快捷键
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
+    const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        try {
-          window.YUA.window?.closeWindow('resourcePreview');
-        } catch { }
+        window.YUA.window['window:close']('resourcePreview');
       }
       if (e.key === 'PageUp') {
         e.preventDefault();
