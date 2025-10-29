@@ -541,16 +541,50 @@ export const TagsRepo = {
   /** 替换某资源的标签集合（先清空再插入） */
   async replaceForResource(resourceId: string, workspaceId: string | null, tags: string[]): Promise<number> {
     const db = getOrm();
+    // 规范化与去重：
+    // 1) 去前后空格；
+    // 2) 按不区分大小写去重（'AI' 与 'ai' 视为同一标签）；
+    // 3) 若工作空间内已存在同名（不区分大小写）的标签，沿用已存在的字符串形式，避免产生新的变体。
+    const raw = Array.isArray(tags) ? tags : [];
+    const cleaned = raw.map((t) => String(t || '').trim()).filter(Boolean);
+
+    // 构建目标 key 集合（小写）
+    const targetKeys = Array.from(new Set(cleaned.map((t) => t.toLowerCase())));
+
+    // 查询工作空间（或全局）中已存在的同名标签（不区分大小写），用于复用其字符串形式
+    // 这里用 listAll 获取已存在的聚合标签，再做小写映射到原字符串
+    // 注意：listAll 仅统计未软删资源的标签，足以作为“已被使用的规范形式”的参考
+    const existingMap = new Map<string, string>();
+    try {
+      const existed = await this.listAll(workspaceId || undefined);
+      for (const row of existed) {
+        const k = (row.tag || '').toLowerCase();
+        if (k && !existingMap.has(k)) existingMap.set(k, row.tag);
+      }
+    } catch {
+      // 忽略统计失败，继续以本次传入的标签为准
+    }
+
+    // 生成去重后的最终标签列表：优先采用已存在的字符串形式，否则使用本次传入的首个变体
+    const seen = new Set<string>();
+    const finalTags: string[] = [];
+    for (const key of targetKeys) {
+      if (seen.has(key)) continue;
+      seen.add(key);
+      // 找到本次传入中第一个匹配该 key 的原始标签（用于保持用户输入的形式作为后备）
+      const fallback = cleaned.find((t) => t.toLowerCase() === key) || key;
+      const canonical = existingMap.get(key) || fallback;
+      finalTags.push(canonical);
+    }
+
     let inserted = 0;
     (db as any).transaction((tx: any) => {
+      // 先清空旧有关系
       tx.delete(resource_tags).where(eq(resource_tags.resourceId, resourceId)).run?.();
-      const values = (tags || [])
-        .map((t) => (t || '').trim())
-        .filter(Boolean)
-        .map((t) => ({ resourceId, workspaceId, tag: t }) as any);
+      // 再按去重后的集合写入新关系
+      const values = finalTags.map((t) => ({ resourceId, workspaceId, tag: t }) as any);
       if (values.length) {
         tx.insert(resource_tags).values(values).onConflictDoNothing?.().run?.();
-        // 如果 onConflictDoNothing 不可用，res 可能为 undefined；此处并不依赖返回值
         inserted = values.length;
       }
     });
