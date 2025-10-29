@@ -13,6 +13,7 @@ import videoDownloaderAPI from './apis/video-downloader';
 import { spriteBridge } from './apis/sprite';
 import { statusBridge } from './apis/status';
 import { aiBridge } from '../main/ai/ipc-renderer';
+import { shortcutsBridge } from './apis/shortcuts';
 import { arch, isLinux, isMac, isMacIntel, isWindows, platform } from '../main/utils/os';
 
 // --------- Expose some API to the Renderer process ---------
@@ -61,11 +62,12 @@ contextBridge.exposeInMainWorld('YUA', {
   videoDownloader: videoDownloaderAPI,
   sprite: spriteBridge,
   status: statusBridge,
+  shortcuts: shortcutsBridge,
   ai: aiBridge
 });
 
 // --------- Preload scripts loading ---------
-function domReady(condition: DocumentReadyState[] = ['complete', 'interactive']) {
+function domReady(condition: DocumentReadyState[] = ['complete', 'interactive']): Promise<boolean> {
   return new Promise((resolve) => {
     if (condition.includes(document.readyState)) {
       resolve(true);
@@ -98,7 +100,7 @@ const safeDOM = {
  * https://projects.lukehaas.me/css-loaders
  * https://matejkustec.github.io/SpinThatShit
  */
-function useLoading() {
+function makeLoadingHelpers(): { appendLoading: () => void; removeLoading: () => void } {
   const className = `loaders-css__square-spin`;
   const styleContent = `
 @keyframes square-spin {
@@ -149,7 +151,7 @@ function useLoading() {
 
 // ----------------------------------------------------------------------
 
-const { appendLoading, removeLoading } = useLoading();
+const { appendLoading, removeLoading } = makeLoadingHelpers();
 domReady().then(appendLoading);
 
 window.onmessage = (ev) => {

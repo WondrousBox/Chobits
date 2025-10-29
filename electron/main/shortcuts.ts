@@ -1,19 +1,20 @@
 import { globalShortcut, BrowserWindow } from 'electron';
 import { windowManager } from './window/window-manager';
+import { loadShortcutsConfig, onShortcutsConfigChanged, resolveAcceleratorsForPlatform, getShortcutSchema, type ShortcutsConfig } from './shortcut-store';
 
 // Keep track of what we registered so we can cleanly unregister later
 const registered: Set<string> = new Set();
-
-// Default devtools accelerators we support
-const DEVTOOLS_COMBOS = ['CommandOrControl+Alt+I', 'CommandOrControl+Shift+I', 'F12'] as const;
-const ASSISTANT_COMBO = 'CommandOrControl+K' as const;
+let unsubscribeChange: (() => void) | null = null;
+let lastGetMainWindow: GetMainWindow | null = null;
 
 export type GetMainWindow = () => BrowserWindow | null;
 
-export function registerGlobalShortcuts(getMainWindow: GetMainWindow): void {
-  // Assistant panel toggle
-  try {
-    const ok = globalShortcut.register(ASSISTANT_COMBO, () => {
+function applyRegistration(getMainWindow: GetMainWindow): void {
+  const cfg = loadShortcutsConfig();
+  const resolved = resolveAcceleratorsForPlatform(cfg);
+
+  const actions: Record<string, () => void> = {
+    toggleAssistant: () => {
       try {
         const existing = windowManager.get('assistant' as any);
         if (existing) {
@@ -23,41 +24,73 @@ export function registerGlobalShortcuts(getMainWindow: GetMainWindow): void {
           windowManager.createOrShow('assistant' as any);
         }
       } catch {
-        // noop
+        /* noop */
       }
-    });
-    if (!ok) console.warn(`[shortcut] failed to register ${ASSISTANT_COMBO}`);
-    else registered.add(ASSISTANT_COMBO);
-  } catch (e) {
-    console.warn(`[shortcut] error registering ${ASSISTANT_COMBO}`, e);
-  }
-
-  // DevTools toggle shortcuts
-  const toggleDevtools = (): void => {
-    try {
-      const win = getMainWindow();
-      if (!win || win.isDestroyed()) return;
-      const wc = win.webContents;
-      if (wc.isDevToolsOpened()) wc.closeDevTools();
-      else wc.openDevTools({ mode: 'detach' });
-    } catch (e) {
-      console.warn('[shortcut] toggle devtools error', e);
+    },
+    toggleDevtools: () => {
+      try {
+        const win = getMainWindow();
+        if (!win || win.isDestroyed()) return;
+        const wc = win.webContents;
+        if (wc.isDevToolsOpened()) wc.closeDevTools();
+        else wc.openDevTools({ mode: 'detach' });
+      } catch (e) {
+        console.warn('[shortcut] toggle devtools error', e);
+      }
+    },
+    toggleMainWindow: () => {
+      try {
+        const win = getMainWindow();
+        if (!win || win.isDestroyed()) return;
+        if (win.isVisible()) win.hide();
+        else win.show();
+      } catch (e) {
+        console.warn('[shortcut] toggle main window error', e);
+      }
+    },
+    quickScreenshot: () => {
+      try {
+        const win = getMainWindow();
+        win?.webContents?.send('shortcut:quick-screenshot');
+      } catch {
+        /* noop */
+      }
+    },
+    favoriteCurrentResource: () => {
+      try {
+        const win = getMainWindow();
+        win?.webContents?.send('shortcut:favorite-current-resource');
+      } catch {
+        /* noop */
+      }
     }
   };
 
-  try {
-    DEVTOOLS_COMBOS.forEach((accel) => {
+  for (const act of getShortcutSchema()) {
+    const list = resolved[act.id] || [];
+    const handler = actions[act.id] || (() => { });
+    list.forEach((accel) => {
       try {
-        const ok = globalShortcut.register(accel, toggleDevtools);
-        if (!ok) console.warn(`[shortcut] failed to register ${accel}`);
+        if (!accel) return;
+        const ok = globalShortcut.register(accel, handler);
+        if (!ok) console.warn(`[shortcut] failed to register ${accel} (${act.id})`);
         else registered.add(accel);
       } catch (e) {
-        console.warn(`[shortcut] error registering ${accel}`, e);
+        console.warn(`[shortcut] error registering ${accel} (${act.id})`, e);
       }
     });
-  } catch (e) {
-    console.warn('[shortcut] unexpected error registering devtools shortcuts', e);
   }
+}
+
+export function registerGlobalShortcuts(getMainWindow: GetMainWindow): void {
+  lastGetMainWindow = getMainWindow;
+  applyRegistration(getMainWindow);
+  // React to future changes
+  if (unsubscribeChange) unsubscribeChange();
+  unsubscribeChange = onShortcutsConfigChanged(() => {
+    unregisterGlobalShortcuts();
+    applyRegistration(getMainWindow);
+  });
 }
 
 export function unregisterGlobalShortcuts(): void {
@@ -72,4 +105,48 @@ export function unregisterGlobalShortcuts(): void {
   } finally {
     registered.clear();
   }
+}
+
+export async function validateShortcutsConfig(proposed: Partial<ShortcutsConfig>): Promise<{ ok: boolean; details: Record<string, { accel: string; ok: boolean; error?: string }[]> }> {
+  const current = loadShortcutsConfig();
+  const merged: ShortcutsConfig = { ...current, ...(proposed as any) };
+  const toTest = resolveAcceleratorsForPlatform(merged);
+
+  // Temporarily release current, test, then restore
+  const reapply = lastGetMainWindow ? () => applyRegistration(lastGetMainWindow as GetMainWindow) : () => { };
+  const tempRegistered: string[] = [];
+  const details: Record<string, { accel: string; ok: boolean; error?: string }[]> = {};
+  try {
+    // Unregister our current accelerators to avoid self-conflict
+    unregisterGlobalShortcuts();
+    for (const act of getShortcutSchema()) {
+      details[act.id] = [];
+      for (const accel of toTest[act.id] || []) {
+        try {
+          const ok = globalShortcut.register(accel, () => { });
+          if (ok) tempRegistered.push(accel);
+          details[act.id].push({ accel, ok });
+          if (!ok) {
+            // keep going to collect all failures
+          }
+        } catch (e: any) {
+          details[act.id].push({ accel, ok: false, error: String(e?.message || e) });
+        }
+      }
+    }
+  } finally {
+    // Clean up our temporary registrations
+    for (const accel of tempRegistered) {
+      try {
+        globalShortcut.unregister(accel);
+      } catch {
+        /* noop */
+      }
+    }
+    // Re-apply the actual current shortcuts
+    reapply();
+  }
+
+  const ok = Object.values(details).every((arr) => arr.every((r) => r.ok));
+  return { ok, details };
 }

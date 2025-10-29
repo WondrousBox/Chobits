@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Input } from '@/components/ui/input';
-import { TbDatabase, TbFolderOpen, TbSettings, TbBrain, TbCpu, TbBox, TbFile3D, TbMoodKid, TbFolder, TbMessage2 } from 'react-icons/tb';
+import { TbDatabase, TbFolderOpen, TbSettings, TbBrain, TbCpu, TbBox, TbFile3D, TbMoodKid, TbFolder, TbMessage2, TbKeyboard } from 'react-icons/tb';
 import AiSettings from './components/AiSettings';
 import EmbeddingJobsPanel from '../../components/EmbeddingJobs';
 import DragAbleTitle from '../../components/common/DragAbleTitle';
@@ -10,15 +10,22 @@ import Workspace from './components/Workspace';
 import ModelPage from '../ModelPage/ModelPage';
 import SpriteManager from './components/SpriteManager';
 import PromptSetting from './components/PromptSetting';
+import ShortcutsSettings from './components/ShortcutsSettings';
 
 // Include assistantPadding in type
 type MovementConfig = { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number };
 
 // 设置分类类型
-type SettingsCategory = 'movement' | 'folder' | 'embedding' | 'ai' | 'prompt' | 'external-resource' | 'workspace' | 'model' | 'sprites';
+type SettingsCategory = 'movement' | 'folder' | 'embedding' | 'ai' | 'prompt' | 'external-resource' | 'workspace' | 'model' | 'sprites' | 'shortcuts';
 
 // 设置分类配置
 const settingsCategories: { id: SettingsCategory; label: string; icon: React.ElementType; description: string }[] = [
+  {
+    id: 'shortcuts',
+    label: '快捷键',
+    icon: TbKeyboard,
+    description: '全局快捷键设置'
+  },
   {
     id: 'movement',
     label: '移动参数',
@@ -92,32 +99,6 @@ export const SettingsPage: React.FC = () => {
     externalResourceCookies: false,
     preferredBrowser: 'chrome'
   });
-  useEffect(() => {
-    let mounted = true;
-    // 读取窗口打开时传入的 payload，用于直接跳转到指定分类/AI 提供商
-    (async () => {
-      try {
-        const payload = await window.YUA.window['window:payload:get']('settings' as any);
-        if (payload?.category) setActiveCategory(payload.category);
-        if (payload?.aiProviderId) setInitialAiProviderId(payload.aiProviderId);
-      } catch {
-        // ignore
-      }
-    })();
-    window.YUA.window.getMovementConfig().then((c: MovementConfig) => {
-      if (mounted) setConfig(c);
-    });
-    const listener = (_: any, c: MovementConfig): void => setConfig(c);
-    window.ipcRenderer?.on('movement-config-updated', listener);
-
-    // 加载外部资源设置
-    loadExternalSettings();
-
-    return () => {
-      mounted = false;
-      window.ipcRenderer?.off('movement-config-updated', listener as any);
-    };
-  }, []);
 
   const loadExternalSettings = async (): Promise<void> => {
     try {
@@ -137,6 +118,34 @@ export const SettingsPage: React.FC = () => {
       console.error('保存外部资源设置失败:', error);
     }
   };
+  useEffect(() => {
+    let mounted = true;
+    // 读取窗口打开时传入的 payload，用于直接跳转到指定分类/AI 提供商
+    (async () => {
+      try {
+        const payload = await window.YUA.window['window:payload:get']('settings' as any);
+        if (payload?.category) setActiveCategory(payload.category);
+        if (payload?.aiProviderId) setInitialAiProviderId(payload.aiProviderId);
+      } catch {
+        // ignore
+      }
+    })();
+    window.YUA.window.getMovementConfig().then((c: MovementConfig) => {
+      if (mounted) setConfig(c);
+    });
+    const listener = (_: any, c: MovementConfig): void => setConfig(c);
+    window.ipcRenderer?.on('movement-config-updated', listener);
+
+    // 加载外部资源设置
+    (async () => {
+      await loadExternalSettings();
+    })();
+
+    return () => {
+      mounted = false;
+      window.ipcRenderer?.off('movement-config-updated', listener as any);
+    };
+  }, []);
 
   const update = (partial: Partial<MovementConfig>): void => {
     if (!config) return;
@@ -326,6 +335,8 @@ export const SettingsPage: React.FC = () => {
         return <PromptSetting />;
       case 'sprites':
         return <SpriteManager />;
+      case 'shortcuts':
+        return <ShortcutsSettings />;
       case 'external-resource':
         return renderExternalResourceSettings();
       default:
