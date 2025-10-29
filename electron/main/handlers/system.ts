@@ -1,7 +1,8 @@
 import { app, ipcMain, shell } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
-import { Env, getRealPath } from '../utils';
+import { Env } from '../utils';
+import { getResourcePath } from '../utils/resources-path';
 
 /**
  * System-level handlers: database paths/open and logs paths/open.
@@ -46,7 +47,7 @@ export function initSystemHandlers(): void {
   // ---------------- Logs ----------------
   ipcMain.handle('logs:getPath', async () => {
     try {
-      const logDir = getRealPath('../../logs/', './logs/');
+      const logDir = getResourcePath('logs');
       return { ok: true, dir: logDir } as const;
     } catch (error) {
       return { ok: false, error: String(error) } as const;
@@ -55,7 +56,7 @@ export function initSystemHandlers(): void {
 
   ipcMain.handle('logs:openLocation', async () => {
     try {
-      const logDir = getRealPath('../../logs/', './logs/');
+      const logDir = getResourcePath('logs');
 
       if (!fs.existsSync(logDir)) {
         fs.mkdirSync(logDir, { recursive: true });
