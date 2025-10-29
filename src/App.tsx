@@ -38,7 +38,7 @@ function App(): JSX.Element {
             <Route path="/model-manager" element={<ModelPage />} />
             <Route path="/tagger" element={<TaggingPage />} />
             <Route path="/resource-preview" element={<ResourcePreviewWindow />} />
-            <Route path="/download-floating" element={<DownloadFloating />} />
+            <Route path="/download" element={<DownloadFloating />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           <Toaster />
