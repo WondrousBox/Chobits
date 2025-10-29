@@ -1,61 +1,50 @@
-import { useEffect, useMemo, useRef } from 'react'
-import { useSpritePlayer } from '@/components/AIAssistant/context/SpritePlayerContext'
-import { resolveSpriteSrc } from '@/lib/resourceProtocol'
+import { useEffect, useMemo, useRef } from 'react';
+import { useSpritePlayer } from '@/components/AIAssistant/context/SpritePlayerContext';
+import { resolveSpriteSrc } from '@/lib/resourceProtocol';
 
-export default function VideoSprite() {
-  const videoRef = useRef<HTMLVideoElement | null>(null)
-  const { current } = useSpritePlayer()
+export default function VideoSprite(): JSX.Element | null {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const { current } = useSpritePlayer();
 
   useEffect(() => {
-    const v = videoRef.current
-    if (!v) return
+    const v = videoRef.current;
+    if (!v) return;
 
     // Ensure autoplay resumes after programmatic seeks on some browsers
-    const onCanPlay = () => {
-      v.play().catch(() => {})
-    }
-    v.addEventListener('canplay', onCanPlay)
+    const onCanPlay = (): void => {
+      v.play().catch(() => { });
+    };
+    v.addEventListener('canplay', onCanPlay);
     return () => {
-      v.removeEventListener('canplay', onCanPlay)
-    }
-  }, [])
+      v.removeEventListener('canplay', onCanPlay);
+    };
+  }, []);
 
-  const handleTimeUpdate = () => {
-    const v = videoRef.current
-    if (!v) return
-    const d = v.duration
-    if (!Number.isFinite(d) || d <= 0) return
+  const handleTimeUpdate = (): void => {
+    const v = videoRef.current;
+    if (!v) return;
+    const d = v.duration;
+    if (!Number.isFinite(d) || d <= 0) return;
 
-    const loopStrategy = (current?.loopStrategy ?? 'early')
-    const cutoffSeconds = current?.cutoffSeconds
+    const loopStrategy = current?.loopStrategy ?? 'early';
+    const cutoffSeconds = current?.cutoffSeconds;
     if (loopStrategy === 'early') {
-      const remaining = d - v.currentTime
-      const cutoffBase = d > 1 ? 1 : Math.max(0.05, Math.min(0.2, d * 0.2))
-      const cutoff = Number.isFinite(cutoffSeconds || NaN)
-        ? Math.max(0.01, Math.min(d * 0.9, cutoffSeconds as number))
-        : cutoffBase
+      const remaining = d - v.currentTime;
+      const cutoffBase = d > 1 ? 1 : Math.max(0.05, Math.min(0.2, d * 0.2));
+      const cutoff = Number.isFinite(cutoffSeconds || NaN) ? Math.max(0.01, Math.min(d * 0.9, cutoffSeconds as number)) : cutoffBase;
       if (remaining <= cutoff + 1e-3) {
-        v.currentTime = 0
-        v.play().catch(() => {})
+        v.currentTime = 0;
+        v.play().catch(() => { });
       }
     }
-  }
+  };
 
   const computed = useMemo(() => {
-    const anim = current
+    const anim = current;
     if (!anim) {
-      return {
-        srcUrl: '/idle.webm',
-        type: 'video/webm',
-        width: 180,
-        height: 220,
-        autoplay: true,
-        muted: true,
-        playsInline: true,
-        loopStrategy: 'early' as const,
-      }
+      return;
     }
-    const { url, type } = resolveSpriteSrc(anim.source)
+    const { url, type } = resolveSpriteSrc(anim.source);
     return {
       srcUrl: url,
       type: type || 'video/webm',
@@ -65,11 +54,11 @@ export default function VideoSprite() {
       muted: anim.muted ?? true,
       playsInline: anim.playsInline ?? true,
       loopStrategy: anim.loopStrategy ?? 'early',
-      cutoffSeconds: anim.cutoffSeconds,
-    }
-  }, [current])
+      cutoffSeconds: anim.cutoffSeconds
+    };
+  }, [current]);
 
-  return (
+  return computed ? (
     <video
       ref={videoRef}
       style={{ width: computed.width ?? 180, height: computed.height ?? 220, userSelect: 'none' }}
@@ -81,9 +70,8 @@ export default function VideoSprite() {
       src={computed.srcUrl}
       onError={(e) => {
         // 简单错误日志，便于排查路径/权限问题
-        console.warn('Sprite video failed to load', computed.srcUrl, e)
+        console.warn('Sprite video failed to load', computed.srcUrl, e);
       }}
-    >
-    </video>
-  )
+    ></video>
+  ) : null;
 }
