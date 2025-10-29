@@ -302,8 +302,8 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     showOnReady: false,
     openDevTools: false,
     options: {
-      width: 320,
-      height: 120,
+      width: 500,
+      height: 500,
       frame: false,
       transparent: true,
       resizable: false,
