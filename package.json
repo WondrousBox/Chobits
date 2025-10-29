@@ -1,5 +1,5 @@
 {
-  "name": "chobits",
+  "name": "Chobits",
   "version": "1.0.0",
   "main": "dist-electron/main/index.js",
   "description": "Electron Vite React boilerplate.",

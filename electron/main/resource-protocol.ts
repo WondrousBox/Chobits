@@ -35,14 +35,10 @@ let protocolHandled = false;
 const workspaceRoots: Record<string, string> = {};
 
 export function addAllowedResourceRoot(root: string): void {
-  try {
-    const real = path.resolve(root);
-    if (!allowedRoots.includes(real)) {
-      allowedRoots.push(real);
-      // console.log('[protocol res] root added:', real)
-    }
-  } catch {
-    //
+  const real = path.resolve(root);
+  if (!allowedRoots.includes(real)) {
+    allowedRoots.push(real);
+    // console.log('[protocol res] root added:', real)
   }
 }
 

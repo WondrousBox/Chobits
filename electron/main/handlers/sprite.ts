@@ -2,7 +2,6 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import fscb from 'node:fs';
-import os from 'node:os';
 import { randomUUID } from 'node:crypto';
 import type { SpriteAnimation } from '@/components/AIAssistant/messages/types';
 import { addAllowedResourceRoot } from '../resource-protocol';
@@ -13,10 +12,8 @@ type SpriteIndex = {
   items: SpriteAnimation[];
 };
 
-async function ensureDirs(dir: string) {
-  try {
-    await fs.mkdir(dir, { recursive: true });
-  } catch { }
+async function ensureDirs(dir: string): Promise<void> {
+  await fs.mkdir(dir, { recursive: true });
 }
 
 const SETTINGS_DIR = path.join(app.getPath('home'), '.chobits');
@@ -24,18 +21,14 @@ const SETTINGS_DIR = path.join(app.getPath('home'), '.chobits');
 async function getDefaultSpritesDir(): Promise<string> {
   // Packaged resources (read-only)
   const spritesDir = getResourcePath('sprites');
-  try {
-    addAllowedResourceRoot(spritesDir);
-  } catch { }
+  addAllowedResourceRoot(spritesDir);
   return spritesDir;
 }
 
 async function getUserSpritesDir(): Promise<string> {
   const userDir = path.join(SETTINGS_DIR, 'sprites');
   await ensureDirs(userDir);
-  try {
-    addAllowedResourceRoot(userDir);
-  } catch { }
+  addAllowedResourceRoot(userDir);
   return userDir;
 }
 
@@ -67,7 +60,7 @@ async function readIndex(dir: string): Promise<SpriteIndex> {
   return { version: 1, items: [] };
 }
 
-async function writeUserIndex(index: SpriteIndex) {
+async function writeUserIndex(index: SpriteIndex): Promise<void> {
   const dir = await getUserSpritesDir();
   const idxPath = path.join(dir, 'index.json');
   await fs.writeFile(idxPath, JSON.stringify(index, null, 2), 'utf-8');
@@ -88,7 +81,7 @@ function inferMimeFromExt(ext: string): string | undefined {
   }
 }
 
-export function initSpriteHandlers(_win: BrowserWindow) {
+export function initSpriteHandlers(): void {
   ipcMain.handle('sprite:list', async () => {
     const [defDir, userDir] = await Promise.all([getDefaultSpritesDir(), getUserSpritesDir()]);
     const [defIdx, userIdx] = await Promise.all([readIndex(defDir), readIndex(userDir)]);
@@ -96,6 +89,9 @@ export function initSpriteHandlers(_win: BrowserWindow) {
     const map = new Map<string, SpriteAnimation>();
     for (const it of defIdx.items) map.set(it.meta.id, it);
     for (const it of userIdx.items) map.set(it.meta.id, it);
+
+    console.log('All', Array.from(map.values()));
+
     return Array.from(map.values());
   });
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Input } from '@/components/ui/input';
-import { TbDatabase, TbFolderOpen, TbSettings, TbBrain, TbCpu, TbBox, TbFile3D, TbMoodKid, TbFolder, TbMessage2, TbKeyboard } from 'react-icons/tb';
+import { TbDatabase, TbFolderOpen, TbSettings, TbBrain, TbCpu, TbBox, TbFile3D, TbMoodKid, TbFolder, TbMessage2, TbKeyboard, TbFileText } from 'react-icons/tb';
 import AiSettings from './components/AiSettings';
 import EmbeddingJobsPanel from '../../components/EmbeddingJobs';
 import DragAbleTitle from '../../components/common/DragAbleTitle';
@@ -161,7 +161,11 @@ export const SettingsPage: React.FC = () => {
   };
 
   const openDatabaseLocation = async (): Promise<void> => {
-    window.YUA.database['database:openLocation']();
+    window.YUA.system['database:openLocation']();
+  };
+
+  const openLogsLocation = async (): Promise<void> => {
+    window.YUA.system['logs:openLocation']();
   };
 
   // 渲染移动参数设置
@@ -300,6 +304,19 @@ export const SettingsPage: React.FC = () => {
               <div className="flex items-center justify-center gap-2 mt-2">
                 <div className="px-3 py-2 bg-muted rounded-md text-sm text-muted-foreground flex-1">用户数据目录/data/</div>
                 <Button variant="outline" onClick={openDatabaseLocation}>
+                  <TbFolderOpen />
+                  打开位置
+                </Button>
+              </div>
+            </div>
+
+            <div className="bg-card border border-border rounded-lg p-2 mt-3">
+              <div className="flex items-center text-foreground gap-1">
+                <TbFileText /> 日志
+              </div>
+              <div className="flex items-center justify-center gap-2 mt-2">
+                <div className="px-3 py-2 bg-muted rounded-md text-sm text-muted-foreground flex-1">应用日志目录/logs/</div>
+                <Button variant="outline" onClick={openLogsLocation}>
                   <TbFolderOpen />
                   打开位置
                 </Button>

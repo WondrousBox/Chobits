@@ -45,11 +45,7 @@ export const Env = {
 export function getRealPath(prodPath: string, devPath: string, basePath?: string): string {
   let base = basePath;
   if (!base) {
-    try {
-      base = (app as any)?.getAppPath?.();
-    } catch {
-      // ignore
-    }
+    base = app.getAppPath();
   }
   if (!base) {
     // In non-Electron contexts (tests), fall back to process.cwd()

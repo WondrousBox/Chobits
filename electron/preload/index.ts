@@ -7,8 +7,8 @@ import { trashBridge } from './apis/trash';
 import { workspaceBridge } from './apis/workspace';
 import { modelBridge } from './apis/model';
 import { fileBridge } from './apis/file';
-import { databaseBridge } from './apis/database';
 import { folderBridge } from './apis/folder';
+import { systemBridge } from './apis/system';
 import videoDownloaderAPI from './apis/video-downloader';
 import { spriteBridge } from './apis/sprite';
 import { statusBridge } from './apis/status';
@@ -57,7 +57,7 @@ contextBridge.exposeInMainWorld('YUA', {
   workspace: workspaceBridge,
   model: modelBridge,
   file: fileBridge,
-  database: databaseBridge,
+  system: systemBridge,
   folder: folderBridge,
   videoDownloader: videoDownloaderAPI,
   sprite: spriteBridge,

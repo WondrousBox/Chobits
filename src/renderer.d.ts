@@ -6,7 +6,7 @@ import type { TrashBridgeType } from '../electron/preload/apis/trash';
 import type { WorkspaceBridgeType } from '../electron/preload/apis/workspace';
 import type { ModelBridgeType } from '../electron/preload/apis/model';
 import type { FileBridgeType } from '../electron/preload/apis/file';
-import type { DatabaseBridgeType } from '../electron/preload/apis/database';
+import type { SystemBridgeType } from '../electron/preload/apis/system';
 import type videoDownloaderAPI from '../electron/preload/apis/video-downloader';
 import type { FolderBridgeType } from '../electron/preload/apis/folder';
 import type { SpriteBridgeType } from '../electron/preload/apis/sprite';
@@ -37,7 +37,7 @@ declare global {
       workspace: WorkspaceBridgeType;
       model: ModelBridgeType;
       file: FileBridgeType;
-      database: DatabaseBridgeType;
+      system: SystemBridgeType;
       folder: FolderBridgeType;
       videoDownloader: typeof videoDownloaderAPI;
       sprite: SpriteBridgeType;
