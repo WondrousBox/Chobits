@@ -14,6 +14,7 @@ import { initFolderHandlers } from './folder';
 import { initSpriteHandlers } from './sprite';
 import { initStatusHandlers } from './status';
 import { init as initAIHandlers } from '../ai/ipc-main';
+import { initShortcutsHandlers } from './shortcuts';
 
 export function initHandlers(win: BrowserWindow): void {
   console.log(process.versions);
@@ -32,4 +33,5 @@ export function initHandlers(win: BrowserWindow): void {
   initSpriteHandlers(win);
   initStatusHandlers(win);
   initAIHandlers(win);
+  initShortcutsHandlers(win);
 }
