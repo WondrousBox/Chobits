@@ -20,7 +20,6 @@ interface DownloadTask {
 
 const DownloadFloating: React.FC = () => {
   const [tasks, setTasks] = useState<DownloadTask[]>([]);
-  const [isVisible, setIsVisible] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -46,14 +45,12 @@ const DownloadFloating: React.FC = () => {
         }
         return prev.map((t) => (t.id === task.id ? task : t));
       });
-      setIsVisible(true);
     };
 
     // 监听任务完成
     const handleTaskCompleted = (_: any, task: DownloadTask): void => {
       setTasks((prev) => prev.map((t) => (t.id === task.id ? task : t)));
       // 下载完成后直接关闭悬浮窗以避免遮挡界面
-      setIsVisible(false);
       window.ipcRenderer?.send('download-floating:close');
     };
 
@@ -66,7 +63,6 @@ const DownloadFloating: React.FC = () => {
     const handleWindowData = (_: any, data: any): void => {
       if (data && data.task) {
         setTasks([data.task]);
-        setIsVisible(true);
       }
     };
 
@@ -89,15 +85,6 @@ const DownloadFloating: React.FC = () => {
   const handleCancel = (taskId: string): void => {
     window.ipcRenderer?.invoke('video-downloader:cancel', taskId);
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
-    if (tasks.length === 1) {
-      setIsVisible(false);
-    }
-  };
-
-  const handleClose = (): void => {
-    setIsVisible(false);
-    // 关闭窗口
-    window.ipcRenderer?.send('download-floating:close');
   };
 
   const handleCollapse = (): void => {
@@ -141,28 +128,22 @@ const DownloadFloating: React.FC = () => {
     }
   };
 
-  if (!isVisible || tasks.length === 0) {
+  if (tasks.length === 0) {
     return null;
   }
 
   const currentTask = tasks[0]; // 显示第一个任务
 
   return (
-    <div
-      ref={containerRef}
-      className={`fixed top-5 right-5 w-80 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-white/30 z-[10000] transition-all duration-300 ease-in-out select-none hover:shadow-2xl hover:-translate-y-1 ${isCollapsed ? 'h-12' : ''}`}
-    >
+    <div ref={containerRef} className="w-full h-full bg-background">
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100/50 cursor-pointer">
         <div className="flex items-center gap-3">
           {getStatusIcon(currentTask.status)}
           <span className="text-sm font-semibold text-gray-800">下载进度</span>
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" className="w-7 h-7 p-0 hover:bg-gray-100 rounded-lg" onClick={handleCollapse}>
+          <Button variant="ghost" size="icon" onClick={handleCollapse}>
             {isCollapsed ? <TbChevronDown className="w-4 h-4" /> : <TbChevronUp className="w-4 h-4" />}
-          </Button>
-          <Button variant="ghost" size="sm" className="w-7 h-7 p-0 hover:bg-gray-100 rounded-lg" onClick={handleClose}>
-            <TbX className="w-4 h-4" />
           </Button>
         </div>
       </div>
@@ -224,7 +205,7 @@ const DownloadFloating: React.FC = () => {
               </Button>
             )}
             {currentTask.status === 'completed' && (
-              <Button variant="outline" size="sm" onClick={handleClose} className="text-xs px-3 py-1.5 h-8 hover:bg-green-50 hover:border-green-200 hover:text-green-600">
+              <Button variant="outline" size="sm" className="text-xs px-3 py-1.5 h-8 hover:bg-green-50 hover:border-green-200 hover:text-green-600">
                 <TbCheck className="w-3 h-3 mr-1" />
                 关闭
               </Button>
