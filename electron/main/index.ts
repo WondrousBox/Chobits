@@ -1,14 +1,12 @@
-import { app, BrowserWindow, shell, ipcMain, globalShortcut } from 'electron';
+import { app, BrowserWindow, shell, ipcMain } from 'electron';
 import { setupResourceProtocol, addAllowedResourceRoot, addWorkspaceResourceRoot } from './resource-protocol';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import os from 'node:os';
 import { update } from './update';
 import { initHandlers } from './handlers';
-import { windowManager } from './window/window-manager';
-import { initWindowConfigs } from './window/window-config';
-import defaultWindowConfigs from './config/window';
 import { logger } from './logger';
+import { registerGlobalShortcuts, unregisterGlobalShortcuts } from './shortcuts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -124,12 +122,6 @@ async function createWindow(): Promise<void> {
 }
 
 app.whenReady().then(async () => {
-  // Initialize dynamic window configs (defaults + user overrides)
-  try {
-    initWindowConfigs(defaultWindowConfigs);
-  } catch (e) {
-    console.warn('[windows] init configs failed', e);
-  }
   // Setup custom resource protocol (modern protocol.handle API)
   try {
     await setupResourceProtocol();
@@ -159,51 +151,8 @@ app.whenReady().then(async () => {
     console.warn('[protocol res] add workspace root failed', e);
   }
   await createWindow();
-  // Register global shortcut for assistant panel toggle
-  try {
-    const reg = globalShortcut.register('CommandOrControl+K', () => {
-      try {
-        const existing = windowManager.get('assistant' as any);
-        if (existing) {
-          if (existing.isVisible()) existing.close();
-          else windowManager.show('assistant' as any);
-        } else {
-          windowManager.createOrShow('assistant' as any);
-        }
-      } catch {
-        //
-      }
-    });
-    if (!reg) console.warn('[shortcut] failed to register CommandOrControl+K');
-  } catch (e) {
-    console.warn('[shortcut] error registering CommandOrControl+K', e);
-  }
-
-  // Register global shortcuts to toggle DevTools
-  // Common Electron defaults are CommandOrControl+Shift+I and F12; we provide both.
-  const toggleDevtools = (): void => {
-    try {
-      if (!win || win.isDestroyed()) return;
-      const wc = win.webContents;
-      if (wc.isDevToolsOpened()) wc.closeDevTools();
-      else wc.openDevTools({ mode: 'detach' });
-    } catch (e) {
-      console.warn('[shortcut] toggle devtools error', e);
-    }
-  };
-  try {
-    const combos = ['CommandOrControl+Alt+I', 'CommandOrControl+Shift+I', 'F12'];
-    combos.forEach((accel) => {
-      try {
-        const ok = globalShortcut.register(accel, toggleDevtools);
-        if (!ok) console.warn(`[shortcut] failed to register ${accel}`);
-      } catch (e) {
-        console.warn(`[shortcut] error registering ${accel}`, e);
-      }
-    });
-  } catch (e) {
-    console.warn('[shortcut] unexpected error registering devtools shortcuts', e);
-  }
+  // Register all global shortcuts (assistant toggle, devtools, etc.)
+  registerGlobalShortcuts(getMainWindow);
 });
 
 process.on('uncaughtException', function (error) {
@@ -216,16 +165,8 @@ app.on('render-process-gone', (event, webContents, killed) => {
 });
 
 app.on('window-all-closed', () => {
-  try {
-    globalShortcut.unregister('CommandOrControl+K');
-  } catch {
-    //
-  }
-  try {
-    globalShortcut.unregisterAll();
-  } catch {
-    //
-  }
+  // Clean up registered shortcuts when all windows are closed
+  unregisterGlobalShortcuts();
   win = null;
   if (process.platform !== 'darwin') app.quit();
 });
@@ -248,11 +189,8 @@ app.on('activate', () => {
 });
 
 app.on('will-quit', () => {
-  try {
-    globalShortcut.unregisterAll();
-  } catch {
-    //
-  }
+  // Ensure shortcuts are fully unregistered on app quit
+  unregisterGlobalShortcuts();
 });
 
 // New window example arg: new windows url

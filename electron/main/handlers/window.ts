@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { windowManager } from '../window/window-manager';
+import defaultWindowConfigs from '../config/window';
 import { ASSISTANT_HEIGHT, ASSISTANT_WIDTH } from '../config';
 import { init } from '../window/icp-main';
 
@@ -166,6 +167,7 @@ export function initWindowHandlers(win: BrowserWindow): void {
     anchorWidth: ASSISTANT_WIDTH,
     serverUrl: process.env.VITE_DEV_SERVER_URL,
     rendererDist: path.join(process.env.APP_ROOT || app.getAppPath(), 'dist'),
+    windowConfigs: defaultWindowConfigs,
     onBeforeFollowerShow: () => {
       stopHoverMonitor();
     },

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { windowConfigs } from './window-config';
 import { saveWindowState, restoreWindowState } from './window-state-store';
 import { FollowerPreferMode, FollowerSide, WindowConfig, WindowKey } from './types';
+import { initWindowConfigs } from './window-config';
 
 let SERVER_URL = '';
 let RENDERER_DIST = '';
@@ -155,6 +156,7 @@ export class WindowManager {
       anchorHeight?: number;
       serverUrl?: string;
       rendererDist?: string;
+      windowConfigs?: Record<WindowKey, WindowConfig>;
       onBeforeFollowerShow?: () => void;
       onAfterFollowerHide?: () => void;
     }
@@ -177,6 +179,14 @@ export class WindowManager {
     // 设置初始助手内边距
     if (options.assistantPadding !== undefined) {
       this.assistantPadding = options.assistantPadding;
+    }
+    if (options.windowConfigs) {
+      // Initialize dynamic window configs (defaults + user overrides)
+      try {
+        initWindowConfigs(options.windowConfigs);
+      } catch (e) {
+        console.warn('[windows] init configs failed', e);
+      }
     }
     // 保存用于暂停/恢复 hover 监控的回调
     this.onBeforeFollowerShow = options.onBeforeFollowerShow;
