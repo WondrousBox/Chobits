@@ -89,9 +89,6 @@ export function initSpriteHandlers(): void {
     const map = new Map<string, SpriteAnimation>();
     for (const it of defIdx.items) map.set(it.meta.id, it);
     for (const it of userIdx.items) map.set(it.meta.id, it);
-
-    console.log('All', Array.from(map.values()));
-
     return Array.from(map.values());
   });
 
