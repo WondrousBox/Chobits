@@ -28,28 +28,28 @@ export const SHORTCUT_SCHEMA: ShortcutAction[] = [
     id: 'toggleDevtools',
     label: 'DevTools 切换',
     type: 'multi',
-    defaults: { darwin: ['CommandOrControl+Alt+I', 'CommandOrControl+Shift+I', 'F12'], win32: ['CommandOrControl+Shift+I', 'F12'], linux: ['CommandOrControl+Shift+I', 'F12'] }
+    defaults: { darwin: ['CommandOrControl+Shift+I'], win32: ['CommandOrControl+Shift+I'], linux: ['CommandOrControl+Shift+I'] }
   },
   {
     id: 'toggleMainWindow',
     label: '显示/隐藏主窗口',
     type: 'single',
     defaults: { darwin: 'CommandOrControl+Shift+K', win32: 'CommandOrControl+Shift+K', linux: 'CommandOrControl+Shift+K' }
-  },
-  {
-    id: 'quickScreenshot',
-    label: '快速截图',
-    description: '触发快速截图动作（由前端或其他模块实现）',
-    type: 'single',
-    defaults: { darwin: 'CommandOrControl+Shift+S', win32: 'CommandOrControl+Shift+S', linux: 'CommandOrControl+Shift+S' }
-  },
-  {
-    id: 'favoriteCurrentResource',
-    label: '收藏当前资源',
-    description: '触发收藏当前资源（由资源页面监听实现）',
-    type: 'single',
-    defaults: { darwin: 'CommandOrControl+Shift+F', win32: 'CommandOrControl+Shift+F', linux: 'CommandOrControl+Shift+F' }
   }
+  // {
+  //   id: 'quickScreenshot',
+  //   label: '快速截图',
+  //   description: '触发快速截图动作（由前端或其他模块实现）',
+  //   type: 'single',
+  //   defaults: { darwin: 'CommandOrControl+Shift+S', win32: 'CommandOrControl+Shift+S', linux: 'CommandOrControl+Shift+S' }
+  // },
+  // {
+  //   id: 'favoriteCurrentResource',
+  //   label: '收藏当前资源',
+  //   description: '触发收藏当前资源（由资源页面监听实现）',
+  //   type: 'single',
+  //   defaults: { darwin: 'CommandOrControl+Shift+F', win32: 'CommandOrControl+Shift+F', linux: 'CommandOrControl+Shift+F' }
+  // }
 ];
 
 const emitter = new EventEmitter();
