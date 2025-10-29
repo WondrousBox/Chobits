@@ -43,11 +43,6 @@ const videoDownloaderAPI = {
 
   onTaskFailed: (callback: (task: any) => void) => {
     ipcRenderer.on('video-downloader:task-failed', (_, task) => callback(task));
-  },
-
-  // 关闭下载悬浮窗
-  closeDownloadFloating: () => {
-    ipcRenderer.send('download-floating:close');
   }
 };
 

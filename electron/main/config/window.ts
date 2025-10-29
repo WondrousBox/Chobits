@@ -297,7 +297,7 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     }
   },
   downloadFloating: {
-    routeHash: 'download-floating',
+    routeHash: 'download',
     autoCenterOn: 'none',
     showOnReady: false,
     openDevTools: false,

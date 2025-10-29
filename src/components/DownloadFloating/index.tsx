@@ -51,7 +51,7 @@ const DownloadFloating: React.FC = () => {
     const handleTaskCompleted = (_: any, task: DownloadTask): void => {
       setTasks((prev) => prev.map((t) => (t.id === task.id ? task : t)));
       // 下载完成后直接关闭悬浮窗以避免遮挡界面
-      window.ipcRenderer?.send('download-floating:close');
+      window.YUA.window['window:close']('downloadFloating');
     };
 
     // 监听任务失败

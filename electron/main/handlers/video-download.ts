@@ -114,15 +114,6 @@ export function initVideoDownloadHandlers(win: BrowserWindow): void {
     }
   });
 
-  // 关闭下载悬浮窗
-  ipcMain.on('download-floating:close', () => {
-    try {
-      windowManager.close('downloadFloating');
-    } catch (error) {
-      console.error('[VideoDownload] Failed to close download floating window:', error);
-    }
-  });
-
   // 设置下载管理器事件监听器
   downloadManager.on('taskAdded', (task) => {
     console.log('[VideoDownload] 任务已添加:', task.id);
