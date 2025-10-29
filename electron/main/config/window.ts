@@ -3,7 +3,7 @@ import { WindowConfig, WindowKey } from '../window/types';
 const HEADER_COMMANDS_HEIGHT = 36;
 const MACOS_TRAFFIC_LIGHTS_HEIGHT = 16;
 
-const faultWindowConfigs: Record<WindowKey, WindowConfig> = {
+const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
   status: {
     routeHash: 'status',
     followMain: true,
@@ -346,4 +346,4 @@ const faultWindowConfigs: Record<WindowKey, WindowConfig> = {
   }
 };
 
-export default faultWindowConfigs;
+export default defaultWindowConfigs;
