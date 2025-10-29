@@ -1,7 +1,9 @@
 import os from 'node:os';
+import path from 'node:path';
+import { app } from 'electron';
 import { getRealPath } from '.';
 
-export function getResourcePath(binName: 'ffmpeg' | 'yt-dlp' | 'sprites' | 'resources' | 'providers'): string {
+export function getResourcePath(binName: 'ffmpeg' | 'yt-dlp' | 'sprites' | 'resources' | 'providers' | 'logs'): string {
   switch (binName) {
     case 'ffmpeg':
       return getRealPath(
@@ -19,6 +21,9 @@ export function getResourcePath(binName: 'ffmpeg' | 'yt-dlp' | 'sprites' | 'reso
       return getRealPath(`../providers`, `./resources/providers`);
     case 'sprites':
       return getRealPath(`../sprites`, `./resources/sprites`);
+    case 'logs':
+      // Always place logs outside of app.asar. Using userData ensures a writable location across OSes.
+      return path.join(app.getPath('userData'), 'logs');
     default:
       return getRealPath(
         `../ffmpeg/${os.platform()}/${os.arch()}/${os.platform() === 'darwin' ? 'ffmpeg' : 'ffmpeg.exe'}`,

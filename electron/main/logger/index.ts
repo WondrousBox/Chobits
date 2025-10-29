@@ -1,7 +1,7 @@
 import dayjs from 'dayjs';
 import log, { LogFunctions } from 'electron-log';
-import { getRealPath } from '../utils';
 import { LOG_LEVEL } from '../config';
+import { getResourcePath } from '../utils/resources-path';
 
 console.log('log initialize');
 // It preloads electron-log IPC code in renderer processes
@@ -24,7 +24,7 @@ export default class Logger {
   resolvePath(): void {
     // https://github.com/strisys/electron-ipc-bridge-factory
     log.transports.file.resolvePathFn = () => {
-      const logPath = getRealPath('../../logs/', './logs/');
+      const logPath = getResourcePath('logs');
 
       return `${logPath}/${dayjs().format('YYYY-MM-DD')}.log`;
     };

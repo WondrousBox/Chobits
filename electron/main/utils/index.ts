@@ -34,22 +34,15 @@ export const Env = {
     return process.platform === 'win32';
   },
   isProd: function () {
-    return process.env.NODE_ENV === 'production';
+    // Use Electron's packaging signal. NODE_ENV may be undefined in production builds.
+    return app.isPackaged;
   },
   isDev: function () {
-    // Treat anything other than production as dev-like (includes 'development' and 'test')
-    return process.env.NODE_ENV !== 'production';
+    // Treat anything other than packaged as dev-like (includes 'development' and 'test')
+    return !app.isPackaged;
   }
 };
 
-export function getRealPath(prodPath: string, devPath: string, basePath?: string): string {
-  let base = basePath;
-  if (!base) {
-    base = app.getAppPath();
-  }
-  if (!base) {
-    // In non-Electron contexts (tests), fall back to process.cwd()
-    base = process.cwd();
-  }
-  return path.resolve(base, Env.isProd() ? prodPath : devPath);
+export function getRealPath(prodPath: string, devPath: string, basePath: string = app.getAppPath()): string {
+  return path.resolve(basePath, Env.isProd() ? prodPath : devPath);
 }
