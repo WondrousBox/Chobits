@@ -8,13 +8,13 @@ import { initTrashHandlers } from './trash';
 import { initWorkspaceHandlers } from './workspace';
 import { initModelHandlers } from './model';
 import { initFileHandlers } from './file';
-import { initDatabaseHandlers } from './database';
 import { initVideoDownloadHandlers } from './video-download';
 import { initFolderHandlers } from './folder';
 import { initSpriteHandlers } from './sprite';
 import { initStatusHandlers } from './status';
 import { init as initAIHandlers } from '../ai/ipc-main';
 import { initShortcutsHandlers } from './shortcuts';
+import { initSystemHandlers } from './system';
 
 export function initHandlers(win: BrowserWindow): void {
   console.log(process.versions);
@@ -28,9 +28,9 @@ export function initHandlers(win: BrowserWindow): void {
   initWorkspaceHandlers();
   initModelHandlers(win);
   initFileHandlers(win);
-  initDatabaseHandlers();
+  initSystemHandlers();
   initVideoDownloadHandlers(win);
-  initSpriteHandlers(win);
+  initSpriteHandlers();
   initStatusHandlers(win);
   initAIHandlers(win);
   initShortcutsHandlers(win);

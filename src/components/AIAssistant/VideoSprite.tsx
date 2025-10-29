@@ -12,7 +12,7 @@ export default function VideoSprite(): JSX.Element | null {
 
     // Ensure autoplay resumes after programmatic seeks on some browsers
     const onCanPlay = (): void => {
-      v.play().catch(() => { });
+      v.play();
     };
     v.addEventListener('canplay', onCanPlay);
     return () => {
@@ -34,7 +34,7 @@ export default function VideoSprite(): JSX.Element | null {
       const cutoff = Number.isFinite(cutoffSeconds || NaN) ? Math.max(0.01, Math.min(d * 0.9, cutoffSeconds as number)) : cutoffBase;
       if (remaining <= cutoff + 1e-3) {
         v.currentTime = 0;
-        v.play().catch(() => { });
+        v.play();
       }
     }
   };
