@@ -5,7 +5,8 @@
  */
 import React, { useEffect, useRef } from 'react';
 import VideoSprite from './VideoSprite';
-import Messages, { MessageBubble } from './messages';
+import { MessageBubble } from './messages/MessageBubble';
+import Messages from './messages/zh-CN';
 import Dropzone from '../common/Dropzone';
 import { ASSISTANT_HEIGHT, ASSISTANT_WIDTH, SHOW_PADDING_DEBUG } from './constants';
 import useAssistantInit from './hooks/useAssistantInit';
@@ -129,7 +130,7 @@ export const AIAssistant: React.FC = () => {
   }, [animateMoveWindow]);
 
   useEffect(() => {
-    const onMenuCommand = async (_: any, action: string) => {
+    const onMenuCommand = async (_: any, action: string): Promise<void> => {
       // 防抖/去重：忽略极短时间内的重复事件
       const now = performance.now();
       const last = lastMenuActionAtRef.current[action] || 0;
@@ -154,7 +155,7 @@ export const AIAssistant: React.FC = () => {
 
     window.ipcRenderer?.on('window:command', onMenuCommand);
     return () => {
-      window.ipcRenderer?.off('window:command', onMenuCommand as any);
+      window.ipcRenderer?.off('window:command', onMenuCommand);
     };
   }, []);
 

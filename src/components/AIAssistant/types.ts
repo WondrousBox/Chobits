@@ -142,26 +142,14 @@ export const ALL_SPRITE_EVENT_TYPES = Array.from(
 // 精灵事件类型：消息子集 + 扩展 + 可选 'custom'
 export type SpriteEventType = (typeof ALL_SPRITE_EVENT_TYPES)[number] | 'custom';
 
-export interface MessageContext {
-  // Optional runtime parameters to format messages
-  count?: number;
-  names?: string[];
-  singleName?: string;
-}
-
-export type MessageProducer = (ctx?: MessageContext) => string;
+export type MessageProducer = (ctx?: any) => string;
 
 export type MessageCatalog = {
-  [K in MessageCategory]?: {
-    // canonical messages (deterministic)
-    default?: MessageProducer | string;
-    // optional variants to add personality; random pick if requested
-    variants?: Array<MessageProducer | string>;
-  };
+  [K in MessageCategory]?: Array<MessageProducer | string> | MessageProducer | string;
 };
 
 export interface MessagesProvider {
-  t: (category: MessageCategory, ctx?: MessageContext, opts?: { variant?: boolean }) => string;
+  t: (category: MessageCategory, ctx?: any) => string;
 }
 
 export interface SpriteAnimation {
