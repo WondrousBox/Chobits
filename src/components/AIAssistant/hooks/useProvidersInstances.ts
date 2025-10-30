@@ -1,26 +1,26 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react';
 
 export type ProviderRow = {
-  id: string
-  label: string
-  configured?: boolean
-  schema?: { icon?: string; locales?: Record<string, any> }
-}
+  id: string;
+  label: string;
+  configured?: boolean;
+  schema?: { icon?: string; locales?: Record<string, any> };
+};
 
 export type InstanceRow = {
-  id: string
-  providerId: string
-  name?: string
-  model?: string
-}
+  id: string;
+  providerId: string;
+  name?: string;
+  model?: string;
+};
 
 export interface UseProvidersInstancesResult {
-  providers: ProviderRow[]
-  instancesMap: Record<string, InstanceRow[]>
-  loading: boolean
-  error?: string
-  refresh: () => Promise<void>
-  getInstances: (providerId: string) => InstanceRow[]
+  providers: ProviderRow[];
+  instancesMap: Record<string, InstanceRow[]>;
+  loading: boolean;
+  error?: string;
+  refresh: () => Promise<void>;
+  getInstances: (providerId: string) => InstanceRow[];
 }
 
 /**
@@ -30,66 +30,62 @@ export interface UseProvidersInstancesResult {
  * - Provides a simple alphabetical ordering by instance name/id
  */
 export function useProvidersInstances(): UseProvidersInstancesResult {
-  const [providers, setProviders] = useState<ProviderRow[]>([])
-  const [instancesMap, setInstancesMap] = useState<Record<string, InstanceRow[]>>({})
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | undefined>(undefined)
+  const [providers, setProviders] = useState<ProviderRow[]>([]);
+  const [instancesMap, setInstancesMap] = useState<Record<string, InstanceRow[]>>({});
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | undefined>(undefined);
 
   const refresh = async () => {
-    setLoading(true)
-    setError(undefined)
+    setLoading(true);
+    setError(undefined);
     try {
-      const provs = await (window as any).YUA?.ai?.getProviders?.()
-      setProviders(Array.isArray(provs) ? provs : [])
+      const provs = await (window as any).YUA?.ai?.getProviders?.();
+      setProviders(Array.isArray(provs) ? provs : []);
     } catch (e: any) {
-      setError(e?.message || '加载服务商失败')
+      setError(e?.message || '加载服务商失败');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
-    refresh()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    refresh();
+  }, []);
 
   useEffect(() => {
     (async () => {
       if (!providers.length) {
-        setInstancesMap({})
-        return
+        setInstancesMap({});
+        return;
       }
       try {
         const entries = await Promise.all(
           providers.map(async (p) => {
             try {
-              const list = await (window as any).YUA?.ai?.listInstances?.(p.id)
-              return [p.id, Array.isArray(list) ? list : []] as const
+              const list = await (window as any).YUA?.ai?.listInstances?.(p.id);
+              return [p.id, Array.isArray(list) ? list : []] as const;
             } catch {
-              return [p.id, []] as const
+              return [p.id, []] as const;
             }
           })
-        )
-        setInstancesMap(Object.fromEntries(entries))
+        );
+        setInstancesMap(Object.fromEntries(entries));
       } catch {
         // ignore
       }
-    })()
-  }, [providers])
+    })();
+  }, [providers]);
 
   const getInstances = (providerId: string) => {
-    const list = (instancesMap[providerId] || []).slice()
+    const list = (instancesMap[providerId] || []).slice();
     return list.sort((a, b) => {
-      const an = (a.name || a.id || '').toString()
-      const bn = (b.name || b.id || '').toString()
-      return an.localeCompare(bn)
-    })
-  }
+      const an = (a.name || a.id || '').toString();
+      const bn = (b.name || b.id || '').toString();
+      return an.localeCompare(bn);
+    });
+  };
 
-  return useMemo(
-    () => ({ providers, instancesMap, loading, error, refresh, getInstances }),
-    [providers, instancesMap, loading, error]
-  )
+  return useMemo(() => ({ providers, instancesMap, loading, error, refresh, getInstances }), [providers, instancesMap, loading, error]);
 }
 
-export default useProvidersInstances
+export default useProvidersInstances;

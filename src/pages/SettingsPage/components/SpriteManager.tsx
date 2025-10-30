@@ -312,9 +312,11 @@ export default function SpriteManager() {
                                 </DropdownMenu>
                               )}
 
-                              <Button size="icon" variant="destructive" className="w-8 h-8" title="删除" onClick={() => onRemove(item.meta.id)}>
-                                <TbTrash className="h-4 w-4" />
-                              </Button>
+                              {item.meta.deletable !== false ? (
+                                <Button size="icon" variant="destructive" className="w-8 h-8" title="删除" onClick={() => onRemove(item.meta.id)}>
+                                  <TbTrash className="h-4 w-4" />
+                                </Button>
+                              ) : null}
                             </div>
                             {/* 信息覆盖层：默认显示，hover 隐藏 */}
                             <div className="pointer-events-none absolute inset-0 flex flex-col justify-end p-3 bg-gradient-to-t from-black/70 via-black/30 to-transparent text-white opacity-100 group-hover:opacity-0 transition-opacity duration-200">

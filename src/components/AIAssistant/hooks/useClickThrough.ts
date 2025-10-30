@@ -6,16 +6,16 @@
  */
 import { useCallback, useEffect, useRef } from 'react';
 
-export function useClickThrough(containerRef: React.RefObject<HTMLElement>, deps: any[] = []) {
+export default function useClickThrough(containerRef: React.RefObject<HTMLElement>): {
+  setClickThrough: (enable: boolean) => Promise<void>;
+} {
   const clickThroughRef = useRef<boolean>(false);
   const lastMousePosRef = useRef<{ clientX: number; clientY: number } | null>(null);
 
   const setClickThrough = useCallback(async (enable: boolean) => {
     if (clickThroughRef.current === enable) return;
     clickThroughRef.current = enable;
-    try {
-      await window.YUA.window['window:click:through'](enable);
-    } catch { }
+    window.YUA.window['window:click:through'](enable);
   }, []);
 
   useEffect(() => {
@@ -30,7 +30,7 @@ export function useClickThrough(containerRef: React.RefObject<HTMLElement>, deps
       setClickThrough(false);
     }
 
-    const onMove = (e: MouseEvent) => {
+    const onMove = (e: MouseEvent): void => {
       lastMousePosRef.current = { clientX: e.clientX, clientY: e.clientY };
       const rect = containerRef.current?.getBoundingClientRect();
       const inside = !!rect && e.clientX >= rect!.left && e.clientX <= rect!.right && e.clientY >= rect!.top && e.clientY <= rect!.bottom;
@@ -45,10 +45,7 @@ export function useClickThrough(containerRef: React.RefObject<HTMLElement>, deps
       document.removeEventListener('mousemove', onMove);
       setClickThrough(false);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
+  }, [setClickThrough, containerRef]);
 
   return { setClickThrough };
 }
-
-export default useClickThrough;

@@ -4,12 +4,7 @@ import ChatInput from '@/components/AIAssistant/ChatInput';
 
 export interface ChatInputBarProps {
   // Triggered when user hits send (Enter or button)
-  onStart: (params: {
-    content: string;
-    providerId: string;
-    instanceId: string;
-    agentId: string;
-  }) => void | Promise<void>;
+  onStart: (params: { content: string; providerId: string; instanceId: string; agentId: string }) => void | Promise<void>;
   // Triggered when user clicks stop
   onStop?: () => void;
   // Loading indicates a streaming/processing state
@@ -20,7 +15,7 @@ export interface ChatInputBarProps {
   className?: string;
 }
 
-export default function ChatInputBar({ onStart, onStop, loading, placeholder, className }: ChatInputBarProps) {
+export default function ChatInputBar({ onStart, onStop, loading, placeholder, className }: ChatInputBarProps): JSX.Element {
   // consume shared provider/instance/agent state
   const { agents, providerId, instanceId, agentId, setAgentId } = useChatSelection();
 
@@ -34,7 +29,7 @@ export default function ChatInputBar({ onStart, onStop, loading, placeholder, cl
       loading={loading}
       placeholder={placeholder}
       className={className}
-      footerLeft={(
+      footerLeft={
         <>
           <div className="shrink-0 no-drag">
             <Select value={agentId} onValueChange={setAgentId}>
@@ -43,13 +38,15 @@ export default function ChatInputBar({ onStart, onStop, loading, placeholder, cl
               </SelectTrigger>
               <SelectContent className="text-xs">
                 {agents.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>{a.label}</SelectItem>
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
         </>
-      )}
+      }
     />
   );
 }

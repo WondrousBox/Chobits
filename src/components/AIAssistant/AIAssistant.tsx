@@ -22,7 +22,7 @@ export const AIAssistant: React.FC = () => {
   const { padding: paddingState, screenSize, messageState, setMessageState } = useAssistantInit();
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const { setClickThrough } = useClickThrough(containerRef, []);
+  const { setClickThrough } = useClickThrough(containerRef);
   const { animateMoveWindow, stopWalking, isWalking } = useWalkAnimation();
   useSpriteEventController();
   const {
@@ -157,8 +157,6 @@ export const AIAssistant: React.FC = () => {
       window.ipcRenderer?.off('window:command', onMenuCommand as any);
     };
   }, []);
-
-  const walkEnabledRef = useRef(false);
 
   return (
     <div

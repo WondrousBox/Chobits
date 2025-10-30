@@ -25,7 +25,7 @@ const LS_KEYS = {
   providerId: 'chat.sel.providerId',
   instanceId: 'chat.sel.instanceId',
   agentId: 'chat.sel.agentId',
-  recents: 'chat.sel.recents',
+  recents: 'chat.sel.recents'
 };
 
 export function ChatSelectionProvider({ children }: { children: React.ReactNode }) {
@@ -45,18 +45,52 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
   });
 
   // Persist selections
-  useEffect(() => { try { localStorage.setItem(LS_KEYS.providerId, providerId); } catch {/* noop */} }, [providerId]);
-  useEffect(() => { try { localStorage.setItem(LS_KEYS.instanceId, instanceId); } catch {/* noop */} }, [instanceId]);
-  useEffect(() => { try { localStorage.setItem(LS_KEYS.agentId, agentId); } catch {/* noop */} }, [agentId]);
-  useEffect(() => { try { localStorage.setItem(LS_KEYS.recents, JSON.stringify(recents)); } catch {/* noop */} }, [recents]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(LS_KEYS.providerId, providerId);
+    } catch {
+      /* noop */
+    }
+  }, [providerId]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(LS_KEYS.instanceId, instanceId);
+    } catch {
+      /* noop */
+    }
+  }, [instanceId]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(LS_KEYS.agentId, agentId);
+    } catch {
+      /* noop */
+    }
+  }, [agentId]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(LS_KEYS.recents, JSON.stringify(recents));
+    } catch {
+      /* noop */
+    }
+  }, [recents]);
 
   const refresh = async () => {
-    try { await refreshProviders(); } catch { /* noop */ }
-    try { setAgents(await (window as any).YUA.ai.getAgents()); } catch { /* noop */ }
+    try {
+      await refreshProviders();
+    } catch {
+      /* noop */
+    }
+    try {
+      setAgents(await (window as any).YUA.ai.getAgents());
+    } catch {
+      /* noop */
+    }
   };
 
   // Initial fetch
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    refresh();
+  }, []);
 
   // instancesMap is now provided by useProvidersInstances
 
@@ -74,7 +108,9 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
     const rec = recents[pid] || [];
     if (!list.length) return list;
     const recIndex: Record<string, number> = {};
-    rec.forEach((id, i) => { recIndex[id] = i; });
+    rec.forEach((id, i) => {
+      recIndex[id] = i;
+    });
     return list.sort((a: any, b: any) => {
       const ai = recIndex[a.id];
       const bi = recIndex[b.id];
@@ -108,33 +144,32 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
   // Track recents when user selects an instance
   useEffect(() => {
     if (!providerId || !instanceId) return;
-    setRecents(prev => {
+    setRecents((prev) => {
       const cur = prev[providerId] || [];
-      const next = [instanceId, ...cur.filter(id => id !== instanceId)].slice(0, 10);
+      const next = [instanceId, ...cur.filter((id) => id !== instanceId)].slice(0, 10);
       if (cur.length === next.length && cur.every((v, i) => v === next[i])) return prev;
       return { ...prev, [providerId]: next };
     });
   }, [providerId, instanceId]);
 
-  const value = useMemo<ChatSelectionContextValue>(() => ({
-    providers,
-    agents,
-    instancesMap,
-    providerId,
-    instanceId,
-    agentId,
-    setProviderId,
-    setInstanceId,
-    setAgentId,
-    refresh,
-    getOrderedInstances,
-  }), [providers, agents, instancesMap, providerId, instanceId, agentId, recents]);
-
-  return (
-    <ChatSelectionContext.Provider value={value}>
-      {children}
-    </ChatSelectionContext.Provider>
+  const value = useMemo<ChatSelectionContextValue>(
+    () => ({
+      providers,
+      agents,
+      instancesMap,
+      providerId,
+      instanceId,
+      agentId,
+      setProviderId,
+      setInstanceId,
+      setAgentId,
+      refresh,
+      getOrderedInstances
+    }),
+    [providers, agents, instancesMap, providerId, instanceId, agentId, recents]
   );
+
+  return <ChatSelectionContext.Provider value={value}>{children}</ChatSelectionContext.Provider>;
 }
 
 export function useChatSelection(): ChatSelectionContextValue {
