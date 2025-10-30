@@ -85,10 +85,13 @@ export function initSpriteHandlers(): void {
   ipcMain.handle('sprite:list', async () => {
     const [defDir, userDir] = await Promise.all([getDefaultSpritesDir(), getUserSpritesDir()]);
     const [defIdx, userIdx] = await Promise.all([readIndex(defDir), readIndex(userDir)]);
+    // tag origin and deletable
+    const withFlagsDefault = defIdx.items.map((it) => ({ ...it, meta: { ...it.meta, deletable: false } as SpriteAnimation['meta'] }));
+    const withFlagsUser = userIdx.items.map((it) => ({ ...it, meta: { ...it.meta, deletable: true } as SpriteAnimation['meta'] }));
     // Merge: user overrides default on same id
     const map = new Map<string, SpriteAnimation>();
-    for (const it of defIdx.items) map.set(it.meta.id, it);
-    for (const it of userIdx.items) map.set(it.meta.id, it);
+    for (const it of withFlagsDefault) map.set(it.meta.id, it);
+    for (const it of withFlagsUser) map.set(it.meta.id, it);
     return Array.from(map.values());
   });
 
@@ -113,8 +116,9 @@ export function initSpriteHandlers(): void {
     const [defDir, userDir] = await Promise.all([getDefaultSpritesDir(), getUserSpritesDir()]);
     const [defIdx, userIdx] = await Promise.all([readIndex(defDir), readIndex(userDir)]);
     const foundUser = userIdx.items.find((i) => i.meta.id === payload.id);
-    if (foundUser) return foundUser;
-    return defIdx.items.find((i) => i.meta.id === payload.id);
+    if (foundUser) return { ...foundUser, meta: { ...foundUser.meta, deletable: true } } as SpriteAnimation;
+    const foundDef = defIdx.items.find((i) => i.meta.id === payload.id);
+    return foundDef ? ({ ...foundDef, meta: { ...foundDef.meta, deletable: false } } as SpriteAnimation) : undefined;
   });
 
   ipcMain.handle('sprite:register', async (_e, payload: { animation?: Partial<SpriteAnimation> & { filePath?: string } }) => {
@@ -174,6 +178,8 @@ export function initSpriteHandlers(): void {
       cutoffSeconds: anim.cutoffSeconds,
       durationMs: anim.durationMs
     };
+    // mark deletable for user-created item
+    (newItem.meta as any).deletable = true;
 
     const idx = await readIndex(spritesDir);
     const existedIdx = idx.items.findIndex((i) => i.meta.id === id);
@@ -213,7 +219,7 @@ export function initSpriteHandlers(): void {
     const [defIdx, userIdx] = await Promise.all([readIndex(defDir), readIndex(userDir)]);
     const userIndexItem = userIdx.items.find((i) => i.meta.id === id);
     if (userIndexItem) {
-      userIndexItem.meta = { ...userIndexItem.meta, ...meta, id: userIndexItem.meta.id };
+      userIndexItem.meta = { ...userIndexItem.meta, ...meta, id: userIndexItem.meta.id, deletable: true } as SpriteAnimation['meta'];
       await writeUserIndex(userIdx);
       return { ok: true, item: userIndexItem };
     }
@@ -222,7 +228,7 @@ export function initSpriteHandlers(): void {
       // Create an override entry in user index (do not copy file; reference same localPath)
       const newItem: SpriteAnimation = {
         ...defItem,
-        meta: { ...defItem.meta, ...meta, id: defItem.meta.id }
+        meta: { ...defItem.meta, ...meta, id: defItem.meta.id, deletable: true } as SpriteAnimation['meta']
       };
       const uIdx = await readIndex(userDir);
       const existed = uIdx.items.findIndex((i) => i.meta.id === id);

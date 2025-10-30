@@ -16,7 +16,11 @@ export function useDragMove(
     onHoldStart?: () => void;
     onDragStateChange?: (dragging: boolean) => void;
   }
-) {
+): {
+  bind: { onMouseDown: (e: React.MouseEvent) => void };
+  isDragging: boolean;
+  isDragReady: boolean;
+} {
   const { screenSize, padding, onHoldStart, onDragStateChange } = options;
   const [isDragging, setIsDragging] = useState(false);
   const [isDragReady, setIsDragReady] = useState(false);
@@ -42,7 +46,7 @@ export function useDragMove(
     holdPhaseCleanupRef.current = () => { };
   }, [onDragStateChange]);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const handleMouseDown = (e: React.MouseEvent): void => {
     // Only respond to left-click; ignore right/middle clicks
     if (e.button !== 0) return;
     e.preventDefault();
@@ -56,15 +60,13 @@ export function useDragMove(
 
     // Prepare one-off listeners to detect early release before the long-press delay
     // If the user releases the mouse or the window loses focus before the delay,
-    // we cancel the pending drag activation.
-    const onEarlyUp = () => cancelHold();
-    const onBlur = () => cancelHold();
+
     // mouseleave on document can be noisy; prefer pointerup/mouseup + blur.
-    document.addEventListener('mouseup', onEarlyUp);
-    window.addEventListener('blur', onBlur);
+    document.addEventListener('mouseup', cancelHold);
+    window.addEventListener('blur', cancelHold);
     holdPhaseCleanupRef.current = () => {
-      document.removeEventListener('mouseup', onEarlyUp);
-      window.removeEventListener('blur', onBlur);
+      document.removeEventListener('mouseup', cancelHold);
+      window.removeEventListener('blur', cancelHold);
     };
 
     dragTimerRef.current = setTimeout(() => {
@@ -117,12 +119,11 @@ export function useDragMove(
   // global listeners during dragging
   useEffect(() => {
     if (isDragging) {
-      const up = (e: MouseEvent) => handleMouseUp();
       document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', up);
+      document.addEventListener('mouseup', handleMouseUp);
       return () => {
         document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', up);
+        document.removeEventListener('mouseup', handleMouseUp);
       };
     }
   }, [isDragging, handleMouseMove, handleMouseUp]);
