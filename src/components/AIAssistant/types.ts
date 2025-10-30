@@ -2,8 +2,8 @@
 // Extendable category types for clarity and autocompletion
 export type MessageCategory =
   | 'idle' // 闲置状态
-  | 'click' // 点击交互
   | 'hover' // 悬停交互
+  | 'click' // 点击交互
   | 'focus' // 聚焦交互
   | 'input' // 输入交互
   | 'scroll' // 滚动交互
