@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Input } from '@/components/ui/input';
-import { TbDatabase, TbFolderOpen, TbSettings, TbBrain, TbCpu, TbBox, TbFile3D, TbMoodKid, TbFolder, TbMessage2, TbKeyboard, TbFileText } from 'react-icons/tb';
+import { TbDatabase, TbFolderOpen, TbBrain, TbCpu, TbBox, TbFile3D, TbMoodKid, TbFolder, TbMessage2, TbKeyboard, TbFileText } from 'react-icons/tb';
 import AiSettings from './components/AiSettings';
 import EmbeddingJobsPanel from '../../components/EmbeddingJobs';
 import DragAbleTitle from '../../components/common/DragAbleTitle';
@@ -13,11 +12,8 @@ import PromptSetting from './components/PromptSetting';
 import ShortcutsSettings from './components/ShortcutsSettings';
 import GeneralSettings from './components/GeneralSettings';
 
-// Include assistantPadding in type
-type MovementConfig = { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number };
-
 // 设置分类类型
-type SettingsCategory = 'movement' | 'folder' | 'embedding' | 'ai' | 'prompt' | 'general' | 'workspace' | 'model' | 'sprites' | 'shortcuts';
+type SettingsCategory = 'folder' | 'embedding' | 'ai' | 'prompt' | 'general' | 'workspace' | 'model' | 'sprites' | 'shortcuts';
 
 // 设置分类配置
 const settingsCategories: { id: SettingsCategory; label: string; icon: React.ElementType; description: string }[] = [
@@ -33,12 +29,7 @@ const settingsCategories: { id: SettingsCategory; label: string; icon: React.Ele
     icon: TbKeyboard,
     description: '全局快捷键设置'
   },
-  {
-    id: 'movement',
-    label: '移动参数',
-    icon: TbSettings,
-    description: '角色移动相关设置'
-  },
+
   {
     id: 'folder',
     label: '文件夹',
@@ -84,47 +75,21 @@ const settingsCategories: { id: SettingsCategory; label: string; icon: React.Ele
 ];
 
 export const SettingsPage: React.FC = () => {
-  const [config, setConfig] = useState<MovementConfig | null>(null);
-  const [saving, setSaving] = useState(false);
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>('general');
   const [initialAiProviderId, setInitialAiProviderId] = useState<string | null>(null);
   // external resource settings are handled inside ExternalResourceSettings component
   useEffect(() => {
-    let mounted = true;
     // 读取窗口打开时传入的 payload，用于直接跳转到指定分类/AI 提供商
     (async () => {
       try {
         const payload = await window.YUA.window['window:payload:get']('settings' as any);
-        if (payload?.category) setActiveCategory(payload.category);
+        if (payload?.category && settingsCategories.some((c) => c.id === payload.category)) setActiveCategory(payload.category);
         if (payload?.aiProviderId) setInitialAiProviderId(payload.aiProviderId);
       } catch {
         // ignore
       }
     })();
-    window.YUA.window.getMovementConfig().then((c: MovementConfig) => {
-      if (mounted) setConfig(c);
-    });
-    const listener = (_: any, c: MovementConfig): void => setConfig(c);
-    window.ipcRenderer?.on('movement-config-updated', listener);
-
-    return () => {
-      mounted = false;
-      window.ipcRenderer?.off('movement-config-updated', listener as any);
-    };
   }, []);
-
-  const update = (partial: Partial<MovementConfig>): void => {
-    if (!config) return;
-    const next = { ...config, ...partial };
-    setConfig(next);
-  };
-
-  const persist = async (): Promise<void> => {
-    if (!config) return;
-    setSaving(true);
-    await window.YUA.window.updateMovementConfig(config);
-    setSaving(false);
-  };
 
   const openDatabaseLocation = async (): Promise<void> => {
     window.YUA.system['database:openLocation']();
@@ -134,67 +99,11 @@ export const SettingsPage: React.FC = () => {
     window.YUA.system['logs:openLocation']();
   };
 
-  // 渲染移动参数设置
-  const renderMovementSettings = (): JSX.Element => (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 px-2">
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">行走速度 (px/s)</label>
-            <Input type="number" value={config?.walkSpeed || 0} onChange={(e) => update({ walkSpeed: +e.target.value })} />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">FPS 限制</label>
-            <Input type="number" value={config?.fpsLimit || 0} onChange={(e) => update({ fpsLimit: +e.target.value })} />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">移动模式</label>
-            <select
-              value={config?.movementMode || 'stepped'}
-              onChange={(e) => update({ movementMode: e.target.value as any })}
-              className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-            >
-              <option value="stepped">离散步进</option>
-              <option value="smooth">平滑</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">步进网格 (px)</label>
-            <Input type="number" value={config?.stepGrid || 0} onChange={(e) => update({ stepGrid: +e.target.value })} />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">路径弯曲系数</label>
-            <Input type="number" step="0.01" value={config?.pathCurveFactor || 0} onChange={(e) => update({ pathCurveFactor: +e.target.value })} />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">角色内边距 (px)</label>
-            <Input type="number" value={config?.assistantPadding || 0} onChange={(e) => update({ assistantPadding: +e.target.value })} />
-          </div>
-        </div>
-      </div>
-
-      <div className="flex justify-end pt-4 border-t border-border">
-        <Button onClick={persist} disabled={saving} className="px-6 py-2 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
-          {saving ? '保存中...' : '保存设置'}
-        </Button>
-      </div>
-    </div>
-  );
-
   // 外部资源设置由 ExternalResourceSettings 组件渲染
 
   // 根据当前分类渲染对应内容
   const renderCurrentCategoryContent = (): JSX.Element => {
     switch (activeCategory) {
-      case 'movement':
-        return renderMovementSettings();
       case 'folder':
         return (
           <div className="px-2">
@@ -258,11 +167,9 @@ export const SettingsPage: React.FC = () => {
       case 'general':
         return <GeneralSettings />;
       default:
-        return renderMovementSettings();
+        return <GeneralSettings />;
     }
   };
-
-  if (!config) return <div className="settings-wrapper">加载中...</div>;
 
   return (
     <div className="h-full w-full bg-background">
