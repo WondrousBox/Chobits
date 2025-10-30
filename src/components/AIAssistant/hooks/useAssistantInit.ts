@@ -8,7 +8,13 @@ import { useEffect, useState } from 'react';
 import { DEFAULT_ASSISTANT_PADDING, ASSISTANT_WIDTH, ASSISTANT_HEIGHT } from '../constants';
 import type { MessageCategory } from '../../AIAssistant/messages';
 
-export function useAssistantInit() {
+export function useAssistantInit(): {
+  padding: number;
+  setPadding: (p: number) => void;
+  screenSize: { width: number; height: number };
+  messageState: MessageCategory;
+  setMessageState: (s: MessageCategory) => void;
+} {
   const [padding, setPadding] = useState(DEFAULT_ASSISTANT_PADDING);
   const [screenSize, setScreenSize] = useState<{ width: number; height: number }>({ width: 1920, height: 1080 });
   const [messageState, setMessageState] = useState<MessageCategory>('welcome');
@@ -43,7 +49,7 @@ export function useAssistantInit() {
 
   // Get screen and movement config, and place window
   useEffect(() => {
-    const getScreenInfo = async () => {
+    const getScreenInfo = async (): Promise<void> => {
       try {
         const size = await window.YUA.window['screen:size:get']();
         setScreenSize(size);
@@ -64,7 +70,7 @@ export function useAssistantInit() {
 
   // Prevent browser default
   useEffect(() => {
-    const prevent = (e: DragEvent) => {
+    const prevent = (e: DragEvent): void => {
       e.preventDefault();
     };
     window.addEventListener('dragover', prevent);

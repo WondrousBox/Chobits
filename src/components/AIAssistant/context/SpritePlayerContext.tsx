@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import type { SpriteAnimation } from '@/components/AIAssistant/messages/types';
+import type { SpriteAnimation } from '@/components/AIAssistant/types';
 
 interface SpritePlayerContextValue {
   currentId: string | null;

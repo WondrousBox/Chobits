@@ -2,8 +2,8 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { makeResSrc } from '@/lib/resourceProtocol';
 import { TbTrash } from 'react-icons/tb';
-import type { SpriteAnimation, SpriteEventType } from '@/components/AIAssistant/messages/types';
-import { ALL_SPRITE_EVENT_TYPES, SpriteEventGroups, AdditionalSpriteEventGroups } from '@/components/AIAssistant/messages/types';
+import type { SpriteAnimation, SpriteEventType } from '@/components/AIAssistant/types';
+import { ALL_SPRITE_EVENT_TYPES, SpriteEventGroups, AdditionalSpriteEventGroups } from '@/components/AIAssistant/types';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
