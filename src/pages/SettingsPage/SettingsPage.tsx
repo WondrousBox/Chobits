@@ -11,15 +11,22 @@ import ModelPage from '../ModelPage/ModelPage';
 import SpriteManager from './components/SpriteManager';
 import PromptSetting from './components/PromptSetting';
 import ShortcutsSettings from './components/ShortcutsSettings';
+import GeneralSettings from './components/GeneralSettings';
 
 // Include assistantPadding in type
 type MovementConfig = { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number };
 
 // 设置分类类型
-type SettingsCategory = 'movement' | 'folder' | 'embedding' | 'ai' | 'prompt' | 'external-resource' | 'workspace' | 'model' | 'sprites' | 'shortcuts';
+type SettingsCategory = 'movement' | 'folder' | 'embedding' | 'ai' | 'prompt' | 'general' | 'workspace' | 'model' | 'sprites' | 'shortcuts';
 
 // 设置分类配置
 const settingsCategories: { id: SettingsCategory; label: string; icon: React.ElementType; description: string }[] = [
+  {
+    id: 'general',
+    label: '常规设置',
+    icon: TbFile3D,
+    description: '视频下载和外部资源设置'
+  },
   {
     id: 'shortcuts',
     label: '快捷键',
@@ -73,51 +80,15 @@ const settingsCategories: { id: SettingsCategory; label: string; icon: React.Ele
     label: '精灵管理',
     icon: TbMoodKid,
     description: '导入/删除动画，设为当前精灵'
-  },
-  {
-    id: 'external-resource',
-    label: '外部资源',
-    icon: TbFile3D,
-    description: '视频下载和外部资源设置'
   }
 ];
-
-// 外部资源设置类型
-type ExternalResourceSettings = {
-  externalResourceMode: string;
-  externalResourceCookies: boolean;
-  preferredBrowser: string;
-};
 
 export const SettingsPage: React.FC = () => {
   const [config, setConfig] = useState<MovementConfig | null>(null);
   const [saving, setSaving] = useState(false);
-  const [activeCategory, setActiveCategory] = useState<SettingsCategory>('movement');
+  const [activeCategory, setActiveCategory] = useState<SettingsCategory>('general');
   const [initialAiProviderId, setInitialAiProviderId] = useState<string | null>(null);
-  const [externalSettings, setExternalSettings] = useState<ExternalResourceSettings>({
-    externalResourceMode: '1',
-    externalResourceCookies: false,
-    preferredBrowser: 'chrome'
-  });
-
-  const loadExternalSettings = async (): Promise<void> => {
-    try {
-      const settings = await (window.YUA as any).videoDownloader['getExternalResourceSettings']();
-      if (settings) {
-        setExternalSettings(settings);
-      }
-    } catch (error) {
-      console.warn('加载外部资源设置失败:', error);
-    }
-  };
-
-  const saveExternalSettings = async (): Promise<void> => {
-    try {
-      await (window.YUA as any).videoDownloader['setExternalResourceSettings'](externalSettings);
-    } catch (error) {
-      console.error('保存外部资源设置失败:', error);
-    }
-  };
+  // external resource settings are handled inside ExternalResourceSettings component
   useEffect(() => {
     let mounted = true;
     // 读取窗口打开时传入的 payload，用于直接跳转到指定分类/AI 提供商
@@ -135,11 +106,6 @@ export const SettingsPage: React.FC = () => {
     });
     const listener = (_: any, c: MovementConfig): void => setConfig(c);
     window.ipcRenderer?.on('movement-config-updated', listener);
-
-    // 加载外部资源设置
-    (async () => {
-      await loadExternalSettings();
-    })();
 
     return () => {
       mounted = false;
@@ -222,72 +188,7 @@ export const SettingsPage: React.FC = () => {
     </div>
   );
 
-  // 渲染外部资源设置
-  const renderExternalResourceSettings = (): JSX.Element => (
-    <div className="space-y-6">
-      <div className="bg-card border border-border rounded-lg p-6">
-        <div className="space-y-6">
-          {/* Cookie 设置 */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h4 className="text-sm font-medium text-foreground">使用浏览器 Cookie</h4>
-                <p className="text-xs text-muted-foreground mt-1">启用后将从浏览器获取 Cookie 以访问需要登录的内容</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="sr-only peer"
-                  checked={externalSettings.externalResourceCookies}
-                  onChange={(e) => setExternalSettings((prev) => ({ ...prev, externalResourceCookies: e.target.checked }))}
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-              </label>
-            </div>
-          </div>
-
-          {/* 浏览器选择 */}
-          {externalSettings.externalResourceCookies && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">首选浏览器</label>
-              <select
-                className="w-full px-3 py-2 bg-muted border border-border rounded-md text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                value={externalSettings.preferredBrowser}
-                onChange={(e) => setExternalSettings((prev) => ({ ...prev, preferredBrowser: e.target.value }))}
-              >
-                <option value="chrome">Chrome</option>
-                <option value="firefox">Firefox</option>
-                <option value="edge">Edge</option>
-                <option value="safari">Safari</option>
-              </select>
-              <p className="text-xs text-muted-foreground">如果首选浏览器不可用，将自动尝试其他浏览器</p>
-            </div>
-          )}
-
-          {/* 下载模式 */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">下载模式</label>
-            <select
-              className="w-full px-3 py-2 bg-muted border border-border rounded-md text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              value={externalSettings.externalResourceMode}
-              onChange={(e) => setExternalSettings((prev) => ({ ...prev, externalResourceMode: e.target.value }))}
-            >
-              <option value="1">高质量（默认）</option>
-              <option value="2">限制质量（480p 以下）</option>
-            </select>
-            <p className="text-xs text-muted-foreground">选择下载视频的质量限制</p>
-          </div>
-
-          {/* 保存按钮 */}
-          <div className="flex justify-end pt-4">
-            <Button onClick={saveExternalSettings} size="sm">
-              保存设置
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  // 外部资源设置由 ExternalResourceSettings 组件渲染
 
   // 根据当前分类渲染对应内容
   const renderCurrentCategoryContent = (): JSX.Element => {
@@ -354,8 +255,8 @@ export const SettingsPage: React.FC = () => {
         return <SpriteManager />;
       case 'shortcuts':
         return <ShortcutsSettings />;
-      case 'external-resource':
-        return renderExternalResourceSettings();
+      case 'general':
+        return <GeneralSettings />;
       default:
         return renderMovementSettings();
     }
