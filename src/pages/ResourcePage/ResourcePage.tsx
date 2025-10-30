@@ -25,7 +25,7 @@ const ResourcePage: React.FC = () => {
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [folders, setFolders] = useState<UIFolder[]>([]);
   const [folderFilter, setFolderFilter] = useState<string>(''); // '' 表示全部
-  const folderAPI: any = (window as any).YUA?.folder;
+  const folderAPI: any = window.YUA?.folder;
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameId, setRenameId] = useState<string>('');
   const [renameName, setRenameName] = useState<string>('');

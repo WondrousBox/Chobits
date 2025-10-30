@@ -21,7 +21,7 @@ export default function PromptSetting(): JSX.Element {
   const [draftContent, setDraftContent] = useState<string>('');
 
   const refresh = useCallback(async (): Promise<void> => {
-    const tmpl = await (window as any).YUA.ai.listPromptTemplates().catch(() => []);
+    const tmpl = await window.YUA.ai.listPromptTemplates().catch(() => []);
     setTemplates(tmpl || []);
     // ensure selected
     const list: Template[] = tmpl || [];
@@ -54,9 +54,9 @@ export default function PromptSetting(): JSX.Element {
 
   const submitForm = async (vals: PromptTemplateFormValues): Promise<void> => {
     if (formMode === 'create') {
-      await (window as any).YUA.ai.createPromptTemplate({ name: vals.name, content: vals.content, type: vals.type || 'user' });
+      await window.YUA.ai.createPromptTemplate({ name: vals.name, content: vals.content, type: vals.type || 'user' });
     } else if (formMode === 'edit' && editingId) {
-      await (window as any).YUA.ai.updatePromptTemplate(editingId, { name: vals.name, content: vals.content, type: vals.type || 'user' });
+      await window.YUA.ai.updatePromptTemplate(editingId, { name: vals.name, content: vals.content, type: vals.type || 'user' });
     }
     setFormOpen(false);
     setEditingId(null);
@@ -65,7 +65,7 @@ export default function PromptSetting(): JSX.Element {
 
   const deleteTemplate = async (id: string): Promise<void> => {
     if (!confirm('删除该模板？')) return;
-    await (window as any).YUA.ai.deletePromptTemplate(id);
+    await window.YUA.ai.deletePromptTemplate(id);
     await refresh();
   };
 
@@ -78,7 +78,7 @@ export default function PromptSetting(): JSX.Element {
 
   const saveDraft = async (): Promise<void> => {
     if (!selected) return;
-    await (window as any).YUA.ai.updatePromptTemplate(selected.id, {
+    await window.YUA.ai.updatePromptTemplate(selected.id, {
       name: selected.name,
       content: draftContent,
       type: selected.type || 'user'

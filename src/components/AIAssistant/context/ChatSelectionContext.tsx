@@ -81,7 +81,7 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
       /* noop */
     }
     try {
-      setAgents(await (window as any).YUA.ai.getAgents());
+      setAgents(await window.YUA.ai.getAgents());
     } catch {
       /* noop */
     }

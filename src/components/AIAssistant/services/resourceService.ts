@@ -64,7 +64,7 @@ export async function addResourcesFromSelectedFiles(files: SelectedResourceFileT
     if (f.file && typeof f.file.arrayBuffer === 'function') {
       try {
         const data = await f.file.arrayBuffer();
-        const uploaded = await (window as any).YUA?.resource?.uploadResourceFile?.({ fileName: safeName, data });
+        const uploaded = await window.YUA?.resource?.uploadResourceFile?.({ fileName: safeName, data });
         if (uploaded?.duplicate) {
           continue;
         }

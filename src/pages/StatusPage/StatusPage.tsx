@@ -31,7 +31,7 @@ export const StatusPage: React.FC = () => {
     let mounted = true;
     const load = async (): Promise<void> => {
       try {
-        const [ov, roleRes] = await Promise.all([(window as any).YUA.status['status:getOverview'](), (window as any).YUA.status['status:getRole']()]);
+        const [ov, roleRes] = await Promise.all([window.YUA.status['status:getOverview'](), window.YUA.status['status:getRole']()]);
         console.log(ov);
 
         if (!mounted) return;
@@ -91,8 +91,8 @@ export const StatusPage: React.FC = () => {
                 variant={'outline'}
                 onClick={async () => {
                   if (!overview?.workspace?.id) return;
-                  await (window as any).YUA.workspace['workspace:scanStats']({ id: overview.workspace.id });
-                  const ov = await (window as any).YUA.status['status:getOverview']();
+                  await window.YUA.workspace['workspace:scanStats']({ id: overview.workspace.id });
+                  const ov = await window.YUA.status['status:getOverview']();
                   setOverview(ov);
                 }}
               >
