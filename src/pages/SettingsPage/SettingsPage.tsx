@@ -151,7 +151,7 @@ export const SettingsPage: React.FC = () => {
           <div className="space-y-6">
             <div className="bg-card border border-border rounded-lg overflow-hidden">
               <div className="h-[70vh]">
-                <ModelPage />
+                <ModelPage hideTitleBar />
               </div>
             </div>
           </div>

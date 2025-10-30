@@ -6,7 +6,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import SelectModelFolder from './components/SelectModelFolder';
 
-const ModelPage: React.FC = () => {
+interface ModelPageProps {
+  hideTitleBar?: boolean;
+}
+
+const ModelPage: React.FC<ModelPageProps> = ({ hideTitleBar }: ModelPageProps) => {
   const [config, setConfig] = useState<any>(null); // 仍保留整体 config 用于其它用途
   const [rootDir, setRootDir] = useState<string | undefined>(undefined);
   const [installed, setInstalled] = useState<any[]>([]);
@@ -94,14 +98,51 @@ const ModelPage: React.FC = () => {
 
   return (
     <>
-      <DragAbleTitle
-        title={
+      {!hideTitleBar ? (
+        <DragAbleTitle
+          title={
+            <div className="flex items-center gap-2">
+              <TbBox size={20} />
+              模型管理
+            </div>
+          }
+          actions={
+            <>
+              <Tabs value={tabValue} onValueChange={(v) => setTabValue(v as 'installed' | 'available')} className="no-drag">
+                <TabsList>
+                  <TabsTrigger value="available">所有模型</TabsTrigger>
+                  <TabsTrigger value="installed">已安装</TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <Dialog open={showSettings} onOpenChange={setShowSettings}>
+                <DialogTrigger asChild>
+                  <Button size={'icon'} className="w-8 h-8" variant={'outline'} title="打开模型设置">
+                    <TbSettings />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent hideClose className="w-80">
+                  <DialogHeader>
+                    <DialogTitle></DialogTitle>
+                    <DialogDescription></DialogDescription>
+                  </DialogHeader>
+                  <SelectModelFolder
+                    onConfigured={(cfg) => {
+                      setConfig(cfg);
+                      setRootDir(cfg.rootDir);
+                      setShowSettings(false);
+                    }}
+                  />
+                </DialogContent>
+              </Dialog>
+            </>
+          }
+        />
+      ) : (
+        <div className="flex items-center gap-2 px-2">
           <div className="flex items-center gap-2">
             <TbBox size={20} />
             模型管理
           </div>
-        }
-        actions={
           <>
             <Tabs value={tabValue} onValueChange={(v) => setTabValue(v as 'installed' | 'available')} className="no-drag">
               <TabsList>
@@ -130,8 +171,9 @@ const ModelPage: React.FC = () => {
               </DialogContent>
             </Dialog>
           </>
-        }
-      />
+        </div>
+      )}
+
       {tabValue === 'installed' && (
         <>
           {installed.filter((m) => m.status === 'installed').length === 0 && (
