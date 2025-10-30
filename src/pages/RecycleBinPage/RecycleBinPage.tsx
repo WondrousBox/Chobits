@@ -17,8 +17,9 @@ const RecycleBinPage: React.FC = () => {
   const [items, setItems] = useState<TrashItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const hasItems = useMemo(() => items.length > 0, [items]);
 
-  const load = async () => {
+  const load = async (): Promise<void> => {
     setLoading(true);
     try {
       const rows = await window.YUA.trash['trash:list']({ filter: {}, limit: 500, offset: 0 });
@@ -32,7 +33,7 @@ const RecycleBinPage: React.FC = () => {
     load();
   }, []);
 
-  const toggleSelect = (id: string) => {
+  const toggleSelect = (id: string): void => {
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -41,17 +42,17 @@ const RecycleBinPage: React.FC = () => {
     });
   };
 
-  const selectAll = () => setSelected(new Set(items.map((i) => i.id)));
-  const clearSel = () => setSelected(new Set());
+  const selectAll = (): void => setSelected(new Set(items.map((i) => i.id)));
+  const clearSel = (): void => setSelected(new Set());
 
-  const restore = async () => {
+  const restore = async (): Promise<void> => {
     if (!selected.size) return;
     await window.YUA.trash['trash:restore']({ recycleIds: Array.from(selected) });
     await load();
     clearSel();
   };
 
-  const purge = async () => {
+  const purge = async (): Promise<void> => {
     if (!selected.size) return;
     try {
       const res = await window.YUA.trash['trash:purge']({ recycleIds: Array.from(selected) });
@@ -67,7 +68,7 @@ const RecycleBinPage: React.FC = () => {
     }
   };
 
-  const empty = async () => {
+  const empty = async (): Promise<void> => {
     if (!confirm('清空回收站？该操作不可恢复。')) return;
     await window.YUA.trash['trash:empty']({ filter: {} });
     await load();
@@ -77,17 +78,14 @@ const RecycleBinPage: React.FC = () => {
   return (
     <div className="bg-background">
       <DragAbleTitle
-        title={
-          <div className="flex items-center gap-2">
-            <TbTrash size={20} />
-            回收站
-          </div>
-        }
+        title={<div className="flex items-center gap-2">🗑️ 回收站</div>}
         actions={
           <div className="flex items-center gap-2">
-            <Button size={'sm'} variant={'ghost'} onClick={selectAll}>
-              全选
-            </Button>
+            {hasItems && (
+              <Button size={'sm'} variant={'ghost'} onClick={selectAll}>
+                全选
+              </Button>
+            )}
             {selected.size > 0 && (
               <Button size={'sm'} variant={'ghost'} onClick={clearSel}>
                 <TbX />
@@ -105,10 +103,12 @@ const RecycleBinPage: React.FC = () => {
                 <TbTrash /> 彻底删除
               </Button>
             )}
-            <Button size={'sm'} variant={'destructive'} onClick={empty}>
-              <TbTrash />
-              清空回收站
-            </Button>
+            {hasItems && (
+              <Button size={'sm'} variant={'destructive'} onClick={empty}>
+                <TbTrash />
+                清空回收站
+              </Button>
+            )}
           </div>
         }
       />

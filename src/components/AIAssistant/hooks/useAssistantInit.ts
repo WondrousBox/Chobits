@@ -6,7 +6,7 @@
  */
 import { useEffect, useState } from 'react';
 import { DEFAULT_ASSISTANT_PADDING, ASSISTANT_WIDTH, ASSISTANT_HEIGHT } from '../constants';
-import type { MessageCategory } from '../../AIAssistant/messages';
+import type { MessageCategory } from '../../AIAssistant/types';
 
 export function useAssistantInit(): {
   padding: number;

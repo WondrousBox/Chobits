@@ -48,7 +48,7 @@ export default function useSpriteEventController(): void {
     });
 
     // IPC bridge from main process
-    const onSpriteCommand = (_: any, action: string, payload?: any) => {
+    const onSpriteCommand = (_: any, action: string, payload?: any): void => {
       switch (action) {
         case 'sprite:idle':
           sprite.to('idle');
