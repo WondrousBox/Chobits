@@ -1,11 +1,22 @@
-import React, { useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
+import React, { useEffect, useRef, useState } from 'react';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 // 外部资源设置类型
 type GeneralSettings = {
   externalResourceMode: string;
   externalResourceCookies: boolean;
   preferredBrowser: string;
+};
+
+// 角色移动参数类型
+type MovementConfig = {
+  walkSpeed: number;
+  fpsLimit: number;
+  movementMode: 'stepped' | 'smooth';
+  stepGrid: number;
+  pathCurveFactor: number;
+  assistantPadding: number;
 };
 
 const GeneralSettings: React.FC = () => {
@@ -15,13 +26,12 @@ const GeneralSettings: React.FC = () => {
     preferredBrowser: 'chrome'
   });
 
-  const saveExternalSettings = async (): Promise<void> => {
-    try {
-      await (window.YUA as any).videoDownloader['setGeneralSettings'](externalSettings);
-    } catch (error) {
-      console.error('保存外部资源设置失败:', error);
-    }
-  };
+  // 移动参数本地状态
+  const [movementConfig, setMovementConfig] = useState<MovementConfig | null>(null);
+  // refs to control auto-save behavior
+  const externalLoadedRef = useRef(false);
+  const movementLoadedRef = useRef(false);
+  const movementApplyingRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -30,36 +40,155 @@ const GeneralSettings: React.FC = () => {
         const settings = await (window.YUA as any).videoDownloader['getGeneralSettings']();
         if (settings && !cancelled) {
           setExternalSettings(settings);
+          externalLoadedRef.current = true; // mark initial load to skip first auto-save
         }
       } catch (error) {
         console.warn('加载外部资源设置失败:', error);
       }
+
+      // 读取移动参数
+      try {
+        const cfg = await (window.YUA as any).window.getMovementConfig();
+        if (!cancelled) {
+          movementApplyingRef.current = true; // prevent immediate autosave from initial set
+          setMovementConfig(cfg);
+          movementLoadedRef.current = true;
+        }
+      } catch (err) {
+        console.warn('加载移动参数失败:', err);
+      }
     })();
+
+    // 监听移动参数变更
+    const movementListener = (_: any, c: MovementConfig): void => {
+      movementApplyingRef.current = true; // mark as remote update to avoid loop
+      setMovementConfig(c);
+    };
+    (window as any).ipcRenderer?.on('movement-config-updated', movementListener);
+
     return () => {
       cancelled = true;
+      (window as any).ipcRenderer?.off('movement-config-updated', movementListener as any);
     };
   }, []);
 
+  const updateMovement = (partial: Partial<MovementConfig>): void => {
+    if (!movementConfig) return;
+    setMovementConfig({ ...movementConfig, ...partial });
+  };
+
+  // Auto-save external settings with debounce
+  useEffect(() => {
+    if (!externalLoadedRef.current) {
+      // first assignment from load – don't save
+      externalLoadedRef.current = true;
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        await (window.YUA as any).videoDownloader['setGeneralSettings'](externalSettings);
+      } catch (error) {
+        console.error('自动保存外部资源设置失败:', error);
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [externalSettings]);
+
+  // Auto-save movement settings with debounce and loop prevention
+  useEffect(() => {
+    if (!movementConfig) return;
+    if (!movementLoadedRef.current) return;
+    if (movementApplyingRef.current) {
+      // change came from remote (initial load or IPC). Clear flag and skip saving this tick.
+      movementApplyingRef.current = false;
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        await (window.YUA as any).window.updateMovementConfig(movementConfig);
+      } catch (error) {
+        console.error('自动保存移动参数失败:', error);
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [movementConfig]);
+
   return (
     <div className="space-y-6">
+      {/* 移动参数设置 */}
       <div className="bg-card border border-border rounded-lg p-6">
+        <div className="space-y-6">
+          <div className="text-base font-semibold text-foreground">移动参数</div>
+          {!movementConfig ? (
+            <div className="text-sm text-muted-foreground">加载中...</div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 px-2">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">行走速度 (px/s)</label>
+                    <Input type="number" value={movementConfig?.walkSpeed || 0} onChange={(e) => updateMovement({ walkSpeed: +e.target.value })} />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">FPS 限制</label>
+                    <Input type="number" value={movementConfig?.fpsLimit || 0} onChange={(e) => updateMovement({ fpsLimit: +e.target.value })} />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">移动模式</label>
+                    <Select value={movementConfig?.movementMode || 'stepped'} onValueChange={(v) => updateMovement({ movementMode: v as MovementConfig['movementMode'] })}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="选择移动模式" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="stepped">离散步进</SelectItem>
+                        <SelectItem value="smooth">平滑</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">步进网格 (px)</label>
+                    <Input type="number" value={movementConfig?.stepGrid || 0} onChange={(e) => updateMovement({ stepGrid: +e.target.value })} />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">路径弯曲系数</label>
+                    <Input type="number" step="0.01" value={movementConfig?.pathCurveFactor || 0} onChange={(e) => updateMovement({ pathCurveFactor: +e.target.value })} />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">角色内边距 (px)</label>
+                    <Input type="number" value={movementConfig?.assistantPadding || 0} onChange={(e) => updateMovement({ assistantPadding: +e.target.value })} />
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* 外部资源设置 */}
+      <div className="bg-card border border-border rounded-lg p-6">
+        <div className="text-base font-semibold text-foreground">下载设置</div>
         <div className="space-y-6">
           {/* Cookie 设置 */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h4 className="text-sm font-medium text-foreground">使用浏览器 Cookie</h4>
-                <p className="text-xs text-muted-foreground mt-1">启用后将从浏览器获取 Cookie 以访问需要登录的内容</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="sr-only peer"
-                  checked={externalSettings.externalResourceCookies}
-                  onChange={(e) => setExternalSettings((prev) => ({ ...prev, externalResourceCookies: e.target.checked }))}
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-              </label>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">使用浏览器 Cookie</label>
+              <Select value={externalSettings.externalResourceCookies ? 'true' : 'false'} onValueChange={(v) => setExternalSettings((prev) => ({ ...prev, externalResourceCookies: v === 'true' }))}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="是否使用浏览器 Cookie" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="true">开启</SelectItem>
+                  <SelectItem value="false">关闭</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">启用后将从浏览器获取 Cookie 以访问需要登录的内容</p>
             </div>
           </div>
 
@@ -67,16 +196,17 @@ const GeneralSettings: React.FC = () => {
           {externalSettings.externalResourceCookies && (
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">首选浏览器</label>
-              <select
-                className="w-full px-3 py-2 bg-muted border border-border rounded-md text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                value={externalSettings.preferredBrowser}
-                onChange={(e) => setExternalSettings((prev) => ({ ...prev, preferredBrowser: e.target.value }))}
-              >
-                <option value="chrome">Chrome</option>
-                <option value="firefox">Firefox</option>
-                <option value="edge">Edge</option>
-                <option value="safari">Safari</option>
-              </select>
+              <Select value={externalSettings.preferredBrowser} onValueChange={(v) => setExternalSettings((prev) => ({ ...prev, preferredBrowser: v }))}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="选择浏览器" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="chrome">Chrome</SelectItem>
+                  <SelectItem value="firefox">Firefox</SelectItem>
+                  <SelectItem value="edge">Edge</SelectItem>
+                  <SelectItem value="safari">Safari</SelectItem>
+                </SelectContent>
+              </Select>
               <p className="text-xs text-muted-foreground">如果首选浏览器不可用，将自动尝试其他浏览器</p>
             </div>
           )}
@@ -84,22 +214,16 @@ const GeneralSettings: React.FC = () => {
           {/* 下载模式 */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">下载模式</label>
-            <select
-              className="w-full px-3 py-2 bg-muted border border-border rounded-md text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-              value={externalSettings.externalResourceMode}
-              onChange={(e) => setExternalSettings((prev) => ({ ...prev, externalResourceMode: e.target.value }))}
-            >
-              <option value="1">高质量（默认）</option>
-              <option value="2">限制质量（480p 以下）</option>
-            </select>
+            <Select value={externalSettings.externalResourceMode} onValueChange={(v) => setExternalSettings((prev) => ({ ...prev, externalResourceMode: v }))}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="选择下载模式" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">高质量（默认）</SelectItem>
+                <SelectItem value="2">限制质量（480p 以下）</SelectItem>
+              </SelectContent>
+            </Select>
             <p className="text-xs text-muted-foreground">选择下载视频的质量限制</p>
-          </div>
-
-          {/* 保存按钮 */}
-          <div className="flex justify-end pt-4">
-            <Button onClick={saveExternalSettings} size="sm">
-              保存设置
-            </Button>
           </div>
         </div>
       </div>
