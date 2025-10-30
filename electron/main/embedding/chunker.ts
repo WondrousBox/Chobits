@@ -1,10 +1,6 @@
 export type Chunk = { content: string; index: number; count: number };
 
-export function chunkText(
-  text: string,
-  maxChars = 1200,
-  overlap = 120
-): Chunk[] {
+export function chunkText(text: string, maxChars = 1200, overlap = 120): Chunk[] {
   const clean = (text || '').replace(/\s+/g, ' ').trim();
   if (!clean) return [];
   const chunks: Chunk[] = [];

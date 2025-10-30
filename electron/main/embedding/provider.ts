@@ -26,7 +26,7 @@ export type ProviderConfig = {
 export function getDefaultModels() {
   // Default to multilingual small model (384d) for speed and footprint
   return {
-    transformers: 'Xenova/gte-small',
+    transformers: 'Xenova/gte-small'
   } as const;
 }
 

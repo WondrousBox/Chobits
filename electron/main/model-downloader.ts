@@ -1,6 +1,5 @@
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
-import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { ModelStore, StoredModel } from './model-store';
 import https from 'node:https';
@@ -9,7 +8,7 @@ import http from 'node:http';
 export type DownloadStatus = 'queued' | 'downloading' | 'verifying' | 'installed' | 'failed' | 'cancelled';
 
 export interface DownloadTaskInfo {
-  id: string;            // model id
+  id: string; // model id
   status: DownloadStatus;
   doneBytes: number;
   totalBytes?: number;
@@ -32,7 +31,10 @@ class ModelDownloader extends EventEmitter {
   private running: InternalTask[] = [];
   private concurrency = 2;
 
-  setConcurrency(n: number) { this.concurrency = Math.max(1, n); this.kick(); }
+  setConcurrency(n: number) {
+    this.concurrency = Math.max(1, n);
+    this.kick();
+  }
 
   enqueue(model: StoredModel) {
     const task: InternalTask = { model };
@@ -41,12 +43,14 @@ class ModelDownloader extends EventEmitter {
   }
 
   cancel(id: string) {
-    const inRun = this.running.find(t => t.model.id === id);
+    const inRun = this.running.find((t) => t.model.id === id);
     if (inRun && inRun.controller) {
-      try { inRun.controller.abort(); } catch {}
+      try {
+        inRun.controller.abort();
+      } catch { }
     }
     // queued removal
-    this.queue = this.queue.filter(t => t.model.id !== id);
+    this.queue = this.queue.filter((t) => t.model.id !== id);
     ModelStore.patch(id, { status: 'cancelled' });
     this.emitProgress(id, { status: 'cancelled', doneBytes: 0 });
   }
@@ -59,7 +63,7 @@ class ModelDownloader extends EventEmitter {
   private kick() {
     while (this.running.length < this.concurrency && this.queue.length) {
       const task = this.queue.shift()!;
-      this.startTask(task).catch(err => {
+      this.startTask(task).catch((err) => {
         this.emitProgress(task.model.id, { status: 'failed', error: String(err) });
       });
     }
@@ -118,7 +122,8 @@ class ModelDownloader extends EventEmitter {
     // verify
     task.model.status = 'verifying';
     const digest = task.hash!.digest('hex');
-    if (task.model.checksum && task.model.checksum !== 'demo-checksum-embed' && task.model.checksum !== 'demo-checksum-llm') { // demo checksums skip
+    if (task.model.checksum && task.model.checksum !== 'demo-checksum-embed' && task.model.checksum !== 'demo-checksum-llm') {
+      // demo checksums skip
       if (digest !== task.model.checksum) {
         ModelStore.patch(task.model.id, { status: 'failed', lastError: 'CHECKSUM_MISMATCH' });
         this.emitProgress(task.model.id, { status: 'failed', error: 'CHECKSUM_MISMATCH' });
@@ -128,14 +133,16 @@ class ModelDownloader extends EventEmitter {
     }
     // finalize
     const finalPath = task.model.installPath!;
-    try { fs.renameSync(finalPath + '.part', finalPath); } catch {}
+    try {
+      fs.renameSync(finalPath + '.part', finalPath);
+    } catch { }
     ModelStore.patch(task.model.id, { status: 'installed', installedAt: Date.now(), progressBytes: task.model.sizeBytes });
     this.emitProgress(task.model.id, { status: 'installed', doneBytes: task.model.sizeBytes || 0, totalBytes: task.model.sizeBytes });
     this.finish(task);
   }
 
   private finish(task: InternalTask) {
-    this.running = this.running.filter(t => t !== task);
+    this.running = this.running.filter((t) => t !== task);
     this.kick();
   }
 }

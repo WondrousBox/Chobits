@@ -1,7 +1,7 @@
 import { ModelStore } from '../model-store';
 import { EmbeddingProvider, EmbedOptions, getDefaultModels, getModelCacheDir, l2Normalize } from './provider';
 
-import { env, pipeline } from "@huggingface/transformers";
+import { env, pipeline } from '@huggingface/transformers';
 
 // Could not load the "sharp" module using the win32-x64 runtime
 // https://stackoverflow.com/questions/77789610/could-not-load-the-sharp-module-using-the-win32-x64-runtime-strapi
@@ -34,7 +34,7 @@ export class TransformersEmbeddingProvider implements EmbeddingProvider {
     // Note: In Electron main, no WebGPU; CPU/WASM backend will be used.
     this.pipeline = await pipeline('feature-extraction', this.modelId, {});
     // Probe dimension
-    const test = await (this.pipeline as any)("hello world");
+    const test = await (this.pipeline as any)('hello world');
     const vec = Array.isArray(test) ? (Array.isArray(test[0]) ? test[0] : test) : test;
     const pooled = Array.isArray(vec[0]) ? meanPool(vec as number[][]) : (vec as number[]);
     this.dim = pooled.length;
