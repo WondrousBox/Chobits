@@ -107,7 +107,7 @@ const AssistantPage: React.FC = () => {
     setIsAnalyzingVideo(true);
     try {
       // 获取视频信息
-      const infoResult = await (window.YUA as any).videoDownloader.getVideoInfo(query);
+      const infoResult = await window.YUA.videoDownloader.getVideoInfo(query);
       if (!infoResult.success) {
         console.error('获取视频信息失败:', infoResult.error);
         return;
@@ -117,7 +117,7 @@ const AssistantPage: React.FC = () => {
       console.log('视频信息:', videoInfo);
 
       // 开始下载
-      const downloadResult = await (window.YUA as any).videoDownloader.downloadVideo({
+      const downloadResult = await window.YUA.videoDownloader.downloadVideo({
         url: query,
         filename: videoInfo.filename || `${videoInfo.title}.${videoInfo.ext}`
       });
@@ -198,7 +198,7 @@ const AssistantPage: React.FC = () => {
       const currentWidth = window.innerWidth || html.clientWidth;
       let maxW = Number.POSITIVE_INFINITY;
       let maxH = Number.POSITIVE_INFINITY;
-      const screen = await (window as any).YUA.window['screen:size:get']();
+      const screen = await window.YUA.window['screen:size:get']();
       maxW = screen.width;
       maxH = screen.height;
       const minW = 360;
@@ -206,7 +206,7 @@ const AssistantPage: React.FC = () => {
       const desiredWidth = Math.max(minW, Math.min(currentWidth, maxW));
       const padding = 0;
       const desiredHeight = Math.max(minH, Math.min(contentHeight + padding, maxH));
-      await (window as any).YUA.window['window:size:set']('assistant', desiredWidth, desiredHeight);
+      await window.YUA.window['window:size:set']('assistant', desiredWidth, desiredHeight);
     } catch {
       //
     }
@@ -267,7 +267,7 @@ const AssistantPage: React.FC = () => {
         const html = document.documentElement;
         const currentWidth = window.innerWidth || html.clientWidth;
         let maxH = Number.POSITIVE_INFINITY;
-        const screen = await (window as any).YUA.window['screen:size:get']();
+        const screen = await window.YUA.window['screen:size:get']();
         maxH = screen.height;
         if (open) {
           // 预留足够空间给下拉面板

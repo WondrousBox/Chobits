@@ -39,7 +39,7 @@ export function useProvidersInstances(): UseProvidersInstancesResult {
     setLoading(true);
     setError(undefined);
     try {
-      const provs = await (window as any).YUA?.ai?.getProviders?.();
+      const provs = await window.YUA?.ai?.getProviders?.();
       setProviders(Array.isArray(provs) ? provs : []);
     } catch (e: any) {
       setError(e?.message || '加载服务商失败');
@@ -62,7 +62,7 @@ export function useProvidersInstances(): UseProvidersInstancesResult {
         const entries = await Promise.all(
           providers.map(async (p) => {
             try {
-              const list = await (window as any).YUA?.ai?.listInstances?.(p.id);
+              const list = await window.YUA?.ai?.listInstances?.(p.id);
               return [p.id, Array.isArray(list) ? list : []] as const;
             } catch {
               return [p.id, []] as const;

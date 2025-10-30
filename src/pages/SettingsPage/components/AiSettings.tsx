@@ -141,7 +141,7 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
     const inst = instances.find((i) => i.id === instanceId);
     if (!inst) return;
     try {
-      const ms = await (window as any).YUA.ai.listModels(inst.providerId, inst.id);
+      const ms = await window.YUA.ai.listModels(inst.providerId, inst.id);
       if (Array.isArray(ms) && ms.length) setModels((prev) => ({ ...prev, [inst.providerId]: ms }));
     } catch {
       /* ignore */

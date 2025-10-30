@@ -48,7 +48,7 @@ export function InstanceFormDialog(props: {
     if (!open) return;
     (async () => {
       try {
-        const tmpl = await (window as any).YUA.ai.listPromptTemplates().catch(() => []);
+        const tmpl = await window.YUA.ai.listPromptTemplates().catch(() => []);
         setTemplates(tmpl || []);
       } catch {
         setTemplates([]);

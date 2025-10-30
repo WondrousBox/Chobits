@@ -37,7 +37,7 @@ const GeneralSettings: React.FC = () => {
     let cancelled = false;
     (async () => {
       try {
-        const settings = await (window.YUA as any).videoDownloader['getGeneralSettings']();
+        const settings = await window.YUA.videoDownloader['getExternalResourceSettings']();
         if (settings && !cancelled) {
           setExternalSettings(settings);
           externalLoadedRef.current = true; // mark initial load to skip first auto-save
@@ -48,7 +48,7 @@ const GeneralSettings: React.FC = () => {
 
       // 读取移动参数
       try {
-        const cfg = await (window.YUA as any).window.getMovementConfig();
+        const cfg = await window.YUA.window.getMovementConfig();
         if (!cancelled) {
           movementApplyingRef.current = true; // prevent immediate autosave from initial set
           setMovementConfig(cfg);
@@ -64,11 +64,11 @@ const GeneralSettings: React.FC = () => {
       movementApplyingRef.current = true; // mark as remote update to avoid loop
       setMovementConfig(c);
     };
-    (window as any).ipcRenderer?.on('movement-config-updated', movementListener);
+    window.ipcRenderer?.on('movement-config-updated', movementListener);
 
     return () => {
       cancelled = true;
-      (window as any).ipcRenderer?.off('movement-config-updated', movementListener as any);
+      window.ipcRenderer?.off('movement-config-updated', movementListener as any);
     };
   }, []);
 
@@ -86,7 +86,7 @@ const GeneralSettings: React.FC = () => {
     }
     const timer = setTimeout(async () => {
       try {
-        await (window.YUA as any).videoDownloader['setGeneralSettings'](externalSettings);
+        await window.YUA.videoDownloader['setExternalResourceSettings'](externalSettings);
       } catch (error) {
         console.error('自动保存外部资源设置失败:', error);
       }
@@ -105,7 +105,7 @@ const GeneralSettings: React.FC = () => {
     }
     const timer = setTimeout(async () => {
       try {
-        await (window.YUA as any).window.updateMovementConfig(movementConfig);
+        await window.YUA.window.updateMovementConfig(movementConfig);
       } catch (error) {
         console.error('自动保存移动参数失败:', error);
       }
