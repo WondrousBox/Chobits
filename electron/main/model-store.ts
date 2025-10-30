@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import os from 'node:os';
 import { app } from 'electron';
 
 export type StoredModel = {
@@ -32,10 +31,10 @@ type StoreShape = {
   models: StoredModel[];
 };
 
-const STORE_DIR = path.join(app.getPath("home"), '.chobits');
-const STORE_FILE = path.join(STORE_DIR, 'models.json');
+const STORE_DIR = path.join(app.getPath('userData'), 'data');
+const STORE_FILE = path.join(STORE_DIR, 'model-configs.json');
 
-function ensureStore() {
+function ensureStore(): void {
   if (!fs.existsSync(STORE_DIR)) fs.mkdirSync(STORE_DIR, { recursive: true });
   if (!fs.existsSync(STORE_FILE)) fs.writeFileSync(STORE_FILE, JSON.stringify({ config: { concurrency: 2 }, models: [] } as StoreShape, null, 2));
 }
@@ -51,24 +50,30 @@ function read(): StoreShape {
   }
 }
 
-function write(next: StoreShape) {
+function write(next: StoreShape): void {
   ensureStore();
   fs.writeFileSync(STORE_FILE, JSON.stringify(next, null, 2));
 }
 
 export const ModelStore = {
-  getConfig(): ModelConfig { return read().config; },
+  getConfig(): ModelConfig {
+    return read().config;
+  },
   setConfig(patch: Partial<ModelConfig>): ModelConfig {
     const cur = read();
     const merged = { ...cur.config, ...patch };
     write({ ...cur, config: merged });
     return merged;
   },
-  list(): StoredModel[] { return read().models; },
-  get(id: string): StoredModel | undefined { return read().models.find(m => m.id === id); },
+  list(): StoredModel[] {
+    return read().models;
+  },
+  get(id: string): StoredModel | undefined {
+    return read().models.find((m) => m.id === id);
+  },
   upsert(model: StoredModel): StoredModel {
     const cur = read();
-    const idx = cur.models.findIndex(m => m.id === model.id);
+    const idx = cur.models.findIndex((m) => m.id === model.id);
     if (idx >= 0) cur.models[idx] = { ...cur.models[idx], ...model, updatedAt: Date.now() };
     else cur.models.push({ ...model, updatedAt: Date.now() });
     write(cur);
@@ -76,7 +81,7 @@ export const ModelStore = {
   },
   patch(id: string, patch: Partial<StoredModel>): StoredModel | undefined {
     const cur = read();
-    const idx = cur.models.findIndex(m => m.id === id);
+    const idx = cur.models.findIndex((m) => m.id === id);
     if (idx < 0) return undefined;
     cur.models[idx] = { ...cur.models[idx], ...patch, updatedAt: Date.now() };
     write(cur);

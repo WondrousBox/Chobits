@@ -22,10 +22,7 @@ export type JobInfo = {
   error?: string;
 };
 
-type WorkerMessage =
-  | { type: 'progress'; jobId: string; done: number; total: number }
-  | { type: 'completed'; jobId: string; inserted: number }
-  | { type: 'error'; jobId: string; message: string };
+type WorkerMessage = { type: 'progress'; jobId: string; done: number; total: number } | { type: 'completed'; jobId: string; inserted: number } | { type: 'error'; jobId: string; message: string };
 
 export class EmbeddingQueue extends EventEmitter {
   private jobs: Map<string, JobInfo> = new Map();
@@ -53,7 +50,7 @@ export class EmbeddingQueue extends EventEmitter {
 
   cancel(jobId: string) {
     // If queued, remove; if running, mark cancelled
-    const idx = this.queue.findIndex(q => q.jobId === jobId);
+    const idx = this.queue.findIndex((q) => q.jobId === jobId);
     if (idx >= 0) {
       this.queue.splice(idx, 1);
       const j = this.jobs.get(jobId);
@@ -82,10 +79,14 @@ export class EmbeddingQueue extends EventEmitter {
       this.emit('job', job);
     }
     // Inline processing
-    this.processInline(payload).catch(err => {
+    this.processInline(payload).catch((err) => {
       console.error('[embeddingQueue] inline processing error', { jobId: payload.jobId, error: err });
       const j = this.jobs.get(payload.jobId!);
-      if (j) { j.status = 'error'; j.error = String(err?.message || err); this.emit('job', { ...j }); }
+      if (j) {
+        j.status = 'error';
+        j.error = String(err?.message || err);
+        this.emit('job', { ...j });
+      }
       this.cleanupAndNext();
     });
   }
@@ -123,13 +124,13 @@ export class EmbeddingQueue extends EventEmitter {
         return;
       }
       const slice = payload.items.slice(i, i + batchSize);
-      const texts = slice.map(s => s.content);
+      const texts = slice.map((s) => s.content);
       const embs = await provider.embedMany(texts);
       const rows: VectorInsertItem[] = slice.map((s, idx) => ({
         id: s.id,
         content: s.content,
         metadata: s.metadata,
-        embedding: fitToDim(embs[idx], payload.dim),
+        embedding: fitToDim(embs[idx], payload.dim)
       }));
       insertVectors(rows, payload.dim);
       done += slice.length;
