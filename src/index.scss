@@ -1,4 +1,4 @@
-@use "./global.scss";
+@use './global.scss';
 
 #root {
   height: 100%;
@@ -37,8 +37,6 @@ textarea {
     Source Han Sans CN,
     sans-serif;
 }
-
-
 
 /* 修改滚动条的宽度和颜色 */
 ::-webkit-scrollbar {
@@ -83,9 +81,19 @@ textarea {
 }
 
 /* --- Transparent overrides for frameless floating windows (must be last) --- */
-html, body, #root { background: transparent !important; }
-:root { background: transparent !important; }
-@media (prefers-color-scheme: light) { :root { background: transparent !important; } }
+html,
+body,
+#root {
+  background: transparent !important;
+}
+:root {
+  background: transparent !important;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    background: transparent !important;
+  }
+}
 
 /* Global drag region helpers for frameless Electron windows */
 .drag-region {
@@ -102,4 +110,5 @@ input {
 
 button {
   background-color: unset;
+  padding: 0;
 }

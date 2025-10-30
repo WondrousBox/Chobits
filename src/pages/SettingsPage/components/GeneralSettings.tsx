@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 // 外部资源设置类型
 type GeneralSettings = {
@@ -177,18 +179,12 @@ const GeneralSettings: React.FC = () => {
         <div className="space-y-6">
           {/* Cookie 设置 */}
           <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">使用浏览器 Cookie</label>
-              <Select value={externalSettings.externalResourceCookies ? 'true' : 'false'} onValueChange={(v) => setExternalSettings((prev) => ({ ...prev, externalResourceCookies: v === 'true' }))}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="是否使用浏览器 Cookie" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="true">开启</SelectItem>
-                  <SelectItem value="false">关闭</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">启用后将从浏览器获取 Cookie 以访问需要登录的内容</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-medium text-foreground">使用浏览器 Cookie</h4>
+                <p className="text-xs text-muted-foreground mt-1">启用后将从浏览器获取 Cookie 以访问需要登录的内容</p>
+              </div>
+              <Switch checked={externalSettings.externalResourceCookies} onCheckedChange={(checked: boolean) => setExternalSettings((prev) => ({ ...prev, externalResourceCookies: checked }))} />
             </div>
           </div>
 
@@ -214,15 +210,12 @@ const GeneralSettings: React.FC = () => {
           {/* 下载模式 */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">下载模式</label>
-            <Select value={externalSettings.externalResourceMode} onValueChange={(v) => setExternalSettings((prev) => ({ ...prev, externalResourceMode: v }))}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="选择下载模式" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1">高质量（默认）</SelectItem>
-                <SelectItem value="2">限制质量（480p 以下）</SelectItem>
-              </SelectContent>
-            </Select>
+            <Tabs value={externalSettings.externalResourceMode} onValueChange={(v) => setExternalSettings((prev) => ({ ...prev, externalResourceMode: v }))} className="w-[400px]">
+              <TabsList>
+                <TabsTrigger value="1">高质量</TabsTrigger>
+                <TabsTrigger value="2">限制质量（480p 以下）</TabsTrigger>
+              </TabsList>
+            </Tabs>
             <p className="text-xs text-muted-foreground">选择下载视频的质量限制</p>
           </div>
         </div>
