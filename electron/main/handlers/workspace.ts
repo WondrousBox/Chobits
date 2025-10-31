@@ -41,7 +41,7 @@ async function createWorkspace(workspace: PartialByKey<Workspace, 'id'>): Promis
 
 export function initWorkspaceHandlers(): void {
   ipcMain.handle('workspace:quickStart', async () => {
-    // Suggest a default workspace path: ~/Documents/ChobitsWorkspace, fallback to incremented suffix
+    // Suggest a default workspace path: ~/Documents/<DefaultWorkspace>, fallback to incremented suffix
     let dest = '';
     const docs = app.getPath('documents');
     const base = path.join(docs, DefaultWorkspaceName);
