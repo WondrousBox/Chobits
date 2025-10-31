@@ -5,11 +5,7 @@ export type Chunk = { content: string; index: number; count: number };
  * - maxChars: max characters per chunk
  * - overlap: overlapping characters between adjacent chunks to keep context
  */
-export function chunkText(
-  text: string,
-  maxChars = 1200,
-  overlap = 120
-): Chunk[] {
+export function chunkText(text: string, maxChars = 1200, overlap = 120): Chunk[] {
   const clean = (text || '').replace(/\s+/g, ' ').trim();
   if (!clean) return [];
   const chunks: Chunk[] = [];
@@ -29,15 +25,11 @@ export function chunkText(
 /**
  * Optional paragraph-aware splitter: split by paragraph/sentence first, then pack.
  */
-export function smartChunks(
-  text: string,
-  maxChars = 1200,
-  overlap = 120
-): Chunk[] {
+export function smartChunks(text: string, maxChars = 1200, overlap = 120): Chunk[] {
   const cleaned = (text || '').replace(/\r\n|\r/g, '\n');
   const paras = cleaned
     .split(/\n{2,}|(?<=[。！？!?])\s+/)
-    .map(s => s.trim())
+    .map((s) => s.trim())
     .filter(Boolean);
   const out: string[] = [];
   let buf = '';
@@ -50,7 +42,7 @@ export function smartChunks(
         buf = p;
       } else {
         // fallback to raw chunking for very long paragraph
-        const raw = chunkText(p, maxChars, Math.min(60, Math.floor(overlap/2))).map(c => c.content);
+        const raw = chunkText(p, maxChars, Math.min(60, Math.floor(overlap / 2))).map((c) => c.content);
         out.push(...raw);
         buf = '';
       }
