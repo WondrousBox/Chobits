@@ -12,7 +12,8 @@ function pickByEvent(animations: SpriteAnimation[], event: SpriteEventType): Spr
 function resolveEventsForState(state: AssistantVisualState): SpriteEventType[] {
   switch (state) {
     case 'idle':
-      return ['idle', 'breath', 'idle2'];
+      // Prefer common idle-like events; include 'stand' to support assets labeled as standing
+      return ['idle', 'stand', 'breath', 'idle2', 'blink'];
     case 'dragging':
       return ['drag'];
     case 'walking':

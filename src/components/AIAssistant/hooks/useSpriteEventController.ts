@@ -13,7 +13,8 @@ export default function useSpriteEventController(): void {
           sprite.to('idle');
           break;
         case 'click':
-          sprite.playOnce('click');
+          // ensure returning to idle/stand after click animation finishes
+          sprite.playOnce('click', { fallback: 'idle' });
           break;
         case 'drop':
           sprite.playOnce('drop', { durationMs: 600 });
@@ -54,7 +55,7 @@ export default function useSpriteEventController(): void {
           sprite.to('idle');
           break;
         case 'sprite:click':
-          sprite.playOnce('click');
+          sprite.playOnce('click', { fallback: 'idle' });
           break;
         case 'sprite:drag:start':
           sprite.to('dragging');
