@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { TbDatabase, TbFolderOpen, TbBrain, TbCpu, TbBox, TbFile3D, TbMoodKid, TbFolder, TbMessage2, TbKeyboard, TbFileText } from 'react-icons/tb';
+import { TbDatabase, TbFolderOpen, TbBrain, TbCpu, TbBox, TbMoodKid, TbFolder, TbMessage2, TbKeyboard, TbFileText, TbSettings } from 'react-icons/tb';
 import AiSettings from './components/AiSettings';
 import EmbeddingJobsPanel from '../../components/EmbeddingJobs';
 import DragAbleTitle from '../../components/common/DragAbleTitle';
@@ -20,7 +20,7 @@ const settingsCategories: { id: SettingsCategory; label: string; icon: React.Ele
   {
     id: 'general',
     label: '常规设置',
-    icon: TbFile3D,
+    icon: TbSettings,
     description: '视频下载和外部资源设置'
   },
   {

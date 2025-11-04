@@ -49,7 +49,7 @@ export default function VideoSprite(): JSX.Element | null {
       srcUrl: url,
       type: type || 'video/webm',
       width: anim.width ?? 180,
-      height: anim.height ?? 220,
+      height: anim.height ?? 240,
       autoplay: anim.autoplay ?? true,
       muted: anim.muted ?? true,
       playsInline: anim.playsInline ?? true,
@@ -61,7 +61,7 @@ export default function VideoSprite(): JSX.Element | null {
   return computed ? (
     <video
       ref={videoRef}
-      style={{ width: computed.width ?? 180, height: computed.height ?? 220, userSelect: 'none' }}
+      style={{ width: computed.width ?? 180, height: computed.height ?? 240, userSelect: 'none' }}
       autoPlay={computed.autoplay ?? true}
       muted={computed.muted ?? true}
       playsInline={computed.playsInline ?? true}

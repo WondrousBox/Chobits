@@ -17,11 +17,11 @@
         "type": "video/webm"
       },
       "width": 180,
-      "height": 220,
+      "height": 240,
       "autoplay": true,
       "muted": true,
       "playsInline": true,
-      "loopStrategy": "early"
+      "loopStrategy": "native"
     }
   ]
 }

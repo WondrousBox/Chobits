@@ -2,7 +2,9 @@ import { dialog, ipcMain, shell } from 'electron';
 import * as fs from 'node:fs/promises';
 
 // Generic file/directory selection handlers
-export function initFileHandlers(win: Electron.BrowserWindow) {
+export function initFileHandlers(_win: Electron.BrowserWindow): void {
+  // reference to avoid unused parameter lint
+  void _win;
   ipcMain.handle('file:pickDir', async (_e, opts?: { allowCreate?: boolean; defaultPath?: string }) => {
     const properties: Array<'openDirectory' | 'createDirectory'> = ['openDirectory'];
     if (opts?.allowCreate) properties.push('createDirectory');
@@ -21,6 +23,31 @@ export function initFileHandlers(win: Electron.BrowserWindow) {
     return { canceled: false, paths: res.filePaths, path: res.filePaths[0] };
   });
 
+  // 保存文件对话框：选择输出文件夹和文件名
+  ipcMain.handle(
+    'file:saveFile',
+    async (
+      _e,
+      opts?: {
+        filters?: { name: string; extensions: string[] }[];
+        defaultPath?: string;
+        title?: string;
+        nameFieldLabel?: string;
+        showsTagField?: boolean;
+      }
+    ) => {
+      const res = await dialog.showSaveDialog({
+        title: opts?.title,
+        defaultPath: opts?.defaultPath,
+        filters: opts?.filters,
+        nameFieldLabel: opts?.nameFieldLabel,
+        showsTagField: opts?.showsTagField
+      });
+      if (res.canceled || !res.filePath) return { canceled: true };
+      return { canceled: false, path: res.filePath };
+    }
+  );
+
   // 打开/显示系统中的路径（文件或目录）
   ipcMain.handle('file:openPath', async (_e, targetPath: string) => {
     if (!targetPath) return { ok: false, error: 'EMPTY_PATH' };
@@ -32,7 +59,9 @@ export function initFileHandlers(win: Electron.BrowserWindow) {
       try {
         shell.showItemInFolder(targetPath);
         return { ok: true };
-      } catch { }
+      } catch {
+        /* noop */
+      }
       return { ok: false, error: result };
     } catch (e: any) {
       return { ok: false, error: String(e?.message || e) };

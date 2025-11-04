@@ -53,9 +53,9 @@ async function createWindow(): Promise<void> {
   win = new BrowserWindow({
     title: 'Main window',
     icon: path.join(process.env.VITE_PUBLIC, 'favicon.ico'),
-    // Assistant size: 180x220, plus 100px padding on each side
+    // Assistant size: 180x240, plus 100px padding on each side
     width: 380,
-    height: 420,
+    height: 440,
     frame: false, // frameless for a floating assistant
     transparent: true, // transparent background
     backgroundColor: '#00000000',

@@ -4,7 +4,7 @@
  * - 注意：padding 实际值由主进程配置决定（在 useAssistantInit 中获取）。
  */
 export const ASSISTANT_WIDTH = 180;
-export const ASSISTANT_HEIGHT = 220;
+export const ASSISTANT_HEIGHT = 240;
 
 export const DEFAULT_WALK_SPEED = 500;
 export const DEFAULT_FPS_LIMIT = 30;

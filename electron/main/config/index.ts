@@ -4,4 +4,4 @@ export const LOG_LEVEL = 'error';
 
 // Assistant intrinsic size
 export const ASSISTANT_WIDTH = 180;
-export const ASSISTANT_HEIGHT = 220;
+export const ASSISTANT_HEIGHT = 240;
