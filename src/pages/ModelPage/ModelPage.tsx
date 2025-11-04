@@ -139,38 +139,34 @@ const ModelPage: React.FC<ModelPageProps> = ({ hideTitleBar }: ModelPageProps) =
         />
       ) : (
         <div className="flex items-center gap-2 px-2">
-          <div className="flex items-center gap-2">
-            <TbBox size={20} />
-            模型管理
-          </div>
-          <>
+          <div className="flex-1">
             <Tabs value={tabValue} onValueChange={(v) => setTabValue(v as 'installed' | 'available')} className="no-drag">
               <TabsList>
                 <TabsTrigger value="available">所有模型</TabsTrigger>
                 <TabsTrigger value="installed">已安装</TabsTrigger>
               </TabsList>
             </Tabs>
-            <Dialog open={showSettings} onOpenChange={setShowSettings}>
-              <DialogTrigger asChild>
-                <Button size={'icon'} className="w-8 h-8" variant={'outline'} title="打开模型设置">
-                  <TbSettings />
-                </Button>
-              </DialogTrigger>
-              <DialogContent hideClose className="w-80">
-                <DialogHeader>
-                  <DialogTitle></DialogTitle>
-                  <DialogDescription></DialogDescription>
-                </DialogHeader>
-                <SelectModelFolder
-                  onConfigured={(cfg) => {
-                    setConfig(cfg);
-                    setRootDir(cfg.rootDir);
-                    setShowSettings(false);
-                  }}
-                />
-              </DialogContent>
-            </Dialog>
-          </>
+          </div>
+          <Dialog open={showSettings} onOpenChange={setShowSettings}>
+            <DialogTrigger asChild>
+              <Button size={'icon'} className="w-8 h-8" variant={'outline'} title="打开模型设置">
+                <TbSettings />
+              </Button>
+            </DialogTrigger>
+            <DialogContent hideClose className="w-80">
+              <DialogHeader>
+                <DialogTitle></DialogTitle>
+                <DialogDescription></DialogDescription>
+              </DialogHeader>
+              <SelectModelFolder
+                onConfigured={(cfg) => {
+                  setConfig(cfg);
+                  setRootDir(cfg.rootDir);
+                  setShowSettings(false);
+                }}
+              />
+            </DialogContent>
+          </Dialog>
         </div>
       )}
 
