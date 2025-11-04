@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { TbDatabase, TbFolderOpen, TbBrain, TbCpu, TbBox, TbMoodKid, TbFolder, TbMessage2, TbKeyboard, TbFileText, TbSettings } from 'react-icons/tb';
+import { TbDatabase, TbFolderOpen, TbBrain, TbCpu, TbBox, TbMoodKid, TbFolder, TbMessage2, TbKeyboard, TbFileText, TbSettings, TbPlug } from 'react-icons/tb';
 import AiSettings from './components/AiSettings';
 import EmbeddingJobsPanel from '../../components/EmbeddingJobs';
 import DragAbleTitle from '../../components/common/DragAbleTitle';
@@ -13,7 +13,7 @@ import ShortcutsSettings from './components/ShortcutsSettings';
 import GeneralSettings from './components/GeneralSettings';
 
 // 设置分类类型
-type SettingsCategory = 'folder' | 'embedding' | 'ai' | 'prompt' | 'general' | 'workspace' | 'model' | 'sprites' | 'shortcuts';
+type SettingsCategory = 'folder' | 'embedding' | 'ai' | 'prompt' | 'general' | 'workspace' | 'model' | 'sprites' | 'shortcuts' | 'plugins';
 
 // 设置分类配置
 const settingsCategories: { id: SettingsCategory; label: string; icon: React.ElementType; description: string }[] = [
@@ -46,6 +46,12 @@ const settingsCategories: { id: SettingsCategory; label: string; icon: React.Ele
     label: '提示词管理',
     icon: TbCpu,
     description: '提示词管理与设置'
+  },
+  {
+    id: 'plugins',
+    label: '插件管理',
+    icon: TbPlug,
+    description: '插件管理'
   },
   {
     id: 'model',
