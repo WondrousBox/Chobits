@@ -48,6 +48,8 @@ export type ResourceBridgeParams = {
   revealResource: IPCParams<[{ id: string }], { success: boolean }>;
   renameResource: IPCParams<[{ id: string; newName: string; renameFile?: boolean }], { success: boolean; fileRenamed?: boolean; newPath?: string }>;
   moveResourcesToWorkspace: IPCParams<[{ ids: string[]; workspaceId: string }], { moved: number }>;
+  /** 批量移动资源到指定文件夹（或移出文件夹）。包含跨工作空间校验。 */
+  'resource:moveToFolder': IPCParams<[{ ids: string[]; folderId: string | null; workspaceId?: string }], { success: boolean; moved?: number; invalid?: string[]; error?: string }>;
   rebuildResourceThumbnail: IPCParams<[{ id: string; size?: number; force?: boolean }], { success: boolean; data?: Resource; error?: string }>;
   cleanupThumbnails: IPCParams<[void], { success: boolean; removed?: number; error?: string }>;
   /** 上传原始文件数据到主进程，返回保存后的本地路径；若重复（同名且 hash 相同）则 duplicate=true */
@@ -71,6 +73,7 @@ const methods: Array<keyof ResourceBridgeParams> = [
   'revealResource',
   'renameResource',
   'moveResourcesToWorkspace',
+  'resource:moveToFolder',
   'rebuildResourceThumbnail',
   'cleanupThumbnails',
   'uploadResourceFile',

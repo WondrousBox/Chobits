@@ -7,6 +7,7 @@ export type UIFolder = {
   id: string;
   name: string;
   parentId?: string | null;
+  workspaceId?: string;
   children?: UIFolder[];
 };
 
@@ -33,9 +34,11 @@ const Row: React.FC<{
   onRename: (id: string) => void;
   onDelete: (id: string) => void;
   onDropResources?: (folderId: string, ids: string[]) => void;
-}> = ({ node, depth, selectedId, onSelect, onRename, onDelete, onDropResources }) => {
+  counts?: Record<string, number>;
+}> = ({ node, depth, selectedId, onSelect, onRename, onDelete, onDropResources, counts }) => {
   const isActive = selectedId === node.id;
   const [over, setOver] = React.useState(false);
+  const count = counts?.[node.id] ?? 0;
   return (
     <div>
       <div
@@ -64,57 +67,60 @@ const Row: React.FC<{
           {isActive ? <TbFolderOpen className="w-4 h-4" /> : <TbFolder className="w-4 h-4" />}
           <span className="truncate">{node.name}</span>
         </div>
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="icon" variant="ghost" className="w-8 h-8" onClick={(e) => e.stopPropagation()}>
-                <TbDots />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" sideOffset={4} onClick={(e) => e.stopPropagation()}>
-              <DropdownMenuItem
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  try {
-                    const ws = await (window as any).YUA?.workspace['workspace:getDefault']();
-                    const isWin = (window as any).YUA?.isWindows;
-                    const sep = isWin ? '\\' : '/';
-                    const base: string = ws?.rootPath || '';
-                    if (!base) return;
-                    const needsSep = base.endsWith(sep) ? '' : sep;
-                    const folderPath = `${base}${needsSep}resources${sep}folders${sep}${node.id}`;
-                    await (window as any).YUA?.file['file:openPath'](folderPath);
-                  } catch (err) {
-                    console.warn('open folder path failed', err);
-                  }
-                }}
-              >
-                <TbFolderOpen /> 打开文件夹
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRename(node.id);
-                }}
-              >
-                <TbPencil /> 重命名
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete(node.id);
-                }}
-              >
-                <TbTrash /> 删除
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+        <div className="flex items-center gap-2">
+          {count > 0 && <span className={`text-[10px] px-1.5 py-0.5 rounded bg-muted ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>{count}</span>}
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="icon" variant="ghost" className="w-8 h-8" onClick={(e) => e.stopPropagation()}>
+                  <TbDots />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" sideOffset={4} onClick={(e) => e.stopPropagation()}>
+                <DropdownMenuItem
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    try {
+                      const ws = await (window as any).YUA?.workspace['workspace:getDefault']();
+                      const isWin = (window as any).YUA?.isWindows;
+                      const sep = isWin ? '\\' : '/';
+                      const base: string = ws?.rootPath || '';
+                      if (!base) return;
+                      const needsSep = base.endsWith(sep) ? '' : sep;
+                      const folderPath = `${base}${needsSep}resources${sep}folders${sep}${node.id}`;
+                      await (window as any).YUA?.file['file:openPath'](folderPath);
+                    } catch (err) {
+                      console.warn('open folder path failed', err);
+                    }
+                  }}
+                >
+                  <TbFolderOpen /> 打开文件夹
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRename(node.id);
+                  }}
+                >
+                  <TbPencil /> 重命名
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(node.id);
+                  }}
+                >
+                  <TbTrash /> 删除
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </div>
       {(node.children || []).map((child) => (
-        <Row key={child.id} node={child} depth={depth + 1} selectedId={selectedId} onSelect={onSelect} onRename={onRename} onDelete={onDelete} onDropResources={onDropResources} />
+        <Row key={child.id} node={child} depth={depth + 1} selectedId={selectedId} onSelect={onSelect} onRename={onRename} onDelete={onDelete} onDropResources={onDropResources} counts={counts} />
       ))}
     </div>
   );
@@ -128,7 +134,9 @@ const FolderSidebar: React.FC<{
   onRename: (id: string) => void;
   onDelete: (id: string) => void;
   onDropResources?: (folderId: string | null, ids: string[]) => void;
-}> = ({ folders, selectedId, onSelect, onCreate, onRename, onDelete, onDropResources }) => {
+  counts?: Record<string, number>;
+  allCount?: number;
+}> = ({ folders, selectedId, onSelect, onCreate, onRename, onDelete, onDropResources, counts, allCount }) => {
   const tree = React.useMemo(() => buildTree(folders), [folders]);
   return (
     <div className="h-full w-60 border-r flex flex-col bg-background">
@@ -159,6 +167,7 @@ const FolderSidebar: React.FC<{
         >
           <TbFolderOpen className="w-4 h-4" />
           全部
+          <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{allCount ?? 0}</span>
         </div>
       </div>
       <div className="flex-1 overflow-auto p-1">
@@ -172,6 +181,7 @@ const FolderSidebar: React.FC<{
             onRename={onRename}
             onDelete={onDelete}
             onDropResources={(fid, ids) => onDropResources?.(fid, ids)}
+            counts={counts}
           />
         ))}
         {tree.length === 0 && <div className="text-xs text-muted-foreground px-2">暂无文件夹，点击右上角 + 新建</div>}
