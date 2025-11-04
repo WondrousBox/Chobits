@@ -93,7 +93,7 @@ const ResourcePage: React.FC = () => {
       try {
         const wsId = workspaceId || wsFilter || undefined;
         const rows = await folderAPI['folder.list']({ workspaceId: wsId, deletedAt: 0 });
-        setFolders((rows || []).map((r: any) => ({ id: r.id, name: r.name, parentId: r.parentId || null })));
+        setFolders((rows || []).map((r: any) => ({ id: r.id, name: r.name, parentId: r.parentId || null, workspaceId: r.workspaceId })));
       } catch (e) {
         console.warn('load folders failed', e);
       }
@@ -189,6 +189,23 @@ const ResourcePage: React.FC = () => {
 
     return filtered;
   }, [list, wsFilter, typeFilter, favoriteFilter, searchQuery, sortField, sortOrder, folderFilter, tagFilter]);
+
+  // 计算各文件夹资源数量（按当前默认空间；不受类型/标签筛选影响）
+  const folderCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    if (!wsFilter) return counts;
+    for (const r of list as any[]) {
+      if ((r as any).workspaceId !== wsFilter) continue;
+      const fid = (r as any).folderId;
+      if (fid) counts[fid] = (counts[fid] || 0) + 1;
+    }
+    return counts;
+  }, [list, wsFilter]);
+
+  const allCount = useMemo(() => {
+    if (!wsFilter) return 0;
+    return (list as any[]).filter((r: any) => r.workspaceId === wsFilter).length;
+  }, [list, wsFilter]);
 
   const handleDelete = async (id: string): Promise<void> => {
     try {
@@ -452,14 +469,74 @@ const ResourcePage: React.FC = () => {
           folders={folders}
           selectedId={folderFilter || undefined}
           onSelect={(id) => setFolderFilter(id as string)}
+          counts={folderCounts}
+          allCount={allCount}
           onDropResources={async (folderId, ids) => {
             try {
               if (!ids?.length) return;
-              const patch: any = { folderId: folderId || null };
-              // 批量移动：如果主进程未提供批量 API，则逐个调用 updateResource
-              await Promise.all(ids.map((id) => window.YUA.resource.updateResource({ id, patch })));
-              // 刷新列表
-              await load();
+              // 阻止跨工作空间：若目标文件夹存在，则检查其 workspaceId 与当前 ws 一致
+              if (folderId) {
+                try {
+                  const folder = await folderAPI['folder.get']({ id: folderId });
+                  if (folder && folder.workspaceId && wsFilter && folder.workspaceId !== wsFilter) {
+                    toast.error('无法跨工作空间移动到该文件夹');
+                    return;
+                  }
+                } catch {
+                  /* ignore get error */
+                }
+              }
+
+              // 记录撤回需要的“原始 folderId”映射
+              const prevMap = new Map<string, string | null>();
+              for (const id of ids) {
+                const item: any = list.find((i) => i.id === id);
+                prevMap.set(id, item?.folderId ?? null);
+              }
+
+              // 使用主进程批量 API
+              const res = await window.YUA.resource['resource:moveToFolder']({ ids, folderId: folderId || null, workspaceId: wsFilter });
+              if (!res?.success) {
+                const invalidCount = Array.isArray((res as any)?.invalid) ? (res as any).invalid.length : 0;
+                if (invalidCount > 0) {
+                  toast.error(`有 ${invalidCount} 个资源不属于当前空间，已阻止移动`);
+                } else {
+                  toast.error('移动失败');
+                }
+                return;
+              }
+              // 刷新列表与文件夹（计数徽标）
+              await Promise.all([load(), loadFolders(wsFilter)]);
+
+              // 成功提示 + 撤回
+              const folderName = folderId ? folders.find((f) => f.id === folderId)?.name || '目标文件夹' : '（移出文件夹）';
+              const movedCount = (res as any)?.moved ?? ids.length;
+              toast.success(`已移动到 ${folderId ? folderName : '全部'}`, {
+                description: `共 ${movedCount} 个资源`,
+                action: {
+                  label: '撤回',
+                  onClick: async () => {
+                    try {
+                      // 将资源按“原始 folderId”分组后分别调用批量接口
+                      const groups = new Map<string, string[]>();
+                      for (const [rid, prevFid] of prevMap.entries()) {
+                        const key = prevFid || '__null__';
+                        const arr = groups.get(key) || [];
+                        arr.push(rid);
+                        groups.set(key, arr);
+                      }
+                      for (const [key, groupIds] of groups.entries()) {
+                        const backId = key === '__null__' ? null : key;
+                        await window.YUA.resource['resource:moveToFolder']({ ids: groupIds, folderId: backId, workspaceId: wsFilter });
+                      }
+                      await Promise.all([load(), loadFolders(wsFilter)]);
+                      toast.success('已撤回移动');
+                    } catch (err) {
+                      toast.error('撤回失败', { description: String((err as any)?.message || err) });
+                    }
+                  }
+                }
+              });
             } catch (e) {
               console.warn('move resources to folder failed', e);
             }

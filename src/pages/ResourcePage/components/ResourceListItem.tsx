@@ -74,13 +74,14 @@ const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, onClick, on
     [item]
   );
 
+  const selectionClass = selected ? 'ring-2 ring-primary border-primary/50 bg-primary/5' : 'hover:bg-muted/50 hover:border-primary/30';
+
   return (
     <div
       onClick={(e) => onClick(e, item)}
       draggable={!!draggable}
       onDragStart={(e) => onDragStart?.(e, item)}
-      className={`group relative flex items-center gap-4 p-3 rounded-lg border transition-all cursor-pointer select-none ${selected ? 'ring-2 ring-primary border-primary/50 bg-primary/5' : 'hover:bg-muted/50 hover:border-primary/30'
-        }`}
+      className={`group relative flex items-center gap-4 p-3 rounded-lg border transition-all cursor-pointer select-none ${selectionClass}`}
     >
       {/* 左侧缩略图和类型图标 */}
       <div className="relative flex-shrink-0 w-16 h-16 rounded-md overflow-hidden bg-muted">

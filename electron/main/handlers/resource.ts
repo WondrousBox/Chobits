@@ -1,5 +1,5 @@
 import { ipcMain, shell } from 'electron';
-import { ResourcesRepo, WorkspacesRepo, TagsRepo } from '../db/repositories';
+import { ResourcesRepo, WorkspacesRepo, TagsRepo, FoldersRepo } from '../db/repositories';
 import { generateThumbnailForResource, detectBasicType } from '../utils/thumbnail';
 import { createHash } from 'node:crypto';
 import * as fs from 'node:fs/promises';
@@ -255,6 +255,97 @@ export function initResourceHandlers(): void {
     const { id, patch } = payload;
     const updated = await ResourcesRepo.update(id, patch);
     return { success: true, data: updated };
+  });
+
+  // 批量移动资源到文件夹（或移出文件夹），并进行跨工作空间校验
+  ipcMain.handle('resource:moveToFolder', async (_event, payload: { ids: string[]; folderId: string | null; workspaceId?: string }) => {
+    try {
+      const ids = payload?.ids || [];
+      const targetFolderId = typeof payload?.folderId === 'string' ? payload.folderId : null;
+      if (!ids.length) return { success: true, moved: 0 };
+
+      // 目标工作空间：来自目标文件夹，或调用方提供，或默认空间
+      let targetWorkspaceId: string | undefined = payload?.workspaceId;
+      if (targetFolderId) {
+        const folder = await FoldersRepo.getById(targetFolderId);
+        if (!folder) return { success: false, error: 'folder-not-found' };
+        targetWorkspaceId = folder.workspaceId || undefined;
+      }
+      if (!targetWorkspaceId) {
+        const ws = await WorkspacesRepo.getDefault();
+        targetWorkspaceId = ws?.id || undefined;
+      }
+      if (!targetWorkspaceId) return { success: false, error: 'no-workspace' };
+
+      const wsObj = await WorkspacesRepo.getById(targetWorkspaceId);
+      const wsRoot = wsObj?.rootPath;
+      if (!wsRoot) return { success: false, error: 'workspace-no-root' };
+
+      // 校验所有资源均属于目标工作空间
+      const invalid: string[] = [];
+      const rows: any[] = [];
+      for (const id of ids) {
+        const r = await ResourcesRepo.getById(id);
+        if (!r || (r as any).workspaceId !== targetWorkspaceId) invalid.push(id);
+        else rows.push(r);
+      }
+      if (invalid.length) {
+        return { success: false, invalid };
+      }
+
+      // 执行更新
+      // 小工具：跨分区时用 copy + unlink 兜底
+      const moveFileSafe = async (src: string, dest: string): Promise<void> => {
+        try {
+          await fs.rename(src, dest);
+        } catch (e: any) {
+          if (e?.code === 'EXDEV') {
+            // 跨分区，改为 copy + unlink
+            const data = await fs.readFile(src);
+            await fs.writeFile(dest, data);
+            await fs.unlink(src);
+          } else {
+            throw e;
+          }
+        }
+      };
+
+      let moved = 0;
+      for (const r of rows as any[]) {
+        try {
+          let newPath: string | undefined;
+          const hasFile = !!r.filePath;
+          if (hasFile) {
+            const baseName = path.basename(r.filePath as string);
+            const targetDir = targetFolderId ? path.join(wsRoot, 'resources', 'folders', targetFolderId) : path.join(wsRoot, 'resources');
+            await fs.mkdir(targetDir, { recursive: true });
+            let targetPath = path.join(targetDir, baseName);
+            if (r.filePath !== targetPath) {
+              // 同名处理：若存在则追加 (n)
+              if (fscb.existsSync(targetPath)) {
+                const ext = path.extname(baseName);
+                const stem = path.basename(baseName, ext);
+                let i = 1;
+                while (fscb.existsSync(targetPath)) {
+                  targetPath = path.join(targetDir, `${stem}(${i})${ext}`);
+                  i += 1;
+                }
+              }
+              await moveFileSafe(r.filePath as string, targetPath);
+              newPath = targetPath;
+            }
+          }
+
+          const updated = await ResourcesRepo.update(r.id, { folderId: targetFolderId ?? null, ...(newPath ? { filePath: newPath } : {}) } as any);
+          if (updated) moved += 1;
+        } catch {
+          // 单条失败，继续下一条
+        }
+      }
+      return { success: true, moved };
+    } catch (e: any) {
+      return { success: false, error: e?.message || 'unknown' };
+    }
   });
 
   ipcMain.handle('renameResource', async (_event, payload: { id: string; newName: string; renameFile?: boolean }) => {
