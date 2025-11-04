@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { ResourceItem } from '@/types';
 import { TbCopy, TbCheck, TbStar, TbHeart, TbEye, TbEyeOff, TbClock, TbFile, TbExternalLink, TbCalendar, TbUser, TbTag, TbPlayerPlay } from 'react-icons/tb';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { formatFileSize, formatDuration, formatTime, getResourceTypeIcon, getStatusColor, getRatingStars, parseTags, parseCategories } from '@/utils/resourceUtils';
+import { formatFileSize, formatDuration, formatTime, getResourceTypeIcon, getStatusColor, parseTags } from '@/utils/resourceUtils';
 import { makeResSrc } from '@/lib/resourceProtocol';
 
 interface ListItemProps {
@@ -11,12 +11,14 @@ interface ListItemProps {
   onClick: (e: React.MouseEvent, item: ResourceItem) => void;
   onToggleFavorite?: (id: string) => void;
   onToggleVisibility?: (id: string) => void;
+  draggable?: boolean;
+  onDragStart?: (e: React.DragEvent<HTMLDivElement>, item: ResourceItem) => void;
 }
 
-const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, onClick, onToggleFavorite, onToggleVisibility }) => {
+const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, onClick, onToggleFavorite, onToggleVisibility, draggable, onDragStart }) => {
   const [copied, setCopied] = useState(false);
   const tags = parseTags(item.tags);
-  const categories = parseCategories(item.categories);
+  // const categories = parseCategories(item.categories);
 
   const handleSourceClick = useCallback(
     async (e: React.MouseEvent) => {
@@ -75,6 +77,8 @@ const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, onClick, on
   return (
     <div
       onClick={(e) => onClick(e, item)}
+      draggable={!!draggable}
+      onDragStart={(e) => onDragStart?.(e, item)}
       className={`group relative flex items-center gap-4 p-3 rounded-lg border transition-all cursor-pointer select-none ${selected ? 'ring-2 ring-primary border-primary/50 bg-primary/5' : 'hover:bg-muted/50 hover:border-primary/30'
         }`}
     >

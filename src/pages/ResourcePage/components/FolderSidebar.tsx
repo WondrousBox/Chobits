@@ -32,14 +32,33 @@ const Row: React.FC<{
   onSelect: (id: string) => void;
   onRename: (id: string) => void;
   onDelete: (id: string) => void;
-}> = ({ node, depth, selectedId, onSelect, onRename, onDelete }) => {
+  onDropResources?: (folderId: string, ids: string[]) => void;
+}> = ({ node, depth, selectedId, onSelect, onRename, onDelete, onDropResources }) => {
   const isActive = selectedId === node.id;
+  const [over, setOver] = React.useState(false);
   return (
     <div>
       <div
-        className={`group flex items-center justify-between px-2 py-1 rounded cursor-pointer ${isActive ? 'bg-primary/10 text-primary' : 'hover:bg-muted'}`}
+        className={`group flex items-center justify-between px-2 py-1 rounded cursor-pointer ${isActive ? 'bg-primary/10 text-primary' : 'hover:bg-muted'} ${over ? 'ring-1 ring-primary/50 bg-primary/5' : ''}`}
         style={{ paddingLeft: 8 + depth * 12 }}
         onClick={() => onSelect(node.id)}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setOver(true);
+          e.dataTransfer.dropEffect = 'move';
+        }}
+        onDragLeave={() => setOver(false)}
+        onDrop={(e) => {
+          setOver(false);
+          try {
+            const raw = e.dataTransfer.getData('application/x-resource-ids');
+            if (!raw) return;
+            const ids: string[] = JSON.parse(raw);
+            if (Array.isArray(ids) && ids.length && onDropResources) onDropResources(node.id, ids);
+          } catch {
+            /* ignore */
+          }
+        }}
       >
         <div className="flex items-center gap-2 overflow-hidden">
           {isActive ? <TbFolderOpen className="w-4 h-4" /> : <TbFolder className="w-4 h-4" />}
@@ -95,7 +114,7 @@ const Row: React.FC<{
         </div>
       </div>
       {(node.children || []).map((child) => (
-        <Row key={child.id} node={child} depth={depth + 1} selectedId={selectedId} onSelect={onSelect} onRename={onRename} onDelete={onDelete} />
+        <Row key={child.id} node={child} depth={depth + 1} selectedId={selectedId} onSelect={onSelect} onRename={onRename} onDelete={onDelete} onDropResources={onDropResources} />
       ))}
     </div>
   );
@@ -108,7 +127,8 @@ const FolderSidebar: React.FC<{
   onCreate: () => void;
   onRename: (id: string) => void;
   onDelete: (id: string) => void;
-}> = ({ folders, selectedId, onSelect, onCreate, onRename, onDelete }) => {
+  onDropResources?: (folderId: string | null, ids: string[]) => void;
+}> = ({ folders, selectedId, onSelect, onCreate, onRename, onDelete, onDropResources }) => {
   const tree = React.useMemo(() => buildTree(folders), [folders]);
   return (
     <div className="h-full w-60 border-r flex flex-col bg-background">
@@ -119,14 +139,40 @@ const FolderSidebar: React.FC<{
         </Button>
       </div>
       <div className="p-2">
-        <div className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer ${!selectedId ? 'bg-primary/10 text-primary' : 'hover:bg-muted'}`} onClick={() => onSelect('')}>
+        <div
+          className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer ${!selectedId ? 'bg-primary/10 text-primary' : 'hover:bg-muted'}`}
+          onClick={() => onSelect('')}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+          }}
+          onDrop={(e) => {
+            try {
+              const raw = e.dataTransfer.getData('application/x-resource-ids');
+              if (!raw) return;
+              const ids: string[] = JSON.parse(raw);
+              if (Array.isArray(ids) && ids.length && onDropResources) onDropResources(null, ids);
+            } catch {
+              /* ignore */
+            }
+          }}
+        >
           <TbFolderOpen className="w-4 h-4" />
           全部
         </div>
       </div>
       <div className="flex-1 overflow-auto p-1">
         {tree.map((node) => (
-          <Row key={node.id} node={node} depth={0} selectedId={selectedId} onSelect={(id) => onSelect(id)} onRename={onRename} onDelete={onDelete} />
+          <Row
+            key={node.id}
+            node={node}
+            depth={0}
+            selectedId={selectedId}
+            onSelect={(id) => onSelect(id)}
+            onRename={onRename}
+            onDelete={onDelete}
+            onDropResources={(fid, ids) => onDropResources?.(fid, ids)}
+          />
         ))}
         {tree.length === 0 && <div className="text-xs text-muted-foreground px-2">暂无文件夹，点击右上角 + 新建</div>}
       </div>

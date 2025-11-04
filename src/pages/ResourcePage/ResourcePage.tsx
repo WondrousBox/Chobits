@@ -452,6 +452,18 @@ const ResourcePage: React.FC = () => {
           folders={folders}
           selectedId={folderFilter || undefined}
           onSelect={(id) => setFolderFilter(id as string)}
+          onDropResources={async (folderId, ids) => {
+            try {
+              if (!ids?.length) return;
+              const patch: any = { folderId: folderId || null };
+              // 批量移动：如果主进程未提供批量 API，则逐个调用 updateResource
+              await Promise.all(ids.map((id) => window.YUA.resource.updateResource({ id, patch })));
+              // 刷新列表
+              await load();
+            } catch (e) {
+              console.warn('move resources to folder failed', e);
+            }
+          }}
           onCreate={async () => {
             try {
               const d = new Date();
@@ -521,6 +533,17 @@ const ResourcePage: React.FC = () => {
                   onClick={handleItemClick}
                   onToggleFavorite={handleToggleFavorite}
                   onToggleVisibility={handleToggleVisibility}
+                  draggable
+                  onDragStart={(e) => {
+                    const ids = selectedItems.has(item.id) && selectedItems.size > 0 ? Array.from(selectedItems) : [item.id];
+                    try {
+                      e.dataTransfer.setData('application/x-resource-ids', JSON.stringify(ids));
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.dropEffect = 'move';
+                    } catch {
+                      /* ignore */
+                    }
+                  }}
                 />
               ))}
               {filtered.length === 0 && (
