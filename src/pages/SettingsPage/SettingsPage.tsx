@@ -24,23 +24,16 @@ const settingsCategories: { id: SettingsCategory; label: string; icon: React.Ele
     description: '视频下载和外部资源设置'
   },
   {
-    id: 'shortcuts',
-    label: '快捷键',
-    icon: TbKeyboard,
-    description: '全局快捷键设置'
+    id: 'workspace',
+    label: '工作空间',
+    icon: TbFolderOpen,
+    description: '工作空间管理与默认空间设置'
   },
-
   {
     id: 'folder',
     label: '文件夹',
     icon: TbFolder,
     description: '文件夹相关设置'
-  },
-  {
-    id: 'embedding',
-    label: '嵌入任务',
-    icon: TbBrain,
-    description: '向量嵌入任务管理'
   },
   {
     id: 'ai',
@@ -55,16 +48,22 @@ const settingsCategories: { id: SettingsCategory; label: string; icon: React.Ele
     description: '提示词管理与设置'
   },
   {
-    id: 'workspace',
-    label: '工作空间',
-    icon: TbFolderOpen,
-    description: '工作空间管理与默认空间设置'
-  },
-  {
     id: 'model',
     label: '模型管理',
     icon: TbBox,
     description: '下载与管理本地模型文件'
+  },
+  {
+    id: 'shortcuts',
+    label: '快捷键',
+    icon: TbKeyboard,
+    description: '全局快捷键设置'
+  },
+  {
+    id: 'embedding',
+    label: '嵌入任务',
+    icon: TbBrain,
+    description: '向量嵌入任务管理'
   },
   {
     id: 'sprites',

@@ -365,7 +365,7 @@ export default function SpriteManager(): JSX.Element {
                     {grouped[cat]?.map((item) => {
                       const src = item.source?.localPath ? makeResSrc(item.source.localPath) : item.source?.src || '';
                       const type = item.source?.type || 'video/webm';
-                      const PW = 200,
+                      const PW = 180,
                         PH = 240; // 基础预览尺寸（列最小宽 200 时刚好贴合）
                       return (
                         <div key={item.meta.id} className="group bg-card border border-border rounded-lg flex flex-col gap-2 w-full max-w-[240px] shadow-sm hover:shadow-md transition-shadow">
@@ -424,11 +424,11 @@ export default function SpriteManager(): JSX.Element {
                                 </DropdownMenu>
                               )}
 
-                              {item.meta.deletable !== false ? (
-                                <Button size="icon" variant="destructive" className="w-8 h-8" title="删除" onClick={() => onRemove(item.meta.id)}>
+                              {item.meta.deletable !== false && (
+                                <Button size="icon" variant="destructive" className="w-8 h-8" onClick={() => onRemove(item.meta.id)}>
                                   <TbTrash className="h-4 w-4" />
                                 </Button>
-                              ) : null}
+                              )}
                             </div>
                             {/* 信息覆盖层：默认显示，hover 隐藏 */}
                             <div className="pointer-events-none absolute inset-0 flex flex-col justify-end p-3 bg-gradient-to-t from-black/70 via-black/30 to-transparent text-white opacity-100 group-hover:opacity-0 transition-opacity duration-200">
@@ -446,11 +446,9 @@ export default function SpriteManager(): JSX.Element {
                       );
                     })}
                     {/* 分类尾部添加卡片 */}
-                    <div className="border border-dashed border-border/60 rounded-lg flex items-center justify-center p-4 min-h-[120px] w-full max-w-[240px]">
-                      <Button size="sm" onClick={() => onImport(cat)} disabled={addingMap[cat]} variant="ghost">
-                        + 添加{cat === 'uncategorized' ? '' : `（${cat}）`}
-                      </Button>
-                    </div>
+                    <Button className="h-[240px] w-[180px]" onClick={() => onImport(cat)} disabled={addingMap[cat]} variant="ghost">
+                      + 添加
+                    </Button>
                   </div>
                 </div>
               )}
