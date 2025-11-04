@@ -3,7 +3,7 @@ import { makeResSrc, isImageFile, isVideoFile, isAudioFile } from '@/lib/resourc
 import { ResourceItem } from '@/types';
 import { TbCopy, TbCheck, TbStar, TbHeart, TbEye, TbEyeOff, TbClock, TbFile, TbPlayerPlay } from 'react-icons/tb';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { formatFileSize, formatDuration, formatTime, getResourceTypeIcon, getStatusColor, getRatingStars, getResourceSummary } from '@/utils/resourceUtils';
+import { formatFileSize, formatDuration, getResourceTypeIcon, getStatusColor, getResourceSummary } from '@/utils/resourceUtils';
 import { Button } from '@/components/ui/button';
 
 interface GalleryItemProps {
@@ -13,15 +13,13 @@ interface GalleryItemProps {
   onToggleFavorite?: (id: string) => void;
   onToggleVisibility?: (id: string) => void;
   innerRef?: (el: HTMLDivElement | null) => void;
+  draggable?: boolean;
+  onDragStart?: (e: React.DragEvent<HTMLDivElement>, item: ResourceItem) => void;
 }
 
 // Basic preview: if resource has a filePath with image extension, show <img>. Otherwise show a placeholder.
-// legacy helper compatibility (if some other code imports isImage)
-function isImage(path?: string) {
-  return isImageFile(path);
-}
 
-const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onClick, onToggleFavorite, onToggleVisibility, innerRef }) => {
+const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onClick, onToggleFavorite, onToggleVisibility, innerRef, draggable, onDragStart }) => {
   const [copied, setCopied] = useState(false);
   const summary = getResourceSummary(item);
   const thumbSrc = (item as any).thumbnailPath ? makeResSrc((item as any).thumbnailPath) : undefined;
@@ -125,6 +123,8 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
       data-explorer-item
       data-id={item.id}
       onClick={handleClick}
+      draggable={!!draggable}
+      onDragStart={(e) => onDragStart?.(e, item)}
       className={`group relative aspect-video w-full overflow-hidden rounded-md border bg-card text-card-foreground shadow-sm transition-all cursor-pointer select-none ${selected ? 'ring-2 ring-primary border-primary/50' : 'hover:shadow-md hover:border-primary/30'} bg-gradient-to-br from-background to-muted`}
     >
       {/* 顶部状态栏 */}

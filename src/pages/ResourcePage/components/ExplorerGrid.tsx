@@ -16,7 +16,7 @@ export interface ExplorerGridProps {
 type Point = { x: number; y: number };
 type Rect = { left: number; top: number; right: number; bottom: number };
 
-function rectsIntersect(a: Rect, b: Rect) {
+function rectsIntersect(a: Rect, b: Rect): boolean {
   return !(a.left > b.right || a.right < b.left || a.top > b.bottom || a.bottom < b.top);
 }
 
@@ -180,12 +180,20 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({ items, onDelete, onD
   useEffect(() => {
     // If items change (e.g., deleted), drop selections that no longer exist
     const idSet = new Set(items.map((i) => i.id));
-    setSelected((prev) => new Set(Array.from(prev).filter((id) => idSet.has(id))));
+    // Defer setState to avoid synchronous state update warning in effects
+    const t = setTimeout(() => {
+      setSelected((prev) => {
+        const next = new Set(Array.from(prev).filter((id) => idSet.has(id)));
+        if (next.size === prev.size) return prev;
+        return next;
+      });
+    }, 0);
+    return () => clearTimeout(t);
   }, [items]);
 
   const selectedCount = selected.size;
   const firstSelected = selectedCount > 0 ? Array.from(selected)[0] : undefined;
-  const [renaming, setRenaming] = useReactState(false);
+  const [, setRenaming] = useReactState(false);
   const [renameValue, setRenameValue] = useReactState('');
 
   return (
@@ -212,6 +220,18 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({ items, onDelete, onD
                 onClick={(e) => handleItemClick(e, item.id, idx)}
                 onToggleFavorite={onToggleFavorite}
                 onToggleVisibility={onToggleVisibility}
+                draggable
+                onDragStart={(e: React.DragEvent) => {
+                  // 如果当前 item 已在多选中，则拖拽这些被选中的；否则仅拖该项
+                  const ids = selected.has(item.id) && selected.size > 0 ? Array.from(selected) : [item.id];
+                  try {
+                    e.dataTransfer.setData('application/x-resource-ids', JSON.stringify(ids));
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.dropEffect = 'move';
+                  } catch {
+                    /* ignore */
+                  }
+                }}
               />
             );
           })}
