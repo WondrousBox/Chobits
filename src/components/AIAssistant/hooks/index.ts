@@ -4,9 +4,11 @@
  * - 返回：{ padding, setPadding, screenSize, messageState, setMessageState }
  * - 场景：AIAssistant 组件挂载时调用一次。
  */
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { DEFAULT_ASSISTANT_PADDING, ASSISTANT_WIDTH, ASSISTANT_HEIGHT } from '../constants';
 import type { MessageCategory } from '../types';
+
+import { dispatchSpriteEvent, SpriteEventName } from '../events/spriteEvents';
 
 export function useAssistant(): {
   padding: number;
@@ -14,6 +16,7 @@ export function useAssistant(): {
   screenSize: { width: number; height: number };
   messageState: MessageCategory;
   setMessageState: (s: MessageCategory) => void;
+  setAssistantState: (e: SpriteEventName, s?: MessageCategory) => void;
 } {
   const [padding, setPadding] = useState(DEFAULT_ASSISTANT_PADDING);
   const [screenSize, setScreenSize] = useState<{ width: number; height: number }>({ width: 1920, height: 1080 });
@@ -68,6 +71,15 @@ export function useAssistant(): {
     getScreenInfo();
   }, []);
 
+  const setAssistantState = useCallback((eventType: SpriteEventName, messageState?: MessageCategory) => {
+    if (messageState) {
+      setMessageState(messageState);
+    }
+    if (eventType) {
+      dispatchSpriteEvent(eventType);
+    }
+  }, []);
+
   // Prevent browser default
   useEffect(() => {
     const prevent = (e: DragEvent): void => {
@@ -81,7 +93,7 @@ export function useAssistant(): {
     };
   }, []);
 
-  return { padding, setPadding, screenSize, messageState, setMessageState };
+  return { padding, setPadding, screenSize, messageState, setMessageState, setAssistantState };
 }
 
 export default useAssistant;
