@@ -9,7 +9,7 @@ import { MessageBubble } from './messages/MessageBubble';
 import Messages from './messages/zh-CN';
 import Dropzone from '../common/Dropzone';
 import { ASSISTANT_HEIGHT, ASSISTANT_WIDTH, SHOW_PADDING_DEBUG } from './constants';
-import useAssistantInit from './hooks/useAssistantInit';
+import useAssistant from './hooks';
 import useClickThrough from './hooks/useClickThrough';
 import useDragMove from './hooks/useDragMove';
 import useWalkAnimation from './hooks/useWalkAnimation';
@@ -20,7 +20,7 @@ import useSpriteEventController from './hooks/useSpriteEventController';
 import { dispatchSpriteEvent } from './events/spriteEvents';
 
 export const AIAssistant: React.FC = () => {
-  const { padding: paddingState, screenSize, messageState, setMessageState } = useAssistantInit();
+  const { padding: paddingState, screenSize, messageState, setMessageState } = useAssistant();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const { setClickThrough } = useClickThrough(containerRef);

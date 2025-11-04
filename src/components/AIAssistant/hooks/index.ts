@@ -1,14 +1,14 @@
 /**
- * useAssistantInit
+ * useAssistant
  * - 负责：问候/工作区检查、获取屏幕与 movement 配置（含 padding）、初始窗口定位、阻止默认拖拽行为。
  * - 返回：{ padding, setPadding, screenSize, messageState, setMessageState }
  * - 场景：AIAssistant 组件挂载时调用一次。
  */
 import { useEffect, useState } from 'react';
 import { DEFAULT_ASSISTANT_PADDING, ASSISTANT_WIDTH, ASSISTANT_HEIGHT } from '../constants';
-import type { MessageCategory } from '../../AIAssistant/types';
+import type { MessageCategory } from '../types';
 
-export function useAssistantInit(): {
+export function useAssistant(): {
   padding: number;
   setPadding: (p: number) => void;
   screenSize: { width: number; height: number };
@@ -84,4 +84,4 @@ export function useAssistantInit(): {
   return { padding, setPadding, screenSize, messageState, setMessageState };
 }
 
-export default useAssistantInit;
+export default useAssistant;
