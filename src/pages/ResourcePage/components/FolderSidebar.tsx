@@ -165,7 +165,6 @@ const FolderSidebar: React.FC<{
             }
           }}
         >
-          <TbFolderOpen className="w-4 h-4" />
           全部
           <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{allCount ?? 0}</span>
         </div>
