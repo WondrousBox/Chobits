@@ -17,10 +17,9 @@ import useFileDrop from './hooks/useFileDrop';
 import StatusIndicator from './ui/StatusIndicator';
 import PaddingDebugOverlay from './ui/PaddingDebugOverlay';
 import useSpriteEventController from './hooks/useSpriteEventController';
-import { dispatchSpriteEvent } from './events/spriteEvents';
 
 export const AIAssistant: React.FC = () => {
-  const { padding: paddingState, screenSize, messageState, setMessageState } = useAssistant();
+  const { padding: paddingState, screenSize, messageState, setAssistantState } = useAssistant();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const { setClickThrough } = useClickThrough(containerRef);
@@ -34,8 +33,7 @@ export const AIAssistant: React.FC = () => {
     screenSize,
     padding: paddingState,
     onHoldStart: () => {
-      setMessageState('hold');
-      dispatchSpriteEvent('hold:start');
+      setAssistantState('hold:start', 'hold');
     },
     onDragStateChange: (dragging) => {
       if (dragging) setClickThrough(false);
@@ -46,8 +44,7 @@ export const AIAssistant: React.FC = () => {
   // 点击交互
   const handleClick = () => {
     stopWalking();
-    setMessageState('click');
-    dispatchSpriteEvent('click');
+    setAssistantState('click', 'click');
   };
 
   // keep dev vector probe to preserve previous behavior
@@ -88,29 +85,29 @@ export const AIAssistant: React.FC = () => {
   // drive sprite states from drag/walk flags
   useEffect(() => {
     if (isDragging) {
-      dispatchSpriteEvent('drag:start');
+      setAssistantState('drag:start');
     } else if (isWalking) {
-      dispatchSpriteEvent('walk:start');
+      setAssistantState('walk:start');
     } else {
-      dispatchSpriteEvent('idle');
+      setAssistantState('idle');
     }
-  }, [isDragging, isWalking]);
+  }, [isDragging, isWalking, setAssistantState]);
 
   // reflect file drag-over on sprite
   useEffect(() => {
     if (isFileDragOver) {
-      dispatchSpriteEvent('drag:start');
+      setAssistantState('drag:start');
     } else if (!isDragging && !isWalking) {
-      dispatchSpriteEvent('idle');
+      setAssistantState('idle');
     }
-  }, [isFileDragOver, isDragging, isWalking]);
+  }, [isFileDragOver, isDragging, isWalking, setAssistantState]);
 
   const onDropFiles = React.useCallback(
     async (files: any) => {
-      dispatchSpriteEvent('drop');
+      setAssistantState('drop');
       await handleDropFiles(files);
     },
-    [handleDropFiles]
+    [handleDropFiles, setAssistantState]
   );
 
   // --- 稳定订阅 window:command，避免依赖变化导致重复绑定 ---
@@ -146,10 +143,10 @@ export const AIAssistant: React.FC = () => {
         const maxY = size.height - ASSISTANT_HEIGHT - padding;
         const targetX = Math.random() * (maxX - minX) + minX;
         const targetY = Math.random() * (maxY - minY) + minY;
-        dispatchSpriteEvent('walk:start');
+        setAssistantState('walk:start');
         await animateMoveWindowRef.current(targetX, targetY);
-        dispatchSpriteEvent('walk:end');
-        dispatchSpriteEvent('idle');
+        setAssistantState('walk:end');
+        setAssistantState('idle');
       }
     };
 
@@ -157,7 +154,7 @@ export const AIAssistant: React.FC = () => {
     return () => {
       window.ipcRenderer?.off('window:command', onMenuCommand);
     };
-  }, []);
+  }, [setAssistantState]);
 
   return (
     <div
