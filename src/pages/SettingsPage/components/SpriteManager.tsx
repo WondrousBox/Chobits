@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { makeResSrc } from '@/lib/resourceProtocol';
-import { TbTrash } from 'react-icons/tb';
+import { TbTools, TbTrash } from 'react-icons/tb';
 import type { SpriteAnimation, SpriteEventType } from '@/components/AIAssistant/types';
 import { ALL_SPRITE_EVENT_TYPES, SpriteEventGroups, AdditionalSpriteEventGroups } from '@/components/AIAssistant/types';
 import {
@@ -16,16 +16,24 @@ import {
   DropdownMenuSeparator
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-function baseName(p: string) {
+function baseName(p: string): string {
   const parts = p.replace(/\\/g, '/').split('/');
   const last = parts[parts.length - 1] || '';
   return last;
 }
 
+function dirName(p: string): string {
+  if (!p) return '';
+  const norm = p.replace(/\\/g, '/');
+  const idx = norm.lastIndexOf('/');
+  return idx >= 0 ? p.slice(0, idx) : p;
+}
+
 // 小型预览组件：只有在 hover 时才真正挂载 <video>，离开时卸载，避免同时占用大量资源
 // 精灵预览：静止首帧，hover 播放循环
-function SpritePreview({ src, type, width, height }: { src: string; type: string; width: number; height: number }) {
+function SpritePreview({ src, type, width, height }: { src: string; type: string; width: number; height: number }): JSX.Element {
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
 
   // 初始：停在首帧
@@ -35,14 +43,18 @@ function SpritePreview({ src, type, width, height }: { src: string; type: string
     v.pause();
     try {
       v.currentTime = 0;
-    } catch { }
+    } catch {
+      /* noop */
+    }
   }, [src]);
 
   const handleEnter = useCallback(() => {
     const v = videoRef.current;
     if (v) {
       v.loop = true;
-      v.play().catch(() => { });
+      v.play().catch(() => {
+        /* noop */
+      });
     }
   }, []);
 
@@ -52,7 +64,9 @@ function SpritePreview({ src, type, width, height }: { src: string; type: string
       v.pause();
       try {
         v.currentTime = 0;
-      } catch { }
+      } catch {
+        /* noop */
+      }
     }
   }, []);
 
@@ -80,7 +94,7 @@ function SpritePreview({ src, type, width, height }: { src: string; type: string
   );
 }
 
-export default function SpriteManager() {
+export default function SpriteManager(): JSX.Element {
   const [list, setList] = useState<SpriteAnimation[]>([]);
   const [loading, setLoading] = useState(false);
   const [addingMap, setAddingMap] = useState<Record<string, boolean>>({}); // 某分类中的添加状态
@@ -89,10 +103,16 @@ export default function SpriteManager() {
   const [query, setQuery] = useState(''); // 搜索框
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({}); // 分类折叠状态
   const [globalCat, setGlobalCat] = useState<string>(''); // 全局导入选择的分类
+  // 转码工具弹窗与状态
+  const [toolOpen, setToolOpen] = useState(false);
+  const [inputPath, setInputPath] = useState<string>('');
+  const [outputPath, setOutputPath] = useState<string>('');
+  const [converting, setConverting] = useState(false);
+  const [convertMsg, setConvertMsg] = useState<string>('');
   // 默认的内置分类：使用全部预设事件类型（不包含 custom）
   const BUILTIN = React.useMemo(() => ALL_SPRITE_EVENT_TYPES.filter((c) => c !== 'custom'), []);
 
-  const refresh = async () => {
+  const refresh = React.useCallback(async (): Promise<void> => {
     setLoading(true);
     try {
       const items = await window.YUA.sprite.list();
@@ -110,13 +130,13 @@ export default function SpriteManager() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [BUILTIN]);
 
   useEffect(() => {
     refresh();
-  }, []);
+  }, [refresh]);
 
-  const onImport = async (eventType?: string) => {
+  const onImport = async (eventType?: string): Promise<void> => {
     // 使用局部 catKey，避免并发导入时 activeAddCat 被后一次覆盖导致前一次 finally 复位错误
     const catKey = eventType ?? activeAddCat ?? '';
     setActiveAddCat(catKey || null);
@@ -142,7 +162,7 @@ export default function SpriteManager() {
     }
   };
 
-  const onRemove = async (id: string) => {
+  const onRemove = async (id: string): Promise<void> => {
     try {
       await window.YUA.sprite.remove(id, true);
       await refresh();
@@ -170,7 +190,7 @@ export default function SpriteManager() {
   if (grouped['uncategorized']?.length && !allCategories.includes('uncategorized')) allCategories.push('uncategorized');
   const hasAny = allCategories.length > 0;
 
-  const toggleCollapse = (cat: string) => setCollapsed((m) => ({ ...m, [cat]: !m[cat] }));
+  const toggleCollapse = (cat: string): void => setCollapsed((m) => ({ ...m, [cat]: !m[cat] }));
 
   return (
     <div className="h-full">
@@ -225,8 +245,100 @@ export default function SpriteManager() {
           <Button size="sm" variant="outline" onClick={refresh} disabled={loading}>
             刷新
           </Button>
+          <Button size="sm" variant="outline" onClick={() => setToolOpen(true)}>
+            <TbTools />
+            工具
+          </Button>
         </div>
       </div>
+      {/* 转码工具弹窗 */}
+      <Dialog open={toolOpen} onOpenChange={setToolOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>视频转码为 WebM（含透明通道）</DialogTitle>
+            <DialogDescription>选择输入视频文件（如 mov/mp4 等），然后选择输出路径与文件名（.webm）。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  const pick = await window.YUA.file['file:pickFile']({
+                    filters: [
+                      { name: 'Videos', extensions: ['mov', 'mp4', 'mkv', 'avi', 'webm', 'm4v', 'ogg', 'ogv'] },
+                      { name: 'All Files', extensions: ['*'] }
+                    ],
+                    multi: false
+                  });
+                  if (!pick.canceled && pick.path) {
+                    setInputPath(pick.path);
+                    // 如果未选择过输出，自动建议同目录同名 .webm
+                    try {
+                      const suggested = pick.path.replace(/\.[^.\\/]+$/i, '') + '.webm';
+                      if (!outputPath) setOutputPath(suggested);
+                    } catch {
+                      /* noop */
+                    }
+                  }
+                }}
+              >
+                选择输入视频
+              </Button>
+              <Input className="flex-1" placeholder="未选择" value={inputPath} readOnly />
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  const save = await window.YUA.file['file:saveFile']({
+                    filters: [{ name: 'WebM', extensions: ['webm'] }],
+                    defaultPath: outputPath || (inputPath ? inputPath.replace(/\.[^.\\/]+$/i, '') + '.webm' : undefined),
+                    title: '保存为 WebM 文件'
+                  });
+                  if (!save.canceled && save.path) setOutputPath(save.path);
+                }}
+              >
+                选择输出位置
+              </Button>
+              <Input className="flex-1" placeholder="未选择" value={outputPath} readOnly />
+            </div>
+            {convertMsg && <div className="text-xs text-muted-foreground">{convertMsg}</div>}
+          </div>
+          <DialogFooter>
+            <div className="flex items-center gap-2 w-full justify-end">
+              <Button variant="ghost" onClick={() => setToolOpen(false)} disabled={converting}>
+                关闭
+              </Button>
+              <Button
+                onClick={async () => {
+                  if (!inputPath || !outputPath) {
+                    setConvertMsg('请先选择输入与输出路径');
+                    return;
+                  }
+                  setConverting(true);
+                  setConvertMsg('开始转码…');
+                  try {
+                    const ret = await window.YUA.ffmpeg.convertMovToWebmWithAlpha({ inputPath, outputPath });
+                    setConvertMsg(ret || '转码完成');
+                    // 打开目标文件所在文件夹
+                    const parent = dirName(outputPath);
+                    if (parent) {
+                      await window.YUA.file['file:openPath'](parent);
+                    }
+                  } catch (e: any) {
+                    setConvertMsg('转码失败：' + (e?.message || String(e)));
+                  } finally {
+                    setConverting(false);
+                  }
+                }}
+                disabled={converting || !inputPath || !outputPath}
+              >
+                {converting ? '转码中…' : '开始转码'}
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* 防止窗口增高时 Grid 行被平均拉伸：content-start(items-start) 让多余空间留在容器底部 */}
       <div className="overflow-y-auto pr-1" style={{ height: 'calc(100% - 32px)' }}>
@@ -256,7 +368,7 @@ export default function SpriteManager() {
                       const PW = 200,
                         PH = 240; // 基础预览尺寸（列最小宽 200 时刚好贴合）
                       return (
-                        <div key={item.meta.id} className="group bg-card border border-border rounded-lg flex flex-col gap-2 w-full max-w-[220px] shadow-sm hover:shadow-md transition-shadow">
+                        <div key={item.meta.id} className="group bg-card border border-border rounded-lg flex flex-col gap-2 w-full max-w-[240px] shadow-sm hover:shadow-md transition-shadow">
                           <div className="relative rounded-md overflow-hidden flex justify-center">
                             {src ? <SpritePreview src={src} type={type} width={PW} height={PH} /> : <div style={{ width: PW, height: PH }} className="rounded-md bg-muted" />}
                             {/* 顶部右上角删除按钮（hover 显示） */}
@@ -334,7 +446,7 @@ export default function SpriteManager() {
                       );
                     })}
                     {/* 分类尾部添加卡片 */}
-                    <div className="border border-dashed border-border/60 rounded-lg flex items-center justify-center p-4 min-h-[120px] w-full max-w-[220px]">
+                    <div className="border border-dashed border-border/60 rounded-lg flex items-center justify-center p-4 min-h-[120px] w-full max-w-[240px]">
                       <Button size="sm" onClick={() => onImport(cat)} disabled={addingMap[cat]} variant="ghost">
                         + 添加{cat === 'uncategorized' ? '' : `（${cat}）`}
                       </Button>

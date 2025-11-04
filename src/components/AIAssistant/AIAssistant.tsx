@@ -160,7 +160,7 @@ export const AIAssistant: React.FC = () => {
     <div
       ref={containerRef}
       className={`
-        fixed w-[180px] h-[220px] select-none z-[9999] 
+        fixed w-[180px] h-[240px] select-none z-[9999] 
         transition-transform duration-300 ease-in-out
         top-[100px] left-[100px] pointer-events-auto
         ${isDragReady ? 'cursor-grabbing opacity-70' : 'cursor-grab'}

@@ -170,7 +170,7 @@ export function initSpriteHandlers(): void {
       meta: { id, title, description: anim.meta?.description, tags: anim.meta?.tags, coverSrc: anim.meta?.coverSrc, eventType: anim.meta?.eventType },
       source: { localPath: finalPath!, type: type || 'video/webm' },
       width: anim.width ?? 180,
-      height: anim.height ?? 220,
+      height: anim.height ?? 240,
       autoplay: anim.autoplay ?? true,
       muted: anim.muted ?? true,
       playsInline: anim.playsInline ?? true,
