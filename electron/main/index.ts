@@ -76,15 +76,13 @@ async function createWindow(): Promise<void> {
 
   // 设置 Mac 平台 Docker 上的图标
   if (process.platform === 'darwin') {
-    app.dock.setIcon(path.join(process.env.VITE_PUBLIC, DOCKER_ICON));
+    app.dock?.setIcon(path.join(process.env.VITE_PUBLIC, DOCKER_ICON));
     // win.setVibrancy('under-window')
   }
 
   if (VITE_DEV_SERVER_URL) {
     // #298
     win.loadURL(VITE_DEV_SERVER_URL);
-    // Open devTool if the app is not packaged
-    win.webContents.openDevTools({ mode: 'undocked' });
   } else {
     win.loadFile(indexHtml);
   }
@@ -92,7 +90,7 @@ async function createWindow(): Promise<void> {
   win.once('ready-to-show', () => {
     if (!win || win.isDestroyed()) return;
     win.show();
-    if (VITE_DEV_SERVER_URL) win.webContents.openDevTools();
+    if (VITE_DEV_SERVER_URL) win.webContents.openDevTools({ mode: 'detach' });
   });
 
   // Test actively push message to the Electron-Renderer

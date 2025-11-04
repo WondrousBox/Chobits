@@ -12,8 +12,8 @@ import FolderSidebar, { type UIFolder } from './components/FolderSidebar';
 
 const ResourcePage: React.FC = () => {
   const [list, setList] = useState<ResourceItem[]>([]);
-  const [workspaces, setWorkspaces] = useState<any[]>([]);
-  const [wsFilter, setWsFilter] = useState<string>(''); // empty means all
+  // 当前页面不再提供空间切换，始终使用“当前选中的默认空间”进行筛选
+  const [wsFilter, setWsFilter] = useState<string | undefined>(undefined);
   const [tags, setTags] = useState<Array<{ tag: string; count: number }>>([]);
   const [tagFilter, setTagFilter] = useState<string>(''); // '' means all
   const [typeFilter, setTypeFilter] = useState<string>(''); // empty means all types
@@ -45,7 +45,8 @@ const ResourcePage: React.FC = () => {
   ];
 
   const visibleTypes = useMemo(() => {
-    const rows = list.filter((r: any) => !wsFilter || r.workspaceId === wsFilter);
+    if (!wsFilter) return new Set<string>();
+    const rows = list.filter((r: any) => r.workspaceId === wsFilter);
     const set = new Set<string>();
     for (const r of rows) {
       if (r?.type) set.add(r.type);
@@ -54,7 +55,8 @@ const ResourcePage: React.FC = () => {
   }, [list, wsFilter]);
 
   const hasFavorites = useMemo(() => {
-    const rows = list.filter((r: any) => !wsFilter || r.workspaceId === wsFilter);
+    if (!wsFilter) return false;
+    const rows = list.filter((r: any) => r.workspaceId === wsFilter);
     return rows.some((r: any) => r.favorite === 1);
   }, [list, wsFilter]);
 
@@ -98,22 +100,24 @@ const ResourcePage: React.FC = () => {
     [folderAPI, wsFilter]
   );
 
+  // 在拿到默认空间后再加载数据，避免展示其它空间的数据
   useEffect(() => {
+    if (!wsFilter) return;
     load();
     loadFolders();
     loadTags();
-  }, [load, loadFolders, loadTags]);
+  }, [wsFilter, load, loadFolders, loadTags]);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       const ws = await window.YUA.workspace['workspace:list']({ filter: { deletedAt: 0 }, limit: 100, offset: 0 });
       if (mounted) {
-        setWorkspaces(ws || []);
         try {
           const defaultId = Array.isArray(ws) ? ws.find((w: any) => w.isDefault === 1)?.id : undefined;
           if (!wsFilter && defaultId) setWsFilter(defaultId);
           if (defaultId) {
+            // 预加载当前默认空间的文件夹与标签
             loadFolders(defaultId);
             loadTags(defaultId);
           }
@@ -128,7 +132,8 @@ const ResourcePage: React.FC = () => {
   }, [loadFolders, loadTags, wsFilter]);
 
   const filtered = useMemo(() => {
-    let filtered = list.filter((r: any) => !wsFilter || r.workspaceId === wsFilter);
+    if (!wsFilter) return [] as any[];
+    let filtered = list.filter((r: any) => r.workspaceId === wsFilter);
     // 标签过滤（当后端按标签查询时，这里也保持二次防御）
     if (tagFilter) {
       filtered = filtered.filter((r: any) => (r.tags || '').includes(tagFilter));
@@ -306,20 +311,7 @@ const ResourcePage: React.FC = () => {
                 <Input placeholder="搜索资源..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-8 h-8 w-40" />
               </div>
 
-              {/* 工作空间选择器 */}
-              <Select value={wsFilter} onValueChange={setWsFilter}>
-                <SelectTrigger className="w-40 h-8">
-                  <SelectValue placeholder="工作空间" />
-                </SelectTrigger>
-                <SelectContent>
-                  {workspaces.map((w) => (
-                    <SelectItem key={w.id} value={w.id}>
-                      {w.name}
-                      {w.isDefault === 1 ? '（默认）' : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* 工作空间选择器已移除：页面仅使用当前默认空间进行筛选 */}
 
               {/* 标签筛选器 */}
               <Select
