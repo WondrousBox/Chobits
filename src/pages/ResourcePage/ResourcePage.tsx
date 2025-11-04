@@ -6,6 +6,7 @@ import ResourceListItem from './components/ResourceListItem';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { toast } from 'sonner';
 import { TbHome, TbPhoto, TbVideo, TbMusic, TbFileText, TbLink, TbFile, TbFileDescription, TbDots, TbList, TbSearch, TbGrid3X3, TbPlus, TbRefresh, TbHeart } from 'react-icons/tb';
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import FolderSidebar, { type UIFolder } from './components/FolderSidebar';
@@ -476,14 +477,33 @@ const ResourcePage: React.FC = () => {
           }}
           onDelete={async (id) => {
             try {
-              if (!confirm('删除该文件夹？（不影响已存在的资源文件）')) return;
               const r = await folderAPI['folder.softDelete']({ ids: [id] });
               if ((r as any)?.success) {
                 if (folderFilter === id) setFolderFilter('');
                 await loadFolders(wsFilter || undefined);
+                toast.success('文件夹已删除', {
+                  description: '已移动到回收站',
+                  action: {
+                    label: '撤回',
+                    onClick: async () => {
+                      try {
+                        const rr = await folderAPI['folder.restore']({ ids: [id] });
+                        if ((rr as any)?.success) {
+                          toast.success('已撤回删除');
+                          await loadFolders(wsFilter || undefined);
+                        } else {
+                          toast.error('撤回失败');
+                        }
+                      } catch (err) {
+                        toast.error('撤回失败', { description: String((err as any)?.message || err) });
+                      }
+                    }
+                  }
+                });
               }
             } catch (e) {
               console.warn('delete folder failed', e);
+              toast.error('删除文件夹失败', { description: String((e as any)?.message || e) });
             }
           }}
         />

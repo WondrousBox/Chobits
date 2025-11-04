@@ -269,6 +269,7 @@ export const RecycleBinRepo = {
     const docIds = items.filter((i) => i.entityType === 'document').map((i) => i.entityId);
     const resIds = items.filter((i) => i.entityType === 'resource').map((i) => i.entityId);
     const convIds = items.filter((i) => i.entityType === 'conversation').map((i) => i.entityId);
+    const folderIds = items.filter((i) => i.entityType === 'folder').map((i) => i.entityId);
     let restored = 0;
     if (docIds.length) restored += (await DocumentsRepo.restore(docIds)).length;
     if (resIds.length) restored += (await ResourcesRepo.restore(resIds)).length;
@@ -278,6 +279,7 @@ export const RecycleBinRepo = {
         if (row) restored += 1;
       }
     }
+    if (folderIds.length) restored += (await FoldersRepo.restore(folderIds)).length;
     return restored;
   },
   /** 根据回收站ID彻底删除实体（文档/资源），并同步清理回收站索引 */
@@ -289,10 +291,12 @@ export const RecycleBinRepo = {
     const docIds = items.filter((i) => i.entityType === 'document').map((i) => i.entityId);
     const resIds = items.filter((i) => i.entityType === 'resource').map((i) => i.entityId);
     const conversationIds = items.filter((i) => i.entityType === 'conversation').map((i) => i.entityId);
+    const folderIds = items.filter((i) => i.entityType === 'folder').map((i) => i.entityId);
     let deleted = 0;
     if (docIds.length) deleted += await DocumentsRepo.deleteByIds(docIds);
     if (resIds.length) deleted += await ResourcesRepo.deleteByIds(resIds);
     if (conversationIds.length) deleted += await ChatRepo.deleteConversations(conversationIds);
+    if (folderIds.length) deleted += await FoldersRepo.deleteByIds(folderIds);
     return deleted;
   },
   /** 清空回收站（按可选筛选），并对实体执行彻底删除 */
