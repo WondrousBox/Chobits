@@ -92,7 +92,7 @@ export default function PromptSetting(): JSX.Element {
       <div className="border-r h-full flex flex-col">
         <div className="p-2 flex items-center gap-2 border-b">
           <Input className="h-8" placeholder="搜索…" value={tmplSearch} onChange={(e) => setTmplSearch(e.target.value)} />
-          <Button size="icon" className="w-8 h-8" title="新建" onClick={openCreate}>
+          <Button size="icon" className="w-8 h-8 shrink-0" title="新建" onClick={openCreate}>
             <TbPlus />
           </Button>
         </div>
