@@ -242,6 +242,31 @@ AFTER DELETE ON conversations
 BEGIN
   DELETE FROM recycle_bin WHERE entity_type='conversation' AND entity_id=OLD.id;
 END;`);
+
+    // Folders: soft delete -> upsert recycle_bin
+    db.exec(`CREATE TRIGGER IF NOT EXISTS trg_folders_soft_delete
+AFTER UPDATE OF deleted_at ON folders
+WHEN NEW.deleted_at IS NOT NULL AND (OLD.deleted_at IS NULL OR OLD.deleted_at != NEW.deleted_at)
+BEGIN
+  INSERT INTO recycle_bin (id, entity_type, entity_id, title, summary, reason, deleted_at, deleted_by, payload, expire_at)
+  VALUES ('folder:' || NEW.id, 'folder', NEW.id, NEW.name, COALESCE(NEW.description, NULL), 'soft-delete', NEW.deleted_at, 'trigger', NULL, NULL)
+  ON CONFLICT(id) DO UPDATE SET deleted_at=excluded.deleted_at, title=excluded.title, summary=excluded.summary;
+END;`);
+
+    // Folders: restore -> remove recycle_bin
+    db.exec(`CREATE TRIGGER IF NOT EXISTS trg_folders_restore
+AFTER UPDATE OF deleted_at ON folders
+WHEN NEW.deleted_at IS NULL AND OLD.deleted_at IS NOT NULL
+BEGIN
+  DELETE FROM recycle_bin WHERE entity_type='folder' AND entity_id=NEW.id;
+END;`);
+
+    // Folders: hard delete -> cleanup recycle_bin
+    db.exec(`CREATE TRIGGER IF NOT EXISTS trg_folders_delete
+AFTER DELETE ON folders
+BEGIN
+  DELETE FROM recycle_bin WHERE entity_type='folder' AND entity_id=OLD.id;
+END;`);
   } catch (e) {
     console.warn('[db] setupTriggers failed', e);
   }

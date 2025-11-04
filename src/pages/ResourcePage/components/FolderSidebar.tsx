@@ -1,6 +1,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { TbFolder, TbFolderOpen, TbPencil, TbTrash, TbPlus } from 'react-icons/tb';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { TbFolder, TbFolderOpen, TbPencil, TbTrash, TbPlus, TbDots } from 'react-icons/tb';
 
 export type UIFolder = {
   id: string;
@@ -36,7 +37,7 @@ const Row: React.FC<{
   return (
     <div>
       <div
-        className={`flex items-center justify-between px-2 py-1 rounded cursor-pointer ${isActive ? 'bg-primary/10 text-primary' : 'hover:bg-muted'}`}
+        className={`group flex items-center justify-between px-2 py-1 rounded cursor-pointer ${isActive ? 'bg-primary/10 text-primary' : 'hover:bg-muted'}`}
         style={{ paddingLeft: 8 + depth * 12 }}
         onClick={() => onSelect(node.id)}
       >
@@ -44,29 +45,53 @@ const Row: React.FC<{
           {isActive ? <TbFolderOpen className="w-4 h-4" /> : <TbFolder className="w-4 h-4" />}
           <span className="truncate">{node.name}</span>
         </div>
-        <div className="flex items-center gap-1 opacity-80">
-          <Button
-            size="icon"
-            variant="ghost"
-            className="w-8 h-8"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRename(node.id);
-            }}
-          >
-            <TbPencil />
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="w-8 h-8"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(node.id);
-            }}
-          >
-            <TbTrash />
-          </Button>
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="icon" variant="ghost" className="w-8 h-8" onClick={(e) => e.stopPropagation()}>
+                <TbDots />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" sideOffset={4} onClick={(e) => e.stopPropagation()}>
+              <DropdownMenuItem
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  try {
+                    const ws = await (window as any).YUA?.workspace['workspace:getDefault']();
+                    const isWin = (window as any).YUA?.isWindows;
+                    const sep = isWin ? '\\' : '/';
+                    const base: string = ws?.rootPath || '';
+                    if (!base) return;
+                    const needsSep = base.endsWith(sep) ? '' : sep;
+                    const folderPath = `${base}${needsSep}resources${sep}folders${sep}${node.id}`;
+                    await (window as any).YUA?.file['file:openPath'](folderPath);
+                  } catch (err) {
+                    console.warn('open folder path failed', err);
+                  }
+                }}
+              >
+                <TbFolderOpen /> 打开文件夹
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRename(node.id);
+                }}
+              >
+                <TbPencil /> 重命名
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(node.id);
+                }}
+              >
+                <TbTrash /> 删除
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
       {(node.children || []).map((child) => (
