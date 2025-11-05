@@ -1,4 +1,5 @@
 <div align="center">
+	<img src="public/icon.png" alt="Chobits Logo" width="120" height="120" />
 	<h1>Chobits</h1>
 	<p>Electron 开发的 AI 桌面精灵 / 助手 / 工具</p>
 	<p>
