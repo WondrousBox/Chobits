@@ -23,6 +23,7 @@ import { eq, inArray, and, like, gte, lte, isNull, isNotNull, desc, max } from '
 import { rebuildVectors, deleteVectors } from '.';
 import { resources, resource_tags, type ResourceRow, type NewResource } from './schema';
 import { sql } from 'drizzle-orm';
+import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import * as fscb from 'node:fs';
 
@@ -292,11 +293,122 @@ export const RecycleBinRepo = {
     const resIds = items.filter((i) => i.entityType === 'resource').map((i) => i.entityId);
     const conversationIds = items.filter((i) => i.entityType === 'conversation').map((i) => i.entityId);
     const folderIds = items.filter((i) => i.entityType === 'folder').map((i) => i.entityId);
+
+    // If folders are being purged, we must:
+    // 1) Collect all descendant folders
+    // 2) Collect all resources under these folders
+    // 3) Delete resources (DB + disk)
+    // 4) Delete folder rows
+    // 5) Delete physical directories under <workspace.root>/resources/folders/<folderId>
+    const allFolderIds = new Set<string>(folderIds);
+    if (folderIds.length) {
+      // 1) BFS descendants
+      let frontier = [...folderIds];
+      while (frontier.length) {
+        const rows = (await db
+          .select({ id: folders.id })
+          .from(folders)
+          .where(inArray(folders.parentId as any, frontier))) as Array<{ id: string }>;
+        const next: string[] = [];
+        for (const r of rows) {
+          if (!allFolderIds.has(r.id)) {
+            allFolderIds.add(r.id);
+            next.push(r.id);
+          }
+        }
+        frontier = next;
+      }
+
+      // 2) Collect resources under these folders
+      if (allFolderIds.size) {
+        const folderIdList = Array.from(allFolderIds);
+        const resRows = (await db
+          .select({ id: resources.id })
+          .from(resources)
+          .where(inArray(resources.folderId as any, folderIdList))) as Array<{ id: string }>;
+        for (const r of resRows) resIds.push(r.id);
+      }
+    }
     let deleted = 0;
     if (docIds.length) deleted += await DocumentsRepo.deleteByIds(docIds);
     if (resIds.length) deleted += await ResourcesRepo.deleteByIds(resIds);
     if (conversationIds.length) deleted += await ChatRepo.deleteConversations(conversationIds);
-    if (folderIds.length) deleted += await FoldersRepo.deleteByIds(folderIds);
+    if (allFolderIds.size) {
+      const toDeleteIds = Array.from(allFolderIds);
+      // 4) Delete folder rows (DB)
+      if (toDeleteIds.length) deleted += await FoldersRepo.deleteByIds(toDeleteIds);
+      // Also cleanup recycle_bin indices for these folders
+      await db.delete(recycle_bin).where(inArray(recycle_bin.entityId, toDeleteIds)).run();
+
+      // 5) Delete physical directories per workspace
+      try {
+        // Query mapping: folderId -> workspaceId
+        const folderRows = (await db.select({ id: folders.id, workspaceId: folders.workspaceId }).from(folders).where(inArray(folders.id, toDeleteIds))) as Array<{
+          id: string;
+          workspaceId: string | null;
+        }>;
+        // Collect unique workspaceIds from recycle items as fallback (if folder rows already deleted above, folderRows may be empty)
+        const wsIds = new Set<string>();
+        for (const fr of folderRows) if (fr.workspaceId) wsIds.add(fr.workspaceId);
+        // If folderRows is empty (because of deletion order), try recovering wsIds from recycle_bin payload snapshot
+        if (wsIds.size === 0) {
+          for (const it of items) {
+            if (it.entityType === 'folder' && it.payload) {
+              try {
+                const snap = JSON.parse(it.payload || '{}');
+                if (snap?.workspaceId) wsIds.add(snap.workspaceId);
+              } catch {
+                /* ignore */
+              }
+            }
+          }
+        }
+        // Load workspace roots
+        const wsMap = new Map<string, string>();
+        if (wsIds.size) {
+          const wsList = (await db
+            .select({ id: workspaces.id, rootPath: workspaces.rootPath })
+            .from(workspaces)
+            .where(inArray(workspaces.id, Array.from(wsIds)))) as Array<{ id: string; rootPath: string | null }>;
+          for (const w of wsList) if (w.rootPath) wsMap.set(w.id, w.rootPath);
+        }
+        // Build deletion list by ws root; directories are flat: resources/folders/<folderId>
+        const tryRm = async (abs?: string): Promise<void> => {
+          if (!abs) return;
+          try {
+            if (fscb.existsSync(abs)) await fs.rm(abs, { recursive: true, force: true });
+          } catch {
+            /* ignore */
+          }
+        };
+        // If we couldn't map specific workspaces, try default workspace root
+        if (!wsMap.size) {
+          // Fallback: attempt removing under any known roots (best-effort)
+          // Load default workspace
+          try {
+            const ws = await WorkspacesRepo.getDefault();
+            const root = ws?.rootPath;
+            if (root) {
+              await Promise.all(toDeleteIds.map((id) => tryRm(path.join(root, 'resources', 'folders', id))));
+            }
+          } catch {
+            /* ignore */
+          }
+        } else {
+          // Remove per workspace root
+          const tasks: Array<Promise<void>> = [];
+          for (const id of toDeleteIds) {
+            // No strict mapping folder->ws root here; remove under all known roots to be safe
+            for (const [, root] of wsMap) {
+              tasks.push(tryRm(path.join(root, 'resources', 'folders', id)));
+            }
+          }
+          if (tasks.length) await Promise.all(tasks);
+        }
+      } catch {
+        /* ignore physical folder deletion errors */
+      }
+    }
     return deleted;
   },
   /** 清空回收站（按可选筛选），并对实体执行彻底删除 */
