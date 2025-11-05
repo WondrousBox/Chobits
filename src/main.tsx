@@ -6,9 +6,6 @@ import { SpritePlayerProvider } from '@/components/AIAssistant/context/SpritePla
 import './index.scss';
 import 'highlight.js/styles/github-dark.css';
 
-import './demos/ipc';
-// If you want use Node.js, the`nodeIntegration` needs to be enabled in the Main process.
-// import './demos/node'
 import { toast } from 'sonner';
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
@@ -35,3 +32,7 @@ try {
 } catch {
   // ignore
 }
+
+window.ipcRenderer.on('main-process-message', (_event, ...args) => {
+  console.log('[Receive Main-process message]:', ...args);
+});

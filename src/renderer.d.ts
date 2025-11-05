@@ -45,6 +45,6 @@ declare global {
       shortcuts: ShortcutsBridgeType;
       ai: AIApi;
     };
-    ipcRenderer: any;
+    ipcRenderer: import('electron').IpcRenderer;
   }
 }
