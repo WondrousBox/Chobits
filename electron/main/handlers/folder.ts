@@ -1,10 +1,10 @@
-import { BrowserWindow, ipcMain } from 'electron';
+import { ipcMain } from 'electron';
 import { WorkspacesRepo, FoldersRepo } from '../db/repositories';
 import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 
 // 基于资源库的上下文，复用默认工作空间根路径，按文件夹 ID 命名本地文件夹
-export function initFolderHandlers(_win: BrowserWindow) {
+export function initFolderHandlers(): void {
   ipcMain.handle('folder.create', async (_event, payload: { name: string; parentId?: string | null; workspaceId?: string; description?: string }) => {
     const { name, parentId = null } = payload || ({} as any);
     if (!name) return { success: false, error: 'invalid-name' };
@@ -13,9 +13,38 @@ export function initFolderHandlers(_win: BrowserWindow) {
       const ws = workspaceId ? await WorkspacesRepo.getById(workspaceId) : await WorkspacesRepo.getDefault();
       if (!ws) return { success: false, error: 'no-workspace' };
       workspaceId = ws.id;
-      const row = await FoldersRepo.upsert({ name, parentId, workspaceId } as any);
-      if (!row) return { success: false };
-      // 磁盘：以 ID 命名文件夹
+
+      // 1) 预取同一父级下已存在的名称（包含软删项，因唯一索引未排除 deletedAt）
+      const siblings = await FoldersRepo.list({ workspaceId, parentId } as any, 2000, 0);
+      const existed = new Set<string>(siblings.map((s: any) => String(s.name || '')));
+
+      // 2) 生成不重复的候选名：base, base 2, base 3, ...
+      const baseName = String(name).trim() || '新建文件夹';
+      let candidate = baseName;
+      let suffix = 2;
+      while (existed.has(candidate) && suffix < 200) {
+        candidate = `${baseName} ${suffix}`;
+        suffix += 1;
+      }
+
+      // 3) 写入（并在极端并发下若仍冲突则继续尝试后缀）
+      let row: any | undefined;
+      for (let retry = 0; retry < 5; retry++) {
+        try {
+          row = await FoldersRepo.upsert({ name: candidate, parentId, workspaceId } as any);
+          break;
+        } catch (e: any) {
+          const msg = String(e?.message || e || '');
+          if (/UNIQUE\s+constraint\s+failed/i.test(msg)) {
+            candidate = `${baseName} ${suffix++}`;
+            continue;
+          }
+          throw e;
+        }
+      }
+      if (!row) return { success: false, error: 'create-failed' };
+
+      // 4) 磁盘创建目录：以 ID 命名
       const baseDir = ws.rootPath ? path.join(ws.rootPath, 'resources', 'folders') : path.join(process.cwd(), 'uploads', 'folders');
       await fs.mkdir(baseDir, { recursive: true });
       const dirPath = path.join(baseDir, row.id);
@@ -29,8 +58,49 @@ export function initFolderHandlers(_win: BrowserWindow) {
   ipcMain.handle('folder.rename', async (_event, payload: { id: string; name: string }) => {
     const { id, name } = payload || ({} as any);
     if (!id || !name) return { success: false, error: 'invalid-params' };
-    const row = await FoldersRepo.rename(id, name);
-    return { success: true, data: row };
+    try {
+      const cur = await FoldersRepo.getById(id);
+      if (!cur) return { success: false, error: 'not-found' };
+
+      const baseName = String(name).trim();
+      if (!baseName) return { success: false, error: 'invalid-name' };
+
+      // 若与当前名称相同，直接返回（避免无谓冲突检测）
+      if (cur.name === baseName) {
+        return { success: true, data: cur };
+      }
+
+      // 同级已有名称集合（排除自身）
+      const siblings = await FoldersRepo.list({ workspaceId: cur.workspaceId, parentId: cur.parentId } as any, 2000, 0);
+      const existed = new Set<string>(siblings.filter((s: any) => s.id !== id).map((s: any) => String(s.name || '')));
+
+      let candidate = baseName;
+      let suffix = 2;
+      while (existed.has(candidate) && suffix < 200) {
+        candidate = `${baseName} ${suffix}`;
+        suffix += 1;
+      }
+
+      // 并发兜底：若仍遇唯一约束，继续加后缀重试
+      let row: any | undefined;
+      for (let retry = 0; retry < 5; retry++) {
+        try {
+          row = await FoldersRepo.rename(id, candidate);
+          break;
+        } catch (e: any) {
+          const msg = String(e?.message || e || '');
+          if (/UNIQUE\s+constraint\s+failed/i.test(msg)) {
+            candidate = `${baseName} ${suffix++}`;
+            continue;
+          }
+          throw e;
+        }
+      }
+      if (!row) return { success: false, error: 'rename-failed' };
+      return { success: true, data: row };
+    } catch (e: any) {
+      return { success: false, error: e?.message || 'unknown' };
+    }
   });
 
   ipcMain.handle('folder.move', async (_event, payload: { id: string; parentId: string | null }) => {
@@ -74,7 +144,7 @@ export function initFolderHandlers(_win: BrowserWindow) {
   });
 
   ipcMain.handle('folder.delete', async (_event, payload: { ids: string[]; deleteChildren?: boolean }) => {
-    const { ids = [], deleteChildren = false } = payload || ({} as any);
+    const ids = (payload?.ids ?? []) as string[];
     if (!ids.length) return { success: true, deleted: 0 };
     // 如果删除子孙：找出所有子树 ID（简化：由调用方保证拓扑顺序，或后续递归）
     const deleted = await FoldersRepo.deleteByIds(ids);
