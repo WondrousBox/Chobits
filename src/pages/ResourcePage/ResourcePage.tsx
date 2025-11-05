@@ -361,7 +361,7 @@ const ResourcePage: React.FC = () => {
       />
 
       {/* 类型过滤器 */}
-      <div className="flex items-center justify-between gap-2 p-2 border-b bg-muted/30">
+      <div className="flex items-center justify-between gap-2 p-2 border-ring" style={{ borderBottomStyle: 'solid' }}>
         <div className="flex items-center gap-1">
           {typeOptions
             .filter(({ key }) => key === '' || visibleTypes.has(key))
@@ -463,7 +463,7 @@ const ResourcePage: React.FC = () => {
       </div>
 
       {/* 主内容区域 */}
-      <div className="flex-1 overflow-hidden flex">
+      <div className="flex-1 overflow-hidden flex w-60 border border-ring" style={{ borderRightStyle: 'solid' }}>
         {/* 左侧文件夹 */}
         <FolderSidebar
           folders={folders}

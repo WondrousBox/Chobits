@@ -2,6 +2,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { TbFolder, TbFolderOpen, TbPencil, TbTrash, TbPlus, TbDots } from 'react-icons/tb';
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia } from '@/components/ui/empty';
 
 export type UIFolder = {
   id: string;
@@ -64,8 +65,8 @@ const Row: React.FC<{
         }}
       >
         <div className="flex items-center gap-2 overflow-hidden">
-          {isActive ? <TbFolderOpen className="w-4 h-4" /> : <TbFolder className="w-4 h-4" />}
-          <span className="truncate">{node.name}</span>
+          {isActive ? <TbFolderOpen /> : <TbFolder />}
+          <span className="truncate text-sm">{node.name}</span>
         </div>
         <div className="flex items-center gap-2">
           {count > 0 && <span className={`text-[10px] px-1.5 py-0.5 rounded bg-muted ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>{count}</span>}
@@ -139,36 +140,40 @@ const FolderSidebar: React.FC<{
 }> = ({ folders, selectedId, onSelect, onCreate, onRename, onDelete, onDropResources, counts, allCount }) => {
   const tree = React.useMemo(() => buildTree(folders), [folders]);
   return (
-    <div className="h-full w-60 border-r flex flex-col bg-background">
-      <div className="p-2 flex items-center justify-between border-b">
-        <div className="font-medium">文件夹</div>
-        <Button size="icon" className="w-8 h-8" onClick={onCreate}>
-          <TbPlus />
-        </Button>
-      </div>
-      <div className="p-2">
-        <div
-          className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer ${!selectedId ? 'bg-primary/10 text-primary' : 'hover:bg-muted'}`}
-          onClick={() => onSelect('')}
-          onDragOver={(e) => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-          }}
-          onDrop={(e) => {
-            try {
-              const raw = e.dataTransfer.getData('application/x-resource-ids');
-              if (!raw) return;
-              const ids: string[] = JSON.parse(raw);
-              if (Array.isArray(ids) && ids.length && onDropResources) onDropResources(null, ids);
-            } catch {
-              /* ignore */
-            }
-          }}
-        >
-          全部
-          <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{allCount ?? 0}</span>
+    <div className="h-full w-full flex flex-col bg-muted">
+      {tree.length > 0 && (
+        <div className="p-2 flex items-center justify-between border-b">
+          <div className="font-medium">文件夹</div>
+          <Button size="icon" className="w-8 h-8" onClick={onCreate}>
+            <TbPlus />
+          </Button>
         </div>
-      </div>
+      )}
+      {tree.length > 0 && (
+        <div className="p-2">
+          <div
+            className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer ${!selectedId ? 'bg-primary/10 text-primary' : 'hover:bg-muted'}`}
+            onClick={() => onSelect('')}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+            }}
+            onDrop={(e) => {
+              try {
+                const raw = e.dataTransfer.getData('application/x-resource-ids');
+                if (!raw) return;
+                const ids: string[] = JSON.parse(raw);
+                if (Array.isArray(ids) && ids.length && onDropResources) onDropResources(null, ids);
+              } catch {
+                /* ignore */
+              }
+            }}
+          >
+            全部
+            <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{allCount ?? 0}</span>
+          </div>
+        </div>
+      )}
       <div className="flex-1 overflow-auto p-1">
         {tree.map((node) => (
           <Row
@@ -183,7 +188,24 @@ const FolderSidebar: React.FC<{
             counts={counts}
           />
         ))}
-        {tree.length === 0 && <div className="text-xs text-muted-foreground px-2">暂无文件夹，点击右上角 + 新建</div>}
+        {tree.length === 0 && (
+          <div className="h-full flex items-center justify-center text-xs text-muted-foreground border border-r border-ring">
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <TbFolder />
+                </EmptyMedia>
+                <EmptyDescription>暂无文件夹</EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent>
+                <Button variant={'outline'} size={'sm'} onClick={onCreate}>
+                  <TbPlus />
+                  创建
+                </Button>
+              </EmptyContent>
+            </Empty>
+          </div>
+        )}
       </div>
     </div>
   );
