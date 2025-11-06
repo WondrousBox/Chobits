@@ -293,7 +293,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
       <ContextMenuTrigger asChild>
         <div
           ref={containerRef}
-          className="relative grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-5 p-2 outline-none h-full"
+          className="relative grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-5 p-2 outline-none"
           tabIndex={0}
           onPointerDown={handleBackgroundPointerDown}
           onPointerMove={handlePointerMove}

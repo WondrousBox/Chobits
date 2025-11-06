@@ -215,6 +215,37 @@ const FolderSidebar: React.FC<{
     initializedRef.current = true;
   }, [tree]);
 
+  // 构建父子映射，便于根据选中项展开祖先链路
+  const parentMap = React.useMemo(() => {
+    const map = new Map<string, string | null>();
+    for (const f of folders) {
+      map.set(f.id, f.parentId ?? null);
+    }
+    return map;
+  }, [folders]);
+
+  // 当外部选择变化时，自动展开到该文件夹所在层级
+  React.useEffect(() => {
+    if (!selectedId) return; // 全部
+    // 计算从选中节点到根的路径
+    const path: string[] = [];
+    let cur: string | null | undefined = selectedId;
+    const guard = new Set<string>(); // 防止意外环
+    while (cur) {
+      if (guard.has(cur)) break;
+      guard.add(cur);
+      path.push(cur);
+      cur = parentMap.get(cur) ?? null;
+    }
+    if (path.length === 0) return;
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      // 展开所有祖先（除了叶子本身也无妨）
+      for (const id of path) next.add(id);
+      return next;
+    });
+  }, [selectedId, parentMap]);
+
   const toggleExpand = React.useCallback((id: string) => {
     setExpandedIds((prev) => {
       const next = new Set(prev);
