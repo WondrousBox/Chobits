@@ -7,7 +7,28 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { TbHome, TbPhoto, TbVideo, TbMusic, TbFileText, TbLink, TbFile, TbFileDescription, TbDots, TbList, TbSearch, TbGrid3X3, TbPlus, TbRefresh, TbHeart, TbX } from 'react-icons/tb';
+import {
+  TbHome,
+  TbPhoto,
+  TbVideo,
+  TbMusic,
+  TbFileText,
+  TbLink,
+  TbFile,
+  TbFileDescription,
+  TbDots,
+  TbList,
+  TbSearch,
+  TbGrid3X3,
+  TbRefresh,
+  TbHeart,
+  TbX,
+  TbFolder,
+  TbPencil,
+  TbFolderOpen,
+  TbTrash
+} from 'react-icons/tb';
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import FolderSidebar, { type UIFolder } from './components/FolderSidebar';
 import { SidebarProvider } from '@/components/ui/sidebar';
@@ -203,6 +224,13 @@ const ResourcePage: React.FC = () => {
     return counts;
   }, [list, wsFilter]);
 
+  // 当前文件夹下的直接子文件夹
+  const childFolders = useMemo(() => {
+    if (!wsFilter) return [] as UIFolder[];
+    const parent = (folderFilter || null) as string | null;
+    return folders.filter((f) => f.workspaceId === wsFilter && (f.parentId || null) === parent);
+  }, [folders, wsFilter, folderFilter]);
+
   const allCount = useMemo(() => {
     if (!wsFilter) return 0;
     return (list as any[]).filter((r: any) => r.workspaceId === wsFilter).length;
@@ -295,23 +323,169 @@ const ResourcePage: React.FC = () => {
     }
   };
 
+  // 打开文件夹所在位置
+  const handleOpenFolderLocation = useCallback(async (id: string) => {
+    try {
+      const ws = await (window as any).YUA?.workspace['workspace:getDefault']();
+      const isWin = (window as any).YUA?.isWindows;
+      const sep = isWin ? '\\' : '/';
+      const base: string = ws?.rootPath || '';
+      if (!base) return;
+      const needsSep = base.endsWith(sep) ? '' : sep;
+      const folderPath = `${base}${needsSep}resources${sep}folders${sep}${id}`;
+      await (window as any).YUA?.file['file:openPath'](folderPath);
+    } catch (err) {
+      console.warn('open folder path failed', err);
+    }
+  }, []);
+
+  // 弹出重命名窗口
+  const handleRenameFolder = useCallback(
+    (id: string) => {
+      const f = folders.find((f) => f.id === id);
+      setRenameId(id);
+      setRenameName(f?.name || '');
+      setRenameOpen(true);
+    },
+    [folders]
+  );
+
+  // 删除文件夹（含撤回能力）
+  const handleDeleteFolder = useCallback(
+    async (id: string) => {
+      try {
+        const r = await folderAPI['folder.softDelete']({ ids: [id] });
+        if ((r as any)?.success) {
+          if (folderFilter === id) setFolderFilter('');
+          await loadFolders(wsFilter || undefined);
+          toast.success('文件夹已删除', {
+            description: '已移动到回收站',
+            action: {
+              label: '撤回',
+              onClick: async () => {
+                try {
+                  const rr = await folderAPI['folder.restore']({ ids: [id] });
+                  if ((rr as any)?.success) {
+                    toast.success('已撤回删除');
+                    await loadFolders(wsFilter || undefined);
+                  } else {
+                    toast.error('撤回失败');
+                  }
+                } catch (err) {
+                  toast.error('撤回失败', { description: String((err as any)?.message || err) });
+                }
+              }
+            }
+          });
+        }
+      } catch (e) {
+        console.warn('delete folder failed', e);
+        toast.error('删除文件夹失败', { description: String((e as any)?.message || e) });
+      }
+    },
+    [folderAPI, folderFilter, loadFolders, wsFilter]
+  );
+
+  // 通用：将资源移动到指定文件夹，并在成功后切换到该文件夹视图
+  const handleMoveResourcesToFolder = useCallback(
+    async (folderId: string | null, ids: string[]) => {
+      try {
+        if (!ids?.length) return;
+        // 阻止跨工作空间：若目标文件夹存在，则检查其 workspaceId 与当前 ws 一致
+        if (folderId) {
+          try {
+            const folder = await folderAPI['folder.get']({ id: folderId });
+            if (folder && folder.workspaceId && wsFilter && folder.workspaceId !== wsFilter) {
+              toast.error('无法跨工作空间移动到该文件夹');
+              return;
+            }
+          } catch {
+            /* ignore get error */
+          }
+        }
+
+        // 记录撤回需要的“原始 folderId”映射
+        const prevMap = new Map<string, string | null>();
+        for (const id of ids) {
+          const item: any = list.find((i) => i.id === id);
+          prevMap.set(id, item?.folderId ?? null);
+        }
+
+        // 使用主进程批量 API
+        const res = await window.YUA.resource['resource:moveToFolder']({ ids, folderId: folderId || null, workspaceId: wsFilter });
+        if (!res?.success) {
+          const invalidCount = Array.isArray((res as any)?.invalid) ? (res as any).invalid.length : 0;
+          if (invalidCount > 0) {
+            toast.error(`有 ${invalidCount} 个资源不属于当前空间，已阻止移动`);
+          } else {
+            toast.error('移动失败');
+          }
+          return;
+        }
+        // 刷新列表与文件夹（计数徽标）
+        await Promise.all([load(), loadFolders(wsFilter)]);
+
+        // 成功移动后，自动切换到目标文件夹的资源预览
+        setFolderFilter(folderId || '');
+
+        // 成功提示 + 撤回
+        const folderName = folderId ? folders.find((f) => f.id === folderId)?.name || '目标文件夹' : '（移出文件夹）';
+        const movedCount = (res as any)?.moved ?? ids.length;
+        toast.success(`已移动到 ${folderId ? folderName : '全部'}`, {
+          description: `共 ${movedCount} 个资源`,
+          action: {
+            label: '撤回',
+            onClick: async () => {
+              try {
+                // 将资源按“原始 folderId”分组后分别调用批量接口
+                const groups = new Map<string, string[]>();
+                for (const [rid, prevFid] of prevMap.entries()) {
+                  const key = prevFid || '__null__';
+                  const arr = groups.get(key) || [];
+                  arr.push(rid);
+                  groups.set(key, arr);
+                }
+                for (const [key, groupIds] of groups.entries()) {
+                  const backId = key === '__null__' ? null : key;
+                  await window.YUA.resource['resource:moveToFolder']({ ids: groupIds, folderId: backId, workspaceId: wsFilter });
+                }
+                await Promise.all([load(), loadFolders(wsFilter)]);
+                toast.success('已撤回移动');
+              } catch (err) {
+                toast.error('撤回失败', { description: String((err as any)?.message || err) });
+              }
+            }
+          }
+        });
+      } catch (e) {
+        console.warn('move resources to folder failed', e);
+      }
+    },
+    [folderAPI, wsFilter, list, load, loadFolders, folders]
+  );
+
   return (
     <div className="h-full bg-background">
       <DragAbleTitle
         title={
-          <div className="flex items-center gap-4">
-            <h1 className="text-lg font-semibold">资源库</h1>
-            <span className="text-sm text-muted-foreground">
-              共 {filtered.length}/{list.length} 个资源
-            </span>
-          </div>
+          <span className="flex items-center gap-4">
+            <span>📚 资源库</span>
+          </span>
         }
         actions={
           <>
             <div className="flex items-center gap-2">
-              <Button size="icon" className="w-8 h-8 shrink-0" onClick={() => window.YUA.window['window:open']('assistant')}>
-                <TbPlus />
-              </Button>
+              {/* 搜索框 */}
+              <div className="relative">
+                <TbSearch className="absolute left-2 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                <Input placeholder="搜索资源..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-8 h-8 w-40" />
+              </div>
+
+              {/* 工作空间选择器已移除：页面仅使用当前默认空间进行筛选 */}
+
+              <span className="text-sm text-muted-foreground whitespace-nowrap">
+                共 {filtered.length}/{list.length} 个资源
+              </span>
               <Button
                 size="icon"
                 className="w-8 h-8 shrink-0"
@@ -323,14 +497,6 @@ const ResourcePage: React.FC = () => {
               >
                 <TbRefresh />
               </Button>
-
-              {/* 搜索框 */}
-              <div className="relative">
-                <TbSearch className="absolute left-2 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                <Input placeholder="搜索资源..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-8 h-8 w-40" />
-              </div>
-
-              {/* 工作空间选择器已移除：页面仅使用当前默认空间进行筛选 */}
 
               {/* 标签筛选器 */}
               <Select
@@ -362,8 +528,8 @@ const ResourcePage: React.FC = () => {
       />
 
       {/* 类型过滤器 */}
-      <div className="flex items-center justify-between gap-2 p-2 border-ring" style={{ borderBottomStyle: 'solid' }}>
-        <div className="flex items-center gap-1">
+      <div className="flex items-center justify-between gap-2 p-2 border-ring drag-region" style={{ borderBottomStyle: 'solid' }}>
+        <div className="flex items-center gap-1 no-drag">
           {typeOptions
             .filter(({ key }) => key === '' || visibleTypes.has(key))
             .map(({ key, label, icon: Icon }) => (
@@ -414,7 +580,7 @@ const ResourcePage: React.FC = () => {
 
         {/* 选中项操作栏 */}
         {selectedItems.size > 0 && (
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between no-drag">
             <span className="text-sm text-primary">已选择 {selectedItems.size} 个项目</span>
             <div className="flex items-center gap-2">
               <Button variant="destructive" size="sm" onClick={() => handleDeleteMany(Array.from(selectedItems))}>
@@ -427,7 +593,7 @@ const ResourcePage: React.FC = () => {
           </div>
         )}
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 no-drag">
           {/* 收藏筛选按钮 - 只在存在收藏内容时显示 */}
           {hasFavorites && (
             <Button
@@ -474,81 +640,14 @@ const ResourcePage: React.FC = () => {
           counts={folderCounts}
           allCount={allCount}
           onDropResources={async (folderId, ids) => {
-            try {
-              if (!ids?.length) return;
-              // 阻止跨工作空间：若目标文件夹存在，则检查其 workspaceId 与当前 ws 一致
-              if (folderId) {
-                try {
-                  const folder = await folderAPI['folder.get']({ id: folderId });
-                  if (folder && folder.workspaceId && wsFilter && folder.workspaceId !== wsFilter) {
-                    toast.error('无法跨工作空间移动到该文件夹');
-                    return;
-                  }
-                } catch {
-                  /* ignore get error */
-                }
-              }
-
-              // 记录撤回需要的“原始 folderId”映射
-              const prevMap = new Map<string, string | null>();
-              for (const id of ids) {
-                const item: any = list.find((i) => i.id === id);
-                prevMap.set(id, item?.folderId ?? null);
-              }
-
-              // 使用主进程批量 API
-              const res = await window.YUA.resource['resource:moveToFolder']({ ids, folderId: folderId || null, workspaceId: wsFilter });
-              if (!res?.success) {
-                const invalidCount = Array.isArray((res as any)?.invalid) ? (res as any).invalid.length : 0;
-                if (invalidCount > 0) {
-                  toast.error(`有 ${invalidCount} 个资源不属于当前空间，已阻止移动`);
-                } else {
-                  toast.error('移动失败');
-                }
-                return;
-              }
-              // 刷新列表与文件夹（计数徽标）
-              await Promise.all([load(), loadFolders(wsFilter)]);
-
-              // 成功提示 + 撤回
-              const folderName = folderId ? folders.find((f) => f.id === folderId)?.name || '目标文件夹' : '（移出文件夹）';
-              const movedCount = (res as any)?.moved ?? ids.length;
-              toast.success(`已移动到 ${folderId ? folderName : '全部'}`, {
-                description: `共 ${movedCount} 个资源`,
-                action: {
-                  label: '撤回',
-                  onClick: async () => {
-                    try {
-                      // 将资源按“原始 folderId”分组后分别调用批量接口
-                      const groups = new Map<string, string[]>();
-                      for (const [rid, prevFid] of prevMap.entries()) {
-                        const key = prevFid || '__null__';
-                        const arr = groups.get(key) || [];
-                        arr.push(rid);
-                        groups.set(key, arr);
-                      }
-                      for (const [key, groupIds] of groups.entries()) {
-                        const backId = key === '__null__' ? null : key;
-                        await window.YUA.resource['resource:moveToFolder']({ ids: groupIds, folderId: backId, workspaceId: wsFilter });
-                      }
-                      await Promise.all([load(), loadFolders(wsFilter)]);
-                      toast.success('已撤回移动');
-                    } catch (err) {
-                      toast.error('撤回失败', { description: String((err as any)?.message || err) });
-                    }
-                  }
-                }
-              });
-            } catch (e) {
-              console.warn('move resources to folder failed', e);
-            }
+            await handleMoveResourcesToFolder(folderId, ids);
           }}
-          onCreate={async () => {
+          onCreate={async (parentId) => {
             try {
               const d = new Date();
               const name = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
               const wsId = wsFilter || undefined;
-              const res = await folderAPI['folder.create']({ name, parentId: folderFilter || null, workspaceId: wsId });
+              const res = await folderAPI['folder.create']({ name, parentId: parentId ?? (folderFilter || null), workspaceId: wsId });
               if ((res as any)?.success) {
                 await loadFolders(wsId);
               }
@@ -601,9 +700,76 @@ const ResourcePage: React.FC = () => {
         {/* 资源展示区域 */}
         <div className="w-full">
           {viewMode === 'grid' ? (
-            <ExplorerGrid items={filtered} onDelete={handleDelete} onDeleteMany={handleDeleteMany} onToggleFavorite={handleToggleFavorite} onToggleVisibility={handleToggleVisibility} />
+            <ExplorerGrid
+              items={filtered}
+              folders={childFolders}
+              counts={folderCounts}
+              onOpenFolder={(id) => setFolderFilter(id)}
+              onDropResourcesToFolder={(fid, ids) => handleMoveResourcesToFolder(fid, ids)}
+              onRenameFolder={handleRenameFolder}
+              onDeleteFolder={handleDeleteFolder}
+              onOpenFolderLocation={handleOpenFolderLocation}
+              onDelete={handleDelete}
+              onDeleteMany={handleDeleteMany}
+              onToggleFavorite={handleToggleFavorite}
+              onToggleVisibility={handleToggleVisibility}
+            />
           ) : (
             <div className="space-y-2">
+              {/* 先渲染子文件夹列表条目 */}
+              {childFolders.map((f) => (
+                <ContextMenu key={`folder-row-${f.id}`}>
+                  <ContextMenuTrigger asChild>
+                    <div
+                      className="group relative flex items-center gap-4 p-2 rounded-lg border transition-all cursor-pointer select-none hover:bg-muted/50 hover:border-primary/30"
+                      onClick={() => setFolderFilter(f.id)}
+                      onContextMenu={(e) => e.stopPropagation()}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                      }}
+                      onDrop={(e) => {
+                        try {
+                          const raw = e.dataTransfer.getData('application/x-resource-ids');
+                          if (!raw) return;
+                          const ids: string[] = JSON.parse(raw);
+                          if (Array.isArray(ids) && ids.length) handleMoveResourcesToFolder(f.id, ids);
+                        } catch {
+                          /* ignore */
+                        }
+                      }}
+                    >
+                      <div className="relative flex-shrink-0 w-16 h-16 rounded-md overflow-hidden bg-muted flex items-center justify-center text-3xl text-muted-foreground">
+                        <TbFolder />
+                        <span className="absolute top-1 right-1 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full shadow">{folderCounts[f.id] ?? 0}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="mb-1">
+                          <h3 className="font-medium text-sm truncate mb-1 flex items-center gap-2">
+                            <span className="truncate">{f.name}</span>
+                            <span className="inline-flex items-center justify-center bg-primary/10 text-primary text-[10px] px-1.5 py-0.5 rounded-full">{folderCounts[f.id] ?? 0}</span>
+                          </h3>
+                        </div>
+                      </div>
+                    </div>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent className="min-w-[200px]" onClick={(e) => e.stopPropagation()}>
+                    <ContextMenuItem onSelect={() => setFolderFilter(f.id)}>打开</ContextMenuItem>
+                    <ContextMenuItem onSelect={() => handleOpenFolderLocation(f.id)}>
+                      <TbFolderOpen /> {(window as any).YUA?.isWindows ? '在资源管理器中显示' : '在 Finder 中显示'}
+                    </ContextMenuItem>
+                    <ContextMenuItem onSelect={() => handleRenameFolder(f.id)}>
+                      <TbPencil /> 重命名
+                    </ContextMenuItem>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem className="text-destructive" onSelect={() => handleDeleteFolder(f.id)}>
+                      <TbTrash /> 删除
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                </ContextMenu>
+              ))}
+
+              {/* 再渲染资源列表条目 */}
               {filtered.map((item) => (
                 <ResourceListItem
                   key={item.id}
@@ -625,7 +791,7 @@ const ResourcePage: React.FC = () => {
                   }}
                 />
               ))}
-              {filtered.length === 0 && (
+              {childFolders.length === 0 && filtered.length === 0 && (
                 <div className="text-center py-12 text-muted-foreground">
                   <div className="text-4xl mb-4">📦</div>
                   <div>没有找到资源</div>

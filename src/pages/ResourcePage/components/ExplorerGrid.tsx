@@ -1,16 +1,88 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { useState as useReactState } from 'react';
-import { TbTrash } from 'react-icons/tb';
+import { TbTrash, TbFolder, TbPencil, TbFolderOpen } from 'react-icons/tb';
 import { ResourceItem } from '@/types';
 import ResourceGalleryItem from './ResourceGalleryItem';
+import type { UIFolder } from './FolderSidebar';
+// Inline folder tile for grid view to avoid cross-file resolution issues
+const GridFolderTile: React.FC<{
+  folder: UIFolder;
+  count?: number;
+  onOpen?: () => void;
+  onDropResources?: (ids: string[]) => void;
+  onRename?: () => void;
+  onDelete?: () => void;
+  onOpenLocation?: () => void;
+}> = ({ folder, count, onOpen, onDropResources, onRename, onDelete, onOpenLocation }) => {
+  const [over, setOver] = React.useState(false);
+  const isWin = (window as any).YUA?.isWindows;
+  const revealLabel = isWin ? '在资源管理器中显示' : '在 Finder 中显示';
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div
+          data-explorer-folder
+          onContextMenu={(e) => e.stopPropagation()}
+          className={`group relative aspect-video w-full overflow-hidden rounded-md border bg-card text-card-foreground shadow-sm transition-all cursor-pointer select-none ${over ? 'ring-2 ring-primary border-primary/50 bg-primary/5' : 'hover:shadow-md hover:border-primary/30'
+            } bg-gradient-to-br from-background to-muted flex items-center justify-center`}
+          onClick={() => onOpen?.()}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            setOver(true);
+          }}
+          onDragLeave={() => setOver(false)}
+          onDrop={(e) => {
+            setOver(false);
+            try {
+              const raw = e.dataTransfer.getData('application/x-resource-ids');
+              if (!raw) return;
+              const ids: string[] = JSON.parse(raw);
+              if (Array.isArray(ids) && ids.length) onDropResources?.(ids);
+            } catch {
+              /* ignore */
+            }
+          }}
+        >
+          <div className="text-center relative">
+            <div className="text-5xl text-muted-foreground/80 mb-2">
+              <TbFolder />
+            </div>
+            <div className="text-sm font-medium truncate max-w-[90%] mx-auto">{folder.name}</div>
+            {typeof count === 'number' && <span className="absolute top-1 right-1 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full shadow">{count}</span>}
+          </div>
+        </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="min-w-[200px]" onClick={(e) => e.stopPropagation()}>
+        <ContextMenuItem className="flex items-center gap-2" onSelect={() => onOpenLocation?.()}>
+          <TbFolderOpen /> {revealLabel}
+        </ContextMenuItem>
+        <ContextMenuItem className="flex items-center gap-2" onSelect={() => onRename?.()}>
+          <TbPencil /> 重命名
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem className="flex items-center gap-2 text-destructive" onSelect={() => onDelete?.()}>
+          <TbTrash /> 删除
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+};
 
 export interface ExplorerGridProps {
   items: ResourceItem[];
+  folders?: UIFolder[];
+  counts?: Record<string, number>;
   onDelete?: (id: string) => void;
   onDeleteMany?: (ids: string[]) => void;
   onToggleFavorite?: (id: string) => void;
   onToggleVisibility?: (id: string) => void;
+  onOpenFolder?: (id: string) => void;
+  onDropResourcesToFolder?: (folderId: string, ids: string[]) => void;
+  onRenameFolder?: (id: string) => void;
+  onDeleteFolder?: (id: string) => void;
+  onOpenFolderLocation?: (id: string) => void;
 }
 
 type Point = { x: number; y: number };
@@ -20,7 +92,20 @@ function rectsIntersect(a: Rect, b: Rect): boolean {
   return !(a.left > b.right || a.right < b.left || a.top > b.bottom || a.bottom < b.top);
 }
 
-export const ExplorerGrid: React.FC<ExplorerGridProps> = ({ items, onDelete, onDeleteMany, onToggleFavorite, onToggleVisibility }) => {
+export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
+  items,
+  folders,
+  counts,
+  onDelete,
+  onDeleteMany,
+  onToggleFavorite,
+  onToggleVisibility,
+  onOpenFolder,
+  onDropResourcesToFolder,
+  onRenameFolder,
+  onDeleteFolder,
+  onOpenFolderLocation
+}) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -89,7 +174,8 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({ items, onDelete, onD
     (e: React.PointerEvent) => {
       if (e.button !== 0) return;
       const target = e.target as HTMLElement;
-      const isOnItem = target.closest('[data-explorer-item]');
+      // Treat both resource items and folder tiles as interactive items to avoid starting rubberband selection on them
+      const isOnItem = target.closest('[data-explorer-item], [data-explorer-folder]');
       if (isOnItem) return;
       const container = containerRef.current;
       if (!container) return;
@@ -209,6 +295,21 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({ items, onDelete, onD
           onKeyDown={handleKeyDown}
           onContextMenu={handleContextMenu}
         >
+          {/* 先渲染子文件夹 */}
+          {(folders || []).map((f) => (
+            <GridFolderTile
+              key={`folder-${f.id}`}
+              folder={f}
+              count={counts?.[f.id]}
+              onOpen={() => onOpenFolder?.(f.id)}
+              onDropResources={(ids: string[]) => onDropResourcesToFolder?.(f.id, ids)}
+              onRename={() => onRenameFolder?.(f.id)}
+              onDelete={() => onDeleteFolder?.(f.id)}
+              onOpenLocation={() => onOpenFolderLocation?.(f.id)}
+            />
+          ))}
+
+          {/* 再渲染资源项 */}
           {items.map((item, idx) => {
             const isSelected = selected.has(item.id);
             return (
