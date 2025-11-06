@@ -161,7 +161,12 @@ const ResourcePage: React.FC = () => {
     if (tagFilter) {
       filtered = filtered.filter((r: any) => (r.tags || '').includes(tagFilter));
     }
-    if (folderFilter) filtered = filtered.filter((r: any) => (r as any).folderId === folderFilter);
+    // 文件夹过滤：当选择具体文件夹时，仅展示该文件夹内资源；当选择“全部”时，仅展示未归属任何文件夹的顶层资源
+    if (folderFilter) {
+      filtered = filtered.filter((r: any) => (r as any).folderId === folderFilter);
+    } else {
+      filtered = filtered.filter((r: any) => !(r as any).folderId);
+    }
 
     // 类型过滤
     if (typeFilter) {
@@ -233,7 +238,8 @@ const ResourcePage: React.FC = () => {
 
   const allCount = useMemo(() => {
     if (!wsFilter) return 0;
-    return (list as any[]).filter((r: any) => r.workspaceId === wsFilter).length;
+    // “全部”计数应显示顶层（未归属任何文件夹）的资源数量，避免造成展示范围的错觉
+    return (list as any[]).filter((r: any) => r.workspaceId === wsFilter && !(r as any).folderId).length;
   }, [list, wsFilter]);
 
   const handleDelete = async (id: string): Promise<void> => {
@@ -424,9 +430,7 @@ const ResourcePage: React.FC = () => {
         }
         // 刷新列表与文件夹（计数徽标）
         await Promise.all([load(), loadFolders(wsFilter)]);
-
-        // 成功移动后，自动切换到目标文件夹的资源预览
-        setFolderFilter(folderId || '');
+        // 不再自动切换到目标文件夹：保持当前视图，避免跳变带来的困惑
 
         // 成功提示 + 撤回
         const folderName = folderId ? folders.find((f) => f.id === folderId)?.name || '目标文件夹' : '（移出文件夹）';
@@ -631,7 +635,7 @@ const ResourcePage: React.FC = () => {
 
       {/* 主内容区域 */}
 
-      <SidebarProvider>
+      <SidebarProvider style={{ height: 'calc(100% - 88px)', minHeight: 'unset' }}>
         {/* 左侧文件夹 */}
         <FolderSidebar
           folders={folders}
@@ -698,7 +702,7 @@ const ResourcePage: React.FC = () => {
           }}
         />
         {/* 资源展示区域 */}
-        <div className="w-full">
+        <div className="w-full h-full overflow-y-auto">
           {viewMode === 'grid' ? (
             <ExplorerGrid
               items={filtered}
