@@ -23,7 +23,6 @@ import {
   TbRefresh,
   TbHeart,
   TbX,
-  TbFolder,
   TbPencil,
   TbFolderOpen,
   TbTrash,
