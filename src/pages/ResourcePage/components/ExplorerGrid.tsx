@@ -54,8 +54,14 @@ const GridFolderTile: React.FC<{
           </div>
         </div>
       </ContextMenuTrigger>
-      <ContextMenuContent className="min-w-[200px]" onClick={(e) => e.stopPropagation()}>
-        <ContextMenuItem className="flex items-center gap-2" onSelect={() => onOpenLocation?.()}>
+      <ContextMenuContent className="min-w-[200px]" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+        <ContextMenuItem onSelect={onOpen}>打开</ContextMenuItem>
+        <ContextMenuItem
+          className="flex items-center gap-2"
+          onSelect={() => {
+            onOpenLocation?.();
+          }}
+        >
           <TbFolderOpen /> {revealLabel}
         </ContextMenuItem>
         <ContextMenuItem className="flex items-center gap-2" onSelect={() => onRename?.()}>
@@ -287,7 +293,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
       <ContextMenuTrigger asChild>
         <div
           ref={containerRef}
-          className="relative grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-5 p-2 outline-none"
+          className="relative grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-5 p-2 outline-none h-full"
           tabIndex={0}
           onPointerDown={handleBackgroundPointerDown}
           onPointerMove={handlePointerMove}

@@ -26,7 +26,8 @@ import {
   TbFolder,
   TbPencil,
   TbFolderOpen,
-  TbTrash
+  TbTrash,
+  TbFolderFilled
 } from 'react-icons/tb';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
 import DragAbleTitle from '@/components/common/DragAbleTitle';
@@ -740,8 +741,7 @@ const ResourcePage: React.FC = () => {
                       }}
                     >
                       <div className="relative flex-shrink-0 w-16 h-16 rounded-md overflow-hidden bg-muted flex items-center justify-center text-3xl text-muted-foreground">
-                        <TbFolder />
-                        <span className="absolute top-1 right-1 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full shadow">{folderCounts[f.id] ?? 0}</span>
+                        <TbFolderFilled />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="mb-1">
@@ -755,14 +755,14 @@ const ResourcePage: React.FC = () => {
                   </ContextMenuTrigger>
                   <ContextMenuContent className="min-w-[200px]" onClick={(e) => e.stopPropagation()}>
                     <ContextMenuItem onSelect={() => setFolderFilter(f.id)}>打开</ContextMenuItem>
-                    <ContextMenuItem onSelect={() => handleOpenFolderLocation(f.id)}>
+                    <ContextMenuItem className="flex items-center gap-2" onSelect={() => handleOpenFolderLocation(f.id)}>
                       <TbFolderOpen /> {(window as any).YUA?.isWindows ? '在资源管理器中显示' : '在 Finder 中显示'}
                     </ContextMenuItem>
-                    <ContextMenuItem onSelect={() => handleRenameFolder(f.id)}>
+                    <ContextMenuItem className="flex items-center gap-2" onSelect={() => handleRenameFolder(f.id)}>
                       <TbPencil /> 重命名
                     </ContextMenuItem>
                     <ContextMenuSeparator />
-                    <ContextMenuItem className="text-destructive" onSelect={() => handleDeleteFolder(f.id)}>
+                    <ContextMenuItem className="flex items-center gap-2 text-destructive" onSelect={() => handleDeleteFolder(f.id)}>
                       <TbTrash /> 删除
                     </ContextMenuItem>
                   </ContextMenuContent>
