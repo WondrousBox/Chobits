@@ -16,6 +16,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem
 } from '@/components/ui/sidebar';
+import { Input } from '@/components/ui/input';
 
 export type UIFolder = {
   id: string;
@@ -47,18 +48,62 @@ const TreeRow: React.FC<{
   onSelect: (id: string) => void;
   onRename: (id: string) => void;
   onDelete: (id: string) => void;
-  onCreate: (parentId?: string | null) => void;
+  onCreate: (parentId?: string | null) => Promise<string | void>;
   onDropResources?: (folderId: string, ids: string[]) => void;
   counts?: Record<string, number>;
   expanded: boolean;
   isExpanded: (id: string) => boolean;
   onToggleExpand: (id: string) => void;
-}> = ({ node, depth, selectedId, onSelect, onRename, onDelete, onCreate, onDropResources, counts, expanded, isExpanded, onToggleExpand }) => {
+  inlineEditId?: string | null;
+  setInlineEditId?: (id: string | null) => void;
+  onInlineRename?: (id: string, name: string) => Promise<void>;
+}> = ({ node, depth, selectedId, onSelect, onRename, onDelete, onCreate, onDropResources, counts, expanded, isExpanded, onToggleExpand, inlineEditId, setInlineEditId, onInlineRename }) => {
   const isActive = selectedId === node.id;
   const [over, setOver] = React.useState(false);
   // const count = counts?.[node.id] ?? 0;
   const hasChildren = (node.children || []).length > 0;
   const folderIconEl = hasChildren && expanded ? <TbFolderOpen /> : <TbFolder />;
+  const isEditing = inlineEditId === node.id;
+  const [nameDraft, setNameDraft] = React.useState(node.name);
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
+  const isMac = (window as any).YUA?.isMac;
+  const shortcutCreate = isMac ? '⌘⇧N' : 'Ctrl+Shift+N';
+  const shortcutRename = 'F2';
+  const shortcutDelete = 'Delete';
+
+  React.useEffect(() => {
+    setNameDraft(node.name);
+  }, [node.name]);
+
+  React.useEffect(() => {
+    if (isEditing && inputRef.current) {
+      // focus and select all
+      inputRef.current.focus();
+      try {
+        inputRef.current.select();
+      } catch {
+        /* ignore select error */
+      }
+    }
+  }, [isEditing]);
+
+  const commitRename = async (): Promise<void> => {
+    if (!isEditing) return;
+    const newName = nameDraft.trim();
+    const oldName = node.name;
+    setInlineEditId?.(null);
+    if (!newName || newName === oldName) return;
+    try {
+      if (onInlineRename) {
+        await onInlineRename(node.id, newName);
+      } else {
+        // fallback: call API directly
+        await (window as any).YUA?.folder['folder.rename']({ id: node.id, name: newName });
+      }
+    } catch (e) {
+      console.warn('inline rename failed', e);
+    }
+  };
 
   const commonDnD = {
     onDragOver: (e: React.DragEvent) => {
@@ -96,7 +141,22 @@ const TreeRow: React.FC<{
         <span className="shrink-0 w-4 h-4" />
       )}
       {folderIconEl}
-      <span className="truncate">{node.name}</span>
+      {isEditing ? (
+        <Input
+          ref={inputRef}
+          value={nameDraft}
+          onChange={(e) => setNameDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commitRename();
+            else if (e.key === 'Escape') setInlineEditId?.(null);
+          }}
+          onBlur={() => commitRename()}
+          autoFocus
+          className="outline-none border-0 pl-0 h-7"
+        />
+      ) : (
+        <span className="truncate">{node.name}</span>
+      )}
     </SidebarMenuButton>
   );
 
@@ -116,10 +176,21 @@ const TreeRow: React.FC<{
               onClick={async (e) => {
                 e.stopPropagation();
                 // 在当前文件夹下新建子文件夹
-                onCreate(node.id);
+                try {
+                  const newId = await onCreate(node.id);
+                  if (newId) {
+                    setInlineEditId?.(newId);
+                    // 展开当前节点以确保可见
+                    if (!expanded) onToggleExpand(node.id);
+                    onSelect(newId);
+                  }
+                } catch {
+                  /* ignore */
+                }
               }}
             >
               <TbFolderPlus /> 新建文件夹
+              <span className="ml-auto text-xs text-muted-foreground">{shortcutCreate}</span>
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={async (e) => {
@@ -143,10 +214,13 @@ const TreeRow: React.FC<{
             <DropdownMenuItem
               onClick={(e) => {
                 e.stopPropagation();
-                onRename(node.id);
+                // 切换为内联重命名：选中并进入编辑态
+                setInlineEditId?.(node.id);
+                onSelect(node.id);
               }}
             >
               <TbPencil /> 重命名
+              <span className="ml-auto text-xs text-muted-foreground">{shortcutRename}</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
@@ -157,6 +231,7 @@ const TreeRow: React.FC<{
               }}
             >
               <TbTrash /> 删除
+              <span className="ml-auto text-xs text-muted-foreground">{shortcutDelete}</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -178,6 +253,9 @@ const TreeRow: React.FC<{
             expanded={isExpanded(child.id)}
             isExpanded={isExpanded}
             onToggleExpand={onToggleExpand}
+            inlineEditId={inlineEditId}
+            setInlineEditId={setInlineEditId}
+            onInlineRename={onInlineRename}
           />
         ))}
     </>
@@ -188,13 +266,14 @@ const FolderSidebar: React.FC<{
   folders: UIFolder[];
   selectedId?: string;
   onSelect: (id: string | '') => void;
-  onCreate: (parentId?: string | null) => void;
+  onCreate: (parentId?: string | null) => Promise<string | void>;
   onRename: (id: string) => void;
   onDelete: (id: string) => void;
   onDropResources?: (folderId: string | null, ids: string[]) => void;
   counts?: Record<string, number>;
   allCount?: number;
-}> = ({ folders, selectedId, onSelect, onCreate, onRename, onDelete, onDropResources, counts, allCount }) => {
+  onInlineRename?: (id: string, name: string) => Promise<void>;
+}> = ({ folders, selectedId, onSelect, onCreate, onRename, onDelete, onDropResources, counts, allCount, onInlineRename }) => {
   const tree = React.useMemo(() => buildTree(folders), [folders]);
 
   // 管理展开/收起的节点集合，默认首次加载时展开所有有子节点的项
@@ -256,13 +335,99 @@ const FolderSidebar: React.FC<{
   }, []);
 
   const isExpanded = React.useCallback((id: string) => expandedIds.has(id), [expandedIds]);
+  const [inlineEditId, setInlineEditId] = React.useState<string | null>(null);
+  // F2 重命名：当按下 F2 时，展开所选文件夹的祖先并进入内联编辑
+  React.useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent): void => {
+      // 忽略在输入框/文本域/可编辑区域内的按键
+      const t = e.target as HTMLElement | null;
+      const tag = (t?.tagName || '').toLowerCase();
+      const isTyping = tag === 'input' || tag === 'textarea' || (t?.isContentEditable ?? false);
+      if (isTyping) return;
+
+      if (e.key === 'F2') {
+        if (inlineEditId) return; // 已在编辑中
+        const id = selectedId || '';
+        if (!id) return; // “全部”状态不重命名
+        e.preventDefault();
+
+        // 展开祖先链，确保可见
+        const path: string[] = [];
+        let cur: string | null | undefined = id;
+        const guard = new Set<string>();
+        while (cur) {
+          if (guard.has(cur)) break;
+          guard.add(cur);
+          path.push(cur);
+          cur = parentMap.get(cur) ?? null;
+        }
+        if (path.length) {
+          setExpandedIds((prev) => {
+            const next = new Set(prev);
+            for (const pid of path) next.add(pid);
+            return next;
+          });
+        }
+        setInlineEditId(id);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', onKeyDown, { capture: true } as any);
+  }, [selectedId, inlineEditId, parentMap]);
+
+  const handleCreate = React.useCallback(
+    async (parentId?: string | null): Promise<void> => {
+      try {
+        const newId = await onCreate(parentId);
+        if (newId) {
+          if (parentId) {
+            setExpandedIds((prev) => new Set(prev).add(parentId));
+          }
+          setInlineEditId(newId);
+          onSelect(newId);
+        }
+      } catch (e) {
+        console.warn('create folder failed', e);
+      }
+    },
+    [onCreate, onSelect]
+  );
+
+  // 快捷键：Ctrl/Cmd+Shift+N 新建（内联重命名），Delete 删除当前选中
+  React.useEffect(() => {
+    const onKeyDown = async (e: KeyboardEvent): Promise<void> => {
+      const t = e.target as HTMLElement | null;
+      const tag = (t?.tagName || '').toLowerCase();
+      const isTyping = tag === 'input' || tag === 'textarea' || (t?.isContentEditable ?? false);
+      if (isTyping) return;
+
+      const isCreateShortcut = (e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'N' || e.key === 'n');
+      if (isCreateShortcut) {
+        e.preventDefault();
+        // 在当前选中作为父级下新建；若未选中则顶层
+        const parentId = selectedId || null;
+        await handleCreate(parentId);
+        return;
+      }
+
+      if (e.key === 'Delete') {
+        if (inlineEditId) return; // 编辑中不触发删除
+        const id = selectedId || '';
+        if (!id) return; // “全部”不删除
+        e.preventDefault();
+        onDelete(id);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', onKeyDown, { capture: true } as any);
+  }, [handleCreate, onDelete, selectedId, inlineEditId]);
   return (
     <Sidebar collapsible="none" className="h-full w-80 bg-sidebar">
       <SidebarContent>
         <SidebarGroup className="box-border">
           <SidebarGroupLabel>文件夹</SidebarGroupLabel>
           <SidebarGroupAction asChild>
-            <Button size="icon" variant={'ghost'} className="w-8 h-8" onClick={() => onCreate()}>
+            <Button size="icon" variant={'ghost'} className="w-8 h-8" onClick={() => handleCreate()}>
               <TbPlus />
             </Button>
           </SidebarGroupAction>
@@ -303,12 +468,15 @@ const FolderSidebar: React.FC<{
                   onSelect={(id) => onSelect(id)}
                   onRename={onRename}
                   onDelete={onDelete}
-                  onCreate={onCreate}
+                  onCreate={handleCreate}
                   onDropResources={(fid, ids) => onDropResources?.(fid, ids)}
                   counts={counts}
                   expanded={isExpanded(node.id)}
                   isExpanded={isExpanded}
                   onToggleExpand={toggleExpand}
+                  inlineEditId={inlineEditId}
+                  setInlineEditId={setInlineEditId}
+                  onInlineRename={onInlineRename}
                 />
               ))}
             </SidebarMenu>
@@ -325,7 +493,7 @@ const FolderSidebar: React.FC<{
                 <EmptyDescription>暂无文件夹</EmptyDescription>
               </EmptyHeader>
               <EmptyContent>
-                <Button variant={'outline'} size={'sm'} onClick={() => onCreate()}>
+                <Button variant={'outline'} size={'sm'} onClick={() => handleCreate()}>
                   <TbPlus />
                   创建
                 </Button>

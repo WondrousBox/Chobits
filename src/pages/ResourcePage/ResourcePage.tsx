@@ -678,9 +678,23 @@ const ResourcePage: React.FC = () => {
               const res = await folderAPI['folder.create']({ name, parentId: parentId ?? (folderFilter || null), workspaceId: wsId });
               if ((res as any)?.success) {
                 await loadFolders(wsId);
+                return (res as any)?.data?.id;
               }
+              return undefined;
             } catch (e) {
               console.warn('create folder failed', e);
+              return undefined;
+            }
+          }}
+          onInlineRename={async (id, name) => {
+            try {
+              const wsId = wsFilter || undefined;
+              const r = await folderAPI['folder.rename']({ id, name });
+              if ((r as any)?.success) {
+                await loadFolders(wsId);
+              }
+            } catch (e) {
+              console.warn('inline rename folder failed', e);
             }
           }}
           onRename={async (id) => {
