@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { TbHome, TbPhoto, TbVideo, TbMusic, TbFileText, TbLink, TbFile, TbFileDescription, TbDots, TbList, TbSearch, TbGrid3X3, TbPlus, TbRefresh, TbHeart } from 'react-icons/tb';
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import FolderSidebar, { type UIFolder } from './components/FolderSidebar';
+import { SidebarProvider } from '@/components/ui/sidebar';
 
 const ResourcePage: React.FC = () => {
   const [list, setList] = useState<ResourceItem[]>([]);
@@ -295,7 +296,7 @@ const ResourcePage: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-background">
+    <div className="h-full bg-background">
       <DragAbleTitle
         title={
           <div className="flex items-center gap-4">
@@ -308,12 +309,12 @@ const ResourcePage: React.FC = () => {
         actions={
           <>
             <div className="flex items-center gap-2">
-              <Button size="icon" className="w-8 h-8" onClick={() => window.YUA.window['window:open']('assistant')}>
+              <Button size="icon" className="w-8 h-8 shrink-0" onClick={() => window.YUA.window['window:open']('assistant')}>
                 <TbPlus />
               </Button>
               <Button
                 size="icon"
-                className="w-8 h-8"
+                className="w-8 h-8 shrink-0"
                 variant="ghost"
                 onClick={() => {
                   load();
@@ -341,7 +342,7 @@ const ResourcePage: React.FC = () => {
                   setTimeout(() => load(), 0);
                 }}
               >
-                <SelectTrigger className="w-56 h-8">
+                <SelectTrigger className="h-8">
                   <SelectValue placeholder="标签（全部）" />
                 </SelectTrigger>
                 <SelectContent>
@@ -463,7 +464,8 @@ const ResourcePage: React.FC = () => {
       </div>
 
       {/* 主内容区域 */}
-      <div className="flex-1 overflow-hidden flex w-60 border border-ring" style={{ borderRightStyle: 'solid' }}>
+
+      <SidebarProvider>
         {/* 左侧文件夹 */}
         <FolderSidebar
           folders={folders}
@@ -597,7 +599,7 @@ const ResourcePage: React.FC = () => {
           }}
         />
         {/* 资源展示区域 */}
-        <div className="h-full overflow-auto flex-1">
+        <div className="w-full">
           {viewMode === 'grid' ? (
             <ExplorerGrid items={filtered} onDelete={handleDelete} onDeleteMany={handleDeleteMany} onToggleFavorite={handleToggleFavorite} onToggleVisibility={handleToggleVisibility} />
           ) : (
@@ -633,7 +635,7 @@ const ResourcePage: React.FC = () => {
             </div>
           )}
         </div>
-      </div>
+      </SidebarProvider>
 
       {/* 重命名文件夹模态框 */}
       <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
