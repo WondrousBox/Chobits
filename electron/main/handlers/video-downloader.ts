@@ -12,7 +12,7 @@ import { WorkspacesRepo, ResourcesRepo } from '../db/repositories';
 import { generateThumbnailForResource } from '../utils/thumbnail';
 import { getResourcePath } from '../utils/resources-path';
 import { binPathLog } from '../logger';
-import { app } from 'electron';
+import { app, BrowserWindow } from 'electron';
 
 // 默认文件夹配置
 const DEFAULT_FOLDERS = {
@@ -223,6 +223,20 @@ async function addDownloadedFileToResources(filePath: string, videoInfo: any, wo
     } as any);
 
     console.log(`[VideoDownloader] Added file to resources: ${filePath}`);
+    // Broadcast insert event so resource page can refresh
+    try {
+      const payload = { action: 'inserted', id: (resource as any)?.id, resource };
+      BrowserWindow.getAllWindows().forEach((w) => {
+        try {
+          w.webContents.send('resource:inserted', payload);
+          w.webContents.send('resource:changed', payload);
+        } catch {
+          /* ignore */
+        }
+      });
+    } catch {
+      /* ignore */
+    }
     return resource;
   } catch (error) {
     console.warn('[VideoDownloader] Failed to add file to resources:', error);
@@ -709,8 +723,21 @@ ${destPath}`);
 
             // 更新资源记录，添加缩略图路径
             if (finalThumbnailPath) {
-              await ResourcesRepo.update(resourceId, { thumbnailPath: finalThumbnailPath } as any);
+              const updated = await ResourcesRepo.update(resourceId, { thumbnailPath: finalThumbnailPath } as any);
               console.log(`[VideoDownloader] Updated resource with thumbnail: ${finalThumbnailPath}`);
+              // Broadcast change so UI can reflect new thumbnail
+              try {
+                const payload = { action: 'updated', id: resourceId, resource: updated };
+                BrowserWindow.getAllWindows().forEach((w) => {
+                  try {
+                    w.webContents.send('resource:changed', payload);
+                  } catch {
+                    /* ignore */
+                  }
+                });
+              } catch {
+                /* ignore */
+              }
             }
           } catch (error) {
             console.warn('[VideoDownloader] Failed to process thumbnail:', error);

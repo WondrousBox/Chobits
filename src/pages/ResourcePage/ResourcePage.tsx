@@ -154,6 +154,30 @@ const ResourcePage: React.FC = () => {
     };
   }, [loadFolders, loadTags, wsFilter]);
 
+  // 监听主进程的资源变更事件：新增后自动刷新列表/标签/文件夹计数
+  useEffect(() => {
+    const onResourceChanged = (): void => {
+      // 简单刷新，保持与当前筛选一致
+      load();
+      loadTags();
+      loadFolders();
+    };
+    try {
+      window.ipcRenderer.on('resource:inserted', onResourceChanged);
+      window.ipcRenderer.on('resource:changed', onResourceChanged);
+    } catch {
+      /* ignore */
+    }
+    return () => {
+      try {
+        window.ipcRenderer.off('resource:inserted', onResourceChanged);
+        window.ipcRenderer.off('resource:changed', onResourceChanged);
+      } catch {
+        /* ignore */
+      }
+    };
+  }, [load, loadTags, loadFolders]);
+
   const filtered = useMemo(() => {
     if (!wsFilter) return [] as any[];
     let filtered = list.filter((r: any) => r.workspaceId === wsFilter);

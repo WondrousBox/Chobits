@@ -1,4 +1,4 @@
-import { ipcMain, shell } from 'electron';
+import { BrowserWindow, ipcMain, shell } from 'electron';
 import { ResourcesRepo, WorkspacesRepo, TagsRepo, FoldersRepo } from '../db/repositories';
 import { generateThumbnailForResource, detectBasicType } from '../utils/thumbnail';
 import { createHash } from 'node:crypto';
@@ -103,11 +103,42 @@ export function initResourceHandlers(): void {
           }
           await ResourcesRepo.update(row.id, { thumbnailPath: thumbPath } as any);
           const updated = await ResourcesRepo.getById(row.id);
+          // Broadcast insert event to all renderer windows
+          try {
+            const resData: any = updated || row;
+            const payload = { action: 'inserted', id: resData?.id, resource: resData };
+            BrowserWindow.getAllWindows().forEach((w) => {
+              try {
+                w.webContents.send('resource:inserted', payload);
+                w.webContents.send('resource:changed', payload);
+              } catch {
+                /* ignore */
+              }
+            });
+          } catch {
+            /* ignore */
+          }
           return { success: true, data: updated || row };
         }
       } catch (e) {
         console.warn('[thumbnail] generation failed', e);
       }
+    }
+    // Broadcast insert event to all renderer windows
+    try {
+      if (row) {
+        const payload2 = { action: 'inserted', id: (row as any).id, resource: row };
+        BrowserWindow.getAllWindows().forEach((w) => {
+          try {
+            w.webContents.send('resource:inserted', payload2);
+            w.webContents.send('resource:changed', payload2);
+          } catch {
+            /* ignore */
+          }
+        });
+      }
+    } catch {
+      /* ignore */
     }
     return { success: true, data: row };
   });
