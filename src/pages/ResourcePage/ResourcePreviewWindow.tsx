@@ -4,6 +4,7 @@ import type { ResourceItem } from '@/types';
 import { Button } from '@/components/ui/button';
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { MediaPlayer } from '@/components/MediaPlayer';
+import { TbArrowLeft, TbArrowRight } from 'react-icons/tb';
 
 interface IncomingPayload {
   current: ResourceItem;
@@ -105,7 +106,9 @@ const ResourcePreviewWindow: React.FC = () => {
             // 模拟事件处理逻辑
             handler(null, cached);
           }
-        } catch { }
+        } catch {
+          //
+        }
       }
     }, 120);
 
@@ -126,9 +129,14 @@ const ResourcePreviewWindow: React.FC = () => {
       return;
     }
     if (data.type === 'text' || data.type === 'document' || data.type === 'file') {
+      if (data.type === 'text') {
+        setTextContent(data.contentText || '');
+        return;
+      }
+
       // 优先使用 contentText
-      if ((data as any).contentText) {
-        setTextContent((data as any).contentText || '');
+      if (data.contentText) {
+        setTextContent(data.contentText || '');
         return;
       }
       // 通过主进程读取文件内容
@@ -202,15 +210,15 @@ const ResourcePreviewWindow: React.FC = () => {
             <div className="flex items-center gap-2 min-w-0 flex-1">
               {list.length > 0 && (
                 <>
-                  <Button onClick={() => go(-1)} disabled={!list.length}>
-                    上一条
+                  <Button size={'icon'} className="w-8 h-8" variant={'ghost'} onClick={() => go(-1)} disabled={!list.length}>
+                    <TbArrowLeft />
                   </Button>
-                  <Button onClick={() => go(1)} disabled={!list.length}>
-                    下一条
-                  </Button>
-                  <span className="text-[10px] text-muted-foreground">
+                  <span className="text-[10px] text-muted-foreground font-mono">
                     {index >= 0 ? index + 1 : '-'} / {list.length || '-'}
                   </span>
+                  <Button size={'icon'} className="w-8 h-8" variant={'ghost'} onClick={() => go(1)} disabled={!list.length}>
+                    <TbArrowRight />
+                  </Button>
                 </>
               )}
             </div>

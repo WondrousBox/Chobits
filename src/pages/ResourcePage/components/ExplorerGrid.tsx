@@ -327,6 +327,15 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
                 onClick={(e) => handleItemClick(e, item.id, idx)}
                 onToggleFavorite={onToggleFavorite}
                 onToggleVisibility={onToggleVisibility}
+                onPreview={() => {
+                  const current = items[idx];
+                  if (!current) return;
+                  window.YUA.window['window:open']('resourcePreview', {
+                    current,
+                    list: items,
+                    index: idx
+                  });
+                }}
                 draggable
                 onDragStart={(e: React.DragEvent) => {
                   // 如果当前 item 已在多选中，则拖拽这些被选中的；否则仅拖该项

@@ -769,7 +769,7 @@ const ResourcePage: React.FC = () => {
               ))}
 
               {/* 再渲染资源列表条目 */}
-              {filtered.map((item) => (
+              {filtered.map((item, idx) => (
                 <ResourceListItem
                   key={item.id}
                   item={item}
@@ -777,6 +777,15 @@ const ResourcePage: React.FC = () => {
                   onClick={handleItemClick}
                   onToggleFavorite={handleToggleFavorite}
                   onToggleVisibility={handleToggleVisibility}
+                  onPreview={() => {
+                    const current = filtered[idx];
+                    if (!current) return;
+                    window.YUA.window['window:open']('resourcePreview', {
+                      current,
+                      list: filtered,
+                      index: idx
+                    });
+                  }}
                   draggable
                   onDragStart={(e) => {
                     const ids = selectedItems.has(item.id) && selectedItems.size > 0 ? Array.from(selectedItems) : [item.id];
