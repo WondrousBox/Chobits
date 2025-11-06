@@ -23,7 +23,7 @@ export function initHandlers(win: BrowserWindow): void {
   initFFmpegHandlers(win);
   initVectorHandlers(win);
   initResourceHandlers();
-  initFolderHandlers?.(win);
+  initFolderHandlers?.();
   initTrashHandlers();
   initWorkspaceHandlers();
   initModelHandlers(win);
