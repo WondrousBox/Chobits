@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { useState as useReactState } from 'react';
-import { TbTrash, TbFolder, TbPencil, TbFolderOpen } from 'react-icons/tb';
+import { TbTrash, TbPencil, TbFolderOpen, TbFolderFilled } from 'react-icons/tb';
 import { ResourceItem } from '@/types';
 import ResourceGalleryItem from './ResourceGalleryItem';
 import type { UIFolder } from './FolderSidebar';
@@ -47,7 +47,7 @@ const GridFolderTile: React.FC<{
         >
           <div className="text-center relative">
             <div className="text-5xl text-muted-foreground/80 mb-2">
-              <TbFolder />
+              <TbFolderFilled />
             </div>
             <div className="text-sm font-medium truncate max-w-[90%] mx-auto">{folder.name}</div>
             {typeof count === 'number' && <span className="absolute top-1 right-1 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full shadow">{count}</span>}
@@ -395,7 +395,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
             await window.YUA.resource.revealResource({ id: firstSelected });
           }}
         >
-          在 Finder 中显示
+          {(window as any).YUA?.isWindows ? '在资源管理器中显示' : '在 Finder 中显示'}
         </ContextMenuItem>
         <ContextMenuSeparator />
         <ContextMenuItem
