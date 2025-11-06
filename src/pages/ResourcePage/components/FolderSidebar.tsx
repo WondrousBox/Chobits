@@ -216,85 +216,83 @@ const FolderSidebar: React.FC<{
 
   const isExpanded = React.useCallback((id: string) => expandedIds.has(id), [expandedIds]);
   return (
-    <SidebarProvider>
-      <Sidebar collapsible="none" className="h-full w-60 bg-sidebar">
-        <SidebarContent>
-          <SidebarGroup className="box-border">
-            <SidebarGroupLabel>文件夹</SidebarGroupLabel>
-            <SidebarGroupAction asChild>
-              <Button size="icon" className="w-8 h-8" onClick={onCreate}>
-                <TbPlus />
-              </Button>
-            </SidebarGroupAction>
-            <SidebarGroupContent>
-              <SidebarMenu className="pl-0">
-                {tree.length > 0 && (
-                  <SidebarMenuItem className="pl-0 list-none">
-                    <SidebarMenuButton
-                      isActive={!selectedId}
-                      onClick={() => onSelect('')}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        e.dataTransfer.dropEffect = 'move';
-                      }}
-                      onDrop={(e) => {
-                        try {
-                          const raw = e.dataTransfer.getData('application/x-resource-ids');
-                          if (!raw) return;
-                          const ids: string[] = JSON.parse(raw);
-                          if (Array.isArray(ids) && ids.length && onDropResources) onDropResources(null, ids);
-                        } catch {
-                          /* ignore */
-                        }
-                      }}
-                    >
-                      全部
-                    </SidebarMenuButton>
-                    <SidebarMenuBadge>{allCount ?? 0}</SidebarMenuBadge>
-                  </SidebarMenuItem>
-                )}
+    <Sidebar collapsible="none" className="h-full w-80 bg-sidebar">
+      <SidebarContent>
+        <SidebarGroup className="box-border">
+          <SidebarGroupLabel>文件夹</SidebarGroupLabel>
+          <SidebarGroupAction asChild>
+            <Button size="icon" className="w-8 h-8" onClick={onCreate}>
+              <TbPlus />
+            </Button>
+          </SidebarGroupAction>
+          <SidebarGroupContent>
+            <SidebarMenu className="pl-0">
+              {tree.length > 0 && (
+                <SidebarMenuItem className="pl-0 list-none">
+                  <SidebarMenuButton
+                    isActive={!selectedId}
+                    onClick={() => onSelect('')}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                    }}
+                    onDrop={(e) => {
+                      try {
+                        const raw = e.dataTransfer.getData('application/x-resource-ids');
+                        if (!raw) return;
+                        const ids: string[] = JSON.parse(raw);
+                        if (Array.isArray(ids) && ids.length && onDropResources) onDropResources(null, ids);
+                      } catch {
+                        /* ignore */
+                      }
+                    }}
+                  >
+                    全部
+                  </SidebarMenuButton>
+                  <SidebarMenuBadge>{allCount ?? 0}</SidebarMenuBadge>
+                </SidebarMenuItem>
+              )}
 
-                {tree.map((node) => (
-                  <TreeRow
-                    key={node.id}
-                    node={node}
-                    depth={0}
-                    selectedId={selectedId}
-                    onSelect={(id) => onSelect(id)}
-                    onRename={onRename}
-                    onDelete={onDelete}
-                    onDropResources={(fid, ids) => onDropResources?.(fid, ids)}
-                    counts={counts}
-                    expanded={isExpanded(node.id)}
-                    isExpanded={isExpanded}
-                    onToggleExpand={toggleExpand}
-                  />
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+              {tree.map((node) => (
+                <TreeRow
+                  key={node.id}
+                  node={node}
+                  depth={0}
+                  selectedId={selectedId}
+                  onSelect={(id) => onSelect(id)}
+                  onRename={onRename}
+                  onDelete={onDelete}
+                  onDropResources={(fid, ids) => onDropResources?.(fid, ids)}
+                  counts={counts}
+                  expanded={isExpanded(node.id)}
+                  isExpanded={isExpanded}
+                  onToggleExpand={toggleExpand}
+                />
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
 
-          {tree.length === 0 && (
-            <div className="h-full flex items-center justify-center text-xs text-muted-foreground border-t border-sidebar-border">
-              <Empty>
-                <EmptyHeader>
-                  <EmptyMedia variant="icon">
-                    <TbFolder />
-                  </EmptyMedia>
-                  <EmptyDescription>暂无文件夹</EmptyDescription>
-                </EmptyHeader>
-                <EmptyContent>
-                  <Button variant={'outline'} size={'sm'} onClick={onCreate}>
-                    <TbPlus />
-                    创建
-                  </Button>
-                </EmptyContent>
-              </Empty>
-            </div>
-          )}
-        </SidebarContent>
-      </Sidebar>
-    </SidebarProvider>
+        {tree.length === 0 && (
+          <div className="h-full flex items-center justify-center text-xs text-muted-foreground border-t border-sidebar-border">
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <TbFolder />
+                </EmptyMedia>
+                <EmptyDescription>暂无文件夹</EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent>
+                <Button variant={'outline'} size={'sm'} onClick={onCreate}>
+                  <TbPlus />
+                  创建
+                </Button>
+              </EmptyContent>
+            </Empty>
+          </div>
+        )}
+      </SidebarContent>
+    </Sidebar>
   );
 };
 
