@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { TbFolder, TbFolderOpen, TbPencil, TbTrash, TbPlus, TbDots, TbChevronRight, TbChevronDown } from 'react-icons/tb';
+import { TbFolder, TbFolderOpen, TbPencil, TbTrash, TbPlus, TbDots, TbChevronRight, TbChevronDown, TbFolderPlus } from 'react-icons/tb';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia } from '@/components/ui/empty';
 import {
   Sidebar,
@@ -14,8 +14,7 @@ import {
   SidebarMenuAction,
   SidebarMenuBadge,
   SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarProvider
+  SidebarMenuItem
 } from '@/components/ui/sidebar';
 
 export type UIFolder = {
@@ -48,15 +47,16 @@ const TreeRow: React.FC<{
   onSelect: (id: string) => void;
   onRename: (id: string) => void;
   onDelete: (id: string) => void;
+  onCreate: (parentId?: string | null) => void;
   onDropResources?: (folderId: string, ids: string[]) => void;
   counts?: Record<string, number>;
   expanded: boolean;
   isExpanded: (id: string) => boolean;
   onToggleExpand: (id: string) => void;
-}> = ({ node, depth, selectedId, onSelect, onRename, onDelete, onDropResources, counts, expanded, isExpanded, onToggleExpand }) => {
+}> = ({ node, depth, selectedId, onSelect, onRename, onDelete, onCreate, onDropResources, counts, expanded, isExpanded, onToggleExpand }) => {
   const isActive = selectedId === node.id;
   const [over, setOver] = React.useState(false);
-  const count = counts?.[node.id] ?? 0;
+  // const count = counts?.[node.id] ?? 0;
   const hasChildren = (node.children || []).length > 0;
   const folderIconEl = hasChildren && expanded ? <TbFolderOpen /> : <TbFolder />;
 
@@ -104,7 +104,7 @@ const TreeRow: React.FC<{
     <>
       <SidebarMenuItem className="pl-0 list-none">
         {MenuButton}
-        {count > 0 && <SidebarMenuBadge>{count}</SidebarMenuBadge>}
+        {/* {count > 0 && <SidebarMenuBadge>{count}</SidebarMenuBadge>} */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <SidebarMenuAction onClick={(e) => e.stopPropagation()}>
@@ -112,6 +112,15 @@ const TreeRow: React.FC<{
             </SidebarMenuAction>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" sideOffset={4} onClick={(e) => e.stopPropagation()}>
+            <DropdownMenuItem
+              onClick={async (e) => {
+                e.stopPropagation();
+                // 在当前文件夹下新建子文件夹
+                onCreate(node.id);
+              }}
+            >
+              <TbFolderPlus /> 新建文件夹
+            </DropdownMenuItem>
             <DropdownMenuItem
               onClick={async (e) => {
                 e.stopPropagation();
@@ -129,7 +138,7 @@ const TreeRow: React.FC<{
                 }
               }}
             >
-              <TbFolderOpen /> 打开文件夹
+              <TbFolderOpen /> 打开所在位置
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={(e) => {
@@ -163,6 +172,7 @@ const TreeRow: React.FC<{
             onSelect={onSelect}
             onRename={onRename}
             onDelete={onDelete}
+            onCreate={onCreate}
             onDropResources={onDropResources}
             counts={counts}
             expanded={isExpanded(child.id)}
@@ -178,7 +188,7 @@ const FolderSidebar: React.FC<{
   folders: UIFolder[];
   selectedId?: string;
   onSelect: (id: string | '') => void;
-  onCreate: () => void;
+  onCreate: (parentId?: string | null) => void;
   onRename: (id: string) => void;
   onDelete: (id: string) => void;
   onDropResources?: (folderId: string | null, ids: string[]) => void;
@@ -221,7 +231,7 @@ const FolderSidebar: React.FC<{
         <SidebarGroup className="box-border">
           <SidebarGroupLabel>文件夹</SidebarGroupLabel>
           <SidebarGroupAction asChild>
-            <Button size="icon" className="w-8 h-8" onClick={onCreate}>
+            <Button size="icon" variant={'ghost'} className="w-8 h-8" onClick={() => onCreate()}>
               <TbPlus />
             </Button>
           </SidebarGroupAction>
@@ -262,6 +272,7 @@ const FolderSidebar: React.FC<{
                   onSelect={(id) => onSelect(id)}
                   onRename={onRename}
                   onDelete={onDelete}
+                  onCreate={onCreate}
                   onDropResources={(fid, ids) => onDropResources?.(fid, ids)}
                   counts={counts}
                   expanded={isExpanded(node.id)}
@@ -283,7 +294,7 @@ const FolderSidebar: React.FC<{
                 <EmptyDescription>暂无文件夹</EmptyDescription>
               </EmptyHeader>
               <EmptyContent>
-                <Button variant={'outline'} size={'sm'} onClick={onCreate}>
+                <Button variant={'outline'} size={'sm'} onClick={() => onCreate()}>
                   <TbPlus />
                   创建
                 </Button>
