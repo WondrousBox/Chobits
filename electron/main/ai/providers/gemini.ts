@@ -10,7 +10,9 @@ export class GeminiProvider implements ProviderAdapter {
   readonly label = 'Google Gemini';
   private secrets: GeminiSecrets = {};
 
-  isConfigured(): boolean { return !!this.secrets.apiKey; }
+  isConfigured(): boolean {
+    return !!this.secrets.apiKey;
+  }
   getConfigSchema(): ProviderConfig {
     const fallback: ProviderConfig = {
       id: this.id,
@@ -18,13 +20,17 @@ export class GeminiProvider implements ProviderAdapter {
       enabled: true,
       fields: [
         { key: 'apiKey', label: 'API Key', type: 'password', required: true },
-        { key: 'model', label: '默认模型（如 gemini-1.5-flash）', type: 'text' },
-      ],
+        { key: 'model', label: '默认模型（如 gemini-1.5-flash）', type: 'text' }
+      ]
     };
     return loadProviderSchema(this.id, fallback);
   }
-  setSecrets(secrets: ProviderSecrets) { this.secrets = { ...this.secrets, ...(secrets as any) }; }
-  getSecrets(): ProviderSecrets { return this.secrets; }
+  setSecrets(secrets: ProviderSecrets) {
+    this.secrets = { ...this.secrets, ...(secrets as any) };
+  }
+  getSecrets(): ProviderSecrets {
+    return this.secrets;
+  }
 
   private modelInstance(model?: string) {
     if (!this.secrets.apiKey) throw new Error('Gemini API key not set');

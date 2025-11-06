@@ -10,7 +10,9 @@ export class AnthropicProvider implements ProviderAdapter {
   readonly label = 'Anthropic (Claude)';
   private secrets: AnthropicSecrets = {};
 
-  isConfigured(): boolean { return !!this.secrets.apiKey; }
+  isConfigured(): boolean {
+    return !!this.secrets.apiKey;
+  }
   getConfigSchema(): ProviderConfig {
     const fallback: ProviderConfig = {
       id: this.id,
@@ -19,13 +21,17 @@ export class AnthropicProvider implements ProviderAdapter {
       fields: [
         { key: 'apiKey', label: 'API Key', type: 'password', required: true },
         { key: 'baseUrl', label: 'Base URL (可选，自定义网关)', type: 'text' },
-        { key: 'model', label: '默认模型（如 claude-3-5-sonnet-latest）', type: 'text' },
-      ],
+        { key: 'model', label: '默认模型（如 claude-3-5-sonnet-latest）', type: 'text' }
+      ]
     };
     return loadProviderSchema(this.id, fallback);
   }
-  setSecrets(secrets: ProviderSecrets) { this.secrets = { ...this.secrets, ...(secrets as any) }; }
-  getSecrets(): ProviderSecrets { return this.secrets; }
+  setSecrets(secrets: ProviderSecrets) {
+    this.secrets = { ...this.secrets, ...(secrets as any) };
+  }
+  getSecrets(): ProviderSecrets {
+    return this.secrets;
+  }
 
   private client() {
     const cfg: any = {};
@@ -57,7 +63,7 @@ export class AnthropicProvider implements ProviderAdapter {
       }
     }
     const resp: any = await (client as any).messages.create({ model, messages }, { signal });
-    const text = (resp?.content?.[0]?.text) || (resp?.content?.[0]?.content) || (resp?.output_text) || '';
+    const text = resp?.content?.[0]?.text || resp?.content?.[0]?.content || resp?.output_text || '';
     return { message: { role: 'assistant', content: text, createdAt: Date.now() }, providerId: this.id };
   }
 

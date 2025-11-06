@@ -10,7 +10,9 @@ export class OpenAIProvider implements ProviderAdapter {
   readonly label = 'OpenAI';
   private secrets: OpenAISecrets = {};
 
-  isConfigured(): boolean { return !!this.secrets.apiKey; }
+  isConfigured(): boolean {
+    return !!this.secrets.apiKey;
+  }
   getConfigSchema(): ProviderConfig {
     const fallback: ProviderConfig = {
       id: this.id,
@@ -19,13 +21,17 @@ export class OpenAIProvider implements ProviderAdapter {
       fields: [
         { key: 'apiKey', label: 'API Key', type: 'password', required: true },
         { key: 'baseUrl', label: 'Base URL (可选，自定义网关)', type: 'text' },
-        { key: 'model', label: '默认模型（如 gpt-4o-mini）', type: 'text' },
-      ],
+        { key: 'model', label: '默认模型（如 gpt-4o-mini）', type: 'text' }
+      ]
     };
     return loadProviderSchema(this.id, fallback);
   }
-  setSecrets(secrets: ProviderSecrets) { this.secrets = { ...this.secrets, ...(secrets as any) }; }
-  getSecrets(): ProviderSecrets { return this.secrets; }
+  setSecrets(secrets: ProviderSecrets) {
+    this.secrets = { ...this.secrets, ...(secrets as any) };
+  }
+  getSecrets(): ProviderSecrets {
+    return this.secrets;
+  }
 
   private client(override?: Partial<OpenAISecrets>) {
     const cfg: any = {};
@@ -37,9 +43,9 @@ export class OpenAIProvider implements ProviderAdapter {
   }
 
   async chat(req: ChatRequest, onStream?: (event: StreamEvent) => void, signal?: AbortSignal): Promise<ChatResponse> {
-  const overrideSecrets = (req.extras as any)?.secrets as Partial<OpenAISecrets> | undefined;
-  const client = this.client(overrideSecrets);
-  const model = (req.extras?.model as string) || overrideSecrets?.model || this.secrets.model || 'gpt-4o-mini';
+    const overrideSecrets = (req.extras as any)?.secrets as Partial<OpenAISecrets> | undefined;
+    const client = this.client(overrideSecrets);
+    const model = (req.extras?.model as string) || overrideSecrets?.model || this.secrets.model || 'gpt-4o-mini';
     const messages = req.messages.map((m) => ({ role: m.role as any, content: m.content }));
     if (req.stream && onStream) {
       const stream = await client.chat.completions.create({ model, messages, temperature: req.temperature, max_tokens: req.maxTokens as any, stream: true }, { signal });
@@ -60,8 +66,8 @@ export class OpenAIProvider implements ProviderAdapter {
   }
 
   async embed(req: EmbeddingRequest): Promise<EmbeddingResponse> {
-  const client = this.client((req as any)?.extras?.secrets);
-  const model = (req.model as string) || (req as any)?.extras?.secrets?.model || 'text-embedding-3-small';
+    const client = this.client((req as any)?.extras?.secrets);
+    const model = (req.model as string) || (req as any)?.extras?.secrets?.model || 'text-embedding-3-small';
     const res = await client.embeddings.create({ model, input: req.texts });
     const vectors = res.data.map((d: any) => d.embedding as number[]);
     const dim = vectors[0]?.length || 0;
@@ -78,7 +84,7 @@ export class OpenAIProvider implements ProviderAdapter {
       const data = Array.isArray(res?.data) ? res.data : [];
       const items = data.map((m: any) => ({ id: m.id }));
       if (items.length) return items;
-    } catch {}
+    } catch { }
     return [];
   }
 }
