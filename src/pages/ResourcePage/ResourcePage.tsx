@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { TbHome, TbPhoto, TbVideo, TbMusic, TbFileText, TbLink, TbFile, TbFileDescription, TbDots, TbList, TbSearch, TbGrid3X3, TbPlus, TbRefresh, TbHeart } from 'react-icons/tb';
+import { TbHome, TbPhoto, TbVideo, TbMusic, TbFileText, TbLink, TbFile, TbFileDescription, TbDots, TbList, TbSearch, TbGrid3X3, TbPlus, TbRefresh, TbHeart, TbX } from 'react-icons/tb';
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import FolderSidebar, { type UIFolder } from './components/FolderSidebar';
 import { SidebarProvider } from '@/components/ui/sidebar';
@@ -420,8 +420,8 @@ const ResourcePage: React.FC = () => {
               <Button variant="destructive" size="sm" onClick={() => handleDeleteMany(Array.from(selectedItems))}>
                 删除选中
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setSelectedItems(new Set())}>
-                取消选择
+              <Button variant="ghost" size="icon" onClick={() => setSelectedItems(new Set())}>
+                <TbX />
               </Button>
             </div>
           </div>

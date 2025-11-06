@@ -4,6 +4,7 @@ import { TbCopy, TbCheck, TbStar, TbHeart, TbEye, TbEyeOff, TbClock, TbFile, TbE
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatFileSize, formatDuration, formatTime, getResourceTypeIcon, getStatusColor, parseTags } from '@/utils/resourceUtils';
 import { makeResSrc } from '@/lib/resourceProtocol';
+import { Button } from '@/components/ui/button';
 
 interface ListItemProps {
   item: ResourceItem;
@@ -81,7 +82,7 @@ const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, onClick, on
       onClick={(e) => onClick(e, item)}
       draggable={!!draggable}
       onDragStart={(e) => onDragStart?.(e, item)}
-      className={`group relative flex items-center gap-4 p-3 rounded-lg border transition-all cursor-pointer select-none ${selectionClass}`}
+      className={`group relative flex items-center gap-4 p-2 rounded-lg border transition-all cursor-pointer select-none ${selectionClass}`}
     >
       {/* 左侧缩略图和类型图标 */}
       <div className="relative flex-shrink-0 w-16 h-16 rounded-md overflow-hidden bg-muted">
@@ -194,16 +195,11 @@ const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, onClick, on
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <button
-                onClick={handleFavoriteClick}
-                className={`p-1.5 rounded-md transition-colors ${item.favorite === 1 ? 'text-red-500 bg-red-50' : 'text-muted-foreground hover:text-red-500 hover:bg-red-50'}`}
-              >
-                <TbHeart className={`w-4 h-4 ${item.favorite === 1 ? 'fill-current' : ''}`} />
-              </button>
+              <Button variant={'ghost'} size={'icon'} onClick={handleFavoriteClick} className={`w-8 h-8 ${item.favorite === 1 ? 'text-red-500' : ''}`}>
+                <TbHeart className={`${item.favorite === 1 ? 'fill-current' : ''}`} />
+              </Button>
             </TooltipTrigger>
-            <TooltipContent>
-              <p>{item.favorite === 1 ? '取消收藏' : '添加收藏'}</p>
-            </TooltipContent>
+            <TooltipContent>{item.favorite === 1 ? '取消收藏' : '添加收藏'}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
 
@@ -211,13 +207,11 @@ const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, onClick, on
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <button onClick={handleVisibilityClick} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                {item.visibility === 'public' ? <TbEye className="w-4 h-4" /> : <TbEyeOff className="w-4 h-4" />}
-              </button>
+              <Button variant={'ghost'} size={'icon'} onClick={handleVisibilityClick}>
+                {item.visibility === 'public' ? <TbEye /> : <TbEyeOff />}
+              </Button>
             </TooltipTrigger>
-            <TooltipContent>
-              <p>{item.visibility === 'public' ? '设为私有' : '设为公开'}</p>
-            </TooltipContent>
+            <TooltipContent>{item.visibility === 'public' ? '设为私有' : '设为公开'}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
 
@@ -262,9 +256,6 @@ const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, onClick, on
           </TooltipProvider>
         )}
       </div>
-
-      {/* 选中状态指示器 */}
-      {selected && <div className="absolute left-2 top-2 w-3 h-3 rounded-full bg-primary" />}
     </div>
   );
 };
