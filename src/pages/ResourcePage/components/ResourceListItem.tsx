@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { ResourceItem } from '@/types';
-import { TbCopy, TbCheck, TbStar, TbHeart, TbEye, TbEyeOff, TbClock, TbFile, TbExternalLink, TbCalendar, TbUser, TbTag, TbPlayerPlay } from 'react-icons/tb';
+import { TbCopy, TbCheck, TbStar, TbHeart, TbEye, TbEyeOff, TbClock, TbFile, TbCalendar, TbUser, TbTag, TbPlayerPlay, TbAppWindow } from 'react-icons/tb';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatFileSize, formatDuration, formatTime, getResourceTypeIcon, getStatusColor, parseTags } from '@/utils/resourceUtils';
 import { makeResSrc } from '@/lib/resourceProtocol';
@@ -174,13 +174,11 @@ const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, onClick, on
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <button onClick={handlePlayClick} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                  <TbPlayerPlay className="w-4 h-4" />
-                </button>
+                <Button variant={'ghost'} size={'icon'} onClick={handlePlayClick}>
+                  <TbPlayerPlay />
+                </Button>
               </TooltipTrigger>
-              <TooltipContent>
-                <p>播放预览</p>
-              </TooltipContent>
+              <TooltipContent>播放预览</TooltipContent>
             </Tooltip>
           </TooltipProvider>
         )}
@@ -214,16 +212,11 @@ const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, onClick, on
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <button
-                  onClick={handleSourceClick}
-                  className={`p-1.5 rounded-md transition-colors ${copied ? 'text-green-500 bg-green-50' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
-                >
-                  {copied ? <TbCheck className="w-4 h-4" /> : <TbCopy className="w-4 h-4" />}
-                </button>
+                <Button variant={'ghost'} size={'icon'} onClick={handleSourceClick}>
+                  {copied ? <TbCheck /> : <TbCopy />}
+                </Button>
               </TooltipTrigger>
-              <TooltipContent>
-                <p>{copied ? '已复制!' : '复制链接'}</p>
-              </TooltipContent>
+              <TooltipContent>{copied ? '已复制!' : '复制链接'}</TooltipContent>
             </Tooltip>
           </TooltipProvider>
         )}
@@ -233,19 +226,18 @@ const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, onClick, on
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <button
+                <Button
+                  variant={'ghost'}
+                  size={'icon'}
                   onClick={(e) => {
                     e.stopPropagation();
                     window.open(item.url, '_blank');
                   }}
-                  className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                 >
-                  <TbExternalLink className="w-4 h-4" />
-                </button>
+                  <TbAppWindow />
+                </Button>
               </TooltipTrigger>
-              <TooltipContent>
-                <p>在新窗口中打开</p>
-              </TooltipContent>
+              <TooltipContent>在新窗口中打开</TooltipContent>
             </Tooltip>
           </TooltipProvider>
         )}
