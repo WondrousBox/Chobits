@@ -15,11 +15,13 @@ interface GalleryItemProps {
   innerRef?: (el: HTMLDivElement | null) => void;
   draggable?: boolean;
   onDragStart?: (e: React.DragEvent<HTMLDivElement>, item: ResourceItem) => void;
+  // Ask parent to open preview (centralized in parent)
+  onPreview?: (item: ResourceItem) => void;
 }
 
 // Basic preview: if resource has a filePath with image extension, show <img>. Otherwise show a placeholder.
 
-const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onClick, onToggleFavorite, onToggleVisibility, innerRef, draggable, onDragStart }) => {
+const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onClick, onToggleFavorite, onToggleVisibility, innerRef, draggable, onDragStart, onPreview }) => {
   const [copied, setCopied] = useState(false);
   const summary = getResourceSummary(item);
   const thumbSrc = (item as any).thumbnailPath ? makeResSrc((item as any).thumbnailPath) : undefined;
@@ -33,20 +35,10 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
     (e: React.MouseEvent) => {
       onClick(e, item);
       if (isAudio || isImageRes || isVideoRes || item.type === 'text') {
-        // 统一调用主进程打开资源预览窗口
-        window.YUA.window['window:open']('resourcePreview', {
-          current: {
-            id: item.id,
-            title: item.title,
-            type: item.type,
-            filePath: item.filePath,
-            url: item.url
-          }
-          // list 与 index 将在上层（ExplorerGrid）增强后传入；这里保持兼容
-        });
+        onPreview?.(item);
       }
     },
-    [onClick, item, isAudio, isImageRes, isVideoRes]
+    [onClick, item, isAudio, isImageRes, isVideoRes, onPreview]
   );
 
   const handleSourceClick = useCallback(
@@ -85,36 +77,20 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
     (e: React.MouseEvent) => {
       e.stopPropagation();
       if (isAudio || isImageRes || isVideoRes || item.type === 'text') {
-        window.YUA.window['window:open']('resourcePreview', {
-          current: {
-            id: item.id,
-            title: item.title,
-            type: item.type,
-            filePath: item.filePath,
-            url: item.url
-          }
-        });
+        onPreview?.(item);
       }
     },
-    [item, isAudio, isImageRes, isVideoRes]
+    [item, isAudio, isImageRes, isVideoRes, onPreview]
   );
 
   const handleTextPreviewClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
       if (item.type === 'text') {
-        window.YUA.window['window:open']('resourcePreview', {
-          current: {
-            id: item.id,
-            title: item.title,
-            type: item.type,
-            filePath: item.filePath,
-            url: item.url
-          }
-        });
+        onPreview?.(item);
       }
     },
-    [item]
+    [item, onPreview]
   );
 
   return (

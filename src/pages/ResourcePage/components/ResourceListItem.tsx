@@ -14,9 +14,11 @@ interface ListItemProps {
   onToggleVisibility?: (id: string) => void;
   draggable?: boolean;
   onDragStart?: (e: React.DragEvent<HTMLDivElement>, item: ResourceItem) => void;
+  // Ask parent to open preview (centralized in parent)
+  onPreview?: (item: ResourceItem) => void;
 }
 
-const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, onClick, onToggleFavorite, onToggleVisibility, draggable, onDragStart }) => {
+const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, onClick, onToggleFavorite, onToggleVisibility, draggable, onDragStart, onPreview }) => {
   const [copied, setCopied] = useState(false);
   const tags = parseTags(item.tags);
   // const categories = parseCategories(item.categories);
@@ -61,18 +63,10 @@ const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, onClick, on
       const isVideoRes = item.type === 'video';
 
       if (isAudio || isImageRes || isVideoRes) {
-        window.YUA.window['window:open']('resourcePreview', {
-          current: {
-            id: item.id,
-            title: item.title,
-            type: item.type,
-            filePath: item.filePath,
-            url: item.url
-          }
-        });
+        onPreview?.(item);
       }
     },
-    [item]
+    [item, onPreview]
   );
 
   const selectionClass = selected ? 'ring-2 ring-primary border-primary/50 bg-primary/5' : 'hover:bg-muted/50 hover:border-primary/30';
