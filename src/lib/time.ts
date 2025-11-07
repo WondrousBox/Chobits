@@ -1,7 +1,3 @@
-import dayjs from 'dayjs';
-import relativeTime from 'dayjs/plugin/relativeTime';
-import timezone from 'dayjs/plugin/timezone'; // dependent on utc plugin
-import utc from 'dayjs/plugin/utc';
 import 'dayjs/locale/zh';
 import 'dayjs/locale/zh-cn';
 import 'dayjs/locale/zh-tw';
@@ -11,6 +7,11 @@ import 'dayjs/locale/es';
 import 'dayjs/locale/it';
 import 'dayjs/locale/ja';
 import 'dayjs/locale/ko';
+
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+import timezone from 'dayjs/plugin/timezone'; // dependent on utc plugin
+import utc from 'dayjs/plugin/utc';
 
 // 获取用户的本地时区
 const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;

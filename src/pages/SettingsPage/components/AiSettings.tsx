@@ -1,10 +1,12 @@
-import { Button } from '@/components/ui/button';
 import { useEffect, useMemo, useState } from 'react';
-import { z } from 'zod';
-import TintableSvg from '@/components/common/TintableSvg';
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
-import InstanceFormDialog, { InstanceFormValues } from './InstanceFormDialog';
 import { TbBox } from 'react-icons/tb';
+import { z } from 'zod';
+
+import TintableSvg from '@/components/common/TintableSvg';
+import { Button } from '@/components/ui/button';
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
+
+import InstanceFormDialog, { InstanceFormValues } from './InstanceFormDialog';
 
 type ProviderRow = {
   id: string;

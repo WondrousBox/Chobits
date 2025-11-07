@@ -1,9 +1,11 @@
-import DragAbleTitle from '@/components/common/DragAbleTitle';
-import { Button } from '@/components/ui/button';
 import React, { useEffect, useRef, useState } from 'react';
 import { TbBox, TbSettings } from 'react-icons/tb';
+
+import DragAbleTitle from '@/components/common/DragAbleTitle';
+import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
 import SelectModelFolder from './components/SelectModelFolder';
 
 interface ModelPageProps {

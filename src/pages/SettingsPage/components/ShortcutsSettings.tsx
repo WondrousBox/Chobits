@@ -1,17 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 type PlatformKey = 'darwin' | 'win32' | 'linux';
 type ShortcutsConfig = Record<string, string | string[] | Partial<Record<PlatformKey, string | string[]>>>;
 type ShortcutAction = { id: string; label: string; description?: string; type: 'single' | 'multi'; defaults: Partial<Record<PlatformKey, string | string[]>> };
-
-const platforms: { key: PlatformKey; label: string }[] = [
-  { key: 'darwin', label: 'macOS' },
-  { key: 'win32', label: 'Windows' },
-  { key: 'linux', label: 'Linux' }
-];
 
 const ShortcutsSettings: React.FC = () => {
   const [schema, setSchema] = useState<ShortcutAction[]>([]);
@@ -28,7 +23,6 @@ const ShortcutsSettings: React.FC = () => {
       return 'darwin';
     }
   })();
-  const currentPlatformLabel = platforms.find((p) => p.key === currentPlatform)?.label || '当前系统';
 
   useEffect(() => {
     let mounted = true;

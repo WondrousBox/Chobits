@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { TbPlus, TbTrash } from 'react-icons/tb';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Textarea } from '@/components/ui/textarea';
+
 import PromptTemplateFormDialog, { type PromptTemplateFormValues } from './PromptTemplateFormDialog';
-import { TbTrash, TbPlus } from 'react-icons/tb';
 
 type Template = { id: string; name: string; type: 'system' | 'user'; content: string };
 

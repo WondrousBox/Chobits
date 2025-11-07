@@ -1,12 +1,13 @@
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import prettyBytes from 'pretty-bytes';
 import React, { useEffect, useMemo, useState } from 'react';
 import { TbCheck, TbDotsVertical, TbFolderOpen, TbPlus, TbRefresh, TbScanEye, TbTrash } from 'react-icons/tb';
+
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { maskPath } from '@/utils/helpers';
-import prettyBytes from 'pretty-bytes';
+import { Input } from '@/components/ui/input';
 import { formatRelativeTime } from '@/lib/time';
+import { maskPath } from '@/utils/helpers';
 
 const Workspace: React.FC = () => {
   const [list, setList] = useState<any[]>([]);
