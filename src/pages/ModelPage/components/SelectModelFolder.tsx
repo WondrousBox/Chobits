@@ -1,5 +1,5 @@
-import { TbBox, TbFolderOpen } from 'react-icons/tb';
 import React, { useEffect, useRef, useState } from 'react';
+import { TbBox, TbFolderOpen } from 'react-icons/tb';
 
 type Props = {
   /** 当模型目录已配置（初次加载发现已存在）或随后被选择/修改时调用 */

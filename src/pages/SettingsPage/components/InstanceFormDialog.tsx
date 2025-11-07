@@ -1,10 +1,11 @@
+import { DialogDescription } from '@radix-ui/react-dialog';
 import { useEffect, useState } from 'react';
+
+import TintableSvg from '@/components/common/TintableSvg';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { DialogDescription } from '@radix-ui/react-dialog';
-import TintableSvg from '@/components/common/TintableSvg';
 
 // Lightweight local types to avoid cross-file coupling
 export type ProviderRow = {

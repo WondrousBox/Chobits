@@ -1,16 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { TbDatabase, TbFolderOpen, TbBrain, TbCpu, TbBox, TbMoodKid, TbFolder, TbMessage2, TbKeyboard, TbFileText, TbSettings, TbPlug } from 'react-icons/tb';
-import AiSettings from './components/AiSettings';
-import EmbeddingJobsPanel from '../../components/EmbeddingJobs';
+import { TbBox, TbBrain, TbCpu, TbDatabase, TbFileText, TbFolder, TbFolderOpen, TbKeyboard, TbMessage2, TbMoodKid, TbPlug, TbSettings } from 'react-icons/tb';
+
 import DragAbleTitle from '../../components/common/DragAbleTitle';
+import EmbeddingJobsPanel from '../../components/EmbeddingJobs';
 import { Button } from '../../components/ui/button';
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '../../components/ui/sidebar';
-import Workspace from './components/Workspace';
 import ModelPage from '../ModelPage/ModelPage';
-import SpriteManager from './components/SpriteManager';
+import AiSettings from './components/AiSettings';
+import GeneralSettings from './components/GeneralSettings';
 import PromptSetting from './components/PromptSetting';
 import ShortcutsSettings from './components/ShortcutsSettings';
-import GeneralSettings from './components/GeneralSettings';
+import SpriteManager from './components/SpriteManager';
+import Workspace from './components/Workspace';
 
 // 设置分类类型
 type SettingsCategory = 'folder' | 'embedding' | 'ai' | 'prompt' | 'general' | 'workspace' | 'model' | 'sprites' | 'shortcuts' | 'plugins';

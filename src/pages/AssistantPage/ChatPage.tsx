@@ -1,11 +1,12 @@
-import { Button } from '@/components/ui/button';
-import DragAbleTitle from '@/components/common/DragAbleTitle';
-import { TbLoader2, TbTrash, TbRefresh, TbEdit, TbPlus } from 'react-icons/tb';
-import { toast } from 'sonner';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import MarkdownMessage from '@/components/common/MarkdownMessage';
-import { formatRelativeTime, formatDateTime } from '@/lib/time';
+import { TbEdit, TbLoader2, TbPlus, TbRefresh, TbTrash } from 'react-icons/tb';
+import { toast } from 'sonner';
+
 import ChatInputBar from '@/components/AIAssistant/ChatInputBar';
+import DragAbleTitle from '@/components/common/DragAbleTitle';
+import MarkdownMessage from '@/components/common/MarkdownMessage';
+import { Button } from '@/components/ui/button';
+import { formatDateTime, formatRelativeTime } from '@/lib/time';
 
 export default function ChatPage(): JSX.Element {
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string; createdAt?: number }>>([]);
