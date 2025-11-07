@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { TbBox, TbBrain, TbCpu, TbDatabase, TbFileText, TbFolder, TbFolderOpen, TbKeyboard, TbMessage2, TbMoodKid, TbPlug, TbSettings } from 'react-icons/tb';
+import { TbBox, TbBrain, TbCpu, TbFolder, TbFolderOpen, TbKeyboard, TbMessage2, TbMoodKid, TbPlug, TbSettings } from 'react-icons/tb';
 
 import DragAbleTitle from '../../components/common/DragAbleTitle';
 import EmbeddingJobsPanel from '../../components/EmbeddingJobs';
-import { Button } from '../../components/ui/button';
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '../../components/ui/sidebar';
 import ModelPage from '../ModelPage/ModelPage';
 import AiSettings from './components/AiSettings';
+import FolderSetting from './components/FolderSetting';
 import GeneralSettings from './components/GeneralSettings';
 import PromptSetting from './components/PromptSetting';
 import ShortcutsSettings from './components/ShortcutsSettings';
@@ -97,49 +97,11 @@ export const SettingsPage: React.FC = () => {
     })();
   }, []);
 
-  const openDatabaseLocation = async (): Promise<void> => {
-    window.YUA.system['database:openLocation']();
-  };
-
-  const openLogsLocation = async (): Promise<void> => {
-    window.YUA.system['logs:openLocation']();
-  };
-
-  // 外部资源设置由 ExternalResourceSettings 组件渲染
-
   // 根据当前分类渲染对应内容
   const renderCurrentCategoryContent = (): JSX.Element => {
     switch (activeCategory) {
       case 'folder':
-        return (
-          <div className="px-2">
-            <div className="bg-card border border-border rounded-lg p-2">
-              <div className="flex items-center text-foreground gap-1">
-                <TbDatabase /> 数据库
-              </div>
-              <div className="flex items-center justify-center gap-2 mt-2">
-                <div className="px-3 py-2 bg-muted rounded-md text-sm text-muted-foreground flex-1">用户数据目录/data/</div>
-                <Button variant="outline" onClick={openDatabaseLocation}>
-                  <TbFolderOpen />
-                  打开位置
-                </Button>
-              </div>
-            </div>
-
-            <div className="bg-card border border-border rounded-lg p-2 mt-3">
-              <div className="flex items-center text-foreground gap-1">
-                <TbFileText /> 日志
-              </div>
-              <div className="flex items-center justify-center gap-2 mt-2">
-                <div className="px-3 py-2 bg-muted rounded-md text-sm text-muted-foreground flex-1">应用日志目录/logs/</div>
-                <Button variant="outline" onClick={openLogsLocation}>
-                  <TbFolderOpen />
-                  打开位置
-                </Button>
-              </div>
-            </div>
-          </div>
-        );
+        return <FolderSetting />;
       case 'embedding':
         return <EmbeddingJobsPanel />;
       case 'workspace':
@@ -162,6 +124,8 @@ export const SettingsPage: React.FC = () => {
             </div>
           </div>
         );
+      case 'plugins':
+        return <div className="p-4 text-sm text-muted-foreground">插件管理功能正在开发中，敬请期待！</div>;
       case 'ai':
         return <AiSettings initialProviderId={initialAiProviderId || undefined} />;
       case 'prompt':
@@ -173,7 +137,7 @@ export const SettingsPage: React.FC = () => {
       case 'general':
         return <GeneralSettings />;
       default:
-        return <GeneralSettings />;
+        return <div></div>;
     }
   };
 
