@@ -5,7 +5,7 @@
  * - 返回：{ bind: { onMouseDown }, isDragging, isDragReady }
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { clamp } from '@/utils/helpers';
+import { clamp } from '@/lib/helpers';
 import { ASSISTANT_HEIGHT, ASSISTANT_WIDTH, FRAME_INTERVAL } from '../constants';
 
 export function useDragMove(

@@ -4,7 +4,7 @@
  * - 返回：{ animateMoveWindow(x,y), stopWalking(), isWalking }
  */
 import { useCallback, useRef, useState } from 'react';
-import { bezierQ, clamp, lerp } from '@/utils/helpers';
+import { bezierQ, clamp, lerp } from '@/lib/helpers';
 import { FRAME_INTERVAL, PATH_CURVE_FACTOR, STEP_GRID, DEFAULT_MOVEMENT_MODE, DEFAULT_WALK_SPEED } from '../constants';
 
 export function useWalkAnimation(): {

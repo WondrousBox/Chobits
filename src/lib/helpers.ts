@@ -1,7 +1,7 @@
 // Helpers
-export const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
-export const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-export const bezierQ = (p0: number, p1: number, p2: number, t: number) => (1 - t) ** 2 * p0 + 2 * (1 - t) * t * p1 + t ** 2 * p2;
+export const clamp = (v: number, min: number, max: number): number => Math.max(min, Math.min(max, v));
+export const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
+export const bezierQ = (p0: number, p1: number, p2: number, t: number): number => (1 - t) ** 2 * p0 + 2 * (1 - t) * t * p1 + t ** 2 * p2;
 
 // 脱敏用户路径
 // - Windows: 将 <Drive>:\Users\<name> 或 <Drive>:/Users/<name> 前缀替换为 %USERPROFILE%

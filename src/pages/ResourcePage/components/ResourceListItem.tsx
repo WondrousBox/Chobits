@@ -1,11 +1,13 @@
+import prettyBytes from 'pretty-bytes';
 import React, { useCallback, useState } from 'react';
 import { TbAppWindow, TbCalendar, TbCheck, TbClock, TbCopy, TbEye, TbEyeOff, TbFile, TbHeart, TbPlayerPlay, TbStar, TbTag, TbUser } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { makeResSrc } from '@/lib/resourceProtocol';
+import { formatDuration, getResourceTypeIcon, getStatusColor, parseTags } from '@/lib/resourceUtils';
+import { formatRelativeTime } from '@/lib/time';
 import { ResourceItem } from '@/types';
-import { formatDuration, formatFileSize, formatTime, getResourceTypeIcon, getStatusColor, parseTags } from '@/utils/resourceUtils';
 
 interface ListItemProps {
   item: ResourceItem;
@@ -102,12 +104,10 @@ const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, onClick, on
         {/* 元数据信息 */}
         <div className="flex items-center gap-4 text-xs text-muted-foreground mb-2">
           {/* 文件大小 */}
-          {item.sizeBytes && (
-            <span className="flex items-center gap-1">
-              <TbFile className="w-3 h-3" />
-              {formatFileSize(item.sizeBytes)}
-            </span>
-          )}
+          <span className="flex items-center gap-1">
+            <TbFile className="w-3 h-3" />
+            {prettyBytes(item.sizeBytes || 0)}
+          </span>
 
           {/* 时长 */}
           {item.durationMs && (
@@ -128,7 +128,7 @@ const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, onClick, on
           {item.collectedAt && (
             <span className="flex items-center gap-1">
               <TbCalendar className="w-3 h-3" />
-              {formatTime(item.collectedAt)}
+              {formatRelativeTime(item.collectedAt)}
             </span>
           )}
         </div>
