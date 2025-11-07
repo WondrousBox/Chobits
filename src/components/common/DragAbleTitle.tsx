@@ -5,11 +5,12 @@ import { useEffect, useState } from 'react';
 interface DragAbleTitleProps {
   title: React.ReactNode | string;
   icon?: React.ReactNode;
+  center?: React.ReactNode;
   actions?: React.ReactNode;
   onClose?: () => void;
 }
 
-function DragAbleTitle({ title, icon, actions, onClose }: DragAbleTitleProps) {
+function DragAbleTitle({ title, icon, center, actions, onClose }: DragAbleTitleProps): React.ReactElement {
   const [maximized, setMaximized] = useState(false);
   const [caps, setCaps] = useState({ minimizable: true, maximizable: true, resizable: true });
 
@@ -22,7 +23,7 @@ function DragAbleTitle({ title, icon, actions, onClose }: DragAbleTitleProps) {
       window.YUA.window['window:capabilities:get']().then((c) => {
         if (mounted) setCaps(c);
       });
-      const listener = (_: any, state: boolean) => {
+      const listener = (_: any, state: boolean): void => {
         if (mounted) setMaximized(state);
       };
       window.ipcRenderer.on('window-maximize-changed', listener);
@@ -40,6 +41,7 @@ function DragAbleTitle({ title, icon, actions, onClose }: DragAbleTitleProps) {
       {window.YUA.isMac && <div className="w-20"></div>}
       <div className="flex-1 w-0">{title}</div>
       {icon && <div>{icon}</div>}
+      {center && <div className="absolute left-1/2 -translate-x-1/2 flex items-center">{center}</div>}
       {actions && <div className="no-drag flex items-center gap-2">{actions}</div>}
       {/* Windows 自定义窗口控制按钮（Mac 使用系统 traffic lights 不再重复） */}
       {window.YUA.isWindows && (
