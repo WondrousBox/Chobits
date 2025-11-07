@@ -1,19 +1,7 @@
+import prettyBytes from 'pretty-bytes';
+
+import { formatRelativeTime } from '@/lib/time';
 import { ResourceItem } from '@/types';
-
-// 格式化文件大小
-export function formatFileSize(bytes?: number): string {
-  if (!bytes) return '';
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let size = bytes;
-  let unitIndex = 0;
-
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024;
-    unitIndex++;
-  }
-
-  return `${size.toFixed(1)} ${units[unitIndex]}`;
-}
 
 // 格式化时长
 export function formatDuration(ms?: number): string {
@@ -35,28 +23,6 @@ export function formatDuration(ms?: number): string {
 export function formatResolution(width?: number, height?: number): string {
   if (!width || !height) return '';
   return `${width}×${height}`;
-}
-
-// 格式化时间
-export function formatTime(timestamp?: number): string {
-  if (!timestamp) return '';
-  const date = new Date(timestamp);
-  const now = new Date();
-  const diff = now.getTime() - date.getTime();
-
-  const minutes = Math.floor(diff / (1000 * 60));
-  const hours = Math.floor(diff / (1000 * 60 * 60));
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-
-  if (minutes < 60) {
-    return `${minutes}分钟前`;
-  } else if (hours < 24) {
-    return `${hours}小时前`;
-  } else if (days < 7) {
-    return `${days}天前`;
-  } else {
-    return date.toLocaleDateString('zh-CN');
-  }
 }
 
 // 解析标签
@@ -135,10 +101,10 @@ export function getResourceSummary(item: ResourceItem): {
   const subtitle = item.description || item.authorName || item.sourceName || '';
 
   const metadata: string[] = [];
-  if (item.sizeBytes) metadata.push(formatFileSize(item.sizeBytes));
+  if (item.sizeBytes) metadata.push(prettyBytes(item.sizeBytes || 0));
   if (item.durationMs) metadata.push(formatDuration(item.durationMs));
   if (item.width && item.height) metadata.push(formatResolution(item.width, item.height));
-  if (item.collectedAt) metadata.push(formatTime(item.collectedAt));
+  if (item.collectedAt) metadata.push(formatRelativeTime(item.collectedAt));
 
   const tags = parseTags(item.tags);
 

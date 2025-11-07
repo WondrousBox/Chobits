@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { formatRelativeTime } from '@/lib/time';
-import { maskPath } from '@/utils/helpers';
+import { maskPath } from '@/lib/helpers';
 
 const Workspace: React.FC = () => {
   const [list, setList] = useState<any[]>([]);

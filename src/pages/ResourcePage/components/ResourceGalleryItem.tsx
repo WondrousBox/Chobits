@@ -1,11 +1,12 @@
+import prettyBytes from 'pretty-bytes';
 import React, { useCallback, useState } from 'react';
 import { TbCheck, TbClock, TbCopy, TbEye, TbEyeOff, TbFile, TbHeart, TbPlayerPlay, TbStar } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from '@/lib/resourceProtocol';
+import { formatDuration, getResourceSummary, getResourceTypeIcon, getStatusColor } from '@/lib/resourceUtils';
 import { ResourceItem } from '@/types';
-import { formatDuration, formatFileSize, getResourceSummary, getResourceTypeIcon, getStatusColor } from '@/utils/resourceUtils';
 
 interface GalleryItemProps {
   item: ResourceItem;
@@ -241,12 +242,10 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
         <div className="flex items-center justify-between text-[9px] text-white/80">
           <div className="flex items-center gap-1.5">
             {/* 文件大小 */}
-            {item.sizeBytes && (
-              <span className="flex items-center gap-0.5">
-                <TbFile className="w-3 h-3" />
-                {formatFileSize(item.sizeBytes)}
-              </span>
-            )}
+            <span className="flex items-center gap-0.5">
+              <TbFile className="w-3 h-3" />
+              {prettyBytes(item.sizeBytes || 0)}
+            </span>
 
             {/* 时长 */}
             {item.durationMs && (
