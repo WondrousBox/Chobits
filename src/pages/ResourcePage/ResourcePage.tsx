@@ -3,6 +3,7 @@ import {
   TbDots,
   TbFile,
   TbFileDescription,
+  TbFilter,
   TbFolderFilled,
   TbFolderOpen,
   TbGrid3X3,
@@ -15,6 +16,7 @@ import {
   TbPencil,
   TbPhoto,
   TbRefresh,
+  TbRobot,
   TbSearch,
   TbTrash,
   TbVideo,
@@ -27,6 +29,7 @@ import { Button } from '@/components/ui/button';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '@/components/ui/sidebar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -574,30 +577,80 @@ const ResourcePage: React.FC = () => {
                 <TbRefresh />
               </Button>
 
-              {/* 标签筛选器 */}
-              <Select
-                value={tagFilter === '' ? ALL_TAG_VALUE : tagFilter}
-                onValueChange={(v) => {
-                  const next = v === ALL_TAG_VALUE ? '' : v;
-                  setTagFilter(next);
-                  // 切换标签时重新加载
-                  setTimeout(() => load(), 0);
-                }}
-              >
-                <SelectTrigger className="h-8">
-                  <SelectValue placeholder="标签（全部）" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem key="__all" value={ALL_TAG_VALUE}>
-                    全部标签
-                  </SelectItem>
-                  {tags.map((t) => (
-                    <SelectItem key={t.tag} value={t.tag}>
-                      {t.tag}（{t.count}）
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Button size="icon" className="w-8 h-8 shrink-0" variant="ghost">
+                <TbRobot />
+              </Button>
+              {/* 综合筛选弹出层 */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button size="icon" className="w-8 h-8 shrink-0" variant="ghost">
+                    <TbFilter />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent side="bottom" align="end" className="w-80 p-3 space-y-4">
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-muted-foreground">标签筛选</div>
+                    <Select
+                      value={tagFilter === '' ? ALL_TAG_VALUE : tagFilter}
+                      onValueChange={(v) => {
+                        const next = v === ALL_TAG_VALUE ? '' : v;
+                        setTagFilter(next);
+                        setTimeout(() => load(), 0);
+                      }}
+                    >
+                      <SelectTrigger className="h-8">
+                        <SelectValue placeholder="全部标签" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem key="__all" value={ALL_TAG_VALUE}>
+                          全部标签
+                        </SelectItem>
+                        {tags.map((t) => (
+                          <SelectItem key={t.tag} value={t.tag}>
+                            {t.tag}（{t.count}）
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-muted-foreground">资源排序</div>
+                    <Select
+                      value={`${sortField}-${sortOrder}`}
+                      onValueChange={(value) => {
+                        const [field, order] = value.split('-') as [SortField, SortOrder];
+                        setSortField(field);
+                        setSortOrder(order);
+                      }}
+                    >
+                      <SelectTrigger className="h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="collectedAt-desc">收集时间 ↓</SelectItem>
+                        <SelectItem value="collectedAt-asc">收集时间 ↑</SelectItem>
+                        <SelectItem value="title-asc">标题 A-Z</SelectItem>
+                        <SelectItem value="title-desc">标题 Z-A</SelectItem>
+                        <SelectItem value="sizeBytes-desc">文件大小 ↓</SelectItem>
+                        <SelectItem value="sizeBytes-asc">文件大小 ↑</SelectItem>
+                        <SelectItem value="rating-desc">评分 ↓</SelectItem>
+                        <SelectItem value="rating-asc">评分 ↑</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-xs font-medium text-muted-foreground">展示模式</div>
+                    <div className="flex gap-2">
+                      <Button className="flex-1 h-8" variant={viewMode === 'grid' ? 'default' : 'outline'} onClick={() => setViewMode('grid')}>
+                        <TbGrid3X3 className="mr-1" /> 网格
+                      </Button>
+                      <Button className="flex-1 h-8" variant={viewMode === 'list' ? 'default' : 'outline'} onClick={() => setViewMode('list')}>
+                        <TbList className="mr-1" /> 列表
+                      </Button>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
           </>
         }
@@ -746,54 +799,7 @@ const ResourcePage: React.FC = () => {
         </Sidebar>
         {/* 资源展示区域 */}
         <div className="w-full h-full" style={{ height: 'calc(100% - 36px)' }}>
-          <div className="flex items-center justify-between h-10 gap-2 px-2">
-            <Select
-              value={`${sortField}-${sortOrder}`}
-              onValueChange={(value) => {
-                const [field, order] = value.split('-') as [SortField, SortOrder];
-                setSortField(field);
-                setSortOrder(order);
-              }}
-            >
-              <SelectTrigger className="w-40 h-8">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="collectedAt-desc">收集时间 ↓</SelectItem>
-                <SelectItem value="collectedAt-asc">收集时间 ↑</SelectItem>
-                <SelectItem value="title-asc">标题 A-Z</SelectItem>
-                <SelectItem value="title-desc">标题 Z-A</SelectItem>
-                <SelectItem value="sizeBytes-desc">文件大小 ↓</SelectItem>
-                <SelectItem value="sizeBytes-asc">文件大小 ↑</SelectItem>
-                <SelectItem value="rating-desc">评分 ↓</SelectItem>
-                <SelectItem value="rating-asc">评分 ↑</SelectItem>
-              </SelectContent>
-            </Select>
-            {/* 选中项操作栏 */}
-            {selectedItems.size > 0 && (
-              <div className="flex items-center justify-between no-drag">
-                <span className="text-sm text-primary">已选择 {selectedItems.size} 个项目</span>
-                <div className="flex items-center gap-2">
-                  <Button variant="destructive" size="sm" onClick={() => handleDeleteMany(Array.from(selectedItems))}>
-                    删除选中
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={() => setSelectedItems(new Set())}>
-                    <TbX />
-                  </Button>
-                </div>
-              </div>
-            )}
-            <div className="flex border rounded-md">
-              <Button className="w-8 h-8" variant={viewMode === 'grid' ? 'default' : 'ghost'} size="icon" onClick={() => setViewMode('grid')}>
-                <TbGrid3X3 />
-              </Button>
-              <Button className="w-8 h-8" variant={viewMode === 'list' ? 'default' : 'ghost'} size="icon" onClick={() => setViewMode('list')}>
-                <TbList />
-              </Button>
-            </div>
-          </div>
-
-          <div className="w-full h-full overflow-y-auto" style={{ height: 'calc(100% - 40px)' }}>
+          <div className="w-full h-full overflow-y-auto">
             {viewMode === 'grid' ? (
               <ExplorerGrid
                 items={filtered}
@@ -1025,6 +1031,16 @@ const ResourcePage: React.FC = () => {
                 </React.Fragment>
               ))}
             </div>
+            {/* 选中项操作栏（保留位置，排序与视图模式已移入 Popover） */}
+            {selectedItems.size > 0 && (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-primary">已选择 {selectedItems.size} 个项目</span>
+                  <TbTrash onClick={() => handleDeleteMany(Array.from(selectedItems))} />
+                  <TbX onClick={() => setSelectedItems(new Set())} />
+                </div>
+              </div>
+            )}
             <div className="text-muted-foreground whitespace-nowrap">
               <span>
                 共 {filtered.length}/{list.length} 个资源
