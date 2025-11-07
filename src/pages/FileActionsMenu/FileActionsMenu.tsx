@@ -122,6 +122,15 @@ const FileActionsMenu: React.FC = () => {
           console.warn('[FileActionsMenu] extract keyframes error', err);
         }
       });
+
+    const transcribeVideo = (): Promise<void> =>
+      closeAfter(async () => {
+        try {
+          //
+        } catch (err) {
+          console.warn('[FileActionsMenu] open assistant error', err);
+        }
+      });
     const analyzeImage = (): Promise<void> =>
       closeAfter(async () => {
         try {
@@ -150,6 +159,7 @@ const FileActionsMenu: React.FC = () => {
     } else if (kind === 'video') {
       list.push({ id: 'video-transcode', label: '转码/压缩', icon: '🎬', run: transcodeVideo });
       list.push({ id: 'video-keyframes', label: '提取关键帧', icon: '🖼️', run: extractKeyframes });
+      list.push({ id: 'video-stt', label: '视频转写', icon: '🗣️', run: transcribeVideo });
       // already added
     } else if (kind === 'image') {
       list.push({ id: 'image-analyze', label: '图像理解', icon: '🧠', run: analyzeImage });
