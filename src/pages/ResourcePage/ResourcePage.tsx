@@ -28,7 +28,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator,
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { SidebarProvider } from '@/components/ui/sidebar';
+import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '@/components/ui/sidebar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ResourceItem, SortField, SortOrder, ViewMode } from '@/types';
 
@@ -55,8 +55,6 @@ const ResourcePage: React.FC = () => {
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameId, setRenameId] = useState<string>('');
   const [renameName, setRenameName] = useState<string>('');
-  // 列表视图：根目录放置区的悬停高亮
-  const [rootDropOver, setRootDropOver] = useState(false);
   // Radix Select: SelectItem value cannot be an empty string
   const ALL_TAG_VALUE = '__all__';
 
@@ -605,194 +603,197 @@ const ResourcePage: React.FC = () => {
         }
       />
 
-      {/* 类型过滤器 */}
-      <div className="flex items-center justify-between gap-2 p-2 border-ring drag-region" style={{ borderBottomStyle: 'solid' }}>
-        <div className="flex items-center gap-1 no-drag">
-          {typeOptions
-            .filter(({ key }) => key === '' || visibleTypes.has(key))
-            .map(({ key, label, icon: Icon }) => (
-              <Button
-                key={key || 'all'}
-                variant={typeFilter === key && !(favoriteFilter && key === '') ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => {
-                  if (key === '') {
-                    // 点击"全部"时，取消收藏筛选
-                    setFavoriteFilter(false);
-                    setTypeFilter('');
-                  } else {
-                    // 点击其他类型时，只设置类型筛选，不与收藏筛选冲突
-                    setTypeFilter((prev) => (prev === key ? '' : key));
+      {/* 主内容区域 */}
+      <SidebarProvider style={{ height: 'calc(100% - 36px)', minHeight: 'unset' }}>
+        <Sidebar collapsible="none" className="h-full w-80 bg-sidebar">
+          <SidebarHeader>
+            <SidebarMenu className="pl-0">
+              {typeOptions
+                .filter(({ key }) => key === '' || visibleTypes.has(key))
+                .map(({ key, label, icon: Icon }) => (
+                  <SidebarMenuItem
+                    className="pl-0 list-none h-8"
+                    key={key || 'all'}
+                    onClick={() => {
+                      if (key === '') {
+                        // 点击"全部"时，取消收藏筛选
+                        setFavoriteFilter(false);
+                        setTypeFilter('');
+                      } else {
+                        // 点击其他类型时，只设置类型筛选，不与收藏筛选冲突
+                        setTypeFilter((prev) => (prev === key ? '' : key));
+                      }
+                    }}
+                  >
+                    <SidebarMenuButton isActive={typeFilter === key && !(favoriteFilter && key === '')} variant={typeFilter === key && !(favoriteFilter && key === '') ? 'outline' : 'default'}>
+                      <Icon />
+                      {label}
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+
+              {/* 收藏筛选按钮 - 只在存在收藏内容时显示 */}
+              {hasFavorites && (
+                <SidebarMenuItem
+                  key={'favorite'}
+                  onClick={() => {
+                    if (favoriteFilter) {
+                      // 如果当前是收藏模式，点击后取消收藏筛选
+                      setFavoriteFilter(false);
+                    } else {
+                      // 如果当前不是收藏模式，点击后进入收藏模式
+                      // 如果当前选择的是"全部"类型，则取消类型筛选
+                      setFavoriteFilter(true);
+                      if (typeFilter === '') {
+                        setTypeFilter('');
+                      }
+                    }
+                  }}
+                >
+                  <SidebarMenuButton
+                    variant={favoriteFilter ? 'outline' : 'default'}
+                    className={`h-8 transition-colors ${favoriteFilter ? 'bg-red-500 hover:bg-red-600 text-white' : 'hover:text-red-500 hover:bg-red-50'}`}
+                  >
+                    <TbHeart className={`${favoriteFilter ? 'fill-current' : ''}`} />
+                    只显示收藏
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+            </SidebarMenu>
+          </SidebarHeader>
+          {/* 左侧文件夹 */}
+          <SidebarContent>
+            <FolderSidebar
+              folders={folders}
+              selectedId={folderFilter || undefined}
+              onSelect={(id) => setFolderFilter(id as string)}
+              counts={folderCounts}
+              allCount={allCount}
+              onDropResources={async (folderId, ids) => {
+                await handleMoveResourcesToFolder(folderId, ids);
+              }}
+              onMoveFolder={handleMoveFolder}
+              onCreate={async (parentId) => {
+                try {
+                  const d = new Date();
+                  const name = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                  const wsId = wsFilter || undefined;
+                  const res = await folderAPI['folder.create']({ name, parentId: parentId ?? (folderFilter || null), workspaceId: wsId });
+                  if ((res as any)?.success) {
+                    await loadFolders(wsId);
+                    return (res as any)?.data?.id;
                   }
-                }}
-                className="h-8"
-              >
-                <Icon />
-                {label}
+                  return undefined;
+                } catch (e) {
+                  console.warn('create folder failed', e);
+                  return undefined;
+                }
+              }}
+              onInlineRename={async (id, name) => {
+                try {
+                  const wsId = wsFilter || undefined;
+                  const r = await folderAPI['folder.rename']({ id, name });
+                  if ((r as any)?.success) {
+                    await loadFolders(wsId);
+                  }
+                } catch (e) {
+                  console.warn('inline rename folder failed', e);
+                }
+              }}
+              onRename={async (id) => {
+                try {
+                  const f = folders.find((f) => f.id === id);
+                  setRenameId(id);
+                  setRenameName(f?.name || '');
+                  setRenameOpen(true);
+                } catch (e) {
+                  console.warn('open rename modal failed', e);
+                }
+              }}
+              onDelete={async (id) => {
+                try {
+                  const r = await folderAPI['folder.softDelete']({ ids: [id] });
+                  if ((r as any)?.success) {
+                    if (folderFilter === id) setFolderFilter('');
+                    await loadFolders(wsFilter || undefined);
+                    toast.success('文件夹已删除', {
+                      description: '已移动到回收站',
+                      action: {
+                        label: '撤回',
+                        onClick: async () => {
+                          try {
+                            const rr = await folderAPI['folder.restore']({ ids: [id] });
+                            if ((rr as any)?.success) {
+                              toast.success('已撤回删除');
+                              await loadFolders(wsFilter || undefined);
+                            } else {
+                              toast.error('撤回失败');
+                            }
+                          } catch (err) {
+                            toast.error('撤回失败', { description: String((err as any)?.message || err) });
+                          }
+                        }
+                      }
+                    });
+                  }
+                } catch (e) {
+                  console.warn('delete folder failed', e);
+                  toast.error('删除文件夹失败', { description: String((e as any)?.message || e) });
+                }
+              }}
+            />
+          </SidebarContent>
+        </Sidebar>
+        {/* 资源展示区域 */}
+        <div className="w-full h-full" style={{ height: 'calc(100% - 36px)' }}>
+          <div className="flex items-center justify-between h-10 gap-2 px-2">
+            <Select
+              value={`${sortField}-${sortOrder}`}
+              onValueChange={(value) => {
+                const [field, order] = value.split('-') as [SortField, SortOrder];
+                setSortField(field);
+                setSortOrder(order);
+              }}
+            >
+              <SelectTrigger className="w-40 h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="collectedAt-desc">收集时间 ↓</SelectItem>
+                <SelectItem value="collectedAt-asc">收集时间 ↑</SelectItem>
+                <SelectItem value="title-asc">标题 A-Z</SelectItem>
+                <SelectItem value="title-desc">标题 Z-A</SelectItem>
+                <SelectItem value="sizeBytes-desc">文件大小 ↓</SelectItem>
+                <SelectItem value="sizeBytes-asc">文件大小 ↑</SelectItem>
+                <SelectItem value="rating-desc">评分 ↓</SelectItem>
+                <SelectItem value="rating-asc">评分 ↑</SelectItem>
+              </SelectContent>
+            </Select>
+            {/* 选中项操作栏 */}
+            {selectedItems.size > 0 && (
+              <div className="flex items-center justify-between no-drag">
+                <span className="text-sm text-primary">已选择 {selectedItems.size} 个项目</span>
+                <div className="flex items-center gap-2">
+                  <Button variant="destructive" size="sm" onClick={() => handleDeleteMany(Array.from(selectedItems))}>
+                    删除选中
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => setSelectedItems(new Set())}>
+                    <TbX />
+                  </Button>
+                </div>
+              </div>
+            )}
+            <div className="flex border rounded-md">
+              <Button className="w-8 h-8" variant={viewMode === 'grid' ? 'default' : 'ghost'} size="icon" onClick={() => setViewMode('grid')}>
+                <TbGrid3X3 />
               </Button>
-            ))}
-
-          <Select
-            value={`${sortField}-${sortOrder}`}
-            onValueChange={(value) => {
-              const [field, order] = value.split('-') as [SortField, SortOrder];
-              setSortField(field);
-              setSortOrder(order);
-            }}
-          >
-            <SelectTrigger className="w-40 h-8">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="collectedAt-desc">收集时间 ↓</SelectItem>
-              <SelectItem value="collectedAt-asc">收集时间 ↑</SelectItem>
-              <SelectItem value="title-asc">标题 A-Z</SelectItem>
-              <SelectItem value="title-desc">标题 Z-A</SelectItem>
-              <SelectItem value="sizeBytes-desc">文件大小 ↓</SelectItem>
-              <SelectItem value="sizeBytes-asc">文件大小 ↑</SelectItem>
-              <SelectItem value="rating-desc">评分 ↓</SelectItem>
-              <SelectItem value="rating-asc">评分 ↑</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* 选中项操作栏 */}
-        {selectedItems.size > 0 && (
-          <div className="flex items-center justify-between no-drag">
-            <span className="text-sm text-primary">已选择 {selectedItems.size} 个项目</span>
-            <div className="flex items-center gap-2">
-              <Button variant="destructive" size="sm" onClick={() => handleDeleteMany(Array.from(selectedItems))}>
-                删除选中
-              </Button>
-              <Button variant="ghost" size="icon" onClick={() => setSelectedItems(new Set())}>
-                <TbX />
+              <Button className="w-8 h-8" variant={viewMode === 'list' ? 'default' : 'ghost'} size="icon" onClick={() => setViewMode('list')}>
+                <TbList />
               </Button>
             </div>
           </div>
-        )}
 
-        <div className="flex items-center gap-2 no-drag">
-          {/* 收藏筛选按钮 - 只在存在收藏内容时显示 */}
-          {hasFavorites && (
-            <Button
-              variant={favoriteFilter ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => {
-                if (favoriteFilter) {
-                  // 如果当前是收藏模式，点击后取消收藏筛选
-                  setFavoriteFilter(false);
-                } else {
-                  // 如果当前不是收藏模式，点击后进入收藏模式
-                  // 如果当前选择的是"全部"类型，则取消类型筛选
-                  setFavoriteFilter(true);
-                  if (typeFilter === '') {
-                    setTypeFilter('');
-                  }
-                }
-              }}
-              className={`h-8 transition-colors ${favoriteFilter ? 'bg-red-500 hover:bg-red-600 text-white' : 'hover:text-red-500 hover:bg-red-50'}`}
-            >
-              <TbHeart className={`w-4 h-4 ${favoriteFilter ? 'fill-current' : ''}`} />
-              收藏
-            </Button>
-          )}
-          <div className="flex border rounded-md">
-            <Button className="w-8 h-8" variant={viewMode === 'grid' ? 'default' : 'ghost'} size="icon" onClick={() => setViewMode('grid')}>
-              <TbGrid3X3 />
-            </Button>
-            <Button className="w-8 h-8" variant={viewMode === 'list' ? 'default' : 'ghost'} size="icon" onClick={() => setViewMode('list')}>
-              <TbList />
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* 主内容区域 */}
-
-      <SidebarProvider style={{ height: 'calc(100% - 88px)', minHeight: 'unset' }}>
-        {/* 左侧文件夹 */}
-        <FolderSidebar
-          folders={folders}
-          selectedId={folderFilter || undefined}
-          onSelect={(id) => setFolderFilter(id as string)}
-          counts={folderCounts}
-          allCount={allCount}
-          onDropResources={async (folderId, ids) => {
-            await handleMoveResourcesToFolder(folderId, ids);
-          }}
-          onMoveFolder={handleMoveFolder}
-          onCreate={async (parentId) => {
-            try {
-              const d = new Date();
-              const name = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-              const wsId = wsFilter || undefined;
-              const res = await folderAPI['folder.create']({ name, parentId: parentId ?? (folderFilter || null), workspaceId: wsId });
-              if ((res as any)?.success) {
-                await loadFolders(wsId);
-                return (res as any)?.data?.id;
-              }
-              return undefined;
-            } catch (e) {
-              console.warn('create folder failed', e);
-              return undefined;
-            }
-          }}
-          onInlineRename={async (id, name) => {
-            try {
-              const wsId = wsFilter || undefined;
-              const r = await folderAPI['folder.rename']({ id, name });
-              if ((r as any)?.success) {
-                await loadFolders(wsId);
-              }
-            } catch (e) {
-              console.warn('inline rename folder failed', e);
-            }
-          }}
-          onRename={async (id) => {
-            try {
-              const f = folders.find((f) => f.id === id);
-              setRenameId(id);
-              setRenameName(f?.name || '');
-              setRenameOpen(true);
-            } catch (e) {
-              console.warn('open rename modal failed', e);
-            }
-          }}
-          onDelete={async (id) => {
-            try {
-              const r = await folderAPI['folder.softDelete']({ ids: [id] });
-              if ((r as any)?.success) {
-                if (folderFilter === id) setFolderFilter('');
-                await loadFolders(wsFilter || undefined);
-                toast.success('文件夹已删除', {
-                  description: '已移动到回收站',
-                  action: {
-                    label: '撤回',
-                    onClick: async () => {
-                      try {
-                        const rr = await folderAPI['folder.restore']({ ids: [id] });
-                        if ((rr as any)?.success) {
-                          toast.success('已撤回删除');
-                          await loadFolders(wsFilter || undefined);
-                        } else {
-                          toast.error('撤回失败');
-                        }
-                      } catch (err) {
-                        toast.error('撤回失败', { description: String((err as any)?.message || err) });
-                      }
-                    }
-                  }
-                });
-              }
-            } catch (e) {
-              console.warn('delete folder failed', e);
-              toast.error('删除文件夹失败', { description: String((e as any)?.message || e) });
-            }
-          }}
-        />
-        {/* 资源展示区域 */}
-        <div className="w-full h-full" style={{ height: 'calc(100% - 36px)' }}>
-          <div className="w-full h-full overflow-y-auto">
+          <div className="w-full h-full overflow-y-auto" style={{ height: 'calc(100% - 40px)' }}>
             {viewMode === 'grid' ? (
               <ExplorerGrid
                 items={filtered}
@@ -811,49 +812,6 @@ const ResourcePage: React.FC = () => {
               />
             ) : (
               <div className="space-y-2">
-                {/* 移到根目录的放置目标 */}
-                {(() => {
-                  const rootDropClass = rootDropOver ? 'border-primary bg-primary/5 text-primary' : 'border-dashed border-muted-foreground/30 text-muted-foreground hover:bg-muted/30';
-                  return (
-                    <div
-                      className={'flex items-center gap-2 p-2 rounded-md border text-sm transition-colors ' + rootDropClass}
-                      onDragOver={(e) => {
-                        const types = Array.from((e.dataTransfer?.types as any) || []);
-                        const isFolder = types.includes('application/x-folder-id');
-                        if (isFolder) {
-                          e.preventDefault();
-                          e.dataTransfer.dropEffect = 'move';
-                          setRootDropOver(true);
-                        }
-                      }}
-                      onDragLeave={() => setRootDropOver(false)}
-                      onDrop={async (e) => {
-                        setRootDropOver(false);
-                        try {
-                          const fid = e.dataTransfer.getData('application/x-folder-id');
-                          if (fid) {
-                            try {
-                              await handleMoveFolder(fid, null);
-                            } catch (err) {
-                              const msg = String((err as any)?.message || err || '');
-                              const isUnique = /UNIQUE|constraint/i.test(msg);
-                              if (isUnique) {
-                                toast.error('移动文件夹失败', { description: '目标文件夹内已存在同名文件夹' });
-                              } else {
-                                toast.error('移动文件夹失败');
-                              }
-                            }
-                          }
-                        } catch {
-                          /* ignore */
-                        }
-                      }}
-                    >
-                      <TbFolderOpen /> 将文件夹拖到这里可移到根目录
-                    </div>
-                  );
-                })()}
-
                 {/* 先渲染子文件夹列表条目 */}
                 {childFolders.map((f) => {
                   const ListFolderRow: React.FC = () => {

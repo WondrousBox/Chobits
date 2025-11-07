@@ -4,18 +4,7 @@ import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia } from '@/components/ui/empty';
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupAction,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuBadge,
-  SidebarMenuButton,
-  SidebarMenuItem
-} from '@/components/ui/sidebar';
+import { SidebarGroup, SidebarGroupAction, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 
 import FolderTreeRow from './FolderTreeRow';
 
@@ -207,121 +196,119 @@ const FolderSidebar: React.FC<{
     return () => window.removeEventListener('keydown', onKeyDown, { capture: true } as any);
   }, [handleCreate, onDelete, selectedId, inlineEditId]);
   return (
-    <Sidebar collapsible="none" className="h-full w-80 bg-sidebar">
-      <SidebarContent>
-        <SidebarGroup className="box-border">
-          <SidebarGroupLabel>文件夹</SidebarGroupLabel>
-          <SidebarGroupAction asChild>
-            <Button size="icon" variant={'ghost'} className="w-8 h-8" onClick={() => handleCreate()}>
-              <TbPlus />
-            </Button>
-          </SidebarGroupAction>
-          <SidebarGroupContent>
-            <SidebarMenu className="pl-0">
-              {tree.length > 0 && (
-                <SidebarMenuItem className="pl-0 list-none">
-                  <SidebarMenuButton
-                    isActive={!selectedId}
-                    className={`${rootOver ? 'ring-1 ring-primary/50 bg-primary/5' : ''}`}
-                    onClick={() => onSelect('')}
-                    onDragOver={(e) => {
-                      // Accept resources always; accept folders to move to root
-                      const types = Array.from((e.dataTransfer?.types as any) || []);
-                      const isFolderDragging = !!draggingFolderId || types.includes('application/x-folder-id');
-                      const isResourceDragging = types.includes('application/x-resource-ids');
-                      if (isFolderDragging || isResourceDragging) {
-                        e.preventDefault();
-                        e.dataTransfer.dropEffect = 'move';
-                        setRootOver(true);
-                      }
-                    }}
-                    onDragLeave={() => setRootOver(false)}
-                    onDrop={async (e) => {
-                      setRootOver(false);
-                      try {
-                        // folder -> root
-                        const fid = e.dataTransfer.getData('application/x-folder-id');
-                        if (fid) {
-                          try {
-                            await onMoveFolder?.(fid, null);
-                          } catch (err) {
-                            const msg = String((err as any)?.message || err || '');
-                            const isUnique = /UNIQUE|constraint/i.test(msg);
-                            if (isUnique) {
-                              toast.error('移动文件夹失败', { description: '目标文件夹内已存在同名文件夹' });
-                            } else {
-                              toast.error('移动文件夹失败');
-                            }
+    <>
+      <SidebarGroup className="box-border">
+        <SidebarGroupLabel>文件夹</SidebarGroupLabel>
+        <SidebarGroupAction asChild>
+          <Button size="icon" variant={'ghost'} className="w-8 h-8 top-2" onClick={() => handleCreate()}>
+            <TbPlus />
+          </Button>
+        </SidebarGroupAction>
+        <SidebarGroupContent>
+          <SidebarMenu className="pl-0">
+            {tree.length > 0 && (
+              <SidebarMenuItem className="pl-0 list-none">
+                <SidebarMenuButton
+                  isActive={!selectedId}
+                  className={`${rootOver ? 'ring-1 ring-primary/50 bg-primary/5' : ''}`}
+                  onClick={() => onSelect('')}
+                  onDragOver={(e) => {
+                    // Accept resources always; accept folders to move to root
+                    const types = Array.from((e.dataTransfer?.types as any) || []);
+                    const isFolderDragging = !!draggingFolderId || types.includes('application/x-folder-id');
+                    const isResourceDragging = types.includes('application/x-resource-ids');
+                    if (isFolderDragging || isResourceDragging) {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      setRootOver(true);
+                    }
+                  }}
+                  onDragLeave={() => setRootOver(false)}
+                  onDrop={async (e) => {
+                    setRootOver(false);
+                    try {
+                      // folder -> root
+                      const fid = e.dataTransfer.getData('application/x-folder-id');
+                      if (fid) {
+                        try {
+                          await onMoveFolder?.(fid, null);
+                        } catch (err) {
+                          const msg = String((err as any)?.message || err || '');
+                          const isUnique = /UNIQUE|constraint/i.test(msg);
+                          if (isUnique) {
+                            toast.error('移动文件夹失败', { description: '目标文件夹内已存在同名文件夹' });
+                          } else {
+                            toast.error('移动文件夹失败');
                           }
-                          return;
                         }
-                      } catch {
-                        /* ignore */
+                        return;
                       }
-                      try {
-                        const raw = e.dataTransfer.getData('application/x-resource-ids');
-                        if (!raw) return;
-                        const ids: string[] = JSON.parse(raw);
-                        if (Array.isArray(ids) && ids.length && onDropResources) onDropResources(null, ids);
-                      } catch {
-                        /* ignore */
-                      }
-                    }}
-                  >
-                    <TbGrid3X3 /> 全部
-                  </SidebarMenuButton>
-                  <SidebarMenuBadge>{allCount ?? 0}</SidebarMenuBadge>
-                </SidebarMenuItem>
-              )}
+                    } catch {
+                      /* ignore */
+                    }
+                    try {
+                      const raw = e.dataTransfer.getData('application/x-resource-ids');
+                      if (!raw) return;
+                      const ids: string[] = JSON.parse(raw);
+                      if (Array.isArray(ids) && ids.length && onDropResources) onDropResources(null, ids);
+                    } catch {
+                      /* ignore */
+                    }
+                  }}
+                >
+                  <TbGrid3X3 /> 全部
+                </SidebarMenuButton>
+                <SidebarMenuBadge>{allCount ?? 0}</SidebarMenuBadge>
+              </SidebarMenuItem>
+            )}
 
-              {tree.map((node) => (
-                <FolderTreeRow
-                  key={node.id}
-                  node={node}
-                  depth={0}
-                  selectedId={selectedId}
-                  onSelect={(id) => onSelect(id)}
-                  onRename={onRename}
-                  onDelete={onDelete}
-                  onCreate={handleCreate}
-                  onDropResources={(fid, ids) => onDropResources?.(fid, ids)}
-                  onMoveFolder={(id, newPid) => onMoveFolder?.(id, newPid)}
-                  counts={counts}
-                  expanded={isExpanded(node.id)}
-                  isExpanded={isExpanded}
-                  onToggleExpand={toggleExpand}
-                  inlineEditId={inlineEditId}
-                  setInlineEditId={setInlineEditId}
-                  onInlineRename={onInlineRename}
-                  draggingFolderId={draggingFolderId}
-                  setDraggingFolderId={setDraggingFolderId}
-                  parentMap={parentMap}
-                />
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+            {tree.map((node) => (
+              <FolderTreeRow
+                key={node.id}
+                node={node}
+                depth={0}
+                selectedId={selectedId}
+                onSelect={(id) => onSelect(id)}
+                onRename={onRename}
+                onDelete={onDelete}
+                onCreate={handleCreate}
+                onDropResources={(fid, ids) => onDropResources?.(fid, ids)}
+                onMoveFolder={(id, newPid) => onMoveFolder?.(id, newPid)}
+                counts={counts}
+                expanded={isExpanded(node.id)}
+                isExpanded={isExpanded}
+                onToggleExpand={toggleExpand}
+                inlineEditId={inlineEditId}
+                setInlineEditId={setInlineEditId}
+                onInlineRename={onInlineRename}
+                draggingFolderId={draggingFolderId}
+                setDraggingFolderId={setDraggingFolderId}
+                parentMap={parentMap}
+              />
+            ))}
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
 
-        {tree.length === 0 && (
-          <div className="h-full flex items-center justify-center text-xs text-muted-foreground border-t border-sidebar-border">
-            <Empty>
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <TbFolder />
-                </EmptyMedia>
-                <EmptyDescription>暂无文件夹</EmptyDescription>
-              </EmptyHeader>
-              <EmptyContent>
-                <Button variant={'outline'} size={'sm'} onClick={() => handleCreate()}>
-                  <TbPlus />
-                  创建
-                </Button>
-              </EmptyContent>
-            </Empty>
-          </div>
-        )}
-      </SidebarContent>
-    </Sidebar>
+      {tree.length === 0 && (
+        <div className="h-full flex items-center justify-center text-xs text-muted-foreground border-t border-sidebar-border">
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <TbFolder />
+              </EmptyMedia>
+              <EmptyDescription>暂无文件夹</EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button variant={'outline'} size={'sm'} onClick={() => handleCreate()}>
+                <TbPlus />
+                创建
+              </Button>
+            </EmptyContent>
+          </Empty>
+        </div>
+      )}
+    </>
   );
 };
 
