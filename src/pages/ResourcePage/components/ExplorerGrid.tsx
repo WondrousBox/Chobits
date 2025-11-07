@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { useState as useReactState } from 'react';
+import { toast } from 'sonner';
 import { TbTrash, TbPencil, TbFolderOpen, TbFolderFilled } from 'react-icons/tb';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ResourceItem } from '@/types';
 import ResourceGalleryItem from './ResourceGalleryItem';
 import type { UIFolder } from './FolderSidebar';
@@ -11,48 +13,136 @@ const GridFolderTile: React.FC<{
   count?: number;
   onOpen?: () => void;
   onDropResources?: (ids: string[]) => void;
+  onMoveFolder?: (id: string, newParentId: string | null) => void | Promise<void>;
+  parentMap?: Map<string, string | null>;
+  draggingFolderId?: string | null;
+  setDraggingFolderId?: (id: string | null) => void;
   onRename?: () => void;
   onDelete?: () => void;
   onOpenLocation?: () => void;
-}> = ({ folder, count, onOpen, onDropResources, onRename, onDelete, onOpenLocation }) => {
+}> = ({ folder, count, onOpen, onDropResources, onMoveFolder, parentMap, draggingFolderId, setDraggingFolderId, onRename, onDelete, onOpenLocation }) => {
   const [over, setOver] = React.useState(false);
+  const [overInvalid, setOverInvalid] = React.useState(false);
+  const [tipOpen, setTipOpen] = React.useState(false);
   const isWin = (window as any).YUA?.isWindows;
   const revealLabel = isWin ? '在资源管理器中显示' : '在 Finder 中显示';
+  const isAncestor = React.useCallback(
+    (ancestorId: string, descendantId: string): boolean => {
+      if (!parentMap) return false;
+      let cur: string | null | undefined = descendantId;
+      const guard = new Set<string>();
+      while (cur) {
+        if (cur === ancestorId) return true;
+        if (guard.has(cur)) break;
+        guard.add(cur);
+        cur = parentMap.get(cur) ?? null;
+      }
+      return false;
+    },
+    [parentMap]
+  );
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <div
-          data-explorer-folder
-          onContextMenu={(e) => e.stopPropagation()}
-          className={`group relative aspect-video w-full overflow-hidden rounded-md border bg-card text-card-foreground shadow-sm transition-all cursor-pointer select-none ${over ? 'ring-2 ring-primary border-primary/50 bg-primary/5' : 'hover:shadow-md hover:border-primary/30'
-            } bg-gradient-to-br from-background to-muted flex items-center justify-center`}
-          onClick={() => onOpen?.()}
-          onDragOver={(e) => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-            setOver(true);
-          }}
-          onDragLeave={() => setOver(false)}
-          onDrop={(e) => {
-            setOver(false);
-            try {
-              const raw = e.dataTransfer.getData('application/x-resource-ids');
-              if (!raw) return;
-              const ids: string[] = JSON.parse(raw);
-              if (Array.isArray(ids) && ids.length) onDropResources?.(ids);
-            } catch {
-              /* ignore */
-            }
-          }}
-        >
-          <div className="text-center relative">
-            <div className="text-5xl text-muted-foreground/80 mb-2">
-              <TbFolderFilled />
-            </div>
-            <div className="text-sm font-medium truncate max-w-[90%] mx-auto">{folder.name}</div>
-            {typeof count === 'number' && <span className="absolute top-1 right-1 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full shadow">{count}</span>}
-          </div>
-        </div>
+        <TooltipProvider delayDuration={0}>
+          <Tooltip open={overInvalid || tipOpen}>
+            <TooltipTrigger asChild>
+              <div
+                data-explorer-folder
+                onContextMenu={(e) => e.stopPropagation()}
+                className={`group relative aspect-video w-full overflow-hidden rounded-md border bg-card text-card-foreground shadow-sm transition-all cursor-pointer select-none ${over
+                    ? overInvalid
+                      ? 'ring-2 ring-destructive border-destructive/50 bg-destructive/10'
+                      : 'ring-2 ring-primary border-primary/50 bg-primary/5'
+                    : 'hover:shadow-md hover:border-primary/30'
+                  } bg-gradient-to-br from-background to-muted flex items-center justify-center`}
+                onClick={() => onOpen?.()}
+                draggable
+                onDragStart={(e) => {
+                  try {
+                    e.dataTransfer.setData('application/x-folder-id', folder.id);
+                    e.dataTransfer.effectAllowed = 'move';
+                  } catch {
+                    /* noop */
+                  }
+                  setDraggingFolderId?.(folder.id);
+                }}
+                onDragEnd={() => setDraggingFolderId?.(null)}
+                onDragOver={(e) => {
+                  const types = Array.from((e.dataTransfer?.types as any) || []);
+                  const dragging = draggingFolderId || (types.includes('application/x-folder-id') ? null : null);
+                  if (dragging) {
+                    const invalid = dragging === folder.id || isAncestor(dragging, folder.id);
+                    setOverInvalid(invalid);
+                    if (!invalid) {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      setOver(true);
+                    } else {
+                      setOver(false);
+                      e.dataTransfer.dropEffect = 'none';
+                    }
+                    return;
+                  }
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  setOver(true);
+                }}
+                onDragLeave={() => {
+                  setOver(false);
+                  setOverInvalid(false);
+                  setTipOpen(false);
+                }}
+                onDrop={async (e) => {
+                  setOver(false);
+                  setOverInvalid(false);
+                  setTipOpen(false);
+                  try {
+                    const fid = e.dataTransfer.getData('application/x-folder-id');
+                    if (fid) {
+                      if (fid !== folder.id && !isAncestor(fid, folder.id)) {
+                        try {
+                          if (onMoveFolder) await onMoveFolder(fid, folder.id);
+                        } catch (err) {
+                          const msg = String((err as any)?.message || err || '');
+                          const isUnique = /UNIQUE|constraint/i.test(msg);
+                          if (isUnique) {
+                            toast.error('移动文件夹失败', { description: '目标文件夹内已存在同名文件夹' });
+                          } else {
+                            toast.error('移动文件夹失败');
+                          }
+                        }
+                      } else {
+                        setTipOpen(true);
+                        setTimeout(() => setTipOpen(false), 1200);
+                      }
+                      return;
+                    }
+                  } catch {
+                    /* ignore folder move */
+                  }
+                  try {
+                    const raw = e.dataTransfer.getData('application/x-resource-ids');
+                    if (!raw) return;
+                    const ids: string[] = JSON.parse(raw);
+                    if (Array.isArray(ids) && ids.length) onDropResources?.(ids);
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+              >
+                <div className="text-center relative">
+                  <div className="text-5xl text-muted-foreground/80 mb-2">
+                    <TbFolderFilled />
+                  </div>
+                  <div className="text-sm font-medium truncate max-w-[90%] mx-auto">{folder.name}</div>
+                  {typeof count === 'number' && <span className="absolute top-1 right-1 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full shadow">{count}</span>}
+                </div>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="top">不能移动到自己的子文件夹中</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </ContextMenuTrigger>
       <ContextMenuContent className="min-w-[200px]" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
         <ContextMenuItem onSelect={onOpen}>打开</ContextMenuItem>
@@ -89,6 +179,7 @@ export interface ExplorerGridProps {
   onRenameFolder?: (id: string) => void;
   onDeleteFolder?: (id: string) => void;
   onOpenFolderLocation?: (id: string) => void;
+  onMoveFolder?: (id: string, newParentId: string | null) => void | Promise<void>;
 }
 
 type Point = { x: number; y: number };
@@ -110,7 +201,8 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
   onDropResourcesToFolder,
   onRenameFolder,
   onDeleteFolder,
-  onOpenFolderLocation
+  onOpenFolderLocation,
+  onMoveFolder
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -288,6 +380,14 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
   const [, setRenaming] = useReactState(false);
   const [renameValue, setRenameValue] = useReactState('');
 
+  // Folder DnD helpers
+  const parentMap = useMemo(() => {
+    const map = new Map<string, string | null>();
+    (folders || []).forEach((f) => map.set(f.id, f.parentId ?? null));
+    return map;
+  }, [folders]);
+  const [draggingFolderId, setDraggingFolderId] = useState<string | null>(null);
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -309,6 +409,10 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
               count={counts?.[f.id]}
               onOpen={() => onOpenFolder?.(f.id)}
               onDropResources={(ids: string[]) => onDropResourcesToFolder?.(f.id, ids)}
+              onMoveFolder={(id, newPid) => onMoveFolder?.(id, newPid)}
+              parentMap={parentMap}
+              draggingFolderId={draggingFolderId}
+              setDraggingFolderId={setDraggingFolderId}
               onRename={() => onRenameFolder?.(f.id)}
               onDelete={() => onDeleteFolder?.(f.id)}
               onOpenLocation={() => onOpenFolderLocation?.(f.id)}
@@ -371,7 +475,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
         <ContextMenuSeparator />
         <ContextMenuItem
           onSelect={async () => {
-            // Move to workspace
+            // Move selected resources to another workspace
             const ws = await window.YUA.workspace['workspace:list']({ filter: { deletedAt: 0 }, limit: 100, offset: 0 });
             if (!ws?.length) {
               alert('请先在设置中创建工作空间');
@@ -380,10 +484,11 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
             const names = ws.map((w: any, i: number) => `${i + 1}. ${w.name}${w.isDefault === 1 ? '(默认)' : ''}`).join('\n');
             const pick = prompt(`移动到哪个工作空间?\n${names}`);
             if (!pick) return;
-            const idx = Number(pick) - 1;
-            if (isNaN(idx) || idx < 0 || idx >= ws.length) return;
-            const target = ws[idx];
+            const index = Number(pick) - 1;
+            if (!Number.isInteger(index) || index < 0 || index >= ws.length) return;
+            const target = ws[index];
             const ids = Array.from(selected);
+            if (ids.length === 0) return;
             await window.YUA.resource['moveResourcesToWorkspace']?.({ ids, workspaceId: target.id });
           }}
         >
