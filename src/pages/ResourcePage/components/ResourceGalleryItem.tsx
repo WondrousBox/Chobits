@@ -1,10 +1,11 @@
-import React, { useState, useCallback } from 'react';
-import { makeResSrc, isImageFile, isVideoFile, isAudioFile } from '@/lib/resourceProtocol';
-import { ResourceItem } from '@/types';
-import { TbCopy, TbCheck, TbStar, TbHeart, TbEye, TbEyeOff, TbClock, TbFile, TbPlayerPlay } from 'react-icons/tb';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { formatFileSize, formatDuration, getResourceTypeIcon, getStatusColor, getResourceSummary } from '@/utils/resourceUtils';
+import React, { useCallback, useState } from 'react';
+import { TbCheck, TbClock, TbCopy, TbEye, TbEyeOff, TbFile, TbHeart, TbPlayerPlay, TbStar } from 'react-icons/tb';
+
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from '@/lib/resourceProtocol';
+import { ResourceItem } from '@/types';
+import { formatDuration, formatFileSize, getResourceSummary, getResourceTypeIcon, getStatusColor } from '@/utils/resourceUtils';
 
 interface GalleryItemProps {
   item: ResourceItem;

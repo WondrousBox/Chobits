@@ -1,5 +1,6 @@
 import React from 'react';
 import { TbFolder } from 'react-icons/tb';
+
 import type { UIFolder } from './FolderSidebar';
 
 interface Props {

@@ -1,9 +1,10 @@
 import React from 'react';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { TbFolder, TbFolderOpen, TbPencil, TbTrash, TbDots, TbChevronRight, TbChevronDown, TbFolderPlus } from 'react-icons/tb';
-import { SidebarMenuAction, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
-import { Input } from '@/components/ui/input';
+import { TbChevronDown, TbChevronRight, TbDots, TbFolder, TbFolderOpen, TbFolderPlus, TbPencil, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
+
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
+import { SidebarMenuAction, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 export type UIFolder = {

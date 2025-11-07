@@ -1,10 +1,11 @@
-import React, { useState, useCallback } from 'react';
-import { ResourceItem } from '@/types';
-import { TbCopy, TbCheck, TbStar, TbHeart, TbEye, TbEyeOff, TbClock, TbFile, TbCalendar, TbUser, TbTag, TbPlayerPlay, TbAppWindow } from 'react-icons/tb';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { formatFileSize, formatDuration, formatTime, getResourceTypeIcon, getStatusColor, parseTags } from '@/utils/resourceUtils';
-import { makeResSrc } from '@/lib/resourceProtocol';
+import React, { useCallback, useState } from 'react';
+import { TbAppWindow, TbCalendar, TbCheck, TbClock, TbCopy, TbEye, TbEyeOff, TbFile, TbHeart, TbPlayerPlay, TbStar, TbTag, TbUser } from 'react-icons/tb';
+
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { makeResSrc } from '@/lib/resourceProtocol';
+import { ResourceItem } from '@/types';
+import { formatDuration, formatFileSize, formatTime, getResourceTypeIcon, getStatusColor, parseTags } from '@/utils/resourceUtils';
 
 interface ListItemProps {
   item: ResourceItem;

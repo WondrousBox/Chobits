@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+
 import { useSpritePlayer } from '@/components/AIAssistant/context/SpritePlayerContext';
 import type { SpriteAnimation, SpriteEventType } from '@/components/AIAssistant/types';
 import { resolveSpriteSrc } from '@/lib/resourceProtocol';

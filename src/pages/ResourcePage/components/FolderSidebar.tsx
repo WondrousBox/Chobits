@@ -1,6 +1,8 @@
 import React from 'react';
+import { TbFolder, TbGrid3X3, TbPlus } from 'react-icons/tb';
+import { toast } from 'sonner';
+
 import { Button } from '@/components/ui/button';
-import { TbFolder, TbPlus, TbGrid3X3 } from 'react-icons/tb';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia } from '@/components/ui/empty';
 import {
   Sidebar,
@@ -14,7 +16,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem
 } from '@/components/ui/sidebar';
-import { toast } from 'sonner';
+
 import FolderTreeRow from './FolderTreeRow';
 
 export type UIFolder = {

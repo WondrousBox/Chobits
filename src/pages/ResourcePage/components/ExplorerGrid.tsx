@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { useState as useReactState } from 'react';
+import { TbFolderFilled, TbFolderOpen, TbPencil, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
-import { TbTrash, TbPencil, TbFolderOpen, TbFolderFilled } from 'react-icons/tb';
+
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ResourceItem } from '@/types';
-import ResourceGalleryItem from './ResourceGalleryItem';
+
 import type { UIFolder } from './FolderSidebar';
+import ResourceGalleryItem from './ResourceGalleryItem';
 // Inline folder tile for grid view to avoid cross-file resolution issues
 const GridFolderTile: React.FC<{
   folder: UIFolder;
