@@ -276,6 +276,30 @@ const ResourcePage: React.FC = () => {
     return (list as any[]).filter((r: any) => r.workspaceId === wsFilter && !(r as any).folderId).length;
   }, [list, wsFilter]);
 
+  // 计算当前文件夹的路径（用于底部路径展示）
+  const folderById = useMemo(() => {
+    const m = new Map<string, UIFolder>();
+    folders.forEach((f) => m.set(f.id, f));
+    return m;
+  }, [folders]);
+
+  const currentFolderPath = useMemo((): UIFolder[] => {
+    if (!wsFilter) return [];
+    if (!folderFilter) return [];
+    const parts: UIFolder[] = [];
+    let cur: UIFolder | undefined | null = folderById.get(folderFilter);
+    const guard = new Set<string>();
+    while (cur) {
+      if (guard.has(cur.id)) break;
+      guard.add(cur.id);
+      parts.push(cur);
+      const pid: string | null = cur.parentId ?? null;
+      if (!pid) break;
+      cur = folderById.get(pid) || null;
+    }
+    return parts.reverse();
+  }, [folderById, folderFilter, wsFilter]);
+
   const handleDelete = async (id: string): Promise<void> => {
     try {
       await window.YUA.resource.deleteResource({ id });
@@ -539,9 +563,7 @@ const ResourcePage: React.FC = () => {
 
               {/* 工作空间选择器已移除：页面仅使用当前默认空间进行筛选 */}
 
-              <span className="text-sm text-muted-foreground whitespace-nowrap">
-                共 {filtered.length}/{list.length} 个资源
-              </span>
+              {/* 资源数量统计移至底部路径栏 */}
               <Button
                 size="icon"
                 className="w-8 h-8 shrink-0"
@@ -769,264 +791,288 @@ const ResourcePage: React.FC = () => {
           }}
         />
         {/* 资源展示区域 */}
-        <div className="w-full h-full overflow-y-auto">
-          {viewMode === 'grid' ? (
-            <ExplorerGrid
-              items={filtered}
-              folders={childFolders}
-              counts={folderCounts}
-              onOpenFolder={(id) => setFolderFilter(id)}
-              onDropResourcesToFolder={(fid, ids) => handleMoveResourcesToFolder(fid, ids)}
-              onMoveFolder={handleMoveFolder}
-              onRenameFolder={handleRenameFolder}
-              onDeleteFolder={handleDeleteFolder}
-              onOpenFolderLocation={handleOpenFolderLocation}
-              onDelete={handleDelete}
-              onDeleteMany={handleDeleteMany}
-              onToggleFavorite={handleToggleFavorite}
-              onToggleVisibility={handleToggleVisibility}
-            />
-          ) : (
-            <div className="space-y-2">
-              {/* 移到根目录的放置目标 */}
-              {(() => {
-                const rootDropClass = rootDropOver ? 'border-primary bg-primary/5 text-primary' : 'border-dashed border-muted-foreground/30 text-muted-foreground hover:bg-muted/30';
-                return (
-                  <div
-                    className={'flex items-center gap-2 p-2 rounded-md border text-sm transition-colors ' + rootDropClass}
-                    onDragOver={(e) => {
-                      const types = Array.from((e.dataTransfer?.types as any) || []);
-                      const isFolder = types.includes('application/x-folder-id');
-                      if (isFolder) {
-                        e.preventDefault();
-                        e.dataTransfer.dropEffect = 'move';
-                        setRootDropOver(true);
-                      }
-                    }}
-                    onDragLeave={() => setRootDropOver(false)}
-                    onDrop={async (e) => {
-                      setRootDropOver(false);
-                      try {
-                        const fid = e.dataTransfer.getData('application/x-folder-id');
-                        if (fid) {
-                          try {
-                            await handleMoveFolder(fid, null);
-                          } catch (err) {
-                            const msg = String((err as any)?.message || err || '');
-                            const isUnique = /UNIQUE|constraint/i.test(msg);
-                            if (isUnique) {
-                              toast.error('移动文件夹失败', { description: '目标文件夹内已存在同名文件夹' });
-                            } else {
-                              toast.error('移动文件夹失败');
+        <div className="w-full h-full" style={{ height: 'calc(100% - 36px)' }}>
+          <div className="w-full h-full overflow-y-auto">
+            {viewMode === 'grid' ? (
+              <ExplorerGrid
+                items={filtered}
+                folders={childFolders}
+                counts={folderCounts}
+                onOpenFolder={(id) => setFolderFilter(id)}
+                onDropResourcesToFolder={(fid, ids) => handleMoveResourcesToFolder(fid, ids)}
+                onMoveFolder={handleMoveFolder}
+                onRenameFolder={handleRenameFolder}
+                onDeleteFolder={handleDeleteFolder}
+                onOpenFolderLocation={handleOpenFolderLocation}
+                onDelete={handleDelete}
+                onDeleteMany={handleDeleteMany}
+                onToggleFavorite={handleToggleFavorite}
+                onToggleVisibility={handleToggleVisibility}
+              />
+            ) : (
+              <div className="space-y-2">
+                {/* 移到根目录的放置目标 */}
+                {(() => {
+                  const rootDropClass = rootDropOver ? 'border-primary bg-primary/5 text-primary' : 'border-dashed border-muted-foreground/30 text-muted-foreground hover:bg-muted/30';
+                  return (
+                    <div
+                      className={'flex items-center gap-2 p-2 rounded-md border text-sm transition-colors ' + rootDropClass}
+                      onDragOver={(e) => {
+                        const types = Array.from((e.dataTransfer?.types as any) || []);
+                        const isFolder = types.includes('application/x-folder-id');
+                        if (isFolder) {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = 'move';
+                          setRootDropOver(true);
+                        }
+                      }}
+                      onDragLeave={() => setRootDropOver(false)}
+                      onDrop={async (e) => {
+                        setRootDropOver(false);
+                        try {
+                          const fid = e.dataTransfer.getData('application/x-folder-id');
+                          if (fid) {
+                            try {
+                              await handleMoveFolder(fid, null);
+                            } catch (err) {
+                              const msg = String((err as any)?.message || err || '');
+                              const isUnique = /UNIQUE|constraint/i.test(msg);
+                              if (isUnique) {
+                                toast.error('移动文件夹失败', { description: '目标文件夹内已存在同名文件夹' });
+                              } else {
+                                toast.error('移动文件夹失败');
+                              }
                             }
                           }
+                        } catch {
+                          /* ignore */
                         }
+                      }}
+                    >
+                      <TbFolderOpen /> 将文件夹拖到这里可移到根目录
+                    </div>
+                  );
+                })()}
+
+                {/* 先渲染子文件夹列表条目 */}
+                {childFolders.map((f) => {
+                  const ListFolderRow: React.FC = () => {
+                    const [over, setOver] = React.useState(false);
+                    const [overInvalid, setOverInvalid] = React.useState(false);
+                    const [tipOpen, setTipOpen] = React.useState(false);
+                    const isAncestor = (ancestorId: string, descendantId: string): boolean => {
+                      let cur: string | null | undefined = descendantId;
+                      const guard = new Set<string>();
+                      while (cur) {
+                        if (cur === ancestorId) return true;
+                        if (guard.has(cur)) break;
+                        guard.add(cur);
+                        cur = folderParentMap.get(cur) ?? null;
+                      }
+                      return false;
+                    };
+                    return (
+                      <ContextMenu>
+                        <ContextMenuTrigger asChild>
+                          <TooltipProvider delayDuration={0}>
+                            <Tooltip open={overInvalid || tipOpen}>
+                              <TooltipTrigger asChild>
+                                {(() => {
+                                  const rowStateClass = over
+                                    ? overInvalid
+                                      ? 'ring-1 ring-destructive bg-destructive/10'
+                                      : 'bg-muted/50 border-primary/30'
+                                    : 'hover:bg-muted/50 hover:border-primary/30';
+                                  return (
+                                    <div
+                                      className={'group relative flex items-center gap-4 p-2 rounded-lg border transition-all cursor-pointer select-none ' + rowStateClass}
+                                      onClick={() => setFolderFilter(f.id)}
+                                      onContextMenu={(e) => e.stopPropagation()}
+                                      draggable
+                                      onDragStart={(e) => {
+                                        try {
+                                          e.dataTransfer.setData('application/x-folder-id', f.id);
+                                          e.dataTransfer.effectAllowed = 'move';
+                                        } catch {
+                                          /* noop */
+                                        }
+                                      }}
+                                      onDragOver={(e) => {
+                                        const types = Array.from((e.dataTransfer?.types as any) || []);
+                                        const maybeFolder = types.includes('application/x-folder-id');
+                                        if (maybeFolder) {
+                                          // we cannot read the id here reliably, but if from same doc works
+                                          try {
+                                            const fid = e.dataTransfer.getData('application/x-folder-id');
+                                            const invalid = fid === f.id || isAncestor(fid, f.id);
+                                            setOverInvalid(invalid);
+                                            if (!invalid) {
+                                              e.preventDefault();
+                                              e.dataTransfer.dropEffect = 'move';
+                                              setOver(true);
+                                            } else {
+                                              setOver(false);
+                                              e.dataTransfer.dropEffect = 'none';
+                                            }
+                                          } catch {
+                                            // fallback allow default resource drop
+                                            e.preventDefault();
+                                            setOver(true);
+                                            setOverInvalid(false);
+                                          }
+                                          return;
+                                        }
+                                        e.preventDefault();
+                                        e.dataTransfer.dropEffect = 'move';
+                                        setOver(true);
+                                        setOverInvalid(false);
+                                      }}
+                                      onDragLeave={() => {
+                                        setOver(false);
+                                        setOverInvalid(false);
+                                        setTipOpen(false);
+                                      }}
+                                      onDrop={async (e) => {
+                                        setOver(false);
+                                        setOverInvalid(false);
+                                        setTipOpen(false);
+                                        try {
+                                          const fid = e.dataTransfer.getData('application/x-folder-id');
+                                          if (fid) {
+                                            if (fid !== f.id && !isAncestor(fid, f.id)) {
+                                              // move folder
+                                              const targetPid = f.id;
+                                              try {
+                                                await handleMoveFolder(fid, targetPid);
+                                              } catch (err) {
+                                                const msg = String((err as any)?.message || err || '');
+                                                const isUnique = /UNIQUE|constraint/i.test(msg);
+                                                if (isUnique) {
+                                                  toast.error('移动文件夹失败', { description: '目标文件夹内已存在同名文件夹' });
+                                                } else {
+                                                  toast.error('移动文件夹失败');
+                                                }
+                                              }
+                                            } else {
+                                              setTipOpen(true);
+                                              setTimeout(() => setTipOpen(false), 1200);
+                                            }
+                                            return;
+                                          }
+                                        } catch {
+                                          /* ignore folder move */
+                                        }
+                                        try {
+                                          const raw = e.dataTransfer.getData('application/x-resource-ids');
+                                          if (!raw) return;
+                                          const ids: string[] = JSON.parse(raw);
+                                          if (Array.isArray(ids) && ids.length) handleMoveResourcesToFolder(f.id, ids);
+                                        } catch {
+                                          /* ignore */
+                                        }
+                                      }}
+                                    >
+                                      <div className="relative flex-shrink-0 w-16 h-16 rounded-md overflow-hidden bg-muted flex items-center justify-center text-3xl text-muted-foreground">
+                                        <TbFolderFilled />
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="mb-1">
+                                          <h3 className="font-medium text-sm truncate mb-1 flex items-center gap-2">
+                                            <span className="truncate">{f.name}</span>
+                                            <span className="inline-flex items-center justify-center bg-primary/10 text-primary text-[10px] px-1.5 py-0.5 rounded-full">{folderCounts[f.id] ?? 0}</span>
+                                          </h3>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
+                              </TooltipTrigger>
+                              <TooltipContent side="top">不能移动到自己的子文件夹中</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </ContextMenuTrigger>
+                        <ContextMenuContent className="min-w-[200px]" onClick={(e) => e.stopPropagation()}>
+                          <ContextMenuItem onSelect={() => setFolderFilter(f.id)}>打开</ContextMenuItem>
+                          <ContextMenuItem className="flex items-center gap-2" onSelect={() => handleOpenFolderLocation(f.id)}>
+                            <TbFolderOpen /> {(window as any).YUA?.isWindows ? '在资源管理器中显示' : '在 Finder 中显示'}
+                          </ContextMenuItem>
+                          <ContextMenuItem className="flex items-center gap-2" onSelect={() => handleRenameFolder(f.id)}>
+                            <TbPencil /> 重命名
+                          </ContextMenuItem>
+                          <ContextMenuSeparator />
+                          <ContextMenuItem className="flex items-center gap-2 text-destructive" onSelect={() => handleDeleteFolder(f.id)}>
+                            <TbTrash /> 删除
+                          </ContextMenuItem>
+                        </ContextMenuContent>
+                      </ContextMenu>
+                    );
+                  };
+                  return <ListFolderRow key={`folder-row-${f.id}`} />;
+                })}
+
+                {/* 再渲染资源列表条目 */}
+                {filtered.map((item, idx) => (
+                  <ResourceListItem
+                    key={item.id}
+                    item={item}
+                    selected={selectedItems.has(item.id)}
+                    onClick={handleItemClick}
+                    onToggleFavorite={handleToggleFavorite}
+                    onToggleVisibility={handleToggleVisibility}
+                    onPreview={() => {
+                      const current = filtered[idx];
+                      if (!current) return;
+                      window.YUA.window['window:open']('resourcePreview', {
+                        current,
+                        list: filtered,
+                        index: idx
+                      });
+                    }}
+                    draggable
+                    onDragStart={(e) => {
+                      const ids = selectedItems.has(item.id) && selectedItems.size > 0 ? Array.from(selectedItems) : [item.id];
+                      try {
+                        e.dataTransfer.setData('application/x-resource-ids', JSON.stringify(ids));
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.dropEffect = 'move';
                       } catch {
                         /* ignore */
                       }
                     }}
-                  >
-                    <TbFolderOpen /> 将文件夹拖到这里可移到根目录
+                  />
+                ))}
+                {childFolders.length === 0 && filtered.length === 0 && (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <div className="text-4xl mb-4">📦</div>
+                    <div>没有找到资源</div>
+                    <div className="text-sm mt-2">尝试调整筛选条件或添加新资源</div>
                   </div>
-                );
-              })()}
+                )}
+              </div>
+            )}
+          </div>
 
-              {/* 先渲染子文件夹列表条目 */}
-              {childFolders.map((f) => {
-                const ListFolderRow: React.FC = () => {
-                  const [over, setOver] = React.useState(false);
-                  const [overInvalid, setOverInvalid] = React.useState(false);
-                  const [tipOpen, setTipOpen] = React.useState(false);
-                  const isAncestor = (ancestorId: string, descendantId: string): boolean => {
-                    let cur: string | null | undefined = descendantId;
-                    const guard = new Set<string>();
-                    while (cur) {
-                      if (cur === ancestorId) return true;
-                      if (guard.has(cur)) break;
-                      guard.add(cur);
-                      cur = folderParentMap.get(cur) ?? null;
-                    }
-                    return false;
-                  };
-                  return (
-                    <ContextMenu>
-                      <ContextMenuTrigger asChild>
-                        <TooltipProvider delayDuration={0}>
-                          <Tooltip open={overInvalid || tipOpen}>
-                            <TooltipTrigger asChild>
-                              {(() => {
-                                const rowStateClass = over
-                                  ? overInvalid
-                                    ? 'ring-1 ring-destructive bg-destructive/10'
-                                    : 'bg-muted/50 border-primary/30'
-                                  : 'hover:bg-muted/50 hover:border-primary/30';
-                                return (
-                                  <div
-                                    className={'group relative flex items-center gap-4 p-2 rounded-lg border transition-all cursor-pointer select-none ' + rowStateClass}
-                                    onClick={() => setFolderFilter(f.id)}
-                                    onContextMenu={(e) => e.stopPropagation()}
-                                    draggable
-                                    onDragStart={(e) => {
-                                      try {
-                                        e.dataTransfer.setData('application/x-folder-id', f.id);
-                                        e.dataTransfer.effectAllowed = 'move';
-                                      } catch {
-                                        /* noop */
-                                      }
-                                    }}
-                                    onDragOver={(e) => {
-                                      const types = Array.from((e.dataTransfer?.types as any) || []);
-                                      const maybeFolder = types.includes('application/x-folder-id');
-                                      if (maybeFolder) {
-                                        // we cannot read the id here reliably, but if from same doc works
-                                        try {
-                                          const fid = e.dataTransfer.getData('application/x-folder-id');
-                                          const invalid = fid === f.id || isAncestor(fid, f.id);
-                                          setOverInvalid(invalid);
-                                          if (!invalid) {
-                                            e.preventDefault();
-                                            e.dataTransfer.dropEffect = 'move';
-                                            setOver(true);
-                                          } else {
-                                            setOver(false);
-                                            e.dataTransfer.dropEffect = 'none';
-                                          }
-                                        } catch {
-                                          // fallback allow default resource drop
-                                          e.preventDefault();
-                                          setOver(true);
-                                          setOverInvalid(false);
-                                        }
-                                        return;
-                                      }
-                                      e.preventDefault();
-                                      e.dataTransfer.dropEffect = 'move';
-                                      setOver(true);
-                                      setOverInvalid(false);
-                                    }}
-                                    onDragLeave={() => {
-                                      setOver(false);
-                                      setOverInvalid(false);
-                                      setTipOpen(false);
-                                    }}
-                                    onDrop={async (e) => {
-                                      setOver(false);
-                                      setOverInvalid(false);
-                                      setTipOpen(false);
-                                      try {
-                                        const fid = e.dataTransfer.getData('application/x-folder-id');
-                                        if (fid) {
-                                          if (fid !== f.id && !isAncestor(fid, f.id)) {
-                                            // move folder
-                                            const targetPid = f.id;
-                                            try {
-                                              await handleMoveFolder(fid, targetPid);
-                                            } catch (err) {
-                                              const msg = String((err as any)?.message || err || '');
-                                              const isUnique = /UNIQUE|constraint/i.test(msg);
-                                              if (isUnique) {
-                                                toast.error('移动文件夹失败', { description: '目标文件夹内已存在同名文件夹' });
-                                              } else {
-                                                toast.error('移动文件夹失败');
-                                              }
-                                            }
-                                          } else {
-                                            setTipOpen(true);
-                                            setTimeout(() => setTipOpen(false), 1200);
-                                          }
-                                          return;
-                                        }
-                                      } catch {
-                                        /* ignore folder move */
-                                      }
-                                      try {
-                                        const raw = e.dataTransfer.getData('application/x-resource-ids');
-                                        if (!raw) return;
-                                        const ids: string[] = JSON.parse(raw);
-                                        if (Array.isArray(ids) && ids.length) handleMoveResourcesToFolder(f.id, ids);
-                                      } catch {
-                                        /* ignore */
-                                      }
-                                    }}
-                                  >
-                                    <div className="relative flex-shrink-0 w-16 h-16 rounded-md overflow-hidden bg-muted flex items-center justify-center text-3xl text-muted-foreground">
-                                      <TbFolderFilled />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="mb-1">
-                                        <h3 className="font-medium text-sm truncate mb-1 flex items-center gap-2">
-                                          <span className="truncate">{f.name}</span>
-                                          <span className="inline-flex items-center justify-center bg-primary/10 text-primary text-[10px] px-1.5 py-0.5 rounded-full">{folderCounts[f.id] ?? 0}</span>
-                                        </h3>
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })()}
-                            </TooltipTrigger>
-                            <TooltipContent side="top">不能移动到自己的子文件夹中</TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </ContextMenuTrigger>
-                      <ContextMenuContent className="min-w-[200px]" onClick={(e) => e.stopPropagation()}>
-                        <ContextMenuItem onSelect={() => setFolderFilter(f.id)}>打开</ContextMenuItem>
-                        <ContextMenuItem className="flex items-center gap-2" onSelect={() => handleOpenFolderLocation(f.id)}>
-                          <TbFolderOpen /> {(window as any).YUA?.isWindows ? '在资源管理器中显示' : '在 Finder 中显示'}
-                        </ContextMenuItem>
-                        <ContextMenuItem className="flex items-center gap-2" onSelect={() => handleRenameFolder(f.id)}>
-                          <TbPencil /> 重命名
-                        </ContextMenuItem>
-                        <ContextMenuSeparator />
-                        <ContextMenuItem className="flex items-center gap-2 text-destructive" onSelect={() => handleDeleteFolder(f.id)}>
-                          <TbTrash /> 删除
-                        </ContextMenuItem>
-                      </ContextMenuContent>
-                    </ContextMenu>
-                  );
-                };
-                return <ListFolderRow key={`folder-row-${f.id}`} />;
-              })}
-
-              {/* 再渲染资源列表条目 */}
-              {filtered.map((item, idx) => (
-                <ResourceListItem
-                  key={item.id}
-                  item={item}
-                  selected={selectedItems.has(item.id)}
-                  onClick={handleItemClick}
-                  onToggleFavorite={handleToggleFavorite}
-                  onToggleVisibility={handleToggleVisibility}
-                  onPreview={() => {
-                    const current = filtered[idx];
-                    if (!current) return;
-                    window.YUA.window['window:open']('resourcePreview', {
-                      current,
-                      list: filtered,
-                      index: idx
-                    });
-                  }}
-                  draggable
-                  onDragStart={(e) => {
-                    const ids = selectedItems.has(item.id) && selectedItems.size > 0 ? Array.from(selectedItems) : [item.id];
-                    try {
-                      e.dataTransfer.setData('application/x-resource-ids', JSON.stringify(ids));
-                      e.dataTransfer.effectAllowed = 'move';
-                      e.dataTransfer.dropEffect = 'move';
-                    } catch {
-                      /* ignore */
-                    }
-                  }}
-                />
+          {/* 底部路径与统计栏（固定在右侧列表底部） */}
+          <div className="px-3 py-2 text-xs flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-1 text-muted-foreground flex-wrap">
+              <span className={`cursor-pointer hover:underline ${folderFilter ? 'text-primary' : 'text-foreground'} `} onClick={() => setFolderFilter('')}>
+                全部
+              </span>
+              {currentFolderPath.map((f) => (
+                <React.Fragment key={f.id}>
+                  <span className="mx-1 text-muted-foreground">/</span>
+                  <span className="cursor-pointer hover:underline text-foreground" onClick={() => setFolderFilter(f.id)}>
+                    {f.name}
+                  </span>
+                </React.Fragment>
               ))}
-              {childFolders.length === 0 && filtered.length === 0 && (
-                <div className="text-center py-12 text-muted-foreground">
-                  <div className="text-4xl mb-4">📦</div>
-                  <div>没有找到资源</div>
-                  <div className="text-sm mt-2">尝试调整筛选条件或添加新资源</div>
-                </div>
-              )}
             </div>
-          )}
+            <div className="text-muted-foreground whitespace-nowrap">
+              <span>
+                共 {filtered.length}/{list.length} 个资源
+              </span>
+            </div>
+          </div>
         </div>
       </SidebarProvider>
 
