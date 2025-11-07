@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Button } from '@/components/ui/button';
 import { TbArrowBackUp, TbCheck, TbSquare, TbTrash, TbX } from 'react-icons/tb';
-import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { toast } from 'sonner';
+
+import DragAbleTitle from '@/components/common/DragAbleTitle';
+import { Button } from '@/components/ui/button';
 
 type TrashItem = {
   id: string;
