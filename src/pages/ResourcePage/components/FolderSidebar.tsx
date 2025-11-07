@@ -1,5 +1,5 @@
 import React from 'react';
-import { TbFolder, TbGrid3X3, TbPlus } from 'react-icons/tb';
+import { TbFolder, TbPlus, TbSlash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -256,7 +256,7 @@ const FolderSidebar: React.FC<{
                     }
                   }}
                 >
-                  <TbGrid3X3 /> 全部
+                  <TbSlash /> 工作空间
                 </SidebarMenuButton>
                 <SidebarMenuBadge>{allCount ?? 0}</SidebarMenuBadge>
               </SidebarMenuItem>
