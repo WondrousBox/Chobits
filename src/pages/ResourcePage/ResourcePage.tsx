@@ -552,17 +552,15 @@ const ResourcePage: React.FC = () => {
             <span>📚 资源库</span>
           </span>
         }
+        center={
+          <div className="relative no-drag">
+            <TbSearch className="absolute left-2 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+            <Input placeholder="搜索资源..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-8 h-8 w-80" />
+          </div>
+        }
         actions={
           <>
             <div className="flex items-center gap-2">
-              {/* 搜索框 */}
-              <div className="relative">
-                <TbSearch className="absolute left-2 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                <Input placeholder="搜索资源..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-8 h-8 w-40" />
-              </div>
-
-              {/* 工作空间选择器已移除：页面仅使用当前默认空间进行筛选 */}
-
               {/* 资源数量统计移至底部路径栏 */}
               <Button
                 size="icon"
