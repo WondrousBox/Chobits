@@ -1,22 +1,23 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { Button } from '@/components/ui/button';
-import { makeResSrc } from '@/lib/resourceProtocol';
+import React, { useCallback, useEffect, useState } from 'react';
 import { TbTools, TbTrash } from 'react-icons/tb';
+
 import type { SpriteAnimation, SpriteEventType } from '@/components/AIAssistant/types';
-import { ALL_SPRITE_EVENT_TYPES, SpriteEventGroups, AdditionalSpriteEventGroups } from '@/components/AIAssistant/types';
+import { AdditionalSpriteEventGroups, ALL_SPRITE_EVENT_TYPES, SpriteEventGroups } from '@/components/AIAssistant/types';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   DropdownMenu,
-  DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
   DropdownMenuLabel,
-  DropdownMenuSeparator
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { makeResSrc } from '@/lib/resourceProtocol';
 
 function baseName(p: string): string {
   const parts = p.replace(/\\/g, '/').split('/');

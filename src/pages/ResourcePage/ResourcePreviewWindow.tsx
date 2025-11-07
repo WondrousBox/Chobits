@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { makeResSrc, isImageFile, isVideoFile, isAudioFile } from '@/lib/resourceProtocol';
-import type { ResourceItem } from '@/types';
-import { Button } from '@/components/ui/button';
+import React, { useCallback, useEffect, useState } from 'react';
+import { TbArrowLeft, TbArrowRight } from 'react-icons/tb';
+
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { MediaPlayer } from '@/components/MediaPlayer';
-import { TbArrowLeft, TbArrowRight } from 'react-icons/tb';
+import { Button } from '@/components/ui/button';
+import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from '@/lib/resourceProtocol';
+import type { ResourceItem } from '@/types';
 
 interface IncomingPayload {
   current: ResourceItem;

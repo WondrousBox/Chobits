@@ -1,38 +1,40 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ResourceItem, ViewMode, SortField, SortOrder } from '@/types';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import ExplorerGrid from './components/ExplorerGrid';
-import ResourceListItem from './components/ResourceListItem';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { toast } from 'sonner';
 import {
-  TbHome,
-  TbPhoto,
-  TbVideo,
-  TbMusic,
-  TbFileText,
-  TbLink,
+  TbDots,
   TbFile,
   TbFileDescription,
-  TbDots,
-  TbList,
-  TbSearch,
-  TbGrid3X3,
-  TbRefresh,
-  TbHeart,
-  TbX,
-  TbPencil,
+  TbFileText,
+  TbFolderFilled,
   TbFolderOpen,
+  TbGrid3X3,
+  TbHeart,
+  TbHome,
+  TbLink,
+  TbList,
+  TbMusic,
+  TbPencil,
+  TbPhoto,
+  TbRefresh,
+  TbSearch,
   TbTrash,
-  TbFolderFilled
+  TbVideo,
+  TbX
 } from 'react-icons/tb';
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { toast } from 'sonner';
+
 import DragAbleTitle from '@/components/common/DragAbleTitle';
-import FolderSidebar, { type UIFolder } from './components/FolderSidebar';
+import { Button } from '@/components/ui/button';
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SidebarProvider } from '@/components/ui/sidebar';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { ResourceItem, SortField, SortOrder, ViewMode } from '@/types';
+
+import ExplorerGrid from './components/ExplorerGrid';
+import FolderSidebar, { type UIFolder } from './components/FolderSidebar';
+import ResourceListItem from './components/ResourceListItem';
 
 const ResourcePage: React.FC = () => {
   const [list, setList] = useState<ResourceItem[]>([]);

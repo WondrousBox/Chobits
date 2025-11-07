@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
+
 import { useSpritePlayer } from '@/components/AIAssistant/context/SpritePlayerContext';
 import { resolveSpriteSrc } from '@/lib/resourceProtocol';
 
