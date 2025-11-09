@@ -1,22 +1,25 @@
 // import UpdateElectron from '@/components/update'
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
+
+import { ChatSelectionProvider } from '@/components/AIAssistant/context/ChatSelectionContext';
+import DownloadFloating from '@/components/DownloadFloating';
+import { Toaster } from '@/components/ui/sonner';
+import FileActionsMenu from '@/pages/FileActionsMenu/FileActionsMenu';
+import ResourcePreviewWindow from '@/pages/ResourcePage/ResourcePreviewWindow';
+
 import { AIAssistant } from './components/AIAssistant';
-import StatusPage from './pages/StatusPage/StatusPage';
 import AssistantMenuPage from './pages/AssistantMenuPage/AssistantMenuPage';
-import SettingsPage from './pages/SettingsPage/SettingsPage';
-import RecycleBinPage from './pages/RecycleBinPage/RecycleBinPage';
-import ResourcePage from './pages/ResourcePage/ResourcePage';
-import WorkspaceWizard from './pages/WorkspacePage/WorkspaceWizard';
-import WorkspacePage from './pages/SettingsPage/components/Workspace';
 import AssistantPage from './pages/AssistantPage/AssistantPage';
 import ChatPage from './pages/AssistantPage/ChatPage';
 import ModelPage from './pages/ModelPage/ModelPage';
-import ResourcePreviewWindow from '@/pages/ResourcePage/ResourcePreviewWindow';
+import RecycleBinPage from './pages/RecycleBinPage/RecycleBinPage';
+import ResourcePage from './pages/ResourcePage/ResourcePage';
+import WorkspacePage from './pages/SettingsPage/components/Workspace';
+import SettingsPage from './pages/SettingsPage/SettingsPage';
+import StatusPage from './pages/StatusPage/StatusPage';
 import TaggingPage from './pages/TaggingPage/TaggingPage';
-import DownloadFloating from '@/components/DownloadFloating';
-import FileActionsMenu from '@/pages/FileActionsMenu/FileActionsMenu';
-import { Toaster } from '@/components/ui/sonner';
-import { ChatSelectionProvider } from '@/components/AIAssistant/context/ChatSelectionContext';
+import WorkflowBuilderPage from './pages/WorkflowBuilderPage/WorkflowBuilderPage';
+import WorkspaceWizard from './pages/WorkspacePage/WorkspaceWizard';
 
 function App(): JSX.Element {
   return (
@@ -36,6 +39,7 @@ function App(): JSX.Element {
             <Route path="/assistant" element={<AssistantPage />} />
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/model-manager" element={<ModelPage />} />
+            <Route path="/workflow" element={<WorkflowBuilderPage />} />
             <Route path="/tagger" element={<TaggingPage />} />
             <Route path="/resource-preview" element={<ResourcePreviewWindow />} />
             <Route path="/download" element={<DownloadFloating />} />
