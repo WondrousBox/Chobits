@@ -1,4 +1,5 @@
 import React from 'react';
+import { TbCheck, TbDisc, TbPlayerPlay } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 
@@ -15,13 +16,16 @@ const FloatingActions: React.FC<FloatingActionsProps> = ({ onValidate, onSave, o
   return (
     <div className="flex flex-col items-end space-y-2">
       <div className="flex gap-2">
-        <Button size="sm" onClick={onValidate} className="px-3 py-1 rounded bg-indigo-600 text-white text-xs shadow hover:bg-indigo-500">
+        <Button variant="ghost" size="sm" onClick={onValidate}>
+          <TbCheck />
           校验
         </Button>
-        <Button size="sm" onClick={onSave} disabled={saving} className="px-3 py-1 rounded bg-green-600 disabled:opacity-50 text-white text-xs shadow hover:bg-green-500">
+        <Button variant="outline" size="sm" onClick={onSave} disabled={saving}>
+          <TbDisc />
           保存
         </Button>
-        <Button size="sm" onClick={onRun} disabled={running} className="px-3 py-1 rounded bg-purple-600 disabled:opacity-50 text-white text-xs shadow hover:bg-purple-500">
+        <Button size="sm" onClick={onRun} disabled={running}>
+          <TbPlayerPlay />
           运行示例
         </Button>
       </div>
