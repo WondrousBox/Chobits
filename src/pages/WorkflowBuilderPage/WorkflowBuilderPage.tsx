@@ -4,9 +4,14 @@ import { nanoid } from 'nanoid';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import ReactFlow, { addEdge, Background, Connection, Controls, Edge, MiniMap, ReactFlowProvider, useEdgesState, useNodesState } from 'reactflow';
 
+import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { NodeSpec, WorkflowDraft } from '@/types/workflow';
 
+import FloatingActions from './FloatingActions';
+import FloatingInspector from './FloatingInspector';
+import FloatingPalette from './FloatingPalette';
 import SpecNode from './SpecNode';
+import type { NodeData } from './types';
 
 // IPC helper
 const invoke = window.ipcRenderer.invoke;
@@ -19,7 +24,7 @@ function useNodeSpecs(): NodeSpec[] {
   return specs;
 }
 
-type NodeData = { label: string; specId: string; spec: NodeSpec; config: Record<string, any>; inputDefaults: Record<string, any> };
+// NodeData moved to ./types
 
 function buildInitialDraft(): WorkflowDraft {
   return { id: 'new-' + nanoid(6), name: '新建工作流', nodes: [], edges: [] };
@@ -121,68 +126,48 @@ const WorkflowCanvas: React.FC = () => {
   };
 
   return (
-    <div className="flex h-full">
-      <div style={{ width: paletteWidth }} className="border-r border-neutral-700 p-2 space-y-2 overflow-auto">
-        <div className="text-xs uppercase font-bold opacity-70">节点库</div>
-        {specs.map((s: NodeSpec) => (
-          <button key={s.id} className="block w-full text-left text-sm px-2 py-1 rounded hover:bg-neutral-700" onClick={() => addSpecNode(s)}>
-            {s.label}
-          </button>
-        ))}
-        <hr className="my-2" />
-        <div className="space-y-2">
-          <button onClick={performValidate} className="w-full bg-indigo-600 text-white text-sm py-1 rounded">
-            校验
-          </button>
-          <button onClick={performSave} disabled={saving} className="w-full bg-green-600 disabled:opacity-50 text-white text-sm py-1 rounded">
-            保存
-          </button>
-          <button onClick={performRun} disabled={running} className="w-full bg-purple-600 disabled:opacity-50 text-white text-sm py-1 rounded">
-            运行示例
-          </button>
-        </div>
-        {validateResult && (
-          <div className="mt-2 text-xs">
-            {validateResult.ok ? (
-              <div className="text-green-400">校验通过</div>
-            ) : (
-              <div className="text-red-400">
-                {(validateResult.errors || []).map((e: string) => (
-                  <div key={e}>{e}</div>
-                ))}
-                {(validateResult.missingPlugins || []).map((m: any) => (
-                  <div key={m.id}>缺少插件: {m.id}</div>
-                ))}
-              </div>
-            )}
+    <div className="h-screen w-screen flex flex-col relative">
+      {/* 顶部可拖拽导航栏 */}
+      <DragAbleTitle
+        title={
+          <div className="flex items-center gap-2 w-full">
+            <span>🗨️</span>
+            <div className="text-left truncate flex-1">工作流编辑</div>
           </div>
-        )}
-      </div>
-      <div className="flex-1 h-full">
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onNodeClick={(_e: React.MouseEvent, n: any) => setSelectedNodeId(n.id)}
-          nodeTypes={nodeTypes}
-          fitView
-        >
-          <Background />
-          <MiniMap />
-          <Controls />
-        </ReactFlow>
-      </div>
-      <div style={{ width: 240 }} className="border-l border-neutral-700 p-2 space-y-2 overflow-auto">
-        <div className="text-xs uppercase font-bold opacity-70">属性</div>
-        {!selectedNode && <div className="text-xs opacity-60">选择一个节点查看配置</div>}
-        {selectedNode && (
-          <NodePropertyEditor
-            node={nodes.find((n) => n.id === selectedNode.id) as any}
-            onChange={(updater) => setNodes((nds) => (nds as any[]).map((n: any) => (n.id === selectedNode.id ? { ...n, data: { ...n.data, ...updater(n.data as NodeData) } as any } : n)))}
-          />
-        )}
+        }
+        actions={<FloatingActions onValidate={performValidate} onSave={performSave} onRun={performRun} saving={saving} running={running} validateResult={validateResult} />}
+      />
+
+      {/* 画布容器：占满除标题外的全部空间 */}
+      <div className="relative flex-1 min-h-0">
+        {/* ReactFlow 充满容器 */}
+        <div className="absolute inset-0">
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onNodeClick={(_e: React.MouseEvent, n: any) => setSelectedNodeId(n.id)}
+            nodeTypes={nodeTypes}
+            fitView
+          >
+            <Background />
+            <MiniMap />
+            <Controls />
+          </ReactFlow>
+        </div>
+
+        {/* 左侧浮动节点库，可收起/展开 */}
+        <FloatingPalette width={paletteWidth} specs={specs} onAdd={addSpecNode} />
+
+        {/* 右侧浮动属性面板：选中节点时显示 */}
+        <FloatingInspector
+          node={selectedNode ? (nodes.find((n) => n.id === selectedNode.id) as any) : null}
+          onChange={(updater: (prev: NodeData) => Partial<NodeData>) =>
+            setNodes((nds) => (nds as any[]).map((n: any) => (n.id === selectedNodeId ? { ...n, data: { ...n.data, ...updater(n.data as NodeData) } as any } : n)))
+          }
+        />
       </div>
     </div>
   );
@@ -195,51 +180,3 @@ const WorkflowBuilderPage: React.FC = () => (
 );
 
 export default WorkflowBuilderPage;
-
-// -------- Property Editor ---------
-const NodePropertyEditor: React.FC<{
-  node: any;
-  onChange: (updater: (prev: NodeData) => Partial<NodeData>) => void;
-}> = ({ node, onChange }) => {
-  if (!node) return null;
-  const data = node.data as NodeData;
-  const spec = data.spec;
-  return (
-    <div className="space-y-3">
-      <div className="text-sm font-semibold">{spec.label}</div>
-      <div className="text-xs opacity-70">ID: {node.id}</div>
-      {spec.config && spec.config.length > 0 && (
-        <div className="space-y-2">
-          <div className="text-xs uppercase opacity-70">配置</div>
-          {spec.config.map((c) => (
-            <div key={c.key} className="space-y-1">
-              <label className="block text-xs">{c.key}</label>
-              <input
-                className="w-full rounded bg-neutral-800 text-xs px-2 py-1 border border-neutral-700"
-                value={String((data.config || {})[c.key] ?? '')}
-                onChange={(e) => onChange((prev) => ({ config: { ...prev.config, [c.key]: e.target.value } }))}
-                placeholder={c.description || ''}
-              />
-            </div>
-          ))}
-        </div>
-      )}
-      {spec.inputs && spec.inputs.length > 0 && (
-        <div className="space-y-2">
-          <div className="text-xs uppercase opacity-70">输入默认值</div>
-          {spec.inputs.map((inp) => (
-            <div key={inp.key} className="space-y-1">
-              <label className="block text-xs">{inp.key}</label>
-              <input
-                className="w-full rounded bg-neutral-800 text-xs px-2 py-1 border border-neutral-700"
-                value={String((data.inputDefaults || {})[inp.key] ?? '')}
-                onChange={(e) => onChange((prev) => ({ inputDefaults: { ...prev.inputDefaults, [inp.key]: e.target.value } }))}
-                placeholder={inp.description || ''}
-              />
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
