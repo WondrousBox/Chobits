@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, LayoutGroup, motion } from 'framer-motion';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 export interface RadialSubMenuItem {
   id: string;
