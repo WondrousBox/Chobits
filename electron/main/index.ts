@@ -1,12 +1,15 @@
-import { app, BrowserWindow, shell, ipcMain } from 'electron';
-import { setupResourceProtocol, addAllowedResourceRoot, addWorkspaceResourceRoot } from './resource-protocol';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
 import os from 'node:os';
-import { update } from './update';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
+
+import { initWorkflowSystem } from '../workflow/index';
 import { initHandlers } from './handlers';
 import { logger } from './logger';
+import { addAllowedResourceRoot, addWorkspaceResourceRoot, setupResourceProtocol } from './resource-protocol';
 import { registerGlobalShortcuts, unregisterGlobalShortcuts } from './shortcuts';
+import { update } from './update';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -149,6 +152,12 @@ app.whenReady().then(async () => {
     console.warn('[protocol res] add workspace root failed', e);
   }
   await createWindow();
+  // Initialize workflow system (nodes, plugins, IPC endpoints)
+  try {
+    initWorkflowSystem();
+  } catch (e) {
+    console.warn('[workflow] init failed', e);
+  }
   // Register all global shortcuts (assistant toggle, devtools, etc.)
   registerGlobalShortcuts(getMainWindow);
 });
