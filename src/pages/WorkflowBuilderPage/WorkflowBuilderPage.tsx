@@ -2,9 +2,11 @@ import 'reactflow/dist/style.css';
 
 import { nanoid } from 'nanoid';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import ReactFlow, { addEdge, Background, Connection, Controls, Edge, MiniMap, Node as RFNode, ReactFlowProvider, useEdgesState, useNodesState } from 'reactflow';
+import ReactFlow, { addEdge, Background, Connection, Controls, Edge, MiniMap, ReactFlowProvider, useEdgesState, useNodesState } from 'reactflow';
 
 import { NodeSpec, WorkflowDraft } from '@/types/workflow';
+
+import SpecNode from './SpecNode';
 
 // IPC helper
 const invoke = window.ipcRenderer.invoke;
@@ -17,7 +19,7 @@ function useNodeSpecs(): NodeSpec[] {
   return specs;
 }
 
-type NodeData = { label: string; specId: string };
+type NodeData = { label: string; specId: string; spec: NodeSpec; config: Record<string, any>; inputDefaults: Record<string, any> };
 
 function buildInitialDraft(): WorkflowDraft {
   return { id: 'new-' + nanoid(6), name: '新建工作流', nodes: [], edges: [] };
@@ -28,7 +30,7 @@ const paletteWidth = 180;
 const WorkflowCanvas: React.FC = () => {
   const specs = useNodeSpecs();
   const [draft, setDraft] = useState<WorkflowDraft>(buildInitialDraft());
-  const [nodes, setNodes, onNodesChange] = useNodesState<RFNode<NodeData>>([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [validateResult, setValidateResult] = useState<any>(null);
@@ -40,7 +42,14 @@ const WorkflowCanvas: React.FC = () => {
   useEffect(() => {
     setDraft((d: WorkflowDraft) => ({
       ...d,
-      nodes: nodes.map((n: RFNode<NodeData>) => ({ id: n.id, type: (n.data as NodeData).specId, x: n.position.x, y: n.position.y, config: {}, inputDefaults: {} })),
+      nodes: (nodes as any[]).map((n: any) => ({
+        id: n.id,
+        type: (n.data as NodeData).specId,
+        x: n.position.x,
+        y: n.position.y,
+        config: (n.data as NodeData).config || {},
+        inputDefaults: (n.data as NodeData).inputDefaults || {}
+      })),
       edges: edges.map((e: Edge) => ({ id: e.id, from: { nodeId: e.source, port: e.sourceHandle || 'payload' }, to: { nodeId: e.target, port: e.targetHandle || 'result' } }))
     }));
   }, [nodes, edges]);
@@ -48,22 +57,27 @@ const WorkflowCanvas: React.FC = () => {
   const addSpecNode = useCallback(
     (spec: NodeSpec): void => {
       const id = spec.id + '-' + nanoid(4);
-      const rfNode: RFNode<NodeData> = {
+      const rfNode = {
         id,
+        type: 'specNode',
         position: { x: 250 + Math.random() * 100, y: 120 + Math.random() * 100 },
-        data: { label: spec.label, specId: spec.id }
+        data: { label: spec.label, specId: spec.id, spec, config: Object.fromEntries((spec.config || []).map((c) => [c.key, c.default ?? ''])), inputDefaults: {} }
       };
-      setNodes((nds: RFNode<NodeData>[]) => nds.concat(rfNode));
+      setNodes((nds) => (nds as any[]).concat(rfNode as any));
     },
     [setNodes]
   );
 
   const onConnect = useCallback(
     (connection: Connection): void => {
+      // Require explicit handles for strict port binding
+      if (!connection.sourceHandle || !connection.targetHandle) return;
       setEdges((eds: Edge[]) => addEdge({ ...connection, id: 'e-' + nanoid(6) }, eds));
     },
     [setEdges]
   );
+
+  const nodeTypes = useMemo(() => ({ specNode: SpecNode }), []);
 
   const performValidate = async (): Promise<void> => {
     const backendDef = {
@@ -151,7 +165,8 @@ const WorkflowCanvas: React.FC = () => {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
-          onNodeClick={(_e: React.MouseEvent, n: RFNode<NodeData>) => setSelectedNodeId(n.id)}
+          onNodeClick={(_e: React.MouseEvent, n: any) => setSelectedNodeId(n.id)}
+          nodeTypes={nodeTypes}
           fitView
         >
           <Background />
@@ -163,12 +178,10 @@ const WorkflowCanvas: React.FC = () => {
         <div className="text-xs uppercase font-bold opacity-70">属性</div>
         {!selectedNode && <div className="text-xs opacity-60">选择一个节点查看配置</div>}
         {selectedNode && (
-          <div className="space-y-2">
-            <div className="text-sm font-semibold">{selectedNode.type}</div>
-            <div className="text-xs opacity-70">ID: {selectedNode.id}</div>
-            {/* Future: render dynamic config and inputDefaults editors */}
-            <div className="text-xs opacity-60">暂未实现节点参数编辑</div>
-          </div>
+          <NodePropertyEditor
+            node={nodes.find((n) => n.id === selectedNode.id) as any}
+            onChange={(updater) => setNodes((nds) => (nds as any[]).map((n: any) => (n.id === selectedNode.id ? { ...n, data: { ...n.data, ...updater(n.data as NodeData) } as any } : n)))}
+          />
         )}
       </div>
     </div>
@@ -182,3 +195,51 @@ const WorkflowBuilderPage: React.FC = () => (
 );
 
 export default WorkflowBuilderPage;
+
+// -------- Property Editor ---------
+const NodePropertyEditor: React.FC<{
+  node: any;
+  onChange: (updater: (prev: NodeData) => Partial<NodeData>) => void;
+}> = ({ node, onChange }) => {
+  if (!node) return null;
+  const data = node.data as NodeData;
+  const spec = data.spec;
+  return (
+    <div className="space-y-3">
+      <div className="text-sm font-semibold">{spec.label}</div>
+      <div className="text-xs opacity-70">ID: {node.id}</div>
+      {spec.config && spec.config.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-xs uppercase opacity-70">配置</div>
+          {spec.config.map((c) => (
+            <div key={c.key} className="space-y-1">
+              <label className="block text-xs">{c.key}</label>
+              <input
+                className="w-full rounded bg-neutral-800 text-xs px-2 py-1 border border-neutral-700"
+                value={String((data.config || {})[c.key] ?? '')}
+                onChange={(e) => onChange((prev) => ({ config: { ...prev.config, [c.key]: e.target.value } }))}
+                placeholder={c.description || ''}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+      {spec.inputs && spec.inputs.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-xs uppercase opacity-70">输入默认值</div>
+          {spec.inputs.map((inp) => (
+            <div key={inp.key} className="space-y-1">
+              <label className="block text-xs">{inp.key}</label>
+              <input
+                className="w-full rounded bg-neutral-800 text-xs px-2 py-1 border border-neutral-700"
+                value={String((data.inputDefaults || {})[inp.key] ?? '')}
+                onChange={(e) => onChange((prev) => ({ inputDefaults: { ...prev.inputDefaults, [inp.key]: e.target.value } }))}
+                placeholder={inp.description || ''}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
