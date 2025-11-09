@@ -33,7 +33,7 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
           ))}
         </div>
       )}
-      {spec.inputs && spec.inputs.length > 0 && (
+      {/* {spec.inputs && spec.inputs.length > 0 && (
         <div className="space-y-2">
           <div className="text-xs uppercase opacity-70">输入默认值</div>
           {spec.inputs.map((inp) => (
@@ -47,7 +47,7 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
             </div>
           ))}
         </div>
-      )}
+      )} */}
     </div>
   );
 };

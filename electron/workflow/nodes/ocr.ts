@@ -11,19 +11,24 @@ export const OCRNode: NodeHandler = {
     category: 'Image',
     description: '基于 Tesseract 的图片文字识别',
     requires: ['plugin:tesseract'],
+    // 仅保留真正的数据输入：图片路径
     inputs: [
-      { key: 'image', label: '图片路径', type: ['file', 'string'], required: true },
-      { key: 'lang', label: '语言', type: 'string', required: false, description: '如 eng, chi_sim' }
+      { key: 'image', label: '图片路径', type: ['file', 'string'], required: true }
+    ],
+    // 将语言等稳定选项放到节点配置
+    config: [
+      { key: 'lang', label: '语言', type: 'string', required: false, description: '如 eng, chi_sim', default: '' }
     ],
     outputs: [{ key: 'text', label: '识别文本', type: 'string' }]
   },
-  async run({ input, ctx }) {
+  async run({ input, config, ctx }) {
     const src = String(input.image || '');
     if (!src) throw new Error('缺少图片路径');
     if (!fs.existsSync(src)) throw new Error(`图片不存在: ${src}`);
     const outBase = path.join(ctx.tmpDir, 'ocr-' + path.basename(src).replace(/\W+/g, ''));
     const args = [src, outBase];
-    if (input.lang) args.push('-l', String(input.lang));
+    const lang = config?.lang ? String(config.lang) : '';
+    if (lang) args.push('-l', lang);
 
     await new Promise<void>((resolve, reject) => {
       const child = spawn('tesseract', args);
