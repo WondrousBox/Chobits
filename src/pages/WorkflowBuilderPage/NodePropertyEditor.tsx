@@ -3,6 +3,7 @@ import React from 'react';
 import type { NodeSpec } from '@/types/workflow';
 
 import type { NodeData } from './types';
+import { Input } from '@/components/ui/input';
 
 interface NodePropertyEditorProps {
   node: any;
@@ -23,8 +24,7 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
           {spec.config.map((c) => (
             <div key={c.key} className="space-y-1">
               <label className="block text-xs">{c.key}</label>
-              <input
-                className="w-full rounded bg-neutral-800 text-xs px-2 py-1 border border-neutral-700"
+              <Input
                 value={String((data.config || {})[c.key] ?? '')}
                 onChange={(e) => onChange((prev) => ({ config: { ...prev.config, [c.key]: e.target.value } }))}
                 placeholder={c.description || ''}
@@ -39,8 +39,7 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
           {spec.inputs.map((inp) => (
             <div key={inp.key} className="space-y-1">
               <label className="block text-xs">{inp.key}</label>
-              <input
-                className="w-full rounded bg-neutral-800 text-xs px-2 py-1 border border-neutral-700"
+              <Input
                 value={String((data.inputDefaults || {})[inp.key] ?? '')}
                 onChange={(e) => onChange((prev) => ({ inputDefaults: { ...prev.inputDefaults, [inp.key]: e.target.value } }))}
                 placeholder={inp.description || ''}
