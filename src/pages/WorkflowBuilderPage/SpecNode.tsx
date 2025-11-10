@@ -27,7 +27,7 @@ function typesCompatible(source: string | string[] | undefined, target: string |
   return s.some((x) => t.includes(x));
 }
 
-const SpecNode: React.FC<NodeProps<NodeData>> = ({ data }) => {
+const SpecNode: React.FC<NodeProps<NodeData>> = ({ data, selected }) => {
   const spec = data.spec;
   const rf = useReactFlow<NodeData>();
 
@@ -36,7 +36,9 @@ const SpecNode: React.FC<NodeProps<NodeData>> = ({ data }) => {
   const headerClass = useMemo(() => categoryColor[spec.category || 'core'] || 'bg-neutral-700', [spec.category]);
 
   return (
-    <div className="rounded border border-neutral-700 bg-neutral-900 text-neutral-100 min-w-[180px]">
+    <div
+      className={`rounded border bg-neutral-900 text-neutral-100 min-w-[180px] transition-shadow duration-150 ${selected ? 'border-indigo-400 ring-2 ring-indigo-400 shadow-[0_0_0_2px_rgba(99,102,241,0.35)]' : 'border-neutral-700'}`}
+    >
       <div className={`px-2 py-1 text-xs font-semibold rounded-t ${headerClass}`}>
         {spec.label}
         {hasRequires && <span className="ml-2 text-[10px] px-1 py-0.5 rounded bg-neutral-800 border border-neutral-700">{spec.requires!.join(',')}</span>}

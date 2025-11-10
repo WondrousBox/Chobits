@@ -1,9 +1,9 @@
 import React from 'react';
 
+import { Input } from '@/components/ui/input';
 import type { NodeSpec } from '@/types/workflow';
 
 import type { NodeData } from './types';
-import { Input } from '@/components/ui/input';
 
 interface NodePropertyEditorProps {
   node: any;

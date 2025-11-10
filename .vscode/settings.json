@@ -3,25 +3,17 @@
   "typescript.tsc.autoDetect": "off",
   "json.schemas": [
     {
-      "fileMatch": [
-        "/*electron-builder.json5",
-        "/*electron-builder.json"
-      ],
+      "fileMatch": ["/*electron-builder.json5", "/*electron-builder.json"],
       "url": "https://json.schemastore.org/electron-builder"
     }
   ],
-  "cSpell.words": [
-    "Chobits",
-    "ffprobe",
-    "huggingface",
-    "ytdlp"
-  ],
+  "cSpell.words": ["Chobits", "ffprobe", "huggingface", "reactflow", "ytdlp"],
   "editor.codeActionsOnSave": {
     "source.fixAll.eslint": "explicit"
   },
   "editor.formatOnSave": true, // Prettier auto format on save
   "editor.defaultFormatter": "esbenp.prettier-vscode",
-  
+
   "[json]": {
     "editor.formatOnSave": false
   },
