@@ -149,7 +149,7 @@ const WorkflowPage: React.FC = () => {
           </div>
         }
       />
-      <div className="flex-1 overflow-auto p-3 space-y-3">
+      <div className="flex-1 overflow-auto p-3 space-y-3 bg-muted">
         {loading && <div className="text-xs opacity-60">加载中...</div>}
         {!loading && filtered.length === 0 && <div className="text-xs opacity-60">暂无工作流或无匹配结果</div>}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -159,13 +159,9 @@ const WorkflowPage: React.FC = () => {
               className="group border border-border/60 rounded-lg p-3 bg-card hover:border-primary transition-colors cursor-pointer flex flex-col relative"
               onClick={() => openExisting(wf.id)}
             >
-              <button
-                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-xs px-2 py-0.5 rounded border border-red-700/60 text-red-400 hover:bg-red-900/30"
-                onClick={(e) => deleteOne(e, wf.id)}
-                title="删除"
-              >
-                🗑️ 删除
-              </button>
+              <Button variant={'destructive'} size={'sm'} className="absolute top-2 right-2 opacity-0 group-hover:opacity-100" onClick={(e) => deleteOne(e, wf.id)}>
+                删除
+              </Button>
               <div className="flex items-start justify-between gap-2 mb-1 pr-16">
                 <div className="font-medium text-sm truncate" title={wf.name}>
                   {wf.name || '未命名'}

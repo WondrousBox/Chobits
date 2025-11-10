@@ -10,8 +10,10 @@ import { LoadResourceNode } from './nodes/load-resource';
 import { OCRNode } from './nodes/ocr';
 import { StartNode } from './nodes/start';
 import { TranscodeNode } from './nodes/transcode';
+import { TranscribeWhisperNode } from './nodes/transcribe-whisper';
 import { FfmpegPlugin } from './plugins/ffmpeg';
 import { TesseractPlugin } from './plugins/tesseract';
+import { WhisperPlugin } from './plugins/whisper';
 import { listNodes, listPlugins, registerNode, registerPlugin } from './registry';
 import { WorkflowStore } from './store';
 import { WorkflowDefinition } from './types';
@@ -20,8 +22,9 @@ export function initWorkflowSystem(): void {
   // Register plugins first
   registerPlugin(FfmpegPlugin);
   registerPlugin(TesseractPlugin);
+  registerPlugin(WhisperPlugin);
   // Register nodes
-  [StartNode, EndNode, LoadResourceNode, TranscodeNode, OCRNode, DocToMarkdownNode].forEach(registerNode);
+  [StartNode, EndNode, LoadResourceNode, TranscodeNode, OCRNode, TranscribeWhisperNode, DocToMarkdownNode].forEach(registerNode);
 
   const engine = createEngine({
     resourcesDir: path.join(process.env.APP_ROOT || process.cwd(), 'resources'),
@@ -92,5 +95,24 @@ export function initWorkflowSystem(): void {
     options: { concurrency: 1, errorStrategy: 'fail-fast' }
   };
 
+  const sampleTranscribe: WorkflowDefinition = {
+    id: 'sample:transcribe',
+    name: '媒体转录 (Whisper) 示例',
+    description: '加载媒体 -> Whisper 转录 -> 结束',
+    nodes: [
+      { id: 'start', type: 'core/start' },
+      { id: 'load', type: 'resource/load' },
+      { id: 'whisper', type: 'media/transcribe-whisper', config: { model: 'small', language: 'zh', outputFormats: ['txt', 'srt', 'json'] } },
+      { id: 'end', type: 'core/end' }
+    ],
+    edges: [
+      { id: 't1', from: { nodeId: 'start', port: 'payload' }, to: { nodeId: 'load', port: 'path' } },
+      { id: 't2', from: { nodeId: 'load', port: 'path' }, to: { nodeId: 'whisper', port: 'media' } },
+      { id: 't3', from: { nodeId: 'whisper', port: 'text' }, to: { nodeId: 'end', port: 'result' } }
+    ],
+    options: { concurrency: 1, errorStrategy: 'fail-fast' }
+  };
+
   WorkflowStore.upsert(sampleOcr).catch(() => { });
+  WorkflowStore.upsert(sampleTranscribe).catch(() => { });
 }

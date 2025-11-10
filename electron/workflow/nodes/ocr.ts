@@ -12,13 +12,9 @@ export const OCRNode: NodeHandler = {
     description: '基于 Tesseract 的图片文字识别',
     requires: ['plugin:tesseract'],
     // 仅保留真正的数据输入：图片路径
-    inputs: [
-      { key: 'image', label: '图片路径', type: ['file', 'string'], required: true }
-    ],
+    inputs: [{ key: 'image', label: '图片路径', type: ['file', 'string'], required: true }],
     // 将语言等稳定选项放到节点配置
-    config: [
-      { key: 'lang', label: '语言', type: 'string', required: false, description: '如 eng, chi_sim', default: '' }
-    ],
+    config: [{ key: 'lang', label: '语言', type: 'string', required: false, description: '如 eng, chi_sim', default: '' }],
     outputs: [{ key: 'text', label: '识别文本', type: 'string' }]
   },
   async run({ input, config, ctx }) {

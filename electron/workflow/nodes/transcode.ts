@@ -1,5 +1,6 @@
-import ffmpeg from 'fluent-ffmpeg';
 import path from 'node:path';
+
+import ffmpeg from 'fluent-ffmpeg';
 
 import { NodeHandler } from '../types';
 
@@ -11,9 +12,7 @@ export const TranscodeNode: NodeHandler = {
     description: '对音视频进行转码（需要 FFmpeg 插件）',
     requires: ['plugin:ffmpeg'],
     // 现在仅保留真正的动态输入：文件来源。其余作为静态配置出现在节点属性面板。
-    inputs: [
-      { key: 'input', label: '输入文件', type: ['file', 'string'], required: true }
-    ],
+    inputs: [{ key: 'input', label: '输入文件', type: ['file', 'string'], required: true }],
     // 节点级静态配置（不会作为运行期端口暴露）。
     config: [
       { key: 'format', label: '格式', type: 'string', required: true, description: '输出格式，如 mp4/mp3/webm', default: 'mp4' },
