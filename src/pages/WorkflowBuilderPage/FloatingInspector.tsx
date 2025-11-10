@@ -9,12 +9,12 @@ interface FloatingInspectorProps {
 }
 
 const FloatingInspector: React.FC<FloatingInspectorProps> = ({ node, onChange }) => {
+  if (!node) {
+    return null;
+  }
   return (
     <div className="absolute top-1/2 right-2 z-20 w-60 -translate-y-1/2 min-h-20 bg-background shadow-md rounded-md p-4">
-      <div>
-        {!node && <div className="text-xs opacity-60">选择一个节点查看配置</div>}
-        {node && <NodePropertyEditor node={node} onChange={onChange} />}
-      </div>
+      <div>{node && <NodePropertyEditor node={node} onChange={onChange} />}</div>
     </div>
   );
 };

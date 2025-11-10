@@ -2,7 +2,7 @@ import 'reactflow/dist/style.css';
 
 import { nanoid } from 'nanoid';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import ReactFlow, { addEdge, Background, Connection, Controls, Edge, MiniMap, ReactFlowProvider, useEdgesState, useNodesState } from 'reactflow';
+import ReactFlow, { addEdge, Background, Connection, Controls, Edge, MiniMap, Node, NodeChange, OnNodesChange, ReactFlowProvider, useEdgesState, useNodesState } from 'reactflow';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { NodeSpec, WorkflowDraft } from '@/types/workflow';
@@ -26,8 +26,19 @@ function useNodeSpecs(): NodeSpec[] {
 
 // NodeData moved to ./types
 
+const START_NODE_ID = 'start';
+const END_NODE_ID = 'end';
+
 function buildInitialDraft(): WorkflowDraft {
-  return { id: 'new-' + nanoid(6), name: '新建工作流', nodes: [], edges: [] };
+  return {
+    id: 'new-' + nanoid(6),
+    name: '新建工作流',
+    nodes: [
+      { id: START_NODE_ID, type: 'start', x: 120, y: 180, config: {}, inputDefaults: {} },
+      { id: END_NODE_ID, type: 'end', x: 620, y: 180, config: {}, inputDefaults: {} }
+    ],
+    edges: []
+  };
 }
 
 const paletteWidth = 180;
@@ -35,7 +46,32 @@ const paletteWidth = 180;
 const WorkflowCanvas: React.FC = () => {
   const specs = useNodeSpecs();
   const [draft, setDraft] = useState<WorkflowDraft>(buildInitialDraft());
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const initialNodes: Node<NodeData>[] = [
+    {
+      id: START_NODE_ID,
+      type: 'specNode',
+      position: { x: 120, y: 180 },
+      data: { label: '开始', specId: 'start', spec: { id: 'start', label: '开始', inputs: [], outputs: [{ key: 'result', type: 'any' }], category: 'core' }, config: {}, inputDefaults: {} }
+    },
+    {
+      id: END_NODE_ID,
+      type: 'specNode',
+      position: { x: 620, y: 180 },
+      data: { label: '结束', specId: 'end', spec: { id: 'end', label: '结束', inputs: [{ key: 'payload', type: 'any' }], outputs: [], category: 'core' }, config: {}, inputDefaults: {} }
+    }
+  ];
+  const [nodes, setNodes, rawOnNodesChange] = useNodesState<NodeData>(initialNodes);
+  // Wrap nodes change handler to prevent deletion of start/end
+  const onNodesChange: OnNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      const filtered = changes.filter((ch) => {
+        if (ch.type === 'remove' && (ch.id === START_NODE_ID || ch.id === END_NODE_ID)) return false;
+        return true;
+      });
+      rawOnNodesChange(filtered);
+    },
+    [rawOnNodesChange]
+  );
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [validateResult, setValidateResult] = useState<any>(null);
@@ -61,6 +97,7 @@ const WorkflowCanvas: React.FC = () => {
 
   const addSpecNode = useCallback(
     (spec: NodeSpec): void => {
+      if (spec.id === 'start' || spec.id === 'end') return; // hidden / not addable
       const id = spec.id + '-' + nanoid(4);
       const rfNode = {
         id,
@@ -149,17 +186,18 @@ const WorkflowCanvas: React.FC = () => {
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onNodeClick={(_e: React.MouseEvent, n: any) => setSelectedNodeId(n.id)}
+            onPaneClick={() => setSelectedNodeId(null)}
             nodeTypes={nodeTypes}
             fitView
           >
             <Background />
-            <MiniMap />
+            <MiniMap className="bg-background text-foreground" zoomable pannable />
             <Controls />
           </ReactFlow>
         </div>
 
         {/* 左侧浮动节点库，可收起/展开 */}
-        <FloatingPalette width={paletteWidth} specs={specs} onAdd={addSpecNode} />
+        <FloatingPalette width={paletteWidth} specs={specs.filter((s) => s.id !== 'start' && s.id !== 'end')} onAdd={addSpecNode} />
 
         {/* 右侧浮动属性面板：选中节点时显示 */}
         <FloatingInspector
