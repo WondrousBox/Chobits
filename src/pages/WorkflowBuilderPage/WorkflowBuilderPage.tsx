@@ -74,6 +74,7 @@ const WorkflowCanvas: React.FC = () => {
     [rawOnNodesChange]
   );
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const eventCh = useMemo(() => new BroadcastChannel('wf-events'), []);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [validateResult, setValidateResult] = useState<any>(null);
   const [saving, setSaving] = useState(false);
@@ -184,6 +185,12 @@ const WorkflowCanvas: React.FC = () => {
       };
       const r = await invoke('wf:saveDefinition', { def: backendDef });
       console.log('Saved', r);
+      // notify others for optimistic refresh
+      try {
+        eventCh.postMessage({ type: 'definition-upserted', def: backendDef });
+      } catch {
+        // ignore
+      }
     } finally {
       setSaving(false);
     }
@@ -194,6 +201,11 @@ const WorkflowCanvas: React.FC = () => {
     try {
       const run = await invoke('wf:run', { defId: draft.id, input: { path: '/tmp/demo.txt' } });
       console.log(run);
+      try {
+        eventCh.postMessage({ type: 'run-started', defId: draft.id });
+      } catch {
+        // ignore
+      }
     } finally {
       setRunning(false);
     }
@@ -231,6 +243,14 @@ const WorkflowCanvas: React.FC = () => {
             <MiniMap className="bg-background text-foreground" zoomable pannable />
             <Controls />
           </ReactFlow>
+          {loadingExisting && (
+            <div className="absolute inset-0 bg-background/70 backdrop-blur-sm flex items-center justify-center z-50 text-sm">
+              <div className="flex items-center gap-2">
+                <div className="h-4 w-4 rounded-full border-2 border-neutral-500 border-t-transparent animate-spin" />
+                <span>载入中...</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 左侧浮动节点库，可收起/展开 */}
