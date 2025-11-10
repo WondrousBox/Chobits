@@ -1,17 +1,9 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Handle, NodeProps, Position, useReactFlow } from 'reactflow';
 
 import type { NodeSpec } from '@/types/workflow';
 
 type NodeData = { label: string; specId: string; spec: NodeSpec; config: Record<string, any>; inputDefaults: Record<string, any> };
-
-const categoryColor: Record<string, string> = {
-  core: 'bg-neutral-700',
-  resource: 'bg-sky-700',
-  media: 'bg-purple-700',
-  image: 'bg-emerald-700',
-  doc: 'bg-amber-700'
-};
 
 function toArray<T>(v: T | T[] | undefined): T[] {
   if (v === undefined) return [];
@@ -33,17 +25,13 @@ const SpecNode: React.FC<NodeProps<NodeData>> = ({ data, selected }) => {
 
   const hasRequires = !!(spec.requires && spec.requires.length > 0);
 
-  const headerClass = useMemo(() => categoryColor[spec.category || 'core'] || 'bg-neutral-700', [spec.category]);
-
   return (
-    <div
-      className={`rounded border bg-neutral-900 text-neutral-100 min-w-[180px] transition-shadow duration-150 ${selected ? 'border-indigo-400 ring-2 ring-indigo-400 shadow-[0_0_0_2px_rgba(99,102,241,0.35)]' : 'border-neutral-700'}`}
-    >
-      <div className={`px-2 py-1 text-xs font-semibold rounded-t ${headerClass}`}>
+    <div className={`rounded-md border border-solid border-ring min-w-[180px] overflow-hidden ${selected ? 'border-primary ring-2 ring-primary' : ''}`}>
+      <div className="bg-background text-foreground p-2">
         {spec.label}
-        {hasRequires && <span className="ml-2 text-[10px] px-1 py-0.5 rounded bg-neutral-800 border border-neutral-700">{spec.requires!.join(',')}</span>}
+        {hasRequires && <span className="ml-2 text-[10px] px-1 py-0.5 rounded bg-secondary text-secondary-foreground">{spec.requires!.join(',')}</span>}
       </div>
-      <div className="px-2 py-2 text-[11px] space-y-2">
+      <div className="px-2 py-2 text-[11px] space-y-2 bg-muted">
         <div className="opacity-70">{spec.description || ''}</div>
         {/* Ports area */}
         <div className="grid grid-cols-2 gap-2">

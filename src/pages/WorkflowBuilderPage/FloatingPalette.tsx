@@ -1,16 +1,16 @@
 import React, { useMemo, useState } from 'react';
-import { TbArrowLeft, TbArrowRight } from 'react-icons/tb';
+import { TbCategory, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import type { NodeSpec } from '@/types/workflow';
 
 interface FloatingPaletteProps {
-  width: number;
   specs: NodeSpec[];
   onAdd: (spec: NodeSpec) => void;
 }
 
-const FloatingPalette: React.FC<FloatingPaletteProps> = ({ width, specs, onAdd }) => {
+const FloatingPalette: React.FC<FloatingPaletteProps> = ({ specs, onAdd }) => {
   const [open, setOpen] = useState(true);
   const grouped = useMemo(() => {
     const map = new Map<string, NodeSpec[]>();
@@ -25,30 +25,31 @@ const FloatingPalette: React.FC<FloatingPaletteProps> = ({ width, specs, onAdd }
       .map(([cat, items]) => [cat, items.slice().sort((a, b) => (a.label || '').localeCompare(b.label || ''))] as [string, NodeSpec[]]);
   }, [specs]);
   return (
-    <div className="absolute top-1/2 left-2 z-20 -translate-y-1/2">
-      <Button size="icon" variant={'outline'} onClick={() => setOpen((o) => !o)}>
-        {open ? <TbArrowLeft /> : <TbArrowRight />}
-      </Button>
-      <div
-        style={{ width, maxHeight: '80vh' }}
-        className={`transition-all duration-200 ${open ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'} bg-neutral-900/95 backdrop-blur-sm border border-neutral-700 rounded shadow-lg p-2 space-y-2 overflow-auto`}
-      >
-        <div className="text-xs uppercase font-bold opacity-70">节点库</div>
-        <div className="space-y-2">
-          {grouped.map(([cat, items]) => (
-            <div key={cat}>
-              <div className="text-[11px] uppercase opacity-60 px-1 py-0.5">{cat}</div>
-              <div>
-                {items.map((s) => (
-                  <button key={s.id} className="block w-full text-left text-xs px-2 py-1 rounded hover:bg-neutral-700" onClick={() => onAdd(s)}>
-                    {s.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+    <div className="absolute top-1/2 left-2 z-20 -translate-y-1/2 backdrop-blur-sm border border-solid border-ring rounded-md overflow-hidden">
+      <div className="bg-background flex items-center gap-2 justify-between p-2">
+        {open && <Input placeholder="搜索节点" className="h-8" />}
+        <Button size="icon" className="w-8 h-8 shrink-0" variant={'outline'} onClick={() => setOpen((o) => !o)}>
+          {open ? <TbX /> : <TbCategory />}
+        </Button>
       </div>
+      {open && (
+        <div style={{ maxHeight: '80vh', borderTopStyle: 'solid' }} className="p-2 space-y-2 overflow-auto bg-muted border-t border-t-ring">
+          <div className="space-y-2">
+            {grouped.map(([cat, items]) => (
+              <div key={cat}>
+                <div className="px-1">{cat}</div>
+                <div className="space-y-1">
+                  {items.map((s) => (
+                    <Button className="w-full" variant={'outline'} key={s.id} onClick={() => onAdd(s)}>
+                      {s.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
