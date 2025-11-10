@@ -20,7 +20,7 @@ const FloatingActions: React.FC<FloatingActionsProps> = ({ onValidate, onSave, o
           <TbCheck />
           校验
         </Button>
-        <Button variant="outline" size="sm" onClick={onSave} disabled={saving}>
+        <Button variant="ghost" size="sm" onClick={onSave} disabled={saving}>
           <TbDisc />
           保存
         </Button>

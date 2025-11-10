@@ -41,8 +41,6 @@ function buildInitialDraft(): WorkflowDraft {
   };
 }
 
-const paletteWidth = 180;
-
 const WorkflowCanvas: React.FC = () => {
   const specs = useNodeSpecs();
   const [draft, setDraft] = useState<WorkflowDraft>(buildInitialDraft());
@@ -253,8 +251,7 @@ const WorkflowCanvas: React.FC = () => {
           )}
         </div>
 
-        {/* 左侧浮动节点库，可收起/展开 */}
-        <FloatingPalette width={paletteWidth} specs={specs.filter((s) => s.id !== 'start' && s.id !== 'end')} onAdd={addSpecNode} />
+        <FloatingPalette specs={specs.filter((s) => s.id !== 'start' && s.id !== 'end')} onAdd={addSpecNode} />
 
         {/* 右侧浮动属性面板：选中节点时显示 */}
         <FloatingInspector
