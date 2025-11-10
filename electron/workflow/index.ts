@@ -92,23 +92,5 @@ export function initWorkflowSystem(): void {
     options: { concurrency: 1, errorStrategy: 'fail-fast' }
   };
 
-  const sampleTranscode: WorkflowDefinition = {
-    id: 'sample:transcode',
-    name: '视频转码示例',
-    description: '加载视频 -> 转码 -> 结束',
-    nodes: [
-      { id: 'start', type: 'core/start' },
-      { id: 'load', type: 'resource/load' },
-      { id: 'trans', type: 'media/transcode', config: { format: 'mp4' } },
-      { id: 'end', type: 'core/end' }
-    ],
-    edges: [
-      { id: 'e1', from: { nodeId: 'start', port: 'payload' }, to: { nodeId: 'load', port: 'path' } },
-      { id: 'e2', from: { nodeId: 'load', port: 'path' }, to: { nodeId: 'trans', port: 'input' } },
-      { id: 'e3', from: { nodeId: 'trans', port: 'output' }, to: { nodeId: 'end', port: 'result' } }
-    ],
-    options: { concurrency: 1, errorStrategy: 'fail-fast' }
-  };
-
-  Promise.all([WorkflowStore.upsert(sampleOcr), WorkflowStore.upsert(sampleTranscode)]).catch(() => { });
+  WorkflowStore.upsert(sampleOcr).catch(() => { });
 }
