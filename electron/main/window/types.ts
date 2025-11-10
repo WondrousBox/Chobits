@@ -18,6 +18,7 @@ export type WindowKey =
   | 'resourcePreview'
   | 'downloadFloating'
   | 'workflowBuilder'
+  | 'workflowPage'
   | string;
 
 // 跟随窗口位置类型

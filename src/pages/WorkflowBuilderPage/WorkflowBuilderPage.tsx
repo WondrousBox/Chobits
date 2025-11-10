@@ -46,6 +46,7 @@ const paletteWidth = 180;
 const WorkflowCanvas: React.FC = () => {
   const specs = useNodeSpecs();
   const [draft, setDraft] = useState<WorkflowDraft>(buildInitialDraft());
+  const [loadingExisting, setLoadingExisting] = useState(false); // reserved for future loading indicator
   const initialNodes: Node<NodeData>[] = [
     {
       id: START_NODE_ID,
@@ -78,6 +79,42 @@ const WorkflowCanvas: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const selectedNode = useMemo(() => draft.nodes.find((n) => n.id === selectedNodeId), [draft, selectedNodeId]);
+
+  // Load existing workflow definition if payload provides id
+  useEffect(() => {
+    (async () => {
+      try {
+        const payload = await window.YUA.window['window:payload:get']('workflowBuilder' as any);
+        if (payload && payload.id) {
+          setLoadingExisting(true);
+          const existing = await invoke('wf:getDefinition', { id: payload.id }).catch(() => null);
+          if (existing && existing.nodes && existing.edges) {
+            // Map existing nodes into ReactFlow nodes (preserve start/end positions or fallback)
+            const rfNodes: Node<NodeData>[] = existing.nodes.map((n: any) => {
+              const spec = specs.find((s) => s.id === n.type) || { id: n.type, label: n.type, inputs: [], outputs: [], category: 'core' };
+              return {
+                id: n.id,
+                type: 'specNode',
+                position: { x: n.x ?? 100 + Math.random() * 200, y: n.y ?? 100 + Math.random() * 200 },
+                data: { label: spec.label, specId: spec.id, spec, config: n.config || {}, inputDefaults: n.inputDefaults || {} }
+              } as Node<NodeData>;
+            });
+            setNodes(rfNodes as any);
+            setEdges((existing.edges || []).map((e: any) => ({ id: e.id, source: e.from.nodeId, target: e.to.nodeId, sourceHandle: e.from.port, targetHandle: e.to.port })) as any);
+            setDraft({
+              id: existing.id,
+              name: existing.name || existing.id,
+              description: existing.description,
+              nodes: existing.nodes,
+              edges: existing.edges
+            });
+          }
+        }
+      } finally {
+        setLoadingExisting(false);
+      }
+    })();
+  }, [specs, setNodes, setEdges]);
 
   // Sync draft.nodes/edges from ReactFlow state
   useEffect(() => {

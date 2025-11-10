@@ -375,6 +375,38 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
         }
       }
     }
+  },
+  workflowPage: {
+    routeHash: 'workflow-page',
+    autoCenterOn: 'parent-display',
+    showOnReady: false,
+    openDevTools: true,
+    rememberState: true,
+    options: {
+      width: 1100,
+      height: 760,
+      minWidth: 900,
+      minHeight: 600,
+      frame: false,
+      transparent: false,
+      resizable: true,
+      alwaysOnTop: false,
+      skipTaskbar: false,
+      backgroundColor: '#ffffff',
+      show: false,
+      autoHideMenuBar: true,
+      webPreferences: { nodeIntegration: true, contextIsolation: true }
+    },
+    platformOverlays: {
+      darwin: {
+        options: {
+          titleBarStyle: 'hiddenInset',
+          titleBarOverlay: true,
+          trafficLightPosition: { x: 20, y: HEADER_COMMANDS_HEIGHT / 2 - MACOS_TRAFFIC_LIGHTS_HEIGHT / 2 },
+          frame: true
+        }
+      }
+    }
   }
 };
 
