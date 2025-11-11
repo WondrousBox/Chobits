@@ -77,6 +77,9 @@ class PluginResourceManager extends EventEmitter {
     this.downloadDir = path.join(app.getPath('downloads'), 'ChobitsDownloads');
     // 确保下载目录存在
     fs.mkdirSync(this.downloadDir, { recursive: true });
+    // 从配置中读取并发数
+    const config = PluginConfigStore.getConfig();
+    this.concurrency = config.concurrency ?? 2;
   }
 
   /**
@@ -166,6 +169,8 @@ class PluginResourceManager extends EventEmitter {
    */
   setConcurrency(n: number): void {
     this.concurrency = Math.max(1, n);
+    // 保存到配置
+    PluginConfigStore.setConfig({ concurrency: this.concurrency });
     this.kick();
   }
 

@@ -5,6 +5,7 @@ import { app } from 'electron';
 
 export type PluginConfig = {
   pluginsDir?: string; // 插件资源目录（包含engine和models）
+  concurrency?: number; // 下载并发数（从 model-configs.json 合并而来）
 };
 
 type StoreShape = {
@@ -43,11 +44,12 @@ function read(): StoreShape {
     return {
       config: {
         pluginsDir: data.config?.pluginsDir || defaultDir,
+        concurrency: data.config?.concurrency ?? 2, // 默认并发数为2
         ...data.config
       }
     };
   } catch {
-    return { config: { pluginsDir: getDefaultPluginsDir() } };
+    return { config: { pluginsDir: getDefaultPluginsDir(), concurrency: 2 } };
   }
 }
 

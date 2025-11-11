@@ -1,6 +1,7 @@
 import { BrowserWindow, ipcMain } from 'electron';
 
 import { createBestDownloader } from '../download/create';
+import { PluginConfigStore } from './plugin-config-store';
 import { getPluginForCurrentPlatform, loadPluginDefinitions } from './plugin-loader';
 import { DownloadProgress, PluginResource, pluginResourceManager } from './plugin-resource-manager';
 import { PluginResourceStore } from './plugin-resource-store';
@@ -25,6 +26,20 @@ export function init(win: BrowserWindow): void {
   // 列出支持的插件定义
   ipcMain.handle('plugin-resource:listSupported', async () => {
     return loadPluginDefinitions();
+  });
+
+  // 列出“已安装的引擎”资源
+  ipcMain.handle('plugin-resource:listInstalledEngines', async () => {
+    const all = PluginResourceStore.list();
+    return all.filter((r) => r.type === 'engine' && r.status === 'installed' && pluginResourceManager.isInstalled(r));
+  });
+
+  // 列出“支持的模型”，仅针对已安装的引擎
+  ipcMain.handle('plugin-resource:listSupportedModels', async () => {
+    const definitions = await loadPluginDefinitions();
+    const installedEngines = PluginResourceStore.list().filter((r) => r.type === 'engine' && r.status === 'installed' && pluginResourceManager.isInstalled(r));
+    const installedPluginIds = new Set(installedEngines.map((e) => e.pluginId));
+    return definitions.filter((d) => d.type === 'model' && installedPluginIds.has(d.pluginId));
   });
 
   // 列出所有资源
@@ -70,7 +85,6 @@ export function init(win: BrowserWindow): void {
       if (['queued', 'downloading', 'extracting', 'verifying'].includes(existing.status || '')) {
         return { ok: true, data: existing, message: 'Resource already in progress' };
       }
-      // 失败/取消可允许重新安装：继续往下构建并入队（upsert时会覆盖必要字段）
     }
 
     // 构建资源对象
@@ -156,6 +170,18 @@ export function init(win: BrowserWindow): void {
   // 设置插件目录
   ipcMain.handle('plugin-resource:setPluginsDir', async (_e, payload: { dir: string }) => {
     pluginResourceManager.setPluginsDir(payload.dir);
+    return { ok: true };
+  });
+
+  // 获取并发数
+  ipcMain.handle('plugin-resource:getConcurrency', async () => {
+    const config = PluginConfigStore.getConfig();
+    return { ok: true, concurrency: config.concurrency ?? 2 };
+  });
+
+  // 设置并发数
+  ipcMain.handle('plugin-resource:setConcurrency', async (_e, payload: { concurrency: number }) => {
+    pluginResourceManager.setConcurrency(payload.concurrency);
     return { ok: true };
   });
 }
