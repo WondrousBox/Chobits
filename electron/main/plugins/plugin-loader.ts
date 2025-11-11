@@ -4,6 +4,22 @@ import { readLocalJSON } from '@aim-packages/file-utils';
 
 import { getResourcePath } from '../utils/resources-path';
 
+export type ModelDefinition = {
+  id: string;
+  name: string;
+  displayName: string;
+  description?: string;
+  version: string;
+  archiveType?: 'zip' | 'tar.gz' | 'tar' | 'none';
+  platforms: {
+    platform: string;
+    arch: string;
+    sourceUrl: string;
+    sizeBytes?: number;
+    sha256?: string; // SHA256校验和
+  }[];
+};
+
 export type PluginDefinition = {
   id: string;
   pluginId: string;
@@ -21,17 +37,55 @@ export type PluginDefinition = {
     sizeBytes?: number;
     sha256?: string; // SHA256校验和
   }[];
+  // 模型作为引擎的子资源（仅当 type === 'engine' 时存在）
+  models?: ModelDefinition[];
 };
 
 /**
  * 加载插件列表配置文件
  * 从 resources/plugins/plugins.json 加载
+ * 将嵌套的模型展开为独立的定义，保持向后兼容
  */
 export async function loadPluginDefinitions(): Promise<PluginDefinition[]> {
   try {
     const file = getResourcePath('plugins');
     const arr = await readLocalJSON<PluginDefinition[]>(file, []);
-    return arr.filter(Boolean) as PluginDefinition[];
+    const result: PluginDefinition[] = [];
+
+    for (const plugin of arr) {
+      if (!plugin) continue;
+
+      // 添加引擎定义（不包含 models 字段，因为模型会被展开）
+      if (plugin.type === 'engine') {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { models, ...engineDef } = plugin;
+        result.push(engineDef);
+      }
+
+      // 如果是引擎且有模型，将模型展开为独立的定义
+      if (plugin.type === 'engine' && plugin.models && Array.isArray(plugin.models)) {
+        for (const model of plugin.models) {
+          result.push({
+            id: model.id,
+            pluginId: plugin.pluginId,
+            type: 'model',
+            name: model.name,
+            displayName: model.displayName,
+            description: model.description,
+            version: model.version,
+            archiveType: model.archiveType,
+            platforms: model.platforms
+          });
+        }
+      }
+
+      // 向后兼容：如果 type === 'model'，直接添加（旧格式）
+      if (plugin.type === 'model') {
+        result.push(plugin);
+      }
+    }
+
+    return result;
   } catch (err) {
     console.error('[PluginLoader] Failed to load plugin definitions:', err);
     return [];
