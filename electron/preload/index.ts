@@ -1,12 +1,13 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 import { aiBridge } from '../main/ai/ipc-renderer';
+import { pluginResourceAPI } from '../main/plugins/ipc-renderer';
+import { proxyBridge } from '../main/proxy/ipc-renderer';
 import { arch, isLinux, isMac, isMacIntel, isWindows, platform } from '../main/utils/os';
 import { ffmpegBridge } from './apis/ffmpeg';
 import { fileBridge } from './apis/file';
 import { folderBridge } from './apis/folder';
 import { modelBridge } from './apis/model';
-import { pluginResourceAPI } from '../main/plugins/ipc-renderer';
 import { resourceBridge } from './apis/resource';
 import { shortcutsBridge } from './apis/shortcuts';
 import { spriteBridge } from './apis/sprite';
@@ -66,7 +67,8 @@ contextBridge.exposeInMainWorld('YUA', {
   status: statusBridge,
   shortcuts: shortcutsBridge,
   ai: aiBridge,
-  pluginResource: pluginResourceAPI
+  pluginResource: pluginResourceAPI,
+  proxy: proxyBridge
 });
 
 // --------- Preload scripts loading ---------

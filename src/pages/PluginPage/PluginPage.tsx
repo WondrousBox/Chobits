@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { TbBox, TbChevronDown, TbChevronRight, TbLoader2, TbPlug } from 'react-icons/tb';
+import { TbBox, TbChevronDown, TbChevronRight, TbLoader2, TbPlug, TbWifi, TbWifiOff } from 'react-icons/tb';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface PluginPageProps {
@@ -63,6 +64,13 @@ type InstalledResource = {
   lastError?: string;
 };
 
+type NetworkCheckResult = {
+  name: string;
+  url: string;
+  success: boolean;
+  error?: string;
+};
+
 const PluginPage: React.FC<PluginPageProps> = ({ hideTitleBar }: PluginPageProps) => {
   const [supported, setSupported] = useState<PluginDefinition[]>([]);
   const [installed, setInstalled] = useState<InstalledResource[]>([]);
@@ -70,6 +78,9 @@ const PluginPage: React.FC<PluginPageProps> = ({ hideTitleBar }: PluginPageProps
   const [tabValue, setTabValue] = useState<'available' | 'installed'>('available');
   const [installing, setInstalling] = useState<string | null>(null);
   const [expandedPlugins, setExpandedPlugins] = useState<Set<string>>(new Set());
+  const [showNetworkDialog, setShowNetworkDialog] = useState(false);
+  const [networkChecking, setNetworkChecking] = useState(false);
+  const [networkResults, setNetworkResults] = useState<NetworkCheckResult[]>([]);
 
   useEffect(() => {
     let mounted = true;
@@ -174,6 +185,26 @@ const PluginPage: React.FC<PluginPageProps> = ({ hideTitleBar }: PluginPageProps
     });
   };
 
+  const checkNetwork = async (): Promise<void> => {
+    setShowNetworkDialog(true);
+    setNetworkChecking(true);
+    setNetworkResults([]);
+    try {
+      const res = await window.YUA.pluginResource['plugin-resource:checkNetwork']();
+      if (res.ok && res.results) {
+        setNetworkResults(res.results);
+      }
+    } catch (error) {
+      console.error('Network check failed:', error);
+      setNetworkResults([
+        { name: 'Hugging Face', url: 'https://huggingface.co', success: false, error: '检测失败' },
+        { name: 'GitHub', url: 'https://github.com', success: false, error: '检测失败' }
+      ]);
+    } finally {
+      setNetworkChecking(false);
+    }
+  };
+
   if (loading) return <div className="p-4 text-xs text-muted-foreground">加载中...</div>;
 
   return (
@@ -187,12 +218,17 @@ const PluginPage: React.FC<PluginPageProps> = ({ hideTitleBar }: PluginPageProps
             </div>
           }
           actions={
-            <Tabs value={tabValue} onValueChange={(v) => setTabValue(v as 'available' | 'installed')} className="no-drag">
-              <TabsList>
-                <TabsTrigger value="available">可用插件</TabsTrigger>
-                <TabsTrigger value="installed">已安装</TabsTrigger>
-              </TabsList>
-            </Tabs>
+            <div className="flex items-center gap-2 no-drag">
+              <Button size="sm" variant="outline" onClick={checkNetwork} className="w-8 h-8" title="检测网络连通性">
+                <TbWifi size={16} />
+              </Button>
+              <Tabs value={tabValue} onValueChange={(v) => setTabValue(v as 'available' | 'installed')}>
+                <TabsList>
+                  <TabsTrigger value="available">可用插件</TabsTrigger>
+                  <TabsTrigger value="installed">已安装</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
           }
         />
       ) : (
@@ -205,8 +241,41 @@ const PluginPage: React.FC<PluginPageProps> = ({ hideTitleBar }: PluginPageProps
               </TabsList>
             </Tabs>
           </div>
+          <Button size="sm" variant="outline" onClick={checkNetwork} className="w-8 h-8" title="检测网络连通性">
+            <TbWifi size={16} />
+          </Button>
         </div>
       )}
+
+      <Dialog open={showNetworkDialog} onOpenChange={setShowNetworkDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>网络连通性检测</DialogTitle>
+            <DialogDescription>检测是否能访问插件和模型下载所需的网站</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            {networkChecking ? (
+              <div className="flex items-center justify-center gap-2 py-8">
+                <TbLoader2 className="animate-spin" size={20} />
+                <span className="text-sm text-muted-foreground">正在检测...</span>
+              </div>
+            ) : (
+              networkResults.map((result) => (
+                <div key={result.url} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="flex items-center gap-3">
+                    {result.success ? <TbWifi className="text-green-500" size={20} /> : <TbWifiOff className="text-red-500" size={20} />}
+                    <div>
+                      <div className="text-sm font-medium">{result.name}</div>
+                      <div className="text-xs text-muted-foreground">{result.url}</div>
+                    </div>
+                  </div>
+                  <div className="text-sm">{result.success ? <span className="text-green-500">可访问</span> : <span className="text-red-500">{result.error || '无法访问'}</span>}</div>
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {tabValue === 'installed' && (
         <>

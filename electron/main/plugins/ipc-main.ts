@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain } from 'electron';
+import { BrowserWindow, ipcMain, net } from 'electron';
 
 import { createBestDownloader } from '../download/create';
 import { PluginConfigStore } from './plugin-config-store';
@@ -183,5 +183,91 @@ export function init(win: BrowserWindow): void {
   ipcMain.handle('plugin-resource:setConcurrency', async (_e, payload: { concurrency: number }) => {
     pluginResourceManager.setConcurrency(payload.concurrency);
     return { ok: true };
+  });
+
+  // 检测网络连通性（使用系统代理设置，类似 electron-dl）
+  ipcMain.handle('plugin-resource:checkNetwork', async () => {
+    const sites = [
+      { name: 'Hugging Face', url: 'https://huggingface.co' },
+      { name: 'GitHub', url: 'https://github.com' }
+    ];
+
+    const results = await Promise.all(
+      sites.map(async (site) => {
+        try {
+          // 使用 Electron 的 net 模块，它会自动使用系统的代理设置
+          // 这与 electron-dl 使用 BrowserWindow 的方式类似，都会使用系统的代理配置
+          const result = await new Promise<{ success: boolean; error?: string }>((resolve) => {
+            const timeout = setTimeout(() => {
+              resolve({ success: false, error: '请求超时' });
+            }, 10000); // 10秒超时
+
+            try {
+              const request = net.request({
+                method: 'HEAD',
+                url: site.url
+              });
+
+              let resolved = false;
+
+              const resolveOnce = (result: { success: boolean; error?: string }): void => {
+                if (!resolved) {
+                  resolved = true;
+                  clearTimeout(timeout);
+                  resolve(result);
+                }
+              };
+
+              // 设置请求超时（8秒）
+              const requestTimeout = setTimeout(() => {
+                if (!resolved) {
+                  request.abort();
+                  resolveOnce({ success: false, error: '请求超时' });
+                }
+              }, 8000);
+
+              request.on('response', (response) => {
+                const statusCode = response.statusCode || 0;
+                resolveOnce({ success: statusCode >= 200 && statusCode < 400 });
+                clearTimeout(requestTimeout);
+              });
+
+              request.on('error', (error) => {
+                resolveOnce({ success: false, error: error.message || '网络错误' });
+                clearTimeout(requestTimeout);
+              });
+
+              request.on('abort', () => {
+                if (!resolved) {
+                  resolveOnce({ success: false, error: '请求被中止' });
+                }
+                clearTimeout(requestTimeout);
+              });
+
+              request.end();
+            } catch (error: any) {
+              clearTimeout(timeout);
+              resolve({ success: false, error: error.message || '请求失败' });
+            }
+          });
+
+          return {
+            name: site.name,
+            url: site.url,
+            success: result.success,
+            error: result.error
+          };
+        } catch (error: any) {
+          return {
+            name: site.name,
+            url: site.url,
+            success: false,
+            error: error.message || '未知错误'
+          };
+        }
+      })
+    );
+
+    return { ok: true, results };
   });
 }

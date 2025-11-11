@@ -2,6 +2,7 @@ import { BrowserWindow } from 'electron';
 
 import { init as initAIHandlers } from '../ai/ipc-main';
 import { init as initPluginResourceHandlers } from '../plugins/ipc-main';
+import { init as initProxyHandlers } from '../proxy/ipc-main';
 import { initFFmpegHandlers } from './ffmpeg';
 import { initFileHandlers } from './file';
 import { initFolderHandlers } from './folder';
@@ -36,4 +37,5 @@ export function initHandlers(win: BrowserWindow): void {
   initAIHandlers(win);
   initShortcutsHandlers(win);
   initPluginResourceHandlers(win);
+  initProxyHandlers(win);
 }
