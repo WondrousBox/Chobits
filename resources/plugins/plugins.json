@@ -1,0 +1,30 @@
+[
+  {
+    "id": "whisper-cli",
+    "pluginId": "plugin:whisper",
+    "type": "engine",
+    "name": "whisper-cli",
+    "displayName": "Whisper CLI",
+    "description": "OpenAI Whisper 命令行工具，用于音频和视频转录",
+    "version": "1.0.0",
+    "binaryName": "whisper",
+    "archiveType": "zip",
+    "platforms": [
+      {
+        "platform": "darwin",
+        "arch": "arm64",
+        "sourceUrl": "https://github.com/YuQian2015/memo-build/releases/download/v1.0.0/whisper-cli-darwin-arm64-1.8.2.zip",
+        "sizeBytes": 0,
+        "sha256": "8cf8cc80ecae968c9037ff4c2a35325bc01d80429c5a00eba9876118e4c2c3eb"
+      },
+      {
+        "platform": "win32",
+        "arch": "x64",
+        "sourceUrl": "https://github.com/YuQian2015/memo-build/releases/download/v1.0.0/whisper-cli-win32-x64-1.8.2.zip",
+        "sizeBytes": 0,
+        "sha256": "44554ebcfa274f6fe7ef3a9c61d571c0644bd3f7eac9e796d8e4e1f3edcfd39f"
+      }
+    ]
+  }
+]
+

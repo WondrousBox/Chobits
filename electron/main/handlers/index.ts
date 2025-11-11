@@ -1,20 +1,21 @@
 import { BrowserWindow } from 'electron';
 
-import { initWindowHandlers } from './window';
+import { init as initAIHandlers } from '../ai/ipc-main';
+import { init as initPluginResourceHandlers } from '../plugins/ipc-main';
 import { initFFmpegHandlers } from './ffmpeg';
-import { initVectorHandlers } from './vector';
-import { initResourceHandlers } from './resource';
-import { initTrashHandlers } from './trash';
-import { initWorkspaceHandlers } from './workspace';
-import { initModelHandlers } from './model';
 import { initFileHandlers } from './file';
-import { initVideoDownloadHandlers } from './video-download';
 import { initFolderHandlers } from './folder';
+import { initModelHandlers } from './model';
+import { initResourceHandlers } from './resource';
+import { initShortcutsHandlers } from './shortcuts';
 import { initSpriteHandlers } from './sprite';
 import { initStatusHandlers } from './status';
-import { init as initAIHandlers } from '../ai/ipc-main';
-import { initShortcutsHandlers } from './shortcuts';
 import { initSystemHandlers } from './system';
+import { initTrashHandlers } from './trash';
+import { initVectorHandlers } from './vector';
+import { initVideoDownloadHandlers } from './video-download';
+import { initWindowHandlers } from './window';
+import { initWorkspaceHandlers } from './workspace';
 
 export function initHandlers(win: BrowserWindow): void {
   console.log(process.versions);
@@ -34,4 +35,5 @@ export function initHandlers(win: BrowserWindow): void {
   initStatusHandlers(win);
   initAIHandlers(win);
   initShortcutsHandlers(win);
+  initPluginResourceHandlers(win);
 }

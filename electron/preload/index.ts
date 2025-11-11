@@ -1,20 +1,22 @@
-import { ipcRenderer, contextBridge } from 'electron';
-import { windowBridge } from './apis/window';
+import { contextBridge, ipcRenderer } from 'electron';
+
+import { aiBridge } from '../main/ai/ipc-renderer';
+import { arch, isLinux, isMac, isMacIntel, isWindows, platform } from '../main/utils/os';
 import { ffmpegBridge } from './apis/ffmpeg';
-import { vectorBridge } from './apis/vector';
-import { resourceBridge } from './apis/resource';
-import { trashBridge } from './apis/trash';
-import { workspaceBridge } from './apis/workspace';
-import { modelBridge } from './apis/model';
 import { fileBridge } from './apis/file';
 import { folderBridge } from './apis/folder';
-import { systemBridge } from './apis/system';
-import videoDownloaderAPI from './apis/video-downloader';
+import { modelBridge } from './apis/model';
+import { pluginResourceAPI } from '../main/plugins/ipc-renderer';
+import { resourceBridge } from './apis/resource';
+import { shortcutsBridge } from './apis/shortcuts';
 import { spriteBridge } from './apis/sprite';
 import { statusBridge } from './apis/status';
-import { aiBridge } from '../main/ai/ipc-renderer';
-import { shortcutsBridge } from './apis/shortcuts';
-import { arch, isLinux, isMac, isMacIntel, isWindows, platform } from '../main/utils/os';
+import { systemBridge } from './apis/system';
+import { trashBridge } from './apis/trash';
+import { vectorBridge } from './apis/vector';
+import videoDownloaderAPI from './apis/video-downloader';
+import { windowBridge } from './apis/window';
+import { workspaceBridge } from './apis/workspace';
 
 // --------- Expose some API to the Renderer process ---------
 contextBridge.exposeInMainWorld('ipcRenderer', {
@@ -63,7 +65,8 @@ contextBridge.exposeInMainWorld('YUA', {
   sprite: spriteBridge,
   status: statusBridge,
   shortcuts: shortcutsBridge,
-  ai: aiBridge
+  ai: aiBridge,
+  pluginResource: pluginResourceAPI
 });
 
 // --------- Preload scripts loading ---------

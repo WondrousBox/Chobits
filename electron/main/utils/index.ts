@@ -1,6 +1,6 @@
 import { app } from 'electron';
-import path from 'path';
 import fs from 'fs';
+import path from 'path';
 
 /**
  * 输入一个文件地址，如果文件已经存在，则更换文件名

@@ -1,9 +1,11 @@
 import os from 'node:os';
 import path from 'node:path';
+
 import { app } from 'electron';
+
 import { getRealPath } from '.';
 
-export function getResourcePath(binName: 'ffmpeg' | 'yt-dlp' | 'sprites' | 'resources' | 'providers' | 'logs'): string {
+export function getResourcePath(binName: 'ffmpeg' | 'yt-dlp' | 'sprites' | 'resources' | 'plugins' | 'providers' | 'logs'): string {
   switch (binName) {
     case 'ffmpeg':
       return getRealPath(
@@ -17,6 +19,8 @@ export function getResourcePath(binName: 'ffmpeg' | 'yt-dlp' | 'sprites' | 'reso
       );
     case 'resources':
       return getRealPath(`../`, `./resources`);
+    case 'plugins':
+      return getRealPath(`../plugins/plugins.json`, `./resources/plugins/plugins.json`);
     case 'providers':
       return getRealPath(`../providers`, `./resources/providers`);
     case 'sprites':

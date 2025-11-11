@@ -1,9 +1,10 @@
+import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
-import { createHash } from 'node:crypto';
-import { ModelStore, StoredModel } from './model-store';
-import https from 'node:https';
 import http from 'node:http';
+import https from 'node:https';
+
+import { ModelStore, StoredModel } from './model-store';
 
 export type DownloadStatus = 'queued' | 'downloading' | 'verifying' | 'installed' | 'failed' | 'cancelled';
 

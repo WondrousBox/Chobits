@@ -1,21 +1,22 @@
 import { BrowserWindow, ipcMain } from 'electron';
-import { registerProvider, listProviders, registerAgent, listAgents, getProvider } from './registry';
-import { ChatService } from './chat-service';
+
+import { ChatRepo } from '../db/repositories';
 import { BasicAgent } from './agents/basic';
 import { RAGAgent } from './agents/rag';
 import { TaggerAgent } from './agents/tagger';
-import { getAllSecrets, setProviderSecrets as setSecretsStore } from './settings-store';
-import { OpenAIProvider } from './providers/openai';
-import { AnthropicProvider } from './providers/anthropic';
-import { GeminiProvider } from './providers/gemini';
-import { OllamaProvider } from './providers/ollama';
-import { DeepSeekProvider } from './providers/deepseek';
-import { QwenProvider } from './providers/qwen';
-import { ZhipuProvider } from './providers/zhipu';
+import { ChatService } from './chat-service';
 import { InstancesStore } from './instances-store';
 import { PromptsStore } from './prompts-store';
+import { AnthropicProvider } from './providers/anthropic';
+import { DeepSeekProvider } from './providers/deepseek';
+import { GeminiProvider } from './providers/gemini';
+import { OllamaProvider } from './providers/ollama';
+import { OpenAIProvider } from './providers/openai';
+import { QwenProvider } from './providers/qwen';
+import { ZhipuProvider } from './providers/zhipu';
+import { getProvider, listAgents, listProviders, registerAgent, registerProvider } from './registry';
+import { getAllSecrets, setProviderSecrets as setSecretsStore } from './settings-store';
 import { getAllInstanceSecrets as getAllInstSecrets, setInstanceSecrets as setInstSecrets } from './settings-store';
-import { ChatRepo } from '../db/repositories';
 import { TaggingService } from './tagging-service';
 
 export function init(win: BrowserWindow): void {

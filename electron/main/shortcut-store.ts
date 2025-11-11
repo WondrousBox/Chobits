@@ -1,7 +1,8 @@
-import { app, BrowserWindow } from 'electron';
+import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import path from 'node:path';
-import { EventEmitter } from 'node:events';
+
+import { app, BrowserWindow } from 'electron';
 
 export type PlatformKey = 'darwin' | 'win32' | 'linux';
 export type SingleAccel = string | Partial<Record<PlatformKey, string>>;

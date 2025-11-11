@@ -1,18 +1,19 @@
+import type { AIApi } from '../electron/main/ai/types';
+import type { PluginResourceBridgeType } from '../electron/main/plugins/ipc-renderer';
 import type { FFmpegBridgeType } from '../electron/preload/apis/ffmpeg';
-import type { WindowBridgeType } from '../electron/preload/apis/window';
-import type { VectorBridgeType } from '../electron/preload/apis/vector';
-import type { ResourceBridgeType } from '../electron/preload/apis/resource';
-import type { TrashBridgeType } from '../electron/preload/apis/trash';
-import type { WorkspaceBridgeType } from '../electron/preload/apis/workspace';
-import type { ModelBridgeType } from '../electron/preload/apis/model';
 import type { FileBridgeType } from '../electron/preload/apis/file';
-import type { SystemBridgeType } from '../electron/preload/apis/system';
-import type videoDownloaderAPI from '../electron/preload/apis/video-downloader';
 import type { FolderBridgeType } from '../electron/preload/apis/folder';
+import type { ModelBridgeType } from '../electron/preload/apis/model';
+import type { ResourceBridgeType } from '../electron/preload/apis/resource';
+import type { ShortcutsBridgeType } from '../electron/preload/apis/shortcuts';
 import type { SpriteBridgeType } from '../electron/preload/apis/sprite';
 import type { StatusBridgeType } from '../electron/preload/apis/status';
-import type { ShortcutsBridgeType } from '../electron/preload/apis/shortcuts';
-import type { AIApi } from '../electron/main/ai/types';
+import type { SystemBridgeType } from '../electron/preload/apis/system';
+import type { TrashBridgeType } from '../electron/preload/apis/trash';
+import type { VectorBridgeType } from '../electron/preload/apis/vector';
+import type videoDownloaderAPI from '../electron/preload/apis/video-downloader';
+import type { WindowBridgeType } from '../electron/preload/apis/window';
+import type { WorkspaceBridgeType } from '../electron/preload/apis/workspace';
 
 declare global {
   interface Window {
@@ -43,6 +44,7 @@ declare global {
       sprite: SpriteBridgeType;
       status: StatusBridgeType;
       shortcuts: ShortcutsBridgeType;
+      pluginResource: PluginResourceBridgeType;
       ai: AIApi;
     };
     ipcRenderer: import('electron').IpcRenderer;

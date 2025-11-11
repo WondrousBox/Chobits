@@ -5,6 +5,7 @@ import DragAbleTitle from '../../components/common/DragAbleTitle';
 import EmbeddingJobsPanel from '../../components/EmbeddingJobs';
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '../../components/ui/sidebar';
 import ModelPage from '../ModelPage/ModelPage';
+import PluginPage from '../PluginPage/PluginPage';
 import AiSettings from './components/AiSettings';
 import FolderSetting from './components/FolderSetting';
 import GeneralSettings from './components/GeneralSettings';
@@ -125,7 +126,15 @@ export const SettingsPage: React.FC = () => {
           </div>
         );
       case 'plugins':
-        return <div className="p-4 text-sm text-muted-foreground">插件管理功能正在开发中，敬请期待！</div>;
+        return (
+          <div className="space-y-6">
+            <div className="bg-card border border-border rounded-lg overflow-hidden">
+              <div className="h-[70vh]">
+                <PluginPage hideTitleBar />
+              </div>
+            </div>
+          </div>
+        );
       case 'ai':
         return <AiSettings initialProviderId={initialAiProviderId || undefined} />;
       case 'prompt':
