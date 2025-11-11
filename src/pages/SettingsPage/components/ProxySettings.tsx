@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { TbCheck, TbNetwork, TbPlus, TbRefresh, TbTestPipe, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
@@ -26,10 +26,21 @@ const ProxySettings: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
   const [systemProxyInfo, setSystemProxyInfo] = useState<{ host: string; port: string } | null>(null);
+  // 用于存储每个代理项的防抖定时器
+  const debounceTimersRef = useRef<Map<number, NodeJS.Timeout>>(new Map());
+  // 用于存储每个代理项的本地状态（用于输入框的即时显示）
+  const [localProxies, setLocalProxies] = useState<CustomProxy[]>([]);
 
   useEffect(() => {
     loadConfig();
   }, []);
+
+  // 当配置加载后，同步本地状态
+  useEffect(() => {
+    if (config.proxies) {
+      setLocalProxies(config.proxies);
+    }
+  }, [config.proxies]);
 
   const loadConfig = async (): Promise<void> => {
     try {
@@ -107,6 +118,10 @@ const ProxySettings: React.FC = () => {
       const result = await window.YUA.proxy?.addCustom({ proxy: newProxy });
       if (result?.ok && result.config) {
         setConfig(result.config);
+        // 同步本地状态
+        if (result.config.proxies) {
+          setLocalProxies(result.config.proxies);
+        }
         toast.success('添加成功', { description: '已添加新的代理配置' });
       } else {
         throw new Error(result?.error || '添加失败');
@@ -116,11 +131,16 @@ const ProxySettings: React.FC = () => {
     }
   };
 
-  const handleUpdateProxy = async (index: number, updates: Partial<CustomProxy>): Promise<void> => {
+  // 立即保存（用于选择框和按钮操作）
+  const handleUpdateProxyImmediate = async (index: number, updates: Partial<CustomProxy>): Promise<void> => {
     try {
       const result = await window.YUA.proxy?.updateCustom({ index, proxy: updates });
       if (result?.ok && result.config) {
         setConfig(result.config);
+        // 同步本地状态
+        if (result.config.proxies) {
+          setLocalProxies(result.config.proxies);
+        }
         toast.success('更新成功', { description: '代理配置已更新' });
       } else {
         throw new Error(result?.error || '更新失败');
@@ -130,11 +150,73 @@ const ProxySettings: React.FC = () => {
     }
   };
 
+  // 防抖保存（用于输入框）
+  const handleUpdateProxyDebounced = (index: number, updates: Partial<CustomProxy>): void => {
+    // 更新本地状态以立即显示
+    setLocalProxies((prev) => {
+      const newProxies = [...prev];
+      if (newProxies[index]) {
+        newProxies[index] = { ...newProxies[index], ...updates };
+      }
+      return newProxies;
+    });
+
+    // 清除之前的定时器
+    const existingTimer = debounceTimersRef.current.get(index);
+    if (existingTimer) {
+      clearTimeout(existingTimer);
+    }
+
+    // 设置新的防抖定时器
+    const timer = setTimeout(async () => {
+      try {
+        const result = await window.YUA.proxy?.updateCustom({ index, proxy: updates });
+        if (result?.ok && result.config) {
+          setConfig(result.config);
+          // 同步本地状态
+          if (result.config.proxies) {
+            setLocalProxies(result.config.proxies);
+          }
+        } else {
+          throw new Error(result?.error || '更新失败');
+        }
+      } catch (error: any) {
+        console.error('防抖保存失败:', error);
+        // 保存失败时，重新加载配置以恢复状态
+        await loadConfig();
+      } finally {
+        debounceTimersRef.current.delete(index);
+      }
+    }, 600); // 600ms 防抖延迟
+
+    debounceTimersRef.current.set(index, timer);
+  };
+
+  // 清理所有防抖定时器
+  useEffect(() => {
+    const timers = debounceTimersRef.current;
+    return () => {
+      timers.forEach((timer) => clearTimeout(timer));
+      timers.clear();
+    };
+  }, []);
+
   const handleRemoveProxy = async (index: number): Promise<void> => {
+    // 清除该索引的防抖定时器
+    const timer = debounceTimersRef.current.get(index);
+    if (timer) {
+      clearTimeout(timer);
+      debounceTimersRef.current.delete(index);
+    }
+
     try {
       const result = await window.YUA.proxy?.removeCustom({ index });
       if (result?.ok && result.config) {
         setConfig(result.config);
+        // 同步本地状态
+        if (result.config.proxies) {
+          setLocalProxies(result.config.proxies);
+        }
         toast.success('删除成功', { description: '代理配置已删除' });
       } else {
         throw new Error(result?.error || '删除失败');
@@ -197,14 +279,14 @@ const ProxySettings: React.FC = () => {
                 </Button>
               </div>
 
-              {config.proxies && config.proxies.length > 0 ? (
+              {localProxies && localProxies.length > 0 ? (
                 <div className="space-y-3">
-                  {config.proxies.map((proxy, index) => (
+                  {localProxies.map((proxy, index) => (
                     <div key={index} className={`border rounded-lg p-4 ${proxy.active ? 'border-primary bg-primary/5' : 'border-border'}`}>
                       <div className="grid grid-cols-12 gap-4 items-end">
                         <div className="col-span-2">
                           <span className="text-sm font-medium mb-2 block">类型</span>
-                          <Select value={proxy.type} onValueChange={(value: ProxyAgentType) => handleUpdateProxy(index, { type: value })}>
+                          <Select value={proxy.type} onValueChange={(value: ProxyAgentType) => handleUpdateProxyImmediate(index, { type: value })}>
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
@@ -216,14 +298,20 @@ const ProxySettings: React.FC = () => {
                         </div>
                         <div className="col-span-5">
                           <span className="text-sm font-medium mb-2 block">地址</span>
-                          <Input value={proxy.hostname} onChange={(e) => handleUpdateProxy(index, { hostname: e.target.value })} placeholder="127.0.0.1 或 proxy.example.com" />
+                          <Input value={proxy.hostname} onChange={(e) => handleUpdateProxyDebounced(index, { hostname: e.target.value })} placeholder="127.0.0.1 或 proxy.example.com" />
                         </div>
                         <div className="col-span-2">
                           <span className="text-sm font-medium mb-2 block">端口</span>
-                          <Input type="number" value={proxy.port} onChange={(e) => handleUpdateProxy(index, { port: parseInt(e.target.value) || 0 })} placeholder="7890" />
+                          <Input type="number" value={proxy.port} onChange={(e) => handleUpdateProxyDebounced(index, { port: parseInt(e.target.value) || 0 })} placeholder="7890" />
                         </div>
                         <div className="col-span-3 flex items-end gap-2">
-                          <Button variant={proxy.active ? 'default' : 'outline'} size="sm" onClick={() => handleUpdateProxy(index, { active: true })} className="h-8 flex-1" disabled={proxy.active}>
+                          <Button
+                            variant={proxy.active ? 'default' : 'outline'}
+                            size="sm"
+                            onClick={() => handleUpdateProxyImmediate(index, { active: true })}
+                            className="h-8 flex-1"
+                            disabled={proxy.active}
+                          >
                             {proxy.active ? (
                               <>
                                 <TbCheck className="w-4 h-4 mr-1" />
