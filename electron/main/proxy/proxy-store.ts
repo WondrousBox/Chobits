@@ -72,9 +72,12 @@ export const ProxyStore = {
 
   setConfig(config: ProxyConfig): ProxyConfig {
     const current = read();
+    // 保留现有的代理列表，即使切换到非custom类型
+    const existingProxies = current.proxy.proxies || [];
     const merged: ProxyConfig = {
       type: config.type,
-      proxies: config.type === 'custom' ? config.proxies || [] : undefined
+      // 如果切换到custom类型，使用传入的proxies，否则保留现有的proxies
+      proxies: config.type === 'custom' ? (config.proxies !== undefined ? config.proxies : existingProxies) : existingProxies.length > 0 ? existingProxies : undefined
     };
     write({ ...current, proxy: merged });
     return merged;

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { TbCheck, TbNetwork, TbPlus, TbRefresh, TbTestPipe, TbTrash, TbX } from 'react-icons/tb';
+import { TbCheck, TbNetwork, TbPlus, TbRefresh, TbTestPipe, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -46,7 +46,8 @@ const ProxySettings: React.FC = () => {
   const handleTypeChange = async (type: ProxyType): Promise<void> => {
     setLoading(true);
     try {
-      const result = await window.YUA.proxy?.setConfig({ config: { type, proxies: type === 'custom' ? config.proxies || [] : undefined } });
+      // 切换类型时保留现有的代理列表，不清空
+      const result = await window.YUA.proxy?.setConfig({ config: { type } });
       if (result?.ok && result.config) {
         setConfig(result.config);
         toast.success('设置成功', { description: '代理配置已更新' });
@@ -222,8 +223,15 @@ const ProxySettings: React.FC = () => {
                           <Input type="number" value={proxy.port} onChange={(e) => handleUpdateProxy(index, { port: parseInt(e.target.value) || 0 })} placeholder="7890" />
                         </div>
                         <div className="col-span-3 flex items-end gap-2">
-                          <Button variant={proxy.active ? 'default' : 'outline'} size="sm" onClick={() => handleUpdateProxy(index, { active: !proxy.active })} className="h-8 flex-1">
-                            {proxy.active ? <TbCheck className="w-4 h-4" /> : <TbX className="w-4 h-4" />}
+                          <Button variant={proxy.active ? 'default' : 'outline'} size="sm" onClick={() => handleUpdateProxy(index, { active: true })} className="h-8 flex-1" disabled={proxy.active}>
+                            {proxy.active ? (
+                              <>
+                                <TbCheck className="w-4 h-4 mr-1" />
+                                当前代理
+                              </>
+                            ) : (
+                              '设为当前'
+                            )}
                           </Button>
                           <Button variant="ghost" size="sm" onClick={() => handleRemoveProxy(index)} className="h-8 w-8">
                             <TbTrash className="w-4 h-4" />
