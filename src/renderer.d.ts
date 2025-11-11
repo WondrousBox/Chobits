@@ -1,5 +1,6 @@
 import type { AIApi } from '../electron/main/ai/types';
 import type { PluginResourceBridgeType } from '../electron/main/plugins/ipc-renderer';
+import type { ProxyBridgeType } from '../electron/main/proxy/ipc-renderer';
 import type { FFmpegBridgeType } from '../electron/preload/apis/ffmpeg';
 import type { FileBridgeType } from '../electron/preload/apis/file';
 import type { FolderBridgeType } from '../electron/preload/apis/folder';
@@ -45,6 +46,7 @@ declare global {
       status: StatusBridgeType;
       shortcuts: ShortcutsBridgeType;
       pluginResource: PluginResourceBridgeType;
+      proxy: ProxyBridgeType;
       ai: AIApi;
     };
     ipcRenderer: import('electron').IpcRenderer;

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { TbBox, TbBrain, TbCpu, TbFolder, TbFolderOpen, TbKeyboard, TbMessage2, TbMoodKid, TbPlug, TbSettings } from 'react-icons/tb';
+import { TbBox, TbBrain, TbCpu, TbFolder, TbFolderOpen, TbKeyboard, TbMessage2, TbMoodKid, TbNetwork, TbPlug, TbSettings } from 'react-icons/tb';
 
 import DragAbleTitle from '../../components/common/DragAbleTitle';
 import EmbeddingJobsPanel from '../../components/EmbeddingJobs';
@@ -10,12 +10,13 @@ import AiSettings from './components/AiSettings';
 import FolderSetting from './components/FolderSetting';
 import GeneralSettings from './components/GeneralSettings';
 import PromptSetting from './components/PromptSetting';
+import ProxySettings from './components/ProxySettings';
 import ShortcutsSettings from './components/ShortcutsSettings';
 import SpriteManager from './components/SpriteManager';
 import Workspace from './components/Workspace';
 
 // 设置分类类型
-type SettingsCategory = 'folder' | 'embedding' | 'ai' | 'prompt' | 'general' | 'workspace' | 'model' | 'sprites' | 'shortcuts' | 'plugins';
+type SettingsCategory = 'folder' | 'embedding' | 'ai' | 'prompt' | 'general' | 'workspace' | 'model' | 'sprites' | 'shortcuts' | 'plugins' | 'proxy';
 
 // 设置分类配置
 const settingsCategories: { id: SettingsCategory; label: string; icon: React.ElementType; description: string }[] = [
@@ -78,6 +79,12 @@ const settingsCategories: { id: SettingsCategory; label: string; icon: React.Ele
     label: '精灵管理',
     icon: TbMoodKid,
     description: '导入/删除动画，设为当前精灵'
+  },
+  {
+    id: 'proxy',
+    label: '代理设置',
+    icon: TbNetwork,
+    description: '配置网络代理以访问受限资源'
   }
 ];
 
@@ -145,6 +152,8 @@ export const SettingsPage: React.FC = () => {
         return <ShortcutsSettings />;
       case 'general':
         return <GeneralSettings />;
+      case 'proxy':
+        return <ProxySettings />;
       default:
         return <div></div>;
     }

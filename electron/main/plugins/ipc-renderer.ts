@@ -18,6 +18,7 @@ export type PluginResourceBridgeType = {
   'plugin-resource:setPluginsDir': (payload: { dir: string }) => Promise<{ ok: boolean }>;
   'plugin-resource:getConcurrency': () => Promise<{ ok: boolean; concurrency?: number }>;
   'plugin-resource:setConcurrency': (payload: { concurrency: number }) => Promise<{ ok: boolean }>;
+  'plugin-resource:checkNetwork': () => Promise<{ ok: boolean; results: Array<{ name: string; url: string; success: boolean; error?: string }> }>;
 };
 
 export const pluginResourceAPI: PluginResourceBridgeType = {
@@ -37,5 +38,6 @@ export const pluginResourceAPI: PluginResourceBridgeType = {
   'plugin-resource:getPluginsDir': () => ipcRenderer.invoke('plugin-resource:getPluginsDir'),
   'plugin-resource:setPluginsDir': (payload) => ipcRenderer.invoke('plugin-resource:setPluginsDir', payload),
   'plugin-resource:getConcurrency': () => ipcRenderer.invoke('plugin-resource:getConcurrency'),
-  'plugin-resource:setConcurrency': (payload) => ipcRenderer.invoke('plugin-resource:setConcurrency', payload)
+  'plugin-resource:setConcurrency': (payload) => ipcRenderer.invoke('plugin-resource:setConcurrency', payload),
+  'plugin-resource:checkNetwork': () => ipcRenderer.invoke('plugin-resource:checkNetwork')
 };
