@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { TbLoader2, TbPlug } from 'react-icons/tb';
+import { TbBox, TbChevronDown, TbChevronRight, TbLoader2, TbPlug } from 'react-icons/tb';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,23 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 interface PluginPageProps {
   hideTitleBar?: boolean;
 }
+
+type ModelDefinition = {
+  id: string;
+  name: string;
+  displayName: string;
+  description?: string;
+  version: string;
+  archiveType?: 'zip' | 'tar.gz' | 'tar' | 'none';
+  platforms: {
+    platform: string;
+    arch: string;
+    sourceUrl: string;
+    sizeBytes?: number;
+    checksum?: string;
+    algo?: string;
+  }[];
+};
 
 type PluginDefinition = {
   id: string;
@@ -27,6 +44,8 @@ type PluginDefinition = {
     checksum?: string;
     algo?: string;
   }[];
+  // 模型作为引擎的子资源（仅当 type === 'engine' 时存在）
+  models?: ModelDefinition[];
 };
 
 type InstalledResource = {
@@ -50,6 +69,7 @@ const PluginPage: React.FC<PluginPageProps> = ({ hideTitleBar }: PluginPageProps
   const [loading, setLoading] = useState(true);
   const [tabValue, setTabValue] = useState<'available' | 'installed'>('available');
   const [installing, setInstalling] = useState<string | null>(null);
+  const [expandedPlugins, setExpandedPlugins] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let mounted = true;
@@ -65,7 +85,7 @@ const PluginPage: React.FC<PluginPageProps> = ({ hideTitleBar }: PluginPageProps
       }
     })();
 
-    const listener = (_: any, info: any) => {
+    const listener = (_: any, info: any): void => {
       setInstalled((prev) => {
         const idx = prev.findIndex((m) => m.id === info.id);
         if (idx < 0) {
@@ -94,7 +114,7 @@ const PluginPage: React.FC<PluginPageProps> = ({ hideTitleBar }: PluginPageProps
     };
   }, []);
 
-  const install = async (pluginId: string, resourceId: string) => {
+  const install = async (pluginId: string, resourceId: string): Promise<void> => {
     setInstalling(resourceId);
     try {
       const res = await window.YUA.pluginResource['plugin-resource:install']({ pluginId, resourceId });
@@ -107,14 +127,14 @@ const PluginPage: React.FC<PluginPageProps> = ({ hideTitleBar }: PluginPageProps
     }
   };
 
-  const cancel = async (id: string) => {
+  const cancel = async (id: string): Promise<void> => {
     const res = await window.YUA.pluginResource['plugin-resource:cancel']({ id });
     if (res.ok) {
       setInstalled((prev) => prev.map((m) => (m.id === id ? { ...m, status: 'cancelled' } : m)));
     }
   };
 
-  const retry = async (id: string) => {
+  const retry = async (id: string): Promise<void> => {
     const resource = installed.find((r) => r.id === id);
     if (!resource) return;
     const res = await window.YUA.pluginResource['plugin-resource:install']({
@@ -124,6 +144,34 @@ const PluginPage: React.FC<PluginPageProps> = ({ hideTitleBar }: PluginPageProps
     if (res.ok) {
       setInstalled((prev) => prev.map((m) => (m.id === id ? { ...m, status: 'queued', progressBytes: 0 } : m)));
     }
+  };
+
+  // 按插件分组资源
+  const resourcesByPlugin = supported.reduce(
+    (acc, resource) => {
+      if (!acc[resource.pluginId]) {
+        acc[resource.pluginId] = { engines: [], models: [] };
+      }
+      if (resource.type === 'engine') {
+        acc[resource.pluginId].engines.push(resource);
+      } else if (resource.type === 'model') {
+        acc[resource.pluginId].models.push(resource);
+      }
+      return acc;
+    },
+    {} as Record<string, { engines: PluginDefinition[]; models: PluginDefinition[] }>
+  );
+
+  const togglePluginExpanded = (pluginId: string): void => {
+    setExpandedPlugins((prev) => {
+      const next = new Set(prev);
+      if (next.has(pluginId)) {
+        next.delete(pluginId);
+      } else {
+        next.add(pluginId);
+      }
+      return next;
+    });
   };
 
   if (loading) return <div className="p-4 text-xs text-muted-foreground">加载中...</div>;
@@ -167,7 +215,6 @@ const PluginPage: React.FC<PluginPageProps> = ({ hideTitleBar }: PluginPageProps
             {installed
               .filter((m) => m.status === 'installed')
               .map((m) => {
-                const percent = m.sizeBytes ? Math.round(((m.progressBytes || 0) / (m.sizeBytes || 1)) * 100) : 0;
                 return (
                   <li key={m.id} className="text-sm flex flex-col gap-1 border px-3 py-2 rounded bg-background/60">
                     <div className="flex items-center justify-between gap-4">
@@ -185,59 +232,153 @@ const PluginPage: React.FC<PluginPageProps> = ({ hideTitleBar }: PluginPageProps
       )}
       {tabValue === 'available' && (
         <>
-          <ul className="space-y-2">
-            {supported.map((s) => {
-              const busy = installing === s.id;
-              const rec = installed.find((m) => m.pluginId === s.pluginId && m.name === s.name && m.status !== 'removed');
-              const status = rec?.status as string | undefined;
-              const percent = rec?.sizeBytes ? Math.round((((rec?.progressBytes as number) || 0) / ((rec?.sizeBytes as number) || 1)) * 100) : 0;
+          {Object.keys(resourcesByPlugin).length === 0 && <div className="text-xs text-muted-foreground border rounded px-2 text-center py-20">暂无可用插件。</div>}
+          <div className="space-y-4">
+            {Object.entries(resourcesByPlugin).map(([pluginId, { engines, models }]) => {
+              const pluginName = engines[0]?.pluginId.replace('plugin:', '') || models[0]?.pluginId.replace('plugin:', '') || pluginId.replace('plugin:', '');
+              const isExpanded = expandedPlugins.has(pluginId);
+              const hasModels = models.length > 0;
+              const hasEngines = engines.length > 0;
+
               return (
-                <li key={s.id} className="border p-3 rounded flex items-center justify-between bg-background/60">
-                  <div className="flex flex-col gap-1 flex-1">
-                    <div className="text-sm font-medium flex items-center gap-2">
-                      <span>{s.displayName || s.name}</span>
-                      <span className="text-[10px] rounded bg-muted px-1 py-0.5">v{s.version}</span>
-                      {status && <StatusBadge status={status} />}
+                <div key={pluginId} className="space-y-2">
+                  {/* 引擎列表 */}
+                  {hasEngines &&
+                    engines.map((s) => {
+                      const busy = installing === s.id;
+                      const rec = installed.find((m) => m.pluginId === s.pluginId && m.name === s.name && m.status !== 'removed');
+                      const status = rec?.status as string | undefined;
+                      const percent = rec?.sizeBytes ? Math.round((((rec?.progressBytes as number) || 0) / ((rec?.sizeBytes as number) || 1)) * 100) : 0;
+                      return (
+                        <div key={s.id} className="border p-3 rounded flex items-center justify-between bg-background/60">
+                          <div className="flex flex-col gap-1 flex-1">
+                            <div className="text-sm font-medium flex items-center gap-2">
+                              <span>{s.displayName || s.name}</span>
+                              <span className="text-[10px] rounded bg-muted px-1 py-0.5">v{s.version}</span>
+                              {status && <StatusBadge status={status} />}
+                            </div>
+                            {s.description && <div className="text-xs text-muted-foreground">{s.description}</div>}
+                            {status === 'downloading' && rec?.sizeBytes && (
+                              <div className="w-full bg-muted h-2 rounded overflow-hidden mt-1">
+                                <div className="h-full bg-blue-500 transition-all" style={{ width: percent + '%' }}></div>
+                              </div>
+                            )}
+                            {status === 'downloading' && (
+                              <div className="text-[10px] text-muted-foreground flex justify-between">
+                                <span>
+                                  {percent}%{' '}
+                                  {rec?.progressBytes && rec?.sizeBytes
+                                    ? `(${((rec.progressBytes as number) / 1024 / 1024).toFixed(2)}MB / ${((rec.sizeBytes as number) / 1024 / 1024).toFixed(2)}MB)`
+                                    : ''}
+                                </span>
+                                <span>
+                                  {rec?.speedBps ? `${((rec.speedBps as number) / 1024).toFixed(1)} KB/s` : ''} {rec?.etaMs ? `ETA ${((rec.etaMs as number) / 1000).toFixed(1)}s` : ''}
+                                </span>
+                              </div>
+                            )}
+                            {status === 'extracting' && <div className="text-[10px] text-muted-foreground">解压中…</div>}
+                            {status === 'verifying' && <div className="text-[10px] text-muted-foreground">校验中…</div>}
+                            {status === 'failed' && <div className="text-[10px] text-red-500">安装失败，可重试</div>}
+                          </div>
+                          <div className="ml-3 flex items-center gap-1">
+                            {status === 'installed' && <Button disabled>已安装</Button>}
+                            {status === 'downloading' && rec?.id && <Button onClick={() => cancel(rec.id)}>取消</Button>}
+                            {['failed', 'cancelled'].includes(status || '') && rec?.id && (
+                              <Button variant={'outline'} onClick={() => retry(rec.id)}>
+                                重试
+                              </Button>
+                            )}
+                            {!status && (
+                              <Button disabled={busy} onClick={() => install(s.pluginId, s.id)}>
+                                {busy ? <TbLoader2 className="animate-spin" /> : '安装'}
+                              </Button>
+                            )}
+                            {hasModels && (
+                              <Button size="sm" variant="outline" className="w-8 h-8" onClick={() => togglePluginExpanded(pluginId)} title="展开模型列表">
+                                {isExpanded ? <TbChevronDown /> : <TbChevronRight />}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                  {/* 模型列表（可展开） */}
+                  {hasModels && (
+                    <div className={hasEngines ? 'ml-4' : ''}>
+                      <button
+                        onClick={() => togglePluginExpanded(pluginId)}
+                        className="flex items-center gap-2 text-sm font-medium text-foreground mb-2 px-2 hover:text-foreground/80 transition-colors"
+                      >
+                        {isExpanded ? <TbChevronDown className="w-4 h-4" /> : <TbChevronRight className="w-4 h-4" />}
+                        <TbBox className="w-4 h-4" />
+                        <span>
+                          {pluginName} 模型列表 ({models.length})
+                        </span>
+                      </button>
+                      {isExpanded && (
+                        <ul className="space-y-2 ml-6">
+                          {models.map((s) => {
+                            const busy = installing === s.id;
+                            const rec = installed.find((m) => m.pluginId === s.pluginId && m.name === s.name && m.status !== 'removed');
+                            const status = rec?.status as string | undefined;
+                            const percent = rec?.sizeBytes ? Math.round((((rec?.progressBytes as number) || 0) / ((rec?.sizeBytes as number) || 1)) * 100) : 0;
+                            return (
+                              <li key={s.id} className="border p-3 rounded flex items-center justify-between bg-background/60">
+                                <div className="flex flex-col gap-1 flex-1">
+                                  <div className="text-sm font-medium flex items-center gap-2">
+                                    <span>{s.displayName || s.name}</span>
+                                    <span className="text-[10px] rounded bg-muted px-1 py-0.5">v{s.version}</span>
+                                    {status && <StatusBadge status={status} />}
+                                  </div>
+                                  {s.description && <div className="text-xs text-muted-foreground">{s.description}</div>}
+                                  {status === 'downloading' && rec?.sizeBytes && (
+                                    <div className="w-full bg-muted h-2 rounded overflow-hidden mt-1">
+                                      <div className="h-full bg-blue-500 transition-all" style={{ width: percent + '%' }}></div>
+                                    </div>
+                                  )}
+                                  {status === 'downloading' && (
+                                    <div className="text-[10px] text-muted-foreground flex justify-between">
+                                      <span>
+                                        {percent}%{' '}
+                                        {rec?.progressBytes && rec?.sizeBytes
+                                          ? `(${((rec.progressBytes as number) / 1024 / 1024).toFixed(2)}MB / ${((rec.sizeBytes as number) / 1024 / 1024).toFixed(2)}MB)`
+                                          : ''}
+                                      </span>
+                                      <span>
+                                        {rec?.speedBps ? `${((rec.speedBps as number) / 1024).toFixed(1)} KB/s` : ''} {rec?.etaMs ? `ETA ${((rec.etaMs as number) / 1000).toFixed(1)}s` : ''}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {status === 'extracting' && <div className="text-[10px] text-muted-foreground">解压中…</div>}
+                                  {status === 'verifying' && <div className="text-[10px] text-muted-foreground">校验中…</div>}
+                                  {status === 'failed' && <div className="text-[10px] text-red-500">安装失败，可重试</div>}
+                                </div>
+                                <div className="ml-3 flex items-center gap-1">
+                                  {status === 'installed' && <Button disabled>已安装</Button>}
+                                  {status === 'downloading' && rec?.id && <Button onClick={() => cancel(rec.id)}>取消</Button>}
+                                  {['failed', 'cancelled'].includes(status || '') && rec?.id && (
+                                    <Button variant={'outline'} onClick={() => retry(rec.id)}>
+                                      重试
+                                    </Button>
+                                  )}
+                                  {!status && (
+                                    <Button disabled={busy} onClick={() => install(s.pluginId, s.id)}>
+                                      {busy ? <TbLoader2 className="animate-spin" /> : '安装'}
+                                    </Button>
+                                  )}
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
                     </div>
-                    {s.description && <div className="text-xs text-muted-foreground">{s.description}</div>}
-                    {status === 'downloading' && rec?.sizeBytes && (
-                      <div className="w-full bg-muted h-2 rounded overflow-hidden mt-1">
-                        <div className="h-full bg-blue-500 transition-all" style={{ width: percent + '%' }}></div>
-                      </div>
-                    )}
-                    {status === 'downloading' && (
-                      <div className="text-[10px] text-muted-foreground flex justify-between">
-                        <span>
-                          {percent}%{' '}
-                          {rec?.progressBytes && rec?.sizeBytes ? `(${((rec.progressBytes as number) / 1024 / 1024).toFixed(2)}MB / ${((rec.sizeBytes as number) / 1024 / 1024).toFixed(2)}MB)` : ''}
-                        </span>
-                        <span>
-                          {rec?.speedBps ? `${((rec.speedBps as number) / 1024).toFixed(1)} KB/s` : ''} {rec?.etaMs ? `ETA ${((rec.etaMs as number) / 1000).toFixed(1)}s` : ''}
-                        </span>
-                      </div>
-                    )}
-                    {status === 'extracting' && <div className="text-[10px] text-muted-foreground">解压中…</div>}
-                    {status === 'verifying' && <div className="text-[10px] text-muted-foreground">校验中…</div>}
-                    {status === 'failed' && <div className="text-[10px] text-red-500">安装失败，可重试</div>}
-                  </div>
-                  <div className="ml-3 flex items-center gap-1">
-                    {status === 'installed' && <Button disabled>已安装</Button>}
-                    {status === 'downloading' && rec?.id && <Button onClick={() => cancel(rec.id)}>取消</Button>}
-                    {['failed', 'cancelled'].includes(status || '') && rec?.id && (
-                      <Button variant={'outline'} onClick={() => retry(rec.id)}>
-                        重试
-                      </Button>
-                    )}
-                    {!status && (
-                      <Button disabled={busy} onClick={() => install(s.pluginId, s.id)}>
-                        {busy ? <TbLoader2 className="animate-spin" /> : '安装'}
-                      </Button>
-                    )}
-                  </div>
-                </li>
+                  )}
+                </div>
               );
             })}
-          </ul>
+          </div>
         </>
       )}
     </>
