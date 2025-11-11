@@ -1,5 +1,7 @@
 import { spawn } from 'node:child_process';
+import fs from 'node:fs';
 
+import { pluginResourceManager } from '../../main/plugins/plugin-resource-manager';
 import { Plugin } from '../types';
 
 function existsInPath(cmd: string): Promise<boolean> {
@@ -15,12 +17,19 @@ export const WhisperPlugin: Plugin = {
   label: 'Whisper CLI',
   description: 'Provides transcription capability via openai-whisper (whisper CLI)',
   capabilities: ['transcribe'],
-  installHint: process.platform === 'win32' ? 'pip install -U openai-whisper' : 'pip install -U openai-whisper  # 并确保已安装 ffmpeg',
-  async isInstalled() {
-    // 仅检测 whisper 命令是否存在。后续可扩展 python -m whisper --help 检测。
+  installHint: '可以通过插件资源管理器下载Whisper CLI，或手动安装: pip install -U openai-whisper',
+  async isInstalled(ctx) {
+    // 首先检查资源管理器中是否已安装
+    const enginePath = pluginResourceManager.getEnginePath('plugin:whisper', 'whisper');
+    if (fs.existsSync(enginePath)) {
+      return true;
+    }
+    // 回退到检查PATH中的whisper命令
     return await existsInPath('whisper');
   },
-  async prepare() {
-    // 初版无需额外准备。可在此加入设备选择或模型预下载逻辑。
+  async prepare(ctx) {
+    // 如果资源管理器中安装了engine，可以在这里设置环境变量或路径
+    // 目前whisper CLI通常通过PATH访问，所以暂时不需要额外准备
+    // 后续可以在这里添加模型预下载逻辑
   }
 };

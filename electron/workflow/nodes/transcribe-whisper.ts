@@ -13,10 +13,14 @@ function fileExists(p: string): boolean {
   }
 }
 
-async function runWhisper(args: string[]): Promise<void> {
-  // 优先尝试直接调用 whisper 命令；若失败可在后续版本添加 python -m whisper 回退。
+async function runWhisper(args: string[], ctx: any): Promise<void> {
+  // 优先使用资源管理器中的engine，否则回退到PATH中的whisper
+  const { pluginResourceManager } = await import('../../main/plugins/plugin-resource-manager');
+  const enginePath = pluginResourceManager.getEnginePath('plugin:whisper', 'whisper');
+  const whisperCmd = fs.existsSync(enginePath) ? enginePath : 'whisper';
+
   await new Promise<void>((resolve, reject) => {
-    const child = spawn('whisper', args, { stdio: 'ignore' });
+    const child = spawn(whisperCmd, args, { stdio: 'ignore' });
     child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`whisper failed: ${code}`))));
     child.on('error', (e) => reject(e));
   });
@@ -80,7 +84,7 @@ export const TranscribeWhisperNode: NodeHandler = {
     // Whisper 的 --verbose 缺省为 True；这里只在需要时设置为 True，避免额外输出。
     if (config?.verbose) args.push('--verbose', 'True');
 
-    await runWhisper(args);
+    await runWhisper(args, ctx);
 
     // 收集输出
     const out: Record<string, any> = {};

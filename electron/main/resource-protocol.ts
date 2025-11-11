@@ -1,8 +1,9 @@
-import { app, protocol } from 'electron';
-import path from 'node:path';
-import fs from 'node:fs/promises';
 import fscb from 'node:fs';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { Readable } from 'node:stream';
+
+import { app, protocol } from 'electron';
 
 // Register scheme privileges early (module import time)
 protocol.registerSchemesAsPrivileged([

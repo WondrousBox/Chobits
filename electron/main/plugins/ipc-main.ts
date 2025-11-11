@@ -1,0 +1,161 @@
+import { BrowserWindow, ipcMain } from 'electron';
+
+import { createBestDownloader } from '../download/create';
+import { getPluginForCurrentPlatform, loadPluginDefinitions } from './plugin-loader';
+import { DownloadProgress, PluginResource, pluginResourceManager } from './plugin-resource-manager';
+import { PluginResourceStore } from './plugin-resource-store';
+
+export function init(win: BrowserWindow): void {
+  // 初始化下载器（优先 electron-dl-manager，不可用则回退 HTTP）
+  try {
+    pluginResourceManager.setDownloader(createBestDownloader(win));
+  } catch {
+    // ignore, pluginResourceManager has HTTP fallback by default
+  }
+
+  // 监听下载进度事件
+  pluginResourceManager.on('progress', (info: DownloadProgress) => {
+    try {
+      win.webContents.send('plugin-resource:progress', info);
+    } catch {
+      // 窗口可能已关闭
+    }
+  });
+
+  // 列出支持的插件定义
+  ipcMain.handle('plugin-resource:listSupported', async () => {
+    return loadPluginDefinitions();
+  });
+
+  // 列出所有资源
+  ipcMain.handle('plugin-resource:list', async (_e, payload?: { pluginId?: string; type?: 'engine' | 'model' }) => {
+    if (payload?.pluginId) {
+      if (payload.type) {
+        return PluginResourceStore.listByType(payload.pluginId, payload.type);
+      }
+      return PluginResourceStore.listByPlugin(payload.pluginId);
+    }
+    return PluginResourceStore.list();
+  });
+
+  // 获取单个资源
+  ipcMain.handle('plugin-resource:get', async (_e, payload: { id: string }) => {
+    return PluginResourceStore.get(payload.id);
+  });
+
+  // 安装资源（Engine或模型）
+  ipcMain.handle('plugin-resource:install', async (_e, payload: { pluginId: string; resourceId: string; deleteAfterInstall?: boolean }) => {
+    const definitions = await loadPluginDefinitions();
+    const pluginDef = definitions.find((p) => p.id === payload.resourceId && p.pluginId === payload.pluginId);
+    if (!pluginDef) {
+      return { ok: false, error: 'PLUGIN_NOT_FOUND' };
+    }
+
+    const platformInfo = getPluginForCurrentPlatform(pluginDef);
+    if (!platformInfo) {
+      return { ok: false, error: 'PLATFORM_NOT_SUPPORTED' };
+    }
+
+    // 构建确定性资源ID：pluginId:version[:sha256]
+    const deterministicId = `${pluginDef.pluginId}:${pluginDef.version}${platformInfo.sha256 ? `:${platformInfo.sha256}` : ''}`;
+
+    // 如果已存在同ID资源，避免重复安装
+    const existing = PluginResourceStore.get(deterministicId);
+    if (existing) {
+      // 已安装则直接返回
+      if (existing.status === 'installed' && pluginResourceManager.isInstalled(existing)) {
+        return { ok: true, data: existing, message: 'Resource already installed' };
+      }
+      // 正在处理中则直接返回
+      if (['queued', 'downloading', 'extracting', 'verifying'].includes(existing.status || '')) {
+        return { ok: true, data: existing, message: 'Resource already in progress' };
+      }
+      // 失败/取消可允许重新安装：继续往下构建并入队（upsert时会覆盖必要字段）
+    }
+
+    // 构建资源对象
+    const resource: PluginResource = {
+      id: deterministicId,
+      pluginId: pluginDef.pluginId,
+      type: pluginDef.type,
+      name: pluginDef.name,
+      displayName: pluginDef.displayName,
+      version: pluginDef.version,
+      binaryName: pluginDef.binaryName,
+      archiveType: pluginDef.archiveType || 'zip',
+      sourceUrl: platformInfo.sourceUrl,
+      sizeBytes: platformInfo.sizeBytes,
+      sha256: platformInfo.sha256,
+      status: 'queued'
+    };
+
+    // 检查是否已安装（基于文件存在）
+    if (pluginResourceManager.isInstalled(resource)) {
+      // 同ID不存在但文件已存在时，也直接返回已安装
+      return { ok: true, data: resource, message: 'Resource already installed' };
+    }
+
+    // 加入下载队列，支持deleteAfterInstall参数（默认为false，不删除下载文件）
+    pluginResourceManager.enqueue(resource, payload.deleteAfterInstall ?? false);
+
+    return { ok: true, data: resource };
+  });
+
+  // 取消下载
+  ipcMain.handle('plugin-resource:cancel', async (_e, payload: { id: string }) => {
+    pluginResourceManager.cancel(payload.id);
+    return { ok: true };
+  });
+
+  // 检查资源是否已安装
+  ipcMain.handle('plugin-resource:isInstalled', async (_e, payload: { id: string }) => {
+    const resource = PluginResourceStore.get(payload.id);
+    if (!resource) {
+      return { ok: false, error: 'Resource not found' };
+    }
+    const installed = pluginResourceManager.isInstalled(resource);
+    return { ok: true, installed };
+  });
+
+  // 获取Engine路径
+  ipcMain.handle('plugin-resource:getEnginePath', async (_e, payload: { pluginId: string; binaryName: string }) => {
+    const enginePath = pluginResourceManager.getEnginePath(payload.pluginId, payload.binaryName);
+    return { ok: true, path: enginePath };
+  });
+
+  // 获取模型路径
+  ipcMain.handle('plugin-resource:getModelPath', async (_e, payload: { pluginId: string; modelName: string }) => {
+    const modelPath = pluginResourceManager.getModelPath(payload.pluginId, payload.modelName);
+    return { ok: true, path: modelPath };
+  });
+
+  // 删除资源（从store中移除，不删除文件）
+  ipcMain.handle('plugin-resource:remove', async (_e, payload: { id: string }) => {
+    const removed = PluginResourceStore.remove(payload.id);
+    return { ok: removed };
+  });
+
+  // 获取下载目录
+  ipcMain.handle('plugin-resource:getDownloadDir', async () => {
+    const downloadDir = pluginResourceManager.getDownloadDir();
+    return { ok: true, path: downloadDir };
+  });
+
+  // 设置下载目录
+  ipcMain.handle('plugin-resource:setDownloadDir', async (_e, payload: { dir: string }) => {
+    pluginResourceManager.setDownloadDir(payload.dir);
+    return { ok: true };
+  });
+
+  // 获取插件目录
+  ipcMain.handle('plugin-resource:getPluginsDir', async () => {
+    const pluginsDir = pluginResourceManager.getPluginsDir();
+    return { ok: true, path: pluginsDir };
+  });
+
+  // 设置插件目录
+  ipcMain.handle('plugin-resource:setPluginsDir', async (_e, payload: { dir: string }) => {
+    pluginResourceManager.setPluginsDir(payload.dir);
+    return { ok: true };
+  });
+}
