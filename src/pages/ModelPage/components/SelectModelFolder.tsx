@@ -1,24 +1,26 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { TbBox, TbFolderOpen } from 'react-icons/tb';
 
 type Props = {
-  /** 当模型目录已配置（初次加载发现已存在）或随后被选择/修改时调用 */
-  onConfigured?: (config: any) => void;
+  /** 当插件目录已配置（初次加载发现已存在）或随后被选择/修改时调用 */
+  onConfigured?: (dir: string) => void;
 };
 
 const SelectModelFolder: React.FC<Props> = ({ onConfigured }) => {
-  const [config, setConfig] = useState<any>(null);
+  const [pluginsDir, setPluginsDir] = useState<string>('');
   const [pickBusy, setPickBusy] = useState(false);
   const [loading, setLoading] = useState(true);
-  const prevRootRef = useRef<string | undefined>(undefined);
+  const prevDirRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const cfg = await window.YUA.model['model:getConfig']();
+        const res = await window.YUA.pluginResource['plugin-resource:getPluginsDir']();
         if (!mounted) return;
-        setConfig(cfg);
+        if (res.ok && res.path) {
+          setPluginsDir(res.path);
+        }
       } finally {
         if (mounted) setLoading(false);
       }
@@ -28,25 +30,25 @@ const SelectModelFolder: React.FC<Props> = ({ onConfigured }) => {
     };
   }, []);
 
-  // 初次加载不触发 onConfigured，只记录当前 root 便于后续比较
+  // 初次加载不触发 onConfigured，只记录当前目录便于后续比较
   useEffect(() => {
     if (loading) return;
-    if (config?.rootDir) {
-      prevRootRef.current = config.rootDir;
+    if (pluginsDir) {
+      prevDirRef.current = pluginsDir;
     }
   }, [loading]);
 
   const pickDir = async () => {
     setPickBusy(true);
     try {
-      const r = await window.YUA.file['file:pickDir']({ allowCreate: true });
+      const r = await window.YUA.file['file:pickDir']({ allowCreate: true, defaultPath: pluginsDir });
       if (!r.canceled && r.path) {
-        const res = await window.YUA.model['model:setConfig']({ rootDir: r.path });
+        const res = await window.YUA.pluginResource['plugin-resource:setPluginsDir']({ dir: r.path });
         if (res.ok) {
-          setConfig(res.data);
+          setPluginsDir(r.path);
           // 仅在用户主动选择后触发回调
-          prevRootRef.current = res.data?.rootDir;
-          onConfigured?.(res.data);
+          prevDirRef.current = r.path;
+          onConfigured?.(r.path);
         }
       }
     } finally {
@@ -55,17 +57,19 @@ const SelectModelFolder: React.FC<Props> = ({ onConfigured }) => {
   };
 
   const openFolder = async () => {
-    if (!config?.rootDir) return;
+    if (!pluginsDir) return;
     try {
-      await window.YUA.file['file:openPath'](config.rootDir);
-    } catch { }
+      await window.YUA.file['file:openPath'](pluginsDir);
+    } catch {
+      // ignore
+    }
   };
 
   if (loading) return <div className="text-xs text-muted-foreground py-2">读取配置...</div>;
 
   return (
     <div className="space-y-4 text-sm">
-      <div className="text-sm text-muted-foreground mb-4 text-center">选择模型存储位置用于保存下载的模型。</div>
+      <div className="text-sm text-muted-foreground mb-4 text-center">选择插件资源存储位置（包含引擎和模型文件，可能占用较大空间，建议选择非系统盘）。</div>
       <div className="flex gap-6 items-center justify-center">
         <div
           className="w-36 h-36 flex items-center flex-col justify-center rounded-md cursor-pointer text-sm font-medium transition-colors border border-solid border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground"
@@ -74,9 +78,9 @@ const SelectModelFolder: React.FC<Props> = ({ onConfigured }) => {
           <div className="flex items-center justify-center text-primary">
             <TbBox size={40} />
           </div>
-          <div className="text-center select-none">{!config?.rootDir ? '选择模型文件夹' : '修改模型文件夹'}</div>
+          <div className="text-center select-none">{!pluginsDir ? '选择插件资源文件夹' : '修改插件资源文件夹'}</div>
         </div>
-        {config?.rootDir && (
+        {pluginsDir && (
           <div
             className="w-36 h-36 flex items-center flex-col justify-center rounded-md cursor-pointer text-sm font-medium transition-colors border border-solid border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground"
             onClick={openFolder}
@@ -88,9 +92,9 @@ const SelectModelFolder: React.FC<Props> = ({ onConfigured }) => {
           </div>
         )}
       </div>
-      {config?.rootDir && (
+      {pluginsDir && (
         <div className="mt-4 break-all">
-          当前位置：<span className="font-mono text-primary">{config?.rootDir}</span>
+          当前位置：<span className="font-mono text-primary">{pluginsDir}</span>
         </div>
       )}
     </div>

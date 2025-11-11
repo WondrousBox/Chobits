@@ -1,7 +1,7 @@
-import { ModelStore } from '../model-store';
-import { EmbeddingProvider, EmbedOptions, getDefaultModels, getModelCacheDir, l2Normalize } from './provider';
-
 import { env, pipeline } from '@huggingface/transformers';
+
+import { PluginConfigStore } from '../plugins/plugin-config-store';
+import { EmbeddingProvider, EmbedOptions, getDefaultModels, getModelCacheDir, l2Normalize } from './provider';
 
 // Could not load the "sharp" module using the win32-x64 runtime
 // https://stackoverflow.com/questions/77789610/could-not-load-the-sharp-module-using-the-win32-x64-runtime-strapi
@@ -27,7 +27,9 @@ export class TransformersEmbeddingProvider implements EmbeddingProvider {
     env.allowLocalModels = true;
     env.allowRemoteModels = false;
     env.allowLocalModels = true;
-    env.localModelPath = ModelStore.getConfig().rootDir || getModelCacheDir();
+    // 使用插件配置的目录，模型存储在 pluginsDir/models 下
+    const pluginsDir = PluginConfigStore.getPluginsDir();
+    env.localModelPath = pluginsDir || getModelCacheDir();
 
     console.log(env.cacheDir);
 

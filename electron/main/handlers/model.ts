@@ -1,8 +1,10 @@
-import { BrowserWindow, dialog, ipcMain } from 'electron';
-import path from 'node:path';
 import fs from 'node:fs';
-import { ModelStore } from '../model-store';
+import path from 'node:path';
+
+import { BrowserWindow, dialog, ipcMain } from 'electron';
+
 import { modelDownloader } from '../model-downloader';
+import { ModelStore } from '../model-store';
 
 // 临时支持模型静态列表（MVP）
 const SUPPORTED_MODELS = [
