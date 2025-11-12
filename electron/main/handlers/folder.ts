@@ -1,7 +1,9 @@
-import { ipcMain } from 'electron';
-import { WorkspacesRepo, FoldersRepo } from '../db/repositories';
-import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
+
+import { ipcMain } from 'electron';
+
+import { FoldersRepo, WorkspacesRepo } from '../db/repositories';
 
 // 基于资源库的上下文，复用默认工作空间根路径，按文件夹 ID 命名本地文件夹
 export function initFolderHandlers(): void {

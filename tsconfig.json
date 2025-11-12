@@ -22,6 +22,6 @@
       ]
     },
   },
-  "include": ["src", "electron", "packages/proxy"],
+  "include": ["src", "electron"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

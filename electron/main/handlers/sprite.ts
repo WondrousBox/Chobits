@@ -1,9 +1,12 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
-import path from 'node:path';
-import fs from 'node:fs/promises';
-import fscb from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import fscb from 'node:fs';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+
+import { app, BrowserWindow, ipcMain } from 'electron';
+
 import type { SpriteAnimation } from '@/components/AIAssistant/types';
+
 import { addAllowedResourceRoot } from '../resource-protocol';
 import { getResourcePath } from '../utils/resources-path';
 

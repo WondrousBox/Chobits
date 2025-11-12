@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { TbCheck, TbNetwork, TbPlus, TbRefresh, TbTestPipe, TbTrash } from 'react-icons/tb';
+import { TbCheck, TbCircle, TbNetwork, TbPlus, TbRefresh, TbTestPipe, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -307,22 +307,15 @@ const ProxySettings: React.FC = () => {
                         <div className="col-span-3 flex items-end gap-2">
                           <Button
                             variant={proxy.active ? 'default' : 'outline'}
-                            size="sm"
+                            size="icon"
                             onClick={() => handleUpdateProxyImmediate(index, { active: true })}
-                            className="h-8 flex-1"
+                            className="h-8 w-8"
                             disabled={proxy.active}
                           >
-                            {proxy.active ? (
-                              <>
-                                <TbCheck className="w-4 h-4 mr-1" />
-                                当前代理
-                              </>
-                            ) : (
-                              '设为当前'
-                            )}
+                            {proxy.active ? <TbCheck /> : <TbCircle />}
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleRemoveProxy(index)} className="h-8 w-8">
-                            <TbTrash className="w-4 h-4" />
+                          <Button variant="ghost" size="icon" onClick={() => handleRemoveProxy(index)} className="h-8 w-8">
+                            <TbTrash />
                           </Button>
                         </div>
                       </div>

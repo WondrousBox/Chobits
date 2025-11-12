@@ -1,10 +1,12 @@
-import { ipcMain } from 'electron';
-import type { BrowserWindow } from 'electron';
-import ffmpeg from 'fluent-ffmpeg';
 import path from 'node:path';
-import { app } from 'electron';
-// ESM-safe __dirname/__filename
 import { fileURLToPath } from 'node:url';
+
+import type { BrowserWindow } from 'electron';
+import { ipcMain } from 'electron';
+import { app } from 'electron';
+import ffmpeg from 'fluent-ffmpeg';
+
+// ESM-safe __dirname/__filename
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
