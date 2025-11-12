@@ -41,23 +41,43 @@ const PluginPage: React.FC<PluginPageProps> = ({ hideTitleBar }: PluginPageProps
     })();
 
     const listener = (_: any, info: any): void => {
+      if (!info || !info.id) return;
+
       setInstalled((prev) => {
         const idx = prev.findIndex((m) => m.id === info.id);
         if (idx < 0) {
-          // 新安装的资源
-          if (info.status === 'downloading' || info.status === 'installed') {
-            return [...prev, info];
+          // 新安装的资源 - 包括所有非最终状态
+          if (['queued', 'downloading', 'extracting', 'verifying', 'installed', 'failed', 'cancelled'].includes(info.status)) {
+            return [
+              ...prev,
+              {
+                id: info.id,
+                pluginId: info.pluginId || '',
+                type: info.type || 'model',
+                name: info.name || '',
+                displayName: info.displayName,
+                version: info.version,
+                status: info.status,
+                progressBytes: info.doneBytes || 0,
+                sizeBytes: info.totalBytes,
+                speedBps: info.speedBps,
+                etaMs: info.etaMs,
+                lastError: info.error
+              }
+            ];
           }
           return prev;
         }
+        // 更新现有资源
         const next = [...prev];
         next[idx] = {
           ...next[idx],
           status: info.status,
-          progressBytes: info.doneBytes,
-          sizeBytes: info.totalBytes || next[idx].sizeBytes,
-          speedBps: info.speedBps,
-          etaMs: info.etaMs
+          progressBytes: info.doneBytes !== undefined ? info.doneBytes : next[idx].progressBytes,
+          sizeBytes: info.totalBytes !== undefined ? info.totalBytes : next[idx].sizeBytes,
+          speedBps: info.speedBps !== undefined ? info.speedBps : next[idx].speedBps,
+          etaMs: info.etaMs !== undefined ? info.etaMs : next[idx].etaMs,
+          lastError: info.error !== undefined ? info.error : next[idx].lastError
         };
         return next;
       });
@@ -75,7 +95,16 @@ const PluginPage: React.FC<PluginPageProps> = ({ hideTitleBar }: PluginPageProps
       const res = await window.YUA.pluginResource['plugin-resource:install']({ pluginId, resourceId });
       if (res.ok && res.data) {
         const data: InstalledResource = res.data;
-        setInstalled((prev) => [...prev.filter((m) => m.id !== data.id), data]);
+        // 进度事件会通过监听器更新，这里确保资源已添加到列表
+        setInstalled((prev) => {
+          const existing = prev.find((m) => m.id === data.id);
+          if (existing) {
+            // 如果已存在，更新状态
+            return prev.map((m) => (m.id === data.id ? { ...m, ...data } : m));
+          }
+          // 如果不存在，添加新资源
+          return [...prev, data];
+        });
       }
     } finally {
       setInstalling(null);
@@ -98,6 +127,13 @@ const PluginPage: React.FC<PluginPageProps> = ({ hideTitleBar }: PluginPageProps
     });
     if (res.ok) {
       setInstalled((prev) => prev.map((m) => (m.id === id ? { ...m, status: 'queued', progressBytes: 0 } : m)));
+    }
+  };
+
+  const remove = async (id: string): Promise<void> => {
+    const res = await window.YUA.pluginResource['plugin-resource:remove']({ id });
+    if (res.ok) {
+      setInstalled((prev) => prev.filter((m) => m.id !== id));
     }
   };
 
@@ -124,7 +160,7 @@ const PluginPage: React.FC<PluginPageProps> = ({ hideTitleBar }: PluginPageProps
           );
         });
     } else {
-      // 可用插件标签页：返回所有支持的资源
+      // 可用插件标签页：返回所有支持的资源（状态会通过 installedResource prop 传递）
       return supported;
     }
   };
@@ -181,7 +217,7 @@ const PluginPage: React.FC<PluginPageProps> = ({ hideTitleBar }: PluginPageProps
   const renderResourceItem = (resource: PluginDefinition): React.ReactElement => {
     const busy = installing === resource.id;
     const rec = installed.find((m) => m.pluginId === resource.pluginId && m.name === resource.name && m.status !== 'removed');
-    return <PluginListItem key={resource.id} resource={resource} installedResource={rec} isInstalling={busy} onInstall={install} onCancel={cancel} onRetry={retry} />;
+    return <PluginListItem key={resource.id} resource={resource} installedResource={rec} isInstalling={busy} onInstall={install} onCancel={cancel} onRetry={retry} onRemove={remove} />;
   };
 
   if (loading) return <div className="p-4 text-xs text-muted-foreground">加载中...</div>;
