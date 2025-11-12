@@ -5,7 +5,7 @@ import { app } from 'electron';
 
 import { getRealPath } from '.';
 
-export function getResourcePath(binName: 'ffmpeg' | 'yt-dlp' | 'sprites' | 'resources' | 'plugins' | 'providers' | 'logs'): string {
+export function getResourcePath(binName: 'ffmpeg' | 'yt-dlp' | 'sprites' | 'resources' | 'plugins' | 'providers' | 'logs' | 'workflows'): string {
   switch (binName) {
     case 'ffmpeg':
       return getRealPath(
@@ -25,6 +25,8 @@ export function getResourcePath(binName: 'ffmpeg' | 'yt-dlp' | 'sprites' | 'reso
       return getRealPath(`../providers`, `./resources/providers`);
     case 'sprites':
       return getRealPath(`../sprites`, `./resources/sprites`);
+    case 'workflows':
+      return getRealPath(`../workflows/preset.json`, `./resources/workflows/preset.json`);
     case 'logs':
       // Always place logs outside of app.asar. Using userData ensures a writable location across OSes.
       return path.join(app.getPath('userData'), 'logs');

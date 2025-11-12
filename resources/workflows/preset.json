@@ -1,0 +1,54 @@
+[
+  {
+    "id": "sample:ocr",
+    "name": "图片 OCR 示例",
+    "description": "加载图片 -> OCR -> 结束",
+    "nodes": [
+      { "id": "start", "type": "core/start" },
+      { "id": "load", "type": "resource/load" },
+      { "id": "ocr", "type": "image/ocr", "config": { "lang": "chi_sim" } },
+      { "id": "end", "type": "core/end" }
+    ],
+    "edges": [
+      { "id": "e1", "from": { "nodeId": "start", "port": "resource" }, "to": { "nodeId": "load", "port": "path" } },
+      { "id": "e2", "from": { "nodeId": "load", "port": "path" }, "to": { "nodeId": "ocr", "port": "image" } },
+      { "id": "e3", "from": { "nodeId": "ocr", "port": "text" }, "to": { "nodeId": "end", "port": "result" } }
+    ],
+    "options": { "concurrency": 1, "errorStrategy": "fail-fast" }
+  },
+  {
+    "id": "sample:transcribe",
+    "name": "媒体转录 (Whisper) 示例",
+    "description": "加载媒体 -> Whisper 转录 -> 结束",
+    "nodes": [
+      { "id": "start", "type": "core/start" },
+      { "id": "load", "type": "resource/load" },
+      { "id": "whisper", "type": "media/transcribe-whisper", "config": { "model": "small", "language": "zh", "outputFormats": ["txt", "srt", "json"] } },
+      { "id": "end", "type": "core/end" }
+    ],
+    "edges": [
+      { "id": "t1", "from": { "nodeId": "start", "port": "resource" }, "to": { "nodeId": "load", "port": "path" } },
+      { "id": "t2", "from": { "nodeId": "load", "port": "path" }, "to": { "nodeId": "whisper", "port": "media" } },
+      { "id": "t3", "from": { "nodeId": "whisper", "port": "text" }, "to": { "nodeId": "end", "port": "result" } }
+    ],
+    "options": { "concurrency": 1, "errorStrategy": "fail-fast" }
+  },
+  {
+    "id": "sample:transcode",
+    "name": "视频转码示例",
+    "description": "加载视频 -> 转码为MP3 -> 结束",
+    "nodes": [
+      { "id": "start", "type": "core/start" },
+      { "id": "load", "type": "resource/load" },
+      { "id": "transcode", "type": "media/transcode", "config": { "format": "mp3", "audioCodec": "libmp3lame" } },
+      { "id": "end", "type": "core/end" }
+    ],
+    "edges": [
+      { "id": "tc1", "from": { "nodeId": "start", "port": "resource" }, "to": { "nodeId": "load", "port": "path" } },
+      { "id": "tc2", "from": { "nodeId": "load", "port": "path" }, "to": { "nodeId": "transcode", "port": "input" } },
+      { "id": "tc3", "from": { "nodeId": "transcode", "port": "output" }, "to": { "nodeId": "end", "port": "result" } }
+    ],
+    "options": { "concurrency": 1, "errorStrategy": "fail-fast" }
+  }
+]
+

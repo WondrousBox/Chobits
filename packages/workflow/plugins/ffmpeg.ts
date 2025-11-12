@@ -4,22 +4,25 @@ import path from 'node:path';
 
 import ffmpeg from 'fluent-ffmpeg';
 
+import { getResourcePath } from '../../../electron/main/utils/resources-path';
 import { Plugin } from '../types';
 
-function getBinaryCandidates(resourcesDir: string): { ffmpeg: string; ffprobe: string }[] {
-  const plat = process.platform;
-  const arch = process.arch;
-  const base = path.join(resourcesDir, 'ffmpeg');
-  const candidates: { ffmpeg: string; ffprobe: string }[] = [];
-  if (plat === 'darwin') {
-    candidates.push({ ffmpeg: path.join(base, 'darwin', arch, 'ffmpeg'), ffprobe: path.join(base, 'darwin', arch, 'ffprobe') });
-    candidates.push({ ffmpeg: path.join(base, 'darwin', 'ffmpeg'), ffprobe: path.join(base, 'darwin', 'ffprobe') });
-  } else if (plat === 'win32') {
-    candidates.push({ ffmpeg: path.join(base, 'win32', arch, 'ffmpeg.exe'), ffprobe: path.join(base, 'win32', arch, 'ffprobe.exe') });
-  } else if (plat === 'linux') {
-    candidates.push({ ffmpeg: path.join(base, 'linux', arch, 'ffmpeg'), ffprobe: path.join(base, 'linux', arch, 'ffprobe') });
+function getFfmpegPaths(): { ffmpeg: string; ffprobe: string } | null {
+  try {
+    const ffmpegPath = getResourcePath('ffmpeg');
+    const ffmpegDir = path.dirname(ffmpegPath);
+    const ffmpegName = path.basename(ffmpegPath);
+    // ffprobe 和 ffmpeg 在同一目录下，只是文件名不同
+    const ffprobeName = ffmpegName.replace('ffmpeg', 'ffprobe');
+    const ffprobePath = path.join(ffmpegDir, ffprobeName);
+
+    if (fs.existsSync(ffmpegPath) && fs.existsSync(ffprobePath)) {
+      return { ffmpeg: ffmpegPath, ffprobe: ffprobePath };
+    }
+  } catch {
+    // 如果 getResourcePath 失败，返回 null
   }
-  return candidates;
+  return null;
 }
 
 function existsInPath(cmd: string): boolean {
@@ -32,25 +35,24 @@ export const FfmpegPlugin: Plugin = {
   label: 'FFmpeg',
   description: 'Provides media transcode and probe capabilities via FFmpeg/FFprobe',
   capabilities: ['transcode', 'probe', 'audio-extract'],
-  installHint:
-    process.platform === 'darwin'
-      ? 'pnpm run download-ffmpeg-darwin-arm64'
-      : process.platform === 'win32'
-        ? 'pnpm run download-ffmpeg-win32-x64'
-        : 'Install FFmpeg & FFprobe via your package manager (e.g. apt, yum, pacman)',
-  async isInstalled(ctx) {
-    const candidates = getBinaryCandidates(ctx.resourcesDir);
-    for (const c of candidates) {
-      if (fs.existsSync(c.ffmpeg) && fs.existsSync(c.ffprobe)) return true;
+  installHint: '软件内置',
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async isInstalled(_ctx) {
+    // 首先尝试使用项目的 getResourcePath 获取 ffmpeg
+    const paths = getFfmpegPaths();
+    if (paths) {
+      return true;
     }
     // fallback to PATH
     return existsInPath('ffmpeg') && existsInPath('ffprobe');
   },
-  async prepare(ctx) {
-    const candidates = getBinaryCandidates(ctx.resourcesDir);
-    for (const c of candidates) {
-      if (fs.existsSync(c.ffmpeg)) ffmpeg.setFfmpegPath(c.ffmpeg);
-      if (fs.existsSync(c.ffprobe)) ffmpeg.setFfprobePath(c.ffprobe);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async prepare(_ctx) {
+    // 使用项目的 getResourcePath 获取 ffmpeg 路径
+    const paths = getFfmpegPaths();
+    if (paths) {
+      if (fs.existsSync(paths.ffmpeg)) ffmpeg.setFfmpegPath(paths.ffmpeg);
+      if (fs.existsSync(paths.ffprobe)) ffmpeg.setFfprobePath(paths.ffprobe);
     }
   }
 };
