@@ -1,6 +1,6 @@
 import { BrowserWindow, ipcMain, net } from 'electron';
 
-import { createBestDownloader } from '../download/create';
+import { createBestDownloader } from '../../../packages/downloader/create';
 import { PluginConfigStore } from './plugin-config-store';
 import { getPluginForCurrentPlatform, loadPluginDefinitions } from './plugin-loader';
 import { DownloadProgress, PluginResource, pluginResourceManager } from './plugin-resource-manager';
