@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+
 import { getResourcePath } from '../utils/resources-path';
 
 export type ModelInfo = {
@@ -35,7 +36,10 @@ export function loadProviderModels(id: string): ModelInfo[] {
     const arr = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.models) ? parsed.models : [];
     if (!Array.isArray(arr)) return [];
     // Validate minimal shape (id required)
-    return arr.filter(Boolean).map((m: any) => ({ id: String(m.id), ...m } as ModelInfo)).filter(m => !!m.id);
+    return arr
+      .filter(Boolean)
+      .map((m: any) => ({ id: String(m.id), ...m }) as ModelInfo)
+      .filter((m) => !!m.id);
   } catch {
     return [];
   }

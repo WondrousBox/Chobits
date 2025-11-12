@@ -1,7 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { ProviderAdapter, ProviderConfig, ProviderSecrets, ChatRequest, ChatResponse, StreamEvent, EmbeddingRequest, EmbeddingResponse } from '../types';
-import { loadProviderSchema } from '../schema-loader';
+
 import { loadProviderModels } from '../models-loader';
+import { loadProviderSchema } from '../schema-loader';
+import { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, ProviderAdapter, ProviderConfig, ProviderSecrets, StreamEvent } from '../types';
 
 type AnthropicSecrets = { apiKey?: string; baseUrl?: string; model?: string };
 

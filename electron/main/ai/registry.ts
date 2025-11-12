@@ -1,4 +1,4 @@
-import { ProviderAdapter, AgentDefinition } from './types';
+import { AgentDefinition, ProviderAdapter } from './types';
 
 const providers = new Map<string, ProviderAdapter>();
 const agents = new Map<string, AgentDefinition>();

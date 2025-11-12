@@ -1,13 +1,14 @@
 // Secure secrets store using keytar with JSON fallback
-import keytar from 'keytar';
-import { app } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
+
+import { app } from 'electron';
+import keytar from 'keytar';
 
 const SERVICE = 'chobits-ai';
 const FALLBACK_FILE = path.join(app.getPath('userData'), 'ai-settings.json');
 
-console.log("FALLBACK_FILE:", FALLBACK_FILE);
+console.log('FALLBACK_FILE:', FALLBACK_FILE);
 
 function readFallback(): { providers: Record<string, Record<string, string>>; instances: Record<string, Record<string, string>> } {
   try {
@@ -15,7 +16,7 @@ function readFallback(): { providers: Record<string, Record<string, string>>; in
     const parsed = JSON.parse(raw) || {};
     return {
       providers: parsed.providers || {},
-      instances: parsed.instances || {},
+      instances: parsed.instances || {}
     };
   } catch {
     return { providers: {}, instances: {} };
@@ -27,7 +28,7 @@ function writeFallback(providers: Record<string, Record<string, string>>, instan
     const data = { providers, instances };
     fs.mkdirSync(path.dirname(FALLBACK_FILE), { recursive: true });
     fs.writeFileSync(FALLBACK_FILE, JSON.stringify(data, null, 2), 'utf8');
-  } catch {}
+  } catch { }
 }
 
 export async function setSecret(providerId: string, key: string, value: string) {
@@ -44,7 +45,7 @@ export async function getSecret(providerId: string, key: string): Promise<string
   try {
     const v = await keytar.getPassword(SERVICE, `${providerId}:${key}`);
     if (v != null) return v;
-  } catch {}
+  } catch { }
   const fb = readFallback();
   return fb.providers[providerId]?.[key];
 }
@@ -81,7 +82,7 @@ export async function getInstanceSecret(instanceId: string, key: string): Promis
   try {
     const v = await keytar.getPassword(SERVICE_INST, `${instanceId}:${key}`);
     if (v != null) return v;
-  } catch {}
+  } catch { }
   const fb = readFallback();
   return fb.instances[instanceId]?.[key];
 }
@@ -100,4 +101,3 @@ export async function setInstanceSecrets(instanceId: string, secrets: Record<str
     if (v != null) await setInstanceSecret(instanceId, k, v);
   }
 }
-

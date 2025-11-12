@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { ProviderConfig } from './types';
+
 import { getResourcePath } from '../utils/resources-path';
+import { ProviderConfig } from './types';
 
 /**
  * Load provider config schema from packaged JSON under resources/providers/<id>.schema.json

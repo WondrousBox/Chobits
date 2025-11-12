@@ -1,4 +1,4 @@
-import { AgentDefinition, AgentContext, ChatRequest, ChatResponse } from '../types';
+import { AgentContext, AgentDefinition, ChatRequest, ChatResponse } from '../types';
 
 // Basic tag cleanup/normalization
 function normalize(tag: string): string {
