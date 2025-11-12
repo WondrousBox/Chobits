@@ -1,8 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
+import { proxyBridge } from '../../packages/proxy/ipc-renderer';
 import { aiBridge } from '../main/ai/ipc-renderer';
 import { pluginResourceAPI } from '../main/plugins/ipc-renderer';
-import { proxyBridge } from '../main/proxy/ipc-renderer';
 import { arch, isLinux, isMac, isMacIntel, isWindows, platform } from '../main/utils/os';
 import { ffmpegBridge } from './apis/ffmpeg';
 import { fileBridge } from './apis/file';
