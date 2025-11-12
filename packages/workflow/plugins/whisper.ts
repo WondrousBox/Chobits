@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 
-import { pluginResourceManager } from '../../../electron/main/plugins/plugin-resource-manager';
+import { pluginResourceManager } from '../../plugins/plugin-resource-manager';
 import { Plugin } from '../types';
 
 function existsInPath(cmd: string): Promise<boolean> {
