@@ -2,7 +2,7 @@ import os from 'node:os';
 
 import { readLocalJSON } from '@aim-packages/file-utils';
 
-import { getResourcePath } from '../utils/resources-path';
+import { getResourcePath } from '../../electron/main/utils/resources-path';
 
 export type ModelDefinition = {
   id: string;

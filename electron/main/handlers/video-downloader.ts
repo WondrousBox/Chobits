@@ -9,8 +9,8 @@ import { app, BrowserWindow } from 'electron';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 
+import ytdlpStatic from '../../../packages/common/libs/ytdlp-static';
 import { ResourcesRepo, WorkspacesRepo } from '../db/repositories';
-import ytdlpStatic from '../libs/ytdlp-static';
 import { binPathLog } from '../logger';
 import { getResourcePath } from '../utils/resources-path';
 import { generateThumbnailForResource } from '../utils/thumbnail';

@@ -15,7 +15,7 @@ function fileExists(p: string): boolean {
 
 async function runWhisper(args: string[], ctx: any): Promise<void> {
   // 优先使用资源管理器中的engine，否则回退到PATH中的whisper
-  const { pluginResourceManager } = await import('../../../electron/main/plugins/plugin-resource-manager');
+  const { pluginResourceManager } = await import('../../plugins/plugin-resource-manager');
   const enginePath = pluginResourceManager.getEnginePath('plugin:whisper', 'whisper');
   const whisperCmd = fs.existsSync(enginePath) ? enginePath : 'whisper';
 
