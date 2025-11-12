@@ -4,19 +4,20 @@
  * - 约束：不在此文件内编写复杂业务逻辑/IPC 调用，逻辑统一下沉到 hooks/services。
  */
 import React, { useEffect, useRef } from 'react';
-import VideoSprite from './VideoSprite';
-import { MessageBubble } from './messages/MessageBubble';
-import Messages from './messages/zh-CN';
+
 import Dropzone from '../common/Dropzone';
 import { ASSISTANT_HEIGHT, ASSISTANT_WIDTH, SHOW_PADDING_DEBUG } from './constants';
 import useAssistant from './hooks';
 import useClickThrough from './hooks/useClickThrough';
 import useDragMove from './hooks/useDragMove';
-import useWalkAnimation from './hooks/useWalkAnimation';
 import useFileDrop from './hooks/useFileDrop';
-import StatusIndicator from './ui/StatusIndicator';
-import PaddingDebugOverlay from './ui/PaddingDebugOverlay';
 import useSpriteEventController from './hooks/useSpriteEventController';
+import useWalkAnimation from './hooks/useWalkAnimation';
+import { MessageBubble } from './messages/MessageBubble';
+import Messages from './messages/zh-CN';
+import PaddingDebugOverlay from './ui/PaddingDebugOverlay';
+import StatusIndicator from './ui/StatusIndicator';
+import VideoSprite from './VideoSprite';
 
 export const AIAssistant: React.FC = () => {
   const { padding: paddingState, screenSize, messageState, setAssistantState } = useAssistant();
@@ -42,7 +43,7 @@ export const AIAssistant: React.FC = () => {
   const { isFileDragOver, handleDragEnter, handleDragLeave, handleDropFiles } = useFileDrop(stopWalking, setClickThrough);
 
   // 点击交互
-  const handleClick = () => {
+  const handleClick = (): void => {
     stopWalking();
     setAssistantState('click', 'click');
   };
@@ -77,7 +78,7 @@ export const AIAssistant: React.FC = () => {
       });
   }, []);
 
-  const handleContextMenu = (e: React.MouseEvent) => {
+  const handleContextMenu = (e: React.MouseEvent): void => {
     e.preventDefault();
     window.YUA.window['window:open']('menu');
   };
@@ -170,22 +171,14 @@ export const AIAssistant: React.FC = () => {
       onContextMenu={handleContextMenu}
       onClick={handleClick}
       onDoubleClick={async () => {
-        try {
-          const cfg = await window.YUA.model['model:getConfig']();
-          if (!cfg?.rootDir) {
-            // 未配置模型目录，先打开模型管理窗口让用户设置
-            await window.YUA.window['window:open']('modelManager' as any);
-          } else {
-            await window.YUA.window['window:open']('assistant' as any);
-          }
-        } catch {
-          // 回退原行为
-          try {
-            await window.YUA.window['window:open']('assistant' as any);
-          } catch { }
+        const cfg = await window.YUA.model['model:getConfig']();
+        if (!cfg?.rootDir) {
+          // 未配置模型目录，先打开模型管理窗口让用户设置
+          window.YUA.window['window:open']('pluginManager');
+        } else {
+          window.YUA.window['window:open']('assistant');
         }
       }}
-    // onDrop={handleDrop}
     >
       {SHOW_PADDING_DEBUG && <PaddingDebugOverlay padding={paddingState} />}
       <MessageBubble state={messageState} />

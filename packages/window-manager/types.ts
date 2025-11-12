@@ -14,7 +14,7 @@ export type WindowKey =
   | 'recycle'
   | 'assistant'
   | 'chat'
-  | 'modelManager'
+  | 'pluginManager'
   | 'resourcePreview'
   | 'downloadFloating'
   | 'workflowBuilder'
