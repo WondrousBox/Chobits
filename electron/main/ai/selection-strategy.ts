@@ -1,6 +1,7 @@
-import { app } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
+
+import { app } from 'electron';
 
 export type SelectionStrategy = {
   // 按顺序的偏好 Provider 列表（越靠前加分越多）

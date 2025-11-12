@@ -1,7 +1,8 @@
 import OpenAI from 'openai';
-import { ProviderAdapter, ProviderConfig, ProviderSecrets, ChatRequest, ChatResponse, StreamEvent, EmbeddingRequest, EmbeddingResponse } from '../types';
-import { loadProviderSchema } from '../schema-loader';
+
 import { loadProviderModels } from '../models-loader';
+import { loadProviderSchema } from '../schema-loader';
+import { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, ProviderAdapter, ProviderConfig, ProviderSecrets, StreamEvent } from '../types';
 
 type OpenAISecrets = { apiKey?: string; baseUrl?: string; organization?: string; model?: string };
 

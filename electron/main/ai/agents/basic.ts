@@ -1,4 +1,4 @@
-import { AgentDefinition, AgentContext, ChatRequest, ChatResponse } from '../types';
+import { AgentContext, AgentDefinition, ChatRequest, ChatResponse } from '../types';
 
 export const BasicAgent: AgentDefinition = {
   id: 'basic',
@@ -11,5 +11,5 @@ export const BasicAgent: AgentDefinition = {
     }
     const resp = await provider.chat({ ...req }, ctx.emit, signal);
     return resp;
-  },
+  }
 };

@@ -1,12 +1,14 @@
-import { BrowserWindow, ipcMain, shell } from 'electron';
-import { ResourcesRepo, WorkspacesRepo, TagsRepo, FoldersRepo } from '../db/repositories';
-import { generateThumbnailForResource, detectBasicType } from '../utils/thumbnail';
 import { createHash } from 'node:crypto';
+import * as fscb from 'node:fs';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import * as fscb from 'node:fs';
+
+import { BrowserWindow, ipcMain, shell } from 'electron';
 import { Resource } from 'electron/preload/apis/resource';
+
 import { TaggingService } from '../ai/tagging-service';
+import { FoldersRepo, ResourcesRepo, TagsRepo, WorkspacesRepo } from '../db/repositories';
+import { detectBasicType, generateThumbnailForResource } from '../utils/thumbnail';
 
 export function initResourceHandlers(): void {
   ipcMain.handle('resource:add', async (_event, payload: { resource: Resource }) => {

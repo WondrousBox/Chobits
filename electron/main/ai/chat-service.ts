@@ -1,10 +1,12 @@
-import { BrowserWindow, ipcMain, WebContents } from 'electron';
 import { randomUUID } from 'node:crypto';
-import { AgentDefinition, ChatRequest, StreamEvent, ChatResponse, EmbeddingResponse } from './types';
-import { getAgent, getProvider } from './registry';
-import { InstancesStore } from './instances-store';
-import { getAllInstanceSecrets } from './settings-store';
+
+import { BrowserWindow, ipcMain, WebContents } from 'electron';
+
 import { ChatRepo } from '../db/repositories';
+import { InstancesStore } from './instances-store';
+import { getAgent, getProvider } from './registry';
+import { getAllInstanceSecrets } from './settings-store';
+import { AgentDefinition, ChatRequest, ChatResponse, EmbeddingResponse, StreamEvent } from './types';
 
 // local UUID fallback if uuid not present
 function safeUuid(): string {
