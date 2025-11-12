@@ -102,9 +102,17 @@ export function getPluginForCurrentPlatform(plugin: PluginDefinition): PluginDef
   // 优先匹配精确的平台和架构
   let match = plugin.platforms.find((p) => p.platform === platform && p.arch === arch);
 
+  if (!match) {
+    match = plugin.platforms.find((p) => p.platform === platform && p.arch === 'all');
+  }
+
   // 如果没有精确匹配，尝试只匹配平台
   if (!match) {
     match = plugin.platforms.find((p) => p.platform === platform);
+  }
+
+  if (!match) {
+    match = plugin.platforms.find((p) => p.platform === 'all' && p.arch === 'all');
   }
 
   return match;

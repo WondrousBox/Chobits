@@ -60,6 +60,8 @@ export function init(win: BrowserWindow): void {
 
   // 安装资源（Engine或模型）
   ipcMain.handle('plugin-resource:install', async (_e, payload: { pluginId: string; resourceId: string; deleteAfterInstall?: boolean }) => {
+    console.log('plugin-resource:install', payload);
+
     const definitions = await loadPluginDefinitions();
     const pluginDef = definitions.find((p) => p.id === payload.resourceId && p.pluginId === payload.pluginId);
     if (!pluginDef) {
