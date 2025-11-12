@@ -1,6 +1,7 @@
-import { globalShortcut, BrowserWindow } from 'electron';
-import { windowManager } from './window/window-manager';
-import { loadShortcutsConfig, onShortcutsConfigChanged, resolveAcceleratorsForPlatform, getShortcutSchema, type ShortcutsConfig } from './shortcut-store';
+import { BrowserWindow, globalShortcut } from 'electron';
+
+import { windowManager } from '../../packages/window-manager/window-manager';
+import { getShortcutSchema, loadShortcutsConfig, onShortcutsConfigChanged, resolveAcceleratorsForPlatform, type ShortcutsConfig } from './shortcut-store';
 
 // Keep track of what we registered so we can cleanly unregister later
 const registered: Set<string> = new Set();

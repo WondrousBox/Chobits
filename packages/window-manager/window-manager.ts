@@ -1,9 +1,11 @@
-import { BrowserWindow, screen } from 'electron';
 import path from 'node:path';
-import { windowConfigs } from './window-config';
-import { saveWindowState, restoreWindowState } from './window-state-store';
+
+import { BrowserWindow, screen } from 'electron';
+
 import { FollowerPreferMode, FollowerSide, WindowConfig, WindowKey } from './types';
+import { windowConfigs } from './window-config';
 import { initWindowConfigs } from './window-config';
+import { restoreWindowState, saveWindowState } from './window-state-store';
 
 let SERVER_URL = '';
 let RENDERER_DIST = '';

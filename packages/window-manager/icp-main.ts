@@ -1,9 +1,10 @@
-import { screen, app, BrowserWindow, ipcMain } from 'electron';
 import type { IpcMainInvokeEvent } from 'electron';
-import { saveWindowState, WindowState, WindowStateStore } from './window-state-store';
+import { app, BrowserWindow, ipcMain, screen } from 'electron';
+
 import { WindowConfig, WindowKey } from './types';
 import { getWindowConfig, listWindowKeys, registerWindowConfig, unregisterWindowConfig } from './window-config';
 import { windowManager } from './window-manager';
+import { saveWindowState, WindowState, WindowStateStore } from './window-state-store';
 
 export function init(win: BrowserWindow): void {
   ipcMain.handle('screen:size:get', () => {
