@@ -1,10 +1,13 @@
+import { AnimatePresence, motion } from 'framer-motion';
 import React, { useEffect, useState } from 'react';
-import { TbBox, TbChevronDown, TbChevronRight, TbPlug, TbWifi } from 'react-icons/tb';
+import { TbBox, TbChevronDown, TbChevronRight, TbPlug, TbSettings, TbWifi } from 'react-icons/tb';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
+import SelectModelFolder from '../ModelPage/components/SelectModelFolder';
 import { NetworkCheckDialog } from './components/NetworkCheckDialog';
 import { PluginListItem } from './components/PluginListItem';
 import type { InstalledResource, PluginDefinition } from './components/types';
@@ -21,6 +24,7 @@ const PluginPage: React.FC<PluginPageProps> = ({ hideTitleBar }: PluginPageProps
   const [installing, setInstalling] = useState<string | null>(null);
   const [expandedPlugins, setExpandedPlugins] = useState<Set<string>>(new Set());
   const [showNetworkDialog, setShowNetworkDialog] = useState(false);
+  const [showFolderSettings, setShowFolderSettings] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -194,6 +198,24 @@ const PluginPage: React.FC<PluginPageProps> = ({ hideTitleBar }: PluginPageProps
           }
           actions={
             <div className="flex items-center gap-2 no-drag">
+              <Dialog open={showFolderSettings} onOpenChange={setShowFolderSettings}>
+                <DialogTrigger asChild>
+                  <Button size="sm" variant="outline" className="w-8 h-8" title="设置下载文件夹">
+                    <TbSettings size={16} />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent hideClose className="w-80">
+                  <DialogHeader>
+                    <DialogTitle></DialogTitle>
+                    <DialogDescription></DialogDescription>
+                  </DialogHeader>
+                  <SelectModelFolder
+                    onConfigured={() => {
+                      setShowFolderSettings(false);
+                    }}
+                  />
+                </DialogContent>
+              </Dialog>
               <Button size="sm" variant="outline" onClick={() => setShowNetworkDialog(true)} className="w-8 h-8" title="检测网络连通性">
                 <TbWifi size={16} />
               </Button>
@@ -216,6 +238,24 @@ const PluginPage: React.FC<PluginPageProps> = ({ hideTitleBar }: PluginPageProps
               </TabsList>
             </Tabs>
           </div>
+          <Dialog open={showFolderSettings} onOpenChange={setShowFolderSettings}>
+            <DialogTrigger asChild>
+              <Button size="icon" variant="outline" className="w-8 h-8" title="设置下载文件夹">
+                <TbSettings />
+              </Button>
+            </DialogTrigger>
+            <DialogContent hideClose className="w-80">
+              <DialogHeader>
+                <DialogTitle></DialogTitle>
+                <DialogDescription></DialogDescription>
+              </DialogHeader>
+              <SelectModelFolder
+                onConfigured={() => {
+                  setShowFolderSettings(false);
+                }}
+              />
+            </DialogContent>
+          </Dialog>
           <Button size="icon" variant="outline" onClick={() => setShowNetworkDialog(true)} className="w-8 h-8">
             <TbWifi />
           </Button>
@@ -245,7 +285,19 @@ const PluginPage: React.FC<PluginPageProps> = ({ hideTitleBar }: PluginPageProps
                     <TbBox className="w-4 h-4" />
                     {pluginName} 模型列表 ({models.length})
                   </Button>
-                  {isExpanded && <div className="space-y-1">{models.map((resource) => renderResourceItem(resource))}</div>}
+                  <AnimatePresence initial={false}>
+                    {isExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2, ease: 'easeInOut' }}
+                        style={{ overflow: 'hidden' }}
+                      >
+                        <div className="space-y-1">{models.map((resource) => renderResourceItem(resource))}</div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               )}
             </div>
