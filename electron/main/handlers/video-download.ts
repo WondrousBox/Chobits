@@ -1,7 +1,8 @@
-import { ipcMain, BrowserWindow, screen } from 'electron';
-import { downloadManager, getVideoInfo, getThumbnail, getSetting, setSetting } from './video-downloader';
+import { BrowserWindow, ipcMain, screen } from 'electron';
+
+import { windowManager } from '../../../packages/window-manager/window-manager';
 import { getMainWindow } from '../index';
-import { windowManager } from '../window/window-manager';
+import { downloadManager, getSetting, getThumbnail, getVideoInfo, setSetting } from './video-downloader';
 
 export function initVideoDownloadHandlers(win: BrowserWindow): void {
   console.log('[VideoDownload] Initializing video download handlers');

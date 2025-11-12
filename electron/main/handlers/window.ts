@@ -1,13 +1,15 @@
-import { ipcMain, BrowserWindow } from 'electron';
-import type { IpcMainInvokeEvent } from 'electron';
-import { screen, app, systemPreferences } from 'electron';
 import fs from 'node:fs';
-import path from 'node:path';
 import { createRequire } from 'node:module';
-import { windowManager } from '../window/window-manager';
-import defaultWindowConfigs from '../config/window';
+import path from 'node:path';
+
+import type { IpcMainInvokeEvent } from 'electron';
+import { BrowserWindow, ipcMain } from 'electron';
+import { app, screen, systemPreferences } from 'electron';
+
+import { init } from '../../../packages/window-manager/icp-main';
+import { windowManager } from '../../../packages/window-manager/window-manager';
 import { ASSISTANT_HEIGHT, ASSISTANT_WIDTH } from '../config';
-import { init } from '../window/icp-main';
+import defaultWindowConfigs from '../config/window';
 
 export function initWindowHandlers(win: BrowserWindow): void {
   // Movement config persistence ------------------------------------------------

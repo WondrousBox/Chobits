@@ -1,7 +1,7 @@
 import { ipcRenderer } from 'electron';
 
+import { windowIPC, WindowIPCType } from '../../../packages/window-manager/ipc-renderer';
 import { IPCParams } from '../type';
-import { windowIPC, WindowIPCType } from '../../main/window/ipc-renderer';
 
 type WindowBridgeParams = {
   /** 获取移动配置 */

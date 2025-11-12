@@ -1,7 +1,9 @@
-import { app } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
-import { writeFileSync, readFileSync } from '@aim-packages/file-utils';
+
+import { readFileSync, writeFileSync } from '@aim-packages/file-utils';
+import { app } from 'electron';
+
 import { WindowConfig, WindowKey } from './types';
 
 export type WindowConfigMap = Record<WindowKey, WindowConfig>;

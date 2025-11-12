@@ -1,9 +1,9 @@
 import { ipcRenderer } from 'electron';
 
-import { WindowKey } from './types';
-import type { WindowConfig } from './types';
-import { WindowState } from './window-state-store';
 import { IPCParams } from './type';
+import type { WindowConfig } from './types';
+import { WindowKey } from './types';
+import { WindowState } from './window-state-store';
 
 type WindowIPCParams = {
   /**

@@ -12,9 +12,11 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { app, screen } from 'electron';
+
+import { readFileSync, writeFileSync } from '@aim-packages/file-utils';
 import type { BrowserWindow } from 'electron';
-import { writeFileSync, readFileSync } from '@aim-packages/file-utils';
+import { app, screen } from 'electron';
+
 import { WindowKey } from './types';
 
 export interface WindowState {
