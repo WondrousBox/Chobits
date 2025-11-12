@@ -6,8 +6,8 @@ import type { IpcMainInvokeEvent } from 'electron';
 import { BrowserWindow, ipcMain } from 'electron';
 import { app, screen, systemPreferences } from 'electron';
 
+import { windowManager } from '../../../packages/window-manager';
 import { init } from '../../../packages/window-manager/icp-main';
-import { windowManager } from '../../../packages/window-manager/window-manager';
 import { ASSISTANT_HEIGHT, ASSISTANT_WIDTH } from '../config';
 import defaultWindowConfigs from '../config/window';
 
