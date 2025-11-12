@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { app } from 'electron';
 
+import { getResourcePath } from '../../electron/main/utils/resources-path';
 import { WorkflowDefinition, WorkflowRunRecord } from './types';
 
 const FILE = 'workflows.json';
@@ -12,6 +13,9 @@ type DbShape = {
   defs: WorkflowDefinition[];
   runs: WorkflowRunRecord[];
 };
+
+// 预设工作流ID集合（从JSON文件加载）
+let presetWorkflowIds = new Set<string>();
 
 function getFile(): string {
   const dir = app.getPath('userData');
@@ -36,6 +40,35 @@ async function writeDb(db: DbShape): Promise<void> {
   await fsp.writeFile(file, JSON.stringify(db, null, 2), 'utf8');
 }
 
+/**
+ * 加载预设工作流定义
+ */
+export async function loadPresetWorkflows(): Promise<WorkflowDefinition[]> {
+  try {
+    const file = getResourcePath('workflows');
+    if (!fs.existsSync(file)) {
+      console.warn('[WorkflowStore] 预设工作流文件不存在:', file);
+      return [];
+    }
+    const txt = await fsp.readFile(file, 'utf8');
+    const workflows = JSON.parse(txt) as WorkflowDefinition[];
+    // 更新预设工作流ID集合
+    presetWorkflowIds = new Set(workflows.map((w) => w.id));
+    console.log(`[WorkflowStore] 加载了 ${workflows.length} 个预设工作流`);
+    return workflows;
+  } catch (err) {
+    console.error('[WorkflowStore] 加载预设工作流失败:', err);
+    return [];
+  }
+}
+
+/**
+ * 检查工作流是否为预设工作流
+ */
+export function isPresetWorkflow(id: string): boolean {
+  return presetWorkflowIds.has(id);
+}
+
 export const WorkflowStore = {
   async list(): Promise<WorkflowDefinition[]> {
     const db = await readDb();
@@ -46,6 +79,10 @@ export const WorkflowStore = {
     return db.defs.find((d) => d.id === id);
   },
   async upsert(def: WorkflowDefinition): Promise<void> {
+    // 不允许保存预设工作流
+    if (isPresetWorkflow(def.id)) {
+      throw new Error(`不能修改预设工作流: ${def.id}`);
+    }
     const db = await readDb();
     const idx = db.defs.findIndex((d) => d.id === def.id);
     if (idx >= 0) db.defs[idx] = def;
@@ -53,6 +90,10 @@ export const WorkflowStore = {
     await writeDb(db);
   },
   async remove(id: string): Promise<void> {
+    // 不允许删除预设工作流
+    if (isPresetWorkflow(id)) {
+      throw new Error(`不能删除预设工作流: ${id}`);
+    }
     const db = await readDb();
     db.defs = db.defs.filter((d) => d.id !== id);
     await writeDb(db);

@@ -1,4 +1,5 @@
 import { ipcRenderer } from 'electron';
+
 import { IPCParams, PartialByKey } from '../type';
 
 export type Resource = {

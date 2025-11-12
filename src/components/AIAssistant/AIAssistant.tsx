@@ -192,6 +192,9 @@ export const AIAssistant: React.FC = () => {
           </div>
         }
       >
+        {window.YUA.isDev && (
+          <div className="text-xs bg-background fixed top-[100px] right-[100px] bottom-[100px] left-[100px] rounded-md border border-solid border-ring flex items-center justify-center">dev</div>
+        )}
         <VideoSprite />
       </Dropzone>
 

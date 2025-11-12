@@ -1,3 +1,4 @@
+import { Resource } from 'electron/preload/apis/resource';
 import React, { useEffect, useMemo, useState } from 'react';
 
 import RadialMenu, { RadialMenuItem } from '../../components/common/RadialMenu/RadialMenu';
@@ -26,16 +27,16 @@ function guessKind(file: FileInfo): 'doc' | 'audio' | 'video' | 'image' | 'pdf' 
 }
 
 const FileActionsMenu: React.FC = () => {
-  const [files, setFiles] = useState<FileInfo[]>([]);
-  const primary = files[0];
-  const kind = primary ? guessKind(primary) : 'other';
+  const [resources, setResources] = useState<Resource[]>([]);
+  const primary = resources[0];
+  const kind = primary ? guessKind({ name: primary.title || '', path: primary.filePath }) : 'other';
 
   useEffect(() => {
     // 接收主进程传来的文件数据
     const handler = (_: any, payload: any): void => {
       try {
-        if (payload?.files && Array.isArray(payload.files)) {
-          setFiles(payload.files as FileInfo[]);
+        if (payload?.resources && Array.isArray(payload.resources)) {
+          setResources(payload.resources as Resource[]);
         }
       } catch (err) {
         console.warn('[FileActionsMenu] failed to parse files from payload', err);
@@ -46,7 +47,7 @@ const FileActionsMenu: React.FC = () => {
     (async () => {
       try {
         const data = await window.YUA.window['window:payload:get']('fileActionsMenu' as any);
-        if (data?.files) setFiles(data.files);
+        if (data?.resources) setResources(data.resources as Resource[]);
       } catch (err) {
         console.warn('[FileActionsMenu] window:payload:get error', err);
       }
@@ -109,7 +110,20 @@ const FileActionsMenu: React.FC = () => {
     const transcodeVideo = (): Promise<void> =>
       closeAfter(async () => {
         try {
-          /* TODO: ffmpeg 转码 */
+          if (!primary) {
+            console.warn('[FileActionsMenu] no resource for transcode');
+            return;
+          }
+          // 调用工作流进行转码（视频转MP3）
+          const result = await window.ipcRenderer.invoke('wf:run', {
+            defId: 'sample:transcode',
+            input: { resource: primary }
+          });
+          if (result.ok) {
+            console.log('[FileActionsMenu] transcode started, runId:', result.runId);
+          } else {
+            console.warn('[FileActionsMenu] transcode failed:', result.error || result.validation);
+          }
         } catch (err) {
           console.warn('[FileActionsMenu] transcode video error', err);
         }
@@ -171,7 +185,7 @@ const FileActionsMenu: React.FC = () => {
       // generic: already added
     }
     return list;
-  }, [kind]);
+  }, [kind, primary?.filePath]);
 
   // Build radial menu items from available actions
   const radialItems: RadialMenuItem[] = useMemo(() => {

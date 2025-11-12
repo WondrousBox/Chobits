@@ -36,6 +36,8 @@ function topoSort(def: WorkflowDefinition): string[] {
 }
 
 function mergeInputValues(def: WorkflowDefinition, nodeId: string, nodeOutputMap: Map<string, Record<string, any>>): Record<string, any> {
+  console.log('mergeInputValues', def, nodeId, JSON.stringify(nodeOutputMap, null, 2));
+
   const input: Record<string, any> = {};
   // edges connected to this node's inputs
   for (const e of def.edges) {
@@ -122,6 +124,9 @@ export class WorkflowEngine extends EngineEmitter {
     this.runs.set(runId, rec);
     this.emitTyped('run:status', rec);
 
+    console.log(`[WorkflowEngine] 工作流开始执行: ${def.name} (${def.id}), runId: ${runId}`);
+    console.log(`[WorkflowEngine] 初始输入:`, JSON.stringify(initialInput, null, 2));
+
     const ctx = this.buildCtx();
     await fs.mkdir(ctx.tmpDir, { recursive: true }).catch(() => { });
 
@@ -134,6 +139,7 @@ export class WorkflowEngine extends EngineEmitter {
     this.emitTyped('run:status', rec);
 
     const order = topoSort(def);
+    console.log(`[WorkflowEngine] 节点执行顺序:`, order.join(' -> '));
     const nodeOutput = new Map<string, Record<string, any>>();
 
     // Seed start node outputs or initial inputs
@@ -144,11 +150,16 @@ export class WorkflowEngine extends EngineEmitter {
     for (const nodeId of order) {
       // Read latest status from runs map to avoid TS literal narrowing issues
       const currentStatus = this.runs.get(runId)?.status;
-      if (currentStatus === 'canceled') break;
+      if (currentStatus === 'canceled') {
+        console.log(`[WorkflowEngine] 工作流已取消，停止执行`);
+        break;
+      }
       const inst = nodeMap.get(nodeId)!;
       const handler = getNode(inst.type);
       if (!handler) {
-        nodesState[nodeId] = { ...nodesState[nodeId], status: 'failed', error: `Unknown node: ${inst.type}` };
+        const error = `Unknown node: ${inst.type}`;
+        console.error(`[WorkflowEngine] 节点 ${nodeId} (${inst.type}) 执行失败: ${error}`);
+        nodesState[nodeId] = { ...nodesState[nodeId], status: 'failed', error };
         if (def.options?.errorStrategy !== 'continue') break;
         continue;
       }
@@ -158,47 +169,83 @@ export class WorkflowEngine extends EngineEmitter {
           if (!prepared.has(pid)) {
             const p = getPlugin(pid);
             if (!p) {
-              nodesState[nodeId] = { ...nodesState[nodeId], status: 'failed', error: `Plugin not registered: ${pid}` };
+              const error = `Plugin not registered: ${pid}`;
+              console.error(`[WorkflowEngine] 节点 ${nodeId} 所需插件未注册: ${pid}`);
+              nodesState[nodeId] = { ...nodesState[nodeId], status: 'failed', error };
               rec.status = 'failed';
               this.emitTyped('node:status', rec, nodesState[nodeId]);
               this.emitTyped('run:status', rec);
               return rec;
             }
+            console.log(`[WorkflowEngine] 检查插件 ${pid} 是否已安装...`);
             const ok = await p.isInstalled(ctx).catch(() => false);
             if (!ok) {
-              nodesState[nodeId] = { ...nodesState[nodeId], status: 'failed', error: `Plugin not installed: ${pid}` };
+              const error = `Plugin not installed: ${pid}`;
+              console.error(`[WorkflowEngine] 节点 ${nodeId} 所需插件未安装: ${pid}, 提示: ${p.installHint || '无'}`);
+              nodesState[nodeId] = { ...nodesState[nodeId], status: 'failed', error };
               rec.status = 'failed';
               this.emitTyped('node:status', rec, nodesState[nodeId]);
               this.emitTyped('run:status', rec);
               return rec;
             }
-            await p.prepare?.(ctx).catch(() => { });
+            console.log(`[WorkflowEngine] 插件 ${pid} 已安装，准备中...`);
+            await p.prepare?.(ctx).catch((err) => {
+              console.warn(`[WorkflowEngine] 插件 ${pid} 准备失败:`, err);
+            });
+            console.log(`[WorkflowEngine] 插件 ${pid} 准备完成`);
             prepared.add(pid);
           }
         }
       }
 
-      const inputFromEdges = mergeInputValues(def, nodeId, nodeOutput);
-      const input = { ...inputFromEdges };
-      // Apply inline defaults
-      Object.assign(input, inst.inputDefaults || {});
+      // Special handling for start node: it gets initial input directly from __start__
+      let input: Record<string, any>;
+      if (inst.type === 'core/start') {
+        // Start node receives the entire initial input as its input
+        const initialData = nodeOutput.get('__start__') || {};
+        input = initialData;
+        console.log(`[WorkflowEngine] Start节点特殊处理，使用初始输入:`, JSON.stringify(input, null, 2));
+      } else {
+        const inputFromEdges = mergeInputValues(def, nodeId, nodeOutput);
+        input = { ...inputFromEdges };
+        // Apply inline defaults
+        Object.assign(input, inst.inputDefaults || {});
+      }
+
+      console.log(`[WorkflowEngine] 节点 ${nodeId} (${inst.type}) 开始执行`);
+      console.log(`[WorkflowEngine] 节点 ${nodeId} 输入:`, JSON.stringify(input, null, 2));
+      if (inst.config) {
+        console.log(`[WorkflowEngine] 节点 ${nodeId} 配置:`, JSON.stringify(inst.config, null, 2));
+      }
 
       nodesState[nodeId] = { nodeId, status: 'running', startedAt: now() };
       this.emitTyped('node:status', rec, nodesState[nodeId]);
+      const startTime = now();
       try {
         const out = await handler.run({ input, config: inst.config, ctx, emit: (ev, p) => this.emit(ev, p), getPlugin: getPluginFn });
+        const duration = now() - startTime;
         nodesState[nodeId] = { ...nodesState[nodeId], status: 'completed', finishedAt: now(), output: out };
         nodeOutput.set(nodeId, out);
+        console.log(`[WorkflowEngine] 节点 ${nodeId} 执行成功，耗时: ${duration}ms`);
+        console.log(`[WorkflowEngine] 节点 ${nodeId} 输出:`, JSON.stringify(out, null, 2));
         this.emitTyped('node:status', rec, nodesState[nodeId]);
       } catch (err: any) {
-        nodesState[nodeId] = { ...nodesState[nodeId], status: 'failed', finishedAt: now(), error: String(err?.message || err) };
+        const duration = now() - startTime;
+        const errorMsg = String(err?.message || err);
+        console.error(`[WorkflowEngine] 节点 ${nodeId} 执行失败，耗时: ${duration}ms, 错误:`, errorMsg);
+        if (err?.stack) {
+          console.error(`[WorkflowEngine] 节点 ${nodeId} 错误堆栈:`, err.stack);
+        }
+        nodesState[nodeId] = { ...nodesState[nodeId], status: 'failed', finishedAt: now(), error: errorMsg };
         this.emitTyped('node:status', rec, nodesState[nodeId]);
         if (def.options?.errorStrategy !== 'continue') {
           rec.status = 'failed';
           rec.error = nodesState[nodeId].error;
+          console.error(`[WorkflowEngine] 工作流执行失败: ${errorMsg}`);
           this.emitTyped('run:status', rec);
           return rec;
         }
+        console.warn(`[WorkflowEngine] 节点 ${nodeId} 失败，但继续执行后续节点`);
       }
     }
 
@@ -211,6 +258,10 @@ export class WorkflowEngine extends EngineEmitter {
     const out: Record<string, any> = {};
     for (const nid of terminal) Object.assign(out, nodeOutput.get(nid) || {});
     rec.output = out;
+    console.log(`[WorkflowEngine] 工作流执行完成: ${def.name} (${def.id}), 状态: ${rec.status}`);
+    if (rec.output && Object.keys(rec.output).length > 0) {
+      console.log(`[WorkflowEngine] 工作流最终输出:`, JSON.stringify(rec.output, null, 2));
+    }
     this.emitTyped('run:status', rec);
     return rec;
   }

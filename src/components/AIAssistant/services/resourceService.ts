@@ -5,8 +5,11 @@
  *   - SelectedFiles：若有 File 对象优先上传（去重），然后入库。
  * - 副作用：调用 window.YUA.resource.addResource、window.YUA.resource.uploadResourceFile。
  */
-import { getResourceTypeFromFilename } from '../utils/resource';
+import { Resource } from 'electron/preload/apis/resource';
+
 import type { SelectedResourceFileType } from '@/types';
+
+import { getResourceTypeFromFilename } from '../utils/resource';
 
 export async function addResourcesFromDataTransfer(dt: DataTransfer) {
   const items = Array.from(dt.items || []) as DataTransferItem[];
@@ -54,7 +57,8 @@ export async function addResourcesFromDataTransfer(dt: DataTransfer) {
   }
 }
 
-export async function addResourcesFromSelectedFiles(files: SelectedResourceFileType[]) {
+export async function addResourcesFromSelectedFiles(files: SelectedResourceFileType[]): Promise<Resource[]> {
+  const resources: Resource[] = [];
   for (const f of files) {
     const now = Date.now();
     const safeName = f.name || (f.path ? f.path.split(/[/\\]/).pop() || '' : '');
@@ -89,9 +93,14 @@ export async function addResourcesFromSelectedFiles(files: SelectedResourceFileT
       ...(fileHash ? { metadata: JSON.stringify({ hashSha256: fileHash }) } : {})
     };
     try {
-      await window.YUA.resource['resource:add']({ resource });
-    } catch {
+      const res = await window.YUA.resource['resource:add']({ resource });
+      if (res.success) {
+        resources.push(res.data);
+      }
+    } catch (error) {
+      console.error('addResourcesFromSelectedFiles error', error);
       /* noop */
     }
   }
+  return resources;
 }
