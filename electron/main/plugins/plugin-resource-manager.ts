@@ -4,7 +4,7 @@ import path from 'node:path';
 
 import { app } from 'electron';
 
-import type { Downloader } from '../download/types';
+import type { Downloader } from '../../../packages/downloader/types';
 import { calculateFileHash, unzipFileWith7Z } from '../utils/file';
 import { PluginConfigStore } from './plugin-config-store';
 import { PluginResourceStore } from './plugin-resource-store';
