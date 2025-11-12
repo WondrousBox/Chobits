@@ -209,8 +209,8 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
       webPreferences: { nodeIntegration: true, contextIsolation: true }
     }
   },
-  modelManager: {
-    routeHash: 'model-manager',
+  pluginManager: {
+    routeHash: 'plugin-manager',
     autoCenterOn: 'parent-display',
     showOnReady: false,
     openDevTools: true,

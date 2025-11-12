@@ -1,4 +1,3 @@
-// import UpdateElectron from '@/components/update'
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import { ChatSelectionProvider } from '@/components/AIAssistant/context/ChatSelectionContext';
@@ -11,7 +10,7 @@ import { AIAssistant } from './components/AIAssistant';
 import AssistantMenuPage from './pages/AssistantMenuPage/AssistantMenuPage';
 import AssistantPage from './pages/AssistantPage/AssistantPage';
 import ChatPage from './pages/AssistantPage/ChatPage';
-import ModelPage from './pages/ModelPage/ModelPage';
+import PluginPage from './pages/PluginPage/PluginPage';
 import RecycleBinPage from './pages/RecycleBinPage/RecycleBinPage';
 import ResourcePage from './pages/ResourcePage/ResourcePage';
 import WorkspacePage from './pages/SettingsPage/components/Workspace';
@@ -39,7 +38,7 @@ function App(): JSX.Element {
             <Route path="/workspace" element={<WorkspacePage />} />
             <Route path="/assistant" element={<AssistantPage />} />
             <Route path="/chat" element={<ChatPage />} />
-            <Route path="/model-manager" element={<ModelPage />} />
+            <Route path="/plugin-manager" element={<PluginPage />} />
             <Route path="/workflow" element={<WorkflowBuilderPage />} />
             <Route path="/workflow-page" element={<WorkflowPage />} />
             <Route path="/tagger" element={<TaggingPage />} />
