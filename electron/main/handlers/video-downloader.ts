@@ -1,18 +1,19 @@
 import { EventEmitter } from 'node:events';
-import { HttpsProxyAgent } from 'https-proxy-agent';
-import { SocksProxyAgent } from 'socks-proxy-agent';
+import fs from 'node:fs';
+import http from 'node:http';
+import https from 'node:https';
 import { resolve } from 'node:path';
 import path from 'node:path';
-import fs from 'node:fs';
-import https from 'node:https';
-import http from 'node:http';
 
-import ytdlpStatic from '../libs/ytdlp-static';
-import { WorkspacesRepo, ResourcesRepo } from '../db/repositories';
-import { generateThumbnailForResource } from '../utils/thumbnail';
-import { getResourcePath } from '../utils/resources-path';
-import { binPathLog } from '../logger';
 import { app, BrowserWindow } from 'electron';
+import { HttpsProxyAgent } from 'https-proxy-agent';
+import { SocksProxyAgent } from 'socks-proxy-agent';
+
+import { ResourcesRepo, WorkspacesRepo } from '../db/repositories';
+import ytdlpStatic from '../libs/ytdlp-static';
+import { binPathLog } from '../logger';
+import { getResourcePath } from '../utils/resources-path';
+import { generateThumbnailForResource } from '../utils/thumbnail';
 
 // 默认文件夹配置
 const DEFAULT_FOLDERS = {

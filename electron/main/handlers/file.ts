@@ -1,5 +1,6 @@
-import { dialog, ipcMain, shell } from 'electron';
 import * as fs from 'node:fs/promises';
+
+import { dialog, ipcMain, shell } from 'electron';
 
 // Generic file/directory selection handlers
 export function initFileHandlers(_win: Electron.BrowserWindow): void {

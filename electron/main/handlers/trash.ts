@@ -1,4 +1,5 @@
 import { ipcMain } from 'electron';
+
 import { RecycleBinRepo } from '../db/repositories';
 
 export function initTrashHandlers(): void {

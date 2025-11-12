@@ -1,8 +1,9 @@
 import { BrowserWindow, ipcMain } from 'electron';
-import { insertVectors, searchVectors, deleteVectors, VectorInsertItem } from '../db';
-import { TransformersEmbeddingProvider } from '../embedding/transformers';
+
+import { deleteVectors, insertVectors, searchVectors, VectorInsertItem } from '../db';
 import { fitToDim } from '../embedding/provider';
 import { embeddingQueue } from '../embedding/queue';
+import { TransformersEmbeddingProvider } from '../embedding/transformers';
 
 // Default to a small multilingual local model (384d) for offline speed.
 // You can switch to 1536 if using OpenAI provider later.

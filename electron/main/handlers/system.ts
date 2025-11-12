@@ -1,6 +1,8 @@
-import { app, ipcMain, shell } from 'electron';
-import path from 'node:path';
 import fs from 'node:fs';
+import path from 'node:path';
+
+import { app, ipcMain, shell } from 'electron';
+
 import { Env } from '../utils';
 import { getResourcePath } from '../utils/resources-path';
 
