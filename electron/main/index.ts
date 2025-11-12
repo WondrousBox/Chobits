@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
 
-import { initWorkflowSystem } from '../workflow/index';
+import { initWorkflowSystem } from '../../packages/workflow/index';
 import { initHandlers } from './handlers';
 import { logger } from './logger';
 import { addAllowedResourceRoot, addWorkspaceResourceRoot, setupResourceProtocol } from './resource-protocol';
