@@ -1,7 +1,8 @@
-import React from 'react';
-import { TbDownload, TbLoader2 } from 'react-icons/tb';
+import React, { useState } from 'react';
+import { TbDownload, TbLoader2, TbTrash } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 import type { InstalledResource, PluginDefinition } from './types';
 
@@ -12,6 +13,7 @@ interface PluginListItemProps {
   onInstall: (pluginId: string, resourceId: string) => void;
   onCancel: (id: string) => void;
   onRetry: (id: string) => void;
+  onRemove?: (id: string) => void;
 }
 
 // 轻量状态徽章组件
@@ -31,9 +33,11 @@ const StatusBadge: React.FC<{ status?: string }> = ({ status }) => {
   return <span className={'text-[10px] px-1.5 py-0.5 rounded ' + info.cls}>{info.label}</span>;
 };
 
-export const PluginListItem: React.FC<PluginListItemProps> = ({ resource, installedResource, isInstalling, onInstall, onCancel, onRetry }) => {
+export const PluginListItem: React.FC<PluginListItemProps> = ({ resource, installedResource, isInstalling, onInstall, onCancel, onRetry, onRemove }) => {
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const status = installedResource?.status as string | undefined;
   const percent = installedResource?.sizeBytes ? Math.round((((installedResource?.progressBytes as number) || 0) / ((installedResource?.sizeBytes as number) || 1)) * 100) : 0;
+  const isInstalled = status === 'installed';
 
   const content = (
     <>
@@ -63,15 +67,26 @@ export const PluginListItem: React.FC<PluginListItemProps> = ({ resource, instal
             </span>
           </div>
         )}
+        {status === 'queued' && <div className="text-[10px] text-muted-foreground">排队中…</div>}
         {status === 'extracting' && <div className="text-[10px] text-muted-foreground">解压中…</div>}
         {status === 'verifying' && <div className="text-[10px] text-muted-foreground">校验中…</div>}
-        {status === 'failed' && <div className="text-[10px] text-red-500">安装失败，可重试</div>}
+        {status === 'failed' && <div className="text-[10px] text-red-500">安装失败{installedResource?.lastError ? `: ${installedResource.lastError}` : '，可重试'}</div>}
       </div>
       <div className="ml-3 flex items-center gap-1">
-        {status === 'downloading' && installedResource?.id && <Button onClick={() => onCancel(installedResource.id)}>取消</Button>}
+        {['queued', 'downloading', 'extracting', 'verifying'].includes(status || '') && installedResource?.id && (
+          <Button size="sm" variant={'outline'} onClick={() => onCancel(installedResource.id)}>
+            取消
+          </Button>
+        )}
         {['failed', 'cancelled'].includes(status || '') && installedResource?.id && (
           <Button size="sm" variant={'outline'} onClick={() => onRetry(installedResource.id)}>
             重试
+          </Button>
+        )}
+        {isInstalled && installedResource?.id && onRemove && (
+          <Button size="sm" variant={'outline'} onClick={() => setShowDeleteDialog(true)}>
+            <TbTrash />
+            删除
           </Button>
         )}
         {!status && (
@@ -92,7 +107,35 @@ export const PluginListItem: React.FC<PluginListItemProps> = ({ resource, instal
     </>
   );
 
-  return <div className="border p-3 rounded flex items-center justify-between bg-background/60">{content}</div>;
+  return (
+    <>
+      <div className="border p-3 rounded flex items-center justify-between bg-background/60">{content}</div>
+      {onRemove && installedResource?.id && (
+        <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>删除插件</DialogTitle>
+              <DialogDescription>确定要删除 &quot;{resource.displayName || resource.name}&quot; 吗？此操作将从列表中移除该插件，但不会删除已下载的文件。</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+                取消
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  onRemove(installedResource.id);
+                  setShowDeleteDialog(false);
+                }}
+              >
+                删除
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
+  );
 };
 
 export { StatusBadge };
