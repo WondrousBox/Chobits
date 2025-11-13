@@ -90,7 +90,7 @@
             "arch": "all",
             "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.bin",
             "sizeBytes": 1420000000,
-            "sha256": "3"
+            "sha256": "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b"
           }
         ]
       },
