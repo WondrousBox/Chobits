@@ -2,7 +2,7 @@
   {
     "id": "blank",
     "name": "空白工作流",
-    "description": "空白的起始工作流模板",
+    "description": "空白的起始工作流模板，可以在此基础上添加节点",
     "nodes": [
       { "id": "start", "type": "core/start", "x": 120, "y": 180 },
       { "id": "end", "type": "core/end", "x": 620, "y": 180 }
@@ -12,8 +12,8 @@
   },
   {
     "id": "sample:ocr",
-    "name": "图片 OCR 示例",
-    "description": "加载图片 -> OCR -> 结束",
+    "name": "文字识别 (OCR)",
+    "description": "识别并提取图片中的文字",
     "nodes": [
       { "id": "start", "type": "core/start", "x": 0, "y": 34 },
       { "id": "load", "type": "resource/load", "x": 332, "y": 0 },
@@ -29,8 +29,8 @@
   },
   {
     "id": "sample:transcribe",
-    "name": "Whisper转录示例",
-    "description": "加载媒体 -> Whisper 转录 -> 结束",
+    "name": "语音转文字 (Whisper)",
+    "description": "调用 Whisper 将语音转换为文字",
     "nodes": [
       { "id": "start", "type": "core/start", "x": 0, "y": 42.5 },
       { "id": "load", "type": "resource/load", "x": 332, "y": 8.5 },
@@ -46,12 +46,12 @@
   },
   {
     "id": "sample:transcode",
-    "name": "视频转码示例",
-    "description": "加载视频 -> 转码为MP3 -> 结束",
+    "name": "视频转MP3",
+    "description": "调用 FFmpeg 将视频转换为高质量MP3音频文件",
     "nodes": [
       { "id": "start", "type": "core/start", "x": 0, "y": 34 },
       { "id": "load", "type": "resource/load", "x": 332, "y": 0 },
-      { "id": "transcode", "type": "media/transcode", "x": 676, "y": 34, "config": { "format": "mp3", "quality": "medium" } },
+      { "id": "transcode", "type": "media/transcode", "x": 676, "y": 34, "config": { "format": "mp3", "quality": "high" } },
       { "id": "end", "type": "core/end", "x": 1047, "y": 34 }
     ],
     "edges": [

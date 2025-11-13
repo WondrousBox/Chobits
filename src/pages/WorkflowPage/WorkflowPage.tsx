@@ -4,6 +4,7 @@ import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
@@ -28,7 +29,7 @@ const WorkflowPage: React.FC = () => {
   const [filter, setFilter] = useState('');
   const [refreshTick, setRefreshTick] = useState(0);
   const [runsByWorkflow, setRunsByWorkflow] = useState<Record<string, RunBrief | undefined>>({});
-  const [validationMap, setValidationMap] = useState<Record<string, boolean | undefined>>({});
+  const [validationMap, setValidationMap] = useState<Record<string, { ok: boolean; errors?: string[]; missingPlugins?: { id: string; hint?: string }[] } | undefined>>({});
   const [showPresetDialog, setShowPresetDialog] = useState(false);
   const [presets, setPresets] = useState<WorkflowBrief[]>([]);
   const [selectedPresetId, setSelectedPresetId] = useState<string>('');
@@ -43,7 +44,9 @@ const WorkflowPage: React.FC = () => {
           setPresetIds(new Set(presetList.map((p) => p.id)));
         }
       })
-      .catch(() => { });
+      .catch(() => {
+        //
+      });
 
     invoke('wf:listDefinitions')
       .then((defs: WorkflowBrief[]) => {
@@ -62,7 +65,9 @@ const WorkflowPage: React.FC = () => {
         }
         setRunsByWorkflow(map);
       })
-      .catch(() => { });
+      .catch(() => {
+        //
+      });
 
     return () => {
       mounted = false;
@@ -78,9 +83,9 @@ const WorkflowPage: React.FC = () => {
         entries.map(async (d) => {
           try {
             const res = await invoke('wf:validate', { def: d });
-            return [d.id, !!res?.ok] as const;
+            return [d.id, res] as const;
           } catch {
-            return [d.id, false] as const;
+            return [d.id, { ok: false, errors: ['校验失败'] }] as const;
           }
         })
       );
@@ -172,6 +177,33 @@ const WorkflowPage: React.FC = () => {
     }
   };
 
+  const installPlugin = async (e: React.MouseEvent, pluginId: string): Promise<void> => {
+    e.stopPropagation();
+    try {
+      // 查找插件资源定义
+      const supportedPlugins = await window.YUA.pluginResource['plugin-resource:listSupported']();
+      // 工作流插件 ID 格式是 plugin:xxx，查找对应的引擎资源（type === 'engine'）
+      const pluginResource = supportedPlugins.find((p: any) => p.pluginId === pluginId && p.type === 'engine');
+      if (!pluginResource) {
+        alert(`未找到插件资源: ${pluginId}\n请前往插件管理页面安装`);
+        return;
+      }
+      // 安装插件
+      const result = await window.YUA.pluginResource['plugin-resource:install']({
+        pluginId: pluginResource.pluginId,
+        resourceId: pluginResource.id
+      });
+      if (result.ok) {
+        // 安装成功后，重新校验工作流
+        setRefreshTick((t) => t + 1);
+      } else {
+        alert(`安装失败: ${result.error || '未知错误'}`);
+      }
+    } catch (err: any) {
+      alert(`安装插件失败: ${err?.message || String(err)}`);
+    }
+  };
+
   return (
     <div className="h-full w-full flex flex-col bg-background text-foreground">
       <DragAbleTitle
@@ -241,10 +273,47 @@ const WorkflowPage: React.FC = () => {
                       <TableCell className="text-center">
                         {validationStatus === undefined ? (
                           <span className="text-xs text-muted-foreground">校验中</span>
-                        ) : validationStatus ? (
+                        ) : validationStatus.ok ? (
                           <span className="text-xs px-2 py-0.5 rounded bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20">通过</span>
                         ) : (
-                          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20">需修复</span>
+                          <Popover>
+                            <PopoverTrigger asChild onClick={(e) => e.stopPropagation()}>
+                              <button className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20 hover:bg-yellow-500/20 transition-colors cursor-pointer">
+                                点击修复
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-80" onClick={(e) => e.stopPropagation()}>
+                              <div className="space-y-3">
+                                <div className="font-medium text-sm">校验失败原因</div>
+                                {validationStatus.errors && validationStatus.errors.length > 0 && (
+                                  <div className="space-y-1">
+                                    <div className="text-xs font-medium text-muted-foreground">错误信息：</div>
+                                    {validationStatus.errors.map((error, idx) => (
+                                      <div key={idx} className="text-xs text-destructive">
+                                        • {error}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                {validationStatus.missingPlugins && validationStatus.missingPlugins.length > 0 && (
+                                  <div className="space-y-2">
+                                    <div className="text-xs font-medium text-muted-foreground">缺少插件：</div>
+                                    {validationStatus.missingPlugins.map((plugin, idx) => (
+                                      <div key={idx} className="flex items-center justify-between gap-2">
+                                        <div className="flex-1">
+                                          <div className="text-xs font-medium">{plugin.id}</div>
+                                          {plugin.hint && <div className="text-xs text-muted-foreground">{plugin.hint}</div>}
+                                        </div>
+                                        <Button size="sm" variant="outline" onClick={(e) => installPlugin(e, plugin.id)}>
+                                          安装
+                                        </Button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </PopoverContent>
+                          </Popover>
                         )}
                       </TableCell>
                       <TableCell className="text-center">
