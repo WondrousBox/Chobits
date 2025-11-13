@@ -342,7 +342,13 @@ export class WindowManager {
     return w && !w.isDestroyed() ? w : null;
   }
 
-  async createOrShow(key: WindowKey, payload?: any): Promise<BrowserWindow | null> {
+  async createOrShow(
+    key: WindowKey,
+    payload?: any,
+    options?: {
+      beforeShow?: (win: BrowserWindow) => void;
+    }
+  ): Promise<BrowserWindow | null> {
     let w = this.get(key);
     if (!w) w = await this.create(key);
     if (!w) return null;
@@ -364,6 +370,11 @@ export class WindowManager {
           //
         }
       }
+    }
+    try {
+      options?.beforeShow?.(w);
+    } catch (error) {
+      console.warn(`windowManager beforeShow for '${String(key)}' failed`, error);
     }
     try {
       if (!w.isVisible()) {
@@ -393,19 +404,27 @@ export class WindowManager {
   }
 
   async createOrShowOnDisplay(key: WindowKey, display: Electron.Display, payload?: any): Promise<BrowserWindow | null> {
-    const w = await this.createOrShow(key, payload);
+    const w = await this.createOrShow(key, payload, {
+      beforeShow: (win) => {
+        try {
+          if (!display) return;
+          const bounds = win.getBounds();
+          const work = display.workArea;
+          const width = bounds.width;
+          const height = bounds.height;
+          const x = Math.round(work.x + (work.width - width) / 2);
+          const y = Math.round(work.y + (work.height - height) / 2);
+          win.setBounds({ x, y, width, height });
+        } catch (error) {
+          console.warn(`Failed to pre-position window '${String(key)}' on display`, error);
+        }
+      }
+    });
     if (!w || !display) return w;
     try {
-      const bounds = w.getBounds();
-      const work = display.workArea;
-      const width = bounds.width;
-      const height = bounds.height;
-      const x = Math.round(work.x + (work.width - width) / 2);
-      const y = Math.round(work.y + (work.height - height) / 2);
-      w.setBounds({ x, y, width, height });
       w.focus();
-    } catch (error) {
-      console.warn(`Failed to position window '${String(key)}' on display`, error);
+    } catch {
+      //
     }
     return w;
   }
