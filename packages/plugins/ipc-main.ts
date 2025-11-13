@@ -84,8 +84,10 @@ export function init(win: BrowserWindow): void {
       return { ok: false, error: 'PLATFORM_NOT_SUPPORTED' };
     }
 
-    // 构建确定性资源ID：pluginId:version[:sha256]
-    const deterministicId = `${pluginDef.pluginId}:${pluginDef.version}${platformInfo.sha256 ? `:${platformInfo.sha256}` : ''}`;
+    // 构建确定性资源ID：pluginId_version[_sha256]
+    // 清理 pluginId 中的冒号，使用下划线替代，避免 Windows 文件名不兼容问题
+    const sanitizedPluginId = pluginDef.pluginId.replace(/:/g, '_');
+    const deterministicId = `${sanitizedPluginId}_${pluginDef.version}${platformInfo.sha256 ? `_${platformInfo.sha256}` : ''}`;
 
     // 如果已存在同ID资源，避免重复安装
     const existing = PluginResourceStore.get(deterministicId);
