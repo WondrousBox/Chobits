@@ -103,11 +103,10 @@ export class NodeDownloaderHelper implements Downloader {
         if (isAborted) return;
 
         // stats 可能包含: { progress, speed, downloaded, total, eta }
-        // speed 可能是 KB/s，需要转换为字节/秒
+        // speed 是字节/秒（B/s）
         const downloaded = stats.downloaded || 0;
         const total = stats.total;
-        const speedKBps = stats.speed; // KB/s
-        const speedBps = speedKBps ? speedKBps * 1024 : undefined;
+        const speedBps = stats.speed; // 字节/秒
         const etaSeconds = stats.eta; // 秒
         const etaMs = etaSeconds ? etaSeconds * 1000 : undefined;
         // 计算百分比
