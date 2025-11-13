@@ -92,7 +92,7 @@ const PluginPage: React.FC<PluginPageProps> = ({ hideTitleBar }: PluginPageProps
   const install = async (pluginId: string, resourceId: string): Promise<void> => {
     setInstalling(resourceId);
     try {
-      const res = await window.YUA.pluginResource['plugin-resource:install']({ pluginId, resourceId });
+      const res = await window.YUA.pluginResource['plugin-resource:install']({ pluginId, resourceId, deleteAfterInstall: true });
       if (res.ok && res.data) {
         const data: InstalledResource = res.data;
         // 进度事件会通过监听器更新，这里确保资源已添加到列表
@@ -123,7 +123,8 @@ const PluginPage: React.FC<PluginPageProps> = ({ hideTitleBar }: PluginPageProps
     if (!resource) return;
     const res = await window.YUA.pluginResource['plugin-resource:install']({
       pluginId: resource.pluginId,
-      resourceId: resource.name
+      resourceId: resource.name,
+      deleteAfterInstall: true
     });
     if (res.ok) {
       setInstalled((prev) => prev.map((m) => (m.id === id ? { ...m, status: 'queued', progressBytes: 0 } : m)));

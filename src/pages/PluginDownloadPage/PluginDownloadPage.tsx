@@ -16,6 +16,7 @@ interface PluginDownloadProgress {
   totalBytes?: number;
   speedBps?: number;
   etaMs?: number;
+  percentage?: number;
   error?: string;
 }
 
@@ -64,6 +65,7 @@ const PluginDownloadPage: React.FC = () => {
           totalBytes: info.totalBytes !== undefined ? info.totalBytes : existing?.totalBytes,
           speedBps: info.speedBps !== undefined ? info.speedBps : existing?.speedBps,
           etaMs: info.etaMs !== undefined ? info.etaMs : existing?.etaMs,
+          percentage: info.percentage !== undefined ? info.percentage : existing?.percentage,
           error: info.error !== undefined ? info.error : existing?.error
         });
         return next;
@@ -88,10 +90,6 @@ const PluginDownloadPage: React.FC = () => {
         return next;
       });
     }
-  };
-
-  const handleClose = (): void => {
-    window.YUA.window['window:close']('pluginDownload');
   };
 
   const getStatusIcon = (status: string): React.ReactNode => {
@@ -159,6 +157,7 @@ const PluginDownloadPage: React.FC = () => {
   };
 
   const getProgressPercent = (item: PluginDownloadProgress): number => {
+    if (item.percentage !== undefined) return item.percentage;
     if (!item.totalBytes || item.totalBytes === 0) return 0;
     return Math.min(100, Math.max(0, (item.doneBytes / item.totalBytes) * 100));
   };

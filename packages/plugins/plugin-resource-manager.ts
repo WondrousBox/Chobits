@@ -45,6 +45,7 @@ export interface DownloadProgress {
   totalBytes?: number;
   speedBps?: number;
   etaMs?: number;
+  percentage?: number;
   error?: string;
 }
 
@@ -258,27 +259,36 @@ class PluginResourceManager extends EventEmitter {
     const archiveType = task.resource.archiveType || 'none';
     const installDir = path.dirname(task.resource.installPath!);
 
-    // 下载文件到下载目录
-    // 从URL中提取文件名，如果无法提取则使用资源名称
-    let urlFileName: string;
-    try {
-      const urlObj = new URL(url);
-      urlFileName = path.basename(urlObj.pathname) || '';
-    } catch {
-      urlFileName = '';
+    // 对于非压缩包文件，直接下载到目标目录（带.download后缀）
+    // 对于压缩包文件，下载到下载目录
+    let downloadFile: string;
+    if (archiveType === 'none') {
+      // 非压缩包：直接下载到目标位置，使用.download后缀
+      downloadFile = `${task.resource.installPath!}.download`;
+      // 确保目标目录存在
+      fs.mkdirSync(installDir, { recursive: true });
+    } else {
+      // 压缩包：下载到下载目录
+      // 从URL中提取文件名，如果无法提取则使用资源名称
+      let urlFileName: string;
+      try {
+        const urlObj = new URL(url);
+        urlFileName = path.basename(urlObj.pathname) || '';
+      } catch {
+        urlFileName = '';
+      }
+      if (!urlFileName) {
+        urlFileName = `${task.resource.name}.${archiveType}`;
+      }
+      // 清理文件名中的非法字符（Windows 不允许的字符）
+      const sanitizeFileName = (fileName: string): string => {
+        // Windows 不允许的字符: < > : " / \ | ? *
+        return fileName.replace(/[<>:"/\\|?*]/g, '_');
+      };
+      const sanitizedId = sanitizeFileName(task.resource.id);
+      const sanitizedUrlFileName = sanitizeFileName(urlFileName);
+      downloadFile = path.join(this.downloadDir, `${sanitizedId}-${sanitizedUrlFileName}`);
     }
-    if (!urlFileName) {
-      const ext = archiveType === 'none' ? 'bin' : archiveType;
-      urlFileName = `${task.resource.name}.${ext}`;
-    }
-    // 清理文件名中的非法字符（Windows 不允许的字符）
-    const sanitizeFileName = (fileName: string): string => {
-      // Windows 不允许的字符: < > : " / \ | ? *
-      return fileName.replace(/[<>:"/\\|?*]/g, '_');
-    };
-    const sanitizedId = sanitizeFileName(task.resource.id);
-    const sanitizedUrlFileName = sanitizeFileName(urlFileName);
-    const downloadFile = path.join(this.downloadDir, `${sanitizedId}-${sanitizedUrlFileName}`);
 
     try {
       console.log('[PluginDL] start download', { id: task.resource.id, url, downloadFile });
@@ -292,41 +302,59 @@ class PluginResourceManager extends EventEmitter {
             doneBytes: p.doneBytes,
             totalBytes: p.totalBytes,
             speedBps: p.speedBps,
-            etaMs: p.etaMs
+            etaMs: p.etaMs,
+            percentage: p.percentage
           });
         },
         task.controller?.signal
       );
 
-      // 验证SHA256校验和
-      if (task.resource.sha256) {
-        task.resource.status = 'verifying';
-        this.emitProgress(task.resource.id, { status: 'verifying' });
-        console.log('[PluginDL] verifying', { id: task.resource.id, downloadFile });
-
-        // 使用公共方法计算文件hash
-        const digest = await calculateFileHash(downloadFile);
-        if (digest !== task.resource.sha256) {
-          console.error('[PluginDL] checksum mismatch', { id: task.resource.id, expect: task.resource.sha256, got: digest });
-          fs.unlinkSync(downloadFile);
-          throw new Error('CHECKSUM_MISMATCH');
-        }
-      }
-
       // 从下载目录解压或移动到安装位置
       if (archiveType !== 'none') {
+        // 压缩包：先验证hash（如果提供），然后解压
+        if (task.resource.sha256) {
+          task.resource.status = 'verifying';
+          this.emitProgress(task.resource.id, { status: 'verifying' });
+          console.log('[PluginDL] verifying', { id: task.resource.id, downloadFile });
+
+          // 使用公共方法计算文件hash
+          const digest = await calculateFileHash(downloadFile);
+          if (digest !== task.resource.sha256) {
+            console.error('[PluginDL] checksum mismatch', { id: task.resource.id, expect: task.resource.sha256, got: digest });
+            fs.unlinkSync(downloadFile);
+            throw new Error('CHECKSUM_MISMATCH');
+          }
+        }
+
         task.resource.status = 'extracting';
         this.emitProgress(task.resource.id, { status: 'extracting' });
         console.log('[PluginDL] extracting', { id: task.resource.id, archive: downloadFile, to: installDir, type: archiveType });
         // 从下载目录解压到安装目录
         await this.extractArchive(downloadFile, installDir, archiveType, task.resource.extractTo, task);
       } else {
-        // 直接移动文件到安装位置
+        // 非压缩包：验证hash（如果提供），然后重命名去除.download后缀
+        if (task.resource.sha256) {
+          task.resource.status = 'verifying';
+          this.emitProgress(task.resource.id, { status: 'verifying' });
+          console.log('[PluginDL] verifying', { id: task.resource.id, downloadFile });
+
+          // 使用公共方法计算文件hash
+          const digest = await calculateFileHash(downloadFile);
+          if (digest !== task.resource.sha256) {
+            console.error('[PluginDL] checksum mismatch', { id: task.resource.id, expect: task.resource.sha256, got: digest });
+            fs.unlinkSync(downloadFile);
+            throw new Error('CHECKSUM_MISMATCH');
+          }
+        }
+
+        // 重命名去除.download后缀（在同一目录下，使用renameSync即可）
+        console.log('[PluginDL] finalizing', { id: task.resource.id, from: downloadFile, to: task.resource.installPath });
         fs.renameSync(downloadFile, task.resource.installPath!);
       }
 
       // 根据参数决定是否删除下载文件（默认不删除）
-      if (task.deleteAfterInstall && fs.existsSync(downloadFile)) {
+      // 注意：对于非压缩包文件，downloadFile已经是.download文件，已经被重命名了，所以这里只需要处理压缩包
+      if (archiveType !== 'none' && task.deleteAfterInstall && fs.existsSync(downloadFile)) {
         try {
           fs.unlinkSync(downloadFile);
           console.log('[PluginDL] removed archive after install', { id: task.resource.id });

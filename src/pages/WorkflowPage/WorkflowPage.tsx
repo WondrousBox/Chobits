@@ -191,7 +191,8 @@ const WorkflowPage: React.FC = () => {
       // 安装插件
       const result = await window.YUA.pluginResource['plugin-resource:install']({
         pluginId: pluginResource.pluginId,
-        resourceId: pluginResource.id
+        resourceId: pluginResource.id,
+        deleteAfterInstall: true
       });
       if (result.ok) {
         // 安装成功后，重新校验工作流

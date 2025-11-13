@@ -251,7 +251,8 @@ const WorkflowCanvasInner: React.FC = () => {
       }
       const result = await installFn({
         pluginId: pluginResource.pluginId,
-        resourceId: pluginResource.id
+        resourceId: pluginResource.id,
+        deleteAfterInstall: true
       });
       if (result?.ok) {
         toast.success('插件安装成功', { description: pluginId });
