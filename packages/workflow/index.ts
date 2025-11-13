@@ -1,7 +1,7 @@
 // Entry point to register workflow system
 import path from 'node:path';
 
-import { app, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 
 import { createEngine } from './engine';
 import { DocToMarkdownNode } from './nodes/doc-to-md';
@@ -35,14 +35,24 @@ export function initWorkflowSystem(): void {
   // expose engine via closure only (no global)
 
   // Persist run updates
+  const broadcast = (channel: string, payload: any): void => {
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed()) {
+        win.webContents.send(channel, payload);
+      }
+    });
+  };
+
   engine.onTyped('run:status', async (rec) => {
     await WorkflowStore.updateRun(rec).catch(() => { });
-    if (rec.status === 'completed' || rec.status === 'failed' || rec.status === 'canceled') {
-      // final state maybe broadcast
-    }
+    broadcast('wf:run-status', rec);
   });
-  engine.onTyped('node:status', async (rec) => {
+  engine.onTyped('node:status', async (rec, node) => {
     await WorkflowStore.updateRun(rec).catch(() => { });
+    broadcast('wf:node-status', { runId: rec.runId, workflowId: rec.workflowId, node });
+  });
+  engine.onTyped('run:log', (runId, entry) => {
+    broadcast('wf:run-log', { runId, entry });
   });
 
   // IPC endpoints
@@ -114,4 +124,5 @@ export function initWorkflowSystem(): void {
     await engine.cancel(payload.runId);
     return { ok: true };
   });
+  ipcMain.handle('wf:getRunLogs', async (_e, payload: { runId: string }) => engine.getRunLogs(payload.runId));
 }

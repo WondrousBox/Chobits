@@ -1,7 +1,7 @@
 import 'reactflow/dist/style.css';
 
 import { nanoid } from 'nanoid';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, {
   addEdge,
   Background,
@@ -22,7 +22,7 @@ import { toast } from 'sonner';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { ResourceItem } from '@/types';
-import { NodeSpec, WorkflowDraft } from '@/types/workflow';
+import { ExecutionStatus, NodeSpec, WorkflowDraft, WorkflowRunLogEntry } from '@/types/workflow';
 
 import FloatingActions from './FloatingActions';
 import FloatingInspector from './FloatingInspector';
@@ -32,6 +32,7 @@ import ResourceRunPopover from './ResourceRunPopover';
 import SpecNode from './SpecNode';
 import type { NodeData } from './types';
 import WorkflowJsonDialog from './WorkflowJsonDialog';
+import WorkflowRunConsole from './WorkflowRunConsole';
 
 // IPC helper
 const invoke = window.ipcRenderer.invoke;
@@ -75,6 +76,11 @@ const WorkflowCanvasInner: React.FC = () => {
   const [running, setRunning] = useState(false);
   const [showJsonDialog, setShowJsonDialog] = useState(false);
   const [isPresetWorkflow, setIsPresetWorkflow] = useState(false);
+  const [currentRunId, setCurrentRunId] = useState<string | null>(null);
+  const currentRunIdRef = useRef<string | null>(null);
+  const [runLogs, setRunLogs] = useState<WorkflowRunLogEntry[]>([]);
+  const [runStatus, setRunStatus] = useState<ExecutionStatus | null>(null);
+  const [consoleCollapsed, setConsoleCollapsed] = useState(true);
   const selectedNode = useMemo(() => draft?.nodes.find((n) => n.id === selectedNodeId), [draft, selectedNodeId]);
 
   // Load existing workflow definition if payload provides id, or load preset template if presetId is provided
@@ -367,6 +373,11 @@ const WorkflowCanvasInner: React.FC = () => {
           toast.error('工作流执行失败', { description });
           return;
         }
+        currentRunIdRef.current = result.runId;
+        setCurrentRunId(result.runId);
+        setRunLogs([]);
+        setRunStatus('queued');
+        setConsoleCollapsed(false); // 运行时自动展开日志面板
         toast.success('工作流已开始执行', { description: resource.title || resource.filePath || resource.id });
         try {
           eventCh.postMessage({ type: 'run-started', defId: draft.id, resourceId: resource.id });
@@ -381,6 +392,10 @@ const WorkflowCanvasInner: React.FC = () => {
     },
     [draft, eventCh]
   );
+
+  const handleClearLogs = useCallback(() => {
+    setRunLogs([]);
+  }, []);
 
   const performLayout = useCallback((): void => {
     const layoutedNodes = autoLayout(nodes as Node<NodeData>[], edges);
@@ -403,6 +418,135 @@ const WorkflowCanvasInner: React.FC = () => {
     };
     return JSON.stringify(backendDef, null, 2);
   }, [draft]);
+
+  // 监听工作流运行状态和日志
+  useEffect(() => {
+    const handleRunStatus = (_e: any, rec: any) => {
+      if (rec.workflowId === draft?.id) {
+        setRunStatus(rec.status);
+        if (rec.status === 'running') {
+          currentRunIdRef.current = rec.runId;
+          setCurrentRunId(rec.runId);
+          setRunLogs([]);
+          setConsoleCollapsed(false); // 运行时自动展开日志面板
+          // 重置所有节点状态
+          setNodes((nds) =>
+            (nds as any[]).map((n: any) => ({
+              ...n,
+              data: { ...n.data, runtime: { nodeId: n.id, status: 'pending' } }
+            }))
+          );
+          // 重置所有边的样式
+          setEdges((eds) =>
+            eds.map((e) => ({
+              ...e,
+              animated: false,
+              style: {}
+            }))
+          );
+          // 加载历史日志
+          invoke('wf:getRunLogs', { runId: rec.runId })
+            .then((logs: WorkflowRunLogEntry[]) => {
+              if (Array.isArray(logs)) {
+                setRunLogs(logs);
+              }
+            })
+            .catch(() => { });
+        } else if (rec.status === 'completed' || rec.status === 'failed' || rec.status === 'canceled') {
+          currentRunIdRef.current = null;
+          // 更新所有节点状态
+          setNodes((nds) =>
+            (nds as any[]).map((n: any) => {
+              const nodeState = rec.nodes?.[n.id];
+              if (nodeState) {
+                return { ...n, data: { ...n.data, runtime: nodeState } };
+              }
+              return n;
+            })
+          );
+          // 重置所有边的样式
+          setEdges((eds) =>
+            eds.map((e) => ({
+              ...e,
+              animated: false,
+              style: {}
+            }))
+          );
+        }
+      }
+    };
+
+    const handleNodeStatus = (_e: any, payload: any) => {
+      if (payload.workflowId === draft?.id && payload.runId === currentRunIdRef.current) {
+        const nodeState = payload.node;
+        // 更新节点状态
+        setNodes((nds) =>
+          (nds as any[]).map((n: any) => {
+            if (n.id === nodeState.nodeId) {
+              return { ...n, data: { ...n.data, runtime: nodeState } };
+            }
+            return n;
+          })
+        );
+        // 更新边的流动效果
+        if (nodeState.status === 'running') {
+          // 高亮当前节点到下游的所有边，并清除其他边的高亮
+          setEdges((eds) =>
+            eds.map((e) =>
+              e.source === nodeState.nodeId
+                ? {
+                  ...e,
+                  animated: true,
+                  style: { stroke: '#22d3ee', strokeWidth: 3 }
+                }
+                : {
+                  ...e,
+                  animated: false,
+                  style: {}
+                }
+            )
+          );
+        } else if (nodeState.status === 'completed' || nodeState.status === 'failed') {
+          // 节点完成后，移除该节点出发的边的高亮
+          setEdges((eds) =>
+            eds.map((e) =>
+              e.source === nodeState.nodeId
+                ? {
+                  ...e,
+                  animated: false,
+                  style: {}
+                }
+                : e
+            )
+          );
+        }
+      }
+    };
+
+    const handleRunLog = (_e: any, payload: any) => {
+      // 检查是否匹配当前工作流的运行ID
+      if (payload.runId === currentRunIdRef.current) {
+        setRunLogs((prev) => {
+          const next = [...prev, payload.entry];
+          // 限制日志数量
+          if (next.length > 1000) {
+            return next.slice(-1000);
+          }
+          return next;
+        });
+      }
+    };
+
+    window.ipcRenderer.on('wf:run-status', handleRunStatus);
+    window.ipcRenderer.on('wf:node-status', handleNodeStatus);
+    window.ipcRenderer.on('wf:run-log', handleRunLog);
+
+    return () => {
+      window.ipcRenderer.off('wf:run-status', handleRunStatus);
+      window.ipcRenderer.off('wf:node-status', handleNodeStatus);
+      window.ipcRenderer.off('wf:run-log', handleRunLog);
+    };
+  }, [draft?.id, setNodes, setEdges]);
 
   // 当节点初始化完成后，自动适配视图
   useEffect(() => {
@@ -439,43 +583,58 @@ const WorkflowCanvasInner: React.FC = () => {
         }
       />
 
-      {/* 画布容器：占满除标题外的全部空间 */}
-      <div className="relative flex-1 min-h-0">
-        {/* ReactFlow 充满容器 */}
-        <div className="absolute inset-0">
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onNodeClick={(_e: React.MouseEvent, n: any) => setSelectedNodeId(n.id)}
-            onPaneClick={() => setSelectedNodeId(null)}
-            nodeTypes={nodeTypes}
-          >
-            <Background />
-            <MiniMap className="bg-background text-foreground" zoomable pannable />
-            <Controls />
-          </ReactFlow>
-          {loadingExisting && (
-            <div className="absolute inset-0 bg-background/70 backdrop-blur-sm flex items-center justify-center z-50 text-sm">
-              <div className="flex items-center gap-2">
-                <div className="h-4 w-4 rounded-full border-2 border-neutral-500 border-t-transparent animate-spin" />
-                <span>载入中...</span>
+      {/* 主内容区域：画布和日志面板 */}
+      <div className="relative flex-1 min-h-0 flex flex-col">
+        {/* 画布容器 */}
+        <div className={`relative flex-1 min-h-0 transition-all ${consoleCollapsed ? '' : 'pb-0'}`}>
+          {/* ReactFlow 充满容器 */}
+          <div className="absolute inset-0">
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              onNodeClick={(_e: React.MouseEvent, n: any) => setSelectedNodeId(n.id)}
+              onPaneClick={() => setSelectedNodeId(null)}
+              nodeTypes={nodeTypes}
+            >
+              <Background />
+              <MiniMap className="bg-background text-foreground" zoomable pannable />
+              <Controls />
+            </ReactFlow>
+            {loadingExisting && (
+              <div className="absolute inset-0 bg-background/70 backdrop-blur-sm flex items-center justify-center z-50 text-sm">
+                <div className="flex items-center gap-2">
+                  <div className="h-4 w-4 rounded-full border-2 border-neutral-500 border-t-transparent animate-spin" />
+                  <span>载入中...</span>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
+
+          <FloatingPalette specs={specs.filter((s) => s.id !== 'core/start' && s.id !== 'core/end')} onAdd={addSpecNode} />
+
+          {/* 右侧浮动属性面板：选中节点时显示 */}
+          <FloatingInspector
+            node={selectedNode ? (nodes.find((n) => n.id === selectedNode.id) as any) : null}
+            onChange={(updater: (prev: NodeData) => Partial<NodeData>) =>
+              setNodes((nds) => (nds as any[]).map((n: any) => (n.id === selectedNodeId ? { ...n, data: { ...n.data, ...updater(n.data as NodeData) } as any } : n)))
+            }
+          />
         </div>
 
-        <FloatingPalette specs={specs.filter((s) => s.id !== 'core/start' && s.id !== 'core/end')} onAdd={addSpecNode} />
-
-        {/* 右侧浮动属性面板：选中节点时显示 */}
-        <FloatingInspector
-          node={selectedNode ? (nodes.find((n) => n.id === selectedNode.id) as any) : null}
-          onChange={(updater: (prev: NodeData) => Partial<NodeData>) =>
-            setNodes((nds) => (nds as any[]).map((n: any) => (n.id === selectedNodeId ? { ...n, data: { ...n.data, ...updater(n.data as NodeData) } as any } : n)))
-          }
-        />
+        {/* 日志面板 */}
+        <div className={consoleCollapsed ? 'h-0 overflow-hidden' : 'h-[200px] min-h-[200px] flex-shrink-0'}>
+          <WorkflowRunConsole
+            logs={runLogs}
+            currentRunId={currentRunId}
+            collapsed={consoleCollapsed}
+            onToggle={() => setConsoleCollapsed((prev) => !prev)}
+            onClear={handleClearLogs}
+            status={runStatus}
+          />
+        </div>
       </div>
       <WorkflowJsonDialog open={showJsonDialog} onOpenChange={setShowJsonDialog} json={getWorkflowJson()} />
     </div>
