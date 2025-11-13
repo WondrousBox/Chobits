@@ -1,5 +1,16 @@
 [
   {
+    "id": "blank",
+    "name": "空白工作流",
+    "description": "空白的起始工作流模板",
+    "nodes": [
+      { "id": "start", "type": "core/start", "x": 120, "y": 180 },
+      { "id": "end", "type": "core/end", "x": 620, "y": 180 }
+    ],
+    "edges": [],
+    "options": { "concurrency": 1, "errorStrategy": "fail-fast" }
+  },
+  {
     "id": "sample:ocr",
     "name": "图片 OCR 示例",
     "description": "加载图片 -> OCR -> 结束",

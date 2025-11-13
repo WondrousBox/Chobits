@@ -2,7 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface WorkflowBrief {
   id: string;
@@ -26,6 +28,9 @@ const WorkflowPage: React.FC = () => {
   const [refreshTick, setRefreshTick] = useState(0);
   const [runsByWorkflow, setRunsByWorkflow] = useState<Record<string, RunBrief | undefined>>({});
   const [validationMap, setValidationMap] = useState<Record<string, boolean | undefined>>({});
+  const [showPresetDialog, setShowPresetDialog] = useState(false);
+  const [presets, setPresets] = useState<WorkflowBrief[]>([]);
+  const [selectedPresetId, setSelectedPresetId] = useState<string>('');
 
   useEffect(() => {
     let mounted = true;
@@ -108,7 +113,30 @@ const WorkflowPage: React.FC = () => {
   }, [list, filter]);
 
   const openNew = async (): Promise<void> => {
-    await window.YUA.window['window:open']('workflowBuilder' as any, { mode: 'create' });
+    // 加载预设工作流列表
+    try {
+      const presetList = await invoke('wf:listPresets');
+      if (presetList && presetList.length > 0) {
+        setPresets(presetList);
+        setShowPresetDialog(true);
+        return;
+      }
+    } catch (err) {
+      console.error('加载预设工作流失败:', err);
+    }
+    // 如果没有预设，使用默认的空白预设
+    await window.YUA.window['window:open']('workflowBuilder' as any, { mode: 'create', presetId: 'blank' });
+  };
+
+  const handleCreateFromPreset = async (): Promise<void> => {
+    if (selectedPresetId) {
+      await window.YUA.window['window:open']('workflowBuilder' as any, { mode: 'create', presetId: selectedPresetId });
+    } else {
+      // 如果没有选择，默认使用空白预设
+      await window.YUA.window['window:open']('workflowBuilder' as any, { mode: 'create', presetId: 'blank' });
+    }
+    setShowPresetDialog(false);
+    setSelectedPresetId('');
   };
 
   const openExisting = async (id: string): Promise<void> => {
@@ -191,6 +219,34 @@ const WorkflowPage: React.FC = () => {
           ))}
         </div>
       </div>
+      <Dialog open={showPresetDialog} onOpenChange={setShowPresetDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>选择预设模板</DialogTitle>
+            <DialogDescription>选择一个预设工作流模板来创建新工作流</DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Select value={selectedPresetId} onValueChange={setSelectedPresetId}>
+              <SelectTrigger>
+                <SelectValue placeholder="选择预设模板" />
+              </SelectTrigger>
+              <SelectContent>
+                {presets.map((preset) => (
+                  <SelectItem key={preset.id} value={preset.id}>
+                    {preset.name} {preset.description ? `- ${preset.description}` : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPresetDialog(false)}>
+              取消
+            </Button>
+            <Button onClick={handleCreateFromPreset}>创建</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

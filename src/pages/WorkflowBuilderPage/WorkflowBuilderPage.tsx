@@ -46,40 +46,14 @@ function useNodeSpecs(): NodeSpec[] {
 const START_NODE_ID = 'start';
 const END_NODE_ID = 'end';
 
-function buildInitialDraft(): WorkflowDraft {
-  return {
-    id: 'new-' + nanoid(6),
-    name: '新建工作流',
-    nodes: [
-      { id: START_NODE_ID, type: 'start', x: 120, y: 180, config: {}, inputDefaults: {} },
-      { id: END_NODE_ID, type: 'end', x: 620, y: 180, config: {}, inputDefaults: {} }
-    ],
-    edges: []
-  };
-}
-
 const WorkflowCanvasInner: React.FC = () => {
   const { fitView } = useReactFlow();
   const nodesInitialized = useNodesInitialized();
   const specs = useNodeSpecs();
-  const [draft, setDraft] = useState<WorkflowDraft>(buildInitialDraft());
-  const [loadingExisting, setLoadingExisting] = useState(false); // reserved for future loading indicator
+  const [draft, setDraft] = useState<WorkflowDraft | null>(null);
+  const [loadingExisting, setLoadingExisting] = useState(true); // 初始加载状态
   const [hasAutoFitted, setHasAutoFitted] = useState(false);
-  const initialNodes: Node<NodeData>[] = [
-    {
-      id: START_NODE_ID,
-      type: 'specNode',
-      position: { x: 120, y: 180 },
-      data: { label: '开始', specId: 'start', spec: { id: 'start', label: '开始', inputs: [], outputs: [{ key: 'result', type: 'any' }], category: 'core' }, config: {}, inputDefaults: {} }
-    },
-    {
-      id: END_NODE_ID,
-      type: 'specNode',
-      position: { x: 620, y: 180 },
-      data: { label: '结束', specId: 'end', spec: { id: 'end', label: '结束', inputs: [{ key: 'payload', type: 'any' }], outputs: [], category: 'core' }, config: {}, inputDefaults: {} }
-    }
-  ];
-  const [nodes, setNodes, rawOnNodesChange] = useNodesState<NodeData>(initialNodes);
+  const [nodes, setNodes, rawOnNodesChange] = useNodesState<NodeData>([]);
   // Wrap nodes change handler to prevent deletion of start/end
   const onNodesChange: OnNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -98,19 +72,30 @@ const WorkflowCanvasInner: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [showJsonDialog, setShowJsonDialog] = useState(false);
-  const selectedNode = useMemo(() => draft.nodes.find((n) => n.id === selectedNodeId), [draft, selectedNodeId]);
+  const selectedNode = useMemo(() => draft?.nodes.find((n) => n.id === selectedNodeId), [draft, selectedNodeId]);
 
-  // Load existing workflow definition if payload provides id
+  // Load existing workflow definition if payload provides id, or load preset template if presetId is provided
+  // If neither is provided, default to 'blank' preset
   useEffect(() => {
     (async () => {
       try {
         const payload = await window.YUA.window['window:payload:get']('workflowBuilder' as any);
+        let workflowDef: any = null;
+        let presetId: string | null = null;
+
         if (payload && payload.id) {
-          setLoadingExisting(true);
-          const existing = await invoke('wf:getDefinition', { id: payload.id }).catch(() => null);
-          if (existing && existing.nodes && existing.edges) {
-            // Map existing nodes into ReactFlow nodes (preserve start/end positions or fallback)
-            const rfNodes: Node<NodeData>[] = existing.nodes.map((n: any) => {
+          // 加载已存在的工作流
+          workflowDef = await invoke('wf:getDefinition', { id: payload.id }).catch(() => null);
+        } else {
+          // 从预设模板创建新工作流，如果没有提供 presetId，默认使用 'blank'
+          presetId = payload?.presetId || 'blank';
+          workflowDef = await invoke('wf:getDefinition', { id: presetId }).catch(() => null);
+        }
+
+        if (workflowDef && workflowDef.nodes && workflowDef.edges) {
+          if (payload && payload.id) {
+            // 加载已存在的工作流，保持原有 ID
+            const rfNodes: Node<NodeData>[] = workflowDef.nodes.map((n: any) => {
               const spec = specs.find((s) => s.id === n.type) || { id: n.type, label: n.type, inputs: [], outputs: [], category: 'core' };
               return {
                 id: n.id,
@@ -120,17 +105,66 @@ const WorkflowCanvasInner: React.FC = () => {
               } as Node<NodeData>;
             });
             setNodes(rfNodes as any);
-            setEdges((existing.edges || []).map((e: any) => ({ id: e.id, source: e.from.nodeId, target: e.to.nodeId, sourceHandle: e.from.port, targetHandle: e.to.port })) as any);
+            setEdges((workflowDef.edges || []).map((e: any) => ({ id: e.id, source: e.from.nodeId, target: e.to.nodeId, sourceHandle: e.from.port, targetHandle: e.to.port })) as any);
             setDraft({
-              id: existing.id,
-              name: existing.name || existing.id,
-              description: existing.description,
-              nodes: existing.nodes,
-              edges: existing.edges
+              id: workflowDef.id,
+              name: workflowDef.name || workflowDef.id,
+              description: workflowDef.description,
+              nodes: workflowDef.nodes,
+              edges: workflowDef.edges
             });
-            // 标记需要自动适配视图
-            setHasAutoFitted(false);
+          } else {
+            // 从预设模板创建新工作流，为每个节点生成新的 ID
+            const nodeIdMap = new Map<string, string>();
+            workflowDef.nodes.forEach((n: any) => {
+              if (n.id === START_NODE_ID || n.id === END_NODE_ID) {
+                nodeIdMap.set(n.id, n.id); // 保留 start 和 end 的 ID
+              } else {
+                nodeIdMap.set(n.id, n.type + '-' + nanoid(4)); // 为其他节点生成新 ID
+              }
+            });
+
+            // Map preset nodes into ReactFlow nodes
+            const rfNodes: Node<NodeData>[] = workflowDef.nodes.map((n: any) => {
+              const newId = nodeIdMap.get(n.id) || n.id;
+              const spec = specs.find((s) => s.id === n.type) || { id: n.type, label: n.type, inputs: [], outputs: [], category: 'core' };
+              return {
+                id: newId,
+                type: 'specNode',
+                position: { x: n.x ?? 100 + Math.random() * 200, y: n.y ?? 100 + Math.random() * 200 },
+                data: { label: spec.label, specId: spec.id, spec, config: n.config || {}, inputDefaults: n.inputDefaults || {} }
+              } as Node<NodeData>;
+            });
+            setNodes(rfNodes as any);
+            // 更新边的节点 ID
+            const rfEdges = workflowDef.edges.map((e: any) => {
+              const fromId = nodeIdMap.get(e.from.nodeId) || e.from.nodeId;
+              const toId = nodeIdMap.get(e.to.nodeId) || e.to.nodeId;
+              return { id: 'e-' + nanoid(6), source: fromId, target: toId, sourceHandle: e.from.port, targetHandle: e.to.port };
+            });
+            setEdges(rfEdges as any);
+            // 创建新的工作流草稿，使用新的 ID
+            setDraft({
+              id: 'new-' + nanoid(6),
+              name: workflowDef.name ? workflowDef.name + ' (副本)' : '新建工作流',
+              description: workflowDef.description,
+              nodes: rfNodes.map((n: any) => ({
+                id: n.id,
+                type: (n.data as NodeData).specId,
+                x: n.position.x,
+                y: n.position.y,
+                config: (n.data as NodeData).config || {},
+                inputDefaults: (n.data as NodeData).inputDefaults || {}
+              })),
+              edges: rfEdges.map((e: any) => ({
+                id: e.id,
+                from: { nodeId: e.source, port: e.sourceHandle || 'payload' },
+                to: { nodeId: e.target, port: e.targetHandle || 'result' }
+              }))
+            });
           }
+          // 标记需要自动适配视图
+          setHasAutoFitted(false);
         }
       } finally {
         setLoadingExisting(false);
@@ -140,23 +174,28 @@ const WorkflowCanvasInner: React.FC = () => {
 
   // Sync draft.nodes/edges from ReactFlow state
   useEffect(() => {
-    setDraft((d: WorkflowDraft) => ({
-      ...d,
-      nodes: (nodes as any[]).map((n: any) => ({
-        id: n.id,
-        type: (n.data as NodeData).specId,
-        x: n.position.x,
-        y: n.position.y,
-        config: (n.data as NodeData).config || {},
-        inputDefaults: (n.data as NodeData).inputDefaults || {}
-      })),
-      edges: edges.map((e: Edge) => ({ id: e.id, from: { nodeId: e.source, port: e.sourceHandle || 'payload' }, to: { nodeId: e.target, port: e.targetHandle || 'result' } }))
-    }));
-  }, [nodes, edges]);
+    if (!draft) return; // 等待 draft 初始化
+    setDraft((d: WorkflowDraft | null) => {
+      if (!d) return null;
+      return {
+        ...d,
+        nodes: (nodes as any[]).map((n: any) => ({
+          id: n.id,
+          type: (n.data as NodeData).specId,
+          x: n.position.x,
+          y: n.position.y,
+          config: (n.data as NodeData).config || {},
+          inputDefaults: (n.data as NodeData).inputDefaults || {}
+        })),
+        edges: edges.map((e: Edge) => ({ id: e.id, from: { nodeId: e.source, port: e.sourceHandle || 'payload' }, to: { nodeId: e.target, port: e.targetHandle || 'result' } }))
+      };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes, edges]); // 不包含 draft，避免循环更新
 
   const addSpecNode = useCallback(
     (spec: NodeSpec): void => {
-      if (spec.id === 'start' || spec.id === 'end') return; // hidden / not addable
+      if (spec.id === 'core/start' || spec.id === 'core/end') return; // hidden / not addable
       const id = spec.id + '-' + nanoid(4);
       const rfNode = {
         id,
@@ -181,6 +220,7 @@ const WorkflowCanvasInner: React.FC = () => {
   const nodeTypes = useMemo(() => ({ specNode: SpecNode }), []);
 
   const performValidate = async (): Promise<void> => {
+    if (!draft) return;
     const backendDef = {
       id: draft.id,
       name: draft.name,
@@ -194,6 +234,7 @@ const WorkflowCanvasInner: React.FC = () => {
   };
 
   const performSave = async (): Promise<void> => {
+    if (!draft) return;
     setSaving(true);
     try {
       const backendDef = {
@@ -218,6 +259,7 @@ const WorkflowCanvasInner: React.FC = () => {
   };
 
   const performRun = async (): Promise<void> => {
+    if (!draft) return;
     setRunning(true);
     try {
       const run = await invoke('wf:run', { defId: draft.id, input: { path: '/tmp/demo.txt' } });
@@ -242,6 +284,7 @@ const WorkflowCanvasInner: React.FC = () => {
   }, [nodes, edges, setNodes, fitView]);
 
   const getWorkflowJson = useCallback((): string => {
+    if (!draft) return '{}';
     const backendDef = {
       id: draft.id,
       name: draft.name,
@@ -316,7 +359,7 @@ const WorkflowCanvasInner: React.FC = () => {
           )}
         </div>
 
-        <FloatingPalette specs={specs.filter((s) => s.id !== 'start' && s.id !== 'end')} onAdd={addSpecNode} />
+        <FloatingPalette specs={specs.filter((s) => s.id !== 'core/start' && s.id !== 'core/end')} onAdd={addSpecNode} />
 
         {/* 右侧浮动属性面板：选中节点时显示 */}
         <FloatingInspector
