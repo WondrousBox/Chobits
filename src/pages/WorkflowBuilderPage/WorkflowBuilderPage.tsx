@@ -69,7 +69,6 @@ const WorkflowCanvasInner: React.FC = () => {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const eventCh = useMemo(() => new BroadcastChannel('wf-events'), []);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [validateResult, setValidateResult] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [showJsonDialog, setShowJsonDialog] = useState(false);
@@ -237,7 +236,24 @@ const WorkflowCanvasInner: React.FC = () => {
       options: { concurrency: 1, errorStrategy: 'fail-fast' }
     };
     const res = await invoke('wf:validate', { def: backendDef });
-    setValidateResult(res);
+
+    // 使用 toast 显示检测结果
+    if (res.ok) {
+      toast.success('校验通过', {
+        description: '工作流配置正确，可以保存和运行'
+      });
+    } else {
+      const errors: string[] = [];
+      if (res.errors && res.errors.length > 0) {
+        errors.push(...res.errors);
+      }
+      if (res.missingPlugins && res.missingPlugins.length > 0) {
+        errors.push(...res.missingPlugins.map((m: any) => `缺少插件: ${m.id}`));
+      }
+      toast.error('校验失败', {
+        description: errors.length > 0 ? errors.join('；') : '工作流配置存在问题'
+      });
+    }
   };
 
   const performSave = async (): Promise<void> => {
@@ -346,7 +362,6 @@ const WorkflowCanvasInner: React.FC = () => {
             onShowJson={() => setShowJsonDialog(true)}
             saving={saving}
             running={running}
-            validateResult={validateResult}
             isPreset={isPresetWorkflow}
           />
         }

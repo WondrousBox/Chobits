@@ -1,4 +1,7 @@
-import React from 'react';
+/* eslint-disable react-hooks/rules-of-hooks */
+import { AnimatePresence, motion } from 'framer-motion';
+import React, { useState } from 'react';
+import { TbChevronDown, TbChevronRight } from 'react-icons/tb';
 
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -22,6 +25,19 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
   const data = node.data as NodeData;
   const spec: NodeSpec = data.spec;
 
+  // 根据节点定义初始化展开状态
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
+    const initial = new Set<string>();
+    if (spec.configGroups) {
+      Object.entries(spec.configGroups).forEach(([groupName, groupDef]) => {
+        if (groupDef.defaultExpanded) {
+          initial.add(groupName);
+        }
+      });
+    }
+    return initial;
+  });
+
   // 渲染配置字段
   const renderConfigField = (c: NonNullable<NodeSpec['config']>[number]): React.ReactNode => {
     const label = c.label || c.key;
@@ -37,7 +53,7 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
         <div key={c.key} className="flex items-center justify-between">
           <div className="flex flex-col">
             <label className="text-xs">{label}</label>
-            {c.description && <span className="text-xs opacity-70">{c.description}</span>}
+            {c.description && <span className="text-xs text-muted-foreground">{c.description}</span>}
           </div>
           <Switch checked={boolValue} onCheckedChange={(checked) => onChange((prev) => ({ config: { ...prev.config, [c.key]: checked } }))} />
         </div>
@@ -111,33 +127,114 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
     );
   };
 
+  // 将配置项按组分类
+  const groupedConfigs = React.useMemo(() => {
+    const groups: Record<string, NonNullable<NodeSpec['config']>> = {};
+    const ungrouped: NonNullable<NodeSpec['config']> = [];
+
+    spec.config?.forEach((c) => {
+      if (c.group) {
+        if (!groups[c.group]) {
+          groups[c.group] = [];
+        }
+        groups[c.group].push(c);
+      } else {
+        ungrouped.push(c);
+      }
+    });
+
+    return { groups, ungrouped };
+  }, [spec.config]);
+
+  // 切换组的展开/收起状态
+  const toggleGroup = (groupName: string): void => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupName)) {
+        next.delete(groupName);
+      } else {
+        next.add(groupName);
+      }
+      return next;
+    });
+  };
+
+  // 获取组的显示标签
+  const getGroupLabel = (groupName: string): string => {
+    return spec.configGroups?.[groupName]?.label || groupName;
+  };
+
   return (
-    <div className="space-y-3">
-      <div className="text-sm font-semibold">{spec.label}</div>
-      <div className="text-xs opacity-70">ID: {node.id}</div>
-      {spec.config && spec.config.length > 0 && (
-        <div className="space-y-2">
-          <div className="text-xs uppercase opacity-70">配置</div>
-          {spec.config.map(renderConfigField)}
-        </div>
-      )}
-      {spec.inputs && spec.inputs.length > 0 && (
-        <div className="space-y-2">
-          <div className="text-xs uppercase opacity-70">输入默认值</div>
-          {spec.inputs.map((inp) => (
-            <div key={inp.key} className="space-y-1">
-              <label className="block text-xs">{inp.key}</label>
-              <Input
-                value={String((data.inputDefaults || {})[inp.key] ?? '')}
-                onChange={(e) => onChange((prev) => ({ inputDefaults: { ...prev.inputDefaults, [inp.key]: e.target.value } }))}
-                placeholder={inp.description || ''}
-                className="h-8 text-xs"
-              />
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+    <>
+      <div className="bg-background p-2">
+        <div className="text-sm font-semibold">{spec.label}</div>
+        <div className="text-xs text-muted-foreground">ID: {node.id}</div>
+      </div>
+      <div className="bg-muted p-2 max-h-[80vh] overflow-auto">
+        {spec.config && spec.config.length > 0 && (
+          <div className="space-y-2">
+            <div className="text-xs uppercase opacity-70">配置</div>
+
+            {/* 渲染未分组的配置项 */}
+            {groupedConfigs.ungrouped.map(renderConfigField)}
+
+            {/* 渲染分组的配置项 */}
+            {(() => {
+              // 按照 configGroups 定义的顺序渲染分组
+              const groupOrder = spec.configGroups ? Object.keys(spec.configGroups) : [];
+              const allGroups = Object.keys(groupedConfigs.groups);
+
+              // 先渲染在 configGroups 中定义的分组（按定义顺序）
+              const definedGroups = groupOrder.filter((name) => allGroups.includes(name));
+              // 再渲染未在 configGroups 中定义的分组
+              const undefinedGroups = allGroups.filter((name) => !groupOrder.includes(name));
+
+              return [...definedGroups, ...undefinedGroups].map((groupName) => {
+                const configs = groupedConfigs.groups[groupName];
+                const isExpanded = expandedGroups.has(groupName);
+                return (
+                  <div key={groupName} className="space-y-2">
+                    <button type="button" onClick={() => toggleGroup(groupName)} className="flex items-center gap-1 w-full text-xs font-medium opacity-70 hover:opacity-100 transition-opacity">
+                      {isExpanded ? <TbChevronDown className="w-4 h-4" /> : <TbChevronRight className="w-4 h-4" />}
+                      <span>{getGroupLabel(groupName)}</span>
+                    </button>
+                    <AnimatePresence initial={false}>
+                      {isExpanded && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.2, ease: 'easeInOut' }}
+                          style={{ overflow: 'hidden' }}
+                        >
+                          <div className="pl-4 space-y-2">{configs.map(renderConfigField)}</div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                );
+              });
+            })()}
+          </div>
+        )}
+        {spec.inputs && spec.inputs.length > 0 && (
+          <div className="space-y-2">
+            <div className="text-xs uppercase opacity-70">输入默认值</div>
+            {spec.inputs.map((inp) => (
+              <div key={inp.key} className="space-y-1">
+                <label className="block text-xs">{inp.key}</label>
+                <Input
+                  value={String((data.inputDefaults || {})[inp.key] ?? '')}
+                  onChange={(e) => onChange((prev) => ({ inputDefaults: { ...prev.inputDefaults, [inp.key]: e.target.value } }))}
+                  placeholder={inp.description || ''}
+                  className="h-8 text-xs"
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
   );
 };
 

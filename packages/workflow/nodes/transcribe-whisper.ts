@@ -28,6 +28,7 @@ function fileExists(p: string): boolean {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function runWhisper(args: string[], ctx: any): Promise<void> {
   // 优先使用资源管理器中的engine，否则回退到PATH中的whisper-cli
   const { pluginResourceManager } = await import('../../plugins/plugin-resource-manager');
@@ -51,6 +52,11 @@ export const TranscribeWhisperNode: NodeHandler = {
     description: '使用 Whisper CLI 对音频或视频进行离线转录',
     requires: ['plugin:whisper', 'plugin:ffmpeg'],
     inputs: [{ key: 'media', label: '媒体文件', type: ['file', 'string'], required: true }],
+    configGroups: {
+      basic: { label: '基础属性', defaultExpanded: true },
+      advanced: { label: '高级设置', defaultExpanded: false },
+      more: { label: '更多配置', defaultExpanded: false }
+    },
     config: [
       {
         key: 'model',
@@ -188,18 +194,29 @@ export const TranscribeWhisperNode: NodeHandler = {
           { value: 'yue', label: '粤语' }
         ]
       },
-      { key: 'threads', label: '线程数', type: 'number', required: false, description: '使用的线程数' },
-      { key: 'translate', label: '翻译模式', type: 'boolean', required: false, default: false, description: '是否翻译到英文' },
-      { key: 'outputFormats', label: '输出格式', type: 'array', required: false, default: ['txt', 'srt', 'vtt', 'json'], description: '输出格式列表' },
-      { key: 'printProgress', label: '打印进度', type: 'boolean', required: false, default: false },
-      { key: 'printColors', label: '打印颜色', type: 'boolean', required: false, default: false },
-      { key: 'speedUp', label: '加速模式', type: 'boolean', required: false, default: false, description: '使用加速模式（可能降低质量）' },
-      { key: 'vad', label: '语音活动检测', type: 'boolean', required: false, default: false, description: '启用 VAD（Voice Activity Detection）' },
-      { key: 'noTimestamps', label: '无时间戳', type: 'boolean', required: false, default: false },
-      { key: 'singleSegment', label: '单段模式', type: 'boolean', required: false, default: false, description: '输出为单个段落' },
-      { key: 'wordTimestamps', label: '单词时间戳', type: 'boolean', required: false, default: false },
-      { key: 'maxLen', label: '最大长度', type: 'number', required: false, description: '最大上下文长度' },
-      { key: 'dtw', label: '启用 DTW', type: 'boolean', required: false, default: false, description: '启用动态时间规整（DTW）优化' }
+      { key: 'threads', label: '线程数', type: 'number', required: false, description: '使用的线程数', group: 'more' },
+      { key: 'translate', label: '翻译模式', type: 'boolean', required: false, default: false, description: '是否翻译到英文', group: 'more' },
+      { key: 'outputFormats', label: '输出格式', type: 'array', required: false, default: ['txt', 'srt', 'vtt', 'json'], description: '输出格式列表', group: 'more' },
+      { key: 'printProgress', label: '打印进度', type: 'boolean', required: false, default: false, group: 'more' },
+      { key: 'printColors', label: '打印颜色', type: 'boolean', required: false, default: false, group: 'more' },
+      { key: 'speedUp', label: '加速模式', type: 'boolean', required: false, default: false, description: '使用加速模式（可能降低质量）', group: 'more' },
+      { key: 'vad', label: '语音活动检测', type: 'boolean', required: false, default: false, description: '通过VAD识别人说话部分' },
+      { key: 'noTimestamps', label: '无时间戳', type: 'boolean', required: false, default: false, group: 'more' },
+      { key: 'singleSegment', label: '单段模式', type: 'boolean', required: false, default: false, description: '输出为单个段落', group: 'more' },
+      { key: 'wordTimestamps', label: '单词时间戳', type: 'boolean', required: false, default: false, group: 'more' },
+      { key: 'maxLen', label: '最大长度', type: 'number', required: false, default: 0, description: '最大段落长度', group: 'advanced' },
+      { key: 'dtw', label: '启用 DTW', type: 'boolean', required: false, default: false, description: '启用动态时间规整（DTW）优化', group: 'more' },
+      { key: 'prompt', label: '上下文提示', type: 'string', required: false, default: '', description: '提供上下文提示以改善转录质量', group: 'advanced' },
+      { key: 'maxContent', label: '最大文本上下文', type: 'number', required: false, default: -1, description: '最大文本上下文token数（-1表示无限制）', group: 'advanced' },
+      { key: 'splitOnWord', label: '单词边界分割', type: 'boolean', required: false, default: false, description: '在单词边界分割', group: 'advanced' },
+      { key: 'entropyThold', label: '熵阈值', type: 'number', required: false, default: 2.4, description: '解码器失败的熵阈值', group: 'advanced' },
+      { key: 'logprobThold', label: '对数概率阈值', type: 'number', required: false, default: -1.0, description: '解码器失败的对数概率阈值', group: 'advanced' },
+      { key: 'noSpeechThold', label: '无语音阈值', type: 'number', required: false, default: 0.6, description: '无语音阈值', group: 'advanced' },
+      { key: 'temperature', label: '采样温度', type: 'number', required: false, default: 0.0, description: '采样温度', group: 'advanced' },
+      { key: 'temperatureInc', label: '温度增量', type: 'number', required: false, default: 0.2, description: '温度增量', group: 'advanced' },
+      { key: 'useGpu', label: '使用GPU', type: 'boolean', required: false, default: true, description: '启用GPU加速' },
+      { key: 'flashAttn', label: 'Flash Attention', type: 'boolean', required: false, default: false, description: '启用Flash Attention', group: 'advanced' },
+      { key: 'sns', label: 'SNS', type: 'boolean', required: false, default: false, description: '启用SNS', group: 'advanced' }
     ],
     outputs: [
       { key: 'text', label: '全文文本', type: 'string' },
@@ -258,7 +275,60 @@ export const TranscribeWhisperNode: NodeHandler = {
     if (config?.noTimestamps) args.push('--no-timestamps');
     if (config?.singleSegment) args.push('--single-segment');
     if (config?.wordTimestamps) args.push('--word-timestamps');
-    if (config?.maxLen != null) args.push('--max-len', String(config.maxLen));
+    if (config?.maxLen != null && config.maxLen !== 0) args.push('--max-len', String(config.maxLen));
+
+    // 上下文提示 (--prompt)
+    if (config?.prompt && String(config.prompt).trim()) {
+      args.push('--prompt', String(config.prompt));
+    }
+
+    // 最大文本上下文 (--max-context)
+    if (config?.maxContent != null && config.maxContent !== -1) {
+      args.push('--max-context', String(config.maxContent));
+    }
+
+    // 单词边界分割 (--split-on-word)
+    if (config?.splitOnWord) args.push('--split-on-word');
+
+    // 熵阈值 (--entropy-thold)
+    if (config?.entropyThold != null && config.entropyThold !== 2.4) {
+      args.push('--entropy-thold', String(config.entropyThold));
+    }
+
+    // 对数概率阈值 (--logprob-thold)
+    if (config?.logprobThold != null && config.logprobThold !== -1.0) {
+      args.push('--logprob-thold', String(config.logprobThold));
+    }
+
+    // 无语音阈值 (--no-speech-thold)
+    if (config?.noSpeechThold != null && config.noSpeechThold !== 0.6) {
+      args.push('--no-speech-thold', String(config.noSpeechThold));
+    }
+
+    // 采样温度 (--temperature)
+    if (config?.temperature != null && config.temperature !== 0.0) {
+      args.push('--temperature', String(config.temperature));
+    }
+
+    // 温度增量 (--temperature-inc)
+    if (config?.temperatureInc != null && config.temperatureInc !== 0.2) {
+      args.push('--temperature-inc', String(config.temperatureInc));
+    }
+
+    // GPU 使用 (--use-gpu)
+    // 默认启用 GPU，只有在明确设置为 false 时才禁用
+    if (config?.useGpu === false) {
+      args.push('--no-gpu');
+    } else {
+      // 默认值或明确设置为 true 时启用 GPU
+      args.push('--use-gpu');
+    }
+
+    // Flash Attention (--flash-attn)
+    if (config?.flashAttn) args.push('--flash-attn');
+
+    // SNS (--sns)
+    if (config?.sns) args.push('--sns');
 
     // DTW 参数 (--dtw)
     // 如果启用 dtw，使用映射后的文件名作为 dtw 参数值

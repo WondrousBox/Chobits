@@ -21,6 +21,9 @@ export type PortSchema = {
   // Options for select input type
   // Can be flat array of options or grouped options
   options?: SelectOptions;
+  // Group for organizing config fields (e.g., 'basic', 'advanced')
+  // Fields without group are shown by default, fields with group can be collapsed
+  group?: string;
 };
 
 export type NodeSpec = {
@@ -35,6 +38,8 @@ export type NodeSpec = {
   requires?: string[]; // e.g. ['plugin:ffmpeg']
   // Config schema (static per node type)
   config?: PortSchema[]; // config items distinct from dynamic inputs
+  // Config groups definition: maps group name to label and default expanded state
+  configGroups?: Record<string, { label: string; defaultExpanded?: boolean }>;
 };
 
 export type NodeConfig = Record<string, any>;

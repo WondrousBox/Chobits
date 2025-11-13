@@ -38,7 +38,9 @@ export type NodeSpec = {
     default?: any;
     inputType?: 'text' | 'select' | 'number' | 'textarea';
     options?: Array<{ value: string; label: string } | { group: string; options: Array<{ value: string; label: string }> }>;
+    group?: string;
   }[];
+  configGroups?: Record<string, { label: string; defaultExpanded?: boolean }>;
 };
 
 export type ValidateResult = {

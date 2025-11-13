@@ -25,7 +25,7 @@ const FloatingPalette: React.FC<FloatingPaletteProps> = ({ specs, onAdd }) => {
       .map(([cat, items]) => [cat, items.slice().sort((a, b) => (a.label || '').localeCompare(b.label || ''))] as [string, NodeSpec[]]);
   }, [specs]);
   return (
-    <div className="absolute top-1/2 left-2 z-20 -translate-y-1/2 backdrop-blur-sm border border-solid border-ring rounded-md overflow-hidden">
+    <div className="absolute top-1/2 left-2 z-20 w-60 -translate-y-1/2 backdrop-blur-sm border border-solid border-ring rounded-md overflow-hidden">
       <div className="bg-background flex items-center gap-2 justify-between p-2">
         {open && <Input placeholder="搜索节点" className="h-8" />}
         <Button size="icon" className="w-8 h-8 shrink-0" variant={'outline'} onClick={() => setOpen((o) => !o)}>
