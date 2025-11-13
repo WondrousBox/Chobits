@@ -18,7 +18,10 @@ type DbShape = {
 let presetWorkflowIds = new Set<string>();
 
 function getFile(): string {
-  const dir = app.getPath('userData');
+  const dir = path.resolve(app.getPath('userData'), 'data');
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
   return path.join(dir, FILE);
 }
 
