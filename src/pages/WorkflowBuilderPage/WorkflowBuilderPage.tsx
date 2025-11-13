@@ -2,7 +2,22 @@ import 'reactflow/dist/style.css';
 
 import { nanoid } from 'nanoid';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import ReactFlow, { addEdge, Background, Connection, Controls, Edge, MiniMap, Node, NodeChange, OnNodesChange, ReactFlowProvider, useEdgesState, useNodesState } from 'reactflow';
+import ReactFlow, {
+  addEdge,
+  Background,
+  Connection,
+  Controls,
+  Edge,
+  MiniMap,
+  Node,
+  NodeChange,
+  OnNodesChange,
+  ReactFlowProvider,
+  useEdgesState,
+  useNodesInitialized,
+  useNodesState,
+  useReactFlow
+} from 'reactflow';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { NodeSpec, WorkflowDraft } from '@/types/workflow';
@@ -10,8 +25,10 @@ import { NodeSpec, WorkflowDraft } from '@/types/workflow';
 import FloatingActions from './FloatingActions';
 import FloatingInspector from './FloatingInspector';
 import FloatingPalette from './FloatingPalette';
+import { autoLayout } from './layout';
 import SpecNode from './SpecNode';
 import type { NodeData } from './types';
+import WorkflowJsonDialog from './WorkflowJsonDialog';
 
 // IPC helper
 const invoke = window.ipcRenderer.invoke;
@@ -41,10 +58,13 @@ function buildInitialDraft(): WorkflowDraft {
   };
 }
 
-const WorkflowCanvas: React.FC = () => {
+const WorkflowCanvasInner: React.FC = () => {
+  const { fitView } = useReactFlow();
+  const nodesInitialized = useNodesInitialized();
   const specs = useNodeSpecs();
   const [draft, setDraft] = useState<WorkflowDraft>(buildInitialDraft());
   const [loadingExisting, setLoadingExisting] = useState(false); // reserved for future loading indicator
+  const [hasAutoFitted, setHasAutoFitted] = useState(false);
   const initialNodes: Node<NodeData>[] = [
     {
       id: START_NODE_ID,
@@ -77,6 +97,7 @@ const WorkflowCanvas: React.FC = () => {
   const [validateResult, setValidateResult] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
+  const [showJsonDialog, setShowJsonDialog] = useState(false);
   const selectedNode = useMemo(() => draft.nodes.find((n) => n.id === selectedNodeId), [draft, selectedNodeId]);
 
   // Load existing workflow definition if payload provides id
@@ -107,6 +128,8 @@ const WorkflowCanvas: React.FC = () => {
               nodes: existing.nodes,
               edges: existing.edges
             });
+            // 标记需要自动适配视图
+            setHasAutoFitted(false);
           }
         }
       } finally {
@@ -162,7 +185,7 @@ const WorkflowCanvas: React.FC = () => {
       id: draft.id,
       name: draft.name,
       description: draft.description,
-      nodes: draft.nodes.map((n) => ({ id: n.id, type: n.type, config: n.config, inputDefaults: n.inputDefaults })),
+      nodes: draft.nodes.map((n) => ({ id: n.id, type: n.type, x: n.x, y: n.y, config: n.config, inputDefaults: n.inputDefaults })),
       edges: draft.edges.map((e) => ({ id: e.id, from: e.from, to: e.to })),
       options: { concurrency: 1, errorStrategy: 'fail-fast' }
     };
@@ -177,7 +200,7 @@ const WorkflowCanvas: React.FC = () => {
         id: draft.id,
         name: draft.name,
         description: draft.description,
-        nodes: draft.nodes.map((n) => ({ id: n.id, type: n.type, config: n.config, inputDefaults: n.inputDefaults })),
+        nodes: draft.nodes.map((n) => ({ id: n.id, type: n.type, x: n.x, y: n.y, config: n.config, inputDefaults: n.inputDefaults })),
         edges: draft.edges.map((e) => ({ id: e.id, from: e.from, to: e.to })),
         options: { concurrency: 1, errorStrategy: 'fail-fast' }
       };
@@ -209,6 +232,38 @@ const WorkflowCanvas: React.FC = () => {
     }
   };
 
+  const performLayout = useCallback((): void => {
+    const layoutedNodes = autoLayout(nodes as Node<NodeData>[], edges);
+    setNodes(layoutedNodes as any);
+    // 延迟一下再 fitView，确保节点位置更新完成
+    setTimeout(() => {
+      fitView({ padding: 0.2, duration: 300 });
+    }, 100);
+  }, [nodes, edges, setNodes, fitView]);
+
+  const getWorkflowJson = useCallback((): string => {
+    const backendDef = {
+      id: draft.id,
+      name: draft.name,
+      description: draft.description,
+      nodes: draft.nodes.map((n) => ({ id: n.id, type: n.type, x: n.x, y: n.y, config: n.config, inputDefaults: n.inputDefaults })),
+      edges: draft.edges.map((e) => ({ id: e.id, from: e.from, to: e.to })),
+      options: { concurrency: 1, errorStrategy: 'fail-fast' }
+    };
+    return JSON.stringify(backendDef, null, 2);
+  }, [draft]);
+
+  // 当节点初始化完成后，自动适配视图
+  useEffect(() => {
+    if (nodesInitialized && !hasAutoFitted && nodes.length > 0) {
+      // 延迟一下确保节点已经完全渲染
+      setTimeout(() => {
+        fitView({ padding: 0.2, duration: 300 });
+        setHasAutoFitted(true);
+      }, 100);
+    }
+  }, [nodesInitialized, hasAutoFitted, nodes.length, fitView]);
+
   return (
     <div className="h-screen w-screen flex flex-col relative">
       {/* 顶部可拖拽导航栏 */}
@@ -219,7 +274,18 @@ const WorkflowCanvas: React.FC = () => {
             <div className="text-left truncate flex-1">工作流编辑</div>
           </div>
         }
-        actions={<FloatingActions onValidate={performValidate} onSave={performSave} onRun={performRun} saving={saving} running={running} validateResult={validateResult} />}
+        actions={
+          <FloatingActions
+            onValidate={performValidate}
+            onSave={performSave}
+            onRun={performRun}
+            onLayout={performLayout}
+            onShowJson={() => setShowJsonDialog(true)}
+            saving={saving}
+            running={running}
+            validateResult={validateResult}
+          />
+        }
       />
 
       {/* 画布容器：占满除标题外的全部空间 */}
@@ -235,7 +301,6 @@ const WorkflowCanvas: React.FC = () => {
             onNodeClick={(_e: React.MouseEvent, n: any) => setSelectedNodeId(n.id)}
             onPaneClick={() => setSelectedNodeId(null)}
             nodeTypes={nodeTypes}
-            fitView
           >
             <Background />
             <MiniMap className="bg-background text-foreground" zoomable pannable />
@@ -261,14 +326,19 @@ const WorkflowCanvas: React.FC = () => {
           }
         />
       </div>
+      <WorkflowJsonDialog open={showJsonDialog} onOpenChange={setShowJsonDialog} json={getWorkflowJson()} />
     </div>
   );
 };
 
-const WorkflowBuilderPage: React.FC = () => (
-  <ReactFlowProvider>
-    <WorkflowCanvas />
-  </ReactFlowProvider>
-);
+const WorkflowCanvas: React.FC = () => {
+  return (
+    <ReactFlowProvider>
+      <WorkflowCanvasInner />
+    </ReactFlowProvider>
+  );
+};
+
+const WorkflowBuilderPage: React.FC = () => <WorkflowCanvas />;
 
 export default WorkflowBuilderPage;
