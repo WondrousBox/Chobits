@@ -1,7 +1,8 @@
 import 'reactflow/dist/style.css';
 
 import { nanoid } from 'nanoid';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { TbAlertCircle, TbLoader2, TbMoodEmpty, TbPlayerPlay, TbSearch } from 'react-icons/tb';
 import ReactFlow, {
   addEdge,
   Background,
@@ -21,6 +22,11 @@ import ReactFlow, {
 import { toast } from 'sonner';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { ResourceItem } from '@/types';
 import { NodeSpec, WorkflowDraft } from '@/types/workflow';
 
 import FloatingActions from './FloatingActions';
@@ -71,6 +77,12 @@ const WorkflowCanvasInner: React.FC = () => {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
+  const [runPopoverOpen, setRunPopoverOpen] = useState(false);
+  const [resourceQuery, setResourceQuery] = useState('');
+  const [resourceCandidates, setResourceCandidates] = useState<ResourceItem[]>([]);
+  const [resourceLoading, setResourceLoading] = useState(false);
+  const [resourceError, setResourceError] = useState<string | null>(null);
+  const resourcesLoadedRef = useRef(false);
   const [showJsonDialog, setShowJsonDialog] = useState(false);
   const [isPresetWorkflow, setIsPresetWorkflow] = useState(false);
   const selectedNode = useMemo(() => draft?.nodes.find((n) => n.id === selectedNodeId), [draft, selectedNodeId]);
@@ -268,6 +280,43 @@ const WorkflowCanvasInner: React.FC = () => {
 
   const nodeTypes = useMemo(() => ({ specNode: SpecNode }), []);
 
+  const filteredResources = useMemo(() => {
+    const keyword = resourceQuery.trim().toLowerCase();
+    if (!keyword) return resourceCandidates;
+    return resourceCandidates.filter((res) => {
+      const possible = [res.title, res.filePath, res.url, res.id].filter(Boolean) as string[];
+      return possible.some((field) => field.toLowerCase().includes(keyword));
+    });
+  }, [resourceCandidates, resourceQuery]);
+
+  const fetchResources = useCallback(async (force = false): Promise<void> => {
+    if (resourcesLoadedRef.current && !force) return;
+    const resourceApi = window.YUA?.resource;
+    if (!resourceApi || typeof resourceApi['resource:list'] !== 'function') {
+      setResourceError('无法访问资源列表接口');
+      setResourceCandidates([]);
+      resourcesLoadedRef.current = false;
+      return;
+    }
+    setResourceLoading(true);
+    setResourceError(null);
+    try {
+      const list = await resourceApi['resource:list']();
+      if (Array.isArray(list)) {
+        setResourceCandidates(list);
+      } else {
+        setResourceCandidates([]);
+      }
+      resourcesLoadedRef.current = true;
+    } catch (err: any) {
+      console.warn('[WorkflowBuilder] 加载资源失败', err);
+      setResourceError(err?.message || String(err));
+      resourcesLoadedRef.current = false;
+    } finally {
+      setResourceLoading(false);
+    }
+  }, []);
+
   const performValidate = useCallback(async (): Promise<void> => {
     if (!draft) return;
     const backendDef = {
@@ -354,21 +403,65 @@ const WorkflowCanvasInner: React.FC = () => {
     }
   };
 
-  const performRun = async (): Promise<void> => {
-    if (!draft) return;
-    setRunning(true);
-    try {
-      const run = await invoke('wf:run', { defId: draft.id, input: { path: '/tmp/demo.txt' } });
-      console.log(run);
-      try {
-        eventCh.postMessage({ type: 'run-started', defId: draft.id });
-      } catch {
-        // ignore
-      }
-    } finally {
-      setRunning(false);
+  useEffect(() => {
+    if (runPopoverOpen) {
+      void fetchResources();
     }
-  };
+  }, [runPopoverOpen, fetchResources]);
+
+  const handleRunPopoverOpenChange = useCallback(
+    (open: boolean): void => {
+      if (open) {
+        if (!draft) {
+          toast.error('工作流尚未准备好', { description: '请等待工作流加载完成后再试' });
+          return;
+        }
+        if (running) return;
+        setResourceQuery('');
+        resourcesLoadedRef.current = false;
+      }
+      if (!open) {
+        setResourceQuery('');
+      }
+      setRunPopoverOpen(open);
+    },
+    [draft, running]
+  );
+
+  const runWorkflowWithResource = useCallback(
+    async (resource: ResourceItem): Promise<void> => {
+      if (!draft) return;
+      setRunning(true);
+      try {
+        const result = await invoke('wf:run', { defId: draft.id, input: { resource, resourceId: resource.id } });
+        if (!result?.ok) {
+          const description = result?.error || (result?.validation ? (typeof result.validation === 'string' ? result.validation : JSON.stringify(result.validation)) : '未知错误');
+          toast.error('工作流执行失败', { description });
+          return;
+        }
+        toast.success('工作流已开始执行', { description: resource.title || resource.filePath || resource.id });
+        try {
+          eventCh.postMessage({ type: 'run-started', defId: draft.id, resourceId: resource.id });
+        } catch {
+          // ignore
+        }
+      } catch (err: any) {
+        toast.error('工作流执行失败', { description: err?.message || String(err) });
+      } finally {
+        setRunning(false);
+      }
+    },
+    [draft, eventCh]
+  );
+
+  const handleResourceSelect = useCallback(
+    (resource: ResourceItem): void => {
+      setRunPopoverOpen(false);
+      setResourceQuery('');
+      void runWorkflowWithResource(resource);
+    },
+    [runWorkflowWithResource]
+  );
 
   const performLayout = useCallback((): void => {
     const layoutedNodes = autoLayout(nodes as Node<NodeData>[], edges);
@@ -417,12 +510,71 @@ const WorkflowCanvasInner: React.FC = () => {
           <FloatingActions
             onValidate={performValidate}
             onSave={performSave}
-            onRun={performRun}
             onLayout={performLayout}
             onShowJson={() => setShowJsonDialog(true)}
             saving={saving}
             running={running}
             isPreset={isPresetWorkflow}
+            renderRunButton={() => (
+              <Popover open={runPopoverOpen} onOpenChange={handleRunPopoverOpenChange}>
+                <PopoverTrigger asChild>
+                  <Button size="sm" disabled={running || !draft}>
+                    <TbPlayerPlay />
+                    运行示例
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent side="bottom" align="end" className="w-96 p-0">
+                  <div className="flex items-center gap-2 border-b px-3 py-2">
+                    <TbSearch className="h-4 w-4 text-muted-foreground" />
+                    <Input autoFocus value={resourceQuery} onChange={(event) => setResourceQuery(event.target.value)} placeholder="搜索资源..." className="h-8" />
+                  </div>
+                  <ScrollArea className="max-h-72 h-72">
+                    <div className="py-1">
+                      {resourceLoading ? (
+                        <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+                          <TbLoader2 className="h-4 w-4 animate-spin" />
+                          资源加载中...
+                        </div>
+                      ) : resourceError ? (
+                        <div className="flex flex-col items-center gap-2 px-4 py-6 text-center text-sm text-muted-foreground">
+                          <TbAlertCircle className="h-5 w-5 text-destructive" />
+                          <span>资源加载失败</span>
+                          <Button size="sm" variant="secondary" onClick={() => fetchResources(true)}>
+                            重试
+                          </Button>
+                        </div>
+                      ) : filteredResources.length > 0 ? (
+                        filteredResources.map((item) => {
+                          const title = (item.title && item.title.trim()) || item.filePath || item.url || item.id;
+                          const subtitleParts: string[] = [];
+                          if (item.type) subtitleParts.push(item.type);
+                          if (item.filePath && item.filePath !== title) {
+                            subtitleParts.push(item.filePath);
+                          } else if (item.url && item.url !== title) {
+                            subtitleParts.push(item.url);
+                          }
+                          const subtitle = subtitleParts.join(' · ');
+                          return (
+                            <button key={item.id} type="button" onClick={() => handleResourceSelect(item)} className="w-full px-3 py-2 text-left hover:bg-muted focus:bg-muted focus:outline-none">
+                              <div className="flex flex-col">
+                                <span className="text-sm font-medium leading-tight line-clamp-1">{title}</span>
+                                {subtitle ? <span className="text-xs text-muted-foreground line-clamp-1">{subtitle}</span> : null}
+                              </div>
+                            </button>
+                          );
+                        })
+                      ) : (
+                        <div className="flex flex-col items-center gap-2 py-6 text-sm text-muted-foreground">
+                          <TbMoodEmpty className="h-5 w-5" />
+                          暂无可用资源
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
+                  <div className="border-t px-3 py-2 text-xs text-muted-foreground">选择资源后将立即运行当前流程</div>
+                </PopoverContent>
+              </Popover>
+            )}
           />
         }
       />

@@ -6,15 +6,16 @@ import { Button } from '@/components/ui/button';
 interface FloatingActionsProps {
   onValidate: () => void;
   onSave: () => void;
-  onRun: () => void;
+  onRun?: () => void;
   onLayout?: () => void;
   onShowJson?: () => void;
   saving: boolean;
   running: boolean;
   isPreset?: boolean;
+  renderRunButton?: () => React.ReactNode;
 }
 
-const FloatingActions: React.FC<FloatingActionsProps> = ({ onValidate, onSave, onRun, onLayout, onShowJson, saving, running, isPreset }) => {
+const FloatingActions: React.FC<FloatingActionsProps> = ({ onValidate, onSave, onRun, onLayout, onShowJson, saving, running, isPreset, renderRunButton }) => {
   return (
     <div className="flex gap-2">
       {onLayout && (
@@ -35,10 +36,14 @@ const FloatingActions: React.FC<FloatingActionsProps> = ({ onValidate, onSave, o
         <TbDisc />
         保存
       </Button>
-      <Button size="sm" onClick={onRun} disabled={running}>
-        <TbPlayerPlay />
-        运行示例
-      </Button>
+      {renderRunButton ? (
+        renderRunButton()
+      ) : (
+        <Button size="sm" onClick={onRun} disabled={running}>
+          <TbPlayerPlay />
+          运行示例
+        </Button>
+      )}
     </div>
   );
 };
