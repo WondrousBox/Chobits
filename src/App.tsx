@@ -10,6 +10,7 @@ import { AIAssistant } from './components/AIAssistant';
 import AssistantMenuPage from './pages/AssistantMenuPage/AssistantMenuPage';
 import AssistantPage from './pages/AssistantPage/AssistantPage';
 import ChatPage from './pages/AssistantPage/ChatPage';
+import PluginDownloadPage from './pages/PluginDownloadPage/PluginDownloadPage';
 import PluginPage from './pages/PluginPage/PluginPage';
 import RecycleBinPage from './pages/RecycleBinPage/RecycleBinPage';
 import ResourcePage from './pages/ResourcePage/ResourcePage';
@@ -39,6 +40,7 @@ function App(): JSX.Element {
             <Route path="/assistant" element={<AssistantPage />} />
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/plugin-manager" element={<PluginPage />} />
+            <Route path="/plugin-download" element={<PluginDownloadPage />} />
             <Route path="/workflow" element={<WorkflowBuilderPage />} />
             <Route path="/workflow-page" element={<WorkflowPage />} />
             <Route path="/tagger" element={<TaggingPage />} />

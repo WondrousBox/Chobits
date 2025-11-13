@@ -1,6 +1,7 @@
-import { BrowserWindow, ipcMain, net } from 'electron';
+import { BrowserWindow, ipcMain, net, screen } from 'electron';
 
 import { createBestDownloader } from '../downloader/create';
+import { windowManager } from '../window-manager';
 import { PluginConfigStore } from './plugin-config-store';
 import { getPluginForCurrentPlatform, loadPluginDefinitions } from './plugin-loader';
 import { DownloadProgress, PluginResource, pluginResourceManager } from './plugin-resource-manager';
@@ -17,9 +18,19 @@ export function init(win: BrowserWindow): void {
   // 监听下载进度事件
   pluginResourceManager.on('progress', (info: DownloadProgress) => {
     try {
+      // 发送到主窗口
       win.webContents.send('plugin-resource:progress', info);
     } catch {
       // 窗口可能已关闭
+    }
+    // 同时发送到插件下载窗口
+    try {
+      const downloadWindow = windowManager.get('pluginDownload');
+      if (downloadWindow && !downloadWindow.isDestroyed()) {
+        downloadWindow.webContents.send('plugin-resource:progress', info);
+      }
+    } catch {
+      // 窗口可能不存在或已关闭
     }
   });
 
@@ -59,7 +70,7 @@ export function init(win: BrowserWindow): void {
   });
 
   // 安装资源（Engine或模型）
-  ipcMain.handle('plugin-resource:install', async (_e, payload: { pluginId: string; resourceId: string; deleteAfterInstall?: boolean }) => {
+  ipcMain.handle('plugin-resource:install', async (event, payload: { pluginId: string; resourceId: string; deleteAfterInstall?: boolean }) => {
     console.log('plugin-resource:install', payload);
 
     const definitions = await loadPluginDefinitions();
@@ -113,6 +124,19 @@ export function init(win: BrowserWindow): void {
 
     // 加入下载队列，支持deleteAfterInstall参数（默认为false，不删除下载文件）
     pluginResourceManager.enqueue(resource, payload.deleteAfterInstall ?? false);
+
+    // 自动打开插件下载窗口
+    try {
+      const requester = BrowserWindow.fromWebContents(event.sender);
+      const display = requester ? screen.getDisplayMatching(requester.getBounds()) : null;
+      if (display) {
+        await windowManager.createOrShowOnDisplay('pluginDownload', display);
+      } else {
+        await windowManager.createOrShow('pluginDownload');
+      }
+    } catch (error) {
+      console.warn('[pluginResource] open download window failed', error);
+    }
 
     return { ok: true, data: resource };
   });
