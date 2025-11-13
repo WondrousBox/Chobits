@@ -111,7 +111,7 @@ const ModelPage: React.FC<ModelPageProps> = ({ hideTitleBar }: ModelPageProps) =
   const install = async (pluginId: string, resourceId: string) => {
     setInstalling(resourceId);
     try {
-      const res = await window.YUA.pluginResource['plugin-resource:install']({ pluginId, resourceId });
+      const res = await window.YUA.pluginResource['plugin-resource:install']({ pluginId, resourceId, deleteAfterInstall: true });
       if (res.ok && res.data) {
         const data: InstalledModel = res.data;
         setInstalledModels((prev) => [...prev.filter((m) => m.id !== data.id), data]);
@@ -129,7 +129,8 @@ const ModelPage: React.FC<ModelPageProps> = ({ hideTitleBar }: ModelPageProps) =
     if (!modelDef) return;
     const res = await window.YUA.pluginResource['plugin-resource:install']({
       pluginId: model.pluginId,
-      resourceId: modelDef.id
+      resourceId: modelDef.id,
+      deleteAfterInstall: true
     });
     if (res.ok) {
       setInstalledModels((prev) => prev.map((m) => (m.id === id ? { ...m, status: 'queued', progressBytes: 0 } : m)));

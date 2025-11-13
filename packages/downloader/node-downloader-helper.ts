@@ -110,25 +110,22 @@ export class NodeDownloaderHelper implements Downloader {
         const speedBps = speedKBps ? speedKBps * 1024 : undefined;
         const etaSeconds = stats.eta; // 秒
         const etaMs = etaSeconds ? etaSeconds * 1000 : undefined;
+        // 计算百分比
+        const percentage = total && total > 0 ? Math.min(100, Math.max(0, (downloaded / total) * 100)) : undefined;
 
         const progress: DownloadProgress = {
           doneBytes: downloaded,
           totalBytes: total,
           speedBps: speedBps,
-          etaMs: etaMs
+          etaMs: etaMs,
+          percentage: percentage
         };
 
         if (onProgress) {
           onProgress(progress);
         }
 
-        console.log('[DL-NDH] progress', {
-          downloaded: downloaded,
-          total: total,
-          speed: speedBps ? Math.round(speedBps) : undefined,
-          percent: stats.progress ? stats.progress.toFixed(2) + '%' : undefined,
-          eta: etaSeconds ? etaSeconds + 's' : undefined
-        });
+        console.log('[DL-NDH] progress', stats.progress ? stats.progress.toFixed(2) + '%' : undefined);
       });
 
       // 监听下载完成

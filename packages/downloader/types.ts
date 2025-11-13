@@ -3,6 +3,7 @@ export type DownloadProgress = {
   totalBytes?: number;
   speedBps?: number;
   etaMs?: number;
+  percentage?: number;
 };
 
 export interface Downloader {

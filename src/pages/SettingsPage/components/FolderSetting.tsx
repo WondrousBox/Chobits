@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { TbDatabase, TbFileText, TbFolderOpen, TbPlug } from 'react-icons/tb';
+import { TbDatabase, TbDownload, TbFileText, TbFolderOpen, TbPlug } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { maskPath } from '@/lib/helpers';
 
 function FolderSetting(): JSX.Element {
   const [pluginsDir, setPluginsDir] = useState<string>('');
+  const [downloadDir, setDownloadDir] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -21,6 +22,24 @@ function FolderSetting(): JSX.Element {
         // ignore
       } finally {
         if (mounted) setLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await window.YUA.pluginResource['plugin-resource:getDownloadDir']();
+        if (!mounted) return;
+        if (res.ok && res.path) {
+          setDownloadDir(res.path);
+        }
+      } catch {
+        // ignore
       }
     })();
     return () => {
@@ -58,6 +77,15 @@ function FolderSetting(): JSX.Element {
     }
   };
 
+  const openDownloadLocation = async (): Promise<void> => {
+    if (!downloadDir) return;
+    try {
+      await window.YUA.file['file:openPath'](downloadDir);
+    } catch {
+      // ignore
+    }
+  };
+
   return (
     <div className="px-2">
       <div className="bg-card border border-border rounded-lg p-2">
@@ -83,6 +111,21 @@ function FolderSetting(): JSX.Element {
             <TbFolderOpen />
             打开
           </Button>
+        </div>
+      </div>
+
+      <div className="bg-card border border-border rounded-lg p-2 mt-3">
+        <div className="flex items-center text-foreground gap-1">
+          <TbDownload /> 下载
+        </div>
+        <div className="flex items-center justify-center gap-2 mt-2">
+          <div className="p-2 bg-muted rounded-md text-xs text-muted-foreground flex-1 break-all font-mono">{maskPath(downloadDir) || '未设置'}</div>
+          {downloadDir && (
+            <Button size="sm" variant="outline" onClick={openDownloadLocation}>
+              <TbFolderOpen />
+              打开
+            </Button>
+          )}
         </div>
       </div>
 
