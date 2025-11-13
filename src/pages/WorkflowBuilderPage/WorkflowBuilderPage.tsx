@@ -214,6 +214,49 @@ const WorkflowCanvasInner: React.FC = () => {
     [setNodes]
   );
 
+  const installPluginResource = useCallback(async (pluginId: string): Promise<boolean> => {
+    try {
+      const pluginResourceApi = window.YUA?.pluginResource;
+      if (!pluginResourceApi) {
+        toast.error('插件安装失败', { description: '无法访问插件资源接口' });
+        return false;
+      }
+      const listFn = pluginResourceApi['plugin-resource:listSupported'];
+      if (typeof listFn !== 'function') {
+        toast.error('插件安装失败', { description: '缺少插件资源列表接口' });
+        return false;
+      }
+      const supportedPlugins = await listFn();
+      if (!Array.isArray(supportedPlugins)) {
+        toast.error('插件安装失败', { description: '无法获取插件资源列表' });
+        return false;
+      }
+      const pluginResource = supportedPlugins.find((p: any) => p.pluginId === pluginId && p.type === 'engine');
+      if (!pluginResource) {
+        toast.error('插件安装失败', { description: `未找到插件资源: ${pluginId}` });
+        return false;
+      }
+      const installFn = pluginResourceApi['plugin-resource:install'];
+      if (typeof installFn !== 'function') {
+        toast.error('插件安装失败', { description: '缺少插件安装接口' });
+        return false;
+      }
+      const result = await installFn({
+        pluginId: pluginResource.pluginId,
+        resourceId: pluginResource.id
+      });
+      if (result?.ok) {
+        toast.success('插件安装成功', { description: pluginId });
+        return true;
+      }
+      toast.error('插件安装失败', { description: result?.error || '未知错误' });
+      return false;
+    } catch (err: any) {
+      toast.error('插件安装失败', { description: err?.message || String(err) });
+      return false;
+    }
+  }, []);
+
   const onConnect = useCallback(
     (connection: Connection): void => {
       // Require explicit handles for strict port binding
@@ -225,7 +268,7 @@ const WorkflowCanvasInner: React.FC = () => {
 
   const nodeTypes = useMemo(() => ({ specNode: SpecNode }), []);
 
-  const performValidate = async (): Promise<void> => {
+  const performValidate = useCallback(async (): Promise<void> => {
     if (!draft) return;
     const backendDef = {
       id: draft.id,
@@ -247,14 +290,31 @@ const WorkflowCanvasInner: React.FC = () => {
       if (res.errors && res.errors.length > 0) {
         errors.push(...res.errors);
       }
-      if (res.missingPlugins && res.missingPlugins.length > 0) {
-        errors.push(...res.missingPlugins.map((m: any) => `缺少插件: ${m.id}`));
+      const missingPlugins: Array<{ id: string; hint?: string }> = Array.isArray(res.missingPlugins) ? res.missingPlugins : [];
+      if (missingPlugins.length > 0) {
+        errors.push(...missingPlugins.map((m) => `缺少插件: ${m.id}${m.hint ? `（${m.hint}）` : ''}`));
       }
+
+      const description = errors.length > 0 ? errors.join('；') : '工作流配置存在问题';
+      const firstMissing = missingPlugins[0]?.id;
       toast.error('校验失败', {
-        description: errors.length > 0 ? errors.join('；') : '工作流配置存在问题'
+        description,
+        action: firstMissing
+          ? {
+            label: '下载插件',
+            onClick: () => {
+              void (async () => {
+                const ok = await installPluginResource(firstMissing);
+                if (ok) {
+                  await performValidate();
+                }
+              })();
+            }
+          }
+          : undefined
       });
     }
-  };
+  }, [draft, installPluginResource]);
 
   const performSave = async (): Promise<void> => {
     if (!draft) return;
