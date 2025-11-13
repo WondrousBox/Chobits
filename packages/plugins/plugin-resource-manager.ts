@@ -311,7 +311,8 @@ class PluginResourceManager extends EventEmitter {
 
       // 从下载目录解压或移动到安装位置
       if (archiveType !== 'none') {
-        // 压缩包：先验证hash（如果提供），然后解压
+        // 压缩包：必须先验证hash（如果提供），hash校验通过后才能解压
+        // 如果hash不符，在解压之前就要删除文件，不能保留
         if (task.resource.sha256) {
           task.resource.status = 'verifying';
           this.emitProgress(task.resource.id, { status: 'verifying' });
@@ -321,9 +322,13 @@ class PluginResourceManager extends EventEmitter {
           const digest = await calculateFileHash(downloadFile);
           if (digest !== task.resource.sha256) {
             console.error('[PluginDL] checksum mismatch', { id: task.resource.id, expect: task.resource.sha256, got: digest });
-            fs.unlinkSync(downloadFile);
+            // hash不符，立即删除文件，不能保留
+            if (fs.existsSync(downloadFile)) {
+              fs.unlinkSync(downloadFile);
+            }
             throw new Error('CHECKSUM_MISMATCH');
           }
+          console.log('[PluginDL] checksum verified', { id: task.resource.id });
         }
 
         task.resource.status = 'extracting';
@@ -332,7 +337,8 @@ class PluginResourceManager extends EventEmitter {
         // 从下载目录解压到安装目录
         await this.extractArchive(downloadFile, installDir, archiveType, task.resource.extractTo, task);
       } else {
-        // 非压缩包：验证hash（如果提供），然后重命名去除.download后缀
+        // 非压缩包：必须先验证hash（如果提供），hash校验通过后才能重命名
+        // 如果hash不符，在重命名之前就要删除文件，不能保留
         if (task.resource.sha256) {
           task.resource.status = 'verifying';
           this.emitProgress(task.resource.id, { status: 'verifying' });
@@ -342,12 +348,16 @@ class PluginResourceManager extends EventEmitter {
           const digest = await calculateFileHash(downloadFile);
           if (digest !== task.resource.sha256) {
             console.error('[PluginDL] checksum mismatch', { id: task.resource.id, expect: task.resource.sha256, got: digest });
-            fs.unlinkSync(downloadFile);
+            // hash不符，立即删除文件，不能保留
+            if (fs.existsSync(downloadFile)) {
+              fs.unlinkSync(downloadFile);
+            }
             throw new Error('CHECKSUM_MISMATCH');
           }
+          console.log('[PluginDL] checksum verified', { id: task.resource.id });
         }
 
-        // 重命名去除.download后缀（在同一目录下，使用renameSync即可）
+        // 只有hash校验通过（或没有提供hash）后，才重命名去除.download后缀
         console.log('[PluginDL] finalizing', { id: task.resource.id, from: downloadFile, to: task.resource.installPath });
         fs.renameSync(downloadFile, task.resource.installPath!);
       }

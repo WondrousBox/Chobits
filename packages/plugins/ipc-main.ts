@@ -75,11 +75,15 @@ export function init(win: BrowserWindow): void {
 
     const definitions = await loadPluginDefinitions();
     const pluginDef = definitions.find((p) => p.id === payload.resourceId && p.pluginId === payload.pluginId);
+    console.log(pluginDef);
+
     if (!pluginDef) {
       return { ok: false, error: 'PLUGIN_NOT_FOUND' };
     }
 
     const platformInfo = getPluginForCurrentPlatform(pluginDef);
+    console.log('platformInfo', platformInfo);
+
     if (!platformInfo) {
       return { ok: false, error: 'PLATFORM_NOT_SUPPORTED' };
     }
@@ -88,9 +92,11 @@ export function init(win: BrowserWindow): void {
     // 清理 pluginId 中的冒号，使用下划线替代，避免 Windows 文件名不兼容问题
     const sanitizedPluginId = pluginDef.pluginId.replace(/:/g, '_');
     const deterministicId = `${sanitizedPluginId}_${pluginDef.version}${platformInfo.sha256 ? `_${platformInfo.sha256}` : ''}`;
+    console.log('deterministicId', deterministicId);
 
     // 如果已存在同ID资源，避免重复安装
     const existing = PluginResourceStore.get(deterministicId);
+    console.log('existing', existing);
     if (existing) {
       // 已安装则直接返回
       if (existing.status === 'installed' && pluginResourceManager.isInstalled(existing)) {
@@ -123,6 +129,9 @@ export function init(win: BrowserWindow): void {
       // 同ID不存在但文件已存在时，也直接返回已安装
       return { ok: true, data: resource, message: 'Resource already installed' };
     }
+
+    console.log('resource', resource);
+    console.log('payload', payload);
 
     // 加入下载队列，支持deleteAfterInstall参数（默认为false，不删除下载文件）
     pluginResourceManager.enqueue(resource, payload.deleteAfterInstall ?? false);
