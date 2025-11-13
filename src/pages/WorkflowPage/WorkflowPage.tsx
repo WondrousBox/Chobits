@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface WorkflowBrief {
   id: string;
@@ -31,9 +32,19 @@ const WorkflowPage: React.FC = () => {
   const [showPresetDialog, setShowPresetDialog] = useState(false);
   const [presets, setPresets] = useState<WorkflowBrief[]>([]);
   const [selectedPresetId, setSelectedPresetId] = useState<string>('');
+  const [presetIds, setPresetIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let mounted = true;
+    // 加载预设工作流 ID 列表
+    invoke('wf:listPresets')
+      .then((presetList: WorkflowBrief[]) => {
+        if (mounted) {
+          setPresetIds(new Set(presetList.map((p) => p.id)));
+        }
+      })
+      .catch(() => { });
+
     invoke('wf:listDefinitions')
       .then((defs: WorkflowBrief[]) => {
         if (mounted) setList(defs || []);
@@ -145,6 +156,11 @@ const WorkflowPage: React.FC = () => {
 
   const deleteOne = async (e: React.MouseEvent, id: string): Promise<void> => {
     e.stopPropagation();
+    // 检查是否为预设工作流
+    if (presetIds.has(id)) {
+      alert('预设工作流不允许删除');
+      return;
+    }
     if (!confirm('确认删除该工作流吗？此操作不可撤销。')) return;
     // optimistic removal
     setList((prev) => prev.filter((w) => w.id !== id));
@@ -177,47 +193,100 @@ const WorkflowPage: React.FC = () => {
           </div>
         }
       />
-      <div className="flex-1 overflow-auto p-3 space-y-3 bg-muted">
-        {loading && <div className="text-xs opacity-60">加载中...</div>}
-        {!loading && filtered.length === 0 && <div className="text-xs opacity-60">暂无工作流或无匹配结果</div>}
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filtered.map((wf) => (
-            <div
-              key={wf.id}
-              className="group border border-border/60 rounded-lg p-3 bg-card hover:border-primary transition-colors cursor-pointer flex flex-col relative"
-              onClick={() => openExisting(wf.id)}
-            >
-              <Button variant={'destructive'} size={'sm'} className="absolute top-2 right-2 opacity-0 group-hover:opacity-100" onClick={(e) => deleteOne(e, wf.id)}>
-                删除
-              </Button>
-              <div className="flex items-start justify-between gap-2 mb-1 pr-16">
-                <div className="font-medium text-sm truncate" title={wf.name}>
-                  {wf.name || '未命名'}
-                </div>
-                <div className="text-[10px] px-1 py-0.5 rounded bg-neutral-800/70 border border-neutral-700 opacity-70 group-hover:opacity-100">{wf.nodes?.length || 0} 节点</div>
-              </div>
-              <div className="text-xs text-neutral-400 line-clamp-2 min-h-[32px]">{wf.description || '—'}</div>
-              {/* badges */}
-              <div className="mt-2 flex items-center gap-2 text-[10px]">
-                <span
-                  className={`px-1.5 py-0.5 rounded border ${validationMap[wf.id] === undefined ? 'border-neutral-700 text-neutral-400' : validationMap[wf.id] ? 'border-green-700 text-green-400' : 'border-yellow-700 text-yellow-400'}`}
-                >
-                  {validationMap[wf.id] === undefined ? '校验中' : validationMap[wf.id] ? '校验通过' : '需修复'}
-                </span>
-                {runsByWorkflow[wf.id] &&
-                  (() => {
-                    const status = runsByWorkflow[wf.id]?.status;
-                    const cls = status === 'completed' ? 'border-green-700 text-green-400' : status === 'failed' ? 'border-red-700 text-red-400' : 'border-blue-700 text-blue-400';
-                    return <span className={`px-1.5 py-0.5 rounded border ${cls}`}>最近运行：{status}</span>;
-                  })()}
-              </div>
-              <div className="mt-auto pt-2 flex items-center justify-between text-[10px] text-neutral-500">
-                <span>ID: {wf.id}</span>
-                {wf.updatedAt && <span>{new Date(wf.updatedAt).toLocaleDateString()}</span>}
-              </div>
-            </div>
-          ))}
-        </div>
+      <div className="flex-1 overflow-auto bg-background">
+        {loading && (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-sm text-muted-foreground">加载中...</div>
+          </div>
+        )}
+        {!loading && filtered.length === 0 && (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-sm text-muted-foreground">暂无工作流或无匹配结果</div>
+          </div>
+        )}
+        {!loading && filtered.length > 0 && (
+          <div className="w-full">
+            <Table>
+              <TableHeader className="sticky top-0 z-10 bg-muted/50 backdrop-blur-sm">
+                <TableRow>
+                  <TableHead className="w-[200px]">名称</TableHead>
+                  <TableHead>描述</TableHead>
+                  <TableHead className="w-20 text-center">节点数</TableHead>
+                  <TableHead className="w-24 text-center">校验状态</TableHead>
+                  <TableHead className="w-28 text-center">运行状态</TableHead>
+                  <TableHead className="w-32">更新时间</TableHead>
+                  <TableHead className="w-24 text-center">操作</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((wf) => {
+                  const validationStatus = validationMap[wf.id];
+                  const runStatus = runsByWorkflow[wf.id]?.status;
+                  const isPreset = presetIds.has(wf.id);
+                  return (
+                    <TableRow key={wf.id} className="cursor-pointer" onClick={() => openExisting(wf.id)}>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <div className="font-medium text-sm">{wf.name || '未命名'}</div>
+                          {isPreset && <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">预设</span>}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-0.5 font-mono">{wf.id}</div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm text-foreground/80 line-clamp-2 max-w-md">{wf.description || '—'}</div>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <span className="text-sm">{wf.nodes?.length || 0}</span>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {validationStatus === undefined ? (
+                          <span className="text-xs text-muted-foreground">校验中</span>
+                        ) : validationStatus ? (
+                          <span className="text-xs px-2 py-0.5 rounded bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20">通过</span>
+                        ) : (
+                          <span className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20">需修复</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {runStatus ? (
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded border ${runStatus === 'completed'
+                                ? 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20'
+                                : runStatus === 'failed'
+                                  ? 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20'
+                                  : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
+                              }`}
+                          >
+                            {runStatus === 'completed' ? '已完成' : runStatus === 'failed' ? '失败' : runStatus === 'running' ? '运行中' : runStatus === 'queued' ? '排队中' : runStatus}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-xs text-muted-foreground">
+                          {wf.updatedAt ? new Date(wf.updatedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-center gap-2">
+                          <Button size="sm" variant="ghost" onClick={() => openExisting(wf.id)} disabled={isPreset} title={isPreset ? '预设工作流不允许修改' : ''}>
+                            {isPreset ? '查看' : '编辑'}
+                          </Button>
+                          {!isPreset && (
+                            <Button size="sm" variant="ghost" onClick={(e) => deleteOne(e, wf.id)}>
+                              删除
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </div>
       <Dialog open={showPresetDialog} onOpenChange={setShowPresetDialog}>
         <DialogContent>

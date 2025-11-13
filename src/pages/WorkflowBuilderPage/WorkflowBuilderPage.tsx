@@ -18,6 +18,7 @@ import ReactFlow, {
   useNodesState,
   useReactFlow
 } from 'reactflow';
+import { toast } from 'sonner';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { NodeSpec, WorkflowDraft } from '@/types/workflow';
@@ -72,6 +73,7 @@ const WorkflowCanvasInner: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
   const [showJsonDialog, setShowJsonDialog] = useState(false);
+  const [isPresetWorkflow, setIsPresetWorkflow] = useState(false);
   const selectedNode = useMemo(() => draft?.nodes.find((n) => n.id === selectedNodeId), [draft, selectedNodeId]);
 
   // Load existing workflow definition if payload provides id, or load preset template if presetId is provided
@@ -94,6 +96,9 @@ const WorkflowCanvasInner: React.FC = () => {
 
         if (workflowDef && workflowDef.nodes && workflowDef.edges) {
           if (payload && payload.id) {
+            // 加载已存在的工作流，检查是否为预设工作流
+            const isPreset = await invoke('wf:isPreset', { id: payload.id }).catch(() => false);
+            setIsPresetWorkflow(isPreset);
             // 加载已存在的工作流，保持原有 ID
             const rfNodes: Node<NodeData>[] = workflowDef.nodes.map((n: any) => {
               const spec = specs.find((s) => s.id === n.type) || { id: n.type, label: n.type, inputs: [], outputs: [], category: 'core' };
@@ -114,6 +119,8 @@ const WorkflowCanvasInner: React.FC = () => {
               edges: workflowDef.edges
             });
           } else {
+            // 从预设模板创建新工作流，不是预设工作流，允许保存
+            setIsPresetWorkflow(false);
             // 从预设模板创建新工作流，为每个节点生成新的 ID
             const nodeIdMap = new Map<string, string>();
             workflowDef.nodes.forEach((n: any) => {
@@ -235,6 +242,11 @@ const WorkflowCanvasInner: React.FC = () => {
 
   const performSave = async (): Promise<void> => {
     if (!draft) return;
+    // 检查是否为预设工作流
+    if (isPresetWorkflow) {
+      alert('预设工作流不允许修改，请先保存为新工作流');
+      return;
+    }
     setSaving(true);
     try {
       const backendDef = {
@@ -246,13 +258,21 @@ const WorkflowCanvasInner: React.FC = () => {
         options: { concurrency: 1, errorStrategy: 'fail-fast' }
       };
       const r = await invoke('wf:saveDefinition', { def: backendDef });
+      if (!r.ok && r.error) {
+        toast.error(r.error);
+        return;
+      }
       console.log('Saved', r);
-      // notify others for optimistic refresh
+      // 通知其他窗口刷新列表
       try {
         eventCh.postMessage({ type: 'definition-upserted', def: backendDef });
       } catch {
         // ignore
       }
+      // 保存成功提示
+      toast.success('工作流保存成功', {
+        description: draft.id.startsWith('new-') ? '新工作流已创建，可在工作流列表中查看' : '工作流已更新'
+      });
     } finally {
       setSaving(false);
     }
@@ -327,6 +347,7 @@ const WorkflowCanvasInner: React.FC = () => {
             saving={saving}
             running={running}
             validateResult={validateResult}
+            isPreset={isPresetWorkflow}
           />
         }
       />

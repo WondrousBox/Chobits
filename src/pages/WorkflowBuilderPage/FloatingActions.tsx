@@ -12,9 +12,10 @@ interface FloatingActionsProps {
   saving: boolean;
   running: boolean;
   validateResult: any;
+  isPreset?: boolean;
 }
 
-const FloatingActions: React.FC<FloatingActionsProps> = ({ onValidate, onSave, onRun, onLayout, onShowJson, saving, running, validateResult }) => {
+const FloatingActions: React.FC<FloatingActionsProps> = ({ onValidate, onSave, onRun, onLayout, onShowJson, saving, running, validateResult, isPreset }) => {
   return (
     <div className="flex flex-col items-end space-y-2">
       <div className="flex gap-2">
@@ -32,7 +33,7 @@ const FloatingActions: React.FC<FloatingActionsProps> = ({ onValidate, onSave, o
           <TbCheck />
           校验
         </Button>
-        <Button variant="ghost" size="sm" onClick={onSave} disabled={saving}>
+        <Button variant="ghost" size="sm" onClick={onSave} disabled={saving || isPreset} title={isPreset ? '预设工作流不允许修改' : ''}>
           <TbDisc />
           保存
         </Button>
