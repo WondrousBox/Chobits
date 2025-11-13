@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 
 import ffmpeg from 'fluent-ffmpeg';
@@ -136,6 +137,11 @@ export const TranscodeNode: NodeHandler = {
     const src = String(input.input);
     if (!src) throw new Error('缺少输入文件');
 
+    // 检查输入文件是否存在
+    if (!fs.existsSync(src)) {
+      throw new Error(`输入文件不存在: ${src}`);
+    }
+
     const fmt = String(config?.format || 'mp4');
     const quality = String(config?.quality || 'medium');
 
@@ -158,8 +164,21 @@ export const TranscodeNode: NodeHandler = {
       }
     })();
 
+    // 确保输出目录存在
+    const outDir = path.dirname(out);
+    if (!fs.existsSync(outDir)) {
+      fs.mkdirSync(outDir, { recursive: true });
+    }
+
+    const stderrOutput = '';
+
     await new Promise<void>((resolve, reject) => {
       const cmd = ffmpeg(src);
+
+      // 如果输出是音频格式，禁用视频轨道
+      if (isAudio) {
+        cmd.noVideo();
+      }
 
       if (isVideo && qualitySettings.videoCodec) {
         cmd.videoCodec(qualitySettings.videoCodec);
@@ -177,8 +196,21 @@ export const TranscodeNode: NodeHandler = {
       cmd
         .format(fmt)
         .output(out)
-        .on('end', () => resolve())
-        .on('error', (e) => reject(e))
+        .on('start', (commandLine: string) => {
+          console.log('[transcode] Start:', commandLine);
+        })
+        .on('progress', (progress) => {
+          console.log('[transcode] Progress:', progress);
+        })
+        .on('end', () => {
+          console.log('[transcode] End:', out);
+          resolve();
+        })
+        .on('error', (e: Error) => {
+          const errorMsg = `转码失败: ${e.message}\nFFmpeg stderr:\n${stderrOutput}`;
+          console.error('[transcode] Error:', errorMsg);
+          reject(new Error(errorMsg));
+        })
         .run();
     });
 
