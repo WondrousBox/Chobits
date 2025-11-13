@@ -10,7 +10,7 @@
       { "id": "end", "type": "core/end" }
     ],
     "edges": [
-      { "id": "e1", "from": { "nodeId": "start", "port": "resource" }, "to": { "nodeId": "load", "port": "path" } },
+      { "id": "e1", "from": { "nodeId": "start", "port": "resource" }, "to": { "nodeId": "load", "port": "resource" } },
       { "id": "e2", "from": { "nodeId": "load", "port": "path" }, "to": { "nodeId": "ocr", "port": "image" } },
       { "id": "e3", "from": { "nodeId": "ocr", "port": "text" }, "to": { "nodeId": "end", "port": "result" } }
     ],
@@ -27,7 +27,7 @@
       { "id": "end", "type": "core/end" }
     ],
     "edges": [
-      { "id": "t1", "from": { "nodeId": "start", "port": "resource" }, "to": { "nodeId": "load", "port": "path" } },
+      { "id": "t1", "from": { "nodeId": "start", "port": "resource" }, "to": { "nodeId": "load", "port": "resource" } },
       { "id": "t2", "from": { "nodeId": "load", "port": "path" }, "to": { "nodeId": "whisper", "port": "media" } },
       { "id": "t3", "from": { "nodeId": "whisper", "port": "text" }, "to": { "nodeId": "end", "port": "result" } }
     ],
@@ -44,7 +44,7 @@
       { "id": "end", "type": "core/end" }
     ],
     "edges": [
-      { "id": "tc1", "from": { "nodeId": "start", "port": "resource" }, "to": { "nodeId": "load", "port": "path" } },
+      { "id": "tc1", "from": { "nodeId": "start", "port": "resource" }, "to": { "nodeId": "load", "port": "resource" } },
       { "id": "tc2", "from": { "nodeId": "load", "port": "path" }, "to": { "nodeId": "transcode", "port": "input" } },
       { "id": "tc3", "from": { "nodeId": "transcode", "port": "output" }, "to": { "nodeId": "end", "port": "result" } }
     ],

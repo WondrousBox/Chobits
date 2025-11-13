@@ -3,6 +3,11 @@ import { EventEmitter } from 'node:events';
 // Basic value types supported across nodes
 export type ValueType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'file' | 'resource' | 'any';
 
+// Select option types
+export type SelectOption = { value: string; label: string };
+export type SelectOptionGroup = { group: string; options: SelectOption[] };
+export type SelectOptions = Array<SelectOption | SelectOptionGroup>;
+
 export type PortSchema = {
   key: string;
   label?: string;
@@ -11,6 +16,11 @@ export type PortSchema = {
   description?: string;
   // default value for inputs
   default?: any;
+  // UI input type (for config fields)
+  inputType?: 'text' | 'select' | 'number' | 'textarea';
+  // Options for select input type
+  // Can be flat array of options or grouped options
+  options?: SelectOptions;
 };
 
 export type NodeSpec = {

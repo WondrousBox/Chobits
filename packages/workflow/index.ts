@@ -10,6 +10,7 @@ import { LoadResourceNode } from './nodes/load-resource';
 import { OCRNode } from './nodes/ocr';
 import { StartNode } from './nodes/start';
 import { TranscodeNode } from './nodes/transcode';
+import { TranscodeAdvancedNode } from './nodes/transcode-advanced';
 import { TranscribeWhisperNode } from './nodes/transcribe-whisper';
 import { FfmpegPlugin } from './plugins/ffmpeg';
 import { TesseractPlugin } from './plugins/tesseract';
@@ -24,7 +25,7 @@ export function initWorkflowSystem(): void {
   registerPlugin(TesseractPlugin);
   registerPlugin(WhisperPlugin);
   // Register nodes
-  [StartNode, EndNode, LoadResourceNode, TranscodeNode, OCRNode, TranscribeWhisperNode, DocToMarkdownNode].forEach(registerNode);
+  [StartNode, EndNode, LoadResourceNode, TranscodeNode, TranscodeAdvancedNode, OCRNode, TranscribeWhisperNode, DocToMarkdownNode].forEach(registerNode);
 
   const engine = createEngine({
     resourcesDir: path.join(process.env.APP_ROOT || process.cwd(), 'resources'),

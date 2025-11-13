@@ -30,7 +30,15 @@ export type NodeSpec = {
   inputs: { key: string; type: string | string[]; required?: boolean; description?: string }[];
   outputs: { key: string; type: string | string[]; description?: string }[];
   requires?: string[];
-  config?: { key: string; type: string | string[]; description?: string; default?: any }[];
+  config?: {
+    key: string;
+    label?: string;
+    type: string | string[];
+    description?: string;
+    default?: any;
+    inputType?: 'text' | 'select' | 'number' | 'textarea';
+    options?: Array<{ value: string; label: string } | { group: string; options: Array<{ value: string; label: string }> }>;
+  }[];
 };
 
 export type ValidateResult = {
