@@ -314,6 +314,38 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
       webPreferences: { nodeIntegration: true, contextIsolation: true }
     }
   },
+  pluginDownload: {
+    routeHash: 'plugin-download',
+    autoCenterOn: 'parent-display',
+    showOnReady: true,
+    openDevTools: true,
+    rememberState: true,
+    options: {
+      width: 600,
+      height: 500,
+      minWidth: 500,
+      minHeight: 400,
+      frame: false,
+      transparent: false,
+      resizable: true,
+      alwaysOnTop: false,
+      skipTaskbar: false,
+      backgroundColor: '#ffffff',
+      show: false,
+      autoHideMenuBar: true,
+      webPreferences: { nodeIntegration: true, contextIsolation: true }
+    },
+    platformOverlays: {
+      darwin: {
+        options: {
+          titleBarStyle: 'hiddenInset',
+          titleBarOverlay: true,
+          trafficLightPosition: { x: 20, y: HEADER_COMMANDS_HEIGHT / 2 - MACOS_TRAFFIC_LIGHTS_HEIGHT / 2 },
+          frame: true
+        }
+      }
+    }
+  },
   tagger: {
     routeHash: 'tagger',
     autoCenterOn: 'parent-display',

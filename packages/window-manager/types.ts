@@ -17,6 +17,7 @@ export type WindowKey =
   | 'pluginManager'
   | 'resourcePreview'
   | 'downloadFloating'
+  | 'pluginDownload'
   | 'workflowBuilder'
   | 'workflowPage'
   | string;

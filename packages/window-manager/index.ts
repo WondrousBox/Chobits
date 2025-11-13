@@ -392,6 +392,24 @@ export class WindowManager {
     return w;
   }
 
+  async createOrShowOnDisplay(key: WindowKey, display: Electron.Display, payload?: any): Promise<BrowserWindow | null> {
+    const w = await this.createOrShow(key, payload);
+    if (!w || !display) return w;
+    try {
+      const bounds = w.getBounds();
+      const work = display.workArea;
+      const width = bounds.width;
+      const height = bounds.height;
+      const x = Math.round(work.x + (work.width - width) / 2);
+      const y = Math.round(work.y + (work.height - height) / 2);
+      w.setBounds({ x, y, width, height });
+      w.focus();
+    } catch (error) {
+      console.warn(`Failed to position window '${String(key)}' on display`, error);
+    }
+    return w;
+  }
+
   setAnchorWidth(width: number): void {
     ANCHOR_WIDTH = width;
   }

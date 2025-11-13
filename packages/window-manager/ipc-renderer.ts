@@ -24,7 +24,7 @@ type WindowIPCParams = {
    * 设置窗口是否穿透点击
    */
   'window:click:through': IPCParams<[boolean], boolean>;
-  'window:open': IPCParams<[WindowKey, any?], boolean>;
+  'window:open': IPCParams<[WindowKey, any?, { sameDisplayAsSender?: boolean }?], boolean>;
   'window:open:ready': IPCParams<[WindowKey], boolean>;
   'window:payload:get': IPCParams<[WindowKey], any>;
   'window:close': IPCParams<[WindowKey], boolean>;

@@ -35,7 +35,7 @@ export function init(win: BrowserWindow): void {
 
   // ---------------- Child window open/close IPC --------------
 
-  ipcMain.handle('window:open', async (event: IpcMainInvokeEvent, key: WindowKey, payload?: any) => {
+  ipcMain.handle('window:open', async (event: IpcMainInvokeEvent, key: WindowKey, payload?: any, options?: { sameDisplayAsSender?: boolean }) => {
     if (!win) return false;
     try {
       if (payload) {
@@ -47,6 +47,18 @@ export function init(win: BrowserWindow): void {
         const opener = BrowserWindow.fromWebContents(event.sender) || null;
         if (opener && !opener.isDestroyed()) {
           windowManager.setOpener(key, opener);
+        }
+
+        if (options?.sameDisplayAsSender && opener && !opener.isDestroyed()) {
+          try {
+            const display = screen.getDisplayMatching(opener.getBounds());
+            if (display) {
+              await windowManager.createOrShowOnDisplay(key, display, payload);
+              return true;
+            }
+          } catch (error) {
+            console.warn('[window:open] failed to align new window to sender display', error);
+          }
         }
       } catch {
         // noop

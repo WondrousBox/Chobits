@@ -141,22 +141,22 @@ const WorkflowPage: React.FC = () => {
       console.error('加载预设工作流失败:', err);
     }
     // 如果没有预设，使用默认的空白预设
-    await window.YUA.window['window:open']('workflowBuilder' as any, { mode: 'create', presetId: 'blank' });
+    await window.YUA.window['window:open']('workflowBuilder' as any, { mode: 'create', presetId: 'blank' }, { sameDisplayAsSender: true });
   };
 
   const handleCreateFromPreset = async (): Promise<void> => {
     if (selectedPresetId) {
-      await window.YUA.window['window:open']('workflowBuilder' as any, { mode: 'create', presetId: selectedPresetId });
+      await window.YUA.window['window:open']('workflowBuilder' as any, { mode: 'create', presetId: selectedPresetId }, { sameDisplayAsSender: true });
     } else {
       // 如果没有选择，默认使用空白预设
-      await window.YUA.window['window:open']('workflowBuilder' as any, { mode: 'create', presetId: 'blank' });
+      await window.YUA.window['window:open']('workflowBuilder' as any, { mode: 'create', presetId: 'blank' }, { sameDisplayAsSender: true });
     }
     setShowPresetDialog(false);
     setSelectedPresetId('');
   };
 
   const openExisting = async (id: string): Promise<void> => {
-    await window.YUA.window['window:open']('workflowBuilder' as any, { id });
+    await window.YUA.window['window:open']('workflowBuilder' as any, { id }, { sameDisplayAsSender: true });
   };
 
   const deleteOne = async (e: React.MouseEvent, id: string): Promise<void> => {
