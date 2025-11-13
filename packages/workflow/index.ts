@@ -53,6 +53,10 @@ export function initWorkflowSystem(): void {
     const [preset, custom] = await Promise.all([loadPresetWorkflows(), WorkflowStore.list()]);
     return [...preset, ...custom];
   });
+  ipcMain.handle('wf:listPresets', async () => {
+    // 只返回预设工作流
+    return loadPresetWorkflows();
+  });
   ipcMain.handle('wf:getDefinition', async (_e, payload: { id: string }) => {
     // 先尝试从预设工作流中查找
     const preset = await loadPresetWorkflows();
