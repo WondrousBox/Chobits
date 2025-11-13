@@ -57,6 +57,11 @@ export function initWorkflowSystem(): void {
     // 只返回预设工作流
     return loadPresetWorkflows();
   });
+  ipcMain.handle('wf:isPreset', async (_e, payload: { id: string }) => {
+    // 检查工作流是否为预设工作流
+    const preset = await loadPresetWorkflows();
+    return preset.some((w) => w.id === payload.id);
+  });
   ipcMain.handle('wf:getDefinition', async (_e, payload: { id: string }) => {
     // 先尝试从预设工作流中查找
     const preset = await loadPresetWorkflows();
