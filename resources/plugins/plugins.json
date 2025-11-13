@@ -56,7 +56,7 @@
             "arch": "all",
             "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin",
             "sizeBytes": 142000000,
-            "sha256": ""
+            "sha256": "1"
           }
         ]
       },
@@ -73,7 +73,7 @@
             "arch": "all",
             "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin",
             "sizeBytes": 461000000,
-            "sha256": ""
+            "sha256": "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe"
           }
         ]
       },
@@ -90,7 +90,7 @@
             "arch": "all",
             "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.bin",
             "sizeBytes": 1420000000,
-            "sha256": ""
+            "sha256": "3"
           }
         ]
       },
@@ -107,7 +107,7 @@
             "arch": "all",
             "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3.bin",
             "sizeBytes": 3100000000,
-            "sha256": ""
+            "sha256": "4"
           }
         ]
       }
