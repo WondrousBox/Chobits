@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { TbDatabase, TbFileText, TbFolderOpen, TbPlug, TbSlash } from 'react-icons/tb';
+import { TbDatabase, TbFileText, TbFolderOpen, TbPlug } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
+import { maskPath } from '@/lib/helpers';
 
 function FolderSetting(): JSX.Element {
   const [pluginsDir, setPluginsDir] = useState<string>('');
@@ -64,10 +65,8 @@ function FolderSetting(): JSX.Element {
           <TbDatabase /> 数据
         </div>
         <div className="flex items-center justify-center gap-2 mt-2">
-          <span className="text-muted-foreground uppercase text-xs">%appData%</span>
-          <TbSlash />
-          <div className="p-2 bg-muted rounded-md text-sm text-muted-foreground flex-1">data/</div>
-          <Button variant="outline" onClick={openDatabaseLocation}>
+          <div className="p-2 bg-muted rounded-md text-xs text-muted-foreground flex-1">data/</div>
+          <Button size="sm" variant="outline" onClick={openDatabaseLocation}>
             <TbFolderOpen />
             打开
           </Button>
@@ -79,10 +78,8 @@ function FolderSetting(): JSX.Element {
           <TbFileText /> 日志
         </div>
         <div className="flex items-center justify-center gap-2 mt-2">
-          <span className="text-muted-foreground uppercase text-xs">%appData%</span>
-          <TbSlash />
-          <div className="p-2 bg-muted rounded-md text-sm text-muted-foreground flex-1">logs/</div>
-          <Button variant="outline" onClick={openLogsLocation}>
+          <div className="p-2 bg-muted rounded-md text-xs text-muted-foreground flex-1">logs/</div>
+          <Button size="sm" variant="outline" onClick={openLogsLocation}>
             <TbFolderOpen />
             打开
           </Button>
@@ -99,12 +96,12 @@ function FolderSetting(): JSX.Element {
         ) : (
           <>
             <div className="flex items-center justify-center gap-2 mt-2">
-              <div className="p-2 bg-muted rounded-md text-sm text-muted-foreground flex-1 break-all font-mono text-xs">{pluginsDir || '未设置'}</div>
-              <Button variant="outline" onClick={pickPluginsDir}>
+              <div className="p-2 bg-muted rounded-md text-muted-foreground flex-1 break-all font-mono text-xs">{maskPath(pluginsDir) || '未设置'}</div>
+              <Button size="sm" variant="outline" onClick={pickPluginsDir}>
                 选择
               </Button>
               {pluginsDir && (
-                <Button variant="outline" onClick={openPluginsLocation}>
+                <Button size="sm" variant="outline" onClick={openPluginsLocation}>
                   <TbFolderOpen />
                   打开
                 </Button>
