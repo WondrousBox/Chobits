@@ -102,7 +102,7 @@ const ResourceRunPopover: React.FC<ResourceRunPopoverProps> = ({ disabled, runni
           <Input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索资源..." className="h-8" />
         </div>
         <ScrollArea className="max-h-72 h-72">
-          <div className="py-1">
+          <div className="py-1 w-96">
             {loading ? (
               <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
                 <TbLoader2 className="h-4 w-4 animate-spin" />
@@ -137,11 +137,11 @@ const ResourceRunPopover: React.FC<ResourceRunPopoverProps> = ({ disabled, runni
                     disabled={pending}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div className="flex flex-col">
-                        <span className="text-sm font-medium leading-tight line-clamp-1">{title}</span>
-                        {subtitle ? <span className="text-xs text-muted-foreground line-clamp-1">{subtitle}</span> : null}
+                      <div className="flex flex-col min-w-0 flex-1">
+                        <span className="text-sm font-medium leading-tight truncate">{title}</span>
+                        {subtitle ? <span className="text-xs text-muted-foreground truncate">{subtitle}</span> : null}
                       </div>
-                      {pending ? <TbLoader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : null}
+                      {pending ? <TbLoader2 className="h-4 w-4 animate-spin text-muted-foreground flex-shrink-0" /> : null}
                     </div>
                   </button>
                 );
