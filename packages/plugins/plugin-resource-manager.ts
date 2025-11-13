@@ -271,7 +271,14 @@ class PluginResourceManager extends EventEmitter {
       const ext = archiveType === 'none' ? 'bin' : archiveType;
       urlFileName = `${task.resource.name}.${ext}`;
     }
-    const downloadFile = path.join(this.downloadDir, `${task.resource.id}-${urlFileName}`);
+    // 清理文件名中的非法字符（Windows 不允许的字符）
+    const sanitizeFileName = (fileName: string): string => {
+      // Windows 不允许的字符: < > : " / \ | ? *
+      return fileName.replace(/[<>:"/\\|?*]/g, '_');
+    };
+    const sanitizedId = sanitizeFileName(task.resource.id);
+    const sanitizedUrlFileName = sanitizeFileName(urlFileName);
+    const downloadFile = path.join(this.downloadDir, `${sanitizedId}-${sanitizedUrlFileName}`);
 
     try {
       console.log('[PluginDL] start download', { id: task.resource.id, url, downloadFile });
