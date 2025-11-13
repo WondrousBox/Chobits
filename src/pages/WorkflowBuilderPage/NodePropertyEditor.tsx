@@ -2,6 +2,7 @@ import React from 'react';
 
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import type { NodeSpec } from '@/types/workflow';
 
 import type { NodeData } from './types';
@@ -23,8 +24,27 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
 
   // 渲染配置字段
   const renderConfigField = (c: NonNullable<NodeSpec['config']>[number]): React.ReactNode => {
-    const value = String((data.config || {})[c.key] ?? c.default ?? '');
     const label = c.label || c.key;
+    const rawValue = (data.config || {})[c.key] ?? c.default;
+
+    // 检查是否是 boolean 类型
+    const isBoolean = c.type === 'boolean' || (Array.isArray(c.type) && c.type.includes('boolean'));
+
+    // 如果是 boolean 类型，使用 Switch 组件
+    if (isBoolean) {
+      const boolValue = typeof rawValue === 'boolean' ? rawValue : rawValue === 'true' || rawValue === true || rawValue === '1';
+      return (
+        <div key={c.key} className="flex items-center justify-between">
+          <div className="flex flex-col">
+            <label className="text-xs">{label}</label>
+            {c.description && <span className="text-xs opacity-70">{c.description}</span>}
+          </div>
+          <Switch checked={boolValue} onCheckedChange={(checked) => onChange((prev) => ({ config: { ...prev.config, [c.key]: checked } }))} />
+        </div>
+      );
+    }
+
+    const value = String(rawValue ?? '');
 
     // 根据 inputType 渲染不同的输入控件
     if (c.inputType === 'select' && c.options && c.options.length > 0) {
