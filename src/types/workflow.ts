@@ -22,6 +22,8 @@ export type WorkflowDraft = {
   edges: WorkflowEdgeDraft[];
 };
 
+export type ExecutionStatus = 'queued' | 'running' | 'completed' | 'failed' | 'canceled';
+
 export type NodeSpec = {
   id: string;
   label: string;
@@ -47,4 +49,25 @@ export type ValidateResult = {
   ok: boolean;
   errors?: string[];
   missingPlugins?: { id: string; hint?: string }[];
+};
+
+export type NodeRunStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+
+export type NodeRunState = {
+  nodeId: string;
+  status: NodeRunStatus;
+  startedAt?: number;
+  finishedAt?: number;
+  error?: string;
+  output?: Record<string, any>;
+};
+
+export type WorkflowRunLogLevel = 'info' | 'warn' | 'error';
+
+export type WorkflowRunLogEntry = {
+  runId: string;
+  level: WorkflowRunLogLevel;
+  message: string;
+  nodeId?: string;
+  timestamp: number;
 };

@@ -1,4 +1,4 @@
-import { NodeSpec } from '@/types/workflow';
+import { NodeRunState, NodeSpec } from '@/types/workflow';
 
 export type NodeData = {
   label: string;
@@ -6,4 +6,5 @@ export type NodeData = {
   spec: NodeSpec;
   config: Record<string, any>;
   inputDefaults: Record<string, any>;
+  runtime?: NodeRunState;
 };

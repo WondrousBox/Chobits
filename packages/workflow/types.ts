@@ -97,6 +97,16 @@ export type WorkflowRunRecord = {
   error?: string;
 };
 
+export type WorkflowRunLogLevel = 'info' | 'warn' | 'error';
+
+export type WorkflowRunLogEntry = {
+  runId: string;
+  level: WorkflowRunLogLevel;
+  message: string;
+  nodeId?: string;
+  timestamp: number;
+};
+
 export type ExecutionContext = {
   // root temp directory to generate files
   tmpDir: string;
@@ -145,6 +155,7 @@ export type ValidateResult = {
 export interface IEngineEvents {
   'run:status': (rec: WorkflowRunRecord) => void;
   'node:status': (rec: WorkflowRunRecord, node: NodeRunState) => void;
+  'run:log': (runId: string, entry: WorkflowRunLogEntry) => void;
 }
 
 export class EngineEmitter extends EventEmitter {
