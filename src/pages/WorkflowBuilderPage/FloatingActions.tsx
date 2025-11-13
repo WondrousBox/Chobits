@@ -1,5 +1,5 @@
 import React from 'react';
-import { TbCheck, TbDisc, TbPlayerPlay } from 'react-icons/tb';
+import { TbCheck, TbCode, TbDisc, TbLayoutBottombar, TbPlayerPlay } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 
@@ -7,15 +7,27 @@ interface FloatingActionsProps {
   onValidate: () => void;
   onSave: () => void;
   onRun: () => void;
+  onLayout?: () => void;
+  onShowJson?: () => void;
   saving: boolean;
   running: boolean;
   validateResult: any;
 }
 
-const FloatingActions: React.FC<FloatingActionsProps> = ({ onValidate, onSave, onRun, saving, running, validateResult }) => {
+const FloatingActions: React.FC<FloatingActionsProps> = ({ onValidate, onSave, onRun, onLayout, onShowJson, saving, running, validateResult }) => {
   return (
     <div className="flex flex-col items-end space-y-2">
       <div className="flex gap-2">
+        {onLayout && (
+          <Button variant="ghost" size="sm" onClick={onLayout} title="美化布局">
+            <TbLayoutBottombar />
+          </Button>
+        )}
+        {onShowJson && (
+          <Button variant="ghost" size="sm" onClick={onShowJson} title="查看 JSON">
+            <TbCode />
+          </Button>
+        )}
         <Button variant="ghost" size="sm" onClick={onValidate}>
           <TbCheck />
           校验

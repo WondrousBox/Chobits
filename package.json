@@ -45,6 +45,8 @@
     "sqlite-vec": "0.1.7-alpha.2"
   },
   "devDependencies": {
+    "@types/dagre": "^0.7.53",
+    "dagre": "^0.8.5",
     "@aim-packages/file-utils": "^0.0.9",
     "@anthropic-ai/sdk": "^0.67.0",
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",

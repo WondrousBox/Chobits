@@ -47,6 +47,9 @@ export type NodeInstance = {
   config?: NodeConfig;
   // optional inline defaults for inputs
   inputDefaults?: Record<string, any>;
+  // optional position for UI layout
+  x?: number;
+  y?: number;
 };
 
 export type Edge = {
