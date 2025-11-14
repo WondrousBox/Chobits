@@ -24,6 +24,8 @@ export class NodeDownloaderHelper implements Downloader {
 
     // 获取代理配置
     const proxyAgent = getHttpProxy();
+    console.log('[DL-NDH] proxyAgent', proxyAgent);
+
     const httpRequestOptions: any = {};
     const httpsRequestOptions: any = {};
 
@@ -124,7 +126,7 @@ export class NodeDownloaderHelper implements Downloader {
           onProgress(progress);
         }
 
-        console.log('[DL-NDH] progress', stats.progress ? stats.progress.toFixed(2) + '%' : undefined);
+        // console.log('[DL-NDH] progress', stats.progress ? stats.progress.toFixed(2) + '%' : undefined);
       });
 
       // 监听下载完成

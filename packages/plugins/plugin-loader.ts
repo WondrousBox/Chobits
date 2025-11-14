@@ -6,6 +6,8 @@ import { getResourcePath } from '../../electron/main/utils/resources-path';
 
 export type ModelDefinition = {
   id: string;
+  pluginId: string;
+  type: 'engine' | 'model';
   name: string;
   displayName: string;
   description?: string;
@@ -51,37 +53,20 @@ export async function loadPluginDefinitions(): Promise<PluginDefinition[]> {
     const file = getResourcePath('plugins');
     const arr = await readLocalJSON<PluginDefinition[]>(file, []);
     const result: PluginDefinition[] = [];
-
     for (const plugin of arr) {
       if (!plugin) continue;
 
       // 添加引擎定义（不包含 models 字段，因为模型会被展开）
       if (plugin.type === 'engine') {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { models, ...engineDef } = plugin;
         result.push(engineDef);
-      }
 
-      // 如果是引擎且有模型，将模型展开为独立的定义
-      if (plugin.type === 'engine' && plugin.models && Array.isArray(plugin.models)) {
-        for (const model of plugin.models) {
-          result.push({
-            id: model.id,
-            pluginId: plugin.pluginId,
-            type: 'model',
-            name: model.name,
-            displayName: model.displayName,
-            description: model.description,
-            version: model.version,
-            archiveType: model.archiveType,
-            platforms: model.platforms
-          });
+        // 如果是引擎且有模型，将模型展开为独立的定义
+        if (models && Array.isArray(models)) {
+          for (const model of models) {
+            result.push(model);
+          }
         }
-      }
-
-      // 向后兼容：如果 type === 'model'，直接添加（旧格式）
-      if (plugin.type === 'model') {
-        result.push(plugin);
       }
     }
 

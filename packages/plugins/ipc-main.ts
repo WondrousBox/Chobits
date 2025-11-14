@@ -89,9 +89,7 @@ export function init(win: BrowserWindow): void {
     }
 
     // 构建确定性资源ID：pluginId_version[_sha256]
-    // 清理 pluginId 中的冒号，使用下划线替代，避免 Windows 文件名不兼容问题
-    const sanitizedPluginId = pluginDef.pluginId.replace(/:/g, '_');
-    const deterministicId = `${sanitizedPluginId}_${pluginDef.version}${platformInfo.sha256 ? `_${platformInfo.sha256}` : ''}`;
+    const deterministicId = `${pluginDef.pluginId}_${pluginDef.type}_${pluginDef.id}_${pluginDef.version}${platformInfo.sha256 ? `_${platformInfo.sha256}` : ''}`;
     console.log('deterministicId', deterministicId);
 
     // 如果已存在同ID资源，避免重复安装
@@ -112,6 +110,7 @@ export function init(win: BrowserWindow): void {
     const resource: PluginResource = {
       id: deterministicId,
       pluginId: pluginDef.pluginId,
+      resourceId: pluginDef.id,
       type: pluginDef.type,
       name: pluginDef.name,
       displayName: pluginDef.displayName,
