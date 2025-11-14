@@ -10,6 +10,19 @@ import { TaggingService } from '../ai/tagging-service';
 import { FoldersRepo, ResourcesRepo, TagsRepo, WorkspacesRepo } from '../db/repositories';
 import { detectBasicType, generateThumbnailForResource } from '../utils/thumbnail';
 
+// 存储正在上传的文件流
+interface UploadStream {
+  fileName: string;
+  filePath: string;
+  writeStream: fscb.WriteStream;
+  hash: ReturnType<typeof createHash>;
+  totalSize: number;
+  receivedSize: number;
+  chunkIndices: Set<number>;
+}
+
+const uploadStreams = new Map<string, UploadStream>();
+
 export function initResourceHandlers(): void {
   ipcMain.handle('resource:add', async (_event, payload: { resource: Resource }) => {
     const res = payload.resource || {};
@@ -498,6 +511,165 @@ export function initResourceHandlers(): void {
       return { success: true, filePath: target, hash: incomingHash };
     } catch (e: any) {
       console.warn('uploadResourceFile failed', e);
+      return { success: false, error: e?.message || 'unknown-error' };
+    }
+  });
+
+  // 流式上传：开始上传
+  ipcMain.handle('uploadResourceFileStreamStart', async (_event, payload: { fileName: string; totalSize: number }) => {
+    try {
+      const { fileName, totalSize } = payload || { fileName: '', totalSize: 0 };
+      if (!fileName || totalSize <= 0) return { success: false, error: 'invalid-params' };
+
+      const ws = await WorkspacesRepo.getDefault();
+      const baseDir = ws?.rootPath ? path.join(ws.rootPath, 'resources') : path.join(process.cwd(), 'uploads');
+      await fs.mkdir(baseDir, { recursive: true });
+
+      const ext = path.extname(fileName);
+      const nameNoExt = path.basename(fileName, ext);
+      let target = path.join(baseDir, fileName);
+
+      // 处理同名文件（先不检查 hash，等上传完成后再检查）
+      let counter = 1;
+      while (fscb.existsSync(target)) {
+        target = path.join(baseDir, `${nameNoExt}(${counter})${ext}`);
+        counter++;
+      }
+
+      const uploadId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const writeStream = fscb.createWriteStream(target);
+      const hash = createHash('sha256');
+
+      const stream: UploadStream = {
+        fileName,
+        filePath: target,
+        writeStream,
+        hash,
+        totalSize,
+        receivedSize: 0,
+        chunkIndices: new Set()
+      };
+
+      uploadStreams.set(uploadId, stream);
+
+      return { success: true, uploadId };
+    } catch (e: any) {
+      console.warn('uploadResourceFileStreamStart failed', e);
+      return { success: false, error: e?.message || 'unknown-error' };
+    }
+  });
+
+  // 流式上传：发送数据块
+  ipcMain.handle('uploadResourceFileStreamChunk', async (_event, payload: { uploadId: string; chunk: ArrayBuffer; chunkIndex: number }) => {
+    try {
+      const { uploadId, chunk, chunkIndex } = payload || { uploadId: '', chunk: new ArrayBuffer(0), chunkIndex: -1 };
+      if (!uploadId || !chunk || chunkIndex < 0) return { success: false, error: 'invalid-params' };
+
+      const stream = uploadStreams.get(uploadId);
+      if (!stream) return { success: false, error: 'upload-not-found' };
+
+      // 检查是否重复接收
+      if (stream.chunkIndices.has(chunkIndex)) {
+        return { success: true }; // 已接收，跳过
+      }
+
+      const buffer = Buffer.from(chunk);
+      stream.hash.update(buffer);
+      stream.receivedSize += buffer.length;
+      stream.chunkIndices.add(chunkIndex);
+
+      return new Promise((resolve, reject) => {
+        stream.writeStream.write(buffer, (err) => {
+          if (err) {
+            console.warn('uploadResourceFileStreamChunk write failed', err);
+            reject({ success: false, error: err.message });
+          } else {
+            resolve({ success: true });
+          }
+        });
+      });
+    } catch (e: any) {
+      console.warn('uploadResourceFileStreamChunk failed', e);
+      return { success: false, error: e?.message || 'unknown-error' };
+    }
+  });
+
+  // 流式上传：结束上传
+  ipcMain.handle('uploadResourceFileStreamEnd', async (_event, payload: { uploadId: string }) => {
+    try {
+      const { uploadId } = payload || { uploadId: '' };
+      if (!uploadId) return { success: false, error: 'invalid-params' };
+
+      const stream = uploadStreams.get(uploadId);
+      if (!stream) return { success: false, error: 'upload-not-found' };
+
+      // 关闭写入流
+      await new Promise<void>((resolve, reject) => {
+        stream.writeStream.end((err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+
+      const incomingHash = stream.hash.digest('hex');
+      const target = stream.filePath;
+
+      // 检查文件大小是否匹配
+      if (stream.receivedSize !== stream.totalSize) {
+        // 清理不完整的文件
+        try {
+          await fs.unlink(target);
+        } catch {
+          /* ignore */
+        }
+        uploadStreams.delete(uploadId);
+        return { success: false, error: 'size-mismatch' };
+      }
+
+      // 检查是否与已存在文件重复（同名文件）
+      const baseDir = path.dirname(target);
+      const originalFileName = stream.fileName;
+      const originalTarget = path.join(baseDir, originalFileName);
+
+      if (fscb.existsSync(originalTarget) && originalTarget !== target) {
+        try {
+          const existHash = await new Promise<string>((resolve, reject) => {
+            const h = createHash('sha256');
+            const rs = fscb.createReadStream(originalTarget);
+            rs.on('error', reject);
+            rs.on('data', (chunk) => h.update(chunk));
+            rs.on('end', () => resolve(h.digest('hex')));
+          });
+          if (existHash === incomingHash) {
+            // 删除新上传的文件，返回已存在的文件
+            try {
+              await fs.unlink(target);
+            } catch {
+              /* ignore */
+            }
+            uploadStreams.delete(uploadId);
+            return { success: false, duplicate: true, filePath: originalTarget, hash: incomingHash, error: 'duplicate' };
+          }
+        } catch {
+          /* ignore hash errors and proceed */
+        }
+      }
+
+      uploadStreams.delete(uploadId);
+      return { success: true, filePath: target, hash: incomingHash };
+    } catch (e: any) {
+      console.warn('uploadResourceFileStreamEnd failed', e);
+      // 清理
+      const stream = uploadStreams.get(payload.uploadId);
+      if (stream) {
+        try {
+          stream.writeStream.destroy();
+          await fs.unlink(stream.filePath).catch(() => { });
+        } catch {
+          /* ignore */
+        }
+        uploadStreams.delete(payload.uploadId);
+      }
       return { success: false, error: e?.message || 'unknown-error' };
     }
   });

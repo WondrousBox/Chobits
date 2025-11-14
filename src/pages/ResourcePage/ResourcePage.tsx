@@ -31,7 +31,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '@/components/ui/sidebar';
+import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '@/components/ui/sidebar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ResourceItem, SortField, SortOrder, ViewMode } from '@/types';
 
@@ -796,6 +796,12 @@ const ResourcePage: React.FC = () => {
               }}
             />
           </SidebarContent>
+          <SidebarFooter>
+            <Button className="w-full" variant="ghost" onClick={() => window.YUA.window['window:open']('recycle')}>
+              <TbTrash />
+              回收站
+            </Button>
+          </SidebarFooter>
         </Sidebar>
         {/* 资源展示区域 */}
         <div className="w-full h-full" style={{ height: 'calc(100% - 36px)' }}>

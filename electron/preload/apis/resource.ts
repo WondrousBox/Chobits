@@ -55,6 +55,12 @@ export type ResourceBridgeParams = {
   cleanupThumbnails: IPCParams<[void], { success: boolean; removed?: number; error?: string }>;
   /** 上传原始文件数据到主进程，返回保存后的本地路径；若重复（同名且 hash 相同）则 duplicate=true */
   uploadResourceFile: IPCParams<[{ fileName: string; data: ArrayBuffer }], { success: boolean; filePath?: string; error?: string; duplicate?: boolean; hash?: string }>;
+  /** 开始流式上传文件，返回 uploadId */
+  uploadResourceFileStreamStart: IPCParams<[{ fileName: string; totalSize: number }], { success: boolean; uploadId?: string; error?: string }>;
+  /** 发送文件数据块 */
+  uploadResourceFileStreamChunk: IPCParams<[{ uploadId: string; chunk: ArrayBuffer; chunkIndex: number }], { success: boolean; error?: string }>;
+  /** 结束流式上传，返回保存后的本地路径；若重复（同名且 hash 相同）则 duplicate=true */
+  uploadResourceFileStreamEnd: IPCParams<[{ uploadId: string }], { success: boolean; filePath?: string; error?: string; duplicate?: boolean; hash?: string }>;
   /** 标签聚合列表（默认按当前默认工作空间；scope=global 时全局） */
   'tags:listAll': IPCParams<[{ workspaceId?: string; scope?: 'workspace' | 'global' }], Array<{ tag: string; count: number }>>;
   /** 按标签筛选资源 */
@@ -78,6 +84,9 @@ const methods: Array<keyof ResourceBridgeParams> = [
   'rebuildResourceThumbnail',
   'cleanupThumbnails',
   'uploadResourceFile',
+  'uploadResourceFileStreamStart',
+  'uploadResourceFileStreamChunk',
+  'uploadResourceFileStreamEnd',
   'tags:listAll',
   'listResourcesByTag',
   'tags:backfill'
