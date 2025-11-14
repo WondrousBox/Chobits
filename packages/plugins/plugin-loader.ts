@@ -3,45 +3,7 @@ import os from 'node:os';
 import { readLocalJSON } from '@aim-packages/file-utils';
 
 import { getResourcePath } from '../../electron/main/utils/resources-path';
-
-export type ModelDefinition = {
-  id: string;
-  pluginId: string;
-  type: 'engine' | 'model';
-  name: string;
-  displayName: string;
-  description?: string;
-  version: string;
-  archiveType?: 'zip' | 'tar.gz' | 'tar' | 'none';
-  platforms: {
-    platform: string;
-    arch: string;
-    sourceUrl: string;
-    sizeBytes?: number;
-    sha256?: string; // SHA256校验和
-  }[];
-};
-
-export type PluginDefinition = {
-  id: string;
-  pluginId: string;
-  type: 'engine' | 'model';
-  name: string;
-  displayName: string;
-  description?: string;
-  version: string;
-  binaryName?: string;
-  archiveType?: 'zip' | 'tar.gz' | 'tar' | 'none';
-  platforms: {
-    platform: string;
-    arch: string;
-    sourceUrl: string;
-    sizeBytes?: number;
-    sha256?: string; // SHA256校验和
-  }[];
-  // 模型作为引擎的子资源（仅当 type === 'engine' 时存在）
-  models?: ModelDefinition[];
-};
+import { PluginDefinition } from './types';
 
 /**
  * 加载插件列表配置文件

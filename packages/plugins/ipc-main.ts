@@ -2,18 +2,13 @@ import { BrowserWindow, ipcMain, net, screen } from 'electron';
 
 import { createBestDownloader } from '../downloader/create';
 import { windowManager } from '../window-manager';
+import { DownloadProgress, PluginResource, pluginResourceManager } from '.';
 import { PluginConfigStore } from './plugin-config-store';
 import { getPluginForCurrentPlatform, loadPluginDefinitions } from './plugin-loader';
-import { DownloadProgress, PluginResource, pluginResourceManager } from './plugin-resource-manager';
 import { PluginResourceStore } from './plugin-resource-store';
 
 export function init(win: BrowserWindow): void {
-  // 初始化下载器（优先 electron-dl-manager，不可用则回退 HTTP）
-  try {
-    pluginResourceManager.setDownloader(createBestDownloader(win));
-  } catch {
-    // ignore, pluginResourceManager has HTTP fallback by default
-  }
+  pluginResourceManager.setDownloader(createBestDownloader(win));
 
   // 监听下载进度事件
   pluginResourceManager.on('progress', (info: DownloadProgress) => {
@@ -28,6 +23,10 @@ export function init(win: BrowserWindow): void {
       const downloadWindow = windowManager.get('pluginDownload');
       if (downloadWindow && !downloadWindow.isDestroyed()) {
         downloadWindow.webContents.send('plugin-resource:progress', info);
+      }
+      const settingsWindow = windowManager.get('settings');
+      if (settingsWindow && !settingsWindow.isDestroyed()) {
+        settingsWindow.webContents.send('plugin-resource:progress', info);
       }
     } catch {
       // 窗口可能不存在或已关闭

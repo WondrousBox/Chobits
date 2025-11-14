@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import { app } from 'electron';
 
-import { PluginResource } from './plugin-resource-manager';
+import { PluginResource } from '.';
 
 type StoreShape = {
   resources: PluginResource[];

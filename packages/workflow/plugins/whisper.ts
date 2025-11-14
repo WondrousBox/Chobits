@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { platform } from 'node:os';
 
-import { pluginResourceManager } from '../../plugins/plugin-resource-manager';
+import { pluginResourceManager } from '../../plugins';
 import { Plugin } from '../types';
 
 export const WhisperPlugin: Plugin = {
