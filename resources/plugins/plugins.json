@@ -28,6 +28,8 @@
     "models": [
       {
         "id": "whisper-tiny",
+        "pluginId": "plugin:whisper",
+        "type": "model",
         "name": "ggml-tiny.bin",
         "displayName": "Whisper Tiny",
         "description": "最小的 Whisper 模型，速度快但准确度较低，适合快速转录",
@@ -39,12 +41,14 @@
             "arch": "all",
             "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin",
             "sizeBytes": 75700000,
-            "sha256": ""
+            "sha256": "be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21"
           }
         ]
       },
       {
         "id": "whisper-base",
+        "pluginId": "plugin:whisper",
+        "type": "model",
         "name": "ggml-base.bin",
         "displayName": "Whisper Base",
         "description": "基础 Whisper 模型，平衡速度和准确度",
@@ -56,12 +60,14 @@
             "arch": "all",
             "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin",
             "sizeBytes": 142000000,
-            "sha256": "1"
+            "sha256": "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe"
           }
         ]
       },
       {
         "id": "whisper-small",
+        "pluginId": "plugin:whisper",
+        "type": "model",
         "name": "ggml-small.bin",
         "displayName": "Whisper Small",
         "description": "小型 Whisper 模型，推荐用于大多数场景，平衡准确度和速度",
@@ -73,12 +79,14 @@
             "arch": "all",
             "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin",
             "sizeBytes": 461000000,
-            "sha256": "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe"
+            "sha256": "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b"
           }
         ]
       },
       {
         "id": "whisper-medium",
+        "pluginId": "plugin:whisper",
+        "type": "model",
         "name": "ggml-medium.bin",
         "displayName": "Whisper Medium",
         "description": "中型 Whisper 模型，准确度较高但速度较慢",
@@ -96,6 +104,8 @@
       },
       {
         "id": "whisper-large-v3",
+        "pluginId": "plugin:whisper",
+        "type": "model",
         "name": "ggml-large-v3.bin",
         "displayName": "Whisper Large V3",
         "description": "最新的大型 Whisper 模型，准确度最高但速度最慢，适合高质量转录需求",

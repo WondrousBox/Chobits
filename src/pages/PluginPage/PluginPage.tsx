@@ -123,7 +123,7 @@ const PluginPage: React.FC<PluginPageProps> = ({ hideTitleBar }: PluginPageProps
     if (!resource) return;
     const res = await window.YUA.pluginResource['plugin-resource:install']({
       pluginId: resource.pluginId,
-      resourceId: resource.name,
+      resourceId: resource.resourceId,
       deleteAfterInstall: true
     });
     if (res.ok) {

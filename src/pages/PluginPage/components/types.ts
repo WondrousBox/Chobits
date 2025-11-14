@@ -1,5 +1,7 @@
 export type ModelDefinition = {
   id: string;
+  pluginId: string;
+  type: 'engine' | 'model';
   name: string;
   displayName: string;
   description?: string;
@@ -39,6 +41,7 @@ export type PluginDefinition = {
 
 export type InstalledResource = {
   id: string;
+  resourceId: string;
   pluginId: string;
   type: 'engine' | 'model';
   name: string;
