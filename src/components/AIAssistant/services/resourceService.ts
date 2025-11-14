@@ -65,19 +65,82 @@ export async function addResourcesFromSelectedFiles(files: SelectedResourceFileT
     let finalFilePath: string | undefined = f.path;
     let fileHash: string | undefined;
 
-    if (f.file && typeof f.file.arrayBuffer === 'function') {
+    if (f.file) {
       try {
-        const data = await f.file.arrayBuffer();
-        const uploaded = await window.YUA?.resource?.uploadResourceFile?.({ fileName: safeName, data });
-        if (uploaded?.duplicate) {
-          continue;
+        const fileSize = f.file.size;
+        // 大于 50MB 使用流式上传，避免内存问题
+        const USE_STREAM = fileSize > 50 * 1024 * 1024;
+
+        if (USE_STREAM && typeof f.file.stream === 'function') {
+          // 流式上传大文件
+          const startResult = await window.YUA?.resource?.uploadResourceFileStreamStart?.({
+            fileName: safeName,
+            totalSize: fileSize
+          });
+
+          if (!startResult?.success || !startResult?.uploadId) {
+            throw new Error('Failed to start stream upload');
+          }
+
+          const uploadId = startResult.uploadId;
+          const stream = f.file.stream();
+          const reader = stream.getReader();
+          let chunkIndex = 0;
+
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+
+              if (value && value.length > 0) {
+                // 确保传递正确的 ArrayBuffer
+                const chunk = value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength);
+                const chunkResult = await window.YUA?.resource?.uploadResourceFileStreamChunk?.({
+                  uploadId,
+                  chunk,
+                  chunkIndex
+                });
+
+                if (!chunkResult?.success) {
+                  throw new Error(`Failed to upload chunk ${chunkIndex}: ${chunkResult?.error || 'unknown error'}`);
+                }
+
+                chunkIndex++;
+              }
+            }
+
+            const uploaded = await window.YUA?.resource?.uploadResourceFileStreamEnd?.({
+              uploadId
+            });
+
+            if (uploaded?.duplicate) {
+              continue;
+            }
+            if (uploaded?.success && uploaded.filePath) {
+              finalFilePath = uploaded.filePath;
+              fileHash = uploaded.hash;
+            } else {
+              throw new Error(`Upload failed: ${uploaded?.error || 'unknown error'}`);
+            }
+          } catch (streamError) {
+            console.error('Stream upload error', streamError);
+            throw streamError;
+          }
+        } else if (typeof f.file.arrayBuffer === 'function') {
+          // 小文件使用原来的方式
+          const data = await f.file.arrayBuffer();
+          const uploaded = await window.YUA?.resource?.uploadResourceFile?.({ fileName: safeName, data });
+
+          if (uploaded?.duplicate) {
+            continue;
+          }
+          if (uploaded?.success && uploaded.filePath) {
+            finalFilePath = uploaded.filePath;
+            fileHash = uploaded.hash;
+          }
         }
-        if (uploaded?.success && uploaded.filePath) {
-          finalFilePath = uploaded.filePath;
-          fileHash = uploaded.hash;
-        }
-      } catch {
-        /* noop */
+      } catch (error) {
+        console.error('addResourcesFromSelectedFiles error', error);
       }
     }
 
