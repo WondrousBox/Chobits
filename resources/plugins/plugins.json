@@ -6,7 +6,7 @@
     "name": "whisper-cli",
     "displayName": "Whisper CLI",
     "description": "OpenAI Whisper 命令行工具，用于音频和视频转录",
-    "version": "1.0.0",
+    "version": "1.8.2",
     "binaryName": "whisper",
     "archiveType": "zip",
     "platforms": [
@@ -98,26 +98,45 @@
             "arch": "all",
             "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.bin",
             "sizeBytes": 1420000000,
-            "sha256": "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b"
+            "sha256": "6c14d5adee5f86394037b4e4e8b59f1673b6cee10e3cf0b11bbdbee79c156208"
           }
         ]
       },
       {
-        "id": "whisper-large-v3",
+        "id": "whisper-large-v1",
         "pluginId": "plugin:whisper",
         "type": "model",
-        "name": "ggml-large-v3.bin",
-        "displayName": "Whisper Large V3",
-        "description": "最新的大型 Whisper 模型，准确度最高但速度最慢，适合高质量转录需求",
+        "name": "ggml-large-v1.bin",
+        "displayName": "Whisper Large V1",
+        "description": "大型 Whisper 模型，准确度较高，适合高质量转录需求",
         "version": "1.0.0",
         "archiveType": "none",
         "platforms": [
           {
             "platform": "all",
             "arch": "all",
-            "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3.bin",
+            "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v1.bin",
             "sizeBytes": 3100000000,
-            "sha256": "4"
+            "sha256": "7d99f41a10525d0206bddadd86760181fa920438b6b33237e3118ff6c83bb53d"
+          }
+        ]
+      },
+      {
+        "id": "whisper-large-v2",
+        "pluginId": "plugin:whisper",
+        "type": "model",
+        "name": "ggml-large-v2.bin",
+        "displayName": "Whisper Large V2",
+        "description": "大型 Whisper 模型，准确度较高，适合高质量转录需求",
+        "version": "1.0.0",
+        "archiveType": "none",
+        "platforms": [
+          {
+            "platform": "all",
+            "arch": "all",
+            "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v2.bin",
+            "sizeBytes": 3100000000,
+            "sha256": "7d99f41a10525d0206bddadd86760181fa920438b6b33237e3118ff6c83bb53d"
           }
         ]
       }
