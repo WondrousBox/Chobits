@@ -30,7 +30,7 @@ const StatusBadge: React.FC<{ status?: string }> = ({ status }) => {
   };
   const info = status ? map[status] : undefined;
   if (!info) return <span className="text-[10px] px-1 py-0.5 rounded bg-muted text-muted-foreground">未知</span>;
-  return <span className={'text-[10px] px-1.5 py-0.5 rounded ' + info.cls}>{info.label}</span>;
+  return <span className={'text-[10px] px-1.5 rounded-md ' + info.cls}>{info.label}</span>;
 };
 
 export const PluginListItem: React.FC<PluginListItemProps> = ({ resource, installedResource, isInstalling, onInstall, onCancel, onRetry, onRemove }) => {
