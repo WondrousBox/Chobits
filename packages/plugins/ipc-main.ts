@@ -98,10 +98,12 @@ export function init(win: BrowserWindow): void {
     if (existing) {
       // 已安装则直接返回
       if (existing.status === 'installed' && pluginResourceManager.isInstalled(existing)) {
+        console.log('existing is installed and isInstalled', existing);
         return { ok: true, data: existing, message: 'Resource already installed' };
       }
       // 正在处理中则直接返回
       if (['queued', 'downloading', 'extracting', 'verifying'].includes(existing.status || '')) {
+        console.log('existing is in progress', existing);
         return { ok: true, data: existing, message: 'Resource already in progress' };
       }
     }

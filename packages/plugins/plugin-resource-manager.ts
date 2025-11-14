@@ -295,46 +295,71 @@ class PluginResourceManager extends EventEmitter {
     }
 
     try {
-      console.log('[PluginDL] start download', { id: task.resource.id, url, downloadFile });
-      // 下载文件（带.download后缀）
-      await this.downloader.download(
-        url,
-        downloadFile,
-        (p) => {
-          this.emitProgress(task.resource.id, {
-            status: 'downloading',
-            doneBytes: p.doneBytes,
-            totalBytes: p.totalBytes,
-            speedBps: p.speedBps,
-            etaMs: p.etaMs,
-            percentage: p.percentage
-          });
-        },
-        task.controller?.signal
-      );
-
-      // 第一步：检查hash（如果提供了）
-      if (task.resource.sha256) {
+      // 下载前检查：如果目标文件已存在且有hash，先验证hash
+      let skipDownload = false;
+      if (fs.existsSync(finalFile) && task.resource.sha256) {
         task.resource.status = 'verifying';
         this.emitProgress(task.resource.id, { status: 'verifying' });
-        console.log('[PluginDL] verifying', { id: task.resource.id, downloadFile });
+        console.log('[PluginDL] checking existing file hash', { id: task.resource.id, file: finalFile });
 
-        // 使用公共方法计算文件hash
-        const digest = await calculateFileHash(downloadFile);
-        if (digest !== task.resource.sha256) {
-          console.error('[PluginDL] checksum mismatch', { id: task.resource.id, expect: task.resource.sha256, got: digest });
-          // hash不符，立即删除文件，不能保留
-          if (fs.existsSync(downloadFile)) {
-            fs.unlinkSync(downloadFile);
+        const existingDigest = await calculateFileHash(finalFile);
+        if (existingDigest === task.resource.sha256) {
+          // hash匹配，直接完成，不需要下载
+          console.log('[PluginDL] existing file hash matches, skipping download', { id: task.resource.id });
+
+          skipDownload = true;
+        } else {
+          // hash不匹配，删除旧文件，继续下载
+          console.log('[PluginDL] existing file hash mismatch, will re-download', { id: task.resource.id, expect: task.resource.sha256, got: existingDigest });
+          if (fs.existsSync(finalFile)) {
+            fs.unlinkSync(finalFile);
           }
-          throw new Error('CHECKSUM_MISMATCH');
         }
-        console.log('[PluginDL] checksum verified', { id: task.resource.id });
       }
 
-      // 第二步：hash匹配后，去掉.download后缀
-      console.log('[PluginDL] finalizing', { id: task.resource.id, from: downloadFile, to: finalFile });
-      fs.renameSync(downloadFile, finalFile);
+      // 如果需要下载，执行下载流程
+      if (!skipDownload) {
+        console.log('[PluginDL] start download', { id: task.resource.id, url, downloadFile });
+        // 下载文件（带.download后缀）
+        await this.downloader.download(
+          url,
+          downloadFile,
+          (p) => {
+            this.emitProgress(task.resource.id, {
+              status: 'downloading',
+              doneBytes: p.doneBytes,
+              totalBytes: p.totalBytes,
+              speedBps: p.speedBps,
+              etaMs: p.etaMs,
+              percentage: p.percentage
+            });
+          },
+          task.controller?.signal
+        );
+
+        // 第一步：检查hash（如果提供了）
+        if (task.resource.sha256) {
+          task.resource.status = 'verifying';
+          this.emitProgress(task.resource.id, { status: 'verifying' });
+          console.log('[PluginDL] verifying', { id: task.resource.id, downloadFile });
+
+          // 使用公共方法计算文件hash
+          const digest = await calculateFileHash(downloadFile);
+          if (digest !== task.resource.sha256) {
+            console.error('[PluginDL] checksum mismatch', { id: task.resource.id, expect: task.resource.sha256, got: digest });
+            // hash不符，立即删除文件，不能保留
+            if (fs.existsSync(downloadFile)) {
+              fs.unlinkSync(downloadFile);
+            }
+            throw new Error('CHECKSUM_MISMATCH');
+          }
+          console.log('[PluginDL] checksum verified', { id: task.resource.id });
+        }
+
+        // 第二步：hash匹配后，去掉.download后缀
+        console.log('[PluginDL] finalizing', { id: task.resource.id, from: downloadFile, to: finalFile });
+        fs.renameSync(downloadFile, finalFile);
+      }
 
       // 第三步：根据类型处理
       if (archiveType !== 'none') {
