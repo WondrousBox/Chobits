@@ -1,31 +1,33 @@
-import { getOrm } from '.';
+import * as fscb from 'node:fs';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
+
+import { and, desc, eq, gte, inArray, isNotNull, isNull, like, lte, max } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
+
+import { getDB, getOrm } from '.';
+import { deleteVectors, rebuildVectors } from '.';
 import {
-  documents,
-  type NewDocument,
-  type DocumentRow,
-  recycle_bin,
-  type NewRecycleBin,
-  type RecycleBinRow,
-  workspaces,
-  type WorkspaceRow,
-  type NewWorkspace,
-  folders,
-  type FolderRow,
-  type NewFolder,
-  conversations,
-  type ConversationRow,
-  type NewConversation,
   chat_messages,
   type ChatMessageRow,
-  type NewChatMessage
+  type ConversationRow,
+  conversations,
+  type DocumentRow,
+  documents,
+  type FolderRow,
+  folders,
+  type NewChatMessage,
+  type NewConversation,
+  type NewDocument,
+  type NewFolder,
+  type NewRecycleBin,
+  type NewWorkspace,
+  recycle_bin,
+  type RecycleBinRow,
+  type WorkspaceRow,
+  workspaces
 } from './schema';
-import { eq, inArray, and, like, gte, lte, isNull, isNotNull, desc, max } from 'drizzle-orm';
-import { rebuildVectors, deleteVectors } from '.';
-import { resources, resource_tags, type ResourceRow, type NewResource } from './schema';
-import { sql } from 'drizzle-orm';
-import * as path from 'node:path';
-import * as fs from 'node:fs/promises';
-import * as fscb from 'node:fs';
+import { type NewResource, resource_tags, type ResourceRow, resources } from './schema';
 
 function omitId<T extends { id?: any }>(obj: T): Omit<T, 'id'> {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -797,6 +799,61 @@ export const FoldersRepo = {
   /** 列表（按父级、工作空间等筛选） */
   async list(filter: Partial<FolderRow> = {}, limit = 100, offset = 0): Promise<FolderRow[]> {
     const db = getOrm();
+    const rawDb = getDB();
+
+    // 如果查询未删除的文件夹，需要排除那些父级（或任何祖先）已被删除的文件夹
+    if ((filter as any).deletedAt === 0 && rawDb) {
+      // 使用递归 CTE 找到所有已删除的文件夹及其所有子文件夹
+      const deletedFolderIds = rawDb
+        .prepare(
+          `
+          WITH RECURSIVE deleted_folders AS (
+            SELECT id FROM folders WHERE deleted_at IS NOT NULL
+            UNION
+            SELECT f.id
+            FROM folders f
+            INNER JOIN deleted_folders df ON f.parent_id = df.id
+          )
+          SELECT id FROM deleted_folders
+        `
+        )
+        .all() as Array<{ id: string }>;
+
+      const deletedIds = deletedFolderIds.map((row) => row.id);
+
+      // 构建查询条件
+      const conditions: string[] = ['deleted_at IS NULL'];
+      const params: any[] = [];
+
+      // 排除已删除的文件夹及其子文件夹
+      if (deletedIds.length > 0) {
+        const placeholders = deletedIds.map(() => '?').join(',');
+        conditions.push(`id NOT IN (${placeholders})`);
+        params.push(...deletedIds);
+      }
+
+      if ((filter as any).workspaceId) {
+        conditions.push('workspace_id = ?');
+        params.push((filter as any).workspaceId);
+      }
+
+      if ((filter as any).parentId === null) {
+        conditions.push('parent_id IS NULL');
+      } else if ((filter as any).parentId) {
+        conditions.push('parent_id = ?');
+        params.push((filter as any).parentId);
+      }
+
+      // 使用原始 SQL 查询
+      const whereClause = conditions.join(' AND ');
+      const query = `SELECT * FROM folders WHERE ${whereClause} LIMIT ? OFFSET ?`;
+      params.push(limit, offset);
+
+      const rows = rawDb.prepare(query).all(...params) as FolderRow[];
+      return rows;
+    }
+
+    // 其他情况使用原来的逻辑
     let query = db.select().from(folders);
     const wheres: any[] = [];
     if ((filter as any).workspaceId) wheres.push(eq(folders.workspaceId, (filter as any).workspaceId));
@@ -810,6 +867,60 @@ export const FoldersRepo = {
   /** 计数 */
   async count(filter: Partial<FolderRow> = {}): Promise<number> {
     const db = getOrm();
+    const rawDb = getDB();
+
+    // 如果查询未删除的文件夹，需要排除那些父级（或任何祖先）已被删除的文件夹
+    if ((filter as any).deletedAt === 0 && rawDb) {
+      // 使用递归 CTE 找到所有已删除的文件夹及其所有子文件夹
+      const deletedFolderIds = rawDb
+        .prepare(
+          `
+          WITH RECURSIVE deleted_folders AS (
+            SELECT id FROM folders WHERE deleted_at IS NOT NULL
+            UNION
+            SELECT f.id
+            FROM folders f
+            INNER JOIN deleted_folders df ON f.parent_id = df.id
+          )
+          SELECT id FROM deleted_folders
+        `
+        )
+        .all() as Array<{ id: string }>;
+
+      const deletedIds = deletedFolderIds.map((row) => row.id);
+
+      // 构建查询条件
+      const conditions: string[] = ['deleted_at IS NULL'];
+      const params: any[] = [];
+
+      // 排除已删除的文件夹及其子文件夹
+      if (deletedIds.length > 0) {
+        const placeholders = deletedIds.map(() => '?').join(',');
+        conditions.push(`id NOT IN (${placeholders})`);
+        params.push(...deletedIds);
+      }
+
+      if ((filter as any).workspaceId) {
+        conditions.push('workspace_id = ?');
+        params.push((filter as any).workspaceId);
+      }
+
+      if ((filter as any).parentId === null) {
+        conditions.push('parent_id IS NULL');
+      } else if ((filter as any).parentId) {
+        conditions.push('parent_id = ?');
+        params.push((filter as any).parentId);
+      }
+
+      // 使用原始 SQL 查询
+      const whereClause = conditions.join(' AND ');
+      const query = `SELECT COUNT(*) as count FROM folders WHERE ${whereClause}`;
+
+      const result = rawDb.prepare(query).get(...params) as { count: number };
+      return result?.count ?? 0;
+    }
+
+    // 其他情况使用原来的逻辑
     let query = db.select({ count: folders.id }).from(folders);
     const wheres: any[] = [];
     if ((filter as any).workspaceId) wheres.push(eq(folders.workspaceId, (filter as any).workspaceId));
