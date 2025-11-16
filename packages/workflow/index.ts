@@ -3,6 +3,7 @@ import path from 'node:path';
 
 import { app, BrowserWindow, ipcMain } from 'electron';
 
+import { sendSpriteBusyEnd, sendSpriteBusyProgress, sendSpriteBusyStart } from '../../electron/main/utils/sprite-busy';
 import { createEngine } from './engine';
 import { DocToMarkdownNode } from './nodes/doc-to-md';
 import { EndNode } from './nodes/end';
@@ -43,13 +44,113 @@ export function initWorkflowSystem(): void {
     });
   };
 
+  // 跟踪工作流执行进度
+  const workflowProgress = new Map<string, { totalNodes: number; workflowName: string }>();
+
   engine.onTyped('run:status', async (rec) => {
     await WorkflowStore.updateRun(rec).catch(() => { });
     broadcast('wf:run-status', rec);
+
+    // 处理繁忙状态
+    if (rec.status === 'running' && !workflowProgress.has(rec.runId)) {
+      // 工作流开始执行
+      const totalNodes = Object.keys(rec.nodes).length;
+      // 尝试获取工作流名称（异步获取，不阻塞）
+      const workflowName = rec.workflowId;
+      loadPresetWorkflows()
+        .then((preset) => {
+          return WorkflowStore.list().then((custom) => {
+            const allDefs = [...preset, ...custom];
+            const def = allDefs.find((d) => d.id === rec.workflowId);
+            if (def?.name) {
+              const progress = workflowProgress.get(rec.runId);
+              if (progress) {
+                progress.workflowName = def.name;
+                sendSpriteBusyProgress(
+                  Math.round((Object.values(rec.nodes).filter((n) => n.status === 'completed' || n.status === 'failed' || n.status === 'skipped').length / totalNodes) * 100),
+                  `执行工作流: ${def.name}`
+                );
+              }
+            }
+          });
+        })
+        .catch(() => { });
+      workflowProgress.set(rec.runId, { totalNodes, workflowName });
+      sendSpriteBusyStart(0, `执行工作流: ${workflowName}`);
+    } else if ((rec.status === 'completed' || rec.status === 'failed' || rec.status === 'canceled') && workflowProgress.has(rec.runId)) {
+      // 工作流结束
+      const progress = workflowProgress.get(rec.runId);
+      if (progress) {
+        const statusText = rec.status === 'completed' ? '完成' : rec.status === 'failed' ? '失败' : '已取消';
+        sendSpriteBusyProgress(100, `工作流${statusText}: ${progress.workflowName}`);
+        sendSpriteBusyEnd();
+      }
+      workflowProgress.delete(rec.runId);
+    }
   });
   engine.onTyped('node:status', async (rec, node) => {
     await WorkflowStore.updateRun(rec).catch(() => { });
     broadcast('wf:node-status', { runId: rec.runId, workflowId: rec.workflowId, node });
+
+    // 更新工作流执行进度（当节点状态变化时，如果没有节点进度，则使用整体进度）
+    if (workflowProgress.has(rec.runId)) {
+      const progress = workflowProgress.get(rec.runId)!;
+      const nodes = rec.nodes;
+      const completedNodes = Object.values(nodes).filter((n) => n.status === 'completed' || n.status === 'failed' || n.status === 'skipped').length;
+      const currentProgress = Math.round((completedNodes / progress.totalNodes) * 100);
+
+      // 获取当前正在运行的节点名称
+      const runningNode = Object.values(nodes).find((n) => n.status === 'running');
+      if (runningNode) {
+        // 尝试获取节点类型和名称
+        const preset = await loadPresetWorkflows().catch(() => []);
+        const custom = await WorkflowStore.list().catch(() => []);
+        const allDefs = [...preset, ...custom];
+        const def = allDefs.find((d) => d.id === rec.workflowId);
+        const nodeInstance = def?.nodes.find((n) => n.id === runningNode.nodeId);
+        const nodeLabel = nodeInstance?.name || nodeInstance?.type || runningNode.nodeId;
+        sendSpriteBusyProgress(currentProgress, `执行工作流: ${progress.workflowName} - ${nodeLabel}`);
+      } else {
+        sendSpriteBusyProgress(currentProgress, `执行工作流: ${progress.workflowName}`);
+      }
+    }
+  });
+
+  // 监听节点进度事件
+  engine.onTyped('node:progress', (runId, nodeId, progress, message) => {
+    if (!workflowProgress.has(runId)) return;
+
+    const workflowProg = workflowProgress.get(runId)!;
+
+    // 尝试获取节点信息
+    loadPresetWorkflows()
+      .then((preset) => {
+        return WorkflowStore.list().then((custom) => {
+          const allDefs = [...preset, ...custom];
+          const rec = engine.getRun(runId);
+          if (!rec) return;
+
+          const def = allDefs.find((d) => d.id === rec.workflowId);
+          const nodeInstance = def?.nodes.find((n) => n.id === nodeId);
+          const nodeLabel = nodeInstance?.name || nodeInstance?.type || nodeId;
+
+          // 计算整体进度：已完成节点 + 当前节点进度
+          const nodes = rec.nodes;
+          const completedNodes = Object.values(nodes).filter((n) => n.status === 'completed' || n.status === 'failed' || n.status === 'skipped').length;
+          // 当前节点的贡献 = 1 / totalNodes * nodeProgress
+          const nodeContribution = (1 / workflowProg.totalNodes) * (progress / 100);
+          const overallProgress = Math.round((completedNodes / workflowProg.totalNodes + nodeContribution) * 100);
+
+          // 构建消息
+          const progressMessage = message || `${nodeLabel} 执行中`;
+          sendSpriteBusyProgress(overallProgress, `执行工作流: ${workflowProg.workflowName} - ${progressMessage}`);
+        });
+      })
+      .catch(() => {
+        // 如果获取节点信息失败，使用默认消息
+        const progressMessage = message || `${nodeId} 执行中`;
+        sendSpriteBusyProgress(progress, `执行工作流: ${workflowProg.workflowName} - ${progressMessage}`);
+      });
   });
   engine.onTyped('run:log', (runId, entry) => {
     broadcast('wf:run-log', { runId, entry });

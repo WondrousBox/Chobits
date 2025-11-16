@@ -8,6 +8,7 @@ import React, { useEffect, useRef } from 'react';
 import Dropzone from '../common/Dropzone';
 import { ASSISTANT_HEIGHT, ASSISTANT_WIDTH, SHOW_PADDING_DEBUG } from './constants';
 import useAssistant from './hooks';
+import useBusyState from './hooks/useBusyState';
 import useClickThrough from './hooks/useClickThrough';
 import useDragMove from './hooks/useDragMove';
 import useFileDrop from './hooks/useFileDrop';
@@ -15,6 +16,7 @@ import useSpriteEventController from './hooks/useSpriteEventController';
 import useWalkAnimation from './hooks/useWalkAnimation';
 import { MessageBubble } from './messages/MessageBubble';
 import Messages from './messages/zh-CN';
+import BusyProgressBar from './ui/BusyProgressBar';
 import PaddingDebugOverlay from './ui/PaddingDebugOverlay';
 import StatusIndicator from './ui/StatusIndicator';
 import VideoSprite from './VideoSprite';
@@ -26,6 +28,7 @@ export const AIAssistant: React.FC = () => {
   const { setClickThrough } = useClickThrough(containerRef);
   const { animateMoveWindow, stopWalking, isWalking } = useWalkAnimation();
   useSpriteEventController();
+  const { busyState } = useBusyState();
   const {
     bind: dragBind,
     isDragging,
@@ -198,6 +201,8 @@ export const AIAssistant: React.FC = () => {
         )}
         <VideoSprite />
       </Dropzone>
+
+      {busyState.isBusy && <BusyProgressBar progress={busyState.progress} message={busyState.message} />}
 
       <StatusIndicator isDragging={isDragging} isWalking={isWalking} />
     </div>
