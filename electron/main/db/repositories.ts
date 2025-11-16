@@ -821,36 +821,29 @@ export const FoldersRepo = {
 
       const deletedIds = deletedFolderIds.map((row) => row.id);
 
-      // 构建查询条件
-      const conditions: string[] = ['deleted_at IS NULL'];
-      const params: any[] = [];
+      // 使用 drizzle-orm 查询构建器，但排除已删除的文件夹及其子文件夹
+      let query = db.select().from(folders);
+      const wheres: any[] = [];
+
+      // 确保文件夹本身未删除
+      wheres.push(isNull(folders.deletedAt));
+
+      if ((filter as any).workspaceId) wheres.push(eq(folders.workspaceId, (filter as any).workspaceId));
+      if ((filter as any).parentId === null) wheres.push(isNull(folders.parentId));
+      if ((filter as any).parentId) wheres.push(eq(folders.parentId, (filter as any).parentId));
 
       // 排除已删除的文件夹及其子文件夹
       if (deletedIds.length > 0) {
-        const placeholders = deletedIds.map(() => '?').join(',');
-        conditions.push(`id NOT IN (${placeholders})`);
-        params.push(...deletedIds);
+        // 使用 sql 模板构建 NOT IN 条件，将每个 ID 作为字符串字面量
+        const idValues = deletedIds.map((id) => sql`${id}`);
+        const notInCondition = sql`${folders.id} NOT IN (${sql.join(idValues, sql`, `)})`;
+        wheres.push(notInCondition);
       }
 
-      if ((filter as any).workspaceId) {
-        conditions.push('workspace_id = ?');
-        params.push((filter as any).workspaceId);
+      if (wheres.length) {
+        query = query.where(and(...wheres));
       }
-
-      if ((filter as any).parentId === null) {
-        conditions.push('parent_id IS NULL');
-      } else if ((filter as any).parentId) {
-        conditions.push('parent_id = ?');
-        params.push((filter as any).parentId);
-      }
-
-      // 使用原始 SQL 查询
-      const whereClause = conditions.join(' AND ');
-      const query = `SELECT * FROM folders WHERE ${whereClause} LIMIT ? OFFSET ?`;
-      params.push(limit, offset);
-
-      const rows = rawDb.prepare(query).all(...params) as FolderRow[];
-      return rows;
+      return query.limit(limit).offset(offset);
     }
 
     // 其他情况使用原来的逻辑
@@ -889,35 +882,30 @@ export const FoldersRepo = {
 
       const deletedIds = deletedFolderIds.map((row) => row.id);
 
-      // 构建查询条件
-      const conditions: string[] = ['deleted_at IS NULL'];
-      const params: any[] = [];
+      // 使用 drizzle-orm 查询构建器，但排除已删除的文件夹及其子文件夹
+      let query = db.select({ count: folders.id }).from(folders);
+      const wheres: any[] = [];
+
+      // 确保文件夹本身未删除
+      wheres.push(isNull(folders.deletedAt));
+
+      if ((filter as any).workspaceId) wheres.push(eq(folders.workspaceId, (filter as any).workspaceId));
+      if ((filter as any).parentId === null) wheres.push(isNull(folders.parentId));
+      if ((filter as any).parentId) wheres.push(eq(folders.parentId, (filter as any).parentId));
 
       // 排除已删除的文件夹及其子文件夹
       if (deletedIds.length > 0) {
-        const placeholders = deletedIds.map(() => '?').join(',');
-        conditions.push(`id NOT IN (${placeholders})`);
-        params.push(...deletedIds);
+        // 使用 sql 模板构建 NOT IN 条件，将每个 ID 作为字符串字面量
+        const idValues = deletedIds.map((id) => sql`${id}`);
+        const notInCondition = sql`${folders.id} NOT IN (${sql.join(idValues, sql`, `)})`;
+        wheres.push(notInCondition);
       }
 
-      if ((filter as any).workspaceId) {
-        conditions.push('workspace_id = ?');
-        params.push((filter as any).workspaceId);
+      if (wheres.length) {
+        query = query.where(and(...wheres));
       }
-
-      if ((filter as any).parentId === null) {
-        conditions.push('parent_id IS NULL');
-      } else if ((filter as any).parentId) {
-        conditions.push('parent_id = ?');
-        params.push((filter as any).parentId);
-      }
-
-      // 使用原始 SQL 查询
-      const whereClause = conditions.join(' AND ');
-      const query = `SELECT COUNT(*) as count FROM folders WHERE ${whereClause}`;
-
-      const result = rawDb.prepare(query).get(...params) as { count: number };
-      return result?.count ?? 0;
+      const rows = await query;
+      return rows[0]?.count ?? 0;
     }
 
     // 其他情况使用原来的逻辑
