@@ -133,7 +133,7 @@ export const TranscodeNode: NodeHandler = {
     ],
     outputs: [{ key: 'output', label: '输出文件', type: 'file' }]
   },
-  async run({ input, config }) {
+  async run({ input, config, emit }) {
     const src = String(input.input);
     if (!src) throw new Error('缺少输入文件');
 
@@ -198,12 +198,34 @@ export const TranscodeNode: NodeHandler = {
         .output(out)
         .on('start', (commandLine: string) => {
           console.log('[transcode] Start:', commandLine);
+          // 发送开始进度
+          emit('node:progress', { progress: 0, message: '开始转码...' });
         })
-        .on('progress', (progress) => {
+        .on('progress', (progress: any) => {
           console.log('[transcode] Progress:', progress);
+          // FFmpeg progress 对象通常包含 percent 字段（0-100）
+          // 也可能包含 time 字段，我们可以根据 time 估算进度
+          let progressPercent = 0;
+          if (progress.percent !== undefined) {
+            progressPercent = Math.max(0, Math.min(100, parseFloat(String(progress.percent))));
+          } else if (progress.time && progress.targetSize) {
+            // 如果没有 percent，尝试根据时间和目标大小估算
+            // 这是一个简化的估算，实际可能需要更多信息
+            progressPercent = 50; // 默认值
+          }
+
+          // 构建进度消息
+          let message = '转码中...';
+          if (progress.time) {
+            message = `转码中: ${progress.time}`;
+          }
+
+          emit('node:progress', { progress: progressPercent, message });
         })
         .on('end', () => {
           console.log('[transcode] End:', out);
+          // 发送完成进度
+          emit('node:progress', { progress: 100, message: '转码完成' });
           resolve();
         })
         .on('error', (e: Error) => {

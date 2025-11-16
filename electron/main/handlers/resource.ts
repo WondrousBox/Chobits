@@ -8,6 +8,7 @@ import { Resource } from 'electron/preload/apis/resource';
 
 import { TaggingService } from '../ai/tagging-service';
 import { FoldersRepo, ResourcesRepo, TagsRepo, WorkspacesRepo } from '../db/repositories';
+import { sendSpriteBusyEnd, sendSpriteBusyProgress, sendSpriteBusyStart } from '../utils/sprite-busy';
 import { detectBasicType, generateThumbnailForResource } from '../utils/thumbnail';
 
 // 存储正在上传的文件流
@@ -471,6 +472,10 @@ export function initResourceHandlers(): void {
     try {
       const { fileName, data } = payload || { fileName: '', data: new ArrayBuffer(0) };
       if (!fileName || !data) return { success: false, error: 'invalid-params' };
+
+      // 发送繁忙状态开始
+      sendSpriteBusyStart(0, `上传中: ${fileName}`);
+
       const ws = await WorkspacesRepo.getDefault();
       const baseDir = ws?.rootPath ? path.join(ws.rootPath, 'resources') : path.join(process.cwd(), 'uploads');
       await fs.mkdir(baseDir, { recursive: true });
@@ -493,6 +498,7 @@ export function initResourceHandlers(): void {
             rs.on('end', () => resolve(h.digest('hex')));
           });
           if (existHash === incomingHash) {
+            sendSpriteBusyEnd(); // 重复文件时结束繁忙状态
             return { success: false, duplicate: true, filePath: target, hash: incomingHash, error: 'duplicate' };
           }
         } catch {
@@ -508,9 +514,15 @@ export function initResourceHandlers(): void {
       }
 
       await fs.writeFile(target, incomingBuffer);
+
+      // 发送完成进度和结束
+      sendSpriteBusyProgress(100, `上传完成: ${fileName}`);
+      sendSpriteBusyEnd();
+
       return { success: true, filePath: target, hash: incomingHash };
     } catch (e: any) {
       console.warn('uploadResourceFile failed', e);
+      sendSpriteBusyEnd(); // 上传失败时结束繁忙状态
       return { success: false, error: e?.message || 'unknown-error' };
     }
   });
@@ -552,6 +564,9 @@ export function initResourceHandlers(): void {
 
       uploadStreams.set(uploadId, stream);
 
+      // 发送繁忙状态开始
+      sendSpriteBusyStart(0, `上传中: ${fileName}`);
+
       return { success: true, uploadId };
     } catch (e: any) {
       console.warn('uploadResourceFileStreamStart failed', e);
@@ -578,10 +593,15 @@ export function initResourceHandlers(): void {
       stream.receivedSize += buffer.length;
       stream.chunkIndices.add(chunkIndex);
 
+      // 计算并发送进度
+      const progress = Math.round((stream.receivedSize / stream.totalSize) * 100);
+      sendSpriteBusyProgress(progress, `上传中: ${stream.fileName}`);
+
       return new Promise((resolve, reject) => {
         stream.writeStream.write(buffer, (err) => {
           if (err) {
             console.warn('uploadResourceFileStreamChunk write failed', err);
+            sendSpriteBusyEnd(); // 上传失败时结束繁忙状态
             reject({ success: false, error: err.message });
           } else {
             resolve({ success: true });
@@ -623,6 +643,7 @@ export function initResourceHandlers(): void {
           /* ignore */
         }
         uploadStreams.delete(uploadId);
+        sendSpriteBusyEnd(); // 上传失败时结束繁忙状态
         return { success: false, error: 'size-mismatch' };
       }
 
@@ -648,6 +669,7 @@ export function initResourceHandlers(): void {
               /* ignore */
             }
             uploadStreams.delete(uploadId);
+            sendSpriteBusyEnd(); // 重复文件时结束繁忙状态
             return { success: false, duplicate: true, filePath: originalTarget, hash: incomingHash, error: 'duplicate' };
           }
         } catch {
@@ -656,6 +678,10 @@ export function initResourceHandlers(): void {
       }
 
       uploadStreams.delete(uploadId);
+
+      // 发送繁忙状态结束
+      sendSpriteBusyEnd();
+
       return { success: true, filePath: target, hash: incomingHash };
     } catch (e: any) {
       console.warn('uploadResourceFileStreamEnd failed', e);
@@ -670,6 +696,7 @@ export function initResourceHandlers(): void {
         }
         uploadStreams.delete(payload.uploadId);
       }
+      sendSpriteBusyEnd(); // 上传失败时结束繁忙状态
       return { success: false, error: e?.message || 'unknown-error' };
     }
   });

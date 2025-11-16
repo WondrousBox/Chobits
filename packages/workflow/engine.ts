@@ -252,7 +252,19 @@ export class WorkflowEngine extends EngineEmitter {
       this.emitTyped('node:status', rec, nodesState[nodeId]);
       const startTime = now();
       try {
-        const out = await handler.run({ input, config: inst.config, ctx, emit: (ev, p) => this.emit(ev, p), getPlugin: getPluginFn });
+        // 创建包装的 emit 函数，自动处理 node:progress 事件
+        const nodeEmit = (ev: string, payload?: any): void => {
+          if (ev === 'node:progress') {
+            // 节点发送进度事件，转换为引擎的 node:progress 事件
+            const progress = payload?.progress !== undefined ? Math.max(0, Math.min(100, payload.progress)) : 0;
+            const message = payload?.message;
+            this.emitTyped('node:progress', runId, nodeId, progress, message);
+          } else {
+            // 其他事件直接转发
+            this.emit(ev, payload);
+          }
+        };
+        const out = await handler.run({ input, config: inst.config, ctx, emit: nodeEmit, getPlugin: getPluginFn });
         const duration = now() - startTime;
         nodesState[nodeId] = { ...nodesState[nodeId], status: 'completed', finishedAt: now(), output: out };
         nodeOutput.set(nodeId, out);

@@ -155,6 +155,7 @@ export type ValidateResult = {
 export interface IEngineEvents {
   'run:status': (rec: WorkflowRunRecord) => void;
   'node:status': (rec: WorkflowRunRecord, node: NodeRunState) => void;
+  'node:progress': (runId: string, nodeId: string, progress: number, message?: string) => void;
   'run:log': (runId: string, entry: WorkflowRunLogEntry) => void;
 }
 
