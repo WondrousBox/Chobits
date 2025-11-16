@@ -5,7 +5,7 @@ import { app } from 'electron';
 
 export type PluginConfig = {
   pluginsDir?: string; // 插件资源目录（包含engine和models）
-  concurrency?: number; // 下载并发数（从 model-configs.json 合并而来）
+  concurrency?: number; // 下载并发数
 };
 
 type StoreShape = {

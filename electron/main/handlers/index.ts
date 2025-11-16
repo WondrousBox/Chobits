@@ -6,7 +6,6 @@ import { init as initAIHandlers } from '../ai/ipc-main';
 import { initFFmpegHandlers } from './ffmpeg';
 import { initFileHandlers } from './file';
 import { initFolderHandlers } from './folder';
-import { initModelHandlers } from './model';
 import { initResourceHandlers } from './resource';
 import { initShortcutsHandlers } from './shortcuts';
 import { initSpriteHandlers } from './sprite';
@@ -28,7 +27,6 @@ export function initHandlers(win: BrowserWindow): void {
   initFolderHandlers?.();
   initTrashHandlers();
   initWorkspaceHandlers();
-  initModelHandlers(win);
   initFileHandlers(win);
   initSystemHandlers();
   initVideoDownloadHandlers(win);

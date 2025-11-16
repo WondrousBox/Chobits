@@ -3,7 +3,6 @@ import type { PluginResourceBridgeType } from '../electron/main/plugins/ipc-rend
 import type { FFmpegBridgeType } from '../electron/preload/apis/ffmpeg';
 import type { FileBridgeType } from '../electron/preload/apis/file';
 import type { FolderBridgeType } from '../electron/preload/apis/folder';
-import type { ModelBridgeType } from '../electron/preload/apis/model';
 import type { ResourceBridgeType } from '../electron/preload/apis/resource';
 import type { ShortcutsBridgeType } from '../electron/preload/apis/shortcuts';
 import type { SpriteBridgeType } from '../electron/preload/apis/sprite';
@@ -37,7 +36,6 @@ declare global {
       resource: ResourceBridgeType;
       trash: TrashBridgeType;
       workspace: WorkspaceBridgeType;
-      model: ModelBridgeType;
       file: FileBridgeType;
       system: SystemBridgeType;
       folder: FolderBridgeType;

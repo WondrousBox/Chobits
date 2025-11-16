@@ -7,7 +7,6 @@ import { arch, isLinux, isMac, isMacIntel, isWindows, platform } from '../main/u
 import { ffmpegBridge } from './apis/ffmpeg';
 import { fileBridge } from './apis/file';
 import { folderBridge } from './apis/folder';
-import { modelBridge } from './apis/model';
 import { resourceBridge } from './apis/resource';
 import { shortcutsBridge } from './apis/shortcuts';
 import { spriteBridge } from './apis/sprite';
@@ -58,7 +57,6 @@ contextBridge.exposeInMainWorld('YUA', {
   resource: resourceBridge,
   trash: trashBridge,
   workspace: workspaceBridge,
-  model: modelBridge,
   file: fileBridge,
   system: systemBridge,
   folder: folderBridge,
