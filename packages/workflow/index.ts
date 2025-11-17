@@ -55,7 +55,7 @@ export function initWorkflowSystem(): void {
     if (rec.status === 'running' && !workflowProgress.has(rec.runId)) {
       // 工作流开始执行
       const totalNodes = Object.keys(rec.nodes).length;
-      // 尝试获取工作流名称（异步获取，不阻塞）
+      // 尝试获取工作流名称（异步获取，不阻塞，使用缓存）
       const workflowName = rec.workflowId;
       loadPresetWorkflows()
         .then((preset) => {
@@ -102,7 +102,7 @@ export function initWorkflowSystem(): void {
       // 获取当前正在运行的节点名称
       const runningNode = Object.values(nodes).find((n) => n.status === 'running');
       if (runningNode) {
-        // 尝试获取节点类型和名称
+        // 尝试获取节点类型和名称（使用缓存）
         const preset = await loadPresetWorkflows().catch(() => []);
         const custom = await WorkflowStore.list().catch(() => []);
         const allDefs = [...preset, ...custom];
@@ -121,15 +121,14 @@ export function initWorkflowSystem(): void {
     if (!workflowProgress.has(runId)) return;
 
     const workflowProg = workflowProgress.get(runId)!;
+    const rec = engine.getRun(runId);
+    if (!rec) return;
 
-    // 尝试获取节点信息
+    // 使用缓存的工作流定义，避免频繁加载
     loadPresetWorkflows()
       .then((preset) => {
         return WorkflowStore.list().then((custom) => {
           const allDefs = [...preset, ...custom];
-          const rec = engine.getRun(runId);
-          if (!rec) return;
-
           const def = allDefs.find((d) => d.id === rec.workflowId);
           const nodeInstance = def?.nodes.find((n) => n.id === nodeId);
           const nodeLabel = nodeInstance?.name || nodeInstance?.type || nodeId;
@@ -160,21 +159,21 @@ export function initWorkflowSystem(): void {
   ipcMain.handle('wf:listNodes', () => listNodes().map((n) => n.spec));
   ipcMain.handle('wf:listPlugins', () => listPlugins().map((p) => ({ id: p.id, label: p.label, installed: false })));
   ipcMain.handle('wf:listDefinitions', async () => {
-    // 合并预设工作流和用户自定义工作流
+    // 合并预设工作流和用户自定义工作流（使用缓存）
     const [preset, custom] = await Promise.all([loadPresetWorkflows(), WorkflowStore.list()]);
     return [...preset, ...custom];
   });
   ipcMain.handle('wf:listPresets', async () => {
-    // 只返回预设工作流
+    // 只返回预设工作流（使用缓存）
     return loadPresetWorkflows();
   });
   ipcMain.handle('wf:isPreset', async (_e, payload: { id: string }) => {
-    // 检查工作流是否为预设工作流
+    // 检查工作流是否为预设工作流（使用缓存）
     const preset = await loadPresetWorkflows();
     return preset.some((w) => w.id === payload.id);
   });
   ipcMain.handle('wf:getDefinition', async (_e, payload: { id: string }) => {
-    // 先尝试从预设工作流中查找
+    // 先尝试从预设工作流中查找（使用缓存）
     const preset = await loadPresetWorkflows();
     const presetDef = preset.find((d) => d.id === payload.id);
     if (presetDef) return presetDef;

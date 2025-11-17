@@ -17,6 +17,11 @@ type DbShape = {
 // 预设工作流ID集合（从JSON文件加载）
 let presetWorkflowIds = new Set<string>();
 
+// 预设工作流缓存
+let presetWorkflowsCache: WorkflowDefinition[] | null = null;
+let presetWorkflowsCacheTime: number = 0;
+const PRESET_CACHE_TTL = 60000; // 缓存1分钟
+
 function getFile(): string {
   const dir = path.resolve(app.getPath('userData'), 'data');
   if (!fs.existsSync(dir)) {
@@ -44,23 +49,37 @@ async function writeDb(db: DbShape): Promise<void> {
 }
 
 /**
- * 加载预设工作流定义
+ * 加载预设工作流定义（带缓存）
  */
-export async function loadPresetWorkflows(): Promise<WorkflowDefinition[]> {
+export async function loadPresetWorkflows(forceReload = false): Promise<WorkflowDefinition[]> {
+  const now = Date.now();
+
+  // 如果缓存有效且不强制重新加载，直接返回缓存
+  if (!forceReload && presetWorkflowsCache !== null && now - presetWorkflowsCacheTime < PRESET_CACHE_TTL) {
+    return presetWorkflowsCache;
+  }
+
   try {
     const file = getResourcePath('workflows');
     if (!fs.existsSync(file)) {
       console.warn('[WorkflowStore] 预设工作流文件不存在:', file);
+      presetWorkflowsCache = [];
+      presetWorkflowsCacheTime = now;
       return [];
     }
     const txt = await fsp.readFile(file, 'utf8');
     const workflows = JSON.parse(txt) as WorkflowDefinition[];
     // 更新预设工作流ID集合
     presetWorkflowIds = new Set(workflows.map((w) => w.id));
+    // 更新缓存
+    presetWorkflowsCache = workflows;
+    presetWorkflowsCacheTime = now;
     console.log(`[WorkflowStore] 加载了 ${workflows.length} 个预设工作流`);
     return workflows;
   } catch (err) {
     console.error('[WorkflowStore] 加载预设工作流失败:', err);
+    presetWorkflowsCache = [];
+    presetWorkflowsCacheTime = now;
     return [];
   }
 }
