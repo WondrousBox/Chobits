@@ -17,7 +17,7 @@ export type PortSchema = {
   // default value for inputs
   default?: any;
   // UI input type (for config fields)
-  inputType?: 'text' | 'select' | 'number' | 'textarea';
+  inputType?: 'text' | 'select' | 'select-multiple' | 'number' | 'textarea';
   // Options for select input type
   // Can be flat array of options or grouped options
   options?: SelectOptions;

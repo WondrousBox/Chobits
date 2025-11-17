@@ -38,7 +38,7 @@ export type NodeSpec = {
     type: string | string[];
     description?: string;
     default?: any;
-    inputType?: 'text' | 'select' | 'number' | 'textarea';
+    inputType?: 'text' | 'select' | 'select-multiple' | 'number' | 'textarea';
     options?: Array<{ value: string; label: string } | { group: string; options: Array<{ value: string; label: string }> }>;
     group?: string;
   }[];
