@@ -12,12 +12,14 @@ import useBusyState from './hooks/useBusyState';
 import useClickThrough from './hooks/useClickThrough';
 import useDragMove from './hooks/useDragMove';
 import useFileDrop from './hooks/useFileDrop';
+import useNoticeState from './hooks/useNoticeState';
 import useSpriteEventController from './hooks/useSpriteEventController';
 import useWalkAnimation from './hooks/useWalkAnimation';
 import { MessageBubble } from './messages/MessageBubble';
 import Messages from './messages/zh-CN';
 import BusyProgressBar from './ui/BusyProgressBar';
 import PaddingDebugOverlay from './ui/PaddingDebugOverlay';
+import SpriteNotice from './ui/SpriteNotice';
 import StatusIndicator from './ui/StatusIndicator';
 import VideoSprite from './VideoSprite';
 
@@ -29,6 +31,7 @@ export const AIAssistant: React.FC = () => {
   const { animateMoveWindow, stopWalking, isWalking } = useWalkAnimation();
   useSpriteEventController();
   const { busyState } = useBusyState();
+  const { notice, dismiss } = useNoticeState();
   const {
     bind: dragBind,
     isDragging,
@@ -201,6 +204,7 @@ export const AIAssistant: React.FC = () => {
         )}
         <VideoSprite />
       </Dropzone>
+      {notice && <SpriteNotice message={notice.message} level={notice.level} onClose={dismiss} />}
 
       {busyState.isBusy && <BusyProgressBar progress={busyState.progress} message={busyState.message} />}
 

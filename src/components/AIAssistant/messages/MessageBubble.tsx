@@ -25,9 +25,10 @@
  * - 如果需要根据更复杂的上下文（ctx/text）来展示自定义文案，可在上层维护消息对象并扩展此组件入参；
  *   本组件会在这些依赖发生变化时自动重新显示并按配置隐藏。
  */
-import React, { useEffect, useRef, useState } from 'react';
-import type { MessageCategory } from '../types';
 import clsx from 'clsx';
+import React, { useEffect, useRef, useState } from 'react';
+
+import type { MessageCategory } from '../types';
 import Messages from './zh-CN';
 
 export interface MessageBubbleProps {
