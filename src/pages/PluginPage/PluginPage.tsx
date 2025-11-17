@@ -308,6 +308,8 @@ const PluginPage: React.FC<PluginPageProps> = ({ hideTitleBar }: PluginPageProps
           const isExpanded = expandedPlugins.has(pluginId);
           const hasModels = models.length > 0;
           const hasEngines = engines.length > 0;
+          const hasInstalledEngine = installed.some((resource) => resource.pluginId === pluginId && resource.type === 'engine' && resource.status === 'installed');
+          const shouldShowModels = hasModels && hasInstalledEngine;
 
           return (
             <div key={pluginId}>
@@ -315,7 +317,7 @@ const PluginPage: React.FC<PluginPageProps> = ({ hideTitleBar }: PluginPageProps
               {hasEngines && engines.map((resource) => renderResourceItem(resource))}
 
               {/* 模型列表（可展开） */}
-              {hasModels && (
+              {shouldShowModels && (
                 <div>
                   <Button size="sm" variant="outline" onClick={() => togglePluginExpanded(pluginId)}>
                     {isExpanded ? <TbChevronDown /> : <TbChevronRight />}
