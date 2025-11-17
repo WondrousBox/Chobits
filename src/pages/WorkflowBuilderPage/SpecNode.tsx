@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Handle, NodeProps, Position, useReactFlow } from 'reactflow';
 
-import type { NodeSpec } from '@/types/workflow';
-
 import type { NodeData } from './types';
+
+const invoke = window.ipcRenderer.invoke;
 
 function toArray<T>(v: T | T[] | undefined): T[] {
   if (v === undefined) return [];
@@ -21,9 +21,30 @@ function typesCompatible(source: string | string[] | undefined, target: string |
 
 const SpecNode: React.FC<NodeProps<NodeData>> = ({ data, selected }) => {
   const spec = data.spec;
+  const config = data.config;
   const rf = useReactFlow<NodeData>();
   const runtime = data.runtime;
   const status = runtime?.status;
+
+  // 根据配置动态获取输出端口（通过 IPC 调用后端的 getOutputs 方法）
+  const [dynamicOutputs, setDynamicOutputs] = useState<Array<{ key: string; label?: string; type: string | string[] }>>(spec.outputs || []);
+
+  useEffect(() => {
+    // 通过 IPC 调用后端获取动态输出
+    invoke('wf:getNodeOutputs', { nodeId: spec.id, config })
+      .then((result: any) => {
+        if (result?.ok && Array.isArray(result.outputs)) {
+          setDynamicOutputs(result.outputs);
+        } else {
+          // 如果获取失败，使用默认输出
+          setDynamicOutputs(spec.outputs || []);
+        }
+      })
+      .catch(() => {
+        // 如果调用失败，使用默认输出
+        setDynamicOutputs(spec.outputs || []);
+      });
+  }, [spec.id, spec.outputs, config]);
 
   const baseClass = 'relative rounded-md border border-solid min-w-[180px] overflow-hidden transition-all duration-200 shadow-sm';
   let runtimeClass = 'border-ring';
@@ -74,8 +95,16 @@ const SpecNode: React.FC<NodeProps<NodeData>> = ({ data, selected }) => {
                     // validate against source output type
                     const source = conn.source ? rf.getNode(conn.source) : undefined;
                     const outKey = conn.sourceHandle || '';
-                    const sourceSpec = (source?.data as any)?.spec as NodeSpec | undefined;
-                    const outType = sourceSpec?.outputs?.find((o) => o.key === outKey)?.type;
+                    if (!source) return false;
+
+                    // 获取源节点的动态输出
+                    // 注意：这里使用同步方式获取，可能会有延迟，但为了连接验证的性能，先使用 spec.outputs
+                    // 实际的动态输出会在节点渲染时通过 useEffect 更新
+                    const sourceData = source.data as NodeData;
+                    const sourceSpec = sourceData.spec;
+                    const sourceOutputs = sourceSpec.outputs || [];
+
+                    const outType = sourceOutputs.find((o) => o.key === outKey)?.type;
                     return typesCompatible(outType, inp.type);
                   }}
                   className="!w-2 !h-2 !bg-rose-400"
@@ -85,7 +114,7 @@ const SpecNode: React.FC<NodeProps<NodeData>> = ({ data, selected }) => {
             ))}
           </div>
           <div className="space-y-1">
-            {(spec.outputs || []).map((out) => (
+            {dynamicOutputs.map((out) => (
               <div key={out.key} className="relative text-right">
                 <div className="pr-3 inline-block">{out.key}</div>
                 <Handle id={out.key} type="source" position={Position.Right} className="!w-2 !h-2 !bg-sky-400" />

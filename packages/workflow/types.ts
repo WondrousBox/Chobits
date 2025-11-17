@@ -122,6 +122,9 @@ export type NodeHandler = {
   spec: NodeSpec;
   // validate config at registration time if needed
   validateConfig?: (config?: NodeConfig) => void | never;
+  // compute dynamic outputs based on config (optional)
+  // if not provided, uses spec.outputs
+  getOutputs?: (config?: NodeConfig) => PortSchema[];
   // runtime execution logic
   run: (args: {
     input: Record<string, any>;
