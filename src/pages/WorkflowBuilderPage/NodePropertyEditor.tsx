@@ -60,6 +60,68 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
       );
     }
 
+    // 检查是否是数值类型
+    const isNumber = c.type === 'number' || (Array.isArray(c.type) && c.type.includes('number')) || c.inputType === 'number';
+
+    // 如果是数值类型，使用左右结构
+    if (isNumber) {
+      const numValue = typeof rawValue === 'number' ? rawValue : rawValue === '' || rawValue === null || rawValue === undefined ? '' : Number(rawValue);
+      return (
+        <div key={c.key} className="flex items-center justify-between">
+          <div className="flex flex-col">
+            <label className="text-xs">{label}</label>
+            {c.description && <span className="text-xs text-muted-foreground">{c.description}</span>}
+          </div>
+          <Input
+            type="number"
+            value={numValue}
+            onChange={(e) => {
+              const val = e.target.value === '' ? undefined : Number(e.target.value);
+              onChange((prev) => ({ config: { ...prev.config, [c.key]: val } }));
+            }}
+            placeholder={c.description || ''}
+            className="h-8 w-24 text-xs"
+          />
+        </div>
+      );
+    }
+
+    // 检查是否是数组类型（多选）
+    const isArrayType = c.type === 'array' || (Array.isArray(c.type) && c.type.includes('array'));
+    const isMultipleSelect = c.inputType === 'select-multiple' || (isArrayType && c.inputType === 'select');
+
+    // 处理多选的情况
+    if (isMultipleSelect && c.options && c.options.length > 0) {
+      const selectedValues = Array.isArray(rawValue) ? rawValue : rawValue ? [rawValue] : [];
+      const flatOptions = c.options.filter((opt): opt is { value: string; label: string } => !isOptionGroup(opt));
+
+      return (
+        <div key={c.key} className="space-y-1">
+          <label className="block text-xs">{label}</label>
+          {c.description && <span className="text-xs text-muted-foreground">{c.description}</span>}
+          <div className="space-y-1.5 mt-1.5">
+            {flatOptions.map((opt) => {
+              const isChecked = selectedValues.includes(opt.value);
+              return (
+                <label key={opt.value} className="flex items-center space-x-2 cursor-pointer hover:bg-accent/50 rounded px-1.5 py-1">
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={(e) => {
+                      const newValues = e.target.checked ? [...selectedValues, opt.value] : selectedValues.filter((v) => v !== opt.value);
+                      onChange((prev) => ({ config: { ...prev.config, [c.key]: newValues } }));
+                    }}
+                    className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer"
+                  />
+                  <span className="text-xs">{opt.label}</span>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
     const value = String(rawValue ?? '');
 
     // 根据 inputType 渲染不同的输入控件

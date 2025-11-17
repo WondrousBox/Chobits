@@ -318,7 +318,7 @@ export const TranscribeWhisperNode: NodeHandler = {
         required: false,
         default: ['txt', 'srt', 'vtt', 'json'],
         description: '输出格式列表',
-        inputType: 'select',
+        inputType: 'select-multiple',
         options: [
           { value: 'txt', label: 'TXT - 纯文本文件' },
           { value: 'srt', label: 'SRT - 字幕文件' },
