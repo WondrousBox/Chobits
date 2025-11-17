@@ -34,13 +34,15 @@
     "nodes": [
       { "id": "start", "type": "core/start", "x": 0, "y": 42.5 },
       { "id": "load", "type": "resource/load", "x": 332, "y": 8.5 },
-      { "id": "whisper", "type": "media/transcribe-whisper", "x": 676, "y": 0, "config": { "model": "ggml-base.bin", "language": "zh", "outputFormats": ["txt", "srt", "json"] } },
-      { "id": "end", "type": "core/end", "x": 1156, "y": 42.5 }
+      { "id": "transcode", "type": "media/transcode-advanced", "x": 676, "y": 42.5, "config": { "format": "wav", "audioCodec": "pcm_s16le", "extraArgs": ["-ar", "16000", "-ac", "1"] } },
+      { "id": "whisper", "type": "media/transcribe-whisper", "x": 1157, "y": 0, "config": { "model": "ggml-base.bin", "language": "zh", "outputFormats": ["txt", "srt", "json"] } },
+      { "id": "end", "type": "core/end", "x": 1637, "y": 42.5 }
     ],
     "edges": [
       { "id": "t1", "from": { "nodeId": "start", "port": "resource" }, "to": { "nodeId": "load", "port": "resource" } },
-      { "id": "t2", "from": { "nodeId": "load", "port": "path" }, "to": { "nodeId": "whisper", "port": "media" } },
-      { "id": "t3", "from": { "nodeId": "whisper", "port": "text" }, "to": { "nodeId": "end", "port": "result" } }
+      { "id": "t2", "from": { "nodeId": "load", "port": "path" }, "to": { "nodeId": "transcode", "port": "input" } },
+      { "id": "t3", "from": { "nodeId": "transcode", "port": "output" }, "to": { "nodeId": "whisper", "port": "media" } },
+      { "id": "t4", "from": { "nodeId": "whisper", "port": "text" }, "to": { "nodeId": "end", "port": "result" } }
     ],
     "options": { "concurrency": 1, "errorStrategy": "fail-fast" }
   },
