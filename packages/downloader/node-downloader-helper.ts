@@ -1,5 +1,6 @@
 import path from 'node:path';
 
+// https://github.com/hgouveia/node-downloader-helper
 import { DownloaderHelper } from 'node-downloader-helper';
 
 import { getHttpProxy } from '../proxy/proxy';
@@ -10,10 +11,15 @@ import type { Downloader, DownloadProgress } from './types';
  * 支持断点续传、自动重试、代理等特性
  * 完全在主进程运行，渲染进程关闭不影响下载
  */
+const DEFAULT_STALL_TIMEOUT_MS = 60_000;
+const STALL_TIMER_INTERVAL_MS = 5_000;
+
 export class NodeDownloaderHelper implements Downloader {
   async download(url: string, destinationPath: string, onProgress?: (p: DownloadProgress) => void, signal?: AbortSignal): Promise<string> {
     const dir = path.dirname(destinationPath);
     const filename = path.basename(destinationPath);
+    const stallTimeoutEnv = Number(process.env.CHOBITS_DOWNLOAD_STALL_TIMEOUT_MS);
+    const stallTimeoutMs = Number.isFinite(stallTimeoutEnv) && stallTimeoutEnv > 0 ? stallTimeoutEnv : DEFAULT_STALL_TIMEOUT_MS;
 
     console.log('[DL-NDH] download initiated', {
       url,
@@ -62,6 +68,43 @@ export class NodeDownloaderHelper implements Downloader {
     return new Promise<string>((resolve, reject) => {
       let isAborted = false;
       let dl: DownloaderHelper | null = null;
+      let stallTimer: NodeJS.Timeout | null = null;
+      let lastProgressAt = Date.now();
+      let timeoutTriggered = false;
+
+      const clearStallTimer = (): void => {
+        if (stallTimer) {
+          clearInterval(stallTimer);
+          stallTimer = null;
+        }
+      };
+
+      const setupStallTimer = (): void => {
+        clearStallTimer();
+        if (!(stallTimeoutMs > 0)) return;
+        stallTimer = setInterval(
+          () => {
+            if (timeoutTriggered || isAborted) return;
+            if (Date.now() - lastProgressAt >= stallTimeoutMs) {
+              timeoutTriggered = true;
+              console.warn('[DL-NDH] download stalled, triggering timeout', {
+                url,
+                filename,
+                stallTimeoutMs
+              });
+              if (signal) {
+                signal.removeEventListener('abort', abortHandler);
+              }
+              if (dl) {
+                dl.stop().catch(() => { });
+              }
+              clearStallTimer();
+              reject(new Error('DownloadTimeout'));
+            }
+          },
+          Math.min(stallTimeoutMs, STALL_TIMER_INTERVAL_MS)
+        );
+      };
 
       // 处理取消信号
       const abortHandler = () => {
@@ -98,11 +141,14 @@ export class NodeDownloaderHelper implements Downloader {
       // 监听下载开始
       dl.on('start', () => {
         console.log('[DL-NDH] download started', { url, filename });
+        lastProgressAt = Date.now();
+        setupStallTimer();
       });
 
       // 监听下载进度
       dl.on('progress', (stats: any) => {
         if (isAborted) return;
+        lastProgressAt = Date.now();
 
         // stats 可能包含: { progress, speed, downloaded, total, eta }
         // speed 是字节/秒（B/s）
@@ -145,6 +191,7 @@ export class NodeDownloaderHelper implements Downloader {
         if (signal) {
           signal.removeEventListener('abort', abortHandler);
         }
+        clearStallTimer();
 
         resolve(finalPath);
       });
@@ -152,6 +199,7 @@ export class NodeDownloaderHelper implements Downloader {
       // 监听下载错误
       dl.on('error', (error) => {
         if (isAborted) return;
+        clearStallTimer();
 
         console.error('[DL-NDH] download error', {
           url,
@@ -165,6 +213,10 @@ export class NodeDownloaderHelper implements Downloader {
         }
 
         reject(error);
+      });
+
+      dl.on('timeout', () => {
+        console.warn('[DL-NDH] underlying socket timeout detected', { url, filename });
       });
 
       // 监听重试
@@ -189,6 +241,7 @@ export class NodeDownloaderHelper implements Downloader {
       // 监听停止
       dl.on('stop', () => {
         console.log('[DL-NDH] download stopped', { url });
+        clearStallTimer();
       });
 
       // 开始下载
@@ -205,6 +258,7 @@ export class NodeDownloaderHelper implements Downloader {
         if (signal) {
           signal.removeEventListener('abort', abortHandler);
         }
+        clearStallTimer();
 
         reject(error);
       });
