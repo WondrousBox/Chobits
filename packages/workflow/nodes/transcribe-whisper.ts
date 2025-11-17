@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import ffmpeg from 'fluent-ffmpeg';
+
 import { NodeHandler } from '../types';
 
 // 模型名称映射：文件名 -> 简化名称（用于 dtw 参数）
@@ -28,8 +30,42 @@ function fileExists(p: string): boolean {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function runWhisper(args: string[], ctx: any): Promise<void> {
+// 解析时间戳字符串为秒数，格式：[HH:MM:SS.mmm --> HH:MM:SS.mmm]
+function parseTimestamp(timestampStr: string): number | null {
+  // 匹配格式：[HH:MM:SS.mmm --> HH:MM:SS.mmm]
+  const match = timestampStr.match(/\[(\d{2}):(\d{2}):(\d{2})\.(\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2})\.(\d{3})\]/);
+  if (!match) return null;
+
+  // 提取结束时间（使用结束时间作为当前进度）
+  const hours = parseInt(match[5], 10);
+  const minutes = parseInt(match[6], 10);
+  const seconds = parseInt(match[7], 10);
+  const milliseconds = parseInt(match[8], 10);
+
+  return hours * 3600 + minutes * 60 + seconds + milliseconds / 1000;
+}
+
+// 获取媒体文件的总时长（秒）
+async function getMediaDuration(filePath: string): Promise<number | null> {
+  return new Promise((resolve) => {
+    ffmpeg.ffprobe(filePath, (err, metadata) => {
+      if (err) {
+        console.log('[whisper] 无法获取媒体文件时长:', err.message);
+        resolve(null);
+        return;
+      }
+      const duration = metadata.format?.duration;
+      if (duration && typeof duration === 'number') {
+        resolve(duration);
+      } else {
+        resolve(null);
+      }
+    });
+  });
+}
+
+// https://github.com/ggml-org/whisper.cpp/tree/master/examples/cli
+async function runWhisper(args: string[], ctx: any, onProgress?: (progress: number, message: string) => void, totalDuration?: number | null): Promise<void> {
   // 优先使用资源管理器中的engine，否则回退到PATH中的whisper-cli
   const { pluginResourceManager } = await import('../../plugins');
   const { platform } = await import('node:os');
@@ -37,10 +73,89 @@ async function runWhisper(args: string[], ctx: any): Promise<void> {
   const enginePath = pluginResourceManager.getEnginePath('plugin:whisper', binaryName);
   const whisperCmd = fs.existsSync(enginePath) ? enginePath : 'whisper-cli';
 
+  // 时间戳匹配正则：匹配 [HH:MM:SS.mmm --> HH:MM:SS.mmm] 格式
+  const timestampRegex = /\[(\d{2}):(\d{2}):(\d{2})\.(\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2})\.(\d{3})\]/g;
+
   await new Promise<void>((resolve, reject) => {
-    const child = spawn(whisperCmd, args, { stdio: 'ignore' });
-    child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`whisper failed: ${code}`))));
-    child.on('error', (e) => reject(e));
+    console.log('[whisper] exec: ', whisperCmd + ' ' + args.join(' '));
+    const child = spawn(whisperCmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+
+    let stdout = '';
+    let stderr = '';
+    let lastProgressTime = 0;
+
+    child.stdout?.on('data', (data) => {
+      const output = data.toString();
+      stdout += output;
+      console.log('[whisper] stdout:', output);
+
+      // 解析输出中的时间戳，计算进度
+      if (onProgress) {
+        const lines = output.split('\n');
+        for (const line of lines) {
+          // 重置正则表达式（因为使用了全局标志）
+          timestampRegex.lastIndex = 0;
+          const matches = Array.from(line.matchAll(timestampRegex));
+          if (matches.length > 0) {
+            // 使用最后一个匹配的时间戳（最新的进度）
+            const lastMatch = matches[matches.length - 1][0];
+            const currentTime = parseTimestamp(lastMatch);
+            if (currentTime !== null && currentTime > lastProgressTime) {
+              lastProgressTime = currentTime;
+
+              // 格式化时间显示
+              const hours = Math.floor(currentTime / 3600);
+              const minutes = Math.floor((currentTime % 3600) / 60);
+              const seconds = Math.floor(currentTime % 60);
+              const timeStr = hours > 0 ? `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}` : `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+              // 如果有总时长，计算百分比；否则只显示时间
+              if (totalDuration && totalDuration > 0) {
+                const progressPercent = Math.min(95, Math.max(0, (currentTime / totalDuration) * 100));
+                onProgress(progressPercent, `转录中: ${timeStr}`);
+              } else {
+                // 没有总时长时，使用一个递增的进度值（基于时间戳）
+                // 假设最长不超过10小时，这样可以有一个粗略的进度估算
+                const estimatedMaxDuration = 10 * 3600; // 10小时
+                const progressPercent = Math.min(95, Math.max(0, (currentTime / estimatedMaxDuration) * 100));
+                onProgress(progressPercent, `转录中: ${timeStr}`);
+              }
+            }
+          }
+        }
+      }
+    });
+
+    child.stderr?.on('data', (data) => {
+      const error = data.toString();
+      stderr += error;
+      console.log('[whisper] stderr:', error);
+    });
+
+    child.on('exit', (code) => {
+      if (code === 0) {
+        console.log('[whisper] 执行成功');
+        if (onProgress) {
+          onProgress(100, '转录完成');
+        }
+        resolve();
+      } else {
+        const errorMsg = stderr || stdout || `whisper failed with exit code ${code}`;
+        console.log('[whisper] 执行失败，退出码:', code);
+        console.log('[whisper] stderr 完整输出:', stderr);
+        console.log('[whisper] stdout 完整输出:', stdout);
+        reject(new Error(`whisper failed: ${code}\n${errorMsg}`));
+      }
+    });
+
+    child.on('error', (e) => {
+      console.log('[whisper] 进程错误:', e);
+      console.log('[whisper] 错误消息:', e.message);
+      console.log('[whisper] 错误堆栈:', e.stack);
+      console.log('[whisper] stderr 完整输出:', stderr);
+      console.log('[whisper] stdout 完整输出:', stdout);
+      reject(e);
+    });
   });
 }
 
@@ -196,14 +311,28 @@ export const TranscribeWhisperNode: NodeHandler = {
       },
       { key: 'threads', label: '线程数', type: 'number', required: false, description: '使用的线程数', group: 'more' },
       { key: 'translate', label: '翻译模式', type: 'boolean', required: false, default: false, description: '是否翻译到英文', group: 'more' },
-      { key: 'outputFormats', label: '输出格式', type: 'array', required: false, default: ['txt', 'srt', 'vtt', 'json'], description: '输出格式列表', group: 'more' },
+      {
+        key: 'outputFormats',
+        label: '输出格式',
+        type: 'array',
+        required: false,
+        default: ['txt', 'srt', 'vtt', 'json'],
+        description: '输出格式列表',
+        inputType: 'select',
+        options: [
+          { value: 'txt', label: 'TXT - 纯文本文件' },
+          { value: 'srt', label: 'SRT - 字幕文件' },
+          { value: 'vtt', label: 'VTT - WebVTT 字幕文件' },
+          { value: 'json', label: 'JSON - JSON 格式文件' },
+          { value: 'lrc', label: 'LRC - 歌词文件' },
+          { value: 'words', label: 'Words - 卡拉OK视频脚本' }
+        ]
+      },
+      { key: 'jsonFull', label: '完整 JSON 格式', type: 'boolean', required: false, default: false, description: 'JSON 输出包含更多信息（使用 -ojf 而非 -oj）', group: 'more' },
       { key: 'printProgress', label: '打印进度', type: 'boolean', required: false, default: false, group: 'more' },
       { key: 'printColors', label: '打印颜色', type: 'boolean', required: false, default: false, group: 'more' },
-      { key: 'speedUp', label: '加速模式', type: 'boolean', required: false, default: false, description: '使用加速模式（可能降低质量）', group: 'more' },
       { key: 'vad', label: '语音活动检测', type: 'boolean', required: false, default: false, description: '通过VAD识别人说话部分' },
       { key: 'noTimestamps', label: '无时间戳', type: 'boolean', required: false, default: false, group: 'more' },
-      { key: 'singleSegment', label: '单段模式', type: 'boolean', required: false, default: false, description: '输出为单个段落', group: 'more' },
-      { key: 'wordTimestamps', label: '单词时间戳', type: 'boolean', required: false, default: false, group: 'more' },
       { key: 'maxLen', label: '最大长度', type: 'number', required: false, default: 0, description: '最大段落长度', group: 'advanced' },
       { key: 'dtw', label: '启用 DTW', type: 'boolean', required: false, default: false, description: '启用动态时间规整（DTW）优化', group: 'more' },
       { key: 'prompt', label: '上下文提示', type: 'string', required: false, default: '', description: '提供上下文提示以改善转录质量', group: 'advanced' },
@@ -214,9 +343,9 @@ export const TranscribeWhisperNode: NodeHandler = {
       { key: 'noSpeechThold', label: '无语音阈值', type: 'number', required: false, default: 0.6, description: '无语音阈值', group: 'advanced' },
       { key: 'temperature', label: '采样温度', type: 'number', required: false, default: 0.0, description: '采样温度', group: 'advanced' },
       { key: 'temperatureInc', label: '温度增量', type: 'number', required: false, default: 0.2, description: '温度增量', group: 'advanced' },
-      { key: 'useGpu', label: '使用GPU', type: 'boolean', required: false, default: true, description: '启用GPU加速' },
+      { key: 'useGpu', label: '使用GPU', type: 'boolean', required: false, default: true, description: '启用GPU加速（默认启用，设为 false 时使用 --no-gpu 禁用）' },
       { key: 'flashAttn', label: 'Flash Attention', type: 'boolean', required: false, default: false, description: '启用Flash Attention', group: 'advanced' },
-      { key: 'sns', label: 'SNS', type: 'boolean', required: false, default: false, description: '启用SNS', group: 'advanced' }
+      { key: 'sns', label: '抑制非语音标记', type: 'boolean', required: false, default: false, description: '抑制非语音标记 (suppress non-speech tokens)', group: 'advanced' }
     ],
     outputs: [
       { key: 'text', label: '全文文本', type: 'string' },
@@ -224,10 +353,12 @@ export const TranscribeWhisperNode: NodeHandler = {
       { key: 'srt', label: 'SRT 文件', type: 'file' },
       { key: 'vtt', label: 'VTT 文件', type: 'file' },
       { key: 'json', label: 'JSON 文件', type: 'file' },
-      { key: 'txt', label: 'TXT 文件', type: 'file' }
+      { key: 'txt', label: 'TXT 文件', type: 'file' },
+      { key: 'lrc', label: 'LRC 文件', type: 'file' },
+      { key: 'words', label: 'Words 文件', type: 'file' }
     ]
   },
-  async run({ input, config, ctx }) {
+  async run({ input, config, ctx, emit }) {
     const src = String(input.media || '');
     if (!src) throw new Error('缺少媒体文件路径');
     if (!fs.existsSync(src)) throw new Error(`媒体文件不存在: ${src}`);
@@ -236,12 +367,45 @@ export const TranscribeWhisperNode: NodeHandler = {
     const outDir = path.join(ctx.tmpDir, 'whisper', `${base}-${randomUUID()}`);
     fs.mkdirSync(outDir, { recursive: true });
 
+    // 获取媒体文件的总时长
+    const totalDuration = await getMediaDuration(src);
+    if (totalDuration) {
+      const hours = Math.floor(totalDuration / 3600);
+      const minutes = Math.floor((totalDuration % 3600) / 60);
+      const seconds = Math.floor(totalDuration % 60);
+      const durationStr = hours > 0 ? `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}` : `${minutes}:${seconds.toString().padStart(2, '0')}`;
+      console.log(`[whisper] 媒体文件总时长: ${durationStr} (${totalDuration.toFixed(2)}秒)`);
+    } else {
+      console.log('[whisper] 无法获取媒体文件时长，将使用相对进度');
+    }
+
+    // 发送开始进度
+    emit('node:progress', { progress: 0, message: '开始转录...' });
+
     // whisper.cpp 参数组装
     const args: string[] = ['-f', src];
 
     // 模型参数 (-m)
+    // 从系统配置的模型文件夹加载模型
     const modelKey = String(config?.model || 'ggml-base.bin');
-    if (modelKey) args.push('-m', modelKey);
+    let modelPath: string | null = null;
+    try {
+      const { pluginResourceManager } = await import('../../plugins');
+      modelPath = pluginResourceManager.getModelPath('plugin:whisper', modelKey);
+      // 检查模型文件是否存在
+      if (fs.existsSync(modelPath)) {
+        args.push('-m', modelPath);
+        console.log('[whisper] 使用转录模型:', modelPath);
+      } else {
+        // 如果模型文件不存在，使用模型名称（让 whisper 自己查找）
+        args.push('-m', modelKey);
+        console.warn('[whisper] 模型文件不存在，使用模型名称:', modelKey, '路径:', modelPath);
+      }
+    } catch (error) {
+      // 如果无法获取模型路径，使用模型名称
+      args.push('-m', modelKey);
+      console.log('[whisper] 无法获取模型路径，使用模型名称:', modelKey, error);
+    }
 
     // 语言参数 (-l)
     // 如果语言为 'auto' 或空，则不传递 -l 参数，让 whisper.cpp 自动检测
@@ -256,12 +420,21 @@ export const TranscribeWhisperNode: NodeHandler = {
     // 翻译模式 (--translate)
     if (config?.translate) args.push('--translate');
 
-    // 输出格式 (-otxt, -osrt, -ovtt, -ojson)
+    // 输出格式 (-otxt, -osrt, -ovtt, -oj/-ojf, -olrc, -owts)
     const outputFormats = Array.isArray(config?.outputFormats) ? config.outputFormats : ['txt', 'srt', 'vtt', 'json'];
     if (outputFormats.includes('txt')) args.push('-otxt');
     if (outputFormats.includes('srt')) args.push('-osrt');
     if (outputFormats.includes('vtt')) args.push('-ovtt');
-    if (outputFormats.includes('json')) args.push('-ojson');
+    if (outputFormats.includes('json')) {
+      // 根据 jsonFull 配置选择使用 -oj 或 -ojf
+      if (config?.jsonFull) {
+        args.push('-ojf');
+      } else {
+        args.push('-oj');
+      }
+    }
+    if (outputFormats.includes('lrc')) args.push('-olrc');
+    if (outputFormats.includes('words')) args.push('-owts');
 
     // 输出目录（whisper.cpp 会在输入文件同目录生成输出，需要指定输出目录时需要特殊处理）
     // 注意：whisper.cpp 默认在输入文件同目录输出，我们需要在运行后移动文件
@@ -270,11 +443,28 @@ export const TranscribeWhisperNode: NodeHandler = {
     // 其他选项
     if (config?.printProgress) args.push('--print-progress');
     if (config?.printColors) args.push('--print-colors');
-    if (config?.speedUp) args.push('--speed-up');
-    if (config?.vad) args.push('--vad');
+    if (config?.vad) {
+      args.push('--vad');
+      // VAD 模型从转录模型的同级目录加载（系统配置的模型文件夹）
+      const vadModelName = 'ggml-silero-v5.1.2.bin';
+      let vadModelPath: string | null = null;
+
+      try {
+        const { pluginResourceManager } = await import('../../plugins');
+        vadModelPath = pluginResourceManager.getModelPath('plugin:whisper', vadModelName);
+
+        // 检查 VAD 模型文件是否存在
+        if (fs.existsSync(vadModelPath)) {
+          args.push('-vm', vadModelPath);
+          console.log('[whisper] 使用 VAD 模型:', vadModelPath);
+        } else {
+          console.warn('[whisper] VAD 模型文件不存在，将使用 whisper 默认行为。路径:', vadModelPath);
+        }
+      } catch (error) {
+        console.log('[whisper] 无法获取 VAD 模型路径:', error);
+      }
+    }
     if (config?.noTimestamps) args.push('--no-timestamps');
-    if (config?.singleSegment) args.push('--single-segment');
-    if (config?.wordTimestamps) args.push('--word-timestamps');
     if (config?.maxLen != null && config.maxLen !== 0) args.push('--max-len', String(config.maxLen));
 
     // 上下文提示 (--prompt)
@@ -282,53 +472,51 @@ export const TranscribeWhisperNode: NodeHandler = {
       args.push('--prompt', String(config.prompt));
     }
 
-    // 最大文本上下文 (--max-context)
+    // 最大文本上下文 (-mc, --max-context)
     if (config?.maxContent != null && config.maxContent !== -1) {
       args.push('--max-context', String(config.maxContent));
     }
 
-    // 单词边界分割 (--split-on-word)
+    // 单词边界分割 (-sow, --split-on-word)
     if (config?.splitOnWord) args.push('--split-on-word');
 
-    // 熵阈值 (--entropy-thold)
+    // 熵阈值 (-et, --entropy-thold)
     if (config?.entropyThold != null && config.entropyThold !== 2.4) {
       args.push('--entropy-thold', String(config.entropyThold));
     }
 
-    // 对数概率阈值 (--logprob-thold)
+    // 对数概率阈值 (-lpt, --logprob-thold)
     if (config?.logprobThold != null && config.logprobThold !== -1.0) {
       args.push('--logprob-thold', String(config.logprobThold));
     }
 
-    // 无语音阈值 (--no-speech-thold)
+    // 无语音阈值 (-nth, --no-speech-thold)
     if (config?.noSpeechThold != null && config.noSpeechThold !== 0.6) {
       args.push('--no-speech-thold', String(config.noSpeechThold));
     }
 
-    // 采样温度 (--temperature)
+    // 采样温度 (-tp, --temperature)
     if (config?.temperature != null && config.temperature !== 0.0) {
       args.push('--temperature', String(config.temperature));
     }
 
-    // 温度增量 (--temperature-inc)
+    // 温度增量 (-tpi, --temperature-inc)
     if (config?.temperatureInc != null && config.temperatureInc !== 0.2) {
       args.push('--temperature-inc', String(config.temperatureInc));
     }
 
-    // GPU 使用 (--use-gpu)
-    // 默认启用 GPU，只有在明确设置为 false 时才禁用
+    // GPU 使用 (--no-gpu)
+    // whisper CLI 默认启用 GPU，只有在明确设置为 false 时才使用 --no-gpu 禁用
     if (config?.useGpu === false) {
       args.push('--no-gpu');
-    } else {
-      // 默认值或明确设置为 true 时启用 GPU
-      args.push('--use-gpu');
     }
+    // 默认情况下不添加任何参数，因为 GPU 默认已启用
 
-    // Flash Attention (--flash-attn)
+    // Flash Attention (-fa, --flash-attn)
     if (config?.flashAttn) args.push('--flash-attn');
 
-    // SNS (--sns)
-    if (config?.sns) args.push('--sns');
+    // SNS (-sns, --suppress-nst)
+    if (config?.sns) args.push('--suppress-nst');
 
     // DTW 参数 (--dtw)
     // 如果启用 dtw，使用映射后的文件名作为 dtw 参数值
@@ -339,7 +527,12 @@ export const TranscribeWhisperNode: NodeHandler = {
       }
     }
 
-    await runWhisper(args, ctx);
+    // 创建进度回调函数
+    const onProgress = (progress: number, message: string) => {
+      emit('node:progress', { progress, message });
+    };
+
+    await runWhisper(args, ctx, onProgress, totalDuration);
 
     // whisper.cpp 默认在输入文件同目录生成输出文件
     // 需要将输出文件移动到指定目录
@@ -349,12 +542,16 @@ export const TranscribeWhisperNode: NodeHandler = {
     const srcSrtPath = path.join(srcDir, `${srcBase}.srt`);
     const srcVttPath = path.join(srcDir, `${srcBase}.vtt`);
     const srcJsonPath = path.join(srcDir, `${srcBase}.json`);
+    const srcLrcPath = path.join(srcDir, `${srcBase}.lrc`);
+    const srcWordsPath = path.join(srcDir, `${srcBase}.words`);
 
     // 移动文件到输出目录
     const txtPath = path.join(outDir, `${base}.txt`);
     const srtPath = path.join(outDir, `${base}.srt`);
     const vttPath = path.join(outDir, `${base}.vtt`);
     const jsonPath = path.join(outDir, `${base}.json`);
+    const lrcPath = path.join(outDir, `${base}.lrc`);
+    const wordsPath = path.join(outDir, `${base}.words`);
 
     if (fileExists(srcTxtPath)) {
       fs.copyFileSync(srcTxtPath, txtPath);
@@ -371,6 +568,14 @@ export const TranscribeWhisperNode: NodeHandler = {
     if (fileExists(srcJsonPath)) {
       fs.copyFileSync(srcJsonPath, jsonPath);
       fs.unlinkSync(srcJsonPath);
+    }
+    if (fileExists(srcLrcPath)) {
+      fs.copyFileSync(srcLrcPath, lrcPath);
+      fs.unlinkSync(srcLrcPath);
+    }
+    if (fileExists(srcWordsPath)) {
+      fs.copyFileSync(srcWordsPath, wordsPath);
+      fs.unlinkSync(srcWordsPath);
     }
 
     // 收集输出
@@ -395,6 +600,8 @@ export const TranscribeWhisperNode: NodeHandler = {
         // ignore parse error
       }
     }
+    if (fileExists(lrcPath)) out.lrc = lrcPath;
+    if (fileExists(wordsPath)) out.words = wordsPath;
 
     // 根据用户期望的输出格式过滤（如果设置了）
     const expected: string[] = Array.isArray(config?.outputFormats) ? config!.outputFormats : [];
@@ -405,6 +612,8 @@ export const TranscribeWhisperNode: NodeHandler = {
       if (!keepFiles.has('srt')) delete out.srt;
       if (!keepFiles.has('vtt')) delete out.vtt;
       if (!keepFiles.has('json')) delete out.json;
+      if (!keepFiles.has('lrc')) delete out.lrc;
+      if (!keepFiles.has('words')) delete out.words;
     }
 
     return out;

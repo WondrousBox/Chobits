@@ -4,6 +4,14 @@ import ffmpeg from 'fluent-ffmpeg';
 
 import { NodeHandler } from '../types';
 
+// 音频格式列表
+const AUDIO_FORMATS = ['mp3', 'wav', 'm4a', 'flac', 'ogg', 'opus', 'aac'];
+
+// 判断格式是音频还是视频
+function isAudioFormat(format: string): boolean {
+  return AUDIO_FORMATS.includes(format.toLowerCase());
+}
+
 export const TranscodeAdvancedNode: NodeHandler = {
   spec: {
     id: 'media/transcode-advanced',
@@ -44,8 +52,16 @@ export const TranscodeAdvancedNode: NodeHandler = {
       }
     })();
 
+    let stderrOutput = '';
+
     await new Promise<void>((resolve, reject) => {
       const cmd = ffmpeg(src);
+
+      // 如果输出是音频格式，禁用视频轨道
+      if (isAudioFormat(fmt)) {
+        cmd.noVideo();
+      }
+
       if (audioCodec) cmd.audioCodec(audioCodec);
       if (videoCodec) cmd.videoCodec(videoCodec);
       if (bitrate) cmd.videoBitrate(bitrate);
@@ -54,8 +70,25 @@ export const TranscodeAdvancedNode: NodeHandler = {
       cmd
         .format(fmt)
         .output(out)
-        .on('end', () => resolve())
-        .on('error', (e) => reject(e))
+        .on('start', (commandLine: string) => {
+          console.log('[transcode-advanced] Start:', commandLine);
+        })
+        .on('stderr', (stderrLine: string) => {
+          stderrOutput += stderrLine + '\n';
+          console.log('[transcode-advanced] stderr:', stderrLine);
+        })
+        .on('end', () => {
+          console.log('[transcode-advanced] End:', out);
+          resolve();
+        })
+        .on('error', (e: Error) => {
+          const errorMsg = `转码失败: ${e.message}\nFFmpeg stderr:\n${stderrOutput}`;
+          console.log('[transcode-advanced] Error:', errorMsg);
+          console.log('[transcode-advanced] 错误消息:', e.message);
+          console.log('[transcode-advanced] 错误堆栈:', e.stack);
+          console.log('[transcode-advanced] stderr 完整输出:', stderrOutput);
+          reject(new Error(errorMsg));
+        })
         .run();
     });
 
