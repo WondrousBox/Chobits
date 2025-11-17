@@ -9,6 +9,7 @@ import { Resource } from 'electron/preload/apis/resource';
 import { TaggingService } from '../ai/tagging-service';
 import { FoldersRepo, ResourcesRepo, TagsRepo, WorkspacesRepo } from '../db/repositories';
 import { sendSpriteBusyEnd, sendSpriteBusyProgress, sendSpriteBusyStart } from '../utils/sprite-busy';
+import { sendSpriteNotice } from '../utils/sprite-notice';
 import { detectBasicType, generateThumbnailForResource } from '../utils/thumbnail';
 
 // 存储正在上传的文件流
@@ -499,6 +500,10 @@ export function initResourceHandlers(): void {
           });
           if (existHash === incomingHash) {
             sendSpriteBusyEnd(); // 重复文件时结束繁忙状态
+            sendSpriteNotice({
+              message: `「${fileName}」已存在，已跳过上传`,
+              level: 'warning'
+            });
             return { success: false, duplicate: true, filePath: target, hash: incomingHash, error: 'duplicate' };
           }
         } catch {
@@ -670,6 +675,10 @@ export function initResourceHandlers(): void {
             }
             uploadStreams.delete(uploadId);
             sendSpriteBusyEnd(); // 重复文件时结束繁忙状态
+            sendSpriteNotice({
+              message: `「${stream.fileName}」已存在，已跳过上传`,
+              level: 'warning'
+            });
             return { success: false, duplicate: true, filePath: originalTarget, hash: incomingHash, error: 'duplicate' };
           }
         } catch {
