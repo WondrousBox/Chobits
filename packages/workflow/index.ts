@@ -7,6 +7,7 @@ import { sendSpriteBusyEnd, sendSpriteBusyProgress, sendSpriteBusyStart } from '
 import { createEngine } from './engine';
 import { DocToMarkdownNode } from './nodes/doc-to-md';
 import { EndNode } from './nodes/end';
+import { ExtractKeyframesNode } from './nodes/extract-keyframes';
 import { LoadResourceNode } from './nodes/load-resource';
 import { OCRNode } from './nodes/ocr';
 import { StartNode } from './nodes/start';
@@ -26,7 +27,7 @@ export function initWorkflowSystem(): void {
   registerPlugin(TesseractPlugin);
   registerPlugin(WhisperPlugin);
   // Register nodes
-  [StartNode, EndNode, LoadResourceNode, TranscodeNode, TranscodeAdvancedNode, OCRNode, TranscribeWhisperNode, DocToMarkdownNode].forEach(registerNode);
+  [StartNode, EndNode, LoadResourceNode, TranscodeNode, TranscodeAdvancedNode, OCRNode, TranscribeWhisperNode, DocToMarkdownNode, ExtractKeyframesNode].forEach(registerNode);
 
   const engine = createEngine({
     resourcesDir: path.join(process.env.APP_ROOT || process.cwd(), 'resources'),

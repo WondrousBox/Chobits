@@ -62,6 +62,46 @@
       { "id": "tc3", "from": { "nodeId": "transcode", "port": "output" }, "to": { "nodeId": "end", "port": "result" } }
     ],
     "options": { "concurrency": 1, "errorStrategy": "fail-fast" }
+  },
+  {
+    "id": "sample:audio-compress",
+    "name": "音频压缩 (MP3)",
+    "description": "将音频转换/压缩为中等码率的 MP3 文件，适合分享或存档",
+    "nodes": [
+      { "id": "start", "type": "core/start", "x": 0, "y": 34 },
+      { "id": "load", "type": "resource/load", "x": 332, "y": 0 },
+      { "id": "transcode", "type": "media/transcode", "x": 676, "y": 34, "config": { "format": "mp3", "quality": "medium" } },
+      { "id": "end", "type": "core/end", "x": 1047, "y": 34 }
+    ],
+    "edges": [
+      { "id": "ac1", "from": { "nodeId": "start", "port": "resource" }, "to": { "nodeId": "load", "port": "resource" } },
+      { "id": "ac2", "from": { "nodeId": "load", "port": "path" }, "to": { "nodeId": "transcode", "port": "input" } },
+      { "id": "ac3", "from": { "nodeId": "transcode", "port": "output" }, "to": { "nodeId": "end", "port": "result" } }
+    ],
+    "options": { "concurrency": 1, "errorStrategy": "fail-fast" }
+  },
+  {
+    "id": "sample:video-keyframes",
+    "name": "提取视频关键帧",
+    "description": "使用 FFmpeg 提取定间隔关键帧，生成缩略图序列",
+    "nodes": [
+      { "id": "start", "type": "core/start", "x": 0, "y": 34 },
+      { "id": "load", "type": "resource/load", "x": 332, "y": 0 },
+      {
+        "id": "keyframes",
+        "type": "media/extract-keyframes",
+        "x": 700,
+        "y": 34,
+        "config": { "intervalSeconds": 2, "maxFrames": 12, "width": 512, "quality": 4 }
+      },
+      { "id": "end", "type": "core/end", "x": 1080, "y": 34 }
+    ],
+    "edges": [
+      { "id": "vk1", "from": { "nodeId": "start", "port": "resource" }, "to": { "nodeId": "load", "port": "resource" } },
+      { "id": "vk2", "from": { "nodeId": "load", "port": "path" }, "to": { "nodeId": "keyframes", "port": "input" } },
+      { "id": "vk3", "from": { "nodeId": "keyframes", "port": "result" }, "to": { "nodeId": "end", "port": "result" } }
+    ],
+    "options": { "concurrency": 1, "errorStrategy": "fail-fast" }
   }
 ]
 

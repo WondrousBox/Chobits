@@ -63,6 +63,31 @@ const FileActionsMenu: React.FC = () => {
 
   const actions = useMemo<ActionItem[]>(() => {
     const list: ActionItem[] = [];
+    const runWorkflow = async (defId: string, purpose: string): Promise<void> => {
+      if (!primary) {
+        console.warn(`[FileActionsMenu] no resource for ${purpose}`);
+        return;
+      }
+      const ipc = window.ipcRenderer;
+      if (!ipc?.invoke) {
+        console.warn('[FileActionsMenu] ipcRenderer not available');
+        return;
+      }
+      const result = await ipc
+        .invoke('wf:run', {
+          defId,
+          input: { resource: primary }
+        })
+        .catch((err) => {
+          console.warn(`[FileActionsMenu] ${purpose} error`, err);
+          return null;
+        });
+      if (result?.ok) {
+        console.log(`[FileActionsMenu] ${purpose} started, runId:`, result.runId);
+      } else if (result) {
+        console.warn(`[FileActionsMenu] ${purpose} failed:`, result.error || result.validation);
+      }
+    };
     const closeAfter = async (fn: () => Promise<void> | void): Promise<void> => {
       try {
         await fn();
@@ -93,57 +118,24 @@ const FileActionsMenu: React.FC = () => {
       });
     const transcribeAudio = (): Promise<void> =>
       closeAfter(async () => {
-        try {
-          /* TODO: 调用转写 */
-        } catch (err) {
-          console.warn('[FileActionsMenu] transcribe audio error', err);
-        }
+        await runWorkflow('sample:transcribe', 'audio transcription');
       });
     const convertAudio = (): Promise<void> =>
       closeAfter(async () => {
-        try {
-          /* TODO: ffmpeg 转码 */
-        } catch (err) {
-          console.warn('[FileActionsMenu] convert audio error', err);
-        }
+        await runWorkflow('sample:audio-compress', 'audio transcode');
       });
     const transcodeVideo = (): Promise<void> =>
       closeAfter(async () => {
-        try {
-          if (!primary) {
-            console.warn('[FileActionsMenu] no resource for transcode');
-            return;
-          }
-          // 调用工作流进行转码（视频转MP3）
-          const result = await window.ipcRenderer.invoke('wf:run', {
-            defId: 'sample:transcode',
-            input: { resource: primary }
-          });
-          if (result.ok) {
-            console.log('[FileActionsMenu] transcode started, runId:', result.runId);
-          } else {
-            console.warn('[FileActionsMenu] transcode failed:', result.error || result.validation);
-          }
-        } catch (err) {
-          console.warn('[FileActionsMenu] transcode video error', err);
-        }
+        await runWorkflow('sample:transcode', 'video transcode');
       });
     const extractKeyframes = (): Promise<void> =>
       closeAfter(async () => {
-        try {
-          /* TODO: 关键帧提取 */
-        } catch (err) {
-          console.warn('[FileActionsMenu] extract keyframes error', err);
-        }
+        await runWorkflow('sample:video-keyframes', 'video keyframes');
       });
 
     const transcribeVideo = (): Promise<void> =>
       closeAfter(async () => {
-        try {
-          //
-        } catch (err) {
-          console.warn('[FileActionsMenu] open assistant error', err);
-        }
+        await runWorkflow('sample:transcribe', 'video transcription');
       });
     const analyzeImage = (): Promise<void> =>
       closeAfter(async () => {
