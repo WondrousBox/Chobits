@@ -5,7 +5,7 @@ import path from 'node:path';
 
 import ffmpeg from 'fluent-ffmpeg';
 
-import { NodeHandler } from '../types';
+import { NodeConfig, NodeHandler, PortSchema, ValueType } from '../types';
 
 // 模型名称映射：文件名 -> 简化名称（用于 dtw 参数）
 const dtwMap: Record<string, string> = {
@@ -157,6 +157,35 @@ async function runWhisper(args: string[], ctx: any, onProgress?: (progress: numb
       reject(e);
     });
   });
+}
+
+// 根据配置计算动态输出端口
+function getDynamicOutputs(config?: NodeConfig): PortSchema[] {
+  const outputs: PortSchema[] = [
+    { key: 'text', label: '全文文本', type: 'string' },
+    { key: 'segments', label: '分段 JSON', type: 'object' }
+  ];
+
+  // 根据选择的输出格式添加对应的输出端口
+  const outputFormats: string[] = Array.isArray(config?.outputFormats) ? config.outputFormats : ['txt', 'srt', 'vtt', 'json'];
+  const formatMap: Record<string, { key: string; label: string; type: ValueType }> = {
+    txt: { key: 'txt', label: 'TXT 文件', type: 'file' },
+    srt: { key: 'srt', label: 'SRT 文件', type: 'file' },
+    vtt: { key: 'vtt', label: 'VTT 文件', type: 'file' },
+    json: { key: 'json', label: 'JSON 文件', type: 'file' },
+    lrc: { key: 'lrc', label: 'LRC 文件', type: 'file' },
+    words: { key: 'words', label: 'Words 文件', type: 'file' }
+  };
+
+  // 添加选择的格式对应的输出端口
+  for (const format of outputFormats) {
+    const formatDef = formatMap[format];
+    if (formatDef) {
+      outputs.push({ key: formatDef.key, label: formatDef.label, type: formatDef.type });
+    }
+  }
+
+  return outputs;
 }
 
 export const TranscribeWhisperNode: NodeHandler = {
@@ -347,17 +376,18 @@ export const TranscribeWhisperNode: NodeHandler = {
       { key: 'flashAttn', label: 'Flash Attention', type: 'boolean', required: false, default: false, description: '启用Flash Attention', group: 'advanced' },
       { key: 'sns', label: '抑制非语音标记', type: 'boolean', required: false, default: false, description: '抑制非语音标记 (suppress non-speech tokens)', group: 'advanced' }
     ],
+    // 默认输出（当没有配置或配置为空时使用）
     outputs: [
       { key: 'text', label: '全文文本', type: 'string' },
       { key: 'segments', label: '分段 JSON', type: 'object' },
+      { key: 'txt', label: 'TXT 文件', type: 'file' },
       { key: 'srt', label: 'SRT 文件', type: 'file' },
       { key: 'vtt', label: 'VTT 文件', type: 'file' },
-      { key: 'json', label: 'JSON 文件', type: 'file' },
-      { key: 'txt', label: 'TXT 文件', type: 'file' },
-      { key: 'lrc', label: 'LRC 文件', type: 'file' },
-      { key: 'words', label: 'Words 文件', type: 'file' }
+      { key: 'json', label: 'JSON 文件', type: 'file' }
     ]
   },
+  // 根据配置动态计算输出端口
+  getOutputs: getDynamicOutputs,
   async run({ input, config, ctx, emit }) {
     const src = String(input.media || '');
     if (!src) throw new Error('缺少媒体文件路径');
@@ -528,7 +558,7 @@ export const TranscribeWhisperNode: NodeHandler = {
     }
 
     // 创建进度回调函数
-    const onProgress = (progress: number, message: string) => {
+    const onProgress = (progress: number, message: string): void => {
       emit('node:progress', { progress, message });
     };
 

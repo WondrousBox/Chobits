@@ -16,9 +16,9 @@ import { TranscribeWhisperNode } from './nodes/transcribe-whisper';
 import { FfmpegPlugin } from './plugins/ffmpeg';
 import { TesseractPlugin } from './plugins/tesseract';
 import { WhisperPlugin } from './plugins/whisper';
-import { listNodes, listPlugins, registerNode, registerPlugin } from './registry';
+import { getNode, listNodes, listPlugins, registerNode, registerPlugin } from './registry';
 import { loadPresetWorkflows, WorkflowStore } from './store';
-import { WorkflowDefinition } from './types';
+import { NodeConfig, WorkflowDefinition } from './types';
 
 export function initWorkflowSystem(): void {
   // Register plugins first
@@ -157,6 +157,13 @@ export function initWorkflowSystem(): void {
 
   // IPC endpoints
   ipcMain.handle('wf:listNodes', () => listNodes().map((n) => n.spec));
+  ipcMain.handle('wf:getNodeOutputs', async (_e, payload: { nodeId: string; config?: NodeConfig }) => {
+    const handler = getNode(payload.nodeId);
+    if (!handler) return { ok: false, error: 'Node not found' };
+    // 如果节点有 getOutputs 方法，使用它；否则使用 spec.outputs
+    const outputs = handler.getOutputs ? handler.getOutputs(payload.config) : handler.spec.outputs;
+    return { ok: true, outputs };
+  });
   ipcMain.handle('wf:listPlugins', () => listPlugins().map((p) => ({ id: p.id, label: p.label, installed: false })));
   ipcMain.handle('wf:listDefinitions', async () => {
     // 合并预设工作流和用户自定义工作流（使用缓存）
