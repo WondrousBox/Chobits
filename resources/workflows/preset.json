@@ -92,7 +92,7 @@
         "type": "media/extract-keyframes",
         "x": 700,
         "y": 34,
-        "config": { "intervalSeconds": 2, "maxFrames": 12, "width": 512, "quality": 4 }
+        "config": {}
       },
       { "id": "end", "type": "core/end", "x": 1080, "y": 34 }
     ],
