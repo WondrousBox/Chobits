@@ -233,4 +233,19 @@ export function initWorkflowSystem(): void {
     return { ok: true };
   });
   ipcMain.handle('wf:getRunLogs', async (_e, payload: { runId: string }) => engine.getRunLogs(payload.runId));
+
+  // 获取工作流任务结果文件（基于文件路径）
+  ipcMain.handle('wf:getTaskResults', async (_e, payload: { filePath: string }) => {
+    try {
+      if (!payload.filePath) {
+        return { ok: false, error: '缺少文件路径' };
+      }
+      const { scanTaskResults } = await import('./task-results');
+      const results = await scanTaskResults(payload.filePath);
+      return { ok: true, data: results };
+    } catch (e: any) {
+      console.warn('[wf:getTaskResults] 获取任务结果失败', e);
+      return { ok: false, error: e?.message || 'unknown-error' };
+    }
+  });
 }

@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TbArrowLeft, TbArrowRight, TbChevronLeft, TbChevronRight, TbDots, TbFile, TbFileDescription, TbLetterT, TbLink, TbMusic, TbPhoto, TbVideo } from 'react-icons/tb';
+import { TbArrowLeft, TbArrowRight, TbChevronLeft, TbChevronRight, TbDots, TbFile, TbFileDescription, TbFileText, TbLetterT, TbLink, TbMusic, TbPhoto, TbVideo } from 'react-icons/tb';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { MediaPlayer } from '@/components/MediaPlayer';
 import { Button } from '@/components/ui/button';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from '@/lib/resourceProtocol';
 import type { ResourceItem } from '@/types';
 
@@ -23,6 +24,14 @@ const ResourcePreviewWindow: React.FC = () => {
   const [loadingText, setLoadingText] = useState(false);
   const [isPlaylistExpanded, setIsPlaylistExpanded] = useState(true);
   const [showExpandButton, setShowExpandButton] = useState(false);
+  const [activeSidebarTab, setActiveSidebarTab] = useState<string>('playlist');
+  const [taskResults, setTaskResults] = useState<{ transcode: any[]; transcribe: any[]; keyframes: any[]; other: any[] }>({
+    transcode: [],
+    transcribe: [],
+    keyframes: [],
+    other: []
+  });
+  const [loadingTaskResults, setLoadingTaskResults] = useState(false);
   const mainContentRef = useRef<HTMLDivElement>(null);
 
   // 处理视频加载完成，调整窗口大小
@@ -137,9 +146,44 @@ const ResourcePreviewWindow: React.FC = () => {
     setIsPlaylistExpanded((prev) => !prev);
   }, []);
 
+  // 加载任务结果
+  const loadTaskResults = useCallback(async () => {
+    if (!data?.filePath) return;
+    setLoadingTaskResults(true);
+    try {
+      const result = await window.ipcRenderer.invoke('wf:getTaskResults', { filePath: data.filePath });
+      if (result.ok && result.data) {
+        setTaskResults(result.data);
+      }
+    } catch (error) {
+      console.warn('[ResourcePreviewWindow] 加载任务结果失败', error);
+    } finally {
+      setLoadingTaskResults(false);
+    }
+  }, [data?.filePath]);
+
+  // 当数据变化时，如果有文件路径，加载任务结果
+  useEffect(() => {
+    if (data?.filePath && isPlaylistExpanded) {
+      loadTaskResults();
+    }
+  }, [data?.filePath, isPlaylistExpanded, loadTaskResults]);
+
+  // 当有任务结果时，自动切换到任务结果tab（仅在当前是播放列表tab时）
+  useEffect(() => {
+    const hasResults = taskResults.transcode.length > 0 || taskResults.transcribe.length > 0 || taskResults.keyframes.length > 0 || taskResults.other.length > 0;
+    if (hasResults && activeSidebarTab === 'playlist') {
+      setActiveSidebarTab('tasks');
+    }
+  }, [taskResults, activeSidebarTab]);
+
   // 检测鼠标是否在主内容区域（类似视频播放器控制栏）
   useEffect(() => {
-    if (!mainContentRef.current || isPlaylistExpanded || list.length === 0) {
+    if (!mainContentRef.current) {
+      setShowExpandButton(false);
+      return;
+    }
+    if (isPlaylistExpanded) {
       setShowExpandButton(false);
       return;
     }
@@ -275,6 +319,76 @@ const ResourcePreviewWindow: React.FC = () => {
     return () => window.removeEventListener('keydown', onKey);
   }, [go, list.length]);
 
+  // 格式化文件大小
+  const formatFileSize = useCallback((bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }, []);
+
+  // 处理任务结果文件点击
+  const handleTaskFileClick = useCallback((filePath: string) => {
+    const fileSrc = makeResSrc(filePath);
+    window.open(fileSrc, '_blank');
+  }, []);
+
+  // 渲染任务结果文件列表
+  const renderTaskFileList = useCallback(
+    (files: any[], type: string) => {
+      if (files.length === 0) {
+        return (
+          <div className="flex items-center justify-center h-32 text-xs text-muted-foreground">
+            暂无{type === 'transcode' ? '转码' : type === 'transcribe' ? '转录' : type === 'keyframes' ? '关键帧' : '其他'}结果
+          </div>
+        );
+      }
+
+      return (
+        <div className="p-2 space-y-1">
+          {files.map((file, idx) => {
+            const fileSrc = makeResSrc(file.path);
+            const isImage = isImageFile(file.path);
+            const isVideo = isVideoFile(file.path);
+            const isAudio = isAudioFile(file.path);
+            const ext = file.name.split('.').pop()?.toLowerCase() || '';
+
+            return (
+              <div
+                key={`${file.path}-${idx}`}
+                onClick={() => handleTaskFileClick(file.path)}
+                className="flex items-center gap-2 p-2 rounded cursor-pointer transition-colors hover:bg-muted/50 border border-transparent hover:border-border"
+              >
+                {/* 文件图标或预览 */}
+                <div className="w-12 h-12 flex-shrink-0 rounded bg-muted flex items-center justify-center overflow-hidden">
+                  {isImage ? (
+                    <img src={fileSrc} alt={file.name} className="w-full h-full object-cover" />
+                  ) : isVideo ? (
+                    <TbVideo className="w-6 h-6 text-muted-foreground" />
+                  ) : isAudio ? (
+                    <TbFile className="w-6 h-6 text-muted-foreground" />
+                  ) : ext === 'txt' || ext === 'srt' || ext === 'vtt' ? (
+                    <TbFileText className="w-6 h-6 text-muted-foreground" />
+                  ) : (
+                    <TbFile className="w-6 h-6 text-muted-foreground" />
+                  )}
+                </div>
+                {/* 文件信息 */}
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-medium truncate">{file.name}</div>
+                  <div className="text-[10px] text-muted-foreground">{formatFileSize(file.size)}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    },
+    [formatFileSize, handleTaskFileClick]
+  );
+
+  // 判断是否有任务结果
+  const hasTaskResults = taskResults.transcode.length > 0 || taskResults.transcribe.length > 0 || taskResults.keyframes.length > 0 || taskResults.other.length > 0;
+
   if (!data) {
     return <div className="w-full h-full flex items-center justify-center bg-background text-muted-foreground text-sm">等待资源数据...</div>;
   }
@@ -282,7 +396,7 @@ const ResourcePreviewWindow: React.FC = () => {
   const title = data.title || data.filePath || data.url || data.id;
   const fileSrc = data.filePath ? makeResSrc(data.filePath) : data.url;
 
-  // 渲染播放列表内容
+  // 渲染播放列表内容（包含 Tabs）
   const renderPlaylistContent = (): React.ReactNode => {
     return (
       <div className="h-full flex flex-col overflow-hidden bg-background border-l">
@@ -292,45 +406,116 @@ const ResourcePreviewWindow: React.FC = () => {
           </Button>
           <span>播放列表 ({list.length})</span>
         </div>
-        <ScrollArea className="flex-1">
-          <div ref={playlistRef} className="p-2 space-y-1">
-            {list.map((item, idx) => {
-              const Icon = getResourceIcon(item);
-              const itemTitle = item.title || item.filePath || item.url || item.id;
-              const itemSrc = item.filePath ? makeResSrc(item.filePath) : item.url;
-              const isActive = idx === index;
-              const hasThumbnail = item.thumbnailPath || (isImageFile(item.filePath) && itemSrc);
+        <Tabs value={activeSidebarTab} onValueChange={setActiveSidebarTab} className="flex-1 flex flex-col overflow-hidden">
+          <TabsList className="mx-2 mt-2 h-auto p-1">
+            <TabsTrigger value="playlist" className="text-[10px] py-1 flex-1">
+              播放列表
+            </TabsTrigger>
+            {hasTaskResults && (
+              <TabsTrigger value="tasks" className="text-[10px] py-1 flex-1">
+                任务结果
+              </TabsTrigger>
+            )}
+          </TabsList>
+          <ScrollArea className="flex-1">
+            <TabsContent value="playlist" className="m-0 h-full">
+              <div ref={playlistRef} className="p-2 space-y-1">
+                {list.map((item, idx) => {
+                  const Icon = getResourceIcon(item);
+                  const itemTitle = item.title || item.filePath || item.url || item.id;
+                  const itemSrc = item.filePath ? makeResSrc(item.filePath) : item.url;
+                  const isActive = idx === index;
+                  const hasThumbnail = item.thumbnailPath || (isImageFile(item.filePath) && itemSrc);
 
-              return (
-                <div
-                  key={item.id}
-                  data-index={idx}
-                  onClick={() => goToIndex(idx)}
-                  className={`
-                    flex items-center gap-2 p-2 rounded cursor-pointer transition-colors
-                    ${isActive ? 'bg-primary/20 border border-primary/50' : 'hover:bg-muted/50 border border-transparent'}
-                  `}
-                >
-                  {/* 缩略图或图标 */}
-                  <div className="w-12 h-12 flex-shrink-0 rounded bg-muted flex items-center justify-center overflow-hidden">
-                    {hasThumbnail && isImageFile(item.filePath) ? (
-                      <img src={item.thumbnailPath ? makeResSrc(item.thumbnailPath) : itemSrc} alt={itemTitle} className="w-full h-full object-cover" />
-                    ) : (
-                      <Icon className="w-6 h-6 text-muted-foreground" />
-                    )}
-                  </div>
-                  {/* 标题和索引 */}
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-medium truncate">{itemTitle}</div>
-                    <div className="text-[10px] text-muted-foreground">
-                      {idx + 1} / {list.length}
+                  return (
+                    <div
+                      key={item.id}
+                      data-index={idx}
+                      onClick={() => goToIndex(idx)}
+                      className={`
+                        flex items-center gap-2 p-2 rounded cursor-pointer transition-colors
+                        ${isActive ? 'bg-primary/20 border border-primary/50' : 'hover:bg-muted/50 border border-transparent'}
+                      `}
+                    >
+                      {/* 缩略图或图标 */}
+                      <div className="w-12 h-12 flex-shrink-0 rounded bg-muted flex items-center justify-center overflow-hidden">
+                        {hasThumbnail && isImageFile(item.filePath) ? (
+                          <img src={item.thumbnailPath ? makeResSrc(item.thumbnailPath) : itemSrc} alt={itemTitle} className="w-full h-full object-cover" />
+                        ) : (
+                          <Icon className="w-6 h-6 text-muted-foreground" />
+                        )}
+                      </div>
+                      {/* 标题和索引 */}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium truncate">{itemTitle}</div>
+                        <div className="text-[10px] text-muted-foreground">
+                          {idx + 1} / {list.length}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </ScrollArea>
+                  );
+                })}
+              </div>
+            </TabsContent>
+            {hasTaskResults && (
+              <TabsContent value="tasks" className="m-0 h-full">
+                {loadingTaskResults ? (
+                  <div className="flex items-center justify-center h-32 text-xs text-muted-foreground">加载中...</div>
+                ) : (
+                  <Tabs
+                    defaultValue={taskResults.transcribe.length > 0 ? 'transcribe' : taskResults.transcode.length > 0 ? 'transcode' : taskResults.keyframes.length > 0 ? 'keyframes' : 'other'}
+                    className="h-full flex flex-col"
+                  >
+                    <TabsList className="mx-2 mt-2 h-auto p-1 grid grid-cols-2">
+                      {taskResults.transcribe.length > 0 && (
+                        <TabsTrigger value="transcribe" className="text-[10px] py-1">
+                          转录 ({taskResults.transcribe.length})
+                        </TabsTrigger>
+                      )}
+                      {taskResults.transcode.length > 0 && (
+                        <TabsTrigger value="transcode" className="text-[10px] py-1">
+                          转码 ({taskResults.transcode.length})
+                        </TabsTrigger>
+                      )}
+                      {taskResults.keyframes.length > 0 && (
+                        <TabsTrigger value="keyframes" className="text-[10px] py-1">
+                          关键帧 ({taskResults.keyframes.length})
+                        </TabsTrigger>
+                      )}
+                      {taskResults.other.length > 0 && (
+                        <TabsTrigger value="other" className="text-[10px] py-1">
+                          其他 ({taskResults.other.length})
+                        </TabsTrigger>
+                      )}
+                    </TabsList>
+                    <ScrollArea className="flex-1">
+                      {taskResults.transcribe.length > 0 && (
+                        <TabsContent value="transcribe" className="m-0 h-full">
+                          {renderTaskFileList(taskResults.transcribe, 'transcribe')}
+                        </TabsContent>
+                      )}
+                      {taskResults.transcode.length > 0 && (
+                        <TabsContent value="transcode" className="m-0 h-full">
+                          {renderTaskFileList(taskResults.transcode, 'transcode')}
+                        </TabsContent>
+                      )}
+                      {taskResults.keyframes.length > 0 && (
+                        <TabsContent value="keyframes" className="m-0 h-full">
+                          {renderTaskFileList(taskResults.keyframes, 'keyframes')}
+                        </TabsContent>
+                      )}
+                      {taskResults.other.length > 0 && (
+                        <TabsContent value="other" className="m-0 h-full">
+                          {renderTaskFileList(taskResults.other, 'other')}
+                        </TabsContent>
+                      )}
+                    </ScrollArea>
+                  </Tabs>
+                )}
+              </TabsContent>
+            )}
+          </ScrollArea>
+        </Tabs>
       </div>
     );
   };
@@ -353,7 +538,7 @@ const ResourcePreviewWindow: React.FC = () => {
       )}
 
       {/* 收起时，鼠标移入画面显示的展开按钮（类似视频播放器控制栏） */}
-      {list.length > 0 && !isPlaylistExpanded && showExpandButton && (
+      {(list.length > 0 || data) && !isPlaylistExpanded && showExpandButton && (
         <div className="absolute right-0 top-1/2 -translate-y-1/2 z-10 transition-opacity duration-200">
           <Button size="sm" variant="ghost" className="h-8 w-8 bg-background/90 backdrop-blur-sm border shadow-lg hover:bg-background/95" onClick={togglePlaylistExpanded}>
             <TbChevronLeft />
@@ -390,17 +575,15 @@ const ResourcePreviewWindow: React.FC = () => {
       />
       {/* Content */}
       <div className="h-full overflow-hidden" style={{ height: 'calc(100% - 36px)' }}>
-        {list.length > 0 ? (
+        {(list.length > 0 || data) && isPlaylistExpanded ? (
           <ResizablePanelGroup direction="horizontal" className="h-full">
-            <ResizablePanel defaultSize={isPlaylistExpanded ? 75 : 100} minSize={30}>
+            <ResizablePanel defaultSize={75} minSize={30}>
               {renderMainContent()}
             </ResizablePanel>
-            {isPlaylistExpanded && <ResizableHandle withHandle />}
-            {isPlaylistExpanded && (
-              <ResizablePanel defaultSize={25} minSize={15} maxSize={40}>
-                {renderPlaylistContent()}
-              </ResizablePanel>
-            )}
+            <ResizableHandle withHandle />
+            <ResizablePanel defaultSize={25} minSize={15} maxSize={40}>
+              {renderPlaylistContent()}
+            </ResizablePanel>
           </ResizablePanelGroup>
         ) : (
           renderMainContent()

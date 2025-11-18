@@ -154,21 +154,11 @@ export const TranscodeNode: NodeHandler = {
 
     const qualitySettings = getQualitySettings(quality, fmt, isAudio);
 
-    // 更稳健的输出文件名：替换扩展名而不是简单追加。
-    const out = (() => {
-      try {
-        const { dir, name } = path.parse(src);
-        return path.join(dir, `${name}.${fmt}`);
-      } catch {
-        return `${src}.${fmt}`; // Fallback
-      }
-    })();
-
-    // 确保输出目录存在
-    const outDir = path.dirname(out);
-    if (!fs.existsSync(outDir)) {
-      fs.mkdirSync(outDir, { recursive: true });
-    }
+    // 使用新的存储结构：在同级目录下的 transcode 文件夹
+    const { getTaskOutputPath } = await import('../task-results');
+    const { name } = path.parse(src);
+    const fileName = `${name}.${fmt}`;
+    const out = await getTaskOutputPath(src, 'transcode', fileName);
 
     const stderrOutput = '';
 

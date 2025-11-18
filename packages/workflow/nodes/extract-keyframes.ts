@@ -69,12 +69,9 @@ export const ExtractKeyframesNode: NodeHandler = {
     const height = config?.height != null ? Math.round(clampNumber(Number(config.height), { min: 1, max: 4096 })) : undefined;
     const quality = Math.round(clampNumber(Number(config?.quality ?? 4), { min: 1, max: 31 }));
 
-    // 获取输入文件所在的目录
-    const inputDir = path.dirname(src);
-    const inputBasename = path.basename(src, path.extname(src));
-    // 在输入文件同目录下创建关键帧目录
-    const outDir = path.join(inputDir, `${inputBasename}_keyframes`);
-    await fsp.mkdir(outDir, { recursive: true });
+    // 使用新的存储结构：在同级目录下的 keyframes 文件夹
+    const { ensureTaskTypeDir } = await import('../task-results');
+    const outDir = await ensureTaskTypeDir(src, 'keyframes');
     const outputPattern = path.join(outDir, 'frame-%04d.jpg');
 
     emit('node:progress', { progress: 0, message: '开始提取关键帧...' });

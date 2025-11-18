@@ -1,5 +1,4 @@
 import { spawn } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -394,8 +393,10 @@ export const TranscribeWhisperNode: NodeHandler = {
     if (!fs.existsSync(src)) throw new Error(`媒体文件不存在: ${src}`);
 
     const base = path.parse(src).name;
-    const outDir = path.join(ctx.tmpDir, 'whisper', `${base}-${randomUUID()}`);
-    fs.mkdirSync(outDir, { recursive: true });
+
+    // 使用新的存储结构：在同级目录下的 transcribe 文件夹
+    const { ensureTaskTypeDir } = await import('../task-results');
+    const outDir = await ensureTaskTypeDir(src, 'transcribe');
 
     // 获取媒体文件的总时长
     const totalDuration = await getMediaDuration(src);
