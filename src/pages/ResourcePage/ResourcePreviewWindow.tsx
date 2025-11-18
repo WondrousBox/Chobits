@@ -32,6 +32,7 @@ const ResourcePreviewWindow: React.FC = () => {
     other: []
   });
   const [loadingTaskResults, setLoadingTaskResults] = useState(false);
+  const hasAutoSwitchedRef = useRef(false);
   const mainContentRef = useRef<HTMLDivElement>(null);
 
   // 处理视频加载完成，调整窗口大小
@@ -130,7 +131,7 @@ const ResourcePreviewWindow: React.FC = () => {
     }
   }, []);
 
-  // 播放列表滚动到当前项
+  // 文件列表滚动到当前项
   const playlistRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (playlistRef.current && index >= 0) {
@@ -141,7 +142,7 @@ const ResourcePreviewWindow: React.FC = () => {
     }
   }, [index]);
 
-  // 切换播放列表展开/收起
+  // 切换文件列表展开/收起
   const togglePlaylistExpanded = useCallback(() => {
     setIsPlaylistExpanded((prev) => !prev);
   }, []);
@@ -165,15 +166,19 @@ const ResourcePreviewWindow: React.FC = () => {
   // 当数据变化时，如果有文件路径，加载任务结果
   useEffect(() => {
     if (data?.filePath && isPlaylistExpanded) {
+      // 切换资源时重置自动切换标志和任务结果
+      hasAutoSwitchedRef.current = false;
+      setTaskResults({ transcode: [], transcribe: [], keyframes: [], other: [] });
       loadTaskResults();
     }
   }, [data?.filePath, isPlaylistExpanded, loadTaskResults]);
 
-  // 当有任务结果时，自动切换到任务结果tab（仅在当前是播放列表tab时）
+  // 当首次加载到任务结果时，自动切换到任务结果tab（仅自动切换一次）
   useEffect(() => {
     const hasResults = taskResults.transcode.length > 0 || taskResults.transcribe.length > 0 || taskResults.keyframes.length > 0 || taskResults.other.length > 0;
-    if (hasResults && activeSidebarTab === 'playlist') {
+    if (hasResults && !hasAutoSwitchedRef.current && activeSidebarTab === 'playlist') {
       setActiveSidebarTab('tasks');
+      hasAutoSwitchedRef.current = true;
     }
   }, [taskResults, activeSidebarTab]);
 
@@ -396,7 +401,7 @@ const ResourcePreviewWindow: React.FC = () => {
   const title = data.title || data.filePath || data.url || data.id;
   const fileSrc = data.filePath ? makeResSrc(data.filePath) : data.url;
 
-  // 渲染播放列表内容（包含 Tabs）
+  // 渲染文件列表内容（包含 Tabs）
   const renderPlaylistContent = (): React.ReactNode => {
     return (
       <div className="h-full flex flex-col overflow-hidden bg-background border-l">
@@ -404,12 +409,12 @@ const ResourcePreviewWindow: React.FC = () => {
           <Button size="sm" variant="ghost" className="h-8 w-8" onClick={togglePlaylistExpanded}>
             <TbChevronRight />
           </Button>
-          <span>播放列表 ({list.length})</span>
+          <span>文件列表 ({list.length})</span>
         </div>
         <Tabs value={activeSidebarTab} onValueChange={setActiveSidebarTab} className="flex-1 flex flex-col overflow-hidden">
           <TabsList className="mx-2 mt-2 h-auto p-1">
             <TabsTrigger value="playlist" className="text-[10px] py-1 flex-1">
-              播放列表
+              文件列表
             </TabsTrigger>
             {hasTaskResults && (
               <TabsTrigger value="tasks" className="text-[10px] py-1 flex-1">
