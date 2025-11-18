@@ -1,9 +1,11 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { TbArrowLeft, TbArrowRight } from 'react-icons/tb';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { TbArrowLeft, TbArrowRight, TbChevronLeft, TbChevronRight, TbDots, TbFile, TbFileDescription, TbLetterT, TbLink, TbMusic, TbPhoto, TbVideo } from 'react-icons/tb';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { MediaPlayer } from '@/components/MediaPlayer';
 import { Button } from '@/components/ui/button';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from '@/lib/resourceProtocol';
 import type { ResourceItem } from '@/types';
 
@@ -19,6 +21,9 @@ const ResourcePreviewWindow: React.FC = () => {
   const [index, setIndex] = useState<number>(-1);
   const [textContent, setTextContent] = useState<string>('');
   const [loadingText, setLoadingText] = useState(false);
+  const [isPlaylistExpanded, setIsPlaylistExpanded] = useState(true);
+  const [showExpandButton, setShowExpandButton] = useState(false);
+  const mainContentRef = useRef<HTMLDivElement>(null);
 
   // 处理视频加载完成，调整窗口大小
   const handleVideoLoaded = useCallback(async (videoElement: HTMLVideoElement) => {
@@ -80,6 +85,82 @@ const ResourcePreviewWindow: React.FC = () => {
     },
     [list]
   );
+
+  // 切换到指定索引的资源
+  const goToIndex = useCallback(
+    (targetIndex: number) => {
+      if (targetIndex < 0 || targetIndex >= list.length) return;
+      const target = list[targetIndex];
+      if (target) {
+        setData(target);
+        setIndex(targetIndex);
+      }
+    },
+    [list]
+  );
+
+  // 获取资源类型图标
+  const getResourceIcon = useCallback((resource: ResourceItem) => {
+    switch (resource.type) {
+      case 'image':
+        return TbPhoto;
+      case 'video':
+        return TbVideo;
+      case 'audio':
+        return TbMusic;
+      case 'text':
+        return TbLetterT;
+      case 'document':
+        return TbFileDescription;
+      case 'link':
+        return TbLink;
+      case 'file':
+        return TbFile;
+      default:
+        return TbDots;
+    }
+  }, []);
+
+  // 播放列表滚动到当前项
+  const playlistRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (playlistRef.current && index >= 0) {
+      const itemElement = playlistRef.current.querySelector(`[data-index="${index}"]`);
+      if (itemElement) {
+        itemElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  }, [index]);
+
+  // 切换播放列表展开/收起
+  const togglePlaylistExpanded = useCallback(() => {
+    setIsPlaylistExpanded((prev) => !prev);
+  }, []);
+
+  // 检测鼠标是否在主内容区域（类似视频播放器控制栏）
+  useEffect(() => {
+    if (!mainContentRef.current || isPlaylistExpanded || list.length === 0) {
+      setShowExpandButton(false);
+      return;
+    }
+
+    const handleMouseEnter = (): void => {
+      setShowExpandButton(true);
+    };
+
+    const handleMouseLeave = (): void => {
+      setShowExpandButton(false);
+    };
+
+    const mainContent = mainContentRef.current;
+    mainContent.addEventListener('mouseenter', handleMouseEnter);
+    mainContent.addEventListener('mouseleave', handleMouseLeave);
+
+    return () => {
+      mainContent.removeEventListener('mouseenter', handleMouseEnter);
+      mainContent.removeEventListener('mouseleave', handleMouseLeave);
+    };
+  }, [isPlaylistExpanded, list.length]);
 
   // 监听资源数据推送
   useEffect(() => {
@@ -201,6 +282,87 @@ const ResourcePreviewWindow: React.FC = () => {
   const title = data.title || data.filePath || data.url || data.id;
   const fileSrc = data.filePath ? makeResSrc(data.filePath) : data.url;
 
+  // 渲染播放列表内容
+  const renderPlaylistContent = (): React.ReactNode => {
+    return (
+      <div className="h-full flex flex-col overflow-hidden bg-background border-l">
+        <div className="px-3 py-2 border-b text-xs font-medium text-muted-foreground flex items-center justify-between">
+          <Button size="sm" variant="ghost" className="h-8 w-8" onClick={togglePlaylistExpanded}>
+            <TbChevronRight />
+          </Button>
+          <span>播放列表 ({list.length})</span>
+        </div>
+        <ScrollArea className="flex-1">
+          <div ref={playlistRef} className="p-2 space-y-1">
+            {list.map((item, idx) => {
+              const Icon = getResourceIcon(item);
+              const itemTitle = item.title || item.filePath || item.url || item.id;
+              const itemSrc = item.filePath ? makeResSrc(item.filePath) : item.url;
+              const isActive = idx === index;
+              const hasThumbnail = item.thumbnailPath || (isImageFile(item.filePath) && itemSrc);
+
+              return (
+                <div
+                  key={item.id}
+                  data-index={idx}
+                  onClick={() => goToIndex(idx)}
+                  className={`
+                    flex items-center gap-2 p-2 rounded cursor-pointer transition-colors
+                    ${isActive ? 'bg-primary/20 border border-primary/50' : 'hover:bg-muted/50 border border-transparent'}
+                  `}
+                >
+                  {/* 缩略图或图标 */}
+                  <div className="w-12 h-12 flex-shrink-0 rounded bg-muted flex items-center justify-center overflow-hidden">
+                    {hasThumbnail && isImageFile(item.filePath) ? (
+                      <img src={item.thumbnailPath ? makeResSrc(item.thumbnailPath) : itemSrc} alt={itemTitle} className="w-full h-full object-cover" />
+                    ) : (
+                      <Icon className="w-6 h-6 text-muted-foreground" />
+                    )}
+                  </div>
+                  {/* 标题和索引 */}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium truncate">{itemTitle}</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {idx + 1} / {list.length}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </ScrollArea>
+      </div>
+    );
+  };
+
+  // 渲染主要内容
+  const renderMainContent = () => (
+    <div ref={mainContentRef} className="h-full relative flex items-center justify-center overflow-hidden">
+      {isImageFile(data.filePath) && fileSrc && <img src={fileSrc} alt={title} className="max-w-full max-h-full object-contain rounded-md shadow" />}
+      {isVideoFile(data.filePath) && fileSrc && <MediaPlayer src={fileSrc} type="video" title={title} autoPlay={true} className="w-full h-full" onVideoLoaded={handleVideoLoaded} />}
+      {isAudioFile(data.filePath) && fileSrc && <MediaPlayer src={fileSrc} type="audio" title={title} autoPlay={true} className="w-full max-w-xl" />}
+      {!isImageFile(data.filePath) && !isVideoFile(data.filePath) && !isAudioFile(data.filePath) && (
+        <div className="w-full h-full text-xs text-muted-foreground break-words">
+          {(data.type === 'text' || textContent) && (
+            <div className="w-full h-full box-border select-text overflow-auto rounded border px-2 text-left whitespace-pre-wrap font-mono text-xs leading-relaxed shadow-inner">
+              {loadingText ? '加载中…' : textContent || '（无文本内容）'}
+            </div>
+          )}
+          {!(data.type === 'text') && !textContent && fileSrc && <div className="text-[11px] break-all">来源: {fileSrc}</div>}
+        </div>
+      )}
+
+      {/* 收起时，鼠标移入画面显示的展开按钮（类似视频播放器控制栏） */}
+      {list.length > 0 && !isPlaylistExpanded && showExpandButton && (
+        <div className="absolute right-0 top-1/2 -translate-y-1/2 z-10 transition-opacity duration-200">
+          <Button size="sm" variant="ghost" className="h-8 w-8 bg-background/90 backdrop-blur-sm border shadow-lg hover:bg-background/95" onClick={togglePlaylistExpanded}>
+            <TbChevronLeft />
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="w-full h-full bg-background text-foreground overflow-hidden">
       {/* Header */}
@@ -227,19 +389,21 @@ const ResourcePreviewWindow: React.FC = () => {
         }
       />
       {/* Content */}
-      <div className="h-full relative flex items-center justify-center overflow-hidden" style={{ height: 'calc(100% - 36px)' }}>
-        {isImageFile(data.filePath) && fileSrc && <img src={fileSrc} alt={title} className="max-w-full max-h-full object-contain rounded-md shadow" />}
-        {isVideoFile(data.filePath) && fileSrc && <MediaPlayer src={fileSrc} type="video" title={title} autoPlay={true} className="w-full h-full" onVideoLoaded={handleVideoLoaded} />}
-        {isAudioFile(data.filePath) && fileSrc && <MediaPlayer src={fileSrc} type="audio" title={title} autoPlay={true} className="w-full max-w-xl" />}
-        {!isImageFile(data.filePath) && !isVideoFile(data.filePath) && !isAudioFile(data.filePath) && (
-          <div className="w-full h-full text-xs text-muted-foreground break-words">
-            {(data.type === 'text' || textContent) && (
-              <div className="w-full h-full box-border select-text overflow-auto rounded border px-2 text-left whitespace-pre-wrap font-mono text-xs leading-relaxed shadow-inner">
-                {loadingText ? '加载中…' : textContent || '（无文本内容）'}
-              </div>
+      <div className="h-full overflow-hidden" style={{ height: 'calc(100% - 36px)' }}>
+        {list.length > 0 ? (
+          <ResizablePanelGroup direction="horizontal" className="h-full">
+            <ResizablePanel defaultSize={isPlaylistExpanded ? 75 : 100} minSize={30}>
+              {renderMainContent()}
+            </ResizablePanel>
+            {isPlaylistExpanded && <ResizableHandle withHandle />}
+            {isPlaylistExpanded && (
+              <ResizablePanel defaultSize={25} minSize={15} maxSize={40}>
+                {renderPlaylistContent()}
+              </ResizablePanel>
             )}
-            {!(data.type === 'text') && !textContent && fileSrc && <div className="text-[11px] break-all">来源: {fileSrc}</div>}
-          </div>
+          </ResizablePanelGroup>
+        ) : (
+          renderMainContent()
         )}
       </div>
     </div>
