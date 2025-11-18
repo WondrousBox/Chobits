@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
@@ -23,20 +22,12 @@ export const ExtractKeyframesNode: NodeHandler = {
     inputs: [{ key: 'input', label: '输入文件', type: ['file', 'string'], required: true }],
     config: [
       {
-        key: 'intervalSeconds',
-        label: '间隔秒数',
-        type: 'number',
-        required: false,
-        description: '每隔多少秒提取一帧',
-        default: 2
-      },
-      {
         key: 'maxFrames',
         label: '最大帧数',
         type: 'number',
         required: false,
-        description: '最多输出多少帧',
-        default: 12
+        description: '最多输出多少帧（0 表示不限制）',
+        default: 0
       },
       {
         key: 'width',
@@ -73,30 +64,62 @@ export const ExtractKeyframesNode: NodeHandler = {
     if (!src) throw new Error('缺少输入文件');
     if (!fs.existsSync(src)) throw new Error(`输入文件不存在: ${src}`);
 
-    const interval = clampNumber(Number(config?.intervalSeconds ?? 2), { min: 0.2, max: 60 });
-    const maxFrames = Math.round(clampNumber(Number(config?.maxFrames ?? 12), { min: 1, max: 200 }));
+    const maxFrames = config?.maxFrames != null && Number(config.maxFrames) > 0 ? Math.round(clampNumber(Number(config.maxFrames), { min: 1, max: 200 })) : undefined;
     const width = config?.width != null ? Math.round(clampNumber(Number(config.width), { min: 1, max: 4096 })) : undefined;
     const height = config?.height != null ? Math.round(clampNumber(Number(config.height), { min: 1, max: 4096 })) : undefined;
     const quality = Math.round(clampNumber(Number(config?.quality ?? 4), { min: 1, max: 31 }));
 
-    const outDir = path.join(ctx.tmpDir, `keyframes-${randomUUID()}`);
+    // 获取输入文件所在的目录
+    const inputDir = path.dirname(src);
+    const inputBasename = path.basename(src, path.extname(src));
+    // 在输入文件同目录下创建关键帧目录
+    const outDir = path.join(inputDir, `${inputBasename}_keyframes`);
     await fsp.mkdir(outDir, { recursive: true });
     const outputPattern = path.join(outDir, 'frame-%04d.jpg');
 
     emit('node:progress', { progress: 0, message: '开始提取关键帧...' });
 
+    // 存储从 stderr 解析出的帧时间戳信息
+    const frameTimestamps: number[] = [];
+
     await new Promise<void>((resolve, reject) => {
-      const vfFilters: string[] = [`fps=1/${interval}`];
+      // 使用 select='key' 滤镜来只提取关键帧（I-frames）
+      const vfFilters: string[] = ["select='key'"];
       if (width || height) {
         const w = width ?? -1;
         const h = height ?? -1;
         vfFilters.push(`scale=${w}:${h}:force_original_aspect_ratio=decrease`);
       }
+      // 添加 showinfo 滤镜来输出帧信息（包括时间戳）到 stderr
+      vfFilters.push('showinfo');
 
-      const cmd = ffmpeg(src)
-        .output(outputPattern)
-        .outputOptions(['-vsync', 'vfr', '-qscale:v', `${quality}`, '-vf', vfFilters.join(',')])
-        .frames(maxFrames)
+      const outputOptions: string[] = [
+        '-vsync',
+        '0', // 保持原始时间戳
+        '-qscale:v',
+        `${quality}`,
+        '-vf',
+        vfFilters.join(',')
+      ];
+
+      const cmd = ffmpeg(src).output(outputPattern).outputOptions(outputOptions);
+
+      // 如果设置了 maxFrames，限制输出帧数
+      if (maxFrames) {
+        cmd.frames(maxFrames);
+      }
+
+      // 解析 stderr 中的 showinfo 输出来获取时间戳
+      cmd.on('stderr', (stderrLine: string) => {
+        // showinfo 输出格式示例: [Parsed_showinfo_2 @ 0x...] n:   0 pts:      0 pts_time:0.000000 ...
+        const ptsTimeMatch = stderrLine.match(/pts_time:([\d.]+)/);
+        if (ptsTimeMatch) {
+          const timestamp = parseFloat(ptsTimeMatch[1]);
+          frameTimestamps.push(timestamp);
+        }
+      });
+
+      cmd
         .on('start', (commandLine: string) => {
           console.log('[extract-keyframes] Start:', commandLine);
         })
@@ -116,14 +139,27 @@ export const ExtractKeyframesNode: NodeHandler = {
       cmd.run();
     });
 
-    const files = (await fsp.readdir(outDir)).filter((file) => /^frame-\d+\.jpg$/i.test(file)).sort();
+    // 读取提取的帧文件
+    const files = (await fsp.readdir(outDir))
+      .filter((file) => /^frame-\d+\.jpg$/i.test(file))
+      .sort((a, b) => {
+        // 从文件名中提取数字进行排序
+        const numA = parseInt(a.match(/\d+/)?.[0] || '0', 10);
+        const numB = parseInt(b.match(/\d+/)?.[0] || '0', 10);
+        return numA - numB;
+      });
 
-    const frames = files.map((file, idx) => ({
-      path: path.join(outDir, file),
-      filename: file,
-      index: idx,
-      timestamp: Number((idx * interval).toFixed(2))
-    }));
+    // 构建帧信息，使用从 stderr 解析的时间戳
+    const frames = files.map((file, idx) => {
+      const timestamp = frameTimestamps[idx] ?? 0;
+      return {
+        path: path.join(outDir, file),
+        filename: file,
+        index: idx,
+        timestamp: Number(timestamp.toFixed(3))
+      };
+    });
+
     const result = { frames, directory: outDir, count: frames.length };
 
     emit('node:progress', { progress: 100, message: '关键帧提取完成' });
