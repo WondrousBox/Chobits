@@ -192,7 +192,7 @@ export const TranscodeNode: NodeHandler = {
           emit('node:progress', { progress: 0, message: '开始转码...' });
         })
         .on('progress', (progress: any) => {
-          console.log('[transcode] Progress:', progress);
+          // console.log('[transcode] Progress:', progress);
           // FFmpeg progress 对象通常包含 percent 字段（0-100）
           // 也可能包含 time 字段，我们可以根据 time 估算进度
           let progressPercent = 0;
