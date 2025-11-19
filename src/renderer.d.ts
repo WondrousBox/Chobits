@@ -1,4 +1,5 @@
 import type { AIApi } from '../electron/main/ai/types';
+import type { DailyCareBridgeType } from '../electron/main/daily/ipc-renderer';
 import type { PluginResourceBridgeType } from '../electron/main/plugins/ipc-renderer';
 import type { FFmpegBridgeType } from '../electron/preload/apis/ffmpeg';
 import type { FileBridgeType } from '../electron/preload/apis/file';
@@ -44,6 +45,7 @@ declare global {
       status: StatusBridgeType;
       shortcuts: ShortcutsBridgeType;
       pluginResource: PluginResourceBridgeType;
+      dailyCare: DailyCareBridgeType;
       proxy: ProxyBridgeType;
       ai: AIApi;
     };
