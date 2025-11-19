@@ -26,13 +26,13 @@ import { ExecutionStatus, NodeSpec, WorkflowDraft, WorkflowRunLogEntry } from '@
 
 import FloatingActions from './FloatingActions';
 import FloatingInspector from './FloatingInspector';
-import FloatingPalette from './FloatingPalette';
 import { autoLayout } from './layout';
 import ResourceRunPopover from './ResourceRunPopover';
 import SpecNode from './SpecNode';
 import type { NodeData } from './types';
 import WorkflowJsonDialog from './WorkflowJsonDialog';
 import WorkflowRunConsole from './WorkflowRunConsole';
+import WorkflowSidebar from './WorkflowSidebar';
 
 // IPC helper
 const invoke = window.ipcRenderer.invoke;
@@ -584,8 +584,11 @@ const WorkflowCanvasInner: React.FC = () => {
         }
       />
 
+      {/* 左侧菜单栏 */}
+      <WorkflowSidebar specs={specs} onAdd={addSpecNode} />
+
       {/* 主内容区域：画布和日志面板 */}
-      <div className="relative flex-1 min-h-0 flex flex-col">
+      <div className="relative flex-1 min-h-0 flex flex-col ml-12">
         {/* 画布容器 */}
         <div className={`relative flex-1 min-h-0 transition-all ${consoleCollapsed ? '' : 'pb-0'}`}>
           {/* ReactFlow 充满容器 */}
@@ -613,8 +616,6 @@ const WorkflowCanvasInner: React.FC = () => {
               </div>
             )}
           </div>
-
-          <FloatingPalette specs={specs.filter((s) => s.id !== 'core/start' && s.id !== 'core/end')} onAdd={addSpecNode} />
 
           {/* 右侧浮动属性面板：选中节点时显示 */}
           <FloatingInspector
