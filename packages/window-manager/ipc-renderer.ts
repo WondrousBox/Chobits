@@ -28,6 +28,10 @@ type WindowIPCParams = {
   'window:open:ready': IPCParams<[WindowKey], boolean>;
   'window:payload:get': IPCParams<[WindowKey], any>;
   'window:close': IPCParams<[WindowKey], boolean>;
+  /** 窗口抖动 */
+  'window:shake': IPCParams<[WindowKey], boolean>;
+  /** 发送消息给其他窗口 */
+  'window:send': IPCParams<[WindowKey, string, any], boolean>;
   /** 最小化当前窗口 */
   'window:minimize': IPCParams<[void], boolean>;
   /** 最大化或还原当前窗口 */
@@ -65,6 +69,8 @@ const methods: Array<keyof WindowIPCParams> = [
   'window:open:ready',
   'window:payload:get',
   'window:close',
+  'window:shake',
+  'window:send',
   'window:minimize',
   'window:maximize',
   'window:close:self',
@@ -92,3 +98,9 @@ methods.forEach((method) => {
 export const windowIPC = {
   ...newIPC
 } as WindowIPCType;
+
+export function onWindowMessage(channel: string, callback: (payload: any) => void): () => void {
+  const handler = (_: any, payload: any) => callback(payload);
+  ipcRenderer.on(channel, handler);
+  return () => ipcRenderer.removeListener(channel, handler);
+}
