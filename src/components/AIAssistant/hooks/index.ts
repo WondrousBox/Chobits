@@ -5,10 +5,10 @@
  * - 场景：AIAssistant 组件挂载时调用一次。
  */
 import { useCallback, useEffect, useState } from 'react';
-import { DEFAULT_ASSISTANT_PADDING, ASSISTANT_WIDTH, ASSISTANT_HEIGHT } from '../constants';
-import type { MessageCategory } from '../types';
 
+import { ASSISTANT_HEIGHT, ASSISTANT_WIDTH, DEFAULT_ASSISTANT_PADDING } from '../constants';
 import { dispatchSpriteEvent, SpriteEventName } from '../events/spriteEvents';
+import type { MessageCategory } from '../types';
 
 export function useAssistant(): {
   padding: number;

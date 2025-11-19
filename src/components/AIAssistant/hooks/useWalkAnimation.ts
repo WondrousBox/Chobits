@@ -4,8 +4,10 @@
  * - 返回：{ animateMoveWindow(x,y), stopWalking(), isWalking }
  */
 import { useCallback, useRef, useState } from 'react';
+
 import { bezierQ, clamp, lerp } from '@/lib/helpers';
-import { FRAME_INTERVAL, PATH_CURVE_FACTOR, STEP_GRID, DEFAULT_MOVEMENT_MODE, DEFAULT_WALK_SPEED } from '../constants';
+
+import { DEFAULT_MOVEMENT_MODE, DEFAULT_WALK_SPEED, FRAME_INTERVAL, PATH_CURVE_FACTOR, STEP_GRID } from '../constants';
 
 export function useWalkAnimation(): {
   animateMoveWindow: (targetX: number, targetY: number) => Promise<void>;

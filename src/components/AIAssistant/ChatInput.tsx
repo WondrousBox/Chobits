@@ -1,9 +1,11 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { TbLoader2, TbSend } from 'react-icons/tb';
+
+import ServiceInstanceSelect from '@/components/AIAssistant/ServiceInstanceSelect';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { TbLoader2, TbSend } from 'react-icons/tb';
-import ServiceInstanceSelect from '@/components/AIAssistant/ServiceInstanceSelect';
+
 import { useChatSelection } from './context/ChatSelectionContext';
 
 export interface ChatInputProps {

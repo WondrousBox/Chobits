@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import TintableSvg from '@/components/common/TintableSvg';
-import { InstanceRow, ProviderRow, useProvidersInstances } from '@/components/AIAssistant/hooks/useProvidersInstances';
 import { TbSettings } from 'react-icons/tb';
+
+import { InstanceRow, ProviderRow, useProvidersInstances } from '@/components/AIAssistant/hooks/useProvidersInstances';
+import TintableSvg from '@/components/common/TintableSvg';
+import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
 
 export interface ServiceInstanceSelectProps {
   providerId?: string;
@@ -24,7 +25,7 @@ export interface ServiceInstanceSelectProps {
  * Reusable dropdown to select (provider, instance) pair.
  * Data is sourced from useProvidersInstances(); ordering can be customized via orderInstances.
  */
-export default function ServiceInstanceSelect(props: ServiceInstanceSelectProps) {
+export default function ServiceInstanceSelect(props: ServiceInstanceSelectProps): JSX.Element {
   const { providerId, instanceId, onChange, className, buttonVariant = 'outline', buttonSize = 'sm', placeholder = '选择 服务商 · 实例', searchEnabled = true, orderInstances, onOpenChange } = props;
 
   const { providers, instancesMap, getInstances } = useProvidersInstances();

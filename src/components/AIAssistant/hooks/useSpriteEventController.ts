@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
-import useSpriteConductor from './useSpriteConductor';
+
 import { subscribeSpriteEvents } from '../events/spriteEvents';
+import useSpriteConductor from './useSpriteConductor';
 
 export default function useSpriteEventController(): void {
   const sprite = useSpriteConductor();
