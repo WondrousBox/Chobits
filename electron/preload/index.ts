@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import { pluginResourceAPI } from '../../packages/plugins/ipc-renderer';
 import { proxyBridge } from '../../packages/proxy/ipc-renderer';
 import { aiBridge } from '../main/ai/ipc-renderer';
+import { dailyCareBridge } from '../main/daily/ipc-renderer';
 import { arch, isLinux, isMac, isMacIntel, isWindows, platform } from '../main/utils/os';
 import { ffmpegBridge } from './apis/ffmpeg';
 import { fileBridge } from './apis/file';
@@ -65,6 +66,7 @@ contextBridge.exposeInMainWorld('YUA', {
   status: statusBridge,
   shortcuts: shortcutsBridge,
   ai: aiBridge,
+  dailyCare: dailyCareBridge,
   pluginResource: pluginResourceAPI,
   proxy: proxyBridge
 });

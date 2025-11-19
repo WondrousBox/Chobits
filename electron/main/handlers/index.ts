@@ -3,6 +3,7 @@ import { BrowserWindow } from 'electron';
 import { init as initPluginResourceHandlers } from '../../../packages/plugins/ipc-main';
 import { init as initProxyHandlers } from '../../../packages/proxy/ipc-main';
 import { init as initAIHandlers } from '../ai/ipc-main';
+import { initDailyCare } from '../daily';
 import { initFFmpegHandlers } from './ffmpeg';
 import { initFileHandlers } from './file';
 import { initFolderHandlers } from './folder';
@@ -31,6 +32,11 @@ export function initHandlers(win: BrowserWindow): void {
   initSystemHandlers();
   initVideoDownloadHandlers(win);
   initSpriteHandlers();
+  initDailyCare(() => {
+    if (win && !win.isDestroyed()) return win;
+    const existing = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed());
+    return existing || null;
+  });
   initStatusHandlers(win);
   initAIHandlers(win);
   initShortcutsHandlers(win);
