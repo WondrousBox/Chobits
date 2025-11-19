@@ -4,23 +4,9 @@ import type { BrowserWindowConstructorOptions } from 'electron';
 export type FollowerPreferMode = 'auto' | 'prefer-right' | 'prefer-left' | 'prefer-bottom' | 'prefer-top' | 'overlap-center';
 
 // 窗口配置的键类型
-export type WindowKey =
-  | 'status'
-  | 'menu'
-  | 'fileActionsMenu'
-  | 'settings'
-  | 'workspaceWizard'
-  | 'resources'
-  | 'recycle'
-  | 'assistant'
-  | 'chat'
-  | 'pluginManager'
-  | 'resourcePreview'
-  | 'downloadFloating'
-  | 'pluginDownload'
-  | 'workflowBuilder'
-  | 'workflowPage'
-  | string;
+export interface CustomWindowKeys { }
+
+export type WindowKey = keyof CustomWindowKeys | (string & {});
 
 // 跟随窗口位置类型
 export type FollowerSide = 'right' | 'left' | 'bottom' | 'top' | 'overlap';

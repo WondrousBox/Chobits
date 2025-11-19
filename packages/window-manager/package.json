@@ -1,0 +1,14 @@
+{
+  "name": "@aim-packages/window-manager",
+  "version": "1.0.0",
+  "description": "Electron Window Manager",
+  "main": "index.ts",
+  "types": "index.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "peerDependencies": {
+    "electron": ">=20.0.0"
+  },
+  "dependencies": {}
+}

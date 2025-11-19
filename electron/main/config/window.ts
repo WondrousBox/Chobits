@@ -1,5 +1,26 @@
 import { WindowConfig, WindowKey } from '../../../packages/window-manager/types';
 
+declare module '../../../packages/window-manager/types' {
+  interface CustomWindowKeys {
+    status: void;
+    menu: void;
+    fileActionsMenu: void;
+    settings: void;
+    workspaceWizard: void;
+    resources: void;
+    recycle: void;
+    assistant: void;
+    pluginManager: void;
+    chat: void;
+    resourcePreview: void;
+    downloadFloating: void;
+    pluginDownload: void;
+    tagger: void;
+    workflowBuilder: void;
+    workflowPage: void;
+  }
+}
+
 const HEADER_COMMANDS_HEIGHT = 36;
 const MACOS_TRAFFIC_LIGHTS_HEIGHT = 16;
 
