@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { TbArrowLeft, TbArrowRight, TbCategory, TbLine, TbLink, TbMenu2, TbX } from 'react-icons/tb';
+import { TbArrowsSplit, TbLine, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,17 +55,8 @@ const WorkflowSidebar: React.FC<WorkflowSidebarProps> = ({ specs, onAdd }) => {
         <Button size="icon" variant={paletteOpen ? 'secondary' : 'ghost'} className={cn('w-8 h-8', paletteOpen && 'bg-accent')} onClick={() => setPaletteOpen((prev) => !prev)} title="节点库">
           <TbLine />
         </Button>
-        <Button size="icon" variant="ghost" className="w-8 h-8" title="撤销">
-          <TbArrowLeft className="w-4 h-4" />
-        </Button>
-        <Button size="icon" variant="ghost" className="w-8 h-8" title="重做">
-          <TbArrowRight className="w-4 h-4" />
-        </Button>
-        <Button size="icon" variant="ghost" className="w-8 h-8" title="网格">
-          <TbMenu2 className="w-4 h-4" />
-        </Button>
         <Button size="icon" variant="ghost" className="w-8 h-8" title="链接">
-          <TbLink className="w-4 h-4" />
+          <TbArrowsSplit />
         </Button>
       </div>
 
