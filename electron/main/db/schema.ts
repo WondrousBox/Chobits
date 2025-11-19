@@ -1,6 +1,7 @@
-import { sqliteTable, text, blob, integer, index, uniqueIndex, AnySQLiteColumn } from 'drizzle-orm/sqlite-core';
-import { InferInsertModel, InferSelectModel, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
+
+import { InferInsertModel, InferSelectModel, sql } from 'drizzle-orm';
+import { AnySQLiteColumn, blob, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 // documents：语义检索与内容管理的“权威表”，存储正文、元信息与向量及其元数据
 export const documents = sqliteTable(

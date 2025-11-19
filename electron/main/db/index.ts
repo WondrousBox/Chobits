@@ -1,17 +1,19 @@
 // Use default import; better-sqlite3 exports a callable/constructable function.
 // Using namespace import causes 'is not a constructor' at runtime.
+import fs from 'node:fs';
+import { createRequire } from 'node:module';
+import path from 'node:path';
+
 import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
-import path from 'node:path';
-import fs from 'node:fs';
 import { app } from 'electron';
-import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { inArray } from 'drizzle-orm';
-import { documents } from './schema';
+import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
+
 import { binPathLog } from '../logger';
 import { Env } from '../utils';
+import { documents } from './schema';
 
 // We'll dynamically load the sqlite-vec extension (ship prebuilt per-platform binaries)
 
