@@ -422,7 +422,7 @@ const WorkflowCanvasInner: React.FC = () => {
 
   // 监听工作流运行状态和日志
   useEffect(() => {
-    const handleRunStatus = (_e: any, rec: any) => {
+    const handleRunStatus = (_e: any, rec: any): void => {
       if (rec.workflowId === draft?.id) {
         setRunStatus(rec.status);
         if (rec.status === 'running') {
@@ -477,7 +477,7 @@ const WorkflowCanvasInner: React.FC = () => {
       }
     };
 
-    const handleNodeStatus = (_e: any, payload: any) => {
+    const handleNodeStatus = (_e: any, payload: any): void => {
       if (payload.workflowId === draft?.id && payload.runId === currentRunIdRef.current) {
         const nodeState = payload.node;
         // 更新节点状态
@@ -524,7 +524,7 @@ const WorkflowCanvasInner: React.FC = () => {
       }
     };
 
-    const handleRunLog = (_e: any, payload: any) => {
+    const handleRunLog = (_e: any, payload: any): void => {
       // 检查是否匹配当前工作流的运行ID
       if (payload.runId === currentRunIdRef.current) {
         setRunLogs((prev) => {
@@ -566,8 +566,7 @@ const WorkflowCanvasInner: React.FC = () => {
       <DragAbleTitle
         title={
           <div className="flex items-center gap-2 w-full">
-            <span>🗨️</span>
-            <div className="text-left truncate flex-1">工作流编辑</div>
+            <div className="text-left truncate flex-1">{draft?.name || '未命名工作流'}</div>
           </div>
         }
         actions={
