@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-import { BrowserWindow, screen } from 'electron';
+import { app, BrowserWindow, screen } from 'electron';
 
 import { FollowerPreferMode, FollowerSide, WindowConfig, WindowKey } from './types';
 import { windowConfigs } from './window-config';
@@ -12,6 +12,11 @@ let RENDERER_DIST = '';
 
 let ANCHOR_WIDTH = -1;
 let ANCHOR_HEIGHT = -1;
+
+let isQuitting = false;
+app.on('before-quit', () => {
+  isQuitting = true;
+});
 
 // 计算跟随窗口位置的函数
 function computeFollowerPosition(
@@ -545,6 +550,15 @@ export class WindowManager {
   }
 
   private setupWindowEventHandlers(w: BrowserWindow, key: WindowKey, conf: WindowConfig): void {
+    // Handle hideOnClose
+    w.on('close', (e) => {
+      if (conf.hideOnClose && !isQuitting) {
+        if (w.isDestroyed()) return;
+        e.preventDefault();
+        w.hide();
+      }
+    });
+
     // Broadcast maximize / unmaximize state changes to renderer so UI can update controls
     w.on('maximize', () => {
       w.webContents.send('window-maximize-changed', true);
@@ -654,6 +668,43 @@ export class WindowManager {
       w.setPosition(Math.round(work.x + (work.width - width) / 2), Math.round(work.y + (work.height - height) / 2));
     } catch {
       //
+    }
+  }
+
+  /**
+   * 窗口抖动效果
+   */
+  async shake(key: WindowKey): Promise<void> {
+    const w = this.get(key);
+    if (!w || w.isDestroyed()) return;
+
+    try {
+      const { x, y } = w.getBounds();
+      const offset = 6;
+      const delay = 30;
+
+      for (let i = 0; i < 3; i++) {
+        w.setPosition(x + offset, y);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        w.setPosition(x - offset, y);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        w.setPosition(x + offset, y);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        w.setPosition(x, y);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  /**
+   * 发送消息给指定窗口
+   */
+  send(key: WindowKey, channel: string, payload: any): void {
+    const w = this.get(key);
+    if (w && !w.isDestroyed()) {
+      w.webContents.send(channel, payload);
     }
   }
 

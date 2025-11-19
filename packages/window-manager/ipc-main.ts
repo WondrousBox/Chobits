@@ -88,6 +88,17 @@ export function init(win: BrowserWindow): void {
       return false;
     }
   });
+
+  ipcMain.handle('window:shake', (_: IpcMainInvokeEvent, key: WindowKey) => {
+    windowManager.shake(key);
+    return true;
+  });
+
+  ipcMain.handle('window:send', (_: IpcMainInvokeEvent, key: WindowKey, channel: string, payload: any) => {
+    windowManager.send(key, channel, payload);
+    return true;
+  });
+
   ipcMain.handle('window:move', (_: IpcMainInvokeEvent, position: { x: number; y: number }, key?: WindowKey) => {
     let currentWin: BrowserWindow | null = win;
     if (key) {
