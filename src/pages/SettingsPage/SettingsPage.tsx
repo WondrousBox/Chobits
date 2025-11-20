@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { TbBox, TbBrain, TbCpu, TbFolder, TbFolderOpen, TbHeartbeat, TbKeyboard, TbMessage2, TbMoodKid, TbNetwork, TbPlug, TbSettings } from 'react-icons/tb';
+import { TbBox, TbBrain, TbCpu, TbFolder, TbFolderOpen, TbKeyboard, TbMessage2, TbMoodKid, TbNetwork, TbPlug, TbSparkles } from 'react-icons/tb';
 
 import DragAbleTitle from '../../components/common/DragAbleTitle';
 import EmbeddingJobsPanel from '../../components/EmbeddingJobs';
@@ -7,9 +7,8 @@ import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu
 import ModelPage from '../ModelPage/ModelPage';
 import PluginPage from '../PluginPage/PluginPage';
 import AiSettings from './components/AiSettings';
-import DailyCareSettings from './components/DailyCareSettings';
+import ExtensionSettings from './components/ExtensionSettings';
 import FolderSetting from './components/FolderSetting';
-import GeneralSettings from './components/GeneralSettings';
 import PromptSetting from './components/PromptSetting';
 import ProxySettings from './components/ProxySettings';
 import ShortcutsSettings from './components/ShortcutsSettings';
@@ -17,21 +16,15 @@ import SpriteManager from './components/SpriteManager';
 import Workspace from './components/Workspace';
 
 // 设置分类类型
-type SettingsCategory = 'folder' | 'embedding' | 'ai' | 'prompt' | 'general' | 'workspace' | 'model' | 'sprites' | 'shortcuts' | 'plugins' | 'proxy' | 'dailyCare';
+type SettingsCategory = 'folder' | 'embedding' | 'ai' | 'prompt' | 'workspace' | 'model' | 'sprites' | 'shortcuts' | 'plugins' | 'proxy' | 'extensions';
 
 // 设置分类配置
 const settingsCategories: { id: SettingsCategory; label: string; icon: React.ElementType; description: string }[] = [
   {
-    id: 'general',
-    label: '常规设置',
-    icon: TbSettings,
-    description: '视频下载和外部资源设置'
-  },
-  {
-    id: 'dailyCare',
-    label: '日常照理',
-    icon: TbHeartbeat,
-    description: '健康提醒、节日彩蛋、自定义事件'
+    id: 'extensions',
+    label: '机能扩展',
+    icon: TbSparkles,
+    description: '日常照理、移动参数与下载设置'
   },
   {
     id: 'workspace',
@@ -96,7 +89,7 @@ const settingsCategories: { id: SettingsCategory; label: string; icon: React.Ele
 ];
 
 export const SettingsPage: React.FC = () => {
-  const [activeCategory, setActiveCategory] = useState<SettingsCategory>('general');
+  const [activeCategory, setActiveCategory] = useState<SettingsCategory>('extensions');
   const [initialAiProviderId, setInitialAiProviderId] = useState<string | null>(null);
   // external resource settings are handled inside ExternalResourceSettings component
   useEffect(() => {
@@ -104,7 +97,9 @@ export const SettingsPage: React.FC = () => {
     (async () => {
       try {
         const payload = await window.YUA.window['window:payload:get']('settings' as any);
-        if (payload?.category && settingsCategories.some((c) => c.id === payload.category)) setActiveCategory(payload.category);
+        if (payload?.category && settingsCategories.some((c) => c.id === payload.category)) {
+          setActiveCategory(payload.category as SettingsCategory);
+        }
         if (payload?.aiProviderId) setInitialAiProviderId(payload.aiProviderId);
       } catch {
         // ignore
@@ -157,10 +152,8 @@ export const SettingsPage: React.FC = () => {
         return <SpriteManager />;
       case 'shortcuts':
         return <ShortcutsSettings />;
-      case 'general':
-        return <GeneralSettings />;
-      case 'dailyCare':
-        return <DailyCareSettings />;
+      case 'extensions':
+        return <ExtensionSettings />;
       case 'proxy':
         return <ProxySettings />;
       default:
