@@ -12,8 +12,24 @@ import defaultWindowConfigs from '../config/window';
 
 export function initWindowHandlers(win: BrowserWindow): void {
   // Movement config persistence ------------------------------------------------
-  type MovementConfig = { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number };
-  const defaultConfig: MovementConfig = { walkSpeed: 500, fpsLimit: 30, movementMode: 'stepped', stepGrid: 12, pathCurveFactor: 0.15, assistantPadding: 100 };
+  type MovementConfig = {
+    walkSpeed: number;
+    fpsLimit: number;
+    movementMode: 'stepped' | 'smooth';
+    stepGrid: number;
+    pathCurveFactor: number;
+    assistantPadding: number;
+    enabled?: boolean;
+  };
+  const defaultConfig: MovementConfig = {
+    walkSpeed: 500,
+    fpsLimit: 30,
+    movementMode: 'stepped',
+    stepGrid: 12,
+    pathCurveFactor: 0.15,
+    assistantPadding: 100,
+    enabled: true
+  };
   const configDir = app.getPath('userData');
   const configFile = path.join(configDir, 'movement-config.json');
   let movementConfig: MovementConfig = defaultConfig;

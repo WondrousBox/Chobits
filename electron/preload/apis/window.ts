@@ -7,12 +7,22 @@ type WindowBridgeParams = {
   /** 获取移动配置 */
   getMovementConfig: IPCParams<
     [void],
-    { width: number; height: number } & { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number }
+    { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number; enabled?: boolean }
   >;
   /** 更新移动配置 */
   updateMovementConfig: IPCParams<
-    [Partial<{ walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number }>],
-    { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number }
+    [
+      Partial<{
+        walkSpeed: number;
+        fpsLimit: number;
+        movementMode: 'stepped' | 'smooth';
+        stepGrid: number;
+        pathCurveFactor: number;
+        assistantPadding: number;
+        enabled?: boolean;
+      }>
+    ],
+    { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number; enabled?: boolean }
   >;
 };
 

@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -12,16 +11,6 @@ type GeneralSettings = {
   preferredBrowser: string;
 };
 
-// 角色移动参数类型
-type MovementConfig = {
-  walkSpeed: number;
-  fpsLimit: number;
-  movementMode: 'stepped' | 'smooth';
-  stepGrid: number;
-  pathCurveFactor: number;
-  assistantPadding: number;
-};
-
 const GeneralSettings: React.FC = () => {
   const [externalSettings, setExternalSettings] = useState<GeneralSettings>({
     externalResourceMode: '1',
@@ -29,12 +18,8 @@ const GeneralSettings: React.FC = () => {
     preferredBrowser: 'chrome'
   });
 
-  // 移动参数本地状态
-  const [movementConfig, setMovementConfig] = useState<MovementConfig | null>(null);
   // refs to control auto-save behavior
   const externalLoadedRef = useRef(false);
-  const movementLoadedRef = useRef(false);
-  const movementApplyingRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -48,37 +33,12 @@ const GeneralSettings: React.FC = () => {
       } catch (error) {
         console.warn('加载外部资源设置失败:', error);
       }
-
-      // 读取移动参数
-      try {
-        const cfg = await window.YUA.window.getMovementConfig();
-        if (!cancelled) {
-          movementApplyingRef.current = true; // prevent immediate autosave from initial set
-          setMovementConfig(cfg);
-          movementLoadedRef.current = true;
-        }
-      } catch (err) {
-        console.warn('加载移动参数失败:', err);
-      }
     })();
-
-    // 监听移动参数变更
-    const movementListener = (_: any, c: MovementConfig): void => {
-      movementApplyingRef.current = true; // mark as remote update to avoid loop
-      setMovementConfig(c);
-    };
-    window.ipcRenderer?.on('movement-config-updated', movementListener);
 
     return () => {
       cancelled = true;
-      window.ipcRenderer?.off('movement-config-updated', movementListener as any);
     };
   }, []);
-
-  const updateMovement = (partial: Partial<MovementConfig>): void => {
-    if (!movementConfig) return;
-    setMovementConfig({ ...movementConfig, ...partial });
-  };
 
   // Auto-save external settings with debounce
   useEffect(() => {
@@ -97,83 +57,8 @@ const GeneralSettings: React.FC = () => {
     return () => clearTimeout(timer);
   }, [externalSettings]);
 
-  // Auto-save movement settings with debounce and loop prevention
-  useEffect(() => {
-    if (!movementConfig) return;
-    if (!movementLoadedRef.current) return;
-    if (movementApplyingRef.current) {
-      // change came from remote (initial load or IPC). Clear flag and skip saving this tick.
-      movementApplyingRef.current = false;
-      return;
-    }
-    const timer = setTimeout(async () => {
-      try {
-        await window.YUA.window.updateMovementConfig(movementConfig);
-      } catch (error) {
-        console.error('自动保存移动参数失败:', error);
-      }
-    }, 600);
-    return () => clearTimeout(timer);
-  }, [movementConfig]);
-
   return (
     <div className="space-y-6">
-      {/* 移动参数设置 */}
-      <div className="bg-card border border-border rounded-lg p-6">
-        <div className="space-y-6">
-          <div className="text-base font-semibold text-foreground">移动参数</div>
-          {!movementConfig ? (
-            <div className="text-sm text-muted-foreground">加载中...</div>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 px-2">
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">行走速度 (px/s)</label>
-                    <Input type="number" value={movementConfig?.walkSpeed || 0} onChange={(e) => updateMovement({ walkSpeed: +e.target.value })} />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">FPS 限制</label>
-                    <Input type="number" value={movementConfig?.fpsLimit || 0} onChange={(e) => updateMovement({ fpsLimit: +e.target.value })} />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">移动模式</label>
-                    <Select value={movementConfig?.movementMode || 'stepped'} onValueChange={(v) => updateMovement({ movementMode: v as MovementConfig['movementMode'] })}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="选择移动模式" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="stepped">离散步进</SelectItem>
-                        <SelectItem value="smooth">平滑</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">步进网格 (px)</label>
-                    <Input type="number" value={movementConfig?.stepGrid || 0} onChange={(e) => updateMovement({ stepGrid: +e.target.value })} />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">路径弯曲系数</label>
-                    <Input type="number" step="0.01" value={movementConfig?.pathCurveFactor || 0} onChange={(e) => updateMovement({ pathCurveFactor: +e.target.value })} />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">角色内边距 (px)</label>
-                    <Input type="number" value={movementConfig?.assistantPadding || 0} onChange={(e) => updateMovement({ assistantPadding: +e.target.value })} />
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
       {/* 外部资源设置 */}
       <div className="bg-card border border-border rounded-lg p-6">
         <div className="text-base font-semibold text-foreground">下载设置</div>
