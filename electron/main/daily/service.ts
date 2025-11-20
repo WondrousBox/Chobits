@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import dayjs from 'dayjs';
+import { powerMonitor } from 'electron';
 
 import { sendSpriteNotice, type SpriteNoticeLevel } from '../utils/sprite-notice';
 import { DEFAULT_ROUTINES } from './constants';
@@ -21,19 +22,31 @@ import type {
   WindowResolver
 } from './types';
 
+// === 调度基础常量 ===
 const MINUTE = 60 * 1000;
+// 当系统闲置超过该秒数，认为用户暂时离开，不推送非紧急提醒
+const IDLE_SKIP_SECONDS = 120;
+// 从系统恢复（唤醒/解锁）到允许普通提醒之间的冷却时间
+const RESUME_COOLDOWN_MS = 60 * 1000;
 
 export class DailyCareService {
   private state: DailyCareStorage;
   private routines: RoutineRuntime[] = [];
   private timer: NodeJS.Timeout | null = null;
   private bootedAt = Date.now();
+  private wasSystemIdle = false;
+  private resumeCooldownUntil = 0;
+  private powerMonitorBound = false;
 
   constructor(private readonly windowResolver: WindowResolver) {
     this.state = loadDailyCareState();
     this.rebuildRuntimes();
+    this.bindPowerMonitor();
   }
 
+  /**
+   * 启动服务：刷新基准时间、开启每分钟 tick
+   */
   start(): void {
     this.bootedAt = Date.now();
     if (this.timer) {
@@ -43,13 +56,20 @@ export class DailyCareService {
     this.tick();
   }
 
+  /**
+   * 停止服务并解绑系统事件
+   */
   stop(): void {
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
     }
+    this.unbindPowerMonitor();
   }
 
+  /**
+   * 当前整体状态（给渲染层使用）
+   */
   getSnapshot(): DailyCareSnapshot {
     return {
       enabled: this.state.enabled,
@@ -59,6 +79,9 @@ export class DailyCareService {
     };
   }
 
+  /**
+   * 更新全局/例程设置（启停、间隔等）
+   */
   updateSettings(payload: UpdateSettingsPayload): DailyCareSnapshot {
     if (typeof payload.enabled === 'boolean') {
       this.state.enabled = payload.enabled;
@@ -77,6 +100,9 @@ export class DailyCareService {
     return this.getSnapshot();
   }
 
+  /**
+   * 新建或更新自定义提醒
+   */
   upsertCustomReminder(reminder: CustomReminderInput): { reminder: CustomReminderConfig; snapshot: DailyCareSnapshot } {
     const existingIndex = reminder.id ? this.state.customReminders.findIndex((r) => r.id === reminder.id) : -1;
     const normalized: CustomReminderConfig = {
@@ -96,6 +122,9 @@ export class DailyCareService {
     return { reminder: normalized, snapshot: this.getSnapshot() };
   }
 
+  /**
+   * 删除自定义提醒
+   */
   removeCustomReminder(id: string): DailyCareSnapshot {
     this.state.customReminders = this.state.customReminders.filter((r) => r.id !== id);
     delete this.state.routines[`custom:${id}`];
@@ -104,6 +133,9 @@ export class DailyCareService {
     return this.getSnapshot();
   }
 
+  /**
+   * 手动触发某个例程（调试用）
+   */
   triggerRoutineById(id: string): { ok: boolean } {
     const runtime = this.routines.find((r) => r.definition.id === id);
     if (!runtime) {
@@ -113,11 +145,34 @@ export class DailyCareService {
     return { ok: true };
   }
 
+  /**
+   * 每分钟调度入口：结合系统 idle 态、冷却窗口决定是否触发例程
+   */
   private tick(): void {
     if (!this.state.enabled) return;
+    const idleSeconds = this.getSystemIdleSeconds();
+    console.log('idleSeconds', idleSeconds);
+
+    const systemIdle = idleSeconds >= IDLE_SKIP_SECONDS;
+    const justResumed = this.wasSystemIdle && !systemIdle;
+    if (justResumed) {
+      this.bootedAt = Date.now();
+      this.resumeCooldownUntil = Date.now() + RESUME_COOLDOWN_MS;
+    }
+    this.wasSystemIdle = systemIdle;
+
+    if (systemIdle && idleSeconds > IDLE_SKIP_SECONDS * 5) {
+      this.resumeCooldownUntil = 0;
+    }
+
     const now = dayjs();
     this.routines.forEach((runtime) => {
       if (runtime.state.enabled === false) return;
+      if (this.shouldSkipForIdle(runtime, idleSeconds)) return;
+      const underCooldown = this.resumeCooldownUntil > Date.now();
+      if (underCooldown && runtime.definition.kind !== 'nightGuard' && runtime.definition.severity !== 'urgent') {
+        return;
+      }
       const dueMeta = this.shouldTrigger(runtime, now);
       if (!dueMeta) return;
       this.dispatchRoutine(runtime, now, dueMeta);
@@ -126,6 +181,9 @@ export class DailyCareService {
 
   // --- Internal helpers below ---
 
+  /**
+   * 判断某个例程在当前时间点是否应该触发，返回幂等 key
+   */
   private shouldTrigger(runtime: RoutineRuntime, now: dayjs.Dayjs): { key?: string } | null {
     const schedule = runtime.definition.schedule;
     if (runtime.state.snoozedUntil && runtime.state.snoozedUntil > now.valueOf()) return null;
@@ -167,6 +225,9 @@ export class DailyCareService {
     return null;
   }
 
+  /**
+   * 实际发送提醒，同时持久化触发时间
+   */
   private dispatchRoutine(runtime: RoutineRuntime, now: dayjs.Dayjs, meta?: { key?: string; manual?: boolean }): void {
     const message = this.composeMessage(runtime, now);
     const level = this.toNoticeLevel(runtime.definition.severity);
@@ -200,6 +261,9 @@ export class DailyCareService {
     saveDailyCareState(this.state);
   }
 
+  /**
+   * 根据默认例程 + 自定义提醒重建运行态缓存
+   */
   private rebuildRuntimes(): void {
     const runtimes: RoutineRuntime[] = [];
     DEFAULT_ROUTINES.forEach((def) => runtimes.push(this.buildRuntime(def)));
@@ -211,6 +275,9 @@ export class DailyCareService {
     this.routines = runtimes;
   }
 
+  /**
+   * 构造单个例程的运行态（合并持久化状态）
+   */
   private buildRuntime(def: CareRoutineDefinition): RoutineRuntime {
     const cloned = this.cloneDefinition(def);
     const stored = this.state.routines[cloned.id] || {};
@@ -229,6 +296,9 @@ export class DailyCareService {
     return { definition: cloned, state };
   }
 
+  /**
+   * 将自定义提醒映射为统一的 RoutineDefinition，方便调度
+   */
   private buildDefinitionFromReminder(reminder: CustomReminderConfig): CareRoutineDefinition {
     const { year, month, day } = this.parseDate(reminder.date);
     const schedule: CalendarSchedule = {
@@ -263,6 +333,9 @@ export class DailyCareService {
     };
   }
 
+  /**
+   * 进行浅拷贝，避免在运行过程中污染常量定义
+   */
   private cloneDefinition(def: CareRoutineDefinition): CareRoutineDefinition {
     return {
       ...def,
@@ -287,6 +360,9 @@ export class DailyCareService {
     };
   }
 
+  /**
+   * 解析 YYYY-MM-DD 字符串（容错缺失字段）
+   */
   private parseDate(dateStr: string): { year: number; month: number; day: number } {
     const parts = dateStr.split('-').map((p) => Number.parseInt(p, 10));
     return {
@@ -296,6 +372,9 @@ export class DailyCareService {
     };
   }
 
+  /**
+   * 用简单模板语法渲染提示语
+   */
   private composeMessage(runtime: RoutineRuntime, now: dayjs.Dayjs): string {
     const templates = runtime.definition.messageTemplates?.length ? runtime.definition.messageTemplates : [runtime.definition.title];
     const tpl = templates[Math.floor(Math.random() * templates.length)] || runtime.definition.title;
@@ -331,6 +410,9 @@ export class DailyCareService {
     return now.hour() === hour && now.minute() === minute;
   }
 
+  /**
+   * 计算“日历型”提醒本次触发的时间点（含提前提醒）
+   */
   private resolveCalendarOccurrence(schedule: CalendarSchedule, now: dayjs.Dayjs): dayjs.Dayjs | null {
     const [hour, minute] = this.parseTime(schedule.time);
     const lead = schedule.leadMinutes || 0;
@@ -362,6 +444,9 @@ export class DailyCareService {
     return target.subtract(lead, 'minute');
   }
 
+  /**
+   * 求某年某月第 n 个星期 X 的具体日期
+   */
   private nthWeekdayOfMonth(year: number, month: number, weekday: number, nth: number): dayjs.Dayjs {
     let cursor = dayjs()
       .set('year', year)
@@ -402,6 +487,9 @@ export class DailyCareService {
     };
   }
 
+  /**
+   * 将调度规则转为可读字符串，供设置页展示
+   */
   private describeSchedule(schedule: RoutineSchedule): string {
     if (schedule.kind === 'interval') {
       const range = schedule.activeHourStart || schedule.activeHourEnd ? ` · ${schedule.activeHourStart || '00:00'}-${schedule.activeHourEnd || '24:00'}` : '';
@@ -427,6 +515,9 @@ export class DailyCareService {
     return labels[day] || '日';
   }
 
+  /**
+   * 映射业务严重程度到精灵 notice level
+   */
   private toNoticeLevel(severity?: CareRoutineDefinition['severity']): SpriteNoticeLevel {
     switch (severity) {
       case 'urgent':
@@ -437,6 +528,90 @@ export class DailyCareService {
       case 'info':
       default:
         return 'info';
+    }
+  }
+
+  /**
+   * 根据系统 idle 状态决定是否跳过非紧急提醒
+   */
+  private shouldSkipForIdle(runtime: RoutineRuntime, idleSeconds: number): boolean {
+    if (idleSeconds < IDLE_SKIP_SECONDS) return false;
+    if (runtime.definition.kind === 'nightGuard' || runtime.definition.severity === 'urgent') return false;
+    return true;
+  }
+
+  /**
+   * 读取系统闲置时长，若 Electron API 不可用则返回 0
+   */
+  private getSystemIdleSeconds(): number {
+    try {
+      if (typeof powerMonitor?.getSystemIdleTime === 'function') {
+        return powerMonitor.getSystemIdleTime();
+      }
+      return 0;
+    } catch (error) {
+      console.warn('[daily-care] powerMonitor unavailable', error);
+      return 0;
+    }
+  }
+
+  /**
+   * 系统唤醒/解锁：刷新基准时间并启动冷却
+   */
+  private readonly handleSystemResume = (): void => {
+    this.bootedAt = Date.now();
+    console.log('handleSystemResume');
+    console.log('bootedAt', this.bootedAt);
+    console.log('resumeCooldownUntil', this.resumeCooldownUntil);
+    console.log('wasSystemIdle', this.wasSystemIdle);
+    console.log('resumeCooldownUntil', this.resumeCooldownUntil);
+    this.wasSystemIdle = false;
+    this.resumeCooldownUntil = Date.now() + RESUME_COOLDOWN_MS;
+  };
+
+  /**
+   * 系统休眠/锁屏：标记为 idle，立即停止普通提醒
+   */
+  private readonly handleSystemSuspend = (): void => {
+    console.log('handleSystemSuspend');
+    console.log('bootedAt', this.bootedAt);
+    console.log('resumeCooldownUntil', this.resumeCooldownUntil);
+    console.log('wasSystemIdle', this.wasSystemIdle);
+    console.log('resumeCooldownUntil', this.resumeCooldownUntil);
+    this.wasSystemIdle = true;
+    this.resumeCooldownUntil = 0;
+  };
+
+  /**
+   * 绑定 Electron powerMonitor 事件，避免重复绑定
+   */
+  private bindPowerMonitor(): void {
+    if (this.powerMonitorBound) return;
+    try {
+      powerMonitor?.on('resume', this.handleSystemResume);
+      powerMonitor?.on('unlock-screen', this.handleSystemResume);
+      powerMonitor?.on('suspend', this.handleSystemSuspend);
+      powerMonitor?.on('lock-screen', this.handleSystemSuspend);
+      this.powerMonitorBound = true;
+    } catch (error) {
+      console.warn('[daily-care] bind powerMonitor failed', error);
+    }
+  }
+
+  /**
+   * 解绑系统事件，防止内存泄漏
+   */
+  private unbindPowerMonitor(): void {
+    if (!this.powerMonitorBound) return;
+    try {
+      powerMonitor?.off('resume', this.handleSystemResume);
+      powerMonitor?.off('unlock-screen', this.handleSystemResume);
+      powerMonitor?.off('suspend', this.handleSystemSuspend);
+      powerMonitor?.off('lock-screen', this.handleSystemSuspend);
+    } catch (error) {
+      console.warn('[daily-care] unbind powerMonitor failed', error);
+    } finally {
+      this.powerMonitorBound = false;
     }
   }
 }

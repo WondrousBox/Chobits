@@ -20,10 +20,10 @@ export const BASE_ROUTINES: CareRoutineDefinition[] = [
   {
     id: 'care:hydration-hourly',
     title: '补水提醒',
-    description: '每 60 分钟提醒喝水，活力不断档',
+    description: '每 1 分钟提醒喝水（测试模式）',
     kind: 'hydration',
     severity: 'gentle',
-    schedule: { kind: 'interval', minutes: 60, activeHourStart: '09:00', activeHourEnd: '22:30' },
+    schedule: { kind: 'interval', minutes: 1, activeHourStart: '09:00', activeHourEnd: '22:30' },
     messageTemplates: hydrationMessages,
     tags: ['health', 'water'],
     channel: 'spriteNotice',

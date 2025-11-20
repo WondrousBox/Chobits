@@ -18,6 +18,7 @@ import useWalkAnimation from './hooks/useWalkAnimation';
 import { MessageBubble } from './messages/MessageBubble';
 import Messages from './messages/zh-CN';
 import BusyProgressBar from './ui/BusyProgressBar';
+import DailyCareIndicator from './ui/DailyCareIndicator';
 import PaddingDebugOverlay from './ui/PaddingDebugOverlay';
 import SpriteNotice from './ui/SpriteNotice';
 import StatusIndicator from './ui/StatusIndicator';
@@ -209,6 +210,7 @@ export const AIAssistant: React.FC = () => {
       {busyState.isBusy && <BusyProgressBar progress={busyState.progress} message={busyState.message} />}
 
       <StatusIndicator isDragging={isDragging} isWalking={isWalking} />
+      <DailyCareIndicator />
     </div>
   );
 };
