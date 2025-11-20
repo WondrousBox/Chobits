@@ -97,6 +97,7 @@ async function runWhisper(args: string[], ctx: any, onProgress?: (progress: numb
           const matches = Array.from(line.matchAll(timestampRegex));
           if (matches.length > 0) {
             // 使用最后一个匹配的时间戳（最新的进度）
+            // @ts-ignore
             const lastMatch = matches[matches.length - 1][0];
             const currentTime = parseTimestamp(lastMatch);
             if (currentTime !== null && currentTime > lastProgressTime) {

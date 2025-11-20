@@ -43,6 +43,7 @@ const PluginPage: React.FC<PluginPageProps> = ({ hideTitleBar }: PluginPageProps
     const listener = (_: any, info: any): void => {
       if (!info || !info.id) return;
 
+      // @ts-ignore
       setInstalled((prev) => {
         const idx = prev.findIndex((m) => m.id === info.id);
         if (idx < 0) {

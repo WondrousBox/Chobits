@@ -252,7 +252,7 @@ const ModelPage: React.FC<ModelPageProps> = ({ hideTitleBar }: ModelPageProps) =
                             取消
                           </button>
                         )}
-                        {['failed', 'cancelled'].includes(m.status) && (
+                        {['failed', 'cancelled'].includes(m.status as 'failed' | 'cancelled') && (
                           <button className="text-xs px-2 py-0.5 border rounded" onClick={() => retry(m.id)}>
                             重试
                           </button>

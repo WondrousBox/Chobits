@@ -630,7 +630,7 @@ export function initResourceHandlers(): void {
 
       // 关闭写入流
       await new Promise<void>((resolve, reject) => {
-        stream.writeStream.end((err) => {
+        stream.writeStream.end((err: any) => {
           if (err) reject(err);
           else resolve();
         });
