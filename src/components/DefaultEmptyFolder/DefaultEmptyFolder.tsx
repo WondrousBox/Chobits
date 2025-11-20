@@ -1,10 +1,12 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { TbChecks, TbFilePlus, TbFolderPlus, TbUpload } from 'react-icons/tb';
+import { TbChecks, TbFilePlus, TbUpload } from 'react-icons/tb';
 import { toast } from 'sonner';
 
-import { addResourcesFromDataTransfer, addResourcesFromSelectedFiles } from '@/components/AIAssistant/services/resourceService';
+import { addResourcesFromSelectedFiles } from '@/components/AIAssistant/services/resourceService';
+import Dropzone from '@/components/common/Dropzone';
 import { RichTextEditor } from '@/components/common/RichTextEditor';
 import { Button } from '@/components/ui/button';
+import type { SelectedResourceFileType } from '@/types';
 
 type Props = {
   folderId?: string | null;
@@ -14,7 +16,6 @@ type Props = {
 
 const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, onDone }) => {
   const [content, setContent] = useState('');
-  const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const doAfter = useCallback(async () => {
@@ -30,7 +31,10 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, onDone }) 
       if (!files || files.length === 0) return;
       const items = Array.from(files).map((f) => ({ name: f.name, path: (f as any).path || '', size: f.size, file: f }));
       try {
-        await addResourcesFromSelectedFiles(items as any);
+        await addResourcesFromSelectedFiles(items as any, {
+          folderId: folderId || undefined,
+          workspaceId: workspaceId || undefined
+        });
         toast.success('文件已添加');
         await doAfter();
       } catch (err) {
@@ -38,7 +42,7 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, onDone }) 
         toast.error('上传失败');
       }
     },
-    [doAfter]
+    [folderId, workspaceId, doAfter]
   );
 
   const onChooseFile = useCallback(() => {
@@ -54,13 +58,14 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, onDone }) 
     [handleFiles]
   );
 
-  const onDrop = useCallback(
-    async (e: React.DragEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      setDragOver(false);
+  const onDropFiles = useCallback(
+    async (files: SelectedResourceFileType[]) => {
+      if (!files || files.length === 0) return;
       try {
-        // try to use DataTransfer helper which handles entries and files
-        await addResourcesFromDataTransfer(e.dataTransfer);
+        await addResourcesFromSelectedFiles(files, {
+          folderId: folderId || undefined,
+          workspaceId: workspaceId || undefined
+        });
         toast.success('已添加拖拽的文件');
         await doAfter();
       } catch (err) {
@@ -68,7 +73,7 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, onDone }) 
         toast.error('添加失败');
       }
     },
-    [doAfter]
+    [folderId, workspaceId, doAfter]
   );
 
   const onCreateSubfolder = useCallback(async () => {
@@ -109,7 +114,9 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, onDone }) 
           collectedAt: now,
           createdAt: now,
           updatedAt: now,
-          status: 'new'
+          status: 'new',
+          ...(folderId ? { folderId } : {}),
+          ...(workspaceId ? { workspaceId } : {})
         } as any
       });
       if (res?.success) {
@@ -123,59 +130,59 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, onDone }) 
       console.error('save text failed', err);
       toast.error('保存失败');
     }
-  }, [content, doAfter]);
+  }, [content, doAfter, folderId, workspaceId]);
 
   return (
-    <div className="h-full w-full flex flex-col items-center justify-center p-8">
-      <div
-        className={`group relative w-full max-w-3xl rounded-xl border bg-gradient-to-br from-background via-background to-muted/40 shadow-sm overflow-hidden transition-colors ${dragOver ? 'ring-2 ring-primary/60 bg-muted/30' : ''}`}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragOver(true);
-        }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={onDrop}
-      >
-        {/* Header */}
-        <div className="flex items-start justify-between px-5 pt-5">
-          <div>
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <TbFolderPlus className="h-5 w-5" />
-              </span>
-              空文件夹
-            </h2>
-            <p className="text-xs text-muted-foreground mt-1">当前文件夹为空，你可以创建子文件夹或直接添加文本 / 文件资源。</p>
-          </div>
-        </div>
-
-        {/* Editor */}
-        <div className="px-5 mt-4 mb-3">
-          <div className="rounded-lg border bg-background/70 backdrop-blur-sm overflow-hidden">
-            <RichTextEditor value={content} onChange={setContent} placeholder="在此输入内容..." className="min-h-[200px] border-0 rounded-none" />
-          </div>
-          <div className="flex items-center justify-between mt-2">
-            <span className="text-xs text-muted-foreground">{dragOver ? '释放鼠标即可添加文件…' : '可拖拽文件到此区域，或使用下方按钮。'}</span>
-          </div>
-        </div>
+    <Dropzone
+      onDropFiles={onDropFiles}
+      className="h-full w-full flex flex-col items-center justify-center"
+      customDropzoneInside={<div className="px-5 py-3 rounded-lg border-2 border-dashed border-primary/60 bg-primary/5 text-primary text-sm font-medium">释放鼠标即可添加文件…</div>}
+    >
+      <>
+        <RichTextEditor
+          value={content}
+          onChange={setContent}
+          placeholder="在此输入内容..."
+          className="min-h-[200px] border-0 rounded-none w-[600px]"
+          toolbarRight={
+            <Button size="sm" variant="outline" onClick={onSaveText} disabled={!content || content === '<p></p>'} className="gap-1">
+              <TbChecks className="h-4 w-4" /> 保存文本
+            </Button>
+          }
+        />
 
         {/* Actions */}
-        <div className="border-t bg-muted/20 px-5 py-4 flex flex-wrap gap-3 items-center justify-start">
+        <div className="border-t bg-muted/20 px-5 py-4 w-[600px] box-border">
           <input ref={fileInputRef} type="file" multiple className="hidden" onChange={onInputChange} />
-          <Button size="sm" variant="default" onClick={onChooseFile} className="gap-1">
-            <TbUpload className="h-4 w-4" /> 添加文件
-          </Button>
-          <Button size="sm" variant="outline" onClick={onSaveText} disabled={!content || content === '<p></p>'} className="gap-1">
-            <TbChecks className="h-4 w-4" /> 保存文本
-          </Button>
-          <Button size="sm" variant="ghost" onClick={onCreateSubfolder} className="gap-1">
-            <TbFilePlus className="h-4 w-4" /> 创建子文件夹
-          </Button>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={onChooseFile}
+              className="group relative flex flex-col items-start gap-2 rounded-lg border bg-card p-4 text-left transition-all hover:border-primary/50 hover:bg-accent hover:shadow-md"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
+                <TbUpload className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-sm">添加文件</h3>
+                <p className="text-xs text-muted-foreground mt-1">选择本地文件添加到当前文件夹</p>
+              </div>
+            </button>
+            <button
+              onClick={onCreateSubfolder}
+              className="group relative flex flex-col items-start gap-2 rounded-lg border bg-card p-4 text-left transition-all hover:border-primary/50 hover:bg-accent hover:shadow-md"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
+                <TbFilePlus className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-sm">创建子文件夹</h3>
+                <p className="text-xs text-muted-foreground mt-1">在当前文件夹下创建新的子文件夹</p>
+              </div>
+            </button>
+          </div>
         </div>
-      </div>
-      {/* Small hint below */}
-      <div className="mt-4 text-xs text-muted-foreground text-center max-w-2xl">支持拖拽多个文件；超过 50MB 自动切换分片上传。Markdown 支持表格、代码高亮与 GFM 扩展。</div>
-    </div>
+      </>
+    </Dropzone>
   );
 };
 
