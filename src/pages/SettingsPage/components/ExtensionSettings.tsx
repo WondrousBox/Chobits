@@ -1,7 +1,7 @@
 import React from 'react';
 
 import DailyCareSettings from './DailyCareSettings';
-import GeneralSettings from './GeneralSettings';
+import DownloadResourceSettings from './DownloadResourceSettings';
 import MovementSettings from './MovementSettings';
 
 const ExtensionSettings: React.FC = () => {
@@ -9,7 +9,7 @@ const ExtensionSettings: React.FC = () => {
     <div className="space-y-1 px-2">
       <MovementSettings />
       <DailyCareSettings />
-      <GeneralSettings />
+      <DownloadResourceSettings />
     </div>
   );
 };
