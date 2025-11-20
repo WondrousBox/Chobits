@@ -159,7 +159,7 @@ const DailyCareSettings: React.FC = () => {
   if (!bridge) {
     return (
       <div className="p-4">
-        <div className="rounded-xl border border-dashed border-amber-500/70 bg-amber-500/10 px-4 py-6 text-sm text-amber-900">当前版本暂未启用日常照理模块。请更新客户端或联系开发者。</div>
+        <div className="rounded-xl border border-dashed border-amber-500/70 bg-amber-500/10 px-4 py-6 text-sm text-amber-900">当前版本暂未启用日常关心模块。请更新客户端或联系开发者。</div>
       </div>
     );
   }
@@ -175,7 +175,7 @@ const DailyCareSettings: React.FC = () => {
               <TbHeartbeat className="h-6 w-6" />
             </div>
             <div>
-              <div className="text-base font-semibold text-foreground">日常照理模式</div>
+              <div className="text-base font-semibold text-foreground">日常关心模式</div>
               <div className="text-sm text-muted-foreground">健康提醒、节日彩蛋、自定义会议与生日提醒。</div>
             </div>
           </div>

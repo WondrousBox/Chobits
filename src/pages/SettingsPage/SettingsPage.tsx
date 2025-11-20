@@ -24,7 +24,7 @@ const settingsCategories: { id: SettingsCategory; label: string; icon: React.Ele
     id: 'extensions',
     label: '机能扩展',
     icon: TbSparkles,
-    description: '日常照理、移动参数与下载设置'
+    description: '日常关心、移动参数与下载设置'
   },
   {
     id: 'workspace',
