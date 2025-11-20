@@ -1,5 +1,6 @@
+import { AnimatePresence, motion } from 'framer-motion';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbDownload, TbRefresh } from 'react-icons/tb';
+import { TbChevronDown, TbDownload, TbRefresh } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -20,7 +21,12 @@ const defaultState: DownloadResourceSettingsState = {
   preferredBrowser: 'chrome'
 };
 
-const DownloadResourceSettings: React.FC = () => {
+type DownloadResourceSettingsProps = {
+  expanded: boolean;
+  onExpand: () => void;
+};
+
+const DownloadResourceSettings: React.FC<DownloadResourceSettingsProps> = ({ expanded, onExpand }) => {
   const [externalSettings, setExternalSettings] = useState<DownloadResourceSettingsState>(defaultState);
   const [loading, setLoading] = useState(false);
   const loadedRef = useRef(false);
@@ -59,10 +65,17 @@ const DownloadResourceSettings: React.FC = () => {
     setExternalSettings((prev) => ({ ...prev, ...partial }));
   };
 
+  const handleToggleEnabled = (checked: boolean): void => {
+    if (checked && !enabled) {
+      onExpand();
+    }
+    updateSettings({ externalResourceEnabled: checked });
+  };
+
   const enabled = useMemo(() => externalSettings.externalResourceEnabled !== false, [externalSettings.externalResourceEnabled]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -75,52 +88,68 @@ const DownloadResourceSettings: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Switch checked={enabled} onCheckedChange={(checked: boolean) => updateSettings({ externalResourceEnabled: checked })} />
+            {enabled && (
+              <Button variant="ghost" size="icon" className={`w-8 h-8 transition-transform ${expanded ? 'rotate-180' : ''}`} onClick={onExpand}>
+                <TbChevronDown className="h-4 w-4" />
+              </Button>
+            )}
+            <Switch checked={enabled} onCheckedChange={handleToggleEnabled} />
             <Button variant="ghost" size="icon" className="w-8 h-8" onClick={fetchExternalSettings} disabled={loading}>
               <TbRefresh className={loading ? 'animate-spin' : ''} />
             </Button>
           </div>
         </div>
-        {enabled && (
-          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-6">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold text-foreground">使用浏览器 Cookie</p>
-                <p className="text-xs text-muted-foreground mt-1">启用后将读取浏览器 Cookie，用于访问需要登录的资源。</p>
-              </div>
-              <Switch checked={externalSettings.externalResourceCookies} onCheckedChange={(checked: boolean) => updateSettings({ externalResourceCookies: checked })} />
-            </div>
+        <AnimatePresence initial={false}>
+          {enabled && expanded && (
+            <motion.div
+              key="download-resource-settings-body"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.25, ease: 'easeInOut' }}
+              className="overflow-hidden"
+            >
+              <div className="rounded-2xl border border-border bg-card p-6 shadow-sm space-y-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">使用浏览器 Cookie</p>
+                    <p className="text-xs text-muted-foreground mt-1">启用后将读取浏览器 Cookie，用于访问需要登录的资源。</p>
+                  </div>
+                  <Switch checked={externalSettings.externalResourceCookies} onCheckedChange={(checked: boolean) => updateSettings({ externalResourceCookies: checked })} />
+                </div>
 
-            {externalSettings.externalResourceCookies && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">首选浏览器</label>
-                <Select value={externalSettings.preferredBrowser} onValueChange={(v) => updateSettings({ preferredBrowser: v })}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="选择浏览器" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="chrome">Chrome</SelectItem>
-                    <SelectItem value="firefox">Firefox</SelectItem>
-                    <SelectItem value="edge">Edge</SelectItem>
-                    <SelectItem value="safari">Safari</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">若首选浏览器不可用，将自动回退到其他浏览器。</p>
-              </div>
-            )}
+                {externalSettings.externalResourceCookies && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">首选浏览器</label>
+                    <Select value={externalSettings.preferredBrowser} onValueChange={(v) => updateSettings({ preferredBrowser: v })}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="选择浏览器" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="chrome">Chrome</SelectItem>
+                        <SelectItem value="firefox">Firefox</SelectItem>
+                        <SelectItem value="edge">Edge</SelectItem>
+                        <SelectItem value="safari">Safari</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">若首选浏览器不可用，将自动回退到其他浏览器。</p>
+                  </div>
+                )}
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">下载质量模式</label>
-              <Tabs value={externalSettings.externalResourceMode} onValueChange={(v) => updateSettings({ externalResourceMode: v })}>
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="1">高质量</TabsTrigger>
-                  <TabsTrigger value="2">限制质量（480p 以下）</TabsTrigger>
-                </TabsList>
-              </Tabs>
-              <p className="text-xs text-muted-foreground">针对视频数据设置默认下载质量，避免占用过多空间或带宽。</p>
-            </div>
-          </div>
-        )}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">下载质量模式</label>
+                  <Tabs value={externalSettings.externalResourceMode} onValueChange={(v) => updateSettings({ externalResourceMode: v })}>
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="1">高质量</TabsTrigger>
+                      <TabsTrigger value="2">限制质量（480p 以下）</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                  <p className="text-xs text-muted-foreground">针对视频数据设置默认下载质量，避免占用过多空间或带宽。</p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
