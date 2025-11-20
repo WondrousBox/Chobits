@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { TbBox, TbBrain, TbCpu, TbFolder, TbFolderOpen, TbKeyboard, TbMessage2, TbMoodKid, TbNetwork, TbPlug, TbSettings } from 'react-icons/tb';
+import { TbBox, TbBrain, TbCpu, TbFolder, TbFolderOpen, TbHeartbeat, TbKeyboard, TbMessage2, TbMoodKid, TbNetwork, TbPlug, TbSettings } from 'react-icons/tb';
 
 import DragAbleTitle from '../../components/common/DragAbleTitle';
 import EmbeddingJobsPanel from '../../components/EmbeddingJobs';
@@ -7,6 +7,7 @@ import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu
 import ModelPage from '../ModelPage/ModelPage';
 import PluginPage from '../PluginPage/PluginPage';
 import AiSettings from './components/AiSettings';
+import DailyCareSettings from './components/DailyCareSettings';
 import FolderSetting from './components/FolderSetting';
 import GeneralSettings from './components/GeneralSettings';
 import PromptSetting from './components/PromptSetting';
@@ -16,7 +17,7 @@ import SpriteManager from './components/SpriteManager';
 import Workspace from './components/Workspace';
 
 // 设置分类类型
-type SettingsCategory = 'folder' | 'embedding' | 'ai' | 'prompt' | 'general' | 'workspace' | 'model' | 'sprites' | 'shortcuts' | 'plugins' | 'proxy';
+type SettingsCategory = 'folder' | 'embedding' | 'ai' | 'prompt' | 'general' | 'workspace' | 'model' | 'sprites' | 'shortcuts' | 'plugins' | 'proxy' | 'dailyCare';
 
 // 设置分类配置
 const settingsCategories: { id: SettingsCategory; label: string; icon: React.ElementType; description: string }[] = [
@@ -25,6 +26,12 @@ const settingsCategories: { id: SettingsCategory; label: string; icon: React.Ele
     label: '常规设置',
     icon: TbSettings,
     description: '视频下载和外部资源设置'
+  },
+  {
+    id: 'dailyCare',
+    label: '日常照理',
+    icon: TbHeartbeat,
+    description: '健康提醒、节日彩蛋、自定义事件'
   },
   {
     id: 'workspace',
@@ -152,6 +159,8 @@ export const SettingsPage: React.FC = () => {
         return <ShortcutsSettings />;
       case 'general':
         return <GeneralSettings />;
+      case 'dailyCare':
+        return <DailyCareSettings />;
       case 'proxy':
         return <ProxySettings />;
       default:
