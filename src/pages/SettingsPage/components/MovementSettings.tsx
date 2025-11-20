@@ -88,50 +88,49 @@ const MovementSettings: React.FC = () => {
             <Switch checked={enabled} onCheckedChange={(checked) => updateMovement({ enabled: checked })} disabled={!movementConfig} />
           </div>
         </div>
-      </div>
-
-      {movementConfig && enabled && (
-        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">行走速度 (px/s)</label>
-                <Input type="number" value={movementConfig.walkSpeed || 0} onChange={(e) => updateMovement({ walkSpeed: +e.target.value })} />
+        {movementConfig && enabled && (
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">行走速度 (px/s)</label>
+                  <Input type="number" value={movementConfig.walkSpeed || 0} onChange={(e) => updateMovement({ walkSpeed: +e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">FPS 限制</label>
+                  <Input type="number" value={movementConfig.fpsLimit || 0} onChange={(e) => updateMovement({ fpsLimit: +e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">移动模式</label>
+                  <Select value={movementConfig.movementMode || 'stepped'} onValueChange={(v) => updateMovement({ movementMode: v as MovementConfig['movementMode'] })}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="选择移动模式" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="stepped">离散步进</SelectItem>
+                      <SelectItem value="smooth">平滑</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">FPS 限制</label>
-                <Input type="number" value={movementConfig.fpsLimit || 0} onChange={(e) => updateMovement({ fpsLimit: +e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">移动模式</label>
-                <Select value={movementConfig.movementMode || 'stepped'} onValueChange={(v) => updateMovement({ movementMode: v as MovementConfig['movementMode'] })}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="选择移动模式" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="stepped">离散步进</SelectItem>
-                    <SelectItem value="smooth">平滑</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">步进网格 (px)</label>
-                <Input type="number" value={movementConfig.stepGrid || 0} onChange={(e) => updateMovement({ stepGrid: +e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">路径弯曲系数</label>
-                <Input type="number" step="0.01" value={movementConfig.pathCurveFactor || 0} onChange={(e) => updateMovement({ pathCurveFactor: +e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">角色内边距 (px)</label>
-                <Input type="number" value={movementConfig.assistantPadding || 0} onChange={(e) => updateMovement({ assistantPadding: +e.target.value })} />
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">步进网格 (px)</label>
+                  <Input type="number" value={movementConfig.stepGrid || 0} onChange={(e) => updateMovement({ stepGrid: +e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">路径弯曲系数</label>
+                  <Input type="number" step="0.01" value={movementConfig.pathCurveFactor || 0} onChange={(e) => updateMovement({ pathCurveFactor: +e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">角色内边距 (px)</label>
+                  <Input type="number" value={movementConfig.assistantPadding || 0} onChange={(e) => updateMovement({ assistantPadding: +e.target.value })} />
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };

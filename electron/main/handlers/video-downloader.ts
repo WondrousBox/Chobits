@@ -271,6 +271,7 @@ function getHttpProxy(): any {
 
 // 外部资源设置存储
 type ExternalResourceSettings = {
+  externalResourceEnabled: boolean;
   externalResourceMode: string;
   externalResourceCookies: boolean;
   preferredBrowser: string;
@@ -288,6 +289,7 @@ function ensureSettingsDir() {
 function readSettings(): ExternalResourceSettings {
   ensureSettingsDir();
   const defaultSettings: ExternalResourceSettings = {
+    externalResourceEnabled: true,
     externalResourceMode: '1',
     externalResourceCookies: false,
     preferredBrowser: 'chrome'
