@@ -11,7 +11,23 @@ import type { SelectedResourceFileType } from '@/types';
 
 import { getResourceTypeFromFilename } from '../utils/resource';
 
-export async function addResourcesFromDataTransfer(dt: DataTransfer) {
+type ResourceLocationOptions = {
+  folderId?: string | null;
+  workspaceId?: string | null;
+};
+
+const getLocationPatch = (options?: ResourceLocationOptions) => {
+  const patch: Partial<Pick<Resource, 'folderId' | 'workspaceId'>> = {};
+  if (options?.folderId) {
+    patch.folderId = options.folderId;
+  }
+  if (options?.workspaceId) {
+    patch.workspaceId = options.workspaceId;
+  }
+  return patch;
+};
+
+export async function addResourcesFromDataTransfer(dt: DataTransfer, options?: ResourceLocationOptions) {
   const items = Array.from(dt.items || []) as DataTransferItem[];
   const files = Array.from(dt.files || []) as File[];
   const fileListForIPC: Array<{ name: string; path: string; isDirectory: boolean }> = [];
@@ -47,7 +63,8 @@ export async function addResourcesFromDataTransfer(dt: DataTransfer) {
       collectedAt: now,
       createdAt: now,
       updatedAt: now,
-      status: 'new' as const
+      status: 'new' as const,
+      ...getLocationPatch(options)
     };
     try {
       await window.YUA.resource['resource:add']({ resource });
@@ -57,7 +74,7 @@ export async function addResourcesFromDataTransfer(dt: DataTransfer) {
   }
 }
 
-export async function addResourcesFromSelectedFiles(files: SelectedResourceFileType[]): Promise<Resource[]> {
+export async function addResourcesFromSelectedFiles(files: SelectedResourceFileType[], options?: ResourceLocationOptions): Promise<Resource[]> {
   const resources: Resource[] = [];
   for (const f of files) {
     const now = Date.now();
@@ -153,6 +170,7 @@ export async function addResourcesFromSelectedFiles(files: SelectedResourceFileT
       createdAt: now,
       updatedAt: now,
       status: 'new' as const,
+      ...getLocationPatch(options),
       ...(fileHash ? { metadata: JSON.stringify({ hashSha256: fileHash }) } : {})
     };
     try {

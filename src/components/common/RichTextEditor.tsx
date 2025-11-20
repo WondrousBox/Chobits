@@ -2,7 +2,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import { type Editor, EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Bold, Code, Heading1, Heading2, Heading3, Italic, List, ListOrdered, Minus, Quote, Redo, Strikethrough, Undo } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { ReactNode, useEffect } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -13,92 +13,96 @@ interface RichTextEditorProps {
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  toolbarRight?: ReactNode;
 }
 
-const Toolbar = ({ editor, visible }: { editor: Editor | null; visible: boolean }): JSX.Element | null => {
+const Toolbar = ({ editor, visible, toolbarRight }: { editor: Editor | null; visible: boolean; toolbarRight?: ReactNode }): JSX.Element | null => {
   if (!editor || !visible) {
     return null;
   }
 
   return (
-    <div className="border-b p-2 flex flex-wrap gap-1 items-center bg-muted/30 transition-opacity">
-      <Button variant="ghost" size="icon" onClick={() => editor.chain().focus().toggleBold().run()} className={cn(editor.isActive('bold') && 'bg-muted')} title="Bold">
-        <Bold className="h-4 w-4" />
-      </Button>
-      <Button variant="ghost" size="icon" onClick={() => editor.chain().focus().toggleItalic().run()} className={cn(editor.isActive('italic') && 'bg-muted')} title="Italic">
-        <Italic className="h-4 w-4" />
-      </Button>
-      <Button variant="ghost" size="icon" onClick={() => editor.chain().focus().toggleStrike().run()} className={cn(editor.isActive('strike') && 'bg-muted')} title="Strike">
-        <Strikethrough className="h-4 w-4" />
-      </Button>
+    <div className="border-b p-1 flex flex-wrap gap-1 items-center justify-between bg-muted/30 transition-opacity">
+      <div className="flex flex-wrap gap-1 items-center">
+        <Button variant="ghost" size="icon" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} title="Undo" className="w-8 h-8">
+          <Undo />
+        </Button>
+        <Button variant="ghost" size="icon" onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} title="Redo" className="w-8 h-8">
+          <Redo />
+        </Button>
+        <Separator orientation="vertical" className="h-6 mx-1" />
+        <Button variant="ghost" size="icon" onClick={() => editor.chain().focus().toggleBold().run()} className={cn('w-8 h-8', editor.isActive('bold') && 'bg-muted')} title="Bold">
+          <Bold />
+        </Button>
+        <Button variant="ghost" size="icon" onClick={() => editor.chain().focus().toggleItalic().run()} className={cn('w-8 h-8', editor.isActive('italic') && 'bg-muted')} title="Italic">
+          <Italic />
+        </Button>
+        <Button variant="ghost" size="icon" onClick={() => editor.chain().focus().toggleStrike().run()} className={cn('w-8 h-8', editor.isActive('strike') && 'bg-muted')} title="Strike">
+          <Strikethrough />
+        </Button>
 
-      <Separator orientation="vertical" className="h-6 mx-1" />
+        <Separator orientation="vertical" className="h-6 mx-1" />
 
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-        className={cn(editor.isActive('heading', { level: 1 }) && 'bg-muted')}
-        title="Heading 1"
-      >
-        <Heading1 className="h-4 w-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-        className={cn(editor.isActive('heading', { level: 2 }) && 'bg-muted')}
-        title="Heading 2"
-      >
-        <Heading2 className="h-4 w-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-        className={cn(editor.isActive('heading', { level: 3 }) && 'bg-muted')}
-        title="Heading 3"
-      >
-        <Heading3 className="h-4 w-4" />
-      </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+          className={cn('w-8 h-8', editor.isActive('heading', { level: 1 }) && 'bg-muted')}
+          title="Heading 1"
+        >
+          <Heading1 />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+          className={cn('w-8 h-8', editor.isActive('heading', { level: 2 }) && 'bg-muted')}
+          title="Heading 2"
+        >
+          <Heading2 />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+          className={cn('w-8 h-8', editor.isActive('heading', { level: 3 }) && 'bg-muted')}
+          title="Heading 3"
+        >
+          <Heading3 />
+        </Button>
 
-      <Separator orientation="vertical" className="h-6 mx-1" />
+        <Separator orientation="vertical" className="h-6 mx-1" />
 
-      <Button variant="ghost" size="icon" onClick={() => editor.chain().focus().toggleBulletList().run()} className={cn(editor.isActive('bulletList') && 'bg-muted')} title="Bullet List">
-        <List className="h-4 w-4" />
-      </Button>
-      <Button variant="ghost" size="icon" onClick={() => editor.chain().focus().toggleOrderedList().run()} className={cn(editor.isActive('orderedList') && 'bg-muted')} title="Ordered List">
-        <ListOrdered className="h-4 w-4" />
-      </Button>
+        <Button variant="ghost" size="icon" onClick={() => editor.chain().focus().toggleBulletList().run()} className={cn('w-8 h-8', editor.isActive('bulletList') && 'bg-muted')} title="Bullet List">
+          <List />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => editor.chain().focus().toggleOrderedList().run()}
+          className={cn('w-8 h-8', editor.isActive('orderedList') && 'bg-muted')}
+          title="Ordered List"
+        >
+          <ListOrdered />
+        </Button>
 
-      <Separator orientation="vertical" className="h-6 mx-1" />
-
-      <Button variant="ghost" size="icon" onClick={() => editor.chain().focus().toggleBlockquote().run()} className={cn(editor.isActive('blockquote') && 'bg-muted')} title="Blockquote">
-        <Quote className="h-4 w-4" />
-      </Button>
-      <Button variant="ghost" size="icon" onClick={() => editor.chain().focus().toggleCodeBlock().run()} className={cn(editor.isActive('codeBlock') && 'bg-muted')} title="Code Block">
-        <Code className="h-4 w-4" />
-      </Button>
-      <Button variant="ghost" size="icon" onClick={() => editor.chain().focus().setHorizontalRule().run()} title="Horizontal Rule">
-        <Minus className="h-4 w-4" />
-      </Button>
-
-      <Separator orientation="vertical" className="h-6 mx-1" />
-
-      <Button variant="ghost" size="icon" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} title="Undo">
-        <Undo className="h-4 w-4" />
-      </Button>
-      <Button variant="ghost" size="icon" onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} title="Redo">
-        <Redo className="h-4 w-4" />
-      </Button>
+        {/* <Separator orientation="vertical" className="h-6 mx-1" />
+        <Button variant="ghost" size="icon" onClick={() => editor.chain().focus().toggleBlockquote().run()} className={cn('w-8 h-8', editor.isActive('blockquote') && 'bg-muted')} title="Blockquote">
+          <Quote />
+        </Button>
+        <Button variant="ghost" size="icon" onClick={() => editor.chain().focus().toggleCodeBlock().run()} className={cn('w-8 h-8', editor.isActive('codeBlock') && 'bg-muted')} title="Code Block">
+          <Code />
+        </Button>
+        <Button variant="ghost" size="icon" onClick={() => editor.chain().focus().setHorizontalRule().run()} className="w-8 h-8" title="Horizontal Rule">
+          <Minus />
+        </Button> */}
+      </div>
+      {toolbarRight && <div className="flex items-center gap-2 ml-auto">{toolbarRight}</div>}
     </div>
   );
 };
 
-export const RichTextEditor = ({ value, onChange, placeholder, className }: RichTextEditorProps): JSX.Element => {
-  // 初始根据内容决定是否显示工具栏
-  const initialHasContent = value.replace(/<[^>]*>/g, '').trim() !== '';
-  const [showToolbar, setShowToolbar] = useState<boolean>(initialHasContent);
+export const RichTextEditor = ({ value, onChange, placeholder, className, toolbarRight }: RichTextEditorProps): JSX.Element => {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -113,8 +117,6 @@ export const RichTextEditor = ({ value, onChange, placeholder, className }: Rich
     content: value,
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML());
-      // 有内容时显示工具栏
-      if (!editor.isEmpty && !showToolbar) setShowToolbar(true);
     },
     editorProps: {
       attributes: {
@@ -123,27 +125,6 @@ export const RichTextEditor = ({ value, onChange, placeholder, className }: Rich
       }
     }
   });
-
-  // 监听 focus/blur 事件
-  useEffect(() => {
-    if (!editor) return;
-
-    const handleFocus = (): void => {
-      setShowToolbar(true);
-    };
-    const handleBlur = (): void => {
-      // 失焦且内容为空时收起工具栏
-      if (editor.isEmpty) setShowToolbar(false);
-    };
-
-    editor.on('focus', handleFocus);
-    editor.on('blur', handleBlur);
-
-    return () => {
-      editor.off('focus', handleFocus);
-      editor.off('blur', handleBlur);
-    };
-  }, [editor]);
 
   // Update editor content if value changes externally
   useEffect(() => {
@@ -184,7 +165,7 @@ export const RichTextEditor = ({ value, onChange, placeholder, className }: Rich
 
   return (
     <div className={cn('border rounded-md overflow-hidden bg-background flex flex-col', className)}>
-      <Toolbar editor={editor} visible={showToolbar} />
+      <Toolbar editor={editor} visible toolbarRight={toolbarRight} />
       <div className="flex-1 overflow-y-auto">
         <EditorContent editor={editor} />
       </div>
