@@ -45,8 +45,8 @@
     "sqlite-vec": "0.1.7-alpha.2"
   },
   "devDependencies": {
-    "react-resizable-panels": "^3.0.6",
     "@aim-packages/file-utils": "^0.0.9",
+    "@aim-packages/window-manager": "^0.0.2",
     "@anthropic-ai/sdk": "^0.67.0",
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
     "@electron-toolkit/eslint-config-ts": "^3.1.0",
@@ -108,6 +108,7 @@
     "react-i18next": "^15.7.3",
     "react-icons": "^5.5.0",
     "react-markdown": "^10.1.0",
+    "react-resizable-panels": "^3.0.6",
     "react-router-dom": "^7.9.0",
     "reactflow": "^11.11.4",
     "rehype-highlight": "^7.0.2",

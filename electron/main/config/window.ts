@@ -1,6 +1,6 @@
-import { WindowConfig, WindowKey } from '../../../packages/window-manager/types';
+import { WindowConfig, WindowKey } from '@aim-packages/window-manager';
 
-declare module '../../../packages/window-manager/types' {
+declare module '@aim-packages/window-manager' {
   interface CustomWindowKeys {
     status: void;
     menu: void;

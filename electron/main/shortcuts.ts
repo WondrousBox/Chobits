@@ -1,6 +1,6 @@
+import { windowManager } from '@aim-packages/window-manager';
 import { BrowserWindow, globalShortcut } from 'electron';
 
-import { windowManager } from '../../packages/window-manager';
 import { getShortcutSchema, loadShortcutsConfig, onShortcutsConfigChanged, resolveAcceleratorsForPlatform, type ShortcutsConfig } from './shortcut-store';
 
 // Keep track of what we registered so we can cleanly unregister later

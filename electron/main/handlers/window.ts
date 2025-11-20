@@ -2,12 +2,11 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
+import { initIpcMain, windowManager } from '@aim-packages/window-manager';
 import type { IpcMainInvokeEvent } from 'electron';
 import { BrowserWindow, ipcMain } from 'electron';
 import { app, screen, systemPreferences } from 'electron';
 
-import { windowManager } from '../../../packages/window-manager';
-import { init } from '../../../packages/window-manager/ipc-main';
 import { ASSISTANT_HEIGHT, ASSISTANT_WIDTH } from '../config';
 import defaultWindowConfigs from '../config/window';
 
@@ -206,5 +205,5 @@ export function initWindowHandlers(win: BrowserWindow): void {
     return movementConfig;
   });
 
-  init(win);
+  initIpcMain(win);
 }
