@@ -9,6 +9,22 @@ const path7za = path.resolve(
   app.isPackaged ? `../7zip/${os.platform() === 'darwin' ? '7za' : '7za.exe'}` : `./resources/7zip/${os.platform()}/${os.arch()}/${os.platform() === 'darwin' ? '7za' : '7za.exe'}`
 );
 
+type CallbackFn = (err: Error | null, result?: any) => void;
+type ProgressFn = (progress: { progress: number; index: number }) => void;
+
+interface ListItem {
+  name?: string;
+  size?: string;
+  compressed?: string;
+  attr?: string;
+  date?: string;
+  time?: string;
+  crc?: string;
+  method?: string;
+  block?: string;
+  encrypted?: string;
+}
+
 /**
  * Unpack archive.
  * @param {string} pathToPack - path to archive you want to unpack.
@@ -18,20 +34,20 @@ const path7za = path.resolve(
  * @param {function} [cb] - callback function. Will be called once unpack is done. If no errors, first parameter will contain `null`
  * NOTE: Providing destination path is optional. In case it is not provided, cb is expected as the second argument to function.
  */
-export function unpack(pathToPack, destPathOrCb, cb, p, x?: string) {
+export function unpack(pathToPack: string, destPathOrCb: string | CallbackFn, cb?: CallbackFn, p?: ProgressFn, x?: string): void {
   if (typeof destPathOrCb === 'function' && cb === undefined) {
-    cb = destPathOrCb;
+    const callback = destPathOrCb;
     const arg = ['x', pathToPack, '-y', '-bsp1'];
     if (x) {
       arg.push(x);
     }
-    run(path7za, arg, cb, p);
+    run(path7za, arg, callback, p);
   } else {
     const arg = ['x', pathToPack, '-y', '-o' + destPathOrCb, '-bsp1'];
     if (x) {
       arg.push(x);
     }
-    run(path7za, arg, cb, p);
+    run(path7za, arg, cb!, p);
   }
 }
 
@@ -41,8 +57,8 @@ export function unpack(pathToPack, destPathOrCb, cb, p, x?: string) {
  * @param {string} pathToDest - path to archive you want to create.
  * @param {function} cb - callback function. Will be called once pack is done. If no errors, first parameter will contain `null`.
  */
-export function pack(pathToSrc, pathToDest, cb) {
-  run(path7za, ['a', pathToDest, pathToSrc], cb);
+export function pack(pathToSrc: string, pathToDest: string, cb: CallbackFn): void {
+  run(path7za, ['a', pathToDest, pathToSrc], cb, undefined);
 }
 
 /**
@@ -50,8 +66,8 @@ export function pack(pathToSrc, pathToDest, cb) {
  * @param {string} pathToSrc - path to file its content you want to list.
  * @param {function} cb - callback function. Will be called once list is done. If no errors, first parameter will contain `null`.
  */
-export function list(pathToSrc, cb) {
-  run(path7za, ['l', '-slt', '-ba', pathToSrc], cb);
+export function list(pathToSrc: string, cb: CallbackFn): void {
+  run(path7za, ['l', '-slt', '-ba', pathToSrc], cb, undefined);
 }
 
 /**
@@ -59,8 +75,8 @@ export function list(pathToSrc, cb) {
  * @param {array} paramsArr - array of parameter. Each array item is one parameter.
  * @param {function} cb - callback function. Will be called once command is done. If no errors, first parameter will contain `null`. If no output, second parameter will be `null`.
  */
-export function cmd(paramsArr, cb) {
-  run(path7za, paramsArr, cb);
+export function cmd(paramsArr: string[], cb: CallbackFn): void {
+  run(path7za, paramsArr, cb, undefined);
 }
 
 function extractProgressAndIndex(str: string): { progress: number; index: number } {
@@ -76,7 +92,7 @@ function extractProgressAndIndex(str: string): { progress: number; index: number
   return { progress: -1, index: -1 };
 }
 
-function run(bin, args, cb, p) {
+function run(bin: string, args: string[], cb: CallbackFn, p?: ProgressFn): void {
   cb = onceify(cb);
   const runError = new Error(); // get full stack trace
   const proc = spawn(bin, args, { windowsHide: true });
@@ -106,28 +122,28 @@ function run(bin, args, cb, p) {
 }
 
 // http://stackoverflow.com/questions/30234908/javascript-v8-optimisation-and-leaking-arguments
-// javascript V8 optimisation and “leaking arguments”
+// javascript V8 optimisation and "leaking arguments"
 // making callback to be invoked only once
-function onceify(fn) {
+function onceify(fn: CallbackFn): CallbackFn {
   let called = false;
 
-  return function () {
+  return function (err: Error | null, result?: any) {
     if (called) {
       return;
     }
     called = true;
-    fn.apply(this, Array.prototype.slice.call(arguments)); // slice arguments
+    fn(err, result);
   };
 }
 
-function parseListOutput(str) {
+function parseListOutput(str: string): ListItem[] {
   if (!str.length) {
     return [];
   }
   str = str.replace(/(\r\n|\n|\r)/gm, '\n');
   const items = str.split(/^\s*$/m);
-  const res = [];
-  const LIST_MAP = {
+  const res: ListItem[] = [];
+  const LIST_MAP: Record<string, keyof ListItem | 'dateTime'> = {
     Path: 'name',
     Size: 'size',
     'Packed Size': 'compressed',
@@ -147,7 +163,7 @@ function parseListOutput(str) {
     if (!item.length) {
       continue;
     }
-    const obj = {};
+    const obj: ListItem = {};
     const lines = item.split('\n');
     if (!lines.length) {
       continue;
