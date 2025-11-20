@@ -1,6 +1,6 @@
+import { windowManager } from '@aim-packages/window-manager';
 import { BrowserWindow, ipcMain, screen } from 'electron';
 
-import { windowManager } from '../../../packages/window-manager';
 import { getMainWindow } from '../index';
 import { downloadManager, getSetting, getThumbnail, getVideoInfo, setSetting } from './video-downloader';
 

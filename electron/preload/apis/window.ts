@@ -1,6 +1,6 @@
+import { windowIpcRenderer, WindowIPCType } from '@aim-packages/window-manager/renderer';
 import { ipcRenderer } from 'electron';
 
-import { windowIPC, WindowIPCType } from '../../../packages/window-manager/ipc-renderer';
 import { IPCParams } from '../type';
 
 type WindowBridgeParams = {
@@ -30,5 +30,5 @@ methods.forEach((method) => {
 
 export const windowBridge = {
   ...newBridge,
-  ...windowIPC
+  ...windowIpcRenderer
 } as WindowBridgeType;

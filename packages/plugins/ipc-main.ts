@@ -1,7 +1,7 @@
+import { windowManager } from '@aim-packages/window-manager';
 import { BrowserWindow, ipcMain, net, screen } from 'electron';
 
 import { createBestDownloader } from '../downloader/create';
-import { windowManager } from '../window-manager';
 import { DownloadProgress, PluginResource, pluginResourceManager } from '.';
 import { PluginConfigStore } from './plugin-config-store';
 import { getPluginForCurrentPlatform, loadPluginDefinitions } from './plugin-loader';
