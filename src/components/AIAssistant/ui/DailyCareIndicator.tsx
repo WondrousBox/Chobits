@@ -46,11 +46,10 @@ export const DailyCareIndicator: React.FC = () => {
       onClick={toggle}
       className={`pointer-events-auto absolute bottom-2 left-2 flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-semibold shadow-lg transition ${enabled ? 'bg-emerald-500 text-white' : 'bg-slate-600/80 text-white/90'
         } ${pending ? 'opacity-70' : ''}`}
-      title={enabled ? '点击暂停日常照理模式' : '点击开启日常照理模式'}
       disabled={pending}
     >
       {enabled ? <TbHeartbeat className="h-3.5 w-3.5" /> : <TbHeartOff className="h-3.5 w-3.5" />}
-      {enabled ? '照理 ON' : '照理 OFF'}
+      {enabled ? '关心 ON' : '关心 OFF'}
     </button>
   );
 };
