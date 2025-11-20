@@ -1,6 +1,8 @@
+import { AnimatePresence, motion } from 'framer-motion';
 import React, { useEffect, useRef, useState } from 'react';
-import { TbRun } from 'react-icons/tb';
+import { TbChevronDown, TbRun } from 'react-icons/tb';
 
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
@@ -15,7 +17,12 @@ type MovementConfig = {
   enabled?: boolean;
 };
 
-const MovementSettings: React.FC = () => {
+type MovementSettingsProps = {
+  expanded: boolean;
+  onExpand: () => void;
+};
+
+const MovementSettings: React.FC<MovementSettingsProps> = ({ expanded, onExpand }) => {
   const [movementConfig, setMovementConfig] = useState<MovementConfig | null>(null);
   const loadedRef = useRef(false);
   const applyingRef = useRef(false);
@@ -52,6 +59,13 @@ const MovementSettings: React.FC = () => {
     setMovementConfig({ ...movementConfig, ...partial });
   };
 
+  const handleToggleEnabled = (checked: boolean): void => {
+    if (checked && !enabled) {
+      onExpand();
+    }
+    updateMovement({ enabled: checked });
+  };
+
   useEffect(() => {
     if (!movementConfig) return;
     if (!loadedRef.current) return;
@@ -72,7 +86,7 @@ const MovementSettings: React.FC = () => {
   const enabled = movementConfig?.enabled !== false;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -85,51 +99,68 @@ const MovementSettings: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Switch checked={enabled} onCheckedChange={(checked) => updateMovement({ enabled: checked })} disabled={!movementConfig} />
+            {enabled && (
+              <Button variant="ghost" size="icon" className={`w-8 h-8 transition-transform ${expanded ? 'rotate-180' : ''}`} onClick={onExpand}>
+                <TbChevronDown className="h-4 w-4" />
+              </Button>
+            )}
+            <Switch checked={enabled} onCheckedChange={handleToggleEnabled} disabled={!movementConfig} />
           </div>
         </div>
-        {movementConfig && enabled && (
-          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">行走速度 (px/s)</label>
-                  <Input type="number" value={movementConfig.walkSpeed || 0} onChange={(e) => updateMovement({ walkSpeed: +e.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">FPS 限制</label>
-                  <Input type="number" value={movementConfig.fpsLimit || 0} onChange={(e) => updateMovement({ fpsLimit: +e.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">移动模式</label>
-                  <Select value={movementConfig.movementMode || 'stepped'} onValueChange={(v) => updateMovement({ movementMode: v as MovementConfig['movementMode'] })}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="选择移动模式" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="stepped">离散步进</SelectItem>
-                      <SelectItem value="smooth">平滑</SelectItem>
-                    </SelectContent>
-                  </Select>
+
+        <AnimatePresence initial={false}>
+          {movementConfig && enabled && expanded && (
+            <motion.div
+              key="movement-settings-body"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.25, ease: 'easeInOut' }}
+              className="overflow-hidden"
+            >
+              <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">行走速度 (px/s)</label>
+                      <Input type="number" value={movementConfig.walkSpeed || 0} onChange={(e) => updateMovement({ walkSpeed: +e.target.value })} />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">FPS 限制</label>
+                      <Input type="number" value={movementConfig.fpsLimit || 0} onChange={(e) => updateMovement({ fpsLimit: +e.target.value })} />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">移动模式</label>
+                      <Select value={movementConfig.movementMode || 'stepped'} onValueChange={(v) => updateMovement({ movementMode: v as MovementConfig['movementMode'] })}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="选择移动模式" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="stepped">离散步进</SelectItem>
+                          <SelectItem value="smooth">平滑</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">步进网格 (px)</label>
+                      <Input type="number" value={movementConfig.stepGrid || 0} onChange={(e) => updateMovement({ stepGrid: +e.target.value })} />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">路径弯曲系数</label>
+                      <Input type="number" step="0.01" value={movementConfig.pathCurveFactor || 0} onChange={(e) => updateMovement({ pathCurveFactor: +e.target.value })} />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">角色内边距 (px)</label>
+                      <Input type="number" value={movementConfig.assistantPadding || 0} onChange={(e) => updateMovement({ assistantPadding: +e.target.value })} />
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">步进网格 (px)</label>
-                  <Input type="number" value={movementConfig.stepGrid || 0} onChange={(e) => updateMovement({ stepGrid: +e.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">路径弯曲系数</label>
-                  <Input type="number" step="0.01" value={movementConfig.pathCurveFactor || 0} onChange={(e) => updateMovement({ pathCurveFactor: +e.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">角色内边距 (px)</label>
-                  <Input type="number" value={movementConfig.assistantPadding || 0} onChange={(e) => updateMovement({ assistantPadding: +e.target.value })} />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
