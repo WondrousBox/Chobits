@@ -25,6 +25,7 @@ import {
 import { toast } from 'sonner';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
+import DefaultEmptyFolder from '@/components/DefaultEmptyFolder/DefaultEmptyFolder';
 import { Button } from '@/components/ui/button';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -806,6 +807,16 @@ const ResourcePage: React.FC = () => {
         {/* 资源展示区域 */}
         <div className="w-full h-full" style={{ height: 'calc(100% - 36px)' }}>
           <div className="w-full h-full overflow-y-auto">
+            {childFolders.length === 0 && filtered.length === 0 && (
+              <DefaultEmptyFolder
+                folderId={folderFilter || undefined}
+                workspaceId={wsFilter || undefined}
+                onDone={async () => {
+                  await load();
+                  await loadFolders(wsFilter || undefined);
+                }}
+              />
+            )}
             {viewMode === 'grid' ? (
               <ExplorerGrid
                 items={filtered}
@@ -1011,13 +1022,6 @@ const ResourcePage: React.FC = () => {
                     }}
                   />
                 ))}
-                {childFolders.length === 0 && filtered.length === 0 && (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <div className="text-4xl mb-4">📦</div>
-                    <div>没有找到资源</div>
-                    <div className="text-sm mt-2">尝试调整筛选条件或添加新资源</div>
-                  </div>
-                )}
               </div>
             )}
           </div>
