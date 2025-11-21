@@ -50,12 +50,12 @@ export const MasonryContextMenu: React.FC<MasonryContextMenuProps> = ({
               {isFullWidth ? (
                 <>
                   <TbMinimize className="mr-2 w-4 h-4" />
-                  取消全宽
+                  宽度恢复
                 </>
               ) : (
                 <>
                   <TbMaximize className="mr-2 w-4 h-4" />
-                  设置为全宽
+                  宽度占满
                 </>
               )}
             </ContextMenuItem>

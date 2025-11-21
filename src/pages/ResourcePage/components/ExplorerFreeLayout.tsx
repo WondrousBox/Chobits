@@ -31,6 +31,14 @@ const ResponsiveGridLayout = WidthProvider(Responsive);
 const ROW_HEIGHT = 30; // 行高
 const MARGIN: [number, number] = [16, 16]; // 间距 [x, y]
 const COLS = { lg: 6, md: 6, sm: 6, xs: 6, xxs: 6 }; // 列数配置
+const TOTAL_COLS = 12;
+const DEFAULT_ITEM_WIDTH = 3;
+const DEFAULT_ITEM_HEIGHT = 4;
+const DEFAULT_GROUP_WIDTH = 12;
+const DEFAULT_GROUP_HEIGHT = 6;
+
+const clamp = (value: number, min: number, max: number): number => Math.min(Math.max(value, min), max);
+const ensureNumber = (value: number | null | undefined, fallback: number): number => (typeof value === 'number' && !Number.isNaN(value) ? value : fallback);
 
 interface FreeLayoutItemProps {
   id: string;
@@ -113,6 +121,60 @@ export const ExplorerFreeLayout: React.FC<ExplorerFreeLayoutProps> = ({ items, f
   const [currentLayout, setCurrentLayout] = useState<Layout[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const sanitizeLayout = useCallback(
+    (layout: Layout[], config: MasonryLayoutConfig): { layout: Layout[]; changed: boolean } => {
+      const resourceMap = new Map(items.map((item) => [item.id, item]));
+      const itemConfigMap = new Map(config.items.map((item) => [item.resourceId, item]));
+
+      let changed = false;
+      const sanitized: Layout[] = [];
+
+      layout.forEach((entry, index) => {
+        if (!entry?.i) return;
+
+        const fallback = (() => {
+          if (entry.i.startsWith('group-')) {
+            return { x: 0, y: Infinity, w: DEFAULT_GROUP_WIDTH, h: DEFAULT_GROUP_HEIGHT };
+          }
+          const resourceId = entry.i.replace('resource-', '');
+          const configItem = itemConfigMap.get(resourceId);
+          const resource = resourceMap.get(resourceId);
+          const isFullWidth = configItem?.fullWidth || resource?.type === 'text';
+          return {
+            x: (index * DEFAULT_ITEM_WIDTH) % TOTAL_COLS,
+            y: Infinity,
+            w: isFullWidth ? TOTAL_COLS : DEFAULT_ITEM_WIDTH,
+            h: DEFAULT_ITEM_HEIGHT
+          };
+        })();
+
+        const normalizedWidth = clamp(ensureNumber(entry.w, fallback.w), 1, TOTAL_COLS);
+        const normalizedHeight = Math.max(ensureNumber(entry.h, fallback.h), 1);
+        const maxX = Math.max(0, TOTAL_COLS - normalizedWidth);
+        const normalizedX = Math.min(Math.max(ensureNumber(entry.x, fallback.x), 0), maxX);
+        const rawY = ensureNumber(entry.y, fallback.y);
+        const normalizedY = Number.isFinite(rawY) ? Math.max(rawY, 0) : fallback.y;
+
+        const safeEntry: Layout = {
+          ...entry,
+          x: normalizedX,
+          y: normalizedY,
+          w: normalizedWidth,
+          h: normalizedHeight
+        };
+
+        if (safeEntry.x !== entry.x || safeEntry.y !== entry.y || safeEntry.w !== entry.w || safeEntry.h !== entry.h) {
+          changed = true;
+        }
+
+        sanitized.push(safeEntry);
+      });
+
+      return { layout: sanitized, changed };
+    },
+    [items]
+  );
+
   // 生成初始布局
   const generateInitialLayout = useCallback((resources: ResourceItem[], config: MasonryLayoutConfig): Layout[] => {
     const layout: Layout[] = [];
@@ -154,7 +216,10 @@ export const ExplorerFreeLayout: React.FC<ExplorerFreeLayoutProps> = ({ items, f
     const loadLayout = async (): Promise<void> => {
       if (!folderId) {
         const defaultConfig = createDefaultLayoutConfig(items.map((i) => i.id));
-        setLayoutConfig(defaultConfig);
+        const initialLayout = generateInitialLayout(items, defaultConfig);
+        const { layout: safeLayout } = sanitizeLayout(initialLayout, defaultConfig);
+        setLayoutConfig({ ...defaultConfig, gridLayout: safeLayout });
+        setCurrentLayout(safeLayout);
         setLoading(false);
         return;
       }
@@ -162,7 +227,6 @@ export const ExplorerFreeLayout: React.FC<ExplorerFreeLayoutProps> = ({ items, f
       setLoading(true);
       const config = await loadMasonryLayout(folderId);
       if (config) {
-        setLayoutConfig(config);
         // 如果有保存的 gridLayout，直接使用
         if (config.gridLayout && config.gridLayout.length > 0) {
           // 同步 layout：处理新增或移除的资源
@@ -198,36 +262,50 @@ export const ExplorerFreeLayout: React.FC<ExplorerFreeLayoutProps> = ({ items, f
             }
           });
 
-          setCurrentLayout([...validLayout, ...newLayouts] as Layout[]);
+          const mergedLayout = [...validLayout, ...newLayouts] as Layout[];
+          const { layout: safeLayout, changed } = sanitizeLayout(mergedLayout, config);
+          const nextConfig = { ...config, gridLayout: safeLayout };
+          if (changed) {
+            await saveMasonryLayout(folderId, nextConfig);
+          }
+          setLayoutConfig(nextConfig);
+          setCurrentLayout(safeLayout);
         } else {
           // 否则生成初始布局
           const initialLayout = generateInitialLayout(items, config);
-          setCurrentLayout(initialLayout);
+          const { layout: safeLayout } = sanitizeLayout(initialLayout, config);
+          const nextConfig = { ...config, gridLayout: safeLayout };
+          setLayoutConfig(nextConfig);
+          setCurrentLayout(safeLayout);
         }
       } else {
         const defaultConfig = createDefaultLayoutConfig(items.map((i) => i.id));
-        setLayoutConfig(defaultConfig);
-        setCurrentLayout(generateInitialLayout(items, defaultConfig));
+        const initialLayout = generateInitialLayout(items, defaultConfig);
+        const { layout: safeLayout } = sanitizeLayout(initialLayout, defaultConfig);
+        setLayoutConfig({ ...defaultConfig, gridLayout: safeLayout });
+        setCurrentLayout(safeLayout);
       }
       setLoading(false);
     };
 
     loadLayout();
-  }, [folderId, items, generateInitialLayout]); // items 变化时可能需要合并新项
+  }, [folderId, items, generateInitialLayout, sanitizeLayout]); // items 变化时可能需要合并新项
 
   // 保存布局
   const saveLayout = useCallback(
     async (newLayout: Layout[], newConfig: MasonryLayoutConfig) => {
-      if (!folderId) return;
+      const { layout: safeLayout } = sanitizeLayout(newLayout, newConfig);
       const configToSave = {
         ...newConfig,
-        gridLayout: newLayout
+        gridLayout: safeLayout
       };
-      await saveMasonryLayout(folderId, configToSave);
+      if (folderId) {
+        await saveMasonryLayout(folderId, configToSave);
+      }
       setLayoutConfig(configToSave);
-      setCurrentLayout(newLayout);
+      setCurrentLayout(safeLayout);
     },
-    [folderId]
+    [folderId, sanitizeLayout]
   );
 
   useEffect(() => {
@@ -268,13 +346,8 @@ export const ExplorerFreeLayout: React.FC<ExplorerFreeLayoutProps> = ({ items, f
       return layout;
     })();
 
-    if (folderId) {
-      saveLayout(nextLayout, { ...syncedConfig, gridLayout: nextLayout });
-    } else {
-      setLayoutConfig({ ...syncedConfig, gridLayout: nextLayout });
-      setCurrentLayout(nextLayout);
-    }
-  }, [items, layoutConfig, currentLayout, folderId, saveLayout]);
+    saveLayout(nextLayout, { ...syncedConfig, gridLayout: nextLayout });
+  }, [items, layoutConfig, currentLayout, saveLayout]);
 
   // 处理高度变化
   const handleHeightChange = useCallback((id: string, height: number): void => {
