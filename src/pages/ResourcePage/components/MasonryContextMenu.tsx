@@ -1,5 +1,5 @@
 import React from 'react';
-import { TbMaximize, TbMinimize, TbPlus, TbX } from 'react-icons/tb';
+import { TbMaximize, TbMinimize, TbPlus, TbTransfer, TbX } from 'react-icons/tb';
 
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { MasonryLayoutGroup, ResourceItem } from '@/types';
@@ -81,8 +81,8 @@ export const MasonryContextMenu: React.FC<MasonryContextMenuProps> = ({
             {!inGroup && onAddToGroup && (
               <ContextMenuSub>
                 <ContextMenuSubTrigger>
-                  <TbPlus className="mr-2 w-4 h-4" />
-                  添加到分组
+                  <TbTransfer className="mr-2 w-4 h-4" />
+                  移动到分组
                 </ContextMenuSubTrigger>
                 <ContextMenuSubContent className="min-w-[220px]">
                   {groups && groups.length > 0 ? (

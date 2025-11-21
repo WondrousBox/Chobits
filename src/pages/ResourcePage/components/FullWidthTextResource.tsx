@@ -14,7 +14,7 @@ const FullWidthTextResource: React.FC<FullWidthTextResourceProps> = ({ item, onP
 
   // 加载文本内容
   useEffect(() => {
-    const loadContent = async () => {
+    const loadContent = async (): Promise<void> => {
       if (item.contentText) {
         setContent(item.contentText);
         return;

@@ -100,6 +100,9 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, onDone }) 
 
   const onSaveText = useCallback(async () => {
     const textToSave = content.trim();
+
+    console.log(textToSave);
+
     if (!textToSave || textToSave === '<p></p>') {
       toast.error('请输入内容后再保存');
       return;

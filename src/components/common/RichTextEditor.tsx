@@ -3,7 +3,7 @@ import { type Editor, EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import clsx from 'clsx';
 import { Bold, Heading1, Heading2, Heading3, Italic, List, ListOrdered, Redo, Strikethrough, Undo } from 'lucide-react';
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -105,6 +105,14 @@ const Toolbar = ({ editor, visible, toolbarRight, className }: { editor: Editor 
 
 export const RichTextEditor = ({ value, onChange, placeholder, className, toolbarRight }: RichTextEditorProps): JSX.Element => {
   const [isFocused, setIsFocused] = useState(false);
+  const hideToolbarTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelHideToolbar = (): void => {
+    if (hideToolbarTimeoutRef.current) {
+      clearTimeout(hideToolbarTimeoutRef.current);
+      hideToolbarTimeoutRef.current = null;
+    }
+  };
 
   const editor = useEditor({
     extensions: [
@@ -122,10 +130,14 @@ export const RichTextEditor = ({ value, onChange, placeholder, className, toolba
       onChange(editor.getHTML());
     },
     onFocus: () => {
+      cancelHideToolbar();
       setIsFocused(true);
     },
     onBlur: () => {
-      setIsFocused(false);
+      hideToolbarTimeoutRef.current = setTimeout(() => {
+        setIsFocused(false);
+        hideToolbarTimeoutRef.current = null;
+      }, 200);
     },
     editorProps: {
       attributes: {
@@ -171,6 +183,12 @@ export const RichTextEditor = ({ value, onChange, placeholder, className, toolba
       }
     }
   }, [value, editor]);
+
+  useEffect(() => {
+    return () => {
+      cancelHideToolbar();
+    };
+  }, []);
 
   return (
     <div className={cn('border rounded-md bg-background flex flex-col relative', className)}>

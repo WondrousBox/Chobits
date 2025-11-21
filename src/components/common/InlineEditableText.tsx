@@ -75,7 +75,9 @@ export const InlineEditableText: React.FC<InlineEditableTextProps> = ({ value = 
 
   useEffect(() => {
     if (!editing) {
-      setDraft(value);
+      requestAnimationFrame(() => {
+        setDraft(value);
+      });
     }
   }, [value, editing]);
 
