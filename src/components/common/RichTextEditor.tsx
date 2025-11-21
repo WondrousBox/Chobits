@@ -15,6 +15,7 @@ interface RichTextEditorProps {
   placeholder?: string;
   className?: string;
   toolbarRight?: ReactNode;
+  editable?: boolean;
 }
 
 const Toolbar = ({ editor, visible, toolbarRight, className }: { editor: Editor | null; visible: boolean; toolbarRight?: ReactNode; className?: string }): JSX.Element | null => {
@@ -103,7 +104,7 @@ const Toolbar = ({ editor, visible, toolbarRight, className }: { editor: Editor 
   );
 };
 
-export const RichTextEditor = ({ value, onChange, placeholder, className, toolbarRight }: RichTextEditorProps): JSX.Element => {
+export const RichTextEditor = ({ value, onChange, placeholder, className, toolbarRight, editable = true }: RichTextEditorProps): JSX.Element => {
   const [isFocused, setIsFocused] = useState(false);
   const hideToolbarTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -126,14 +127,17 @@ export const RichTextEditor = ({ value, onChange, placeholder, className, toolba
       })
     ],
     content: value,
+    editable,
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML());
     },
     onFocus: () => {
+      if (!editable) return;
       cancelHideToolbar();
       setIsFocused(true);
     },
     onBlur: () => {
+      if (!editable) return;
       hideToolbarTimeoutRef.current = setTimeout(() => {
         setIsFocused(false);
         hideToolbarTimeoutRef.current = null;
@@ -146,6 +150,12 @@ export const RichTextEditor = ({ value, onChange, placeholder, className, toolba
       }
     }
   });
+
+  useEffect(() => {
+    if (editor) {
+      editor.setEditable(editable);
+    }
+  }, [editor, editable]);
 
   // Update editor content if value changes externally
   useEffect(() => {
@@ -192,7 +202,7 @@ export const RichTextEditor = ({ value, onChange, placeholder, className, toolba
 
   return (
     <div className={cn('border rounded-md bg-background flex flex-col relative', className)}>
-      <Toolbar editor={editor} visible={isFocused} toolbarRight={toolbarRight} className="absolute left-0 z-10 w-full box-border -top-8" />
+      <Toolbar editor={editor} visible={editable && isFocused} toolbarRight={toolbarRight} className="absolute left-0 z-10 w-full box-border -top-8" />
       <div className="flex-1 overflow-y-auto">
         <EditorContent editor={editor} />
       </div>
