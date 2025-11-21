@@ -24,7 +24,6 @@ import {
 import { toast } from 'sonner';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
-import DefaultEmptyFolder from '@/components/DefaultEmptyFolder/DefaultEmptyFolder';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -32,6 +31,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '@/components/ui/sidebar';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import DefaultEmptyFolder from '@/pages/ResourcePage/components/DefaultEmptyFolder';
 import { ResourceItem, SortField, SortOrder, ViewMode } from '@/types';
 
 import ExplorerFreeLayout from './components/ExplorerFreeLayout';
@@ -218,7 +218,7 @@ const ResourcePage: React.FC = () => {
   useEffect(() => {
     let cancelled = false;
 
-    const applyPreferredViewMode = async () => {
+    const applyPreferredViewMode = async (): Promise<void> => {
       if (!folderFilter) {
         const stored = loadRootViewModePreference();
         if (!cancelled) {
