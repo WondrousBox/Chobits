@@ -18,6 +18,7 @@ import {
   saveMasonryLayout,
   setGroupLayout,
   setResourceFullWidth,
+  syncLayoutConfigWithResources,
   updateGroupOrder,
   updateResourceOrder
 } from '../utils/masonryLayout';
@@ -102,6 +103,17 @@ export const ExplorerMasonry: React.FC<ExplorerMasonryProps> = ({ items, folderI
     },
     [folderId]
   );
+
+  useEffect(() => {
+    if (!layoutConfig) return;
+    const { config: syncedConfig, changed } = syncLayoutConfigWithResources(layoutConfig, items);
+    if (!changed) return;
+    if (folderId) {
+      saveLayout(syncedConfig);
+    } else {
+      setLayoutConfig(syncedConfig);
+    }
+  }, [items, layoutConfig, folderId, saveLayout]);
 
   // 根据布局配置组织资源
   const organizedResources = useMemo(() => {
