@@ -69,6 +69,30 @@ export interface ResourceItem {
   workspaceId?: string;
 }
 
-export type ViewMode = 'grid' | 'list' | 'detail';
+export type ViewMode = 'grid' | 'list' | 'detail' | 'masonry' | 'free';
 export type SortField = 'title' | 'createdAt' | 'collectedAt' | 'sizeBytes' | 'rating' | 'type';
 export type SortOrder = 'asc' | 'desc';
+
+// 瀑布流布局配置类型
+export interface MasonryLayoutConfig {
+  version: string; // 配置版本号，用于未来兼容性
+  items: MasonryLayoutItem[];
+  groups?: MasonryLayoutGroup[];
+  gridLayout?: any[]; // react-grid-layout 的布局数据
+  viewMode?: ViewMode; // 当前视图模式
+}
+
+export interface MasonryLayoutItem {
+  resourceId: string;
+  fullWidth?: boolean; // 是否占满一行
+  groupId?: string; // 如果属于某个分组，则设置此字段
+  order?: number; // 排序顺序
+}
+
+export interface MasonryLayoutGroup {
+  id: string;
+  name?: string; // 分组名称（可选）
+  resourceIds: string[]; // 分组内的资源ID列表
+  layout: 'grid' | 'list'; // 分组内的布局方式：宫格或列表
+  order?: number; // 分组排序顺序
+}
