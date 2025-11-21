@@ -152,4 +152,55 @@ export function initFolderHandlers(): void {
     const deleted = await FoldersRepo.deleteByIds(ids);
     return { success: true, deleted };
   });
+
+  // 读取文件夹的瀑布流布局配置
+  ipcMain.handle('folder.getMasonryLayout', async (_event, payload: { folderId: string }) => {
+    const { folderId } = payload || ({} as any);
+    if (!folderId) return { success: false, error: 'invalid-folder-id' };
+    try {
+      const folder = await FoldersRepo.getById(folderId);
+      if (!folder) return { success: false, error: 'folder-not-found' };
+      const ws = await WorkspacesRepo.getById(folder.workspaceId || '');
+      if (!ws) return { success: false, error: 'workspace-not-found' };
+
+      const baseDir = ws.rootPath ? path.join(ws.rootPath, 'resources', 'folders') : path.join(process.cwd(), 'uploads', 'folders');
+      const layoutPath = path.join(baseDir, folderId, '.layout.json');
+
+      try {
+        const content = await fs.readFile(layoutPath, 'utf-8');
+        const layout = JSON.parse(content);
+        return { success: true, data: layout };
+      } catch (e: any) {
+        // 文件不存在时返回空配置
+        if ((e as any)?.code === 'ENOENT') {
+          return { success: true, data: null };
+        }
+        throw e;
+      }
+    } catch (e: any) {
+      return { success: false, error: e?.message || 'unknown' };
+    }
+  });
+
+  // 保存文件夹的瀑布流布局配置
+  ipcMain.handle('folder.saveMasonryLayout', async (_event, payload: { folderId: string; layout: any }) => {
+    const { folderId, layout } = payload || ({} as any);
+    if (!folderId || !layout) return { success: false, error: 'invalid-params' };
+    try {
+      const folder = await FoldersRepo.getById(folderId);
+      if (!folder) return { success: false, error: 'folder-not-found' };
+      const ws = await WorkspacesRepo.getById(folder.workspaceId || '');
+      if (!ws) return { success: false, error: 'workspace-not-found' };
+
+      const baseDir = ws.rootPath ? path.join(ws.rootPath, 'resources', 'folders') : path.join(process.cwd(), 'uploads', 'folders');
+      const folderDir = path.join(baseDir, folderId);
+      await fs.mkdir(folderDir, { recursive: true });
+      const layoutPath = path.join(folderDir, '.layout.json');
+
+      await fs.writeFile(layoutPath, JSON.stringify(layout, null, 2), 'utf-8');
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e?.message || 'unknown' };
+    }
+  });
 }

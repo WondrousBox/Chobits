@@ -7,6 +7,8 @@ import {
   TbGrid3X3,
   TbHeart,
   TbHome,
+  TbLayout2,
+  TbLayoutGrid,
   TbLetterT,
   TbLink,
   TbList,
@@ -29,11 +31,44 @@ import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '@/components/ui/sidebar';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ResourceItem, SortField, SortOrder, ViewMode } from '@/types';
 
+import ExplorerFreeLayout from './components/ExplorerFreeLayout';
 import ExplorerGrid from './components/ExplorerGrid';
 import ExplorerList from './components/ExplorerList';
+import ExplorerMasonry from './components/ExplorerMasonry';
 import FolderSidebar, { type UIFolder } from './components/FolderSidebar';
+import { createDefaultLayoutConfig, loadMasonryLayout, saveMasonryLayout } from './utils/masonryLayout';
+
+const ROOT_VIEW_MODE_KEY = 'resource-view-mode-root';
+const DEFAULT_VIEW_MODE: ViewMode = 'grid';
+const VIEW_MODE_OPTIONS = ['grid', 'list', 'detail', 'masonry', 'free'] as const;
+
+const isViewModeValue = (value: string | null | undefined): value is ViewMode => {
+  if (!value) return false;
+  return (VIEW_MODE_OPTIONS as readonly string[]).includes(value);
+};
+
+const loadRootViewModePreference = (): ViewMode | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const stored = window.localStorage?.getItem(ROOT_VIEW_MODE_KEY) ?? null;
+    return isViewModeValue(stored) ? stored : null;
+  } catch (err) {
+    console.warn('read root view mode failed', err);
+    return null;
+  }
+};
+
+const saveRootViewModePreference = (mode: ViewMode): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage?.setItem(ROOT_VIEW_MODE_KEY, mode);
+  } catch (err) {
+    console.warn('save root view mode failed', err);
+  }
+};
 
 const ResourcePage: React.FC = () => {
   const [list, setList] = useState<ResourceItem[]>([]);
@@ -43,7 +78,7 @@ const ResourcePage: React.FC = () => {
   const [tagFilter, setTagFilter] = useState<string>(''); // '' means all
   const [typeFilter, setTypeFilter] = useState<string>(''); // empty means all types
   const [favoriteFilter, setFavoriteFilter] = useState<boolean>(false); // false means all, true means favorites only
-  const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [viewMode, setViewMode] = useState<ViewMode>(DEFAULT_VIEW_MODE);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sortField, setSortField] = useState<SortField>('collectedAt');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
@@ -180,6 +215,37 @@ const ResourcePage: React.FC = () => {
     };
   }, [load, loadTags, loadFolders]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const applyPreferredViewMode = async () => {
+      if (!folderFilter) {
+        const stored = loadRootViewModePreference();
+        if (!cancelled) {
+          setViewMode(stored ?? DEFAULT_VIEW_MODE);
+        }
+        return;
+      }
+
+      try {
+        const config = await loadMasonryLayout(folderFilter);
+        if (!cancelled) {
+          setViewMode(config?.viewMode ?? DEFAULT_VIEW_MODE);
+        }
+      } catch {
+        if (!cancelled) {
+          setViewMode(DEFAULT_VIEW_MODE);
+        }
+      }
+    };
+
+    applyPreferredViewMode();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [folderFilter]);
+
   const filtered = useMemo(() => {
     if (!wsFilter) return [] as any[];
     let filtered = list.filter((r: any) => r.workspaceId === wsFilter);
@@ -242,6 +308,42 @@ const ResourcePage: React.FC = () => {
 
     return filtered;
   }, [list, wsFilter, typeFilter, favoriteFilter, searchQuery, sortField, sortOrder, folderFilter, tagFilter]);
+
+  const currentFolderResourceIds = useMemo(() => {
+    if (!folderFilter) return [] as string[];
+    return list.filter((r) => (r as any).folderId === folderFilter).map((r) => r.id);
+  }, [list, folderFilter]);
+
+  const persistViewMode = useCallback(
+    async (mode: ViewMode) => {
+      if (!folderFilter) {
+        saveRootViewModePreference(mode);
+        return;
+      }
+      try {
+        let config = await loadMasonryLayout(folderFilter);
+        if (!config) {
+          config = createDefaultLayoutConfig(currentFolderResourceIds, mode);
+        }
+        const updatedConfig = { ...config, viewMode: mode };
+        await saveMasonryLayout(folderFilter, updatedConfig);
+      } catch (err) {
+        console.warn('persist view mode failed', err);
+      }
+    },
+    [folderFilter, currentFolderResourceIds]
+  );
+
+  const handleViewModeChange = useCallback(
+    (mode: ViewMode) => {
+      setViewMode((prev) => {
+        if (prev === mode) return prev;
+        void persistViewMode(mode);
+        return mode;
+      });
+    },
+    [persistViewMode]
+  );
 
   // 计算各文件夹资源数量（按当前默认空间；不受类型/标签筛选影响）
   const folderCounts = useMemo(() => {
@@ -636,14 +738,26 @@ const ResourcePage: React.FC = () => {
                   </div>
                   <div className="space-y-2">
                     <div className="text-xs font-medium text-muted-foreground">展示模式</div>
-                    <div className="flex gap-2">
-                      <Button className="flex-1 h-8" variant={viewMode === 'grid' ? 'default' : 'outline'} onClick={() => setViewMode('grid')}>
-                        <TbGrid3X3 className="mr-1" /> 网格
-                      </Button>
-                      <Button className="flex-1 h-8" variant={viewMode === 'list' ? 'default' : 'outline'} onClick={() => setViewMode('list')}>
-                        <TbList className="mr-1" /> 列表
-                      </Button>
-                    </div>
+                    <Tabs value={viewMode} onValueChange={(value) => handleViewModeChange(value as ViewMode)}>
+                      <TabsList className="w-full">
+                        <TabsTrigger value="grid" className="flex-1 gap-1">
+                          <TbGrid3X3 />
+                          网格
+                        </TabsTrigger>
+                        <TabsTrigger value="list" className="flex-1 gap-1">
+                          <TbList />
+                          列表
+                        </TabsTrigger>
+                        <TabsTrigger value="masonry" className="flex-1 gap-1">
+                          <TbLayoutGrid />
+                          瀑布
+                        </TabsTrigger>
+                        <TabsTrigger value="free" className="flex-1 gap-1">
+                          <TbLayout2 />
+                          自由
+                        </TabsTrigger>
+                      </TabsList>
+                    </Tabs>
                   </div>
                 </PopoverContent>
               </Popover>
@@ -828,7 +942,7 @@ const ResourcePage: React.FC = () => {
                 onToggleFavorite={handleToggleFavorite}
                 onToggleVisibility={handleToggleVisibility}
               />
-            ) : (
+            ) : viewMode === 'list' ? (
               <ExplorerList
                 items={filtered}
                 folders={childFolders}
@@ -844,6 +958,58 @@ const ResourcePage: React.FC = () => {
                 onRenameFolder={handleRenameFolder}
                 onDeleteFolder={handleDeleteFolder}
                 onOpenFolderLocation={handleOpenFolderLocation}
+              />
+            ) : viewMode === 'free' ? (
+              <ExplorerFreeLayout
+                items={filtered}
+                folderId={folderFilter || undefined}
+                selectedItems={selectedItems}
+                onItemClick={handleItemClick}
+                onToggleFavorite={handleToggleFavorite}
+                onToggleVisibility={handleToggleVisibility}
+                onPreview={(item, index) => {
+                  window.YUA.window['window:open']('resourcePreview', {
+                    current: item,
+                    list: filtered,
+                    index
+                  });
+                }}
+                draggable
+                onDragStart={(e, item, ids) => {
+                  try {
+                    e.dataTransfer.setData('application/x-resource-ids', JSON.stringify(ids));
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.dropEffect = 'move';
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+              />
+            ) : (
+              <ExplorerMasonry
+                items={filtered}
+                folderId={folderFilter || undefined}
+                selectedItems={selectedItems}
+                onItemClick={handleItemClick}
+                onToggleFavorite={handleToggleFavorite}
+                onToggleVisibility={handleToggleVisibility}
+                onPreview={(item, index) => {
+                  window.YUA.window['window:open']('resourcePreview', {
+                    current: item,
+                    list: filtered,
+                    index
+                  });
+                }}
+                draggable
+                onDragStart={(e, item, ids) => {
+                  try {
+                    e.dataTransfer.setData('application/x-resource-ids', JSON.stringify(ids));
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.dropEffect = 'move';
+                  } catch {
+                    /* ignore */
+                  }
+                }}
               />
             )}
           </div>

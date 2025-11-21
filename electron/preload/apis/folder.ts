@@ -1,4 +1,5 @@
 import { ipcRenderer } from 'electron';
+
 import { IPCParams } from '../type';
 
 export type Folder = {
@@ -22,6 +23,8 @@ export type FolderBridgeParams = {
   'folder.softDelete': IPCParams<[{ ids: string[] }], { success: boolean; data: Folder[] }>;
   'folder.restore': IPCParams<[{ ids: string[] }], { success: boolean; data: Folder[] }>;
   'folder.delete': IPCParams<[{ ids: string[]; deleteChildren?: boolean }], { success: boolean; deleted: number }>;
+  'folder.getMasonryLayout': IPCParams<[{ folderId: string }], { success: boolean; data?: any; error?: string }>;
+  'folder.saveMasonryLayout': IPCParams<[{ folderId: string; layout: any }], { success: boolean; error?: string }>;
 };
 
 const methods: Array<keyof FolderBridgeParams> = [
@@ -33,12 +36,12 @@ const methods: Array<keyof FolderBridgeParams> = [
   'folder.softDelete',
   'folder.restore',
   'folder.delete',
+  'folder.getMasonryLayout',
+  'folder.saveMasonryLayout'
 ];
 
 export type FolderBridgeType = {
-  [K in keyof FolderBridgeParams]: (
-    ...args: FolderBridgeParams[K]['request']
-  ) => Promise<FolderBridgeParams[K]['response']>;
+  [K in keyof FolderBridgeParams]: (...args: FolderBridgeParams[K]['request']) => Promise<FolderBridgeParams[K]['response']>;
 };
 
 const bridge: Record<string, any> = {};
@@ -47,5 +50,3 @@ methods.forEach((m) => {
 });
 
 export const folderBridge = bridge as FolderBridgeType;
-
-
