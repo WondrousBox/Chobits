@@ -93,7 +93,7 @@ const FreeLayoutItem = React.forwardRef<HTMLDivElement, FreeLayoutItemProps>(({ 
       {...props}
     >
       {/* 拖拽手柄 - 悬停显示 */}
-      <Button variant="ghost" size="icon" className="drag-handle absolute top-1 left-1 z-50 cursor-move opacity-0 group-hover/item:opacity-100 transition-opacity">
+      <Button variant="ghost" size="icon" className="drag-handle absolute top-0 h-full left-0 z-50 cursor-move opacity-0 group-hover/item:opacity-100 transition-opacity hover:w-6 w-4">
         <TbGripVertical />
       </Button>
 

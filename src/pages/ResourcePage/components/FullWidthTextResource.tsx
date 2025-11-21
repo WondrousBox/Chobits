@@ -53,7 +53,7 @@ const FullWidthTextResource: React.FC<FullWidthTextResourceProps> = ({ item, onP
   }
 
   return (
-    <div className="border rounded-lg bg-card overflow-hidden group">
+    <div className="border rounded-lg bg-card overflow-hidden group border-ring border-solid">
       <div className="absolute top-0 right-0 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
         <Button onClick={onPreview} variant="ghost" size="icon" className="w-8 h-8">
           <TbMaximize />
