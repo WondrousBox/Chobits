@@ -7,12 +7,11 @@ import { Layout, Responsive, WidthProvider } from 'react-grid-layout';
 import { TbGripVertical } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
-import { MasonryLayoutConfig, MasonryLayoutGroup, ResourceItem } from '@/types';
+import { MasonryLayoutConfig, ResourceItem } from '@/types';
 
-import { addResourcesToGroup, createDefaultLayoutConfig, createGroup, loadMasonryLayout, saveMasonryLayout, setResourceFullWidth } from '../utils/masonryLayout';
+import { addResourcesToGroup, createDefaultLayoutConfig, createGroup, loadMasonryLayout, renameGroup, saveMasonryLayout, setGroupLayout, setResourceFullWidth } from '../utils/masonryLayout';
 import { AddToGroupDialog } from './AddToGroupDialog';
 import FullWidthTextResource from './FullWidthTextResource';
-import { GroupEditDialog } from './GroupEditDialog';
 import { MasonryContextMenu } from './MasonryContextMenu';
 import ResourceGalleryItem from './ResourceGalleryItem';
 import { ResourceGroup } from './ResourceGroup';
@@ -106,8 +105,6 @@ export const ExplorerFreeLayout: React.FC<ExplorerFreeLayoutProps> = ({ items, f
   const [loading, setLoading] = useState(true);
 
   // 状态管理
-  const [groupEditOpen, setGroupEditOpen] = useState(false);
-  const [editingGroup, setEditingGroup] = useState<MasonryLayoutGroup | undefined>();
   const [addToGroupOpen, setAddToGroupOpen] = useState(false);
   const [selectedForGroup, setSelectedForGroup] = useState<string[]>([]);
 
@@ -261,16 +258,23 @@ export const ExplorerFreeLayout: React.FC<ExplorerFreeLayoutProps> = ({ items, f
     saveLayout(validLayout, layoutConfig);
   };
 
-  // 辅助函数：保存分组更改
-  const handleSaveGroup = (name: string, layout: 'grid' | 'list'): void => {
-    if (!layoutConfig || !editingGroup) return;
-    const updatedConfig = { ...layoutConfig };
-    updatedConfig.groups = updatedConfig.groups?.map((g) => (g.id === editingGroup.id ? { ...g, name, layout } : g));
+  const handleRenameGroupInline = useCallback(
+    (groupId: string, name: string): void => {
+      if (!layoutConfig) return;
+      const updatedConfig = renameGroup(layoutConfig, groupId, name);
+      saveLayout(currentLayout, updatedConfig);
+    },
+    [layoutConfig, currentLayout, saveLayout]
+  );
 
-    saveLayout(currentLayout, updatedConfig);
-    setGroupEditOpen(false);
-    setEditingGroup(undefined);
-  };
+  const handleGroupLayoutQuickChange = useCallback(
+    (groupId: string, layout: 'grid' | 'list'): void => {
+      if (!layoutConfig) return;
+      const updatedConfig = setGroupLayout(layoutConfig, groupId, layout);
+      saveLayout(currentLayout, updatedConfig);
+    },
+    [layoutConfig, currentLayout, saveLayout]
+  );
 
   const handleAddToGroup = (groupId: string): void => {
     if (!layoutConfig) return;
@@ -385,10 +389,8 @@ export const ExplorerFreeLayout: React.FC<ExplorerFreeLayoutProps> = ({ items, f
               onToggleVisibility={onToggleVisibility}
               onPreview={onPreview as any}
               draggable={false}
-              onEditGroup={() => {
-                setEditingGroup(group);
-                setGroupEditOpen(true);
-              }}
+              onRenameGroup={handleRenameGroupInline}
+              onEditGroupLayout={handleGroupLayoutQuickChange}
               onDeleteGroup={async (gid) => {
                 // 删除分组：资源释放回顶层
                 const updatedGroups = layoutConfig.groups?.filter((g) => g.id !== gid) || [];
@@ -443,8 +445,6 @@ export const ExplorerFreeLayout: React.FC<ExplorerFreeLayoutProps> = ({ items, f
       >
         {renderItems}
       </ResponsiveGridLayout>
-
-      <GroupEditDialog open={groupEditOpen} onOpenChange={setGroupEditOpen} group={editingGroup} onSave={handleSaveGroup} />
 
       <AddToGroupDialog open={addToGroupOpen} onOpenChange={setAddToGroupOpen} groups={layoutConfig?.groups || []} onAdd={handleAddToGroup} />
     </div>

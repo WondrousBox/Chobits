@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { TbLayoutGrid } from 'react-icons/tb';
 import Masonry from 'react-masonry-css';
 
-import { MasonryLayoutConfig, MasonryLayoutGroup, MasonryLayoutItem, ResourceItem } from '@/types';
+import { MasonryLayoutConfig, MasonryLayoutItem, ResourceItem } from '@/types';
 
 import {
   addResourcesToGroup,
@@ -23,7 +23,6 @@ import {
 } from '../utils/masonryLayout';
 import { AddToGroupDialog } from './AddToGroupDialog';
 import FullWidthTextResource from './FullWidthTextResource';
-import { GroupEditDialog } from './GroupEditDialog';
 import { MasonryContextMenu } from './MasonryContextMenu';
 import ResourceGalleryItem from './ResourceGalleryItem';
 import { ResourceGroup } from './ResourceGroup';
@@ -45,8 +44,6 @@ export const ExplorerMasonry: React.FC<ExplorerMasonryProps> = ({ items, folderI
   const [layoutConfig, setLayoutConfig] = useState<MasonryLayoutConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [groupEditOpen, setGroupEditOpen] = useState(false);
-  const [editingGroup, setEditingGroup] = useState<MasonryLayoutGroup | undefined>();
   const [addToGroupOpen, setAddToGroupOpen] = useState(false);
   const [selectedForGroup, setSelectedForGroup] = useState<string[]>([]);
 
@@ -298,29 +295,22 @@ export const ExplorerMasonry: React.FC<ExplorerMasonryProps> = ({ items, folderI
     [layoutConfig, saveLayout]
   );
 
-  // 编辑分组
-  const handleEditGroup = useCallback(
-    (groupId: string) => {
-      const group = layoutConfig?.groups?.find((g) => g.id === groupId);
-      if (group) {
-        setEditingGroup(group);
-        setGroupEditOpen(true);
-      }
+  const handleRenameGroupInline = useCallback(
+    (groupId: string, name: string) => {
+      if (!layoutConfig) return;
+      const updatedConfig = renameGroup(layoutConfig, groupId, name);
+      saveLayout(updatedConfig);
     },
-    [layoutConfig]
+    [layoutConfig, saveLayout]
   );
 
-  // 保存分组编辑
-  const handleSaveGroup = useCallback(
-    (name: string, layout: 'grid' | 'list') => {
-      if (!layoutConfig || !editingGroup) return;
-      let updatedConfig = renameGroup(layoutConfig, editingGroup.id, name);
-      updatedConfig = setGroupLayout(updatedConfig, editingGroup.id, layout);
+  const handleGroupLayoutQuickChange = useCallback(
+    (groupId: string, layout: 'grid' | 'list') => {
+      if (!layoutConfig) return;
+      const updatedConfig = setGroupLayout(layoutConfig, groupId, layout);
       saveLayout(updatedConfig);
-      setGroupEditOpen(false);
-      setEditingGroup(undefined);
     },
-    [layoutConfig, editingGroup, saveLayout]
+    [layoutConfig, saveLayout]
   );
 
   // 删除分组
@@ -487,7 +477,8 @@ export const ExplorerMasonry: React.FC<ExplorerMasonryProps> = ({ items, folderI
                       }}
                       draggable={draggable}
                       onDragStart={onDragStart}
-                      onEditGroup={handleEditGroup}
+                      onRenameGroup={handleRenameGroupInline}
+                      onEditGroupLayout={handleGroupLayoutQuickChange}
                       onDeleteGroup={handleDeleteGroup}
                     />
                   </SortableMasonryItem>
@@ -505,9 +496,6 @@ export const ExplorerMasonry: React.FC<ExplorerMasonryProps> = ({ items, folderI
           ) : null}
         </DragOverlay>
       </DndContext>
-
-      {/* 分组编辑对话框 */}
-      <GroupEditDialog open={groupEditOpen} onOpenChange={setGroupEditOpen} group={editingGroup} onSave={handleSaveGroup} />
 
       {/* 添加到分组对话框 */}
       <AddToGroupDialog open={addToGroupOpen} onOpenChange={setAddToGroupOpen} groups={layoutConfig?.groups || []} onAdd={handleAddToGroup} />
