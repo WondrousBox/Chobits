@@ -9,7 +9,17 @@ import { TbGripVertical } from 'react-icons/tb';
 import { Button } from '@/components/ui/button';
 import { MasonryLayoutConfig, ResourceItem } from '@/types';
 
-import { addResourcesToGroup, createDefaultLayoutConfig, createGroup, loadMasonryLayout, renameGroup, saveMasonryLayout, setGroupLayout, setResourceFullWidth } from '../utils/masonryLayout';
+import {
+  addResourcesToGroup,
+  createDefaultLayoutConfig,
+  createGroup,
+  loadMasonryLayout,
+  renameGroup,
+  saveMasonryLayout,
+  setGroupLayout,
+  setResourceFullWidth,
+  syncLayoutConfigWithResources
+} from '../utils/masonryLayout';
 import FullWidthTextResource from './FullWidthTextResource';
 import { MasonryContextMenu } from './MasonryContextMenu';
 import ResourceGalleryItem from './ResourceGalleryItem';
@@ -219,6 +229,52 @@ export const ExplorerFreeLayout: React.FC<ExplorerFreeLayoutProps> = ({ items, f
     },
     [folderId]
   );
+
+  useEffect(() => {
+    if (!layoutConfig) return;
+    const { config: syncedConfig, addedResourceIds, changed } = syncLayoutConfigWithResources(layoutConfig, items);
+    if (!changed) return;
+
+    const nextLayout = (() => {
+      const resourceIdSet = new Set(items.map((item) => item.id));
+      const groupIdSet = new Set(syncedConfig.groups?.map((g) => g.id));
+
+      const layout = currentLayout.filter((entry) => {
+        if (entry.i.startsWith('resource-')) {
+          const resourceId = entry.i.replace('resource-', '');
+          if (!resourceIdSet.has(resourceId)) return false;
+          const inGroup = syncedConfig.groups?.some((g) => g.resourceIds.includes(resourceId));
+          return !inGroup;
+        }
+        if (entry.i.startsWith('group-')) {
+          const groupId = entry.i.replace('group-', '');
+          return groupIdSet.has(groupId);
+        }
+        return true;
+      });
+
+      addedResourceIds.forEach((resourceId) => {
+        const resource = items.find((item) => item.id === resourceId);
+        if (!resource) return;
+        layout.push({
+          i: `resource-${resourceId}`,
+          x: (layout.length * 3) % 12,
+          y: Infinity,
+          w: resource.type === 'text' ? 12 : 3,
+          h: 4
+        });
+      });
+
+      return layout;
+    })();
+
+    if (folderId) {
+      saveLayout(nextLayout, { ...syncedConfig, gridLayout: nextLayout });
+    } else {
+      setLayoutConfig({ ...syncedConfig, gridLayout: nextLayout });
+      setCurrentLayout(nextLayout);
+    }
+  }, [items, layoutConfig, currentLayout, folderId, saveLayout]);
 
   // 处理高度变化
   const handleHeightChange = useCallback((id: string, height: number): void => {

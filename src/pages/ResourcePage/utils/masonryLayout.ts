@@ -1,4 +1,4 @@
-import type { MasonryLayoutConfig, MasonryLayoutGroup, MasonryLayoutItem, ViewMode } from '@/types';
+import type { MasonryLayoutConfig, MasonryLayoutGroup, MasonryLayoutItem, ResourceItem, ViewMode } from '@/types';
 
 const folderAPI: any = window.YUA?.folder;
 
@@ -219,5 +219,91 @@ export function updateGroupOrder(config: MasonryLayoutConfig, groupIds: string[]
         ...g,
         order: orderMap.get(g.id) ?? g.order ?? 0
       })) || []
+  };
+}
+
+export function syncLayoutConfigWithResources(
+  config: MasonryLayoutConfig,
+  resources: ResourceItem[]
+): {
+  config: MasonryLayoutConfig;
+  addedResourceIds: string[];
+  removedResourceIds: string[];
+  removedGroupIds: string[];
+  changed: boolean;
+} {
+  const resourceIdSet = new Set(resources.map((r) => r.id));
+  const updatedItems: MasonryLayoutItem[] = [];
+  const addedResourceIds: string[] = [];
+  const removedResourceIds: string[] = [];
+
+  let maxOrder = 0;
+
+  config.items.forEach((item) => {
+    if (!resourceIdSet.has(item.resourceId)) {
+      removedResourceIds.push(item.resourceId);
+      return;
+    }
+    updatedItems.push(item);
+    if (item.order !== undefined) {
+      maxOrder = Math.max(maxOrder, item.order);
+    }
+  });
+
+  const existingIds = new Set(updatedItems.map((item) => item.resourceId));
+  let nextOrder = maxOrder + 1;
+
+  resources.forEach((resource) => {
+    if (existingIds.has(resource.id)) return;
+    addedResourceIds.push(resource.id);
+    existingIds.add(resource.id);
+    updatedItems.push({
+      resourceId: resource.id,
+      fullWidth: resource.type === 'text',
+      order: nextOrder++
+    });
+  });
+
+  const updatedGroups: MasonryLayoutGroup[] = [];
+  const removedGroupIds: string[] = [];
+
+  (config.groups || []).forEach((group) => {
+    const filteredIds = group.resourceIds.filter((id) => resourceIdSet.has(id));
+    if (filteredIds.length === 0) {
+      removedGroupIds.push(group.id);
+      return;
+    }
+    if (filteredIds.length === group.resourceIds.length) {
+      updatedGroups.push(group);
+    } else {
+      updatedGroups.push({
+        ...group,
+        resourceIds: filteredIds
+      });
+    }
+  });
+
+  const changed = addedResourceIds.length > 0 || removedResourceIds.length > 0 || removedGroupIds.length > 0;
+
+  if (!changed) {
+    return {
+      config,
+      addedResourceIds,
+      removedResourceIds,
+      removedGroupIds,
+      changed: false
+    };
+  }
+
+  return {
+    config: {
+      ...config,
+      items: updatedItems,
+      groups: updatedGroups
+    },
+    addedResourceIds,
+    removedResourceIds,
+    removedGroupIds,
+    changed: true
   };
 }
