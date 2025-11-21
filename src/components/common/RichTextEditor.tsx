@@ -1,8 +1,9 @@
 import Placeholder from '@tiptap/extension-placeholder';
 import { type Editor, EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import { Bold, Code, Heading1, Heading2, Heading3, Italic, List, ListOrdered, Minus, Quote, Redo, Strikethrough, Undo } from 'lucide-react';
-import { ReactNode, useEffect } from 'react';
+import clsx from 'clsx';
+import { Bold, Heading1, Heading2, Heading3, Italic, List, ListOrdered, Redo, Strikethrough, Undo } from 'lucide-react';
+import { ReactNode, useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -16,13 +17,13 @@ interface RichTextEditorProps {
   toolbarRight?: ReactNode;
 }
 
-const Toolbar = ({ editor, visible, toolbarRight }: { editor: Editor | null; visible: boolean; toolbarRight?: ReactNode }): JSX.Element | null => {
+const Toolbar = ({ editor, visible, toolbarRight, className }: { editor: Editor | null; visible: boolean; toolbarRight?: ReactNode; className?: string }): JSX.Element | null => {
   if (!editor || !visible) {
     return null;
   }
 
   return (
-    <div className="border-b p-1 flex flex-wrap gap-1 items-center justify-between bg-muted/30 transition-opacity">
+    <div className={clsx(['border-b p-1 flex flex-wrap gap-1 items-center justify-between bg-muted/30 transition-opacity'], className)}>
       <div className="flex flex-wrap gap-1 items-center">
         <Button variant="ghost" size="icon" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} title="Undo" className="w-8 h-8">
           <Undo />
@@ -103,6 +104,8 @@ const Toolbar = ({ editor, visible, toolbarRight }: { editor: Editor | null; vis
 };
 
 export const RichTextEditor = ({ value, onChange, placeholder, className, toolbarRight }: RichTextEditorProps): JSX.Element => {
+  const [isFocused, setIsFocused] = useState(false);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -117,6 +120,12 @@ export const RichTextEditor = ({ value, onChange, placeholder, className, toolba
     content: value,
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML());
+    },
+    onFocus: () => {
+      setIsFocused(true);
+    },
+    onBlur: () => {
+      setIsFocused(false);
     },
     editorProps: {
       attributes: {
@@ -164,8 +173,8 @@ export const RichTextEditor = ({ value, onChange, placeholder, className, toolba
   }, [value, editor]);
 
   return (
-    <div className={cn('border rounded-md overflow-hidden bg-background flex flex-col', className)}>
-      <Toolbar editor={editor} visible toolbarRight={toolbarRight} />
+    <div className={cn('border rounded-md bg-background flex flex-col relative', className)}>
+      <Toolbar editor={editor} visible={isFocused} toolbarRight={toolbarRight} className="absolute left-0 z-10 w-full box-border -top-8" />
       <div className="flex-1 overflow-y-auto">
         <EditorContent editor={editor} />
       </div>
