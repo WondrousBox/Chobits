@@ -1,6 +1,6 @@
 import prettyBytes from 'pretty-bytes';
 import React, { useCallback, useState } from 'react';
-import { TbAppWindow, TbCalendar, TbCheck, TbClock, TbCopy, TbEye, TbEyeOff, TbFile, TbHeart, TbPlayerPlay, TbStar, TbTag, TbUser } from 'react-icons/tb';
+import { TbAppWindow, TbCalendar, TbCheck, TbClock, TbCopy, TbEye, TbEyeOff, TbHeart, TbLetterT, TbPlayerPlay, TbStar, TbTag, TbUser } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -85,6 +85,10 @@ const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, onClick, on
       <div className="relative flex-shrink-0 w-16 h-16 rounded-md overflow-hidden bg-muted">
         {item.thumbnailPath ? (
           <img src={makeResSrc(item.thumbnailPath)} alt={item.title || ''} className="w-full h-full object-cover" />
+        ) : item.type === 'text' ? (
+          <div className="w-full h-full flex items-center justify-center text-2xl">
+            <TbLetterT />
+          </div>
         ) : (
           <div className="w-full h-full flex items-center justify-center text-2xl">{getResourceTypeIcon(item.type)}</div>
         )}
@@ -104,10 +108,7 @@ const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, onClick, on
         {/* 元数据信息 */}
         <div className="flex items-center gap-4 text-xs text-muted-foreground mb-2">
           {/* 文件大小 */}
-          <span className="flex items-center gap-1">
-            <TbFile className="w-3 h-3" />
-            {prettyBytes(item.sizeBytes || 0)}
-          </span>
+          <span className="flex items-center whitespace-nowrap">{prettyBytes(item.sizeBytes || 0)}</span>
 
           {/* 时长 */}
           {item.durationMs && (
@@ -126,8 +127,8 @@ const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, onClick, on
 
           {/* 收集时间 */}
           {item.collectedAt && (
-            <span className="flex items-center gap-1">
-              <TbCalendar className="w-3 h-3" />
+            <span className="flex items-center gap-1 whitespace-nowrap">
+              <TbCalendar />
               {formatRelativeTime(item.collectedAt)}
             </span>
           )}

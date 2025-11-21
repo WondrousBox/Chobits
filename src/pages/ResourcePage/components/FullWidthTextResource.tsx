@@ -1,7 +1,8 @@
-import { EditorContent, useEditor } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
 import React, { useEffect, useState } from 'react';
+import { TbMaximize } from 'react-icons/tb';
 
+import { RichTextEditor } from '@/components/common/RichTextEditor';
+import { Button } from '@/components/ui/button';
 import { ResourceItem } from '@/types';
 
 interface FullWidthTextResourceProps {
@@ -12,18 +13,28 @@ interface FullWidthTextResourceProps {
 const FullWidthTextResource: React.FC<FullWidthTextResourceProps> = ({ item, onPreview }) => {
   const [content, setContent] = useState<string>('');
 
-  // 加载文本内容
   useEffect(() => {
+    const normalizeContent = (raw: string): string => {
+      if (!raw) return '';
+      const trimmed = raw.trim();
+      const looksLikeHtml = /<\/?[a-z][\s\S]*>/i.test(trimmed);
+      if (looksLikeHtml) return raw;
+      return raw
+        .split('\n')
+        .map((line) => `<p>${line || '<br />'}</p>`)
+        .join('');
+    };
+
     const loadContent = async (): Promise<void> => {
       if (item.contentText) {
-        setContent(item.contentText);
+        setContent(normalizeContent(item.contentText));
         return;
       }
       if (item.filePath) {
         try {
-          const result = await (window as any).YUA?.file['file:readContent'](item.filePath, 50000); // 限制 50KB
+          const result = await (window as any).YUA?.file['file:readContent'](item.filePath, 50000);
           if (result?.success && result.content) {
-            setContent(result.content);
+            setContent(normalizeContent(result.content));
           }
         } catch (e) {
           console.warn('load text content failed', e);
@@ -32,34 +43,6 @@ const FullWidthTextResource: React.FC<FullWidthTextResourceProps> = ({ item, onP
     };
     loadContent();
   }, [item]);
-
-  const editor = useEditor({
-    extensions: [StarterKit],
-    content: content,
-    editable: false, // 只读模式
-    editorProps: {
-      attributes: {
-        class: 'prose prose-sm dark:prose-invert max-w-none focus:outline-none p-4 min-h-[200px]'
-      }
-    }
-  });
-
-  // 当内容变化时更新编辑器
-  useEffect(() => {
-    if (editor && content && editor.getHTML() !== content) {
-      // 如果是纯文本，尝试转换为 HTML
-      if (!content.includes('<') && !content.includes('&')) {
-        // 简单的文本转 HTML：保留换行
-        const htmlContent = content
-          .split('\n')
-          .map((line) => `<p>${line || '<br>'}</p>`)
-          .join('');
-        editor.commands.setContent(htmlContent);
-      } else {
-        editor.commands.setContent(content);
-      }
-    }
-  }, [content, editor]);
 
   if (!content) {
     return (
@@ -70,13 +53,13 @@ const FullWidthTextResource: React.FC<FullWidthTextResourceProps> = ({ item, onP
   }
 
   return (
-    <div className="border rounded-lg bg-card overflow-hidden" onClick={onPreview}>
-      <div className="border-b p-2 bg-muted/30">
-        <h3 className="text-sm font-medium truncate">{item.title || item.filePath?.split('/').pop() || '文本资源'}</h3>
+    <div className="border rounded-lg bg-card overflow-hidden group">
+      <div className="absolute top-0 right-0 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        <Button onClick={onPreview} variant="ghost" size="icon" className="w-8 h-8">
+          <TbMaximize />
+        </Button>
       </div>
-      <div className="overflow-y-auto max-h-[600px]">
-        <EditorContent editor={editor} />
-      </div>
+      <RichTextEditor value={content} onChange={() => { }} editable={false} placeholder="暂无内容" className="border-0 shadow-none" />
     </div>
   );
 };

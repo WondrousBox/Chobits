@@ -123,7 +123,7 @@ export const ExplorerFreeLayout: React.FC<ExplorerFreeLayoutProps> = ({ items, f
       // 如果在分组里，跳过（分组会单独处理）
       if (configItem?.groupId) return;
 
-      const isFullWidth = configItem?.fullWidth || item.type === 'text'; // 文本默认全宽
+      const isFullWidth = configItem?.fullWidth;
       const w = isFullWidth ? 12 : 3;
 
       layout.push({
@@ -356,7 +356,7 @@ export const ExplorerFreeLayout: React.FC<ExplorerFreeLayoutProps> = ({ items, f
       if (!item) return;
 
       const key = `resource-${item.id}`;
-      const isFullWidth = layoutItem.fullWidth || item.type === 'text';
+      const isFullWidth = layoutItem.fullWidth;
 
       let content;
       if (item.type === 'text' && isFullWidth) {
