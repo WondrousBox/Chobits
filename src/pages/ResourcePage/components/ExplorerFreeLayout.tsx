@@ -10,7 +10,6 @@ import { Button } from '@/components/ui/button';
 import { MasonryLayoutConfig, ResourceItem } from '@/types';
 
 import { addResourcesToGroup, createDefaultLayoutConfig, createGroup, loadMasonryLayout, renameGroup, saveMasonryLayout, setGroupLayout, setResourceFullWidth } from '../utils/masonryLayout';
-import { AddToGroupDialog } from './AddToGroupDialog';
 import FullWidthTextResource from './FullWidthTextResource';
 import { MasonryContextMenu } from './MasonryContextMenu';
 import ResourceGalleryItem from './ResourceGalleryItem';
@@ -103,10 +102,6 @@ export const ExplorerFreeLayout: React.FC<ExplorerFreeLayoutProps> = ({ items, f
   const [layoutConfig, setLayoutConfig] = useState<MasonryLayoutConfig | null>(null);
   const [currentLayout, setCurrentLayout] = useState<Layout[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // 状态管理
-  const [addToGroupOpen, setAddToGroupOpen] = useState(false);
-  const [selectedForGroup, setSelectedForGroup] = useState<string[]>([]);
 
   // 生成初始布局
   const generateInitialLayout = useCallback((resources: ResourceItem[], config: MasonryLayoutConfig): Layout[] => {
@@ -276,18 +271,19 @@ export const ExplorerFreeLayout: React.FC<ExplorerFreeLayoutProps> = ({ items, f
     [layoutConfig, currentLayout, saveLayout]
   );
 
-  const handleAddToGroup = (groupId: string): void => {
-    if (!layoutConfig) return;
-    const updatedConfig = addResourcesToGroup(layoutConfig, groupId, selectedForGroup);
+  const handleAddToGroup = useCallback(
+    (groupId: string, resourceIds: string[]) => {
+      if (!layoutConfig || resourceIds.length === 0) return;
+      const updatedConfig = addResourcesToGroup(layoutConfig, groupId, resourceIds);
 
-    // 移除已加入分组的 items 的 layout
-    const idsToRemove = selectedForGroup.map((id) => `resource-${id}`);
-    const nextLayout = currentLayout.filter((l) => !idsToRemove.includes(l.i));
+      // 移除已加入分组的 items 的 layout
+      const idsToRemove = resourceIds.map((id) => `resource-${id}`);
+      const nextLayout = currentLayout.filter((l) => !idsToRemove.includes(l.i));
 
-    saveLayout(nextLayout, updatedConfig);
-    setAddToGroupOpen(false);
-    setSelectedForGroup([]);
-  };
+      saveLayout(nextLayout, updatedConfig);
+    },
+    [layoutConfig, currentLayout, saveLayout]
+  );
 
   // 组织渲染数据
   const renderItems = useMemo(() => {
@@ -359,10 +355,8 @@ export const ExplorerFreeLayout: React.FC<ExplorerFreeLayoutProps> = ({ items, f
 
                 saveLayout(nextLayout, updatedConfig);
               }}
-              onAddToGroup={(ids) => {
-                setSelectedForGroup(ids);
-                setAddToGroupOpen(true);
-              }}
+              groups={layoutConfig?.groups || []}
+              onAddToGroup={(groupId, ids) => handleAddToGroup(groupId, ids)}
             >
               {content}
             </MasonryContextMenu>
@@ -445,8 +439,6 @@ export const ExplorerFreeLayout: React.FC<ExplorerFreeLayoutProps> = ({ items, f
       >
         {renderItems}
       </ResponsiveGridLayout>
-
-      <AddToGroupDialog open={addToGroupOpen} onOpenChange={setAddToGroupOpen} groups={layoutConfig?.groups || []} onAdd={handleAddToGroup} />
     </div>
   );
 };

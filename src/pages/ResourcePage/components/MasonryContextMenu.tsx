@@ -1,8 +1,8 @@
 import React from 'react';
-import { TbLayoutGrid, TbLayoutList, TbMaximize, TbMinimize, TbPlus, TbX } from 'react-icons/tb';
+import { TbMaximize, TbMinimize, TbPlus, TbX } from 'react-icons/tb';
 
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
-import { ResourceItem } from '@/types';
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger } from '@/components/ui/context-menu';
+import { MasonryLayoutGroup, ResourceItem } from '@/types';
 
 interface MasonryContextMenuProps {
   item?: ResourceItem;
@@ -11,7 +11,8 @@ interface MasonryContextMenuProps {
   inGroup?: boolean;
   onSetFullWidth?: (fullWidth: boolean) => void;
   onCreateGroup?: (resourceIds: string[]) => void;
-  onAddToGroup?: (resourceIds: string[]) => void;
+  groups?: MasonryLayoutGroup[];
+  onAddToGroup?: (groupId: string, resourceIds: string[]) => void;
   onRemoveFromGroup?: (resourceIds: string[]) => void;
   children: React.ReactNode;
 }
@@ -23,7 +24,8 @@ export const MasonryContextMenu: React.FC<MasonryContextMenuProps> = ({
   inGroup,
   onSetFullWidth,
   onCreateGroup,
-  onAddToGroup: onAddToGroupProp,
+  groups,
+  onAddToGroup,
   onRemoveFromGroup,
   children
 }) => {
@@ -76,15 +78,29 @@ export const MasonryContextMenu: React.FC<MasonryContextMenuProps> = ({
               </ContextMenuItem>
             )}
 
-            {!inGroup && onAddToGroupProp && (
-              <ContextMenuItem
-                onSelect={() => {
-                  onAddToGroupProp(resourceIds);
-                }}
-              >
-                <TbPlus className="mr-2 w-4 h-4" />
-                添加到分组
-              </ContextMenuItem>
+            {!inGroup && onAddToGroup && (
+              <ContextMenuSub>
+                <ContextMenuSubTrigger>
+                  <TbPlus className="mr-2 w-4 h-4" />
+                  添加到分组
+                </ContextMenuSubTrigger>
+                <ContextMenuSubContent className="min-w-[220px]">
+                  {groups && groups.length > 0 ? (
+                    groups.map((group) => (
+                      <ContextMenuItem
+                        key={group.id}
+                        onSelect={() => {
+                          onAddToGroup(group.id, resourceIds);
+                        }}
+                      >
+                        {group.name || '未命名分组'}
+                      </ContextMenuItem>
+                    ))
+                  ) : (
+                    <ContextMenuItem disabled>暂无可用分组</ContextMenuItem>
+                  )}
+                </ContextMenuSubContent>
+              </ContextMenuSub>
             )}
 
             {inGroup && (
