@@ -21,7 +21,6 @@ import {
   updateGroupOrder,
   updateResourceOrder
 } from '../utils/masonryLayout';
-import { AddToGroupDialog } from './AddToGroupDialog';
 import FullWidthTextResource from './FullWidthTextResource';
 import { MasonryContextMenu } from './MasonryContextMenu';
 import ResourceGalleryItem from './ResourceGalleryItem';
@@ -44,8 +43,6 @@ export const ExplorerMasonry: React.FC<ExplorerMasonryProps> = ({ items, folderI
   const [layoutConfig, setLayoutConfig] = useState<MasonryLayoutConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [addToGroupOpen, setAddToGroupOpen] = useState(false);
-  const [selectedForGroup, setSelectedForGroup] = useState<string[]>([]);
 
   // 自定义碰撞检测算法：优先检测 Droppable (pointerWithin)，如果没检测到则使用 rectIntersection 进行排序检测
   const customCollisionDetection = useCallback((args: any) => {
@@ -268,21 +265,14 @@ export const ExplorerMasonry: React.FC<ExplorerMasonryProps> = ({ items, folderI
   );
 
   // 打开添加到分组对话框
-  const handleOpenAddToGroup = useCallback((resourceIds: string[]) => {
-    setSelectedForGroup(resourceIds);
-    setAddToGroupOpen(true);
-  }, []);
-
   // 添加到分组
   const handleAddToGroup = useCallback(
-    (groupId: string) => {
-      if (!layoutConfig || selectedForGroup.length === 0) return;
-      const updatedConfig = addResourcesToGroup(layoutConfig, groupId, selectedForGroup);
+    (groupId: string, resourceIds: string[]) => {
+      if (!layoutConfig || resourceIds.length === 0) return;
+      const updatedConfig = addResourcesToGroup(layoutConfig, groupId, resourceIds);
       saveLayout(updatedConfig);
-      setAddToGroupOpen(false);
-      setSelectedForGroup([]);
     },
-    [layoutConfig, saveLayout, selectedForGroup]
+    [layoutConfig, saveLayout]
   );
 
   // 从分组移除
@@ -374,7 +364,8 @@ export const ExplorerMasonry: React.FC<ExplorerMasonryProps> = ({ items, folderI
                         isFullWidth={fullWidth}
                         onSetFullWidth={(fw) => handleSetFullWidth(item.id, fw)}
                         onCreateGroup={(ids) => handleCreateGroup(ids)}
-                        onAddToGroup={(ids) => handleOpenAddToGroup(ids)}
+                        groups={layoutConfig?.groups || []}
+                        onAddToGroup={(groupId, ids) => handleAddToGroup(groupId, ids)}
                       >
                         <FullWidthTextResource
                           item={item}
@@ -400,7 +391,8 @@ export const ExplorerMasonry: React.FC<ExplorerMasonryProps> = ({ items, folderI
                         isFullWidth={fullWidth}
                         onSetFullWidth={(fw) => handleSetFullWidth(item.id, fw)}
                         onCreateGroup={(ids) => handleCreateGroup(ids)}
-                        onAddToGroup={(ids) => handleOpenAddToGroup(ids)}
+                        groups={layoutConfig?.groups || []}
+                        onAddToGroup={(groupId, ids) => handleAddToGroup(groupId, ids)}
                       >
                         <ResourceGalleryItem
                           item={item}
@@ -434,7 +426,8 @@ export const ExplorerMasonry: React.FC<ExplorerMasonryProps> = ({ items, folderI
                       isFullWidth={fullWidth}
                       onSetFullWidth={(fw) => handleSetFullWidth(item.id, fw)}
                       onCreateGroup={(ids) => handleCreateGroup(ids)}
-                      onAddToGroup={(ids) => handleOpenAddToGroup(ids)}
+                      groups={layoutConfig?.groups || []}
+                      onAddToGroup={(groupId, ids) => handleAddToGroup(groupId, ids)}
                     >
                       <ResourceGalleryItem
                         item={item}
@@ -496,9 +489,6 @@ export const ExplorerMasonry: React.FC<ExplorerMasonryProps> = ({ items, folderI
           ) : null}
         </DragOverlay>
       </DndContext>
-
-      {/* 添加到分组对话框 */}
-      <AddToGroupDialog open={addToGroupOpen} onOpenChange={setAddToGroupOpen} groups={layoutConfig?.groups || []} onAdd={handleAddToGroup} />
 
       <style>{`
         .masonry-grid {
