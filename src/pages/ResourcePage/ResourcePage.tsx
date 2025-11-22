@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   TbDots,
   TbFile,
@@ -86,6 +86,40 @@ const ResourcePage: React.FC = () => {
   const [folders, setFolders] = useState<UIFolder[]>([]);
   const [folderFilter, setFolderFilter] = useState<string>(''); // '' 表示全部
   const folderAPI: any = window.YUA?.folder;
+  const folderRestoredRef = useRef<string>(''); // 记录已恢复的工作空间ID
+
+  // localStorage key for current folder
+  const getCurrentFolderKey = useCallback(() => {
+    const wsId = wsFilter || 'default';
+    return `resource-current-folder-${wsId}`;
+  }, [wsFilter]);
+
+  // 从 localStorage 加载当前文件夹
+  const loadCurrentFolder = useCallback((): string => {
+    if (typeof window === 'undefined') return '';
+    try {
+      const key = getCurrentFolderKey();
+      const stored = window.localStorage?.getItem(key);
+      return stored || '';
+    } catch (err) {
+      console.warn('load current folder failed', err);
+      return '';
+    }
+  }, [getCurrentFolderKey]);
+
+  // 保存当前文件夹到 localStorage
+  const saveCurrentFolder = useCallback(
+    (folderId: string) => {
+      if (typeof window === 'undefined') return;
+      try {
+        const key = getCurrentFolderKey();
+        window.localStorage?.setItem(key, folderId);
+      } catch (err) {
+        console.warn('save current folder failed', err);
+      }
+    },
+    [getCurrentFolderKey]
+  );
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameId, setRenameId] = useState<string>('');
   const [renameName, setRenameName] = useState<string>('');
@@ -167,6 +201,30 @@ const ResourcePage: React.FC = () => {
     loadFolders();
     loadTags();
   }, [wsFilter, load, loadFolders, loadTags]);
+
+  // 当工作空间切换时，重置恢复标记
+  useEffect(() => {
+    folderRestoredRef.current = '';
+  }, [wsFilter]);
+
+  // 当文件夹加载完成后，恢复当前文件夹（每个工作空间只恢复一次）
+  useEffect(() => {
+    if (!wsFilter || folders.length === 0) return;
+    // 如果已经为当前工作空间恢复过，则不再恢复
+    if (folderRestoredRef.current === wsFilter) return;
+    const savedFolder = loadCurrentFolder();
+    if (savedFolder) {
+      // 验证文件夹是否仍然存在
+      const folderExists = folders.some((f) => f.id === savedFolder);
+      if (folderExists) {
+        setFolderFilter(savedFolder);
+      } else {
+        // 如果保存的文件夹不存在，清除保存的状态
+        saveCurrentFolder('');
+      }
+    }
+    folderRestoredRef.current = wsFilter;
+  }, [wsFilter, folders, loadCurrentFolder, saveCurrentFolder]);
 
   useEffect(() => {
     let mounted = true;
@@ -829,9 +887,14 @@ const ResourcePage: React.FC = () => {
             <FolderSidebar
               folders={folders}
               selectedId={folderFilter || undefined}
-              onSelect={(id) => setFolderFilter(id as string)}
+              onSelect={(id) => {
+                const folderId = id as string;
+                setFolderFilter(folderId);
+                saveCurrentFolder(folderId);
+              }}
               counts={folderCounts}
               allCount={allCount}
+              workspaceId={wsFilter}
               onDropResources={async (folderId, ids) => {
                 await handleMoveResourcesToFolder(folderId, ids);
               }}
@@ -931,7 +994,10 @@ const ResourcePage: React.FC = () => {
                 items={filtered}
                 folders={childFolders}
                 counts={folderCounts}
-                onOpenFolder={(id) => setFolderFilter(id)}
+                onOpenFolder={(id) => {
+                  setFolderFilter(id);
+                  saveCurrentFolder(id);
+                }}
                 onDropResourcesToFolder={(fid, ids) => handleMoveResourcesToFolder(fid, ids)}
                 onMoveFolder={handleMoveFolder}
                 onRenameFolder={handleRenameFolder}
@@ -952,7 +1018,10 @@ const ResourcePage: React.FC = () => {
                 onItemClick={handleItemClick}
                 onToggleFavorite={handleToggleFavorite}
                 onToggleVisibility={handleToggleVisibility}
-                onOpenFolder={(id) => setFolderFilter(id)}
+                onOpenFolder={(id) => {
+                  setFolderFilter(id);
+                  saveCurrentFolder(id);
+                }}
                 onDropResourcesToFolder={(fid, ids) => handleMoveResourcesToFolder(fid, ids)}
                 onMoveFolder={handleMoveFolder}
                 onRenameFolder={handleRenameFolder}
@@ -1017,13 +1086,25 @@ const ResourcePage: React.FC = () => {
           {/* 底部路径与统计栏（固定在右侧列表底部） */}
           <div className="px-3 py-2 text-xs flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-1 text-muted-foreground flex-wrap">
-              <span className={`cursor-pointer hover:underline ${folderFilter ? 'text-primary' : 'text-foreground'} `} onClick={() => setFolderFilter('')}>
+              <span
+                className={`cursor-pointer hover:underline ${folderFilter ? 'text-primary' : 'text-foreground'} `}
+                onClick={() => {
+                  setFolderFilter('');
+                  saveCurrentFolder('');
+                }}
+              >
                 全部
               </span>
               {currentFolderPath.map((f) => (
                 <React.Fragment key={f.id}>
                   <span className="mx-1 text-muted-foreground">/</span>
-                  <span className="cursor-pointer hover:underline text-foreground" onClick={() => setFolderFilter(f.id)}>
+                  <span
+                    className="cursor-pointer hover:underline text-foreground"
+                    onClick={() => {
+                      setFolderFilter(f.id);
+                      saveCurrentFolder(f.id);
+                    }}
+                  >
                     {f.name}
                   </span>
                 </React.Fragment>

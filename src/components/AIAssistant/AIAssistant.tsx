@@ -178,7 +178,7 @@ export const AIAssistant: React.FC = () => {
       onContextMenu={handleContextMenu}
       onClick={handleClick}
       onDoubleClick={async () => {
-        window.YUA.window['window:open']('pluginManager');
+        window.YUA.window['window:open']('assistant');
         // const cfg = await window.YUA.model['model:getConfig']();
         // if (!cfg?.rootDir) {
         //   // 未配置模型目录，先打开模型管理窗口让用户设置

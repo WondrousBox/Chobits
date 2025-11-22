@@ -43,15 +43,69 @@ const FolderSidebar: React.FC<{
   counts?: Record<string, number>;
   allCount?: number;
   onInlineRename?: (id: string, name: string) => Promise<void>;
-}> = ({ folders, selectedId, onSelect, onCreate, onRename, onDelete, onDropResources, onMoveFolder, counts, allCount, onInlineRename }) => {
+  workspaceId?: string;
+}> = ({ folders, selectedId, onSelect, onCreate, onRename, onDelete, onDropResources, onMoveFolder, counts, allCount, onInlineRename, workspaceId }) => {
   const tree = React.useMemo(() => buildTree(folders), [folders]);
 
-  // 管理展开/收起的节点集合，默认首次加载时展开所有有子节点的项
+  // localStorage key for expanded state
+  const getExpandedKey = React.useCallback(() => {
+    const wsId = workspaceId || 'default';
+    return `resource-folder-expanded-${wsId}`;
+  }, [workspaceId]);
+
+  // 从 localStorage 加载展开状态
+  const loadExpandedIds = React.useCallback((): Set<string> => {
+    if (typeof window === 'undefined') return new Set();
+    try {
+      const key = getExpandedKey();
+      const stored = window.localStorage?.getItem(key);
+      if (stored) {
+        const ids = JSON.parse(stored) as string[];
+        return new Set(ids);
+      }
+    } catch (err) {
+      console.warn('load expanded ids failed', err);
+    }
+    return new Set();
+  }, [getExpandedKey]);
+
+  // 保存展开状态到 localStorage
+  const saveExpandedIds = React.useCallback(
+    (ids: Set<string>) => {
+      if (typeof window === 'undefined') return;
+      try {
+        const key = getExpandedKey();
+        const array = Array.from(ids);
+        window.localStorage?.setItem(key, JSON.stringify(array));
+      } catch (err) {
+        console.warn('save expanded ids failed', err);
+      }
+    },
+    [getExpandedKey]
+  );
+
+  // 管理展开/收起的节点集合
   const [expandedIds, setExpandedIds] = React.useState<Set<string>>(new Set());
   const initializedRef = React.useRef(false);
 
   React.useEffect(() => {
     if (initializedRef.current) return;
+    // 先尝试从 localStorage 加载
+    const stored = loadExpandedIds();
+    if (stored.size > 0) {
+      // 验证存储的 ID 是否仍然存在于当前文件夹树中
+      const validIds = new Set<string>();
+      const allFolderIds = new Set(folders.map((f) => f.id));
+      for (const id of stored) {
+        if (allFolderIds.has(id)) {
+          validIds.add(id);
+        }
+      }
+      setExpandedIds(validIds);
+      initializedRef.current = true;
+      return;
+    }
+    // 如果没有存储的状态，默认展开所有有子节点的项
     const ids: string[] = [];
     const walk = (nodes: UIFolder[]): void => {
       for (const n of nodes) {
@@ -62,7 +116,13 @@ const FolderSidebar: React.FC<{
     walk(tree);
     setExpandedIds(new Set(ids));
     initializedRef.current = true;
-  }, [tree]);
+  }, [tree, loadExpandedIds, folders]);
+
+  // 当 expandedIds 改变时保存到 localStorage
+  React.useEffect(() => {
+    if (!initializedRef.current) return;
+    saveExpandedIds(expandedIds);
+  }, [expandedIds, saveExpandedIds]);
 
   // 构建父子映射，便于根据选中项展开祖先链路
   const parentMap = React.useMemo(() => {
@@ -98,14 +158,19 @@ const FolderSidebar: React.FC<{
     });
   }, [selectedId, parentMap]);
 
-  const toggleExpand = React.useCallback((id: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
+  const toggleExpand = React.useCallback(
+    (id: string) => {
+      setExpandedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        // 立即保存到 localStorage
+        saveExpandedIds(next);
+        return next;
+      });
+    },
+    [saveExpandedIds]
+  );
 
   const isExpanded = React.useCallback((id: string) => expandedIds.has(id), [expandedIds]);
   const [inlineEditId, setInlineEditId] = React.useState<string | null>(null);
