@@ -3,7 +3,7 @@ import React, { useCallback, useState } from 'react';
 import { TbAppWindow, TbCalendar, TbCheck, TbClock, TbCopy, TbEye, TbEyeOff, TbHeart, TbLetterT, TbPlayerPlay, TbStar, TbTag, TbUser } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { makeResSrc } from '@/lib/resourceProtocol';
 import { formatDuration, getResourceTypeIcon, getStatusColor, parseTags } from '@/lib/resourceUtils';
 import { formatRelativeTime } from '@/lib/time';
@@ -173,75 +173,65 @@ const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, onClick, on
 
         {/* 播放按钮 */}
         {(item.type === 'audio' || item.type === 'image' || item.type === 'video') && (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant={'ghost'} size={'icon'} onClick={handlePlayClick}>
-                  <TbPlayerPlay />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>播放预览</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant={'ghost'} size={'icon'} onClick={handlePlayClick}>
+                <TbPlayerPlay />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>播放预览</TooltipContent>
+          </Tooltip>
         )}
 
         {/* 收藏按钮 */}
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant={'ghost'} size={'icon'} onClick={handleFavoriteClick} className={`w-8 h-8 ${item.favorite === 1 ? 'text-red-500' : ''}`}>
-                <TbHeart className={`${item.favorite === 1 ? 'fill-current' : ''}`} />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{item.favorite === 1 ? '取消收藏' : '添加收藏'}</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant={'ghost'} size={'icon'} onClick={handleFavoriteClick} className={`w-8 h-8 ${item.favorite === 1 ? 'text-red-500' : ''}`}>
+              <TbHeart className={`${item.favorite === 1 ? 'fill-current' : ''}`} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{item.favorite === 1 ? '取消收藏' : '添加收藏'}</TooltipContent>
+        </Tooltip>
 
         {/* 可见性按钮 */}
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant={'ghost'} size={'icon'} onClick={handleVisibilityClick}>
-                {item.visibility === 'public' ? <TbEye /> : <TbEyeOff />}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{item.visibility === 'public' ? '设为私有' : '设为公开'}</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant={'ghost'} size={'icon'} onClick={handleVisibilityClick}>
+              {item.visibility === 'public' ? <TbEye /> : <TbEyeOff />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{item.visibility === 'public' ? '设为私有' : '设为公开'}</TooltipContent>
+        </Tooltip>
 
         {/* 复制链接按钮 */}
         {item.url && (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant={'ghost'} size={'icon'} onClick={handleSourceClick}>
-                  {copied ? <TbCheck /> : <TbCopy />}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{copied ? '已复制!' : '复制链接'}</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant={'ghost'} size={'icon'} onClick={handleSourceClick}>
+                {copied ? <TbCheck /> : <TbCopy />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{copied ? '已复制!' : '复制链接'}</TooltipContent>
+          </Tooltip>
         )}
 
         {/* 外部链接按钮 */}
         {item.url && (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={'ghost'}
-                  size={'icon'}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    window.open(item.url, '_blank');
-                  }}
-                >
-                  <TbAppWindow />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>在新窗口中打开</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={'ghost'}
+                size={'icon'}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.open(item.url, '_blank');
+                }}
+              >
+                <TbAppWindow />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>在新窗口中打开</TooltipContent>
+          </Tooltip>
         )}
       </div>
     </div>

@@ -7,6 +7,7 @@ import FileActionsMenu from '@/pages/FileActionsMenu/FileActionsMenu';
 import ResourcePreviewWindow from '@/pages/ResourcePage/ResourcePreviewWindow';
 
 import { AIAssistant } from './components/AIAssistant';
+import { TooltipProvider } from './components/ui/tooltip';
 import AssistantMenuPage from './pages/AssistantMenuPage/AssistantMenuPage';
 import AssistantPage from './pages/AssistantPage/AssistantPage';
 import ChatPage from './pages/AssistantPage/ChatPage';
@@ -26,30 +27,32 @@ function App(): JSX.Element {
   return (
     <HashRouter>
       <ChatSelectionProvider>
-        <div className="w-full h-full overflow-hidden">
-          <Routes>
-            <Route path="/" element={<AIAssistant />} />
-            <Route path="/status" element={<StatusPage />} />
-            <Route path="/menu" element={<AssistantMenuPage />} />
-            <Route path="/file-actions" element={<FileActionsMenu />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/workspace-wizard" element={<WorkspaceWizard />} />
-            <Route path="/resources" element={<ResourcePage />} />
-            <Route path="/recycle" element={<RecycleBinPage />} />
-            <Route path="/workspace" element={<WorkspacePage />} />
-            <Route path="/assistant" element={<AssistantPage />} />
-            <Route path="/chat" element={<ChatPage />} />
-            <Route path="/plugin-manager" element={<PluginPage />} />
-            <Route path="/plugin-download" element={<PluginDownloadPage />} />
-            <Route path="/workflow" element={<WorkflowBuilderPage />} />
-            <Route path="/workflow-page" element={<WorkflowPage />} />
-            <Route path="/tagger" element={<TaggingPage />} />
-            <Route path="/resource-preview" element={<ResourcePreviewWindow />} />
-            <Route path="/download" element={<DownloadFloating />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-          <Toaster />
-        </div>
+        <TooltipProvider delayDuration={0}>
+          <div className="w-full h-full overflow-hidden">
+            <Routes>
+              <Route path="/" element={<AIAssistant />} />
+              <Route path="/status" element={<StatusPage />} />
+              <Route path="/menu" element={<AssistantMenuPage />} />
+              <Route path="/file-actions" element={<FileActionsMenu />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/workspace-wizard" element={<WorkspaceWizard />} />
+              <Route path="/resources" element={<ResourcePage />} />
+              <Route path="/recycle" element={<RecycleBinPage />} />
+              <Route path="/workspace" element={<WorkspacePage />} />
+              <Route path="/assistant" element={<AssistantPage />} />
+              <Route path="/chat" element={<ChatPage />} />
+              <Route path="/plugin-manager" element={<PluginPage />} />
+              <Route path="/plugin-download" element={<PluginDownloadPage />} />
+              <Route path="/workflow" element={<WorkflowBuilderPage />} />
+              <Route path="/workflow-page" element={<WorkflowPage />} />
+              <Route path="/tagger" element={<TaggingPage />} />
+              <Route path="/resource-preview" element={<ResourcePreviewWindow />} />
+              <Route path="/download" element={<DownloadFloating />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+            <Toaster />
+          </div>
+        </TooltipProvider>
       </ChatSelectionProvider>
     </HashRouter>
   );

@@ -4,7 +4,7 @@ import { TbFolderFilled, TbFolderOpen, TbPencil, TbTrash } from 'react-icons/tb'
 import { toast } from 'sonner';
 
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ResourceItem } from '@/types';
 
 import type { UIFolder } from './FolderSidebar';
@@ -46,105 +46,103 @@ const GridFolderTile: React.FC<{
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <TooltipProvider delayDuration={0}>
-          <Tooltip open={overInvalid || tipOpen}>
-            <TooltipTrigger asChild>
-              <div
-                data-explorer-folder
-                onContextMenu={(e) => e.stopPropagation()}
-                className={`group relative aspect-video w-full overflow-hidden rounded-md border bg-card text-card-foreground shadow-sm transition-all cursor-pointer select-none ${over
-                    ? overInvalid
-                      ? 'ring-2 ring-destructive border-destructive/50 bg-destructive/10'
-                      : 'ring-2 ring-primary border-primary/50 bg-primary/5'
-                    : 'hover:shadow-md hover:border-primary/30'
-                  } bg-gradient-to-br from-background to-muted flex items-center justify-center`}
-                onClick={() => onOpen?.()}
-                draggable
-                onDragStart={(e) => {
-                  try {
-                    e.dataTransfer.setData('application/x-folder-id', folder.id);
-                    e.dataTransfer.effectAllowed = 'move';
-                  } catch {
-                    /* noop */
+        <Tooltip open={overInvalid || tipOpen}>
+          <TooltipTrigger asChild>
+            <div
+              data-explorer-folder
+              onContextMenu={(e) => e.stopPropagation()}
+              className={`group relative aspect-video w-full overflow-hidden rounded-md border bg-card text-card-foreground shadow-sm transition-all cursor-pointer select-none ${over
+                  ? overInvalid
+                    ? 'ring-2 ring-destructive border-destructive/50 bg-destructive/10'
+                    : 'ring-2 ring-primary border-primary/50 bg-primary/5'
+                  : 'hover:shadow-md hover:border-primary/30'
+                } bg-gradient-to-br from-background to-muted flex items-center justify-center`}
+              onClick={() => onOpen?.()}
+              draggable
+              onDragStart={(e) => {
+                try {
+                  e.dataTransfer.setData('application/x-folder-id', folder.id);
+                  e.dataTransfer.effectAllowed = 'move';
+                } catch {
+                  /* noop */
+                }
+                setDraggingFolderId?.(folder.id);
+              }}
+              onDragEnd={() => setDraggingFolderId?.(null)}
+              onDragOver={(e) => {
+                const types = Array.from((e.dataTransfer?.types as any) || []);
+                const dragging = draggingFolderId || (types.includes('application/x-folder-id') ? null : null);
+                if (dragging) {
+                  const invalid = dragging === folder.id || isAncestor(dragging, folder.id);
+                  setOverInvalid(invalid);
+                  if (!invalid) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    setOver(true);
+                  } else {
+                    setOver(false);
+                    e.dataTransfer.dropEffect = 'none';
                   }
-                  setDraggingFolderId?.(folder.id);
-                }}
-                onDragEnd={() => setDraggingFolderId?.(null)}
-                onDragOver={(e) => {
-                  const types = Array.from((e.dataTransfer?.types as any) || []);
-                  const dragging = draggingFolderId || (types.includes('application/x-folder-id') ? null : null);
-                  if (dragging) {
-                    const invalid = dragging === folder.id || isAncestor(dragging, folder.id);
-                    setOverInvalid(invalid);
-                    if (!invalid) {
-                      e.preventDefault();
-                      e.dataTransfer.dropEffect = 'move';
-                      setOver(true);
+                  return;
+                }
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                setOver(true);
+              }}
+              onDragLeave={() => {
+                setOver(false);
+                setOverInvalid(false);
+                setTipOpen(false);
+              }}
+              onDrop={async (e) => {
+                setOver(false);
+                setOverInvalid(false);
+                setTipOpen(false);
+                try {
+                  const fid = e.dataTransfer.getData('application/x-folder-id');
+                  if (fid) {
+                    if (fid !== folder.id && !isAncestor(fid, folder.id)) {
+                      try {
+                        if (onMoveFolder) await onMoveFolder(fid, folder.id);
+                      } catch (err) {
+                        const msg = String((err as any)?.message || err || '');
+                        const isUnique = /UNIQUE|constraint/i.test(msg);
+                        if (isUnique) {
+                          toast.error('移动文件夹失败', { description: '目标文件夹内已存在同名文件夹' });
+                        } else {
+                          toast.error('移动文件夹失败');
+                        }
+                      }
                     } else {
-                      setOver(false);
-                      e.dataTransfer.dropEffect = 'none';
+                      setTipOpen(true);
+                      setTimeout(() => setTipOpen(false), 1200);
                     }
                     return;
                   }
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = 'move';
-                  setOver(true);
-                }}
-                onDragLeave={() => {
-                  setOver(false);
-                  setOverInvalid(false);
-                  setTipOpen(false);
-                }}
-                onDrop={async (e) => {
-                  setOver(false);
-                  setOverInvalid(false);
-                  setTipOpen(false);
-                  try {
-                    const fid = e.dataTransfer.getData('application/x-folder-id');
-                    if (fid) {
-                      if (fid !== folder.id && !isAncestor(fid, folder.id)) {
-                        try {
-                          if (onMoveFolder) await onMoveFolder(fid, folder.id);
-                        } catch (err) {
-                          const msg = String((err as any)?.message || err || '');
-                          const isUnique = /UNIQUE|constraint/i.test(msg);
-                          if (isUnique) {
-                            toast.error('移动文件夹失败', { description: '目标文件夹内已存在同名文件夹' });
-                          } else {
-                            toast.error('移动文件夹失败');
-                          }
-                        }
-                      } else {
-                        setTipOpen(true);
-                        setTimeout(() => setTipOpen(false), 1200);
-                      }
-                      return;
-                    }
-                  } catch {
-                    /* ignore folder move */
-                  }
-                  try {
-                    const raw = e.dataTransfer.getData('application/x-resource-ids');
-                    if (!raw) return;
-                    const ids: string[] = JSON.parse(raw);
-                    if (Array.isArray(ids) && ids.length) onDropResources?.(ids);
-                  } catch {
-                    /* ignore */
-                  }
-                }}
-              >
-                <div className="text-center relative">
-                  <div className="text-5xl text-muted-foreground/80 mb-2">
-                    <TbFolderFilled />
-                  </div>
-                  <div className="text-sm font-medium truncate max-w-[90%] mx-auto">{folder.name}</div>
-                  {typeof count === 'number' && <span className="absolute top-1 right-1 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full shadow">{count}</span>}
+                } catch {
+                  /* ignore folder move */
+                }
+                try {
+                  const raw = e.dataTransfer.getData('application/x-resource-ids');
+                  if (!raw) return;
+                  const ids: string[] = JSON.parse(raw);
+                  if (Array.isArray(ids) && ids.length) onDropResources?.(ids);
+                } catch {
+                  /* ignore */
+                }
+              }}
+            >
+              <div className="text-center relative">
+                <div className="text-5xl text-muted-foreground/80 mb-2">
+                  <TbFolderFilled />
                 </div>
+                <div className="text-sm font-medium truncate max-w-[90%] mx-auto">{folder.name}</div>
+                {typeof count === 'number' && <span className="absolute top-1 right-1 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full shadow">{count}</span>}
               </div>
-            </TooltipTrigger>
-            <TooltipContent side="top">不能移动到自己的子文件夹中</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="top">不能移动到自己的子文件夹中</TooltipContent>
+        </Tooltip>
       </ContextMenuTrigger>
       <ContextMenuContent className="min-w-[200px]" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
         <ContextMenuItem onSelect={onOpen}>打开</ContextMenuItem>
