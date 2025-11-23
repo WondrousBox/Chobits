@@ -19,11 +19,13 @@ interface GalleryItemProps {
   onDragStart?: (e: React.DragEvent<HTMLDivElement>, item: ResourceItem) => void;
   // Ask parent to open preview (centralized in parent)
   onPreview?: (item: ResourceItem) => void;
+  // 是否占满容器（自由布局中使用），否则保持视频比例（网格布局中使用）
+  fillContainer?: boolean;
 }
 
 // Basic preview: if resource has a filePath with image extension, show <img>. Otherwise show a placeholder.
 
-const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onClick, onToggleFavorite, onToggleVisibility, innerRef, draggable, onDragStart, onPreview }) => {
+const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onClick, onToggleFavorite, onToggleVisibility, innerRef, draggable, onDragStart, onPreview, fillContainer = false }) => {
   const [copied, setCopied] = useState(false);
   const summary = getResourceSummary(item);
   const thumbSrc = (item as any).thumbnailPath ? makeResSrc((item as any).thumbnailPath) : undefined;
@@ -103,7 +105,7 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
       onClick={handleClick}
       draggable={!!draggable}
       onDragStart={(e) => onDragStart?.(e, item)}
-      className={`group relative aspect-video w-full overflow-hidden rounded-md border bg-card text-card-foreground shadow-sm transition-all cursor-pointer select-none ${selected ? 'ring-2 ring-primary border-primary/50' : 'hover:shadow-md hover:border-primary/30'} bg-gradient-to-br from-background to-muted`}
+      className={`group relative ${fillContainer ? 'h-full w-full' : 'aspect-video w-full'} overflow-hidden rounded-md border bg-card text-card-foreground shadow-sm transition-all cursor-pointer select-none ${selected ? 'ring-2 ring-primary border-primary/50' : 'hover:shadow-md hover:border-primary/30'} bg-gradient-to-br from-background to-muted`}
     >
       {/* 顶部状态栏 */}
       <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between bg-gradient-to-b from-black/80 via-black/40 to-transparent px-2 py-1.5">
