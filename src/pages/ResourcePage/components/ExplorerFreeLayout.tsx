@@ -1,6 +1,7 @@
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 
+import clsx from 'clsx';
 import { debounce } from 'lodash-es';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Layout, Responsive, WidthProvider } from 'react-grid-layout';
@@ -85,7 +86,7 @@ const FreeLayoutItem = React.forwardRef<HTMLDivElement, FreeLayoutItemProps>(({ 
   return (
     <div
       ref={combinedRef}
-      className={`${className} group/item bg-card rounded-lg border shadow-sm overflow-hidden relative`}
+      className={clsx([`group/item bg-card rounded-lg border shadow-sm overflow-hidden relative h-full w-full`, className])}
       style={{ ...style, display: 'flex', flexDirection: 'column' }}
       onMouseDown={onMouseDown}
       onMouseUp={onMouseUp}
@@ -313,11 +314,15 @@ export const ExplorerFreeLayout: React.FC<ExplorerFreeLayoutProps> = ({ items, f
     const { config: syncedConfig, addedResourceIds, changed } = syncLayoutConfigWithResources(layoutConfig, items);
     if (!changed) return;
 
+    // 只在 items 变化时重新计算布局，使用 layoutConfig.gridLayout 而不是 currentLayout
+    // 这样可以避免在拖拽后因为 currentLayout 变化而触发布局重置
+    const baseLayout = layoutConfig.gridLayout || currentLayout;
+
     const nextLayout = (() => {
       const resourceIdSet = new Set(items.map((item) => item.id));
       const groupIdSet = new Set(syncedConfig.groups?.map((g) => g.id));
 
-      const layout = currentLayout.filter((entry) => {
+      const layout = baseLayout.filter((entry) => {
         if (entry.i.startsWith('resource-')) {
           const resourceId = entry.i.replace('resource-', '');
           if (!resourceIdSet.has(resourceId)) return false;
@@ -347,7 +352,7 @@ export const ExplorerFreeLayout: React.FC<ExplorerFreeLayoutProps> = ({ items, f
     })();
 
     saveLayout(nextLayout, { ...syncedConfig, gridLayout: nextLayout });
-  }, [items, layoutConfig, currentLayout, saveLayout]);
+  }, [items, layoutConfig, saveLayout]); // 移除 currentLayout 依赖
 
   // 处理高度变化
   const handleHeightChange = useCallback((id: string, height: number): void => {
@@ -367,6 +372,20 @@ export const ExplorerFreeLayout: React.FC<ExplorerFreeLayoutProps> = ({ items, f
     });
   }, []);
 
+  // 防抖保存布局的函数引用
+  const debouncedSaveLayoutRef = useRef<ReturnType<typeof debounce>>();
+
+  // 初始化防抖函数
+  useEffect(() => {
+    debouncedSaveLayoutRef.current = debounce((layout: Layout[], config: MasonryLayoutConfig) => {
+      saveLayout(layout, config);
+    }, 300);
+
+    return () => {
+      debouncedSaveLayoutRef.current?.cancel();
+    };
+  }, [saveLayout]);
+
   // RGL 布局改变回调
   const onLayoutChange = (layout: Layout[]): void => {
     if (!layoutConfig) return;
@@ -378,8 +397,10 @@ export const ExplorerFreeLayout: React.FC<ExplorerFreeLayoutProps> = ({ items, f
       h: currentLayout.find((cl) => cl.i === l.i)?.h || l.h
     }));
 
+    // 立即更新 currentLayout 以反映拖拽变化
     setCurrentLayout(validLayout);
-    saveLayout(validLayout, layoutConfig);
+    // 使用防抖保存，避免频繁保存导致布局重置
+    debouncedSaveLayoutRef.current?.(validLayout, layoutConfig);
   };
 
   const handleRenameGroupInline = useCallback(
@@ -444,6 +465,7 @@ export const ExplorerFreeLayout: React.FC<ExplorerFreeLayoutProps> = ({ items, f
             onToggleVisibility={onToggleVisibility}
             onPreview={() => onPreview?.(item, items.indexOf(item), items)}
             draggable={false} // 禁用内部拖拽，使用 RGL 的拖拽
+            fillContainer={true} // 自由布局中占满容器分配的宽高
           />
         );
       }

@@ -129,3 +129,7 @@ button {
   background-color: unset;
   padding: 0;
 }
+
+.react-grid-item > .react-resizable-handle.react-resizable-handle-se {
+  z-index: 100;
+}

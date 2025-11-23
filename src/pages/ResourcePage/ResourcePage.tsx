@@ -8,7 +8,6 @@ import {
   TbHeart,
   TbHome,
   TbLayout2,
-  TbLayoutGrid,
   TbLetterT,
   TbLink,
   TbList,
@@ -37,13 +36,12 @@ import { ResourceItem, SortField, SortOrder, ViewMode } from '@/types';
 import ExplorerFreeLayout from './components/ExplorerFreeLayout';
 import ExplorerGrid from './components/ExplorerGrid';
 import ExplorerList from './components/ExplorerList';
-import ExplorerMasonry from './components/ExplorerMasonry';
 import FolderSidebar, { type UIFolder } from './components/FolderSidebar';
 import { createDefaultLayoutConfig, loadMasonryLayout, saveMasonryLayout } from './utils/masonryLayout';
 
 const ROOT_VIEW_MODE_KEY = 'resource-view-mode-root';
 const DEFAULT_VIEW_MODE: ViewMode = 'grid';
-const VIEW_MODE_OPTIONS = ['grid', 'list', 'detail', 'masonry', 'free'] as const;
+const VIEW_MODE_OPTIONS = ['grid', 'list', 'detail', 'free'] as const;
 
 const isViewModeValue = (value: string | null | undefined): value is ViewMode => {
   if (!value) return false;
@@ -288,7 +286,15 @@ const ResourcePage: React.FC = () => {
       try {
         const config = await loadMasonryLayout(folderFilter);
         if (!cancelled) {
-          setViewMode(config?.viewMode ?? DEFAULT_VIEW_MODE);
+          // 如果之前保存的是 masonry 视图模式，回退到默认视图模式
+          const savedViewMode = config?.viewMode;
+          const validViewMode = savedViewMode && isViewModeValue(savedViewMode) ? savedViewMode : DEFAULT_VIEW_MODE;
+          setViewMode(validViewMode);
+          // 如果保存的是无效的视图模式，更新配置
+          if (savedViewMode && !isViewModeValue(savedViewMode)) {
+            const updatedConfig = { ...config, viewMode: validViewMode };
+            await saveMasonryLayout(folderFilter, updatedConfig);
+          }
         }
       } catch {
         if (!cancelled) {
@@ -720,6 +726,19 @@ const ResourcePage: React.FC = () => {
         actions={
           <>
             <div className="flex items-center gap-2">
+              <Tabs value={viewMode} onValueChange={(value) => handleViewModeChange(value as ViewMode)}>
+                <TabsList className="w-full">
+                  <TabsTrigger value="grid" className="flex-1 gap-1">
+                    <TbGrid3X3 />
+                  </TabsTrigger>
+                  <TabsTrigger value="list" className="flex-1 gap-1">
+                    <TbList />
+                  </TabsTrigger>
+                  <TabsTrigger value="free" className="flex-1 gap-1">
+                    <TbLayout2 />
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
               {/* 资源数量统计移至底部路径栏 */}
               <Button
                 size="icon"
@@ -793,29 +812,6 @@ const ResourcePage: React.FC = () => {
                         <SelectItem value="rating-asc">评分 ↑</SelectItem>
                       </SelectContent>
                     </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="text-xs font-medium text-muted-foreground">展示模式</div>
-                    <Tabs value={viewMode} onValueChange={(value) => handleViewModeChange(value as ViewMode)}>
-                      <TabsList className="w-full">
-                        <TabsTrigger value="grid" className="flex-1 gap-1">
-                          <TbGrid3X3 />
-                          网格
-                        </TabsTrigger>
-                        <TabsTrigger value="list" className="flex-1 gap-1">
-                          <TbList />
-                          列表
-                        </TabsTrigger>
-                        <TabsTrigger value="masonry" className="flex-1 gap-1">
-                          <TbLayoutGrid />
-                          瀑布
-                        </TabsTrigger>
-                        <TabsTrigger value="free" className="flex-1 gap-1">
-                          <TbLayout2 />
-                          自由
-                        </TabsTrigger>
-                      </TabsList>
-                    </Tabs>
                   </div>
                 </PopoverContent>
               </Popover>
@@ -1054,33 +1050,7 @@ const ResourcePage: React.FC = () => {
                   }
                 }}
               />
-            ) : (
-              <ExplorerMasonry
-                items={filtered}
-                folderId={folderFilter || undefined}
-                selectedItems={selectedItems}
-                onItemClick={handleItemClick}
-                onToggleFavorite={handleToggleFavorite}
-                onToggleVisibility={handleToggleVisibility}
-                onPreview={(item, index) => {
-                  window.YUA.window['window:open']('resourcePreview', {
-                    current: item,
-                    list: filtered,
-                    index
-                  });
-                }}
-                draggable
-                onDragStart={(e, item, ids) => {
-                  try {
-                    e.dataTransfer.setData('application/x-resource-ids', JSON.stringify(ids));
-                    e.dataTransfer.effectAllowed = 'move';
-                    e.dataTransfer.dropEffect = 'move';
-                  } catch {
-                    /* ignore */
-                  }
-                }}
-              />
-            )}
+            ) : null}
           </div>
 
           {/* 底部路径与统计栏（固定在右侧列表底部） */}

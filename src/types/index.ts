@@ -69,7 +69,7 @@ export interface ResourceItem {
   workspaceId?: string;
 }
 
-export type ViewMode = 'grid' | 'list' | 'detail' | 'masonry' | 'free';
+export type ViewMode = 'grid' | 'list' | 'detail' | 'free';
 export type SortField = 'title' | 'createdAt' | 'collectedAt' | 'sizeBytes' | 'rating' | 'type';
 export type SortOrder = 'asc' | 'desc';
 
