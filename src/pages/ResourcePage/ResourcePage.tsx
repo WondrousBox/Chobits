@@ -1,26 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  TbDots,
-  TbFile,
-  TbFileDescription,
-  TbFilter,
-  TbGrid3X3,
-  TbHeart,
-  TbHome,
-  TbLayout2,
-  TbLetterT,
-  TbLink,
-  TbList,
-  TbMusic,
-  TbPhoto,
-  TbRefresh,
-  TbRobot,
-  TbSearch,
-  TbTrash,
-  TbVideo,
-  TbX
-} from 'react-icons/tb';
-import { toast } from 'sonner';
+import { TbFilter, TbGrid3X3, TbHeart, TbLayout2, TbList, TbRefresh, TbRobot, TbSearch, TbTrash, TbX } from 'react-icons/tb';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
@@ -31,60 +10,77 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '@/components/ui/sidebar';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import DefaultEmptyFolder from '@/pages/ResourcePage/components/DefaultEmptyFolder';
-import { ResourceItem, SortField, SortOrder, ViewMode } from '@/types';
+import { SortField, SortOrder, ViewMode } from '@/types';
 
 import ExplorerFreeLayout from './components/ExplorerFreeLayout';
 import ExplorerGrid from './components/ExplorerGrid';
 import ExplorerList from './components/ExplorerList';
 import FolderSidebar, { type UIFolder } from './components/FolderSidebar';
-import { createDefaultLayoutConfig, loadMasonryLayout, saveMasonryLayout } from './utils/masonryLayout';
-
-const ROOT_VIEW_MODE_KEY = 'resource-view-mode-root';
-const DEFAULT_VIEW_MODE: ViewMode = 'grid';
-const VIEW_MODE_OPTIONS = ['grid', 'list', 'detail', 'free'] as const;
-
-const isViewModeValue = (value: string | null | undefined): value is ViewMode => {
-  if (!value) return false;
-  return (VIEW_MODE_OPTIONS as readonly string[]).includes(value);
-};
-
-const loadRootViewModePreference = (): ViewMode | null => {
-  if (typeof window === 'undefined') return null;
-  try {
-    const stored = window.localStorage?.getItem(ROOT_VIEW_MODE_KEY) ?? null;
-    return isViewModeValue(stored) ? stored : null;
-  } catch (err) {
-    console.warn('read root view mode failed', err);
-    return null;
-  }
-};
-
-const saveRootViewModePreference = (mode: ViewMode): void => {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage?.setItem(ROOT_VIEW_MODE_KEY, mode);
-  } catch (err) {
-    console.warn('save root view mode failed', err);
-  }
-};
+import { useFolderOperations } from './hooks/useFolderOperations';
+import { useResourceData } from './hooks/useResourceData';
+import { useResourceFilter } from './hooks/useResourceFilter';
+import { useResourceOperations } from './hooks/useResourceOperations';
+import { useViewMode } from './hooks/useViewMode';
+import { ALL_TAG_VALUE, typeOptions } from './utils/constants';
 
 const ResourcePage: React.FC = () => {
-  const [list, setList] = useState<ResourceItem[]>([]);
-  // 当前页面不再提供空间切换，始终使用“当前选中的默认空间”进行筛选
+  // 当前页面不再提供空间切换，始终使用"当前选中的默认空间"进行筛选
   const [wsFilter, setWsFilter] = useState<string | undefined>(undefined);
-  const [tags, setTags] = useState<Array<{ tag: string; count: number }>>([]);
   const [tagFilter, setTagFilter] = useState<string>(''); // '' means all
   const [typeFilter, setTypeFilter] = useState<string>(''); // empty means all types
   const [favoriteFilter, setFavoriteFilter] = useState<boolean>(false); // false means all, true means favorites only
-  const [viewMode, setViewMode] = useState<ViewMode>(DEFAULT_VIEW_MODE);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sortField, setSortField] = useState<SortField>('collectedAt');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
-  const [folders, setFolders] = useState<UIFolder[]>([]);
   const [folderFilter, setFolderFilter] = useState<string>(''); // '' 表示全部
-  const folderAPI: any = window.YUA?.folder;
   const folderRestoredRef = useRef<string>(''); // 记录已恢复的工作空间ID
+  const folderAPI: any = window.YUA?.folder;
+
+  // 使用自定义 hooks
+  const { list, setList, tags, folders, setFolders, load, loadTags, loadFolders } = useResourceData(wsFilter, tagFilter);
+
+  const currentFolderResourceIds = useMemo(() => {
+    if (!folderFilter) return [] as string[];
+    return list.filter((r) => (r as any).folderId === folderFilter).map((r) => r.id);
+  }, [list, folderFilter]);
+
+  const { viewMode, handleViewModeChange } = useViewMode(folderFilter, currentFolderResourceIds);
+
+  const { filtered } = useResourceFilter({
+    list,
+    wsFilter,
+    tagFilter,
+    folderFilter,
+    typeFilter,
+    favoriteFilter,
+    searchQuery,
+    sortField,
+    sortOrder
+  });
+
+  const { handleDelete, handleDeleteMany, handleItemClick, handleToggleFavorite, handleToggleVisibility } = useResourceOperations(
+    list,
+    setList,
+    favoriteFilter,
+    setFavoriteFilter,
+    selectedItems,
+    setSelectedItems
+  );
+
+  const {
+    renameOpen,
+    setRenameOpen,
+    renameId,
+    renameName,
+    setRenameName,
+    handleMoveFolder,
+    handleOpenFolderLocation,
+    handleRenameFolder,
+    handleDeleteFolder,
+    handleMoveResourcesToFolder,
+    handleRenameConfirm
+  } = useFolderOperations(folders, wsFilter, folderFilter, setFolderFilter, list, load, loadFolders);
 
   // localStorage key for current folder
   const getCurrentFolderKey = useCallback(() => {
@@ -118,23 +114,6 @@ const ResourcePage: React.FC = () => {
     },
     [getCurrentFolderKey]
   );
-  const [renameOpen, setRenameOpen] = useState(false);
-  const [renameId, setRenameId] = useState<string>('');
-  const [renameName, setRenameName] = useState<string>('');
-  // Radix Select: SelectItem value cannot be an empty string
-  const ALL_TAG_VALUE = '__all__';
-
-  const typeOptions: { key: string; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-    { key: '', label: '全部', icon: TbHome },
-    { key: 'image', label: '图片', icon: TbPhoto },
-    { key: 'video', label: '视频', icon: TbVideo },
-    { key: 'audio', label: '音频', icon: TbMusic },
-    { key: 'text', label: '文本', icon: TbLetterT },
-    { key: 'link', label: '链接', icon: TbLink },
-    { key: 'file', label: '文件', icon: TbFile },
-    { key: 'document', label: '文档', icon: TbFileDescription },
-    { key: 'other', label: '其他', icon: TbDots }
-  ];
 
   const visibleTypes = useMemo(() => {
     if (!wsFilter) return new Set<string>();
@@ -152,53 +131,29 @@ const ResourcePage: React.FC = () => {
     return rows.some((r: any) => r.favorite === 1);
   }, [list, wsFilter]);
 
-  const load = useCallback(async (): Promise<void> => {
-    try {
-      let rows: any[] = [];
-      if (tagFilter) {
-        rows = await window.YUA.resource['listResourcesByTag']({ tag: tagFilter, workspaceId: wsFilter || undefined, includeDeleted: false, limit: 1000, offset: 0 });
-      } else {
-        rows = await window.YUA.resource['resource:list']();
-      }
-      setList(rows || []);
-    } catch (e) {
-      console.warn('load resources failed', e);
-    }
-  }, [tagFilter, wsFilter]);
-
-  const loadTags = useCallback(
-    async (workspaceId?: string): Promise<void> => {
-      try {
-        const wsId = workspaceId || wsFilter || undefined;
-        const rows = await window.YUA.resource['tags:listAll']({ workspaceId: wsId, scope: 'workspace' });
-        setTags(rows || []);
-      } catch (e) {
-        console.warn('load tags failed', e);
-      }
-    },
-    [wsFilter]
-  );
-
-  const loadFolders = useCallback(
-    async (workspaceId?: string): Promise<void> => {
-      try {
-        const wsId = workspaceId || wsFilter || undefined;
-        const rows = await folderAPI['folder.list']({ workspaceId: wsId, deletedAt: 0 });
-        setFolders((rows || []).map((r: any) => ({ id: r.id, name: r.name, parentId: r.parentId || null, workspaceId: r.workspaceId })));
-      } catch (e) {
-        console.warn('load folders failed', e);
-      }
-    },
-    [folderAPI, wsFilter]
-  );
-
-  // 在拿到默认空间后再加载数据，避免展示其它空间的数据
+  // 初始化默认工作空间
   useEffect(() => {
-    if (!wsFilter) return;
-    load();
-    loadFolders();
-    loadTags();
-  }, [wsFilter, load, loadFolders, loadTags]);
+    let mounted = true;
+    (async () => {
+      const ws = await window.YUA.workspace['workspace:list']({ filter: { deletedAt: 0 }, limit: 100, offset: 0 });
+      if (mounted) {
+        try {
+          const defaultId = Array.isArray(ws) ? ws.find((w: any) => w.isDefault === 1)?.id : undefined;
+          if (!wsFilter && defaultId) setWsFilter(defaultId);
+          if (defaultId) {
+            // 预加载当前默认空间的文件夹与标签
+            loadFolders(defaultId);
+            loadTags(defaultId);
+          }
+        } catch {
+          /* noop */
+        }
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [loadFolders, loadTags, wsFilter]);
 
   // 当工作空间切换时，重置恢复标记
   useEffect(() => {
@@ -223,191 +178,6 @@ const ResourcePage: React.FC = () => {
     }
     folderRestoredRef.current = wsFilter;
   }, [wsFilter, folders, loadCurrentFolder, saveCurrentFolder]);
-
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const ws = await window.YUA.workspace['workspace:list']({ filter: { deletedAt: 0 }, limit: 100, offset: 0 });
-      if (mounted) {
-        try {
-          const defaultId = Array.isArray(ws) ? ws.find((w: any) => w.isDefault === 1)?.id : undefined;
-          if (!wsFilter && defaultId) setWsFilter(defaultId);
-          if (defaultId) {
-            // 预加载当前默认空间的文件夹与标签
-            loadFolders(defaultId);
-            loadTags(defaultId);
-          }
-        } catch {
-          /* noop */
-        }
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, [loadFolders, loadTags, wsFilter]);
-
-  // 监听主进程的资源变更事件：新增后自动刷新列表/标签/文件夹计数
-  useEffect(() => {
-    const onResourceChanged = (): void => {
-      // 简单刷新，保持与当前筛选一致
-      load();
-      loadTags();
-      loadFolders();
-    };
-    try {
-      window.ipcRenderer.on('resource:inserted', onResourceChanged);
-      window.ipcRenderer.on('resource:changed', onResourceChanged);
-    } catch {
-      /* ignore */
-    }
-    return () => {
-      try {
-        window.ipcRenderer.off('resource:inserted', onResourceChanged);
-        window.ipcRenderer.off('resource:changed', onResourceChanged);
-      } catch {
-        /* ignore */
-      }
-    };
-  }, [load, loadTags, loadFolders]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const applyPreferredViewMode = async (): Promise<void> => {
-      if (!folderFilter) {
-        const stored = loadRootViewModePreference();
-        if (!cancelled) {
-          setViewMode(stored ?? DEFAULT_VIEW_MODE);
-        }
-        return;
-      }
-
-      try {
-        const config = await loadMasonryLayout(folderFilter);
-        if (!cancelled) {
-          // 如果之前保存的是 masonry 视图模式，回退到默认视图模式
-          const savedViewMode = config?.viewMode;
-          const validViewMode = savedViewMode && isViewModeValue(savedViewMode) ? savedViewMode : DEFAULT_VIEW_MODE;
-          setViewMode(validViewMode);
-          // 如果保存的是无效的视图模式，更新配置
-          if (savedViewMode && !isViewModeValue(savedViewMode)) {
-            const updatedConfig = { ...config, viewMode: validViewMode };
-            await saveMasonryLayout(folderFilter, updatedConfig);
-          }
-        }
-      } catch {
-        if (!cancelled) {
-          setViewMode(DEFAULT_VIEW_MODE);
-        }
-      }
-    };
-
-    applyPreferredViewMode();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [folderFilter]);
-
-  const filtered = useMemo(() => {
-    if (!wsFilter) return [] as any[];
-    let filtered = list.filter((r: any) => r.workspaceId === wsFilter);
-    // 标签过滤（当后端按标签查询时，这里也保持二次防御）
-    if (tagFilter) {
-      filtered = filtered.filter((r: any) => (r.tags || '').includes(tagFilter));
-    }
-    // 文件夹过滤：当选择具体文件夹时，仅展示该文件夹内资源；当选择“全部”时，仅展示未归属任何文件夹的顶层资源
-    if (folderFilter) {
-      filtered = filtered.filter((r: any) => (r as any).folderId === folderFilter);
-    } else {
-      filtered = filtered.filter((r: any) => !(r as any).folderId);
-    }
-
-    // 类型过滤
-    if (typeFilter) {
-      filtered = filtered.filter((r: any) => r.type === typeFilter);
-    }
-
-    // 收藏过滤
-    if (favoriteFilter) {
-      filtered = filtered.filter((r: any) => r.favorite === 1);
-    }
-
-    // 搜索过滤
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (r: any) =>
-          r.title?.toLowerCase().includes(query) ||
-          r.description?.toLowerCase().includes(query) ||
-          r.authorName?.toLowerCase().includes(query) ||
-          r.sourceName?.toLowerCase().includes(query) ||
-          r.domain?.toLowerCase().includes(query) ||
-          r.tags?.toLowerCase().includes(query)
-      );
-    }
-
-    // 排序
-    filtered.sort((a: any, b: any) => {
-      let aValue = a[sortField];
-      let bValue = b[sortField];
-
-      // 处理时间字段
-      if (sortField === 'collectedAt' || sortField === 'createdAt') {
-        aValue = aValue || 0;
-        bValue = bValue || 0;
-      }
-
-      // 处理字符串字段
-      if (typeof aValue === 'string') {
-        aValue = aValue.toLowerCase();
-        bValue = (bValue || '').toLowerCase();
-      }
-
-      if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
-      if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
-      return 0;
-    });
-
-    return filtered;
-  }, [list, wsFilter, typeFilter, favoriteFilter, searchQuery, sortField, sortOrder, folderFilter, tagFilter]);
-
-  const currentFolderResourceIds = useMemo(() => {
-    if (!folderFilter) return [] as string[];
-    return list.filter((r) => (r as any).folderId === folderFilter).map((r) => r.id);
-  }, [list, folderFilter]);
-
-  const persistViewMode = useCallback(
-    async (mode: ViewMode) => {
-      if (!folderFilter) {
-        saveRootViewModePreference(mode);
-        return;
-      }
-      try {
-        let config = await loadMasonryLayout(folderFilter);
-        if (!config) {
-          config = createDefaultLayoutConfig(currentFolderResourceIds, mode);
-        }
-        const updatedConfig = { ...config, viewMode: mode };
-        await saveMasonryLayout(folderFilter, updatedConfig);
-      } catch (err) {
-        console.warn('persist view mode failed', err);
-      }
-    },
-    [folderFilter, currentFolderResourceIds]
-  );
-
-  const handleViewModeChange = useCallback(
-    (mode: ViewMode) => {
-      setViewMode((prev) => {
-        if (prev === mode) return prev;
-        void persistViewMode(mode);
-        return mode;
-      });
-    },
-    [persistViewMode]
-  );
 
   // 计算各文件夹资源数量（按当前默认空间；不受类型/标签筛选影响）
   const folderCounts = useMemo(() => {
@@ -464,250 +234,6 @@ const ResourcePage: React.FC = () => {
     }
     return parts.reverse();
   }, [folderById, folderFilter, wsFilter]);
-
-  const handleDelete = async (id: string): Promise<void> => {
-    try {
-      await window.YUA.resource.deleteResource({ id });
-      setList((prev) => prev.filter((i) => i.id !== id));
-
-      // 如果当前在收藏模式下，且删除后没有收藏内容了，自动切换到非收藏模式
-      if (favoriteFilter) {
-        const remainingFavorites = list.filter((i) => i.id !== id && i.favorite === 1);
-        if (remainingFavorites.length === 0) {
-          setFavoriteFilter(false);
-        }
-      }
-    } catch (e) {
-      console.warn('delete resource failed', e);
-    }
-  };
-
-  const handleDeleteMany = async (ids: string[]): Promise<void> => {
-    try {
-      await window.YUA.resource.deleteResources({ ids });
-      setList((prev) => prev.filter((i) => !ids.includes(i.id)));
-      setSelectedItems(new Set());
-
-      // 如果当前在收藏模式下，且删除后没有收藏内容了，自动切换到非收藏模式
-      if (favoriteFilter) {
-        const remainingFavorites = list.filter((i) => !ids.includes(i.id) && i.favorite === 1);
-        if (remainingFavorites.length === 0) {
-          setFavoriteFilter(false);
-        }
-      }
-    } catch (e) {
-      console.warn('delete many failed', e);
-    }
-  };
-
-  const handleItemClick = (e: React.MouseEvent, item: ResourceItem): void => {
-    if (e.ctrlKey || e.metaKey) {
-      // 多选模式
-      setSelectedItems((prev) => {
-        const newSet = new Set(prev);
-        if (newSet.has(item.id)) {
-          newSet.delete(item.id);
-        } else {
-          newSet.add(item.id);
-        }
-        return newSet;
-      });
-    } else {
-      // 单选模式
-      setSelectedItems(new Set([item.id]));
-    }
-  };
-
-  const handleToggleFavorite = async (id: string): Promise<void> => {
-    try {
-      const item = list.find((i) => i.id === id);
-      if (item) {
-        const newFavorite = item.favorite === 1 ? 0 : 1;
-        await window.YUA.resource.updateResource({ id, patch: { favorite: newFavorite } });
-        setList((prev) => prev.map((i) => (i.id === id ? { ...i, favorite: newFavorite } : i)));
-
-        // 如果当前在收藏模式下，且取消收藏后没有收藏内容了，自动切换到非收藏模式
-        if (favoriteFilter && newFavorite === 0) {
-          const remainingFavorites = list.filter((i) => i.id !== id && i.favorite === 1);
-          if (remainingFavorites.length === 0) {
-            setFavoriteFilter(false);
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('toggle favorite failed', e);
-    }
-  };
-
-  const handleToggleVisibility = async (id: string): Promise<void> => {
-    try {
-      const item = list.find((i) => i.id === id);
-      if (item) {
-        const newVisibility = item.visibility === 'public' ? 'private' : 'public';
-        await window.YUA.resource.updateResource({ id, patch: { visibility: newVisibility } });
-        setList((prev) => prev.map((i) => (i.id === id ? { ...i, visibility: newVisibility } : i)));
-      }
-    } catch (e) {
-      console.warn('toggle visibility failed', e);
-    }
-  };
-
-  // 移动文件夹（供侧边栏、网格与列表复用）
-  const handleMoveFolder = useCallback(
-    async (id: string, newParentId: string | null) => {
-      const cur = folders.find((f) => f.id === id);
-      if (!cur) return;
-      const targetPid = newParentId ?? null;
-      const curPid = cur.parentId ?? null;
-      if (curPid === targetPid) return;
-      // 如果主进程执行失败（例如 UNIQUE 约束），invoke 会 reject，让上层捕获并提示
-      const r = await folderAPI['folder.move']({ id, parentId: targetPid });
-      if (!(r as any)?.success) {
-        throw new Error('folder-move-failed');
-      }
-      await loadFolders(wsFilter || undefined);
-    },
-    [folders, folderAPI, loadFolders, wsFilter]
-  );
-
-  // 打开文件夹所在位置
-  const handleOpenFolderLocation = useCallback(async (id: string) => {
-    try {
-      const ws = await (window as any).YUA?.workspace['workspace:getDefault']();
-      const isWin = (window as any).YUA?.isWindows;
-      const sep = isWin ? '\\' : '/';
-      const base: string = ws?.rootPath || '';
-      if (!base) return;
-      const needsSep = base.endsWith(sep) ? '' : sep;
-      const folderPath = `${base}${needsSep}resources${sep}folders${sep}${id}`;
-      await (window as any).YUA?.file['file:openPath'](folderPath);
-    } catch (err) {
-      console.warn('open folder path failed', err);
-    }
-  }, []);
-
-  // 弹出重命名窗口
-  const handleRenameFolder = useCallback(
-    (id: string) => {
-      const f = folders.find((f) => f.id === id);
-      setRenameId(id);
-      setRenameName(f?.name || '');
-      setRenameOpen(true);
-    },
-    [folders]
-  );
-
-  // 删除文件夹（含撤回能力）
-  const handleDeleteFolder = useCallback(
-    async (id: string) => {
-      try {
-        const r = await folderAPI['folder.softDelete']({ ids: [id] });
-        if ((r as any)?.success) {
-          if (folderFilter === id) setFolderFilter('');
-          await loadFolders(wsFilter || undefined);
-          toast.success('文件夹已删除', {
-            description: '已移动到回收站',
-            action: {
-              label: '撤回',
-              onClick: async () => {
-                try {
-                  const rr = await folderAPI['folder.restore']({ ids: [id] });
-                  if ((rr as any)?.success) {
-                    toast.success('已撤回删除');
-                    await loadFolders(wsFilter || undefined);
-                  } else {
-                    toast.error('撤回失败');
-                  }
-                } catch (err) {
-                  toast.error('撤回失败', { description: String((err as any)?.message || err) });
-                }
-              }
-            }
-          });
-        }
-      } catch (e) {
-        console.warn('delete folder failed', e);
-        toast.error('删除文件夹失败', { description: String((e as any)?.message || e) });
-      }
-    },
-    [folderAPI, folderFilter, loadFolders, wsFilter]
-  );
-
-  // 通用：将资源移动到指定文件夹，并在成功后切换到该文件夹视图
-  const handleMoveResourcesToFolder = useCallback(
-    async (folderId: string | null, ids: string[]) => {
-      try {
-        if (!ids?.length) return;
-        // 阻止跨工作空间：若目标文件夹存在，则检查其 workspaceId 与当前 ws 一致
-        if (folderId) {
-          try {
-            const folder = await folderAPI['folder.get']({ id: folderId });
-            if (folder && folder.workspaceId && wsFilter && folder.workspaceId !== wsFilter) {
-              toast.error('无法跨工作空间移动到该文件夹');
-              return;
-            }
-          } catch {
-            /* ignore get error */
-          }
-        }
-
-        // 记录撤回需要的“原始 folderId”映射
-        const prevMap = new Map<string, string | null>();
-        for (const id of ids) {
-          const item: any = list.find((i) => i.id === id);
-          prevMap.set(id, item?.folderId ?? null);
-        }
-
-        // 使用主进程批量 API
-        const res = await window.YUA.resource['resource:moveToFolder']({ ids, folderId: folderId || null, workspaceId: wsFilter });
-        if (!res?.success) {
-          const invalidCount = Array.isArray((res as any)?.invalid) ? (res as any).invalid.length : 0;
-          if (invalidCount > 0) {
-            toast.error(`有 ${invalidCount} 个资源不属于当前空间，已阻止移动`);
-          } else {
-            toast.error('移动失败');
-          }
-          return;
-        }
-        // 刷新列表与文件夹（计数徽标）
-        await Promise.all([load(), loadFolders(wsFilter)]);
-        // 不再自动切换到目标文件夹：保持当前视图，避免跳变带来的困惑
-
-        // 成功提示 + 撤回
-        const folderName = folderId ? folders.find((f) => f.id === folderId)?.name || '目标文件夹' : '（移出文件夹）';
-        const movedCount = (res as any)?.moved ?? ids.length;
-        toast.success(`已移动到 ${folderId ? folderName : '全部'}`, {
-          description: `共 ${movedCount} 个资源`,
-          action: {
-            label: '撤回',
-            onClick: async () => {
-              try {
-                // 将资源按“原始 folderId”分组后分别调用批量接口
-                const groups = new Map<string, string[]>();
-                for (const [rid, prevFid] of prevMap.entries()) {
-                  const key = prevFid || '__null__';
-                  const arr = groups.get(key) || [];
-                  arr.push(rid);
-                  groups.set(key, arr);
-                }
-                for (const [key, groupIds] of groups.entries()) {
-                  const backId = key === '__null__' ? null : key;
-                  await window.YUA.resource['resource:moveToFolder']({ ids: groupIds, folderId: backId, workspaceId: wsFilter });
-                }
-                await Promise.all([load(), loadFolders(wsFilter)]);
-                toast.success('已撤回移动');
-              } catch (err) {
-                toast.error('撤回失败', { description: String((err as any)?.message || err) });
-              }
-            }
-          }
-        });
-      } catch (e) {
-        console.warn('move resources to folder failed', e);
-      }
-    },
-    [folderAPI, wsFilter, list, load, loadFolders, folders]
-  );
 
   return (
     <div className="h-full bg-background">
@@ -922,47 +448,8 @@ const ResourcePage: React.FC = () => {
                   console.warn('inline rename folder failed', e);
                 }
               }}
-              onRename={async (id) => {
-                try {
-                  const f = folders.find((f) => f.id === id);
-                  setRenameId(id);
-                  setRenameName(f?.name || '');
-                  setRenameOpen(true);
-                } catch (e) {
-                  console.warn('open rename modal failed', e);
-                }
-              }}
-              onDelete={async (id) => {
-                try {
-                  const r = await folderAPI['folder.softDelete']({ ids: [id] });
-                  if ((r as any)?.success) {
-                    if (folderFilter === id) setFolderFilter('');
-                    await loadFolders(wsFilter || undefined);
-                    toast.success('文件夹已删除', {
-                      description: '已移动到回收站',
-                      action: {
-                        label: '撤回',
-                        onClick: async () => {
-                          try {
-                            const rr = await folderAPI['folder.restore']({ ids: [id] });
-                            if ((rr as any)?.success) {
-                              toast.success('已撤回删除');
-                              await loadFolders(wsFilter || undefined);
-                            } else {
-                              toast.error('撤回失败');
-                            }
-                          } catch (err) {
-                            toast.error('撤回失败', { description: String((err as any)?.message || err) });
-                          }
-                        }
-                      }
-                    });
-                  }
-                } catch (e) {
-                  console.warn('delete folder failed', e);
-                  toast.error('删除文件夹失败', { description: String((e as any)?.message || e) });
-                }
-              }}
+              onRename={handleRenameFolder}
+              onDelete={handleDeleteFolder}
             />
           </SidebarContent>
           <SidebarFooter>
@@ -1112,26 +599,7 @@ const ResourcePage: React.FC = () => {
             <Button size="sm" variant="outline" onClick={() => setRenameOpen(false)}>
               取消
             </Button>
-            <Button
-              size="sm"
-              onClick={async () => {
-                try {
-                  const name = renameName.trim();
-                  if (!renameId || !name) {
-                    setRenameOpen(false);
-                    return;
-                  }
-                  const r = await folderAPI['folder.rename']({ id: renameId, name });
-                  if ((r as any)?.success) await loadFolders(wsFilter || undefined);
-                } catch (e) {
-                  console.warn('rename folder failed', e);
-                } finally {
-                  setRenameOpen(false);
-                  setRenameId('');
-                  setRenameName('');
-                }
-              }}
-            >
+            <Button size="sm" onClick={handleRenameConfirm}>
               确定
             </Button>
           </DialogFooter>
