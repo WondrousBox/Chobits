@@ -11,10 +11,11 @@ import type { SelectedResourceFileType } from '@/types';
 type Props = {
   folderId?: string | null;
   workspaceId?: string | null;
+  hideEditor?: boolean;
   onDone?: () => void; // called after upload/create actions to let parent reload
 };
 
-const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, onDone }) => {
+const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, hideEditor, onDone }) => {
   const [content, setContent] = useState('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -142,20 +143,23 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, onDone }) 
       customDropzoneInside={<div className="px-5 py-3 rounded-lg border-2 border-dashed border-primary/60 bg-primary/5 text-primary text-sm font-medium">释放鼠标即可添加文件…</div>}
     >
       <>
-        <RichTextEditor
-          value={content}
-          onChange={setContent}
-          placeholder="在此输入内容..."
-          className="min-h-[200px] border-0 rounded-none w-[600px]"
-          toolbarRight={
-            <Button size="sm" variant="outline" onClick={onSaveText} disabled={!content || content === '<p></p>'} className="gap-1">
-              <TbChecks className="h-4 w-4" /> 保存文本
-            </Button>
-          }
-        />
+        {!hideEditor && (
+          <RichTextEditor
+            value={content}
+            onChange={setContent}
+            placeholder="在此输入内容..."
+            className="min-h-[200px] max-h-[calc(100vh-400px)] border-0 rounded-none min-w-[600px]"
+            style={{ width: 'calc(100% - 300px)' }}
+            toolbarRight={
+              <Button size="sm" variant="outline" onClick={onSaveText} disabled={!content || content === '<p></p>'} className="gap-1">
+                <TbChecks className="h-4 w-4" /> 保存文本
+              </Button>
+            }
+          />
+        )}
 
         {/* Actions */}
-        <div className="border-t bg-muted/20 px-5 py-4 w-[600px] box-border">
+        <div className="border-t bg-muted/20 px-5 py-4 min-w-[600px] box-border" style={{ width: 'calc(100% - 300px)' }}>
           <input ref={fileInputRef} type="file" multiple className="hidden" onChange={onInputChange} />
           <div className="grid grid-cols-2 gap-3">
             <button

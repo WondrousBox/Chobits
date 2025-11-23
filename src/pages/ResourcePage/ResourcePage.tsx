@@ -462,17 +462,7 @@ const ResourcePage: React.FC = () => {
         {/* 资源展示区域 */}
         <div className="w-full h-full" style={{ height: 'calc(100% - 36px)' }}>
           <div className="w-full h-full overflow-y-auto">
-            {childFolders.length === 0 && filtered.length === 0 && (
-              <DefaultEmptyFolder
-                folderId={folderFilter || undefined}
-                workspaceId={wsFilter || undefined}
-                onDone={async () => {
-                  await load();
-                  await loadFolders(wsFilter || undefined);
-                }}
-              />
-            )}
-            {viewMode === 'grid' ? (
+            {childFolders.length === 0 && filtered.length === 0 ? null : viewMode === 'grid' ? (
               <ExplorerGrid
                 items={filtered}
                 folders={childFolders}
@@ -535,6 +525,16 @@ const ResourcePage: React.FC = () => {
                   } catch {
                     /* ignore */
                   }
+                }}
+              />
+            ) : null}
+            {childFolders.length === 0 && filtered.length === 0 ? (
+              <DefaultEmptyFolder
+                folderId={folderFilter || undefined}
+                workspaceId={wsFilter || undefined}
+                onDone={async () => {
+                  await load();
+                  await loadFolders(wsFilter || undefined);
                 }}
               />
             ) : null}
