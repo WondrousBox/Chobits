@@ -3,7 +3,7 @@ import React, { useCallback, useState } from 'react';
 import { TbCheck, TbClock, TbCopy, TbEye, TbEyeOff, TbFile, TbHeart, TbPlayerPlay, TbStar } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from '@/lib/resourceProtocol';
 import { formatDuration, getResourceSummary, getResourceTypeIcon, getStatusColor } from '@/lib/resourceUtils';
 import { ResourceItem } from '@/types';
@@ -123,45 +123,39 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
         <div className="flex items-center gap-1">
           {/* 可见性按钮 - 悬停时显示 */}
           <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button size="icon" className="w-8 h-8 bg-white/20 hover:bg-white/30" onClick={handleVisibilityClick}>
-                    {item.visibility === 'public' ? <TbEye className="w-3 h-3" /> : <TbEyeOff className="w-3 h-3" />}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{item.visibility === 'public' ? '设为私有' : '设为公开'}</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="icon" className="w-8 h-8 bg-white/20 hover:bg-white/30" onClick={handleVisibilityClick}>
+                  {item.visibility === 'public' ? <TbEye className="w-3 h-3" /> : <TbEyeOff className="w-3 h-3" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{item.visibility === 'public' ? '设为私有' : '设为公开'}</TooltipContent>
+            </Tooltip>
           </div>
 
           {/* 复制链接按钮 - 悬停时显示 */}
           {item.url && (
             <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button onClick={handleSourceClick} size="icon" className={`w-8 h-8 transition-colors ${copied ? 'bg-green-500/80 hover:bg-green-500' : 'bg-white/20 hover:bg-white/30'}`}>
-                      {copied ? <TbCheck className="w-3 h-3" /> : <TbCopy className="w-3 h-3" />}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>{copied ? '已复制!' : '复制链接'}</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button onClick={handleSourceClick} size="icon" className={`w-8 h-8 transition-colors ${copied ? 'bg-green-500/80 hover:bg-green-500' : 'bg-white/20 hover:bg-white/30'}`}>
+                    {copied ? <TbCheck className="w-3 h-3" /> : <TbCopy className="w-3 h-3" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{copied ? '已复制!' : '复制链接'}</TooltipContent>
+              </Tooltip>
             </div>
           )}
 
           {/* 收藏按钮 */}
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button size="icon" onClick={handleFavoriteClick} className={`w-8 h-8 transition-colors ${item.favorite === 1 ? 'bg-red-500/80 hover:bg-red-500' : 'bg-white/20 hover:bg-white/30'}`}>
-                  <TbHeart className={`w-3 h-3 ${item.favorite === 1 ? 'fill-current' : ''}`} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{item.favorite === 1 ? '取消收藏' : '添加收藏'}</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size="icon" onClick={handleFavoriteClick} className={`w-8 h-8 transition-colors ${item.favorite === 1 ? 'bg-red-500/80 hover:bg-red-500' : 'bg-white/20 hover:bg-white/30'}`}>
+                <TbHeart className={`w-3 h-3 ${item.favorite === 1 ? 'fill-current' : ''}`} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{item.favorite === 1 ? '取消收藏' : '添加收藏'}</TooltipContent>
+          </Tooltip>
         </div>
       </div>
 

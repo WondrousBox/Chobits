@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { SidebarMenuAction, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 export type UIFolder = {
   id: string;
@@ -254,12 +254,10 @@ const FolderTreeRow = ({
   return (
     <>
       <SidebarMenuItem className="pl-0 list-none group">
-        <TooltipProvider delayDuration={0}>
-          <Tooltip open={overInvalid || tipOpen}>
-            <TooltipTrigger asChild>{MenuButton}</TooltipTrigger>
-            <TooltipContent side="right">不能移动到自己的子文件夹中</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Tooltip open={overInvalid || tipOpen}>
+          <TooltipTrigger asChild>{MenuButton}</TooltipTrigger>
+          <TooltipContent side="right">不能移动到自己的子文件夹中</TooltipContent>
+        </Tooltip>
         {count > 0 && <SidebarMenuBadge className="group-hover:opacity-0 opacity-100">{count}</SidebarMenuBadge>}
         <DropdownMenu>
           <DropdownMenuTrigger asChild className="group-hover:opacity-100 opacity-0">
