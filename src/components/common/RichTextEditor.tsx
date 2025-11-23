@@ -16,6 +16,7 @@ interface RichTextEditorProps {
   className?: string;
   toolbarRight?: ReactNode;
   editable?: boolean;
+  style?: React.CSSProperties;
 }
 
 const Toolbar = ({ editor, visible, toolbarRight, className }: { editor: Editor | null; visible: boolean; toolbarRight?: ReactNode; className?: string }): JSX.Element | null => {
@@ -104,7 +105,7 @@ const Toolbar = ({ editor, visible, toolbarRight, className }: { editor: Editor 
   );
 };
 
-export const RichTextEditor = ({ value, onChange, placeholder, className, toolbarRight, editable = true }: RichTextEditorProps): JSX.Element => {
+export const RichTextEditor = ({ value, onChange, placeholder, className, toolbarRight, editable = true, style }: RichTextEditorProps): JSX.Element => {
   const [isFocused, setIsFocused] = useState(false);
   const hideToolbarTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -201,7 +202,7 @@ export const RichTextEditor = ({ value, onChange, placeholder, className, toolba
   }, []);
 
   return (
-    <div className={cn('border rounded-md bg-background flex flex-col relative', className)}>
+    <div className={cn('border rounded-md bg-background flex flex-col relative', className)} style={style}>
       <Toolbar editor={editor} visible={editable && isFocused} toolbarRight={toolbarRight} className="absolute left-0 z-10 w-full box-border -top-8" />
       <div className="flex-1 overflow-y-auto text-foreground">
         <EditorContent editor={editor} />
