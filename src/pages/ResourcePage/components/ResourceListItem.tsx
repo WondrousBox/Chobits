@@ -98,7 +98,7 @@ const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, onClick, on
       </div>
 
       {/* 主要内容区域 */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 w-0">
         {/* 标题和描述 */}
         <div className="mb-2">
           <h3 className="font-medium text-sm truncate mb-1">{item.title || item.filePath?.split('/').pop() || item.url || item.id}</h3>

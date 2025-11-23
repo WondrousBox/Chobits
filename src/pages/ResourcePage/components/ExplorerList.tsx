@@ -204,7 +204,7 @@ export const ExplorerList: React.FC<ExplorerListProps> = ({
   onMoveFolder
 }) => {
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 px-2 box-border w-full">
       {/* 先渲染子文件夹列表条目 */}
       {folders.map((f) => (
         <ListFolderRow

@@ -1,3 +1,4 @@
+import { clsx } from 'clsx';
 import prettyBytes from 'pretty-bytes';
 import React, { useCallback, useState } from 'react';
 import { TbCheck, TbClock, TbCopy, TbEye, TbEyeOff, TbFile, TbHeart, TbPlayerPlay, TbStar } from 'react-icons/tb';
@@ -105,7 +106,11 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
       onClick={handleClick}
       draggable={!!draggable}
       onDragStart={(e) => onDragStart?.(e, item)}
-      className={`group relative ${fillContainer ? 'h-full w-full' : 'aspect-video w-full'} overflow-hidden rounded-md border bg-card text-card-foreground shadow-sm transition-all cursor-pointer select-none ${selected ? 'ring-2 ring-primary border-primary/50' : 'hover:shadow-md hover:border-primary/30'} bg-gradient-to-br from-background to-muted`}
+      className={clsx(
+        'group relative overflow-hidden rounded-md bg-card text-card-foreground shadow-sm transition-all cursor-pointer select-none bg-gradient-to-br from-background to-muted',
+        fillContainer ? 'h-full w-full' : 'aspect-video w-full',
+        selected ? 'ring-2 ring-primary' : 'hover:shadow-md'
+      )}
     >
       {/* 顶部状态栏 */}
       <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between bg-gradient-to-b from-black/80 via-black/40 to-transparent px-2 py-1.5">
@@ -282,7 +287,7 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
       </div>
 
       {/* 选中状态指示器 */}
-      {selected && <div className="absolute right-2 top-2 h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[10px] shadow ring-1 ring-black/20">✓</div>}
+      {selected && <div className="absolute top-0 left-0 right-0 bottom-0 bg-primary/40 z-50 pointer-events-none"></div>}
     </div>
   );
 };
