@@ -200,10 +200,11 @@ const ResourcePage: React.FC = () => {
 
   // 当前文件夹下的直接子文件夹
   const childFolders = useMemo(() => {
+    if (favoriteFilter) return [] as UIFolder[];
     if (!wsFilter) return [] as UIFolder[];
     const parent = (folderFilter || null) as string | null;
     return folders.filter((f) => f.workspaceId === wsFilter && (f.parentId || null) === parent);
-  }, [folders, wsFilter, folderFilter]);
+  }, [folders, wsFilter, folderFilter, favoriteFilter]);
 
   const allCount = useMemo(() => {
     if (!wsFilter) return 0;
@@ -387,6 +388,7 @@ const ResourcePage: React.FC = () => {
                       // 如果当前不是收藏模式，点击后进入收藏模式
                       // 如果当前选择的是"全部"类型，则取消类型筛选
                       setFavoriteFilter(true);
+                      setFolderFilter(''); // 取消文件夹选中状态
                       if (typeFilter === '') {
                         setTypeFilter('');
                       }
@@ -398,7 +400,7 @@ const ResourcePage: React.FC = () => {
                     className={`h-8 transition-colors ${favoriteFilter ? 'bg-red-500 hover:bg-red-600 text-white' : 'hover:text-red-500 hover:bg-red-50'}`}
                   >
                     <TbHeart className={`${favoriteFilter ? 'fill-current' : ''}`} />
-                    只显示收藏
+                    星标
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )}
@@ -413,6 +415,7 @@ const ResourcePage: React.FC = () => {
                 const folderId = id as string;
                 setFolderFilter(folderId);
                 saveCurrentFolder(folderId);
+                setFavoriteFilter(false);
               }}
               counts={folderCounts}
               allCount={allCount}
@@ -470,6 +473,7 @@ const ResourcePage: React.FC = () => {
                 onOpenFolder={(id) => {
                   setFolderFilter(id);
                   saveCurrentFolder(id);
+                  setFavoriteFilter(false);
                 }}
                 onDropResourcesToFolder={(fid, ids) => handleMoveResourcesToFolder(fid, ids)}
                 onMoveFolder={handleMoveFolder}
@@ -494,6 +498,7 @@ const ResourcePage: React.FC = () => {
                 onOpenFolder={(id) => {
                   setFolderFilter(id);
                   saveCurrentFolder(id);
+                  setFavoriteFilter(false);
                 }}
                 onDropResourcesToFolder={(fid, ids) => handleMoveResourcesToFolder(fid, ids)}
                 onMoveFolder={handleMoveFolder}
@@ -548,6 +553,7 @@ const ResourcePage: React.FC = () => {
                 onClick={() => {
                   setFolderFilter('');
                   saveCurrentFolder('');
+                  setFavoriteFilter(false);
                 }}
               >
                 全部
