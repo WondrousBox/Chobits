@@ -1,3 +1,7 @@
+import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
+
+import { SpriteAnimation } from '../types';
+
 /**
  * 资源工具：根据文件名推断资源类型
  * - 纯函数，无副作用，易于单元测试与复用。
@@ -22,3 +26,10 @@ export const getResourceTypeFromFilename = (fileName: string): ResourceType => {
   if (textExt.has(ext)) return 'text';
   return 'file';
 };
+
+export function resolveSpriteSrc(source: SpriteAnimation['source']): { url: string; type?: string } {
+  if (source.src) return { url: source.src, type: source.type };
+  if (source.localPath) return { url: makeResSrc(source.localPath), type: source.type };
+  // fallback（理论上不应触发）
+  return { url: '/idle.webm', type: 'video/webm' };
+}

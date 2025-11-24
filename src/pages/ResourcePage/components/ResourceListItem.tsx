@@ -4,11 +4,11 @@ import { TbAppWindow, TbCalendar, TbCheck, TbClock, TbCopy, TbEye, TbEyeOff, TbH
 
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { makeResSrc } from '@/lib/resourceProtocol';
 import { formatRelativeTime } from '@/lib/time';
-import { formatDuration, getResourceTypeIcon, getStatusColor, parseTags } from '@/pages/ResourcePage/utils/resourceUtils';
 
 import { ResourceItem } from '../types';
+import { makeResSrc } from '../utils/resourceProtocol';
+import { formatDuration, getResourceTypeIcon, getStatusColor, parseTags } from '../utils/resourceUtils';
 
 interface ListItemProps {
   item: ResourceItem;

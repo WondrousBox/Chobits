@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import { ViewMode } from '@/types';
-
+import { ViewMode } from '../types';
 import { createDefaultLayoutConfig, loadMasonryLayout, saveMasonryLayout } from '../utils/masonryLayout';
 import { DEFAULT_VIEW_MODE, isViewModeValue, loadRootViewModePreference, saveRootViewModePreference } from '../utils/viewMode';
 

@@ -17,7 +17,7 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import { makeResSrc } from '@/lib/resourceProtocol';
+import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 
 function baseName(p: string): string {
   const parts = p.replace(/\\/g, '/').split('/');

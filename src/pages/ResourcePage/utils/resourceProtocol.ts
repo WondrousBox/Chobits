@@ -1,6 +1,4 @@
 // Helper functions for building URLs to custom resource protocol
-import type { SpriteAnimation } from '@/components/AIAssistant/types';
-
 export function makeResSrc(absPath: string): string {
   const forward = absPath.replace(/\\/g, '/');
   return 'res://local/' + encodeURIComponent(forward);
@@ -22,11 +20,4 @@ export function isVideoFile(p?: string): boolean | undefined {
 export function isAudioFile(p?: string): boolean | undefined {
   if (!p) return false;
   return /\.(mp3|wav|m4a|flac|ogg|opus)$/i.test(p);
-}
-
-export function resolveSpriteSrc(source: SpriteAnimation['source']): { url: string; type?: string } {
-  if (source.src) return { url: source.src, type: source.type };
-  if (source.localPath) return { url: makeResSrc(source.localPath), type: source.type };
-  // fallback（理论上不应触发）
-  return { url: '/idle.webm', type: 'video/webm' };
 }
