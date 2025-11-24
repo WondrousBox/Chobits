@@ -39,7 +39,7 @@ export const ResourceGroup: React.FC<ResourceGroupProps> = ({
   onDragStart
 }) => {
   return (
-    <div className="border border-solid border-border rounded-lg p-2 relative group/item hover:border-primary">
+    <div className="border border-solid border-border rounded-lg  h-full w-full box-border p-2 relative group/item hover:border-primary overflow-y-auto">
       {/* 分组标题栏 */}
       <div className="flex items-center justify-between absolute top-0 left-0 right-0 z-50 opacity-0 group-hover/item:opacity-100 focus-within:opacity-100 transition-opacity px-2 py-1 bg-background/80 backdrop-blur rounded-t-lg">
         <InlineEditableText

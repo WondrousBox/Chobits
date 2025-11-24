@@ -5,7 +5,10 @@ import { ViewMode } from '@/types';
 import { createDefaultLayoutConfig, loadMasonryLayout, saveMasonryLayout } from '../utils/masonryLayout';
 import { DEFAULT_VIEW_MODE, isViewModeValue, loadRootViewModePreference, saveRootViewModePreference } from '../utils/viewMode';
 
-export const useViewMode = (folderFilter: string, currentFolderResourceIds: string[]) => {
+export const useViewMode = (
+  folderFilter: string,
+  currentFolderResourceIds: string[]
+): { viewMode: ViewMode; setViewMode: (mode: ViewMode) => void; handleViewModeChange: (mode: ViewMode) => void } => {
   const [viewMode, setViewMode] = useState<ViewMode>(DEFAULT_VIEW_MODE);
 
   // 加载视图模式偏好

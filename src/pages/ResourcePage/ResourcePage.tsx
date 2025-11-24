@@ -260,9 +260,9 @@ const ResourcePage: React.FC = () => {
                   <TabsTrigger value="list" className="flex-1 gap-1">
                     <TbList />
                   </TabsTrigger>
-                  <TabsTrigger value="free" className="flex-1 gap-1">
+                  {/* <TabsTrigger value="free" className="flex-1 gap-1">
                     <TbLayout2 />
-                  </TabsTrigger>
+                  </TabsTrigger> */}
                 </TabsList>
               </Tabs>
               {/* 资源数量统计移至底部路径栏 */}

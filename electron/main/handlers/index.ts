@@ -4,6 +4,7 @@ import { init as initPluginResourceHandlers } from '../../../packages/plugins/ip
 import { init as initProxyHandlers } from '../../../packages/proxy/ipc-main';
 import { init as initAIHandlers } from '../ai/ipc-main';
 import { initDailyCare } from '../daily';
+import { initWorkspaceHandlers } from '../workspace/ipc-main';
 import { initFFmpegHandlers } from './ffmpeg';
 import { initFileHandlers } from './file';
 import { initFolderHandlers } from './folder';
@@ -16,7 +17,6 @@ import { initTrashHandlers } from './trash';
 import { initVectorHandlers } from './vector';
 import { initVideoDownloadHandlers } from './video-download';
 import { initWindowHandlers } from './window';
-import { initWorkspaceHandlers } from './workspace';
 
 export function initHandlers(win: BrowserWindow): void {
   console.log(process.versions);

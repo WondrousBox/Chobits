@@ -5,6 +5,7 @@ import { proxyBridge } from '../../packages/proxy/ipc-renderer';
 import { aiBridge } from '../main/ai/ipc-renderer';
 import { dailyCareBridge } from '../main/daily/ipc-renderer';
 import { arch, isLinux, isMac, isMacIntel, isWindows, platform } from '../main/utils/os';
+import { workspaceIpcRenderer } from '../main/workspace/ipc-renderer';
 import { ffmpegBridge } from './apis/ffmpeg';
 import { fileBridge } from './apis/file';
 import { folderBridge } from './apis/folder';
@@ -17,7 +18,6 @@ import { trashBridge } from './apis/trash';
 import { vectorBridge } from './apis/vector';
 import videoDownloaderAPI from './apis/video-downloader';
 import { windowBridge } from './apis/window';
-import { workspaceBridge } from './apis/workspace';
 
 // --------- Expose some API to the Renderer process ---------
 contextBridge.exposeInMainWorld('ipcRenderer', {
@@ -57,7 +57,7 @@ contextBridge.exposeInMainWorld('YUA', {
   vector: vectorBridge,
   resource: resourceBridge,
   trash: trashBridge,
-  workspace: workspaceBridge,
+  workspace: workspaceIpcRenderer,
   file: fileBridge,
   system: systemBridge,
   folder: folderBridge,

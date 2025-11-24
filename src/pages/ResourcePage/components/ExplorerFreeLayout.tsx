@@ -30,13 +30,13 @@ const ResponsiveGridLayout = WidthProvider(Responsive);
 
 // 常量定义
 const ROW_HEIGHT = 30; // 行高
-const MARGIN: [number, number] = [16, 16]; // 间距 [x, y]
-const COLS = { lg: 6, md: 6, sm: 6, xs: 6, xxs: 6 }; // 列数配置
-const TOTAL_COLS = 12;
-const DEFAULT_ITEM_WIDTH = 3;
+const MARGIN: [number, number] = [8, 8]; // 间距 [x, y]
+const TOTAL_COLS = 6;
+const COLS = { lg: TOTAL_COLS, md: TOTAL_COLS, sm: TOTAL_COLS, xs: TOTAL_COLS, xxs: TOTAL_COLS }; // 列数配置
+const DEFAULT_ITEM_WIDTH = 1;
 const DEFAULT_ITEM_HEIGHT = 4;
-const DEFAULT_GROUP_WIDTH = 12;
-const DEFAULT_GROUP_HEIGHT = 6;
+const DEFAULT_GROUP_WIDTH = TOTAL_COLS / 2;
+const DEFAULT_GROUP_HEIGHT = DEFAULT_ITEM_HEIGHT;
 
 const clamp = (value: number, min: number, max: number): number => Math.min(Math.max(value, min), max);
 const ensureNumber = (value: number | null | undefined, fallback: number): number => (typeof value === 'number' && !Number.isNaN(value) ? value : fallback);
@@ -187,14 +187,14 @@ export const ExplorerFreeLayout: React.FC<ExplorerFreeLayoutProps> = ({ items, f
       if (configItem?.groupId) return;
 
       const isFullWidth = configItem?.fullWidth;
-      const w = isFullWidth ? 12 : 3;
+      const w = isFullWidth ? TOTAL_COLS : DEFAULT_ITEM_WIDTH;
 
       layout.push({
         i: `resource-${item.id}`,
-        x: (i * 3) % 12,
+        x: (i * DEFAULT_ITEM_WIDTH) % TOTAL_COLS,
         y: Infinity, // 让 RGL 自动堆叠
         w: w,
-        h: 4 // 初始高度，后续会自动调整
+        h: DEFAULT_ITEM_HEIGHT // 初始高度，后续会自动调整
       });
     });
 
@@ -204,8 +204,8 @@ export const ExplorerFreeLayout: React.FC<ExplorerFreeLayoutProps> = ({ items, f
         i: `group-${group.id}`,
         x: 0,
         y: Infinity,
-        w: 12, // 分组默认全宽
-        h: 6
+        w: DEFAULT_GROUP_WIDTH, // 分组默认全宽
+        h: DEFAULT_GROUP_HEIGHT
       });
     });
 
@@ -586,7 +586,7 @@ export const ExplorerFreeLayout: React.FC<ExplorerFreeLayoutProps> = ({ items, f
         draggableHandle=".drag-handle"
         isResizable={true}
         onLayoutChange={onLayoutChange}
-        useCSSTransforms={true}
+        useCSSTransforms={false}
       >
         {renderItems}
       </ResponsiveGridLayout>

@@ -182,8 +182,8 @@ export function initWindowHandlers(win: BrowserWindow): void {
     assistantPadding: movementConfig.assistantPadding,
     anchorHeight: ASSISTANT_HEIGHT,
     anchorWidth: ASSISTANT_WIDTH,
-    serverUrl: process.env.VITE_DEV_SERVER_URL,
-    rendererDist: path.join(process.env.APP_ROOT || app.getAppPath(), 'dist'),
+    loadURL: process.env.VITE_DEV_SERVER_URL,
+    loadFile: path.join(process.env.APP_ROOT || app.getAppPath(), 'dist'),
     windowConfigs: defaultWindowConfigs,
     onBeforeFollowerShow: () => {
       stopHoverMonitor();

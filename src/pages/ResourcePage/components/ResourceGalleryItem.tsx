@@ -157,7 +157,11 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
           {/* 收藏按钮 */}
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button size="icon" onClick={handleFavoriteClick} className={`w-8 h-8 transition-colors ${item.favorite === 1 ? 'bg-red-500/80 hover:bg-red-500' : 'bg-white/20 hover:bg-white/30'}`}>
+              <Button
+                size="icon"
+                onClick={handleFavoriteClick}
+                className={clsx(['w-8 h-8 transition-colors', item.favorite === 1 ? 'bg-red-500/80 hover:bg-red-500' : ' opacity-0 group-hover:opacity-100 bg-white/20 hover:bg-white/30'])}
+              >
                 <TbHeart className={`w-3 h-3 ${item.favorite === 1 ? 'fill-current' : ''}`} />
               </Button>
             </TooltipTrigger>
@@ -202,7 +206,6 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
           <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-blue-900/70 to-blue-700/40 text-white gap-2 text-[11px]">
             <span className="inline-flex items-center gap-1 opacity-90">
               <span aria-hidden="true">📄</span>
-              <span className="font-medium">点击预览文本</span>
             </span>
           </div>
         )}
@@ -218,14 +221,14 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
         )}
 
         {/* 悬停播放/预览按钮 */}
-        {(isAudio || isImageRes || isVideoRes || item.type === 'text') && (
+        {(isAudio || isVideoRes) && (
           <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/20">
             <Button
               onClick={item.type === 'text' ? handleTextPreviewClick : handlePlayClick}
               variant="outline"
               className="flex items-center justify-center w-12 h-12 rounded-full shadow-lg transition-all duration-200 hover:scale-110"
             >
-              {item.type === 'text' ? <span className="text-lg">📄</span> : <TbPlayerPlay />}
+              {(item.type === 'audio' || item.type === 'video') && <TbPlayerPlay />}
             </Button>
           </div>
         )}
