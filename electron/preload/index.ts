@@ -5,11 +5,11 @@ import { proxyBridge } from '../../packages/proxy/ipc-renderer';
 import { aiBridge } from '../main/ai/ipc-renderer';
 import { dailyCareBridge } from '../main/daily/ipc-renderer';
 import { folderIpcRenderer } from '../main/folder/ipc-renderer';
+import { resourceIpcRenderer } from '../main/handlers/resource/ipc-renderer';
 import { arch, isLinux, isMac, isMacIntel, isWindows, platform } from '../main/utils/os';
 import { workspaceIpcRenderer } from '../main/workspace/ipc-renderer';
 import { ffmpegBridge } from './apis/ffmpeg';
 import { fileBridge } from './apis/file';
-import { resourceBridge } from './apis/resource';
 import { shortcutsBridge } from './apis/shortcuts';
 import { spriteBridge } from './apis/sprite';
 import { statusBridge } from './apis/status';
@@ -55,7 +55,7 @@ contextBridge.exposeInMainWorld('YUA', {
   window: windowBridge,
   ffmpeg: ffmpegBridge,
   vector: vectorBridge,
-  resource: resourceBridge,
+  resource: resourceIpcRenderer,
   trash: trashBridge,
   workspace: workspaceIpcRenderer,
   file: fileBridge,
