@@ -44,7 +44,7 @@ const methods: Array<keyof WorkspaceIpcParams> = [
   'workspace:scanStats'
 ];
 
-export type WorkspaceIPCType = {
+export type WorkspaceIpcType = {
   [K in keyof WorkspaceIpcParams]: (...args: WorkspaceIpcParams[K]['request']) => Promise<WorkspaceIpcParams[K]['response']>;
 };
 
@@ -53,4 +53,4 @@ methods.forEach((m) => {
   newIpc[m] = (...args: any[]) => ipcRenderer.invoke(m as string, ...args);
 });
 
-export const workspaceIpcRenderer = newIpc as WorkspaceIPCType;
+export const workspaceIpcRenderer = newIpc as WorkspaceIpcType;

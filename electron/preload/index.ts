@@ -8,7 +8,7 @@ import { arch, isLinux, isMac, isMacIntel, isWindows, platform } from '../main/u
 import { workspaceIpcRenderer } from '../main/workspace/ipc-renderer';
 import { ffmpegBridge } from './apis/ffmpeg';
 import { fileBridge } from './apis/file';
-import { folderBridge } from './apis/folder';
+import { folderBridge } from '../main/folder/ipc-renderer';
 import { resourceBridge } from './apis/resource';
 import { shortcutsBridge } from './apis/shortcuts';
 import { spriteBridge } from './apis/sprite';
