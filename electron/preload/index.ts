@@ -4,11 +4,11 @@ import { pluginResourceAPI } from '../../packages/plugins/ipc-renderer';
 import { proxyBridge } from '../../packages/proxy/ipc-renderer';
 import { aiBridge } from '../main/ai/ipc-renderer';
 import { dailyCareBridge } from '../main/daily/ipc-renderer';
+import { folderIpcRenderer } from '../main/folder/ipc-renderer';
 import { arch, isLinux, isMac, isMacIntel, isWindows, platform } from '../main/utils/os';
 import { workspaceIpcRenderer } from '../main/workspace/ipc-renderer';
 import { ffmpegBridge } from './apis/ffmpeg';
 import { fileBridge } from './apis/file';
-import { folderBridge } from '../main/folder/ipc-renderer';
 import { resourceBridge } from './apis/resource';
 import { shortcutsBridge } from './apis/shortcuts';
 import { spriteBridge } from './apis/sprite';
@@ -60,7 +60,7 @@ contextBridge.exposeInMainWorld('YUA', {
   workspace: workspaceIpcRenderer,
   file: fileBridge,
   system: systemBridge,
-  folder: folderBridge,
+  folder: folderIpcRenderer,
   videoDownloader: videoDownloaderAPI,
   sprite: spriteBridge,
   status: statusBridge,
