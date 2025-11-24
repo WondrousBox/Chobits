@@ -14,6 +14,7 @@ import { shortcutsBridge } from './apis/shortcuts';
 import { spriteBridge } from './apis/sprite';
 import { statusBridge } from './apis/status';
 import { systemBridge } from './apis/system';
+import { themeBridge } from './apis/theme';
 import { trashBridge } from './apis/trash';
 import { vectorBridge } from './apis/vector';
 import videoDownloaderAPI from './apis/video-downloader';
@@ -68,7 +69,8 @@ contextBridge.exposeInMainWorld('YUA', {
   ai: aiBridge,
   dailyCare: dailyCareBridge,
   pluginResource: pluginResourceAPI,
-  proxy: proxyBridge
+  proxy: proxyBridge,
+  theme: themeBridge
 });
 
 // --------- Preload scripts loading ---------

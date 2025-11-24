@@ -10,6 +10,7 @@ import type { ShortcutsBridgeType } from '../electron/preload/apis/shortcuts';
 import type { SpriteBridgeType } from '../electron/preload/apis/sprite';
 import type { StatusBridgeType } from '../electron/preload/apis/status';
 import type { SystemBridgeType } from '../electron/preload/apis/system';
+import type { ThemeBridgeType } from '../electron/preload/apis/theme';
 import type { TrashBridgeType } from '../electron/preload/apis/trash';
 import type { VectorBridgeType } from '../electron/preload/apis/vector';
 import type videoDownloaderAPI from '../electron/preload/apis/video-downloader';
@@ -47,6 +48,7 @@ declare global {
       pluginResource: PluginResourceBridgeType;
       dailyCare: DailyCareBridgeType;
       proxy: ProxyBridgeType;
+      theme: ThemeBridgeType;
       ai: AIApi;
     };
     ipcRenderer: import('electron').IpcRenderer;

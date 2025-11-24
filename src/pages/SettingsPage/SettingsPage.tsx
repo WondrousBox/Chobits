@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { TbBox, TbBrain, TbCpu, TbFolder, TbFolderOpen, TbKeyboard, TbMessage2, TbMoodKid, TbNetwork, TbPlug, TbSparkles } from 'react-icons/tb';
+import { TbBox, TbBrain, TbCpu, TbFolder, TbFolderOpen, TbKeyboard, TbMessage2, TbMoodKid, TbNetwork, TbPlug, TbSparkles, TbSunMoon } from 'react-icons/tb';
 
 import DragAbleTitle from '../../components/common/DragAbleTitle';
 import EmbeddingJobsPanel from '../../components/EmbeddingJobs';
@@ -7,6 +7,7 @@ import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu
 import ModelPage from '../ModelPage/ModelPage';
 import PluginPage from '../PluginPage/PluginPage';
 import AiSettings from './components/AiSettings';
+import AppearanceSettings from './components/AppearanceSettings';
 import ExtensionSettings from './components/ExtensionSettings';
 import FolderSetting from './components/FolderSetting';
 import PromptSetting from './components/PromptSetting';
@@ -16,10 +17,16 @@ import SpriteManager from './components/SpriteManager';
 import Workspace from './components/Workspace';
 
 // 设置分类类型
-type SettingsCategory = 'folder' | 'embedding' | 'ai' | 'prompt' | 'workspace' | 'model' | 'sprites' | 'shortcuts' | 'plugins' | 'proxy' | 'extensions';
+type SettingsCategory = 'folder' | 'embedding' | 'ai' | 'prompt' | 'workspace' | 'model' | 'sprites' | 'shortcuts' | 'plugins' | 'proxy' | 'extensions' | 'appearance';
 
 // 设置分类配置
 const settingsCategories: { id: SettingsCategory; label: string; icon: React.ElementType; description: string }[] = [
+  {
+    id: 'appearance',
+    label: '主题外观',
+    icon: TbSunMoon,
+    description: '切换黑暗、明亮或跟随系统'
+  },
   {
     id: 'extensions',
     label: '机能扩展',
@@ -154,6 +161,8 @@ export const SettingsPage: React.FC = () => {
         return <ShortcutsSettings />;
       case 'extensions':
         return <ExtensionSettings />;
+      case 'appearance':
+        return <AppearanceSettings />;
       case 'proxy':
         return <ProxySettings />;
       default:
