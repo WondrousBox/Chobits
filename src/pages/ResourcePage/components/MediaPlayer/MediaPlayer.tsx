@@ -1,6 +1,7 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { MediaControls } from './MediaControls';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+
 import { CenterPlayButton } from './CenterPlayButton';
+import { MediaControls } from './MediaControls';
 
 interface MediaPlayerProps {
   src: string;

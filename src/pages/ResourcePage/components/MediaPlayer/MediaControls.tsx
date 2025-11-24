@@ -1,6 +1,7 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { TbMaximize, TbMinimize, TbPlayerPause, TbPlayerPlay, TbSettings, TbVolume, TbVolumeOff } from 'react-icons/tb';
+
 import { Button } from '@/components/ui/button';
-import { TbPlayerPlay, TbPlayerPause, TbVolume, TbVolumeOff, TbMaximize, TbMinimize, TbSettings } from 'react-icons/tb';
 
 // 播放/暂停按钮组件
 interface PlayPauseButtonProps {
