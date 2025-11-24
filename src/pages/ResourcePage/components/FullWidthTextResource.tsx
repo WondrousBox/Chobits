@@ -3,7 +3,8 @@ import { TbMaximize } from 'react-icons/tb';
 
 import { RichTextEditor } from '@/components/common/RichTextEditor';
 import { Button } from '@/components/ui/button';
-import { ResourceItem } from '@/types';
+
+import { ResourceItem } from '../types';
 
 interface FullWidthTextResourceProps {
   item: ResourceItem;

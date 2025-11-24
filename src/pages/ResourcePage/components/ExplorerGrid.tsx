@@ -5,8 +5,8 @@ import { toast } from 'sonner';
 
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { ResourceItem } from '@/types';
 
+import { ResourceItem } from '../types';
 import type { UIFolder } from './FolderSidebar';
 import ResourceGalleryItem from './ResourceGalleryItem';
 // Inline folder tile for grid view to avoid cross-file resolution issues

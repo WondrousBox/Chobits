@@ -1,4 +1,4 @@
-import type { MasonryLayoutConfig, MasonryLayoutGroup, MasonryLayoutItem, ResourceItem, ViewMode } from '@/types';
+import type { MasonryLayoutConfig, MasonryLayoutGroup, MasonryLayoutItem, ResourceItem, ViewMode } from '../types';
 
 const folderAPI: any = window.YUA?.folder;
 

@@ -2,7 +2,8 @@ import React from 'react';
 import { TbMaximize, TbMinimize, TbPlus, TbTransfer, TbX } from 'react-icons/tb';
 
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger } from '@/components/ui/context-menu';
-import { MasonryLayoutGroup, ResourceItem } from '@/types';
+
+import { MasonryLayoutGroup, ResourceItem } from '../types';
 
 interface MasonryContextMenuProps {
   item?: ResourceItem;
