@@ -12,6 +12,7 @@ import { initShortcutsHandlers } from './shortcuts';
 import { initSpriteHandlers } from './sprite';
 import { initStatusHandlers } from './status';
 import { initSystemHandlers } from './system';
+import { initThemeHandlers } from './theme';
 import { initTrashHandlers } from './trash';
 import { initVectorHandlers } from './vector';
 import { initVideoDownloadHandlers } from './video-download';
@@ -42,4 +43,5 @@ export function initHandlers(win: BrowserWindow): void {
   initShortcutsHandlers(win);
   initPluginResourceHandlers(win);
   initProxyHandlers(win);
+  initThemeHandlers();
 }

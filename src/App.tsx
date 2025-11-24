@@ -2,6 +2,7 @@ import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import { ChatSelectionProvider } from '@/components/AIAssistant/context/ChatSelectionContext';
 import DownloadFloating from '@/components/DownloadFloating';
+import { ThemeProvider } from '@/components/providers/ThemeProvider';
 import { Toaster } from '@/components/ui/sonner';
 import FileActionsMenu from '@/pages/FileActionsMenu/FileActionsMenu';
 import ResourcePreviewWindow from '@/pages/ResourcePage/ResourcePreviewWindow';
@@ -25,36 +26,38 @@ import WorkspaceWizard from './pages/WorkspacePage/WorkspaceWizard';
 
 function App(): JSX.Element {
   return (
-    <HashRouter>
-      <ChatSelectionProvider>
-        <TooltipProvider delayDuration={0}>
-          <div className="w-full h-full overflow-hidden">
-            <Routes>
-              <Route path="/" element={<AIAssistant />} />
-              <Route path="/status" element={<StatusPage />} />
-              <Route path="/menu" element={<AssistantMenuPage />} />
-              <Route path="/file-actions" element={<FileActionsMenu />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/workspace-wizard" element={<WorkspaceWizard />} />
-              <Route path="/resources" element={<ResourcePage />} />
-              <Route path="/recycle" element={<RecycleBinPage />} />
-              <Route path="/workspace" element={<WorkspacePage />} />
-              <Route path="/assistant" element={<AssistantPage />} />
-              <Route path="/chat" element={<ChatPage />} />
-              <Route path="/plugin-manager" element={<PluginPage />} />
-              <Route path="/plugin-download" element={<PluginDownloadPage />} />
-              <Route path="/workflow" element={<WorkflowBuilderPage />} />
-              <Route path="/workflow-page" element={<WorkflowPage />} />
-              <Route path="/tagger" element={<TaggingPage />} />
-              <Route path="/resource-preview" element={<ResourcePreviewWindow />} />
-              <Route path="/download" element={<DownloadFloating />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-            <Toaster />
-          </div>
-        </TooltipProvider>
-      </ChatSelectionProvider>
-    </HashRouter>
+    <ThemeProvider>
+      <HashRouter>
+        <ChatSelectionProvider>
+          <TooltipProvider delayDuration={0}>
+            <div className="w-full h-full overflow-hidden">
+              <Routes>
+                <Route path="/" element={<AIAssistant />} />
+                <Route path="/status" element={<StatusPage />} />
+                <Route path="/menu" element={<AssistantMenuPage />} />
+                <Route path="/file-actions" element={<FileActionsMenu />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/workspace-wizard" element={<WorkspaceWizard />} />
+                <Route path="/resources" element={<ResourcePage />} />
+                <Route path="/recycle" element={<RecycleBinPage />} />
+                <Route path="/workspace" element={<WorkspacePage />} />
+                <Route path="/assistant" element={<AssistantPage />} />
+                <Route path="/chat" element={<ChatPage />} />
+                <Route path="/plugin-manager" element={<PluginPage />} />
+                <Route path="/plugin-download" element={<PluginDownloadPage />} />
+                <Route path="/workflow" element={<WorkflowBuilderPage />} />
+                <Route path="/workflow-page" element={<WorkflowPage />} />
+                <Route path="/tagger" element={<TaggingPage />} />
+                <Route path="/resource-preview" element={<ResourcePreviewWindow />} />
+                <Route path="/download" element={<DownloadFloating />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+              <Toaster />
+            </div>
+          </TooltipProvider>
+        </ChatSelectionProvider>
+      </HashRouter>
+    </ThemeProvider>
   );
 }
 
