@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { TbMaximize } from 'react-icons/tb';
 
-import { RichTextEditor } from '@/components/common/RichTextEditor';
 import { Button } from '@/components/ui/button';
 
 import { ResourceItem } from '../types';
+import { RichTextEditor } from './RichTextEditor';
 
 interface FullWidthTextResourceProps {
   item: ResourceItem;

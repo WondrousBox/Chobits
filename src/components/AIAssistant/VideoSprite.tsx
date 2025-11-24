@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 
-import { useSpritePlayer } from '@/components/AIAssistant/context/SpritePlayerContext';
-import { resolveSpriteSrc } from '@/lib/resourceProtocol';
+import { useSpritePlayer } from './context/SpritePlayerContext';
+import { resolveSpriteSrc } from './utils/resource';
 
 export default function VideoSprite(): JSX.Element | null {
   const videoRef = useRef<HTMLVideoElement | null>(null);

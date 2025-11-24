@@ -4,9 +4,10 @@ import { toast } from 'sonner';
 
 import { addResourcesFromSelectedFiles } from '@/components/AIAssistant/services/resourceService';
 import Dropzone from '@/components/common/Dropzone';
-import { RichTextEditor } from '@/components/common/RichTextEditor';
 import { Button } from '@/components/ui/button';
-import type { SelectedResourceFileType } from '@/types';
+
+import type { SelectedResourceFileType } from '../types';
+import { RichTextEditor } from './RichTextEditor';
 
 type Props = {
   folderId?: string | null;

@@ -6,10 +6,10 @@ import { Button } from '@/components/ui/button';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from '@/lib/resourceProtocol';
 
 import { MediaPlayer } from './components/MediaPlayer';
 import type { ResourceItem } from './types';
+import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from './utils/resourceProtocol';
 
 interface IncomingPayload {
   current: ResourceItem;

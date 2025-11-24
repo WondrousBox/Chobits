@@ -1,11 +1,11 @@
 import React from 'react';
 import { TbLayoutGrid, TbLayoutList, TbX } from 'react-icons/tb';
 
-import { InlineEditableText } from '@/components/common/InlineEditableText';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import { MasonryLayoutGroup, ResourceItem } from '../types';
+import InlineEditableText from './InlineEditableText';
 import ResourceGalleryItem from './ResourceGalleryItem';
 import ResourceListItem from './ResourceListItem';
 

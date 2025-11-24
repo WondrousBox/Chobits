@@ -9,8 +9,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '@/components/ui/sidebar';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import DefaultEmptyFolder from '@/pages/ResourcePage/components/DefaultEmptyFolder';
 
+import DefaultEmptyFolder from './components/DefaultEmptyFolder';
 import ExplorerFreeLayout from './components/ExplorerFreeLayout';
 import ExplorerGrid from './components/ExplorerGrid';
 import ExplorerList from './components/ExplorerList';

@@ -1,4 +1,4 @@
-import { ViewMode } from '@/types';
+import { ViewMode } from '../types';
 
 export const ROOT_VIEW_MODE_KEY = 'resource-view-mode-root';
 export const DEFAULT_VIEW_MODE: ViewMode = 'grid';
