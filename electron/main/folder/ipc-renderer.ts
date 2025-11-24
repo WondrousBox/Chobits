@@ -14,7 +14,7 @@ export type Folder = {
   deletedAt?: number | null;
 };
 
-export type FolderBridgeParams = {
+export type FolderIpcParams = {
   'folder.create': IpcParams<[{ name: string; parentId?: string | null; workspaceId?: string; description?: string }], { success: boolean; data?: Folder; dirPath?: string; error?: string }>;
   'folder.rename': IpcParams<[{ id: string; name: string }], { success: boolean; data?: Folder; error?: string }>;
   'folder.move': IpcParams<[{ id: string; parentId: string | null }], { success: boolean; data?: Folder; error?: string }>;
@@ -27,7 +27,7 @@ export type FolderBridgeParams = {
   'folder.saveMasonryLayout': IpcParams<[{ folderId: string; layout: any }], { success: boolean; error?: string }>;
 };
 
-const methods: Array<keyof FolderBridgeParams> = [
+const methods: Array<keyof FolderIpcParams> = [
   'folder.create',
   'folder.rename',
   'folder.move',
@@ -41,12 +41,12 @@ const methods: Array<keyof FolderBridgeParams> = [
 ];
 
 export type FolderIpcType = {
-  [K in keyof FolderBridgeParams]: (...args: FolderBridgeParams[K]['request']) => Promise<FolderBridgeParams[K]['response']>;
+  [K in keyof FolderIpcParams]: (...args: FolderIpcParams[K]['request']) => Promise<FolderIpcParams[K]['response']>;
 };
 
 const newIpc: Record<string, any> = {};
 methods.forEach((m) => {
-  newIpc[m] = (...args: FolderBridgeParams[typeof m]['request']) => ipcRenderer.invoke(m as string, ...args);
+  newIpc[m] = (...args: FolderIpcParams[typeof m]['request']) => ipcRenderer.invoke(m as string, ...args);
 });
 
-export const folderBridge = newIpc as FolderIpcType;
+export const folderIpcRenderer = newIpc as FolderIpcType;
