@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbFilter, TbGrid3X3, TbHeart, TbLayout2, TbList, TbRefresh, TbRobot, TbSearch, TbTrash, TbX } from 'react-icons/tb';
+import { TbFilter, TbGrid3X3, TbHeart, TbList, TbRefresh, TbRobot, TbSearch, TbTrash, TbX } from 'react-icons/tb';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '@/components/ui/sidebar';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import DefaultEmptyFolder from '@/pages/ResourcePage/components/DefaultEmptyFolder';
-import { SortField, SortOrder, ViewMode } from '@/types';
 
 import ExplorerFreeLayout from './components/ExplorerFreeLayout';
 import ExplorerGrid from './components/ExplorerGrid';
@@ -21,6 +20,7 @@ import { useResourceData } from './hooks/useResourceData';
 import { useResourceFilter } from './hooks/useResourceFilter';
 import { useResourceOperations } from './hooks/useResourceOperations';
 import { useViewMode } from './hooks/useViewMode';
+import { SortField, SortOrder, ViewMode } from './types';
 import { ALL_TAG_VALUE, typeOptions } from './utils/constants';
 
 const ResourcePage: React.FC = () => {

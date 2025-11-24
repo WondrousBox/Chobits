@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 
-import { ResourceItem } from '@/types';
+import { ResourceItem } from '../types';
 
 export const useResourceOperations = (
   list: ResourceItem[],

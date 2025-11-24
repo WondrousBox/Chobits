@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 
-import { ResourceItem, SortField, SortOrder } from '@/types';
+import { ResourceItem, SortField, SortOrder } from '../types';
 
 interface UseResourceFilterParams {
   list: ResourceItem[];

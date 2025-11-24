@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { ResourceItem } from '@/types';
-
 import { type UIFolder } from '../components/FolderSidebar';
+import { ResourceItem } from '../types';
 
 export const useResourceData = (wsFilter?: string, tagFilter?: string) => {
   const [list, setList] = useState<ResourceItem[]>([]);

@@ -21,13 +21,13 @@ import ReactFlow, {
 import { toast } from 'sonner';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
-import { ResourceItem } from '@/types';
 import { ExecutionStatus, NodeSpec, WorkflowDraft, WorkflowRunLogEntry } from '@/types/workflow';
 
+import ResourceRunPopover from '../ResourcePage/ResourceRunPopover';
+import { ResourceItem } from '../ResourcePage/types';
 import FloatingActions from './FloatingActions';
 import FloatingInspector from './FloatingInspector';
 import { autoLayout } from './layout';
-import ResourceRunPopover from './ResourceRunPopover';
 import SpecNode from './SpecNode';
 import type { NodeData } from './types';
 import WorkflowJsonDialog from './WorkflowJsonDialog';

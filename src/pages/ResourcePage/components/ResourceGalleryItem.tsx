@@ -6,8 +6,9 @@ import { TbCheck, TbClock, TbCopy, TbEye, TbEyeOff, TbFile, TbHeart, TbPlayerPla
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from '@/lib/resourceProtocol';
-import { formatDuration, getResourceSummary, getResourceTypeIcon, getStatusColor } from '@/lib/resourceUtils';
-import { ResourceItem } from '@/types';
+import { formatDuration, getResourceSummary, getResourceTypeIcon, getStatusColor } from '@/pages/ResourcePage/utils/resourceUtils';
+
+import { ResourceItem } from '../types';
 
 interface GalleryItemProps {
   item: ResourceItem;

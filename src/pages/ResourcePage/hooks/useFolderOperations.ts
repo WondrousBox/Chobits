@@ -1,9 +1,8 @@
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 
-import { ResourceItem } from '@/types';
-
 import { type UIFolder } from '../components/FolderSidebar';
+import { ResourceItem } from '../types';
 
 export const useFolderOperations = (
   folders: UIFolder[],

@@ -1,7 +1,8 @@
 import prettyBytes from 'pretty-bytes';
 
 import { formatRelativeTime } from '@/lib/time';
-import { ResourceItem } from '@/types';
+
+import { ResourceItem } from '../types';
 
 // 格式化时长
 export function formatDuration(ms?: number): string {

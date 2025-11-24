@@ -8,8 +8,8 @@ import { Layout, Responsive, WidthProvider } from 'react-grid-layout';
 import { TbGripVertical } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
-import { MasonryLayoutConfig, ResourceItem } from '@/types';
 
+import { MasonryLayoutConfig, ResourceItem } from '../types';
 import {
   addResourcesToGroup,
   createDefaultLayoutConfig,
