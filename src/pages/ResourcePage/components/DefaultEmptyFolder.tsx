@@ -2,10 +2,10 @@ import React, { useCallback, useRef, useState } from 'react';
 import { TbChecks, TbFilePlus, TbUpload } from 'react-icons/tb';
 import { toast } from 'sonner';
 
-import { addResourcesFromSelectedFiles } from '@/components/AIAssistant/services/resourceService';
 import Dropzone from '@/components/common/Dropzone';
 import { Button } from '@/components/ui/button';
 
+import { addResourcesFromSelectedFiles } from '../services/resourceService';
 import type { SelectedResourceFileType } from '../types';
 import { RichTextEditor } from './RichTextEditor';
 

@@ -1,15 +1,26 @@
 /**
  * 资源服务：处理拖拽/选择文件并写入资源库
- * - 行为：
- *   - DataTransfer：解析条目（目录跳过）、可选打开文件列表窗口、入库资源。
- *   - SelectedFiles：若有 File 对象优先上传（去重），然后入库。
- * - 副作用：调用 window.YUA.resource.addResource、window.YUA.resource.uploadResourceFile。
  */
 import { Resource } from 'electron/preload/apis/resource';
 
-import type { SelectedResourceFileType } from '@/types';
+import type { ResourceItem, SelectedResourceFileType } from '../types';
 
-import { getResourceTypeFromFilename } from '../utils/resource';
+export const getResourceTypeFromFilename = (fileName: string): ResourceItem['type'] => {
+  const ext = (fileName.split('.').pop() || '').toLowerCase();
+  if (!ext) return 'file';
+  const imageExt = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg', 'ico', 'bmp']);
+  const videoExt = new Set(['mp4', 'webm', 'mov', 'avi', 'mkv', 'flv', 'mpeg', 'mpg', 'm4v']);
+  const audioExt = new Set(['mp3', 'wav', 'ogg', 'aac', 'flac', 'm4a', 'opus']);
+  const documentExt = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'md', 'markdown']);
+  const textExt = new Set(['txt', 'csv', 'json', 'yaml', 'yml', 'xml', 'html', 'css', 'js', 'ts', 'jsx', 'tsx']);
+
+  if (imageExt.has(ext)) return 'image';
+  if (videoExt.has(ext)) return 'video';
+  if (audioExt.has(ext)) return 'audio';
+  if (documentExt.has(ext)) return 'document';
+  if (textExt.has(ext)) return 'text';
+  return 'file';
+};
 
 type ResourceLocationOptions = {
   folderId?: string | null;
