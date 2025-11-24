@@ -1,6 +1,6 @@
 import { ipcRenderer } from 'electron';
 
-import type { IpcParams, PartialByKey, ResParams } from './types';
+import type { IpcParams, PartialByKey, ResParams } from '../types';
 
 export type Workspace = {
   id: string;

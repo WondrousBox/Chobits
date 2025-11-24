@@ -1,6 +1,6 @@
 import { ipcRenderer } from 'electron';
 
-import { IpcParams } from './types';
+import { IpcParams } from '../types';
 
 export type Folder = {
   id: string;

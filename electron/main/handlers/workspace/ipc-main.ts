@@ -7,8 +7,8 @@ import { app, ipcMain, shell } from 'electron';
 import { DefaultWorkspaceName } from '../../config';
 import { WorkspacesRepo } from '../../db/repositories';
 import { addAllowedResourceRoot, addWorkspaceResourceRoot } from '../../resource-protocol';
+import type { PartialByKey } from '../types';
 import type { Workspace } from './ipc-renderer';
-import type { PartialByKey } from './types';
 
 function ensureDirSync(p: string): void {
   if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
