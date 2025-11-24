@@ -1,10 +1,10 @@
 import type { AIApi } from '../electron/main/ai/types';
 import type { DailyCareBridgeType } from '../electron/main/daily/ipc-renderer';
+import type { FolderIpcType } from '../electron/main/folder/ipc-renderer';
 import type { PluginResourceBridgeType } from '../electron/main/plugins/ipc-renderer';
-import type { WorkspaceIPCType } from '../electron/main/workspace/ipc-renderer';
+import type { WorkspaceIpcType } from '../electron/main/workspace/ipc-renderer';
 import type { FFmpegBridgeType } from '../electron/preload/apis/ffmpeg';
 import type { FileBridgeType } from '../electron/preload/apis/file';
-import type { FolderBridgeType } from '../electron/preload/apis/folder';
 import type { ResourceBridgeType } from '../electron/preload/apis/resource';
 import type { ShortcutsBridgeType } from '../electron/preload/apis/shortcuts';
 import type { SpriteBridgeType } from '../electron/preload/apis/sprite';
@@ -36,10 +36,10 @@ declare global {
       };
       resource: ResourceBridgeType;
       trash: TrashBridgeType;
-      workspace: WorkspaceIPCType;
+      workspace: WorkspaceIpcType;
       file: FileBridgeType;
       system: SystemBridgeType;
-      folder: FolderBridgeType;
+      folder: FolderIpcType;
       videoDownloader: typeof videoDownloaderAPI;
       sprite: SpriteBridgeType;
       status: StatusBridgeType;
