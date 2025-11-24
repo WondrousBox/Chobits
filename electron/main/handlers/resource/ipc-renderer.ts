@@ -1,6 +1,6 @@
 import { ipcRenderer } from 'electron';
 
-import type { IpcParams, PartialByKey } from './types';
+import type { IpcParams, PartialByKey } from '../types';
 
 export type Resource = {
   id: string;
