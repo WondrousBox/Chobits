@@ -10,7 +10,7 @@ import { FoldersRepo, ResourcesRepo, TagsRepo, WorkspacesRepo } from '../../db/r
 import { sendSpriteBusyEnd, sendSpriteBusyProgress, sendSpriteBusyStart } from '../../utils/sprite-busy';
 import { sendSpriteNotice } from '../../utils/sprite-notice';
 import { detectBasicType, generateThumbnailForResource } from '../../utils/thumbnail';
-import type { Resource } from './types';
+import type { Resource } from './ipc-renderer';
 
 // 存储正在上传的文件流
 interface UploadStream {
