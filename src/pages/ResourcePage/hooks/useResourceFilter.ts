@@ -7,7 +7,7 @@ interface UseResourceFilterParams {
   wsFilter?: string;
   tagFilter: string;
   folderFilter: string;
-  typeFilter: string;
+  typeFilter: string[];
   favoriteFilter: boolean;
   searchQuery: string;
   sortField: SortField;
@@ -25,8 +25,8 @@ export const useResourceFilter = ({ list, wsFilter, tagFilter, folderFilter, typ
     }
 
     // 文件夹过滤：当选择具体文件夹时，仅展示该文件夹内资源；当选择"全部"时，仅展示未归属任何文件夹的顶层资源
-    // 如果开启了收藏筛选，则忽略文件夹限制，展示所有收藏资源
-    if (!favoriteFilter) {
+    // 如果开启了收藏筛选或类型筛选，则忽略文件夹限制，展示所有符合条件的资源
+    if (!favoriteFilter && (!typeFilter || typeFilter.length === 0)) {
       if (folderFilter) {
         filtered = filtered.filter((r: any) => (r as any).folderId === folderFilter);
       } else {
@@ -35,8 +35,8 @@ export const useResourceFilter = ({ list, wsFilter, tagFilter, folderFilter, typ
     }
 
     // 类型过滤
-    if (typeFilter) {
-      filtered = filtered.filter((r: any) => r.type === typeFilter);
+    if (typeFilter && typeFilter.length > 0) {
+      filtered = filtered.filter((r: any) => typeFilter.includes(r.type));
     }
 
     // 收藏过滤

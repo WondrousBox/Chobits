@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbFilter, TbGrid3X3, TbHeart, TbList, TbRefresh, TbRobot, TbSearch, TbTrash, TbX } from 'react-icons/tb';
+import { TbFilter, TbGrid3X3, TbHeart, TbList, TbRefresh, TbRobot, TbSearch, TbSettings, TbTrash, TbX } from 'react-icons/tb';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
@@ -27,7 +27,7 @@ const ResourcePage: React.FC = () => {
   // 当前页面不再提供空间切换，始终使用"当前选中的默认空间"进行筛选
   const [wsFilter, setWsFilter] = useState<string | undefined>(undefined);
   const [tagFilter, setTagFilter] = useState<string>(''); // '' means all
-  const [typeFilter, setTypeFilter] = useState<string>(''); // empty means all types
+  const [typeFilter, setTypeFilter] = useState<string[]>([]); // empty means all types
   const [favoriteFilter, setFavoriteFilter] = useState<boolean>(false); // false means all, true means favorites only
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sortField, setSortField] = useState<SortField>('collectedAt');
@@ -201,10 +201,11 @@ const ResourcePage: React.FC = () => {
   // 当前文件夹下的直接子文件夹
   const childFolders = useMemo(() => {
     if (favoriteFilter) return [] as UIFolder[];
+    if (typeFilter.length > 0) return [] as UIFolder[];
     if (!wsFilter) return [] as UIFolder[];
     const parent = (folderFilter || null) as string | null;
     return folders.filter((f) => f.workspaceId === wsFilter && (f.parentId || null) === parent);
-  }, [folders, wsFilter, folderFilter, favoriteFilter]);
+  }, [folders, wsFilter, folderFilter, favoriteFilter, typeFilter]);
 
   const allCount = useMemo(() => {
     if (!wsFilter) return 0;
@@ -291,6 +292,41 @@ const ResourcePage: React.FC = () => {
                 </PopoverTrigger>
                 <PopoverContent side="bottom" align="end" className="w-80 p-3 space-y-4">
                   <div className="space-y-2">
+                    <div className="text-xs font-medium text-muted-foreground">资源类型</div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {typeOptions
+                        .filter(({ key }) => key === '' || visibleTypes.has(key))
+                        .map(({ key, label, icon: Icon }) => {
+                          const isAll = key === '';
+                          const isSelected = isAll ? typeFilter.length === 0 : typeFilter.includes(key);
+                          return (
+                            <Button
+                              key={key || 'all'}
+                              variant={isSelected ? 'default' : 'outline'}
+                              size="sm"
+                              className="h-8 justify-start px-2"
+                              onClick={() => {
+                                if (isAll) {
+                                  setTypeFilter([]);
+                                  setFavoriteFilter(false);
+                                } else {
+                                  const next = typeFilter.includes(key) ? typeFilter.filter((k) => k !== key) : [...typeFilter, key];
+                                  setTypeFilter(next);
+                                  if (next.length > 0) {
+                                    setFolderFilter('');
+                                    setFavoriteFilter(false);
+                                  }
+                                }
+                              }}
+                            >
+                              <Icon className="mr-2 h-4 w-4" />
+                              {label}
+                            </Button>
+                          );
+                        })}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
                     <div className="text-xs font-medium text-muted-foreground">标签筛选</div>
                     <Select
                       value={tagFilter === '' ? ALL_TAG_VALUE : tagFilter}
@@ -352,30 +388,6 @@ const ResourcePage: React.FC = () => {
         <Sidebar collapsible="none" className="h-full w-80 bg-sidebar">
           <SidebarHeader>
             <SidebarMenu className="pl-0">
-              {typeOptions
-                .filter(({ key }) => key === '' || visibleTypes.has(key))
-                .map(({ key, label, icon: Icon }) => (
-                  <SidebarMenuItem
-                    className="pl-0 list-none h-8"
-                    key={key || 'all'}
-                    onClick={() => {
-                      if (key === '') {
-                        // 点击"全部"时，取消收藏筛选
-                        setFavoriteFilter(false);
-                        setTypeFilter('');
-                      } else {
-                        // 点击其他类型时，只设置类型筛选，不与收藏筛选冲突
-                        setTypeFilter((prev) => (prev === key ? '' : key));
-                      }
-                    }}
-                  >
-                    <SidebarMenuButton isActive={typeFilter === key && !(favoriteFilter && key === '')} variant={typeFilter === key && !(favoriteFilter && key === '') ? 'outline' : 'default'}>
-                      <Icon />
-                      {label}
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))}
-
               {/* 收藏筛选按钮 - 只在存在收藏内容时显示 */}
               {hasFavorites && (
                 <SidebarMenuItem
@@ -389,8 +401,8 @@ const ResourcePage: React.FC = () => {
                       // 如果当前选择的是"全部"类型，则取消类型筛选
                       setFavoriteFilter(true);
                       setFolderFilter(''); // 取消文件夹选中状态
-                      if (typeFilter === '') {
-                        setTypeFilter('');
+                      if (typeFilter.length === 0) {
+                        setTypeFilter([]);
                       }
                     }
                   }}
@@ -404,6 +416,23 @@ const ResourcePage: React.FC = () => {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )}
+              <SidebarMenuItem key={'tasks'}>
+                <SidebarMenuButton>
+                  <TbFilter />
+                  任务
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem
+                key={'settings'}
+                onClick={() => {
+                  window.YUA.window['window:open']('settings');
+                }}
+              >
+                <SidebarMenuButton>
+                  <TbSettings />
+                  设置
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarHeader>
           {/* 左侧文件夹 */}
@@ -416,6 +445,7 @@ const ResourcePage: React.FC = () => {
                 setFolderFilter(folderId);
                 saveCurrentFolder(folderId);
                 setFavoriteFilter(false);
+                setTypeFilter([]);
               }}
               counts={folderCounts}
               allCount={allCount}
@@ -474,6 +504,7 @@ const ResourcePage: React.FC = () => {
                   setFolderFilter(id);
                   saveCurrentFolder(id);
                   setFavoriteFilter(false);
+                  setTypeFilter([]);
                 }}
                 onDropResourcesToFolder={(fid, ids) => handleMoveResourcesToFolder(fid, ids)}
                 onMoveFolder={handleMoveFolder}
@@ -499,6 +530,7 @@ const ResourcePage: React.FC = () => {
                   setFolderFilter(id);
                   saveCurrentFolder(id);
                   setFavoriteFilter(false);
+                  setTypeFilter([]);
                 }}
                 onDropResourcesToFolder={(fid, ids) => handleMoveResourcesToFolder(fid, ids)}
                 onMoveFolder={handleMoveFolder}
@@ -554,6 +586,7 @@ const ResourcePage: React.FC = () => {
                   setFolderFilter('');
                   saveCurrentFolder('');
                   setFavoriteFilter(false);
+                  setTypeFilter([]);
                 }}
               >
                 全部
@@ -566,6 +599,8 @@ const ResourcePage: React.FC = () => {
                     onClick={() => {
                       setFolderFilter(f.id);
                       saveCurrentFolder(f.id);
+                      setFavoriteFilter(false);
+                      setTypeFilter([]);
                     }}
                   >
                     {f.name}
