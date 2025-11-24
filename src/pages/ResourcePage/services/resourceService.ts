@@ -1,7 +1,42 @@
 /**
  * 资源服务：处理拖拽/选择文件并写入资源库
  */
-import { Resource } from 'electron/preload/apis/resource';
+// import { Resource } from 'electron/preload/apis/resource';
+export type Resource = {
+  id: string;
+  type: 'image' | 'video' | 'audio' | 'text' | 'link' | 'file' | 'document' | 'other';
+  workspaceId?: string;
+  title?: string;
+  description?: string;
+  url?: string;
+  domain?: string;
+  sourceName?: string;
+  authorName?: string;
+  language?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  durationMs?: number;
+  width?: number;
+  height?: number;
+  filePath?: string;
+  contentText?: string;
+  thumbnail?: ArrayBuffer | Uint8Array;
+  thumbnailPath?: string;
+  previewUrl?: string;
+  tags?: string; // JSON string
+  categories?: string; // JSON string
+  visibility?: 'private' | 'unlisted' | 'public';
+  nsfw?: 0 | 1;
+  favorite?: 0 | 1;
+  rating?: number;
+  status?: 'new' | 'processing' | 'ready' | 'archived' | 'error';
+  collectedAt?: number;
+  publishedAt?: number;
+  createdAt?: number;
+  updatedAt?: number;
+  metadata?: string; // JSON string
+  embedding?: ArrayBuffer | Uint8Array;
+};
 
 import type { ResourceItem, SelectedResourceFileType } from '../types';
 
