@@ -3,12 +3,12 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 
 import { app, ipcMain, shell } from 'electron';
-import { Workspace } from 'electron/preload/apis/workspace';
-import { PartialByKey } from 'electron/preload/type';
 
 import { DefaultWorkspaceName } from '../config';
 import { WorkspacesRepo } from '../db/repositories';
 import { addAllowedResourceRoot, addWorkspaceResourceRoot } from '../resource-protocol';
+import type { Workspace } from './ipc-renderer';
+import type { PartialByKey } from './types';
 
 function ensureDirSync(p: string): void {
   if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });

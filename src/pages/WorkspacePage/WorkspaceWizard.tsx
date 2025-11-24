@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import type { Workspace } from 'electron/main/workspace/ipc-renderer';
 import { AnimatePresence, motion } from 'framer-motion';
+import React, { useEffect, useState } from 'react';
 import { TbArrowLeft, TbArrowRight, TbFolderOpen } from 'react-icons/tb';
-import type { Workspace } from 'electron/preload/apis/workspace';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+
 import SuccessResult from '@/components/common/SuccessResult';
 import TermWithTooltip from '@/components/common/TermWithTooltip';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { getTerm } from '@/lib/terms';
 
 const WorkspaceWizard: React.FC = () => {

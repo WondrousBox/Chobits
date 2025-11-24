@@ -1,6 +1,7 @@
 import type { AIApi } from '../electron/main/ai/types';
 import type { DailyCareBridgeType } from '../electron/main/daily/ipc-renderer';
 import type { PluginResourceBridgeType } from '../electron/main/plugins/ipc-renderer';
+import type { WorkspaceIPCType } from '../electron/main/workspace/ipc-renderer';
 import type { FFmpegBridgeType } from '../electron/preload/apis/ffmpeg';
 import type { FileBridgeType } from '../electron/preload/apis/file';
 import type { FolderBridgeType } from '../electron/preload/apis/folder';
@@ -13,7 +14,6 @@ import type { TrashBridgeType } from '../electron/preload/apis/trash';
 import type { VectorBridgeType } from '../electron/preload/apis/vector';
 import type videoDownloaderAPI from '../electron/preload/apis/video-downloader';
 import type { WindowBridgeType } from '../electron/preload/apis/window';
-import type { WorkspaceBridgeType } from '../electron/preload/apis/workspace';
 import type { ProxyBridgeType } from '../packages/proxy/ipc-renderer';
 
 declare global {
@@ -36,7 +36,7 @@ declare global {
       };
       resource: ResourceBridgeType;
       trash: TrashBridgeType;
-      workspace: WorkspaceBridgeType;
+      workspace: WorkspaceIPCType;
       file: FileBridgeType;
       system: SystemBridgeType;
       folder: FolderBridgeType;

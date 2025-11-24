@@ -1,4 +1,4 @@
-import { windowIpcRenderer, WindowIPCType } from '@aim-packages/window-manager/renderer';
+import { windowIpcRenderer, WindowIpcType } from '@aim-packages/window-manager/renderer';
 import { ipcRenderer } from 'electron';
 
 import { IPCParams } from '../type';
@@ -30,7 +30,7 @@ const methods: Array<keyof WindowBridgeParams> = ['getMovementConfig', 'updateMo
 
 export type WindowBridgeType = {
   [K in keyof WindowBridgeParams]: (...args: WindowBridgeParams[K]['request']) => Promise<WindowBridgeParams[K]['response']>;
-} & WindowIPCType;
+} & WindowIpcType;
 
 const newBridge: Record<string, any> = {};
 
