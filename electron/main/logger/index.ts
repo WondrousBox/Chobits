@@ -1,5 +1,6 @@
 import dayjs from 'dayjs';
 import log, { LogFunctions } from 'electron-log';
+
 import { LOG_LEVEL } from '../config';
 import { getResourcePath } from '../utils/resources-path';
 

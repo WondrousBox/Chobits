@@ -1,6 +1,7 @@
-import * as path from 'node:path';
-import * as fs from 'node:fs/promises';
 import * as fscb from 'node:fs';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
+
 import ffmpeg from 'fluent-ffmpeg';
 
 // Attempt lazy import of sharp (optional)
