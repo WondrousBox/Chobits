@@ -25,10 +25,13 @@ export const useResourceFilter = ({ list, wsFilter, tagFilter, folderFilter, typ
     }
 
     // 文件夹过滤：当选择具体文件夹时，仅展示该文件夹内资源；当选择"全部"时，仅展示未归属任何文件夹的顶层资源
-    if (folderFilter) {
-      filtered = filtered.filter((r: any) => (r as any).folderId === folderFilter);
-    } else {
-      filtered = filtered.filter((r: any) => !(r as any).folderId);
+    // 如果开启了收藏筛选，则忽略文件夹限制，展示所有收藏资源
+    if (!favoriteFilter) {
+      if (folderFilter) {
+        filtered = filtered.filter((r: any) => (r as any).folderId === folderFilter);
+      } else {
+        filtered = filtered.filter((r: any) => !(r as any).folderId);
+      }
     }
 
     // 类型过滤
