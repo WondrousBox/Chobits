@@ -8,7 +8,7 @@ import { initFolderHandlers } from '../folder/ipc-main';
 import { initWorkspaceHandlers } from '../workspace/ipc-main';
 import { initFFmpegHandlers } from './ffmpeg';
 import { initFileHandlers } from './file';
-import { initResourceHandlers } from './resource';
+import { initResourceHandlers } from './resource/ipc-main';
 import { initShortcutsHandlers } from './shortcuts';
 import { initSpriteHandlers } from './sprite';
 import { initStatusHandlers } from './status';

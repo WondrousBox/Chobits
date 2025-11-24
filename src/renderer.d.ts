@@ -5,7 +5,7 @@ import type { PluginResourceBridgeType } from '../electron/main/plugins/ipc-rend
 import type { WorkspaceIpcType } from '../electron/main/workspace/ipc-renderer';
 import type { FFmpegBridgeType } from '../electron/preload/apis/ffmpeg';
 import type { FileBridgeType } from '../electron/preload/apis/file';
-import type { ResourceBridgeType } from '../electron/preload/apis/resource';
+import type { ResourceIpcType } from '../electron/preload/apis/resource';
 import type { ShortcutsBridgeType } from '../electron/preload/apis/shortcuts';
 import type { SpriteBridgeType } from '../electron/preload/apis/sprite';
 import type { StatusBridgeType } from '../electron/preload/apis/status';
@@ -34,7 +34,7 @@ declare global {
         onEmbeddingJob(cb: (job: any) => void): () => void;
         onEmbeddingProgress(cb: (p: { id: string; done: number; total: number; status?: string }) => void): () => void;
       };
-      resource: ResourceBridgeType;
+      resource: ResourceIpcType;
       trash: TrashBridgeType;
       workspace: WorkspaceIpcType;
       file: FileBridgeType;

@@ -4,13 +4,13 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
 import { BrowserWindow, ipcMain, shell } from 'electron';
-import { Resource } from 'electron/preload/apis/resource';
 
-import { TaggingService } from '../ai/tagging-service';
-import { FoldersRepo, ResourcesRepo, TagsRepo, WorkspacesRepo } from '../db/repositories';
-import { sendSpriteBusyEnd, sendSpriteBusyProgress, sendSpriteBusyStart } from '../utils/sprite-busy';
-import { sendSpriteNotice } from '../utils/sprite-notice';
-import { detectBasicType, generateThumbnailForResource } from '../utils/thumbnail';
+// import { TaggingService } from '../ai/tagging-service';
+import { FoldersRepo, ResourcesRepo, TagsRepo, WorkspacesRepo } from '../../db/repositories';
+import { sendSpriteBusyEnd, sendSpriteBusyProgress, sendSpriteBusyStart } from '../../utils/sprite-busy';
+import { sendSpriteNotice } from '../../utils/sprite-notice';
+import { detectBasicType, generateThumbnailForResource } from '../../utils/thumbnail';
+import type { Resource } from './types';
 
 // 存储正在上传的文件流
 interface UploadStream {
@@ -61,29 +61,29 @@ export function initResourceHandlers(): void {
 
     const row = await ResourcesRepo.upsert({ ...res, workspaceId, filePath } as any);
 
-    // Fire-and-forget: auto-tag text resources via AI TaggingService (no renderer involvement)
-    try {
-      const text = (res as any).contentText || (res as any).description || (res as any).title || '';
-      const textStr = (typeof text === 'string' ? text : '').trim();
-      if (row && textStr) {
-        setTimeout(async () => {
-          try {
-            const tags = await TaggingService.autoTagText(textStr, { maxLabels: 8 });
-            if (Array.isArray(tags) && tags.length) {
-              try {
-                await ResourcesRepo.update((row as any).id, { tags: JSON.stringify(tags) } as any);
-              } catch {
-                /* ignore update errors */
-              }
-            }
-          } catch (e) {
-            console.warn('[auto-tag] failed', e);
-          }
-        }, 0);
-      }
-    } catch {
-      /* ignore auto-tag failures */
-    }
+    // // Fire-and-forget: auto-tag text resources via AI TaggingService (no renderer involvement)
+    // try {
+    //   const text = (res as any).contentText || (res as any).description || (res as any).title || '';
+    //   const textStr = (typeof text === 'string' ? text : '').trim();
+    //   if (row && textStr) {
+    //     setTimeout(async () => {
+    //       try {
+    //         const tags = await TaggingService.autoTagText(textStr, { maxLabels: 8 });
+    //         if (Array.isArray(tags) && tags.length) {
+    //           try {
+    //             await ResourcesRepo.update((row as any).id, { tags: JSON.stringify(tags) } as any);
+    //           } catch {
+    //             /* ignore update errors */
+    //           }
+    //         }
+    //       } catch (e) {
+    //         console.warn('[auto-tag] failed', e);
+    //       }
+    //     }, 0);
+    //   }
+    // } catch {
+    //   /* ignore auto-tag failures */
+    // }
 
     // Conditionally enqueue embedding only for text-like resources
     // const isText = isTextLikeResource({ type: res.type, mimeType: res.mimeType, filePath });
