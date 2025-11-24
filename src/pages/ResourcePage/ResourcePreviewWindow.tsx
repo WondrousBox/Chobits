@@ -2,13 +2,14 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { TbArrowLeft, TbArrowRight, TbChevronLeft, TbChevronRight, TbDots, TbFile, TbFileDescription, TbFileText, TbLetterT, TbLink, TbMusic, TbPhoto, TbVideo } from 'react-icons/tb';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
-import { MediaPlayer } from '@/components/MediaPlayer';
 import { Button } from '@/components/ui/button';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from '@/lib/resourceProtocol';
 import type { ResourceItem } from '@/types';
+
+import { MediaPlayer } from './components/MediaPlayer';
 
 interface IncomingPayload {
   current: ResourceItem;
@@ -526,7 +527,7 @@ const ResourcePreviewWindow: React.FC = () => {
   };
 
   // 渲染主要内容
-  const renderMainContent = () => (
+  const renderMainContent = (): React.ReactNode => (
     <div ref={mainContentRef} className="h-full relative flex items-center justify-center overflow-hidden">
       {isImageFile(data.filePath) && fileSrc && <img src={fileSrc} alt={title} className="max-w-full max-h-full object-contain rounded-md shadow" />}
       {isVideoFile(data.filePath) && fileSrc && <MediaPlayer src={fileSrc} type="video" title={title} autoPlay={true} className="w-full h-full" onVideoLoaded={handleVideoLoaded} />}

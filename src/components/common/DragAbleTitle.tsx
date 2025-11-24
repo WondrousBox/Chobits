@@ -1,6 +1,7 @@
-import { VscChromeClose, VscChromeMaximize, VscChromeMinimize, VscChromeRestore } from 'react-icons/vsc';
-import { Button } from '../ui/button';
 import { useEffect, useState } from 'react';
+import { VscChromeClose, VscChromeMaximize, VscChromeMinimize, VscChromeRestore } from 'react-icons/vsc';
+
+import { Button } from '../ui/button';
 
 interface DragAbleTitleProps {
   title: React.ReactNode | string;
