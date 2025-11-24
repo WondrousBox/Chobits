@@ -5,9 +5,9 @@
  */
 import { useRef, useState } from 'react';
 
-import type { SelectedResourceFileType } from '@/types';
+import { SelectedResourceFileType } from '@/pages/ResourcePage/types';
 
-import { addResourcesFromDataTransfer, addResourcesFromSelectedFiles } from '../services/resourceService';
+import { addResourcesFromDataTransfer, addResourcesFromSelectedFiles } from '../../../pages/ResourcePage/services/resourceService';
 
 export function useFileDrop(
   onStopWalking?: () => void,
