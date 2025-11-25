@@ -120,9 +120,14 @@ export async function addResourcesFromDataTransfer(dt: DataTransfer, options?: R
   }
 }
 
-export async function addResourcesFromSelectedFiles(files: SelectedResourceFileType[], options?: ResourceLocationOptions): Promise<Resource[]> {
+export type UploadProgressCallback = (currentFileIndex: number, totalFiles: number, currentFilePercent: number) => void;
+
+export async function addResourcesFromSelectedFiles(files: SelectedResourceFileType[], options?: ResourceLocationOptions, onProgress?: UploadProgressCallback): Promise<Resource[]> {
   const resources: Resource[] = [];
-  for (const f of files) {
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    if (onProgress) onProgress(i, files.length, 0);
+
     const now = Date.now();
     const safeName = f.name || (f.path ? f.path.split(/[/\\]/).pop() || '' : '');
     let finalFilePath: string | undefined = f.path;
@@ -149,6 +154,7 @@ export async function addResourcesFromSelectedFiles(files: SelectedResourceFileT
           const stream = f.file.stream();
           const reader = stream.getReader();
           let chunkIndex = 0;
+          let uploadedBytes = 0;
 
           try {
             while (true) {
@@ -167,6 +173,9 @@ export async function addResourcesFromSelectedFiles(files: SelectedResourceFileT
                 if (!chunkResult?.success) {
                   throw new Error(`Failed to upload chunk ${chunkIndex}: ${chunkResult?.error || 'unknown error'}`);
                 }
+
+                uploadedBytes += value.byteLength;
+                if (onProgress) onProgress(i, files.length, Math.min(100, (uploadedBytes / fileSize) * 100));
 
                 chunkIndex++;
               }
@@ -206,6 +215,8 @@ export async function addResourcesFromSelectedFiles(files: SelectedResourceFileT
         console.error('addResourcesFromSelectedFiles error', error);
       }
     }
+
+    if (onProgress) onProgress(i, files.length, 100);
 
     const resource = {
       type: getResourceTypeFromFilename(safeName),
