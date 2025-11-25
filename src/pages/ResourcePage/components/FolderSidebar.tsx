@@ -1,9 +1,8 @@
-import React from 'react';
-import { TbFolder, TbPlus, TbSlash } from 'react-icons/tb';
+import React, { useCallback } from 'react';
+import { TbHome, TbPlus } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia } from '@/components/ui/empty';
 import { SidebarGroup, SidebarGroupAction, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 
 import FolderTreeRow from './FolderTreeRow';
@@ -31,7 +30,7 @@ function buildTree(flat: UIFolder[]): UIFolder[] {
   return roots;
 }
 
-const FolderSidebar: React.FC<{
+interface FolderSidebarProps {
   folders: UIFolder[];
   selectedId?: string;
   onSelect: (id: string | '') => void;
@@ -44,21 +43,30 @@ const FolderSidebar: React.FC<{
   allCount?: number;
   onInlineRename?: (id: string, name: string) => Promise<void>;
   workspaceId?: string;
-}> = ({ folders, selectedId, onSelect, onCreate, onRename, onDelete, onDropResources, onMoveFolder, counts, allCount, onInlineRename, workspaceId }) => {
-  const tree = React.useMemo(() => buildTree(folders), [folders]);
+}
 
-  // localStorage key for expanded state
-  const getExpandedKey = React.useCallback(() => {
-    const wsId = workspaceId || 'default';
-    return `resource-folder-expanded-${wsId}`;
-  }, [workspaceId]);
+const FolderSidebar = ({
+  folders,
+  selectedId,
+  onSelect,
+  onCreate,
+  onRename,
+  onDelete,
+  onDropResources,
+  onMoveFolder,
+  counts,
+  allCount,
+  onInlineRename,
+  workspaceId
+}: FolderSidebarProps): React.ReactElement => {
+  const tree = React.useMemo(() => buildTree(folders), [folders]);
+  const wsId = workspaceId || 'default';
+  const expandedKey = `resource-folder-expanded-${wsId}`;
 
   // 从 localStorage 加载展开状态
-  const loadExpandedIds = React.useCallback((): Set<string> => {
-    if (typeof window === 'undefined') return new Set();
+  const loadExpandedIds = useCallback((): Set<string> => {
     try {
-      const key = getExpandedKey();
-      const stored = window.localStorage?.getItem(key);
+      const stored = localStorage.getItem(expandedKey);
       if (stored) {
         const ids = JSON.parse(stored) as string[];
         return new Set(ids);
@@ -67,21 +75,19 @@ const FolderSidebar: React.FC<{
       console.warn('load expanded ids failed', err);
     }
     return new Set();
-  }, [getExpandedKey]);
+  }, [expandedKey]);
 
   // 保存展开状态到 localStorage
-  const saveExpandedIds = React.useCallback(
+  const saveExpandedIds = useCallback(
     (ids: Set<string>) => {
-      if (typeof window === 'undefined') return;
       try {
-        const key = getExpandedKey();
         const array = Array.from(ids);
-        window.localStorage?.setItem(key, JSON.stringify(array));
+        localStorage.setItem(expandedKey, JSON.stringify(array));
       } catch (err) {
         console.warn('save expanded ids failed', err);
       }
     },
-    [getExpandedKey]
+    [expandedKey]
   );
 
   // 管理展开/收起的节点集合
@@ -321,7 +327,7 @@ const FolderSidebar: React.FC<{
                     }
                   }}
                 >
-                  <TbSlash /> 工作空间
+                  <TbHome /> 工作空间
                 </SidebarMenuButton>
                 <SidebarMenuBadge>{allCount ?? 0}</SidebarMenuBadge>
               </SidebarMenuItem>
