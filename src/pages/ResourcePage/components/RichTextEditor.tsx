@@ -203,7 +203,7 @@ export const RichTextEditor = ({ value, onChange, placeholder, className, toolba
 
   return (
     <div className={cn('border rounded-md bg-background flex flex-col relative', className)} style={style}>
-      <Toolbar editor={editor} visible={editable && isFocused} toolbarRight={toolbarRight} className="absolute left-0 z-10 w-full box-border -top-8" />
+      <Toolbar editor={editor} visible={editable && isFocused} toolbarRight={toolbarRight} className="absolute left-0 z-10 w-full box-border -top-12 border border-solid rounded-lg" />
       <div className="flex-1 overflow-y-auto text-foreground">
         <EditorContent editor={editor} />
       </div>

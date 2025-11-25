@@ -149,7 +149,7 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, hideEditor
             value={content}
             onChange={setContent}
             placeholder="在此输入内容..."
-            className="min-h-[200px] max-h-[calc(100vh-400px)] border-0 rounded-none min-w-[600px]"
+            className="min-h-[200px] max-h-[calc(100vh-400px)] border min-w-[600px] border-solid rounded-lg box-border"
             style={{ width: 'calc(100% - 300px)' }}
             toolbarRight={
               <Button size="sm" variant="outline" onClick={onSaveText} disabled={!content || content === '<p></p>'} className="gap-1">
@@ -160,7 +160,7 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, hideEditor
         )}
 
         {/* Actions */}
-        <div className="border-t bg-muted/20 px-5 py-4 min-w-[600px] box-border" style={{ width: 'calc(100% - 300px)' }}>
+        <div className="border-t bg-muted rounded-lg p-2 mt-2 min-w-[600px] box-border" style={{ width: 'calc(100% - 300px)' }}>
           <input ref={fileInputRef} type="file" multiple className="hidden" onChange={onInputChange} />
           <div className="grid grid-cols-2 gap-3">
             <button
@@ -183,8 +183,8 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, hideEditor
                 <TbFilePlus className="h-5 w-5" />
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold text-sm">创建子文件夹</h3>
-                <p className="text-xs text-muted-foreground mt-1">在当前文件夹下创建新的子文件夹</p>
+                <h3 className="font-semibold text-sm">创建文件夹</h3>
+                <p className="text-xs text-muted-foreground mt-1">在当前位置下创建新的文件夹</p>
               </div>
             </button>
           </div>
