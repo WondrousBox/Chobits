@@ -504,16 +504,34 @@ export function initResourceHandlers(): void {
   });
 
   // 新增：直接从渲染进程接收文件二进制并保存到默认工作空间 resources 目录
-  ipcMain.handle('uploadResourceFile', async (_event, payload: { fileName: string; data: ArrayBuffer }) => {
+  ipcMain.handle('uploadResourceFile', async (_event, payload: { fileName: string; data: ArrayBuffer; folderId?: string; workspaceId?: string }) => {
     try {
-      const { fileName, data } = payload || { fileName: '', data: new ArrayBuffer(0) };
+      const { fileName, data, folderId, workspaceId } = payload || { fileName: '', data: new ArrayBuffer(0) };
       if (!fileName || !data) return { success: false, error: 'invalid-params' };
 
       // 发送繁忙状态开始
       sendSpriteBusyStart(0, `上传中: ${fileName}`);
 
-      const ws = await WorkspacesRepo.getDefault();
-      const baseDir = ws?.rootPath ? path.join(ws.rootPath, 'resources') : path.join(process.cwd(), 'uploads');
+      let ws;
+      if (workspaceId) {
+        ws = await WorkspacesRepo.getById(workspaceId);
+      } else {
+        ws = await WorkspacesRepo.getDefault();
+      }
+
+      let baseDir;
+      if (ws?.rootPath) {
+        if (folderId) {
+          baseDir = path.join(ws.rootPath, 'resources', 'folders', folderId);
+        } else {
+          baseDir = path.join(ws.rootPath, 'resources');
+        }
+      } else {
+        baseDir = path.join(process.cwd(), 'uploads');
+      }
+
+      console.log(folderId, workspaceId, baseDir);
+
       await fs.mkdir(baseDir, { recursive: true });
 
       const incomingBuffer = Buffer.from(data as any);
@@ -568,51 +586,80 @@ export function initResourceHandlers(): void {
   });
 
   // 流式上传：开始上传
-  ipcMain.handle('uploadResourceFileStreamStart', async (_event, payload: { fileName: string; totalSize: number }) => {
-    try {
-      const { fileName, totalSize } = payload || { fileName: '', totalSize: 0 };
-      if (!fileName || totalSize <= 0) return { success: false, error: 'invalid-params' };
-
-      const ws = await WorkspacesRepo.getDefault();
-      const baseDir = ws?.rootPath ? path.join(ws.rootPath, 'resources') : path.join(process.cwd(), 'uploads');
-      await fs.mkdir(baseDir, { recursive: true });
-
-      const ext = path.extname(fileName);
-      const nameNoExt = path.basename(fileName, ext);
-      let target = path.join(baseDir, fileName);
-
-      // 处理同名文件（先不检查 hash，等上传完成后再检查）
-      let counter = 1;
-      while (fscb.existsSync(target)) {
-        target = path.join(baseDir, `${nameNoExt}(${counter})${ext}`);
-        counter++;
+  ipcMain.handle(
+    'uploadResourceFileStreamStart',
+    async (
+      _event,
+      payload: {
+        fileName: string;
+        totalSize: number;
+        folderId?: string;
+        workspaceId?: string;
       }
+    ) => {
+      try {
+        const { fileName, totalSize, folderId, workspaceId } = payload || { fileName: '', totalSize: 0 };
+        console.log(folderId, workspaceId);
+        if (!fileName || totalSize <= 0) return { success: false, error: 'invalid-params' };
 
-      const uploadId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      const writeStream = fscb.createWriteStream(target);
-      const hash = createHash('sha256');
+        let ws;
+        if (workspaceId) {
+          ws = await WorkspacesRepo.getById(workspaceId);
+        } else {
+          ws = await WorkspacesRepo.getDefault();
+        }
 
-      const stream: UploadStream = {
-        fileName,
-        filePath: target,
-        writeStream,
-        hash,
-        totalSize,
-        receivedSize: 0,
-        chunkIndices: new Set()
-      };
+        let baseDir;
+        if (ws?.rootPath) {
+          if (folderId) {
+            baseDir = path.join(ws.rootPath, 'resources', 'folders', folderId);
+          } else {
+            baseDir = path.join(ws.rootPath, 'resources');
+          }
+        } else {
+          baseDir = path.join(process.cwd(), 'uploads');
+        }
+        console.log(baseDir);
 
-      uploadStreams.set(uploadId, stream);
+        await fs.mkdir(baseDir, { recursive: true });
 
-      // 发送繁忙状态开始
-      sendSpriteBusyStart(0, `上传中: ${fileName}`);
+        const ext = path.extname(fileName);
+        const nameNoExt = path.basename(fileName, ext);
+        let target = path.join(baseDir, fileName);
 
-      return { success: true, uploadId };
-    } catch (e: any) {
-      console.warn('uploadResourceFileStreamStart failed', e);
-      return { success: false, error: e?.message || 'unknown-error' };
+        // 处理同名文件（先不检查 hash，等上传完成后再检查）
+        let counter = 1;
+        while (fscb.existsSync(target)) {
+          target = path.join(baseDir, `${nameNoExt}(${counter})${ext}`);
+          counter++;
+        }
+
+        const uploadId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const writeStream = fscb.createWriteStream(target);
+        const hash = createHash('sha256');
+
+        const stream: UploadStream = {
+          fileName,
+          filePath: target,
+          writeStream,
+          hash,
+          totalSize,
+          receivedSize: 0,
+          chunkIndices: new Set()
+        };
+
+        uploadStreams.set(uploadId, stream);
+
+        // 发送繁忙状态开始
+        sendSpriteBusyStart(0, `上传中: ${fileName}`);
+
+        return { success: true, uploadId };
+      } catch (e: any) {
+        console.warn('uploadResourceFileStreamStart failed', e);
+        return { success: false, error: e?.message || 'unknown-error' };
+      }
     }
-  });
+  );
 
   // 流式上传：发送数据块
   ipcMain.handle('uploadResourceFileStreamChunk', async (_event, payload: { uploadId: string; chunk: ArrayBuffer; chunkIndex: number }) => {

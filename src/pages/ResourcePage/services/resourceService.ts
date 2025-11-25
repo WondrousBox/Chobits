@@ -6,6 +6,7 @@ export type Resource = {
   id: string;
   type: 'image' | 'video' | 'audio' | 'text' | 'link' | 'file' | 'document' | 'other';
   workspaceId?: string;
+  folderId?: string;
   title?: string;
   description?: string;
   url?: string;
@@ -143,7 +144,9 @@ export async function addResourcesFromSelectedFiles(files: SelectedResourceFileT
           // 流式上传大文件
           const startResult = await window.YUA?.resource?.uploadResourceFileStreamStart?.({
             fileName: safeName,
-            totalSize: fileSize
+            totalSize: fileSize,
+            workspaceId: options?.workspaceId,
+            folderId: options?.folderId
           });
 
           if (!startResult?.success || !startResult?.uploadId) {
@@ -201,7 +204,7 @@ export async function addResourcesFromSelectedFiles(files: SelectedResourceFileT
         } else if (typeof f.file.arrayBuffer === 'function') {
           // 小文件使用原来的方式
           const data = await f.file.arrayBuffer();
-          const uploaded = await window.YUA?.resource?.uploadResourceFile?.({ fileName: safeName, data });
+          const uploaded = await window.YUA?.resource?.uploadResourceFile?.({ fileName: safeName, data, workspaceId: options?.workspaceId, folderId: options?.folderId });
 
           if (uploaded?.duplicate) {
             continue;
