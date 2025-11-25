@@ -6,6 +6,7 @@ export type Resource = {
   id: string;
   type: 'image' | 'video' | 'audio' | 'text' | 'link' | 'file' | 'document' | 'other';
   workspaceId?: string;
+  folderId?: string;
   title?: string;
   description?: string;
   url?: string;
@@ -54,9 +55,12 @@ export type ResourceBridgeParams = {
   rebuildResourceThumbnail: IpcParams<[{ id: string; size?: number; force?: boolean }], { success: boolean; data?: Resource; error?: string }>;
   cleanupThumbnails: IpcParams<[void], { success: boolean; removed?: number; error?: string }>;
   /** 上传原始文件数据到主进程，返回保存后的本地路径；若重复（同名且 hash 相同）则 duplicate=true */
-  uploadResourceFile: IpcParams<[{ fileName: string; data: ArrayBuffer }], { success: boolean; filePath?: string; error?: string; duplicate?: boolean; hash?: string }>;
+  uploadResourceFile: IpcParams<
+    [{ fileName: string; data: ArrayBuffer; workspaceId?: string | null; folderId?: string | null }],
+    { success: boolean; filePath?: string; error?: string; duplicate?: boolean; hash?: string }
+  >;
   /** 开始流式上传文件，返回 uploadId */
-  uploadResourceFileStreamStart: IpcParams<[{ fileName: string; totalSize: number }], { success: boolean; uploadId?: string; error?: string }>;
+  uploadResourceFileStreamStart: IpcParams<[{ fileName: string; totalSize: number; workspaceId?: string | null; folderId?: string | null }], { success: boolean; uploadId?: string; error?: string }>;
   /** 发送文件数据块 */
   uploadResourceFileStreamChunk: IpcParams<[{ uploadId: string; chunk: ArrayBuffer; chunkIndex: number }], { success: boolean; error?: string }>;
   /** 结束流式上传，返回保存后的本地路径；若重复（同名且 hash 相同）则 duplicate=true */
