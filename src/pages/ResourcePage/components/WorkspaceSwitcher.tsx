@@ -13,11 +13,12 @@ export interface Workspace {
 interface WorkspaceSwitcherProps {
   workspaces: Workspace[];
   currentWorkspaceId?: string;
-  onWorkspaceChange: (id: string) => void;
 }
 
-export default function WorkspaceSwitcher({ workspaces, currentWorkspaceId, onWorkspaceChange }: WorkspaceSwitcherProps): React.ReactElement | null {
+export default function WorkspaceSwitcher({ workspaces, currentWorkspaceId }: WorkspaceSwitcherProps): React.ReactElement | null {
   const { isMobile } = useSidebar();
+
+  console.log('WorkspaceSwitcher', currentWorkspaceId);
 
   const activeWorkspace = React.useMemo(() => workspaces.find((w) => w.id === currentWorkspaceId) || workspaces[0], [workspaces, currentWorkspaceId]);
 
@@ -40,7 +41,7 @@ export default function WorkspaceSwitcher({ workspaces, currentWorkspaceId, onWo
           <DropdownMenuContent className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg" align="start" side={isMobile ? 'bottom' : 'right'} sideOffset={4}>
             <DropdownMenuLabel className="text-muted-foreground text-xs">工作空间</DropdownMenuLabel>
             {workspaces.map((ws) => (
-              <DropdownMenuItem key={ws.id} onClick={() => onWorkspaceChange(ws.id)}>
+              <DropdownMenuItem key={ws.id} onClick={() => window.YUA.workspace['workspace:setDefault']({ id: ws.id })}>
                 <TbBox size={20} />
                 {ws.name}
               </DropdownMenuItem>

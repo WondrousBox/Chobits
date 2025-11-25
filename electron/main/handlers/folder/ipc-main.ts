@@ -4,6 +4,8 @@ import * as path from 'node:path';
 import { ipcMain } from 'electron';
 
 import { FoldersRepo, WorkspacesRepo } from '../../db/repositories';
+import { eventManager } from '../event-manager';
+import { AppEvent } from '../events';
 
 // 基于资源库的上下文，复用默认工作空间根路径，按文件夹 ID 命名本地文件夹
 export function initFolderHandlers(): void {
@@ -51,6 +53,9 @@ export function initFolderHandlers(): void {
       await fs.mkdir(baseDir, { recursive: true });
       const dirPath = path.join(baseDir, row.id);
       await fs.mkdir(dirPath, { recursive: true });
+
+      eventManager.emit(AppEvent.FOLDER_CREATED, row);
+
       return { success: true, data: row, dirPath };
     } catch (e: any) {
       return { success: false, error: e?.message || 'unknown' };
@@ -99,6 +104,7 @@ export function initFolderHandlers(): void {
         }
       }
       if (!row) return { success: false, error: 'rename-failed' };
+      eventManager.emit(AppEvent.FOLDER_UPDATED, row);
       return { success: true, data: row };
     } catch (e: any) {
       return { success: false, error: e?.message || 'unknown' };
@@ -109,6 +115,9 @@ export function initFolderHandlers(): void {
     const { id, parentId } = payload || ({} as any);
     if (!id) return { success: false, error: 'invalid-params' };
     const row = await FoldersRepo.move(id, parentId ?? null);
+    if (row) {
+      eventManager.emit(AppEvent.FOLDER_MOVED, row);
+    }
     return { success: true, data: row };
   });
 
@@ -135,6 +144,11 @@ export function initFolderHandlers(): void {
     const { ids = [] } = payload || ({} as any);
     if (!ids.length) return { success: true, data: [] };
     const rows = await FoldersRepo.softDelete(ids);
+    if (rows.length > 0) {
+      // Emit update for each or a batch event?
+      // Let's emit FOLDER_UPDATED for each since soft delete is an update
+      rows.forEach((row) => eventManager.emit(AppEvent.FOLDER_UPDATED, row));
+    }
     return { success: true, data: rows };
   });
 
@@ -142,6 +156,9 @@ export function initFolderHandlers(): void {
     const { ids = [] } = payload || ({} as any);
     if (!ids.length) return { success: true, data: [] };
     const rows = await FoldersRepo.restore(ids);
+    if (rows.length > 0) {
+      rows.forEach((row) => eventManager.emit(AppEvent.FOLDER_UPDATED, row));
+    }
     return { success: true, data: rows };
   });
 
@@ -150,6 +167,12 @@ export function initFolderHandlers(): void {
     if (!ids.length) return { success: true, deleted: 0 };
     // 如果删除子孙：找出所有子树 ID（简化：由调用方保证拓扑顺序，或后续递归）
     const deleted = await FoldersRepo.deleteByIds(ids);
+    if (deleted > 0) {
+      // We don't have the deleted rows here easily unless we fetch them before delete.
+      // But we have IDs.
+      // Let's emit FOLDER_DELETED for each ID.
+      ids.forEach((id) => eventManager.emit(AppEvent.FOLDER_DELETED, { id }));
+    }
     return { success: true, deleted };
   });
 

@@ -7,6 +7,8 @@ import { app, ipcMain, shell } from 'electron';
 import { DefaultWorkspaceName } from '../../config';
 import { WorkspacesRepo } from '../../db/repositories';
 import { addAllowedResourceRoot, addWorkspaceResourceRoot } from '../../resource-protocol';
+import { eventManager } from '../event-manager';
+import { AppEvent } from '../events';
 import type { PartialByKey } from '../types';
 import type { Workspace } from './ipc-renderer';
 
@@ -37,6 +39,9 @@ async function createWorkspace(workspace: PartialByKey<Workspace, 'id'>): Promis
     if (data?.id) addWorkspaceResourceRoot(data.id, resDir);
   } catch {
     //
+  }
+  if (data) {
+    eventManager.emit(AppEvent.WORKSPACE_CREATED, data);
   }
   return { success: true, data };
 }
@@ -140,20 +145,32 @@ export function initWorkspaceHandlers(): void {
     } catch {
       //
     }
+    if (data) {
+      eventManager.emit(AppEvent.WORKSPACE_UPDATED, data);
+    }
     return { success: true, data };
   });
 
   ipcMain.handle('workspace:update', async (_e, payload: { id: string; patch: any }) => {
     const data = await WorkspacesRepo.update(payload.id, payload.patch);
+    if (data) {
+      eventManager.emit(AppEvent.WORKSPACE_UPDATED, data);
+    }
     return { data };
   });
 
   ipcMain.handle('workspace:delete', async (_e, payload: { id: string; hard?: boolean }) => {
     if (payload.hard) {
       const deleted = await WorkspacesRepo.deleteByIds([payload.id]);
+      if (deleted > 0) {
+        eventManager.emit(AppEvent.WORKSPACE_DELETED, { id: payload.id });
+      }
       return { deleted };
     } else {
       const rows = await WorkspacesRepo.softDelete([payload.id]);
+      if (rows.length > 0) {
+        eventManager.emit(AppEvent.WORKSPACE_UPDATED, rows[0]);
+      }
       return { deleted: rows.length, data: rows[0] };
     }
   });

@@ -4,6 +4,7 @@ import { pluginResourceAPI } from '../../packages/plugins/ipc-renderer';
 import { proxyBridge } from '../../packages/proxy/ipc-renderer';
 import { aiBridge } from '../main/ai/ipc-renderer';
 import { dailyCareBridge } from '../main/daily/ipc-renderer';
+import { APP_EVENT_CHANNEL, AppEventPayload } from '../main/handlers/events';
 import { folderIpcRenderer } from '../main/handlers/folder/ipc-renderer';
 import { resourceIpcRenderer } from '../main/handlers/resource/ipc-renderer';
 import { workspaceIpcRenderer } from '../main/handlers/workspace/ipc-renderer';
@@ -70,7 +71,14 @@ contextBridge.exposeInMainWorld('YUA', {
   dailyCare: dailyCareBridge,
   pluginResource: pluginResourceAPI,
   proxy: proxyBridge,
-  theme: themeBridge
+  theme: themeBridge,
+  events: {
+    on: (callback: (payload: AppEventPayload) => void) => {
+      const subscription = (_event: any, payload: AppEventPayload): void => callback(payload);
+      ipcRenderer.on(APP_EVENT_CHANNEL, subscription);
+      return () => ipcRenderer.off(APP_EVENT_CHANNEL, subscription);
+    }
+  }
 });
 
 // --------- Preload scripts loading ---------
