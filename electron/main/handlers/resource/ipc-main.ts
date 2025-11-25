@@ -33,23 +33,35 @@ export function initResourceHandlers(): void {
     // Attach workspace: copy local file into default workspace if available
     let workspaceId = res.workspaceId;
     let filePath = res.filePath as string | undefined;
+    const folderId = (res as any).folderId;
+
     try {
-      const ws = await WorkspacesRepo.getDefault();
-      if (ws && ws.id) {
-        workspaceId = workspaceId || ws.id;
-        if (filePath && ws.rootPath) {
-          try {
-            const base = path.basename(filePath);
-            const targetDir = path.join(ws.rootPath, 'resources');
-            await fs.mkdir(targetDir, { recursive: true });
-            const target = path.join(targetDir, base);
-            if (filePath !== target) {
-              await fs.copyFile(filePath, target);
-              filePath = target;
-            }
-          } catch (e) {
-            console.warn('[workspace] copy file into workspace failed', e);
+      let ws;
+      if (workspaceId) {
+        ws = await WorkspacesRepo.getById(workspaceId);
+      } else {
+        ws = await WorkspacesRepo.getDefault();
+        if (ws) workspaceId = ws.id;
+      }
+
+      if (ws && ws.id && filePath && ws.rootPath) {
+        try {
+          const base = path.basename(filePath);
+          let targetDir;
+          if (folderId) {
+            targetDir = path.join(ws.rootPath, 'resources', 'folders', folderId);
+          } else {
+            targetDir = path.join(ws.rootPath, 'resources');
           }
+
+          await fs.mkdir(targetDir, { recursive: true });
+          const target = path.join(targetDir, base);
+          if (filePath !== target) {
+            await fs.copyFile(filePath, target);
+            filePath = target;
+          }
+        } catch (e) {
+          console.warn('[workspace] copy file into workspace failed', e);
         }
       }
     } catch {
