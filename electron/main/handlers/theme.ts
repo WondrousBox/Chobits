@@ -1,10 +1,38 @@
-import { BrowserWindow, ipcMain, nativeTheme } from 'electron';
+import fs from 'node:fs';
+import path from 'node:path';
+
+import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron';
 
 type ThemeSource = 'system' | 'light' | 'dark';
 
 type ThemePayload = {
   themeSource: ThemeSource;
   shouldUseDarkColors: boolean;
+};
+
+const THEME_PREF_FILE = path.join(app.getPath('userData'), 'theme-preference.json');
+
+const readPersistedTheme = (): ThemeSource | null => {
+  try {
+    if (!fs.existsSync(THEME_PREF_FILE)) return null;
+    const content = fs.readFileSync(THEME_PREF_FILE, 'utf-8');
+    const parsed = JSON.parse(content);
+    if (parsed?.themeSource === 'system' || parsed?.themeSource === 'light' || parsed?.themeSource === 'dark') {
+      return parsed.themeSource;
+    }
+  } catch {
+    //
+  }
+  return null;
+};
+
+const writePersistedTheme = (themeSource: ThemeSource): void => {
+  try {
+    fs.mkdirSync(path.dirname(THEME_PREF_FILE), { recursive: true });
+    fs.writeFileSync(THEME_PREF_FILE, JSON.stringify({ themeSource, updatedAt: Date.now() }, null, 2), 'utf-8');
+  } catch {
+    //
+  }
 };
 
 const getThemePayload = (): ThemePayload => ({
@@ -22,11 +50,17 @@ const broadcastTheme = (): void => {
 };
 
 export function initThemeHandlers(): void {
+  const persisted = readPersistedTheme();
+  if (persisted) {
+    nativeTheme.themeSource = persisted;
+  }
+
   ipcMain.handle('theme:get', async () => ({ ok: true, ...getThemePayload() }));
 
   ipcMain.handle('theme:set', async (_event, themeSource: ThemeSource) => {
     try {
       nativeTheme.themeSource = themeSource;
+      writePersistedTheme(themeSource);
       broadcastTheme();
       return { ok: true, ...getThemePayload() };
     } catch (error) {
