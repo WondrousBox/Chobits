@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TbFilter, TbGrid3X3, TbHeart, TbList, TbRefresh, TbRobot, TbSearch, TbSettings, TbTrash, TbX } from 'react-icons/tb';
+import { toast } from 'sonner';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
+import Dropzone from '@/components/common/Dropzone';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -15,12 +17,14 @@ import ExplorerFreeLayout from './components/ExplorerFreeLayout';
 import ExplorerGrid from './components/ExplorerGrid';
 import ExplorerList from './components/ExplorerList';
 import FolderSidebar, { type UIFolder } from './components/FolderSidebar';
+import WorkspaceSwitcher from './components/WorkspaceSwitcher';
 import { useFolderOperations } from './hooks/useFolderOperations';
 import { useResourceData } from './hooks/useResourceData';
 import { useResourceFilter } from './hooks/useResourceFilter';
 import { useResourceOperations } from './hooks/useResourceOperations';
 import { useViewMode } from './hooks/useViewMode';
-import { SortField, SortOrder, ViewMode } from './types';
+import { addResourcesFromSelectedFiles } from './services/resourceService';
+import { SelectedResourceFileType, SortField, SortOrder, ViewMode } from './types';
 import { ALL_TAG_VALUE, typeOptions } from './utils/constants';
 
 const ResourcePage: React.FC = () => {
@@ -36,6 +40,15 @@ const ResourcePage: React.FC = () => {
   const [folderFilter, setFolderFilter] = useState<string>(''); // '' 表示全部
   const folderRestoredRef = useRef<string>(''); // 记录已恢复的工作空间ID
   const folderAPI: any = window.YUA?.folder;
+
+  const [workspaces, setWorkspaces] = useState<any[]>([]);
+
+  const [uploadProgress, setUploadProgress] = useState<{
+    visible: boolean;
+    current: number;
+    total: number;
+    percent: number;
+  }>({ visible: false, current: 0, total: 0, percent: 0 });
 
   // 使用自定义 hooks
   const { list, setList, tags, folders, setFolders, load, loadTags, loadFolders } = useResourceData(wsFilter, tagFilter);
@@ -82,6 +95,34 @@ const ResourcePage: React.FC = () => {
     handleRenameConfirm
   } = useFolderOperations(folders, wsFilter, folderFilter, setFolderFilter, list, load, loadFolders);
 
+  const onDropFiles = useCallback(
+    async (files: SelectedResourceFileType[]) => {
+      if (!files || files.length === 0) return;
+      setUploadProgress({ visible: true, current: 0, total: files.length, percent: 0 });
+      try {
+        await addResourcesFromSelectedFiles(
+          files,
+          {
+            folderId: folderFilter || undefined,
+            workspaceId: wsFilter || undefined
+          },
+          (current, total, percent) => {
+            setUploadProgress({ visible: true, current: current + 1, total, percent });
+          }
+        );
+        toast.success('已添加拖拽的文件');
+        await load();
+        await loadFolders(wsFilter || undefined);
+      } catch (err) {
+        console.error('处理拖拽失败', err);
+        toast.error('添加失败');
+      } finally {
+        setUploadProgress((prev) => ({ ...prev, visible: false }));
+      }
+    },
+    [folderFilter, wsFilter, load, loadFolders]
+  );
+
   // localStorage key for current folder
   const getCurrentFolderKey = useCallback(() => {
     const wsId = wsFilter || 'default';
@@ -100,6 +141,23 @@ const ResourcePage: React.FC = () => {
       return '';
     }
   }, [getCurrentFolderKey]);
+
+  // 加载工作空间列表
+  const loadWorkspaces = useCallback(async () => {
+    try {
+      const ws = await window.YUA.workspace['workspace:list']({ filter: { deletedAt: 0 }, limit: 100, offset: 0 });
+      if (Array.isArray(ws)) {
+        setWorkspaces(ws);
+        // 如果当前没有选中的工作空间，则选中默认的或第一个
+        if (!wsFilter) {
+          const defaultId = ws.find((w: any) => w.isDefault === 1)?.id || ws[0]?.id;
+          if (defaultId) setWsFilter(defaultId);
+        }
+      }
+    } catch (e) {
+      console.error('load workspaces failed', e);
+    }
+  }, [wsFilter]);
 
   // 保存当前文件夹到 localStorage
   const saveCurrentFolder = useCallback(
@@ -131,29 +189,18 @@ const ResourcePage: React.FC = () => {
     return rows.some((r: any) => r.favorite === 1);
   }, [list, wsFilter]);
 
-  // 初始化默认工作空间
+  // 初始化加载工作空间
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      const ws = await window.YUA.workspace['workspace:list']({ filter: { deletedAt: 0 }, limit: 100, offset: 0 });
-      if (mounted) {
-        try {
-          const defaultId = Array.isArray(ws) ? ws.find((w: any) => w.isDefault === 1)?.id : undefined;
-          if (!wsFilter && defaultId) setWsFilter(defaultId);
-          if (defaultId) {
-            // 预加载当前默认空间的文件夹与标签
-            loadFolders(defaultId);
-            loadTags(defaultId);
-          }
-        } catch {
-          /* noop */
-        }
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, [loadFolders, loadTags, wsFilter]);
+    loadWorkspaces();
+  }, [loadWorkspaces]);
+
+  // 当选中工作空间变化时，加载对应数据
+  useEffect(() => {
+    if (wsFilter) {
+      loadFolders(wsFilter);
+      loadTags(wsFilter);
+    }
+  }, [wsFilter, loadFolders, loadTags]);
 
   // 当工作空间切换时，重置恢复标记
   useEffect(() => {
@@ -387,6 +434,16 @@ const ResourcePage: React.FC = () => {
       <SidebarProvider style={{ height: 'calc(100% - 36px)', minHeight: 'unset' }}>
         <Sidebar collapsible="none" className="h-full w-80 bg-sidebar">
           <SidebarHeader>
+            <WorkspaceSwitcher
+              workspaces={workspaces}
+              currentWorkspaceId={wsFilter}
+              onWorkspaceChange={(id) => {
+                setWsFilter(id);
+                setFolderFilter('');
+                setFavoriteFilter(false);
+                setTypeFilter([]);
+              }}
+            />
             <SidebarMenu className="pl-0">
               {/* 收藏筛选按钮 - 只在存在收藏内容时显示 */}
               {hasFavorites && (
@@ -494,7 +551,25 @@ const ResourcePage: React.FC = () => {
         </Sidebar>
         {/* 资源展示区域 */}
         <div className="w-full h-full" style={{ height: 'calc(100% - 36px)' }}>
-          <div className="w-full h-full overflow-y-auto">
+          <Dropzone
+            className="w-full h-full overflow-y-auto relative"
+            onDropFiles={onDropFiles}
+            customDropzoneInside={<div className="px-5 py-3 rounded-lg border-2 border-dashed border-primary/60 bg-primary/5 text-primary text-sm font-medium">释放鼠标即可添加文件…</div>}
+          >
+            {uploadProgress.visible && (
+              <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-40 bg-background/95 backdrop-blur border shadow-lg rounded-lg p-4 w-80 flex flex-col gap-2">
+                <div className="flex justify-between text-sm font-medium">
+                  <span>
+                    正在上传 ({uploadProgress.current}/{uploadProgress.total})
+                  </span>
+                  <span>{Math.round(uploadProgress.percent)}%</span>
+                </div>
+                <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                  <div className="h-full bg-primary" style={{ width: `${uploadProgress.percent}%` }} />
+                </div>
+              </div>
+            )}
+
             {childFolders.length === 0 && filtered.length === 0 ? null : viewMode === 'grid' ? (
               <ExplorerGrid
                 items={filtered}
@@ -575,7 +650,7 @@ const ResourcePage: React.FC = () => {
                 }}
               />
             ) : null}
-          </div>
+          </Dropzone>
 
           {/* 底部路径与统计栏（固定在右侧列表底部） */}
           <div className="px-3 py-2 text-xs flex flex-wrap items-center justify-between gap-2">
