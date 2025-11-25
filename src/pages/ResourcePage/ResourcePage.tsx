@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '@/components/ui/sidebar';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
+import { AppEvent } from '../../../electron/main/handlers/events';
 import DefaultEmptyFolder from './components/DefaultEmptyFolder';
 import ExplorerFreeLayout from './components/ExplorerFreeLayout';
 import ExplorerGrid from './components/ExplorerGrid';
@@ -144,14 +145,15 @@ const ResourcePage: React.FC = () => {
 
   // 加载工作空间列表
   const loadWorkspaces = useCallback(async () => {
+    console.log('loadWorkspaces');
     try {
       const ws = await window.YUA.workspace['workspace:list']({ filter: { deletedAt: 0 }, limit: 100, offset: 0 });
       if (Array.isArray(ws)) {
         setWorkspaces(ws);
         // 如果当前没有选中的工作空间，则选中默认的或第一个
-        if (!wsFilter) {
-          const defaultId = ws.find((w: any) => w.isDefault === 1)?.id || ws[0]?.id;
-          if (defaultId) setWsFilter(defaultId);
+        const defaultId = ws.find((w) => w.isDefault === 1)?.id || ws[0]?.id;
+        if (wsFilter !== defaultId && defaultId) {
+          setWsFilter(defaultId);
         }
       }
     } catch (e) {
@@ -225,6 +227,36 @@ const ResourcePage: React.FC = () => {
     }
     folderRestoredRef.current = wsFilter;
   }, [wsFilter, folders, loadCurrentFolder, saveCurrentFolder]);
+
+  // 监听应用事件
+  useEffect(() => {
+    if (!window.YUA?.events?.on) return;
+    const unsubscribe = window.YUA.events.on((payload) => {
+      switch (payload.type) {
+        case AppEvent.RESOURCE_CREATED:
+        case AppEvent.RESOURCE_UPDATED:
+        case AppEvent.RESOURCE_DELETED:
+        case AppEvent.RESOURCE_MOVED:
+        case AppEvent.RESOURCE_BATCH_DELETED:
+        case AppEvent.RESOURCE_BATCH_MOVED:
+          load();
+          loadTags(wsFilter);
+          break;
+        case AppEvent.FOLDER_CREATED:
+        case AppEvent.FOLDER_UPDATED:
+        case AppEvent.FOLDER_DELETED:
+        case AppEvent.FOLDER_MOVED:
+          loadFolders(wsFilter);
+          break;
+        case AppEvent.WORKSPACE_UPDATED:
+        case AppEvent.WORKSPACE_CREATED:
+        case AppEvent.WORKSPACE_DELETED:
+          loadWorkspaces();
+          break;
+      }
+    });
+    return unsubscribe;
+  }, [load, loadTags, loadFolders, loadWorkspaces, wsFilter]);
 
   // 计算各文件夹资源数量（按当前默认空间；不受类型/标签筛选影响）
   const folderCounts = useMemo(() => {
@@ -434,16 +466,7 @@ const ResourcePage: React.FC = () => {
       <SidebarProvider style={{ height: 'calc(100% - 36px)', minHeight: 'unset' }}>
         <Sidebar collapsible="none" className="h-full w-80 bg-sidebar">
           <SidebarHeader>
-            <WorkspaceSwitcher
-              workspaces={workspaces}
-              currentWorkspaceId={wsFilter}
-              onWorkspaceChange={(id) => {
-                setWsFilter(id);
-                setFolderFilter('');
-                setFavoriteFilter(false);
-                setTypeFilter([]);
-              }}
-            />
+            <WorkspaceSwitcher workspaces={workspaces} currentWorkspaceId={wsFilter} />
             <SidebarMenu className="pl-0">
               {/* 收藏筛选按钮 - 只在存在收藏内容时显示 */}
               {hasFavorites && (

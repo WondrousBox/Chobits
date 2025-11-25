@@ -10,6 +10,8 @@ import { FoldersRepo, ResourcesRepo, TagsRepo, WorkspacesRepo } from '../../db/r
 import { sendSpriteBusyEnd, sendSpriteBusyProgress, sendSpriteBusyStart } from '../../utils/sprite-busy';
 import { sendSpriteNotice } from '../../utils/sprite-notice';
 import { detectBasicType, generateThumbnailForResource } from '../../utils/thumbnail';
+import { eventManager } from '../event-manager';
+import { AppEvent } from '../events';
 import type { Resource } from './ipc-renderer';
 
 // 存储正在上传的文件流
@@ -123,6 +125,8 @@ export function initResourceHandlers(): void {
           // Broadcast insert event to all renderer windows
           try {
             const resData: any = updated || row;
+            eventManager.emit(AppEvent.RESOURCE_CREATED, resData);
+
             const payload = { action: 'inserted', id: resData?.id, resource: resData };
             BrowserWindow.getAllWindows().forEach((w) => {
               try {
@@ -144,6 +148,8 @@ export function initResourceHandlers(): void {
     // Broadcast insert event to all renderer windows
     try {
       if (row) {
+        eventManager.emit(AppEvent.RESOURCE_CREATED, row);
+
         const payload2 = { action: 'inserted', id: (row as any).id, resource: row };
         BrowserWindow.getAllWindows().forEach((w) => {
           try {
@@ -187,13 +193,20 @@ export function initResourceHandlers(): void {
   ipcMain.handle('deleteResource', async (_event, payload: { id: string }) => {
     // Soft delete: mark deletedAt to trigger recycle_bin entry via trigger
     const row = await ResourcesRepo.update(payload.id, { deletedAt: Date.now() } as any);
+    if (row) {
+      eventManager.emit(AppEvent.RESOURCE_DELETED, row);
+    }
     return { success: true, data: row };
   });
 
   ipcMain.handle('deleteResources', async (_event, payload: { ids: string[] }) => {
     const now = Date.now();
     const rows = await Promise.all((payload.ids || []).map((id) => ResourcesRepo.update(id, { deletedAt: now } as any)));
-    return { success: true, deleted: rows.filter(Boolean).length, data: rows.filter(Boolean) };
+    const deleted = rows.filter(Boolean);
+    if (deleted.length > 0) {
+      eventManager.emit(AppEvent.RESOURCE_BATCH_DELETED, deleted);
+    }
+    return { success: true, deleted: deleted.length, data: deleted };
   });
 
   ipcMain.handle('moveResourcesToWorkspace', async (_event, payload: { ids: string[]; workspaceId: string }) => {
@@ -224,6 +237,9 @@ export function initResourceHandlers(): void {
       } catch (e) {
         console.warn('move resource failed', e);
       }
+    }
+    if (updated.length > 0) {
+      eventManager.emit(AppEvent.RESOURCE_BATCH_MOVED, updated);
     }
     return { moved, data: updated };
   });
@@ -302,6 +318,9 @@ export function initResourceHandlers(): void {
   ipcMain.handle('updateResource', async (_event, payload: { id: string; patch: any }) => {
     const { id, patch } = payload;
     const updated = await ResourcesRepo.update(id, patch);
+    if (updated) {
+      eventManager.emit(AppEvent.RESOURCE_UPDATED, updated);
+    }
     return { success: true, data: updated };
   });
 
@@ -385,11 +404,24 @@ export function initResourceHandlers(): void {
           }
 
           const updated = await ResourcesRepo.update(r.id, { folderId: targetFolderId ?? null, ...(newPath ? { filePath: newPath } : {}) } as any);
-          if (updated) moved += 1;
+          if (updated) {
+            moved += 1;
+            eventManager.emit(AppEvent.RESOURCE_MOVED, updated);
+          }
         } catch {
           // 单条失败，继续下一条
         }
       }
+      // Ideally we should emit BATCH_MOVED but here we emit one by one or collect them.
+      // Let's just rely on individual updates or maybe I should collect them.
+      // For now, individual updates are fine or I can emit a batch event if I collected them.
+      // But I didn't collect them in the loop.
+      // Let's just emit a generic update event or rely on the loop.
+      // Actually, I should probably collect them to be efficient.
+      // But the loop structure makes it a bit hard without refactoring.
+      // I'll just emit RESOURCE_UPDATED for now inside the loop?
+      // Wait, I added RESOURCE_MOVED above.
+
       return { success: true, moved };
     } catch (e: any) {
       return { success: false, error: e?.message || 'unknown' };
@@ -419,6 +451,9 @@ export function initResourceHandlers(): void {
       title: newName,
       ...(newPath ? { filePath: newPath } : {})
     } as any);
+    if (updated) {
+      eventManager.emit(AppEvent.RESOURCE_UPDATED, updated);
+    }
     return { success: true, fileRenamed, newPath, data: updated };
   });
 

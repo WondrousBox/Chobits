@@ -1,8 +1,9 @@
 import type { AIApi } from '../electron/main/ai/types';
 import type { DailyCareBridgeType } from '../electron/main/daily/ipc-renderer';
-import type { FolderIpcType } from '../electron/main/folder/ipc-renderer';
+import type { AppEventPayload } from '../electron/main/handlers/events';
+import type { FolderIpcType } from '../electron/main/handlers/folder/ipc-renderer';
+import type { WorkspaceIpcType } from '../electron/main/handlers/workspace/ipc-renderer';
 import type { PluginResourceBridgeType } from '../electron/main/plugins/ipc-renderer';
-import type { WorkspaceIpcType } from '../electron/main/workspace/ipc-renderer';
 import type { FFmpegBridgeType } from '../electron/preload/apis/ffmpeg';
 import type { FileBridgeType } from '../electron/preload/apis/file';
 import type { ResourceIpcType } from '../electron/preload/apis/resource';
@@ -50,6 +51,9 @@ declare global {
       proxy: ProxyBridgeType;
       theme: ThemeBridgeType;
       ai: AIApi;
+      events: {
+        on: (callback: (payload: AppEventPayload) => void) => () => void;
+      };
     };
     ipcRenderer: import('electron').IpcRenderer;
   }
