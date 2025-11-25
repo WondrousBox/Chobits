@@ -356,21 +356,8 @@ const FolderSidebar: React.FC<{
       </SidebarGroup>
 
       {tree.length === 0 && (
-        <div className="h-full flex items-center justify-center text-xs text-muted-foreground border-t border-sidebar-border">
-          <Empty>
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <TbFolder />
-              </EmptyMedia>
-              <EmptyDescription>暂无文件夹</EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent>
-              <Button variant={'outline'} size={'sm'} onClick={() => handleCreate()}>
-                <TbPlus />
-                创建
-              </Button>
-            </EmptyContent>
-          </Empty>
+        <div className="h-full flex items-center justify-center text-xs text-muted-foreground whitespace-nowrap">
+          暂无文件夹，点击 <TbPlus className="mx-2" /> 创建
         </div>
       )}
     </>
