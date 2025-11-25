@@ -30,7 +30,7 @@ interface GalleryItemProps {
 const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onClick, onToggleFavorite, onToggleVisibility, innerRef, draggable, onDragStart, onPreview, fillContainer = false }) => {
   const [copied, setCopied] = useState(false);
   const summary = getResourceSummary(item);
-  const thumbSrc = (item as any).thumbnailPath ? makeResSrc((item as any).thumbnailPath) : undefined;
+  const thumbSrc = item.thumbnailPath ? makeResSrc(item.thumbnailPath) : undefined;
 
   // (deprecated modal) replaced by dedicated preview window
   const isAudio = isAudioFile(item.filePath);
@@ -176,50 +176,18 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
         {/* 图片资源 - 直接显示 */}
         {isImageFile(item.filePath) && <img src={item.filePath ? makeResSrc(item.filePath) : ''} alt={summary.title} className="h-full w-full object-cover" draggable={false} />}
 
-        {/* 视频资源 - 优先显示封面图，没有封面图则显示占位符 */}
-        {isVideoFile(item.filePath) && (
-          <>
-            {thumbSrc ? (
-              <img src={thumbSrc} alt={summary.title} className="h-full w-full object-cover" draggable={false} />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-purple-900/70 to-purple-700/40 text-white gap-2 text-[11px]">
-                <span className="inline-flex items-center gap-1 opacity-90">
-                  <span aria-hidden="true">🎬</span>
-                  <span className="font-medium">点击预览视频</span>
-                </span>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* 音频资源 - 显示占位符 */}
-        {isAudio && (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-900/70 to-slate-700/40 text-white gap-2 text-[11px]">
-            <span className="inline-flex items-center gap-1 opacity-90">
-              <span aria-hidden="true">🎵</span>
-              <span className="font-medium">点击预览音频</span>
-            </span>
-          </div>
-        )}
-
-        {/* 文本资源 - 显示特殊样式 */}
-        {item.type === 'text' && (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-blue-900/70 to-blue-700/40 text-white gap-2 text-[11px]">
-            <span className="inline-flex items-center gap-1 opacity-90">
-              <span aria-hidden="true">📄</span>
-            </span>
-          </div>
-        )}
-
         {/* 其他资源类型 - 显示类型图标 */}
-        {!isImageFile(item.filePath) && !isVideoFile(item.filePath) && !isAudioFile(item.filePath) && item.type !== 'text' && (
-          <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
-            <div className="text-center">
-              <div className="text-2xl mb-1">{getResourceTypeIcon(item.type)}</div>
-              <div className="text-[10px] capitalize">{item.type}</div>
+        {!isImageFile(item.filePath) &&
+          (thumbSrc ? (
+            <img src={thumbSrc} alt={summary.title} className="h-full w-full object-cover" draggable={false} />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
+              <div className="text-center">
+                <div className="text-2xl mb-1">{getResourceTypeIcon(item.type)}</div>
+                <div className="text-[10px] capitalize">{item.type}</div>
+              </div>
             </div>
-          </div>
-        )}
+          ))}
 
         {/* 悬停播放/预览按钮 */}
         {(isAudio || isVideoRes) && (

@@ -2,6 +2,7 @@ import * as fscb from 'node:fs';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
+import { nativeImage } from 'electron';
 import ffmpeg from 'fluent-ffmpeg';
 
 // Attempt lazy import of sharp (optional)
@@ -60,6 +61,8 @@ const TEXT_EXT = new Set([
   '.mdx'
 ]);
 
+const DOC_EXT = new Set(['.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx', '.pdf', '.key', '.pages', '.numbers']);
+
 export function detectBasicType(filePath?: string, declaredType?: string): { type?: string; mimeType?: string } {
   if (!filePath) return { type: declaredType };
   const ext = path.extname(filePath).toLowerCase();
@@ -92,6 +95,7 @@ export async function generateThumbnailForResource(res: { filePath?: string; typ
     return await generatePlaceholder(type || 'file', title, size);
   }
   const ext = path.extname(filePath).toLowerCase();
+
   try {
     if (IMAGE_EXT.has(ext)) {
       const sharp = await getSharp();
@@ -109,15 +113,29 @@ export async function generateThumbnailForResource(res: { filePath?: string; typ
       if (frameBuffer) return frameBuffer;
       return await generatePlaceholder('video', title || ext.replace('.', '').toUpperCase(), size);
     }
-    if (AUDIO_EXT.has(ext)) {
-      return await generatePlaceholder('audio', ext.replace('.', '').toUpperCase(), size);
+
+    // Documents: use nativeImage
+    if (DOC_EXT.has(ext)) {
+      try {
+        const nativeThumb = await nativeImage.createThumbnailFromPath(filePath, { width: size, height: size });
+        if (!nativeThumb.isEmpty()) {
+          return nativeThumb.toPNG();
+        }
+      } catch (e) {
+        console.warn('[thumbnail] native generation failed', e);
+      }
+      // Fallback to placeholder if native fails
+      return await generatePlaceholder('file', ext.replace('.', '').toUpperCase(), size);
     }
+
     if (TEXT_EXT.has(ext)) {
       // Use first letter(s) of title or extension
       const label = (title?.slice(0, 4) || ext.replace('.', '').slice(0, 4) || 'TXT').toUpperCase();
       return await generatePlaceholder('text', label, size);
     }
-    return await generatePlaceholder(type || 'file', ext.replace('.', '').toUpperCase(), size);
+
+    // For any other file type not explicitly handled, do not generate a thumbnail.
+    return null;
   } catch (e) {
     console.warn('[thumbnail] generation failed', e);
     return null;
