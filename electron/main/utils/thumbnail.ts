@@ -111,7 +111,6 @@ export async function generateThumbnailForResource(res: { filePath?: string; typ
       // Extract first frame using ffmpeg into a buffer (png)
       const frameBuffer = await extractVideoFrame(filePath, opts.frameAtSeconds || 0.5, size);
       if (frameBuffer) return frameBuffer;
-      return await generatePlaceholder('video', title || ext.replace('.', '').toUpperCase(), size);
     }
 
     // Documents: use nativeImage
@@ -124,8 +123,11 @@ export async function generateThumbnailForResource(res: { filePath?: string; typ
       } catch (e) {
         console.warn('[thumbnail] native generation failed', e);
       }
-      // Fallback to placeholder if native fails
-      return await generatePlaceholder('file', ext.replace('.', '').toUpperCase(), size);
+    }
+
+    if (AUDIO_EXT.has(ext)) {
+      const waveform = await generateAudioWaveform(filePath, size);
+      if (waveform) return waveform;
     }
 
     if (TEXT_EXT.has(ext)) {
@@ -172,6 +174,38 @@ async function extractVideoFrame(filePath: string, at: number, size: number): Pr
     }
   } catch (e) {
     console.warn('[thumbnail] video frame extract failed', e);
+  } finally {
+    try {
+      if (fscb.existsSync(temp)) await fs.unlink(temp);
+    } catch {
+      // ignore
+    }
+  }
+  return null;
+}
+
+async function generateAudioWaveform(filePath: string, size: number): Promise<Buffer | null> {
+  const dir = path.dirname(filePath);
+  const name = `.__thumb_audio_${Date.now()}_${Math.random().toString(36).slice(2)}.png`;
+  const temp = path.join(dir, name);
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      ffmpeg(filePath)
+        .complexFilter(`showwavespic=s=${size}x${size}:colors=#059669`)
+        .frames(1)
+        .output(temp)
+        .on('end', () => resolve())
+        .on('error', (err) => reject(err))
+        .run();
+    });
+
+    if (fscb.existsSync(temp)) {
+      const buf = await fs.readFile(temp);
+      return buf;
+    }
+  } catch (e) {
+    console.warn('[thumbnail] audio waveform generation failed', e);
   } finally {
     try {
       if (fscb.existsSync(temp)) await fs.unlink(temp);
