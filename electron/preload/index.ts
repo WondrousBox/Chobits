@@ -5,13 +5,13 @@ import { proxyBridge } from '../../packages/proxy/ipc-renderer';
 import { aiBridge } from '../main/ai/ipc-renderer';
 import { dailyCareBridge } from '../main/daily/ipc-renderer';
 import { APP_EVENT_CHANNEL, AppEventPayload } from '../main/handlers/events';
+import { ffmpegIpcRenderer } from '../main/handlers/ffmpeg/ipc-renderer';
 import { fileIpcRenderer } from '../main/handlers/file/ipc-renderer';
 import { folderIpcRenderer } from '../main/handlers/folder/ipc-renderer';
 import { resourceIpcRenderer } from '../main/handlers/resource/ipc-renderer';
 import { trashIpcRenderer } from '../main/handlers/trash/ipc-renderer';
 import { workspaceIpcRenderer } from '../main/handlers/workspace/ipc-renderer';
 import { arch, isLinux, isMac, isMacIntel, isWindows, platform } from '../main/utils/os';
-import { ffmpegBridge } from './apis/ffmpeg';
 import { shortcutsBridge } from './apis/shortcuts';
 import { spriteBridge } from './apis/sprite';
 import { statusBridge } from './apis/status';
@@ -55,7 +55,7 @@ contextBridge.exposeInMainWorld('YUA', {
   isProd: process.env.NODE_ENV !== 'development',
   isDev: process.env.NODE_ENV === 'development',
   window: windowBridge,
-  ffmpeg: ffmpegBridge,
+  ffmpeg: ffmpegIpcRenderer,
   vector: vectorBridge,
   resource: resourceIpcRenderer,
   trash: trashIpcRenderer,

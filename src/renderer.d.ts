@@ -1,13 +1,13 @@
 import type { AIApi } from '../electron/main/ai/types';
 import type { DailyCareBridgeType } from '../electron/main/daily/ipc-renderer';
 import type { AppEventPayload } from '../electron/main/handlers/events';
+import type { FFmpegIpcType } from '../electron/main/handlers/ffmpeg/ipc-renderer';
 import type { FileIpcType } from '../electron/main/handlers/file/ipc-renderer';
 import type { FolderIpcType } from '../electron/main/handlers/folder/ipc-renderer';
 import type { ResourceIpcType } from '../electron/main/handlers/resource/ipc-renderer';
 import type { TrashIpcType } from '../electron/main/handlers/trash/ipc-renderer';
 import type { WorkspaceIpcType } from '../electron/main/handlers/workspace/ipc-renderer';
 import type { PluginResourceBridgeType } from '../electron/main/plugins/ipc-renderer';
-import type { FFmpegBridgeType } from '../electron/preload/apis/ffmpeg';
 import type { ShortcutsBridgeType } from '../electron/preload/apis/shortcuts';
 import type { SpriteBridgeType } from '../electron/preload/apis/sprite';
 import type { StatusBridgeType } from '../electron/preload/apis/status';
@@ -31,7 +31,7 @@ declare global {
       isDev: boolean;
 
       window: WindowBridgeType;
-      ffmpeg: FFmpegBridgeType;
+      ffmpeg: FFmpegIpcType;
       vector: VectorBridgeType & {
         onEmbeddingJob(cb: (job: any) => void): () => void;
         onEmbeddingProgress(cb: (p: { id: string; done: number; total: number; status?: string }) => void): () => void;
