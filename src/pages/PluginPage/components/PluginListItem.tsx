@@ -1,10 +1,11 @@
+import { PluginDefinition } from 'packages/plugins/types';
 import React, { useState } from 'react';
 import { TbDownload, TbLoader2, TbTrash } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-import type { InstalledResource, PluginDefinition } from './types';
+import type { InstalledResource } from './types';
 
 interface PluginListItemProps {
   resource: PluginDefinition;

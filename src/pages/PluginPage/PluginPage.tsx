@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
+import { PluginDefinition } from 'packages/plugins/types';
 import React, { useEffect, useState } from 'react';
 import { TbBox, TbChevronDown, TbChevronRight, TbPlug, TbSettings, TbWifi } from 'react-icons/tb';
 
@@ -10,7 +11,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { NetworkCheckDialog } from './components/NetworkCheckDialog';
 import { PluginListItem } from './components/PluginListItem';
 import SelectModelFolder from './components/SelectModelFolder';
-import type { InstalledResource, PluginDefinition } from './components/types';
+import type { InstalledResource } from './components/types';
 
 interface PluginPageProps {
   hideTitleBar?: boolean;
