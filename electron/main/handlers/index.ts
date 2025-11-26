@@ -13,7 +13,7 @@ import { initSpriteHandlers } from './sprite';
 import { initStatusHandlers } from './status';
 import { initSystemHandlers } from './system';
 import { initThemeHandlers } from './theme';
-import { initTrashHandlers } from './trash';
+import { initTrashHandlers } from './trash/ipc-main';
 import { initVectorHandlers } from './vector';
 import { initVideoDownloadHandlers } from './video-download';
 import { initWindowHandlers } from './window';
