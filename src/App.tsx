@@ -12,7 +12,7 @@ import { TooltipProvider } from './components/ui/tooltip';
 import AssistantMenuPage from './pages/AssistantMenuPage/AssistantMenuPage';
 import AssistantPage from './pages/AssistantPage/AssistantPage';
 import ChatPage from './pages/AssistantPage/ChatPage';
-import PluginDownloadPage from './pages/PluginDownloadPage/PluginDownloadPage';
+import PluginDownloadPage from './pages/PluginPage/PluginDownloadPage';
 import PluginPage from './pages/PluginPage/PluginPage';
 import RecycleBinPage from './pages/RecycleBinPage/RecycleBinPage';
 import ResourcePage from './pages/ResourcePage/ResourcePage';

@@ -7,9 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-import SelectModelFolder from '../ModelPage/components/SelectModelFolder';
 import { NetworkCheckDialog } from './components/NetworkCheckDialog';
 import { PluginListItem } from './components/PluginListItem';
+import SelectModelFolder from './components/SelectModelFolder';
 import type { InstalledResource, PluginDefinition } from './components/types';
 
 interface PluginPageProps {
