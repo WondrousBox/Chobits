@@ -1,14 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { TbBrain, TbCpu, TbFolder, TbFolderOpen, TbKeyboard, TbMessage2, TbMoodKid, TbNetwork, TbPlug, TbSparkles, TbSunMoon } from 'react-icons/tb';
+import { TbAdjustments, TbBrain, TbCpu, TbFolderOpen, TbKeyboard, TbMessage2, TbMoodKid, TbNetwork, TbPlug, TbSparkles } from 'react-icons/tb';
 
 import DragAbleTitle from '../../components/common/DragAbleTitle';
 import EmbeddingJobsPanel from '../../components/EmbeddingJobs';
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '../../components/ui/sidebar';
 import PluginPage from '../PluginPage/PluginPage';
 import AiSettings from './components/AiSettings';
-import AppearanceSettings from './components/AppearanceSettings';
 import ExtensionSettings from './components/ExtensionSettings';
-import FolderSetting from './components/FolderSetting';
+import PreferencesSettings from './components/PreferencesSettings';
 import PromptSetting from './components/PromptSetting';
 import ProxySettings from './components/ProxySettings';
 import ShortcutsSettings from './components/ShortcutsSettings';
@@ -16,15 +15,15 @@ import SpriteManager from './components/SpriteManager';
 import Workspace from './components/Workspace';
 
 // 设置分类类型
-type SettingsCategory = 'folder' | 'embedding' | 'ai' | 'prompt' | 'workspace' | 'sprites' | 'shortcuts' | 'plugins' | 'proxy' | 'extensions' | 'appearance';
+type SettingsCategory = 'preferences' | 'embedding' | 'ai' | 'prompt' | 'workspace' | 'sprites' | 'shortcuts' | 'plugins' | 'proxy' | 'extensions';
 
 // 设置分类配置
 const settingsCategories: { id: SettingsCategory; label: string; icon: React.ElementType; description: string }[] = [
   {
-    id: 'appearance',
-    label: '主题外观',
-    icon: TbSunMoon,
-    description: '切换黑暗、明亮或跟随系统'
+    id: 'preferences',
+    label: '偏好设置',
+    icon: TbAdjustments,
+    description: '主题外观和文件夹设置'
   },
   {
     id: 'extensions',
@@ -37,12 +36,6 @@ const settingsCategories: { id: SettingsCategory; label: string; icon: React.Ele
     label: '工作空间',
     icon: TbFolderOpen,
     description: '工作空间管理与默认空间设置'
-  },
-  {
-    id: 'folder',
-    label: '文件夹',
-    icon: TbFolder,
-    description: '文件夹相关设置'
   },
   {
     id: 'ai',
@@ -110,8 +103,8 @@ export const SettingsPage: React.FC = () => {
   // 根据当前分类渲染对应内容
   const renderCurrentCategoryContent = (): JSX.Element => {
     switch (activeCategory) {
-      case 'folder':
-        return <FolderSetting />;
+      case 'preferences':
+        return <PreferencesSettings />;
       case 'embedding':
         return <EmbeddingJobsPanel />;
       case 'workspace':
@@ -144,8 +137,6 @@ export const SettingsPage: React.FC = () => {
         return <ShortcutsSettings />;
       case 'extensions':
         return <ExtensionSettings />;
-      case 'appearance':
-        return <AppearanceSettings />;
       case 'proxy':
         return <ProxySettings />;
       default:
