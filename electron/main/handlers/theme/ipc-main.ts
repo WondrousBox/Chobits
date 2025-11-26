@@ -10,12 +10,13 @@ type ThemePayload = {
   shouldUseDarkColors: boolean;
 };
 
-const THEME_PREF_FILE = path.join(app.getPath('userData'), 'theme-preference.json');
+const STORE_DIR = path.join(app.getPath('userData'), 'data');
+const STORE_FILE = path.join(STORE_DIR, 'theme-preference.json');
 
 const readPersistedTheme = (): ThemeSource | null => {
   try {
-    if (!fs.existsSync(THEME_PREF_FILE)) return null;
-    const content = fs.readFileSync(THEME_PREF_FILE, 'utf-8');
+    if (!fs.existsSync(STORE_FILE)) return null;
+    const content = fs.readFileSync(STORE_FILE, 'utf-8');
     const parsed = JSON.parse(content);
     if (parsed?.themeSource === 'system' || parsed?.themeSource === 'light' || parsed?.themeSource === 'dark') {
       return parsed.themeSource;
@@ -28,8 +29,8 @@ const readPersistedTheme = (): ThemeSource | null => {
 
 const writePersistedTheme = (themeSource: ThemeSource): void => {
   try {
-    fs.mkdirSync(path.dirname(THEME_PREF_FILE), { recursive: true });
-    fs.writeFileSync(THEME_PREF_FILE, JSON.stringify({ themeSource, updatedAt: Date.now() }, null, 2), 'utf-8');
+    fs.mkdirSync(path.dirname(STORE_FILE), { recursive: true });
+    fs.writeFileSync(STORE_FILE, JSON.stringify({ themeSource, updatedAt: Date.now() }, null, 2), 'utf-8');
   } catch {
     //
   }

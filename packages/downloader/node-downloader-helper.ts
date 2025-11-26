@@ -3,8 +3,7 @@ import path from 'node:path';
 // https://github.com/hgouveia/node-downloader-helper
 import { DownloaderHelper } from 'node-downloader-helper';
 
-import { getHttpProxy } from '../../electron/main/handlers/proxy/proxy';
-import type { Downloader, DownloadProgress } from './types';
+import type { Downloader, DownloadOptions, DownloadProgress } from './types';
 
 /**
  * 基于 node-downloader-helper 的下载器
@@ -15,11 +14,12 @@ const DEFAULT_STALL_TIMEOUT_MS = 60_000;
 const STALL_TIMER_INTERVAL_MS = 5_000;
 
 export class NodeDownloaderHelper implements Downloader {
-  async download(url: string, destinationPath: string, onProgress?: (p: DownloadProgress) => void, signal?: AbortSignal): Promise<string> {
+  async download(url: string, destinationPath: string, options?: DownloadOptions): Promise<string> {
     const dir = path.dirname(destinationPath);
     const filename = path.basename(destinationPath);
     const stallTimeoutEnv = Number(process.env.CHOBITS_DOWNLOAD_STALL_TIMEOUT_MS);
     const stallTimeoutMs = Number.isFinite(stallTimeoutEnv) && stallTimeoutEnv > 0 ? stallTimeoutEnv : DEFAULT_STALL_TIMEOUT_MS;
+    const { onProgress, signal, proxyAgent } = options ?? {};
 
     console.log('[DL-NDH] download initiated', {
       url,
@@ -29,7 +29,6 @@ export class NodeDownloaderHelper implements Downloader {
     });
 
     // 获取代理配置
-    const proxyAgent = getHttpProxy();
     console.log('[DL-NDH] proxyAgent', proxyAgent);
 
     const httpRequestOptions: any = {};
