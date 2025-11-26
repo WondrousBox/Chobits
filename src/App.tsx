@@ -2,10 +2,10 @@ import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import { ChatSelectionProvider } from '@/components/AIAssistant/context/ChatSelectionContext';
 import DownloadFloating from '@/components/DownloadFloating';
-import { ThemeProvider } from '@/components/providers/ThemeProvider';
 import { Toaster } from '@/components/ui/sonner';
 import FileActionsMenu from '@/pages/FileActionsMenu/FileActionsMenu';
 import ResourcePreviewWindow from '@/pages/ResourcePage/ResourcePreviewWindow';
+import { ThemeProvider } from '@/pages/SettingsPage/providers/ThemeProvider';
 
 import { AIAssistant } from './components/AIAssistant';
 import { TooltipProvider } from './components/ui/tooltip';

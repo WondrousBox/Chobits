@@ -14,10 +14,10 @@ export type ThemeUpdatePayload = {
   shouldUseDarkColors: boolean;
 };
 
-export type ThemeBridgeType = {
-  get: () => Promise<ThemeBridgeResponse>;
-  set: (theme: ThemeSource) => Promise<ThemeBridgeResponse>;
-  onChange: (callback: (payload: ThemeUpdatePayload) => void) => () => void;
+export type ThemeIpcType = {
+  'theme:get': () => Promise<ThemeBridgeResponse>;
+  'theme:set': (theme: ThemeSource) => Promise<ThemeBridgeResponse>;
+  'theme:onChange': (callback: (payload: ThemeUpdatePayload) => void) => () => void;
 };
 
 const get = async (): Promise<ThemeBridgeResponse> => ipcRenderer.invoke('theme:get');
@@ -29,8 +29,8 @@ const onChange = (callback: (payload: ThemeUpdatePayload) => void): (() => void)
   return () => ipcRenderer.off('theme:updated', listener);
 };
 
-export const themeBridge: ThemeBridgeType = {
-  get,
-  set,
-  onChange
+export const themeIpcRenderer: ThemeIpcType = {
+  'theme:get': get,
+  'theme:set': set,
+  'theme:onChange': onChange
 };

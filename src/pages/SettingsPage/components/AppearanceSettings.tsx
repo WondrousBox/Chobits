@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { TbDeviceDesktop, TbLoader2, TbMoon, TbPalette, TbSunHigh } from 'react-icons/tb';
 
-import { useThemePreference } from '@/components/providers/ThemeProvider';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
+
+import { useThemePreference } from '../providers/ThemeProvider';
 
 type ThemeSource = 'system' | 'light' | 'dark';
 
