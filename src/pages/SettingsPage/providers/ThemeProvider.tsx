@@ -18,7 +18,7 @@ const applyDocumentTheme = (isDark: boolean): void => {
   root.classList.toggle('dark', isDark);
 };
 
-const ensureThemeBridge = (): Window['YUA']['theme'] | null => {
+const ensureThemeIpcRenderer = (): Window['YUA']['theme'] | null => {
   if (typeof window === 'undefined') return null;
   try {
     return window.YUA?.theme ?? null;
@@ -42,10 +42,10 @@ export const ThemeProvider: React.FC<React.PropsWithChildren> = ({ children }) =
   }, []);
 
   const refreshTheme = useCallback(async () => {
-    const bridge = ensureThemeBridge();
+    const bridge = ensureThemeIpcRenderer();
     if (!bridge) return;
     try {
-      const response = await bridge.get();
+      const response = await bridge['theme:get']();
       if (response?.ok) {
         syncFromPayload({
           themeSource: response.themeSource ?? 'system',
@@ -58,10 +58,12 @@ export const ThemeProvider: React.FC<React.PropsWithChildren> = ({ children }) =
   }, [syncFromPayload]);
 
   useEffect(() => {
-    refreshTheme();
-    const bridge = ensureThemeBridge();
+    (async () => {
+      await refreshTheme();
+    })();
+    const bridge = ensureThemeIpcRenderer();
     if (!bridge) return;
-    const dispose = bridge.onChange((payload) => syncFromPayload(payload));
+    const dispose = bridge['theme:onChange']((payload) => syncFromPayload(payload));
     return () => {
       dispose?.();
     };
@@ -69,11 +71,11 @@ export const ThemeProvider: React.FC<React.PropsWithChildren> = ({ children }) =
 
   const handleSetMode = useCallback(
     async (nextMode: ThemeSource): Promise<void> => {
-      const bridge = ensureThemeBridge();
+      const bridge = ensureThemeIpcRenderer();
       if (!bridge) return;
       if (nextMode === mode) return;
       try {
-        await bridge.set(nextMode);
+        await bridge['theme:set'](nextMode);
       } catch (error) {
         console.error('设置主题失败:', error);
       }
@@ -94,6 +96,7 @@ export const ThemeProvider: React.FC<React.PropsWithChildren> = ({ children }) =
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useThemePreference = (): ThemeContextValue => {
   const ctx = useContext(ThemeContext);
   if (!ctx) {

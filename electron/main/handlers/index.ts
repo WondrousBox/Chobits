@@ -1,18 +1,18 @@
 import { BrowserWindow } from 'electron';
 
 import { init as initPluginResourceHandlers } from '../../../packages/plugins/ipc-main';
-import { init as initProxyHandlers } from './proxy/ipc-main';
 import { init as initAIHandlers } from '../ai/ipc-main';
 import { initDailyCare } from '../daily';
 import { initFFmpegHandlers } from './ffmpeg/ipc-main';
 import { initFileHandlers } from './file/ipc-main';
 import { initFolderHandlers } from './folder/ipc-main';
+import { init as initProxyHandlers } from './proxy/ipc-main';
 import { initResourceHandlers } from './resource/ipc-main';
 import { initShortcutsHandlers } from './shortcuts';
 import { initSpriteHandlers } from './sprite';
 import { initStatusHandlers } from './status';
 import { initSystemHandlers } from './system';
-import { initThemeHandlers } from './theme';
+import { initThemeHandlers } from './theme/ipc-main';
 import { initTrashHandlers } from './trash/ipc-main';
 import { initVectorHandlers } from './vector';
 import { initVideoDownloadHandlers } from './video-download';

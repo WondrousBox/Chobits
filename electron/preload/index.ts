@@ -9,6 +9,7 @@ import { fileIpcRenderer } from '../main/handlers/file/ipc-renderer';
 import { folderIpcRenderer } from '../main/handlers/folder/ipc-renderer';
 import { proxyIpcRenderer } from '../main/handlers/proxy/ipc-renderer';
 import { resourceIpcRenderer } from '../main/handlers/resource/ipc-renderer';
+import { themeIpcRenderer } from '../main/handlers/theme/ipc-renderer';
 import { trashIpcRenderer } from '../main/handlers/trash/ipc-renderer';
 import { workspaceIpcRenderer } from '../main/handlers/workspace/ipc-renderer';
 import { arch, isLinux, isMac, isMacIntel, isWindows, platform } from '../main/utils/os';
@@ -16,7 +17,6 @@ import { shortcutsBridge } from './apis/shortcuts';
 import { spriteBridge } from './apis/sprite';
 import { statusBridge } from './apis/status';
 import { systemBridge } from './apis/system';
-import { themeBridge } from './apis/theme';
 import { vectorBridge } from './apis/vector';
 import videoDownloaderAPI from './apis/video-downloader';
 import { windowBridge } from './apis/window';
@@ -71,7 +71,7 @@ contextBridge.exposeInMainWorld('YUA', {
   dailyCare: dailyCareBridge,
   pluginResource: pluginResourceAPI,
   proxy: proxyIpcRenderer,
-  theme: themeBridge,
+  theme: themeIpcRenderer,
   events: {
     on: (callback: (payload: AppEventPayload) => void) => {
       const subscription = (_event: any, payload: AppEventPayload): void => callback(payload);
