@@ -4,7 +4,7 @@ import { init as initPluginResourceHandlers } from '../../../packages/plugins/ip
 import { init as initProxyHandlers } from '../../../packages/proxy/ipc-main';
 import { init as initAIHandlers } from '../ai/ipc-main';
 import { initDailyCare } from '../daily';
-import { initFFmpegHandlers } from './ffmpeg';
+import { initFFmpegHandlers } from './ffmpeg/ipc-main';
 import { initFileHandlers } from './file/ipc-main';
 import { initFolderHandlers } from './folder/ipc-main';
 import { initResourceHandlers } from './resource/ipc-main';
