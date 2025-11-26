@@ -6,7 +6,7 @@ import { initDailyCare } from '../daily';
 import { initFFmpegHandlers } from './ffmpeg/ipc-main';
 import { initFileHandlers } from './file/ipc-main';
 import { initFolderHandlers } from './folder/ipc-main';
-import { init as initProxyHandlers } from './proxy/ipc-main';
+import { initProxyHandlers } from './proxy/ipc-main';
 import { initResourceHandlers } from './resource/ipc-main';
 import { initShortcutsHandlers } from './shortcuts';
 import { initSpriteHandlers } from './sprite';
