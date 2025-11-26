@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 type ThemeSource = 'system' | 'light' | 'dark';
 
 const AppearanceSettings: React.FC = () => {
-  const { mode, effectiveMode, setMode } = useThemePreference();
+  const { mode, setMode } = useThemePreference();
   const [pending, setPending] = useState<ThemeSource | null>(null);
 
   const options = useMemo(
@@ -58,7 +58,6 @@ const AppearanceSettings: React.FC = () => {
               <div className="text-sm text-muted-foreground">切换界面颜色模式，或根据系统自动调整。</div>
             </div>
           </div>
-          <div className="rounded-full border border-border px-4 py-1 text-xs font-medium text-muted-foreground">当前效果：{effectiveMode === 'dark' ? '黑暗' : '明亮'}</div>
         </div>
 
         <RadioGroup value={pending ?? mode} onValueChange={(value) => handleChange(value as ThemeSource)} className="grid gap-3 md:grid-cols-3">
