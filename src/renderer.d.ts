@@ -4,7 +4,7 @@ import type { AppEventPayload } from '../electron/main/handlers/events';
 import type { FFmpegIpcType } from '../electron/main/handlers/ffmpeg/ipc-renderer';
 import type { FileIpcType } from '../electron/main/handlers/file/ipc-renderer';
 import type { FolderIpcType } from '../electron/main/handlers/folder/ipc-renderer';
-import type { ProxyBridgeType } from '../electron/main/handlers/proxy/ipc-renderer';
+import type { ProxyIpcType } from '../electron/main/handlers/proxy/ipc-renderer';
 import type { ResourceIpcType } from '../electron/main/handlers/resource/ipc-renderer';
 import type { TrashIpcType } from '../electron/main/handlers/trash/ipc-renderer';
 import type { WorkspaceIpcType } from '../electron/main/handlers/workspace/ipc-renderer';
@@ -48,7 +48,7 @@ declare global {
       shortcuts: ShortcutsBridgeType;
       pluginResource: PluginResourceBridgeType;
       dailyCare: DailyCareBridgeType;
-      proxy: ProxyBridgeType;
+      proxy: ProxyIpcType;
       theme: ThemeBridgeType;
       ai: AIApi;
       events: {

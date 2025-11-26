@@ -7,7 +7,7 @@ import { APP_EVENT_CHANNEL, AppEventPayload } from '../main/handlers/events';
 import { ffmpegIpcRenderer } from '../main/handlers/ffmpeg/ipc-renderer';
 import { fileIpcRenderer } from '../main/handlers/file/ipc-renderer';
 import { folderIpcRenderer } from '../main/handlers/folder/ipc-renderer';
-import { proxyBridge } from '../main/handlers/proxy/ipc-renderer';
+import { proxyIpcRenderer } from '../main/handlers/proxy/ipc-renderer';
 import { resourceIpcRenderer } from '../main/handlers/resource/ipc-renderer';
 import { trashIpcRenderer } from '../main/handlers/trash/ipc-renderer';
 import { workspaceIpcRenderer } from '../main/handlers/workspace/ipc-renderer';
@@ -70,7 +70,7 @@ contextBridge.exposeInMainWorld('YUA', {
   ai: aiBridge,
   dailyCare: dailyCareBridge,
   pluginResource: pluginResourceAPI,
-  proxy: proxyBridge,
+  proxy: proxyIpcRenderer,
   theme: themeBridge,
   events: {
     on: (callback: (payload: AppEventPayload) => void) => {

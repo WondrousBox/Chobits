@@ -15,34 +15,34 @@ export interface ProxyConfig {
   proxies?: CustomProxy[];
 }
 
-export type ProxyBridgeType = typeof proxyBridge;
+export type ProxyIpcType = typeof proxyIpcRenderer;
 
-export const proxyBridge = {
-  getConfig: async (): Promise<ProxyConfig> => {
+export const proxyIpcRenderer = {
+  'proxy:getConfig': async (): Promise<ProxyConfig> => {
     return await ipcRenderer.invoke('proxy:getConfig');
   },
 
-  setConfig: async (payload: { config: ProxyConfig }): Promise<{ ok: boolean; config?: ProxyConfig; error?: string }> => {
+  'proxy:setConfig': async (payload: { config: ProxyConfig }): Promise<{ ok: boolean; config?: ProxyConfig; error?: string }> => {
     return await ipcRenderer.invoke('proxy:setConfig', payload);
   },
 
-  getSystemProxy: async (): Promise<{ ok: boolean; proxy?: { host: string; port: string } | null; error?: string }> => {
+  'proxy:getSystemProxy': async (): Promise<{ ok: boolean; proxy?: { host: string; port: string } | null; error?: string }> => {
     return await ipcRenderer.invoke('proxy:getSystemProxy');
   },
 
-  test: async (payload?: { testUrl?: string }): Promise<{ ok: boolean; latency?: number; error?: string }> => {
+  'proxy:test': async (payload?: { testUrl?: string; timeoutMs?: number }): Promise<{ ok: boolean; latency?: number; error?: string }> => {
     return await ipcRenderer.invoke('proxy:test', payload);
   },
 
-  addCustom: async (payload: { proxy: Omit<CustomProxy, 'active'> }): Promise<{ ok: boolean; config?: ProxyConfig; error?: string }> => {
+  'proxy:addCustom': async (payload: { proxy: Omit<CustomProxy, 'active'> }): Promise<{ ok: boolean; config?: ProxyConfig; error?: string }> => {
     return await ipcRenderer.invoke('proxy:addCustom', payload);
   },
 
-  updateCustom: async (payload: { index: number; proxy: Partial<CustomProxy> }): Promise<{ ok: boolean; config?: ProxyConfig; error?: string }> => {
+  'proxy:updateCustom': async (payload: { index: number; proxy: Partial<CustomProxy> }): Promise<{ ok: boolean; config?: ProxyConfig; error?: string }> => {
     return await ipcRenderer.invoke('proxy:updateCustom', payload);
   },
 
-  removeCustom: async (payload: { index: number }): Promise<{ ok: boolean; config?: ProxyConfig; error?: string }> => {
+  'proxy:removeCustom': async (payload: { index: number }): Promise<{ ok: boolean; config?: ProxyConfig; error?: string }> => {
     return await ipcRenderer.invoke('proxy:removeCustom', payload);
   }
 };

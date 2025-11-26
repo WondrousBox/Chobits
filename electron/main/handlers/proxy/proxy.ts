@@ -116,28 +116,42 @@ export async function getSystemProxy(win: BrowserWindow): Promise<{ host: string
 
 /**
  * 测试代理连接
- * @param testUrl 测试URL，默认为 https://www.google.com
+ * @param testUrl 测试URL
+ * @param timeoutMs 超时时间（毫秒）
  * @returns Promise<number> 返回延迟（毫秒）
  */
-export function testProxy(testUrl: string = 'https://www.google.com'): Promise<number> {
+export function testProxy(testUrl: string = 'https://www.google.com', timeoutMs: number = 10000): Promise<number> {
   return new Promise((resolve, reject) => {
     const startTime = Date.now();
     const agent = getHttpProxy();
+    const controller = new AbortController();
+    let timedOut = false;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
 
     console.log('[Proxy] testing proxy connection', { testUrl, hasAgent: !!agent });
 
-    fetch(testUrl, { agent })
+    fetch(testUrl, { agent, signal: controller.signal })
       .then((response) => {
+        clearTimeout(timeoutId);
         const endTime = Date.now();
         const latency = endTime - startTime;
         console.log('[Proxy] test successful', { latency, status: response.status });
         resolve(latency);
       })
       .catch((err: any) => {
+        clearTimeout(timeoutId);
         const endTime = Date.now();
         const latency = endTime - startTime;
+        if (timedOut) {
+          console.warn('[Proxy] test timeout', { latency, timeoutMs });
+          reject(new Error('[Proxy] test timeout'));
+          return;
+        }
         console.error('[Proxy] test failed', { error: err.message, latency });
-        reject(new Error(`代理测试失败: ${err.message}`));
+        reject(new Error(`[Proxy] test failed: ${err.message}`));
       });
   });
 }

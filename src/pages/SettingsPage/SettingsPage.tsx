@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { TbAdjustments, TbBrain, TbCpu, TbFolderOpen, TbKeyboard, TbMessage2, TbMoodKid, TbNetwork, TbPlug, TbSparkles } from 'react-icons/tb';
 
+import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '@/components/ui/sidebar';
+
 import DragAbleTitle from '../../components/common/DragAbleTitle';
 import EmbeddingJobsPanel from '../../components/EmbeddingJobs';
-import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '../../components/ui/sidebar';
 import PluginPage from '../PluginPage/PluginPage';
 import AiSettings from './components/AiSettings';
 import ExtensionSettings from './components/ExtensionSettings';
