@@ -1,6 +1,7 @@
 import { windowManager } from '@aim-packages/window-manager';
 import { BrowserWindow, ipcMain, net, screen } from 'electron';
 
+import { getHttpProxy } from '../../electron/main/handlers/proxy/proxy';
 import { createBestDownloader } from '../downloader/create';
 import { DownloadProgress, PluginResource, pluginResourceManager } from '.';
 import { PluginConfigStore } from './plugin-config-store';
@@ -134,7 +135,8 @@ export function init(win: BrowserWindow): void {
     console.log('payload', payload);
 
     // 加入下载队列，支持deleteAfterInstall参数（默认为false，不删除下载文件）
-    pluginResourceManager.enqueue(resource, payload.deleteAfterInstall ?? false);
+    const proxyAgent = getHttpProxy();
+    pluginResourceManager.enqueue(resource, payload.deleteAfterInstall ?? false, { proxyAgent });
 
     // 自动打开插件下载窗口
     try {
