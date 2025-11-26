@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { TbCheck, TbCircle, TbNetwork, TbPlus, TbRefresh, TbTestPipe, TbTrash } from 'react-icons/tb';
+import { TbCheck, TbLoader, TbNetwork, TbPlus, TbRefresh, TbTestPipe, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -44,7 +44,7 @@ const ProxySettings: React.FC = () => {
 
   const loadConfig = async (): Promise<void> => {
     try {
-      const result = await window.YUA.proxy?.getConfig();
+      const result = await window.YUA.proxy['proxy:getConfig']();
       if (result) {
         setConfig(result);
       }
@@ -58,7 +58,7 @@ const ProxySettings: React.FC = () => {
     setLoading(true);
     try {
       // 切换类型时保留现有的代理列表，不清空
-      const result = await window.YUA.proxy?.setConfig({ config: { type } });
+      const result = await window.YUA.proxy['proxy:setConfig']({ config: { type } });
       if (result?.ok && result.config) {
         setConfig(result.config);
         toast.success('设置成功', { description: '代理配置已更新' });
@@ -79,7 +79,7 @@ const ProxySettings: React.FC = () => {
 
   const loadSystemProxy = async (): Promise<void> => {
     try {
-      const result = await window.YUA.proxy?.getSystemProxy();
+      const result = await window.YUA.proxy['proxy:getSystemProxy']();
       if (result?.ok && result.proxy) {
         setSystemProxyInfo(result.proxy);
       } else {
@@ -94,7 +94,7 @@ const ProxySettings: React.FC = () => {
   const handleTestProxy = async (): Promise<void> => {
     setTesting(true);
     try {
-      const result = await window.YUA.proxy?.test();
+      const result = await window.YUA.proxy['proxy:test']();
       if (result?.ok) {
         toast.success('测试成功', { description: `代理连接正常，延迟: ${result.latency}ms` });
       } else {
@@ -110,12 +110,12 @@ const ProxySettings: React.FC = () => {
   const handleAddProxy = async (): Promise<void> => {
     const newProxy: Omit<CustomProxy, 'active'> = {
       type: 'http',
-      hostname: '',
+      hostname: '127.0.0.1',
       port: 7890
     };
 
     try {
-      const result = await window.YUA.proxy?.addCustom({ proxy: newProxy });
+      const result = await window.YUA.proxy['proxy:addCustom']({ proxy: newProxy });
       if (result?.ok && result.config) {
         setConfig(result.config);
         // 同步本地状态
@@ -134,7 +134,7 @@ const ProxySettings: React.FC = () => {
   // 立即保存（用于选择框和按钮操作）
   const handleUpdateProxyImmediate = async (index: number, updates: Partial<CustomProxy>): Promise<void> => {
     try {
-      const result = await window.YUA.proxy?.updateCustom({ index, proxy: updates });
+      const result = await window.YUA.proxy['proxy:updateCustom']({ index, proxy: updates });
       if (result?.ok && result.config) {
         setConfig(result.config);
         // 同步本地状态
@@ -170,7 +170,7 @@ const ProxySettings: React.FC = () => {
     // 设置新的防抖定时器
     const timer = setTimeout(async () => {
       try {
-        const result = await window.YUA.proxy?.updateCustom({ index, proxy: updates });
+        const result = await window.YUA.proxy['proxy:updateCustom']({ index, proxy: updates });
         if (result?.ok && result.config) {
           setConfig(result.config);
           // 同步本地状态
@@ -210,7 +210,7 @@ const ProxySettings: React.FC = () => {
     }
 
     try {
-      const result = await window.YUA.proxy?.removeCustom({ index });
+      const result = await window.YUA.proxy['proxy:removeCustom']({ index });
       if (result?.ok && result.config) {
         setConfig(result.config);
         // 同步本地状态
@@ -227,7 +227,7 @@ const ProxySettings: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-2">
       <div className="bg-card border border-border rounded-lg p-6">
         <div className="space-y-6">
           <div>
@@ -236,13 +236,13 @@ const ProxySettings: React.FC = () => {
           </div>
 
           <div className="space-y-3">
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 h-8">
               <input type="radio" id="none" name="proxyType" value="none" checked={config.type === 'none'} onChange={() => handleTypeChange('none')} disabled={loading} className="w-4 h-4" />
               <label htmlFor="none" className="cursor-pointer">
                 禁用代理
               </label>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 h-8">
               <input type="radio" id="system" name="proxyType" value="system" checked={config.type === 'system'} onChange={() => handleTypeChange('system')} disabled={loading} className="w-4 h-4" />
               <label htmlFor="system" className="cursor-pointer">
                 系统代理
@@ -250,7 +250,7 @@ const ProxySettings: React.FC = () => {
               {config.type === 'system' && (
                 <div className="ml-4 flex items-center gap-2">
                   <Button variant="ghost" size="sm" onClick={loadSystemProxy} className="h-8">
-                    <TbRefresh className="w-4 h-4 mr-1" />
+                    <TbRefresh />
                     刷新
                   </Button>
                   {systemProxyInfo && (
@@ -261,7 +261,7 @@ const ProxySettings: React.FC = () => {
                 </div>
               )}
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 h-8">
               <input type="radio" id="custom" name="proxyType" value="custom" checked={config.type === 'custom'} onChange={() => handleTypeChange('custom')} disabled={loading} className="w-4 h-4" />
               <label htmlFor="custom" className="cursor-pointer">
                 自定义代理
@@ -305,16 +305,11 @@ const ProxySettings: React.FC = () => {
                           <Input type="number" value={proxy.port} onChange={(e) => handleUpdateProxyDebounced(index, { port: parseInt(e.target.value) || 0 })} placeholder="7890" />
                         </div>
                         <div className="col-span-3 flex items-end gap-2">
-                          <Button
-                            variant={proxy.active ? 'default' : 'outline'}
-                            size="icon"
-                            onClick={() => handleUpdateProxyImmediate(index, { active: true })}
-                            className="h-8 w-8"
-                            disabled={proxy.active}
-                          >
-                            {proxy.active ? <TbCheck /> : <TbCircle />}
+                          <Button variant={proxy.active ? 'default' : 'outline'} onClick={() => handleUpdateProxyImmediate(index, { active: true })} disabled={proxy.active}>
+                            {proxy.active && <TbCheck />}
+                            {proxy.active ? '已启用' : '启用'}
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleRemoveProxy(index)} className="h-8 w-8">
+                          <Button variant="ghost" size="icon" onClick={() => handleRemoveProxy(index)}>
                             <TbTrash />
                           </Button>
                         </div>
@@ -330,15 +325,12 @@ const ProxySettings: React.FC = () => {
               )}
             </div>
           )}
-
-          <div className="flex justify-end border-t pt-4">
-            <Button onClick={handleTestProxy} disabled={testing || config.type === 'none'} variant="outline">
-              <TbTestPipe className="w-4 h-4 mr-2" />
-              {testing ? '测试中...' : '测试代理连接'}
-            </Button>
-          </div>
         </div>
       </div>
+      <Button onClick={handleTestProxy} disabled={testing} variant="outline">
+        {testing ? <TbLoader className="animate-spin" /> : <TbTestPipe className="w-4 h-4 mr-1" />}
+        {testing ? '测试中...' : '测试网络'}
+      </Button>
     </div>
   );
 };

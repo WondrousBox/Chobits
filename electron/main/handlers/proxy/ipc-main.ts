@@ -50,9 +50,9 @@ export function init(win: BrowserWindow): void {
   });
 
   // 测试代理连接
-  ipcMain.handle('proxy:test', async (_e, payload?: { testUrl?: string }) => {
+  ipcMain.handle('proxy:test', async (_e, payload?: { testUrl?: string; timeoutMs?: number }) => {
     try {
-      const latency = await testProxy(payload?.testUrl);
+      const latency = await testProxy(payload?.testUrl, payload?.timeoutMs || 10000);
       return { ok: true, latency };
     } catch (error: any) {
       return { ok: false, error: error.message || String(error) };
