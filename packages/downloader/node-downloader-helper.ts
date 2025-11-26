@@ -49,7 +49,8 @@ export class NodeDownloaderHelper implements Downloader {
             proxyInfo.port = proxy.port;
           }
         }
-      } catch (e) {
+      } catch (_e) {
+        console.log('[DL-NDH] error getting proxy info', _e);
         // 忽略获取代理信息的错误
       }
       console.log('[DL-NDH] using proxy', {
@@ -106,11 +107,13 @@ export class NodeDownloaderHelper implements Downloader {
       };
 
       // 处理取消信号
-      const abortHandler = () => {
+      const abortHandler = (): void => {
         isAborted = true;
         console.log('[DL-NDH] download cancelled', { url });
         if (dl) {
-          dl.stop().catch(() => { });
+          dl.stop().catch(() => {
+            //
+          });
         }
         reject(new Error('DownloadCancelled'));
       };

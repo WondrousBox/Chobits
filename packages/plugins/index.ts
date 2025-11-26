@@ -4,9 +4,8 @@ import path from 'node:path';
 
 import { app } from 'electron';
 
-import { getHttpProxy } from '../../electron/main/handlers/proxy/proxy';
 import { calculateFileHash, unzipFileWith7Z } from '../common/utils/file';
-import type { Downloader } from '../downloader/types';
+import type { Downloader, ProxyAgent } from '../downloader/types';
 import { PluginConfigStore } from './plugin-config-store';
 import { PluginResourceStore } from './plugin-resource-store';
 
@@ -58,6 +57,7 @@ interface InternalTask {
   lastTickBytes?: number;
   lastTickAt?: number;
   deleteAfterInstall?: boolean; // 是否在安装完成后删除下载文件
+  proxyAgent?: ProxyAgent;
 }
 
 /**
@@ -182,7 +182,7 @@ class PluginResourceManager extends EventEmitter {
    * @param resource 资源对象
    * @param deleteAfterInstall 是否在安装完成后删除下载文件，默认为false
    */
-  enqueue(resource: PluginResource, deleteAfterInstall: boolean = false): void {
+  enqueue(resource: PluginResource, deleteAfterInstall: boolean = false, options?: { proxyAgent?: ProxyAgent }): void {
     // 保存到store
     PluginResourceStore.upsert(resource);
 
@@ -199,7 +199,7 @@ class PluginResourceManager extends EventEmitter {
       }
     }
 
-    const task: InternalTask = { resource, deleteAfterInstall };
+    const task: InternalTask = { resource, deleteAfterInstall, proxyAgent: options?.proxyAgent };
     this.queue.push(task);
     console.log('[PluginDL] enqueue', { id: resource.id, url: resource.sourceUrl, installPath: resource.installPath });
     this.kick();
@@ -322,7 +322,6 @@ class PluginResourceManager extends EventEmitter {
       if (!skipDownload) {
         console.log('[PluginDL] start download', { id: task.resource.id, url, downloadFile });
         // 下载文件（带.download后缀）
-        const proxyAgent = getHttpProxy();
         await this.downloader.download(url, downloadFile, {
           onProgress: (p) => {
             this.emitProgress(task.resource.id, {
@@ -335,7 +334,7 @@ class PluginResourceManager extends EventEmitter {
             });
           },
           signal: task.controller?.signal,
-          proxyAgent
+          proxyAgent: task.proxyAgent
         });
 
         // 第一步：检查hash（如果提供了）
