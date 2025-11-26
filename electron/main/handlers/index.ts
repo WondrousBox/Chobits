@@ -1,7 +1,7 @@
 import { BrowserWindow } from 'electron';
 
 import { init as initPluginResourceHandlers } from '../../../packages/plugins/ipc-main';
-import { init as initProxyHandlers } from '../../../packages/proxy/ipc-main';
+import { init as initProxyHandlers } from './proxy/ipc-main';
 import { init as initAIHandlers } from '../ai/ipc-main';
 import { initDailyCare } from '../daily';
 import { initFFmpegHandlers } from './ffmpeg/ipc-main';
