@@ -5,13 +5,13 @@ import { proxyBridge } from '../../packages/proxy/ipc-renderer';
 import { aiBridge } from '../main/ai/ipc-renderer';
 import { dailyCareBridge } from '../main/daily/ipc-renderer';
 import { APP_EVENT_CHANNEL, AppEventPayload } from '../main/handlers/events';
+import { fileIpcRenderer } from '../main/handlers/file/ipc-renderer';
 import { folderIpcRenderer } from '../main/handlers/folder/ipc-renderer';
 import { resourceIpcRenderer } from '../main/handlers/resource/ipc-renderer';
 import { trashIpcRenderer } from '../main/handlers/trash/ipc-renderer';
 import { workspaceIpcRenderer } from '../main/handlers/workspace/ipc-renderer';
 import { arch, isLinux, isMac, isMacIntel, isWindows, platform } from '../main/utils/os';
 import { ffmpegBridge } from './apis/ffmpeg';
-import { fileBridge } from './apis/file';
 import { shortcutsBridge } from './apis/shortcuts';
 import { spriteBridge } from './apis/sprite';
 import { statusBridge } from './apis/status';
@@ -60,7 +60,7 @@ contextBridge.exposeInMainWorld('YUA', {
   resource: resourceIpcRenderer,
   trash: trashIpcRenderer,
   workspace: workspaceIpcRenderer,
-  file: fileBridge,
+  file: fileIpcRenderer,
   system: systemBridge,
   folder: folderIpcRenderer,
   videoDownloader: videoDownloaderAPI,
