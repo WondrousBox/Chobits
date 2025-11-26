@@ -3,7 +3,7 @@ import path from 'node:path';
 // https://github.com/hgouveia/node-downloader-helper
 import { DownloaderHelper } from 'node-downloader-helper';
 
-import { getHttpProxy } from '../proxy/proxy';
+import { getHttpProxy } from '../../electron/main/handlers/proxy/proxy';
 import type { Downloader, DownloadProgress } from './types';
 
 /**

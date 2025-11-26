@@ -4,6 +4,7 @@ import type { AppEventPayload } from '../electron/main/handlers/events';
 import type { FFmpegIpcType } from '../electron/main/handlers/ffmpeg/ipc-renderer';
 import type { FileIpcType } from '../electron/main/handlers/file/ipc-renderer';
 import type { FolderIpcType } from '../electron/main/handlers/folder/ipc-renderer';
+import type { ProxyBridgeType } from '../electron/main/handlers/proxy/ipc-renderer';
 import type { ResourceIpcType } from '../electron/main/handlers/resource/ipc-renderer';
 import type { TrashIpcType } from '../electron/main/handlers/trash/ipc-renderer';
 import type { WorkspaceIpcType } from '../electron/main/handlers/workspace/ipc-renderer';
@@ -16,7 +17,6 @@ import type { ThemeBridgeType } from '../electron/preload/apis/theme';
 import type { VectorBridgeType } from '../electron/preload/apis/vector';
 import type videoDownloaderAPI from '../electron/preload/apis/video-downloader';
 import type { WindowBridgeType } from '../electron/preload/apis/window';
-import type { ProxyBridgeType } from '../packages/proxy/ipc-renderer';
 
 declare global {
   interface Window {
