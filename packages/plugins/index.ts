@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { app } from 'electron';
 
+import { getHttpProxy } from '../../electron/main/handlers/proxy/proxy';
 import { calculateFileHash, unzipFileWith7Z } from '../common/utils/file';
 import type { Downloader } from '../downloader/types';
 import { PluginConfigStore } from './plugin-config-store';
@@ -321,10 +322,9 @@ class PluginResourceManager extends EventEmitter {
       if (!skipDownload) {
         console.log('[PluginDL] start download', { id: task.resource.id, url, downloadFile });
         // 下载文件（带.download后缀）
-        await this.downloader.download(
-          url,
-          downloadFile,
-          (p) => {
+        const proxyAgent = getHttpProxy();
+        await this.downloader.download(url, downloadFile, {
+          onProgress: (p) => {
             this.emitProgress(task.resource.id, {
               status: 'downloading',
               doneBytes: p.doneBytes,
@@ -334,8 +334,9 @@ class PluginResourceManager extends EventEmitter {
               percentage: p.percentage
             });
           },
-          task.controller?.signal
-        );
+          signal: task.controller?.signal,
+          proxyAgent
+        });
 
         // 第一步：检查hash（如果提供了）
         if (task.resource.sha256) {
