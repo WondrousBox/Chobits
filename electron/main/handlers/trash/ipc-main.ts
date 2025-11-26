@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
 
-import { RecycleBinRepo } from '../db/repositories';
+import { RecycleBinRepo } from '../../db/repositories';
 
 export function initTrashHandlers(): void {
   ipcMain.handle('trash:list', async (_e, payload: { filter?: any; limit?: number; offset?: number }) => {

@@ -7,6 +7,7 @@ import { dailyCareBridge } from '../main/daily/ipc-renderer';
 import { APP_EVENT_CHANNEL, AppEventPayload } from '../main/handlers/events';
 import { folderIpcRenderer } from '../main/handlers/folder/ipc-renderer';
 import { resourceIpcRenderer } from '../main/handlers/resource/ipc-renderer';
+import { trashIpcRenderer } from '../main/handlers/trash/ipc-renderer';
 import { workspaceIpcRenderer } from '../main/handlers/workspace/ipc-renderer';
 import { arch, isLinux, isMac, isMacIntel, isWindows, platform } from '../main/utils/os';
 import { ffmpegBridge } from './apis/ffmpeg';
@@ -16,7 +17,6 @@ import { spriteBridge } from './apis/sprite';
 import { statusBridge } from './apis/status';
 import { systemBridge } from './apis/system';
 import { themeBridge } from './apis/theme';
-import { trashBridge } from './apis/trash';
 import { vectorBridge } from './apis/vector';
 import videoDownloaderAPI from './apis/video-downloader';
 import { windowBridge } from './apis/window';
@@ -58,7 +58,7 @@ contextBridge.exposeInMainWorld('YUA', {
   ffmpeg: ffmpegBridge,
   vector: vectorBridge,
   resource: resourceIpcRenderer,
-  trash: trashBridge,
+  trash: trashIpcRenderer,
   workspace: workspaceIpcRenderer,
   file: fileBridge,
   system: systemBridge,
