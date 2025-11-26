@@ -1,7 +1,7 @@
 export type ModelDefinition = {
   id: string;
   pluginId: string;
-  type: 'engine' | 'model';
+  type: 'model';
   name: string;
   displayName: string;
   description?: string;
