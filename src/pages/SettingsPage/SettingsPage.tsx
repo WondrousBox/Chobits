@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { TbBox, TbBrain, TbCpu, TbFolder, TbFolderOpen, TbKeyboard, TbMessage2, TbMoodKid, TbNetwork, TbPlug, TbSparkles, TbSunMoon } from 'react-icons/tb';
+import { TbBrain, TbCpu, TbFolder, TbFolderOpen, TbKeyboard, TbMessage2, TbMoodKid, TbNetwork, TbPlug, TbSparkles, TbSunMoon } from 'react-icons/tb';
 
 import DragAbleTitle from '../../components/common/DragAbleTitle';
 import EmbeddingJobsPanel from '../../components/EmbeddingJobs';
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '../../components/ui/sidebar';
-import ModelPage from '../ModelPage/ModelPage';
 import PluginPage from '../PluginPage/PluginPage';
 import AiSettings from './components/AiSettings';
 import AppearanceSettings from './components/AppearanceSettings';
@@ -17,7 +16,7 @@ import SpriteManager from './components/SpriteManager';
 import Workspace from './components/Workspace';
 
 // 设置分类类型
-type SettingsCategory = 'folder' | 'embedding' | 'ai' | 'prompt' | 'workspace' | 'model' | 'sprites' | 'shortcuts' | 'plugins' | 'proxy' | 'extensions' | 'appearance';
+type SettingsCategory = 'folder' | 'embedding' | 'ai' | 'prompt' | 'workspace' | 'sprites' | 'shortcuts' | 'plugins' | 'proxy' | 'extensions' | 'appearance';
 
 // 设置分类配置
 const settingsCategories: { id: SettingsCategory; label: string; icon: React.ElementType; description: string }[] = [
@@ -62,12 +61,6 @@ const settingsCategories: { id: SettingsCategory; label: string; icon: React.Ele
     label: '插件管理',
     icon: TbPlug,
     description: '插件管理'
-  },
-  {
-    id: 'model',
-    label: '模型管理',
-    icon: TbBox,
-    description: '下载与管理本地模型文件'
   },
   {
     id: 'shortcuts',
@@ -127,16 +120,6 @@ export const SettingsPage: React.FC = () => {
             <div className="bg-card border border-border rounded-lg overflow-hidden">
               <div className="h-[70vh]">
                 <Workspace />
-              </div>
-            </div>
-          </div>
-        );
-      case 'model':
-        return (
-          <div className="space-y-6">
-            <div className="bg-card border border-border rounded-lg overflow-hidden">
-              <div className="h-[70vh]">
-                <ModelPage hideTitleBar />
               </div>
             </div>
           </div>
