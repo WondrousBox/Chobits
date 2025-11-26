@@ -5,7 +5,7 @@ import { init as initProxyHandlers } from '../../../packages/proxy/ipc-main';
 import { init as initAIHandlers } from '../ai/ipc-main';
 import { initDailyCare } from '../daily';
 import { initFFmpegHandlers } from './ffmpeg';
-import { initFileHandlers } from './file';
+import { initFileHandlers } from './file/ipc-main';
 import { initFolderHandlers } from './folder/ipc-main';
 import { initResourceHandlers } from './resource/ipc-main';
 import { initShortcutsHandlers } from './shortcuts';
