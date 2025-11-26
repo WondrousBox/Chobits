@@ -66,12 +66,18 @@ export function initWorkspaceHandlers(): void {
       dest = base + ' ' + Date.now();
     }
 
-    return createWorkspace({
+    const result = await createWorkspace({
       name: DefaultWorkspaceName,
       rootPath: dest,
       isDefault: 1,
       status: 'active'
     });
+
+    if (result.success && result.data) {
+      eventManager.emit(AppEvent.WORKSPACE_CREATED, result.data);
+    }
+
+    return result;
   });
 
   ipcMain.handle('workspace:add', async (_e, payload: { workspace: PartialByKey<Workspace, 'id'> }) => {
