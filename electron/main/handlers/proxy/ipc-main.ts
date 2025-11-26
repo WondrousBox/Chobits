@@ -3,7 +3,7 @@ import { BrowserWindow, ipcMain } from 'electron';
 import { getSystemProxy, testProxy } from './proxy';
 import { type CustomProxy, type ProxyConfig, ProxyStore } from './proxy-store';
 
-export function init(win: BrowserWindow): void {
+export function initProxyHandlers(win: BrowserWindow): void {
   // 应用启动时，如果配置为系统代理，自动获取系统代理
   (async () => {
     const config = ProxyStore.getConfig();
