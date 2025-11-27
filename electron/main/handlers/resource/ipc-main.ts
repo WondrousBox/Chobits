@@ -28,13 +28,38 @@ interface UploadStream {
 const uploadStreams = new Map<string, UploadStream>();
 
 export function initResourceHandlers(): void {
-  ipcMain.handle('resource:importLocal', async (_event, payload: { workspaceId?: string; folderId?: string }) => {
+  // 导入本地文件（仅文件）
+  ipcMain.handle('resource:importLocalFiles', async (_event, payload: { workspaceId?: string; folderId?: string }) => {
     const { workspaceId, folderId } = payload || {};
     const win = BrowserWindow.getFocusedWindow();
     if (!win) return { canceled: true };
 
+    console.log('resource:importLocalFiles', payload);
+
     const res = await dialog.showOpenDialog(win, {
-      properties: ['openFile', 'openDirectory', 'multiSelections']
+      properties: ['openFile', 'multiSelections'],
+      title: '选择文件（可多选）'
+    });
+
+    if (res.canceled || res.filePaths.length === 0) return { canceled: true };
+
+    // Start background task
+    runImportTask(win, res.filePaths, workspaceId, folderId);
+
+    return { canceled: false, success: true };
+  });
+
+  // 导入本地文件夹（仅文件夹）
+  ipcMain.handle('resource:importLocalFolders', async (_event, payload: { workspaceId?: string; folderId?: string }) => {
+    const { workspaceId, folderId } = payload || {};
+    const win = BrowserWindow.getFocusedWindow();
+    if (!win) return { canceled: true };
+
+    console.log('resource:importLocalFolders', payload);
+
+    const res = await dialog.showOpenDialog(win, {
+      properties: ['openDirectory', 'multiSelections'],
+      title: '选择文件夹（可多选）'
     });
 
     if (res.canceled || res.filePaths.length === 0) return { canceled: true };

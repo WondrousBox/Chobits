@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { TbChecks, TbDownload, TbFolderPlus, TbShield } from 'react-icons/tb';
+import { TbChecks, TbFile, TbFolder, TbFolderPlus, TbShield } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -16,11 +16,18 @@ type Props = {
 
 const ACTION_CONFIGS = [
   {
-    key: 'importLocal',
-    Icon: TbDownload,
-    title: '导入本地文件',
-    description: '支持选择多个文件或文件夹进行导入',
-    type: 'import'
+    key: 'importFiles',
+    Icon: TbFile,
+    title: '选择文件',
+    description: '选择多个文件进行导入',
+    type: 'importFiles'
+  },
+  {
+    key: 'importFolders',
+    Icon: TbFolder,
+    title: '选择文件夹',
+    description: '选择多个文件夹进行导入',
+    type: 'importFolders'
   },
   {
     key: 'createFolder',
@@ -51,7 +58,7 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, hideEditor
     }
   }, [onDone]);
 
-  const { importFolder } = useFolderImport({
+  const { importFiles, importFolders } = useFolderImport({
     folderFilter: folderId || '',
     wsFilter: workspaceId || undefined,
     load: async () => {
@@ -125,9 +132,9 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, hideEditor
     () =>
       ACTION_CONFIGS.map((item) => ({
         ...item,
-        onClick: item.type === 'import' ? importFolder : onCreateSubfolder
+        onClick: item.type === 'importFiles' ? importFiles : item.type === 'importFolders' ? importFolders : onCreateSubfolder
       })),
-    [importFolder, onCreateSubfolder]
+    [importFiles, importFolders, onCreateSubfolder]
   );
 
   if (!hasSeenPrivacyNotice) {
@@ -161,7 +168,7 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, hideEditor
 
       {/* Actions */}
       <div className="border-t bg-muted rounded-lg p-2 mt-2 min-w-[600px] box-border" style={{ width: 'calc(100% - 300px)' }}>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {actionItems.map((a) => (
             <button
               key={a.key}

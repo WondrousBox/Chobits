@@ -71,8 +71,10 @@ export type ResourceBridgeParams = {
   listResourcesByTag: IpcParams<[{ tag: string; workspaceId?: string; includeDeleted?: boolean; limit?: number; offset?: number }], Resource[]>;
   /** 从 resources.tags 回填 resource_tags（默认按当前默认工作空间） */
   'tags:backfill': IpcParams<[{ workspaceId?: string }], { success: boolean; processed: number }>;
-  /** 导入本地文件/文件夹（主进程处理） */
-  'resource:importLocal': IpcParams<[{ workspaceId?: string; folderId?: string }], { canceled: boolean; success?: boolean }>;
+  /** 导入本地文件（仅文件，支持多选） */
+  'resource:importLocalFiles': IpcParams<[{ workspaceId?: string; folderId?: string }], { canceled: boolean; success?: boolean }>;
+  /** 导入本地文件夹（仅文件夹，支持多选） */
+  'resource:importLocalFolders': IpcParams<[{ workspaceId?: string; folderId?: string }], { canceled: boolean; success?: boolean }>;
 };
 
 const methods: Array<keyof ResourceBridgeParams> = [
@@ -96,7 +98,8 @@ const methods: Array<keyof ResourceBridgeParams> = [
   'tags:listAll',
   'listResourcesByTag',
   'tags:backfill',
-  'resource:importLocal'
+  'resource:importLocalFiles',
+  'resource:importLocalFolders'
 ];
 
 export type ResourceIpcType = {
