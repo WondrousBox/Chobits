@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { TbChecks, TbDownload, TbFolderPlus } from 'react-icons/tb';
+import { TbChecks, TbDownload, TbFolderPlus, TbShield } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -32,6 +32,15 @@ const ACTION_CONFIGS = [
 ];
 
 const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, hideEditor, onDone }) => {
+  const [hasSeenPrivacyNotice, setHasSeenPrivacyNotice] = useState(() => {
+    return localStorage.getItem('privacy_notice_seen') === 'true';
+  });
+
+  const handleAcceptPrivacy = useCallback(() => {
+    localStorage.setItem('privacy_notice_seen', 'true');
+    setHasSeenPrivacyNotice(true);
+  }, []);
+
   const [content, setContent] = useState('');
 
   const doAfter = useCallback(async () => {
@@ -120,6 +129,18 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, hideEditor
       })),
     [importFolder, onCreateSubfolder]
   );
+
+  if (!hasSeenPrivacyNotice) {
+    return (
+      <div className="h-full w-full flex flex-col items-center justify-center text-center animate-in fade-in zoom-in duration-300">
+        <div className="bg-primary/10 p-6 rounded-full mb-6">
+          <TbShield className="w-16 h-16 text-primary" />
+        </div>
+        <div className="text-muted-foreground max-w-md mb-8 leading-relaxed text-sm">所有数据都存储在本地设备上，请安心使用</div>
+        <Button onClick={handleAcceptPrivacy}>立即体验</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full w-full flex flex-col items-center justify-center relative">
