@@ -1,5 +1,5 @@
-import React, { useCallback, useRef, useState } from 'react';
-import { TbChecks, TbFilePlus, TbUpload } from 'react-icons/tb';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { TbChecks, TbDownload, TbFolderPlus, TbPlus } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,30 @@ type Props = {
   hideEditor?: boolean;
   onDone?: () => void; // called after upload/create actions to let parent reload
 };
+
+const ACTION_CONFIGS = [
+  {
+    key: 'addFile',
+    Icon: TbPlus,
+    title: '添加文件',
+    description: '选择本地文件添加到当前文件夹',
+    type: 'file'
+  },
+  {
+    key: 'importFolder',
+    Icon: TbDownload,
+    title: '导入文件夹',
+    description: '选择一个文件夹并导入内部所有文件',
+    type: 'import'
+  },
+  {
+    key: 'createFolder',
+    Icon: TbFolderPlus,
+    title: '创建文件夹',
+    description: '在当前位置下创建新的文件夹',
+    type: 'folder'
+  }
+];
 
 const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, hideEditor, onDone }) => {
   const [content, setContent] = useState('');
@@ -117,6 +141,15 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, hideEditor
     }
   }, [content, doAfter, folderId, workspaceId]);
 
+  const actionItems = useMemo(
+    () =>
+      ACTION_CONFIGS.map((item) => ({
+        ...item,
+        onClick: item.type === 'file' ? onChooseFile : onCreateSubfolder
+      })),
+    [onChooseFile, onCreateSubfolder]
+  );
+
   return (
     <div className="h-full w-full flex flex-col items-center justify-center">
       {!hideEditor && (
@@ -124,7 +157,7 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, hideEditor
           value={content}
           onChange={setContent}
           placeholder="在此输入内容..."
-          className="min-h-[200px] max-h-[calc(100vh-400px)] border min-w-[600px] border-solid rounded-lg box-border"
+          className="max-h-[calc(100vh-400px)] border min-w-[600px] border-solid rounded-lg box-border"
           style={{ width: 'calc(100% - 300px)' }}
           toolbarRight={
             <Button size="sm" variant="outline" onClick={onSaveText} disabled={!content || content === '<p></p>'} className="gap-1">
@@ -137,31 +170,24 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, hideEditor
       {/* Actions */}
       <div className="border-t bg-muted rounded-lg p-2 mt-2 min-w-[600px] box-border" style={{ width: 'calc(100% - 300px)' }}>
         <input ref={fileInputRef} type="file" multiple className="hidden" onChange={onInputChange} />
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            onClick={onChooseFile}
-            className="group relative flex flex-col items-start gap-2 rounded-lg border bg-card p-4 text-left transition-all hover:border-primary/50 hover:bg-accent hover:shadow-md"
-          >
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
-              <TbUpload className="h-5 w-5" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-sm">添加文件</h3>
-              <p className="text-xs text-muted-foreground mt-1">选择本地文件添加到当前文件夹</p>
-            </div>
-          </button>
-          <button
-            onClick={onCreateSubfolder}
-            className="group relative flex flex-col items-start gap-2 rounded-lg border bg-card p-4 text-left transition-all hover:border-primary/50 hover:bg-accent hover:shadow-md"
-          >
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
-              <TbFilePlus className="h-5 w-5" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-sm">创建文件夹</h3>
-              <p className="text-xs text-muted-foreground mt-1">在当前位置下创建新的文件夹</p>
-            </div>
-          </button>
+        <div className="grid grid-cols-3 gap-2">
+          {actionItems.map((a) => (
+            <button
+              key={a.key}
+              onClick={a.onClick}
+              className="group relative flex flex-col items-start gap-2 rounded-lg border bg-card p-4 text-left transition-all hover:border-primary/50 hover:bg-accent hover:shadow-md"
+            >
+              <div className="flex gap-2 items-center">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary/20">
+                  <a.Icon className="h-5 w-5" />
+                </div>
+                <h3 className="font-semibold text-sm">{a.title}</h3>
+              </div>
+              <div className="flex-1">
+                <p className="text-xs text-muted-foreground mt-1">{a.description}</p>
+              </div>
+            </button>
+          ))}
         </div>
       </div>
     </div>
