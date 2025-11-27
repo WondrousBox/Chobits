@@ -15,7 +15,7 @@ export function isImageFile(p?: string): boolean | undefined {
 }
 export function isVideoFile(p?: string): boolean | undefined {
   if (!p) return false;
-  return /\.(mp4|webm|ogg|mov|mkv|ogv)$/i.test(p);
+  return /\.(mp4|webm|ogg|mov|mkv|ogv|avi)$/i.test(p);
 }
 export function isAudioFile(p?: string): boolean | undefined {
   if (!p) return false;
