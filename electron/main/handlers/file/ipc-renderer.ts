@@ -37,9 +37,24 @@ export type FileIpcParams = {
       originalSize?: number;
     }
   >;
+  'file:readDirRecursive': IpcParams<
+    [string],
+    {
+      success: boolean;
+      data?: Array<{ name: string; path: string; isDirectory: boolean; relativePath: string }>;
+      error?: string;
+    }
+  >;
+  'file:pickAny': IpcParams<
+    [Partial<{ defaultPath: string }>?],
+    {
+      canceled: boolean;
+      paths?: Array<{ path: string; name: string; isDirectory: boolean }>;
+    }
+  >;
 };
 
-const methods: Array<keyof FileIpcParams> = ['file:pickDir', 'file:pickFile', 'file:saveFile', 'file:openPath', 'file:readContent'];
+const methods: Array<keyof FileIpcParams> = ['file:pickDir', 'file:pickFile', 'file:saveFile', 'file:openPath', 'file:readContent', 'file:readDirRecursive', 'file:pickAny'];
 
 export type FileIpcType = {
   [K in keyof FileIpcParams]: (...args: FileIpcParams[K]['request']) => Promise<FileIpcParams[K]['response']>;

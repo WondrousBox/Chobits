@@ -1,4 +1,5 @@
 import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
 
 import { dialog, ipcMain, shell } from 'electron';
 
@@ -22,6 +23,32 @@ export function initFileHandlers(_win: Electron.BrowserWindow): void {
     });
     if (res.canceled || res.filePaths.length === 0) return { canceled: true };
     return { canceled: false, paths: res.filePaths, path: res.filePaths[0] };
+  });
+
+  // 混合选择：支持同时选择文件和文件夹，支持多选
+  ipcMain.handle('file:pickAny', async (_e, opts?: { defaultPath?: string }) => {
+    const res = await dialog.showOpenDialog({
+      properties: ['openFile', 'openDirectory', 'multiSelections'],
+      defaultPath: opts?.defaultPath
+    });
+    if (res.canceled || res.filePaths.length === 0) return { canceled: true };
+
+    const paths = await Promise.all(
+      res.filePaths.map(async (p) => {
+        try {
+          const stat = await fs.stat(p);
+          return {
+            path: p,
+            name: path.basename(p),
+            isDirectory: stat.isDirectory()
+          };
+        } catch {
+          return null;
+        }
+      })
+    );
+
+    return { canceled: false, paths: paths.filter(Boolean) };
   });
 
   // 保存文件对话框：选择输出文件夹和文件名
@@ -108,6 +135,33 @@ export function initFileHandlers(_win: Electron.BrowserWindow): void {
       }
     } catch (e: any) {
       return { success: false, error: String(e?.message || e) };
+    }
+  });
+
+  // 递归读取文件夹内容
+  ipcMain.handle('file:readDirRecursive', async (_e, dirPath: string) => {
+    if (!dirPath) return { success: false, error: 'EMPTY_PATH' };
+    try {
+      const entries: Array<{ name: string; path: string; isDirectory: boolean; relativePath: string }> = [];
+
+      async function traverse(currentPath: string, relativeBase: string): Promise<void> {
+        const dirents = await fs.readdir(currentPath, { withFileTypes: true });
+        for (const dirent of dirents) {
+          const fullPath = path.join(currentPath, dirent.name);
+          const relPath = path.join(relativeBase, dirent.name);
+          if (dirent.isDirectory()) {
+            entries.push({ name: dirent.name, path: fullPath, isDirectory: true, relativePath: relPath });
+            await traverse(fullPath, relPath);
+          } else {
+            entries.push({ name: dirent.name, path: fullPath, isDirectory: false, relativePath: relPath });
+          }
+        }
+      }
+
+      await traverse(dirPath, '');
+      return { success: true, data: entries };
+    } catch (e: any) {
+      return { success: false, error: e.message };
     }
   });
 }
