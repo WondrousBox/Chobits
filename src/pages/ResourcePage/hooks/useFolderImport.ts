@@ -9,7 +9,8 @@ interface UseFolderImportProps {
 }
 
 export function useFolderImport({ folderFilter, wsFilter, load, loadFolders }: UseFolderImportProps): {
-  importFolder: () => Promise<void>;
+  importFiles: () => Promise<void>;
+  importFolders: () => Promise<void>;
   importProgress: {
     visible: boolean;
     current: number;
@@ -50,26 +51,41 @@ export function useFolderImport({ folderFilter, wsFilter, load, loadFolders }: U
     };
   }, [load, loadFolders, wsFilter]);
 
-  const importFolder = useCallback(async () => {
+  const importFiles = useCallback(async () => {
     try {
-      // Call main process to handle everything
-      const res = await resourceAPI['resource:importLocal']({
+      const res = await resourceAPI['resource:importLocalFiles']({
         workspaceId: wsFilter,
         folderId: folderFilter || undefined
       });
 
       if (res?.canceled) return;
 
-      // If not canceled, the main process has started the task and will send progress events
       setImportProgress({ visible: true, current: 0, total: 0, percent: 0, message: '准备导入...' });
     } catch (err) {
-      console.error('Import failed', err);
+      console.error('Import files failed', err);
+      toast.error('启动导入失败');
+    }
+  }, [resourceAPI, folderFilter, wsFilter]);
+
+  const importFolders = useCallback(async () => {
+    try {
+      const res = await resourceAPI['resource:importLocalFolders']({
+        workspaceId: wsFilter,
+        folderId: folderFilter || undefined
+      });
+
+      if (res?.canceled) return;
+
+      setImportProgress({ visible: true, current: 0, total: 0, percent: 0, message: '准备导入...' });
+    } catch (err) {
+      console.error('Import folders failed', err);
       toast.error('启动导入失败');
     }
   }, [resourceAPI, folderFilter, wsFilter]);
 
   return {
-    importFolder,
+    importFiles,
+    importFolders,
     importProgress
   };
 }
