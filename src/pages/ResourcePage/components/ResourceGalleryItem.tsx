@@ -9,9 +9,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { ResourceItem } from '../types';
 import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from '../utils/resourceProtocol';
 import { formatDuration, getResourceSummary, getResourceTypeIcon, getStatusColor } from '../utils/resourceUtils';
+import { ResourceItemWithSubtitles } from '../utils/subtitleUtils';
 
 interface GalleryItemProps {
-  item: ResourceItem;
+  item: ResourceItem | ResourceItemWithSubtitles;
   selected: boolean;
   onClick: (e: React.MouseEvent, item: ResourceItem) => void;
   onToggleFavorite?: (id: string) => void;
@@ -31,6 +32,8 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
   const [copied, setCopied] = useState(false);
   const summary = getResourceSummary(item);
   const thumbSrc = item.thumbnailPath ? makeResSrc(item.thumbnailPath) : undefined;
+  const itemWithSubtitles = item as ResourceItemWithSubtitles;
+  const subtitleCount = itemWithSubtitles.subtitles?.length || 0;
 
   // (deprecated modal) replaced by dedicated preview window
   const isAudio = isAudioFile(item.filePath);
@@ -234,6 +237,9 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
                 {item.width}×{item.height}
               </span>
             )}
+
+            {/* 字幕数量 */}
+            {subtitleCount > 0 && <span className="flex items-center gap-1">字幕文件 {subtitleCount}</span>}
           </div>
 
           {/* 评分 */}

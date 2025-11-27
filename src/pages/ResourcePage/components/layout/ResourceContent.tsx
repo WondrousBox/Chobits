@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 
 import Dropzone from '@/components/common/Dropzone';
 
 import { ViewMode } from '../../types';
+import { mergeVideoWithSubtitles } from '../../utils/subtitleUtils';
 import DefaultEmptyFolder from '../DefaultEmptyFolder';
 import ExplorerFreeLayout from '../ExplorerFreeLayout';
 import ExplorerGrid from '../ExplorerGrid';
@@ -75,6 +76,11 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
   setSelectedItems,
   list
 }) => {
+  // 合并视频和字幕文件
+  const mergedItems = useMemo(() => {
+    return mergeVideoWithSubtitles(filtered);
+  }, [filtered]);
+
   return (
     <div className="w-full h-full" style={{ height: 'calc(100% - 36px)' }}>
       <Dropzone
@@ -94,9 +100,9 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
           </div>
         )}
 
-        {childFolders.length === 0 && filtered.length === 0 ? null : viewMode === 'grid' ? (
+        {childFolders.length === 0 && mergedItems.length === 0 ? null : viewMode === 'grid' ? (
           <ExplorerGrid
-            items={filtered}
+            items={mergedItems}
             folders={childFolders}
             counts={folderCounts}
             onOpenFolder={(id) => {
@@ -117,7 +123,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
           />
         ) : viewMode === 'list' ? (
           <ExplorerList
-            items={filtered}
+            items={mergedItems}
             folders={childFolders}
             counts={folderCounts}
             folderParentMap={folderParentMap}
@@ -139,7 +145,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
           />
         ) : viewMode === 'free' ? (
           <ExplorerFreeLayout
-            items={filtered}
+            items={mergedItems}
             folderId={folderFilter || undefined}
             selectedItems={selectedItems}
             onItemClick={handleItemClick}
@@ -148,7 +154,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
             onPreview={(item, index) => {
               window.YUA.window['window:open']('resourcePreview', {
                 current: item,
-                list: filtered,
+                list: mergedItems,
                 index
               });
             }}
@@ -164,7 +170,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
             }}
           />
         ) : null}
-        {childFolders.length === 0 && filtered.length === 0 ? (
+        {childFolders.length === 0 && mergedItems.length === 0 ? (
           <DefaultEmptyFolder
             folderId={folderFilter || undefined}
             workspaceId={wsFilter || undefined}
@@ -186,7 +192,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
         selectedItems={selectedItems}
         handleDeleteMany={handleDeleteMany}
         setSelectedItems={setSelectedItems}
-        filtered={filtered}
+        filtered={mergedItems}
         list={list}
       />
     </div>
