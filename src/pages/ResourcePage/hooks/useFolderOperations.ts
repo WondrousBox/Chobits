@@ -63,9 +63,33 @@ export const useFolderOperations = (
   const handleDeleteFolder = useCallback(
     async (id: string) => {
       try {
+        // 计算删除后的选中逻辑：
+        // 1. 下一个同级
+        // 2. 上一个同级
+        // 3. 父级
+        // 4. 空
+        let nextSelectId = '';
+        if (folderFilter === id) {
+          const currentFolder = folders.find((f) => f.id === id);
+          if (currentFolder) {
+            const parentId = currentFolder.parentId || null;
+            const siblings = folders.filter((f) => (f.parentId || null) === parentId && f.workspaceId === currentFolder.workspaceId);
+            const index = siblings.findIndex((f) => f.id === id);
+            if (index !== -1) {
+              if (index + 1 < siblings.length) {
+                nextSelectId = siblings[index + 1].id;
+              } else if (index - 1 >= 0) {
+                nextSelectId = siblings[index - 1].id;
+              } else if (parentId) {
+                nextSelectId = parentId;
+              }
+            }
+          }
+        }
+
         const r = await folderAPI['folder.softDelete']({ ids: [id] });
         if ((r as any)?.success) {
-          if (folderFilter === id) setFolderFilter('');
+          if (folderFilter === id) setFolderFilter(nextSelectId);
           await loadFolders(wsFilter || undefined);
           toast.success('文件夹已删除', {
             description: '已移动到回收站',
@@ -92,7 +116,7 @@ export const useFolderOperations = (
         toast.error('删除文件夹失败', { description: String((e as any)?.message || e) });
       }
     },
-    [folderAPI, folderFilter, loadFolders, wsFilter, setFolderFilter]
+    [folderAPI, folderFilter, loadFolders, wsFilter, setFolderFilter, folders]
   );
 
   const handleMoveResourcesToFolder = useCallback(
