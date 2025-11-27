@@ -7,6 +7,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator,
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 import { ResourceItem } from '../types';
+import { ResourceItemWithSubtitles } from '../utils/subtitleUtils';
 import type { UIFolder } from './FolderSidebar';
 import ResourceGalleryItem from './ResourceGalleryItem';
 // Inline folder tile for grid view to avoid cross-file resolution issues
@@ -167,7 +168,7 @@ const GridFolderTile: React.FC<{
 };
 
 export interface ExplorerGridProps {
-  items: ResourceItem[];
+  items: ResourceItem[] | ResourceItemWithSubtitles[];
   folders?: UIFolder[];
   counts?: Record<string, number>;
   onDelete?: (id: string) => void;
@@ -214,11 +215,14 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
   const [dragEnd, setDragEnd] = useState<Point | null>(null);
   const isDragging = dragStart && dragEnd;
 
+  // items 已经在 ResourceContent 中合并过了，这里直接使用
+  const mergedItems = items as ResourceItemWithSubtitles[];
+
   const idToIndex = useMemo(() => {
     const m = new Map<string, number>();
-    items.forEach((it, idx) => m.set(it.id, idx));
+    mergedItems.forEach((it, idx) => m.set(it.id, idx));
     return m;
-  }, [items]);
+  }, [mergedItems]);
 
   const selectionRect: Rect | null = useMemo(() => {
     if (!dragStart || !dragEnd) return null;
@@ -243,10 +247,10 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
     (startIdx: number, endIdx: number, additive = false) => {
       const [lo, hi] = startIdx < endIdx ? [startIdx, endIdx] : [endIdx, startIdx];
       const newSel = new Set(additive ? Array.from(selected) : []);
-      for (let i = lo; i <= hi; i++) newSel.add(items[i].id);
+      for (let i = lo; i <= hi; i++) newSel.add(mergedItems[i].id);
       setSelected(newSel);
     },
-    [items, selected]
+    [mergedItems, selected]
   );
 
   const handleItemClick = useCallback(
@@ -345,7 +349,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
     (e: React.KeyboardEvent) => {
       if (e.key === 'a' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        setSelected(new Set(items.map((i) => i.id)));
+        setSelected(new Set(mergedItems.map((i) => i.id)));
       }
       if (e.key === 'Escape') {
         clearSelection();
@@ -363,7 +367,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
 
   useEffect(() => {
     // If items change (e.g., deleted), drop selections that no longer exist
-    const idSet = new Set(items.map((i) => i.id));
+    const idSet = new Set(mergedItems.map((i) => i.id));
     // Defer setState to avoid synchronous state update warning in effects
     const t = setTimeout(() => {
       setSelected((prev) => {
@@ -373,7 +377,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
       });
     }, 0);
     return () => clearTimeout(t);
-  }, [items]);
+  }, [mergedItems]);
 
   const selectedCount = selected.size;
   const firstSelected = selectedCount > 0 ? Array.from(selected)[0] : undefined;
@@ -420,7 +424,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
           ))}
 
           {/* 再渲染资源项 */}
-          {items.map((item, idx) => {
+          {mergedItems.map((item, idx) => {
             const isSelected = selected.has(item.id);
             return (
               <ResourceGalleryItem
@@ -432,11 +436,11 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
                 onToggleFavorite={onToggleFavorite}
                 onToggleVisibility={onToggleVisibility}
                 onPreview={() => {
-                  const current = items[idx];
+                  const current = mergedItems[idx];
                   if (!current) return;
                   window.YUA.window['window:open']('resourcePreview', {
                     current,
-                    list: items,
+                    list: mergedItems,
                     index: idx
                   });
                 }}
@@ -493,7 +497,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
         <ContextMenuItem
           onSelect={() => {
             if (!firstSelected) return;
-            const item = items.find((i) => i.id === firstSelected);
+            const item = mergedItems.find((i) => i.id === firstSelected);
             setRenameValue(item?.title || item?.filePath || item?.url || '');
             setRenaming(true);
             // Prompt-based simple rename for now
@@ -526,7 +530,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
           <TbTrash /> 删除
         </ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem onSelect={() => setSelected(new Set(items.map((i) => i.id)))}>全选</ContextMenuItem>
+        <ContextMenuItem onSelect={() => setSelected(new Set(mergedItems.map((i) => i.id)))}>全选</ContextMenuItem>
         <ContextMenuItem onSelect={() => clearSelection()}>取消选择</ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
