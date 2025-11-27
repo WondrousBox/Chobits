@@ -71,20 +71,18 @@ export function mergeVideoWithSubtitles(items: ResourceItem[]): ResourceItemWith
     }
   });
 
-  // 创建字幕映射：baseName -> SubtitleInfo[]
-  const subtitleMap = new Map<string, SubtitleInfo[]>();
+  // 创建字幕映射：baseName -> ResourceItem[]
+  const subtitleMap = new Map<string, ResourceItem[]>();
   subtitles.forEach((subtitle) => {
     const baseName = getFileNameWithoutExtension(subtitle.filePath).toLowerCase();
     if (!subtitleMap.has(baseName)) {
       subtitleMap.set(baseName, []);
     }
-    const ext = subtitle.filePath?.split('.').pop()?.toLowerCase() || '';
-    subtitleMap.get(baseName)!.push({
-      id: subtitle.id,
-      filePath: subtitle.filePath || '',
-      extension: ext
-    });
+    subtitleMap.get(baseName)!.push(subtitle);
   });
+
+  // 记录被合并的字幕 ID
+  const mergedSubtitleIds = new Set<string>();
 
   // 合并视频和字幕
   const mergedVideos: ResourceItemWithSubtitles[] = videos.map((video) => {
@@ -92,14 +90,24 @@ export function mergeVideoWithSubtitles(items: ResourceItem[]): ResourceItemWith
     const matchedSubtitles = subtitleMap.get(baseName) || [];
 
     if (matchedSubtitles.length > 0) {
+      // 记录这些字幕已被合并
+      matchedSubtitles.forEach((sub) => mergedSubtitleIds.add(sub.id));
+
       return {
         ...video,
-        subtitles: matchedSubtitles
+        subtitles: matchedSubtitles.map((sub) => ({
+          id: sub.id,
+          filePath: sub.filePath || '',
+          extension: sub.filePath?.split('.').pop()?.toLowerCase() || ''
+        }))
       };
     }
     return video;
   });
 
-  // 返回合并后的视频 + 其他资源（字幕已被过滤）
-  return [...mergedVideos, ...others];
+  // 找出未被合并的字幕
+  const unmergedSubtitles = subtitles.filter((sub) => !mergedSubtitleIds.has(sub.id));
+
+  // 返回合并后的视频 + 未合并的字幕 + 其他资源
+  return [...mergedVideos, ...unmergedSubtitles, ...others];
 }
