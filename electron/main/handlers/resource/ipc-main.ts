@@ -3,7 +3,7 @@ import * as fscb from 'node:fs';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
-import { BrowserWindow, ipcMain, shell } from 'electron';
+import { BrowserWindow, dialog, ipcMain, shell } from 'electron';
 
 // import { TaggingService } from '../ai/tagging-service';
 import { FoldersRepo, ResourcesRepo, TagsRepo, WorkspacesRepo } from '../../db/repositories';
@@ -28,6 +28,23 @@ interface UploadStream {
 const uploadStreams = new Map<string, UploadStream>();
 
 export function initResourceHandlers(): void {
+  ipcMain.handle('resource:importLocal', async (_event, payload: { workspaceId?: string; folderId?: string }) => {
+    const { workspaceId, folderId } = payload || {};
+    const win = BrowserWindow.getFocusedWindow();
+    if (!win) return { canceled: true };
+
+    const res = await dialog.showOpenDialog(win, {
+      properties: ['openFile', 'openDirectory', 'multiSelections']
+    });
+
+    if (res.canceled || res.filePaths.length === 0) return { canceled: true };
+
+    // Start background task
+    runImportTask(win, res.filePaths, workspaceId, folderId);
+
+    return { canceled: false, success: true };
+  });
+
   ipcMain.handle('resource:add', async (_event, payload: { resource: Resource }) => {
     const res = payload.resource || {};
     // Attach workspace: copy local file into default workspace if available
@@ -55,8 +72,18 @@ export function initResourceHandlers(): void {
           }
 
           await fs.mkdir(targetDir, { recursive: true });
-          const target = path.join(targetDir, base);
+          let target = path.join(targetDir, base);
           if (filePath !== target) {
+            // Avoid overwriting existing files
+            if (fscb.existsSync(target)) {
+              const ext = path.extname(base);
+              const name = path.basename(base, ext);
+              let i = 1;
+              while (fscb.existsSync(path.join(targetDir, `${name}(${i})${ext}`))) {
+                i++;
+              }
+              target = path.join(targetDir, `${name}(${i})${ext}`);
+            }
             await fs.copyFile(filePath, target);
             filePath = target;
           }
@@ -806,3 +833,265 @@ export function initResourceHandlers(): void {
 }
 
 // keep file local helpers minimal; tagging moved to TaggingService
+
+// Helper function for background import task
+async function runImportTask(win: BrowserWindow, filePaths: string[], workspaceId?: string, folderId?: string): Promise<void> {
+  const sendProgress = (current: number, total: number, message: string): void => {
+    if (win.isDestroyed()) return;
+    win.webContents.send('resource:import-progress', {
+      visible: true,
+      current,
+      total,
+      percent: total > 0 ? Math.round((current / total) * 100) : 0,
+      message
+    });
+  };
+
+  const sendDone = (total: number): void => {
+    if (win.isDestroyed()) return;
+    win.webContents.send('resource:import-progress', {
+      visible: false,
+      current: total,
+      total,
+      percent: 100,
+      message: '导入完成'
+    });
+    // Trigger reload
+    win.webContents.send('resource:changed', { action: 'imported' });
+  };
+
+  try {
+    sendProgress(0, 0, '正在扫描...');
+
+    // 1. Scan and classify
+    const filesToImport: Array<{ path: string; name: string; targetFolderId: string | null }> = [];
+    const foldersToScan: Array<{ path: string; name: string; targetParentId: string | null }> = [];
+    const rootParentId = folderId || null;
+
+    // Initial classification
+    for (const p of filePaths) {
+      try {
+        const stat = await fs.stat(p);
+        const name = path.basename(p);
+        if (stat.isDirectory()) {
+          foldersToScan.push({ path: p, name, targetParentId: rootParentId });
+        } else {
+          filesToImport.push({ path: p, name, targetFolderId: rootParentId });
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    // 2. Process Folders (Create root folder & Scan recursively)
+    for (const folder of foldersToScan) {
+      try {
+        // Create the folder itself
+        const createRes = await FoldersRepo.upsert({
+          name: folder.name,
+          parentId: folder.targetParentId,
+          workspaceId: workspaceId || null,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        } as any);
+
+        if (!createRes?.id) continue;
+        const newRootId = createRes.id;
+
+        // Recursive scan
+        const entries: Array<{ name: string; path: string; isDirectory: boolean; relativePath: string }> = [];
+        async function traverse(currentPath: string, relativeBase: string): Promise<void> {
+          const dirents = await fs.readdir(currentPath, { withFileTypes: true });
+          for (const dirent of dirents) {
+            const fullPath = path.join(currentPath, dirent.name);
+            const relPath = path.join(relativeBase, dirent.name);
+            if (dirent.isDirectory()) {
+              entries.push({ name: dirent.name, path: fullPath, isDirectory: true, relativePath: relPath });
+              await traverse(fullPath, relPath);
+            } else {
+              entries.push({ name: dirent.name, path: fullPath, isDirectory: false, relativePath: relPath });
+            }
+          }
+        }
+        await traverse(folder.path, '');
+
+        // Sort directories by depth
+        const subDirs = entries.filter((e) => e.isDirectory).sort((a, b) => a.relativePath.length - b.relativePath.length);
+        const subFiles = entries.filter((e) => !e.isDirectory);
+
+        // Map relative path to folder ID
+        const relPathToId: Record<string, string> = {};
+
+        // Create sub-directories
+        for (const dir of subDirs) {
+          const normalizedRelPath = dir.relativePath.replace(/\\/g, '/');
+          const parts = normalizedRelPath.split('/').filter(Boolean);
+          const dirName = parts[parts.length - 1];
+          const parentRelPath = parts.slice(0, -1).join('/');
+          const parentId = parentRelPath ? relPathToId[parentRelPath] : newRootId;
+
+          if (parentId) {
+            const res = await FoldersRepo.upsert({
+              name: dirName,
+              parentId,
+              workspaceId: workspaceId || null,
+              createdAt: Date.now(),
+              updatedAt: Date.now()
+            } as any);
+            if (res?.id) {
+              relPathToId[normalizedRelPath] = res.id;
+            }
+          }
+        }
+
+        // Add files to import queue
+        for (const file of subFiles) {
+          const normalizedRelPath = file.relativePath.replace(/\\/g, '/');
+          const parentRelPath = normalizedRelPath.split('/').slice(0, -1).join('/');
+          const targetId = parentRelPath ? relPathToId[parentRelPath] : newRootId;
+          if (targetId) {
+            filesToImport.push({
+              path: file.path,
+              name: file.name,
+              targetFolderId: targetId
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Error processing folder', folder.path, e);
+      }
+    }
+
+    // 3. Import Files
+    const totalFiles = filesToImport.length;
+    let processed = 0;
+
+    for (const task of filesToImport) {
+      sendProgress(processed + 1, totalFiles, `正在导入: ${task.name}`);
+
+      // Reuse resource:add logic by calling ResourcesRepo directly and handling file copy
+      try {
+        const now = Date.now();
+        let finalFilePath = task.path;
+        let wsRootPath: string | undefined;
+
+        // Determine workspace root
+        if (workspaceId) {
+          const ws = await WorkspacesRepo.getById(workspaceId);
+          wsRootPath = ws?.rootPath || undefined;
+        } else {
+          const ws = await WorkspacesRepo.getDefault();
+          wsRootPath = ws?.rootPath || undefined;
+        }
+
+        // Copy file if needed
+        if (wsRootPath) {
+          const base = path.basename(task.path);
+          let targetDir;
+          if (task.targetFolderId) {
+            targetDir = path.join(wsRootPath, 'resources', 'folders', task.targetFolderId);
+          } else {
+            targetDir = path.join(wsRootPath, 'resources');
+          }
+
+          await fs.mkdir(targetDir, { recursive: true });
+          let target = path.join(targetDir, base);
+
+          // Avoid overwriting
+          if (target !== task.path) {
+            if (fscb.existsSync(target)) {
+              const ext = path.extname(base);
+              const name = path.basename(base, ext);
+              let i = 1;
+              while (fscb.existsSync(path.join(targetDir, `${name}(${i})${ext}`))) {
+                i++;
+              }
+              target = path.join(targetDir, `${name}(${i})${ext}`);
+            }
+            await fs.copyFile(task.path, target);
+            finalFilePath = target;
+          }
+        }
+
+        // Get file stats and calculate hash
+        let sizeBytes = 0;
+        let fileHash = '';
+        try {
+          const stats = await fs.stat(finalFilePath);
+          sizeBytes = stats.size;
+
+          fileHash = await new Promise<string>((resolve, reject) => {
+            const hash = createHash('sha256');
+            const stream = fscb.createReadStream(finalFilePath);
+            stream.on('error', reject);
+            stream.on('data', (chunk) => hash.update(chunk));
+            stream.on('end', () => resolve(hash.digest('hex')));
+          });
+        } catch (e) {
+          console.warn('Failed to calculate hash/size for', finalFilePath, e);
+        }
+
+        // Detect type
+        const ext = (path.extname(task.name).split('.').pop() || '').toLowerCase();
+        let type = 'file';
+        const imageExt = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg', 'ico', 'bmp']);
+        const videoExt = new Set(['mp4', 'webm', 'mov', 'avi', 'mkv', 'flv', 'mpeg', 'mpg', 'm4v']);
+        const audioExt = new Set(['mp3', 'wav', 'ogg', 'aac', 'flac', 'm4a', 'opus']);
+        const documentExt = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'md', 'markdown']);
+        const textExt = new Set(['txt', 'csv', 'json', 'yaml', 'yml', 'xml', 'html', 'css', 'js', 'ts', 'jsx', 'tsx']);
+
+        if (imageExt.has(ext)) type = 'image';
+        else if (videoExt.has(ext)) type = 'video';
+        else if (audioExt.has(ext)) type = 'audio';
+        else if (documentExt.has(ext)) type = 'document';
+        else if (textExt.has(ext)) type = 'text';
+
+        const resource = {
+          id: (crypto as any).randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          type,
+          title: task.name,
+          filePath: finalFilePath,
+          folderId: task.targetFolderId,
+          workspaceId: workspaceId || undefined,
+          sizeBytes,
+          metadata: fileHash ? JSON.stringify({ hashSha256: fileHash }) : undefined,
+          collectedAt: now,
+          createdAt: now,
+          updatedAt: now,
+          status: 'new'
+        };
+
+        const row = await ResourcesRepo.upsert(resource as any);
+
+        // Generate thumbnail if needed (async)
+        if (row && !row.thumbnailPath) {
+          // Fire and forget thumbnail generation
+          generateThumbnailForResource({ filePath: finalFilePath, type: row.type as any, title: row.title as string })
+            .then(async (thumb) => {
+              if (thumb && wsRootPath) {
+                const baseDir = path.join(wsRootPath, 'resources', '.thumbs');
+                await fs.mkdir(baseDir, { recursive: true });
+                const thumbPath = path.join(baseDir, `${row.id}.png`);
+                await fs.writeFile(thumbPath, thumb);
+                await ResourcesRepo.update(row.id, { thumbnailPath: thumbPath } as any);
+              }
+            })
+            .catch(() => { });
+        }
+      } catch (e) {
+        console.error('Import file failed', task.path, e);
+      }
+      processed++;
+    }
+
+    sendDone(totalFiles);
+  } catch (e) {
+    console.error('Import task failed', e);
+    if (!win.isDestroyed()) {
+      win.webContents.send('resource:import-progress', {
+        visible: false,
+        error: '导入失败'
+      });
+    }
+  }
+}

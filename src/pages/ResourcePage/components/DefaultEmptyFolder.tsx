@@ -1,10 +1,10 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { TbChecks, TbDownload, TbFolderPlus, TbPlus } from 'react-icons/tb';
+import React, { useCallback, useMemo, useState } from 'react';
+import { TbChecks, TbDownload, TbFolderPlus } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 
-import { addResourcesFromSelectedFiles } from '../services/resourceService';
+import { useFolderImport } from '../hooks/useFolderImport';
 import { RichTextEditor } from './RichTextEditor';
 
 type Props = {
@@ -16,17 +16,10 @@ type Props = {
 
 const ACTION_CONFIGS = [
   {
-    key: 'addFile',
-    Icon: TbPlus,
-    title: '添加文件',
-    description: '选择本地文件添加到当前文件夹',
-    type: 'file'
-  },
-  {
-    key: 'importFolder',
+    key: 'importLocal',
     Icon: TbDownload,
-    title: '导入文件夹',
-    description: '选择一个文件夹并导入内部所有文件',
+    title: '导入本地文件',
+    description: '支持选择多个文件或文件夹进行导入',
     type: 'import'
   },
   {
@@ -40,7 +33,6 @@ const ACTION_CONFIGS = [
 
 const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, hideEditor, onDone }) => {
   const [content, setContent] = useState('');
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const doAfter = useCallback(async () => {
     try {
@@ -50,37 +42,16 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, hideEditor
     }
   }, [onDone]);
 
-  const handleFiles = useCallback(
-    async (files: FileList | null) => {
-      if (!files || files.length === 0) return;
-      const items = Array.from(files).map((f) => ({ name: f.name, path: (f as any).path || '', size: f.size, file: f }));
-      try {
-        await addResourcesFromSelectedFiles(items as any, {
-          folderId: folderId || undefined,
-          workspaceId: workspaceId || undefined
-        });
-        toast.success('文件已添加');
-        await doAfter();
-      } catch (err) {
-        console.error('上传文件失败', err);
-        toast.error('上传失败');
-      }
+  const { importFolder } = useFolderImport({
+    folderFilter: folderId || '',
+    wsFilter: workspaceId || undefined,
+    load: async () => {
+      await doAfter();
     },
-    [folderId, workspaceId, doAfter]
-  );
-
-  const onChooseFile = useCallback(() => {
-    fileInputRef.current?.click();
-  }, []);
-
-  const onInputChange = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      await handleFiles(e.target.files);
-      // clear to allow selecting same file again
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    },
-    [handleFiles]
-  );
+    loadFolders: async () => {
+      await doAfter();
+    }
+  });
 
   const onCreateSubfolder = useCallback(async () => {
     try {
@@ -145,13 +116,13 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, hideEditor
     () =>
       ACTION_CONFIGS.map((item) => ({
         ...item,
-        onClick: item.type === 'file' ? onChooseFile : onCreateSubfolder
+        onClick: item.type === 'import' ? importFolder : onCreateSubfolder
       })),
-    [onChooseFile, onCreateSubfolder]
+    [importFolder, onCreateSubfolder]
   );
 
   return (
-    <div className="h-full w-full flex flex-col items-center justify-center">
+    <div className="h-full w-full flex flex-col items-center justify-center relative">
       {!hideEditor && (
         <RichTextEditor
           value={content}
@@ -169,8 +140,7 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, hideEditor
 
       {/* Actions */}
       <div className="border-t bg-muted rounded-lg p-2 mt-2 min-w-[600px] box-border" style={{ width: 'calc(100% - 300px)' }}>
-        <input ref={fileInputRef} type="file" multiple className="hidden" onChange={onInputChange} />
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           {actionItems.map((a) => (
             <button
               key={a.key}

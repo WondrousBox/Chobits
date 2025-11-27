@@ -18,6 +18,7 @@ import ExplorerGrid from './components/ExplorerGrid';
 import ExplorerList from './components/ExplorerList';
 import FolderSidebar, { type UIFolder } from './components/FolderSidebar';
 import WorkspaceSwitcher from './components/WorkspaceSwitcher';
+import { useFolderImport } from './hooks/useFolderImport';
 import { useFolderOperations } from './hooks/useFolderOperations';
 import { useResourceData } from './hooks/useResourceData';
 import { useResourceFilter } from './hooks/useResourceFilter';
@@ -50,6 +51,13 @@ const ResourcePage: React.FC = () => {
     folderFilter,
     wsFilter,
     folders,
+    load,
+    loadFolders
+  });
+
+  const { importProgress } = useFolderImport({
+    folderFilter,
+    wsFilter,
     load,
     loadFolders
   });
@@ -551,16 +559,14 @@ const ResourcePage: React.FC = () => {
             onDropFiles={onDropFiles}
             customDropzoneInside={<div className="px-5 py-3 rounded-lg border-2 border-dashed border-primary/60 bg-primary/5 text-primary text-sm font-medium">释放鼠标即可添加文件…</div>}
           >
-            {uploadProgress.visible && (
+            {(uploadProgress.visible || importProgress.visible) && (
               <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-40 bg-background/95 backdrop-blur border shadow-lg rounded-lg p-4 w-80 flex flex-col gap-2">
                 <div className="flex justify-between text-sm font-medium">
-                  <span>
-                    正在上传 ({uploadProgress.current}/{uploadProgress.total})
-                  </span>
-                  <span>{Math.round(uploadProgress.percent)}%</span>
+                  <span>{importProgress.visible ? importProgress.message : `正在上传 (${uploadProgress.current}/${uploadProgress.total})`}</span>
+                  <span>{Math.round(importProgress.visible ? importProgress.percent : uploadProgress.percent)}%</span>
                 </div>
                 <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                  <div className="h-full bg-primary" style={{ width: `${uploadProgress.percent}%` }} />
+                  <div className="h-full bg-primary" style={{ width: `${importProgress.visible ? importProgress.percent : uploadProgress.percent}%` }} />
                 </div>
               </div>
             )}
