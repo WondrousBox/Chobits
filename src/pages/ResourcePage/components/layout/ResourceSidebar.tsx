@@ -27,6 +27,8 @@ interface ResourceSidebarProps {
   handleRenameFolder: (id: string) => void;
   handleDeleteFolder: (id: string) => void;
   folderAPI: any;
+  showTasks: boolean;
+  setShowTasks: (show: boolean) => void;
 }
 
 const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
@@ -48,7 +50,9 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
   loadFolders,
   handleRenameFolder,
   handleDeleteFolder,
-  folderAPI
+  folderAPI,
+  showTasks,
+  setShowTasks
 }) => {
   return (
     <Sidebar collapsible="none" className="h-full w-80 bg-sidebar">
@@ -68,6 +72,7 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
                   // 如果当前选择的是"全部"类型，则取消类型筛选
                   setFavoriteFilter(true);
                   setFolderFilter(''); // 取消文件夹选中状态
+                  setShowTasks(false); // 取消任务显示
                   if (typeFilter.length === 0) {
                     setTypeFilter([]);
                   }
@@ -83,8 +88,19 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}
-          <SidebarMenuItem key={'tasks'}>
-            <SidebarMenuButton>
+          <SidebarMenuItem
+            key={'tasks'}
+            onClick={() => {
+              setShowTasks(true);
+              setFavoriteFilter(false);
+              setFolderFilter('');
+              setTypeFilter([]);
+            }}
+          >
+            <SidebarMenuButton
+              variant={showTasks ? 'outline' : 'default'}
+              className={`h-8 transition-colors ${showTasks ? 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground' : ''}`}
+            >
               <TbFilter />
               任务
             </SidebarMenuButton>
@@ -113,6 +129,7 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
             saveCurrentFolder(folderId);
             setFavoriteFilter(false);
             setTypeFilter([]);
+            setShowTasks(false);
           }}
           counts={folderCounts}
           allCount={allCount}

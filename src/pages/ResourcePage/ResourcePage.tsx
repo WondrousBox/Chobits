@@ -8,6 +8,7 @@ import RenameFolderDialog from './components/layout/RenameFolderDialog';
 import ResourceContent from './components/layout/ResourceContent';
 import ResourceHeader from './components/layout/ResourceHeader';
 import ResourceSidebar from './components/layout/ResourceSidebar';
+import TaskList from './components/TaskList';
 import { useFolderImport } from './hooks/useFolderImport';
 import { useFolderOperations } from './hooks/useFolderOperations';
 import { useResourceData } from './hooks/useResourceData';
@@ -25,6 +26,7 @@ const ResourcePage: React.FC = () => {
   const [tagFilter, setTagFilter] = useState<string>(''); // '' means all
   const [typeFilter, setTypeFilter] = useState<string[]>([]); // empty means all types
   const [favoriteFilter, setFavoriteFilter] = useState<boolean>(false); // false means all, true means favorites only
+  const [showTasks, setShowTasks] = useState<boolean>(false); // Show task list
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sortField, setSortField] = useState<SortField>('collectedAt');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
@@ -356,41 +358,47 @@ const ResourcePage: React.FC = () => {
           handleRenameFolder={handleRenameFolder}
           handleDeleteFolder={handleDeleteFolder}
           folderAPI={folderAPI}
+          showTasks={showTasks}
+          setShowTasks={setShowTasks}
         />
 
-        <ResourceContent
-          uploadProgress={uploadProgress}
-          onDropFiles={onDropFiles}
-          importProgress={importProgress}
-          childFolders={childFolders}
-          filtered={filtered}
-          viewMode={viewMode}
-          folderCounts={folderCounts}
-          folderParentMap={folderParentMap}
-          selectedItems={selectedItems}
-          folderFilter={folderFilter}
-          wsFilter={wsFilter}
-          setFolderFilter={setFolderFilter}
-          saveCurrentFolder={saveCurrentFolder}
-          setFavoriteFilter={setFavoriteFilter}
-          setTypeFilter={setTypeFilter}
-          handleMoveResourcesToFolder={handleMoveResourcesToFolder}
-          handleMoveFolder={handleMoveFolder}
-          handleRenameFolder={handleRenameFolder}
-          handleDeleteFolder={handleDeleteFolder}
-          handleOpenFolderLocation={handleOpenFolderLocation}
-          handleDelete={handleDelete}
-          handleDeleteMany={handleDeleteMany}
-          handleToggleFavorite={handleToggleFavorite}
-          handleToggleVisibility={handleToggleVisibility}
-          handleItemClick={handleItemClick}
-          load={load}
-          loadFolders={loadFolders}
-          currentFolderPath={currentFolderPath}
-          setSelectedItems={setSelectedItems}
-          list={list}
-          isCollapseMode={isCollapseMode}
-        />
+        {showTasks ? (
+          <TaskList />
+        ) : (
+          <ResourceContent
+            uploadProgress={uploadProgress}
+            onDropFiles={onDropFiles}
+            importProgress={importProgress}
+            childFolders={childFolders}
+            filtered={filtered}
+            viewMode={viewMode}
+            folderCounts={folderCounts}
+            folderParentMap={folderParentMap}
+            selectedItems={selectedItems}
+            folderFilter={folderFilter}
+            wsFilter={wsFilter}
+            setFolderFilter={setFolderFilter}
+            saveCurrentFolder={saveCurrentFolder}
+            setFavoriteFilter={setFavoriteFilter}
+            setTypeFilter={setTypeFilter}
+            handleMoveResourcesToFolder={handleMoveResourcesToFolder}
+            handleMoveFolder={handleMoveFolder}
+            handleRenameFolder={handleRenameFolder}
+            handleDeleteFolder={handleDeleteFolder}
+            handleOpenFolderLocation={handleOpenFolderLocation}
+            handleDelete={handleDelete}
+            handleDeleteMany={handleDeleteMany}
+            handleToggleFavorite={handleToggleFavorite}
+            handleToggleVisibility={handleToggleVisibility}
+            handleItemClick={handleItemClick}
+            load={load}
+            loadFolders={loadFolders}
+            currentFolderPath={currentFolderPath}
+            setSelectedItems={setSelectedItems}
+            list={list}
+            isCollapseMode={isCollapseMode}
+          />
+        )}
       </SidebarProvider>
 
       <RenameFolderDialog renameOpen={renameOpen} setRenameOpen={setRenameOpen} renameName={renameName} setRenameName={setRenameName} handleRenameConfirm={handleRenameConfirm} />

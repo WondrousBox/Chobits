@@ -143,11 +143,11 @@ export class WorkflowEngine extends EngineEmitter {
     this.emitTyped('run:status', r);
   }
 
-  async run(def: WorkflowDefinition, initialInput: Record<string, any> = {}): Promise<WorkflowRunRecord> {
+  async run(def: WorkflowDefinition, initialInput: Record<string, any> = {}, metadata?: Record<string, any>): Promise<WorkflowRunRecord> {
     const runId = randomUUID();
     const nodesState: Record<string, NodeRunState> = {};
     def.nodes.forEach((n) => (nodesState[n.id] = { nodeId: n.id, status: 'pending' }));
-    const rec: WorkflowRunRecord = { runId, workflowId: def.id, createdAt: now(), status: 'queued', nodes: nodesState };
+    const rec: WorkflowRunRecord = { runId, workflowId: def.id, createdAt: now(), status: 'queued', nodes: nodesState, metadata };
     this.runs.set(runId, rec);
     this.emitTyped('run:status', rec);
 
@@ -258,6 +258,14 @@ export class WorkflowEngine extends EngineEmitter {
             // 节点发送进度事件，转换为引擎的 node:progress 事件
             const progress = payload?.progress !== undefined ? Math.max(0, Math.min(100, payload.progress)) : 0;
             const message = payload?.message;
+
+            // Update node state
+            if (nodesState[nodeId]) {
+              nodesState[nodeId] = { ...nodesState[nodeId], progress, progressMessage: message };
+              // Emit node status update so UI can reflect progress immediately
+              this.emitTyped('node:status', rec, nodesState[nodeId]);
+            }
+
             this.emitTyped('node:progress', runId, nodeId, progress, message);
           } else {
             // 其他事件直接转发

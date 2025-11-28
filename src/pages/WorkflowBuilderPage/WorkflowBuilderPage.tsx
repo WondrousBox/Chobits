@@ -368,7 +368,14 @@ const WorkflowCanvasInner: React.FC = () => {
       if (!draft) return;
       setRunning(true);
       try {
-        const result = await invoke('wf:run', { defId: draft.id, input: { resource, resourceId: resource.id } });
+        const result = await invoke('wf:run', {
+          defId: draft.id,
+          input: { resource, resourceId: resource.id },
+          metadata: {
+            resourceId: resource.id,
+            resourceName: resource.title || 'Unknown'
+          }
+        });
         if (!result?.ok) {
           const description = result?.error || (result?.validation ? (typeof result.validation === 'string' ? result.validation : JSON.stringify(result.validation)) : '未知错误');
           toast.error('工作流执行失败', { description });

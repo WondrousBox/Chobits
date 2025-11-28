@@ -100,8 +100,11 @@ export function initWorkflowSystem(): void {
       const completedNodes = Object.values(nodes).filter((n) => n.status === 'completed' || n.status === 'failed' || n.status === 'skipped').length;
       const currentProgress = Math.round((completedNodes / progress.totalNodes) * 100);
 
+      rec.progress = currentProgress;
+
       // 获取当前正在运行的节点名称
       const runningNode = Object.values(nodes).find((n) => n.status === 'running');
+      let progressMessage = '';
       if (runningNode) {
         // 尝试获取节点类型和名称（使用缓存）
         const preset = await loadPresetWorkflows().catch(() => []);
@@ -110,10 +113,15 @@ export function initWorkflowSystem(): void {
         const def = allDefs.find((d) => d.id === rec.workflowId);
         const nodeInstance = def?.nodes.find((n) => n.id === runningNode.nodeId);
         const nodeLabel = nodeInstance?.name || nodeInstance?.type || runningNode.nodeId;
+        progressMessage = `${nodeLabel} 执行中`;
         sendSpriteBusyProgress(currentProgress, `执行工作流: ${progress.workflowName} - ${nodeLabel}`);
       } else {
+        progressMessage = '执行中';
         sendSpriteBusyProgress(currentProgress, `执行工作流: ${progress.workflowName}`);
       }
+      rec.progressMessage = progressMessage;
+      await WorkflowStore.updateRun(rec).catch(() => { });
+      broadcast('wf:run-status', rec);
     }
   });
 
@@ -143,6 +151,15 @@ export function initWorkflowSystem(): void {
 
           // 构建消息
           const progressMessage = message || `${nodeLabel} 执行中`;
+
+          // Update record progress
+          rec.progress = overallProgress;
+          rec.progressMessage = progressMessage;
+          // Persist progress update (debounced by store)
+          WorkflowStore.updateRun(rec).catch(() => { });
+          // Broadcast run status update to UI
+          broadcast('wf:run-status', rec);
+
           sendSpriteBusyProgress(overallProgress, `执行工作流: ${workflowProg.workflowName} - ${progressMessage}`);
         });
       })
@@ -207,7 +224,7 @@ export function initWorkflowSystem(): void {
   ipcMain.handle('wf:validate', async (_e, payload: { def: WorkflowDefinition }) => {
     return engine.validate(payload.def);
   });
-  ipcMain.handle('wf:run', async (_e, payload: { defId: string; input?: Record<string, any> }) => {
+  ipcMain.handle('wf:run', async (_e, payload: { defId: string; input?: Record<string, any>; metadata?: Record<string, any> }) => {
     // 先尝试从预设工作流中查找
     const preset = await loadPresetWorkflows();
     let def = preset.find((d) => d.id === payload.defId);
@@ -222,12 +239,16 @@ export function initWorkflowSystem(): void {
       return { ok: false, validation };
     }
 
-    const rec = await engine.run(def, payload.input || {});
-    await WorkflowStore.addRun(rec);
+    const rec = await engine.run(def, payload.input || {}, payload.metadata);
+    // await WorkflowStore.addRun(rec); // 移除重复保存，engine.on('run:status') 已经处理了保存
     return { ok: true, runId: rec.runId };
   });
   ipcMain.handle('wf:getRun', async (_e, payload: { runId: string }) => engine.getRun(payload.runId));
-  ipcMain.handle('wf:listRuns', async (_e, payload?: { defId?: string; limit?: number }) => WorkflowStore.listRuns(payload?.defId, payload?.limit));
+  ipcMain.handle('wf:listRuns', async (_e, payload?: { defId?: string; limit?: number; resourceId?: string }) => WorkflowStore.listRuns(payload?.defId, payload?.limit, payload?.resourceId));
+  ipcMain.handle('wf:deleteRun', async (_e, payload: { runId: string }) => {
+    await WorkflowStore.removeRun(payload.runId);
+    return { ok: true };
+  });
   ipcMain.handle('wf:cancelRun', async (_e, payload: { runId: string }) => {
     await engine.cancel(payload.runId);
     return { ok: true };

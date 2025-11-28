@@ -96,6 +96,17 @@ export function initFileHandlers(_win: Electron.BrowserWindow): void {
     }
   });
 
+  // 在文件管理器中显示文件（选中文件）
+  ipcMain.handle('file:reveal', async (_e, targetPath: string) => {
+    if (!targetPath) return { ok: false, error: 'EMPTY_PATH' };
+    try {
+      shell.showItemInFolder(targetPath);
+      return { ok: true };
+    } catch (e: any) {
+      return { ok: false, error: String(e?.message || e) };
+    }
+  });
+
   // 读取文件内容（用于文本类资源预览）
   ipcMain.handle('file:readContent', async (_e, filePath: string, maxBytes?: number) => {
     console.log(filePath);
