@@ -153,7 +153,7 @@ export const SettingsPage: React.FC = () => {
           <SidebarContent>
             <SidebarGroup className="box-border">
               <SidebarGroupContent>
-                <SidebarMenu className="pl-0">
+                <SidebarMenu className="pl-0 my-0">
                   {settingsCategories.map((category) => {
                     const Icon = category.icon;
                     return (
