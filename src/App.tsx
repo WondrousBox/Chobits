@@ -21,6 +21,7 @@ import SettingsPage from './pages/SettingsPage/SettingsPage';
 import StatusPage from './pages/StatusPage/StatusPage';
 import TaggingPage from './pages/TaggingPage/TaggingPage';
 import WorkflowBuilderPage from './pages/WorkflowBuilderPage/WorkflowBuilderPage';
+import WorkflowHistoryPage from './pages/WorkflowHistoryPage/WorkflowHistoryPage';
 import WorkflowPage from './pages/WorkflowPage/WorkflowPage';
 import WorkspaceWizard from './pages/WorkspacePage/WorkspaceWizard';
 
@@ -47,6 +48,7 @@ function App(): JSX.Element {
                 <Route path="/plugin-download" element={<PluginDownloadPage />} />
                 <Route path="/workflow" element={<WorkflowBuilderPage />} />
                 <Route path="/workflow-page" element={<WorkflowPage />} />
+                <Route path="/workflow-history" element={<WorkflowHistoryPage />} />
                 <Route path="/tagger" element={<TaggingPage />} />
                 <Route path="/resource-preview" element={<ResourcePreviewWindow />} />
                 <Route path="/download" element={<DownloadFloating />} />

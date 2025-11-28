@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
@@ -24,6 +25,7 @@ type RunBrief = { workflowId: string; status: ExecutionStatus; createdAt: number
 const invoke = window.ipcRenderer.invoke;
 
 const WorkflowPage: React.FC = () => {
+  const navigate = useNavigate();
   const [list, setList] = useState<WorkflowBrief[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
@@ -219,6 +221,9 @@ const WorkflowPage: React.FC = () => {
             <Input placeholder="搜索名称/描述" className="h-8 w-48" value={filter} onChange={(e) => setFilter(e.target.value)} />
             <Button size="sm" variant="outline" onClick={() => setRefreshTick((t) => t + 1)} disabled={loading}>
               刷新
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => navigate('/workflow-history')}>
+              执行记录
             </Button>
             <Button size="sm" onClick={openNew}>
               新建工作流
