@@ -42,6 +42,7 @@ interface ResourceContentProps {
   currentFolderPath: UIFolder[];
   setSelectedItems: (items: Set<string>) => void;
   list: any[];
+  isCollapseMode: boolean;
 }
 
 const ResourceContent: React.FC<ResourceContentProps> = ({
@@ -74,12 +75,16 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
   loadFolders,
   currentFolderPath,
   setSelectedItems,
-  list
+  list,
+  isCollapseMode
 }) => {
   // 合并视频和字幕文件
   const mergedItems = useMemo(() => {
-    return mergeVideoWithSubtitles(filtered);
-  }, [filtered]);
+    if (isCollapseMode) {
+      return mergeVideoWithSubtitles(filtered);
+    }
+    return filtered;
+  }, [filtered, isCollapseMode]);
 
   return (
     <div className="w-full h-full" style={{ height: 'calc(100% - 36px)' }}>

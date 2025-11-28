@@ -1,3 +1,4 @@
+import { AnimatePresence, motion } from 'framer-motion';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useState as useReactState } from 'react';
 import { TbFolderFilled, TbFolderOpen, TbPencil, TbTrash } from 'react-icons/tb';
@@ -49,18 +50,23 @@ const GridFolderTile: React.FC<{
       <ContextMenuTrigger asChild>
         <Tooltip open={overInvalid || tipOpen}>
           <TooltipTrigger asChild>
-            <div
+            <motion.div
+              layout
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.5 }}
+              transition={{ duration: 0.2 }}
               data-explorer-folder
               onContextMenu={(e) => e.stopPropagation()}
               className={`group relative aspect-video w-full overflow-hidden rounded-md border bg-card text-card-foreground shadow-sm transition-all cursor-pointer select-none ${over
-                  ? overInvalid
-                    ? 'ring-2 ring-destructive border-destructive/50 bg-destructive/10'
-                    : 'ring-2 ring-primary border-primary/50 bg-primary/5'
-                  : 'hover:shadow-md hover:border-primary/30'
+                ? overInvalid
+                  ? 'ring-2 ring-destructive border-destructive/50 bg-destructive/10'
+                  : 'ring-2 ring-primary border-primary/50 bg-primary/5'
+                : 'hover:shadow-md hover:border-primary/30'
                 } bg-gradient-to-br from-background to-muted flex items-center justify-center`}
               onClick={() => onOpen?.()}
               draggable
-              onDragStart={(e) => {
+              onDragStart={(e: any) => {
                 try {
                   e.dataTransfer.setData('application/x-folder-id', folder.id);
                   e.dataTransfer.effectAllowed = 'move';
@@ -140,7 +146,7 @@ const GridFolderTile: React.FC<{
                 <div className="text-sm font-medium truncate max-w-[90%] mx-auto">{folder.name}</div>
                 {typeof count === 'number' && <span className="absolute top-1 right-1 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full shadow">{count}</span>}
               </div>
-            </div>
+            </motion.div>
           </TooltipTrigger>
           <TooltipContent side="top">不能移动到自己的子文件夹中</TooltipContent>
         </Tooltip>
@@ -405,60 +411,72 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
           onKeyDown={handleKeyDown}
           onContextMenu={handleContextMenu}
         >
-          {/* 先渲染子文件夹 */}
-          {(folders || []).map((f) => (
-            <GridFolderTile
-              key={`folder-${f.id}`}
-              folder={f}
-              count={counts?.[f.id]}
-              onOpen={() => onOpenFolder?.(f.id)}
-              onDropResources={(ids: string[]) => onDropResourcesToFolder?.(f.id, ids)}
-              onMoveFolder={(id, newPid) => onMoveFolder?.(id, newPid)}
-              parentMap={parentMap}
-              draggingFolderId={draggingFolderId}
-              setDraggingFolderId={setDraggingFolderId}
-              onRename={() => onRenameFolder?.(f.id)}
-              onDelete={() => onDeleteFolder?.(f.id)}
-              onOpenLocation={() => onOpenFolderLocation?.(f.id)}
-            />
-          ))}
-
-          {/* 再渲染资源项 */}
-          {mergedItems.map((item, idx) => {
-            const isSelected = selected.has(item.id);
-            return (
-              <ResourceGalleryItem
-                key={item.id}
-                item={item}
-                selected={isSelected}
-                innerRef={updateItemRef(item.id)}
-                onClick={(e) => handleItemClick(e, item.id, idx)}
-                onToggleFavorite={onToggleFavorite}
-                onToggleVisibility={onToggleVisibility}
-                onPreview={() => {
-                  const current = mergedItems[idx];
-                  if (!current) return;
-                  window.YUA.window['window:open']('resourcePreview', {
-                    current,
-                    list: mergedItems,
-                    index: idx
-                  });
-                }}
-                draggable
-                onDragStart={(e: React.DragEvent) => {
-                  // 如果当前 item 已在多选中，则拖拽这些被选中的；否则仅拖该项
-                  const ids = selected.has(item.id) && selected.size > 0 ? Array.from(selected) : [item.id];
-                  try {
-                    e.dataTransfer.setData('application/x-resource-ids', JSON.stringify(ids));
-                    e.dataTransfer.effectAllowed = 'move';
-                    e.dataTransfer.dropEffect = 'move';
-                  } catch {
-                    /* ignore */
-                  }
-                }}
+          <AnimatePresence mode="popLayout">
+            {/* 先渲染子文件夹 */}
+            {(folders || []).map((f) => (
+              <GridFolderTile
+                key={`folder-${f.id}`}
+                folder={f}
+                count={counts?.[f.id]}
+                onOpen={() => onOpenFolder?.(f.id)}
+                onDropResources={(ids: string[]) => onDropResourcesToFolder?.(f.id, ids)}
+                onMoveFolder={(id, newPid) => onMoveFolder?.(id, newPid)}
+                parentMap={parentMap}
+                draggingFolderId={draggingFolderId}
+                setDraggingFolderId={setDraggingFolderId}
+                onRename={() => onRenameFolder?.(f.id)}
+                onDelete={() => onDeleteFolder?.(f.id)}
+                onOpenLocation={() => onOpenFolderLocation?.(f.id)}
               />
-            );
-          })}
+            ))}
+
+            {/* 再渲染资源项 */}
+            {mergedItems.map((item, idx) => {
+              const isSelected = selected.has(item.id);
+              return (
+                <motion.div
+                  key={item.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.5 }}
+                  transition={{ duration: 0.2 }}
+                  className="aspect-video w-full"
+                >
+                  <ResourceGalleryItem
+                    item={item}
+                    selected={isSelected}
+                    innerRef={updateItemRef(item.id)}
+                    onClick={(e) => handleItemClick(e, item.id, idx)}
+                    onToggleFavorite={onToggleFavorite}
+                    onToggleVisibility={onToggleVisibility}
+                    onPreview={() => {
+                      const current = mergedItems[idx];
+                      if (!current) return;
+                      window.YUA.window['window:open']('resourcePreview', {
+                        current,
+                        list: mergedItems,
+                        index: idx
+                      });
+                    }}
+                    draggable
+                    onDragStart={(e: React.DragEvent) => {
+                      // 如果当前 item 已在多选中，则拖拽这些被选中的；否则仅拖该项
+                      const ids = selected.has(item.id) && selected.size > 0 ? Array.from(selected) : [item.id];
+                      try {
+                        e.dataTransfer.setData('application/x-resource-ids', JSON.stringify(ids));
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.dropEffect = 'move';
+                      } catch {
+                        /* ignore */
+                      }
+                    }}
+                    fillContainer
+                  />
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
 
           {isDragging && selectionRect && (
             <div

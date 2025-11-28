@@ -17,6 +17,7 @@ import { useResourceUpload } from './hooks/useResourceUpload';
 import { useViewMode } from './hooks/useViewMode';
 import { SortField, SortOrder } from './types';
 import { typeOptions } from './utils/constants';
+import { mergeVideoWithSubtitles } from './utils/subtitleUtils';
 
 const ResourcePage: React.FC = () => {
   // 当前页面不再提供空间切换，始终使用"当前选中的默认空间"进行筛选
@@ -31,6 +32,11 @@ const ResourcePage: React.FC = () => {
   const [folderFilter, setFolderFilter] = useState<string>(''); // '' 表示全部
   const folderRestoredRef = useRef<string>(''); // 记录已恢复的工作空间ID
   const folderAPI: any = window.YUA?.folder;
+
+  const [isCollapseMode, setIsCollapseMode] = useState<boolean>(false);
+  const [showCollapseSuggestion, setShowCollapseSuggestion] = useState<boolean>(false);
+  const [checkMergePending, setCheckMergePending] = useState<boolean>(false);
+  const prevUploadVisibleRef = useRef<boolean>(false);
 
   const [workspaces, setWorkspaces] = useState<any[]>([]);
 
@@ -187,6 +193,32 @@ const ResourcePage: React.FC = () => {
     folderRestoredRef.current = wsFilter;
   }, [wsFilter, folders, loadCurrentFolder, saveCurrentFolder]);
 
+  // 监听上传进度，上传完成后检查是否需要合并
+  useEffect(() => {
+    const prev = prevUploadVisibleRef.current;
+    const curr = uploadProgress.visible;
+    if (prev && !curr) {
+      // 上传完成
+      setCheckMergePending(true);
+    }
+    prevUploadVisibleRef.current = curr;
+  }, [uploadProgress.visible]);
+
+  // 检查是否需要合并
+  useEffect(() => {
+    if (checkMergePending) {
+      // 只有在未开启收起模式时才检查
+      if (!isCollapseMode) {
+        const merged = mergeVideoWithSubtitles(list);
+        // 如果合并后的数量少于原数量，说明有可合并的项
+        if (merged.length < list.length) {
+          setShowCollapseSuggestion(true);
+        }
+      }
+      setCheckMergePending(false);
+    }
+  }, [checkMergePending, list, isCollapseMode]);
+
   // 监听应用事件
   useEffect(() => {
     if (!window.YUA?.events?.on) return;
@@ -297,6 +329,10 @@ const ResourcePage: React.FC = () => {
         setSortField={setSortField}
         sortOrder={sortOrder}
         setSortOrder={setSortOrder}
+        isCollapseMode={isCollapseMode}
+        setIsCollapseMode={setIsCollapseMode}
+        showCollapseSuggestion={showCollapseSuggestion}
+        setShowCollapseSuggestion={setShowCollapseSuggestion}
       />
 
       <SidebarProvider style={{ height: 'calc(100% - 36px)', minHeight: 'unset' }}>
@@ -353,6 +389,7 @@ const ResourcePage: React.FC = () => {
           currentFolderPath={currentFolderPath}
           setSelectedItems={setSelectedItems}
           list={list}
+          isCollapseMode={isCollapseMode}
         />
       </SidebarProvider>
 
