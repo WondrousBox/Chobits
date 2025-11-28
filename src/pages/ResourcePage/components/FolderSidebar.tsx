@@ -276,7 +276,7 @@ const FolderSidebar = ({
           </Button>
         </SidebarGroupAction>
         <SidebarGroupContent>
-          <SidebarMenu className="pl-0">
+          <SidebarMenu className="pl-0 my-0">
             {tree.length > 0 && (
               <SidebarMenuItem className="pl-0 list-none">
                 <SidebarMenuButton

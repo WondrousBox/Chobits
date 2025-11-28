@@ -54,7 +54,7 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
     <Sidebar collapsible="none" className="h-full w-80 bg-sidebar">
       <SidebarHeader>
         <WorkspaceSwitcher workspaces={workspaces} currentWorkspaceId={wsFilter} />
-        <SidebarMenu className="pl-0">
+        <SidebarMenu className="pl-0 my-0">
           {/* 收藏筛选按钮 - 只在存在收藏内容时显示 */}
           {hasFavorites && (
             <SidebarMenuItem

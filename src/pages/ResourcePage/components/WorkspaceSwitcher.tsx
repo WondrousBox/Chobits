@@ -23,7 +23,7 @@ export default function WorkspaceSwitcher({ workspaces, currentWorkspaceId }: Wo
   const activeWorkspace = React.useMemo(() => workspaces.find((w) => w.id === currentWorkspaceId) || workspaces[0], [workspaces, currentWorkspaceId]);
 
   return (
-    <SidebarMenu className="pl-0">
+    <SidebarMenu className="pl-0 my-0">
       <SidebarMenuItem className="list-none">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
