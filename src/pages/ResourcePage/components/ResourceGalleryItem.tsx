@@ -106,7 +106,7 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
   );
 
   return (
-    <motion.div
+    <div
       ref={innerRef}
       data-explorer-item
       data-id={item.id}
@@ -114,13 +114,6 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
       draggable={!!draggable}
       onDragStart={(e) => onDragStart?.(e as any, item)}
       className={clsx('group relative cursor-pointer select-none', fillContainer ? 'h-full w-full' : 'aspect-video w-full')}
-      initial="rest"
-      whileHover="hover"
-      animate="rest"
-      variants={{
-        rest: { zIndex: 0 },
-        hover: { zIndex: 20 }
-      }}
     >
       <div
         className={clsx(
@@ -254,8 +247,16 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
               {subtitleCount > 0 && (
                 <Popover>
                   <PopoverTrigger asChild>
-                    <span className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                      字幕文件 {subtitleCount}
+                    <span className="flex items-center gap-1 cursor-pointer" onClick={(e) => e.stopPropagation()}>
+                      字幕文件
+                      <motion.span
+                        key={subtitleCount}
+                        initial={{ scale: 1.5, color: '#22c55e' }}
+                        animate={{ scale: 1, color: 'currentColor' }}
+                        transition={{ duration: 0.5 }}
+                      >
+                        {subtitleCount}
+                      </motion.span>
                     </span>
                   </PopoverTrigger>
                   <PopoverContent className="w-64 p-0" align="start" side="bottom">
@@ -318,7 +319,7 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
         {/* 选中状态指示器 */}
         {selected && <div className="absolute top-0 left-0 right-0 bottom-0 bg-primary/40 z-50 pointer-events-none"></div>}
       </div>
-    </motion.div>
+    </div>
   );
 };
 

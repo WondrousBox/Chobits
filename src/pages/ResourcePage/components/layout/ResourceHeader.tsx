@@ -1,12 +1,13 @@
 import React from 'react';
-import { TbFilter, TbGrid3X3, TbList, TbRefresh, TbRobot, TbSearch } from 'react-icons/tb';
+import { TbFilter, TbGrid3X3, TbList, TbRefresh, TbRobot, TbSearch, TbStack2 } from 'react-icons/tb';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 import { SortField, SortOrder, ViewMode } from '../../types';
 import { ALL_TAG_VALUE } from '../../utils/constants';
@@ -31,6 +32,10 @@ interface ResourceHeaderProps {
   setSortField: (field: SortField) => void;
   sortOrder: SortOrder;
   setSortOrder: (order: SortOrder) => void;
+  isCollapseMode: boolean;
+  setIsCollapseMode: (mode: boolean) => void;
+  showCollapseSuggestion: boolean;
+  setShowCollapseSuggestion: (show: boolean) => void;
 }
 
 const ResourceHeader: React.FC<ResourceHeaderProps> = ({
@@ -52,7 +57,11 @@ const ResourceHeader: React.FC<ResourceHeaderProps> = ({
   sortField,
   setSortField,
   sortOrder,
-  setSortOrder
+  setSortOrder,
+  isCollapseMode,
+  setIsCollapseMode,
+  showCollapseSuggestion,
+  setShowCollapseSuggestion
 }) => {
   return (
     <DragAbleTitle
@@ -80,6 +89,46 @@ const ResourceHeader: React.FC<ResourceHeaderProps> = ({
                 </TabsTrigger>
               </TabsList>
             </Tabs>
+            <Popover open={showCollapseSuggestion} onOpenChange={setShowCollapseSuggestion}>
+              <PopoverAnchor asChild>
+                <div className="relative">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button size="icon" className="w-8 h-8 shrink-0" variant={isCollapseMode ? 'default' : 'ghost'} onClick={() => setIsCollapseMode(!isCollapseMode)}>
+                        <TbStack2 />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>自动合并文件展示</TooltipContent>
+                  </Tooltip>
+                  {showCollapseSuggestion && (
+                    <span className="absolute -top-1 -right-1 flex h-3 w-3 pointer-events-none">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-primary"></span>
+                    </span>
+                  )}
+                </div>
+              </PopoverAnchor>
+              <PopoverContent side="bottom" align="end" className="w-64 p-3" onOpenAutoFocus={(e) => e.preventDefault()}>
+                <div className="space-y-2">
+                  <h4 className="font-medium leading-none">发现视频字幕</h4>
+                  <p className="text-sm text-muted-foreground">检测到存在同名的视频和字幕文件，是否开启“收起同名资源”模式？</p>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button variant="outline" size="sm" onClick={() => setShowCollapseSuggestion(false)}>
+                      忽略
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setIsCollapseMode(true);
+                        setShowCollapseSuggestion(false);
+                      }}
+                    >
+                      开启收起
+                    </Button>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
             <Button
               size="icon"
               className="w-8 h-8 shrink-0"
