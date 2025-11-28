@@ -5,6 +5,8 @@ import React, { useCallback, useState } from 'react';
 import { TbCheck, TbClock, TbCopy, TbEye, TbEyeOff, TbFile, TbFileText, TbHeart, TbPlayerPlay, TbStar } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 import { ResourceItem } from '../types';
@@ -120,65 +122,6 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
         hover: { zIndex: 20 }
       }}
     >
-      {subtitleCount > 0 && (
-        <>
-          <motion.div
-            variants={{
-              rest: { rotate: 2, x: 0, y: 0, scale: 0.96, zIndex: 5 },
-              hover: { rotate: 5, x: 0, y: 60, scale: 0.96, zIndex: 5 }
-            }}
-            className="absolute inset-0 rounded-md border border-border bg-card shadow-sm overflow-hidden cursor-pointer"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (itemWithSubtitles.subtitles?.[0]) {
-                const sub = itemWithSubtitles.subtitles[0];
-                onPreview?.({
-                  ...item,
-                  id: sub.id,
-                  filePath: sub.filePath,
-                  type: 'text',
-                  name: sub.filePath.split(/[/\\]/).pop() || 'subtitle'
-                } as any);
-              }
-            }}
-          >
-            <div className="flex flex-col items-center justify-center h-full w-full p-2 bg-gradient-to-br from-background to-muted">
-              <TbFileText className="text-3xl mb-2 text-muted-foreground/50" />
-              <div className="text-[10px] text-center font-medium truncate w-full px-2 text-muted-foreground">{itemWithSubtitles.subtitles?.[0]?.filePath.split(/[/\\]/).pop()}</div>
-              <div className="text-[9px] text-muted-foreground/70 uppercase mt-0.5">{itemWithSubtitles.subtitles?.[0]?.extension}</div>
-            </div>
-          </motion.div>
-
-          {subtitleCount > 1 && (
-            <motion.div
-              variants={{
-                rest: { rotate: -2, x: 0, y: 0, scale: 0.94, zIndex: 0 },
-                hover: { rotate: -5, x: 0, y: 110, scale: 0.94, zIndex: 0 }
-              }}
-              className="absolute inset-0 rounded-md border border-border bg-card shadow-sm overflow-hidden cursor-pointer"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (itemWithSubtitles.subtitles?.[1]) {
-                  const sub = itemWithSubtitles.subtitles[1];
-                  onPreview?.({
-                    ...item,
-                    id: sub.id,
-                    filePath: sub.filePath,
-                    type: 'text',
-                    name: sub.filePath.split(/[/\\]/).pop() || 'subtitle'
-                  } as any);
-                }
-              }}
-            >
-              <div className="flex flex-col items-center justify-center h-full w-full p-2 bg-gradient-to-br from-background to-muted">
-                <TbFileText className="text-3xl mb-2 text-muted-foreground/50" />
-                <div className="text-[10px] text-center font-medium truncate w-full px-2 text-muted-foreground">{itemWithSubtitles.subtitles?.[1]?.filePath.split(/[/\\]/).pop()}</div>
-                <div className="text-[9px] text-muted-foreground/70 uppercase mt-0.5">{itemWithSubtitles.subtitles?.[1]?.extension}</div>
-              </div>
-            </motion.div>
-          )}
-        </>
-      )}
       <div
         className={clsx(
           'relative z-10 h-full w-full overflow-hidden rounded-md bg-card text-card-foreground shadow-sm transition-all bg-gradient-to-br from-background to-muted',
@@ -308,7 +251,46 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
               )}
 
               {/* 字幕数量 */}
-              {subtitleCount > 0 && <span className="flex items-center gap-1">字幕文件 {subtitleCount}</span>}
+              {subtitleCount > 0 && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <span className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                      字幕文件 {subtitleCount}
+                    </span>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64 p-0" align="start" side="bottom">
+                    <div className="p-2 text-xs font-medium text-muted-foreground border-b bg-muted/50">字幕列表 ({subtitleCount})</div>
+                    <ScrollArea className="h-[200px] max-h-[300px]">
+                      <div className="p-1 flex flex-col gap-1">
+                        {itemWithSubtitles.subtitles?.map((sub) => (
+                          <div
+                            key={sub.id}
+                            className="flex items-center gap-2 p-2 hover:bg-accent rounded-sm cursor-pointer transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onPreview?.({
+                                ...item,
+                                id: sub.id,
+                                filePath: sub.filePath,
+                                type: 'text',
+                                name: sub.filePath.split(/[/\\]/).pop() || 'subtitle'
+                              } as any);
+                            }}
+                          >
+                            <TbFileText className="text-lg text-muted-foreground shrink-0" />
+                            <div className="min-w-0 flex-1 overflow-hidden">
+                              <div className="text-xs truncate" title={sub.filePath.split(/[/\\]/).pop()}>
+                                {sub.filePath.split(/[/\\]/).pop()}
+                              </div>
+                              <div className="text-[10px] text-muted-foreground/70 uppercase leading-none mt-0.5">{sub.extension}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </PopoverContent>
+                </Popover>
+              )}
             </div>
 
             {/* 评分 */}
