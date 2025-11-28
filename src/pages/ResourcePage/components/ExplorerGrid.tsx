@@ -536,7 +536,12 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
                   if (item) {
                     window.ipcRenderer.invoke('wf:run', {
                       defId: wf.id,
-                      input: { resource: item }
+                      input: { resource: item },
+                      metadata: {
+                        resourceId: item.id,
+                        resourceName: item.title || 'Unknown',
+                        thumbnailPath: item.thumbnailPath
+                      }
                     });
                     toast.success(`已开始执行工作流: ${wf.name}`);
                   }

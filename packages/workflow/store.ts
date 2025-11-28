@@ -91,13 +91,45 @@ export function isPresetWorkflow(id: string): boolean {
   return presetWorkflowIds.has(id);
 }
 
+// 内存缓存
+let dbCache: DbShape | null = null;
+let saveTimer: NodeJS.Timeout | null = null;
+const SAVE_DELAY = 2000; // 2秒防抖
+
+async function ensureLoaded(): Promise<DbShape> {
+  if (dbCache) return dbCache;
+  dbCache = await readDb();
+  return dbCache;
+}
+
+async function scheduleSave(): Promise<void> {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    if (dbCache) {
+      await writeDb(dbCache);
+    }
+    saveTimer = null;
+  }, SAVE_DELAY);
+}
+
+// 立即保存（用于应用退出时）
+export async function flushStore(): Promise<void> {
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+  }
+  if (dbCache) {
+    await writeDb(dbCache);
+  }
+}
+
 export const WorkflowStore = {
   async list(): Promise<WorkflowDefinition[]> {
-    const db = await readDb();
+    const db = await ensureLoaded();
     return db.defs;
   },
   async get(id: string): Promise<WorkflowDefinition | undefined> {
-    const db = await readDb();
+    const db = await ensureLoaded();
     return db.defs.find((d) => d.id === id);
   },
   async upsert(def: WorkflowDefinition): Promise<void> {
@@ -105,38 +137,49 @@ export const WorkflowStore = {
     if (isPresetWorkflow(def.id)) {
       throw new Error(`不能修改预设工作流: ${def.id}`);
     }
-    const db = await readDb();
+    const db = await ensureLoaded();
     const idx = db.defs.findIndex((d) => d.id === def.id);
     if (idx >= 0) db.defs[idx] = def;
     else db.defs.push(def);
-    await writeDb(db);
+    await scheduleSave();
   },
   async remove(id: string): Promise<void> {
     // 不允许删除预设工作流
     if (isPresetWorkflow(id)) {
       throw new Error(`不能删除预设工作流: ${id}`);
     }
-    const db = await readDb();
+    const db = await ensureLoaded();
     db.defs = db.defs.filter((d) => d.id !== id);
-    await writeDb(db);
+    await scheduleSave();
   },
   async addRun(rec: WorkflowRunRecord): Promise<void> {
-    const db = await readDb();
+    const db = await ensureLoaded();
     db.runs.push(rec);
     // cap size
     if (db.runs.length > 2000) db.runs = db.runs.slice(-1000);
-    await writeDb(db);
+    await scheduleSave();
   },
   async updateRun(rec: WorkflowRunRecord): Promise<void> {
-    const db = await readDb();
+    const db = await ensureLoaded();
     const idx = db.runs.findIndex((r) => r.runId === rec.runId);
     if (idx >= 0) db.runs[idx] = rec;
     else db.runs.push(rec);
-    await writeDb(db);
+    await scheduleSave();
   },
-  async listRuns(workflowId?: string, limit = 100): Promise<WorkflowRunRecord[]> {
-    const db = await readDb();
-    const rows = workflowId ? db.runs.filter((r) => r.workflowId === workflowId) : db.runs;
+  async listRuns(workflowId?: string, limit = 100, resourceId?: string): Promise<WorkflowRunRecord[]> {
+    const db = await ensureLoaded();
+    let rows = db.runs;
+    if (workflowId) {
+      rows = rows.filter((r) => r.workflowId === workflowId);
+    }
+    if (resourceId) {
+      rows = rows.filter((r) => r.metadata?.resourceId === resourceId);
+    }
     return rows.slice(-limit);
+  },
+  async removeRun(runId: string): Promise<void> {
+    const db = await ensureLoaded();
+    db.runs = db.runs.filter((r) => r.runId !== runId);
+    await scheduleSave();
   }
 };

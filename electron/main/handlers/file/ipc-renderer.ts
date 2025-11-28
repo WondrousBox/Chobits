@@ -27,6 +27,7 @@ export type FileIpcParams = {
     { canceled: boolean; path?: string }
   >;
   'file:openPath': IpcParams<[string], { ok: boolean; error?: string }>;
+  'file:reveal': IpcParams<[string], { ok: boolean; error?: string }>;
   'file:readContent': IpcParams<
     [string, number?],
     {
@@ -54,7 +55,7 @@ export type FileIpcParams = {
   >;
 };
 
-const methods: Array<keyof FileIpcParams> = ['file:pickDir', 'file:pickFile', 'file:saveFile', 'file:openPath', 'file:readContent', 'file:readDirRecursive', 'file:pickAny'];
+const methods: Array<keyof FileIpcParams> = ['file:pickDir', 'file:pickFile', 'file:saveFile', 'file:openPath', 'file:reveal', 'file:readContent', 'file:readDirRecursive', 'file:pickAny'];
 
 export type FileIpcType = {
   [K in keyof FileIpcParams]: (...args: FileIpcParams[K]['request']) => Promise<FileIpcParams[K]['response']>;

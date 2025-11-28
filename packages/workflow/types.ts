@@ -85,6 +85,8 @@ export type NodeRunState = {
   finishedAt?: number;
   error?: string;
   output?: Record<string, any>;
+  progress?: number;
+  progressMessage?: string;
 };
 
 export type WorkflowRunRecord = {
@@ -95,6 +97,9 @@ export type WorkflowRunRecord = {
   nodes: Record<string, NodeRunState>;
   output?: Record<string, any>;
   error?: string;
+  metadata?: Record<string, any>;
+  progress?: number;
+  progressMessage?: string;
 };
 
 export type WorkflowRunLogLevel = 'info' | 'warn' | 'error';

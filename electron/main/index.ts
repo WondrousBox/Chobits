@@ -185,9 +185,16 @@ app.on('activate', () => {
   }
 });
 
-app.on('will-quit', () => {
+app.on('will-quit', async () => {
   // Ensure shortcuts are fully unregistered on app quit
   unregisterGlobalShortcuts();
+  // Flush workflow store
+  try {
+    const { flushStore } = await import('../../packages/workflow/store');
+    await flushStore();
+  } catch (e) {
+    console.warn('[workflow] flush store failed', e);
+  }
 });
 
 // New window example arg: new windows url

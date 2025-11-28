@@ -76,7 +76,12 @@ const FileActionsMenu: React.FC = () => {
       const result = await ipc
         .invoke('wf:run', {
           defId,
-          input: { resource: primary }
+          input: { resource: primary },
+          metadata: {
+            resourceId: primary.id,
+            resourceName: primary.title || primary.name || 'Unknown',
+            thumbnailPath: primary.thumbnailPath
+          }
         })
         .catch((err) => {
           console.warn(`[FileActionsMenu] ${purpose} error`, err);
