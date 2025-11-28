@@ -1,10 +1,10 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useState as useReactState } from 'react';
-import { TbFolderFilled, TbFolderOpen, TbPencil, TbTrash } from 'react-icons/tb';
+import { TbFolderFilled, TbFolderOpen, TbLine, TbPencil, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 import { ResourceItem } from '../types';
@@ -59,10 +59,10 @@ const GridFolderTile: React.FC<{
               data-explorer-folder
               onContextMenu={(e) => e.stopPropagation()}
               className={`group relative aspect-video w-full overflow-hidden rounded-md border bg-card text-card-foreground shadow-sm transition-all cursor-pointer select-none ${over
-                ? overInvalid
-                  ? 'ring-2 ring-destructive border-destructive/50 bg-destructive/10'
-                  : 'ring-2 ring-primary border-primary/50 bg-primary/5'
-                : 'hover:shadow-md hover:border-primary/30'
+                  ? overInvalid
+                    ? 'ring-2 ring-destructive border-destructive/50 bg-destructive/10'
+                    : 'ring-2 ring-primary border-primary/50 bg-primary/5'
+                  : 'hover:shadow-md hover:border-primary/30'
                 } bg-gradient-to-br from-background to-muted flex items-center justify-center`}
               onClick={() => onOpen?.()}
               draggable
@@ -398,6 +398,16 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
   }, [folders]);
   const [draggingFolderId, setDraggingFolderId] = useState<string | null>(null);
 
+  const [workflows, setWorkflows] = useState<any[]>([]);
+  useEffect(() => {
+    window.ipcRenderer
+      .invoke('wf:listDefinitions')
+      .then((defs: any[]) => {
+        setWorkflows(defs || []);
+      })
+      .catch(() => { });
+  }, []);
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -511,6 +521,33 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
         >
           {(window as any).YUA?.isWindows ? '在资源管理器中显示' : '在 Finder 中显示'}
         </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuSub>
+          <ContextMenuSubTrigger>
+            <TbLine className="mr-2" /> 执行任务
+          </ContextMenuSubTrigger>
+          <ContextMenuSubContent className="w-48">
+            {workflows.map((wf) => (
+              <ContextMenuItem
+                key={wf.id}
+                onSelect={() => {
+                  if (!firstSelected) return;
+                  const item = mergedItems.find((i) => i.id === firstSelected);
+                  if (item) {
+                    window.ipcRenderer.invoke('wf:run', {
+                      defId: wf.id,
+                      input: { resource: item }
+                    });
+                    toast.success(`已开始执行工作流: ${wf.name}`);
+                  }
+                }}
+              >
+                {wf.name}
+              </ContextMenuItem>
+            ))}
+            {workflows.length === 0 && <ContextMenuItem disabled>无可用工作流</ContextMenuItem>}
+          </ContextMenuSubContent>
+        </ContextMenuSub>
         <ContextMenuSeparator />
         <ContextMenuItem
           onSelect={() => {
