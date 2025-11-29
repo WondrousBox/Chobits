@@ -373,7 +373,8 @@ const WorkflowCanvasInner: React.FC = () => {
           input: { resource, resourceId: resource.id },
           metadata: {
             resourceId: resource.id,
-            resourceName: resource.title || 'Unknown'
+            resourceName: resource.title || 'Unknown',
+            spaceId: resource.workspaceId
           }
         });
         if (!result?.ok) {

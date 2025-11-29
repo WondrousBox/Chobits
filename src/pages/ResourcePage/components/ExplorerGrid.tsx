@@ -540,7 +540,8 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
                       metadata: {
                         resourceId: item.id,
                         resourceName: item.title || 'Unknown',
-                        thumbnailPath: item.thumbnailPath
+                        thumbnailPath: item.thumbnailPath,
+                        spaceId: item.workspaceId
                       }
                     });
                     toast.success(`已开始执行工作流: ${wf.name}`);

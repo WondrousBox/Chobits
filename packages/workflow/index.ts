@@ -244,9 +244,11 @@ export function initWorkflowSystem(): void {
     return { ok: true, runId: rec.runId };
   });
   ipcMain.handle('wf:getRun', async (_e, payload: { runId: string }) => engine.getRun(payload.runId));
-  ipcMain.handle('wf:listRuns', async (_e, payload?: { defId?: string; limit?: number; resourceId?: string }) => WorkflowStore.listRuns(payload?.defId, payload?.limit, payload?.resourceId));
-  ipcMain.handle('wf:deleteRun', async (_e, payload: { runId: string }) => {
-    await WorkflowStore.removeRun(payload.runId);
+  ipcMain.handle('wf:listRuns', async (_e, payload?: { defId?: string; limit?: number; resourceId?: string; spaceId?: string }) =>
+    WorkflowStore.listRuns(payload?.defId, payload?.limit, payload?.resourceId, payload?.spaceId)
+  );
+  ipcMain.handle('wf:deleteRun', async (_e, payload: { runId: string; spaceId?: string }) => {
+    await WorkflowStore.removeRun(payload.runId, payload.spaceId);
     return { ok: true };
   });
   ipcMain.handle('wf:cancelRun', async (_e, payload: { runId: string }) => {

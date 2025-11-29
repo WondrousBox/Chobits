@@ -80,7 +80,8 @@ const FileActionsMenu: React.FC = () => {
           metadata: {
             resourceId: primary.id,
             resourceName: primary.title || primary.name || 'Unknown',
-            thumbnailPath: primary.thumbnailPath
+            thumbnailPath: primary.thumbnailPath,
+            spaceId: primary.workspaceId
           }
         })
         .catch((err) => {

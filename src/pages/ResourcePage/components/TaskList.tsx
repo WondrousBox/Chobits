@@ -23,7 +23,11 @@ interface TaskRecord {
   };
 }
 
-const TaskList: React.FC = () => {
+interface TaskListProps {
+  workspaceId?: string;
+}
+
+const TaskList: React.FC<TaskListProps> = ({ workspaceId }) => {
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [workflowNames, setWorkflowNames] = useState<Record<string, string>>({});
 
@@ -38,7 +42,7 @@ const TaskList: React.FC = () => {
 
   const loadTasks = async (): Promise<void> => {
     try {
-      const res = await window.ipcRenderer.invoke('wf:listRuns', { limit: 100 });
+      const res = await window.ipcRenderer.invoke('wf:listRuns', { limit: 100, spaceId: workspaceId });
       if (Array.isArray(res)) {
         setTasks([...res].reverse()); // Show newest first
       }
@@ -51,7 +55,7 @@ const TaskList: React.FC = () => {
     loadTasks();
     const timer = setInterval(loadTasks, 2000); // Poll every 2s
     return () => clearInterval(timer);
-  }, []);
+  }, [workspaceId]);
 
   const handleOpenFolder = (path: string): void => {
     window.YUA.file['file:reveal'](path);
