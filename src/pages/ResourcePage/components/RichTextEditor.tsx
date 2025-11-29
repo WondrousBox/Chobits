@@ -4,6 +4,7 @@ import StarterKit from '@tiptap/starter-kit';
 import clsx from 'clsx';
 import { Bold, Heading1, Heading2, Heading3, Italic, List, ListOrdered, Redo, Strikethrough, Undo } from 'lucide-react';
 import { ReactNode, useEffect, useRef, useState } from 'react';
+import { Markdown } from 'tiptap-markdown';
 
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -125,12 +126,13 @@ export const RichTextEditor = ({ value, onChange, placeholder, className, toolba
       }),
       Placeholder.configure({
         placeholder: placeholder || 'Write something...'
-      })
+      }),
+      Markdown
     ],
     content: value,
     editable,
     onUpdate: ({ editor }) => {
-      onChange(editor.getHTML());
+      onChange(editor.storage.markdown.getMarkdown());
     },
     onFocus: () => {
       if (!editable) return;
@@ -160,7 +162,7 @@ export const RichTextEditor = ({ value, onChange, placeholder, className, toolba
 
   // Update editor content if value changes externally
   useEffect(() => {
-    if (editor && value !== editor.getHTML()) {
+    if (editor && value !== editor.storage.markdown.getMarkdown()) {
       // Only update if the content is different to avoid cursor jumping
       // This is a simple check, for more complex cases might need better diffing
       if (editor.getText() === '' && value === '') return;
@@ -185,7 +187,7 @@ export const RichTextEditor = ({ value, onChange, placeholder, className, toolba
   // If we want true two-way binding without cursor jumps, we need to compare content.
 
   useEffect(() => {
-    if (editor && value && editor.getHTML() !== value) {
+    if (editor && value && editor.storage.markdown.getMarkdown() !== value) {
       // Check if the content is actually different (ignoring empty p tags if needed, etc)
       // For now, let's just set it if it's completely different (like loading a new doc)
       // or if the editor is empty.
