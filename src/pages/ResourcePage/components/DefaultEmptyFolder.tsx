@@ -96,7 +96,7 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, hideEditor
 
     console.log(textToSave);
 
-    if (!textToSave || textToSave === '<p></p>') {
+    if (!textToSave) {
       toast.error('请输入内容后再保存');
       return;
     }
@@ -105,7 +105,7 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, hideEditor
       const res = await window.YUA.resource['resource:add']({
         resource: {
           type: 'text',
-          title: textToSave.replace(/<[^>]+>/g, '').slice(0, 40) || 'New Note',
+          title: textToSave.split('\n')[0].slice(0, 40) || 'New Note',
           contentText: textToSave,
           collectedAt: now,
           createdAt: now,
@@ -159,7 +159,7 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, hideEditor
           className="max-h-[calc(100vh-400px)] border min-w-[600px] border-solid rounded-lg box-border"
           style={{ width: 'calc(100% - 300px)' }}
           toolbarRight={
-            <Button size="sm" variant="outline" onClick={onSaveText} disabled={!content || content === '<p></p>'} className="gap-1">
+            <Button size="sm" variant="outline" onClick={onSaveText} disabled={!content} className="gap-1">
               <TbChecks className="h-4 w-4" /> 保存文本
             </Button>
           }

@@ -15,27 +15,16 @@ const FullWidthTextResource: React.FC<FullWidthTextResourceProps> = ({ item, onP
   const [content, setContent] = useState<string>('');
 
   useEffect(() => {
-    const normalizeContent = (raw: string): string => {
-      if (!raw) return '';
-      const trimmed = raw.trim();
-      const looksLikeHtml = /<\/?[a-z][\s\S]*>/i.test(trimmed);
-      if (looksLikeHtml) return raw;
-      return raw
-        .split('\n')
-        .map((line) => `<p>${line || '<br />'}</p>`)
-        .join('');
-    };
-
     const loadContent = async (): Promise<void> => {
       if (item.contentText) {
-        setContent(normalizeContent(item.contentText));
+        setContent(item.contentText);
         return;
       }
       if (item.filePath) {
         try {
           const result = await (window as any).YUA?.file['file:readContent'](item.filePath, 50000);
           if (result?.success && result.content) {
-            setContent(normalizeContent(result.content));
+            setContent(result.content);
           }
         } catch (e) {
           console.warn('load text content failed', e);
