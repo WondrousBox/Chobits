@@ -363,7 +363,7 @@ const ResourcePage: React.FC = () => {
         />
 
         {showTasks ? (
-          <TaskList />
+          <TaskList workspaceId={wsFilter} />
         ) : (
           <ResourceContent
             uploadProgress={uploadProgress}
