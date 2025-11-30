@@ -1,8 +1,9 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import * as fscb from 'node:fs';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
+import dayjs from 'dayjs';
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron';
 
 // import { TaggingService } from '../ai/tagging-service';
@@ -26,6 +27,37 @@ interface UploadStream {
 }
 
 const uploadStreams = new Map<string, UploadStream>();
+
+async function ensureDailyFolder(workspaceId: string, rootPath: string): Promise<string> {
+  const today = dayjs().format('YYYY-MM-DD');
+  // Check if folder exists in DB
+  const siblings = await FoldersRepo.list({ workspaceId, parentId: null } as any, 2000, 0);
+  const existing = siblings.find((s: any) => s.name === today);
+
+  if (existing) {
+    return existing.id;
+  }
+
+  // Create new folder
+  const newFolder = {
+    id: randomUUID(),
+    name: today,
+    parentId: null,
+    workspaceId,
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+
+  await FoldersRepo.upsert(newFolder as any);
+
+  // Create directory
+  const dirPath = path.join(rootPath, 'resources', 'folders', newFolder.id);
+  await fs.mkdir(dirPath, { recursive: true });
+
+  eventManager.emit(AppEvent.FOLDER_CREATED, newFolder);
+
+  return newFolder.id;
+}
 
 export function initResourceHandlers(): void {
   // 导入本地文件（仅文件）
@@ -75,7 +107,7 @@ export function initResourceHandlers(): void {
     // Attach workspace: copy local file into default workspace if available
     let workspaceId = res.workspaceId;
     let filePath = res.filePath as string | undefined;
-    const folderId = (res as any).folderId;
+    let folderId = res.folderId;
 
     try {
       let ws;
@@ -87,6 +119,15 @@ export function initResourceHandlers(): void {
       }
 
       if (ws && ws.id && filePath && ws.rootPath) {
+        if (!folderId) {
+          try {
+            folderId = await ensureDailyFolder(ws.id, ws.rootPath);
+            res.folderId = folderId;
+          } catch (e) {
+            console.warn('Failed to ensure daily folder', e);
+          }
+        }
+
         try {
           const base = path.basename(filePath);
           let targetDir;
@@ -662,7 +703,7 @@ export function initResourceHandlers(): void {
       }
     ) => {
       try {
-        const { fileName, totalSize, folderId, workspaceId } = payload || { fileName: '', totalSize: 0 };
+        let { fileName, totalSize, folderId, workspaceId } = payload || { fileName: '', totalSize: 0 };
         console.log(folderId, workspaceId);
         if (!fileName || totalSize <= 0) return { success: false, error: 'invalid-params' };
 
@@ -671,6 +712,15 @@ export function initResourceHandlers(): void {
           ws = await WorkspacesRepo.getById(workspaceId);
         } else {
           ws = await WorkspacesRepo.getDefault();
+          if (ws) workspaceId = ws.id;
+        }
+
+        if (ws?.rootPath && !folderId) {
+          try {
+            folderId = await ensureDailyFolder(ws.id, ws.rootPath);
+          } catch (e) {
+            console.warn('Failed to ensure daily folder', e);
+          }
         }
 
         let baseDir;
