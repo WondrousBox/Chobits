@@ -703,7 +703,8 @@ export function initResourceHandlers(): void {
       }
     ) => {
       try {
-        let { fileName, totalSize, folderId, workspaceId } = payload || { fileName: '', totalSize: 0 };
+        const { fileName, totalSize } = payload || { fileName: '', totalSize: 0 };
+        let { folderId, workspaceId } = payload;
         console.log(folderId, workspaceId);
         if (!fileName || totalSize <= 0) return { success: false, error: 'invalid-params' };
 
