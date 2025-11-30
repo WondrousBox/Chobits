@@ -36,14 +36,14 @@ export const SHORTCUT_SCHEMA: ShortcutAction[] = [
     label: '显示/隐藏主窗口',
     type: 'single',
     defaults: { darwin: 'CommandOrControl+Shift+K', win32: 'CommandOrControl+Shift+K', linux: 'CommandOrControl+Shift+K' }
+  },
+  {
+    id: 'screenshot',
+    label: '截图',
+    description: '触发截图功能',
+    type: 'single',
+    defaults: { darwin: 'CommandOrControl+Shift+A', win32: 'CommandOrControl+Shift+A', linux: 'CommandOrControl+Shift+A' }
   }
-  // {
-  //   id: 'quickScreenshot',
-  //   label: '快速截图',
-  //   description: '触发快速截图动作（由前端或其他模块实现）',
-  //   type: 'single',
-  //   defaults: { darwin: 'CommandOrControl+Shift+S', win32: 'CommandOrControl+Shift+S', linux: 'CommandOrControl+Shift+S' }
-  // },
   // {
   //   id: 'favoriteCurrentResource',
   //   label: '收藏当前资源',

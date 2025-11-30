@@ -16,6 +16,7 @@ import PluginDownloadPage from './pages/PluginPage/PluginDownloadPage';
 import PluginPage from './pages/PluginPage/PluginPage';
 import RecycleBinPage from './pages/RecycleBinPage/RecycleBinPage';
 import ResourcePage from './pages/ResourcePage/ResourcePage';
+import Screenshot from './pages/Screenshot';
 import WorkspacePage from './pages/SettingsPage/components/Workspace';
 import SettingsPage from './pages/SettingsPage/SettingsPage';
 import StatusPage from './pages/StatusPage/StatusPage';
@@ -48,6 +49,7 @@ function App(): JSX.Element {
                 <Route path="/plugin-download" element={<PluginDownloadPage />} />
                 <Route path="/workflow" element={<WorkflowBuilderPage />} />
                 <Route path="/workflow-page" element={<WorkflowPage />} />
+                <Route path="/screenshot" element={<Screenshot />} />
                 <Route path="/workflow-history" element={<WorkflowHistoryPage />} />
                 <Route path="/tagger" element={<TaggingPage />} />
                 <Route path="/resource-preview" element={<ResourcePreviewWindow />} />

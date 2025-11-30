@@ -3,6 +3,7 @@ import { BrowserWindow } from 'electron';
 import { init as initPluginResourceHandlers } from '../../../packages/plugins/ipc-main';
 import { init as initAIHandlers } from '../ai/ipc-main';
 import { initDailyCare } from '../daily';
+import { initScreenshotHandlers } from '../screenshot';
 import { initFFmpegHandlers } from './ffmpeg/ipc-main';
 import { initFileHandlers } from './file/ipc-main';
 import { initFolderHandlers } from './folder/ipc-main';
@@ -44,4 +45,5 @@ export function initHandlers(win: BrowserWindow): void {
   initPluginResourceHandlers(win);
   initProxyHandlers(win);
   initThemeHandlers();
+  initScreenshotHandlers();
 }
