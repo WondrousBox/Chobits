@@ -1,12 +1,13 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import App from './App';
-import { SpritePlayerProvider } from '@/components/AIAssistant/context/SpritePlayerContext';
-
 import './index.scss';
 import 'highlight.js/styles/github-dark.css';
 
+import React from 'react';
+import ReactDOM from 'react-dom/client';
 import { toast } from 'sonner';
+
+import { SpritePlayerProvider } from '@/components/AIAssistant/context/SpritePlayerContext';
+
+import App from './App';
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
@@ -20,10 +21,6 @@ postMessage({ payload: 'removeLoading' }, '*');
 
 // Global shortcut events from main process
 try {
-  // quick screenshot placeholder
-  window?.ipcRenderer?.on('shortcut:quick-screenshot', () => {
-    toast.info('快捷截图：该功能暂未实现，敬请期待。');
-  });
   // favorite current resource: bubble to app level so pages can hook this if desired
   window?.ipcRenderer?.on('shortcut:favorite-current-resource', () => {
     window.dispatchEvent(new CustomEvent('app:favorite-current-resource'));
