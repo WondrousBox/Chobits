@@ -19,3 +19,7 @@ export const DEFAULT_ASSISTANT_PADDING = 100;
 
 // Debug overlay toggle for padding boundary
 export const SHOW_PADDING_DEBUG = false;
+
+// Renderer mode toggle: 'video' (current sprite videos) or 'three' (3D demo)
+export type AssistantRendererMode = 'video' | 'three';
+export const ASSISTANT_RENDERER_MODE: AssistantRendererMode = 'video';
