@@ -7,6 +7,7 @@ import React, { useEffect, useRef } from 'react';
 
 import Dropzone from '../common/Dropzone';
 import { ASSISTANT_HEIGHT, ASSISTANT_WIDTH, SHOW_PADDING_DEBUG } from './constants';
+import { ASSISTANT_RENDERER_MODE } from './constants';
 import useAssistant from './hooks';
 import useBusyState from './hooks/useBusyState';
 import useClickThrough from './hooks/useClickThrough';
@@ -17,6 +18,7 @@ import useSpriteEventController from './hooks/useSpriteEventController';
 import useWalkAnimation from './hooks/useWalkAnimation';
 import { MessageBubble } from './messages/MessageBubble';
 import Messages from './messages/zh-CN';
+import ThreeSprite from './renderers/ThreeSprite';
 import BusyProgressBar from './ui/BusyProgressBar';
 import DailyCareIndicator from './ui/DailyCareIndicator';
 import PaddingDebugOverlay from './ui/PaddingDebugOverlay';
@@ -203,7 +205,7 @@ export const AIAssistant: React.FC = () => {
         {window.YUA.isDev && (
           <div className="text-xs bg-background fixed top-[100px] right-[100px] bottom-[100px] left-[100px] rounded-md border border-solid border-ring flex items-center justify-center">dev</div>
         )}
-        <VideoSprite />
+        {ASSISTANT_RENDERER_MODE === 'three' ? <ThreeSprite width={ASSISTANT_WIDTH} height={ASSISTANT_HEIGHT} /> : <VideoSprite />}
       </Dropzone>
       {notice && <SpriteNotice message={notice.message} level={notice.level} onClose={dismiss} />}
 
