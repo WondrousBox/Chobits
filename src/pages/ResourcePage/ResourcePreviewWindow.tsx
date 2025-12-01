@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { debounce } from 'lodash-es';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TbArrowLeft, TbArrowRight, TbChevronLeft, TbChevronRight, TbDots, TbFile, TbFileDescription, TbFileText, TbLetterT, TbLink, TbMusic, TbPhoto, TbVideo } from 'react-icons/tb';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
@@ -8,6 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import { MediaPlayer } from './components/MediaPlayer';
+import { RichTextEditor } from './components/RichTextEditor';
 import type { ResourceItem } from './types';
 import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from './utils/resourceProtocol';
 
@@ -35,6 +37,35 @@ const ResourcePreviewWindow: React.FC = () => {
   const [loadingTaskResults, setLoadingTaskResults] = useState(false);
   const hasAutoSwitchedRef = useRef(false);
   const mainContentRef = useRef<HTMLDivElement>(null);
+
+  // 自动保存
+  const debouncedSave = useMemo(
+    () =>
+      debounce((id: string, content: string) => {
+        if (id) {
+          console.log(`[auto-save] saving resource ${id}`);
+          window.YUA.resource['resource:update']({ id, patch: { contentText: content } });
+        }
+      }, 1000), // 1-second debounce delay
+    []
+  );
+
+  // 切换资源或卸载组件时，确保待保存的更改被立即保存
+  useEffect(() => {
+    return () => {
+      debouncedSave.flush();
+    };
+  }, [data?.id, debouncedSave]);
+
+  const handleTextChange = useCallback(
+    (newContent: string) => {
+      setTextContent(newContent);
+      if (data?.id && data.type === 'text') {
+        debouncedSave(data.id, newContent);
+      }
+    },
+    [data?.id, data?.type, debouncedSave]
+  );
 
   // 处理视频加载完成，调整窗口大小
   const handleVideoLoaded = useCallback(async (videoElement: HTMLVideoElement) => {
@@ -535,9 +566,24 @@ const ResourcePreviewWindow: React.FC = () => {
       {!isImageFile(data.filePath) && !isVideoFile(data.filePath) && !isAudioFile(data.filePath) && (
         <div className="w-full h-full text-xs text-muted-foreground break-words">
           {(data.type === 'text' || textContent) && (
-            <div className="w-full h-full box-border select-text overflow-auto rounded border px-2 text-left whitespace-pre-wrap font-mono text-xs leading-relaxed shadow-inner">
-              {loadingText ? '加载中…' : textContent || '（无文本内容）'}
-            </div>
+            <>
+              {data.type === 'text' ? (
+                <div className="w-full h-full">
+                  <RichTextEditor
+                    value={textContent}
+                    onChange={handleTextChange}
+                    editable={true}
+                    placeholder={loadingText ? '加载中…' : '暂无内容'}
+                    className="w-full h-full"
+                    style={{ height: '100%' }}
+                  />
+                </div>
+              ) : (
+                <div className="w-full h-full box-border select-text overflow-auto rounded border px-2 text-left whitespace-pre-wrap font-mono text-xs leading-relaxed shadow-inner">
+                  {loadingText ? '加载中…' : textContent || '（无文本内容）'}
+                </div>
+              )}
+            </>
           )}
           {!(data.type === 'text') && !textContent && fileSrc && <div className="text-[11px] break-all">来源: {fileSrc}</div>}
         </div>

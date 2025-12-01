@@ -43,7 +43,7 @@ export type ResourceBridgeParams = {
   'resource:add': IpcParams<[{ resource: PartialByKey<Resource, 'id'> }], { success: true; data: Resource }>;
   'resource:list': IpcParams<[void], Resource[]>;
   getResource: IpcParams<[{ id: string }], Resource | undefined>;
-  updateResource: IpcParams<[{ id: string; patch: any }], { success: boolean; data?: any }>;
+  'resource:update': IpcParams<[{ id: string; patch: any }], { success: boolean; data?: any }>;
   deleteResource: IpcParams<[{ id: string }], { success: true }>;
   deleteResources: IpcParams<[{ ids: string[] }], { success: true }>;
   openResource: IpcParams<[{ id: string }], { success: boolean }>;
@@ -81,7 +81,7 @@ const methods: Array<keyof ResourceBridgeParams> = [
   'resource:add',
   'resource:list',
   'getResource',
-  'updateResource',
+  'resource:update',
   'deleteResource',
   'deleteResources',
   'openResource',

@@ -78,7 +78,7 @@ export const useResourceOperations = (
         const item = list.find((i) => i.id === id);
         if (item) {
           const newFavorite = item.favorite === 1 ? 0 : 1;
-          await window.YUA.resource.updateResource({ id, patch: { favorite: newFavorite } });
+          await window.YUA.resource['resource:update']({ id, patch: { favorite: newFavorite } });
           setList((prev) => prev.map((i) => (i.id === id ? { ...i, favorite: newFavorite } : i)));
 
           // 如果当前在收藏模式下，且取消收藏后没有收藏内容了，自动切换到非收藏模式
@@ -102,7 +102,7 @@ export const useResourceOperations = (
         const item = list.find((i) => i.id === id);
         if (item) {
           const newVisibility = item.visibility === 'public' ? 'private' : 'public';
-          await window.YUA.resource.updateResource({ id, patch: { visibility: newVisibility } });
+          await window.YUA.resource['resource:update']({ id, patch: { visibility: newVisibility } });
           setList((prev) => prev.map((i) => (i.id === id ? { ...i, visibility: newVisibility } : i)));
         }
       } catch (e) {
