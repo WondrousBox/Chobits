@@ -70,12 +70,22 @@ export class ScreenshotManager {
     // Capture all screens first
     let sources: Electron.DesktopCapturerSource[] = [];
     try {
+      // Calculate max size needed
+      const maxSize = displays.reduce(
+        (acc, display) => {
+          return {
+            width: Math.max(acc.width, display.size.width * display.scaleFactor),
+            height: Math.max(acc.height, display.size.height * display.scaleFactor)
+          };
+        },
+        { width: 0, height: 0 }
+      );
+
       // Get sources for all screens.
       // We need to make sure we get high enough resolution for all.
-      // We'll use a large size to cover most screens.
       sources = await desktopCapturer.getSources({
         types: ['screen'],
-        thumbnailSize: { width: 3840, height: 2160 } // 4K support
+        thumbnailSize: maxSize
       });
     } catch (e) {
       console.error('Failed to capture screens:', e);
