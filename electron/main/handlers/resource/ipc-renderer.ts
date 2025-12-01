@@ -46,7 +46,6 @@ export type ResourceBridgeParams = {
   'resource:update': IpcParams<[{ id: string; patch: any }], { success: boolean; data?: any }>;
   deleteResource: IpcParams<[{ id: string }], { success: true }>;
   deleteResources: IpcParams<[{ ids: string[] }], { success: true }>;
-  openResource: IpcParams<[{ id: string }], { success: boolean }>;
   revealResource: IpcParams<[{ id: string }], { success: boolean }>;
   renameResource: IpcParams<[{ id: string; newName: string; renameFile?: boolean }], { success: boolean; fileRenamed?: boolean; newPath?: string }>;
   moveResourcesToWorkspace: IpcParams<[{ ids: string[]; workspaceId: string }], { moved: number }>;
@@ -84,7 +83,6 @@ const methods: Array<keyof ResourceBridgeParams> = [
   'resource:update',
   'deleteResource',
   'deleteResources',
-  'openResource',
   'revealResource',
   'renameResource',
   'moveResourcesToWorkspace',

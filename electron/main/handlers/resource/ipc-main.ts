@@ -364,20 +364,6 @@ export function initResourceHandlers(): void {
     return { moved, data: updated };
   });
 
-  ipcMain.handle('openResource', async (_event, payload: { id: string }) => {
-    const res = await ResourcesRepo.getById(payload.id);
-    if (!res) return { success: false };
-    if (res.filePath) {
-      await shell.openPath(res.filePath);
-      return { success: true };
-    }
-    if (res.url) {
-      await shell.openExternal(res.url);
-      return { success: true };
-    }
-    return { success: false };
-  });
-
   ipcMain.handle('revealResource', async (_event, payload: { id: string }) => {
     const res = await ResourcesRepo.getById(payload.id);
     if (!res || !res.filePath) return { success: false };

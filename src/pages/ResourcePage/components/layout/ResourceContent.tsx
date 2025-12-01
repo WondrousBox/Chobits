@@ -110,6 +110,8 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
             items={mergedItems}
             folders={childFolders}
             counts={folderCounts}
+            folderId={folderFilter || undefined}
+            workspaceId={wsFilter}
             onOpenFolder={(id) => {
               setFolderFilter(id);
               saveCurrentFolder(id);
@@ -121,6 +123,10 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
             onRenameFolder={handleRenameFolder}
             onDeleteFolder={handleDeleteFolder}
             onOpenFolderLocation={handleOpenFolderLocation}
+            onFolderCreated={async () => {
+              await load();
+              await loadFolders(wsFilter || undefined);
+            }}
             onDelete={handleDelete}
             onDeleteMany={handleDeleteMany}
             onToggleFavorite={handleToggleFavorite}
