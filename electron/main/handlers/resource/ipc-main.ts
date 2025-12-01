@@ -171,6 +171,16 @@ export function initResourceHandlers(): void {
     if (!res.type && detected.type) res.type = detected.type as any;
     if (!res.mimeType && detected.mimeType) res.mimeType = detected.mimeType;
 
+    // 文本资源：根据 contentText 估算 sizeBytes，避免大小始终为 0
+    if ((res.type === 'text' || (!res.type && detected.type === 'text')) && typeof (res as any).contentText === 'string') {
+      try {
+        const buf = Buffer.from((res as any).contentText as string, 'utf8');
+        (res as any).sizeBytes = buf.byteLength;
+      } catch {
+        // 如果计算失败，不影响主流程
+      }
+    }
+
     const row = await ResourcesRepo.upsert({ ...res, workspaceId, filePath } as any);
 
     // // Fire-and-forget: auto-tag text resources via AI TaggingService (no renderer involvement)
@@ -426,7 +436,19 @@ export function initResourceHandlers(): void {
   });
 
   ipcMain.handle('resource:update', async (_event, payload: { id: string; patch: any }) => {
-    const { id, patch } = payload;
+    const { id } = payload;
+    const patch = { ...(payload.patch || {}) };
+
+    // 如果本次更新包含文本内容，则同步更新 sizeBytes，保证纯文本资源也有合理的大小
+    if (typeof patch.contentText === 'string') {
+      try {
+        const buf = Buffer.from(patch.contentText, 'utf8');
+        patch.sizeBytes = buf.byteLength;
+      } catch {
+        // 忽略计算失败，不阻塞更新
+      }
+    }
+
     const updated = await ResourcesRepo.update(id, patch);
     if (updated) {
       eventManager.emit(AppEvent.RESOURCE_UPDATED, updated);
