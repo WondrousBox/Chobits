@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import dayjs from 'dayjs';
-import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, screen } from 'electron';
+import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, screen, shell, systemPreferences } from 'electron';
 
 import { FoldersRepo, ResourcesRepo, WorkspacesRepo } from './db/repositories';
 import { eventManager } from './handlers/event-manager';
@@ -43,6 +43,30 @@ export class ScreenshotManager {
 
     const displays = screen.getAllDisplays();
 
+    // Check permissions on macOS
+    if (process.platform === 'darwin') {
+      const status = systemPreferences.getMediaAccessStatus('screen');
+      console.log('[screenshot] Screen recording permission status:', status);
+
+      if (status === 'denied') {
+        dialog
+          .showMessageBox({
+            type: 'warning',
+            title: 'Screen Recording Permission Denied',
+            message: 'Chobits needs screen recording permission to take screenshots.',
+            detail: 'Please enable it in System Settings > Privacy & Security > Screen Recording.',
+            buttons: ['Open Settings', 'Cancel'],
+            defaultId: 0
+          })
+          .then(({ response }) => {
+            if (response === 0) {
+              shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
+            }
+          });
+        return;
+      }
+    }
+
     // Capture all screens first
     let sources: Electron.DesktopCapturerSource[] = [];
     try {
@@ -55,6 +79,23 @@ export class ScreenshotManager {
       });
     } catch (e) {
       console.error('Failed to capture screens:', e);
+
+      if (process.platform === 'darwin') {
+        dialog
+          .showMessageBox({
+            type: 'warning',
+            title: 'Screen Recording Failed',
+            message: 'Failed to capture screen. Please check permissions.',
+            detail: 'Please ensure Chobits has Screen Recording permission in System Settings.',
+            buttons: ['Open Settings', 'Cancel'],
+            defaultId: 0
+          })
+          .then(({ response }) => {
+            if (response === 0) {
+              shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
+            }
+          });
+      }
       return;
     }
 
@@ -73,7 +114,8 @@ export class ScreenshotManager {
         enableLargerThanScreen: true,
         hasShadow: false,
         show: false,
-        fullscreen: true,
+        fullscreen: process.platform !== 'darwin',
+        simpleFullscreen: process.platform === 'darwin',
         webPreferences: {
           nodeIntegration: true,
           contextIsolation: true,
