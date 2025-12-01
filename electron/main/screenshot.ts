@@ -3,8 +3,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { windowManager } from '@aim-packages/window-manager';
 import dayjs from 'dayjs';
-import { app, BrowserWindow, desktopCapturer, dialog, ipcMain, screen, shell, systemPreferences } from 'electron';
+import { BrowserWindow, desktopCapturer, dialog, ipcMain, screen, shell, systemPreferences } from 'electron';
 
 import { FoldersRepo, ResourcesRepo, WorkspacesRepo } from './db/repositories';
 import { eventManager } from './handlers/event-manager';
@@ -15,16 +16,18 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export class ScreenshotManager {
   private windows: BrowserWindow[] = [];
 
-  constructor() { }
+  constructor() {
+    //
+  }
 
-  registerIpc() {
+  registerIpc(): void {
     ipcMain.handle('screenshot:start', () => this.start());
     ipcMain.handle('screenshot:save', (_, { dataURL }) => this.save(dataURL));
     ipcMain.handle('screenshot:close', () => this.close());
     ipcMain.handle('screenshot:reset-other-selections', (event) => this.resetOtherSelections(event.sender));
   }
 
-  resetOtherSelections(senderWebContents: Electron.WebContents) {
+  resetOtherSelections(senderWebContents: Electron.WebContents): void {
     const senderWindow = BrowserWindow.fromWebContents(senderWebContents);
     if (!senderWindow) return;
 
@@ -35,7 +38,7 @@ export class ScreenshotManager {
     });
   }
 
-  async start() {
+  async start(): Promise<void> {
     if (this.windows.length > 0) {
       this.windows.forEach((w) => w.focus());
       return;
@@ -169,7 +172,8 @@ export class ScreenshotManager {
   async ensureDailyFolder(workspaceId: string): Promise<string> {
     const today = dayjs().format('YYYY-MM-DD');
     // Check if folder exists in DB
-    const siblings = await FoldersRepo.list({ workspaceId, parentId: null } as any, 2000, 0);
+    // 只在“未删除”的顶层文件夹中查找，避免命中回收站里的文件夹
+    const siblings = await FoldersRepo.list({ workspaceId, parentId: null, deletedAt: 0 } as any, 2000, 0);
     const existing = siblings.find((s: any) => s.name === today);
 
     if (existing) {
@@ -191,7 +195,7 @@ export class ScreenshotManager {
     return newFolder.id;
   }
 
-  async save(dataURL: string) {
+  async save(dataURL: string): Promise<string> {
     try {
       const base64Data = dataURL.replace(/^data:image\/png;base64,/, '');
       const buffer = Buffer.from(base64Data, 'base64');
@@ -199,15 +203,14 @@ export class ScreenshotManager {
       // Get default workspace
       const ws = await WorkspacesRepo.getDefault();
       if (!ws) {
-        // Fallback if no workspace
-        const resourcesPath = path.join(process.env.APP_ROOT || process.cwd(), 'resources/screenshots');
-        if (!fs.existsSync(resourcesPath)) {
-          fs.mkdirSync(resourcesPath, { recursive: true });
+        // 如果没有默认工作空间，直接打开工作空间向导窗口
+        try {
+          await windowManager.createOrShow('workspaceWizard' as any);
+        } catch (e) {
+          console.warn('[screenshot] failed to open workspace wizard', e);
         }
-        const filename = `screenshot-${Date.now()}.png`;
-        const filePath = path.join(resourcesPath, filename);
-        fs.writeFileSync(filePath, buffer);
-        return filePath;
+        // 不再落盘，返回空字符串给调用方
+        return '';
       }
 
       const folderId = await this.ensureDailyFolder(ws.id);
@@ -250,7 +253,7 @@ export class ScreenshotManager {
     }
   }
 
-  close() {
+  close(): void {
     this.windows.forEach((w) => w.close());
     this.windows = [];
   }
@@ -258,6 +261,6 @@ export class ScreenshotManager {
 
 export const screenshotManager = new ScreenshotManager();
 
-export function initScreenshotHandlers() {
+export function initScreenshotHandlers(): void {
   screenshotManager.registerIpc();
 }
