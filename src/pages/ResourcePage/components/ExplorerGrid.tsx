@@ -1,10 +1,11 @@
-import { AnimatePresence, motion } from 'framer-motion';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useState as useReactState } from 'react';
-import { TbFolderFilled, TbFolderOpen, TbLine, TbPencil, TbTrash } from 'react-icons/tb';
+import { TbFolderFilled, TbFolderOpen, TbFolderPlus, TbLine, TbPencil, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
+import { Button } from '@/components/ui/button';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger } from '@/components/ui/context-menu';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 import { ResourceItem } from '../types';
@@ -50,12 +51,7 @@ const GridFolderTile: React.FC<{
       <ContextMenuTrigger asChild>
         <Tooltip open={overInvalid || tipOpen}>
           <TooltipTrigger asChild>
-            <motion.div
-              layout
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.5 }}
-              transition={{ duration: 0.2 }}
+            <div
               data-explorer-folder
               onContextMenu={(e) => e.stopPropagation()}
               className={`group relative aspect-video w-full overflow-hidden rounded-md border bg-card text-card-foreground shadow-sm transition-all cursor-pointer select-none ${over
@@ -146,7 +142,7 @@ const GridFolderTile: React.FC<{
                 <div className="text-sm font-medium truncate max-w-[90%] mx-auto">{folder.name}</div>
                 {typeof count === 'number' && <span className="absolute top-1 right-1 bg-primary text-primary-foreground text-[10px] px-1.5 py-0.5 rounded-full shadow">{count}</span>}
               </div>
-            </motion.div>
+            </div>
           </TooltipTrigger>
           <TooltipContent side="top">不能移动到自己的子文件夹中</TooltipContent>
         </Tooltip>
@@ -177,6 +173,9 @@ export interface ExplorerGridProps {
   items: ResourceItem[] | ResourceItemWithSubtitles[];
   folders?: UIFolder[];
   counts?: Record<string, number>;
+  // 当前资源所在的文件夹/工作区，用于从空白处创建新文件夹
+  folderId?: string;
+  workspaceId?: string;
   onDelete?: (id: string) => void;
   onDeleteMany?: (ids: string[]) => void;
   onToggleFavorite?: (id: string) => void;
@@ -187,6 +186,7 @@ export interface ExplorerGridProps {
   onDeleteFolder?: (id: string) => void;
   onOpenFolderLocation?: (id: string) => void;
   onMoveFolder?: (id: string, newParentId: string | null) => void | Promise<void>;
+  onFolderCreated?: () => void | Promise<void>;
 }
 
 type Point = { x: number; y: number };
@@ -200,6 +200,8 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
   items,
   folders,
   counts,
+  folderId,
+  workspaceId,
   onDelete,
   onDeleteMany,
   onToggleFavorite,
@@ -209,7 +211,8 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
   onRenameFolder,
   onDeleteFolder,
   onOpenFolderLocation,
-  onMoveFolder
+  onMoveFolder,
+  onFolderCreated
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -387,8 +390,62 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
 
   const selectedCount = selected.size;
   const firstSelected = selectedCount > 0 ? Array.from(selected)[0] : undefined;
-  const [, setRenaming] = useReactState(false);
-  const [renameValue, setRenameValue] = useReactState('');
+  const firstSelectedItem = useMemo(() => (firstSelected ? mergedItems.find((i) => i.id === firstSelected) : undefined), [mergedItems, firstSelected]);
+  const canRevealSelected = !!firstSelectedItem?.filePath;
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+
+  const handleRenameConfirm = useCallback(() => {
+    const id = renamingId || firstSelected;
+    const val = renameValue.trim();
+    if (!id || !val) {
+      setRenameDialogOpen(false);
+      return;
+    }
+    window.YUA.resource.renameResource({ id, newName: val, renameFile: true });
+    setRenameDialogOpen(false);
+  }, [renamingId, firstSelected, renameValue]);
+
+  const handleRevealCurrentFolder = useCallback(async () => {
+    try {
+      const ws = await (window as any).YUA?.workspace['workspace:getDefault']();
+      const isWin = (window as any).YUA?.isWindows;
+      const sep = isWin ? '\\' : '/';
+      const base: string = ws?.rootPath || '';
+      if (!base) return;
+      const needsSep = base.endsWith(sep) ? '' : sep;
+      // 没有 folderId 时，打开 resources 根目录；有 folderId 时，打开对应子目录
+      const folderPath = folderId ? `${base}${needsSep}resources${sep}folders${sep}${folderId}` : `${base}${needsSep}resources`;
+      await (window as any).YUA?.file['file:openPath'](folderPath);
+    } catch (err) {
+      console.warn('open current folder path failed', err);
+    }
+  }, [folderId]);
+
+  const handleCreateSubfolder = useCallback(async () => {
+    try {
+      const d = new Date();
+      const name = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const folderApi: any = (window as any).YUA?.folder;
+      if (!folderApi || typeof folderApi['folder.create'] !== 'function') {
+        toast.error('无法创建文件夹：缺少接口');
+        return;
+      }
+      const res = await folderApi['folder.create']({ name, parentId: folderId ?? null, workspaceId: workspaceId || undefined });
+      if ((res as any)?.success) {
+        toast.success('文件夹已创建');
+        if (onFolderCreated) {
+          await onFolderCreated();
+        }
+      } else {
+        toast.error('创建文件夹失败');
+      }
+    } catch (err) {
+      console.error('create folder failed', err);
+      toast.error('创建文件夹失败');
+    }
+  }, [folderId, workspaceId, onFolderCreated]);
 
   // Folder DnD helpers
   const parentMap = useMemo(() => {
@@ -421,72 +478,62 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
           onKeyDown={handleKeyDown}
           onContextMenu={handleContextMenu}
         >
-          <AnimatePresence mode="popLayout">
-            {/* 先渲染子文件夹 */}
-            {(folders || []).map((f) => (
-              <GridFolderTile
-                key={`folder-${f.id}`}
-                folder={f}
-                count={counts?.[f.id]}
-                onOpen={() => onOpenFolder?.(f.id)}
-                onDropResources={(ids: string[]) => onDropResourcesToFolder?.(f.id, ids)}
-                onMoveFolder={(id, newPid) => onMoveFolder?.(id, newPid)}
-                parentMap={parentMap}
-                draggingFolderId={draggingFolderId}
-                setDraggingFolderId={setDraggingFolderId}
-                onRename={() => onRenameFolder?.(f.id)}
-                onDelete={() => onDeleteFolder?.(f.id)}
-                onOpenLocation={() => onOpenFolderLocation?.(f.id)}
-              />
-            ))}
+          {/* 先渲染子文件夹 */}
+          {(folders || []).map((f) => (
+            <GridFolderTile
+              key={`folder-${f.id}`}
+              folder={f}
+              count={counts?.[f.id]}
+              onOpen={() => onOpenFolder?.(f.id)}
+              onDropResources={(ids: string[]) => onDropResourcesToFolder?.(f.id, ids)}
+              onMoveFolder={(id, newPid) => onMoveFolder?.(id, newPid)}
+              parentMap={parentMap}
+              draggingFolderId={draggingFolderId}
+              setDraggingFolderId={setDraggingFolderId}
+              onRename={() => onRenameFolder?.(f.id)}
+              onDelete={() => onDeleteFolder?.(f.id)}
+              onOpenLocation={() => onOpenFolderLocation?.(f.id)}
+            />
+          ))}
 
-            {/* 再渲染资源项 */}
-            {mergedItems.map((item, idx) => {
-              const isSelected = selected.has(item.id);
-              return (
-                <motion.div
-                  key={item.id}
-                  layout
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.5 }}
-                  transition={{ duration: 0.2 }}
-                  className="aspect-video w-full"
-                >
-                  <ResourceGalleryItem
-                    item={item}
-                    selected={isSelected}
-                    innerRef={updateItemRef(item.id)}
-                    onClick={(e) => handleItemClick(e, item.id, idx)}
-                    onToggleFavorite={onToggleFavorite}
-                    onToggleVisibility={onToggleVisibility}
-                    onPreview={() => {
-                      const current = mergedItems[idx];
-                      if (!current) return;
-                      window.YUA.window['window:open']('resourcePreview', {
-                        current,
-                        list: mergedItems,
-                        index: idx
-                      });
-                    }}
-                    draggable
-                    onDragStart={(e: React.DragEvent) => {
-                      // 如果当前 item 已在多选中，则拖拽这些被选中的；否则仅拖该项
-                      const ids = selected.has(item.id) && selected.size > 0 ? Array.from(selected) : [item.id];
-                      try {
-                        e.dataTransfer.setData('application/x-resource-ids', JSON.stringify(ids));
-                        e.dataTransfer.effectAllowed = 'move';
-                        e.dataTransfer.dropEffect = 'move';
-                      } catch {
-                        /* ignore */
-                      }
-                    }}
-                    fillContainer
-                  />
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
+          {/* 再渲染资源项 */}
+          {mergedItems.map((item, idx) => {
+            const isSelected = selected.has(item.id);
+            return (
+              <div key={item.id} className="aspect-video w-full">
+                <ResourceGalleryItem
+                  item={item}
+                  selected={isSelected}
+                  innerRef={updateItemRef(item.id)}
+                  onClick={(e) => handleItemClick(e, item.id, idx)}
+                  onToggleFavorite={onToggleFavorite}
+                  onToggleVisibility={onToggleVisibility}
+                  onPreview={() => {
+                    const current = mergedItems[idx];
+                    if (!current) return;
+                    window.YUA.window['window:open']('resourcePreview', {
+                      current,
+                      list: mergedItems,
+                      index: idx
+                    });
+                  }}
+                  draggable
+                  onDragStart={(e: React.DragEvent) => {
+                    // 如果当前 item 已在多选中，则拖拽这些被选中的；否则仅拖该项
+                    const ids = selected.has(item.id) && selected.size > 0 ? Array.from(selected) : [item.id];
+                    try {
+                      e.dataTransfer.setData('application/x-resource-ids', JSON.stringify(ids));
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.dropEffect = 'move';
+                    } catch {
+                      /* ignore */
+                    }
+                  }}
+                  fillContainer
+                />
+              </div>
+            );
+          })}
 
           {isDragging && selectionRect && (
             <div
@@ -503,97 +550,175 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
       </ContextMenuTrigger>
 
       <ContextMenuContent className="min-w-[220px]">
-        <div className="px-2 py-1.5 text-sm text-muted-foreground">已选择 {selectedCount} 项</div>
-        <ContextMenuSeparator />
-        <ContextMenuItem
-          onSelect={async () => {
-            if (!firstSelected) return;
-            await window.YUA.resource.openResource({ id: firstSelected });
-          }}
-        >
-          打开
-        </ContextMenuItem>
-        <ContextMenuItem
-          onSelect={async () => {
-            if (!firstSelected) return;
-            await window.YUA.resource.revealResource({ id: firstSelected });
-          }}
-        >
-          {(window as any).YUA?.isWindows ? '在资源管理器中显示' : '在 Finder 中显示'}
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <TbLine className="mr-2" /> 执行任务
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent className="w-48">
-            {workflows.map((wf) => (
-              <ContextMenuItem
-                key={wf.id}
-                onSelect={() => {
-                  if (!firstSelected) return;
-                  const item = mergedItems.find((i) => i.id === firstSelected);
-                  if (item) {
-                    window.ipcRenderer.invoke('wf:run', {
-                      defId: wf.id,
-                      input: { resource: item },
-                      metadata: {
-                        resourceId: item.id,
-                        resourceName: item.title || 'Unknown',
-                        thumbnailPath: item.thumbnailPath,
-                        spaceId: item.workspaceId
+        {selectedCount > 0 ? (
+          <>
+            <div className="px-2 py-1.5 text-sm text-muted-foreground">已选择 {selectedCount} 项</div>
+            <ContextMenuSeparator />
+            {canRevealSelected && (
+              <>
+                <ContextMenuItem
+                  onSelect={async () => {
+                    if (!firstSelected) return;
+                    await window.YUA.resource.revealResource({ id: firstSelected });
+                  }}
+                >
+                  {(window as any).YUA?.isWindows ? '在资源管理器中显示' : '在 Finder 中显示'}
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+              </>
+            )}
+
+            <ContextMenuSub>
+              <ContextMenuSubTrigger>
+                <TbLine className="mr-2" /> 执行任务
+              </ContextMenuSubTrigger>
+              <ContextMenuSubContent className="w-48">
+                {workflows.map((wf) => (
+                  <ContextMenuItem
+                    key={wf.id}
+                    onSelect={() => {
+                      if (!firstSelected) return;
+                      const item = mergedItems.find((i) => i.id === firstSelected);
+                      if (item) {
+                        window.ipcRenderer.invoke('wf:run', {
+                          defId: wf.id,
+                          input: { resource: item },
+                          metadata: {
+                            resourceId: item.id,
+                            resourceName: item.title || 'Unknown',
+                            thumbnailPath: item.thumbnailPath,
+                            spaceId: item.workspaceId
+                          }
+                        });
+                        toast.success(`已开始执行工作流: ${wf.name}`);
                       }
-                    });
-                    toast.success(`已开始执行工作流: ${wf.name}`);
-                  }
-                }}
-              >
-                {wf.name}
-              </ContextMenuItem>
-            ))}
-            {workflows.length === 0 && <ContextMenuItem disabled>无可用工作流</ContextMenuItem>}
-          </ContextMenuSubContent>
-        </ContextMenuSub>
-        <ContextMenuSeparator />
-        <ContextMenuItem
-          onSelect={() => {
-            if (!firstSelected) return;
-            const item = mergedItems.find((i) => i.id === firstSelected);
-            setRenameValue(item?.title || item?.filePath || item?.url || '');
-            setRenaming(true);
-            // Prompt-based simple rename for now
-            const val = window.prompt('重命名为：', renameValue || '');
-            setRenaming(false);
-            if (val && val.trim()) {
-              window.YUA.resource.renameResource({ id: firstSelected, newName: val.trim(), renameFile: true });
-            }
-          }}
-        >
-          重命名…
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem
-          className="flex items-center gap-2"
-          onSelect={() => {
-            const ids = Array.from(selected);
-            if (ids.length === 0) return;
-            // 优先使用父组件传递的删除函数，确保本地状态同步更新
-            if (onDeleteMany) {
-              onDeleteMany(ids);
-            } else if (onDelete) {
-              ids.forEach((id) => onDelete(id));
-            } else if (window?.YUA?.resource?.deleteResources) {
-              // 如果没有传递删除函数，则直接调用主进程 API（不推荐）
-              window.YUA.resource.deleteResources({ ids });
-            }
-          }}
-        >
-          <TbTrash /> 删除
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        <ContextMenuItem onSelect={() => setSelected(new Set(mergedItems.map((i) => i.id)))}>全选</ContextMenuItem>
-        <ContextMenuItem onSelect={() => clearSelection()}>取消选择</ContextMenuItem>
+                    }}
+                  >
+                    {wf.name}
+                  </ContextMenuItem>
+                ))}
+                {workflows.length === 0 && <ContextMenuItem disabled>无可用工作流</ContextMenuItem>}
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+            <ContextMenuSeparator />
+            <ContextMenuItem
+              onSelect={() => {
+                if (!firstSelected) return;
+                const item = mergedItems.find((i) => i.id === firstSelected);
+                setRenameValue(item?.title || item?.filePath || item?.url || '');
+                setRenamingId(firstSelected);
+                setRenameDialogOpen(true);
+              }}
+            >
+              重命名…
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem
+              className="flex items-center gap-2"
+              onSelect={() => {
+                const ids = Array.from(selected);
+                if (ids.length === 0) return;
+                // 优先使用父组件传递的删除函数，确保本地状态同步更新
+                if (onDeleteMany) {
+                  onDeleteMany(ids);
+                } else if (onDelete) {
+                  ids.forEach((id) => onDelete(id));
+                } else if (window?.YUA?.resource?.deleteResources) {
+                  // 如果没有传递删除函数，则直接调用主进程 API（不推荐）
+                  window.YUA.resource.deleteResources({ ids });
+                }
+              }}
+            >
+              <TbTrash /> 删除
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem onSelect={() => setSelected(new Set(mergedItems.map((i) => i.id)))}>全选</ContextMenuItem>
+            <ContextMenuItem onSelect={() => clearSelection()}>取消选择</ContextMenuItem>
+          </>
+        ) : (
+          <>
+            <ContextMenuItem
+              onSelect={async () => {
+                await handleRevealCurrentFolder();
+              }}
+            >
+              {(window as any).YUA?.isWindows ? '在资源管理器中显示' : '在 Finder 中显示'}
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuSub>
+              <ContextMenuSubTrigger>
+                <TbLine className="mr-2" /> 执行任务
+              </ContextMenuSubTrigger>
+              <ContextMenuSubContent className="w-48">
+                {workflows.map((wf) => (
+                  <ContextMenuItem
+                    key={wf.id}
+                    onSelect={() => {
+                      if (!firstSelected) return;
+                      const item = mergedItems.find((i) => i.id === firstSelected);
+                      if (item) {
+                        window.ipcRenderer.invoke('wf:run', {
+                          defId: wf.id,
+                          input: { resource: item },
+                          metadata: {
+                            resourceId: item.id,
+                            resourceName: item.title || 'Unknown',
+                            thumbnailPath: item.thumbnailPath,
+                            spaceId: item.workspaceId
+                          }
+                        });
+                        toast.success(`已开始执行工作流: ${wf.name}`);
+                      }
+                    }}
+                  >
+                    {wf.name}
+                  </ContextMenuItem>
+                ))}
+                {workflows.length === 0 && <ContextMenuItem disabled>无可用工作流</ContextMenuItem>}
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+            <ContextMenuSeparator />
+            <ContextMenuItem
+              onSelect={async () => {
+                await handleCreateSubfolder();
+              }}
+            >
+              <TbFolderPlus className="mr-2" /> 新建文件夹
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem onSelect={() => setSelected(new Set(mergedItems.map((i) => i.id)))}>全选</ContextMenuItem>
+          </>
+        )}
       </ContextMenuContent>
+      <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>重命名资源</DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <Input
+              autoFocus
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleRenameConfirm();
+                }
+              }}
+              placeholder="输入新名称"
+            />
+          </div>
+          <DialogFooter>
+            <Button size="sm" variant="outline" className="w-20" onClick={() => setRenameDialogOpen(false)}>
+              取消
+            </Button>
+            <Button size="sm" className="w-20" onClick={handleRenameConfirm} disabled={!renameValue.trim()}>
+              确定
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </ContextMenu>
   );
 };
