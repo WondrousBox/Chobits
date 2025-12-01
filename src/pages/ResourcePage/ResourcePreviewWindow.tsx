@@ -1,5 +1,4 @@
-import { debounce } from 'lodash-es';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { TbArrowLeft, TbArrowRight, TbChevronLeft, TbChevronRight, TbDots, TbFile, TbFileDescription, TbFileText, TbLetterT, TbLink, TbMusic, TbPhoto, TbVideo } from 'react-icons/tb';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
@@ -8,8 +7,9 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/componen
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
+import { ImagePlayer } from './components/ImagePlayer';
 import { MediaPlayer } from './components/MediaPlayer';
-import { RichTextEditor } from './components/RichTextEditor';
+import { TextPlayer } from './components/TextPlayer';
 import type { ResourceItem } from './types';
 import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from './utils/resourceProtocol';
 
@@ -23,8 +23,6 @@ const ResourcePreviewWindow: React.FC = () => {
   const [data, setData] = useState<ResourceItem | null>(null);
   const [list, setList] = useState<ResourceItem[]>([]);
   const [index, setIndex] = useState<number>(-1);
-  const [textContent, setTextContent] = useState<string>('');
-  const [loadingText, setLoadingText] = useState(false);
   const [isPlaylistExpanded, setIsPlaylistExpanded] = useState(true);
   const [showExpandButton, setShowExpandButton] = useState(false);
   const [activeSidebarTab, setActiveSidebarTab] = useState<string>('playlist');
@@ -37,35 +35,6 @@ const ResourcePreviewWindow: React.FC = () => {
   const [loadingTaskResults, setLoadingTaskResults] = useState(false);
   const hasAutoSwitchedRef = useRef(false);
   const mainContentRef = useRef<HTMLDivElement>(null);
-
-  // 自动保存
-  const debouncedSave = useMemo(
-    () =>
-      debounce((id: string, content: string) => {
-        if (id) {
-          console.log(`[auto-save] saving resource ${id}`);
-          window.YUA.resource['resource:update']({ id, patch: { contentText: content } });
-        }
-      }, 1000), // 1-second debounce delay
-    []
-  );
-
-  // 切换资源或卸载组件时，确保待保存的更改被立即保存
-  useEffect(() => {
-    return () => {
-      debouncedSave.flush();
-    };
-  }, [data?.id, debouncedSave]);
-
-  const handleTextChange = useCallback(
-    (newContent: string) => {
-      setTextContent(newContent);
-      if (data?.id && data.type === 'text') {
-        debouncedSave(data.id, newContent);
-      }
-    },
-    [data?.id, data?.type, debouncedSave]
-  );
 
   // 处理视频加载完成，调整窗口大小
   const handleVideoLoaded = useCallback(async (videoElement: HTMLVideoElement) => {
@@ -283,52 +252,6 @@ const ResourcePreviewWindow: React.FC = () => {
       clearTimeout(timer);
     };
   }, []);
-
-  // 加载文本类资源内容（通过主进程读取文件内容）
-
-  useEffect(() => {
-    if (!data) {
-      setTextContent('');
-      return;
-    }
-    if (data.type === 'text' || data.type === 'document' || data.type === 'file') {
-      if (data.type === 'text') {
-        setTextContent(data.contentText || '');
-        return;
-      }
-
-      // 优先使用 contentText
-      if (data.contentText) {
-        setTextContent(data.contentText || '');
-        return;
-      }
-      // 通过主进程读取文件内容
-      if (data.filePath) {
-        const lower = data.filePath.toLowerCase();
-        if (/(\.txt|\.md|\.log|\.json|\.csv|\.ts|\.js|\.tsx|\.jsx|\.py|\.go|\.rs|\.java|\.c|\.cpp|\.yml|\.yaml|\.toml|\.ini)$/i.test(lower)) {
-          setLoadingText(true);
-          window.YUA.file['file:readContent'](data.filePath, 20000)
-            .then((result: any) => {
-              if (result.success) {
-                let content = result.content || '';
-                if (result.truncated) {
-                  content += `\n\n...（文件已截取，原始大小: ${Math.round(result.originalSize / 1024)}KB）`;
-                }
-                setTextContent(content);
-              } else {
-                setTextContent('（无法加载文本内容）');
-              }
-            })
-            .catch(() => setTextContent('（无法加载文本内容）'))
-            .finally(() => setLoadingText(false));
-          return;
-        }
-      }
-      setTextContent('（暂无提取文本）');
-    } else {
-      setTextContent('');
-    }
-  }, [data]);
 
   // END: resource subscription
 
@@ -560,34 +483,10 @@ const ResourcePreviewWindow: React.FC = () => {
   // 渲染主要内容
   const renderMainContent = (): React.ReactNode => (
     <div ref={mainContentRef} className="h-full relative flex items-center justify-center overflow-hidden">
-      {isImageFile(data.filePath) && fileSrc && <img src={fileSrc} alt={title} className="max-w-full max-h-full object-contain rounded-md shadow" />}
+      {isImageFile(data.filePath) && fileSrc && <ImagePlayer src={fileSrc} title={title} className="w-full h-full rounded-md shadow" />}
       {isVideoFile(data.filePath) && fileSrc && <MediaPlayer src={fileSrc} type="video" title={title} autoPlay={true} className="w-full h-full" onVideoLoaded={handleVideoLoaded} />}
       {isAudioFile(data.filePath) && fileSrc && <MediaPlayer src={fileSrc} type="audio" title={title} autoPlay={true} className="w-full max-w-xl" />}
-      {!isImageFile(data.filePath) && !isVideoFile(data.filePath) && !isAudioFile(data.filePath) && (
-        <div className="w-full h-full text-xs text-muted-foreground break-words">
-          {(data.type === 'text' || textContent) && (
-            <>
-              {data.type === 'text' ? (
-                <div className="w-full h-full">
-                  <RichTextEditor
-                    value={textContent}
-                    onChange={handleTextChange}
-                    editable={true}
-                    placeholder={loadingText ? '加载中…' : '暂无内容'}
-                    className="w-full h-full"
-                    style={{ height: '100%' }}
-                  />
-                </div>
-              ) : (
-                <div className="w-full h-full box-border select-text overflow-auto rounded border px-2 text-left whitespace-pre-wrap font-mono text-xs leading-relaxed shadow-inner">
-                  {loadingText ? '加载中…' : textContent || '（无文本内容）'}
-                </div>
-              )}
-            </>
-          )}
-          {!(data.type === 'text') && !textContent && fileSrc && <div className="text-[11px] break-all">来源: {fileSrc}</div>}
-        </div>
-      )}
+      {!isImageFile(data.filePath) && !isVideoFile(data.filePath) && !isAudioFile(data.filePath) && <TextPlayer resource={data} />}
 
       {/* 收起时，鼠标移入画面显示的展开按钮（类似视频播放器控制栏） */}
       {(list.length > 0 || data) && !isPlaylistExpanded && showExpandButton && (
