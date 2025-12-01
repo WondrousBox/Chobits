@@ -1,6 +1,6 @@
-import { Resource } from 'electron/preload/apis/resource';
 import React, { useEffect, useMemo, useState } from 'react';
 
+import { Resource } from '../../../electron/main/handlers/resource/ipc-renderer';
 import RadialMenu, { RadialMenuItem } from '../../components/common/RadialMenu/RadialMenu';
 
 type FileInfo = { name: string; path?: string; mime?: string };
@@ -79,7 +79,7 @@ const FileActionsMenu: React.FC = () => {
           input: { resource: primary },
           metadata: {
             resourceId: primary.id,
-            resourceName: primary.title || primary.name || 'Unknown',
+            resourceName: primary.title || 'Unknown',
             thumbnailPath: primary.thumbnailPath,
             spaceId: primary.workspaceId
           }
