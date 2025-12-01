@@ -31,7 +31,8 @@ const uploadStreams = new Map<string, UploadStream>();
 async function ensureDailyFolder(workspaceId: string, rootPath: string): Promise<string> {
   const today = dayjs().format('YYYY-MM-DD');
   // Check if folder exists in DB
-  const siblings = await FoldersRepo.list({ workspaceId, parentId: null } as any, 2000, 0);
+  // 只在“未删除”的顶层文件夹中查找，避免命中回收站里的文件夹
+  const siblings = await FoldersRepo.list({ workspaceId, parentId: null, deletedAt: 0 } as any, 2000, 0);
   const existing = siblings.find((s: any) => s.name === today);
 
   if (existing) {
@@ -118,7 +119,8 @@ export function initResourceHandlers(): void {
         if (ws) workspaceId = ws.id;
       }
 
-      if (ws && ws.id && filePath && ws.rootPath) {
+      // 统一：只要有工作空间根目录且未显式指定 folderId，就默认放到当天的文件夹下
+      if (ws && ws.id && ws.rootPath) {
         if (!folderId) {
           try {
             folderId = await ensureDailyFolder(ws.id, ws.rootPath);
@@ -128,33 +130,36 @@ export function initResourceHandlers(): void {
           }
         }
 
-        try {
-          const base = path.basename(filePath);
-          let targetDir;
-          if (folderId) {
-            targetDir = path.join(ws.rootPath, 'resources', 'folders', folderId);
-          } else {
-            targetDir = path.join(ws.rootPath, 'resources');
-          }
-
-          await fs.mkdir(targetDir, { recursive: true });
-          let target = path.join(targetDir, base);
-          if (filePath !== target) {
-            // Avoid overwriting existing files
-            if (fscb.existsSync(target)) {
-              const ext = path.extname(base);
-              const name = path.basename(base, ext);
-              let i = 1;
-              while (fscb.existsSync(path.join(targetDir, `${name}(${i})${ext}`))) {
-                i++;
-              }
-              target = path.join(targetDir, `${name}(${i})${ext}`);
+        // 对有物理文件的资源，仍然执行复制到工作空间的逻辑
+        if (filePath) {
+          try {
+            const base = path.basename(filePath);
+            let targetDir;
+            if (folderId) {
+              targetDir = path.join(ws.rootPath, 'resources', 'folders', folderId);
+            } else {
+              targetDir = path.join(ws.rootPath, 'resources');
             }
-            await fs.copyFile(filePath, target);
-            filePath = target;
+
+            await fs.mkdir(targetDir, { recursive: true });
+            let target = path.join(targetDir, base);
+            if (filePath !== target) {
+              // Avoid overwriting existing files
+              if (fscb.existsSync(target)) {
+                const ext = path.extname(base);
+                const name = path.basename(base, ext);
+                let i = 1;
+                while (fscb.existsSync(path.join(targetDir, `${name}(${i})${ext}`))) {
+                  i++;
+                }
+                target = path.join(targetDir, `${name}(${i})${ext}`);
+              }
+              await fs.copyFile(filePath, target);
+              filePath = target;
+            }
+          } catch (e) {
+            console.warn('[workspace] copy file into workspace failed', e);
           }
-        } catch (e) {
-          console.warn('[workspace] copy file into workspace failed', e);
         }
       }
     } catch {
