@@ -132,7 +132,7 @@ export const RichTextEditor = ({ value, onChange, placeholder, className, toolba
     content: value,
     editable,
     onUpdate: ({ editor }) => {
-      onChange(editor.storage.markdown.getMarkdown());
+      onChange((editor.storage as any).markdown.getMarkdown());
     },
     onFocus: () => {
       if (!editable) return;
@@ -162,7 +162,7 @@ export const RichTextEditor = ({ value, onChange, placeholder, className, toolba
 
   // Update editor content if value changes externally
   useEffect(() => {
-    if (editor && value !== editor.storage.markdown.getMarkdown()) {
+    if (editor && value !== (editor.storage as any).markdown.getMarkdown()) {
       // Only update if the content is different to avoid cursor jumping
       // This is a simple check, for more complex cases might need better diffing
       if (editor.getText() === '' && value === '') return;
@@ -187,7 +187,7 @@ export const RichTextEditor = ({ value, onChange, placeholder, className, toolba
   // If we want true two-way binding without cursor jumps, we need to compare content.
 
   useEffect(() => {
-    if (editor && value && editor.storage.markdown.getMarkdown() !== value) {
+    if (editor && value && (editor.storage as any).markdown.getMarkdown() !== value) {
       // Check if the content is actually different (ignoring empty p tags if needed, etc)
       // For now, let's just set it if it's completely different (like loading a new doc)
       // or if the editor is empty.
