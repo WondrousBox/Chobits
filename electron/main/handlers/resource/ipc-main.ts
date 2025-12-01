@@ -420,7 +420,7 @@ export function initResourceHandlers(): void {
     }
   });
 
-  ipcMain.handle('updateResource', async (_event, payload: { id: string; patch: any }) => {
+  ipcMain.handle('resource:update', async (_event, payload: { id: string; patch: any }) => {
     const { id, patch } = payload;
     const updated = await ResourcesRepo.update(id, patch);
     if (updated) {
