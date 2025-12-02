@@ -1,42 +1,59 @@
 import { windowManager } from '@aim-packages/window-manager';
 import { BrowserWindow, ipcMain, net, screen } from 'electron';
 
-import { getHttpProxy } from '../../electron/main/handlers/proxy/proxy';
 import { createBestDownloader } from '../downloader/create';
+import type { ProxyAgent } from '../downloader/types';
 import { DownloadProgress, PluginResource, pluginResourceManager } from '.';
 import { PluginConfigStore } from './plugin-config-store';
 import { getPluginForCurrentPlatform, loadPluginDefinitions } from './plugin-loader';
 import { PluginResourceStore } from './plugin-resource-store';
 
-export function init(win: BrowserWindow): void {
+// 存储获取 proxy 的方法
+let getHttpProxyFn: (() => ProxyAgent | undefined) | null = null;
+// 存储获取插件配置文件路径的方法
+let getPluginDefinitionsPathFn: (() => string) | null = null;
+// 存储进度回调函数
+let onProgressFn: ((info: DownloadProgress) => void) | null = null;
+
+export interface InitOptions {
+  getHttpProxy?: () => ProxyAgent | undefined;
+  getPluginDefinitionsPath?: () => string;
+  onProgress?: (info: DownloadProgress) => void;
+}
+
+export function init(win: BrowserWindow, options?: InitOptions): void {
+  // 如果提供了 getHttpProxy 方法，则存储它
+  if (options?.getHttpProxy) {
+    getHttpProxyFn = options.getHttpProxy;
+  }
+  // 如果提供了 getPluginDefinitionsPath 方法，则存储它
+  if (options?.getPluginDefinitionsPath) {
+    getPluginDefinitionsPathFn = options.getPluginDefinitionsPath;
+  }
+  // 如果提供了 onProgress 回调，则存储它
+  if (options?.onProgress) {
+    onProgressFn = options.onProgress;
+  }
   pluginResourceManager.setDownloader(createBestDownloader(win));
 
   // 监听下载进度事件
   pluginResourceManager.on('progress', (info: DownloadProgress) => {
-    try {
-      // 发送到主窗口
-      win.webContents.send('plugin-resource:progress', info);
-    } catch {
-      // 窗口可能已关闭
-    }
-    // 同时发送到插件下载窗口
-    try {
-      const downloadWindow = windowManager.get('pluginDownload');
-      if (downloadWindow && !downloadWindow.isDestroyed()) {
-        downloadWindow.webContents.send('plugin-resource:progress', info);
+    // 通过回调函数通知外部，由外部处理进度通知
+    if (onProgressFn) {
+      try {
+        onProgressFn(info);
+      } catch (error) {
+        console.error('[pluginResource] progress callback error', error);
       }
-      const settingsWindow = windowManager.get('settings');
-      if (settingsWindow && !settingsWindow.isDestroyed()) {
-        settingsWindow.webContents.send('plugin-resource:progress', info);
-      }
-    } catch {
-      // 窗口可能不存在或已关闭
     }
   });
 
   // 列出支持的插件定义
   ipcMain.handle('plugin-resource:listSupported', async () => {
-    return loadPluginDefinitions();
+    if (!getPluginDefinitionsPathFn) {
+      throw new Error('Plugin definitions path not configured');
+    }
+    return loadPluginDefinitions(getPluginDefinitionsPathFn());
   });
 
   // 列出“已安装的引擎”资源
@@ -47,7 +64,10 @@ export function init(win: BrowserWindow): void {
 
   // 列出“支持的模型”，仅针对已安装的引擎
   ipcMain.handle('plugin-resource:listSupportedModels', async () => {
-    const definitions = await loadPluginDefinitions();
+    if (!getPluginDefinitionsPathFn) {
+      throw new Error('Plugin definitions path not configured');
+    }
+    const definitions = await loadPluginDefinitions(getPluginDefinitionsPathFn());
     const installedEngines = PluginResourceStore.list().filter((r) => r.type === 'engine' && r.status === 'installed' && pluginResourceManager.isInstalled(r));
     const installedPluginIds = new Set(installedEngines.map((e) => e.pluginId));
     return definitions.filter((d) => d.type === 'model' && installedPluginIds.has(d.pluginId));
@@ -73,7 +93,10 @@ export function init(win: BrowserWindow): void {
   ipcMain.handle('plugin-resource:install', async (event, payload: { pluginId: string; resourceId: string; deleteAfterInstall?: boolean }) => {
     console.log('plugin-resource:install', payload);
 
-    const definitions = await loadPluginDefinitions();
+    if (!getPluginDefinitionsPathFn) {
+      return { ok: false, error: 'Plugin definitions path not configured' };
+    }
+    const definitions = await loadPluginDefinitions(getPluginDefinitionsPathFn());
     const pluginDef = definitions.find((p) => p.id === payload.resourceId && p.pluginId === payload.pluginId);
     console.log(pluginDef);
 
@@ -135,7 +158,7 @@ export function init(win: BrowserWindow): void {
     console.log('payload', payload);
 
     // 加入下载队列，支持deleteAfterInstall参数（默认为false，不删除下载文件）
-    const proxyAgent = getHttpProxy();
+    const proxyAgent = getHttpProxyFn ? getHttpProxyFn() : undefined;
     pluginResourceManager.enqueue(resource, payload.deleteAfterInstall ?? false, { proxyAgent });
 
     // 自动打开插件下载窗口

@@ -1,13 +1,17 @@
+import { windowManager } from '@aim-packages/window-manager';
 import { BrowserWindow } from 'electron';
 
+import type { DownloadProgress } from '../../../packages/plugins';
 import { init as initPluginResourceHandlers } from '../../../packages/plugins/ipc-main';
 import { init as initAIHandlers } from '../ai/ipc-main';
 import { initDailyCare } from '../daily';
 import { initScreenshotHandlers } from '../screenshot';
+import { getResourcePath } from '../utils/resources-path';
 import { initFFmpegHandlers } from './ffmpeg/ipc-main';
 import { initFileHandlers } from './file/ipc-main';
 import { initFolderHandlers } from './folder/ipc-main';
 import { initProxyHandlers } from './proxy/ipc-main';
+import { getHttpProxy } from './proxy/proxy';
 import { initResourceHandlers } from './resource/ipc-main';
 import { initShortcutsHandlers } from './shortcuts';
 import { initSpriteHandlers } from './sprite';
@@ -42,7 +46,31 @@ export function initHandlers(win: BrowserWindow): void {
   initStatusHandlers(win);
   initAIHandlers(win);
   initShortcutsHandlers(win);
-  initPluginResourceHandlers(win);
+  initPluginResourceHandlers(win, {
+    getHttpProxy,
+    getPluginDefinitionsPath: () => getResourcePath('plugins'),
+    onProgress: (info: DownloadProgress) => {
+      try {
+        // 发送到主窗口
+        win.webContents.send('plugin-resource:progress', info);
+      } catch {
+        // 窗口可能已关闭
+      }
+      // 同时发送到插件下载窗口
+      try {
+        const downloadWindow = windowManager.get('pluginDownload');
+        if (downloadWindow && !downloadWindow.isDestroyed()) {
+          downloadWindow.webContents.send('plugin-resource:progress', info);
+        }
+        const settingsWindow = windowManager.get('settings');
+        if (settingsWindow && !settingsWindow.isDestroyed()) {
+          settingsWindow.webContents.send('plugin-resource:progress', info);
+        }
+      } catch {
+        // 窗口可能不存在或已关闭
+      }
+    }
+  });
   initProxyHandlers(win);
   initThemeHandlers();
   initScreenshotHandlers();

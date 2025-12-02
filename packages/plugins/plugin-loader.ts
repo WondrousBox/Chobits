@@ -2,18 +2,17 @@ import os from 'node:os';
 
 import { readLocalJSON } from '@aim-packages/file-utils';
 
-import { getResourcePath } from '../../electron/main/utils/resources-path';
 import { PluginDefinition } from './types';
 
 /**
  * 加载插件列表配置文件
- * 从 resources/plugins/plugins.json 加载
+ * 从指定的文件路径加载
  * 将嵌套的模型展开为独立的定义，保持向后兼容
+ * @param filePath 插件配置文件的完整路径
  */
-export async function loadPluginDefinitions(): Promise<PluginDefinition[]> {
+export async function loadPluginDefinitions(filePath: string): Promise<PluginDefinition[]> {
   try {
-    const file = getResourcePath('plugins');
-    const arr = await readLocalJSON<PluginDefinition[]>(file, []);
+    const arr = await readLocalJSON<PluginDefinition[]>(filePath, []);
     const result: PluginDefinition[] = [];
     for (const plugin of arr) {
       if (!plugin) continue;
