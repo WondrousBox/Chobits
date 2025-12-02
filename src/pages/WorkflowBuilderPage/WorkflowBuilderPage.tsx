@@ -546,14 +546,25 @@ const WorkflowCanvasInner: React.FC = () => {
       }
     };
 
+    const handleMissingProvider = (_e: any, payload: any): void => {
+      const pid: string = payload?.providerId || 'zhipu';
+      const fields: string[] = Array.isArray(payload?.fields) && payload.fields.length ? payload.fields : ['apiKey'];
+      // 使用统一的窗口管理器打开配置窗口，并通过 payload 传递需要配置的字段
+      window.YUA.window['window:open']('aiProviderConfig' as any, { providerId: pid, fields }, { sameDisplayAsSender: true }).catch(() => {
+        // ignore
+      });
+    };
+
     window.ipcRenderer.on('wf:run-status', handleRunStatus);
     window.ipcRenderer.on('wf:node-status', handleNodeStatus);
     window.ipcRenderer.on('wf:run-log', handleRunLog);
+    window.ipcRenderer.on('wf:ai-missing-provider', handleMissingProvider);
 
     return () => {
       window.ipcRenderer.off('wf:run-status', handleRunStatus);
       window.ipcRenderer.off('wf:node-status', handleNodeStatus);
       window.ipcRenderer.off('wf:run-log', handleRunLog);
+      window.ipcRenderer.off('wf:ai-missing-provider', handleMissingProvider);
     };
   }, [draft?.id, setNodes, setEdges]);
 

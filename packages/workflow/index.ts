@@ -8,6 +8,7 @@ import { createEngine } from './engine';
 import { DocToMarkdownNode } from './nodes/doc-to-md';
 import { EndNode } from './nodes/end';
 import { ExtractKeyframesNode } from './nodes/extract-keyframes';
+import { ImageUnderstandNode } from './nodes/image-understand';
 import { LoadResourceNode } from './nodes/load-resource';
 import { OCRNode } from './nodes/ocr';
 import { StartNode } from './nodes/start';
@@ -27,7 +28,7 @@ export function initWorkflowSystem(): void {
   registerPlugin(TesseractPlugin);
   registerPlugin(WhisperPlugin);
   // Register nodes
-  [StartNode, EndNode, LoadResourceNode, TranscodeNode, TranscodeAdvancedNode, OCRNode, TranscribeWhisperNode, DocToMarkdownNode, ExtractKeyframesNode].forEach(registerNode);
+  [StartNode, EndNode, LoadResourceNode, TranscodeNode, TranscodeAdvancedNode, OCRNode, TranscribeWhisperNode, DocToMarkdownNode, ExtractKeyframesNode, ImageUnderstandNode].forEach(registerNode);
 
   const engine = createEngine({
     resourcesDir: path.join(process.env.APP_ROOT || process.cwd(), 'resources'),
@@ -44,6 +45,12 @@ export function initWorkflowSystem(): void {
       }
     });
   };
+
+  // 将 AI 相关事件转发到渲染进程（如缺少服务商配置时弹出窗口）
+  // payload: { providerId: string; fields?: string[] }
+  engine.on('ai:missing-provider', (payload: any) => {
+    broadcast('wf:ai-missing-provider', payload);
+  });
 
   // 跟踪工作流执行进度
   const workflowProgress = new Map<string, { totalNodes: number; workflowName: string }>();
