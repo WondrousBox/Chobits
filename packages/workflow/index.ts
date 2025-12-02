@@ -75,34 +75,32 @@ export function initWorkflowSystem(): void {
   });
 
   // 资源更新请求：由资源更新节点发出，由主进程适配层落盘到数据库
-  // payload: { resourceId: string; patch: any; mode?: 'overwrite' | 'append'; appendSeparator?: string }
+  // payload: { resourceId: string; patch: any; callback?: (updatedResource: any) => void }
   engine.on('resource:update-request', async (payload: any) => {
     try {
       const resourceId: string = String(payload?.resourceId || '').trim();
       const patch: Record<string, any> = payload?.patch || {};
-      const mode: 'overwrite' | 'append' = (payload?.mode as any) === 'append' ? 'append' : 'overwrite';
-      const appendSeparator: string = typeof payload?.appendSeparator === 'string' ? payload.appendSeparator : '\n\n';
-      if (!resourceId || !patch || typeof patch !== 'object') return;
-
-      const current = await ResourcesRepo.getById(resourceId);
-      if (!current) return;
-
-      const finalPatch: Record<string, any> = { ...patch };
-
-      if (mode === 'append') {
-        if (typeof patch.contentText === 'string') {
-          const prev = (current as any).contentText || '';
-          finalPatch.contentText = prev ? `${prev}${appendSeparator}${patch.contentText}` : patch.contentText;
-        }
-        if (typeof patch.description === 'string') {
-          const prev = (current as any).description || '';
-          finalPatch.description = prev ? `${prev}${appendSeparator}${patch.description}` : patch.description;
-        }
+      const callback = payload?.callback;
+      if (!resourceId || !patch || typeof patch !== 'object') {
+        if (callback) callback(null);
+        return;
       }
 
-      await ResourcesRepo.update(resourceId, finalPatch as any);
+      const current = await ResourcesRepo.getById(resourceId);
+      if (!current) {
+        if (callback) callback(null);
+        return;
+      }
+
+      const updated = await ResourcesRepo.update(resourceId, patch as any);
+      if (callback) {
+        callback(updated || null);
+      }
     } catch (e) {
       console.warn('[workflow][resource:update-request] failed:', e);
+      if (payload?.callback) {
+        payload.callback(null);
+      }
     }
   });
 
