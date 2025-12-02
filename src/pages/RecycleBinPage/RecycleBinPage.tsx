@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { TbArrowBackUp, TbCheck, TbSquare, TbTrash, TbX } from 'react-icons/tb';
+import { TbArrowBackUp, TbCheck, TbFile, TbFileText, TbFolder, TbMessageCircle, TbSquare, TbTrash, TbX } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
@@ -7,11 +7,24 @@ import { Button } from '@/components/ui/button';
 
 type TrashItem = {
   id: string;
-  entityType: 'document' | 'resource' | 'conversation';
+  entityType: 'document' | 'resource' | 'conversation' | 'folder';
   entityId: string;
   title?: string | null;
   summary?: string | null;
   deletedAt?: number | null;
+};
+
+const TypeIcon = ({ type }: { type: TrashItem['entityType'] }): React.ReactElement => {
+  if (type === 'document') {
+    return <TbFileText size={20} className="shrink-0" />;
+  }
+  if (type === 'conversation') {
+    return <TbMessageCircle size={20} className="shrink-0" />;
+  }
+  if (type === 'folder') {
+    return <TbFolder size={20} className="shrink-0" />;
+  }
+  return <TbFile size={20} className="shrink-0" />;
 };
 
 const RecycleBinPage: React.FC = () => {
@@ -124,7 +137,8 @@ const RecycleBinPage: React.FC = () => {
               onClick={() => toggleSelect(item.id)}
               className={`flex items-start p-2 m-2 rounded-md gap-2 cursor-pointer ${selected.has(item.id) ? 'bg-primary/20' : 'bg-background'}`}
             >
-              {selected.has(item.id) ? <TbCheck className="text-primary" size={20} /> : <TbSquare size={20} />}
+              {selected.has(item.id) ? <TbCheck className="text-primary shrink-0" size={20} /> : <TbSquare className="shrink-0" size={20} />}
+              <TypeIcon type={item.entityType} />
               <div className="flex-1">
                 <div>{item.title || item.entityId}</div>
                 <div className="text-xs text-muted-foreground">{item.summary || ''}</div>
