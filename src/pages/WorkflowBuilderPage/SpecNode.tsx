@@ -1,5 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import { TbCopy } from 'react-icons/tb';
 import { Handle, NodeProps, Position, useReactFlow } from 'reactflow';
+import { toast } from 'sonner';
+
+import { Button } from '@/components/ui/button';
+import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 
 import type { NodeData } from './types';
 
@@ -24,7 +29,15 @@ const SpecNode: React.FC<NodeProps<NodeData>> = ({ data, selected }) => {
   const config = data.config;
   const rf = useReactFlow<NodeData>();
   const runtime = data.runtime;
+  const output = runtime?.output as any | undefined;
   const status = runtime?.status;
+
+  const toResSrc = (p?: string): string | undefined => {
+    if (!p) return undefined;
+    if (/^https?:\/\//i.test(p)) return p;
+    if (p.startsWith('res://')) return p;
+    return makeResSrc(p);
+  };
 
   // 根据配置动态获取输出端口（通过 IPC 调用后端的 getOutputs 方法）
   const [dynamicOutputs, setDynamicOutputs] = useState<Array<{ key: string; label?: string; type: string | string[] }>>(spec.outputs || []);
@@ -122,6 +135,89 @@ const SpecNode: React.FC<NodeProps<NodeData>> = ({ data, selected }) => {
             ))}
           </div>
         </div>
+        {/* Display node preview区域：仅对 Display 类节点做简单渲染 */}
+        {spec.category === 'Display' && output && (
+          <div className="mt-2 border-t border-border/60 pt-1 space-y-1">
+            {spec.id === 'ui/display-text' && typeof output.text === 'string' && (
+              <div className="relative group">
+                <div
+                  className="text-[11px] leading-snug max-h-48 max-w-[400px] overflow-auto bg-background/70 rounded px-2 py-1 whitespace-pre-wrap break-words pr-8"
+                  onWheel={(e) => {
+                    // 阻止滚动事件冒泡，避免触发外部画布的缩放
+                    e.stopPropagation();
+                  }}
+                  onMouseDown={(e) => {
+                    // 阻止鼠标按下事件冒泡，避免触发节点拖拽
+                    e.stopPropagation();
+                  }}
+                >
+                  {output.text}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="absolute top-1 right-1 w-6 h-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    try {
+                      await navigator.clipboard.writeText(output.text);
+                      toast.success('已复制到剪贴板');
+                    } catch (err) {
+                      toast.error('复制失败', { description: err instanceof Error ? err.message : String(err) });
+                    }
+                  }}
+                  title="复制文本"
+                >
+                  <TbCopy className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            )}
+            {spec.id === 'ui/display-image' && typeof output.image === 'string' && (
+              <button
+                type="button"
+                className="flex w-full items-center justify-center bg-background/60 rounded p-1 cursor-zoom-in hover:bg-background/80 transition-colors"
+                onClick={(e) => {
+                  // 点击查看大图，阻止事件冒泡，避免拖动画布
+                  e.stopPropagation();
+                  const src = toResSrc(output.image);
+                  if (!src) return;
+                  try {
+                    window.open(src, '_blank');
+                  } catch {
+                    // ignore
+                  }
+                }}
+                onMouseDown={(e) => {
+                  // 避免按下时触发节点拖拽
+                  e.stopPropagation();
+                }}
+              >
+                <img src={toResSrc(output.image)} alt={spec.label} className="max-h-24 max-w-full object-contain rounded" />
+              </button>
+            )}
+            {spec.id === 'ui/display-media' && typeof output.media === 'string' && (
+              <div className="flex flex-col gap-1">
+                <div className="text-[10px] text-muted-foreground truncate" title={output.media}>
+                  {output.media}
+                </div>
+                {/* 这里不直接嵌入播放器，避免过重；后续可扩展为点击打开资源预览窗口 */}
+              </div>
+            )}
+            {spec.id === 'ui/display-resource-card' && (
+              <div className="flex items-center gap-2 bg-background/70 rounded px-2 py-1">
+                {output.thumbnailPath && (
+                  <div className="w-8 h-8 rounded overflow-hidden bg-muted flex items-center justify-center flex-shrink-0">
+                    <img src={toResSrc(output.thumbnailPath)} alt={output.title || ''} className="w-full h-full object-cover" />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <div className="text-[11px] font-medium truncate">{output.title || '未命名资源'}</div>
+                  {output.description && <div className="text-[10px] text-muted-foreground truncate">{output.description}</div>}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
       {status === 'failed' && runtime?.error && (
         <div className="pointer-events-none absolute left-1/2 top-full mt-1 w-[240px] -translate-x-1/2">
