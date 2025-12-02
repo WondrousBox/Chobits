@@ -20,6 +20,7 @@ export const LoadResourceNode: NodeHandler = {
     description: '根据路径加载资源并输出资源元信息',
     inputs: [{ key: 'resource', label: '资源', type: 'any', required: true }],
     outputs: [
+      { key: 'resourceId', label: '资源 ID', type: 'string' },
       { key: 'path', label: '路径', type: 'file' },
       { key: 'name', label: '文件名', type: 'string' },
       { key: 'ext', label: '扩展名', type: 'string' },
@@ -30,11 +31,17 @@ export const LoadResourceNode: NodeHandler = {
   async run({ input }) {
     if (!input.resource) throw new Error('缺少资源');
 
+    let resourceId = '';
     let inputFilePath = '';
     if (typeof input.resource === 'string') {
       inputFilePath = String(input.resource || '');
     } else if (typeof input.resource === 'object' && 'filePath' in input.resource) {
       inputFilePath = String(input.resource.filePath || '');
+      if ('id' in input.resource && input.resource.id) {
+        resourceId = String((input.resource as any).id || '');
+      } else if ('resourceId' in input.resource && input.resource.resourceId) {
+        resourceId = String((input.resource as any).resourceId || '');
+      }
     }
     if (!inputFilePath) throw new Error('缺少资源路径');
     if (!fs.existsSync(inputFilePath)) throw new Error(`资源不存在: ${inputFilePath}`);
@@ -42,7 +49,7 @@ export const LoadResourceNode: NodeHandler = {
     const ext = path.extname(inputFilePath).toLowerCase();
     const kind = detectType(ext);
     const m = guessMime(ext) || 'application/octet-stream';
-    return { path: inputFilePath, name, ext, mime: m, kind };
+    return { resourceId, path: inputFilePath, name, ext, mime: m, kind };
   }
 };
 

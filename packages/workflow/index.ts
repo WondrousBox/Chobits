@@ -3,14 +3,20 @@ import path from 'node:path';
 
 import { app, BrowserWindow, ipcMain } from 'electron';
 
+import { ResourcesRepo } from '../../electron/main/db/repositories';
 import { sendSpriteBusyEnd, sendSpriteBusyProgress, sendSpriteBusyStart } from '../../electron/main/utils/sprite-busy';
 import { createEngine } from './engine';
+import { DisplayImageNode } from './nodes/display-image';
+import { DisplayMediaNode } from './nodes/display-media';
+import { DisplayResourceCardNode } from './nodes/display-resource-card';
+import { DisplayTextNode } from './nodes/display-text';
 import { DocToMarkdownNode } from './nodes/doc-to-md';
 import { EndNode } from './nodes/end';
 import { ExtractKeyframesNode } from './nodes/extract-keyframes';
 import { ImageUnderstandNode } from './nodes/image-understand';
 import { LoadResourceNode } from './nodes/load-resource';
 import { OCRNode } from './nodes/ocr';
+import { ResourceUpdateNode } from './nodes/resource-update';
 import { StartNode } from './nodes/start';
 import { TranscodeNode } from './nodes/transcode';
 import { TranscodeAdvancedNode } from './nodes/transcode-advanced';
@@ -28,7 +34,23 @@ export function initWorkflowSystem(): void {
   registerPlugin(TesseractPlugin);
   registerPlugin(WhisperPlugin);
   // Register nodes
-  [StartNode, EndNode, LoadResourceNode, TranscodeNode, TranscodeAdvancedNode, OCRNode, TranscribeWhisperNode, DocToMarkdownNode, ExtractKeyframesNode, ImageUnderstandNode].forEach(registerNode);
+  [
+    StartNode,
+    EndNode,
+    LoadResourceNode,
+    TranscodeNode,
+    TranscodeAdvancedNode,
+    OCRNode,
+    TranscribeWhisperNode,
+    DocToMarkdownNode,
+    ExtractKeyframesNode,
+    ImageUnderstandNode,
+    ResourceUpdateNode,
+    DisplayTextNode,
+    DisplayImageNode,
+    DisplayMediaNode,
+    DisplayResourceCardNode
+  ].forEach(registerNode);
 
   const engine = createEngine({
     resourcesDir: path.join(process.env.APP_ROOT || process.cwd(), 'resources'),
@@ -50,6 +72,38 @@ export function initWorkflowSystem(): void {
   // payload: { providerId: string; fields?: string[] }
   engine.on('ai:missing-provider', (payload: any) => {
     broadcast('wf:ai-missing-provider', payload);
+  });
+
+  // 资源更新请求：由资源更新节点发出，由主进程适配层落盘到数据库
+  // payload: { resourceId: string; patch: any; mode?: 'overwrite' | 'append'; appendSeparator?: string }
+  engine.on('resource:update-request', async (payload: any) => {
+    try {
+      const resourceId: string = String(payload?.resourceId || '').trim();
+      const patch: Record<string, any> = payload?.patch || {};
+      const mode: 'overwrite' | 'append' = (payload?.mode as any) === 'append' ? 'append' : 'overwrite';
+      const appendSeparator: string = typeof payload?.appendSeparator === 'string' ? payload.appendSeparator : '\n\n';
+      if (!resourceId || !patch || typeof patch !== 'object') return;
+
+      const current = await ResourcesRepo.getById(resourceId);
+      if (!current) return;
+
+      const finalPatch: Record<string, any> = { ...patch };
+
+      if (mode === 'append') {
+        if (typeof patch.contentText === 'string') {
+          const prev = (current as any).contentText || '';
+          finalPatch.contentText = prev ? `${prev}${appendSeparator}${patch.contentText}` : patch.contentText;
+        }
+        if (typeof patch.description === 'string') {
+          const prev = (current as any).description || '';
+          finalPatch.description = prev ? `${prev}${appendSeparator}${patch.description}` : patch.description;
+        }
+      }
+
+      await ResourcesRepo.update(resourceId, finalPatch as any);
+    } catch (e) {
+      console.warn('[workflow][resource:update-request] failed:', e);
+    }
   });
 
   // 跟踪工作流执行进度
