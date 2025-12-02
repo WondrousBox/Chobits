@@ -9,6 +9,7 @@ import { ThemeProvider } from '@/pages/SettingsPage/providers/ThemeProvider';
 
 import { AIAssistant } from './components/AIAssistant';
 import { TooltipProvider } from './components/ui/tooltip';
+import AiProviderConfigWindow from './pages/AiProviderConfigWindow/AiProviderConfigWindow';
 import AssistantMenuPage from './pages/AssistantMenuPage/AssistantMenuPage';
 import AssistantPage from './pages/AssistantPage/AssistantPage';
 import ChatPage from './pages/AssistantPage/ChatPage';
@@ -51,6 +52,7 @@ function App(): JSX.Element {
                 <Route path="/workflow-page" element={<WorkflowPage />} />
                 <Route path="/screenshot" element={<Screenshot />} />
                 <Route path="/workflow-history" element={<WorkflowHistoryPage />} />
+                <Route path="/ai-provider-config" element={<AiProviderConfigWindow />} />
                 <Route path="/tagger" element={<TaggingPage />} />
                 <Route path="/resource-preview" element={<ResourcePreviewWindow />} />
                 <Route path="/download" element={<DownloadFloating />} />

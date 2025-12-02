@@ -18,6 +18,7 @@ declare module '@aim-packages/window-manager' {
     tagger: void;
     workflowBuilder: void;
     workflowPage: void;
+    aiProviderConfig: void;
   }
 }
 
@@ -443,6 +444,37 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
       frame: false,
       transparent: false,
       resizable: true,
+      alwaysOnTop: false,
+      skipTaskbar: false,
+      backgroundColor: '#ffffff',
+      show: false,
+      autoHideMenuBar: true,
+      webPreferences: { nodeIntegration: true, contextIsolation: true }
+    },
+    platformOverlays: {
+      darwin: {
+        options: {
+          titleBarStyle: 'hiddenInset',
+          titleBarOverlay: true,
+          trafficLightPosition: { x: 20, y: HEADER_COMMANDS_HEIGHT / 2 - MACOS_TRAFFIC_LIGHTS_HEIGHT / 2 },
+          frame: true
+        }
+      }
+    }
+  },
+  aiProviderConfig: {
+    routeHash: 'ai-provider-config',
+    autoCenterOn: 'parent-display',
+    showOnReady: false,
+    openDevTools: true,
+    options: {
+      width: 420,
+      height: 320,
+      minWidth: 360,
+      minHeight: 260,
+      frame: false,
+      transparent: false,
+      resizable: false,
       alwaysOnTop: false,
       skipTaskbar: false,
       backgroundColor: '#ffffff',
