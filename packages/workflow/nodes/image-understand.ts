@@ -93,16 +93,6 @@ async function getDynamicConfig(providerId?: string, model?: string) {
     });
   }
 
-  config.push({
-    key: 'prompt',
-    label: '提示词',
-    type: 'string',
-    required: false,
-    default: '请详细描述这张图片的内容。',
-    description: '对图片理解的提示词，告诉AI你想要了解什么',
-    inputType: 'textarea'
-  });
-
   return config;
 }
 
@@ -133,7 +123,7 @@ export const ImageUnderstandNode: NodeHandler = {
     id: 'ai/image-understand',
     label: '图片理解',
     category: 'AI',
-    description: '使用AI服务商提供的视觉模型理解图片内容',
+    description: '使用AI视觉模型分析图片，提取文本内容、生成描述和标签',
     inputs: [{ key: 'image', label: '图片路径', type: ['file', 'string'], required: true }],
     config: [
       {
@@ -160,18 +150,13 @@ export const ImageUnderstandNode: NodeHandler = {
           { value: 'glm-4-1v-thinking', label: 'GLM-4.1V-Thinking - 10B级通用视觉模型新标杆' },
           { value: 'glm-4v-plus-0111', label: 'GLM-4V-Plus-0111 - 支持图片和视频理解' }
         ]
-      },
-      {
-        key: 'prompt',
-        label: '提示词',
-        type: 'string',
-        required: false,
-        default: '请详细描述这张图片的内容。',
-        description: '对图片理解的提示词，告诉AI你想要了解什么',
-        inputType: 'textarea'
       }
     ],
-    outputs: [{ key: 'text', label: '理解结果', type: 'string' }]
+    outputs: [
+      { key: 'contentText', label: '文本内容', type: 'string', description: '图片中的文本内容，如果不存在文本内容则返回空字符串' },
+      { key: 'description', label: '描述', type: 'string', description: '文本内容的总结或画面的分析总结' },
+      { key: 'tags', label: '标签', type: 'array', description: '标签数组，包含分类标签和其他相关标签' }
+    ]
   },
   async run({ input, config, emit }) {
     const imagePath = String(input.image || '');
@@ -180,7 +165,6 @@ export const ImageUnderstandNode: NodeHandler = {
 
     const providerId = String(config?.providerId || 'zhipu');
     const model = String(config?.model || 'glm-4v-flash');
-    const prompt = String(config?.prompt || '请详细描述这张图片的内容。');
 
     emit('node:progress', { progress: 10, message: '读取图片...' });
 
@@ -222,11 +206,38 @@ export const ImageUnderstandNode: NodeHandler = {
       throw new Error(`服务商 ${providerId} 未配置必要秘钥（例如 API Key），已弹出配置窗口，请完成配置后重试。`);
     }
 
-    emit('node:progress', { progress: 50, message: '发送请求...' });
+    emit('node:progress', { progress: 50, message: '分析图片内容...' });
+
+    // 构建详细的提示词，要求AI返回JSON格式
+    const prompt = `请仔细分析这张图片，并返回一个JSON格式的结果。要求如下：
+
+1. **文本提取**：如果图片中包含文本内容（如文档、截图、书籍、海报等），请完整提取所有可见的文本内容。如果图片中没有文本或文本很少，则返回空字符串。
+
+2. **内容分析**：分析图片的主要内容，可能是：
+   - 景物（自然风景、建筑、物品等）
+   - 人物（肖像、合影、生活场景等）
+   - 文本内容（文档、书籍、截图、海报等）
+   - 学习相关（教材、笔记、课程、教育等）
+   - 工作相关（办公场景、会议、文档、工具等）
+   - 其他类型
+
+3. **描述生成**：
+   - 如果图片中有大量文本内容，请总结文本的核心内容和主题
+   - 如果图片中没有文本或文本很少，请分析画面内容并生成一个简短的描述（50-100字）
+
+4. **标签生成**：
+   - 首先根据内容判断分类（如：学习、工作、生活、娱乐、自然、人物、文本等），分类作为第一个标签
+   - 然后根据文本内容或画面内容，提取3-8个相关的关键词作为标签（如：技术、设计、美食、旅行、教育、办公等）
+   - 标签应该是简洁的中文词汇或短语
+
+请严格按照以下JSON格式返回结果，不要包含任何其他文字说明：
+{
+  "contentText": "提取的文本内容，没有就不返回文本内容",
+  "description": "简短的描述总结",
+  "tags": ["分类标签", "标签1", "标签2", "标签3"]
+}`;
 
     // 构建消息，使用OpenAI兼容的格式
-    // OpenAI兼容的视觉模型支持的消息格式：
-    // messages: [{ role: 'user', content: [{ type: 'text', text: '...' }, { type: 'image_url', image_url: { url: 'data:image/...;base64,...' } }] }]
     const messages = [
       {
         role: 'user' as const,
@@ -259,7 +270,7 @@ export const ImageUnderstandNode: NodeHandler = {
       undefined // 不使用AbortSignal
     );
 
-    emit('node:progress', { progress: 100, message: '完成' });
+    emit('node:progress', { progress: 90, message: '解析结果...' });
 
     const resultText = response.message?.content || '';
 
@@ -267,6 +278,52 @@ export const ImageUnderstandNode: NodeHandler = {
       throw new Error('AI服务返回空结果');
     }
 
-    return { text: resultText };
+    // 尝试从返回的文本中提取JSON
+    let jsonResult: { contentText: string; description: string; tags: string[] };
+
+    try {
+      // 先尝试直接解析JSON
+      jsonResult = JSON.parse(resultText);
+    } catch {
+      try {
+        // 如果直接解析失败，尝试从markdown代码块中提取
+        const codeBlockMatch = resultText.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+        if (codeBlockMatch) {
+          jsonResult = JSON.parse(codeBlockMatch[1]);
+        } else {
+          // 尝试从文本中提取JSON对象
+          const jsonMatch = resultText.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            jsonResult = JSON.parse(jsonMatch[0]);
+          } else {
+            throw new Error('无法提取JSON');
+          }
+        }
+      } catch {
+        // 如果完全无法提取JSON，使用默认值
+        jsonResult = {
+          contentText: '',
+          description: resultText.trim(),
+          tags: []
+        };
+      }
+    }
+
+    // 验证和规范化结果
+    // 兼容处理：如果AI返回的是旧的 "content" 字段，也支持
+    const contentText = typeof jsonResult.contentText === 'string' ? jsonResult.contentText.trim() : typeof (jsonResult as any).content === 'string' ? (jsonResult as any).content.trim() : '';
+    const description = typeof jsonResult.description === 'string' ? jsonResult.description.trim() : '';
+    const tags = Array.isArray(jsonResult.tags) ? jsonResult.tags.filter((tag) => typeof tag === 'string' && tag.trim()) : [];
+
+    // 如果description为空，使用原始文本作为fallback
+    const finalDescription = description || resultText.trim().substring(0, 200);
+
+    emit('node:progress', { progress: 100, message: '完成' });
+
+    return {
+      contentText,
+      description: finalDescription,
+      tags
+    };
   }
 };
