@@ -377,13 +377,32 @@ const WorkflowCanvasInner: React.FC = () => {
     }
   };
 
-  // 获取开始节点的输入模式
+  // 获取开始节点的输入模式和输入值
   const startNodeInputMode = useMemo(() => {
     if (!draft) return 'resource';
     const startNode = draft.nodes.find((n) => n.id === START_NODE_ID);
     if (!startNode) return 'resource';
     return (startNode.config?.inputMode as string) || 'resource';
   }, [draft]);
+
+  // 获取开始节点的输入值（从 ReactFlow nodes 状态获取，更实时）
+  const startNodeInputValue = useMemo(() => {
+    const startNode = (nodes as any[]).find((n) => n.id === START_NODE_ID);
+    if (!startNode) return null;
+    const inputDefaults = (startNode.data as NodeData)?.inputDefaults || {};
+    const mode = startNodeInputMode;
+
+    if (mode === 'text' && inputDefaults.text && String(inputDefaults.text).trim()) {
+      return { type: 'text', value: String(inputDefaults.text).trim() };
+    }
+    if (mode === 'file' && inputDefaults.file && String(inputDefaults.file).trim()) {
+      return { type: 'file', value: String(inputDefaults.file).trim() };
+    }
+    if (mode === 'url' && inputDefaults.url && String(inputDefaults.url).trim()) {
+      return { type: 'url', value: String(inputDefaults.url).trim() };
+    }
+    return null;
+  }, [nodes, startNodeInputMode]);
 
   const runWorkflowWithResource = useCallback(
     async (resource: ResourceItem): Promise<void> => {
@@ -538,6 +557,23 @@ const WorkflowCanvasInner: React.FC = () => {
   );
 
   const handleRunClick = useCallback(async () => {
+    // 如果节点上已经有输入值，直接使用，不弹窗
+    if (startNodeInputValue) {
+      if (startNodeInputValue.type === 'text') {
+        await runWorkflowWithText(startNodeInputValue.value);
+        return;
+      }
+      if (startNodeInputValue.type === 'file') {
+        await runWorkflowWithFile(startNodeInputValue.value);
+        return;
+      }
+      if (startNodeInputValue.type === 'url') {
+        await runWorkflowWithUrl(startNodeInputValue.value);
+        return;
+      }
+    }
+
+    // 如果没有输入值，才弹窗让用户输入
     if (startNodeInputMode === 'text') {
       setShowTextInputDialog(true);
     } else if (startNodeInputMode === 'url') {
@@ -553,7 +589,7 @@ const WorkflowCanvasInner: React.FC = () => {
       }
     }
     // 如果是 resource 模式，ResourceRunPopover 会自动处理
-  }, [startNodeInputMode, runWorkflowWithFile]);
+  }, [startNodeInputMode, startNodeInputValue, runWorkflowWithText, runWorkflowWithFile, runWorkflowWithUrl]);
 
   const handleClearLogs = useCallback(() => {
     setRunLogs([]);
