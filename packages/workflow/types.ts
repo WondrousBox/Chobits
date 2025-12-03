@@ -40,6 +40,8 @@ export type NodeSpec = {
   config?: PortSchema[]; // config items distinct from dynamic inputs
   // Config groups definition: maps group name to label and default expanded state
   configGroups?: Record<string, { label: string; defaultExpanded?: boolean }>;
+  // Whether this node supports dynamic configuration (has getConfig method)
+  hasDynamicConfig?: boolean;
 };
 
 export type NodeConfig = Record<string, any>;
@@ -127,6 +129,9 @@ export type NodeHandler = {
   spec: NodeSpec;
   // validate config at registration time if needed
   validateConfig?: (config?: NodeConfig) => void | never;
+  // compute dynamic config schema based on current config (optional)
+  // if not provided, uses spec.config
+  getConfig?: (config?: NodeConfig) => Promise<PortSchema[]> | PortSchema[];
   // compute dynamic outputs based on config (optional)
   // if not provided, uses spec.outputs
   getOutputs?: (config?: NodeConfig) => PortSchema[];

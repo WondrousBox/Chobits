@@ -18,7 +18,7 @@ export const ResourceUpdateNode: NodeHandler = {
         label: '资源 ID',
         type: 'string',
         required: true,
-        description: '要更新的资源主键 ID（resources.id）'
+        description: '资源主键 ID'
       },
       // {
       //   key: 'type',
@@ -33,6 +33,13 @@ export const ResourceUpdateNode: NodeHandler = {
         type: 'string',
         required: false,
         description: '资源标题'
+      },
+      {
+        key: 'contentText',
+        label: '正文内容',
+        type: 'string',
+        required: false,
+        description: '提取的纯文本内容'
       },
       {
         key: 'description',
@@ -118,13 +125,6 @@ export const ResourceUpdateNode: NodeHandler = {
       //   required: false,
       //   description: '本地缓存路径'
       // },
-      {
-        key: 'contentText',
-        label: '正文内容',
-        type: 'string',
-        required: false,
-        description: '提取的纯文本内容'
-      },
       // {
       //   key: 'thumbnailPath',
       //   label: '缩略图路径',
@@ -145,14 +145,14 @@ export const ResourceUpdateNode: NodeHandler = {
         type: 'string',
         required: false,
         description: '标签（JSON字符串数组）'
-      },
-      {
-        key: 'categories',
-        label: '分类',
-        type: 'string',
-        required: false,
-        description: '分类（JSON字符串数组）'
       }
+      // {
+      //   key: 'categories',
+      //   label: '分类',
+      //   type: 'string',
+      //   required: false,
+      //   description: '分类（JSON字符串数组）'
+      // }
       // {
       //   key: 'visibility',
       //   label: '可见性',
@@ -252,8 +252,8 @@ export const ResourceUpdateNode: NodeHandler = {
       'contentText',
       // 'thumbnailPath',
       // 'previewUrl',
-      'tags',
-      'categories'
+      'tags'
+      // 'categories'
       // 'visibility',
       // 'nsfw'
       // 'favorite',

@@ -1,58 +1,49 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { NodeHandler } from '../types';
+import { NodeConfig, NodeHandler, PortSchema } from '../types';
 
 // 动态获取可用的服务商列表
-async function getProviderOptions() {
+async function getProviderOptions(): Promise<{ value: string; label: string }[]> {
   try {
     // 动态导入AI registry，避免循环依赖
     const { listProviders } = await import('../../../electron/main/ai/registry');
     const providers = listProviders();
-    return providers
-      .filter((p) => {
-        // 只返回支持视觉的服务商（目前先支持智谱）
-        return p.id === 'zhipu';
-      })
-      .map((p) => ({ value: p.id, label: p.label }));
+    return providers.map((p) => ({ value: p.id, label: p.label }));
   } catch {
     // 如果导入失败，返回默认选项
-    return [{ value: 'zhipu', label: '智谱 (GLM)' }];
+    return [];
   }
 }
 
 // 动态获取指定服务商的视觉模型列表
-async function getVisionModels(providerId: string) {
+async function getVisionModels(providerId: string): Promise<{ value: string; label: string }[]> {
   try {
-    if (providerId === 'zhipu') {
-      // 读取智谱的模型配置
-      const modelsPath = path.join(process.env.APP_ROOT || process.cwd(), 'resources', 'providers', 'zhipu.models.json');
-      if (fs.existsSync(modelsPath)) {
-        const modelsData = JSON.parse(fs.readFileSync(modelsPath, 'utf8'));
-        const visionModels = modelsData.models
-          ?.filter((m: any) => m.type === 'vision' && m.capabilities?.vision)
-          .map((m: any) => ({
-            value: m.id,
-            label: m.label + (m.description ? ` - ${m.description}` : '') + (m.free ? ' (免费)' : '')
-          }));
-        return visionModels || [];
-      }
+    // 根据服务商 ID 动态构建模型配置文件路径
+    const modelsPath = path.join(process.env.APP_ROOT || process.cwd(), 'resources', 'providers', `${providerId}.models.json`);
+
+    if (fs.existsSync(modelsPath)) {
+      const modelsData = JSON.parse(fs.readFileSync(modelsPath, 'utf8'));
+      const visionModels = modelsData.models
+        ?.filter((m: any) => m.type === 'vision' && m.capabilities?.vision)
+        .map((m: any) => ({
+          value: m.id,
+          label: m.label + (m.description ? ` - ${m.description}` : '') + (m.free ? ' (免费)' : '')
+        }));
+      return visionModels || [];
     }
-    // 默认返回智谱的视觉模型
-    return [
-      { value: 'glm-4v-flash', label: 'GLM-4V-Flash - 支持图片理解，完全免费 (免费)' },
-      { value: 'glm-4-5v', label: 'GLM-4.5V - 100B级通用视觉模型新标杆' },
-      { value: 'glm-4-1v-thinking', label: 'GLM-4.1V-Thinking - 10B级通用视觉模型新标杆' },
-      { value: 'glm-4v-plus-0111', label: 'GLM-4V-Plus-0111 - 支持图片和视频理解' }
-    ];
-  } catch {
-    // 如果读取失败，返回默认选项
-    return [{ value: 'glm-4v-flash', label: 'GLM-4V-Flash (免费)' }];
+
+    // 如果配置文件不存在，返回空数组
+    return [];
+  } catch (error) {
+    // 如果读取失败，返回空数组
+    console.warn(`[image-understand] Failed to load vision models for provider ${providerId}:`, error);
+    return [];
   }
 }
 
 // 根据服务商和模型获取动态配置选项
-async function getDynamicConfig(providerId?: string, model?: string) {
+async function getDynamicConfig(providerId?: string): Promise<PortSchema[]> {
   const config: any[] = [
     {
       key: 'providerId',
@@ -69,24 +60,38 @@ async function getDynamicConfig(providerId?: string, model?: string) {
   // 如果已选择服务商，添加模型选择
   if (providerId) {
     const models = await getVisionModels(providerId);
-    config.push({
-      key: 'model',
-      label: '模型',
-      type: 'string',
-      required: true,
-      default: models[0]?.value || 'glm-4v-flash',
-      description: '选择视觉理解模型',
-      inputType: 'select',
-      options: models
-    });
+    if (models.length > 0) {
+      config.push({
+        key: 'model',
+        label: '模型',
+        type: 'string',
+        required: true,
+        default: models[0]?.value || '',
+        description: '选择视觉理解模型',
+        inputType: 'select',
+        options: models
+      });
+    } else {
+      // 如果该服务商没有视觉模型，显示提示
+      config.push({
+        key: 'model',
+        label: '模型',
+        type: 'string',
+        required: false,
+        default: '',
+        description: `服务商 ${providerId} 暂不支持视觉模型`,
+        inputType: 'select',
+        options: []
+      });
+    }
   } else {
     // 如果没有选择服务商，添加占位模型配置
     config.push({
       key: 'model',
       label: '模型',
       type: 'string',
-      required: true,
-      default: 'glm-4v-flash',
+      required: false,
+      default: '',
       description: '请先选择服务商',
       inputType: 'select',
       options: []
@@ -125,6 +130,7 @@ export const ImageUnderstandNode: NodeHandler = {
     category: 'AI',
     description: '使用AI视觉模型分析图片，提取文本内容、生成描述和标签',
     inputs: [{ key: 'image', label: '图片路径', type: ['file', 'string'], required: true }],
+    // 静态配置作为默认值，实际配置通过 getConfig 动态获取
     config: [
       {
         key: 'providerId',
@@ -134,7 +140,7 @@ export const ImageUnderstandNode: NodeHandler = {
         default: 'zhipu',
         description: '选择AI服务商',
         inputType: 'select',
-        options: [{ value: 'zhipu', label: '智谱 (GLM)' }]
+        options: [{ value: 'zhipu', label: '智谱 (GLM)' }] // 默认值，实际通过 getConfig 动态获取
       },
       {
         key: 'model',
@@ -157,6 +163,11 @@ export const ImageUnderstandNode: NodeHandler = {
       { key: 'description', label: '描述', type: 'string', description: '文本内容的总结或画面的分析总结' },
       { key: 'tags', label: '标签', type: 'array', description: '标签数组，包含分类标签和其他相关标签' }
     ]
+  },
+  // 动态获取配置，根据当前配置值返回相应的选项
+  async getConfig(config?: NodeConfig): Promise<PortSchema[]> {
+    const providerId = config?.providerId as string | undefined;
+    return getDynamicConfig(providerId);
   },
   async run({ input, config, emit }) {
     const imagePath = String(input.image || '');

@@ -233,7 +233,23 @@ export function initWorkflowSystem(): void {
   });
 
   // IPC endpoints
-  ipcMain.handle('wf:listNodes', () => listNodes().map((n) => n.spec));
+  ipcMain.handle('wf:listNodes', () =>
+    listNodes().map((n) => {
+      const spec = { ...n.spec };
+      // 如果节点有 getConfig 方法，标记为支持动态配置
+      if (n.getConfig) {
+        spec.hasDynamicConfig = true;
+      }
+      return spec;
+    })
+  );
+  ipcMain.handle('wf:getNodeConfig', async (_e, payload: { nodeId: string; config?: NodeConfig }) => {
+    const handler = getNode(payload.nodeId);
+    if (!handler) return { ok: false, error: 'Node not found' };
+    // 如果节点有 getConfig 方法，使用它；否则使用 spec.config
+    const config = handler.getConfig ? await Promise.resolve(handler.getConfig(payload.config)) : handler.spec.config;
+    return { ok: true, config };
+  });
   ipcMain.handle('wf:getNodeOutputs', async (_e, payload: { nodeId: string; config?: NodeConfig }) => {
     const handler = getNode(payload.nodeId);
     if (!handler) return { ok: false, error: 'Node not found' };
