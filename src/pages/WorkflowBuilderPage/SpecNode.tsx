@@ -4,6 +4,8 @@ import { Handle, NodeProps, Position, useReactFlow } from 'reactflow';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 
 import type { NodeData } from './types';
@@ -24,7 +26,7 @@ function typesCompatible(source: string | string[] | undefined, target: string |
   return s.some((x) => t.includes(x));
 }
 
-const SpecNode: React.FC<NodeProps<NodeData>> = ({ data, selected }) => {
+const SpecNode: React.FC<NodeProps<NodeData>> = ({ id, data, selected }) => {
   const spec = data.spec;
   const config = data.config;
   const rf = useReactFlow<NodeData>();
@@ -39,10 +41,27 @@ const SpecNode: React.FC<NodeProps<NodeData>> = ({ data, selected }) => {
     return makeResSrc(p);
   };
 
-  // 根据配置动态获取输出端口（通过 IPC 调用后端的 getOutputs 方法）
+  // 根据配置动态获取输入/输出端口（通过 IPC 调用后端的 getInputs/getOutputs 方法）
+  const [dynamicInputs, setDynamicInputs] = useState<Array<{ key: string; label?: string; type: string | string[]; description?: string; inputType?: string; showInNode?: boolean }>>(
+    spec.inputs || []
+  );
   const [dynamicOutputs, setDynamicOutputs] = useState<Array<{ key: string; label?: string; type: string | string[] }>>(spec.outputs || []);
 
   useEffect(() => {
+    // 通过 IPC 调用后端获取动态输入
+    invoke('wf:getNodeInputs', { nodeId: spec.id, config })
+      .then((result: any) => {
+        if (result?.ok && Array.isArray(result.inputs)) {
+          setDynamicInputs(result.inputs);
+        } else {
+          // 如果获取失败，使用默认输入
+          setDynamicInputs(spec.inputs || []);
+        }
+      })
+      .catch(() => {
+        // 如果调用失败，使用默认输入
+        setDynamicInputs(spec.inputs || []);
+      });
     // 通过 IPC 调用后端获取动态输出
     invoke('wf:getNodeOutputs', { nodeId: spec.id, config })
       .then((result: any) => {
@@ -57,7 +76,29 @@ const SpecNode: React.FC<NodeProps<NodeData>> = ({ data, selected }) => {
         // 如果调用失败，使用默认输出
         setDynamicOutputs(spec.outputs || []);
       });
-  }, [spec.id, spec.outputs, config]);
+  }, [spec.id, spec.inputs, spec.outputs, config]);
+
+  // 内联编辑：更新当前节点的 inputDefaults
+  const updateInlineInput = (key: string, value: string) => {
+    rf.setNodes((nodes) =>
+      nodes.map((n) =>
+        n.id === id
+          ? {
+            ...n,
+            data: {
+              ...(n.data as NodeData),
+              inputDefaults: {
+                ...((n.data as NodeData).inputDefaults || {}),
+                [key]: value
+              }
+            }
+          }
+          : n
+      )
+    );
+  };
+
+  const inlineInputs = dynamicInputs.filter((inp) => inp.showInNode);
 
   const baseClass = 'relative rounded-md border border-solid min-w-[180px] overflow-hidden transition-all duration-200 shadow-sm';
   let runtimeClass = 'border-ring';
@@ -98,7 +139,7 @@ const SpecNode: React.FC<NodeProps<NodeData>> = ({ data, selected }) => {
         {/* Ports area */}
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
-            {(spec.inputs || []).map((inp) => (
+            {dynamicInputs.map((inp) => (
               <div key={inp.key} className="relative">
                 <Handle
                   id={inp.key}
@@ -135,6 +176,46 @@ const SpecNode: React.FC<NodeProps<NodeData>> = ({ data, selected }) => {
             ))}
           </div>
         </div>
+        {/* 内联输入编辑区域：渲染 showInNode 为 true 的输入端口 */}
+        {inlineInputs.length > 0 && (
+          <div className="mt-2 border-t border-border/60 pt-1 space-y-1">
+            {inlineInputs.map((field) => {
+              const val = (data.inputDefaults || {})[field.key] ?? '';
+              const label = field.label || field.key;
+              const description = field.description;
+              const inputType = field.inputType || 'text';
+
+              const commonProps = {
+                value: String(val),
+                onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+                  e.stopPropagation();
+                  updateInlineInput(field.key, e.target.value);
+                },
+                onMouseDown: (e: React.MouseEvent) => {
+                  // 避免拖拽节点
+                  e.stopPropagation();
+                },
+                onWheel: (e: React.WheelEvent) => {
+                  // 避免滚动画布
+                  e.stopPropagation();
+                }
+              };
+
+              return (
+                <div key={field.key} className="space-y-0.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-medium">{label}</span>
+                  </div>
+                  {inputType === 'textarea' ? (
+                    <Textarea {...commonProps} rows={3} placeholder={description || ''} className="min-h-[60px] text-[11px] leading-snug resize-none" />
+                  ) : (
+                    <Input {...commonProps} placeholder={description || ''} className="h-7 text-[11px]" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
         {/* Display node preview区域：仅对 Display 类节点做简单渲染 */}
         {spec.category === 'Display' && output && (
           <div className="mt-2 border-t border-border/60 pt-1 space-y-1">

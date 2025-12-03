@@ -24,6 +24,9 @@ export type PortSchema = {
   // Group for organizing config fields (e.g., 'basic', 'advanced')
   // Fields without group are shown by default, fields with group can be collapsed
   group?: string;
+  // Whether this config field should be rendered inline on node card
+  // e.g. start node 的文本输入展示在节点渲染器上
+  showInNode?: boolean;
 };
 
 export type NodeSpec = {
@@ -42,6 +45,10 @@ export type NodeSpec = {
   configGroups?: Record<string, { label: string; defaultExpanded?: boolean }>;
   // Whether this node supports dynamic configuration (has getConfig method)
   hasDynamicConfig?: boolean;
+  // Whether this node supports dynamic inputs (has getInputs method)
+  hasDynamicInputs?: boolean;
+  // Whether this node supports dynamic outputs (has getOutputs method)
+  hasDynamicOutputs?: boolean;
 };
 
 export type NodeConfig = Record<string, any>;
@@ -132,6 +139,9 @@ export type NodeHandler = {
   // compute dynamic config schema based on current config (optional)
   // if not provided, uses spec.config
   getConfig?: (config?: NodeConfig) => Promise<PortSchema[]> | PortSchema[];
+  // compute dynamic inputs based on config (optional)
+  // if not provided, uses spec.inputs
+  getInputs?: (config?: NodeConfig) => PortSchema[];
   // compute dynamic outputs based on config (optional)
   // if not provided, uses spec.outputs
   getOutputs?: (config?: NodeConfig) => PortSchema[];

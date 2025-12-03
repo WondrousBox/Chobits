@@ -246,9 +246,15 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
   ipcMain.handle('wf:listNodes', () =>
     listNodes().map((n) => {
       const spec = { ...n.spec };
-      // 如果节点有 getConfig 方法，标记为支持动态配置
+      // 如果节点有 getConfig/getInputs/getOutputs 方法，标记为支持动态配置/动态端口
       if (n.getConfig) {
         spec.hasDynamicConfig = true;
+      }
+      if (n.getInputs) {
+        spec.hasDynamicInputs = true;
+      }
+      if (n.getOutputs) {
+        spec.hasDynamicOutputs = true;
       }
       return spec;
     })
@@ -259,6 +265,13 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
     // 如果节点有 getConfig 方法，使用它；否则使用 spec.config
     const config = handler.getConfig ? await Promise.resolve(handler.getConfig(payload.config)) : handler.spec.config;
     return { ok: true, config };
+  });
+  ipcMain.handle('wf:getNodeInputs', async (_e, payload: { nodeId: string; config?: NodeConfig }) => {
+    const handler = getNode(payload.nodeId);
+    if (!handler) return { ok: false, error: 'Node not found' };
+    // 如果节点有 getInputs 方法，使用它；否则使用 spec.inputs
+    const inputs = handler.getInputs ? handler.getInputs(payload.config) : handler.spec.inputs;
+    return { ok: true, inputs };
   });
   ipcMain.handle('wf:getNodeOutputs', async (_e, payload: { nodeId: string; config?: NodeConfig }) => {
     const handler = getNode(payload.nodeId);
