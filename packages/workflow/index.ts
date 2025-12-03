@@ -6,6 +6,7 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import { ResourcesRepo } from '../../electron/main/db/repositories';
 import { sendSpriteBusyEnd, sendSpriteBusyProgress, sendSpriteBusyStart } from '../../electron/main/utils/sprite-busy';
 import { createEngine } from './engine';
+import { AiChatNode } from './nodes/ai-chat';
 import { DisplayImageNode } from './nodes/display-image';
 import { DisplayMediaNode } from './nodes/display-media';
 import { DisplayResourceCardNode } from './nodes/display-resource-card';
@@ -45,6 +46,7 @@ export function initWorkflowSystem(): void {
     DocToMarkdownNode,
     ExtractKeyframesNode,
     ImageUnderstandNode,
+    AiChatNode,
     ResourceUpdateNode,
     DisplayTextNode,
     DisplayImageNode,
