@@ -43,6 +43,7 @@ export type NodeSpec = {
     group?: string;
   }[];
   configGroups?: Record<string, { label: string; defaultExpanded?: boolean }>;
+  hasDynamicConfig?: boolean;
 };
 
 export type ValidateResult = {

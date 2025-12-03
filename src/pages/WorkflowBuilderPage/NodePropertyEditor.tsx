@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/rules-of-hooks */
 import { AnimatePresence, motion } from 'framer-motion';
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { TbChevronDown, TbChevronRight } from 'react-icons/tb';
 
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,10 @@ import { Switch } from '@/components/ui/switch';
 import type { NodeSpec } from '@/types/workflow';
 
 import type { NodeData } from './types';
+
+const invoke = window.ipcRenderer.invoke;
+
+type ConfigSchema = NonNullable<NodeSpec['config']>[number];
 
 interface NodePropertyEditorProps {
   node: any;
@@ -25,6 +29,116 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
   const data = node.data as NodeData;
   const spec: NodeSpec = data.spec;
 
+  // 动态配置状态
+  const [dynamicConfig, setDynamicConfig] = useState<ConfigSchema[] | null>(null);
+  const [loadingConfig, setLoadingConfig] = useState(false);
+  const [lastConfigStr, setLastConfigStr] = useState<string>('');
+
+  // 从 spec 中获取是否支持动态配置的标记
+  const hasDynamicConfig = spec.hasDynamicConfig === true;
+
+  // 获取动态配置
+  const fetchDynamicConfig = React.useCallback(
+    async (currentConfig?: Record<string, any>) => {
+      // 如果节点不支持动态配置，直接返回
+      if (!hasDynamicConfig) {
+        return;
+      }
+
+      try {
+        setLoadingConfig(true);
+        const result = await invoke('wf:getNodeConfig', {
+          nodeId: spec.id,
+          config: currentConfig || data.config || {}
+        });
+        if (result?.ok && Array.isArray(result.config)) {
+          const newConfig = result.config as ConfigSchema[];
+          setDynamicConfig(newConfig);
+
+          // 验证并修正配置值：如果某个 select 字段的值不在新选项中，重置为默认值
+          const currentConfigObj = currentConfig || data.config || {};
+          const needsUpdate: Record<string, any> = {};
+          let hasInvalidValue = false;
+
+          newConfig.forEach((field) => {
+            if (field.inputType === 'select' && field.options && currentConfigObj[field.key] !== undefined) {
+              // 扁平化选项列表（处理分组选项）
+              const flatOptions: Array<{ value: string; label: string }> = [];
+              field.options.forEach((opt) => {
+                if ('value' in opt && 'label' in opt) {
+                  flatOptions.push(opt as { value: string; label: string });
+                } else if ('group' in opt && 'options' in opt) {
+                  flatOptions.push(...(opt.options || []));
+                }
+              });
+
+              // 检查当前值是否在新的选项列表中
+              const currentValue = currentConfigObj[field.key];
+              const isValid = flatOptions.some((opt) => opt.value === currentValue);
+              if (!isValid && currentValue !== undefined && currentValue !== null && currentValue !== '') {
+                // 如果值无效，使用默认值或第一个选项的值
+                const newValue = field.default ?? flatOptions[0]?.value ?? '';
+                if (newValue !== currentValue) {
+                  needsUpdate[field.key] = newValue;
+                  hasInvalidValue = true;
+                }
+              }
+            }
+          });
+
+          // 如果有无效值需要修正，更新配置
+          if (hasInvalidValue) {
+            onChange((prev) => ({
+              config: { ...prev.config, ...needsUpdate }
+            }));
+          }
+        } else {
+          // 如果获取失败，使用静态配置
+          setDynamicConfig(null);
+        }
+      } catch (error) {
+        console.warn('[NodePropertyEditor] Failed to fetch dynamic config:', error);
+        setDynamicConfig(null);
+      } finally {
+        setLoadingConfig(false);
+      }
+    },
+    [spec.id, hasDynamicConfig, data.config, onChange]
+  );
+
+  // 初始加载时获取动态配置（仅当节点支持动态配置时）
+  useEffect(() => {
+    if (hasDynamicConfig) {
+      fetchDynamicConfig(data.config);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spec.id, hasDynamicConfig]); // 只在节点类型变化或动态配置标记变化时重新获取
+
+  // 当配置值变化时，重新获取动态配置（用于联动效果）
+  // 使用配置对象的序列化来判断是否变化，不硬编码字段名
+  useEffect(() => {
+    // 如果节点不支持动态配置，不需要重新获取
+    if (!hasDynamicConfig) {
+      return;
+    }
+
+    const currentConfigStr = JSON.stringify(data.config || {});
+    if (currentConfigStr !== lastConfigStr) {
+      setLastConfigStr(currentConfigStr);
+      // 延迟一下，确保配置已经更新
+      const timer = setTimeout(() => {
+        fetchDynamicConfig(data.config);
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.config, hasDynamicConfig]);
+
+  // 使用动态配置或静态配置
+  const effectiveConfig = useMemo(() => {
+    return dynamicConfig || spec.config || [];
+  }, [dynamicConfig, spec.config]);
+
   // 根据节点定义初始化展开状态
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
     const initial = new Set<string>();
@@ -39,7 +153,7 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
   });
 
   // 渲染配置字段
-  const renderConfigField = (c: NonNullable<NodeSpec['config']>[number]): React.ReactNode => {
+  const renderConfigField = (c: ConfigSchema): React.ReactNode => {
     const label = c.label || c.key;
     const rawValue = (data.config || {})[c.key] ?? c.default;
 
@@ -135,7 +249,16 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
         return (
           <div key={c.key} className="space-y-1">
             <label className="block text-xs">{label}</label>
-            <Select value={value} onValueChange={(val) => onChange((prev) => ({ config: { ...prev.config, [c.key]: val } }))}>
+            <Select
+              value={value}
+              onValueChange={(val) => {
+                onChange((prev) => {
+                  const newConfig = { ...prev.config, [c.key]: val };
+                  // 如果节点有动态配置，配置变化会自动触发重新获取，不需要手动处理
+                  return { config: newConfig };
+                });
+              }}
+            >
               <SelectTrigger className="h-8 text-xs">
                 <SelectValue placeholder={c.description || `选择${label}`} />
               </SelectTrigger>
@@ -164,7 +287,16 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
       return (
         <div key={c.key} className="space-y-1">
           <label className="block text-xs">{label}</label>
-          <Select value={value} onValueChange={(val) => onChange((prev) => ({ config: { ...prev.config, [c.key]: val } }))}>
+          <Select
+            value={value}
+            onValueChange={(val) => {
+              onChange((prev) => {
+                const newConfig = { ...prev.config, [c.key]: val };
+                // 如果节点有动态配置，配置变化会自动触发重新获取，不需要手动处理
+                return { config: newConfig };
+              });
+            }}
+          >
             <SelectTrigger className="h-8 text-xs">
               <SelectValue placeholder={c.description || `选择${label}`} />
             </SelectTrigger>
@@ -189,12 +321,12 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
     );
   };
 
-  // 将配置项按组分类
+  // 将配置项按组分类（使用动态配置）
   const groupedConfigs = React.useMemo(() => {
-    const groups: Record<string, NonNullable<NodeSpec['config']>> = {};
-    const ungrouped: NonNullable<NodeSpec['config']> = [];
+    const groups: Record<string, ConfigSchema[]> = {};
+    const ungrouped: ConfigSchema[] = [];
 
-    spec.config?.forEach((c) => {
+    effectiveConfig.forEach((c) => {
       if (c.group) {
         if (!groups[c.group]) {
           groups[c.group] = [];
@@ -206,7 +338,7 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
     });
 
     return { groups, ungrouped };
-  }, [spec.config]);
+  }, [effectiveConfig]);
 
   // 切换组的展开/收起状态
   const toggleGroup = (groupName: string): void => {
@@ -233,9 +365,12 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
         <div className="text-xs text-muted-foreground">ID: {node.id}</div>
       </div>
       <div className="bg-muted p-2 max-h-[80vh] overflow-auto">
-        {spec.config && spec.config.length > 0 && (
+        {effectiveConfig && effectiveConfig.length > 0 && (
           <div className="space-y-2">
-            <div className="text-xs uppercase opacity-70">配置</div>
+            <div className="flex items-center justify-between">
+              <div className="text-xs uppercase opacity-70">配置</div>
+              {loadingConfig && <div className="text-xs text-muted-foreground">加载中...</div>}
+            </div>
 
             {/* 渲染未分组的配置项 */}
             {groupedConfigs.ungrouped.map(renderConfigField)}

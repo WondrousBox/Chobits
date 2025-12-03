@@ -7,7 +7,7 @@ export type ModelInfo = {
   id: string;
   label?: string;
   // Optional extended metadata; intentionally flexible so JSON can evolve without code changes
-  type?: 'chat' | 'embedding' | 'audio' | 'image' | 'tooling' | string;
+  type?: 'chat' | 'embedding' | 'audio' | 'image' | 'tooling' | 'video' | 'vision' | string;
   context?: number; // context window tokens
   pricing?: {
     prompt?: number; // price per unit for input tokens
