@@ -76,7 +76,7 @@ const FileActionsMenu: React.FC = () => {
       const result = await ipc
         .invoke('wf:run', {
           defId,
-          input: { resource: primary },
+          input: { resource: primary, resourceId: primary.id },
           metadata: {
             resourceId: primary.id,
             resourceName: primary.title || 'Unknown',
