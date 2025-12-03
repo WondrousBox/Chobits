@@ -7,7 +7,7 @@ import { NodeConfig, NodeHandler, PortSchema } from '../types';
 async function getProviderOptions(): Promise<{ value: string; label: string }[]> {
   try {
     // 动态导入AI registry，避免循环依赖
-    const { listProviders } = await import('../../../electron/main/ai/registry');
+    const { listProviders } = await import('../../ai/registry');
     const providers = listProviders();
     return providers.map((p) => ({ value: p.id, label: p.label }));
   } catch {
@@ -153,8 +153,8 @@ export const AiChatNode: NodeHandler = {
     emit('node:progress', { progress: 10, message: '准备调用AI服务...' });
 
     // 获取AI Provider
-    const { getProvider } = await import('../../../electron/main/ai/registry');
-    const { getAllSecrets } = await import('../../../electron/main/ai/settings-store');
+    const { getProvider } = await import('../../ai/registry');
+    const { getAllSecrets } = await import('../../ai/settings-store');
     const provider = getProvider(providerId);
 
     if (!provider) {

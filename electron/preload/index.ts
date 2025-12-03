@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
+import { aiBridge } from '../../packages/ai/ipc-renderer';
 import { pluginResourceAPI } from '../../packages/plugins/ipc-renderer';
-import { aiBridge } from '../main/ai/ipc-renderer';
 import { dailyCareBridge } from '../main/daily/ipc-renderer';
 import { APP_EVENT_CHANNEL, AppEventPayload } from '../main/handlers/events';
 import { ffmpegIpcRenderer } from '../main/handlers/ffmpeg/ipc-renderer';

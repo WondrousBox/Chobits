@@ -1,6 +1,6 @@
 import { BrowserWindow, ipcMain } from 'electron';
 
-import { ChatRepo } from '../db/repositories';
+import { ChatRepo } from '../../electron/main/db/repositories';
 import { BasicAgent } from './agents/basic';
 import { RAGAgent } from './agents/rag';
 import { TaggerAgent } from './agents/tagger';
@@ -19,7 +19,7 @@ import { getAllSecrets, setProviderSecrets as setSecretsStore } from './settings
 import { getAllInstanceSecrets as getAllInstSecrets, setInstanceSecrets as setInstSecrets } from './settings-store';
 import { TaggingService } from './tagging-service';
 
-export function init(win: BrowserWindow): void {
+export function initAIHandlers(win: BrowserWindow): void {
   // Bootstrapping built-in provider(s) and agent(s)
   // Register built-in providers
   registerProvider(new OpenAIProvider());
