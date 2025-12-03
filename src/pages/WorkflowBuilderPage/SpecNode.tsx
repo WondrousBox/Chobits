@@ -186,7 +186,8 @@ const SpecNode: React.FC<NodeProps<NodeData>> = ({ id, data, selected }) => {
               const inputType = field.inputType || 'text';
 
               const commonProps = {
-                value: String(val),
+                // 使用 defaultValue 而不是受控的 value，避免外部渲染重置输入法中间态
+                defaultValue: String(val ?? ''),
                 onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
                   e.stopPropagation();
                   updateInlineInput(field.key, e.target.value);
@@ -198,6 +199,16 @@ const SpecNode: React.FC<NodeProps<NodeData>> = ({ id, data, selected }) => {
                 onWheel: (e: React.WheelEvent) => {
                   // 避免滚动画布
                   e.stopPropagation();
+                },
+                onKeyDown: (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+                  // 阻止键盘事件冒泡到画布/全局，避免影响输入法候选
+                  e.stopPropagation();
+                },
+                onKeyUp: (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+                  e.stopPropagation();
+                },
+                onKeyPress: (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+                  e.stopPropagation();
                 }
               };
 
@@ -207,7 +218,7 @@ const SpecNode: React.FC<NodeProps<NodeData>> = ({ id, data, selected }) => {
                     <span className="text-[10px] font-medium">{label}</span>
                   </div>
                   {inputType === 'textarea' ? (
-                    <Textarea {...commonProps} rows={3} placeholder={description || ''} className="min-h-[60px] text-[11px] leading-snug resize-none" />
+                    <Textarea {...commonProps} rows={3} placeholder={description || ''} className="min-h-[60px] text-[11px] leading-snug resize-none box-border" />
                   ) : (
                     <Input {...commonProps} placeholder={description || ''} className="h-7 text-[11px]" />
                   )}

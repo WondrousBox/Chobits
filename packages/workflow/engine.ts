@@ -98,8 +98,13 @@ export class WorkflowEngine extends EngineEmitter {
       if (!from || !to) errors.push(`Invalid edge ${e.id}: node not found`);
       const fromH = from ? getNode(from.type) : undefined;
       const toH = to ? getNode(to.type) : undefined;
-      const fromPort = fromH?.spec.outputs.find((p) => p.key === e.from.port);
-      const toPort = toH?.spec.inputs.find((p) => p.key === e.to.port);
+
+      // 支持动态输入/输出端口：优先使用 handler.getOutputs/getInputs，其次回落到静态 spec 定义
+      const fromOutputs = fromH && 'getOutputs' in fromH && typeof fromH.getOutputs === 'function' ? fromH.getOutputs(from.config) : fromH?.spec.outputs || [];
+      const toInputs = toH && 'getInputs' in toH && typeof toH.getInputs === 'function' ? toH.getInputs(to.config) : toH?.spec.inputs || [];
+
+      const fromPort = fromOutputs.find((p) => p.key === e.from.port);
+      const toPort = toInputs.find((p) => p.key === e.to.port);
       if (!fromPort) errors.push(`Edge ${e.id}: output port not found: ${e.from.nodeId}.${e.from.port}`);
       if (!toPort) errors.push(`Edge ${e.id}: input port not found: ${e.to.nodeId}.${e.to.port}`);
     }
@@ -231,10 +236,12 @@ export class WorkflowEngine extends EngineEmitter {
       // Special handling for start node: it gets initial input directly from __start__
       let input: Record<string, any>;
       if (inst.type === 'core/start') {
-        // Start node receives the entire initial input as its input
+        // Start 节点同时需要：
+        // 1）引擎在运行时传入的 initialInput（如资源信息）
+        // 2）在画布里用户在开始节点上填写的 inline 输入（保存在 inputDefaults 中）
         const initialData = nodeOutput.get('__start__') || {};
-        input = initialData;
-        this.log(runId, 'info', nodeId, `[WorkflowEngine] Start节点特殊处理，使用初始输入:`, input);
+        input = { ...initialData, ...(inst.inputDefaults || {}) };
+        this.log(runId, 'info', nodeId, `[WorkflowEngine] Start节点特殊处理，使用初始输入 + inputDefaults:`, input);
       } else {
         const inputFromEdges = mergeInputValues(def, nodeId, nodeOutput);
         input = { ...inputFromEdges };
