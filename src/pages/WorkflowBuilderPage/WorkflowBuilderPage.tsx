@@ -106,23 +106,27 @@ const WorkflowCanvasInner: React.FC = () => {
             // 加载已存在的工作流，检查是否为预设工作流
             const isPreset = await invoke('wf:isPreset', { id: payload.id }).catch(() => false);
             setIsPresetWorkflow(isPreset);
-            // 加载已存在的工作流，保持原有 ID
+            // 加载已存在的工作流，保持原有 ID；不还原运行时输入（inputDefaults），默认空
             const rfNodes: Node<NodeData>[] = workflowDef.nodes.map((n: any) => {
               const spec = specs.find((s) => s.id === n.type) || { id: n.type, label: n.type, inputs: [], outputs: [], category: 'core' };
               return {
                 id: n.id,
                 type: 'specNode',
                 position: { x: n.x ?? 100 + Math.random() * 200, y: n.y ?? 100 + Math.random() * 200 },
-                data: { label: spec.label, specId: spec.id, spec, config: n.config || {}, inputDefaults: n.inputDefaults || {} }
+                data: { label: spec.label, specId: spec.id, spec, config: n.config || {}, inputDefaults: {} }
               } as Node<NodeData>;
             });
             setNodes(rfNodes as any);
             setEdges((workflowDef.edges || []).map((e: any) => ({ id: e.id, source: e.from.nodeId, target: e.to.nodeId, sourceHandle: e.from.port, targetHandle: e.to.port })) as any);
+            // draft 中同样不恢复历史 inputDefaults，避免把上次运行时输入当成配置保存
             setDraft({
               id: workflowDef.id,
               name: workflowDef.name || workflowDef.id,
               description: workflowDef.description,
-              nodes: workflowDef.nodes,
+              nodes: (workflowDef.nodes || []).map((n: any) => ({
+                ...n,
+                inputDefaults: undefined
+              })),
               edges: workflowDef.edges
             });
           } else {
@@ -138,7 +142,7 @@ const WorkflowCanvasInner: React.FC = () => {
               }
             });
 
-            // Map preset nodes into ReactFlow nodes
+            // Map preset nodes into ReactFlow nodes；预设也不带运行时输入
             const rfNodes: Node<NodeData>[] = workflowDef.nodes.map((n: any) => {
               const newId = nodeIdMap.get(n.id) || n.id;
               const spec = specs.find((s) => s.id === n.type) || { id: n.type, label: n.type, inputs: [], outputs: [], category: 'core' };
@@ -146,7 +150,7 @@ const WorkflowCanvasInner: React.FC = () => {
                 id: newId,
                 type: 'specNode',
                 position: { x: n.x ?? 100 + Math.random() * 200, y: n.y ?? 100 + Math.random() * 200 },
-                data: { label: spec.label, specId: spec.id, spec, config: n.config || {}, inputDefaults: n.inputDefaults || {} }
+                data: { label: spec.label, specId: spec.id, spec, config: n.config || {}, inputDefaults: {} }
               } as Node<NodeData>;
             });
             setNodes(rfNodes as any);
@@ -168,7 +172,8 @@ const WorkflowCanvasInner: React.FC = () => {
                 x: n.position.x,
                 y: n.position.y,
                 config: (n.data as NodeData).config || {},
-                inputDefaults: (n.data as NodeData).inputDefaults || {}
+                // 运行时输入不写入草稿配置
+                inputDefaults: {}
               })),
               edges: rfEdges.map((e: any) => ({
                 id: e.id,
@@ -199,6 +204,7 @@ const WorkflowCanvasInner: React.FC = () => {
           x: n.position.x,
           y: n.position.y,
           config: (n.data as NodeData).config || {},
+          // draft 中记录 inputDefaults 仅用于当前会话运行，不用于持久化
           inputDefaults: (n.data as NodeData).inputDefaults || {}
         })),
         edges: edges.map((e: Edge) => ({ id: e.id, from: { nodeId: e.source, port: e.sourceHandle || 'payload' }, to: { nodeId: e.target, port: e.targetHandle || 'result' } }))
@@ -283,7 +289,8 @@ const WorkflowCanvasInner: React.FC = () => {
       id: draft.id,
       name: draft.name,
       description: draft.description,
-      nodes: draft.nodes.map((n) => ({ id: n.id, type: n.type, x: n.x, y: n.y, config: n.config, inputDefaults: n.inputDefaults })),
+      // 校验时不需要运行时输入，避免给人“已配置默认值”的错觉
+      nodes: draft.nodes.map((n) => ({ id: n.id, type: n.type, x: n.x, y: n.y, config: n.config })),
       edges: draft.edges.map((e) => ({ id: e.id, from: e.from, to: e.to })),
       options: { concurrency: 1, errorStrategy: 'fail-fast' }
     };
@@ -338,7 +345,8 @@ const WorkflowCanvasInner: React.FC = () => {
         id: draft.id,
         name: draft.name,
         description: draft.description,
-        nodes: draft.nodes.map((n) => ({ id: n.id, type: n.type, x: n.x, y: n.y, config: n.config, inputDefaults: n.inputDefaults })),
+        // 持久化时不写入 inputDefaults，让运行时输入每次都是空的
+        nodes: draft.nodes.map((n) => ({ id: n.id, type: n.type, x: n.x, y: n.y, config: n.config })),
         edges: draft.edges.map((e) => ({ id: e.id, from: e.from, to: e.to })),
         options: { concurrency: 1, errorStrategy: 'fail-fast' }
       };
@@ -421,7 +429,8 @@ const WorkflowCanvasInner: React.FC = () => {
       id: draft.id,
       name: draft.name,
       description: draft.description,
-      nodes: draft.nodes.map((n) => ({ id: n.id, type: n.type, x: n.x, y: n.y, config: n.config, inputDefaults: n.inputDefaults })),
+      // JSON 视图与实际保存一致，不包含运行时输入
+      nodes: draft.nodes.map((n) => ({ id: n.id, type: n.type, x: n.x, y: n.y, config: n.config })),
       edges: draft.edges.map((e) => ({ id: e.id, from: e.from, to: e.to })),
       options: { concurrency: 1, errorStrategy: 'fail-fast' }
     };
