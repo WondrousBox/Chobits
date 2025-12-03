@@ -14,6 +14,7 @@ import { DisplayTextNode } from './nodes/display-text';
 import { DocToMarkdownNode } from './nodes/doc-to-md';
 import { EndNode } from './nodes/end';
 import { ExtractKeyframesNode } from './nodes/extract-keyframes';
+import { ImageGenerateNode } from './nodes/image-generate';
 import { ImageUnderstandNode } from './nodes/image-understand';
 import { LoadResourceNode } from './nodes/load-resource';
 import { OCRNode } from './nodes/ocr';
@@ -54,6 +55,7 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
     DocToMarkdownNode,
     ExtractKeyframesNode,
     ImageUnderstandNode,
+    ImageGenerateNode,
     AiChatNode,
     ResourceUpdateNode,
     DisplayTextNode,
