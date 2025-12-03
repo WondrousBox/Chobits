@@ -4,7 +4,6 @@ import path from 'node:path';
 
 import { app } from 'electron';
 
-import { getResourcePath } from '../../electron/main/utils/resources-path';
 import { WorkflowDefinition, WorkflowRunRecord } from './types';
 
 const DEFS_FILE = 'workflows.json';
@@ -93,7 +92,7 @@ async function writeRuns(spaceId: string | undefined, runs: RunsShape): Promise<
 /**
  * 加载预设工作流定义（带缓存）
  */
-export async function loadPresetWorkflows(forceReload = false): Promise<WorkflowDefinition[]> {
+export async function loadPresetWorkflows(definitionsPath: string, forceReload?: boolean): Promise<WorkflowDefinition[]> {
   const now = Date.now();
 
   // 如果缓存有效且不强制重新加载，直接返回缓存
@@ -102,7 +101,7 @@ export async function loadPresetWorkflows(forceReload = false): Promise<Workflow
   }
 
   try {
-    const file = getResourcePath('workflows');
+    const file = definitionsPath;
     if (!fs.existsSync(file)) {
       console.warn('[WorkflowStore] 预设工作流文件不存在:', file);
       presetWorkflowsCache = [];
@@ -188,6 +187,7 @@ export async function flushStore(): Promise<void> {
     await writeDefs(defsCache);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   for (const [key, timer] of runsSaveTimers) {
     clearTimeout(timer);
   }

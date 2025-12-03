@@ -10,6 +10,7 @@ import { logger } from './logger';
 import { addAllowedResourceRoot, addWorkspaceResourceRoot, setupResourceProtocol } from './resource-protocol';
 import { registerGlobalShortcuts, unregisterGlobalShortcuts } from './shortcuts';
 import { update } from './update';
+import { getResourcePath } from './utils/resources-path';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -144,7 +145,7 @@ app.whenReady().then(async () => {
   await createWindow();
   // Initialize workflow system (nodes, plugins, IPC endpoints)
   try {
-    initWorkflowSystem();
+    initWorkflowSystem({ getWorkflowDefinitionsPath: () => getResourcePath('workflows') });
   } catch (e) {
     console.warn('[workflow] init failed', e);
   }
