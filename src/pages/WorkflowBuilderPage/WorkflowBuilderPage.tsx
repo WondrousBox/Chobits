@@ -2,6 +2,7 @@ import 'reactflow/dist/style.css';
 
 import { nanoid } from 'nanoid';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { TbPlayerPlay } from 'react-icons/tb';
 import ReactFlow, {
   addEdge,
   Background,
@@ -21,6 +22,7 @@ import ReactFlow, {
 import { toast } from 'sonner';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
+import { Button } from '@/components/ui/button';
 import { ExecutionStatus, NodeSpec, WorkflowDraft, WorkflowRunLogEntry } from '@/types/workflow';
 
 import ResourceRunPopover from '../ResourcePage/ResourceRunPopover';
@@ -29,7 +31,9 @@ import FloatingActions from './FloatingActions';
 import FloatingInspector from './FloatingInspector';
 import { autoLayout } from './layout';
 import SpecNode from './SpecNode';
+import TextInputDialog from './TextInputDialog';
 import type { NodeData } from './types';
+import UrlInputDialog from './UrlInputDialog';
 import WorkflowJsonDialog from './WorkflowJsonDialog';
 import WorkflowRunConsole from './WorkflowRunConsole';
 import WorkflowSidebar from './WorkflowSidebar';
@@ -81,6 +85,8 @@ const WorkflowCanvasInner: React.FC = () => {
   const [runLogs, setRunLogs] = useState<WorkflowRunLogEntry[]>([]);
   const [runStatus, setRunStatus] = useState<ExecutionStatus | null>(null);
   const [consoleCollapsed, setConsoleCollapsed] = useState(true);
+  const [showTextInputDialog, setShowTextInputDialog] = useState(false);
+  const [showUrlInputDialog, setShowUrlInputDialog] = useState(false);
   const selectedNode = useMemo(() => draft?.nodes.find((n) => n.id === selectedNodeId), [draft, selectedNodeId]);
 
   // Load existing workflow definition if payload provides id, or load preset template if presetId is provided
@@ -371,6 +377,14 @@ const WorkflowCanvasInner: React.FC = () => {
     }
   };
 
+  // 获取开始节点的输入模式
+  const startNodeInputMode = useMemo(() => {
+    if (!draft) return 'resource';
+    const startNode = draft.nodes.find((n) => n.id === START_NODE_ID);
+    if (!startNode) return 'resource';
+    return (startNode.config?.inputMode as string) || 'resource';
+  }, [draft]);
+
   const runWorkflowWithResource = useCallback(
     async (resource: ResourceItem): Promise<void> => {
       if (!draft) return;
@@ -382,6 +396,7 @@ const WorkflowCanvasInner: React.FC = () => {
           metadata: {
             resourceId: resource.id,
             resourceName: resource.title || 'Unknown',
+            thumbnailPath: resource.thumbnailPath,
             spaceId: resource.workspaceId
           }
         });
@@ -409,6 +424,136 @@ const WorkflowCanvasInner: React.FC = () => {
     },
     [draft, eventCh]
   );
+
+  const runWorkflowWithText = useCallback(
+    async (text: string): Promise<void> => {
+      if (!draft) return;
+      setRunning(true);
+      try {
+        const result = await invoke('wf:run', {
+          defId: draft.id,
+          input: { text },
+          metadata: {
+            textLength: text.length
+          }
+        });
+        if (!result?.ok) {
+          const description = result?.error || (result?.validation ? (typeof result.validation === 'string' ? result.validation : JSON.stringify(result.validation)) : '未知错误');
+          toast.error('工作流执行失败', { description });
+          return;
+        }
+        currentRunIdRef.current = result.runId;
+        setCurrentRunId(result.runId);
+        setRunLogs([]);
+        setRunStatus('queued');
+        setConsoleCollapsed(false); // 运行时自动展开日志面板
+        toast.success('工作流已开始执行', { description: `文本输入 (${text.length} 字符)` });
+        try {
+          eventCh.postMessage({ type: 'run-started', defId: draft.id });
+        } catch {
+          // ignore
+        }
+      } catch (err: any) {
+        toast.error('工作流执行失败', { description: err?.message || String(err) });
+      } finally {
+        setRunning(false);
+      }
+    },
+    [draft, eventCh]
+  );
+
+  const runWorkflowWithFile = useCallback(
+    async (filePath: string): Promise<void> => {
+      if (!draft) return;
+      setRunning(true);
+      try {
+        const result = await invoke('wf:run', {
+          defId: draft.id,
+          input: { file: filePath },
+          metadata: {
+            filePath
+          }
+        });
+        if (!result?.ok) {
+          const description = result?.error || (result?.validation ? (typeof result.validation === 'string' ? result.validation : JSON.stringify(result.validation)) : '未知错误');
+          toast.error('工作流执行失败', { description });
+          return;
+        }
+        currentRunIdRef.current = result.runId;
+        setCurrentRunId(result.runId);
+        setRunLogs([]);
+        setRunStatus('queued');
+        setConsoleCollapsed(false); // 运行时自动展开日志面板
+        const fileName = filePath.split(/[/\\]/).pop() || filePath;
+        toast.success('工作流已开始执行', { description: `文件: ${fileName}` });
+        try {
+          eventCh.postMessage({ type: 'run-started', defId: draft.id });
+        } catch {
+          // ignore
+        }
+      } catch (err: any) {
+        toast.error('工作流执行失败', { description: err?.message || String(err) });
+      } finally {
+        setRunning(false);
+      }
+    },
+    [draft, eventCh]
+  );
+
+  const runWorkflowWithUrl = useCallback(
+    async (url: string): Promise<void> => {
+      if (!draft) return;
+      setRunning(true);
+      try {
+        const result = await invoke('wf:run', {
+          defId: draft.id,
+          input: { url },
+          metadata: {
+            url
+          }
+        });
+        if (!result?.ok) {
+          const description = result?.error || (result?.validation ? (typeof result.validation === 'string' ? result.validation : JSON.stringify(result.validation)) : '未知错误');
+          toast.error('工作流执行失败', { description });
+          return;
+        }
+        currentRunIdRef.current = result.runId;
+        setCurrentRunId(result.runId);
+        setRunLogs([]);
+        setRunStatus('queued');
+        setConsoleCollapsed(false); // 运行时自动展开日志面板
+        toast.success('工作流已开始执行', { description: `链接: ${url}` });
+        try {
+          eventCh.postMessage({ type: 'run-started', defId: draft.id });
+        } catch {
+          // ignore
+        }
+      } catch (err: any) {
+        toast.error('工作流执行失败', { description: err?.message || String(err) });
+      } finally {
+        setRunning(false);
+      }
+    },
+    [draft, eventCh]
+  );
+
+  const handleRunClick = useCallback(async () => {
+    if (startNodeInputMode === 'text') {
+      setShowTextInputDialog(true);
+    } else if (startNodeInputMode === 'url') {
+      setShowUrlInputDialog(true);
+    } else if (startNodeInputMode === 'file') {
+      try {
+        const result = await window.YUA.file['file:pickFile']();
+        if (!result.canceled && result.path) {
+          await runWorkflowWithFile(result.path);
+        }
+      } catch (err: any) {
+        toast.error('文件选择失败', { description: err?.message || String(err) });
+      }
+    }
+    // 如果是 resource 模式，ResourceRunPopover 会自动处理
+  }, [startNodeInputMode, runWorkflowWithFile]);
 
   const handleClearLogs = useCallback(() => {
     setRunLogs([]);
@@ -606,7 +751,39 @@ const WorkflowCanvasInner: React.FC = () => {
             saving={saving}
             running={running}
             isPreset={isPresetWorkflow}
-            renderRunButton={() => <ResourceRunPopover disabled={!draft} running={running} onSelect={runWorkflowWithResource} />}
+            renderRunButton={() => {
+              if (startNodeInputMode === 'text') {
+                return (
+                  <>
+                    <Button size="sm" disabled={!draft || running} onClick={handleRunClick}>
+                      <TbPlayerPlay />
+                      运行示例
+                    </Button>
+                    <TextInputDialog open={showTextInputDialog} onOpenChange={setShowTextInputDialog} disabled={!draft} running={running} onConfirm={runWorkflowWithText} />
+                  </>
+                );
+              }
+              if (startNodeInputMode === 'url') {
+                return (
+                  <>
+                    <Button size="sm" disabled={!draft || running} onClick={handleRunClick}>
+                      <TbPlayerPlay />
+                      运行示例
+                    </Button>
+                    <UrlInputDialog open={showUrlInputDialog} onOpenChange={setShowUrlInputDialog} disabled={!draft} running={running} onConfirm={runWorkflowWithUrl} />
+                  </>
+                );
+              }
+              if (startNodeInputMode === 'file') {
+                return (
+                  <Button size="sm" disabled={!draft || running} onClick={handleRunClick}>
+                    <TbPlayerPlay />
+                    运行示例
+                  </Button>
+                );
+              }
+              return <ResourceRunPopover disabled={!draft} running={running} onSelect={runWorkflowWithResource} />;
+            }}
           />
         }
       />

@@ -56,8 +56,8 @@ export class WorkflowEngine extends EngineEmitter {
   }
 
   private log(runId: string, level: WorkflowRunLogLevel, nodeId: string | undefined, ...args: any[]): void {
-    // const printer = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
-    // printer(...args);
+    const printer = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
+    printer(...args);
     const message = args.map((arg) => (typeof arg === 'string' ? arg : util.inspect(arg, { depth: 6, colors: false, compact: false }))).join(' ');
     const entry: WorkflowRunLogEntry = {
       runId,
@@ -156,7 +156,16 @@ export class WorkflowEngine extends EngineEmitter {
     this.runs.set(runId, rec);
     this.emitTyped('run:status', rec);
 
-    this.log(runId, 'info', undefined, `[WorkflowEngine] 工作流开始执行: ${def.name} (${def.id}), runId: ${runId}`);
+    this.log(
+      runId,
+      'info',
+      undefined,
+      `
+====== [WorkflowEngine] ========================================================
+开始执行: ${def.name} (${def.id})
+runId: ${runId}
+================================================================================`
+    );
     if (Object.keys(initialInput || {}).length > 0) {
       this.log(runId, 'info', undefined, `[WorkflowEngine] 初始输入:`, initialInput);
     }

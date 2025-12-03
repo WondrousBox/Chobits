@@ -582,7 +582,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
                       if (item) {
                         window.ipcRenderer.invoke('wf:run', {
                           defId: wf.id,
-                          input: { resource: item },
+                          input: { resource: item, resourceId: item.id },
                           metadata: {
                             resourceId: item.id,
                             resourceName: item.title || 'Unknown',
@@ -659,7 +659,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
                       if (item) {
                         window.ipcRenderer.invoke('wf:run', {
                           defId: wf.id,
-                          input: { resource: item },
+                          input: { resource: item, resourceId: item.id },
                           metadata: {
                             resourceId: item.id,
                             resourceName: item.title || 'Unknown',
