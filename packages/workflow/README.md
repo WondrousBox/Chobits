@@ -15,7 +15,7 @@ This module provides a pluggable workflow engine to process managed resources in
 - `engine.ts` — execution engine and validation.
 - `store.ts` — simple JSON store (easily replaceable with Drizzle).
 - `plugins/` — built-in plugins: FFmpeg, Tesseract.
-- `nodes/` — built-in nodes: start/end, load-resource, transcode, ocr, doc-to-md.
+- `nodes/` — built-in nodes: start/end, resource-load, resource-create, resource-update, transcode, ocr, doc-to-md.
 - `index.ts` — entry point to initialize the system and register IPC.
 
 ## IPC

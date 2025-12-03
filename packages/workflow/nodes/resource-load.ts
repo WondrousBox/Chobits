@@ -12,7 +12,7 @@ function detectType(ext: string): 'image' | 'video' | 'audio' | 'document' | 'ot
   return 'other';
 }
 
-export const LoadResourceNode: NodeHandler = {
+export const ResourceLoadNode: NodeHandler = {
   spec: {
     id: 'resource/load',
     label: '加载资源',
