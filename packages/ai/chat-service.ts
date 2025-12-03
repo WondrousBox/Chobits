@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { BrowserWindow, ipcMain, WebContents } from 'electron';
 
-import { ChatRepo } from '../db/repositories';
+import { ChatRepo } from '../../electron/main/db/repositories';
 import { InstancesStore } from './instances-store';
 import { getAgent, getProvider } from './registry';
 import { getAllInstanceSecrets } from './settings-store';
@@ -121,7 +121,9 @@ export class ChatService {
       try {
         if (event?.type === 'message_completed') emittedCompleted = true;
         (sender || this.defaultWin?.webContents)?.send(eventsChannel, event);
-      } catch { }
+      } catch {
+        //
+      }
     };
 
     setTimeout(async () => {
@@ -164,12 +166,14 @@ export class ChatService {
     // Define emitter and context upfront
     let emittedDelta = false;
     let emittedCompleted = false;
-    const emit = (event: StreamEvent) => {
+    const emit = (event: StreamEvent): void => {
       try {
         if (event?.type === 'delta' && (event as any).data?.text) emittedDelta = true;
         if (event?.type === 'message_completed') emittedCompleted = true;
         (sender || this.defaultWin?.webContents)?.send(eventsChannel, event);
-      } catch { }
+      } catch {
+        //
+      }
     };
 
     // Start the actual streaming on next tick to avoid missing early events
@@ -197,7 +201,9 @@ export class ChatService {
               metadata: last.metadata ? (JSON.stringify(last.metadata) as any) : null,
               createdAt: last.createdAt || Date.now()
             } as any);
-          } catch { }
+          } catch {
+            //
+          }
         }
         const ctx = { window: BrowserWindow.fromWebContents(sender) || this.defaultWin, emit, getProvider: (id?: string) => getProvider(id) };
         // Notify renderer that channel is ready (after the renderer has had a chance to attach listener)
@@ -231,7 +237,9 @@ export class ChatService {
               createdAt: msg.createdAt || Date.now()
             } as any);
           }
-        } catch { }
+        } catch {
+          //
+        }
         emit({ type: 'done' });
       } catch (err: any) {
         emit({ type: 'error', data: { message: err?.message || 'chat error' } });
@@ -272,7 +280,7 @@ export class ChatService {
       const secrets = await getAllInstanceSecrets(instId, keys);
       if (Object.keys(secrets).length) extras.secrets = secrets;
     } catch {
-      //
+      // Ignore
     }
     // Prepend system prompt
     const messages = [...(req.messages || [])];

@@ -1,9 +1,9 @@
 import { windowManager } from '@aim-packages/window-manager';
 import { BrowserWindow } from 'electron';
 
+import { initAIHandlers } from '../../../packages/ai/ipc-main';
 import type { DownloadProgress } from '../../../packages/plugins';
 import { init as initPluginResourceHandlers } from '../../../packages/plugins/ipc-main';
-import { init as initAIHandlers } from '../ai/ipc-main';
 import { initDailyCare } from '../daily';
 import { initScreenshotHandlers } from '../screenshot';
 import { getResourcePath } from '../utils/resources-path';

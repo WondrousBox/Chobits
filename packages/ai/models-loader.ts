@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { getResourcePath } from '../utils/resources-path';
+import { getResourcePath } from '../../electron/main/utils/resources-path';
 
 export type ModelInfo = {
   id: string;
