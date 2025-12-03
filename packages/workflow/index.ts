@@ -16,8 +16,9 @@ import { EndNode } from './nodes/end';
 import { ExtractKeyframesNode } from './nodes/extract-keyframes';
 import { ImageGenerateNode } from './nodes/image-generate';
 import { ImageUnderstandNode } from './nodes/image-understand';
-import { LoadResourceNode } from './nodes/load-resource';
 import { OCRNode } from './nodes/ocr';
+import { ResourceCreateNode } from './nodes/resource-create';
+import { ResourceLoadNode } from './nodes/resource-load';
 import { ResourceUpdateNode } from './nodes/resource-update';
 import { StartNode } from './nodes/start';
 import { TranscodeNode } from './nodes/transcode';
@@ -47,7 +48,9 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
   [
     StartNode,
     EndNode,
-    LoadResourceNode,
+    ResourceLoadNode,
+    ResourceCreateNode,
+    ResourceUpdateNode,
     TranscodeNode,
     TranscodeAdvancedNode,
     OCRNode,
@@ -57,7 +60,6 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
     ImageUnderstandNode,
     ImageGenerateNode,
     AiChatNode,
-    ResourceUpdateNode,
     DisplayTextNode,
     DisplayImageNode,
     DisplayMediaNode,
@@ -84,6 +86,38 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
   // payload: { providerId: string; fields?: string[] }
   engine.on('ai:missing-provider', (payload: any) => {
     broadcast('wf:ai-missing-provider', payload);
+  });
+
+  // 资源创建请求：由资源创建节点发出，由主进程适配层落盘到数据库
+  // payload: { resourceData: any; callback?: (createdResource: any) => void }
+  engine.on('resource:create-request', async (payload: any) => {
+    try {
+      const resourceData: Record<string, any> = payload?.resourceData || {};
+      const callback = payload?.callback;
+      if (!resourceData || typeof resourceData !== 'object' || !resourceData.type) {
+        if (callback) callback(null);
+        return;
+      }
+
+      // 设置时间戳
+      const now = Date.now();
+      if (!resourceData.createdAt) {
+        resourceData.createdAt = now;
+      }
+      if (!resourceData.updatedAt) {
+        resourceData.updatedAt = now;
+      }
+
+      const created = await ResourcesRepo.upsert(resourceData as any);
+      if (callback) {
+        callback(created || null);
+      }
+    } catch (e) {
+      console.warn('[workflow][resource:create-request] failed:', e);
+      if (payload?.callback) {
+        payload.callback(null);
+      }
+    }
   });
 
   // 资源更新请求：由资源更新节点发出，由主进程适配层落盘到数据库

@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { createEngine } from '../electron/workflow/engine';
 import { DocToMarkdownNode } from '../electron/workflow/nodes/doc-to-md';
 import { EndNode } from '../electron/workflow/nodes/end';
-import { LoadResourceNode } from '../electron/workflow/nodes/load-resource';
+import { ResourceLoadNode } from '../electron/workflow/nodes/resource-load';
 import { StartNode } from '../electron/workflow/nodes/start';
 import { FfmpegPlugin } from '../electron/workflow/plugins/ffmpeg';
 import { TesseractPlugin } from '../electron/workflow/plugins/tesseract';
@@ -17,7 +17,7 @@ registerPlugin(FfmpegPlugin);
 registerPlugin(TesseractPlugin);
 registerNode(StartNode);
 registerNode(EndNode);
-registerNode(LoadResourceNode);
+registerNode(ResourceLoadNode);
 registerNode(DocToMarkdownNode);
 
 describe('WorkflowEngine basic', () => {
