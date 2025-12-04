@@ -18,6 +18,8 @@ export const ResourceLoadNode: NodeHandler = {
     label: '加载资源',
     category: 'Resource',
     description: '根据路径加载资源并输出资源元信息',
+    backgroundColor: '#3b82f6',
+    icon: 'TbFolderOpen',
     inputs: [{ key: 'resource', label: '资源', type: 'any', required: true }],
     outputs: [
       { key: 'resourceId', label: '资源 ID', type: 'string' },

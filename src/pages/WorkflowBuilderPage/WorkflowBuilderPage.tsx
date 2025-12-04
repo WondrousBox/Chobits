@@ -2,7 +2,7 @@ import 'reactflow/dist/style.css';
 
 import { nanoid } from 'nanoid';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbPlayerPlay } from 'react-icons/tb';
+import { TbPencil, TbPlayerPlay } from 'react-icons/tb';
 import ReactFlow, {
   addEdge,
   Background,
@@ -23,6 +23,7 @@ import { toast } from 'sonner';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { ExecutionStatus, NodeSpec, WorkflowDraft, WorkflowRunLogEntry } from '@/types/workflow';
 
 import ResourceRunPopover from '../ResourcePage/ResourceRunPopover';
@@ -87,6 +88,9 @@ const WorkflowCanvasInner: React.FC = () => {
   const [consoleCollapsed, setConsoleCollapsed] = useState(true);
   const [showTextInputDialog, setShowTextInputDialog] = useState(false);
   const [showUrlInputDialog, setShowUrlInputDialog] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editingTitleValue, setEditingTitleValue] = useState('');
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const selectedNode = useMemo(() => draft?.nodes.find((n) => n.id === selectedNodeId), [draft, selectedNodeId]);
 
   // Load existing workflow definition if payload provides id, or load preset template if presetId is provided
@@ -769,13 +773,79 @@ const WorkflowCanvasInner: React.FC = () => {
     }
   }, [nodesInitialized, hasAutoFitted, nodes.length, fitView]);
 
+  // 当进入编辑模式时，聚焦输入框
+  useEffect(() => {
+    if (isEditingTitle && titleInputRef.current) {
+      titleInputRef.current.focus();
+      titleInputRef.current.select();
+    }
+  }, [isEditingTitle]);
+
+  // 处理开始编辑标题
+  const handleStartEditTitle = useCallback(() => {
+    if (!draft) return;
+    setEditingTitleValue(draft.name || '');
+    setIsEditingTitle(true);
+  }, [draft]);
+
+  // 处理保存标题
+  const handleSaveTitle = useCallback(() => {
+    if (!draft) return;
+    const newName = editingTitleValue.trim() || '未命名工作流';
+    setDraft((d) => (d ? { ...d, name: newName } : null));
+    setIsEditingTitle(false);
+  }, [draft, editingTitleValue]);
+
+  // 处理取消编辑标题
+  const handleCancelEditTitle = useCallback(() => {
+    setIsEditingTitle(false);
+    setEditingTitleValue('');
+  }, []);
+
+  // 处理标题输入框的键盘事件
+  const handleTitleInputKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleSaveTitle();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        handleCancelEditTitle();
+      }
+    },
+    [handleSaveTitle, handleCancelEditTitle]
+  );
+
   return (
     <div className="h-screen w-screen flex flex-col relative">
       {/* 顶部可拖拽导航栏 */}
       <DragAbleTitle
         title={
           <div className="flex items-center gap-2 w-full">
-            <div className="text-left truncate flex-1">{draft?.name || '未命名工作流'}</div>
+            {isEditingTitle ? (
+              <Input
+                ref={titleInputRef}
+                value={editingTitleValue}
+                onChange={(e) => setEditingTitleValue(e.target.value)}
+                onKeyDown={handleTitleInputKeyDown}
+                onBlur={handleSaveTitle}
+                className="flex-1 h-7 text-sm no-drag"
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <>
+                <div
+                  className="flex items-center gap-2 no-drag cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleStartEditTitle();
+                  }}
+                >
+                  {draft?.name || '未命名工作流'} <TbPencil />
+                </div>
+              </>
+            )}
           </div>
         }
         actions={

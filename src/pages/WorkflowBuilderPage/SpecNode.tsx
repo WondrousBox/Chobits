@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import clsx from 'clsx';
+import React, { useEffect, useMemo, useState } from 'react';
 import { TbCopy } from 'react-icons/tb';
 import { Handle, NodeProps, Position, useReactFlow } from 'reactflow';
 import { toast } from 'sonner';
@@ -8,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 
+import { getGradientBackgroundStyle, getIconComponent } from './nodeUtils';
 import type { NodeData } from './types';
 
 const invoke = window.ipcRenderer.invoke;
@@ -100,7 +102,7 @@ const SpecNode: React.FC<NodeProps<NodeData>> = ({ id, data, selected }) => {
 
   const inlineInputs = dynamicInputs.filter((inp) => inp.showInNode);
 
-  const baseClass = 'relative rounded-md border border-solid min-w-[180px] overflow-hidden transition-all duration-200 shadow-sm';
+  const baseClass = 'relative rounded-md border border-solid border-ring min-w-[180px] overflow-hidden transition-all duration-200 shadow-sm bg-muted';
   let runtimeClass = 'border-ring';
   if (status === 'running') {
     runtimeClass = 'border-amber-400 ring-2 ring-amber-300 bg-amber-500/10 animate-pulse shadow-[0_0_0_2px_rgba(251,191,36,0.25)]';
@@ -125,10 +127,21 @@ const SpecNode: React.FC<NodeProps<NodeData>> = ({ id, data, selected }) => {
 
   const hasRequires = !!(spec.requires && spec.requires.length > 0);
 
+  // 动态获取图标组件
+  const IconComponent = useMemo(() => getIconComponent(spec.icon), [spec.icon]);
+
+  // 计算标题背景颜色样式（从上到下渐变到透明，顶部10%透明度）
+  const headerStyle = useMemo(() => getGradientBackgroundStyle(spec.backgroundColor, 0.1), [spec.backgroundColor]);
+
   return (
     <div className={`${baseClass} ${runtimeClass} ${selectionClass}`}>
-      <div className="bg-background text-foreground p-2 flex items-center justify-between gap-2">
+      <div className={`${spec.backgroundColor ? '' : 'bg-background'} text-foreground p-2 flex items-center justify-between gap-2`} style={headerStyle}>
         <div className="flex items-center gap-2 truncate">
+          {IconComponent && (
+            <div className={clsx(['rounded-full p-1 w-4 h-4 flex items-center justify-center bg-primary'])} style={{ backgroundColor: spec.backgroundColor ? spec.backgroundColor : '' }}>
+              {React.createElement(IconComponent, { className: 'w-3.5 h-3.5' })}
+            </div>
+          )}
           <span className="truncate">{spec.label}</span>
           {hasRequires && <span className="text-[10px] px-1 py-0.5 rounded bg-secondary text-secondary-foreground whitespace-nowrap">{spec.requires!.join(',')}</span>}
         </div>

@@ -133,3 +133,8 @@ button {
 .react-grid-item > .react-resizable-handle.react-resizable-handle-se {
   z-index: 100;
 }
+
+/* Hide ReactFlow attribution watermark */
+.react-flow__attribution {
+  display: none !important;
+}
