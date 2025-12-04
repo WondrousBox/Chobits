@@ -82,6 +82,8 @@ export class WorkflowEngine extends EngineEmitter {
 
   buildCtx(): ExecutionContext {
     const tmpDir = path.join(os.tmpdir(), 'chobits-workflow', randomUUID());
+    console.log('buildCtx', tmpDir);
+
     return { ...this.baseCtx, tmpDir };
   }
 
@@ -102,8 +104,8 @@ export class WorkflowEngine extends EngineEmitter {
       const toH = to ? getNode(to.type) : undefined;
 
       // 支持动态输入/输出端口：优先使用 handler.getOutputs/getInputs，其次回落到静态 spec 定义
-      const fromOutputs = fromH && 'getOutputs' in fromH && typeof fromH.getOutputs === 'function' ? fromH.getOutputs(from.config) : fromH?.spec.outputs || [];
-      const toInputs = toH && 'getInputs' in toH && typeof toH.getInputs === 'function' ? toH.getInputs(to.config) : toH?.spec.inputs || [];
+      const fromOutputs = fromH && 'getOutputs' in fromH && typeof fromH.getOutputs === 'function' ? fromH.getOutputs(from?.config) : fromH?.spec.outputs || [];
+      const toInputs = toH && 'getInputs' in toH && typeof toH.getInputs === 'function' ? toH.getInputs(to?.config) : toH?.spec.inputs || [];
 
       const fromPort = fromOutputs.find((p) => p.key === e.from.port);
       const toPort = toInputs.find((p) => p.key === e.to.port);
@@ -112,7 +114,8 @@ export class WorkflowEngine extends EngineEmitter {
     }
     // topo
     try {
-      topoSort(def);
+      const order = topoSort(def);
+      console.log('order', order);
     } catch (err: any) {
       errors.push(String(err?.message || err));
     }

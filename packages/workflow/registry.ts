@@ -1,3 +1,6 @@
+// 节点和插件的注册器，负责在主进程中统一注册 / 获取节点和插件
+// 不依赖任何其他模块
+
 import { NodeHandler, Plugin } from './types';
 
 const nodeHandlers = new Map<string, NodeHandler>();

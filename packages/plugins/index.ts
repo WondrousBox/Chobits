@@ -67,7 +67,7 @@ interface InternalTask {
  * - resources/plugins/{pluginId}/engine/ - Engine工具
  * - resources/plugins/{pluginId}/models/ - 模型文件
  */
-class PluginResourceManager extends EventEmitter {
+export class PluginResourceManager extends EventEmitter {
   private queue: InternalTask[] = [];
   private running: InternalTask[] = [];
   private concurrency = 2;
