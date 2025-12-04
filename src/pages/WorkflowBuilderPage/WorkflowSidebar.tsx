@@ -1,3 +1,4 @@
+import clsx from 'clsx';
 import React, { useMemo, useState } from 'react';
 import { TbArrowsSplit, TbLine, TbX } from 'react-icons/tb';
 
@@ -5,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import type { NodeSpec } from '@/types/workflow';
+
+import { getIconComponent, getTextColorClass } from './nodeUtils';
 
 interface WorkflowSidebarProps {
   specs: NodeSpec[];
@@ -75,11 +78,24 @@ const WorkflowSidebar: React.FC<WorkflowSidebarProps> = ({ specs, onAdd }) => {
                 <div key={cat}>
                   <div className="px-1 text-sm font-medium text-muted-foreground mb-1">{cat}</div>
                   <div className="space-y-1">
-                    {items.map((s) => (
-                      <Button className="w-full justify-start" variant="outline" key={s.id} onClick={() => handleAddNode(s)}>
-                        {s.label}
-                      </Button>
-                    ))}
+                    {items.map((s) => {
+                      const IconComponent = getIconComponent(s.icon);
+                      const iconColorClass = getTextColorClass(s.backgroundColor);
+
+                      return (
+                        <Button className="w-full justify-start gap-2 relative overflow-hidden" variant="outline" key={s.id} onClick={() => handleAddNode(s)}>
+                          {IconComponent && (
+                            <div
+                              className={clsx('rounded-full p-1 w-5 h-5 flex items-center justify-center shrink-0', !s.backgroundColor && 'bg-muted')}
+                              style={{ backgroundColor: s.backgroundColor || undefined }}
+                            >
+                              <IconComponent className={clsx('w-3.5 h-3.5', iconColorClass)} />
+                            </div>
+                          )}
+                          <span className="flex-1 text-left truncate">{s.label}</span>
+                        </Button>
+                      );
+                    })}
                   </div>
                 </div>
               ))}

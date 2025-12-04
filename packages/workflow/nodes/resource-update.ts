@@ -12,6 +12,8 @@ export const ResourceUpdateNode: NodeHandler = {
     label: '更新资源',
     category: 'Resource',
     description: '更新资源的任意字段，返回更新后的完整资源对象',
+    backgroundColor: '#3b82f6',
+    icon: 'TbEdit',
     inputs: [
       {
         key: 'resourceId',

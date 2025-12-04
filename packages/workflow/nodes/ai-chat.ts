@@ -107,6 +107,8 @@ export const AiChatNode: NodeHandler = {
     label: '大模型对话',
     category: 'AI',
     description: '使用AI大模型进行对话，输入文本内容并获取AI回复',
+    backgroundColor: '#8b5cf6',
+    icon: 'TbRobot',
     inputs: [{ key: 'message', label: '对话内容', type: 'string', required: true }],
     // 静态配置作为默认值，实际配置通过 getConfig 动态获取
     config: [

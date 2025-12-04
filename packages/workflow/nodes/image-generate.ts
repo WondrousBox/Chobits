@@ -140,6 +140,8 @@ export const ImageGenerateNode: NodeHandler = {
     label: '图片生成',
     category: 'AI',
     description: '使用AI图像生成模型，根据文本提示生成图片',
+    backgroundColor: '#ec4899',
+    icon: 'TbPhoto',
     inputs: [{ key: 'prompt', label: '提示词', type: 'string', required: true, description: '用于生成图片的文本描述' }],
     // 静态配置作为默认值，实际配置通过 getConfig 动态获取
     config: [

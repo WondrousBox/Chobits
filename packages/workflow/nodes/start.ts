@@ -120,6 +120,8 @@ export const StartNode: NodeHandler = {
     label: '开始',
     category: 'Core',
     description: '工作流开始节点，根据配置输出初始输入',
+    backgroundColor: '#10b981',
+    icon: 'TbPlayerPlay',
     // 静态输入定义：用于校验和默认展示；实际使用 getInputs 动态计算
     inputs: [],
     // 默认使用资源模式的输出定义，实际由 getOutputs 按配置计算

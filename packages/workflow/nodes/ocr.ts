@@ -10,6 +10,8 @@ export const OCRNode: NodeHandler = {
     label: '文字识别 (OCR)',
     category: 'Image',
     description: '基于 Tesseract 的图片文字识别',
+    backgroundColor: '#06b6d4',
+    icon: 'TbScan',
     requires: ['plugin:tesseract'],
     // 仅保留真正的数据输入：图片路径
     inputs: [{ key: 'image', label: '图片路径', type: ['file', 'string'], required: true }],
