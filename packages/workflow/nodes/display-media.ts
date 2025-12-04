@@ -10,6 +10,8 @@ export const DisplayMediaNode: NodeHandler = {
     label: '音视频展示',
     category: 'Display',
     description: '展示上游节点输出的音频或视频文件',
+    backgroundColor: '#f7b947',
+    icon: 'TbPlayerPlay',
     inputs: [{ key: 'media', label: '媒体文件', type: ['file', 'string'], required: true, description: '本地音频/视频文件路径' }],
     config: [
       {

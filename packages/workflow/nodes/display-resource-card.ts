@@ -7,6 +7,8 @@ export const DisplayResourceCardNode: NodeHandler = {
     label: '资源卡片展示',
     category: 'Display',
     description: '展示资源的标题、缩略图等信息，便于在工作流中浏览结果',
+    backgroundColor: '#f7b947',
+    icon: 'TbSquare',
     inputs: [{ key: 'resource', label: '资源对象', type: 'resource', required: true, description: '来自资源系统的 Resource 对象' }],
     outputs: [
       { key: 'resource', label: '资源对象', type: 'resource' },
