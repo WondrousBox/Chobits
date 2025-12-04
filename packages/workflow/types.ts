@@ -135,6 +135,10 @@ export type ExecutionContext = {
   workspaceDir?: string;
   // userData directory for persistent caches
   userDataDir: string;
+  // workspace ID for resource operations (required)
+  workspaceId?: string;
+  // folder ID for resource operations (optional)
+  folderId?: string;
 };
 
 export type NodeHandler = {

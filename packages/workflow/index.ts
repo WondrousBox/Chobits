@@ -106,6 +106,20 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
         return;
       }
 
+      // 验证必需字段：工作空间和文件夹
+      if (!resourceData.workspaceId) {
+        const error = new Error('资源创建失败：缺少工作空间 ID (workspaceId)');
+        console.warn('[workflow][resource:create-request]', error.message);
+        if (callback) callback(null);
+        return;
+      }
+      if (!resourceData.folderId) {
+        const error = new Error('资源创建失败：缺少文件夹 ID (folderId)');
+        console.warn('[workflow][resource:create-request]', error.message);
+        if (callback) callback(null);
+        return;
+      }
+
       console.log(resourceData);
 
       // 自动检测资源类型
@@ -216,6 +230,7 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
       const workspaceId: string | undefined = payload?.workspaceId ? String(payload.workspaceId) : undefined;
       const folderId: string | undefined = payload?.folderId ? String(payload.folderId) : undefined;
       const callback = payload?.callback;
+      const runId: string | undefined = payload?.__runId; // 从事件 payload 中获取 runId
 
       if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) {
         if (callback) callback(null, '无效的URL');
@@ -245,6 +260,13 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
           const existing = siblings.find((s: any) => s.name === today);
           if (existing) {
             targetFolderId = existing.id;
+            // 如果找到了现有文件夹，也更新上下文（确保上下文是最新的）
+            if (runId) {
+              engine.updateRunContext(runId, {
+                workspaceId: ws.id,
+                folderId: existing.id
+              });
+            }
           } else {
             // 创建新文件夹
             const newFolder = {
@@ -259,10 +281,29 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
             const dirPath = path.join(ws.rootPath, 'resources', 'folders', newFolder.id);
             fs.mkdirSync(dirPath, { recursive: true });
             targetFolderId = newFolder.id;
+
+            // 如果创建了新文件夹，更新工作流的执行上下文
+            if (runId) {
+              engine.updateRunContext(runId, {
+                workspaceId: ws.id,
+                folderId: newFolder.id
+              });
+              console.log('[workflow][resource:download-request] Updated workflow context with new folder', {
+                runId,
+                workspaceId: ws.id,
+                folderId: newFolder.id
+              });
+            }
           }
         } catch (e) {
           console.warn('[workflow][resource:download-request] Failed to ensure daily folder', e);
         }
+      } else if (runId && workspaceId) {
+        // 如果提供了 folderId，也更新上下文以确保一致性
+        engine.updateRunContext(runId, {
+          workspaceId: workspaceId,
+          folderId: folderId
+        });
       }
 
       // 确定目标目录

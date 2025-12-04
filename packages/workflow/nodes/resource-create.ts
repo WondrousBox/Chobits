@@ -24,25 +24,11 @@ export const ResourceCreateNode: NodeHandler = {
         type: ['file', 'string'],
         required: true,
         description: '文件对象、本地文件路径或URL（http/https）'
-      },
-      {
-        key: 'workspaceId',
-        label: '工作空间 ID',
-        type: 'string',
-        required: false,
-        description: '归属工作空间（可选，默认使用当前工作空间）'
-      },
-      {
-        key: 'folderId',
-        label: '文件夹 ID',
-        type: 'string',
-        required: false,
-        description: '归属文件夹（可选，为空表示在根目录）'
       }
     ],
     outputs: [{ key: 'resource', label: '创建的资源', type: 'resource', description: '创建后的完整资源对象' }]
   },
-  async run({ input, emit }) {
+  async run({ input, emit, ctx }) {
     // 获取文件路径或URL
     let filePath: string | undefined;
     let isUrl = false;
@@ -94,8 +80,8 @@ export const ResourceCreateNode: NodeHandler = {
 
         emit('resource:download-request', {
           url,
-          workspaceId: input.workspaceId ? String(input.workspaceId) : undefined,
-          folderId: input.folderId ? String(input.folderId) : undefined,
+          workspaceId: ctx.workspaceId,
+          folderId: ctx.folderId,
           callback: (downloadedPath: string | null, error?: string) => {
             clearTimeout(timeout);
             if (error || !downloadedPath) {
@@ -136,13 +122,16 @@ export const ResourceCreateNode: NodeHandler = {
       resourceData.url = url;
     }
 
-    // 可选的工作空间和文件夹
-    if (input.workspaceId) {
-      resourceData.workspaceId = String(input.workspaceId);
+    // 从执行上下文中获取工作空间和文件夹信息
+    if (!ctx.workspaceId) {
+      throw new Error('工作流执行上下文缺少工作空间 ID (workspaceId)，请确保工作流是从资源页面启动的');
     }
-    if (input.folderId) {
-      resourceData.folderId = String(input.folderId);
+    if (!ctx.folderId) {
+      throw new Error('工作流执行上下文缺少文件夹 ID (folderId)，请确保工作流是从资源页面启动的');
     }
+
+    resourceData.workspaceId = ctx.workspaceId;
+    resourceData.folderId = ctx.folderId;
 
     // 通过事件通知主进程适配层进行实际 DB 创建
     // 使用 Promise 等待创建完成并获取创建后的资源
