@@ -50,6 +50,8 @@ function mergeInputValues(def: WorkflowDefinition, nodeId: string, nodeOutputMap
 export class WorkflowEngine extends EngineEmitter {
   private runs = new Map<string, WorkflowRunRecord>();
   private runLogs = new Map<string, WorkflowRunLogEntry[]>();
+  // 存储每个运行的工作流的执行上下文
+  private runContexts = new Map<string, ExecutionContext>();
 
   constructor(private baseCtx: Omit<ExecutionContext, 'tmpDir'>) {
     super();
@@ -141,6 +143,20 @@ export class WorkflowEngine extends EngineEmitter {
     return [...(this.runLogs.get(runId) || [])];
   }
 
+  // 获取运行中的工作流的执行上下文
+  getRunContext(runId: string): ExecutionContext | undefined {
+    return this.runContexts.get(runId);
+  }
+
+  // 更新运行中的工作流的执行上下文
+  updateRunContext(runId: string, updates: Partial<ExecutionContext>): void {
+    const ctx = this.runContexts.get(runId);
+    if (ctx) {
+      Object.assign(ctx, updates);
+      this.runContexts.set(runId, ctx);
+    }
+  }
+
   async cancel(runId: string): Promise<void> {
     const r = this.runs.get(runId);
     if (!r) return;
@@ -171,6 +187,26 @@ runId: ${runId}
     }
 
     const ctx = this.buildCtx();
+
+    // 从 metadata 或 initialInput 中提取工作空间和文件夹信息
+    // metadata 中可能有 spaceId (workspaceId)
+    if (metadata?.spaceId) {
+      ctx.workspaceId = metadata.spaceId;
+    }
+    // 从 initialInput 中的 resource 对象获取工作空间和文件夹信息
+    if (initialInput?.resource) {
+      const resource = initialInput.resource;
+      if (resource.workspaceId && !ctx.workspaceId) {
+        ctx.workspaceId = resource.workspaceId;
+      }
+      if (resource.folderId) {
+        ctx.folderId = resource.folderId;
+      }
+    }
+
+    // 存储执行上下文，以便在运行时更新
+    this.runContexts.set(runId, ctx);
+
     await fs.mkdir(ctx.tmpDir, { recursive: true }).catch(() => { });
 
     // Prepare plugins once per run
@@ -284,8 +320,9 @@ runId: ${runId}
 
             this.emitTyped('node:progress', runId, nodeId, progress, message);
           } else {
-            // 其他事件直接转发
-            this.emit(ev, payload);
+            // 其他事件直接转发，并在 payload 中包含 runId 以便事件处理可以更新上下文
+            const payloadWithRunId = payload ? { ...payload, __runId: runId } : { __runId: runId };
+            this.emit(ev, payloadWithRunId);
           }
         };
         const out = await handler.run({ input, config: inst.config, ctx, emit: nodeEmit, getPlugin: getPluginFn });
@@ -319,6 +356,10 @@ runId: ${runId}
 
     const finalStatus = this.runs.get(runId)?.status;
     if (finalStatus !== 'failed' && finalStatus !== 'canceled') rec.status = 'completed';
+
+    // 清理执行上下文（工作流执行完成）
+    this.runContexts.delete(runId);
+
     // Final output: all outputs of terminal nodes
     const targets = new Set(def.edges.map((e) => e.from.nodeId));
     const dests = new Set(def.edges.map((e) => e.to.nodeId));
