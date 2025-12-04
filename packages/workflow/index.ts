@@ -7,6 +7,8 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import * as fs from 'fs';
 
 import { FoldersRepo, ResourcesRepo, WorkspacesRepo } from '../../electron/main/db/repositories';
+import { eventManager } from '../../electron/main/handlers/event-manager';
+import { AppEvent } from '../../electron/main/handlers/events';
 import { sendSpriteBusyEnd, sendSpriteBusyProgress, sendSpriteBusyStart } from '../../electron/main/utils/sprite-busy';
 import { detectBasicType } from '../../electron/main/utils/thumbnail';
 import { createEngine } from './engine';
@@ -92,6 +94,12 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
     broadcast('wf:ai-missing-provider', payload);
   });
 
+  // 将开始节点需要输入的事件转发到渲染进程
+  // payload: { defId: string; inputMode: 'text' | 'url' | 'file'; metadata?: Record<string, any> }
+  engine.on('wf:start-input-required', (payload: any) => {
+    broadcast('wf:start-input-required', payload);
+  });
+
   // 资源创建请求：由资源创建节点发出，由主进程适配层落盘到数据库
   // payload: { resourceData: any; callback?: (createdResource: any) => void }
   engine.on('resource:create-request', async (payload: any) => {
@@ -175,6 +183,10 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
 
       try {
         const created = await ResourcesRepo.upsert(resource as any);
+        if (created) {
+          // 发送资源创建完成事件，与其他创建节点保持一致
+          eventManager.emit(AppEvent.RESOURCE_CREATED, created);
+        }
         if (callback) {
           callback(created || null);
         }
@@ -197,7 +209,7 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
   engine.on('resource:update-request', async (payload: any) => {
     try {
       const resourceId: string = String(payload?.resourceId || '').trim();
-      const patch: Record<string, any> = payload?.patch || {};
+      const patch: Record<string, any> = { ...(payload?.patch || {}) };
       const callback = payload?.callback;
       if (!resourceId || !patch || typeof patch !== 'object') {
         if (callback) callback(null);
@@ -210,7 +222,21 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
         return;
       }
 
+      // 如果本次更新包含文本内容，则同步更新 sizeBytes，保证纯文本资源也有合理的大小
+      if (typeof patch.contentText === 'string') {
+        try {
+          const buf = Buffer.from(patch.contentText, 'utf8');
+          patch.sizeBytes = buf.byteLength;
+        } catch {
+          // 忽略计算失败，不阻塞更新
+        }
+      }
+
       const updated = await ResourcesRepo.update(resourceId, patch as any);
+      if (updated) {
+        // 发送资源更新完成事件，与其他更新节点保持一致
+        eventManager.emit(AppEvent.RESOURCE_UPDATED, updated);
+      }
       if (callback) {
         callback(updated || null);
       }

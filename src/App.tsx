@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import { ChatSelectionProvider } from '@/components/AIAssistant/context/ChatSelectionContext';
@@ -25,9 +26,26 @@ import TaggingPage from './pages/TaggingPage/TaggingPage';
 import WorkflowBuilderPage from './pages/WorkflowBuilderPage/WorkflowBuilderPage';
 import WorkflowHistoryPage from './pages/WorkflowHistoryPage/WorkflowHistoryPage';
 import WorkflowPage from './pages/WorkflowPage/WorkflowPage';
+import WorkflowStartInputWindow from './pages/WorkflowStartInputWindow/WorkflowStartInputWindow';
 import WorkspaceWizard from './pages/WorkspacePage/WorkspaceWizard';
 
 function App(): JSX.Element {
+  // 监听工作流开始节点需要输入的事件
+  useEffect(() => {
+    const handleStartInputRequired = (_e: any, payload: { defId: string; inputMode: 'text' | 'url' | 'file'; metadata?: Record<string, any> }): void => {
+      // 打开输入窗口
+      window.YUA.window['window:open']('workflowStartInput' as any, payload, { sameDisplayAsSender: true }).catch(() => {
+        // ignore
+      });
+    };
+
+    window.ipcRenderer.on('wf:start-input-required', handleStartInputRequired);
+
+    return () => {
+      window.ipcRenderer.off('wf:start-input-required', handleStartInputRequired);
+    };
+  }, []);
+
   return (
     <ThemeProvider>
       <HashRouter>
@@ -53,6 +71,7 @@ function App(): JSX.Element {
                 <Route path="/screenshot" element={<Screenshot />} />
                 <Route path="/workflow-history" element={<WorkflowHistoryPage />} />
                 <Route path="/ai-provider-config" element={<AiProviderConfigWindow />} />
+                <Route path="/workflow-start-input" element={<WorkflowStartInputWindow />} />
                 <Route path="/tagger" element={<TaggingPage />} />
                 <Route path="/resource-preview" element={<ResourcePreviewWindow />} />
                 <Route path="/download" element={<DownloadFloating />} />
