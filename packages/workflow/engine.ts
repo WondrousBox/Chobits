@@ -189,9 +189,12 @@ runId: ${runId}
     const ctx = this.buildCtx();
 
     // 从 metadata 或 initialInput 中提取工作空间和文件夹信息
-    // metadata 中可能有 spaceId (workspaceId)
+    // metadata 中可能有 spaceId (workspaceId) 和 folderId
     if (metadata?.spaceId) {
       ctx.workspaceId = metadata.spaceId;
+    }
+    if (metadata?.folderId) {
+      ctx.folderId = metadata.folderId;
     }
     // 从 initialInput 中的 resource 对象获取工作空间和文件夹信息
     if (initialInput?.resource) {
@@ -199,7 +202,7 @@ runId: ${runId}
       if (resource.workspaceId && !ctx.workspaceId) {
         ctx.workspaceId = resource.workspaceId;
       }
-      if (resource.folderId) {
+      if (resource.folderId && !ctx.folderId) {
         ctx.folderId = resource.folderId;
       }
     }
@@ -286,6 +289,58 @@ runId: ${runId}
         // 2）在画布里用户在开始节点上填写的 inline 输入（保存在 inputDefaults 中）
         const initialData = nodeOutput.get('__start__') || {};
         input = { ...initialData, ...(inst.inputDefaults || {}) };
+
+        // 检查开始节点是否需要输入但没有提供
+        const inputMode = (inst.config?.inputMode as string) || 'resource';
+        if (inputMode === 'text' && !input.text && !initialData.text) {
+          // 需要文本输入但没有提供，发出事件通知前端打开输入窗口
+          this.emit('wf:start-input-required', {
+            defId: def.id,
+            inputMode: 'text',
+            metadata
+          });
+          const error = '开始节点需要文本输入，已弹出输入窗口，请完成输入后重试。';
+          this.log(runId, 'error', nodeId, `[WorkflowEngine] ${error}`);
+          nodesState[nodeId] = { nodeId, status: 'failed', error };
+          rec.status = 'failed';
+          rec.error = error;
+          this.emitTyped('node:status', rec, nodesState[nodeId]);
+          this.emitTyped('run:status', rec);
+          return rec;
+        }
+        if (inputMode === 'url' && !input.url && !initialData.url) {
+          // 需要链接输入但没有提供，发出事件通知前端打开输入窗口
+          this.emit('wf:start-input-required', {
+            defId: def.id,
+            inputMode: 'url',
+            metadata
+          });
+          const error = '开始节点需要链接输入，已弹出输入窗口，请完成输入后重试。';
+          this.log(runId, 'error', nodeId, `[WorkflowEngine] ${error}`);
+          nodesState[nodeId] = { nodeId, status: 'failed', error };
+          rec.status = 'failed';
+          rec.error = error;
+          this.emitTyped('node:status', rec, nodesState[nodeId]);
+          this.emitTyped('run:status', rec);
+          return rec;
+        }
+        if (inputMode === 'file' && !input.file && !initialData.file) {
+          // 需要文件输入但没有提供，发出事件通知前端打开输入窗口
+          this.emit('wf:start-input-required', {
+            defId: def.id,
+            inputMode: 'file',
+            metadata
+          });
+          const error = '开始节点需要文件输入，已弹出输入窗口，请完成输入后重试。';
+          this.log(runId, 'error', nodeId, `[WorkflowEngine] ${error}`);
+          nodesState[nodeId] = { nodeId, status: 'failed', error };
+          rec.status = 'failed';
+          rec.error = error;
+          this.emitTyped('node:status', rec, nodesState[nodeId]);
+          this.emitTyped('run:status', rec);
+          return rec;
+        }
+
         this.log(runId, 'info', nodeId, `[WorkflowEngine] Start节点特殊处理，使用初始输入 + inputDefaults:`, input);
       } else {
         const inputFromEdges = mergeInputValues(def, nodeId, nodeOutput);

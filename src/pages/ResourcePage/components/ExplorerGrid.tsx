@@ -465,6 +465,22 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
       .catch(() => { });
   }, []);
 
+  // 获取工作流的开始节点输入模式
+  const getWorkflowInputMode = useCallback((wf: any): 'resource' | 'text' | 'url' | 'file' => {
+    if (!wf?.nodes) return 'resource';
+    const startNode = wf.nodes.find((n: any) => n.id === 'start' || n.type === 'core/start');
+    if (!startNode) return 'resource';
+    return (startNode.config?.inputMode as 'resource' | 'text' | 'url' | 'file') || 'resource';
+  }, []);
+
+  // 检查工作流是否需要资源输入
+  const workflowRequiresResource = useCallback(
+    (wf: any): boolean => {
+      return getWorkflowInputMode(wf) === 'resource';
+    },
+    [getWorkflowInputMode]
+  );
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
@@ -573,30 +589,48 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
                 <TbLine className="mr-2" /> 执行任务
               </ContextMenuSubTrigger>
               <ContextMenuSubContent className="w-48">
-                {workflows.map((wf) => (
-                  <ContextMenuItem
-                    key={wf.id}
-                    onSelect={() => {
-                      if (!firstSelected) return;
-                      const item = mergedItems.find((i) => i.id === firstSelected);
-                      if (item) {
-                        window.ipcRenderer.invoke('wf:run', {
-                          defId: wf.id,
-                          input: { resource: item, resourceId: item.id },
-                          metadata: {
-                            resourceId: item.id,
-                            resourceName: item.title || 'Unknown',
-                            thumbnailPath: item.thumbnailPath,
-                            spaceId: item.workspaceId
+                {workflows.map((wf) => {
+                  const inputMode = getWorkflowInputMode(wf);
+                  return (
+                    <ContextMenuItem
+                      key={wf.id}
+                      onSelect={() => {
+                        if (inputMode === 'resource') {
+                          // 资源模式需要选中资源
+                          if (!firstSelected) return;
+                          const item = mergedItems.find((i) => i.id === firstSelected);
+                          if (item) {
+                            window.ipcRenderer.invoke('wf:run', {
+                              defId: wf.id,
+                              input: { resource: item, resourceId: item.id },
+                              metadata: {
+                                resourceId: item.id,
+                                resourceName: item.title || 'Unknown',
+                                thumbnailPath: item.thumbnailPath,
+                                spaceId: item.workspaceId
+                              }
+                            });
+                            toast.success(`已开始执行工作流: ${wf.name}`);
                           }
-                        });
-                        toast.success(`已开始执行工作流: ${wf.name}`);
-                      }
-                    }}
-                  >
-                    {wf.name}
-                  </ContextMenuItem>
-                ))}
+                        } else {
+                          // 其他模式（text/url/file）不需要资源，直接执行
+                          // 引擎会自动检测并弹出输入窗口
+                          window.ipcRenderer.invoke('wf:run', {
+                            defId: wf.id,
+                            input: {},
+                            metadata: {
+                              spaceId: workspaceId,
+                              folderId: folderId
+                            }
+                          });
+                          toast.success(`已开始执行工作流: ${wf.name}`);
+                        }
+                      }}
+                    >
+                      {wf.name}
+                    </ContextMenuItem>
+                  );
+                })}
                 {workflows.length === 0 && <ContextMenuItem disabled>无可用工作流</ContextMenuItem>}
               </ContextMenuSubContent>
             </ContextMenuSub>
@@ -650,30 +684,37 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
                 <TbLine className="mr-2" /> 执行任务
               </ContextMenuSubTrigger>
               <ContextMenuSubContent className="w-48">
-                {workflows.map((wf) => (
-                  <ContextMenuItem
-                    key={wf.id}
-                    onSelect={() => {
-                      if (!firstSelected) return;
-                      const item = mergedItems.find((i) => i.id === firstSelected);
-                      if (item) {
-                        window.ipcRenderer.invoke('wf:run', {
-                          defId: wf.id,
-                          input: { resource: item, resourceId: item.id },
-                          metadata: {
-                            resourceId: item.id,
-                            resourceName: item.title || 'Unknown',
-                            thumbnailPath: item.thumbnailPath,
-                            spaceId: item.workspaceId
-                          }
-                        });
-                        toast.success(`已开始执行工作流: ${wf.name}`);
-                      }
-                    }}
-                  >
-                    {wf.name}
-                  </ContextMenuItem>
-                ))}
+                {workflows.map((wf) => {
+                  const requiresResource = workflowRequiresResource(wf);
+                  const canExecute = !requiresResource;
+                  return (
+                    <ContextMenuItem
+                      key={wf.id}
+                      disabled={!canExecute}
+                      onSelect={() => {
+                        const inputMode = getWorkflowInputMode(wf);
+                        if (inputMode === 'resource') {
+                          // 资源模式需要选中资源，但这里没有选中，所以不应该执行
+                          return;
+                        } else {
+                          // 其他模式（text/url/file）不需要资源，直接执行
+                          // 引擎会自动检测并弹出输入窗口
+                          window.ipcRenderer.invoke('wf:run', {
+                            defId: wf.id,
+                            input: {},
+                            metadata: {
+                              spaceId: workspaceId,
+                              folderId: folderId
+                            }
+                          });
+                          toast.success(`已开始执行工作流: ${wf.name}`);
+                        }
+                      }}
+                    >
+                      {wf.name}
+                    </ContextMenuItem>
+                  );
+                })}
                 {workflows.length === 0 && <ContextMenuItem disabled>无可用工作流</ContextMenuItem>}
               </ContextMenuSubContent>
             </ContextMenuSub>
