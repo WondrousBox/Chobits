@@ -1,5 +1,7 @@
 import { EventEmitter } from 'node:events';
 
+import type { PluginResourceManager } from '../plugins';
+
 // Basic value types supported across nodes
 export type ValueType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'file' | 'resource' | 'any';
 
@@ -129,16 +131,15 @@ export type WorkflowRunLogEntry = {
 export type ExecutionContext = {
   // root temp directory to generate files
   tmpDir: string;
-  // application resources root for binaries like ffmpeg
-  resourcesDir: string;
-  // workspace root for relative paths (optional)
-  workspaceDir?: string;
-  // userData directory for persistent caches
-  userDataDir: string;
   // workspace ID for resource operations (required)
   workspaceId?: string;
   // folder ID for resource operations (optional)
   folderId?: string;
+  // 可选：应用级注入的插件资源管理器，用于查找插件相关的 engine/model 路径
+  pluginResourceManager?: PluginResourceManager;
+  // 可选：应用级注入的 FFmpeg/FFprobe 路径，避免在 workflow 层直接依赖 Electron 资源工具
+  ffmpegPath?: string;
+  ffprobePath?: string;
 };
 
 export type NodeHandler = {

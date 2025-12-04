@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import { platform } from 'node:os';
 
-import { pluginResourceManager } from '../../plugins';
 import { Plugin } from '../types';
 
 export const WhisperPlugin: Plugin = {
@@ -10,10 +9,13 @@ export const WhisperPlugin: Plugin = {
   description: 'OpenAI Whisper 命令行工具，用于音频和视频转录',
   capabilities: ['transcribe'],
   installHint: '通过插件资源管理器下载 Whisper 转录插件',
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
   async isInstalled(ctx) {
-    // 首先检查资源管理器中是否已安装
-    const enginePath = pluginResourceManager.getEnginePath('plugin:whisper', platform() === 'win32' ? 'whisper-cli.exe' : 'whisper-cli');
+    // 首先通过 ExecutionContext 暴露的能力，检查资源管理器中是否已安装
+    if (!ctx.pluginResourceManager) {
+      return false;
+    }
+    const enginePath = ctx.pluginResourceManager.getEnginePath('plugin:whisper', platform() === 'win32' ? 'whisper-cli.exe' : 'whisper-cli');
     if (fs.existsSync(enginePath)) {
       return true;
     }

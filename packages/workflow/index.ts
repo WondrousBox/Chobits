@@ -3,14 +3,16 @@ import path from 'node:path';
 
 import { randomUUID } from 'crypto';
 import dayjs from 'dayjs';
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { BrowserWindow, ipcMain } from 'electron';
 import * as fs from 'fs';
 
 import { FoldersRepo, ResourcesRepo, WorkspacesRepo } from '../../electron/main/db/repositories';
 import { eventManager } from '../../electron/main/handlers/event-manager';
 import { AppEvent } from '../../electron/main/handlers/events';
+import { getResourcePath } from '../../electron/main/utils/resources-path';
 import { sendSpriteBusyEnd, sendSpriteBusyProgress, sendSpriteBusyStart } from '../../electron/main/utils/sprite-busy';
 import { detectBasicType } from '../../electron/main/utils/thumbnail';
+import { pluginResourceManager } from '../plugins';
 import { createEngine } from './engine';
 import { AiChatNode } from './nodes/ai-chat';
 import { DisplayImageNode } from './nodes/display-image';
@@ -72,11 +74,10 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
     DisplayResourceCardNode
   ].forEach(registerNode);
 
-  const engine = createEngine({
-    resourcesDir: path.join(process.env.APP_ROOT || process.cwd(), 'resources'),
-    userDataDir: app.getPath('userData'),
-    workspaceDir: undefined
-  });
+  const ffmpegPath: string | undefined = getResourcePath('ffmpeg');
+  const ffprobePath: string | undefined = getResourcePath('ffprobe');
+
+  const engine = createEngine({ pluginResourceManager, ffmpegPath, ffprobePath });
   // expose engine via closure only (no global)
 
   // Persist run updates
