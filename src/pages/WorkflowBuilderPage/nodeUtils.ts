@@ -1,5 +1,5 @@
 import React from 'react';
-import { TbEdit, TbFolderOpen, TbPhoto, TbPlayerPlay, TbRobot, TbScan, TbSquare } from 'react-icons/tb';
+import { TbEdit, TbFolderOpen, TbLetterT, TbPhoto, TbPlayerPlay, TbRobot, TbScan, TbSquare } from 'react-icons/tb';
 
 /**
  * 图标映射表
@@ -18,7 +18,8 @@ export const iconMap: Record<string, React.ComponentType<{ className?: string }>
   TbPlayerPlay,
   TbRobot,
   TbScan,
-  TbSquare
+  TbSquare,
+  TbText: TbLetterT
 };
 
 /**

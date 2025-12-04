@@ -8,6 +8,7 @@ import * as fs from 'fs';
 
 import { FoldersRepo, ResourcesRepo, WorkspacesRepo } from '../../electron/main/db/repositories';
 import { sendSpriteBusyEnd, sendSpriteBusyProgress, sendSpriteBusyStart } from '../../electron/main/utils/sprite-busy';
+import { detectBasicType } from '../../electron/main/utils/thumbnail';
 import { createEngine } from './engine';
 import { AiChatNode } from './nodes/ai-chat';
 import { DisplayImageNode } from './nodes/display-image';
@@ -94,26 +95,80 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
   // 资源创建请求：由资源创建节点发出，由主进程适配层落盘到数据库
   // payload: { resourceData: any; callback?: (createdResource: any) => void }
   engine.on('resource:create-request', async (payload: any) => {
+    console.log('resource:create-request');
+    console.log(payload);
+
     try {
       const resourceData: Record<string, any> = payload?.resourceData || {};
       const callback = payload?.callback;
-      if (!resourceData || typeof resourceData !== 'object' || !resourceData.type) {
+      if (!resourceData || typeof resourceData !== 'object' || !resourceData.filePath) {
         if (callback) callback(null);
         return;
       }
 
-      // 设置时间戳
-      const now = Date.now();
-      if (!resourceData.createdAt) {
-        resourceData.createdAt = now;
-      }
-      if (!resourceData.updatedAt) {
-        resourceData.updatedAt = now;
+      console.log(resourceData);
+
+      // 自动检测资源类型
+      const filePath = resourceData.filePath;
+      let detectedType = 'file'; // 默认类型
+      let mimeType: string | undefined;
+
+      if (filePath) {
+        const detected = detectBasicType(filePath);
+        detectedType = detected.type || 'file';
+        mimeType = detected.mimeType;
+
+        // 检查是否是 document 类型（detectBasicType 不返回 'document'，需要单独判断）
+        const ext = path.extname(filePath).toLowerCase();
+        const DOC_EXT = new Set(['.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx', '.pdf', '.key', '.pages', '.numbers']);
+        if (DOC_EXT.has(ext)) {
+          detectedType = 'document';
+          // 为 document 类型设置合适的 mimeType
+          if (!mimeType) {
+            const mimeMap: Record<string, string> = {
+              '.pdf': 'application/pdf',
+              '.doc': 'application/msword',
+              '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+              '.xls': 'application/vnd.ms-excel',
+              '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+              '.ppt': 'application/vnd.ms-powerpoint',
+              '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+            };
+            mimeType = mimeMap[ext] || 'application/octet-stream';
+          }
+        }
       }
 
-      const created = await ResourcesRepo.upsert(resourceData as any);
-      if (callback) {
-        callback(created || null);
+      // Create Resource
+      const now = Date.now();
+      const resource = {
+        id: randomUUID(),
+        title: resourceData.title,
+        filePath: resourceData.filePath,
+        sizeBytes: resourceData.sizeBytes,
+        type: detectedType,
+        mimeType: mimeType,
+        workspaceId: resourceData.workspaceId,
+        folderId: resourceData.folderId,
+        createdAt: now,
+        updatedAt: now,
+        collectedAt: resourceData.collectedAt || now,
+        status: resourceData.status || 'new'
+      };
+
+      console.log('Detected resource type:', detectedType, 'mimeType:', mimeType);
+      console.log(resource);
+
+      try {
+        const created = await ResourcesRepo.upsert(resource as any);
+        if (callback) {
+          callback(created || null);
+        }
+      } catch (e) {
+        console.warn('[workflow][resource:create-request] failed:', e);
+        if (callback) {
+          callback(null);
+        }
       }
     } catch (e) {
       console.warn('[workflow][resource:create-request] failed:', e);

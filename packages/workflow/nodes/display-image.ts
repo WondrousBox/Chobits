@@ -9,6 +9,8 @@ export const DisplayImageNode: NodeHandler = {
     label: '图片展示',
     category: 'Display',
     description: '展示上游节点输出的图片（文件路径或 URL）',
+    backgroundColor: '#f7b947',
+    icon: 'TbPhoto',
     inputs: [{ key: 'image', label: '图片路径或 URL', type: ['file', 'string'], required: true, description: '本地文件路径或网络 URL' }],
     // 展示节点尽量保持简单，这里不提供额外配置
     config: [],

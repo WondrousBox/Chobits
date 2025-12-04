@@ -7,7 +7,7 @@ export const DisplayTextNode: NodeHandler = {
     label: '文本展示',
     category: 'Display',
     description: '展示上游节点输出的文本内容（如大模型结果）',
-    backgroundColor: '#f59e0b',
+    backgroundColor: '#f7b947',
     icon: 'TbText',
     inputs: [{ key: 'text', label: '文本', type: 'string', required: true, description: '要展示的文本内容' }],
     config: [],
