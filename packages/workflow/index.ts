@@ -1,9 +1,12 @@
 // Entry point to register workflow system
 import path from 'node:path';
 
+import { randomUUID } from 'crypto';
+import dayjs from 'dayjs';
 import { app, BrowserWindow, ipcMain } from 'electron';
+import * as fs from 'fs';
 
-import { ResourcesRepo } from '../../electron/main/db/repositories';
+import { FoldersRepo, ResourcesRepo, WorkspacesRepo } from '../../electron/main/db/repositories';
 import { sendSpriteBusyEnd, sendSpriteBusyProgress, sendSpriteBusyStart } from '../../electron/main/utils/sprite-busy';
 import { createEngine } from './engine';
 import { AiChatNode } from './nodes/ai-chat';
@@ -146,6 +149,154 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
       console.warn('[workflow][resource:update-request] failed:', e);
       if (payload?.callback) {
         payload.callback(null);
+      }
+    }
+  });
+
+  // 资源下载请求：由资源创建节点发出，用于从URL下载文件到资源存储文件夹
+  // payload: { url: string; workspaceId?: string; folderId?: string; callback?: (filePath: string | null, error?: string) => void }
+  engine.on('resource:download-request', async (payload: any) => {
+    try {
+      const url: string = String(payload?.url || '').trim();
+      const workspaceId: string | undefined = payload?.workspaceId ? String(payload.workspaceId) : undefined;
+      const folderId: string | undefined = payload?.folderId ? String(payload.folderId) : undefined;
+      const callback = payload?.callback;
+
+      if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) {
+        if (callback) callback(null, '无效的URL');
+        return;
+      }
+
+      // 获取工作空间
+      let ws;
+      if (workspaceId) {
+        ws = await WorkspacesRepo.getById(workspaceId);
+      } else {
+        ws = await WorkspacesRepo.getDefault();
+      }
+
+      if (!ws || !ws.rootPath) {
+        if (callback) callback(null, '无法获取工作空间路径');
+        return;
+      }
+
+      // 确定目标文件夹
+      let targetFolderId = folderId;
+      if (!targetFolderId) {
+        // 如果没有指定文件夹，使用当天文件夹
+        try {
+          const today = dayjs().format('YYYY-MM-DD');
+          const siblings = await FoldersRepo.list({ workspaceId: ws.id, parentId: null, deletedAt: 0 } as any, 2000, 0);
+          const existing = siblings.find((s: any) => s.name === today);
+          if (existing) {
+            targetFolderId = existing.id;
+          } else {
+            // 创建新文件夹
+            const newFolder = {
+              id: randomUUID(),
+              name: today,
+              parentId: null,
+              workspaceId: ws.id,
+              createdAt: Date.now(),
+              updatedAt: Date.now()
+            };
+            await FoldersRepo.upsert(newFolder as any);
+            const dirPath = path.join(ws.rootPath, 'resources', 'folders', newFolder.id);
+            fs.mkdirSync(dirPath, { recursive: true });
+            targetFolderId = newFolder.id;
+          }
+        } catch (e) {
+          console.warn('[workflow][resource:download-request] Failed to ensure daily folder', e);
+        }
+      }
+
+      // 确定目标目录
+      let targetDir: string;
+      if (targetFolderId) {
+        targetDir = path.join(ws.rootPath, 'resources', 'folders', targetFolderId);
+      } else {
+        targetDir = path.join(ws.rootPath, 'resources');
+      }
+      fs.mkdirSync(targetDir, { recursive: true });
+
+      // 从URL提取文件名
+      let filename: string;
+      try {
+        const urlObj = new URL(url);
+        const urlPathname = urlObj.pathname;
+        filename = path.basename(urlPathname) || 'download';
+        // 如果没有扩展名，尝试从Content-Type获取，这里简化处理
+        if (!path.extname(filename)) {
+          filename += '.tmp';
+        }
+      } catch {
+        filename = 'download.tmp';
+      }
+
+      // 清理文件名中的非法字符
+      filename = filename.replace(/[<>:"/\\|?*]/g, '_');
+
+      // 处理同名文件
+      let targetPath = path.join(targetDir, filename);
+      const ext = path.extname(filename);
+      const nameNoExt = path.basename(filename, ext);
+      let counter = 1;
+      while (fs.existsSync(targetPath)) {
+        targetPath = path.join(targetDir, `${nameNoExt}(${counter})${ext}`);
+        counter++;
+      }
+
+      // 使用 fetch 直接下载文件并保存
+      // 设置浏览器请求头以避免 403 错误
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 300000); // 5分钟超时
+
+        const response = await fetch(url, {
+          signal: controller.signal,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            Accept: '*/*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            Connection: 'keep-alive',
+            Referer: new URL(url).origin,
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'cross-site'
+          }
+        });
+
+        clearTimeout(timeout);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        // 将响应流写入文件
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        await fs.promises.writeFile(targetPath, buffer);
+
+        console.log('[workflow][resource:download-request] File downloaded successfully', {
+          url,
+          targetPath,
+          size: buffer.length
+        });
+
+        if (callback) {
+          callback(targetPath);
+        }
+      } catch (downloadError) {
+        console.warn('[workflow][resource:download-request] Download failed:', downloadError);
+        if (callback) {
+          callback(null, downloadError instanceof Error ? downloadError.message : String(downloadError));
+        }
+      }
+    } catch (e) {
+      console.warn('[workflow][resource:download-request] failed:', e);
+      if (payload?.callback) {
+        payload.callback(null, e instanceof Error ? e.message : String(e));
       }
     }
   });

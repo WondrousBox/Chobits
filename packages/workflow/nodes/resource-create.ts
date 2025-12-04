@@ -1,8 +1,13 @@
+import * as fs from 'fs';
+import * as path from 'path';
+
 import { NodeHandler } from '../types';
 
 /**
  * 资源创建节点
- * - 输入资源类型和所有可创建的资源字段
+ * - 输入文件对象、本地文件路径或URL
+ * - 如果是URL，会自动下载到资源存储文件夹
+ * - 系统会自动获取文件信息并补充字段（类型、大小、MIME等）
  * - 不直接访问数据库，仅通过 emit('resource:create-request', ...) 通知主进程适配层
  * - 输出创建后的完整资源对象
  */
@@ -11,274 +16,132 @@ export const ResourceCreateNode: NodeHandler = {
     id: 'resource/create',
     label: '新建资源',
     category: 'Resource',
-    description: '创建一个新的资源，返回创建后的完整资源对象',
+    description: '通过文件对象、文件路径或URL创建资源，系统会自动获取文件信息',
     inputs: [
       {
-        key: 'type',
-        label: '资源类型',
-        type: 'string',
+        key: 'file',
+        label: '文件',
+        type: ['file', 'string'],
         required: true,
-        description: '资源类型：image, video, audio, text, link, file, document, other'
-      },
-      {
-        key: 'title',
-        label: '标题',
-        type: 'string',
-        required: false,
-        description: '资源标题'
-      },
-      {
-        key: 'contentText',
-        label: '正文内容',
-        type: 'string',
-        required: false,
-        description: '提取的纯文本内容'
-      },
-      {
-        key: 'description',
-        label: '描述',
-        type: 'string',
-        required: false,
-        description: '资源描述'
-      },
-      {
-        key: 'url',
-        label: 'URL',
-        type: 'string',
-        required: false,
-        description: '原始资源URL'
-      },
-      {
-        key: 'domain',
-        label: '域名',
-        type: 'string',
-        required: false,
-        description: '资源域名'
-      },
-      {
-        key: 'sourceName',
-        label: '来源名称',
-        type: 'string',
-        required: false,
-        description: '来源名称'
-      },
-      {
-        key: 'authorName',
-        label: '作者名称',
-        type: 'string',
-        required: false,
-        description: '作者/发布者名称'
-      },
-      {
-        key: 'language',
-        label: '语言',
-        type: 'string',
-        required: false,
-        description: '资源语言'
-      },
-      {
-        key: 'mimeType',
-        label: 'MIME 类型',
-        type: 'string',
-        required: false,
-        description: '媒体类型'
-      },
-      {
-        key: 'sizeBytes',
-        label: '文件大小（字节）',
-        type: 'number',
-        required: false,
-        description: '文件大小（字节）'
-      },
-      {
-        key: 'durationMs',
-        label: '时长（毫秒）',
-        type: 'number',
-        required: false,
-        description: '时长（毫秒，音视频）'
-      },
-      {
-        key: 'width',
-        label: '宽度（像素）',
-        type: 'number',
-        required: false,
-        description: '媒体宽度（像素）'
-      },
-      {
-        key: 'height',
-        label: '高度（像素）',
-        type: 'number',
-        required: false,
-        description: '媒体高度（像素）'
-      },
-      {
-        key: 'filePath',
-        label: '文件路径',
-        type: 'string',
-        required: false,
-        description: '本地缓存路径'
-      },
-      {
-        key: 'thumbnailPath',
-        label: '缩略图路径',
-        type: 'string',
-        required: false,
-        description: '缩略图文件路径'
-      },
-      {
-        key: 'previewUrl',
-        label: '预览URL',
-        type: 'string',
-        required: false,
-        description: '远程预览图/视频等'
-      },
-      {
-        key: 'tags',
-        label: '标签',
-        type: 'string',
-        required: false,
-        description: '标签（JSON字符串数组）'
-      },
-      {
-        key: 'categories',
-        label: '分类',
-        type: 'string',
-        required: false,
-        description: '分类（JSON字符串数组）'
-      },
-      {
-        key: 'visibility',
-        label: '可见性',
-        type: 'string',
-        required: false,
-        description: '可见性：private, unlisted, public'
-      },
-      {
-        key: 'nsfw',
-        label: 'NSFW',
-        type: 'number',
-        required: false,
-        description: '是否涉黄（0/1）'
-      },
-      {
-        key: 'favorite',
-        label: '收藏',
-        type: 'number',
-        required: false,
-        description: '是否收藏（0/1）'
-      },
-      {
-        key: 'rating',
-        label: '评分',
-        type: 'number',
-        required: false,
-        description: '用户评分'
-      },
-      {
-        key: 'status',
-        label: '状态',
-        type: 'string',
-        required: false,
-        description: '状态：new, processing, ready, archived, error'
-      },
-      {
-        key: 'collectedAt',
-        label: '收集时间',
-        type: 'number',
-        required: false,
-        description: '用户收集时间（毫秒时间戳）'
-      },
-      {
-        key: 'publishedAt',
-        label: '发布时间',
-        type: 'number',
-        required: false,
-        description: '来源发布时间（毫秒时间戳）'
-      },
-      {
-        key: 'metadata',
-        label: '元数据',
-        type: 'string',
-        required: false,
-        description: '额外元数据（JSON字符串）'
+        description: '文件对象、本地文件路径或URL（http/https）'
       },
       {
         key: 'workspaceId',
         label: '工作空间 ID',
         type: 'string',
         required: false,
-        description: '归属工作空间'
+        description: '归属工作空间（可选，默认使用当前工作空间）'
       },
       {
         key: 'folderId',
         label: '文件夹 ID',
         type: 'string',
         required: false,
-        description: '归属文件夹（可为空，表示在根目录）'
+        description: '归属文件夹（可选，为空表示在根目录）'
       }
     ],
     outputs: [{ key: 'resource', label: '创建的资源', type: 'resource', description: '创建后的完整资源对象' }]
   },
   async run({ input, emit }) {
-    const type = String(input.type || '').trim();
-    if (!type) throw new Error('缺少资源类型 type');
+    // 获取文件路径或URL
+    let filePath: string | undefined;
+    let isUrl = false;
+    let url: string | undefined;
 
-    // 验证资源类型是否有效
-    const validTypes = ['image', 'video', 'audio', 'text', 'link', 'file', 'document', 'other'];
-    if (!validTypes.includes(type)) {
-      throw new Error(`无效的资源类型: ${type}，有效类型为: ${validTypes.join(', ')}`);
-    }
-
-    // 构建资源对象，只包含提供的字段
-    const resourceData: Record<string, any> = {
-      type
-    };
-
-    // 可创建的字段列表
-    const creatableFields = [
-      'title',
-      'description',
-      'url',
-      'domain',
-      'sourceName',
-      'authorName',
-      'language',
-      'mimeType',
-      'sizeBytes',
-      'durationMs',
-      'width',
-      'height',
-      'filePath',
-      'contentText',
-      'thumbnailPath',
-      'previewUrl',
-      'tags',
-      'categories',
-      'visibility',
-      'nsfw',
-      'favorite',
-      'rating',
-      'status',
-      'collectedAt',
-      'publishedAt',
-      'metadata',
-      'workspaceId',
-      'folderId'
-    ];
-
-    for (const field of creatableFields) {
-      if (input[field] !== undefined && input[field] !== null) {
-        resourceData[field] = input[field];
+    // 处理文件输入：可能是文件对象、文件路径字符串或URL
+    if (input.file) {
+      if (typeof input.file === 'string') {
+        // 检查是否是URL
+        const trimmed = input.file.trim();
+        if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+          isUrl = true;
+          url = trimmed;
+        } else {
+          // 字符串路径
+          filePath = trimmed;
+        }
+      } else if (typeof input.file === 'object' && input.file !== null) {
+        // 文件对象，尝试获取路径
+        if ('filePath' in input.file) {
+          filePath = String(input.file.filePath || '');
+        } else if ('path' in input.file) {
+          filePath = String(input.file.path || '');
+        } else if ('url' in input.file) {
+          const urlValue = String(input.file.url || '');
+          if (urlValue.startsWith('http://') || urlValue.startsWith('https://')) {
+            isUrl = true;
+            url = urlValue;
+          }
+        } else if ('name' in input.file && 'data' in input.file) {
+          // 如果是包含 data 的文件对象，需要先保存到临时文件
+          // 这种情况应该由调用方处理，这里暂时不支持
+          throw new Error('不支持直接传入文件数据，请先保存为文件路径');
+        }
       }
     }
 
-    // 设置默认时间戳
-    const now = Date.now();
-    if (!resourceData.collectedAt) {
-      resourceData.collectedAt = now;
+    if (!filePath && !url) {
+      throw new Error('缺少文件输入：需要提供文件对象、文件路径或URL');
     }
-    if (!resourceData.status) {
-      resourceData.status = 'new';
+
+    // 如果是URL，需要先下载到资源存储文件夹
+    if (isUrl && url) {
+      // 通过事件请求下载文件
+      filePath = await new Promise<string>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('文件下载超时'));
+        }, 300000); // 5分钟超时
+
+        emit('resource:download-request', {
+          url,
+          workspaceId: input.workspaceId ? String(input.workspaceId) : undefined,
+          folderId: input.folderId ? String(input.folderId) : undefined,
+          callback: (downloadedPath: string | null, error?: string) => {
+            clearTimeout(timeout);
+            if (error || !downloadedPath) {
+              reject(new Error(error || '文件下载失败'));
+              return;
+            }
+            resolve(downloadedPath);
+          }
+        });
+      });
+    }
+
+    if (!filePath) {
+      throw new Error('无法获取文件路径');
+    }
+
+    // 验证文件是否存在
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`文件不存在: ${filePath}`);
+    }
+
+    // 获取文件基本信息
+    const stats = fs.statSync(filePath);
+    const filename = path.basename(filePath);
+
+    // 构建资源对象，只包含必要的字段
+    // 其他字段（类型、MIME、大小等）由系统自动检测和补充
+    const resourceData: Record<string, any> = {
+      filePath,
+      title: filename,
+      sizeBytes: stats.size,
+      collectedAt: Date.now(),
+      status: 'new'
+    };
+
+    // 如果是URL下载的，保存原始URL
+    if (isUrl && url) {
+      resourceData.url = url;
+    }
+
+    // 可选的工作空间和文件夹
+    if (input.workspaceId) {
+      resourceData.workspaceId = String(input.workspaceId);
+    }
+    if (input.folderId) {
+      resourceData.folderId = String(input.folderId);
     }
 
     // 通过事件通知主进程适配层进行实际 DB 创建
