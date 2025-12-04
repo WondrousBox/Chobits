@@ -111,33 +111,7 @@ export const AiChatNode: NodeHandler = {
     icon: 'TbRobot',
     inputs: [{ key: 'message', label: '对话内容', type: 'string', required: true }],
     // 静态配置作为默认值，实际配置通过 getConfig 动态获取
-    config: [
-      {
-        key: 'providerId',
-        label: '服务商',
-        type: 'string',
-        required: true,
-        default: 'zhipu',
-        description: '选择AI服务商',
-        inputType: 'select',
-        options: [{ value: 'zhipu', label: '智谱 (GLM)' }] // 默认值，实际通过 getConfig 动态获取
-      },
-      {
-        key: 'model',
-        label: '模型',
-        type: 'string',
-        required: true,
-        default: 'glm-4-5-flash',
-        description: '选择对话模型',
-        inputType: 'select',
-        options: [
-          { value: 'glm-4-5-flash', label: 'GLM-4.5-Flash - 完全免费的语言模型 (免费)' },
-          { value: 'glm-4-flash', label: 'GLM-4 Flash' },
-          { value: 'glm-4-plus', label: 'GLM-4 Plus' },
-          { value: 'glm-4-6', label: 'GLM-4.6 - 最新高智能旗舰' }
-        ]
-      }
-    ],
+    config: [],
     outputs: [{ key: 'response', label: '对话回复', type: 'string', description: 'AI返回的对话回复内容' }]
   },
   // 动态获取配置，根据当前配置值返回相应的选项

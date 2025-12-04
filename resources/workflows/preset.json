@@ -102,6 +102,67 @@
       { "id": "vk3", "from": { "nodeId": "keyframes", "port": "result" }, "to": { "nodeId": "end", "port": "result" } }
     ],
     "options": { "concurrency": 1, "errorStrategy": "fail-fast" }
+  },
+  {
+    "id": "sample:image-generate",
+    "name": "图片生成",
+    "description": "使用AI图像生成模型，根据文本提示生成图片",
+    "nodes": [
+      { "id": "start", "type": "core/start", "x": 0, "y": 0, "config": { "inputMode": "text" } },
+      {
+        "id": "ai/image-generate-BfZG",
+        "type": "ai/image-generate",
+        "x": 366,
+        "y": 43.5,
+        "config": {
+          "providerId": "zhipu",
+          "model": "cogview-3-flash",
+          "size": "1024x1024",
+          "quality": "hd"
+        }
+      },
+      { "id": "resource/create-7R-s", "type": "resource/create", "x": 753, "y": 54.5, "config": {}},
+      { "id": "end", "type": "core/end", "x": 1248, "y": 53, "config": {} }
+    ],
+    "edges": [
+      {
+        "id": "e-pqV719",
+        "from": {
+          "nodeId": "start",
+          "port": "text"
+        },
+        "to": {
+          "nodeId": "ai/image-generate-BfZG",
+          "port": "prompt"
+        }
+      },
+      {
+        "id": "e-bQSSPK",
+        "from": {
+          "nodeId": "ai/image-generate-BfZG",
+          "port": "image"
+        },
+        "to": {
+          "nodeId": "resource/create-7R-s",
+          "port": "file"
+        }
+      },
+      {
+        "id": "e-YRMY_x",
+        "from": {
+          "nodeId": "resource/create-7R-s",
+          "port": "resource"
+        },
+        "to": {
+          "nodeId": "end",
+          "port": "result"
+        }
+      }
+    ],
+    "options": {
+      "concurrency": 1,
+      "errorStrategy": "fail-fast"
+    }
   }
 ]
 

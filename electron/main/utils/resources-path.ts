@@ -14,8 +14,8 @@ export function getResourcePath(binName: 'ffmpeg' | 'ffprobe' | 'yt-dlp' | 'spri
       );
     case 'ffprobe':
       return getRealPath(
-        `../ffprobe/${os.platform()}/${os.arch()}/${os.platform() === 'darwin' ? 'ffprobe' : 'ffprobe.exe'}`,
-        `./resources/ffprobe/${os.platform()}/${os.arch()}/${os.platform() === 'darwin' ? 'ffprobe' : 'ffprobe.exe'}`
+        `../ffmpeg/${os.platform()}/${os.arch()}/${os.platform() === 'darwin' ? 'ffprobe' : 'ffprobe.exe'}`,
+        `./resources/ffmpeg/${os.platform()}/${os.arch()}/${os.platform() === 'darwin' ? 'ffprobe' : 'ffprobe.exe'}`
       );
     case 'yt-dlp':
       return getRealPath(
