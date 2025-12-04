@@ -144,58 +144,7 @@ export const ImageGenerateNode: NodeHandler = {
     icon: 'TbPhoto',
     inputs: [{ key: 'prompt', label: '提示词', type: 'string', required: true, description: '用于生成图片的文本描述' }],
     // 静态配置作为默认值，实际配置通过 getConfig 动态获取
-    config: [
-      {
-        key: 'providerId',
-        label: '服务商',
-        type: 'string',
-        required: true,
-        default: 'zhipu',
-        description: '选择AI服务商',
-        inputType: 'select',
-        options: [{ value: 'zhipu', label: '智谱 (GLM)' }]
-      },
-      {
-        key: 'model',
-        label: '模型',
-        type: 'string',
-        required: true,
-        default: 'cogview-3-flash',
-        description: '选择图片生成模型',
-        inputType: 'select',
-        options: [
-          { value: 'cogview-3-flash', label: 'CogView-3-Flash - 支持文生图，完全免费 (免费)' },
-          { value: 'cogview-4', label: 'CogView-4 - 支持生成高清美感图片' }
-        ]
-      },
-      {
-        key: 'size',
-        label: '图片尺寸',
-        type: 'string',
-        required: false,
-        default: '1024x1024',
-        description: '生成图片的尺寸，例如 512x512、1024x1024',
-        inputType: 'select',
-        options: [
-          { value: '512x512', label: '512 x 512' },
-          { value: '768x768', label: '768 x 768' },
-          { value: '1024x1024', label: '1024 x 1024' }
-        ]
-      },
-      {
-        key: 'quality',
-        label: '图片质量',
-        type: 'string',
-        required: false,
-        default: 'standard',
-        description: 'standard（标准）或 hd（高清，仅部分模型支持）',
-        inputType: 'select',
-        options: [
-          { value: 'standard', label: '标准' },
-          { value: 'hd', label: '高清' }
-        ]
-      }
-    ],
+    config: [],
     outputs: [
       { key: 'image', label: '图片', type: ['file', 'string'], description: '生成图片的 URL 或本地路径，可直接连接到图片展示节点' },
       { key: 'imageUrl', label: '图片 URL', type: 'string', description: '生成图片的 URL（同 image 输出）' }
