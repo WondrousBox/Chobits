@@ -22,6 +22,13 @@ export const CollectFolderTextsNode: NodeHandler = {
     icon: 'TbFolderOpen',
     inputs: [
       {
+        key: 'workspaceId',
+        label: '工作空间 ID',
+        type: 'string',
+        required: false,
+        description: '工作空间ID（为空时从上下文获取）'
+      },
+      {
         key: 'folderId',
         label: '文件夹 ID',
         type: 'string',
@@ -63,7 +70,7 @@ export const CollectFolderTextsNode: NodeHandler = {
   async run({ input, config, ctx, emit }) {
     const timeMode = String(config?.timeMode || 'today');
     const folderId = input.folderId ? String(input.folderId) : ctx.folderId;
-    const workspaceId = ctx.workspaceId;
+    const workspaceId = input.workspaceId ? String(input.workspaceId) : ctx.workspaceId;
 
     if (!workspaceId) {
       throw new Error('工作流执行上下文缺少工作空间 ID (workspaceId)');
@@ -71,22 +78,23 @@ export const CollectFolderTextsNode: NodeHandler = {
 
     emit('node:progress', { progress: 10, message: '正在查找符合条件的文件夹...' });
 
-    // 获取所有文件夹
-    const allFolders = await FoldersRepo.list(
-      {
-        workspaceId,
-        deletedAt: 0
-      } as any,
-      10000,
-      0
-    );
-
     // 匹配"年-月-日"格式的正则表达式 (YYYY-MM-DD)
     const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
-    // 如果指定了 folderId，需要递归查找该文件夹下的所有子文件夹
-    let candidateFolders = allFolders;
+    let candidateFolders: any[] = [];
+
     if (folderId) {
+      // 如果指定了 folderId，只查询该文件夹及其子文件夹
+      // 先获取整个 workspace 下的所有文件夹（用于构建树结构）
+      const allFolders = await FoldersRepo.list(
+        {
+          workspaceId,
+          deletedAt: 0
+        } as any,
+        10000,
+        0
+      );
+
       // 构建文件夹树，找到指定文件夹下的所有子文件夹（递归）
       const getDescendants = (parentId: string | null): string[] => {
         const descendants: string[] = [];
@@ -101,8 +109,21 @@ export const CollectFolderTextsNode: NodeHandler = {
         return descendants;
       };
 
+      // 获取指定文件夹及其所有子文件夹的 ID
       const descendantIds = new Set([folderId, ...getDescendants(folderId)]);
+
+      // 只保留指定文件夹及其子文件夹
       candidateFolders = allFolders.filter((f) => descendantIds.has(f.id));
+    } else {
+      // 如果没有指定 folderId，查询整个工作空间下的所有文件夹
+      candidateFolders = await FoldersRepo.list(
+        {
+          workspaceId,
+          deletedAt: 0
+        } as any,
+        10000,
+        0
+      );
     }
 
     // 筛选出符合日期格式的文件夹

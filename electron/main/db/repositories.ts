@@ -634,6 +634,13 @@ export const ResourcesRepo = {
     if ((filter as any).status) wheres.push(eq(resources.status, (filter as any).status));
     if ((filter as any).visibility) wheres.push(eq(resources.visibility, (filter as any).visibility));
     if ((filter as any).tags) wheres.push(like(resources.tags, `%${(filter as any).tags}%`));
+    if ((filter as any).folderId !== undefined) {
+      if ((filter as any).folderId === null) {
+        wheres.push(isNull(resources.folderId));
+      } else {
+        wheres.push(eq(resources.folderId, (filter as any).folderId));
+      }
+    }
     if ((filter as any).deletedAt === 0) wheres.push(isNull(resources.deletedAt));
     if ((filter as any).deletedAt === 1) wheres.push(isNotNull(resources.deletedAt));
     if (wheres.length) query = query.where(and(...wheres));
@@ -646,6 +653,13 @@ export const ResourcesRepo = {
     if ((filter as any).type) wheres.push(eq(resources.type, (filter as any).type));
     if ((filter as any).status) wheres.push(eq(resources.status, (filter as any).status));
     if ((filter as any).visibility) wheres.push(eq(resources.visibility, (filter as any).visibility));
+    if ((filter as any).folderId !== undefined) {
+      if ((filter as any).folderId === null) {
+        wheres.push(isNull(resources.folderId));
+      } else {
+        wheres.push(eq(resources.folderId, (filter as any).folderId));
+      }
+    }
     if ((filter as any).deletedAt === 0) wheres.push(isNull(resources.deletedAt));
     if ((filter as any).deletedAt === 1) wheres.push(isNotNull(resources.deletedAt));
     if (wheres.length) query = query.where(and(...wheres));

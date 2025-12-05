@@ -15,6 +15,7 @@ import { detectBasicType } from '../../electron/main/utils/thumbnail';
 import { pluginResourceManager } from '../plugins';
 import { createEngine } from './engine';
 import { AiChatNode } from './nodes/ai-chat';
+import { AiPromptOptimizerNode } from './nodes/ai-prompt-optimizer';
 import { CollectFolderTextsNode } from './nodes/collect-folder-texts';
 import { DisplayImageNode } from './nodes/display-image';
 import { DisplayMediaNode } from './nodes/display-media';
@@ -30,6 +31,8 @@ import { ResourceCreateNode } from './nodes/resource-create';
 import { ResourceLoadNode } from './nodes/resource-load';
 import { ResourceUpdateNode } from './nodes/resource-update';
 import { StartNode } from './nodes/start';
+import { TextOutputNode } from './nodes/text-output';
+import { TextToImageNode } from './nodes/text-to-image';
 import { TranscodeNode } from './nodes/transcode';
 import { TranscodeAdvancedNode } from './nodes/transcode-advanced';
 import { TranscribeWhisperNode } from './nodes/transcribe-whisper';
@@ -57,6 +60,8 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
   [
     StartNode,
     EndNode,
+    TextOutputNode,
+    TextToImageNode,
     ResourceLoadNode,
     ResourceCreateNode,
     ResourceUpdateNode,
@@ -70,6 +75,7 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
     ImageUnderstandNode,
     ImageGenerateNode,
     AiChatNode,
+    AiPromptOptimizerNode,
     DisplayTextNode,
     DisplayImageNode,
     DisplayMediaNode,
@@ -103,6 +109,26 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
     broadcast('wf:start-input-required', payload);
   });
 
+  // 处理开始节点文件夹模式下的上下文更新请求
+  // payload: { workspaceId: string; folderId: string; __runId: string }
+  engine.on('wf:update-context', (payload: any) => {
+    const runId: string | undefined = payload?.__runId;
+    const workspaceId: string | undefined = payload?.workspaceId;
+    const folderId: string | undefined = payload?.folderId;
+
+    if (runId && workspaceId && folderId) {
+      engine.updateRunContext(runId, {
+        workspaceId,
+        folderId
+      });
+      console.log('[workflow][wf:update-context] Updated workflow context', {
+        runId,
+        workspaceId,
+        folderId
+      });
+    }
+  });
+
   // 资源创建请求：由资源创建节点发出，由主进程适配层落盘到数据库
   // payload: { resourceData: any; callback?: (createdResource: any) => void }
   engine.on('resource:create-request', async (payload: any) => {
@@ -112,7 +138,7 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
     try {
       const resourceData: Record<string, any> = payload?.resourceData || {};
       const callback = payload?.callback;
-      if (!resourceData || typeof resourceData !== 'object' || !resourceData.filePath) {
+      if (!resourceData || typeof resourceData !== 'object' || (!resourceData.filePath && !resourceData.contentText)) {
         if (callback) callback(null);
         return;
       }
@@ -135,7 +161,7 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
 
       // 自动检测资源类型
       const filePath = resourceData.filePath;
-      let detectedType = 'file'; // 默认类型
+      let detectedType = !resourceData.filePath && resourceData.contentText ? 'text' : 'file'; // 默认类型
       let mimeType: string | undefined;
 
       if (filePath) {
@@ -171,6 +197,7 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
         filePath: resourceData.filePath,
         sizeBytes: resourceData.sizeBytes,
         description: resourceData.description,
+        contentText: resourceData.contentText,
         type: detectedType,
         mimeType: mimeType,
         workspaceId: resourceData.workspaceId,

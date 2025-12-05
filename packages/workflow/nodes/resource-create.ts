@@ -5,8 +5,9 @@ import { NodeHandler } from '../types';
 
 /**
  * 资源创建节点
- * - 输入文件对象、本地文件路径或URL
+ * - 输入文件对象、本地文件路径或URL，或者文本内容
  * - 如果是URL，会自动下载到资源存储文件夹
+ * - 如果只有文本内容，会创建文本资源
  * - 系统会自动获取文件信息并补充字段（类型、大小、MIME等）
  * - 不直接访问数据库，仅通过 emit('resource:create-request', ...) 通知主进程适配层
  * - 输出创建后的完整资源对象
@@ -16,14 +17,14 @@ export const ResourceCreateNode: NodeHandler = {
     id: 'resource/create',
     label: '新建资源',
     category: 'Resource',
-    description: '通过文件对象、文件路径或URL创建资源，系统会自动获取文件信息',
+    description: '通过文件对象、文件路径、URL或文本内容创建资源',
     inputs: [
       {
         key: 'file',
         label: '文件',
         type: ['file', 'string'],
-        required: true,
-        description: '文件对象、本地文件路径或URL（http/https）'
+        required: false,
+        description: '文件对象、本地文件路径或URL（http/https）。如果不提供文件，可以只提供文本内容创建文本资源'
       },
       {
         key: 'title',
@@ -37,7 +38,7 @@ export const ResourceCreateNode: NodeHandler = {
         label: '正文内容',
         type: 'string',
         required: false,
-        description: '提取的纯文本内容'
+        description: '文本内容。如果不提供文件，可以只提供此字段创建文本资源'
       },
       {
         key: 'description',
@@ -94,8 +95,11 @@ export const ResourceCreateNode: NodeHandler = {
       }
     }
 
-    if (!filePath && !url) {
-      throw new Error('缺少文件输入：需要提供文件对象、文件路径或URL');
+    // 检查是否有文件或文本内容
+    const hasContentText = input.contentText !== undefined && input.contentText !== null && String(input.contentText).trim() !== '';
+
+    if (!filePath && !url && !hasContentText) {
+      throw new Error('缺少输入：需要提供文件对象、文件路径、URL或文本内容');
     }
 
     // 如果是URL，需要先下载到资源存储文件夹
@@ -122,6 +126,61 @@ export const ResourceCreateNode: NodeHandler = {
       });
     }
 
+    // 从执行上下文中获取工作空间和文件夹信息
+    if (!ctx.workspaceId) {
+      throw new Error('工作流执行上下文缺少工作空间 ID (workspaceId)，请确保工作流是从资源页面启动的');
+    }
+    if (!ctx.folderId) {
+      throw new Error('工作流执行上下文缺少文件夹 ID (folderId)，请确保工作流是从资源页面启动的');
+    }
+
+    // 如果只有文本内容，创建文本资源（不创建文件）
+    if (!filePath && !url && hasContentText) {
+      const contentText = String(input.contentText).trim();
+
+      // 构建文本资源对象（不包含 filePath）
+      const title = input.title !== undefined && input.title !== null ? String(input.title).trim() : '';
+      const resourceData: Record<string, any> = {
+        type: 'text',
+        title: title || contentText.split('\n')[0].slice(0, 40) || '文本资源',
+        contentText: contentText,
+        // 根据 contentText 计算 sizeBytes
+        sizeBytes: Buffer.from(contentText, 'utf8').byteLength,
+        collectedAt: Date.now(),
+        status: 'new',
+        workspaceId: ctx.workspaceId,
+        folderId: ctx.folderId
+      };
+
+      // 添加可选的 description 和 tags
+      if (input.description !== undefined && input.description !== null) {
+        resourceData.description = String(input.description).trim();
+      }
+      if (input.tags !== undefined && input.tags !== null) {
+        resourceData.tags = input.tags;
+      }
+
+      // 通过事件通知主进程适配层进行实际 DB 创建
+      return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('资源创建超时'));
+        }, 10000);
+
+        emit('resource:create-request', {
+          resourceData,
+          callback: (createdResource: any) => {
+            clearTimeout(timeout);
+            if (!createdResource) {
+              reject(new Error('资源创建失败'));
+              return;
+            }
+            resolve({ resource: createdResource });
+          }
+        });
+      });
+    }
+
+    // 如果有文件，处理文件资源
     if (!filePath) {
       throw new Error('无法获取文件路径');
     }
@@ -131,14 +190,58 @@ export const ResourceCreateNode: NodeHandler = {
       throw new Error(`文件不存在: ${filePath}`);
     }
 
-    // 获取文件基本信息
-    const stats = fs.statSync(filePath);
-    const filename = path.basename(filePath);
+    // 获取工作空间信息以确定目标文件夹路径
+    let finalFilePath = filePath;
+    try {
+      const { WorkspacesRepo } = await import('../../../electron/main/db/repositories');
+      const ws = await WorkspacesRepo.getById(ctx.workspaceId);
+
+      if (ws?.rootPath) {
+        // 确定目标文件夹路径
+        const targetDir = path.join(ws.rootPath, 'resources', 'folders', ctx.folderId);
+        await fs.promises.mkdir(targetDir, { recursive: true });
+
+        // 检查文件是否已经在目标文件夹中
+        const targetFilePath = path.join(targetDir, path.basename(filePath));
+        const isFileInTargetDir = path.resolve(filePath) === path.resolve(targetFilePath);
+
+        if (!isFileInTargetDir) {
+          // 文件不在目标文件夹中，需要复制
+          let copyTargetPath = targetFilePath;
+
+          // 处理同名文件
+          if (fs.existsSync(copyTargetPath)) {
+            const ext = path.extname(filePath);
+            const nameNoExt = path.basename(filePath, ext);
+            let counter = 1;
+            while (fs.existsSync(copyTargetPath)) {
+              copyTargetPath = path.join(targetDir, `${nameNoExt}(${counter})${ext}`);
+              counter++;
+            }
+          }
+
+          // 复制文件
+          await fs.promises.copyFile(filePath, copyTargetPath);
+          finalFilePath = copyTargetPath;
+        } else {
+          // 文件已经在目标文件夹中，直接使用
+          finalFilePath = filePath;
+        }
+      }
+    } catch (error) {
+      // 如果获取工作空间或复制文件失败，记录警告但继续使用原始路径
+      console.warn('[resource-create] Failed to copy file to target folder:', error);
+      // 继续使用原始文件路径
+    }
+
+    // 获取文件基本信息（使用最终的文件路径）
+    const stats = fs.statSync(finalFilePath);
+    const filename = path.basename(finalFilePath);
 
     // 构建资源对象，只包含必要的字段
     // 其他字段（类型、MIME、大小等）由系统自动检测和补充
     const resourceData: Record<string, any> = {
-      filePath,
+      filePath: finalFilePath,
       title: input.title !== undefined && input.title !== null ? String(input.title).trim() : filename,
       sizeBytes: stats.size,
       collectedAt: Date.now(),
@@ -159,14 +262,6 @@ export const ResourceCreateNode: NodeHandler = {
     // 如果是URL下载的，保存原始URL
     if (isUrl && url) {
       resourceData.url = url;
-    }
-
-    // 从执行上下文中获取工作空间和文件夹信息
-    if (!ctx.workspaceId) {
-      throw new Error('工作流执行上下文缺少工作空间 ID (workspaceId)，请确保工作流是从资源页面启动的');
-    }
-    if (!ctx.folderId) {
-      throw new Error('工作流执行上下文缺少文件夹 ID (folderId)，请确保工作流是从资源页面启动的');
     }
 
     resourceData.workspaceId = ctx.workspaceId;
