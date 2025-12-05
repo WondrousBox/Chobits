@@ -13,7 +13,7 @@ import { getResourcePath } from '../../electron/main/utils/resources-path';
 import { sendSpriteBusyEnd, sendSpriteBusyProgress, sendSpriteBusyStart } from '../../electron/main/utils/sprite-busy';
 import { detectBasicType } from '../../electron/main/utils/thumbnail';
 import { pluginResourceManager } from '../plugins';
-import { createEngine } from './engine';
+import { createEngine, WorkflowEngine } from './engine';
 import { AiChatNode } from './nodes/ai-chat';
 import { AiPromptOptimizerNode } from './nodes/ai-prompt-optimizer';
 import { CollectFolderTextsNode } from './nodes/collect-folder-texts';
@@ -41,10 +41,16 @@ import { TesseractPlugin } from './plugins/tesseract';
 import { WhisperPlugin } from './plugins/whisper';
 import { getNode, listNodes, listPlugins, registerNode, registerPlugin } from './registry';
 import { loadPresetWorkflows, WorkflowStore } from './store';
-import { NodeConfig, WorkflowDefinition } from './types';
+import { NodeConfig, WorkflowDefinition, WorkflowRunRecord } from './types';
 
 // 存储获取插件配置文件路径的方法
 let getWorkflowDefinitionsPathFn: () => string;
+let globalEngine: WorkflowEngine | undefined;
+
+export async function runWorkflow(def: WorkflowDefinition, input?: any): Promise<WorkflowRunRecord> {
+  if (!globalEngine) throw new Error('Workflow engine not initialized');
+  return globalEngine.run(def, input || {});
+}
 
 export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => string }): void {
   const { getWorkflowDefinitionsPath } = options || {};
@@ -86,6 +92,7 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
   const ffprobePath: string | undefined = getResourcePath('ffprobe');
 
   const engine = createEngine({ pluginResourceManager, ffmpegPath, ffprobePath });
+  globalEngine = engine;
   // expose engine via closure only (no global)
 
   // Persist run updates

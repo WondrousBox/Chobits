@@ -7,6 +7,7 @@ import { init as initPluginResourceHandlers } from '../../../packages/plugins/ip
 import { initDailyCare } from '../daily';
 import { initScreenshotHandlers } from '../screenshot';
 import { getResourcePath } from '../utils/resources-path';
+import { initAutomationHandlers } from './automation';
 import { initFFmpegHandlers } from './ffmpeg/ipc-main';
 import { initFileHandlers } from './file/ipc-main';
 import { initFolderHandlers } from './folder/ipc-main';
@@ -31,6 +32,7 @@ export function initHandlers(win: BrowserWindow): void {
   initFFmpegHandlers(win);
   initVectorHandlers(win);
   initResourceHandlers();
+  initAutomationHandlers();
   initFolderHandlers?.();
   initTrashHandlers();
   initWorkspaceHandlers();

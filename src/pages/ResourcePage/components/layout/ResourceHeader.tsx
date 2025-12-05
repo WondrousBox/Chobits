@@ -11,6 +11,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 
 import { SortField, SortOrder, ViewMode } from '../../types';
 import { ALL_TAG_VALUE } from '../../utils/constants';
+import { AutomationRulesDialog } from '../automation/AutomationRulesDialog';
 
 interface ResourceHeaderProps {
   searchQuery: string;
@@ -63,6 +64,8 @@ const ResourceHeader: React.FC<ResourceHeaderProps> = ({
   showCollapseSuggestion,
   setShowCollapseSuggestion
 }) => {
+  const [showAutomationRules, setShowAutomationRules] = React.useState(false);
+
   return (
     <DragAbleTitle
       title={
@@ -141,9 +144,10 @@ const ResourceHeader: React.FC<ResourceHeaderProps> = ({
               <TbRefresh />
             </Button>
 
-            <Button size="icon" className="w-8 h-8 shrink-0" variant="ghost">
+            <Button size="icon" className="w-8 h-8 shrink-0" variant="ghost" onClick={() => setShowAutomationRules(true)}>
               <TbRobot />
             </Button>
+            <AutomationRulesDialog open={showAutomationRules} onOpenChange={setShowAutomationRules} />
             {/* 综合筛选弹出层 */}
             <Popover>
               <PopoverTrigger asChild>

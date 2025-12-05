@@ -8,6 +8,8 @@ import { sql } from 'drizzle-orm';
 import { getDB, getOrm } from '.';
 import { deleteVectors, rebuildVectors } from '.';
 import {
+  automation_rules,
+  type AutomationRuleRow,
   chat_messages,
   type ChatMessageRow,
   type ConversationRow,
@@ -16,6 +18,7 @@ import {
   documents,
   type FolderRow,
   folders,
+  type NewAutomationRule,
   type NewChatMessage,
   type NewConversation,
   type NewDocument,
@@ -1240,5 +1243,71 @@ export const ChatRepo = {
       tx.delete(recycle_bin).where(inArray(recycle_bin.entityId, ids)).run?.();
     });
     return deleted;
+  }
+};
+
+export const AutomationRulesRepo = {
+  async list(): Promise<AutomationRuleRow[]> {
+    const db = getOrm();
+    return db.select().from(automation_rules).all();
+  },
+  async getById(id: string): Promise<AutomationRuleRow | undefined> {
+    const db = getOrm();
+    const rows = await db.select().from(automation_rules).where(eq(automation_rules.id, id)).limit(1);
+    return rows[0];
+  },
+  async create(rule: NewAutomationRule): Promise<AutomationRuleRow> {
+    const db = getOrm();
+    const rows = await db.insert(automation_rules).values(rule).returning().all();
+    return rows[0];
+  },
+  async update(id: string, patch: Partial<NewAutomationRule>): Promise<AutomationRuleRow | undefined> {
+    const db = getOrm();
+    await db
+      .update(automation_rules)
+      .set({ ...patch, updatedAt: Date.now() } as any)
+      .where(eq(automation_rules.id, id))
+      .run();
+    return this.getById(id);
+  },
+  async delete(id: string): Promise<void> {
+    const db = getOrm();
+    await db.delete(automation_rules).where(eq(automation_rules.id, id)).run();
+  },
+  async findByEvent(resourceType: string, eventType: string, workspaceId?: string): Promise<AutomationRuleRow[]> {
+    const db = getOrm();
+    // Query all enabled rules with triggerType 'resource_event'
+    // Then filter in memory or use JSON operators if available (but standard sqlite json support varies in drizzle)
+    // For simplicity and compatibility, we fetch candidates and filter.
+
+    const candidates = await db
+      .select()
+      .from(automation_rules)
+      .where(and(eq(automation_rules.enabled, 1), eq(automation_rules.triggerType, 'resource_event')))
+      .all();
+
+    return candidates.filter((rule) => {
+      // 1. Check Scope
+      if (rule.scope === 'workspace') {
+        if (rule.workspaceId && rule.workspaceId !== workspaceId) return false;
+      }
+
+      // 2. Check Trigger Config
+      const config = rule.triggerConfig as any;
+      if (!config) return false;
+
+      // Check Event Type (e.g. 'created', 'updated')
+      // Map legacy eventType to new config event if needed, or assume config uses 'created'/'updated'
+      // eventType passed here is 'resource_created' or 'resource_updated'
+      // Let's assume config.event stores 'created' or 'updated' (without 'resource_' prefix) or full string.
+      // Let's standardize: config.event = 'created' | 'updated'
+      const targetEvent = eventType.replace('resource_', '');
+      if (config.event !== targetEvent) return false;
+
+      // Check Resource Type (e.g. 'video', 'all')
+      if (config.resourceType !== 'all' && config.resourceType !== resourceType) return false;
+
+      return true;
+    });
   }
 };

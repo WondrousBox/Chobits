@@ -355,3 +355,53 @@ export const chat_messages = sqliteTable(
 
 export type ChatMessageRow = InferSelectModel<typeof chat_messages>;
 export type NewChatMessage = InferInsertModel<typeof chat_messages>;
+
+/**
+ * automation_rules: 自动化规则表
+ * - 定义资源事件、定时任务等触发的工作流或其他操作
+ * - 支持工作空间隔离与全局规则
+ */
+export const automation_rules = sqliteTable(
+  'automation_rules',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    name: text('name').notNull(),
+    description: text('description'),
+
+    // 作用域与归属
+    workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'cascade', onUpdate: 'cascade' }), // 为空则为全局规则（需权限）
+    scope: text('scope', { enum: ['global', 'workspace'] })
+      .default('workspace')
+      .notNull(),
+
+    // 触发器定义
+    triggerType: text('trigger_type').notNull(), // e.g. 'resource_event', 'schedule', 'system_event', 'manual'
+    // 触发条件配置 (JSON):
+    // - resource_event: { resourceType: 'video', event: 'created', filter: { tags: [], folderId: ... } }
+    // - schedule: { cron: '0 0 * * *' }
+    triggerConfig: text('trigger_config', { mode: 'json' }),
+
+    // 执行动作定义
+    actionType: text('action_type').notNull(), // e.g. 'workflow', 'script', 'notification'
+    // 动作参数配置 (JSON):
+    // - workflow: { workflowId: '...', inputs: {...} }
+    actionConfig: text('action_config', { mode: 'json' }),
+
+    // 控制字段
+    enabled: integer('enabled').default(1),
+    priority: integer('priority').default(0), // 优先级，大者先执行
+
+    createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`),
+    updatedAt: integer('updated_at').default(sql`(unixepoch('now')*1000)`)
+  },
+  (t) => ({
+    idxAutoWorkspace: index('idx_automation_workspace').on(t.workspaceId),
+    idxAutoTrigger: index('idx_automation_trigger').on(t.triggerType),
+    idxAutoEnabled: index('idx_automation_enabled').on(t.enabled)
+  })
+);
+
+export type AutomationRuleRow = InferSelectModel<typeof automation_rules>;
+export type NewAutomationRule = InferInsertModel<typeof automation_rules>;
