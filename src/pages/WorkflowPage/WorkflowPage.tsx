@@ -1,13 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { TbCheck, TbChevronDown } from 'react-icons/tb';
 import { useNavigate } from 'react-router-dom';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { cn } from '@/lib/utils';
 
 interface WorkflowBrief {
   id: string;
@@ -36,6 +38,7 @@ const WorkflowPage: React.FC = () => {
   const [presets, setPresets] = useState<WorkflowBrief[]>([]);
   const [selectedPresetId, setSelectedPresetId] = useState<string>('');
   const [presetIds, setPresetIds] = useState<Set<string>>(new Set());
+  const [presetPopoverOpen, setPresetPopoverOpen] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -136,6 +139,9 @@ const WorkflowPage: React.FC = () => {
       const presetList = await invoke('wf:listPresets');
       if (presetList && presetList.length > 0) {
         setPresets(presetList);
+        // 默认选中空白模板
+        setSelectedPresetId('blank');
+        setPresetPopoverOpen(false);
         setShowPresetDialog(true);
         return;
       }
@@ -155,6 +161,7 @@ const WorkflowPage: React.FC = () => {
     }
     setShowPresetDialog(false);
     setSelectedPresetId('');
+    setPresetPopoverOpen(false);
   };
 
   const openExisting = async (id: string): Promise<void> => {
@@ -364,24 +371,50 @@ const WorkflowPage: React.FC = () => {
         )}
       </div>
       <Dialog open={showPresetDialog} onOpenChange={setShowPresetDialog}>
-        <DialogContent>
+        <DialogContent className="w-96">
           <DialogHeader>
             <DialogTitle>选择预设模板</DialogTitle>
-            <DialogDescription>选择一个预设工作流模板来创建新工作流</DialogDescription>
+            <DialogDescription></DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <Select value={selectedPresetId} onValueChange={setSelectedPresetId}>
-              <SelectTrigger>
-                <SelectValue placeholder="选择预设模板" />
-              </SelectTrigger>
-              <SelectContent>
-                {presets.map((preset) => (
-                  <SelectItem key={preset.id} value={preset.id}>
-                    {preset.name} {preset.description ? `- ${preset.description}` : ''}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div>
+            <Popover modal open={presetPopoverOpen} onOpenChange={setPresetPopoverOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-between">
+                  {selectedPresetId ? presets.find((p) => p.id === selectedPresetId)?.name || selectedPresetId : '选择预设模板'}
+                  <TbChevronDown className="h-4 w-4 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent side="right" className="w-[300px] p-0" align="start">
+                <Command className="rounded-lg border shadow-md">
+                  <CommandInput placeholder="搜索预设模板..." />
+                  <CommandList>
+                    <CommandEmpty>未找到匹配的预设模板</CommandEmpty>
+                    <CommandGroup>
+                      {presets.map((preset) => {
+                        const isSelected = selectedPresetId === preset.id;
+                        return (
+                          <CommandItem
+                            key={preset.id}
+                            value={`${preset.name} ${preset.description || ''} ${preset.id}`}
+                            onSelect={() => {
+                              setSelectedPresetId(preset.id);
+                              setPresetPopoverOpen(false);
+                            }}
+                            className={cn('flex flex-col items-start gap-1 py-2', isSelected && 'bg-accent text-accent-foreground')}
+                          >
+                            <div className="flex items-center gap-2 w-full">
+                              <span className="font-medium flex-1">{preset.name}</span>
+                              {isSelected && <TbCheck className="h-4 w-4 shrink-0" />}
+                            </div>
+                            {preset.description && <span className="text-xs text-muted-foreground">{preset.description}</span>}
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowPresetDialog(false)}>
