@@ -163,11 +163,17 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
             onToggleFavorite={handleToggleFavorite}
             onToggleVisibility={handleToggleVisibility}
             onPreview={(item, index) => {
-              window.YUA.window['window:open']('resourcePreview', {
-                current: item,
-                list: mergedItems,
-                index
-              });
+              window.YUA.window['window:open'](
+                'resourcePreview',
+                {
+                  current: item,
+                  list: mergedItems,
+                  index
+                },
+                {
+                  sameDisplayAsSender: true
+                }
+              );
             }}
             draggable
             onDragStart={(e, item, ids) => {

@@ -528,11 +528,17 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
                   onPreview={() => {
                     const current = mergedItems[idx];
                     if (!current) return;
-                    window.YUA.window['window:open']('resourcePreview', {
-                      current,
-                      list: mergedItems,
-                      index: idx
-                    });
+                    window.YUA.window['window:open'](
+                      'resourcePreview',
+                      {
+                        current,
+                        list: mergedItems,
+                        index: idx
+                      },
+                      {
+                        sameDisplayAsSender: true
+                      }
+                    );
                   }}
                   draggable
                   onDragStart={(e: React.DragEvent) => {
