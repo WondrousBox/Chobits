@@ -16,6 +16,7 @@ import { useResourceFilter } from './hooks/useResourceFilter';
 import { useResourceOperations } from './hooks/useResourceOperations';
 import { useResourceUpload } from './hooks/useResourceUpload';
 import { useViewMode } from './hooks/useViewMode';
+import { useWorkflowProgress } from './hooks/useWorkflowProgress';
 import { SortField, SortOrder } from './types';
 import { typeOptions } from './utils/constants';
 import { mergeVideoWithSubtitles } from './utils/subtitleUtils';
@@ -59,6 +60,8 @@ const ResourcePage: React.FC = () => {
     load,
     loadFolders
   });
+
+  const workflowProgress = useWorkflowProgress();
 
   const currentFolderResourceIds = useMemo(() => {
     if (!folderFilter) return [] as string[];
@@ -369,6 +372,7 @@ const ResourcePage: React.FC = () => {
             uploadProgress={uploadProgress}
             onDropFiles={onDropFiles}
             importProgress={importProgress}
+            workflowProgress={workflowProgress}
             childFolders={childFolders}
             filtered={filtered}
             viewMode={viewMode}

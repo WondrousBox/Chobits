@@ -15,6 +15,12 @@ interface ResourceContentProps {
   uploadProgress: any;
   onDropFiles: any;
   importProgress: any;
+  workflowProgress: {
+    visible: boolean;
+    progress: number;
+    message: string;
+    workflowName?: string;
+  };
   childFolders: UIFolder[];
   filtered: any[];
   viewMode: ViewMode;
@@ -49,6 +55,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
   uploadProgress,
   onDropFiles,
   importProgress,
+  workflowProgress,
   childFolders,
   filtered,
   viewMode,
@@ -93,14 +100,25 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
         onDropFiles={onDropFiles}
         customDropzoneInside={<div className="px-5 py-3 rounded-lg border-2 border-dashed border-primary/60 bg-primary/5 text-primary text-sm font-medium">释放鼠标即可添加文件…</div>}
       >
-        {(uploadProgress.visible || importProgress.visible) && (
+        {(uploadProgress.visible || importProgress.visible || workflowProgress.visible) && (
           <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-40 bg-background/95 backdrop-blur border shadow-lg rounded-lg p-4 w-80 flex flex-col gap-2">
             <div className="flex justify-between text-sm font-medium">
-              <span>{importProgress.visible ? importProgress.message : `正在上传 (${uploadProgress.current}/${uploadProgress.total})`}</span>
-              <span>{Math.round(importProgress.visible ? importProgress.percent : uploadProgress.percent)}%</span>
+              <span>
+                {workflowProgress.visible
+                  ? `${workflowProgress.workflowName || '工作流'}: ${workflowProgress.message}`
+                  : importProgress.visible
+                    ? importProgress.message
+                    : `正在上传 (${uploadProgress.current}/${uploadProgress.total})`}
+              </span>
+              <span>{Math.round(workflowProgress.visible ? workflowProgress.progress : importProgress.visible ? importProgress.percent : uploadProgress.percent)}%</span>
             </div>
             <div className="h-2 bg-secondary rounded-full overflow-hidden">
-              <div className="h-full bg-primary" style={{ width: `${importProgress.visible ? importProgress.percent : uploadProgress.percent}%` }} />
+              <div
+                className="h-full bg-primary"
+                style={{
+                  width: `${workflowProgress.visible ? workflowProgress.progress : importProgress.visible ? importProgress.percent : uploadProgress.percent}%`
+                }}
+              />
             </div>
           </div>
         )}
