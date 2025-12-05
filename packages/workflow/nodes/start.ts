@@ -224,7 +224,7 @@ export const StartNode: NodeHandler = {
     const mode = (config?.inputMode as StartInputMode) || 'resource';
     return getOutputsByMode(mode);
   },
-  async run({ input, config, ctx }) {
+  async run({ input, config, ctx, emit }) {
     // input 是工作流引擎传入的初始输入对象
     const mode: StartInputMode = (config?.inputMode as StartInputMode) || 'resource';
 
@@ -237,8 +237,10 @@ export const StartNode: NodeHandler = {
         return { url: (input as any).url };
       case 'folder': {
         // 文件夹模式下，从输入或上下文获取文件夹ID和工作空间ID
-        const folderId = (input as any).folderId || ctx.folderId;
-        const workspaceId = (input as any).workspaceId || ctx.workspaceId;
+        const inputFolderId = (input as any).folderId;
+        const inputWorkspaceId = (input as any).workspaceId;
+        const folderId = inputFolderId || ctx.folderId;
+        const workspaceId = inputWorkspaceId || ctx.workspaceId;
 
         if (!workspaceId) {
           throw new Error('工作流执行上下文缺少工作空间 ID (workspaceId)');
@@ -246,6 +248,15 @@ export const StartNode: NodeHandler = {
 
         if (!folderId) {
           throw new Error('缺少文件夹 ID (folderId)，请在开始节点输入或确保工作流从文件夹上下文启动');
+        }
+
+        // 如果从输入获取到了 folderId 和 workspaceId，但上下文中没有，则通过事件更新上下文
+        // 只有当输入中有值且上下文中没有时才更新
+        if (inputFolderId && inputWorkspaceId && (!ctx.folderId || !ctx.workspaceId)) {
+          emit('wf:update-context', {
+            workspaceId,
+            folderId
+          });
         }
 
         return {

@@ -48,6 +48,9 @@ const SpecNode: React.FC<NodeProps<NodeData>> = ({ id, data, selected }) => {
     spec.inputs || []
   );
   const [dynamicOutputs, setDynamicOutputs] = useState<Array<{ key: string; label?: string; type: string | string[] }>>(spec.outputs || []);
+  const [dynamicConfig, setDynamicConfig] = useState<Array<{ key: string; label?: string; type: string | string[]; description?: string; inputType?: string; showInNode?: boolean; default?: any }>>(
+    spec.config || []
+  );
 
   useEffect(() => {
     // 通过 IPC 调用后端获取动态输入
@@ -78,7 +81,26 @@ const SpecNode: React.FC<NodeProps<NodeData>> = ({ id, data, selected }) => {
         // 如果调用失败，使用默认输出
         setDynamicOutputs(spec.outputs || []);
       });
-  }, [spec.id, spec.inputs, spec.outputs, config]);
+    // 通过 IPC 调用后端获取动态配置
+    if (spec.hasDynamicConfig) {
+      invoke('wf:getNodeConfig', { nodeId: spec.id, config })
+        .then((result: any) => {
+          if (result?.ok && Array.isArray(result.config)) {
+            setDynamicConfig(result.config);
+          } else {
+            // 如果获取失败，使用默认配置
+            setDynamicConfig(spec.config || []);
+          }
+        })
+        .catch(() => {
+          // 如果调用失败，使用默认配置
+          setDynamicConfig(spec.config || []);
+        });
+    } else {
+      // 如果不支持动态配置，直接使用静态配置
+      setDynamicConfig(spec.config || []);
+    }
+  }, [spec.id, spec.inputs, spec.outputs, spec.config, spec.hasDynamicConfig, config]);
 
   // 内联编辑：更新当前节点的 inputDefaults
   const updateInlineInput = (key: string, value: string) => {
@@ -100,7 +122,28 @@ const SpecNode: React.FC<NodeProps<NodeData>> = ({ id, data, selected }) => {
     );
   };
 
+  // 内联编辑：更新当前节点的 config
+  const updateInlineConfig = (key: string, value: string) => {
+    rf.setNodes((nodes) =>
+      nodes.map((n) =>
+        n.id === id
+          ? {
+            ...n,
+            data: {
+              ...(n.data as NodeData),
+              config: {
+                ...((n.data as NodeData).config || {}),
+                [key]: value
+              }
+            }
+          }
+          : n
+      )
+    );
+  };
+
   const inlineInputs = dynamicInputs.filter((inp) => inp.showInNode);
+  const inlineConfigs = dynamicConfig.filter((cfg) => cfg.showInNode);
 
   const baseClass = 'relative rounded-md border border-solid border-ring min-w-[180px] overflow-hidden transition-all duration-200 shadow-sm bg-muted';
   let runtimeClass = 'border-ring';
@@ -204,6 +247,57 @@ const SpecNode: React.FC<NodeProps<NodeData>> = ({ id, data, selected }) => {
                 onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
                   e.stopPropagation();
                   updateInlineInput(field.key, e.target.value);
+                },
+                onMouseDown: (e: React.MouseEvent) => {
+                  // 避免拖拽节点
+                  e.stopPropagation();
+                },
+                onWheel: (e: React.WheelEvent) => {
+                  // 避免滚动画布
+                  e.stopPropagation();
+                },
+                onKeyDown: (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+                  // 阻止键盘事件冒泡到画布/全局，避免影响输入法候选
+                  e.stopPropagation();
+                },
+                onKeyUp: (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+                  e.stopPropagation();
+                },
+                onKeyPress: (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+                  e.stopPropagation();
+                }
+              };
+
+              return (
+                <div key={field.key} className="space-y-0.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-medium">{label}</span>
+                  </div>
+                  {inputType === 'textarea' ? (
+                    <Textarea {...commonProps} rows={3} placeholder={description || ''} className="min-h-[60px] text-[11px] leading-snug resize-none box-border" />
+                  ) : (
+                    <Input {...commonProps} placeholder={description || ''} className="h-7 text-[11px]" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {/* 内联配置编辑区域：渲染 showInNode 为 true 的配置字段 */}
+        {inlineConfigs.length > 0 && (
+          <div className="mt-2 border-t border-border/60 pt-1 space-y-1">
+            {inlineConfigs.map((field) => {
+              const val = (data.config || {})[field.key] ?? field.default ?? '';
+              const label = field.label || field.key;
+              const description = field.description;
+              const inputType = field.inputType || 'text';
+
+              const commonProps = {
+                // 使用 defaultValue 而不是受控的 value，避免外部渲染重置输入法中间态
+                defaultValue: String(val ?? ''),
+                onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+                  e.stopPropagation();
+                  updateInlineConfig(field.key, e.target.value);
                 },
                 onMouseDown: (e: React.MouseEvent) => {
                   // 避免拖拽节点

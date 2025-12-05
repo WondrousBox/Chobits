@@ -37,7 +37,7 @@ async function getChatModels(providerId: string): Promise<{ value: string; label
     return [];
   } catch (error) {
     // 如果读取失败，返回空数组
-    console.warn(`[ai-chat] Failed to load chat models for provider ${providerId}:`, error);
+    console.warn(`[ai-prompt-optimizer] Failed to load chat models for provider ${providerId}:`, error);
     return [];
   }
 }
@@ -101,21 +101,40 @@ async function getDynamicConfig(providerId?: string): Promise<PortSchema[]> {
   return config;
 }
 
-export const AiChatNode: NodeHandler = {
+export const AiPromptOptimizerNode: NodeHandler = {
   spec: {
-    id: 'ai/chat',
-    label: '大模型对话',
+    id: 'ai/prompt-optimizer',
+    label: 'AI提示词优化',
     category: 'AI',
-    description: '使用AI大模型进行对话，输入文本内容并获取AI回复',
+    description: '使用AI优化提示词，使其更清晰、更有效',
     backgroundColor: '#8b5cf6',
     icon: 'TbRobot',
     inputs: [
-      { key: 'systemPrompt', label: '系统提示词', type: 'string', required: false, description: '可选的系统提示词，用于设置AI的角色和行为' },
-      { key: 'message', label: '对话内容', type: 'string', required: true }
+      {
+        key: 'prompt',
+        label: '原始提示词',
+        type: 'string',
+        required: true,
+        description: '需要优化的原始提示词'
+      },
+      {
+        key: 'optimizationGoal',
+        label: '优化目标',
+        type: 'string',
+        required: false,
+        description: '可选的优化目标说明，例如：更清晰、更具体、更简洁等'
+      }
     ],
     // 静态配置作为默认值，实际配置通过 getConfig 动态获取
     config: [],
-    outputs: [{ key: 'response', label: '对话回复', type: 'string', description: 'AI返回的对话回复内容' }]
+    outputs: [
+      {
+        key: 'optimizedPrompt',
+        label: '优化后的提示词',
+        type: 'string',
+        description: 'AI优化后的提示词'
+      }
+    ]
   },
   // 动态获取配置，根据当前配置值返回相应的选项
   async getConfig(config?: NodeConfig): Promise<PortSchema[]> {
@@ -123,11 +142,12 @@ export const AiChatNode: NodeHandler = {
     return getDynamicConfig(providerId);
   },
   async run({ input, config, emit }) {
-    const message = String(input.message || '');
-    if (!message) throw new Error('缺少对话内容');
+    const prompt = String(input.prompt || '').trim();
+    if (!prompt) throw new Error('缺少原始提示词');
 
     const providerId = String(config?.providerId || 'zhipu');
     const model = String(config?.model || 'glm-4-5-flash');
+    const optimizationGoal = input.optimizationGoal ? String(input.optimizationGoal).trim() : '';
 
     emit('node:progress', { progress: 10, message: '准备调用AI服务...' });
 
@@ -164,25 +184,37 @@ export const AiChatNode: NodeHandler = {
       throw new Error(`服务商 ${providerId} 未配置必要秘钥（例如 API Key），已弹出配置窗口，请完成配置后重试。`);
     }
 
-    emit('node:progress', { progress: 30, message: '发送对话请求...' });
+    emit('node:progress', { progress: 30, message: '发送优化请求...' });
 
-    // 构建消息，使用OpenAI兼容的格式
-    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [];
+    // 构建系统提示词
+    const systemPrompt = `你是一个专业的提示词优化专家。你的任务是优化用户提供的提示词，使其更加清晰、具体、有效。
 
-    // 如果有系统提示词，先添加系统消息
-    const systemPrompt = input.systemPrompt ? String(input.systemPrompt).trim() : '';
-    if (systemPrompt) {
-      messages.push({
-        role: 'system' as const,
-        content: systemPrompt
-      });
+优化原则：
+1. 保持原意的同时，使表达更加清晰明确
+2. 添加必要的上下文信息
+3. 使用更准确的专业术语
+4. 确保提示词结构完整、逻辑清晰
+5. 如果用户指定了优化目标，请重点考虑该目标
+
+请直接返回优化后的提示词，不要添加任何解释或说明文字。`;
+
+    // 构建用户消息
+    let userMessage = `请优化以下提示词：\n\n${prompt}`;
+    if (optimizationGoal) {
+      userMessage += `\n\n优化目标：${optimizationGoal}`;
     }
 
-    // 添加用户消息
-    messages.push({
-      role: 'user' as const,
-      content: message
-    });
+    // 构建消息，使用OpenAI兼容的格式
+    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+      {
+        role: 'system' as const,
+        content: systemPrompt
+      },
+      {
+        role: 'user' as const,
+        content: userMessage
+      }
+    ];
 
     // 调用AI Provider的chat方法
     const response = await provider.chat(
@@ -198,18 +230,18 @@ export const AiChatNode: NodeHandler = {
       undefined // 不使用AbortSignal
     );
 
-    emit('node:progress', { progress: 90, message: '处理回复...' });
+    emit('node:progress', { progress: 90, message: '处理优化结果...' });
 
-    const responseText = response.message?.content || '';
+    const optimizedPrompt = response.message?.content || '';
 
-    if (!responseText) {
+    if (!optimizedPrompt) {
       throw new Error('AI服务返回空结果');
     }
 
     emit('node:progress', { progress: 100, message: '完成' });
 
     return {
-      response: responseText
+      optimizedPrompt: optimizedPrompt.trim()
     };
   }
 };

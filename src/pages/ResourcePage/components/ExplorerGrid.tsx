@@ -477,7 +477,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
   const workflowRequiresResource = useCallback(
     (wf: any): boolean => {
       const mode = getWorkflowInputMode(wf);
-      return mode === 'resource' || mode === 'folder';
+      return mode === 'resource';
     },
     [getWorkflowInputMode]
   );
