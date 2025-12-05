@@ -24,6 +24,34 @@ export const ResourceCreateNode: NodeHandler = {
         type: ['file', 'string'],
         required: true,
         description: '文件对象、本地文件路径或URL（http/https）'
+      },
+      {
+        key: 'title',
+        label: '标题',
+        type: 'string',
+        required: false,
+        description: '资源标题'
+      },
+      {
+        key: 'contentText',
+        label: '正文内容',
+        type: 'string',
+        required: false,
+        description: '提取的纯文本内容'
+      },
+      {
+        key: 'description',
+        label: '描述',
+        type: 'string',
+        required: false,
+        description: '资源描述'
+      },
+      {
+        key: 'tags',
+        label: '标签',
+        type: 'string',
+        required: false,
+        description: '标签（JSON字符串数组）'
       }
     ],
     outputs: [{ key: 'resource', label: '创建的资源', type: 'resource', description: '创建后的完整资源对象' }]
@@ -111,11 +139,22 @@ export const ResourceCreateNode: NodeHandler = {
     // 其他字段（类型、MIME、大小等）由系统自动检测和补充
     const resourceData: Record<string, any> = {
       filePath,
-      title: filename,
+      title: input.title !== undefined && input.title !== null ? String(input.title).trim() : filename,
       sizeBytes: stats.size,
       collectedAt: Date.now(),
       status: 'new'
     };
+
+    // 添加可选的 contentText、description 和 tags
+    if (input.contentText !== undefined && input.contentText !== null) {
+      resourceData.contentText = String(input.contentText).trim();
+    }
+    if (input.description !== undefined && input.description !== null) {
+      resourceData.description = String(input.description).trim();
+    }
+    if (input.tags !== undefined && input.tags !== null) {
+      resourceData.tags = input.tags;
+    }
 
     // 如果是URL下载的，保存原始URL
     if (isUrl && url) {

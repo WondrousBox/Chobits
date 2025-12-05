@@ -165,10 +165,10 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
       // Create Resource
       const now = Date.now();
       const resource = {
-        id: randomUUID(),
         title: resourceData.title,
         filePath: resourceData.filePath,
         sizeBytes: resourceData.sizeBytes,
+        description: resourceData.description,
         type: detectedType,
         mimeType: mimeType,
         workspaceId: resourceData.workspaceId,

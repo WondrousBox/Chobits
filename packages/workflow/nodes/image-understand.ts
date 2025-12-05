@@ -131,33 +131,7 @@ export const ImageUnderstandNode: NodeHandler = {
     description: '使用AI视觉模型分析图片，提取文本内容、生成描述和标签',
     inputs: [{ key: 'image', label: '图片路径', type: ['file', 'string'], required: true }],
     // 静态配置作为默认值，实际配置通过 getConfig 动态获取
-    config: [
-      {
-        key: 'providerId',
-        label: '服务商',
-        type: 'string',
-        required: true,
-        default: 'zhipu',
-        description: '选择AI服务商',
-        inputType: 'select',
-        options: [{ value: 'zhipu', label: '智谱 (GLM)' }] // 默认值，实际通过 getConfig 动态获取
-      },
-      {
-        key: 'model',
-        label: '模型',
-        type: 'string',
-        required: true,
-        default: 'glm-4v-flash',
-        description: '选择视觉理解模型',
-        inputType: 'select',
-        options: [
-          { value: 'glm-4v-flash', label: 'GLM-4V-Flash - 支持图片理解，完全免费 (免费)' },
-          { value: 'glm-4-5v', label: 'GLM-4.5V - 100B级通用视觉模型新标杆' },
-          { value: 'glm-4-1v-thinking', label: 'GLM-4.1V-Thinking - 10B级通用视觉模型新标杆' },
-          { value: 'glm-4v-plus-0111', label: 'GLM-4V-Plus-0111 - 支持图片和视频理解' }
-        ]
-      }
-    ],
+    config: [],
     outputs: [
       { key: 'contentText', label: '文本内容', type: 'string', description: '图片中的文本内容，如果不存在文本内容则返回空字符串' },
       { key: 'description', label: '描述', type: 'string', description: '文本内容的总结或画面的分析总结' },

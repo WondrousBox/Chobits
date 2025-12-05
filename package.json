@@ -37,11 +37,7 @@
     "@huggingface/transformers": "^3.7.3",
     "@img/sharp-libvips-win32-x64": "1.2.3",
     "@img/sharp-win32-x64": "0.34.4",
-    "@tiptap/extension-placeholder": "^3.11.0",
-    "@tiptap/react": "^3.11.0",
-    "@tiptap/starter-kit": "^3.11.0",
     "better-sqlite3": "^12.2.0",
-    "cmdk": "^1.1.1",
     "electron-updater": "^6.3.9",
     "fluent-ffmpeg": "^2.1.3",
     "keytar": "^7.9.0",
@@ -49,6 +45,10 @@
     "sqlite-vec": "0.1.7-alpha.2"
   },
   "devDependencies": {
+    "cmdk": "^1.1.1",
+    "@tiptap/extension-placeholder": "^3.11.0",
+    "@tiptap/react": "^3.11.0",
+    "@tiptap/starter-kit": "^3.11.0",
     "@aim-packages/file-utils": "^0.0.9",
     "@aim-packages/window-manager": "^0.0.5",
     "@anthropic-ai/sdk": "^0.67.0",

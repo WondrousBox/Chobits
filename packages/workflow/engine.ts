@@ -81,7 +81,7 @@ export class WorkflowEngine extends EngineEmitter {
   }
 
   buildCtx(): ExecutionContext {
-    const tmpDir = path.join(os.tmpdir(), 'chobits-workflow', randomUUID());
+    const tmpDir = path.join(os.tmpdir(), 'workflow', randomUUID());
     console.log('buildCtx', tmpDir);
 
     return { ...this.baseCtx, tmpDir };
