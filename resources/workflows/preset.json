@@ -108,12 +108,20 @@
     "name": "图片生成",
     "description": "使用AI图像生成模型，根据文本提示生成图片",
     "nodes": [
-      { "id": "start", "type": "core/start", "x": 0, "y": 0, "config": { "inputMode": "text" } },
+      {
+        "id": "start",
+        "type": "core/start",
+        "x": 0,
+        "y": 13.25,
+        "config": {
+          "inputMode": "text"
+        }
+      },
       {
         "id": "ai/image-generate-BfZG",
         "type": "ai/image-generate",
         "x": 366,
-        "y": 43.5,
+        "y": 0,
         "config": {
           "providerId": "zhipu",
           "model": "cogview-3-flash",
@@ -121,8 +129,20 @@
           "quality": "hd"
         }
       },
-      { "id": "resource/create-7R-s", "type": "resource/create", "x": 753, "y": 54.5, "config": {}},
-      { "id": "end", "type": "core/end", "x": 1248, "y": 53, "config": {} }
+      {
+        "id": "resource/create-7R-s",
+        "type": "resource/create",
+        "x": 753,
+        "y": 32.75,
+        "config": {}
+      },
+      {
+        "id": "end",
+        "type": "core/end",
+        "x": 1251,
+        "y": 66.25,
+        "config": {}
+      }
     ],
     "edges": [
       {
@@ -156,6 +176,117 @@
         "to": {
           "nodeId": "end",
           "port": "result"
+        }
+      },
+      {
+        "id": "e-fbqDD5",
+        "from": {
+          "nodeId": "start",
+          "port": "text"
+        },
+        "to": {
+          "nodeId": "resource/create-7R-s",
+          "port": "description"
+        }
+      }
+    ],
+    "options": {
+      "concurrency": 1,
+      "errorStrategy": "fail-fast"
+    }
+  },{
+    "id": "sample:image-understand",
+    "name": "图片理解",
+    "description": "理解图片内容，并更新资源描述和标签",
+    "nodes": [
+      {
+        "id": "start",
+        "type": "core/start",
+        "x": 0,
+        "y": 27.25,
+        "config": {
+          "inputMode": "resource"
+        }
+      },
+      {
+        "id": "end",
+        "type": "core/end",
+        "x": 1229,
+        "y": 78.25,
+        "config": {}
+      },
+      {
+        "id": "ai/image-understand-sGVu",
+        "type": "ai/image-understand",
+        "x": 366,
+        "y": 0,
+        "config": {
+          "providerId": "qwen",
+          "model": "qwen3-vl-flash"
+        }
+      },
+      {
+        "id": "resource/update-GUSf",
+        "type": "resource/update",
+        "x": 819,
+        "y": 44.25,
+        "config": {}
+      }
+    ],
+    "edges": [
+      {
+        "id": "e-KEl5qA",
+        "from": {
+          "nodeId": "ai/image-understand-sGVu",
+          "port": "contentText"
+        },
+        "to": {
+          "nodeId": "resource/update-GUSf",
+          "port": "contentText"
+        }
+      },
+      {
+        "id": "e-4ZLxuF",
+        "from": {
+          "nodeId": "ai/image-understand-sGVu",
+          "port": "description"
+        },
+        "to": {
+          "nodeId": "resource/update-GUSf",
+          "port": "description"
+        }
+      },
+      {
+        "id": "e-dCNR7z",
+        "from": {
+          "nodeId": "resource/update-GUSf",
+          "port": "resource"
+        },
+        "to": {
+          "nodeId": "end",
+          "port": "result"
+        }
+      },
+      {
+        "id": "e-RpR4EV",
+        "from": {
+          "nodeId": "start",
+          "port": "resourceId"
+        },
+        "to": {
+          "nodeId": "resource/update-GUSf",
+          "port": "resourceId"
+        }
+      },
+      {
+        "id": "e-EhXUfp",
+        "from": {
+          "nodeId": "start",
+          "port": "path"
+        },
+        "to": {
+          "nodeId": "ai/image-understand-sGVu",
+          "port": "image"
         }
       }
     ],
