@@ -15,6 +15,7 @@ import { detectBasicType } from '../../electron/main/utils/thumbnail';
 import { pluginResourceManager } from '../plugins';
 import { createEngine } from './engine';
 import { AiChatNode } from './nodes/ai-chat';
+import { CollectFolderTextsNode } from './nodes/collect-folder-texts';
 import { DisplayImageNode } from './nodes/display-image';
 import { DisplayMediaNode } from './nodes/display-media';
 import { DisplayResourceCardNode } from './nodes/display-resource-card';
@@ -59,6 +60,7 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
     ResourceLoadNode,
     ResourceCreateNode,
     ResourceUpdateNode,
+    CollectFolderTextsNode,
     TranscodeNode,
     TranscodeAdvancedNode,
     OCRNode,

@@ -1,28 +1,39 @@
 import { useCallback, useEffect, useState } from 'react';
-import { TbLoader2, TbPlayerPlay } from 'react-icons/tb';
+import { TbFolder, TbLoader2, TbPlayerPlay } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 
 type IncomingPayload = {
   defId: string;
-  inputMode: 'text' | 'url' | 'file';
+  inputMode: 'text' | 'url' | 'file' | 'folder';
   metadata?: Record<string, any>;
 };
 
 const invoke = window.ipcRenderer.invoke;
 
+type Folder = {
+  id: string;
+  name: string;
+  parentId?: string | null;
+  workspaceId?: string;
+};
+
 export default function WorkflowStartInputWindow(): JSX.Element {
   const [defId, setDefId] = useState<string>('');
-  const [inputMode, setInputMode] = useState<'text' | 'url' | 'file'>('text');
+  const [inputMode, setInputMode] = useState<'text' | 'url' | 'file' | 'folder'>('text');
   const [metadata, setMetadata] = useState<Record<string, any>>({});
   const [text, setText] = useState('');
   const [url, setUrl] = useState('');
   const [filePath, setFilePath] = useState('');
+  const [folderId, setFolderId] = useState<string>('');
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [loadingFolders, setLoadingFolders] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -63,6 +74,53 @@ export default function WorkflowStartInputWindow(): JSX.Element {
     };
   }, []);
 
+  // 加载文件夹列表（仅在文件夹模式下）
+  useEffect(() => {
+    if (inputMode !== 'folder' || loading) return;
+
+    let mounted = true;
+    const loadFolders = async (): Promise<void> => {
+      setLoadingFolders(true);
+      try {
+        const folderAPI: any = window.YUA?.folder;
+        if (!folderAPI) {
+          if (mounted) setLoadingFolders(false);
+          return;
+        }
+
+        // 获取默认工作空间
+        const ws = await window.YUA.workspace['workspace:getDefault']();
+        if (!ws?.id) {
+          if (mounted) setLoadingFolders(false);
+          return;
+        }
+
+        // 获取所有文件夹
+        const folderList = await folderAPI['folder.list']({
+          workspaceId: ws.id,
+          deletedAt: 0
+        });
+
+        if (mounted) {
+          setFolders(folderList || []);
+        }
+      } catch (err) {
+        console.warn('load folders failed', err);
+        if (mounted) {
+          toast.error('加载文件夹列表失败');
+        }
+      } finally {
+        if (mounted) setLoadingFolders(false);
+      }
+    };
+
+    loadFolders();
+
+    return () => {
+      mounted = false;
+    };
+  }, [inputMode, loading]);
+
   const isValidUrl = (urlString: string): boolean => {
     try {
       const urlObj = new URL(urlString);
@@ -99,21 +157,43 @@ export default function WorkflowStartInputWindow(): JSX.Element {
         return;
       }
       input = { file: filePath.trim() };
+    } else if (inputMode === 'folder') {
+      if (!folderId.trim()) {
+        toast.error('请选择文件夹');
+        return;
+      }
+      // 从选中的文件夹对象中获取工作空间ID
+      const selectedFolder = folders.find((f) => f.id === folderId.trim());
+      if (!selectedFolder) {
+        toast.error('无法找到选中的文件夹');
+        return;
+      }
+      const selectedWorkspaceId = selectedFolder.workspaceId;
+      if (!selectedWorkspaceId) {
+        toast.error('选中的文件夹缺少工作空间ID');
+        return;
+      }
+      input = { folderId: folderId.trim(), workspaceId: selectedWorkspaceId };
     }
 
     setSubmitting(true);
     try {
+      const data = {
+        // 保留原始 metadata 中的所有值（包括 spaceId 和 folderId）
+        ...metadata,
+        // 添加输入模式相关的元数据
+        ...(inputMode === 'text' ? { textLength: input.text?.length || 0 } : {}),
+        ...(inputMode === 'url' ? { url: input.url } : {}),
+        ...(inputMode === 'file' ? { filePath: input.file } : {}),
+        ...(inputMode === 'folder' ? { folderId: input.folderId, workspaceId: input.workspaceId } : {})
+      };
+
+      console.log('data', data);
+
       const result = await invoke('wf:run', {
         defId,
         input,
-        metadata: {
-          // 保留原始 metadata 中的所有值（包括 spaceId 和 folderId）
-          ...metadata,
-          // 添加输入模式相关的元数据
-          ...(inputMode === 'text' ? { textLength: input.text?.length || 0 } : {}),
-          ...(inputMode === 'url' ? { url: input.url } : {}),
-          ...(inputMode === 'file' ? { filePath: input.file } : {})
-        }
+        metadata: data
       });
 
       if (!result?.ok) {
@@ -228,13 +308,51 @@ export default function WorkflowStartInputWindow(): JSX.Element {
               </div>
             </div>
           )}
+
+          {inputMode === 'folder' && (
+            <div className="space-y-3">
+              <Label className="text-sm">选择文件夹</Label>
+              {loadingFolders ? (
+                <div className="flex items-center justify-center py-8">
+                  <TbLoader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <span className="ml-2 text-sm text-muted-foreground">加载文件夹列表...</span>
+                </div>
+              ) : (
+                <Select value={folderId} onValueChange={setFolderId} disabled={submitting}>
+                  <SelectTrigger className="w-full" autoFocus>
+                    <SelectValue placeholder="请选择文件夹" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {folders.length === 0 ? (
+                      <div className="py-4 text-center text-sm text-muted-foreground">暂无可用文件夹</div>
+                    ) : (
+                      folders.map((folder) => (
+                        <SelectItem key={folder.id} value={folder.id}>
+                          <div className="flex items-center gap-2">
+                            <TbFolder className="h-4 w-4" />
+                            <span>{folder.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end gap-2 pb-4">
           <Button
             size="sm"
             onClick={handleConfirm}
-            disabled={submitting || (inputMode === 'text' && !text.trim()) || (inputMode === 'url' && (!url.trim() || !isValidUrl(url.trim()))) || (inputMode === 'file' && !filePath.trim())}
+            disabled={
+              submitting ||
+              (inputMode === 'text' && !text.trim()) ||
+              (inputMode === 'url' && (!url.trim() || !isValidUrl(url.trim()))) ||
+              (inputMode === 'file' && !filePath.trim()) ||
+              (inputMode === 'folder' && (!folderId.trim() || loadingFolders))
+            }
           >
             {submitting ? (
               <>

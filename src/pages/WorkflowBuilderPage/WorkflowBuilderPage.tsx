@@ -405,6 +405,9 @@ const WorkflowCanvasInner: React.FC = () => {
     if (mode === 'url' && inputDefaults.url && String(inputDefaults.url).trim()) {
       return { type: 'url', value: String(inputDefaults.url).trim() };
     }
+    if (mode === 'folder' && inputDefaults.folderId && String(inputDefaults.folderId).trim()) {
+      return { type: 'folder', value: String(inputDefaults.folderId).trim() };
+    }
     return null;
   }, [nodes, startNodeInputMode]);
 
@@ -560,6 +563,43 @@ const WorkflowCanvasInner: React.FC = () => {
     [draft, eventCh]
   );
 
+  const runWorkflowWithFolder = useCallback(
+    async (folderId: string): Promise<void> => {
+      if (!draft) return;
+      setRunning(true);
+      try {
+        const result = await invoke('wf:run', {
+          defId: draft.id,
+          input: { folderId },
+          metadata: {
+            folderId
+          }
+        });
+        if (!result?.ok) {
+          const description = result?.error || (result?.validation ? (typeof result.validation === 'string' ? result.validation : JSON.stringify(result.validation)) : '未知错误');
+          toast.error('工作流执行失败', { description });
+          return;
+        }
+        currentRunIdRef.current = result.runId;
+        setCurrentRunId(result.runId);
+        setRunLogs([]);
+        setRunStatus('queued');
+        setConsoleCollapsed(false); // 运行时自动展开日志面板
+        toast.success('工作流已开始执行', { description: `文件夹 ID: ${folderId}` });
+        try {
+          eventCh.postMessage({ type: 'run-started', defId: draft.id });
+        } catch {
+          // ignore
+        }
+      } catch (err: any) {
+        toast.error('工作流执行失败', { description: err?.message || String(err) });
+      } finally {
+        setRunning(false);
+      }
+    },
+    [draft, eventCh]
+  );
+
   const handleRunClick = useCallback(async () => {
     // 如果节点上已经有输入值，直接使用，不弹窗
     if (startNodeInputValue) {
@@ -573,6 +613,10 @@ const WorkflowCanvasInner: React.FC = () => {
       }
       if (startNodeInputValue.type === 'url') {
         await runWorkflowWithUrl(startNodeInputValue.value);
+        return;
+      }
+      if (startNodeInputValue.type === 'folder') {
+        await runWorkflowWithFolder(startNodeInputValue.value);
         return;
       }
     }
@@ -591,9 +635,28 @@ const WorkflowCanvasInner: React.FC = () => {
       } catch (err: any) {
         toast.error('文件选择失败', { description: err?.message || String(err) });
       }
+    } else if (startNodeInputMode === 'folder') {
+      // 文件夹模式会通过 wf:start-input-required 事件触发输入窗口
+      // 这里直接执行，让引擎处理输入需求
+      try {
+        const result = await invoke('wf:run', {
+          defId: draft.id,
+          input: {},
+          metadata: {}
+        });
+        if (!result?.ok) {
+          const description = result?.error || (result?.validation ? (typeof result.validation === 'string' ? result.validation : JSON.stringify(result.validation)) : '未知错误');
+          toast.error('工作流执行失败', { description });
+        }
+      } catch (err: any) {
+        // 如果是因为缺少输入而失败，引擎会触发输入窗口，这里不显示错误
+        if (!err?.message?.includes('已弹出输入窗口')) {
+          toast.error('工作流执行失败', { description: err?.message || String(err) });
+        }
+      }
     }
     // 如果是 resource 模式，ResourceRunPopover 会自动处理
-  }, [startNodeInputMode, startNodeInputValue, runWorkflowWithText, runWorkflowWithFile, runWorkflowWithUrl]);
+  }, [draft, startNodeInputMode, startNodeInputValue, runWorkflowWithText, runWorkflowWithFile, runWorkflowWithUrl, runWorkflowWithFolder]);
 
   const handleClearLogs = useCallback(() => {
     setRunLogs([]);
@@ -858,7 +921,7 @@ const WorkflowCanvasInner: React.FC = () => {
             running={running}
             isPreset={isPresetWorkflow}
             renderRunButton={() => {
-              if (startNodeInputMode === 'text') {
+              if (startNodeInputMode === 'text' || startNodeInputMode === 'url' || startNodeInputMode === 'file' || startNodeInputMode === 'folder') {
                 return (
                   <>
                     <Button size="sm" disabled={!draft || running} onClick={handleRunClick}>
@@ -866,26 +929,8 @@ const WorkflowCanvasInner: React.FC = () => {
                       运行示例
                     </Button>
                     <TextInputDialog open={showTextInputDialog} onOpenChange={setShowTextInputDialog} disabled={!draft} running={running} onConfirm={runWorkflowWithText} />
-                  </>
-                );
-              }
-              if (startNodeInputMode === 'url') {
-                return (
-                  <>
-                    <Button size="sm" disabled={!draft || running} onClick={handleRunClick}>
-                      <TbPlayerPlay />
-                      运行示例
-                    </Button>
                     <UrlInputDialog open={showUrlInputDialog} onOpenChange={setShowUrlInputDialog} disabled={!draft} running={running} onConfirm={runWorkflowWithUrl} />
                   </>
-                );
-              }
-              if (startNodeInputMode === 'file') {
-                return (
-                  <Button size="sm" disabled={!draft || running} onClick={handleRunClick}>
-                    <TbPlayerPlay />
-                    运行示例
-                  </Button>
                 );
               }
               return <ResourceRunPopover disabled={!draft} running={running} onSelect={runWorkflowWithResource} />;
