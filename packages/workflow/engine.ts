@@ -343,6 +343,22 @@ runId: ${runId}
           this.emitTyped('run:status', rec);
           return rec;
         }
+        if (inputMode === 'folder' && !input.folderId && !initialData.folderId && !ctx.folderId) {
+          // 需要文件夹输入但没有提供，发出事件通知前端打开输入窗口
+          this.emit('wf:start-input-required', {
+            defId: def.id,
+            inputMode: 'folder',
+            metadata
+          });
+          const error = '开始节点需要文件夹输入，已弹出输入窗口，请完成输入后重试。';
+          this.log(runId, 'error', nodeId, `[WorkflowEngine] ${error}`);
+          nodesState[nodeId] = { nodeId, status: 'failed', error };
+          rec.status = 'failed';
+          rec.error = error;
+          this.emitTyped('node:status', rec, nodesState[nodeId]);
+          this.emitTyped('run:status', rec);
+          return rec;
+        }
 
         this.log(runId, 'info', nodeId, `[WorkflowEngine] Start节点特殊处理，使用初始输入 + inputDefaults:`, input);
       } else {

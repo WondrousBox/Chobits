@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import { NodeConfig, NodeHandler, PortSchema } from '../types';
 
-type StartInputMode = 'resource' | 'text' | 'file' | 'url';
+type StartInputMode = 'resource' | 'text' | 'file' | 'url' | 'folder';
 
 function detectType(ext: string): 'image' | 'video' | 'audio' | 'document' | 'other' {
   const e = ext.toLowerCase();
@@ -93,6 +93,21 @@ function getOutputsByMode(mode: StartInputMode): PortSchema[] {
           description: '从触发器传入的链接地址'
         }
       ];
+    case 'folder':
+      return [
+        {
+          key: 'workspaceId',
+          label: '工作空间 ID',
+          type: 'string',
+          description: '当前工作空间 ID'
+        },
+        {
+          key: 'folderId',
+          label: '文件夹 ID',
+          type: 'string',
+          description: '当前文件夹 ID'
+        }
+      ];
     case 'resource':
     default: {
       // 资源模式下，直接提供类似 resource/load 节点的输出端口
@@ -140,7 +155,8 @@ export const StartNode: NodeHandler = {
           { value: 'resource', label: '资源选择（默认）' },
           { value: 'text', label: '文本输入' },
           { value: 'file', label: '文件选择/上传' },
-          { value: 'url', label: '插入链接' }
+          { value: 'url', label: '插入链接' },
+          { value: 'folder', label: '文件夹选择' }
         ]
       }
     ]
@@ -185,6 +201,18 @@ export const StartNode: NodeHandler = {
             showInNode: true
           }
         ];
+      case 'folder':
+        return [
+          {
+            key: 'folderId',
+            label: '文件夹 ID',
+            type: 'string',
+            description: '在单独运行工作流时，可以在开始节点上指定文件夹 ID',
+            inputType: 'text',
+            group: 'runtime',
+            showInNode: true
+          }
+        ];
       case 'resource':
       default:
         // 资源模式下不需要前驱节点输入，直接使用引擎传入的 initialInput
@@ -196,7 +224,7 @@ export const StartNode: NodeHandler = {
     const mode = (config?.inputMode as StartInputMode) || 'resource';
     return getOutputsByMode(mode);
   },
-  async run({ input, config }) {
+  async run({ input, config, ctx }) {
     // input 是工作流引擎传入的初始输入对象
     const mode: StartInputMode = (config?.inputMode as StartInputMode) || 'resource';
 
@@ -207,6 +235,24 @@ export const StartNode: NodeHandler = {
         return { file: (input as any).file };
       case 'url':
         return { url: (input as any).url };
+      case 'folder': {
+        // 文件夹模式下，从输入或上下文获取文件夹ID和工作空间ID
+        const folderId = (input as any).folderId || ctx.folderId;
+        const workspaceId = (input as any).workspaceId || ctx.workspaceId;
+
+        if (!workspaceId) {
+          throw new Error('工作流执行上下文缺少工作空间 ID (workspaceId)');
+        }
+
+        if (!folderId) {
+          throw new Error('缺少文件夹 ID (folderId)，请在开始节点输入或确保工作流从文件夹上下文启动');
+        }
+
+        return {
+          workspaceId,
+          folderId
+        };
+      }
       case 'resource':
       default: {
         // 兼容老行为：如果有 resource 字段就用，没有则把整个 input 当作资源透传

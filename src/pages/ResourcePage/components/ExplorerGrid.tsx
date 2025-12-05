@@ -466,17 +466,18 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
   }, []);
 
   // 获取工作流的开始节点输入模式
-  const getWorkflowInputMode = useCallback((wf: any): 'resource' | 'text' | 'url' | 'file' => {
+  const getWorkflowInputMode = useCallback((wf: any): 'resource' | 'text' | 'url' | 'file' | 'folder' => {
     if (!wf?.nodes) return 'resource';
     const startNode = wf.nodes.find((n: any) => n.id === 'start' || n.type === 'core/start');
     if (!startNode) return 'resource';
-    return (startNode.config?.inputMode as 'resource' | 'text' | 'url' | 'file') || 'resource';
+    return (startNode.config?.inputMode as 'resource' | 'text' | 'url' | 'file' | 'folder') || 'resource';
   }, []);
 
   // 检查工作流是否需要资源输入
   const workflowRequiresResource = useCallback(
     (wf: any): boolean => {
-      return getWorkflowInputMode(wf) === 'resource';
+      const mode = getWorkflowInputMode(wf);
+      return mode === 'resource' || mode === 'folder';
     },
     [getWorkflowInputMode]
   );
