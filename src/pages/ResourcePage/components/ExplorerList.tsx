@@ -233,11 +233,17 @@ export const ExplorerList: React.FC<ExplorerListProps> = ({
           onPreview={() => {
             const current = items[idx];
             if (!current) return;
-            window.YUA.window['window:open']('resourcePreview', {
-              current,
-              list: items,
-              index: idx
-            });
+            window.YUA.window['window:open'](
+              'resourcePreview',
+              {
+                current,
+                list: items,
+                index: idx
+              },
+              {
+                sameDisplayAsSender: true
+              }
+            );
           }}
           draggable
           onDragStart={(e) => {
