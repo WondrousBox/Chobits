@@ -32,6 +32,30 @@ export function initAutomationHandlers(): void {
     unscheduleRule(id);
   });
 
+  ipcMain.handle('automation:triggerRule', async (_event, id: string) => {
+    const rule = await AutomationRulesRepo.getById(id);
+    if (!rule) return;
+
+    console.log(`[Automation] Manually triggering rule ${rule.name} (${rule.id})`);
+    if (rule.actionType === 'workflow') {
+      const config = rule.actionConfig as any;
+      if (!config || !config.workflowId) {
+        console.warn(`[Automation] Invalid workflow config for rule ${rule.id}`);
+        return;
+      }
+
+      const workflowDef = await getWorkflow(config.workflowId);
+      if (!workflowDef) {
+        console.warn(`[Automation] Workflow ${config.workflowId} not found for rule ${rule.id}`);
+        return;
+      }
+
+      // Run workflow
+      const inputs = { ...(config.inputs || {}), triggerType: 'manual' };
+      await runWorkflow(workflowDef, inputs);
+    }
+  });
+
   // Event Listeners
   eventManager.on(AppEvent.RESOURCE_CREATED, async (resource: any) => {
     await handleResourceEvent(resource, 'resource_created');

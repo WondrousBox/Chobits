@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { TbEdit, TbPlus, TbTrash } from 'react-icons/tb';
+import { TbEdit, TbPlay, TbPlus, TbTrash } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -82,6 +82,10 @@ export const AutomationRulesDialog: React.FC<{
   const handleToggleEnable = async (rule: AutomationRule): Promise<void> => {
     await window.ipcRenderer.invoke('automation:updateRule', rule.id, { enabled: rule.enabled ? 0 : 1 });
     loadRules();
+  };
+
+  const handleManualTrigger = async (rule: AutomationRule): Promise<void> => {
+    await window.ipcRenderer.invoke('automation:triggerRule', rule.id);
   };
 
   // Helper to get workflow ID from action config
@@ -192,7 +196,9 @@ export const AutomationRulesDialog: React.FC<{
                 {rules.map((rule) => (
                   <TableRow key={rule.id}>
                     <TableCell>{rule.name}</TableCell>
-                    <TableCell>{rule.triggerType === 'resource_event' ? '资源事件' : rule.triggerType === 'schedule' ? '定时任务' : rule.triggerType === 'system_event' ? '系统事件' : rule.triggerType}</TableCell>
+                    <TableCell>
+                      {rule.triggerType === 'resource_event' ? '资源事件' : rule.triggerType === 'schedule' ? '定时任务' : rule.triggerType === 'system_event' ? '系统事件' : rule.triggerType}
+                    </TableCell>
                     <TableCell>
                       {rule.triggerType === 'resource_event' && (
                         <span className="text-xs text-muted-foreground">
@@ -200,7 +206,9 @@ export const AutomationRulesDialog: React.FC<{
                         </span>
                       )}
                       {rule.triggerType === 'schedule' && <span className="text-xs text-muted-foreground">Cron: {rule.triggerConfig?.cron}</span>}
-                      {rule.triggerType === 'system_event' && <span className="text-xs text-muted-foreground">事件: {rule.triggerConfig?.event === 'app_started' ? '应用启动' : rule.triggerConfig?.event}</span>}
+                      {rule.triggerType === 'system_event' && (
+                        <span className="text-xs text-muted-foreground">事件: {rule.triggerConfig?.event === 'app_started' ? '应用启动' : rule.triggerConfig?.event}</span>
+                      )}
                     </TableCell>
                     <TableCell>{rule.actionType === 'workflow' && <span>工作流: {workflows.find((w) => w.id === rule.actionConfig?.workflowId)?.name || '未知'}</span>}</TableCell>
                     <TableCell>
@@ -264,9 +272,16 @@ export const AutomationRulesDialog: React.FC<{
                     <SelectItem value="resource_event">资源事件</SelectItem>
                     <SelectItem value="schedule">定时任务</SelectItem>
                     <SelectItem value="system_event">系统事件</SelectItem>
+                    <SelectItem value="manual">手动触发</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+
+              {editingRule.triggerType === 'manual' && (
+                <div className="col-span-2 space-y-2">
+                  <p className="text-sm text-muted-foreground">该规则需要手动点击执行按钮触发。</p>
+                </div>
+              )}
 
               {editingRule.triggerType === 'system_event' && (
                 <div className="col-span-2 space-y-2">
