@@ -326,7 +326,9 @@ const ResourcePage: React.FC = () => {
         typeFilter={typeFilter}
         setTypeFilter={setTypeFilter}
         setFavoriteFilter={setFavoriteFilter}
+        folderFilter={folderFilter}
         setFolderFilter={setFolderFilter}
+        wsFilter={wsFilter}
         tagFilter={tagFilter}
         setTagFilter={setTagFilter}
         tags={tags}
