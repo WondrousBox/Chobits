@@ -1274,7 +1274,7 @@ export const AutomationRulesRepo = {
     const db = getOrm();
     await db.delete(automation_rules).where(eq(automation_rules.id, id)).run();
   },
-  async findByEvent(resourceType: string, eventType: string, workspaceId?: string): Promise<AutomationRuleRow[]> {
+  async findByEvent(resourceType: string, eventType: string, workspaceId?: string, folderId?: string): Promise<AutomationRuleRow[]> {
     const db = getOrm();
     // Query all enabled rules with triggerType 'resource_event'
     // Then filter in memory or use JSON operators if available (but standard sqlite json support varies in drizzle)
@@ -1296,6 +1296,13 @@ export const AutomationRulesRepo = {
       const config = rule.triggerConfig as any;
       if (!config) return false;
 
+      // Check Folder Scope (if defined in trigger config)
+      if (config.folderId) {
+        // If rule is scoped to a folder, the event must happen in that folder (or subfolder? for now exact match)
+        // If event has no folderId, it doesn't match
+        if (!folderId || config.folderId !== folderId) return false;
+      }
+
       // Check Event Type (e.g. 'created', 'updated')
       // Map legacy eventType to new config event if needed, or assume config uses 'created'/'updated'
       // eventType passed here is 'resource_created' or 'resource_updated'
@@ -1308,6 +1315,20 @@ export const AutomationRulesRepo = {
       if (config.resourceType !== 'all' && config.resourceType !== resourceType) return false;
 
       return true;
+    });
+  },
+  async findBySystemEvent(eventType: string): Promise<AutomationRuleRow[]> {
+    const db = getOrm();
+    const candidates = await db
+      .select()
+      .from(automation_rules)
+      .where(and(eq(automation_rules.enabled, 1), eq(automation_rules.triggerType, 'system_event')))
+      .all();
+
+    return candidates.filter((rule) => {
+      const config = rule.triggerConfig as any;
+      if (!config) return false;
+      return config.event === eventType;
     });
   }
 };

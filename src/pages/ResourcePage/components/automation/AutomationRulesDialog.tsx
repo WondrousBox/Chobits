@@ -26,7 +26,12 @@ interface WorkflowDefinition {
   name: string;
 }
 
-export const AutomationRulesDialog: React.FC<{ open: boolean; onOpenChange: (open: boolean) => void }> = ({ open, onOpenChange }) => {
+export const AutomationRulesDialog: React.FC<{
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  currentWorkspaceId?: string;
+  currentFolderId?: string;
+}> = ({ open, onOpenChange, currentWorkspaceId, currentFolderId }) => {
   const [rules, setRules] = useState<AutomationRule[]>([]);
   const [workflows, setWorkflows] = useState<WorkflowDefinition[]>([]);
   const [editingRule, setEditingRule] = useState<Partial<AutomationRule> | null>(null);
@@ -118,6 +123,34 @@ export const AutomationRulesDialog: React.FC<{ open: boolean; onOpenChange: (ope
     }));
   };
 
+  // Helper to get scope type (global, workspace, folder)
+  const getScopeType = (rule: Partial<AutomationRule>): 'global' | 'workspace' | 'folder' => {
+    if (rule.scope === 'global') return 'global';
+    if (rule.triggerConfig?.folderId) return 'folder';
+    return 'workspace';
+  };
+
+  // Helper to set scope type
+  const setScopeType = (type: 'global' | 'workspace' | 'folder'): void => {
+    setEditingRule((prev) => {
+      const newRule = { ...prev };
+      if (type === 'global') {
+        newRule.scope = 'global';
+        newRule.workspaceId = undefined;
+        if (newRule.triggerConfig) delete newRule.triggerConfig.folderId;
+      } else if (type === 'workspace') {
+        newRule.scope = 'workspace';
+        newRule.workspaceId = currentWorkspaceId;
+        if (newRule.triggerConfig) delete newRule.triggerConfig.folderId;
+      } else if (type === 'folder') {
+        newRule.scope = 'workspace';
+        newRule.workspaceId = currentWorkspaceId;
+        newRule.triggerConfig = { ...newRule.triggerConfig, folderId: currentFolderId };
+      }
+      return newRule;
+    });
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl">
@@ -159,13 +192,15 @@ export const AutomationRulesDialog: React.FC<{ open: boolean; onOpenChange: (ope
                 {rules.map((rule) => (
                   <TableRow key={rule.id}>
                     <TableCell>{rule.name}</TableCell>
-                    <TableCell>{rule.triggerType === 'resource_event' ? '资源事件' : rule.triggerType}</TableCell>
+                    <TableCell>{rule.triggerType === 'resource_event' ? '资源事件' : rule.triggerType === 'schedule' ? '定时任务' : rule.triggerType === 'system_event' ? '系统事件' : rule.triggerType}</TableCell>
                     <TableCell>
                       {rule.triggerType === 'resource_event' && (
                         <span className="text-xs text-muted-foreground">
                           {rule.triggerConfig?.resourceType === 'all' ? '任意资源' : rule.triggerConfig?.resourceType} {rule.triggerConfig?.event === 'created' ? '创建' : '更新'}
                         </span>
                       )}
+                      {rule.triggerType === 'schedule' && <span className="text-xs text-muted-foreground">Cron: {rule.triggerConfig?.cron}</span>}
+                      {rule.triggerType === 'system_event' && <span className="text-xs text-muted-foreground">事件: {rule.triggerConfig?.event === 'app_started' ? '应用启动' : rule.triggerConfig?.event}</span>}
                     </TableCell>
                     <TableCell>{rule.actionType === 'workflow' && <span>工作流: {workflows.find((w) => w.id === rule.actionConfig?.workflowId)?.name || '未知'}</span>}</TableCell>
                     <TableCell>
@@ -202,6 +237,24 @@ export const AutomationRulesDialog: React.FC<{ open: boolean; onOpenChange: (ope
               </div>
 
               <div className="space-y-2">
+                <label className="text-sm font-medium">生效范围</label>
+                <Select value={getScopeType(editingRule)} onValueChange={(v) => setScopeType(v as any)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="global">全局</SelectItem>
+                    <SelectItem value="workspace" disabled={!currentWorkspaceId}>
+                      当前空间
+                    </SelectItem>
+                    <SelectItem value="folder" disabled={!currentFolderId}>
+                      当前文件夹
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
                 <label className="text-sm font-medium">触发类型</label>
                 <Select value={editingRule.triggerType} onValueChange={(v) => setEditingRule({ ...editingRule, triggerType: v })}>
                   <SelectTrigger>
@@ -209,10 +262,50 @@ export const AutomationRulesDialog: React.FC<{ open: boolean; onOpenChange: (ope
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="resource_event">资源事件</SelectItem>
-                    {/* Future: Schedule, etc. */}
+                    <SelectItem value="schedule">定时任务</SelectItem>
+                    <SelectItem value="system_event">系统事件</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+
+              {editingRule.triggerType === 'system_event' && (
+                <div className="col-span-2 space-y-2">
+                  <label className="text-sm font-medium">系统事件</label>
+                  <Select
+                    value={editingRule.triggerConfig?.event || 'app_started'}
+                    onValueChange={(v) =>
+                      setEditingRule((prev) => ({
+                        ...prev,
+                        triggerConfig: { ...prev?.triggerConfig, event: v }
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="app_started">应用启动</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {editingRule.triggerType === 'schedule' && (
+                <div className="col-span-2 space-y-2">
+                  <label className="text-sm font-medium">Cron 表达式</label>
+                  <Input
+                    placeholder="* * * * *"
+                    value={editingRule.triggerConfig?.cron || ''}
+                    onChange={(e) =>
+                      setEditingRule((prev) => ({
+                        ...prev,
+                        triggerConfig: { ...prev?.triggerConfig, cron: e.target.value }
+                      }))
+                    }
+                  />
+                  <p className="text-xs text-muted-foreground">格式: [秒] 分 时 日 月 周 (例如: 0 0 * * * 每天零点; */30 * * * * * 每30秒)</p>
+                </div>
+              )}
 
               {editingRule.triggerType === 'resource_event' && (
                 <>

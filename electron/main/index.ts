@@ -6,6 +6,9 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron';
 
 import { initWorkflowSystem } from '../../packages/workflow/index';
 import { initHandlers } from './handlers';
+import { eventManager } from './handlers/event-manager';
+import { AppEvent } from './handlers/events';
+import { initScheduler } from './handlers/scheduler';
 import { logger } from './logger';
 import { addAllowedResourceRoot, addWorkspaceResourceRoot, setupResourceProtocol } from './resource-protocol';
 import { registerGlobalShortcuts, unregisterGlobalShortcuts } from './shortcuts';
@@ -145,12 +148,21 @@ app.whenReady().then(async () => {
   await createWindow();
   // Initialize workflow system (nodes, plugins, IPC endpoints)
   try {
-    initWorkflowSystem({ getWorkflowDefinitionsPath: () => getResourcePath('workflows') });
+    initWorkflowSystem({ getWorkflowDefinitionsPath: () => getResourcePath('workflows') || '' });
   } catch (e) {
     console.warn('[workflow] init failed', e);
   }
+  // Initialize scheduler
+  try {
+    await initScheduler();
+  } catch (e) {
+    console.warn('[scheduler] init failed', e);
+  }
   // Register all global shortcuts (assistant toggle, devtools, etc.)
   registerGlobalShortcuts(getMainWindow);
+
+  // Emit App Started Event
+  eventManager.emit(AppEvent.APP_STARTED);
 });
 
 process.on('uncaughtException', function (error) {

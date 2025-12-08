@@ -24,7 +24,10 @@ export enum AppEvent {
   TAG_DELETED = 'TAG_DELETED',
 
   // Sprite
-  SPRITE_MESSAGE = 'SPRITE_MESSAGE'
+  SPRITE_MESSAGE = 'SPRITE_MESSAGE',
+
+  // System
+  APP_STARTED = 'APP_STARTED'
 }
 
 export interface AppEventPayload<T = any> {

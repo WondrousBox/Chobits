@@ -25,7 +25,9 @@ interface ResourceHeaderProps {
   typeFilter: string[];
   setTypeFilter: (types: string[]) => void;
   setFavoriteFilter: (fav: boolean) => void;
+  folderFilter: string;
   setFolderFilter: (folder: string) => void;
+  wsFilter?: string;
   tagFilter: string;
   setTagFilter: (tag: string) => void;
   tags: any[];
@@ -51,7 +53,9 @@ const ResourceHeader: React.FC<ResourceHeaderProps> = ({
   typeFilter,
   setTypeFilter,
   setFavoriteFilter,
+  folderFilter,
   setFolderFilter,
+  wsFilter,
   tagFilter,
   setTagFilter,
   tags,
@@ -147,7 +151,7 @@ const ResourceHeader: React.FC<ResourceHeaderProps> = ({
             <Button size="icon" className="w-8 h-8 shrink-0" variant="ghost" onClick={() => setShowAutomationRules(true)}>
               <TbRobot />
             </Button>
-            <AutomationRulesDialog open={showAutomationRules} onOpenChange={setShowAutomationRules} />
+            <AutomationRulesDialog open={showAutomationRules} onOpenChange={setShowAutomationRules} currentWorkspaceId={wsFilter} currentFolderId={folderFilter} />
             {/* 综合筛选弹出层 */}
             <Popover>
               <PopoverTrigger asChild>

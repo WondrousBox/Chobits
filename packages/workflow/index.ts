@@ -52,6 +52,15 @@ export async function runWorkflow(def: WorkflowDefinition, input?: any): Promise
   return globalEngine.run(def, input || {});
 }
 
+export async function getWorkflow(id: string): Promise<WorkflowDefinition | undefined> {
+  if (getWorkflowDefinitionsPathFn) {
+    const preset = await loadPresetWorkflows(getWorkflowDefinitionsPathFn());
+    const presetDef = preset.find((d) => d.id === id);
+    if (presetDef) return presetDef;
+  }
+  return WorkflowStore.get(id);
+}
+
 export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => string }): void {
   const { getWorkflowDefinitionsPath } = options || {};
   if (!getWorkflowDefinitionsPath) {
