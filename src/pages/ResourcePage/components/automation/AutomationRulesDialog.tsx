@@ -238,30 +238,32 @@ export const AutomationRulesDialog: React.FC<{
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">规则名称</label>
-                <Input value={editingRule.name || ''} onChange={(e) => setEditingRule({ ...editingRule, name: e.target.value })} />
-              </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">规则名称</label>
+              <Input value={editingRule.name || ''} onChange={(e) => setEditingRule({ ...editingRule, name: e.target.value })} />
+            </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium">生效范围</label>
-                <Select value={getScopeType(editingRule)} onValueChange={(v) => setScopeType(v as any)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="global">全局</SelectItem>
-                    <SelectItem value="workspace" disabled={!currentWorkspaceId}>
-                      当前空间
-                    </SelectItem>
-                    <SelectItem value="folder" disabled={!currentFolderId}>
-                      当前文件夹
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="text-sm font-medium">设置范围</div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">生效范围</label>
+              <Select value={getScopeType(editingRule)} onValueChange={(v) => setScopeType(v as any)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="global">全局</SelectItem>
+                  <SelectItem value="workspace" disabled={!currentWorkspaceId}>
+                    当前空间
+                  </SelectItem>
+                  <SelectItem value="folder" disabled={!currentFolderId}>
+                    当前文件夹
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
+            <div className="text-sm font-medium">设置触发器</div>
+            <div className="border border-solid rounded-lg p-4 box-border">
               <div className="space-y-2">
                 <label className="text-sm font-medium">触发类型</label>
                 <Select value={editingRule.triggerType} onValueChange={(v) => setEditingRule({ ...editingRule, triggerType: v })}>
@@ -276,13 +278,11 @@ export const AutomationRulesDialog: React.FC<{
                   </SelectContent>
                 </Select>
               </div>
-
               {editingRule.triggerType === 'manual' && (
                 <div className="col-span-2 space-y-2">
                   <p className="text-sm text-muted-foreground">该规则需要手动点击执行按钮触发。</p>
                 </div>
               )}
-
               {editingRule.triggerType === 'system_event' && (
                 <div className="col-span-2 space-y-2">
                   <label className="text-sm font-medium">系统事件</label>
@@ -321,42 +321,42 @@ export const AutomationRulesDialog: React.FC<{
                   <p className="text-xs text-muted-foreground">格式: [秒] 分 时 日 月 周 (例如: 0 0 * * * 每天零点; */30 * * * * * 每30秒)</p>
                 </div>
               )}
-
-              {editingRule.triggerType === 'resource_event' && (
-                <>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">资源类型</label>
-                    <Select value={getResourceType(editingRule)} onValueChange={setResourceType}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">所有类型</SelectItem>
-                        <SelectItem value="video">视频</SelectItem>
-                        <SelectItem value="image">图片</SelectItem>
-                        <SelectItem value="audio">音频</SelectItem>
-                        <SelectItem value="text">文本</SelectItem>
-                        <SelectItem value="document">文档</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">触发事件</label>
-                    <Select value={getEvent(editingRule)} onValueChange={setEvent}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="created">资源添加</SelectItem>
-                        <SelectItem value="updated">资源更新</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </>
-              )}
-
+            </div>
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">执行动作类型</label>
+                <label className="text-sm font-medium">资源类型</label>
+                <Select value={getResourceType(editingRule)} onValueChange={setResourceType}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">所有类型</SelectItem>
+                    <SelectItem value="video">视频</SelectItem>
+                    <SelectItem value="image">图片</SelectItem>
+                    <SelectItem value="audio">音频</SelectItem>
+                    <SelectItem value="text">文本</SelectItem>
+                    <SelectItem value="document">文档</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">触发事件</label>
+                <Select value={getEvent(editingRule)} onValueChange={setEvent}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="created">资源添加</SelectItem>
+                    <SelectItem value="updated">资源更新</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="text-sm font-medium">执行任务</div>
+            <div className="border border-solid rounded-lg p-4 box-border">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">设置动作</label>
                 <Select value={editingRule.actionType} onValueChange={(v) => setEditingRule({ ...editingRule, actionType: v })}>
                   <SelectTrigger>
                     <SelectValue />
