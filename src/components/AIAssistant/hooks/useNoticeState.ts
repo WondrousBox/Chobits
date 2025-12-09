@@ -29,19 +29,23 @@ export default function useNoticeState(): {
   }, []);
 
   useEffect(() => {
-    const handleNotice = (_event: unknown, payload?: { message?: string; level?: NoticeLevel; durationMs?: number }): void => {
+    const handleNotice = (_event: unknown, payload?: { message?: string; level?: NoticeLevel; durationMs?: number; persistent?: boolean; routineId?: string }): void => {
       if (!payload?.message) return;
       clearTimer();
       setNotice({
         message: payload.message,
         level: payload.level || 'info'
       });
-      const duration = typeof payload.durationMs === 'number' ? payload.durationMs : DEFAULT_DURATION;
-      if (duration > 0) {
-        timerRef.current = setTimeout(() => {
-          setNotice(null);
-          timerRef.current = null;
-        }, duration);
+      // 如果 persistent 为 true 或 durationMs 为 0，则消息常驻不自动消失
+      const isPersistent = payload.persistent === true || payload.durationMs === 0;
+      if (!isPersistent) {
+        const duration = typeof payload.durationMs === 'number' ? payload.durationMs : DEFAULT_DURATION;
+        if (duration > 0) {
+          timerRef.current = setTimeout(() => {
+            setNotice(null);
+            timerRef.current = null;
+          }, duration);
+        }
       }
     };
 

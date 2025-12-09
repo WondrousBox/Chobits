@@ -56,11 +56,12 @@ export const BASE_ROUTINES: CareRoutineDefinition[] = [
   {
     id: 'care:night-guardian',
     title: '夜间守护',
-    description: '晚上 23:30 进入休息提醒节奏',
+    description: '晚上 23:30 之后，每隔 1 分钟提醒休息',
     kind: 'nightGuard',
     severity: 'warning',
-    schedule: { kind: 'fixed', times: ['23:30'] },
+    schedule: { kind: 'interval', minutes: 1, activeHourStart: '23:30', activeHourEnd: '08:00' },
     messageTemplates: nightGuardMessages,
+    persistent: true, // 常驻显示，直到下一个消息或用户关闭
     tags: ['rest'],
     channel: 'spriteNotice',
     source: 'default'

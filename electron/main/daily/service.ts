@@ -23,7 +23,7 @@ import type {
 } from './types';
 
 // === 调度基础常量 ===
-const MINUTE = 60 * 1000;
+const MINUTE = 30 * 1000;
 // 当系统闲置超过该秒数，认为用户暂时离开，不推送非紧急提醒
 const IDLE_SKIP_SECONDS = 120;
 // 从系统恢复（唤醒/解锁）到允许普通提醒之间的冷却时间
@@ -37,6 +37,7 @@ export class DailyCareService {
   private wasSystemIdle = false;
   private resumeCooldownUntil = 0;
   private powerMonitorBound = false;
+  private currentPersistentRoutineId: string | null = null; // 当前常驻显示的提醒ID
 
   constructor(private readonly windowResolver: WindowResolver) {
     this.state = loadDailyCareState();
@@ -229,6 +230,26 @@ export class DailyCareService {
    * 实际发送提醒，同时持久化触发时间
    */
   private dispatchRoutine(runtime: RoutineRuntime, now: dayjs.Dayjs, meta?: { key?: string; manual?: boolean }): void {
+    const isPersistent = runtime.definition.persistent === true;
+
+    // 如果当前有常驻消息，且新消息也是常驻类型，且是同一个提醒
+    if (isPersistent && this.currentPersistentRoutineId === runtime.definition.id) {
+      // 如果距离上次触发超过2分钟，认为消息可能已被关闭，允许重新显示
+      const lastTriggered = runtime.state.lastTriggeredAt ?? 0;
+      const timeSinceLastTrigger = now.valueOf() - lastTriggered;
+      if (timeSinceLastTrigger < 2 * MINUTE) {
+        return; // 2分钟内不重复显示
+      }
+    }
+
+    // 如果新消息是常驻类型，更新当前常驻消息ID
+    // 如果新消息不是常驻类型，清除当前常驻消息ID（因为会被新消息替换）
+    if (isPersistent) {
+      this.currentPersistentRoutineId = runtime.definition.id;
+    } else {
+      this.currentPersistentRoutineId = null;
+    }
+
     const message = this.composeMessage(runtime, now);
     const level = this.toNoticeLevel(runtime.definition.severity);
     try {
@@ -236,7 +257,9 @@ export class DailyCareService {
         {
           message,
           level,
-          durationMs: level === 'warning' || level === 'error' ? 8000 : undefined
+          durationMs: isPersistent ? 0 : level === 'warning' || level === 'error' ? 8000 : undefined,
+          persistent: isPersistent,
+          routineId: runtime.definition.id
         },
         this.windowResolver()
       );
