@@ -105,6 +105,7 @@ export type AIApi = {
   listModels(providerId: string, instanceId?: string): Promise<Array<{ id: string; label?: string;[k: string]: any }>>;
   getProviderSecrets(providerId: string): Promise<Record<string, string>>;
   setProviderSecrets(providerId: string, secrets: Record<string, string>): Promise<{ ok: boolean }>;
+  clearProviderSecrets(providerId: string): Promise<{ ok: boolean }>;
   chat(payload: any): Promise<{ message: { role: string; content: string } }>;
   // Stateless chat (no history persistence)
   chatEphemeral(payload: ChatRequest): Promise<{ message: { role: string; content: string } }>;
