@@ -62,6 +62,10 @@ export const BASE_ROUTINES: CareRoutineDefinition[] = [
     schedule: { kind: 'interval', minutes: 1, activeHourStart: '23:30', activeHourEnd: '08:00' },
     messageTemplates: nightGuardMessages,
     persistent: true, // 常驻显示，直到下一个消息或用户关闭
+    buttons: [
+      { id: 'know', label: '我知道了', action: 'dismiss', variant: 'secondary' },
+      { id: 'snooze', label: '稍后提醒', action: 'snooze', variant: 'outline' }
+    ],
     tags: ['rest'],
     channel: 'spriteNotice',
     source: 'default'

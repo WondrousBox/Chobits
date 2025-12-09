@@ -1,12 +1,16 @@
 import clsx from 'clsx';
 import { TbAlertTriangle, TbCircleCheck, TbInfoCircle, TbX } from 'react-icons/tb';
 
-import type { NoticeLevel } from '../hooks/useNoticeState';
+import { Button } from '@/components/ui/button';
+
+import type { NoticeButton, NoticeLevel } from '../hooks/useNoticeState';
 
 interface SpriteNoticeProps {
   message: string;
   level?: NoticeLevel;
+  buttons?: NoticeButton[];
   onClose?: () => void;
+  onButtonClick?: (button: NoticeButton) => void;
 }
 
 const levelStyles: Record<NoticeLevel, { container: string; accent: string; icon: JSX.Element }> = {
@@ -32,13 +36,22 @@ const levelStyles: Record<NoticeLevel, { container: string; accent: string; icon
   }
 };
 
-export function SpriteNotice({ message, level = 'info', onClose }: SpriteNoticeProps): JSX.Element {
+export function SpriteNotice({ message, level = 'info', buttons, onClose, onButtonClick }: SpriteNoticeProps): JSX.Element {
   const styles = levelStyles[level];
   return (
     <div className="absolute -top-[32px] left-1/2 -translate-x-1/2 z-10 pointer-events-auto">
       <div className={clsx('rounded-xl px-4 py-2 shadow-lg flex items-center gap-2 text-xs backdrop-blur-sm', styles.container)}>
         <div className={clsx('shrink-0', styles.accent)}>{styles.icon}</div>
         <div className="flex-1 leading-none">{message}</div>
+        {buttons && buttons.length > 0 && (
+          <div className="flex items-center gap-1.5 ml-2">
+            {buttons.map((button) => (
+              <Button key={button.id} size="sm" variant={button.variant || 'secondary'} onClick={() => onButtonClick?.(button)} className="h-6 px-2 text-xs">
+                {button.label}
+              </Button>
+            ))}
+          </div>
+        )}
         {onClose && (
           <button type="button" className="ml-2 w-8 h-8 flex items-center justify-center rounded-full text-gray-500 hover:bg-black/5 transition-colors" onClick={onClose}>
             <TbX className="w-4 h-4" />

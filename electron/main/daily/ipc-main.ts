@@ -21,4 +21,8 @@ export function initDailyCareIPC(service: DailyCareService): void {
   ipcMain.handle('dailyCare:triggerNow', (_event, id: string) => {
     return service.triggerRoutineById(id);
   });
+
+  ipcMain.handle('dailyCare:handleButtonClick', (_event, routineId: string, buttonId: string, action?: string) => {
+    return service.handleButtonClick(routineId, buttonId, action);
+  });
 }

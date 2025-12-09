@@ -40,6 +40,13 @@ export interface CalendarSchedule {
 
 export type RoutineSchedule = IntervalSchedule | FixedTimeSchedule | CalendarSchedule;
 
+export interface NoticeButton {
+  id: string; // 按钮唯一标识
+  label: string; // 按钮显示文本
+  action?: string; // 预定义动作：'dismiss'（关闭消息）、'snooze'（稍后提醒）等
+  variant?: 'default' | 'secondary' | 'outline' | 'ghost'; // 按钮样式
+}
+
 export interface CareRoutineDefinition {
   id: string;
   title: string;
@@ -50,6 +57,7 @@ export interface CareRoutineDefinition {
   messageTemplates: string[];
   oncePerDay?: boolean;
   persistent?: boolean; // 是否常驻显示，直到下一个消息或用户关闭
+  buttons?: NoticeButton[]; // 按钮列表
   tags?: string[];
   metadata?: Record<string, any>;
   channel?: RoutineChannel;

@@ -147,6 +147,52 @@ export class DailyCareService {
   }
 
   /**
+   * 处理按钮点击事件
+   */
+  handleButtonClick(routineId: string, buttonId: string, action?: string): { ok: boolean } {
+    const runtime = this.routines.find((r) => r.definition.id === routineId);
+    if (!runtime) {
+      return { ok: false };
+    }
+
+    // 处理预定义动作
+    if (action === 'dismiss') {
+      // 如果是常驻消息，清除常驻状态
+      if (this.currentPersistentRoutineId === routineId) {
+        this.currentPersistentRoutineId = null;
+      }
+      return { ok: true };
+    }
+
+    if (action === 'snooze') {
+      // 稍后提醒：设置 snoozedUntil 为 10 分钟后
+      const now = dayjs();
+      runtime.state.snoozedUntil = now.add(10, 'minute').valueOf();
+      const stored = this.state.routines[runtime.definition.id] || {};
+      this.state.routines[runtime.definition.id] = {
+        ...stored,
+        snoozedUntil: runtime.state.snoozedUntil
+      };
+      saveDailyCareState(this.state);
+      // 如果是常驻消息，清除常驻状态
+      if (this.currentPersistentRoutineId === routineId) {
+        this.currentPersistentRoutineId = null;
+      }
+      return { ok: true };
+    }
+
+    // 可以在这里添加更多自定义逻辑
+    // 例如：通过 metadata 中的配置来执行自定义动作
+    const button = runtime.definition.buttons?.find((b) => b.id === buttonId);
+    if (button && runtime.definition.metadata?.buttonHandlers?.[buttonId]) {
+      // 如果定义了自定义处理器，可以在这里调用
+      // 目前先返回成功，后续可以扩展
+    }
+
+    return { ok: true };
+  }
+
+  /**
    * 每分钟调度入口：结合系统 idle 态、冷却窗口决定是否触发例程
    */
   private tick(): void {
@@ -259,7 +305,8 @@ export class DailyCareService {
           level,
           durationMs: isPersistent ? 0 : level === 'warning' || level === 'error' ? 8000 : undefined,
           persistent: isPersistent,
-          routineId: runtime.definition.id
+          routineId: runtime.definition.id,
+          buttons: runtime.definition.buttons
         },
         this.windowResolver()
       );

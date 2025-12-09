@@ -9,9 +9,17 @@ export type DailyCareBridgeParams = {
   'dailyCare:upsertCustomReminder': IPCParams<[CustomReminderInput], { reminder: CustomReminderConfig; snapshot: DailyCareSnapshot }>;
   'dailyCare:removeCustomReminder': IPCParams<[string], DailyCareSnapshot>;
   'dailyCare:triggerNow': IPCParams<[string], { ok: boolean }>;
+  'dailyCare:handleButtonClick': IPCParams<[string, string, string?], { ok: boolean }>;
 };
 
-const methods: Array<keyof DailyCareBridgeParams> = ['dailyCare:getSnapshot', 'dailyCare:updateSettings', 'dailyCare:upsertCustomReminder', 'dailyCare:removeCustomReminder', 'dailyCare:triggerNow'];
+const methods: Array<keyof DailyCareBridgeParams> = [
+  'dailyCare:getSnapshot',
+  'dailyCare:updateSettings',
+  'dailyCare:upsertCustomReminder',
+  'dailyCare:removeCustomReminder',
+  'dailyCare:triggerNow',
+  'dailyCare:handleButtonClick'
+];
 
 export type DailyCareBridgeType = {
   [K in keyof DailyCareBridgeParams]: (...args: DailyCareBridgeParams[K]['request']) => Promise<DailyCareBridgeParams[K]['response']>;
