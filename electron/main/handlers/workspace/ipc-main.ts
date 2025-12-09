@@ -4,11 +4,11 @@ import path from 'node:path';
 
 import { app, ipcMain, shell } from 'electron';
 
+import { eventManager } from '../../../../packages/event';
+import { AppEvent } from '../../../../packages/event/events';
 import { DefaultWorkspaceName } from '../../config';
 import { WorkspacesRepo } from '../../db/repositories';
 import { addAllowedResourceRoot, addWorkspaceResourceRoot } from '../../resource-protocol';
-import { eventManager } from '../event-manager';
-import { AppEvent } from '../events';
 import type { PartialByKey } from '../types';
 import type { Workspace } from './ipc-renderer';
 

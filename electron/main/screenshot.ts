@@ -7,9 +7,9 @@ import { windowManager } from '@aim-packages/window-manager';
 import dayjs from 'dayjs';
 import { BrowserWindow, desktopCapturer, dialog, ipcMain, screen, shell, systemPreferences } from 'electron';
 
+import { eventManager } from '../../packages/event';
+import { AppEvent } from '../../packages/event/events';
 import { FoldersRepo, ResourcesRepo, WorkspacesRepo } from './db/repositories';
-import { eventManager } from './handlers/event-manager';
-import { AppEvent } from './handlers/events';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

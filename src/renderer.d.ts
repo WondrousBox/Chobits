@@ -1,6 +1,5 @@
 import type { AIApi } from '../electron/main/ai/types';
 import type { DailyCareBridgeType } from '../electron/main/daily/ipc-renderer';
-import type { AppEventPayload } from '../electron/main/handlers/events';
 import type { FFmpegIpcType } from '../electron/main/handlers/ffmpeg/ipc-renderer';
 import type { FileIpcType } from '../electron/main/handlers/file/ipc-renderer';
 import type { FolderIpcType } from '../electron/main/handlers/folder/ipc-renderer';
@@ -17,6 +16,7 @@ import type { SystemBridgeType } from '../electron/preload/apis/system';
 import type { VectorBridgeType } from '../electron/preload/apis/vector';
 import type videoDownloaderAPI from '../electron/preload/apis/video-downloader';
 import type { WindowBridgeType } from '../electron/preload/apis/window';
+import type { AppEventPayload } from '../packages/event/events';
 
 declare global {
   interface Window {

@@ -7,11 +7,11 @@ import { BrowserWindow, ipcMain } from 'electron';
 import * as fs from 'fs';
 
 import { FoldersRepo, ResourcesRepo, WorkspacesRepo } from '../../electron/main/db/repositories';
-import { eventManager } from '../../electron/main/handlers/event-manager';
-import { AppEvent } from '../../electron/main/handlers/events';
 import { getResourcePath } from '../../electron/main/utils/resources-path';
 import { sendSpriteBusyEnd, sendSpriteBusyProgress, sendSpriteBusyStart } from '../../electron/main/utils/sprite-busy';
 import { detectBasicType } from '../../electron/main/utils/thumbnail';
+import { eventManager } from '../event';
+import { AppEvent } from '../event/events';
 import { pluginResourceManager } from '../plugins';
 import { createEngine, WorkflowEngine } from './engine';
 import { AiChatNode } from './nodes/ai-chat';

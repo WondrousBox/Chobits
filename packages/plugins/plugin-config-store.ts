@@ -17,7 +17,6 @@ const STORE_FILE = path.join(STORE_DIR, 'plugin-config.json');
 
 /**
  * 获取默认插件目录
- * 优先选择用户主目录下的 ChobitsPlugins，避免占用系统盘空间
  */
 function getDefaultPluginsDir(): string {
   // 优先使用用户主目录，通常不在系统盘
