@@ -42,7 +42,7 @@ const TaskList: React.FC<TaskListProps> = ({ workspaceId }) => {
 
   const loadTasks = async (): Promise<void> => {
     try {
-      const res = await window.ipcRenderer.invoke('wf:listRuns', { limit: 100, spaceId: workspaceId });
+      const res = await window.ipcRenderer.invoke('wf:listRuns', { limit: 100, workspaceId: workspaceId });
       if (Array.isArray(res)) {
         setTasks([...res].reverse()); // Show newest first
       }
@@ -63,7 +63,7 @@ const TaskList: React.FC<TaskListProps> = ({ workspaceId }) => {
 
   const handleDelete = async (runId: string) => {
     try {
-      await window.ipcRenderer.invoke('wf:deleteRun', { runId });
+      await window.ipcRenderer.invoke('wf:deleteRun', { runId, workspaceId: workspaceId });
       loadTasks();
     } catch (e) {
       console.error('Failed to delete run', e);

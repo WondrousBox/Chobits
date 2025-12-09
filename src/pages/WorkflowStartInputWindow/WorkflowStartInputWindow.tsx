@@ -179,7 +179,7 @@ export default function WorkflowStartInputWindow(): JSX.Element {
     setSubmitting(true);
     try {
       const data = {
-        // 保留原始 metadata 中的所有值（包括 spaceId 和 folderId）
+        // 保留原始 metadata 中的所有值（包括 workspaceId 和 folderId）
         ...metadata,
         // 添加输入模式相关的元数据
         ...(inputMode === 'text' ? { textLength: input.text?.length || 0 } : {}),

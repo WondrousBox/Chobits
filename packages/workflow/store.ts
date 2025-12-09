@@ -35,8 +35,8 @@ function getDefsFile(): string {
   return path.join(getDataDir(), DEFS_FILE);
 }
 
-function getRunsFile(spaceId?: string): string {
-  const filename = spaceId ? `${RUNS_FILE_PREFIX}-${spaceId}.json` : `${RUNS_FILE_PREFIX}.json`;
+function getRunsFile(workspaceId?: string): string {
+  const filename = workspaceId ? `${RUNS_FILE_PREFIX}-${workspaceId}.json` : `${RUNS_FILE_PREFIX}.json`;
   return path.join(getDataDir(), filename);
 }
 
@@ -59,15 +59,15 @@ async function writeDefs(db: DefsShape): Promise<void> {
   await fsp.writeFile(file, JSON.stringify(db, null, 2), 'utf8');
 }
 
-async function readRuns(spaceId?: string): Promise<RunsShape> {
-  const file = getRunsFile(spaceId);
+async function readRuns(workspaceId?: string): Promise<RunsShape> {
+  const file = getRunsFile(workspaceId);
   try {
     if (fs.existsSync(file)) {
       const txt = await fsp.readFile(file, 'utf8');
       const data = JSON.parse(txt);
       return Array.isArray(data) ? data : [];
     }
-    if (!spaceId) {
+    if (!workspaceId) {
       const defsFile = getDefsFile();
       if (fs.existsSync(defsFile)) {
         const txt = await fsp.readFile(defsFile, 'utf8');
@@ -84,8 +84,8 @@ async function readRuns(spaceId?: string): Promise<RunsShape> {
   return [];
 }
 
-async function writeRuns(spaceId: string | undefined, runs: RunsShape): Promise<void> {
-  const file = getRunsFile(spaceId);
+async function writeRuns(workspaceId: string | undefined, runs: RunsShape): Promise<void> {
+  const file = getRunsFile(workspaceId);
   await fsp.writeFile(file, JSON.stringify(runs, null, 2), 'utf8');
 }
 
@@ -134,7 +134,7 @@ export function isPresetWorkflow(id: string): boolean {
 
 // 内存缓存
 let defsCache: DefsShape | null = null;
-const runsCache = new Map<string, RunsShape>(); // key is spaceId (or 'default' for undefined)
+const runsCache = new Map<string, RunsShape>(); // key is workspaceId (or 'default' for undefined)
 
 let defsSaveTimer: NodeJS.Timeout | null = null;
 const runsSaveTimers = new Map<string, NodeJS.Timeout>();
@@ -146,10 +146,10 @@ async function ensureDefsLoaded(): Promise<DefsShape> {
   return defsCache;
 }
 
-async function ensureRunsLoaded(spaceId?: string): Promise<RunsShape> {
-  const key = spaceId || 'default';
+async function ensureRunsLoaded(workspaceId?: string): Promise<RunsShape> {
+  const key = workspaceId || 'default';
   if (runsCache.has(key)) return runsCache.get(key)!;
-  const runs = await readRuns(spaceId);
+  const runs = await readRuns(workspaceId);
   runsCache.set(key, runs);
   return runs;
 }
@@ -164,13 +164,13 @@ async function scheduleSaveDefs(): Promise<void> {
   }, SAVE_DELAY);
 }
 
-async function scheduleSaveRuns(spaceId?: string): Promise<void> {
-  const key = spaceId || 'default';
+async function scheduleSaveRuns(workspaceId?: string): Promise<void> {
+  const key = workspaceId || 'default';
   if (runsSaveTimers.has(key)) clearTimeout(runsSaveTimers.get(key)!);
   const timer = setTimeout(async () => {
     const runs = runsCache.get(key);
     if (runs) {
-      await writeRuns(spaceId, runs);
+      await writeRuns(workspaceId, runs);
     }
     runsSaveTimers.delete(key);
   }, SAVE_DELAY);
@@ -194,8 +194,8 @@ export async function flushStore(): Promise<void> {
   runsSaveTimers.clear();
 
   for (const [key, runs] of runsCache) {
-    const spaceId = key === 'default' ? undefined : key;
-    await writeRuns(spaceId, runs);
+    const workspaceId = key === 'default' ? undefined : key;
+    await writeRuns(workspaceId, runs);
   }
 }
 
@@ -229,27 +229,27 @@ export const WorkflowStore = {
     await scheduleSaveDefs();
   },
   async addRun(rec: WorkflowRunRecord): Promise<void> {
-    const spaceId = rec.metadata?.spaceId;
-    const runs = await ensureRunsLoaded(spaceId);
+    const workspaceId = rec.metadata?.workspaceId;
+    const runs = await ensureRunsLoaded(workspaceId);
     runs.push(rec);
     // cap size
     if (runs.length > 2000) {
       const newRuns = runs.slice(-1000);
-      const key = spaceId || 'default';
+      const key = workspaceId || 'default';
       runsCache.set(key, newRuns);
     }
-    await scheduleSaveRuns(spaceId);
+    await scheduleSaveRuns(workspaceId);
   },
   async updateRun(rec: WorkflowRunRecord): Promise<void> {
-    const spaceId = rec.metadata?.spaceId;
-    const runs = await ensureRunsLoaded(spaceId);
+    const workspaceId = rec.metadata?.workspaceId;
+    const runs = await ensureRunsLoaded(workspaceId);
     const idx = runs.findIndex((r) => r.runId === rec.runId);
     if (idx >= 0) runs[idx] = rec;
     else runs.push(rec);
-    await scheduleSaveRuns(spaceId);
+    await scheduleSaveRuns(workspaceId);
   },
-  async listRuns(workflowId?: string, limit = 100, resourceId?: string, spaceId?: string): Promise<WorkflowRunRecord[]> {
-    const runs = await ensureRunsLoaded(spaceId);
+  async listRuns(workflowId?: string, limit = 100, resourceId?: string, workspaceId?: string): Promise<WorkflowRunRecord[]> {
+    const runs = await ensureRunsLoaded(workspaceId);
     let rows = runs;
     if (workflowId) {
       rows = rows.filter((r) => r.workflowId === workflowId);
@@ -259,11 +259,11 @@ export const WorkflowStore = {
     }
     return rows.slice(-limit);
   },
-  async removeRun(runId: string, spaceId?: string): Promise<void> {
-    const runs = await ensureRunsLoaded(spaceId);
+  async removeRun(runId: string, workspaceId?: string): Promise<void> {
+    const runs = await ensureRunsLoaded(workspaceId);
     const newRuns = runs.filter((r) => r.runId !== runId);
-    const key = spaceId || 'default';
+    const key = workspaceId || 'default';
     runsCache.set(key, newRuns);
-    await scheduleSaveRuns(spaceId);
+    await scheduleSaveRuns(workspaceId);
   }
 };

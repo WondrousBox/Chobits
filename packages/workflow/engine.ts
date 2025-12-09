@@ -192,9 +192,9 @@ runId: ${runId}
     const ctx = this.buildCtx();
 
     // 从 metadata 或 initialInput 中提取工作空间和文件夹信息
-    // metadata 中可能有 spaceId (workspaceId) 和 folderId
-    if (metadata?.spaceId) {
-      ctx.workspaceId = metadata.spaceId;
+    // metadata 中可能有 workspaceId 和 folderId
+    if (metadata?.workspaceId) {
+      ctx.workspaceId = metadata.workspaceId;
     }
     if (metadata?.folderId) {
       ctx.folderId = metadata.folderId;
