@@ -15,7 +15,7 @@
 - 分层：Main（核心逻辑/安全/IPC） → Preload（桥接） → Renderer（UI调用，不接触秘钥）
 - 可扩展：Provider/Agent 均使用注册表；新增服务商/智能体无需改动核心逻辑
 - 可移植：整个 `electron/main/ai` 模块可独立打包为插件（未来迁移到 `packages/chobits-ai`）
-- 安全：秘钥仅存于主进程，后续可升级至系统密码库（keytar）
+- 安全：秘钥仅存于主进程
 - 流式：统一事件协议，支持取消（Abort）
 
 ## 2. 模块结构与目录
@@ -25,7 +25,7 @@ Main 侧新增：
 - `electron/main/ai/types.ts`：核心类型定义（消息、流事件、Provider/Agent 合约、Embedding 请求/响应、Provider 配置 schema）
 - `electron/main/ai/registry.ts`：Provider/Agent 注册表（register/get/list）
 - `electron/main/ai/chat-service.ts`：对话服务，负责流式处理、取消、与 IPC 集成
-- `electron/main/ai/settings-store.ts`：秘钥配置的简易持久化（userData/ai-settings.json），可替换为 DB+keytar
+- `electron/main/ai/settings-store.ts`：秘钥配置的简易持久化（userData/ai-settings.json）
 - `electron/main/ai/providers/*`：各服务商适配器（如：`openai.ts` 等）
 - `electron/main/ai/agents/*`：智能体定义（示例：`basic.ts`）
 - `electron/main/handlers/ai.ts`：AI 相关 IPC 处理器入口（初始化 Provider/Agent、注册 ChatService、秘钥读写）
@@ -158,7 +158,7 @@ Provider 适配要点：
 
 ## 10. 安全、稳定性与观测
 
-- 安全：秘钥仅在主进程，推荐使用 keytar；避免渲染进程泄露
+- 安全：秘钥仅在主进程，使用 keytar；避免渲染进程泄露
 - 限流/并发：Provider 级并发控制与重试策略（指数退避）
 - 超时/取消：统一 AbortController，前端可调用 cancel
 - 计费/用量：在 ChatResponse.usage 中统计 tokens/cost，便于 UI 呈现

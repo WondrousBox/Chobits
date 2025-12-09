@@ -1,5 +1,6 @@
-import { app } from 'electron';
 import path from 'node:path';
+
+import { app } from 'electron';
 
 export type EmbedOptions = {
   model?: string;
@@ -32,7 +33,7 @@ export function getDefaultModels() {
 
 export function getModelCacheDir() {
   // Cache under userData/models for offline usage and packaging control
-  return path.join(app.getPath('userData'), 'models');
+  return path.join(app.getPath('userData'), 'data', 'models');
 }
 
 export function l2Normalize(vec: number[]): number[] {

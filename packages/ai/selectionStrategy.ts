@@ -36,7 +36,7 @@ const DEFAULT_STRATEGY: SelectionStrategy = {
   flags: { freeOnly: false }
 };
 
-const FILE = path.join(app.getPath('userData'), 'ai-selection-strategy.json');
+const FILE = path.join(app.getPath('userData'), 'data', 'ai-selection-strategy.json');
 
 export function loadSelectionStrategy(): SelectionStrategy {
   try {

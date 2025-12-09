@@ -16,7 +16,7 @@ export type PromptTemplate = {
 
 type StoreShape = { templates: PromptTemplate[] };
 
-const FILE = path.join(app.getPath('userData'), 'ai-prompt-templates.json');
+const FILE = path.join(app.getPath('userData'), 'data', 'ai-prompt-templates.json');
 
 function read(): StoreShape {
   try {

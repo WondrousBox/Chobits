@@ -6,7 +6,7 @@ import { app } from 'electron';
 import keytar from 'keytar';
 
 const SERVICE = 'chobits-ai';
-const FALLBACK_FILE = path.join(app.getPath('userData'), 'ai-settings.json');
+const FALLBACK_FILE = path.join(app.getPath('userData'), 'data', 'ai-settings.json');
 
 console.log('FALLBACK_FILE:', FALLBACK_FILE);
 
