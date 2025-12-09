@@ -1,23 +1,16 @@
-import dayjs from 'dayjs';
-import isoWeek from 'dayjs/plugin/isoWeek';
-
 import { FoldersRepo, ResourcesRepo } from '../../../electron/main/db/repositories';
 import { NodeHandler } from '../types';
 
-dayjs.extend(isoWeek);
-
 /**
  * 收集文件夹文本节点
- * - 获取指定文件夹内所有以"年-月-日"格式命名的子文件夹
- * - 根据时间模式（本周、本日、本月）筛选文件夹
- * - 收集这些文件夹内所有资源的描述文本和内容文本
+ * - 获取指定文件夹及其子文件夹内所有资源的描述和内容文本
  */
 export const CollectFolderTextsNode: NodeHandler = {
   spec: {
     id: 'resource/collect-folder-texts',
     label: '收集文件夹文本',
     category: 'Resource',
-    description: '收集指定时间范围内以"年-月-日"格式命名的文件夹内所有资源的描述和内容文本',
+    description: '收集指定文件夹及其子文件夹内所有资源的描述和内容文本',
     backgroundColor: '#3b82f6',
     icon: 'TbFolderOpen',
     inputs: [
@@ -36,22 +29,7 @@ export const CollectFolderTextsNode: NodeHandler = {
         description: '要搜索的文件夹ID（为空时从上下文获取）'
       }
     ],
-    config: [
-      {
-        key: 'timeMode',
-        label: '时间模式',
-        type: 'string',
-        required: true,
-        default: 'today',
-        description: '选择要收集的时间范围',
-        inputType: 'select',
-        options: [
-          { value: 'today', label: '本日' },
-          { value: 'week', label: '本周' },
-          { value: 'month', label: '本月' }
-        ]
-      }
-    ],
+    config: [],
     outputs: [
       {
         key: 'texts',
@@ -67,8 +45,7 @@ export const CollectFolderTextsNode: NodeHandler = {
       }
     ]
   },
-  async run({ input, config, ctx, emit }) {
-    const timeMode = String(config?.timeMode || 'today');
+  async run({ input, ctx, emit }) {
     const folderId = input.folderId ? String(input.folderId) : ctx.folderId;
     const workspaceId = input.workspaceId ? String(input.workspaceId) : ctx.workspaceId;
 
@@ -76,12 +53,9 @@ export const CollectFolderTextsNode: NodeHandler = {
       throw new Error('工作流执行上下文缺少工作空间 ID (workspaceId)');
     }
 
-    emit('node:progress', { progress: 10, message: '正在查找符合条件的文件夹...' });
+    emit('node:progress', { progress: 10, message: '正在查找文件夹...' });
 
-    // 匹配"年-月-日"格式的正则表达式 (YYYY-MM-DD)
-    const datePattern = /^\d{4}-\d{2}-\d{2}$/;
-
-    let candidateFolders: any[] = [];
+    let targetFolders: any[] = [];
 
     if (folderId) {
       // 如果指定了 folderId，只查询该文件夹及其子文件夹
@@ -113,10 +87,10 @@ export const CollectFolderTextsNode: NodeHandler = {
       const descendantIds = new Set([folderId, ...getDescendants(folderId)]);
 
       // 只保留指定文件夹及其子文件夹
-      candidateFolders = allFolders.filter((f) => descendantIds.has(f.id));
+      targetFolders = allFolders.filter((f) => descendantIds.has(f.id));
     } else {
       // 如果没有指定 folderId，查询整个工作空间下的所有文件夹
-      candidateFolders = await FoldersRepo.list(
+      targetFolders = await FoldersRepo.list(
         {
           workspaceId,
           deletedAt: 0
@@ -124,52 +98,6 @@ export const CollectFolderTextsNode: NodeHandler = {
         10000,
         0
       );
-    }
-
-    // 筛选出符合日期格式的文件夹
-    const dateFolders = candidateFolders.filter((folder) => {
-      if (!folder.name) return false;
-      return datePattern.test(folder.name);
-    });
-
-    emit('node:progress', { progress: 30, message: '正在根据时间模式筛选文件夹...' });
-
-    // 根据时间模式筛选文件夹
-    const now = dayjs();
-    let targetFolders: typeof dateFolders = [];
-
-    switch (timeMode) {
-      case 'today': {
-        const today = now.format('YYYY-MM-DD');
-        targetFolders = dateFolders.filter((f) => f.name === today);
-        break;
-      }
-      case 'week': {
-        const weekStart = now.startOf('isoWeek').startOf('day');
-        const weekEnd = now.endOf('isoWeek').endOf('day');
-        targetFolders = dateFolders.filter((f) => {
-          if (!f.name) return false;
-          const folderDate = dayjs(f.name, 'YYYY-MM-DD').startOf('day');
-          if (!folderDate.isValid()) return false;
-          const folderTime = folderDate.valueOf();
-          return folderTime >= weekStart.valueOf() && folderTime <= weekEnd.valueOf();
-        });
-        break;
-      }
-      case 'month': {
-        const monthStart = now.startOf('month').startOf('day');
-        const monthEnd = now.endOf('month').endOf('day');
-        targetFolders = dateFolders.filter((f) => {
-          if (!f.name) return false;
-          const folderDate = dayjs(f.name, 'YYYY-MM-DD').startOf('day');
-          if (!folderDate.isValid()) return false;
-          const folderTime = folderDate.valueOf();
-          return folderTime >= monthStart.valueOf() && folderTime <= monthEnd.valueOf();
-        });
-        break;
-      }
-      default:
-        throw new Error(`未知的时间模式: ${timeMode}`);
     }
 
     if (targetFolders.length === 0) {

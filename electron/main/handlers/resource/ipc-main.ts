@@ -6,12 +6,11 @@ import * as path from 'node:path';
 import dayjs from 'dayjs';
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron';
 
-import { eventManager } from '../../../../packages/event';
+import { eventManager, sendAppBusyEnd, sendAppBusyProgress, sendAppBusyStart } from '../../../../packages/event';
 import { AppEvent } from '../../../../packages/event/events';
 // import { TaggingService } from '../ai/tagging-service';
 import { FoldersRepo, ResourcesRepo, TagsRepo, WorkspacesRepo } from '../../db/repositories';
-import { sendSpriteBusyEnd, sendSpriteBusyProgress, sendSpriteBusyStart } from '../../utils/sprite-busy';
-import { sendSpriteNotice } from '../../utils/sprite-notice';
+// import { sendAppNotice } from '../../../../packages/event';
 import { detectBasicType, generateThumbnailForResource } from '../../utils/thumbnail';
 import type { Resource } from './ipc-renderer';
 
@@ -628,7 +627,7 @@ export function initResourceHandlers(): void {
       if (!fileName || !data) return { success: false, error: 'invalid-params' };
 
       // 发送繁忙状态开始
-      sendSpriteBusyStart(0, `上传中: ${fileName}`);
+      sendAppBusyStart(0, `上传中: ${fileName}`);
 
       let ws;
       if (workspaceId) {
@@ -660,27 +659,27 @@ export function initResourceHandlers(): void {
       const nameNoExt = path.basename(fileName, ext);
 
       // 若存在同名文件，检查 hash；相同则视为重复直接返回
-      if (fscb.existsSync(target)) {
-        try {
-          const existHash = await new Promise<string>((resolve, reject) => {
-            const h = createHash('sha256');
-            const rs = fscb.createReadStream(target);
-            rs.on('error', reject);
-            rs.on('data', (chunk) => h.update(chunk));
-            rs.on('end', () => resolve(h.digest('hex')));
-          });
-          if (existHash === incomingHash) {
-            sendSpriteBusyEnd(); // 重复文件时结束繁忙状态
-            sendSpriteNotice({
-              message: `「${fileName}」已存在，已跳过上传`,
-              level: 'warning'
-            });
-            return { success: false, duplicate: true, filePath: target, hash: incomingHash, error: 'duplicate' };
-          }
-        } catch {
-          /* ignore hash errors and proceed to rename */
-        }
-      }
+      // if (fscb.existsSync(target)) {
+      //   try {
+      //     const existHash = await new Promise<string>((resolve, reject) => {
+      //       const h = createHash('sha256');
+      //       const rs = fscb.createReadStream(target);
+      //       rs.on('error', reject);
+      //       rs.on('data', (chunk) => h.update(chunk));
+      //       rs.on('end', () => resolve(h.digest('hex')));
+      //     });
+      //     if (existHash === incomingHash) {
+      //       sendSpriteBusyEnd(); // 重复文件时结束繁忙状态
+      //       sendSpriteNotice({
+      //         message: `「${fileName}」已存在，已跳过上传`,
+      //         level: 'warning'
+      //       });
+      //       return { success: false, duplicate: true, filePath: target, hash: incomingHash, error: 'duplicate' };
+      //     }
+      //   } catch {
+      //     /* ignore hash errors and proceed to rename */
+      //   }
+      // }
 
       // 仅当同名但不同 hash，执行重命名逻辑避免覆盖
       let counter = 1;
@@ -692,13 +691,13 @@ export function initResourceHandlers(): void {
       await fs.writeFile(target, incomingBuffer);
 
       // 发送完成进度和结束
-      sendSpriteBusyProgress(100, `上传完成: ${fileName}`);
-      sendSpriteBusyEnd();
+      sendAppBusyProgress(100, `上传完成: ${fileName}`);
+      sendAppBusyEnd();
 
       return { success: true, filePath: target, hash: incomingHash };
     } catch (e: any) {
       console.warn('uploadResourceFile failed', e);
-      sendSpriteBusyEnd(); // 上传失败时结束繁忙状态
+      sendAppBusyEnd(); // 上传失败时结束繁忙状态
       return { success: false, error: e?.message || 'unknown-error' };
     }
   });
@@ -779,7 +778,7 @@ export function initResourceHandlers(): void {
         uploadStreams.set(uploadId, stream);
 
         // 发送繁忙状态开始
-        sendSpriteBusyStart(0, `上传中: ${fileName}`);
+        sendAppBusyStart(0, `上传中: ${fileName}`);
 
         return { success: true, uploadId };
       } catch (e: any) {
@@ -810,13 +809,13 @@ export function initResourceHandlers(): void {
 
       // 计算并发送进度
       const progress = Math.round((stream.receivedSize / stream.totalSize) * 100);
-      sendSpriteBusyProgress(progress, `上传中: ${stream.fileName}`);
+      sendAppBusyProgress(progress, `上传中: ${stream.fileName}`);
 
       return new Promise((resolve, reject) => {
         stream.writeStream.write(buffer, (err) => {
           if (err) {
             console.warn('uploadResourceFileStreamChunk write failed', err);
-            sendSpriteBusyEnd(); // 上传失败时结束繁忙状态
+            sendAppBusyEnd(); // 上传失败时结束繁忙状态
             reject({ success: false, error: err.message });
           } else {
             resolve({ success: true });
@@ -858,48 +857,48 @@ export function initResourceHandlers(): void {
           /* ignore */
         }
         uploadStreams.delete(uploadId);
-        sendSpriteBusyEnd(); // 上传失败时结束繁忙状态
+        sendAppBusyEnd(); // 上传失败时结束繁忙状态
         return { success: false, error: 'size-mismatch' };
       }
 
       // 检查是否与已存在文件重复（同名文件）
-      const baseDir = path.dirname(target);
-      const originalFileName = stream.fileName;
-      const originalTarget = path.join(baseDir, originalFileName);
+      // const baseDir = path.dirname(target);
+      // const originalFileName = stream.fileName;
+      // const originalTarget = path.join(baseDir, originalFileName);
 
-      if (fscb.existsSync(originalTarget) && originalTarget !== target) {
-        try {
-          const existHash = await new Promise<string>((resolve, reject) => {
-            const h = createHash('sha256');
-            const rs = fscb.createReadStream(originalTarget);
-            rs.on('error', reject);
-            rs.on('data', (chunk) => h.update(chunk));
-            rs.on('end', () => resolve(h.digest('hex')));
-          });
-          if (existHash === incomingHash) {
-            // 删除新上传的文件，返回已存在的文件
-            try {
-              await fs.unlink(target);
-            } catch {
-              /* ignore */
-            }
-            uploadStreams.delete(uploadId);
-            sendSpriteBusyEnd(); // 重复文件时结束繁忙状态
-            sendSpriteNotice({
-              message: `「${stream.fileName}」已存在，已跳过上传`,
-              level: 'warning'
-            });
-            return { success: false, duplicate: true, filePath: originalTarget, hash: incomingHash, error: 'duplicate' };
-          }
-        } catch {
-          /* ignore hash errors and proceed */
-        }
-      }
+      // if (fscb.existsSync(originalTarget) && originalTarget !== target) {
+      //   try {
+      //     const existHash = await new Promise<string>((resolve, reject) => {
+      //       const h = createHash('sha256');
+      //       const rs = fscb.createReadStream(originalTarget);
+      //       rs.on('error', reject);
+      //       rs.on('data', (chunk) => h.update(chunk));
+      //       rs.on('end', () => resolve(h.digest('hex')));
+      //     });
+      //     if (existHash === incomingHash) {
+      //       // 删除新上传的文件，返回已存在的文件
+      //       try {
+      //         await fs.unlink(target);
+      //       } catch {
+      //         /* ignore */
+      //       }
+      //       uploadStreams.delete(uploadId);
+      //       sendSpriteBusyEnd(); // 重复文件时结束繁忙状态
+      //       sendSpriteNotice({
+      //         message: `「${stream.fileName}」已存在，已跳过上传`,
+      //         level: 'warning'
+      //       });
+      //       return { success: false, duplicate: true, filePath: originalTarget, hash: incomingHash, error: 'duplicate' };
+      //     }
+      //   } catch {
+      //     /* ignore hash errors and proceed */
+      //   }
+      // }
 
       uploadStreams.delete(uploadId);
 
       // 发送繁忙状态结束
-      sendSpriteBusyEnd();
+      sendAppBusyEnd();
 
       return { success: true, filePath: target, hash: incomingHash };
     } catch (e: any) {
@@ -915,7 +914,7 @@ export function initResourceHandlers(): void {
         }
         uploadStreams.delete(payload.uploadId);
       }
-      sendSpriteBusyEnd(); // 上传失败时结束繁忙状态
+      sendAppBusyEnd(); // 上传失败时结束繁忙状态
       return { success: false, error: e?.message || 'unknown-error' };
     }
   });

@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import dayjs from 'dayjs';
 import { powerMonitor } from 'electron';
 
-import { sendSpriteNotice, type SpriteNoticeLevel } from '../utils/sprite-notice';
+import { type AppNoticeLevel, sendAppNotice } from '../../../packages/event';
 import { DEFAULT_ROUTINES } from './constants';
 import { loadDailyCareState, saveDailyCareState } from './storage';
 import type {
@@ -232,7 +232,7 @@ export class DailyCareService {
     const message = this.composeMessage(runtime, now);
     const level = this.toNoticeLevel(runtime.definition.severity);
     try {
-      sendSpriteNotice(
+      sendAppNotice(
         {
           message,
           level,
@@ -518,7 +518,7 @@ export class DailyCareService {
   /**
    * 映射业务严重程度到精灵 notice level
    */
-  private toNoticeLevel(severity?: CareRoutineDefinition['severity']): SpriteNoticeLevel {
+  private toNoticeLevel(severity?: CareRoutineDefinition['severity']): AppNoticeLevel {
     switch (severity) {
       case 'urgent':
         return 'error';
