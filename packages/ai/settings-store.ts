@@ -65,6 +65,39 @@ export async function setProviderSecrets(providerId: string, secrets: Record<str
   }
 }
 
+export async function deleteSecret(providerId: string, key: string): Promise<void> {
+  try {
+    await keytar.deletePassword(SERVICE, `${providerId}:${key}`);
+  } catch {
+    // ignore
+  }
+
+  const fb = readFallback();
+  if (fb.providers[providerId]) {
+    delete fb.providers[providerId][key];
+    writeFallback(fb.providers, fb.instances);
+  }
+}
+
+export async function clearProviderSecrets(providerId: string): Promise<void> {
+  try {
+    const credentials = await keytar.findCredentials(SERVICE);
+    for (const cred of credentials) {
+      if (cred.account.startsWith(`${providerId}:`)) {
+        await keytar.deletePassword(SERVICE, cred.account);
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  const fb = readFallback();
+  if (fb.providers[providerId]) {
+    delete fb.providers[providerId];
+    writeFallback(fb.providers, fb.instances);
+  }
+}
+
 // Instance-level secrets (stored with different service id to avoid clash)
 const SERVICE_INST = 'chobits-ai-instance';
 
@@ -99,5 +132,38 @@ export async function getAllInstanceSecrets(instanceId: string, keys: string[]):
 export async function setInstanceSecrets(instanceId: string, secrets: Record<string, string>) {
   for (const [k, v] of Object.entries(secrets)) {
     if (v != null) await setInstanceSecret(instanceId, k, v);
+  }
+}
+
+export async function deleteInstanceSecret(instanceId: string, key: string): Promise<void> {
+  try {
+    await keytar.deletePassword(SERVICE_INST, `${instanceId}:${key}`);
+  } catch {
+    // ignore
+  }
+
+  const fb = readFallback();
+  if (fb.instances[instanceId]) {
+    delete fb.instances[instanceId][key];
+    writeFallback(fb.providers, fb.instances);
+  }
+}
+
+export async function clearInstanceSecrets(instanceId: string): Promise<void> {
+  try {
+    const credentials = await keytar.findCredentials(SERVICE_INST);
+    for (const cred of credentials) {
+      if (cred.account.startsWith(`${instanceId}:`)) {
+        await keytar.deletePassword(SERVICE_INST, cred.account);
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  const fb = readFallback();
+  if (fb.instances[instanceId]) {
+    delete fb.instances[instanceId];
+    writeFallback(fb.providers, fb.instances);
   }
 }

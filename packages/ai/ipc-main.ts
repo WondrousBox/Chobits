@@ -15,7 +15,7 @@ import { OpenAIProvider } from './providers/openai';
 import { QwenProvider } from './providers/qwen';
 import { ZhipuProvider } from './providers/zhipu';
 import { getProvider, listAgents, listProviders, registerAgent, registerProvider } from './registry';
-import { getAllSecrets, setProviderSecrets as setSecretsStore } from './settings-store';
+import { clearProviderSecrets as clearSecretsStore, getAllSecrets, setProviderSecrets as setSecretsStore } from './settings-store';
 import { getAllInstanceSecrets as getAllInstSecrets, setInstanceSecrets as setInstSecrets } from './settings-store';
 import { TaggingService } from './tagging-service';
 
@@ -64,6 +64,18 @@ export function initAIHandlers(win: BrowserWindow): void {
     await setSecretsStore(payload.providerId, payload.secrets);
     const p = getProvider(payload.providerId);
     if (p?.setSecrets) await Promise.resolve(p.setSecrets(payload.secrets));
+    return { ok: true };
+  });
+
+  ipcMain.handle('ai:clearProviderSecrets', async (_e, payload: { providerId: string }) => {
+    await clearSecretsStore(payload.providerId);
+    const p = getProvider(payload.providerId);
+    // If the provider has a way to clear secrets in memory, we might want to call it,
+    // but usually setSecrets({}) or similar might be enough if we wanted to clear it,
+    // but here we just clear the store.
+    // If the provider caches secrets, it might need a reload or re-fetch.
+    // For now, we assume the provider fetches secrets when needed or we can set empty secrets.
+    if (p?.setSecrets) await Promise.resolve(p.setSecrets({}));
     return { ok: true };
   });
 
