@@ -31,7 +31,7 @@ export function initWindowHandlers(win: BrowserWindow): void {
     enabled: true
   };
   const configDir = app.getPath('userData');
-  const configFile = path.join(configDir, 'movement-config.json');
+  const configFile = path.join(configDir, 'data', 'movement-config.json');
   let movementConfig: MovementConfig = defaultConfig;
   try {
     if (fs.existsSync(configFile)) {

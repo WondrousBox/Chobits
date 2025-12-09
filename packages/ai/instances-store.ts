@@ -18,7 +18,7 @@ export type ProviderInstance = {
 
 type StoreShape = { instances: ProviderInstance[] };
 
-const FILE = path.join(app.getPath('userData'), 'ai-provider-instances.json');
+const FILE = path.join(app.getPath('userData'), 'data', 'ai-provider-instances.json');
 
 function read(): StoreShape {
   try {

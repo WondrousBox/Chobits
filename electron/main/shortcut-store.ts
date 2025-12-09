@@ -58,7 +58,7 @@ let cached: ShortcutsConfig | null = null;
 
 function getFile(): string {
   const dir = app.getPath('userData');
-  return path.join(dir, 'shortcuts.json');
+  return path.join(dir, 'data', 'shortcuts.json');
 }
 
 function defaultConfigFromSchema(): ShortcutsConfig {
