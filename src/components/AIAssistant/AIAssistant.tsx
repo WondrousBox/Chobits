@@ -57,6 +57,25 @@ export const AIAssistant: React.FC = () => {
     setAssistantState('click', 'click');
   };
 
+  // 鼠标进入精灵区域，暂停自动移动
+  const handleMouseEnter = (): void => {
+    isHoveringRef.current = true;
+    // 停止当前的自动移动定时器
+    if (autoWalkTimerRef.current) {
+      clearTimeout(autoWalkTimerRef.current);
+      autoWalkTimerRef.current = null;
+    }
+  };
+
+  // 鼠标离开精灵区域，恢复自动移动（如果启用）
+  const handleMouseLeave = (): void => {
+    isHoveringRef.current = false;
+    // 如果自由移动已启用，重新启动自动移动
+    if (movementConfigRef.current?.enabled !== false && startAutoWalkRef.current) {
+      startAutoWalkRef.current();
+    }
+  };
+
   // keep dev vector probe to preserve previous behavior
   useEffect(() => {
     // window.YUA.ffmpeg.playSprite()
@@ -94,6 +113,8 @@ export const AIAssistant: React.FC = () => {
 
   // drive sprite states from drag/walk flags
   useEffect(() => {
+    isDraggingRef.current = isDragging;
+    isWalkingRef.current = isWalking;
     if (isDragging) {
       setAssistantState('drag:start');
     } else if (isWalking) {
@@ -125,6 +146,12 @@ export const AIAssistant: React.FC = () => {
   const paddingRef = useRef(paddingState);
   const animateMoveWindowRef = useRef(animateMoveWindow);
   const lastMenuActionAtRef = useRef<Record<string, number>>({});
+  const autoWalkTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const movementConfigRef = useRef<{ enabled?: boolean } | null>(null);
+  const isDraggingRef = useRef(isDragging);
+  const isWalkingRef = useRef(isWalking);
+  const isHoveringRef = useRef(false);
+  const startAutoWalkRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     screenSizeRef.current = screenSize;
@@ -166,6 +193,76 @@ export const AIAssistant: React.FC = () => {
     };
   }, [setAssistantState]);
 
+  // --- 监听移动配置变化，实现自由移动 ---
+  useEffect(() => {
+    const loadConfig = async (): Promise<void> => {
+      try {
+        const cfg = await window.YUA.window.getMovementConfig();
+        movementConfigRef.current = cfg;
+        if (cfg.enabled !== false) {
+          startAutoWalk();
+        } else {
+          stopAutoWalk();
+        }
+      } catch (error) {
+        console.error('加载移动配置失败:', error);
+      }
+    };
+
+    const startAutoWalk = (): void => {
+      stopAutoWalk();
+      // 每 5-10 秒随机移动一次
+      const scheduleNextWalk = (): void => {
+        const delay = Math.random() * 5000 + 5000; // 5-10秒
+        autoWalkTimerRef.current = setTimeout(async () => {
+          if (movementConfigRef.current?.enabled === false || isDraggingRef.current || isWalkingRef.current || isHoveringRef.current) {
+            scheduleNextWalk();
+            return;
+          }
+          const size = screenSizeRef.current;
+          const padding = paddingRef.current;
+          const minX = -padding;
+          const maxX = size.width - ASSISTANT_WIDTH - padding;
+          const minY = -padding;
+          const maxY = size.height - ASSISTANT_HEIGHT - padding;
+          const targetX = Math.random() * (maxX - minX) + minX;
+          const targetY = Math.random() * (maxY - minY) + minY;
+          setAssistantState('walk:start');
+          await animateMoveWindowRef.current(targetX, targetY);
+          setAssistantState('walk:end');
+          setAssistantState('idle');
+          scheduleNextWalk();
+        }, delay);
+      };
+      scheduleNextWalk();
+    };
+    startAutoWalkRef.current = startAutoWalk;
+
+    const stopAutoWalk = (): void => {
+      if (autoWalkTimerRef.current) {
+        clearTimeout(autoWalkTimerRef.current);
+        autoWalkTimerRef.current = null;
+      }
+    };
+
+    const onConfigUpdated = (_: any, cfg: { enabled?: boolean }): void => {
+      movementConfigRef.current = cfg;
+      if (cfg.enabled !== false) {
+        startAutoWalk();
+      } else {
+        stopAutoWalk();
+      }
+    };
+
+    loadConfig();
+    window.ipcRenderer?.on('movement-config-updated', onConfigUpdated);
+
+    return () => {
+      stopAutoWalk();
+      window.ipcRenderer?.off('movement-config-updated', onConfigUpdated as any);
+    };
+  }, [setAssistantState]);
+
   return (
     <div
       ref={containerRef}
@@ -177,6 +274,8 @@ export const AIAssistant: React.FC = () => {
         ${isFileDragOver ? 'outline-2 outline-dashed outline-indigo-500/60 outline-offset-[6px] shadow-[0_0_0_6px_rgba(99,102,241,0.15)_inset,0_12px_35px_rgba(99,102,241,0.25)]' : ''}
       `}
       onMouseDown={dragBind.onMouseDown}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       onContextMenu={handleContextMenu}
       onClick={handleClick}
       onDoubleClick={async () => {
