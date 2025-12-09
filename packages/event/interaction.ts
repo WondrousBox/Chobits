@@ -4,12 +4,20 @@ import { BrowserWindow } from 'electron';
 
 export type AppNoticeLevel = 'info' | 'success' | 'warning' | 'error';
 
+export interface AppNoticeButton {
+  id: string; // 按钮唯一标识
+  label: string; // 按钮显示文本
+  action?: string; // 预定义动作：'dismiss'（关闭消息）、'snooze'（稍后提醒）等
+  variant?: 'default' | 'secondary' | 'outline' | 'ghost'; // 按钮样式
+}
+
 export interface AppNoticePayload {
   message: string;
   level?: AppNoticeLevel;
   durationMs?: number;
   persistent?: boolean; // 是否常驻显示，不自动消失
   routineId?: string; // 关联的提醒ID，用于常驻消息管理
+  buttons?: AppNoticeButton[]; // 按钮列表
 }
 
 const DEFAULT_DURATION = 4000;
@@ -59,7 +67,8 @@ export function sendAppNotice(payload: AppNoticePayload, win?: BrowserWindow | n
       level,
       durationMs,
       persistent: payload.persistent,
-      routineId: payload.routineId
+      routineId: payload.routineId,
+      buttons: payload.buttons
     },
     win
   );

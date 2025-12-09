@@ -34,7 +34,7 @@ export const AIAssistant: React.FC = () => {
   const { animateMoveWindow, stopWalking, isWalking } = useWalkAnimation();
   useSpriteEventController();
   const { busyState } = useBusyState();
-  const { notice, dismiss } = useNoticeState();
+  const { notice, dismiss, handleButtonClick } = useNoticeState();
   const {
     bind: dragBind,
     isDragging,
@@ -306,7 +306,7 @@ export const AIAssistant: React.FC = () => {
         )}
         {ASSISTANT_RENDERER_MODE === 'three' ? <ThreeSprite width={ASSISTANT_WIDTH} height={ASSISTANT_HEIGHT} /> : <VideoSprite />}
       </Dropzone>
-      {notice && <SpriteNotice message={notice.message} level={notice.level} onClose={dismiss} />}
+      {notice && <SpriteNotice message={notice.message} level={notice.level} buttons={notice.buttons} onClose={dismiss} onButtonClick={handleButtonClick} />}
 
       {busyState.isBusy && <BusyProgressBar progress={busyState.progress} message={busyState.message} />}
 
