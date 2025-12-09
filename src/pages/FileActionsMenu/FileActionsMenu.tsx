@@ -81,7 +81,7 @@ const FileActionsMenu: React.FC = () => {
             resourceId: primary.id,
             resourceName: primary.title || 'Unknown',
             thumbnailPath: primary.thumbnailPath,
-            spaceId: primary.workspaceId
+            workspaceId: primary.workspaceId
           }
         })
         .catch((err) => {

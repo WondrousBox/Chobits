@@ -79,7 +79,7 @@
     - 自动从预设 + 自定义中查找 `defId` 对应工作流。
     - 根据 `def.options.errorStrategy` 控制失败后的行为（停止 / 继续）。
   - `wf:getRun` → 单次运行详情 `WorkflowRunRecord`
-  - `wf:listRuns` → 历史运行列表（支持按 `defId` / `resourceId` / `spaceId` 等过滤）。
+  - `wf:listRuns` → 历史运行列表（支持按 `defId` / `resourceId` / `workspaceId` 等过滤）。
   - `wf:deleteRun` → 删除某次运行记录。
   - `wf:cancelRun` → 取消运行中的工作流。
   - `wf:getRunLogs` → 获取运行日志数组。

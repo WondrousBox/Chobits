@@ -423,7 +423,7 @@ const WorkflowCanvasInner: React.FC = () => {
             resourceId: resource.id,
             resourceName: resource.title || 'Unknown',
             thumbnailPath: resource.thumbnailPath,
-            spaceId: resource.workspaceId
+            workspaceId: resource.workspaceId
           }
         });
         if (!result?.ok) {

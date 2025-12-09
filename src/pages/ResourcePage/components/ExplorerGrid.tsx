@@ -614,7 +614,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
                                 resourceId: item.id,
                                 resourceName: item.title || 'Unknown',
                                 thumbnailPath: item.thumbnailPath,
-                                spaceId: item.workspaceId
+                                workspaceId: item.workspaceId
                               }
                             });
                             toast.success(`已开始执行工作流: ${wf.name}`);
@@ -626,8 +626,8 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
                             defId: wf.id,
                             input: {},
                             metadata: {
-                              spaceId: workspaceId,
-                              folderId: folderId
+                              workspaceId,
+                              folderId
                             }
                           });
                           toast.success(`已开始执行工作流: ${wf.name}`);
@@ -710,8 +710,8 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
                             defId: wf.id,
                             input: {},
                             metadata: {
-                              spaceId: workspaceId,
-                              folderId: folderId
+                              workspaceId,
+                              folderId
                             }
                           });
                           toast.success(`已开始执行工作流: ${wf.name}`);
