@@ -8,9 +8,8 @@ import * as fs from 'fs';
 
 import { FoldersRepo, ResourcesRepo, WorkspacesRepo } from '../../electron/main/db/repositories';
 import { getResourcePath } from '../../electron/main/utils/resources-path';
-import { sendSpriteBusyEnd, sendSpriteBusyProgress, sendSpriteBusyStart } from '../../electron/main/utils/sprite-busy';
 import { detectBasicType } from '../../electron/main/utils/thumbnail';
-import { eventManager } from '../event';
+import { eventManager, sendAppBusyEnd, sendAppBusyProgress, sendAppBusyStart } from '../event';
 import { AppEvent } from '../event/events';
 import { pluginResourceManager } from '../plugins';
 import { createEngine, WorkflowEngine } from './engine';
@@ -491,7 +490,7 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
               const progress = workflowProgress.get(rec.runId);
               if (progress) {
                 progress.workflowName = def.name;
-                sendSpriteBusyProgress(
+                sendAppBusyProgress(
                   Math.round((Object.values(rec.nodes).filter((n) => n.status === 'completed' || n.status === 'failed' || n.status === 'skipped').length / totalNodes) * 100),
                   `执行工作流: ${def.name}`
                 );
@@ -501,14 +500,14 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
         })
         .catch(() => { });
       workflowProgress.set(rec.runId, { totalNodes, workflowName });
-      sendSpriteBusyStart(0, `执行工作流: ${workflowName}`);
+      sendAppBusyStart(0, `执行工作流: ${workflowName}`);
     } else if ((rec.status === 'completed' || rec.status === 'failed' || rec.status === 'canceled') && workflowProgress.has(rec.runId)) {
       // 工作流结束
       const progress = workflowProgress.get(rec.runId);
       if (progress) {
         const statusText = rec.status === 'completed' ? '完成' : rec.status === 'failed' ? '失败' : '已取消';
-        sendSpriteBusyProgress(100, `工作流${statusText}: ${progress.workflowName}`);
-        sendSpriteBusyEnd();
+        sendAppBusyProgress(100, `工作流${statusText}: ${progress.workflowName}`);
+        sendAppBusyEnd();
       }
       workflowProgress.delete(rec.runId);
     }
@@ -538,10 +537,10 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
         const nodeInstance = def?.nodes.find((n) => n.id === runningNode.nodeId);
         const nodeLabel = nodeInstance?.name || nodeInstance?.type || runningNode.nodeId;
         progressMessage = `${nodeLabel} 执行中`;
-        sendSpriteBusyProgress(currentProgress, `执行工作流: ${progress.workflowName} - ${nodeLabel}`);
+        sendAppBusyProgress(currentProgress, `执行工作流: ${progress.workflowName} - ${nodeLabel}`);
       } else {
         progressMessage = '执行中';
-        sendSpriteBusyProgress(currentProgress, `执行工作流: ${progress.workflowName}`);
+        sendAppBusyProgress(currentProgress, `执行工作流: ${progress.workflowName}`);
       }
       rec.progressMessage = progressMessage;
       await WorkflowStore.updateRun(rec).catch(() => { });
@@ -584,13 +583,13 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
           // Broadcast run status update to UI
           broadcast('wf:run-status', rec);
 
-          sendSpriteBusyProgress(overallProgress, `执行工作流: ${workflowProg.workflowName} - ${progressMessage}`);
+          sendAppBusyProgress(overallProgress, `执行工作流: ${workflowProg.workflowName} - ${progressMessage}`);
         });
       })
       .catch(() => {
         // 如果获取节点信息失败，使用默认消息
         const progressMessage = message || `${nodeId} 执行中`;
-        sendSpriteBusyProgress(progress, `执行工作流: ${workflowProg.workflowName} - ${progressMessage}`);
+        sendAppBusyProgress(progress, `执行工作流: ${workflowProg.workflowName} - ${progressMessage}`);
       });
   });
   engine.onTyped('run:log', (runId, entry) => {

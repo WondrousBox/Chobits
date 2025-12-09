@@ -45,10 +45,10 @@ export default function useNoticeState(): {
       }
     };
 
-    window.ipcRenderer?.on('sprite:notice', handleNotice);
+    window.ipcRenderer?.on('app:notice', handleNotice);
     return () => {
       clearTimer();
-      window.ipcRenderer?.off('sprite:notice', handleNotice);
+      window.ipcRenderer?.off('app:notice', handleNotice);
     };
   }, []);
 

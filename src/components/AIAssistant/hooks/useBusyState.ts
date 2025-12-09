@@ -53,14 +53,14 @@ export default function useBusyState(): {
       }
     };
 
-    window.ipcRenderer?.on('sprite:busy:start', onBusyStart);
-    window.ipcRenderer?.on('sprite:busy:end', onBusyEnd);
-    window.ipcRenderer?.on('sprite:busy:progress', onBusyProgress);
+    window.ipcRenderer?.on('app:busy:start', onBusyStart);
+    window.ipcRenderer?.on('app:busy:end', onBusyEnd);
+    window.ipcRenderer?.on('app:busy:progress', onBusyProgress);
 
     return () => {
-      window.ipcRenderer?.off('sprite:busy:start', onBusyStart);
-      window.ipcRenderer?.off('sprite:busy:end', onBusyEnd);
-      window.ipcRenderer?.off('sprite:busy:progress', onBusyProgress);
+      window.ipcRenderer?.off('app:busy:start', onBusyStart);
+      window.ipcRenderer?.off('app:busy:end', onBusyEnd);
+      window.ipcRenderer?.off('app:busy:progress', onBusyProgress);
     };
   }, [setBusy, clearBusy, updateProgress]);
 
