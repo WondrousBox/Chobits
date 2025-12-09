@@ -6,13 +6,13 @@ import * as path from 'node:path';
 import dayjs from 'dayjs';
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron';
 
+import { eventManager } from '../../../../packages/event';
+import { AppEvent } from '../../../../packages/event/events';
 // import { TaggingService } from '../ai/tagging-service';
 import { FoldersRepo, ResourcesRepo, TagsRepo, WorkspacesRepo } from '../../db/repositories';
 import { sendSpriteBusyEnd, sendSpriteBusyProgress, sendSpriteBusyStart } from '../../utils/sprite-busy';
 import { sendSpriteNotice } from '../../utils/sprite-notice';
 import { detectBasicType, generateThumbnailForResource } from '../../utils/thumbnail';
-import { eventManager } from '../event-manager';
-import { AppEvent } from '../events';
 import type { Resource } from './ipc-renderer';
 
 // 存储正在上传的文件流

@@ -3,9 +3,9 @@ import * as path from 'node:path';
 
 import { ipcMain } from 'electron';
 
+import { eventManager } from '../../../../packages/event';
+import { AppEvent } from '../../../../packages/event/events';
 import { FoldersRepo, WorkspacesRepo } from '../../db/repositories';
-import { eventManager } from '../event-manager';
-import { AppEvent } from '../events';
 
 // 基于资源库的上下文，复用默认工作空间根路径，按文件夹 ID 命名本地文件夹
 export function initFolderHandlers(): void {

@@ -1,10 +1,10 @@
 import { ipcMain } from 'electron';
 
+import { eventManager } from '../../../packages/event';
+import { AppEvent } from '../../../packages/event/events';
 import { getWorkflow, runWorkflow } from '../../../packages/workflow';
 import { AutomationRulesRepo } from '../db/repositories';
 import { NewAutomationRule } from '../db/schema';
-import { eventManager } from './event-manager';
-import { AppEvent } from './events';
 import { scheduleRule, unscheduleRule } from './scheduler';
 
 export function initAutomationHandlers(): void {

@@ -4,10 +4,10 @@ import { fileURLToPath } from 'node:url';
 
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
 
+import { eventManager } from '../../packages/event';
+import { AppEvent } from '../../packages/event/events';
 import { initWorkflowSystem } from '../../packages/workflow/index';
 import { initHandlers } from './handlers';
-import { eventManager } from './handlers/event-manager';
-import { AppEvent } from './handlers/events';
 import { initScheduler } from './handlers/scheduler';
 import { logger } from './logger';
 import { addAllowedResourceRoot, addWorkspaceResourceRoot, setupResourceProtocol } from './resource-protocol';

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { SidebarProvider } from '@/components/ui/sidebar';
 
-import { AppEvent } from '../../../electron/main/handlers/events';
+import { AppEvent } from '../../../packages/event/events';
 import { UIFolder } from './components/FolderSidebar';
 import RenameFolderDialog from './components/layout/RenameFolderDialog';
 import ResourceContent from './components/layout/ResourceContent';
