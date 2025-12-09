@@ -49,6 +49,7 @@ export interface CareRoutineDefinition {
   schedule: RoutineSchedule;
   messageTemplates: string[];
   oncePerDay?: boolean;
+  persistent?: boolean; // 是否常驻显示，直到下一个消息或用户关闭
   tags?: string[];
   metadata?: Record<string, any>;
   channel?: RoutineChannel;

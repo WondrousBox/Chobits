@@ -8,6 +8,8 @@ export interface AppNoticePayload {
   message: string;
   level?: AppNoticeLevel;
   durationMs?: number;
+  persistent?: boolean; // 是否常驻显示，不自动消失
+  routineId?: string; // 关联的提醒ID，用于常驻消息管理
 }
 
 const DEFAULT_DURATION = 4000;
@@ -55,7 +57,9 @@ export function sendAppNotice(payload: AppNoticePayload, win?: BrowserWindow | n
     {
       message,
       level,
-      durationMs
+      durationMs,
+      persistent: payload.persistent,
+      routineId: payload.routineId
     },
     win
   );
