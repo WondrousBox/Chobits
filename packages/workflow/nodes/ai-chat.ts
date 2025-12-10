@@ -184,6 +184,8 @@ export const AiChatNode: NodeHandler = {
       content: message
     });
 
+    let accumulatedText = '';
+
     // 调用AI Provider的chat方法
     const response = await provider.chat(
       {
@@ -192,9 +194,15 @@ export const AiChatNode: NodeHandler = {
         extras: {
           model,
           secrets
+        },
+        stream: true
+      },
+      (event) => {
+        if (event.type === 'delta' && event.data.text) {
+          accumulatedText += event.data.text;
+          emit('node:progress', { progress: 50, detail: accumulatedText });
         }
       },
-      undefined, // 不使用流式输出
       undefined // 不使用AbortSignal
     );
 
