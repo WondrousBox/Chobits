@@ -64,7 +64,7 @@ export const BASE_ROUTINES: CareRoutineDefinition[] = [
     messageTemplates: nightGuardMessages,
     persistent: true, // 常驻显示，直到下一个消息或用户关闭
     buttons: [
-      { id: 'know', label: '我知道了', action: 'dismiss', variant: 'secondary' },
+      { id: 'know', label: '我知道了', action: 'dismiss', variant: 'outline' },
       { id: 'snooze', label: '稍后提醒', action: 'snooze', variant: 'outline' }
     ],
     tags: ['rest'],

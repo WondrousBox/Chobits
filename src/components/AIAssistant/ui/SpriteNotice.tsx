@@ -53,7 +53,7 @@ export function SpriteNotice({ message, level = 'info', buttons, onClose, onButt
           </div>
         )}
         {onClose && (
-          <button type="button" className="ml-2 w-8 h-8 flex items-center justify-center rounded-full text-gray-500 hover:bg-black/5 transition-colors" onClick={onClose}>
+          <button type="button" className="ml-2 w-8 h-8 flex items-center justify-center rounded-full text-gray-500 hover:bg-black/5 transition-colors shrink-0" onClick={onClose}>
             <TbX className="w-4 h-4" />
           </button>
         )}
