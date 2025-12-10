@@ -15,6 +15,20 @@
       "when": 1765158244637,
       "tag": "0001_thick_lifeguard",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1765334478290,
+      "tag": "0002_rapid_master_chief",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1765335845880,
+      "tag": "0003_broken_talkback",
+      "breakpoints": true
     }
   ]
 }

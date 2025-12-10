@@ -695,7 +695,11 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
     // await WorkflowStore.addRun(rec); // 移除重复保存，engine.on('run:status') 已经处理了保存
     return { ok: true, runId: rec.runId };
   });
-  ipcMain.handle('wf:getRun', async (_e, payload: { runId: string }) => engine.getRun(payload.runId));
+  ipcMain.handle('wf:getRun', async (_e, payload: { runId: string }) => {
+    const run = engine.getRun(payload.runId);
+    if (run) return run;
+    return WorkflowStore.getRun(payload.runId);
+  });
   ipcMain.handle('wf:listRuns', async (_e, payload?: { defId?: string; limit?: number; resourceId?: string; workspaceId?: string }) =>
     WorkflowStore.listRuns(payload?.defId, payload?.limit, payload?.resourceId, payload?.workspaceId)
   );

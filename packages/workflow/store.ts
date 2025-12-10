@@ -1,93 +1,18 @@
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
-import path from 'node:path';
 
-import { app } from 'electron';
+import { and, desc, eq } from 'drizzle-orm';
 
+import { getOrm, Schema } from '../../electron/main/db';
 import { WorkflowDefinition, WorkflowRunRecord } from './types';
-
-const DEFS_FILE = 'workflows.json';
-const RUNS_FILE_PREFIX = 'runs';
-
-type DefsShape = {
-  defs: WorkflowDefinition[];
-};
-
-type RunsShape = WorkflowRunRecord[];
 
 // 预设工作流ID集合（从JSON文件加载）
 let presetWorkflowIds = new Set<string>();
 
 // 预设工作流缓存
 let presetWorkflowsCache: WorkflowDefinition[] | null = null;
-let presetWorkflowsCacheTime: number = 0;
+let presetWorkflowsCacheTime = 0;
 const PRESET_CACHE_TTL = 60000; // 缓存1分钟
-
-function getDataDir(): string {
-  const dir = path.resolve(app.getPath('userData'), 'data');
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  return dir;
-}
-
-function getDefsFile(): string {
-  return path.join(getDataDir(), DEFS_FILE);
-}
-
-function getRunsFile(workspaceId?: string): string {
-  const filename = workspaceId ? `${RUNS_FILE_PREFIX}-${workspaceId}.json` : `${RUNS_FILE_PREFIX}.json`;
-  return path.join(getDataDir(), filename);
-}
-
-async function readDefs(): Promise<DefsShape> {
-  const file = getDefsFile();
-  try {
-    if (fs.existsSync(file)) {
-      const txt = await fsp.readFile(file, 'utf8');
-      const data = JSON.parse(txt);
-      return { defs: Array.isArray(data.defs) ? data.defs : [] };
-    }
-  } catch {
-    // ignore
-  }
-  return { defs: [] };
-}
-
-async function writeDefs(db: DefsShape): Promise<void> {
-  const file = getDefsFile();
-  await fsp.writeFile(file, JSON.stringify(db, null, 2), 'utf8');
-}
-
-async function readRuns(workspaceId?: string): Promise<RunsShape> {
-  const file = getRunsFile(workspaceId);
-  try {
-    if (fs.existsSync(file)) {
-      const txt = await fsp.readFile(file, 'utf8');
-      const data = JSON.parse(txt);
-      return Array.isArray(data) ? data : [];
-    }
-    if (!workspaceId) {
-      const defsFile = getDefsFile();
-      if (fs.existsSync(defsFile)) {
-        const txt = await fsp.readFile(defsFile, 'utf8');
-        const data = JSON.parse(txt);
-        if (Array.isArray(data.runs) && data.runs.length > 0) {
-          console.log('[WorkflowStore] Migrating legacy runs from workflows.json to runs.json');
-          return data.runs;
-        }
-      }
-    }
-  } catch {
-    // ignore
-  }
-  return [];
-}
-
-async function writeRuns(workspaceId: string | undefined, runs: RunsShape): Promise<void> {
-  const file = getRunsFile(workspaceId);
-  await fsp.writeFile(file, JSON.stringify(runs, null, 2), 'utf8');
-}
 
 /**
  * 加载预设工作流定义（带缓存）
@@ -132,138 +57,232 @@ export function isPresetWorkflow(id: string): boolean {
   return presetWorkflowIds.has(id);
 }
 
-// 内存缓存
-let defsCache: DefsShape | null = null;
-const runsCache = new Map<string, RunsShape>(); // key is workspaceId (or 'default' for undefined)
-
-let defsSaveTimer: NodeJS.Timeout | null = null;
-const runsSaveTimers = new Map<string, NodeJS.Timeout>();
-const SAVE_DELAY = 2000; // 2秒防抖
-
-async function ensureDefsLoaded(): Promise<DefsShape> {
-  if (defsCache) return defsCache;
-  defsCache = await readDefs();
-  return defsCache;
-}
-
-async function ensureRunsLoaded(workspaceId?: string): Promise<RunsShape> {
-  const key = workspaceId || 'default';
-  if (runsCache.has(key)) return runsCache.get(key)!;
-  const runs = await readRuns(workspaceId);
-  runsCache.set(key, runs);
-  return runs;
-}
-
-async function scheduleSaveDefs(): Promise<void> {
-  if (defsSaveTimer) clearTimeout(defsSaveTimer);
-  defsSaveTimer = setTimeout(async () => {
-    if (defsCache) {
-      await writeDefs(defsCache);
-    }
-    defsSaveTimer = null;
-  }, SAVE_DELAY);
-}
-
-async function scheduleSaveRuns(workspaceId?: string): Promise<void> {
-  const key = workspaceId || 'default';
-  if (runsSaveTimers.has(key)) clearTimeout(runsSaveTimers.get(key)!);
-  const timer = setTimeout(async () => {
-    const runs = runsCache.get(key);
-    if (runs) {
-      await writeRuns(workspaceId, runs);
-    }
-    runsSaveTimers.delete(key);
-  }, SAVE_DELAY);
-  runsSaveTimers.set(key, timer);
-}
-
-// 立即保存（用于应用退出时）
+// 立即保存（用于应用退出时）- 数据库模式下不需要做任何事，但保留接口兼容
 export async function flushStore(): Promise<void> {
-  if (defsSaveTimer) {
-    clearTimeout(defsSaveTimer);
-    defsSaveTimer = null;
-  }
-  if (defsCache) {
-    await writeDefs(defsCache);
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  for (const [key, timer] of runsSaveTimers) {
-    clearTimeout(timer);
-  }
-  runsSaveTimers.clear();
-
-  for (const [key, runs] of runsCache) {
-    const workspaceId = key === 'default' ? undefined : key;
-    await writeRuns(workspaceId, runs);
-  }
+  // no-op
 }
 
 export const WorkflowStore = {
   async list(): Promise<WorkflowDefinition[]> {
-    const db = await ensureDefsLoaded();
-    return db.defs;
+    const db = getOrm();
+    if (!db) return [];
+
+    const rows = await db.select().from(Schema.workflows).orderBy(desc(Schema.workflows.updatedAt));
+
+    return rows.map((row: any) => {
+      const def = JSON.parse(row.definition);
+      return {
+        id: row.id,
+        name: row.name,
+        description: row.description,
+        nodes: def.nodes || [],
+        edges: def.edges || [],
+        options: def.options
+        // 如果 WorkflowDefinition 类型将来支持 workspaceId，可以在这里添加
+        // workspaceId: row.workspaceId
+      };
+    });
   },
+
   async get(id: string): Promise<WorkflowDefinition | undefined> {
-    const db = await ensureDefsLoaded();
-    return db.defs.find((d) => d.id === id);
+    const db = getOrm();
+    if (!db) return undefined;
+
+    const [row] = await db.select().from(Schema.workflows).where(eq(Schema.workflows.id, id)).limit(1);
+
+    if (!row) return undefined;
+
+    const def = JSON.parse(row.definition);
+    return {
+      id: row.id,
+      name: row.name,
+      description: row.description,
+      nodes: def.nodes || [],
+      edges: def.edges || [],
+      options: def.options
+    };
   },
+
   async upsert(def: WorkflowDefinition): Promise<void> {
     // 不允许保存预设工作流
     if (isPresetWorkflow(def.id)) {
       throw new Error(`不能修改预设工作流: ${def.id}`);
     }
-    const db = await ensureDefsLoaded();
-    const idx = db.defs.findIndex((d) => d.id === def.id);
-    if (idx >= 0) db.defs[idx] = def;
-    else db.defs.push(def);
-    await scheduleSaveDefs();
+
+    const db = getOrm();
+    if (!db) throw new Error('Database not initialized');
+
+    const definition = JSON.stringify({
+      nodes: def.nodes,
+      edges: def.edges,
+      options: def.options
+    });
+
+    const now = Date.now();
+
+    await db
+      .insert(Schema.workflows)
+      .values({
+        id: def.id,
+        name: def.name,
+        description: def.description,
+        definition,
+        updatedAt: now
+        // 注意：这里没有传入 workspaceId，如果 WorkflowDefinition 中没有 workspaceId，
+        // 那么新创建的工作流 workspaceId 将为 null。
+      })
+      .onConflictDoUpdate({
+        target: Schema.workflows.id,
+        set: {
+          name: def.name,
+          description: def.description,
+          definition,
+          updatedAt: now
+        }
+      });
   },
+
   async remove(id: string): Promise<void> {
     // 不允许删除预设工作流
     if (isPresetWorkflow(id)) {
       throw new Error(`不能删除预设工作流: ${id}`);
     }
-    const db = await ensureDefsLoaded();
-    db.defs = db.defs.filter((d) => d.id !== id);
-    await scheduleSaveDefs();
+
+    const db = getOrm();
+    if (!db) return;
+
+    await db.delete(Schema.workflows).where(eq(Schema.workflows.id, id));
   },
+
   async addRun(rec: WorkflowRunRecord): Promise<void> {
-    const workspaceId = rec.metadata?.workspaceId;
-    const runs = await ensureRunsLoaded(workspaceId);
-    runs.push(rec);
-    // cap size
-    if (runs.length > 2000) {
-      const newRuns = runs.slice(-1000);
-      const key = workspaceId || 'default';
-      runsCache.set(key, newRuns);
-    }
-    await scheduleSaveRuns(workspaceId);
+    const db = getOrm();
+    if (!db) return;
+
+    await db.insert(Schema.workflowRuns).values({
+      id: rec.runId,
+      workflowId: rec.workflowId,
+      status: rec.status,
+      input: rec.input ? JSON.stringify(rec.input) : null,
+      output: rec.output ? JSON.stringify(rec.output) : null,
+      error: rec.error ? (typeof rec.error === 'string' ? rec.error : JSON.stringify(rec.error)) : null,
+      nodes: rec.nodes ? JSON.stringify(rec.nodes) : null,
+      metadata: rec.metadata ? JSON.stringify(rec.metadata) : null,
+      duration: rec.duration,
+      startedAt: rec.startedAt,
+      completedAt: rec.completedAt
+    });
   },
+
   async updateRun(rec: WorkflowRunRecord): Promise<void> {
-    const workspaceId = rec.metadata?.workspaceId;
-    const runs = await ensureRunsLoaded(workspaceId);
-    const idx = runs.findIndex((r) => r.runId === rec.runId);
-    if (idx >= 0) runs[idx] = rec;
-    else runs.push(rec);
-    await scheduleSaveRuns(workspaceId);
+    const db = getOrm();
+    if (!db) return;
+
+    await db
+      .insert(Schema.workflowRuns)
+      .values({
+        id: rec.runId,
+        workflowId: rec.workflowId,
+        status: rec.status,
+        input: rec.input ? JSON.stringify(rec.input) : null,
+        output: rec.output ? JSON.stringify(rec.output) : null,
+        error: rec.error ? (typeof rec.error === 'string' ? rec.error : JSON.stringify(rec.error)) : null,
+        nodes: rec.nodes ? JSON.stringify(rec.nodes) : null,
+        metadata: rec.metadata ? JSON.stringify(rec.metadata) : null,
+        duration: rec.duration,
+        startedAt: rec.startedAt,
+        completedAt: rec.completedAt
+      })
+      .onConflictDoUpdate({
+        target: Schema.workflowRuns.id,
+        set: {
+          status: rec.status,
+          input: rec.input ? JSON.stringify(rec.input) : null,
+          output: rec.output ? JSON.stringify(rec.output) : null,
+          error: rec.error ? (typeof rec.error === 'string' ? rec.error : JSON.stringify(rec.error)) : null,
+          nodes: rec.nodes ? JSON.stringify(rec.nodes) : null,
+          metadata: rec.metadata ? JSON.stringify(rec.metadata) : null,
+          duration: rec.duration,
+          completedAt: rec.completedAt
+        }
+      });
   },
+
   async listRuns(workflowId?: string, limit = 100, resourceId?: string, workspaceId?: string): Promise<WorkflowRunRecord[]> {
-    const runs = await ensureRunsLoaded(workspaceId);
-    let rows = runs;
+    const db = getOrm();
+    if (!db) return [];
+
+    // 构建查询条件
+    const conditions = [];
     if (workflowId) {
-      rows = rows.filter((r) => r.workflowId === workflowId);
+      conditions.push(eq(Schema.workflowRuns.workflowId, workflowId));
     }
+
+    let query = db.select().from(Schema.workflowRuns);
+
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+
+    // 多取一些以供内存过滤
+    query = query.orderBy(desc(Schema.workflowRuns.startedAt)).limit(limit * 5);
+
+    const rows = await query;
+
+    let results = rows.map((row: any) => ({
+      runId: row.id,
+      workflowId: row.workflowId,
+      status: row.status as any,
+      createdAt: row.startedAt,
+      input: undefined,
+      output: undefined,
+      error: row.error,
+      nodes: {},
+      startedAt: row.startedAt,
+      completedAt: row.completedAt,
+      duration: row.duration,
+      metadata: row.metadata ? JSON.parse(row.metadata) : undefined
+    }));
+
     if (resourceId) {
-      rows = rows.filter((r) => r.metadata?.resourceId === resourceId);
+      results = results.filter((r: any) => r.metadata?.resourceId === resourceId);
     }
-    return rows.slice(-limit);
+
+    if (workspaceId) {
+      results = results.filter((r: any) => r.metadata?.workspaceId === workspaceId);
+    }
+
+    return results.slice(0, limit);
   },
+
+  async getRun(runId: string): Promise<WorkflowRunRecord | undefined> {
+    const db = getOrm();
+    if (!db) return undefined;
+
+    const [row] = await db.select().from(Schema.workflowRuns).where(eq(Schema.workflowRuns.id, runId)).limit(1);
+
+    if (!row) return undefined;
+
+    return {
+      runId: row.id,
+      workflowId: row.workflowId,
+      status: row.status as any,
+      createdAt: row.startedAt,
+      input: row.input ? JSON.parse(row.input) : undefined,
+      output: row.output ? JSON.parse(row.output) : undefined,
+      error: row.error,
+      nodes: row.nodes ? JSON.parse(row.nodes) : {},
+      startedAt: row.startedAt,
+      completedAt: row.completedAt,
+      duration: row.duration,
+      metadata: row.metadata ? JSON.parse(row.metadata) : undefined
+    };
+  },
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async removeRun(runId: string, workspaceId?: string): Promise<void> {
-    const runs = await ensureRunsLoaded(workspaceId);
-    const newRuns = runs.filter((r) => r.runId !== runId);
-    const key = workspaceId || 'default';
-    runsCache.set(key, newRuns);
-    await scheduleSaveRuns(workspaceId);
+    const db = getOrm();
+    if (!db) return;
+
+    await db.delete(Schema.workflowRuns).where(eq(Schema.workflowRuns.id, runId));
   }
 };

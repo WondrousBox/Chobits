@@ -456,7 +456,43 @@ export const ResourcesRepo = {
     const db = getOrm();
     const limit = opts.limit ?? 100;
     const offset = opts.offset ?? 0;
-    let q = db.select().from(resources).innerJoin(resource_tags, eq(resource_tags.resourceId, resources.id));
+    // 优化：列表查询排除大字段
+    let q = db
+      .select({
+        id: resources.id,
+        type: resources.type,
+        title: resources.title,
+        description: resources.description,
+        url: resources.url,
+        domain: resources.domain,
+        sourceName: resources.sourceName,
+        authorName: resources.authorName,
+        language: resources.language,
+        mimeType: resources.mimeType,
+        sizeBytes: resources.sizeBytes,
+        durationMs: resources.durationMs,
+        width: resources.width,
+        height: resources.height,
+        filePath: resources.filePath,
+        thumbnailPath: resources.thumbnailPath,
+        previewUrl: resources.previewUrl,
+        tags: resources.tags,
+        categories: resources.categories,
+        visibility: resources.visibility,
+        nsfw: resources.nsfw,
+        favorite: resources.favorite,
+        rating: resources.rating,
+        status: resources.status,
+        collectedAt: resources.collectedAt,
+        publishedAt: resources.publishedAt,
+        createdAt: resources.createdAt,
+        updatedAt: resources.updatedAt,
+        deletedAt: resources.deletedAt,
+        workspaceId: resources.workspaceId,
+        folderId: resources.folderId
+      })
+      .from(resources)
+      .innerJoin(resource_tags, eq(resource_tags.resourceId, resources.id));
     const wheres: any[] = [eq(resource_tags.tag, tag)];
     if (opts.workspaceId) wheres.push(eq(resource_tags.workspaceId, opts.workspaceId));
     if (!opts.includeDeleted) wheres.push(isNull(resources.deletedAt));
@@ -466,7 +502,7 @@ export const ResourcesRepo = {
       .limit(limit)
       .offset(offset);
     const rows = (await q) as any[];
-    return rows.map((r) => (r as any).resources ?? (r as any));
+    return rows as any[];
   },
   /** 统计某标签下资源数量（可选按工作空间、是否包含软删） */
   async countByTag(tag: string, opts: { workspaceId?: string; includeDeleted?: boolean } = {}): Promise<number> {
@@ -631,7 +667,42 @@ export const ResourcesRepo = {
   /** 基础列表与计数（含软删筛选） */
   async list(filter: Partial<ResourceRow> = {}, limit = 100, offset = 0): Promise<ResourceRow[]> {
     const db = getOrm();
-    let query = db.select().from(resources);
+    // 优化：列表查询排除大字段 (contentText, thumbnail, embedding, metadata)
+    let query = db
+      .select({
+        id: resources.id,
+        type: resources.type,
+        title: resources.title,
+        description: resources.description,
+        url: resources.url,
+        domain: resources.domain,
+        sourceName: resources.sourceName,
+        authorName: resources.authorName,
+        language: resources.language,
+        mimeType: resources.mimeType,
+        sizeBytes: resources.sizeBytes,
+        durationMs: resources.durationMs,
+        width: resources.width,
+        height: resources.height,
+        filePath: resources.filePath,
+        thumbnailPath: resources.thumbnailPath,
+        previewUrl: resources.previewUrl,
+        tags: resources.tags,
+        categories: resources.categories,
+        visibility: resources.visibility,
+        nsfw: resources.nsfw,
+        favorite: resources.favorite,
+        rating: resources.rating,
+        status: resources.status,
+        collectedAt: resources.collectedAt,
+        publishedAt: resources.publishedAt,
+        createdAt: resources.createdAt,
+        updatedAt: resources.updatedAt,
+        deletedAt: resources.deletedAt,
+        workspaceId: resources.workspaceId,
+        folderId: resources.folderId
+      })
+      .from(resources);
     const wheres: any[] = [];
     if ((filter as any).type) wheres.push(eq(resources.type, (filter as any).type));
     if ((filter as any).status) wheres.push(eq(resources.status, (filter as any).status));
@@ -647,7 +718,7 @@ export const ResourcesRepo = {
     if ((filter as any).deletedAt === 0) wheres.push(isNull(resources.deletedAt));
     if ((filter as any).deletedAt === 1) wheres.push(isNotNull(resources.deletedAt));
     if (wheres.length) query = query.where(and(...wheres));
-    return query.limit(limit).offset(offset);
+    return query.limit(limit).offset(offset) as any;
   },
   async count(filter: Partial<ResourceRow> = {}): Promise<number> {
     const db = getOrm();
