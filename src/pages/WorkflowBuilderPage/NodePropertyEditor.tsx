@@ -6,6 +6,7 @@ import { TbChevronDown, TbChevronRight } from 'react-icons/tb';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import type { NodeSpec } from '@/types/workflow';
 
 import type { NodeData } from './types';
@@ -152,48 +153,48 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
     return initial;
   });
 
-  // 渲染配置字段
-  const renderConfigField = (c: ConfigSchema): React.ReactNode => {
-    const label = c.label || c.key;
-    const rawValue = (data.config || {})[c.key] ?? c.default;
+  // 通用字段渲染函数
+  const renderField = (field: ConfigSchema | NodeSpec['inputs'][number], currentValue: any, onValueChange: (val: any) => void): React.ReactNode => {
+    const label = field.label || field.key;
+    const rawValue = currentValue ?? field.default;
 
     // 检查是否是 boolean 类型
-    const isBoolean = c.type === 'boolean' || (Array.isArray(c.type) && c.type.includes('boolean'));
+    const isBoolean = field.type === 'boolean' || (Array.isArray(field.type) && field.type.includes('boolean'));
 
     // 如果是 boolean 类型，使用 Switch 组件
     if (isBoolean) {
       const boolValue = typeof rawValue === 'boolean' ? rawValue : rawValue === 'true' || rawValue === true || rawValue === '1';
       return (
-        <div key={c.key} className="flex items-center justify-between">
+        <div key={field.key} className="flex items-center justify-between">
           <div className="flex flex-col">
             <label className="text-xs">{label}</label>
-            {c.description && <span className="text-xs text-muted-foreground">{c.description}</span>}
+            {field.description && <span className="text-xs text-muted-foreground">{field.description}</span>}
           </div>
-          <Switch checked={boolValue} onCheckedChange={(checked) => onChange((prev) => ({ config: { ...prev.config, [c.key]: checked } }))} />
+          <Switch checked={boolValue} onCheckedChange={onValueChange} />
         </div>
       );
     }
 
     // 检查是否是数值类型
-    const isNumber = c.type === 'number' || (Array.isArray(c.type) && c.type.includes('number')) || c.inputType === 'number';
+    const isNumber = field.type === 'number' || (Array.isArray(field.type) && field.type.includes('number')) || field.inputType === 'number';
 
     // 如果是数值类型，使用左右结构
     if (isNumber) {
       const numValue = typeof rawValue === 'number' ? rawValue : rawValue === '' || rawValue === null || rawValue === undefined ? '' : Number(rawValue);
       return (
-        <div key={c.key} className="flex items-center justify-between">
+        <div key={field.key} className="flex items-center justify-between">
           <div className="flex flex-col">
             <label className="text-xs">{label}</label>
-            {c.description && <span className="text-xs text-muted-foreground">{c.description}</span>}
+            {field.description && <span className="text-xs text-muted-foreground">{field.description}</span>}
           </div>
           <Input
             type="number"
             value={numValue}
             onChange={(e) => {
               const val = e.target.value === '' ? undefined : Number(e.target.value);
-              onChange((prev) => ({ config: { ...prev.config, [c.key]: val } }));
+              onValueChange(val);
             }}
-            placeholder={c.description || ''}
+            placeholder={field.description || ''}
             className="h-8 w-24 text-xs"
           />
         </div>
@@ -201,18 +202,18 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
     }
 
     // 检查是否是数组类型（多选）
-    const isArrayType = c.type === 'array' || (Array.isArray(c.type) && c.type.includes('array'));
-    const isMultipleSelect = c.inputType === 'select-multiple' || (isArrayType && c.inputType === 'select');
+    const isArrayType = field.type === 'array' || (Array.isArray(field.type) && field.type.includes('array'));
+    const isMultipleSelect = field.inputType === 'select-multiple' || (isArrayType && field.inputType === 'select');
 
     // 处理多选的情况
-    if (isMultipleSelect && c.options && c.options.length > 0) {
+    if (isMultipleSelect && field.options && field.options.length > 0) {
       const selectedValues = Array.isArray(rawValue) ? rawValue : rawValue ? [rawValue] : [];
-      const flatOptions = c.options.filter((opt): opt is { value: string; label: string } => !isOptionGroup(opt));
+      const flatOptions = field.options.filter((opt): opt is { value: string; label: string } => !isOptionGroup(opt));
 
       return (
-        <div key={c.key} className="space-y-1">
+        <div key={field.key} className="space-y-1">
           <label className="block text-xs">{label}</label>
-          {c.description && <span className="text-xs text-muted-foreground">{c.description}</span>}
+          {field.description && <span className="text-xs text-muted-foreground">{field.description}</span>}
           <div className="space-y-1.5 mt-1.5">
             {flatOptions.map((opt) => {
               const isChecked = selectedValues.includes(opt.value);
@@ -223,7 +224,7 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
                     checked={isChecked}
                     onChange={(e) => {
                       const newValues = e.target.checked ? [...selectedValues, opt.value] : selectedValues.filter((v) => v !== opt.value);
-                      onChange((prev) => ({ config: { ...prev.config, [c.key]: newValues } }));
+                      onValueChange(newValues);
                     }}
                     className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer"
                   />
@@ -239,28 +240,19 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
     const value = String(rawValue ?? '');
 
     // 根据 inputType 渲染不同的输入控件
-    if (c.inputType === 'select' && c.options && c.options.length > 0) {
+    if (field.inputType === 'select' && field.options && field.options.length > 0) {
       // 检查第一个选项是否是分组结构
-      const hasGroups = c.options.some((opt) => isOptionGroup(opt));
+      const hasGroups = field.options.some((opt) => isOptionGroup(opt));
 
       if (hasGroups) {
         // 分组显示
-        const groups = c.options.filter(isOptionGroup);
+        const groups = field.options.filter(isOptionGroup);
         return (
-          <div key={c.key} className="space-y-1">
+          <div key={field.key} className="space-y-1">
             <label className="block text-xs">{label}</label>
-            <Select
-              value={value}
-              onValueChange={(val) => {
-                onChange((prev) => {
-                  const newConfig = { ...prev.config, [c.key]: val };
-                  // 如果节点有动态配置，配置变化会自动触发重新获取，不需要手动处理
-                  return { config: newConfig };
-                });
-              }}
-            >
+            <Select value={value} onValueChange={onValueChange}>
               <SelectTrigger className="h-8 text-xs">
-                <SelectValue placeholder={c.description || `选择${label}`} />
+                <SelectValue placeholder={field.description || `选择${label}`} />
               </SelectTrigger>
               <SelectContent>
                 {groups.map((group, index) => (
@@ -283,22 +275,13 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
       }
 
       // 普通的下拉选择（扁平结构）
-      const flatOptions = c.options.filter((opt): opt is { value: string; label: string } => !isOptionGroup(opt));
+      const flatOptions = field.options.filter((opt): opt is { value: string; label: string } => !isOptionGroup(opt));
       return (
-        <div key={c.key} className="space-y-1">
+        <div key={field.key} className="space-y-1">
           <label className="block text-xs">{label}</label>
-          <Select
-            value={value}
-            onValueChange={(val) => {
-              onChange((prev) => {
-                const newConfig = { ...prev.config, [c.key]: val };
-                // 如果节点有动态配置，配置变化会自动触发重新获取，不需要手动处理
-                return { config: newConfig };
-              });
-            }}
-          >
+          <Select value={value} onValueChange={onValueChange}>
             <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder={c.description || `选择${label}`} />
+              <SelectValue placeholder={field.description || `选择${label}`} />
             </SelectTrigger>
             <SelectContent>
               {flatOptions.map((opt) => (
@@ -312,11 +295,21 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
       );
     }
 
+    // 检查是否是 textarea 类型
+    if (field.inputType === 'textarea') {
+      return (
+        <div key={field.key} className="space-y-1">
+          <label className="block text-xs">{label}</label>
+          <Textarea value={value} onChange={(e) => onValueChange(e.target.value)} placeholder={field.description || ''} className="min-h-[80px] text-xs resize-y box-border" />
+        </div>
+      );
+    }
+
     // 默认使用 Input
     return (
-      <div key={c.key} className="space-y-1">
+      <div key={field.key} className="space-y-1">
         <label className="block text-xs">{label}</label>
-        <Input value={value} onChange={(e) => onChange((prev) => ({ config: { ...prev.config, [c.key]: e.target.value } }))} placeholder={c.description || ''} className="h-8 text-xs" />
+        <Input value={value} onChange={(e) => onValueChange(e.target.value)} placeholder={field.description || ''} className="h-8 text-xs" />
       </div>
     );
   };
@@ -373,7 +366,7 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
             </div>
 
             {/* 渲染未分组的配置项 */}
-            {groupedConfigs.ungrouped.map(renderConfigField)}
+            {groupedConfigs.ungrouped.map((c) => renderField(c, (data.config || {})[c.key], (val) => onChange((prev) => ({ config: { ...prev.config, [c.key]: val } }))))}
 
             {/* 渲染分组的配置项 */}
             {(() => {
@@ -404,7 +397,9 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
                           transition={{ duration: 0.2, ease: 'easeInOut' }}
                           style={{ overflow: 'hidden' }}
                         >
-                          <div className="pl-4 space-y-2">{configs.map(renderConfigField)}</div>
+                          <div className="pl-4 space-y-2">
+                            {configs.map((c) => renderField(c, (data.config || {})[c.key], (val) => onChange((prev) => ({ config: { ...prev.config, [c.key]: val } }))))}
+                          </div>
                         </motion.div>
                       )}
                     </AnimatePresence>
@@ -417,17 +412,7 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
         {spec.inputs && spec.inputs.length > 0 && (
           <div className="space-y-2">
             <div className="text-xs uppercase opacity-70">输入默认值</div>
-            {spec.inputs.map((inp) => (
-              <div key={inp.key} className="space-y-1">
-                <label className="block text-xs">{inp.key}</label>
-                <Input
-                  value={String((data.inputDefaults || {})[inp.key] ?? '')}
-                  onChange={(e) => onChange((prev) => ({ inputDefaults: { ...prev.inputDefaults, [inp.key]: e.target.value } }))}
-                  placeholder={inp.description || ''}
-                  className="h-8 text-xs"
-                />
-              </div>
-            ))}
+            {spec.inputs.map((inp) => renderField(inp, (data.inputDefaults || {})[inp.key], (val) => onChange((prev) => ({ inputDefaults: { ...prev.inputDefaults, [inp.key]: val } }))))}
           </div>
         )}
       </div>

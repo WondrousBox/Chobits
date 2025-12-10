@@ -34,7 +34,16 @@ export type NodeSpec = {
   icon?: string; // Icon name from react-icons/tb (must be imported in SpecNode.tsx iconMap)
   // Available icons: TbEdit, TbFolderOpen, TbPhoto, TbPlayerPlay, TbRobot, TbScan, TbSquare, TbText
   // Add more icons by importing them in SpecNode.tsx and adding to iconMap
-  inputs: { key: string; type: string | string[]; required?: boolean; description?: string }[];
+  inputs: {
+    key: string;
+    type: string | string[];
+    required?: boolean;
+    description?: string;
+    label?: string;
+    default?: any;
+    inputType?: 'text' | 'select' | 'select-multiple' | 'number' | 'textarea';
+    options?: Array<{ value: string; label: string } | { group: string; options: Array<{ value: string; label: string }> }>;
+  }[];
   outputs: { key: string; type: string | string[]; description?: string }[];
   requires?: string[];
   config?: {
