@@ -1,6 +1,6 @@
 import type { CareRoutineDefinition } from './types';
 
-const hydrationMessages = ['叽~ 喝口水润润嗓子吧。', '久坐容易忘记补水，我帮你记着呢～', '补充一杯温水，效率更高哦。'];
+const hydrationMessages = ['叽~ 喝口水润润嗓子吧。', '久坐别忘记补水～', '补充一杯温水效率更高哦。'];
 
 const stretchMessages = ['起身伸个懒腰，顺便看看窗外吧。', '动一动肩颈，保持血液循环～', '站起来活动 2 分钟，身体会谢谢你。'];
 
@@ -8,7 +8,7 @@ const eyeCareMessages = ['20-20-20：看向 20 米外，闭眼放松 20 秒。',
 
 const nightGuardMessages = ['已经很晚啦，准备收尾休息吧～', '夜深了，保存一下进度再去睡觉？', '叽~已经熬夜模式，请一定要照顾好自己。'];
 
-const midnightGuardMessages = ['00:30 了，再坚持也要注意身体，去休息吧。', '深夜生产力很昂贵，要不要明早再战？', '凌晨了，记得关灯、休息、补觉。'];
+const midnightGuardMessages = ['要注意身体，去休息吧。', '要不要明早再战？', '夜深了，记得休息。'];
 
 const morningBriefMessages = ['早安～今天也一起认真生活吧。', '新的一天，喝水 + 拉伸 checklist 走起！', '我在，把今日目标告诉我也行。'];
 
@@ -20,11 +20,12 @@ export const BASE_ROUTINES: CareRoutineDefinition[] = [
   {
     id: 'care:hydration-hourly',
     title: '补水提醒',
-    description: '每 1 分钟提醒喝水（测试模式）',
+    description: '每 1 小时提醒喝水',
     kind: 'hydration',
     severity: 'gentle',
-    schedule: { kind: 'interval', minutes: 1, activeHourStart: '09:00', activeHourEnd: '22:30' },
+    schedule: { kind: 'interval', minutes: 60, activeHourStart: '09:00', activeHourEnd: '22:30', alignToStart: true },
     messageTemplates: hydrationMessages,
+    persistent: true, // 常驻显示，直到下一个消息或用户关闭
     tags: ['health', 'water'],
     channel: 'spriteNotice',
     source: 'default'
@@ -56,10 +57,10 @@ export const BASE_ROUTINES: CareRoutineDefinition[] = [
   {
     id: 'care:night-guardian',
     title: '夜间守护',
-    description: '晚上 23:30 之后，每隔 1 分钟提醒休息',
+    description: '晚上 23:30 之后，每隔 30 分钟提醒休息',
     kind: 'nightGuard',
     severity: 'warning',
-    schedule: { kind: 'interval', minutes: 1, activeHourStart: '23:30', activeHourEnd: '08:00' },
+    schedule: { kind: 'interval', minutes: 30, activeHourStart: '23:30', activeHourEnd: '08:00' },
     messageTemplates: nightGuardMessages,
     persistent: true, // 常驻显示，直到下一个消息或用户关闭
     buttons: [
@@ -78,6 +79,7 @@ export const BASE_ROUTINES: CareRoutineDefinition[] = [
     severity: 'urgent',
     schedule: { kind: 'fixed', times: ['00:30', '01:30', '02:30'] },
     messageTemplates: midnightGuardMessages,
+    persistent: true, // 常驻显示，直到下一个消息或用户关闭
     tags: ['rest', 'urgent'],
     channel: 'spriteNotice',
     source: 'default'

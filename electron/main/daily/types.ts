@@ -12,6 +12,7 @@ export interface IntervalSchedule {
   activeHourStart?: string; // HH:mm
   activeHourEnd?: string; // HH:mm
   daysOfWeek?: number[]; // 0-6, Sunday=0
+  alignToStart?: boolean; // 是否对齐到整点/整分（例如 minutes=60 时，只在 :00 触发）
 }
 
 export interface FixedTimeSchedule {

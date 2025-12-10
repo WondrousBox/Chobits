@@ -39,10 +39,10 @@ const levelStyles: Record<NoticeLevel, { container: string; accent: string; icon
 export function SpriteNotice({ message, level = 'info', buttons, onClose, onButtonClick }: SpriteNoticeProps): JSX.Element {
   const styles = levelStyles[level];
   return (
-    <div className="absolute -top-[32px] left-1/2 -translate-x-1/2 z-10 pointer-events-auto">
-      <div className={clsx('rounded-xl px-4 py-2 shadow-lg flex items-center gap-2 text-xs backdrop-blur-sm', styles.container)}>
+    <div className="absolute top-0 left-1/2 -translate-x-1/2 z-10 w-56 pointer-events-auto">
+      <div className={clsx('rounded-xl px-2 py-2 shadow-lg flex items-center gap-2 text-xs backdrop-blur-sm', styles.container)}>
         <div className={clsx('shrink-0', styles.accent)}>{styles.icon}</div>
-        <div className="flex-1 leading-none">{message}</div>
+        <div className="flex-1 leading-none whitespace-nowrap w-0 truncate">{message}</div>
         {buttons && buttons.length > 0 && (
           <div className="flex items-center gap-1.5 ml-2">
             {buttons.map((button) => (

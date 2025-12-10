@@ -239,6 +239,17 @@ export class DailyCareService {
       if (schedule.daysOfWeek && !schedule.daysOfWeek.includes(now.day())) return null;
       if (!this.isWithinActiveWindow(schedule, now)) return null;
       const minutes = runtime.state.customIntervalMinutes || schedule.minutes;
+
+      if (schedule.alignToStart) {
+        const totalMinutes = now.hour() * 60 + now.minute();
+        if (totalMinutes % minutes === 0) {
+          const key = now.format('YYYY-MM-DD HH:mm');
+          if (runtime.state.lastTriggeredOn === key) return null;
+          return { key };
+        }
+        return null;
+      }
+
       const baseline = runtime.state.lastTriggeredAt ?? this.bootedAt;
       if (now.valueOf() - baseline < minutes * MINUTE) return null;
       if (runtime.definition.oncePerDay) {
