@@ -5,7 +5,8 @@ import path from 'node:path';
 import { app } from 'electron';
 import keytar from 'keytar';
 
-const SERVICE = 'chobits-ai';
+import { SERVICE, SERVICE_INST } from '../common/config';
+
 const FALLBACK_FILE = path.join(app.getPath('userData'), 'data', 'ai-settings.json');
 
 console.log('FALLBACK_FILE:', FALLBACK_FILE);
@@ -23,15 +24,17 @@ function readFallback(): { providers: Record<string, Record<string, string>>; in
   }
 }
 
-function writeFallback(providers: Record<string, Record<string, string>>, instances: Record<string, Record<string, string>>) {
+function writeFallback(providers: Record<string, Record<string, string>>, instances: Record<string, Record<string, string>>): void {
   try {
     const data = { providers, instances };
     fs.mkdirSync(path.dirname(FALLBACK_FILE), { recursive: true });
     fs.writeFileSync(FALLBACK_FILE, JSON.stringify(data, null, 2), 'utf8');
-  } catch { }
+  } catch {
+    //
+  }
 }
 
-export async function setSecret(providerId: string, key: string, value: string) {
+export async function setSecret(providerId: string, key: string, value: string): Promise<void> {
   try {
     await keytar.setPassword(SERVICE, `${providerId}:${key}`, value);
   } catch {
@@ -45,7 +48,9 @@ export async function getSecret(providerId: string, key: string): Promise<string
   try {
     const v = await keytar.getPassword(SERVICE, `${providerId}:${key}`);
     if (v != null) return v;
-  } catch { }
+  } catch {
+    //
+  }
   const fb = readFallback();
   return fb.providers[providerId]?.[key];
 }
@@ -59,7 +64,7 @@ export async function getAllSecrets(providerId: string, keys: string[]): Promise
   return out;
 }
 
-export async function setProviderSecrets(providerId: string, secrets: Record<string, string>) {
+export async function setProviderSecrets(providerId: string, secrets: Record<string, string>): Promise<void> {
   for (const [k, v] of Object.entries(secrets)) {
     if (v != null) await setSecret(providerId, k, v);
   }
@@ -98,10 +103,7 @@ export async function clearProviderSecrets(providerId: string): Promise<void> {
   }
 }
 
-// Instance-level secrets (stored with different service id to avoid clash)
-const SERVICE_INST = 'chobits-ai-instance';
-
-export async function setInstanceSecret(instanceId: string, key: string, value: string) {
+export async function setInstanceSecret(instanceId: string, key: string, value: string): Promise<void> {
   try {
     await keytar.setPassword(SERVICE_INST, `${instanceId}:${key}`, value);
   } catch {
@@ -115,7 +117,9 @@ export async function getInstanceSecret(instanceId: string, key: string): Promis
   try {
     const v = await keytar.getPassword(SERVICE_INST, `${instanceId}:${key}`);
     if (v != null) return v;
-  } catch { }
+  } catch {
+    //
+  }
   const fb = readFallback();
   return fb.instances[instanceId]?.[key];
 }
@@ -129,7 +133,7 @@ export async function getAllInstanceSecrets(instanceId: string, keys: string[]):
   return out;
 }
 
-export async function setInstanceSecrets(instanceId: string, secrets: Record<string, string>) {
+export async function setInstanceSecrets(instanceId: string, secrets: Record<string, string>): Promise<void> {
   for (const [k, v] of Object.entries(secrets)) {
     if (v != null) await setInstanceSecret(instanceId, k, v);
   }

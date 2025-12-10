@@ -17,7 +17,7 @@ export class NodeDownloaderHelper implements Downloader {
   async download(url: string, destinationPath: string, options?: DownloadOptions): Promise<string> {
     const dir = path.dirname(destinationPath);
     const filename = path.basename(destinationPath);
-    const stallTimeoutEnv = Number(process.env.CHOBITS_DOWNLOAD_STALL_TIMEOUT_MS);
+    const stallTimeoutEnv = Number(process.env.DOWNLOAD_STALL_TIMEOUT_MS);
     const stallTimeoutMs = Number.isFinite(stallTimeoutEnv) && stallTimeoutEnv > 0 ? stallTimeoutEnv : DEFAULT_STALL_TIMEOUT_MS;
     const { onProgress, signal, proxyAgent } = options ?? {};
 
