@@ -110,7 +110,7 @@ export const AiChatNode: NodeHandler = {
     backgroundColor: '#8b5cf6',
     icon: 'TbRobot',
     inputs: [
-      { key: 'systemPrompt', label: '系统提示词', type: 'string', required: false, description: '可选的系统提示词，用于设置AI的角色和行为' },
+      { key: 'systemPrompt', label: '系统提示词', type: 'string', inputType: 'textarea', required: false, description: '可选的系统提示词，用于设置AI的角色和行为' },
       { key: 'message', label: '对话内容', type: 'string', required: true }
     ],
     // 静态配置作为默认值，实际配置通过 getConfig 动态获取
