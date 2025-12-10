@@ -63,6 +63,70 @@ async function getMediaDuration(filePath: string): Promise<number | null> {
   });
 }
 
+// 检查音频格式是否符合 whisper 要求 (16kHz, 16-bit, mono WAV)
+async function checkAudioFormat(filePath: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    ffmpeg.ffprobe(filePath, (err, metadata) => {
+      if (err) {
+        console.log('[whisper] ffprobe error:', err.message);
+        resolve(false);
+        return;
+      }
+      // 检查格式
+      const format = metadata.format?.format_name;
+      const streams = metadata.streams || [];
+      const audioStream = streams.find((s) => s.codec_type === 'audio');
+
+      if (!audioStream) {
+        resolve(false);
+        return;
+      }
+
+      const isWav = format?.includes('wav');
+      const is16k = audioStream.sample_rate === 16000;
+      const isMono = audioStream.channels === 1;
+      // codec_name 可能是 pcm_s16le
+      const isPcmS16le = audioStream.codec_name === 'pcm_s16le';
+
+      if (isWav && is16k && isMono && isPcmS16le) {
+        resolve(true);
+      } else {
+        resolve(false);
+      }
+    });
+  });
+}
+
+// 转码音频为 whisper 要求的格式
+async function transcodeAudio(filePath: string, outputDir: string): Promise<string> {
+  const fileName = path.basename(filePath, path.extname(filePath));
+  const targetPath = path.join(outputDir, `${fileName}_16k.wav`);
+
+  // 如果目标文件已存在，直接返回 (假设已转码)
+  if (fileExists(targetPath)) {
+    console.log('[whisper] 使用已存在的转码文件:', targetPath);
+    return targetPath;
+  }
+
+  console.log('[whisper] 开始转码:', filePath, '->', targetPath);
+  return new Promise((resolve, reject) => {
+    ffmpeg(filePath)
+      .toFormat('wav')
+      .audioFrequency(16000)
+      .audioChannels(1)
+      .audioCodec('pcm_s16le')
+      .on('error', (err) => {
+        console.error('[whisper] 转码失败:', err);
+        reject(err);
+      })
+      .on('end', () => {
+        console.log('[whisper] 转码完成');
+        resolve(targetPath);
+      })
+      .save(targetPath);
+  });
+}
+
 // https://github.com/ggml-org/whisper.cpp/tree/master/examples/cli
 async function runWhisper(args: string[], ctx: any, onProgress?: (progress: number, message: string) => void, totalDuration?: number | null): Promise<void> {
   // 优先使用资源管理器中的engine，否则回退到PATH中的whisper-cli
@@ -399,8 +463,21 @@ export const TranscribeWhisperNode: NodeHandler = {
     const { ensureTaskTypeDir } = await import('../task-results');
     const outDir = await ensureTaskTypeDir(src, 'transcribe');
 
+    // 检查并转码音频
+    let finalSrc = src;
+    const isCompatible = await checkAudioFormat(src);
+    if (!isCompatible) {
+      emit('node:progress', { progress: 0, message: '正在转码音频...' });
+      try {
+        finalSrc = await transcodeAudio(src, outDir);
+      } catch (err) {
+        const error = err as Error;
+        throw new Error(`音频转码失败: ${error.message}`);
+      }
+    }
+
     // 获取媒体文件的总时长
-    const totalDuration = await getMediaDuration(src);
+    const totalDuration = await getMediaDuration(finalSrc);
     if (totalDuration) {
       const hours = Math.floor(totalDuration / 3600);
       const minutes = Math.floor((totalDuration % 3600) / 60);
@@ -415,7 +492,7 @@ export const TranscribeWhisperNode: NodeHandler = {
     emit('node:progress', { progress: 0, message: '开始转录...' });
 
     // whisper.cpp 参数组装
-    const args: string[] = ['-f', src];
+    const args: string[] = ['-f', finalSrc];
 
     // 模型参数 (-m)
     // 从系统配置的模型文件夹加载模型
@@ -568,14 +645,25 @@ export const TranscribeWhisperNode: NodeHandler = {
 
     // whisper.cpp 默认在输入文件同目录生成输出文件
     // 需要将输出文件移动到指定目录
-    const srcDir = path.dirname(src);
-    const srcBase = path.parse(src).name;
-    const srcTxtPath = path.join(srcDir, `${srcBase}.txt`);
-    const srcSrtPath = path.join(srcDir, `${srcBase}.srt`);
-    const srcVttPath = path.join(srcDir, `${srcBase}.vtt`);
-    const srcJsonPath = path.join(srcDir, `${srcBase}.json`);
-    const srcLrcPath = path.join(srcDir, `${srcBase}.lrc`);
-    const srcWordsPath = path.join(srcDir, `${srcBase}.words`);
+    const srcDir = path.dirname(finalSrc);
+    const srcBase = path.parse(finalSrc).name;
+
+    // whisper.cpp 通常会将扩展名附加到输入文件名后 (例如 input.wav -> input.wav.txt)
+    // 但为了兼容性，我们也检查替换扩展名的情况 (例如 input.wav -> input.txt)
+    const getGeneratedPath = (ext: string): string => {
+      const appended = finalSrc + '.' + ext;
+      if (fileExists(appended)) return appended;
+      const replaced = path.join(srcDir, `${srcBase}.${ext}`);
+      if (fileExists(replaced)) return replaced;
+      return appended; // Default to appended if neither exists
+    };
+
+    const srcTxtPath = getGeneratedPath('txt');
+    const srcSrtPath = getGeneratedPath('srt');
+    const srcVttPath = getGeneratedPath('vtt');
+    const srcJsonPath = getGeneratedPath('json');
+    const srcLrcPath = getGeneratedPath('lrc');
+    const srcWordsPath = getGeneratedPath('words');
 
     // 移动文件到输出目录
     const txtPath = path.join(outDir, `${base}.txt`);
