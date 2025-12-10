@@ -397,15 +397,16 @@ runId: ${runId}
             // 节点发送进度事件，转换为引擎的 node:progress 事件
             const progress = payload?.progress !== undefined ? Math.max(0, Math.min(100, payload.progress)) : 0;
             const message = payload?.message;
+            const detail = payload?.detail;
 
             // Update node state
             if (nodesState[nodeId]) {
-              nodesState[nodeId] = { ...nodesState[nodeId], progress, progressMessage: message };
+              nodesState[nodeId] = { ...nodesState[nodeId], progress, progressMessage: message, progressDetail: detail };
               // Emit node status update so UI can reflect progress immediately
               this.emitTyped('node:status', rec, nodesState[nodeId]);
             }
 
-            this.emitTyped('node:progress', runId, nodeId, progress, message);
+            this.emitTyped('node:progress', runId, nodeId, progress, message, detail);
           } else {
             // 其他事件直接转发，并在 payload 中包含 runId 以便事件处理可以更新上下文
             const payloadWithRunId = payload ? { ...payload, __runId: runId } : { __runId: runId };
