@@ -164,6 +164,10 @@ export class WorkflowEngine extends EngineEmitter {
     const r = this.runs.get(runId);
     if (!r) return;
     r.status = 'canceled';
+    r.completedAt = now();
+    if (r.startedAt) {
+      r.duration = r.completedAt - r.startedAt;
+    }
     this.emitTyped('run:status', r);
   }
 
@@ -171,7 +175,16 @@ export class WorkflowEngine extends EngineEmitter {
     const runId = randomUUID();
     const nodesState: Record<string, NodeRunState> = {};
     def.nodes.forEach((n) => (nodesState[n.id] = { nodeId: n.id, status: 'pending' }));
-    const rec: WorkflowRunRecord = { runId, workflowId: def.id, createdAt: now(), status: 'queued', nodes: nodesState, metadata };
+    const rec: WorkflowRunRecord = {
+      runId,
+      workflowId: def.id,
+      createdAt: now(),
+      status: 'queued',
+      nodes: nodesState,
+      metadata,
+      input: initialInput,
+      startedAt: now()
+    };
     this.runs.set(runId, rec);
     this.emitTyped('run:status', rec);
 
@@ -374,7 +387,7 @@ runId: ${runId}
         this.log(runId, 'info', nodeId, `[WorkflowEngine] 节点 ${nodeId} 配置:`, inst.config);
       }
 
-      nodesState[nodeId] = { nodeId, status: 'running', startedAt: now() };
+      nodesState[nodeId] = { nodeId, status: 'running', startedAt: now(), input };
       this.emitTyped('node:status', rec, nodesState[nodeId]);
       const startTime = now();
       try {
@@ -420,6 +433,10 @@ runId: ${runId}
         if (def.options?.errorStrategy !== 'continue') {
           rec.status = 'failed';
           rec.error = nodesState[nodeId].error;
+          rec.completedAt = now();
+          if (rec.startedAt) {
+            rec.duration = rec.completedAt - rec.startedAt;
+          }
           this.log(runId, 'error', nodeId, `[WorkflowEngine] 工作流执行失败: ${errorMsg}`);
           this.emitTyped('run:status', rec);
           return rec;
@@ -430,6 +447,11 @@ runId: ${runId}
 
     const finalStatus = this.runs.get(runId)?.status;
     if (finalStatus !== 'failed' && finalStatus !== 'canceled') rec.status = 'completed';
+
+    rec.completedAt = now();
+    if (rec.startedAt) {
+      rec.duration = rec.completedAt - rec.startedAt;
+    }
 
     // 清理执行上下文（工作流执行完成）
     this.runContexts.delete(runId);

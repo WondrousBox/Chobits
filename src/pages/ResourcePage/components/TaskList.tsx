@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { TbFolderOpen, TbPlayerStop, TbTrash } from 'react-icons/tb';
+import { TbChevronDown, TbChevronRight, TbFolderOpen, TbPlayerStop, TbTrash } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -12,7 +12,9 @@ interface TaskRecord {
   createdAt: number;
   status: string;
   nodes: Record<string, any>;
+  input?: Record<string, any>;
   output?: Record<string, any>;
+  error?: string;
   progress?: number;
   progressMessage?: string;
   metadata?: {
@@ -30,6 +32,7 @@ interface TaskListProps {
 const TaskList: React.FC<TaskListProps> = ({ workspaceId }) => {
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [workflowNames, setWorkflowNames] = useState<Record<string, string>>({});
+  const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
 
   // Load workflow definitions once
   useEffect(() => {
@@ -44,7 +47,22 @@ const TaskList: React.FC<TaskListProps> = ({ workspaceId }) => {
     try {
       const res = await window.ipcRenderer.invoke('wf:listRuns', { limit: 100, workspaceId: workspaceId });
       if (Array.isArray(res)) {
-        setTasks([...res].reverse()); // Show newest first
+        setTasks((prev) => {
+          const prevMap = new Map(prev.map((t) => [t.runId, t]));
+          return res.reverse().map((newTask) => {
+            const oldTask = prevMap.get(newTask.runId);
+            // Preserve details if available locally but missing in new task (which is expected now)
+            if (oldTask && oldTask.nodes && Object.keys(oldTask.nodes).length > 0) {
+              return {
+                ...newTask,
+                nodes: oldTask.nodes,
+                input: oldTask.input,
+                output: oldTask.output
+              };
+            }
+            return newTask;
+          });
+        });
       }
     } catch (e) {
       console.error('Failed to load tasks', e);
@@ -52,10 +70,27 @@ const TaskList: React.FC<TaskListProps> = ({ workspaceId }) => {
   };
 
   useEffect(() => {
-    loadTasks();
-    const timer = setInterval(loadTasks, 2000); // Poll every 2s
+    const poll = async () => {
+      await loadTasks();
+      // Poll details for expanded tasks
+      const expandedIds = Array.from(expandedTasks);
+      if (expandedIds.length > 0) {
+        expandedIds.forEach(async (id) => {
+          try {
+            const details = await window.ipcRenderer.invoke('wf:getRun', { runId: id });
+            if (details) {
+              setTasks((prev) => prev.map((t) => (t.runId === id ? { ...t, ...details } : t)));
+            }
+          } catch (e) {
+            // ignore
+          }
+        });
+      }
+    };
+    poll();
+    const timer = setInterval(poll, 2000); // Poll every 2s
     return () => clearInterval(timer);
-  }, [workspaceId]);
+  }, [workspaceId, expandedTasks]);
 
   const handleOpenFolder = (path: string): void => {
     window.YUA.file['file:reveal'](path);
@@ -77,6 +112,28 @@ const TaskList: React.FC<TaskListProps> = ({ workspaceId }) => {
     } catch (e) {
       console.error('Failed to stop run', e);
     }
+  };
+
+  const toggleExpand = async (runId: string) => {
+    const newSet = new Set(expandedTasks);
+    if (newSet.has(runId)) {
+      newSet.delete(runId);
+    } else {
+      newSet.add(runId);
+      // Fetch details immediately if needed
+      const task = tasks.find((t) => t.runId === runId);
+      if (task && (!task.nodes || Object.keys(task.nodes).length === 0)) {
+        try {
+          const details = await window.ipcRenderer.invoke('wf:getRun', { runId });
+          if (details) {
+            setTasks((prev) => prev.map((t) => (t.runId === runId ? { ...t, ...details } : t)));
+          }
+        } catch (e) {
+          console.error('Failed to fetch run details', e);
+        }
+      }
+    }
+    setExpandedTasks(newSet);
   };
 
   return (
@@ -104,6 +161,18 @@ const TaskList: React.FC<TaskListProps> = ({ workspaceId }) => {
                       <div className="text-xs text-muted-foreground truncate">{workflowNames[task.workflowId] || task.workflowId}</div>
                     </div>
                     <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5 text-muted-foreground hover:text-foreground"
+                        title={expandedTasks.has(task.runId) ? '收起详情' : '查看详情'}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleExpand(task.runId);
+                        }}
+                      >
+                        {expandedTasks.has(task.runId) ? <TbChevronDown className="h-3.5 w-3.5" /> : <TbChevronRight className="h-3.5 w-3.5" />}
+                      </Button>
                       {task.status === 'running' && (
                         <Button
                           variant="ghost"
@@ -182,6 +251,46 @@ const TaskList: React.FC<TaskListProps> = ({ workspaceId }) => {
                       <div className="h-1 w-full bg-secondary rounded-full overflow-hidden">
                         <div className="h-full bg-primary transition-all duration-300 ease-in-out" style={{ width: `${task.progress || 0}%` }} />
                       </div>
+                    </div>
+                  )}
+
+                  {expandedTasks.has(task.runId) && (
+                    <div className="mt-3 pt-3 border-t space-y-2">
+                      {Object.values(task.nodes || {})
+                        .sort((a: any, b: any) => (a.startedAt || 0) - (b.startedAt || 0))
+                        .map((node: any) => (
+                          <div key={node.nodeId} className="text-xs flex flex-col gap-1 p-2 bg-muted/50 rounded">
+                            <div className="flex justify-between items-center">
+                              <span className="font-medium truncate max-w-[180px]" title={node.nodeId}>
+                                {node.nodeId}
+                              </span>
+                              <span
+                                className={
+                                  node.status === 'completed' ? 'text-green-600' : node.status === 'failed' ? 'text-red-600' : node.status === 'running' ? 'text-blue-600' : 'text-muted-foreground'
+                                }
+                              >
+                                {node.status}
+                              </span>
+                            </div>
+                            {node.error && <div className="text-red-500 break-all bg-red-50 p-1 rounded">{node.error}</div>}
+                            {node.input && Object.keys(node.input).length > 0 && (
+                              <div className="mt-1">
+                                <div className="text-[10px] font-semibold text-muted-foreground mb-0.5">Input:</div>
+                                <pre className="text-[10px] bg-background p-1 rounded overflow-x-auto max-h-40 whitespace-pre-wrap break-all">{JSON.stringify(node.input, null, 2)}</pre>
+                              </div>
+                            )}
+                            {node.output && Object.keys(node.output).length > 0 && (
+                              <div className="mt-1">
+                                <div className="text-[10px] font-semibold text-muted-foreground mb-0.5">Output:</div>
+                                <pre className="text-[10px] bg-background p-1 rounded overflow-x-auto max-h-40 whitespace-pre-wrap break-all">{JSON.stringify(node.output, null, 2)}</pre>
+                              </div>
+                            )}
+                            <div className="text-[10px] text-muted-foreground flex justify-between">
+                              <span>{node.startedAt ? new Date(node.startedAt).toLocaleTimeString() : '-'}</span>
+                              <span>{node.finishedAt && node.startedAt ? `${node.finishedAt - node.startedAt}ms` : ''}</span>
+                            </div>
+                          </div>
+                        ))}
                     </div>
                   )}
                 </div>

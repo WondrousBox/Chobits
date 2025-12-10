@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { InferInsertModel, InferSelectModel, sql } from 'drizzle-orm';
+import { InferInsertModel, InferSelectModel, relations, sql } from 'drizzle-orm';
 import { AnySQLiteColumn, blob, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 // documents：语义检索与内容管理的“权威表”，存储正文、元信息与向量及其元数据
@@ -102,6 +102,7 @@ export const folders = sqliteTable(
   (t) => ({
     idxFoldersParent: index('idx_folders_parent').on(t.parentId),
     idxFoldersWorkspace: index('idx_folders_workspace').on(t.workspaceId),
+    idxFoldersCreated: index('idx_folders_created').on(t.createdAt),
     uqFoldersNameUnderParent: uniqueIndex('uq_folders_ws_parent_name').on(t.workspaceId, t.parentId, t.name)
   })
 );
@@ -167,7 +168,11 @@ export const resources = sqliteTable(
   },
   (t) => ({
     idxResourcesWorkspace: index('idx_resources_workspace').on(t.workspaceId),
-    idxResourcesFolder: index('idx_resources_folder').on(t.folderId)
+    idxResourcesFolder: index('idx_resources_folder').on(t.folderId),
+    idxResourcesType: index('idx_resources_type').on(t.type),
+    idxResourcesStatus: index('idx_resources_status').on(t.status),
+    idxResourcesCreated: index('idx_resources_created').on(t.createdAt),
+    idxResourcesFavorite: index('idx_resources_favorite').on(t.favorite)
   })
 );
 
@@ -405,3 +410,88 @@ export const automation_rules = sqliteTable(
 
 export type AutomationRuleRow = InferSelectModel<typeof automation_rules>;
 export type NewAutomationRule = InferInsertModel<typeof automation_rules>;
+
+/**
+ * workflows: 工作流定义表
+ */
+export const workflows = sqliteTable(
+  'workflows',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    name: text('name').notNull(),
+    description: text('description'),
+    // 存储工作流的节点和连线配置 (JSON string)
+    definition: text('definition').notNull(),
+    // 是否启用
+    enabled: integer('enabled', { mode: 'boolean' }).default(true),
+    // 工作流类型/标签
+    type: text('type'),
+
+    workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }),
+
+    createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`),
+    updatedAt: integer('updated_at').default(sql`(unixepoch('now')*1000)`)
+  },
+  (t) => ({
+    idxWorkflowsWorkspace: index('idx_workflows_workspace').on(t.workspaceId)
+  })
+);
+
+/**
+ * workflow_runs: 工作流运行记录表
+ */
+export const workflowRuns = sqliteTable(
+  'workflow_runs',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    workflowId: text('workflow_id').references(() => workflows.id, { onDelete: 'cascade' }),
+
+    // 运行状态: 'queued' | 'running' | 'completed' | 'failed' | 'canceled'
+    status: text('status').notNull(),
+
+    // 触发时的输入数据 (JSON string)
+    input: text('input'),
+    // 运行结果输出 (JSON string)
+    output: text('output'),
+    // 错误信息 (如果有)
+    error: text('error'),
+
+    // 节点执行详情 (JSON string)
+    nodes: text('nodes'),
+
+    // 运行元数据 (JSON string)
+    metadata: text('metadata'),
+
+    // 耗时 (毫秒)
+    duration: integer('duration'),
+
+    startedAt: integer('started_at').default(sql`(unixepoch('now')*1000)`),
+    completedAt: integer('completed_at')
+  },
+  (t) => ({
+    idxWorkflowRunsWorkflow: index('idx_workflow_runs_workflow').on(t.workflowId),
+    idxWorkflowRunsStatus: index('idx_workflow_runs_status').on(t.status),
+    idxWorkflowRunsStarted: index('idx_workflow_runs_started').on(t.startedAt)
+  })
+);
+
+// 定义关系
+export const workflowsRelations = relations(workflows, ({ many }) => ({
+  runs: many(workflowRuns)
+}));
+
+export const workflowRunsRelations = relations(workflowRuns, ({ one }) => ({
+  workflow: one(workflows, {
+    fields: [workflowRuns.workflowId],
+    references: [workflows.id]
+  })
+}));
+
+export type Workflow = InferSelectModel<typeof workflows>;
+export type NewWorkflow = InferInsertModel<typeof workflows>;
+export type WorkflowRun = InferSelectModel<typeof workflowRuns>;
+export type NewWorkflowRun = InferInsertModel<typeof workflowRuns>;
