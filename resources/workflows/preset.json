@@ -29,22 +29,21 @@
   },
   {
     "id": "sample:transcribe",
-    "name": "语音转文字 (Whisper)",
+    "name": "音视频 -> 字幕 (Whisper)",
     "description": "调用 Whisper 将语音转换为文字",
     "nodes": [
-      { "id": "start", "type": "core/start", "x": 0, "y": 42.5 },
-      { "id": "load", "type": "resource/load", "x": 332, "y": 8.5 },
-      { "id": "transcode", "type": "media/transcode-advanced", "x": 676, "y": 42.5, "config": { "format": "wav", "audioCodec": "pcm_s16le", "extraArgs": ["-ar", "16000", "-ac", "1"] } },
-      { "id": "whisper", "type": "media/transcribe-whisper", "x": 1157, "y": 0, "config": { "model": "ggml-base.bin", "language": "zh", "outputFormats": ["txt", "srt", "json"] } },
-      { "id": "end", "type": "core/end", "x": 1637, "y": 42.5 }
+      { "id": "start", "type": "core/start", "x": 0, "y": 0, "config": {} },
+      { "id": "whisper", "type": "media/transcribe-whisper", "x": 366, "y": 17.5, "config": { "model": "ggml-base.bin", "language": "zh", "outputFormats": [ "txt", "srt", "json" ] } },
+      { "id": "end", "type": "core/end", "x": 846, "y": 51, "config": {} }
     ],
     "edges": [
-      { "id": "t1", "from": { "nodeId": "start", "port": "resource" }, "to": { "nodeId": "load", "port": "resource" } },
-      { "id": "t2", "from": { "nodeId": "load", "port": "path" }, "to": { "nodeId": "transcode", "port": "input" } },
-      { "id": "t3", "from": { "nodeId": "transcode", "port": "output" }, "to": { "nodeId": "whisper", "port": "media" } },
-      { "id": "t4", "from": { "nodeId": "whisper", "port": "text" }, "to": { "nodeId": "end", "port": "result" } }
+      { "id": "t4", "from": { "nodeId": "whisper", "port": "text" }, "to": { "nodeId": "end", "port": "result" } },
+      { "id": "e-MNiAAQ", "from": { "nodeId": "start", "port": "path" }, "to": { "nodeId": "whisper", "port": "media" } }
     ],
-    "options": { "concurrency": 1, "errorStrategy": "fail-fast" }
+    "options": {
+      "concurrency": 1,
+      "errorStrategy": "fail-fast"
+    }
   },
   {
     "id": "sample:transcode",
