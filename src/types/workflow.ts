@@ -41,7 +41,7 @@ export type NodeSpec = {
     description?: string;
     label?: string;
     default?: any;
-    inputType?: 'text' | 'select' | 'select-multiple' | 'number' | 'textarea';
+    inputType?: 'text' | 'select' | 'select-multiple' | 'number' | 'textarea' | 'condition-list' | 'port-list';
     options?: Array<{ value: string; label: string } | { group: string; options: Array<{ value: string; label: string }> }>;
   }[];
   outputs: { key: string; type: string | string[]; description?: string }[];
@@ -52,7 +52,7 @@ export type NodeSpec = {
     type: string | string[];
     description?: string;
     default?: any;
-    inputType?: 'text' | 'select' | 'select-multiple' | 'number' | 'textarea';
+    inputType?: 'text' | 'select' | 'select-multiple' | 'number' | 'textarea' | 'condition-list' | 'port-list';
     options?: Array<{ value: string; label: string } | { group: string; options: Array<{ value: string; label: string }> }>;
     group?: string;
   }[];

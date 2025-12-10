@@ -1,8 +1,9 @@
 /* eslint-disable react-hooks/rules-of-hooks */
 import { AnimatePresence, motion } from 'framer-motion';
 import React, { useEffect, useMemo, useState } from 'react';
-import { TbChevronDown, TbChevronRight } from 'react-icons/tb';
+import { TbChevronDown, TbChevronRight, TbPlus, TbTrash } from 'react-icons/tb';
 
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
@@ -291,6 +292,153 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
               ))}
             </SelectContent>
           </Select>
+        </div>
+      );
+    }
+
+    // 检查是否是 port-list 类型
+    if (field.inputType === 'port-list') {
+      const ports = (Array.isArray(rawValue) ? rawValue : []) as Array<{
+        key: string;
+        label: string;
+      }>;
+
+      const addPort = () => {
+        const newPort = {
+          key: `input_${Math.random().toString(36).substring(2, 7)}`,
+          label: `输入 ${ports.length + 1}`
+        };
+        onValueChange([...ports, newPort]);
+      };
+
+      const updatePort = (index: number, updates: Partial<(typeof ports)[0]>) => {
+        const newPorts = [...ports];
+        newPorts[index] = { ...newPorts[index], ...updates };
+        onValueChange(newPorts);
+      };
+
+      const removePort = (index: number) => {
+        const newPorts = ports.filter((_, i) => i !== index);
+        onValueChange(newPorts);
+      };
+
+      return (
+        <div key={field.key} className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-medium">{label}</label>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={addPort}>
+              <TbPlus className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="space-y-2">
+            {ports.map((port, index) => (
+              <div key={port.key} className="flex items-center gap-2 rounded-md border p-2 bg-muted/30">
+                <Input value={port.key} onChange={(e) => updatePort(index, { key: e.target.value })} placeholder="Key" className="h-7 text-xs w-1/3" />
+                <Input value={port.label} onChange={(e) => updatePort(index, { label: e.target.value })} placeholder="Label" className="h-7 text-xs flex-1" />
+                <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removePort(index)}>
+                  <TbTrash className="h-3 w-3" />
+                </Button>
+              </div>
+            ))}
+            {ports.length === 0 && <div className="text-xs text-muted-foreground text-center py-2">暂无端口，点击 + 添加</div>}
+          </div>
+        </div>
+      );
+    }
+
+    // 检查是否是 condition-list 类型
+    if (field.inputType === 'condition-list') {
+      const conditions = (Array.isArray(rawValue) ? rawValue : []) as Array<{
+        id: string;
+        name: string;
+        operator: string;
+        value: string;
+        targetInput?: string;
+      }>;
+
+      // 获取可用的输入端口列表
+      const availableInputs = (data.config?.inputs || [{ key: 'input', label: '默认输入' }]) as Array<{ key: string; label: string }>;
+
+      const addCondition = () => {
+        const newCondition = {
+          id: Math.random().toString(36).substring(2, 9),
+          name: `分支 ${conditions.length + 1}`,
+          operator: 'eq',
+          value: '',
+          targetInput: availableInputs[0]?.key || 'input'
+        };
+        onValueChange([...conditions, newCondition]);
+      };
+
+      const updateCondition = (index: number, updates: Partial<(typeof conditions)[0]>) => {
+        const newConditions = [...conditions];
+        newConditions[index] = { ...newConditions[index], ...updates };
+        onValueChange(newConditions);
+      };
+
+      const removeCondition = (index: number) => {
+        const newConditions = conditions.filter((_, i) => i !== index);
+        onValueChange(newConditions);
+      };
+
+      return (
+        <div key={field.key} className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-medium">{label}</label>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={addCondition}>
+              <TbPlus className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="space-y-2">
+            {conditions.map((cond, index) => (
+              <div key={cond.id} className="flex flex-col gap-2 rounded-md border p-2 bg-muted/30">
+                <div className="flex items-center gap-2">
+                  <Input value={cond.name} onChange={(e) => updateCondition(index, { name: e.target.value })} placeholder="分支名称" className="h-7 text-xs flex-1" />
+                  <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removeCondition(index)}>
+                    <TbTrash className="h-3 w-3" />
+                  </Button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Select value={cond.targetInput || availableInputs[0]?.key} onValueChange={(val) => updateCondition(index, { targetInput: val })}>
+                    <SelectTrigger className="h-7 text-xs w-[120px]">
+                      <SelectValue placeholder="选择输入" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableInputs.map((input) => (
+                        <SelectItem key={input.key} value={input.key}>
+                          {input.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={cond.operator} onValueChange={(val) => updateCondition(index, { operator: val })}>
+                    <SelectTrigger className="h-7 text-xs w-[100px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="eq">等于</SelectItem>
+                      <SelectItem value="neq">不等于</SelectItem>
+                      <SelectItem value="contains">包含</SelectItem>
+                      <SelectItem value="not_contains">不包含</SelectItem>
+                      <SelectItem value="starts_with">开头是</SelectItem>
+                      <SelectItem value="ends_with">结尾是</SelectItem>
+                      <SelectItem value="gt">大于</SelectItem>
+                      <SelectItem value="lt">小于</SelectItem>
+                      <SelectItem value="gte">大于等于</SelectItem>
+                      <SelectItem value="lte">小于等于</SelectItem>
+                      <SelectItem value="empty">为空</SelectItem>
+                      <SelectItem value="not_empty">不为空</SelectItem>
+                      <SelectItem value="regex">正则</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {cond.operator !== 'empty' && cond.operator !== 'not_empty' && (
+                  <Input value={cond.value} onChange={(e) => updateCondition(index, { value: e.target.value })} placeholder="值" className="h-7 text-xs w-full" />
+                )}
+              </div>
+            ))}
+            {conditions.length === 0 && <div className="text-xs text-muted-foreground text-center py-2">暂无条件，点击 + 添加</div>}
+          </div>
         </div>
       );
     }

@@ -16,6 +16,7 @@ import { createEngine, WorkflowEngine } from './engine';
 import { AiChatNode } from './nodes/ai-chat';
 import { AiPromptOptimizerNode } from './nodes/ai-prompt-optimizer';
 import { CollectFolderTextsNode } from './nodes/collect-folder-texts';
+import { ConditionNode } from './nodes/condition';
 import { DisplayImageNode } from './nodes/display-image';
 import { DisplayMediaNode } from './nodes/display-media';
 import { DisplayResourceCardNode } from './nodes/display-resource-card';
@@ -80,6 +81,7 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
     ResourceCreateNode,
     ResourceUpdateNode,
     CollectFolderTextsNode,
+    ConditionNode,
     TranscodeNode,
     TranscodeAdvancedNode,
     OCRNode,
