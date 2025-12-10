@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { app } from 'electron';
 
+import { DOWNLOAD_FOLDER_NAME } from '../common/config';
 import { calculateFileHash, unzipFileWith7Z } from '../common/utils/file';
 import type { Downloader, ProxyAgent } from '../downloader/types';
 import { PluginConfigStore } from './plugin-config-store';
@@ -77,7 +78,7 @@ export class PluginResourceManager extends EventEmitter {
   constructor() {
     super();
     // 使用用户的下载目录作为下载存储目录
-    this.downloadDir = path.join(app.getPath('downloads'), 'ChobitsDownloads');
+    this.downloadDir = path.join(app.getPath('downloads'), DOWNLOAD_FOLDER_NAME);
     // 确保下载目录存在
     fs.mkdirSync(this.downloadDir, { recursive: true });
     // 从配置中读取并发数
