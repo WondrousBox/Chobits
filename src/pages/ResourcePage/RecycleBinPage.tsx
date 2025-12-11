@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 type TrashItem = {
   id: string;
@@ -33,6 +34,7 @@ const RecycleBinPage: React.FC = () => {
   const [items, setItems] = useState<TrashItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const hasItems = useMemo(() => items.length > 0, [items]);
 
   const load = async (): Promise<void> => {
@@ -85,7 +87,11 @@ const RecycleBinPage: React.FC = () => {
   };
 
   const empty = async (): Promise<void> => {
-    if (!confirm('清空回收站？该操作不可恢复。')) return;
+    setConfirmOpen(true);
+  };
+
+  const handleConfirmEmpty = async (): Promise<void> => {
+    setConfirmOpen(false);
     await window.YUA.trash['trash:empty']({ filter: {} });
     await load();
     clearSel();
@@ -156,6 +162,23 @@ const RecycleBinPage: React.FC = () => {
             </div>
           ))}
       </div>
+
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent className="w-72">
+          <DialogHeader>
+            <DialogTitle>清空回收站</DialogTitle>
+            <DialogDescription>确定要清空回收站吗？该操作不可恢复。</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmOpen(false)}>
+              取消
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmEmpty}>
+              确认清空
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

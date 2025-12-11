@@ -1,5 +1,5 @@
 import React from 'react';
-import { TbFilter, TbHeart, TbSettings, TbTrash } from 'react-icons/tb';
+import { TbFilter, TbHeart, TbLine, TbSettings, TbTrash } from 'react-icons/tb';
 import { useNavigate } from 'react-router-dom';
 
 import { Button } from '@/components/ui/button';
@@ -106,6 +106,17 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
             >
               <TbFilter />
               任务
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem
+            key={'workflow'}
+            onClick={() => {
+              window.YUA.window['window:open']('workflowPage');
+            }}
+          >
+            <SidebarMenuButton className={`h-8 transition-colors`}>
+              <TbLine />
+              工作流
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem

@@ -224,8 +224,22 @@ async function renderHtmlToImage(html: string, outputPath: string, width: number
       const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
       window.loadURL(dataUrl);
 
-      window.webContents.once('did-finish-load', () => {
+      window.webContents.once('did-finish-load', async () => {
         emit('node:progress', { progress: 70, message: '渲染页面...' });
+
+        try {
+          if (window && !window.isDestroyed()) {
+            // 获取实际内容高度
+            const contentHeight = await window.webContents.executeJavaScript('document.body.scrollHeight');
+
+            // 如果内容高度超过当前窗口高度，调整窗口大小
+            if (contentHeight > height) {
+              window.setContentSize(width, contentHeight);
+            }
+          }
+        } catch (err) {
+          console.warn('调整窗口大小失败:', err);
+        }
 
         // 等待一小段时间确保内容完全渲染
         setTimeout(() => {
