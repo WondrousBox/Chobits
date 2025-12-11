@@ -7,7 +7,7 @@ import { initPluginResourceHandlers } from '../../../packages/plugins/ipc-main';
 import { initDailyCare } from '../daily';
 import { initScreenshotHandlers } from '../screenshot';
 import { getResourcePath } from '../utils/resources-path';
-import { initAutomationHandlers } from './automation';
+import { initAutomationHandlers } from './automation/ipc-main';
 import { initFFmpegHandlers } from './ffmpeg/ipc-main';
 import { initFileHandlers } from './file/ipc-main';
 import { initFolderHandlers } from './folder/ipc-main';
