@@ -435,7 +435,7 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     routeHash: 'workflow-page',
     autoCenterOn: 'parent-display',
     showOnReady: false,
-    openDevTools: true,
+    openDevTools: false,
     rememberState: true,
     options: {
       width: 1100,
