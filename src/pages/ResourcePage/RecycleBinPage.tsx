@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { TbArrowBackUp, TbCheck, TbFile, TbFileText, TbFolder, TbMessageCircle, TbSquare, TbTrash, TbX } from 'react-icons/tb';
+import { TbArrowBackUp, TbArrowLeft, TbCheck, TbFile, TbFileText, TbFolder, TbMessageCircle, TbSquare, TbTrash, TbX } from 'react-icons/tb';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
@@ -28,6 +29,7 @@ const TypeIcon = ({ type }: { type: TrashItem['entityType'] }): React.ReactEleme
 };
 
 const RecycleBinPage: React.FC = () => {
+  const navigate = useNavigate();
   const [items, setItems] = useState<TrashItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -92,7 +94,14 @@ const RecycleBinPage: React.FC = () => {
   return (
     <div className="bg-background">
       <DragAbleTitle
-        title={<div className="flex items-center gap-2">🗑️ 回收站</div>}
+        title={
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" className="no-drag" onClick={() => navigate(-1)}>
+              <TbArrowLeft />
+            </Button>
+            🗑️ 回收站
+          </div>
+        }
         actions={
           <div className="flex items-center gap-2">
             {hasItems && (

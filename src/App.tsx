@@ -16,7 +16,7 @@ import AssistantPage from './pages/AssistantPage/AssistantPage';
 import ChatPage from './pages/AssistantPage/ChatPage';
 import PluginDownloadPage from './pages/PluginPage/PluginDownloadPage';
 import PluginPage from './pages/PluginPage/PluginPage';
-import RecycleBinPage from './pages/RecycleBinPage/RecycleBinPage';
+import RecycleBinPage from './pages/ResourcePage/RecycleBinPage';
 import ResourcePage from './pages/ResourcePage/ResourcePage';
 import Screenshot from './pages/Screenshot';
 import WorkspacePage from './pages/SettingsPage/components/Workspace';

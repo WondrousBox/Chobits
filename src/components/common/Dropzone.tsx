@@ -18,9 +18,9 @@ interface DropzoneProps {
   onDragOver?: (e: React.DragEvent<HTMLElement>) => void;
 }
 
-function Dropzone({ children, customDropzone, customDropzoneInside, className, onDropFiles, onDragEnter, onDragLeave, onDragOver, onDrop }: DropzoneProps) {
+function Dropzone({ children, customDropzone, customDropzoneInside, className, onDropFiles, onDragEnter, onDragLeave, onDragOver, onDrop }: DropzoneProps): JSX.Element {
   const { t } = useTranslation();
-  const getExt = (nameOrPath?: string) => {
+  const getExt = (nameOrPath?: string): string | undefined => {
     if (!nameOrPath) return undefined;
     const trimmed = nameOrPath.replace(/[\\/]+$/, '');
     const base = trimmed.split(/[/\\]/).pop() || '';
@@ -30,7 +30,7 @@ function Dropzone({ children, customDropzone, customDropzoneInside, className, o
     return parts.pop()?.toLowerCase();
   };
 
-  const getTypeFromExt = (ext?: string) => {
+  const getTypeFromExt = (ext?: string): 'image' | 'video' | 'audio' | 'document' | 'text' | 'file' => {
     if (!ext) return 'file' as const;
     const image = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg', 'ico', 'bmp']);
     const video = new Set(['mp4', 'webm', 'mov', 'avi', 'mkv', 'flv', 'mpeg', 'mpg', 'm4v']);

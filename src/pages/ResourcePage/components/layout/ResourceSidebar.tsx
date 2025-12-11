@@ -1,5 +1,6 @@
 import React from 'react';
 import { TbFilter, TbHeart, TbSettings, TbTrash } from 'react-icons/tb';
+import { useNavigate } from 'react-router-dom';
 
 import { Button } from '@/components/ui/button';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
@@ -54,6 +55,8 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
   showTasks,
   setShowTasks
 }) => {
+  const navigate = useNavigate();
+
   return (
     <Sidebar collapsible="none" className="h-full w-80 bg-sidebar">
       <SidebarHeader>
@@ -170,7 +173,7 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
         />
       </SidebarContent>
       <SidebarFooter>
-        <Button className="w-full" variant="ghost" onClick={() => window.YUA.window['window:open']('recycle')}>
+        <Button className="w-full" variant="ghost" onClick={() => navigate('/recycle')}>
           <TbTrash />
           回收站
         </Button>
