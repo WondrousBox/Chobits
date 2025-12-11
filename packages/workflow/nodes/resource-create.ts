@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
+import { WorkspacesRepo } from '../../common/db';
 import { NodeHandler } from '../types';
 
 /**
@@ -193,7 +194,6 @@ export const ResourceCreateNode: NodeHandler = {
     // 获取工作空间信息以确定目标文件夹路径
     let finalFilePath = filePath;
     try {
-      const { WorkspacesRepo } = await import('../../../electron/main/db/repositories');
       const ws = await WorkspacesRepo.getById(ctx.workspaceId);
 
       if (ws?.rootPath) {

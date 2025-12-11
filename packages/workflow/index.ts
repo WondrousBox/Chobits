@@ -6,12 +6,11 @@ import dayjs from 'dayjs';
 import { BrowserWindow, ipcMain } from 'electron';
 import * as fs from 'fs';
 
-import { FoldersRepo, ResourcesRepo, WorkspacesRepo } from '../../electron/main/db/repositories';
-import { getResourcePath } from '../../electron/main/utils/resources-path';
-import { detectBasicType } from '../../electron/main/utils/thumbnail';
+import { detectBasicType, getResourcePath } from '../common/utils';
 import { eventManager, sendAppBusyEnd, sendAppBusyProgress, sendAppBusyStart } from '../event';
 import { AppEvent } from '../event/events';
 import { pluginResourceManager } from '../plugins';
+import { FoldersRepo, ResourcesRepo, WorkspacesRepo } from './../common/db';
 import { createEngine, WorkflowEngine } from './engine';
 import { AiChatNode } from './nodes/ai-chat';
 import { AiPromptOptimizerNode } from './nodes/ai-prompt-optimizer';
