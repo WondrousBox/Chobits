@@ -3,7 +3,7 @@ import fsp from 'node:fs/promises';
 
 import { and, desc, eq } from 'drizzle-orm';
 
-import { getOrm, Schema } from '../../electron/main/db';
+import { getOrm, Schema } from './../common/db';
 import { WorkflowDefinition, WorkflowRunRecord } from './types';
 
 // 预设工作流ID集合（从JSON文件加载）

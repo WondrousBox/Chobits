@@ -1,4 +1,4 @@
-import { FoldersRepo, ResourcesRepo } from '../../../electron/main/db/repositories';
+import { FoldersRepo, ResourcesRepo } from '../../common/db';
 import { NodeHandler } from '../types';
 
 /**

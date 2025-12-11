@@ -5,7 +5,7 @@ import path from 'node:path';
 import { app } from 'electron';
 
 import { DOWNLOAD_FOLDER_NAME } from '../common/config';
-import { calculateFileHash, unzipFileWith7Z } from '../common/utils/file';
+import { calculateFileHash, unzipFileWith7Z } from '../common/utils';
 import type { Downloader, ProxyAgent } from '../downloader/types';
 import { PluginConfigStore } from './plugin-config-store';
 import { PluginResourceStore } from './plugin-resource-store';
