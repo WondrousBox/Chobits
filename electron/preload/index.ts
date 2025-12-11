@@ -9,6 +9,7 @@ import { fileIpcRenderer } from '../main/handlers/file/ipc-renderer';
 import { folderIpcRenderer } from '../main/handlers/folder/ipc-renderer';
 import { proxyIpcRenderer } from '../main/handlers/proxy/ipc-renderer';
 import { resourceIpcRenderer } from '../main/handlers/resource/ipc-renderer';
+import { systemIpcRenderer } from '../main/handlers/system/system';
 import { themeIpcRenderer } from '../main/handlers/theme/ipc-renderer';
 import { trashIpcRenderer } from '../main/handlers/trash/ipc-renderer';
 import { workspaceIpcRenderer } from '../main/handlers/workspace/ipc-renderer';
@@ -16,7 +17,6 @@ import { arch, isLinux, isMac, isMacIntel, isWindows, platform } from '../main/u
 import { shortcutsBridge } from './apis/shortcuts';
 import { spriteBridge } from './apis/sprite';
 import { statusBridge } from './apis/status';
-import { systemBridge } from './apis/system';
 import { vectorBridge } from './apis/vector';
 import videoDownloaderAPI from './apis/video-downloader';
 import { windowBridge } from './apis/window';
@@ -61,7 +61,7 @@ contextBridge.exposeInMainWorld('YUA', {
   trash: trashIpcRenderer,
   workspace: workspaceIpcRenderer,
   file: fileIpcRenderer,
-  system: systemBridge,
+  system: systemIpcRenderer,
   folder: folderIpcRenderer,
   videoDownloader: videoDownloaderAPI,
   sprite: spriteBridge,

@@ -1,4 +1,4 @@
-import { searchVectors } from '../../../electron/main/db';
+import { searchVectors } from '../../common/db';
 import { AgentContext, AgentDefinition, ChatRequest, ChatResponse } from '../types';
 
 const DEFAULT_DIM = 384; // align with your local default; providers may vary
