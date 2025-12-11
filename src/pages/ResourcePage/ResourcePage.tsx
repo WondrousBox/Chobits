@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 import { SidebarProvider } from '@/components/ui/sidebar';
 
@@ -17,7 +18,7 @@ import { useResourceOperations } from './hooks/useResourceOperations';
 import { useResourceUpload } from './hooks/useResourceUpload';
 import { useViewMode } from './hooks/useViewMode';
 import { useWorkflowProgress } from './hooks/useWorkflowProgress';
-import { SortField, SortOrder } from './types';
+import { SelectedResourceFileType, SortField, SortOrder } from './types';
 import { typeOptions } from './utils/constants';
 import { mergeVideoWithSubtitles } from './utils/subtitleUtils';
 
@@ -253,6 +254,52 @@ const ResourcePage: React.FC = () => {
     });
     return unsubscribe;
   }, [load, loadTags, loadFolders, loadWorkspaces, wsFilter]);
+
+  // 监听粘贴事件
+  useEffect(() => {
+    const handlePaste = async (event: ClipboardEvent): Promise<void> => {
+      // 如果当前焦点在输入框中，不处理粘贴事件
+      const target = event.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return;
+      }
+
+      const items = event.clipboardData?.items;
+      if (!items) return;
+
+      const files: SelectedResourceFileType[] = [];
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.kind === 'file') {
+          const file = item.getAsFile();
+          if (file) {
+            // Electron environment: File object has 'path' property
+            // For pasted images from web, path might be empty, but we still want to upload them
+            const path = (file as any).path || '';
+            files.push({
+              path: path,
+              name: file.name,
+              size: file.size,
+              type: 'file',
+              file: file
+            });
+          }
+        }
+      }
+
+      if (files.length > 0) {
+        event.preventDefault();
+        await onDropFiles(files);
+        toast.success(`Detected ${files.length} files from clipboard`);
+      }
+    };
+
+    document.addEventListener('paste', handlePaste);
+    return () => {
+      document.removeEventListener('paste', handlePaste);
+    };
+  }, [onDropFiles]);
 
   // 计算各文件夹资源数量（按当前默认空间；不受类型/标签筛选影响）
   const folderCounts = useMemo(() => {
