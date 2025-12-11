@@ -212,21 +212,59 @@ const ResourcePreviewWindow: React.FC = () => {
     };
   }, [isPlaylistExpanded, list.length]);
 
+  // 监听 data.id 变化，重新获取完整资源信息（处理列表切换的情况）
+  useEffect(() => {
+    if (data?.id) {
+      window.ipcRenderer
+        .invoke('getResource', { id: data.id })
+        .then((fullResource) => {
+          if (fullResource) {
+            setData((prev) => (prev ? { ...prev, ...fullResource } : fullResource));
+          }
+        })
+        .catch((err) => console.warn('Failed to refresh resource:', err));
+    }
+  }, [data?.id]);
+
   // 监听资源数据推送
   useEffect(() => {
-    const handler = (_e: any, payload: IncomingPayload | ResourceItem): void => {
+    const handler = async (_e: any, payload: IncomingPayload | ResourceItem) => {
       console.log(payload);
+
+      let current: ResourceItem;
+      let lst: ResourceItem[] = [];
+      let idx: number = -1;
 
       if ((payload as any).current) {
         const p = payload as IncomingPayload;
-        setData(p.current);
-        setList(p.list || []);
-        setIndex(typeof p.index === 'number' ? p.index : p.list ? p.list.findIndex((r) => r.id === p.current.id) : -1);
+        current = p.current;
+        lst = p.list || [];
+        idx = typeof p.index === 'number' ? p.index : p.list ? p.list.findIndex((r) => r.id === p.current.id) : -1;
       } else {
-        setData(payload as ResourceItem);
-        setList([]);
-        setIndex(-1);
+        current = payload as ResourceItem;
+        lst = [];
+        idx = -1;
       }
+
+      // 获取完整资源信息
+      if (current?.id) {
+        try {
+          const fullResource = await window.ipcRenderer.invoke('getResource', { id: current.id });
+          if (fullResource) {
+            current = fullResource;
+            // 更新列表中的对应项
+            if (idx !== -1 && lst[idx]) {
+              lst[idx] = fullResource;
+            }
+          }
+        } catch (error) {
+          console.warn('Failed to fetch full resource details:', error);
+        }
+      }
+
+      setData(current);
+      setList(lst);
+      setIndex(idx);
     };
     window.ipcRenderer?.on('on:window:open:ready', handler);
     // 如果 120ms 后仍未接收到数据，主动拉取缓存（避免 race）
