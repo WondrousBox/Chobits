@@ -12,12 +12,13 @@ export type Folder = {
   createdAt?: number;
   updatedAt?: number;
   deletedAt?: number | null;
+  rank?: number;
 };
 
 export type FolderIpcParams = {
   'folder.create': IpcParams<[{ name: string; parentId?: string | null; workspaceId?: string; description?: string }], { success: boolean; data?: Folder; dirPath?: string; error?: string }>;
   'folder.rename': IpcParams<[{ id: string; name: string }], { success: boolean; data?: Folder; error?: string }>;
-  'folder.move': IpcParams<[{ id: string; parentId: string | null }], { success: boolean; data?: Folder; error?: string }>;
+  'folder.move': IpcParams<[{ id: string; parentId: string | null; prevRank?: number; nextRank?: number }], { success: boolean; data?: Folder; error?: string }>;
   'folder.get': IpcParams<[{ id: string }], Folder | undefined>;
   'folder.list': IpcParams<[{ workspaceId?: string; parentId?: string | null; deletedAt?: 0 | 1 }], Folder[]>;
   'folder.softDelete': IpcParams<[{ ids: string[] }], { success: boolean; data: Folder[] }>;

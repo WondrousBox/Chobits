@@ -41,7 +41,7 @@ export const useResourceData = (wsFilter?: string, tagFilter?: string) => {
       try {
         const wsId = workspaceId || wsFilter || undefined;
         const rows = await folderAPI['folder.list']({ workspaceId: wsId, deletedAt: 0 });
-        setFolders((rows || []).map((r: any) => ({ id: r.id, name: r.name, parentId: r.parentId || null, workspaceId: r.workspaceId })));
+        setFolders((rows || []).map((r: any) => ({ id: r.id, name: r.name, parentId: r.parentId || null, workspaceId: r.workspaceId, rank: r.rank })));
       } catch (e) {
         console.warn('load folders failed', e);
       }

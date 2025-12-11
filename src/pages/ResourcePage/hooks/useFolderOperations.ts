@@ -19,14 +19,18 @@ export const useFolderOperations = (
   const folderAPI: any = window.YUA?.folder;
 
   const handleMoveFolder = useCallback(
-    async (id: string, newParentId: string | null) => {
+    async (id: string, newParentId: string | null, prevRank?: number, nextRank?: number) => {
       const cur = folders.find((f) => f.id === id);
       if (!cur) return;
       const targetPid = newParentId ?? null;
       const curPid = cur.parentId ?? null;
-      if (curPid === targetPid) return;
+
+      // If parent is same AND ranks are undefined (meaning no reorder), return.
+      // But if ranks are provided, we might be reordering within same parent.
+      if (curPid === targetPid && prevRank === undefined && nextRank === undefined) return;
+
       // 如果主进程执行失败（例如 UNIQUE 约束），invoke 会 reject，让上层捕获并提示
-      const r = await folderAPI['folder.move']({ id, parentId: targetPid });
+      const r = await folderAPI['folder.move']({ id, parentId: targetPid, prevRank, nextRank });
       if (!(r as any)?.success) {
         throw new Error('folder-move-failed');
       }

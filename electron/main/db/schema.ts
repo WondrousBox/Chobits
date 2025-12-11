@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { InferInsertModel, InferSelectModel, relations, sql } from 'drizzle-orm';
-import { AnySQLiteColumn, blob, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { AnySQLiteColumn, blob, index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 // documents：语义检索与内容管理的“权威表”，存储正文、元信息与向量及其元数据
 export const documents = sqliteTable(
@@ -97,13 +97,14 @@ export const folders = sqliteTable(
     metadata: text('metadata'),
     createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`),
     updatedAt: integer('updated_at').default(sql`(unixepoch('now')*1000)`),
-    deletedAt: integer('deleted_at')
+    deletedAt: integer('deleted_at'),
+    rank: real('rank').default(0)
   },
   (t) => ({
     idxFoldersParent: index('idx_folders_parent').on(t.parentId),
     idxFoldersWorkspace: index('idx_folders_workspace').on(t.workspaceId),
     idxFoldersCreated: index('idx_folders_created').on(t.createdAt),
-    uqFoldersNameUnderParent: uniqueIndex('uq_folders_ws_parent_name').on(t.workspaceId, t.parentId, t.name)
+    idxFoldersRank: index('idx_folders_rank').on(t.rank)
   })
 );
 

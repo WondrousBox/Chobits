@@ -2,7 +2,7 @@ import * as fscb from 'node:fs';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
-import { and, desc, eq, gte, inArray, isNotNull, isNull, like, lte, max } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, like, lte, max } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 
 import { getDB, getOrm } from '.';
@@ -855,6 +855,29 @@ function safeParseTags(v: unknown): string[] | null {
  * - 支持 upsert、批量 upsert、查询、软删/恢复、重命名、移动（变更 parentId）
  */
 export const FoldersRepo = {
+  /** 新增文件夹（自动生成 rank） */
+  async create(folder: NewFolder): Promise<FolderRow> {
+    const db = getOrm();
+
+    // 1. 查找同级目录下最大的 rank
+    const lastFolder = await db
+      .select({ rank: folders.rank })
+      .from(folders)
+      .where(folder.parentId ? eq(folders.parentId, folder.parentId) : isNull(folders.parentId))
+      .orderBy(desc(folders.rank))
+      .limit(1);
+
+    const maxRank = lastFolder[0]?.rank ?? 0;
+    // 2. 新 rank = 最大 rank + 65536
+    const newRank = (maxRank || 0) + 65536;
+
+    const rows = await db
+      .insert(folders)
+      .values({ ...folder, rank: newRank } as any)
+      .returning()
+      .all();
+    return rows[0];
+  },
   /** 新增或更新文件夹（同 ID 冲突时更新） */
   async upsert(folder: NewFolder): Promise<FolderRow | undefined> {
     const db = getOrm();
@@ -931,7 +954,7 @@ export const FoldersRepo = {
       if (wheres.length) {
         query = query.where(and(...wheres));
       }
-      return query.limit(limit).offset(offset);
+      return query.orderBy(asc(folders.rank), desc(folders.createdAt)).limit(limit).offset(offset);
     }
 
     // 其他情况使用原来的逻辑
@@ -943,7 +966,7 @@ export const FoldersRepo = {
     if ((filter as any).deletedAt === 0) wheres.push(isNull(folders.deletedAt));
     if ((filter as any).deletedAt === 1) wheres.push(isNotNull(folders.deletedAt));
     if (wheres.length) query = query.where(and(...wheres));
-    return query.limit(limit).offset(offset);
+    return query.orderBy(asc(folders.rank), desc(folders.createdAt)).limit(limit).offset(offset);
   },
   /** 计数 */
   async count(filter: Partial<FolderRow> = {}): Promise<number> {
@@ -1020,11 +1043,38 @@ export const FoldersRepo = {
     return rows[0];
   },
   /** 移动到新父目录（支持置空为根） */
-  async move(id: string, newParentId: string | null): Promise<FolderRow | undefined> {
+  async move(id: string, newParentId: string | null, prevRank?: number, nextRank?: number): Promise<FolderRow | undefined> {
     const db = getOrm();
+
+    let newRank: number;
+
+    if (prevRank === undefined && nextRank === undefined) {
+      // 如果没传 rank，保持原样或放到最后（视业务逻辑而定）
+      // 这里假设放到最后，逻辑同 create
+      const lastFolder = await db
+        .select({ rank: folders.rank })
+        .from(folders)
+        .where(newParentId ? eq(folders.parentId, newParentId) : isNull(folders.parentId))
+        .orderBy(desc(folders.rank))
+        .limit(1);
+      newRank = (lastFolder[0]?.rank ?? 0) + 65536;
+    } else {
+      // 核心算法：取中间值
+      const prev = prevRank ?? 0; // 如果没有上一个，视为 0
+      const next = nextRank; // 如果没有下一个，说明是追加到末尾
+
+      if (next === undefined || next === null) {
+        // 拖拽到最后：上一个 + 间隔
+        newRank = prev + 65536;
+      } else {
+        // 拖拽到中间：(上一个 + 下一个) / 2
+        newRank = (prev + next) / 2;
+      }
+    }
+
     await db
       .update(folders)
-      .set({ parentId: newParentId, updatedAt: Date.now() } as any)
+      .set({ parentId: newParentId, rank: newRank, updatedAt: Date.now() } as any)
       .where(eq(folders.id, id))
       .run();
     const rows = await db.select().from(folders).where(eq(folders.id, id)).limit(1);
