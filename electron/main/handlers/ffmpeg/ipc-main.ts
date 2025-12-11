@@ -14,7 +14,7 @@ ffmpeg.setFfmpegPath(path.join(__dirname, '../../resources/ffmpeg', process.plat
 ffmpeg.setFfprobePath(path.join(__dirname, '../../resources/ffmpeg', process.platform, process.arch, process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe'));
 
 // 简单 JPEG 帧分包器：按 SOI(0xFFD8) 和 EOI(0xFFD9) 切分
-function extractJpegFrames(buffer: Buffer): { frames: Buffer[]; rest: Buffer } {
+export function extractJpegFrames(buffer: Buffer): { frames: Buffer[]; rest: Buffer } {
   const frames: Buffer[] = [];
   let i = 0;
   let start = -1;
@@ -39,7 +39,7 @@ function extractJpegFrames(buffer: Buffer): { frames: Buffer[]; rest: Buffer } {
   return { frames, rest: start >= 0 ? buffer.slice(start) : Buffer.alloc(0) };
 }
 
-export function initFFmpegHandlers(win: BrowserWindow) {
+export function initFFmpegHandlers(win: BrowserWindow): void {
   ipcMain.handle('playSprite', async (_evt, arg?: { sourceId?: string; fps?: number; inputPath?: string }) => {
     const sourceId = arg?.sourceId || 'ffmpegSource';
     const fps = Math.max(1, Math.min(60, arg?.fps || 30));
