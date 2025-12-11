@@ -1,5 +1,5 @@
-import React, { useEffect, ReactNode } from 'react';
 import { motion } from 'framer-motion';
+import React, { ReactNode, useEffect } from 'react';
 
 export type ResultVariant = 'success' | 'warning' | 'error' | 'info' | 'loading' | 'neutral';
 

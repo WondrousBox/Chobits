@@ -59,13 +59,13 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         shortcut: 'r',
         action: () => window.YUA.window['window:open']('resources')
       },
-      {
-        id: 'recycle',
-        label: '回收站',
-        icon: '🗑️',
-        shortcut: 'b',
-        action: () => window.YUA.window['window:open']('recycle')
-      },
+      // {
+      //   id: 'recycle',
+      //   label: '回收站',
+      //   icon: '🗑️',
+      //   shortcut: 'b',
+      //   action: () => window.YUA.window['window:open']('recycle')
+      // },
       {
         id: 'settings',
         label: '设置',
