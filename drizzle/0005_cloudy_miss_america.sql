@@ -1,0 +1,1 @@
+DROP INDEX `uq_folders_ws_parent_name`;

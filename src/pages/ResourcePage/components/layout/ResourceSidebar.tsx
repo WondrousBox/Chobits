@@ -23,7 +23,7 @@ interface ResourceSidebarProps {
   folderCounts: Record<string, number>;
   allCount: number;
   handleMoveResourcesToFolder: (folderId: string, ids: string[]) => Promise<void>;
-  handleMoveFolder: (folderId: string, targetId: string | null) => Promise<void>;
+  handleMoveFolder: (folderId: string, targetId: string | null, prevRank?: number, nextRank?: number) => Promise<void>;
   loadFolders: (wsId?: string) => Promise<void>;
   handleRenameFolder: (id: string) => void;
   handleDeleteFolder: (id: string) => void;
@@ -157,7 +157,9 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
               const d = new Date();
               const name = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
               const wsId = wsFilter || undefined;
-              const res = await folderAPI['folder.create']({ name, parentId: parentId ?? (folderFilter || null), workspaceId: wsId });
+              // parentId === undefined means "use current context", null means "root", string means "specific folder"
+              const targetPid = parentId !== undefined ? parentId : folderFilter || null;
+              const res = await folderAPI['folder.create']({ name, parentId: targetPid, workspaceId: wsId });
               if ((res as any)?.success) {
                 await loadFolders(wsId);
                 return (res as any)?.data?.id;

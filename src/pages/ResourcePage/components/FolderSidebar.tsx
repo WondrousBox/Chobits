@@ -13,6 +13,7 @@ export type UIFolder = {
   parentId?: string | null;
   workspaceId?: string;
   children?: UIFolder[];
+  rank?: number;
 };
 
 function buildTree(flat: UIFolder[]): UIFolder[] {
@@ -27,6 +28,15 @@ function buildTree(flat: UIFolder[]): UIFolder[] {
       roots.push(node);
     }
   });
+
+  const sortFn = (a: UIFolder, b: UIFolder): number => (a.rank ?? 0) - (b.rank ?? 0);
+  roots.sort(sortFn);
+  map.forEach((node) => {
+    if (node.children?.length) {
+      node.children.sort(sortFn);
+    }
+  });
+
   return roots;
 }
 
@@ -38,7 +48,7 @@ interface FolderSidebarProps {
   onRename: (id: string) => void;
   onDelete: (id: string) => void;
   onDropResources?: (folderId: string | null, ids: string[]) => void;
-  onMoveFolder?: (id: string, newParentId: string | null) => Promise<void> | void;
+  onMoveFolder?: (id: string, newParentId: string | null, prevRank?: number, nextRank?: number) => Promise<void> | void;
   counts?: Record<string, number>;
   allCount?: number;
   onInlineRename?: (id: string, name: string) => Promise<void>;
@@ -60,6 +70,11 @@ const FolderSidebar = ({
   workspaceId
 }: FolderSidebarProps): React.ReactElement => {
   const tree = React.useMemo(() => buildTree(folders), [folders]);
+  const parentMap = React.useMemo(() => {
+    const map = new Map<string, string | null>();
+    folders.forEach((f) => map.set(f.id, f.parentId || null));
+    return map;
+  }, [folders]);
   const wsId = workspaceId || 'default';
   const expandedKey = `resource-folder-expanded-${wsId}`;
 
@@ -129,15 +144,6 @@ const FolderSidebar = ({
     if (!initializedRef.current) return;
     saveExpandedIds(expandedIds);
   }, [expandedIds, saveExpandedIds]);
-
-  // 构建父子映射，便于根据选中项展开祖先链路
-  const parentMap = React.useMemo(() => {
-    const map = new Map<string, string | null>();
-    for (const f of folders) {
-      map.set(f.id, f.parentId ?? null);
-    }
-    return map;
-  }, [folders]);
 
   // Track dragging folder id across rows for validation on dragover
   const [draggingFolderId, setDraggingFolderId] = React.useState<string | null>(null);
@@ -271,7 +277,7 @@ const FolderSidebar = ({
       <SidebarGroup className="box-border">
         <SidebarGroupLabel>文件夹</SidebarGroupLabel>
         <SidebarGroupAction asChild>
-          <Button size="icon" variant={'ghost'} className="w-8 h-8 top-2" onClick={() => handleCreate()}>
+          <Button size="icon" variant={'ghost'} className="w-8 h-8 top-2" onClick={() => handleCreate(null)}>
             <TbPlus />
           </Button>
         </SidebarGroupAction>
@@ -333,10 +339,12 @@ const FolderSidebar = ({
               </SidebarMenuItem>
             )}
 
-            {tree.map((node) => (
+            {tree.map((node, index) => (
               <FolderTreeRow
                 key={node.id}
                 node={node}
+                index={index}
+                siblings={tree}
                 depth={0}
                 selectedId={selectedId}
                 onSelect={(id) => onSelect(id)}
@@ -344,7 +352,7 @@ const FolderSidebar = ({
                 onDelete={onDelete}
                 onCreate={handleCreate}
                 onDropResources={(fid, ids) => onDropResources?.(fid, ids)}
-                onMoveFolder={(id, newPid) => onMoveFolder?.(id, newPid)}
+                onMoveFolder={(id, newPid, prev, next) => onMoveFolder?.(id, newPid, prev, next)}
                 counts={counts}
                 expanded={isExpanded(node.id)}
                 isExpanded={isExpanded}

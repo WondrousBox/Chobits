@@ -35,7 +35,7 @@ export function initFolderHandlers(): void {
       let row: any | undefined;
       for (let retry = 0; retry < 5; retry++) {
         try {
-          row = await FoldersRepo.upsert({ name: candidate, parentId, workspaceId } as any);
+          row = await FoldersRepo.create({ name: candidate, parentId, workspaceId } as any);
           break;
         } catch (e: any) {
           const msg = String(e?.message || e || '');
@@ -77,32 +77,8 @@ export function initFolderHandlers(): void {
         return { success: true, data: cur };
       }
 
-      // 同级已有名称集合（排除自身）
-      const siblings = await FoldersRepo.list({ workspaceId: cur.workspaceId, parentId: cur.parentId } as any, 2000, 0);
-      const existed = new Set<string>(siblings.filter((s: any) => s.id !== id).map((s: any) => String(s.name || '')));
-
-      let candidate = baseName;
-      let suffix = 2;
-      while (existed.has(candidate) && suffix < 200) {
-        candidate = `${baseName} ${suffix}`;
-        suffix += 1;
-      }
-
-      // 并发兜底：若仍遇唯一约束，继续加后缀重试
-      let row: any | undefined;
-      for (let retry = 0; retry < 5; retry++) {
-        try {
-          row = await FoldersRepo.rename(id, candidate);
-          break;
-        } catch (e: any) {
-          const msg = String(e?.message || e || '');
-          if (/UNIQUE\s+constraint\s+failed/i.test(msg)) {
-            candidate = `${baseName} ${suffix++}`;
-            continue;
-          }
-          throw e;
-        }
-      }
+      // 直接重命名，不再检查重名
+      const row = await FoldersRepo.rename(id, baseName);
       if (!row) return { success: false, error: 'rename-failed' };
       eventManager.emit(AppEvent.FOLDER_UPDATED, row);
       return { success: true, data: row };
@@ -111,10 +87,10 @@ export function initFolderHandlers(): void {
     }
   });
 
-  ipcMain.handle('folder.move', async (_event, payload: { id: string; parentId: string | null }) => {
-    const { id, parentId } = payload || ({} as any);
+  ipcMain.handle('folder.move', async (_event, payload: { id: string; parentId: string | null; prevRank?: number; nextRank?: number }) => {
+    const { id, parentId, prevRank, nextRank } = payload || ({} as any);
     if (!id) return { success: false, error: 'invalid-params' };
-    const row = await FoldersRepo.move(id, parentId ?? null);
+    const row = await FoldersRepo.move(id, parentId ?? null, prevRank, nextRank);
     if (row) {
       eventManager.emit(AppEvent.FOLDER_MOVED, row);
     }

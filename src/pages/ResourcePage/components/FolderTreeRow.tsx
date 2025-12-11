@@ -13,6 +13,7 @@ export type UIFolder = {
   parentId?: string | null;
   workspaceId?: string;
   children?: UIFolder[];
+  rank?: number;
 };
 
 const FolderTreeRow = ({
@@ -34,7 +35,9 @@ const FolderTreeRow = ({
   onInlineRename,
   draggingFolderId,
   setDraggingFolderId,
-  parentMap
+  parentMap,
+  index,
+  siblings
 }: {
   node: UIFolder;
   depth: number;
@@ -44,7 +47,7 @@ const FolderTreeRow = ({
   onDelete: (id: string) => void;
   onCreate: (parentId?: string | null) => Promise<string | void>;
   onDropResources?: (folderId: string, ids: string[]) => void;
-  onMoveFolder?: (id: string, newParentId: string | null) => Promise<void> | void;
+  onMoveFolder?: (id: string, newParentId: string | null, prevRank?: number, nextRank?: number) => Promise<void> | void;
   counts?: Record<string, number>;
   expanded: boolean;
   isExpanded: (id: string) => boolean;
@@ -56,10 +59,13 @@ const FolderTreeRow = ({
   draggingFolderId?: string | null;
   setDraggingFolderId?: (id: string | null) => void;
   parentMap?: Map<string, string | null>;
+  index?: number;
+  siblings?: UIFolder[];
 }): React.ReactElement => {
   const isActive = selectedId === node.id;
   const [over, setOver] = React.useState(false);
   const [overInvalid, setOverInvalid] = React.useState(false);
+  const [dropPos, setDropPos] = React.useState<'top' | 'middle' | 'bottom'>('middle');
   const [tipOpen, setTipOpen] = React.useState(false);
   const count = counts?.[node.id] ?? 0;
   const hasChildren = (node.children || []).length > 0;
@@ -131,8 +137,17 @@ const FolderTreeRow = ({
         setOverInvalid(invalid);
         if (!invalid) {
           e.preventDefault();
+          e.stopPropagation();
           setOver(true);
           e.dataTransfer.dropEffect = 'move';
+
+          // Calculate position
+          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+          const y = e.clientY - rect.top;
+          const h = rect.height;
+          if (y < h * 0.25) setDropPos('top');
+          else if (y > h * 0.75) setDropPos('bottom');
+          else setDropPos('middle');
         } else {
           // disallow drop
           setOver(false);
@@ -143,26 +158,54 @@ const FolderTreeRow = ({
       }
       // dragging resources by default allowed
       e.preventDefault();
+      e.stopPropagation();
       setOver(true);
       setOverInvalid(false);
+      setDropPos('middle');
       e.dataTransfer.dropEffect = 'move';
     },
     onDragLeave: () => {
       setOver(false);
       setOverInvalid(false);
       setTipOpen(false);
+      setDropPos('middle');
     },
     onDrop: async (e: React.DragEvent) => {
+      e.stopPropagation();
       setOver(false);
       setOverInvalid(false);
       setTipOpen(false);
+      const currentDropPos = dropPos;
+      setDropPos('middle');
+
       try {
         // 1) folder -> folder move
         const fid = e.dataTransfer.getData('application/x-folder-id');
         if (fid) {
           if (fid !== node.id && !isAncestor(fid, node.id)) {
+            let targetParentId: string | null = node.id;
+            let prevRank: number | undefined;
+            let nextRank: number | undefined;
+
+            if (currentDropPos === 'middle') {
+              targetParentId = node.id;
+            } else {
+              targetParentId = node.parentId ?? null;
+              if (Array.isArray(siblings) && typeof index === 'number') {
+                if (currentDropPos === 'top') {
+                  const prevNode = siblings[index - 1];
+                  prevRank = prevNode?.rank;
+                  nextRank = node.rank;
+                } else {
+                  const nextNode = siblings[index + 1];
+                  prevRank = node.rank;
+                  nextRank = nextNode?.rank;
+                }
+              }
+            }
+
             try {
-              if (onMoveFolder) await onMoveFolder(fid, node.id);
+              if (onMoveFolder) await onMoveFolder(fid, targetParentId, prevRank, nextRank);
             } catch (err) {
               const msg = String((err as any)?.message || err || '');
               const isUnique = /UNIQUE|constraint/i.test(msg);
@@ -197,7 +240,7 @@ const FolderTreeRow = ({
   const MenuButton = (
     <SidebarMenuButton
       isActive={isActive}
-      className={`${over ? (overInvalid ? 'ring-1 ring-destructive/60 bg-destructive/10' : 'ring-1 ring-primary/50 bg-primary/5') : ''}`}
+      className={`${over ? (overInvalid ? 'ring-1 ring-destructive/60 bg-destructive/10' : dropPos === 'middle' ? 'ring-1 ring-primary/50 bg-primary/5' : '') : ''}`}
       onClick={() => {
         if (isEditing) return;
         onSelect(node.id);
@@ -253,7 +296,9 @@ const FolderTreeRow = ({
 
   return (
     <>
-      <SidebarMenuItem className="pl-0 list-none group">
+      <SidebarMenuItem className="pl-0 list-none group relative">
+        {over && !overInvalid && dropPos === 'top' && <div className="absolute top-0 right-0 h-0.5 bg-primary z-50 pointer-events-none" style={{ left: 8 + depth * 12 }} />}
+        {over && !overInvalid && dropPos === 'bottom' && <div className="absolute bottom-0 right-0 h-0.5 bg-primary z-50 pointer-events-none" style={{ left: 8 + depth * 12 }} />}
         <Tooltip open={overInvalid || tipOpen}>
           <TooltipTrigger asChild>{MenuButton}</TooltipTrigger>
           <TooltipContent side="right">不能移动到自己的子文件夹中</TooltipContent>
@@ -332,10 +377,12 @@ const FolderTreeRow = ({
       </SidebarMenuItem>
 
       {expanded &&
-        (node.children || []).map((child) => (
+        (node.children || []).map((child, idx) => (
           <FolderTreeRow
             key={child.id}
             node={child}
+            index={idx}
+            siblings={node.children}
             depth={depth + 1}
             selectedId={selectedId}
             onSelect={onSelect}
