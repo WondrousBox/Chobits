@@ -3,7 +3,7 @@ import { BrowserWindow } from 'electron';
 
 import { initAIHandlers } from '../../../packages/ai/ipc-main';
 import type { DownloadProgress } from '../../../packages/plugins';
-import { init as initPluginResourceHandlers } from '../../../packages/plugins/ipc-main';
+import { initPluginResourceHandlers } from '../../../packages/plugins/ipc-main';
 import { initDailyCare } from '../daily';
 import { initScreenshotHandlers } from '../screenshot';
 import { getResourcePath } from '../utils/resources-path';
@@ -17,7 +17,7 @@ import { initResourceHandlers } from './resource/ipc-main';
 import { initShortcutsHandlers } from './shortcuts';
 import { initSpriteHandlers } from './sprite';
 import { initStatusHandlers } from './status';
-import { initSystemHandlers } from './system';
+import { initSystemHandlers } from './system/ipc-main';
 import { initThemeHandlers } from './theme/ipc-main';
 import { initTrashHandlers } from './trash/ipc-main';
 import { initVectorHandlers } from './vector';
@@ -50,7 +50,7 @@ export function initHandlers(win: BrowserWindow): void {
   initShortcutsHandlers(win);
   initPluginResourceHandlers(win, {
     getHttpProxy,
-    getPluginDefinitionsPath: () => getResourcePath('plugins'),
+    getPluginDefinitionsPath: () => getResourcePath('plugins')!,
     onProgress: (info: DownloadProgress) => {
       try {
         // 发送到主窗口

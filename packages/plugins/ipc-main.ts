@@ -21,7 +21,7 @@ export interface InitOptions {
   onProgress?: (info: DownloadProgress) => void;
 }
 
-export function init(win: BrowserWindow, options?: InitOptions): void {
+export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOptions): void {
   // 如果提供了 getHttpProxy 方法，则存储它
   if (options?.getHttpProxy) {
     getHttpProxyFn = options.getHttpProxy;

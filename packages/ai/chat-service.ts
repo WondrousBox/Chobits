@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { BrowserWindow, ipcMain, WebContents } from 'electron';
 
-import { ChatRepo } from '../../electron/main/db/repositories';
+import { ChatRepo } from '../common/db';
 import { InstancesStore } from './instances-store';
 import { getAgent, getProvider } from './registry';
 import { getAllInstanceSecrets } from './settings-store';

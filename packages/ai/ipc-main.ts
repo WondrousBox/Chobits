@@ -1,6 +1,6 @@
 import { BrowserWindow, ipcMain } from 'electron';
 
-import { ChatRepo } from '../../electron/main/db/repositories';
+import { ChatRepo } from '../common/db';
 import { BasicAgent } from './agents/basic';
 import { RAGAgent } from './agents/rag';
 import { TaggerAgent } from './agents/tagger';

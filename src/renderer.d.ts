@@ -5,6 +5,7 @@ import type { FileIpcType } from '../electron/main/handlers/file/ipc-renderer';
 import type { FolderIpcType } from '../electron/main/handlers/folder/ipc-renderer';
 import type { ProxyIpcType } from '../electron/main/handlers/proxy/ipc-renderer';
 import type { ResourceIpcType } from '../electron/main/handlers/resource/ipc-renderer';
+import type { SystemIpcType } from '../electron/main/handlers/system/system';
 import type { ThemeIpcType } from '../electron/main/handlers/theme/ipc-renderer';
 import type { TrashIpcType } from '../electron/main/handlers/trash/ipc-renderer';
 import type { WorkspaceIpcType } from '../electron/main/handlers/workspace/ipc-renderer';
@@ -12,7 +13,6 @@ import type { PluginResourceBridgeType } from '../electron/main/plugins/ipc-rend
 import type { ShortcutsBridgeType } from '../electron/preload/apis/shortcuts';
 import type { SpriteBridgeType } from '../electron/preload/apis/sprite';
 import type { StatusBridgeType } from '../electron/preload/apis/status';
-import type { SystemBridgeType } from '../electron/preload/apis/system';
 import type { VectorBridgeType } from '../electron/preload/apis/vector';
 import type videoDownloaderAPI from '../electron/preload/apis/video-downloader';
 import type { WindowBridgeType } from '../electron/preload/apis/window';
@@ -40,7 +40,7 @@ declare global {
       trash: TrashIpcType;
       workspace: WorkspaceIpcType;
       file: FileIpcType;
-      system: SystemBridgeType;
+      system: SystemIpcType;
       folder: FolderIpcType;
       videoDownloader: typeof videoDownloaderAPI;
       sprite: SpriteBridgeType;

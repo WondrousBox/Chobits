@@ -39,7 +39,7 @@ export type Resource = {
   embedding?: ArrayBuffer | Uint8Array;
 };
 
-export type ResourceBridgeParams = {
+export type ResourceIpcParams = {
   'resource:add': IpcParams<[{ resource: PartialByKey<Resource, 'id'> }], { success: true; data: Resource }>;
   'resource:list': IpcParams<[void], Resource[]>;
   getResource: IpcParams<[{ id: string }], Resource | undefined>;
@@ -76,7 +76,7 @@ export type ResourceBridgeParams = {
   'resource:importLocalFolders': IpcParams<[{ workspaceId?: string; folderId?: string }], { canceled: boolean; success?: boolean }>;
 };
 
-const methods: Array<keyof ResourceBridgeParams> = [
+const methods: Array<keyof ResourceIpcParams> = [
   'resource:add',
   'resource:list',
   'getResource',
@@ -101,12 +101,12 @@ const methods: Array<keyof ResourceBridgeParams> = [
 ];
 
 export type ResourceIpcType = {
-  [K in keyof ResourceBridgeParams]: (...args: ResourceBridgeParams[K]['request']) => Promise<ResourceBridgeParams[K]['response']>;
+  [K in keyof ResourceIpcParams]: (...args: ResourceIpcParams[K]['request']) => Promise<ResourceIpcParams[K]['response']>;
 };
 
 const newIpc: Record<string, any> = {};
 methods.forEach((m) => {
-  newIpc[m] = (...args: ResourceBridgeParams[typeof m]['request']) => ipcRenderer.invoke(m as string, ...args);
+  newIpc[m] = (...args: ResourceIpcParams[typeof m]['request']) => ipcRenderer.invoke(m as string, ...args);
 });
 
 export const resourceIpcRenderer = newIpc as ResourceIpcType;
