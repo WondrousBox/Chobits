@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { ResourcesRepo } from '../../common/db';
 import { NodeConfig, NodeHandler, PortSchema } from '../types';
 
 type StartInputMode = 'resource' | 'text' | 'file' | 'url' | 'folder';
@@ -123,7 +124,8 @@ function getOutputsByMode(mode: StartInputMode): PortSchema[] {
         { key: 'name', label: '文件名', type: 'string' },
         { key: 'ext', label: '扩展名', type: 'string' },
         { key: 'mime', label: 'MIME', type: 'string' },
-        { key: 'kind', label: '类型', type: 'string' }
+        { key: 'kind', label: '类型', type: 'string' },
+        { key: 'contentText', label: '内容文本', type: 'string' }
       ];
     }
   }
@@ -268,10 +270,12 @@ export const StartNode: NodeHandler = {
       case 'resource':
       default: {
         // 兼容老行为：如果有 resource 字段就用，没有则把整个 input 当作资源透传
-        const resource = 'resource' in (input as any) ? (input as any).resource : input;
+        let resource = 'resource' in (input as any) ? (input as any).resource : input;
 
         let resourceId = '';
         let inputFilePath = '';
+        let contentText = '';
+
         if (typeof resource === 'string') {
           inputFilePath = String(resource || '');
         } else if (typeof resource === 'object' && resource) {
@@ -283,6 +287,23 @@ export const StartNode: NodeHandler = {
           } else if ('resourceId' in resource && (resource as any).resourceId) {
             resourceId = String((resource as any).resourceId || '');
           }
+          if ('contentText' in resource) {
+            contentText = String((resource as any).contentText || '');
+          }
+        }
+
+        // 如果有 ID，尝试从数据库获取完整资源信息
+        if (resourceId) {
+          try {
+            const fullResource = await ResourcesRepo.getById(resourceId);
+            if (fullResource) {
+              resource = fullResource;
+              if (fullResource.filePath) inputFilePath = fullResource.filePath;
+              if (fullResource.contentText) contentText = fullResource.contentText;
+            }
+          } catch (e) {
+            console.warn('[StartNode] Failed to fetch resource by id:', resourceId, e);
+          }
         }
 
         if (inputFilePath && fs.existsSync(inputFilePath)) {
@@ -290,11 +311,11 @@ export const StartNode: NodeHandler = {
           const ext = path.extname(inputFilePath).toLowerCase();
           const kind = detectType(ext);
           const m = guessMime(ext) || 'application/octet-stream';
-          return { resource, resourceId, path: inputFilePath, name, ext, mime: m, kind };
+          return { resource, resourceId, path: inputFilePath, name, ext, mime: m, kind, contentText };
         }
 
         // 如果拿不到文件路径，就只返回资源对象本身
-        return { resource };
+        return { resource, contentText };
       }
     }
   }

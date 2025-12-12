@@ -19,6 +19,8 @@ export const ResourceCreateNode: NodeHandler = {
     label: '新建资源',
     category: 'Resource',
     description: '通过文件对象、文件路径、URL或文本内容创建资源',
+    backgroundColor: '#3b82f6',
+    icon: 'TbFilePlus',
     inputs: [
       {
         key: 'file',
@@ -56,7 +58,21 @@ export const ResourceCreateNode: NodeHandler = {
         description: '标签（JSON字符串数组）'
       }
     ],
-    outputs: [{ key: 'resource', label: '创建的资源', type: 'resource', description: '创建后的完整资源对象' }]
+    outputs: [
+      {
+        key: 'resource',
+        label: '资源对象',
+        type: 'any',
+        description: '原始资源对象，兼容旧逻辑'
+      },
+      { key: 'resourceId', label: '资源 ID', type: 'string' },
+      { key: 'path', label: '路径', type: 'file' },
+      { key: 'name', label: '文件名', type: 'string' },
+      { key: 'ext', label: '扩展名', type: 'string' },
+      { key: 'mime', label: 'MIME', type: 'string' },
+      { key: 'kind', label: '类型', type: 'string' },
+      { key: 'contentText', label: '内容文本', type: 'string' }
+    ]
   },
   async run({ input, emit, ctx }) {
     // 获取文件路径或URL
@@ -175,7 +191,16 @@ export const ResourceCreateNode: NodeHandler = {
               reject(new Error('资源创建失败'));
               return;
             }
-            resolve({ resource: createdResource });
+            resolve({
+              resource: createdResource,
+              resourceId: createdResource.id,
+              path: createdResource.filePath,
+              name: createdResource.title || '文本资源',
+              ext: '',
+              mime: 'text/plain',
+              kind: 'text',
+              contentText: createdResource.contentText
+            });
           }
         });
       });
@@ -283,7 +308,16 @@ export const ResourceCreateNode: NodeHandler = {
             reject(new Error('资源创建失败'));
             return;
           }
-          resolve({ resource: createdResource });
+          resolve({
+            resource: createdResource,
+            resourceId: createdResource.id,
+            path: createdResource.filePath,
+            name: createdResource.title || path.basename(createdResource.filePath || ''),
+            ext: createdResource.ext || path.extname(createdResource.filePath || '').toLowerCase(),
+            mime: createdResource.mimeType || 'application/octet-stream',
+            kind: createdResource.type || 'file',
+            contentText: createdResource.contentText
+          });
         }
       });
     });
