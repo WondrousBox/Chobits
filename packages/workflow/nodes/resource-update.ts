@@ -13,7 +13,7 @@ export const ResourceUpdateNode: NodeHandler = {
     category: 'Resource',
     description: '更新资源的任意字段，返回更新后的完整资源对象',
     backgroundColor: '#3b82f6',
-    icon: 'TbEdit',
+    icon: 'TbFilePencil',
     inputs: [
       {
         key: 'resourceId',
@@ -226,7 +226,16 @@ export const ResourceUpdateNode: NodeHandler = {
       //   description: '归属文件夹（可为空，表示在根目录）'
       // }
     ],
-    outputs: [{ key: 'resource', label: '更新后的资源', type: 'resource', description: '更新后的完整资源对象' }]
+    outputs: [
+      { key: 'resource', label: '更新后的资源', type: 'resource', description: '更新后的完整资源对象' },
+      { key: 'resourceId', label: '资源 ID', type: 'string', description: '资源唯一标识' },
+      { key: 'path', label: '文件路径', type: 'string', description: '资源本地文件路径' },
+      { key: 'name', label: '文件名', type: 'string', description: '资源文件名' },
+      { key: 'ext', label: '扩展名', type: 'string', description: '资源扩展名' },
+      { key: 'mime', label: 'MIME 类型', type: 'string', description: '资源 MIME 类型' },
+      { key: 'kind', label: '资源类型', type: 'string', description: '资源类型（image/video/audio/text等）' },
+      { key: 'contentText', label: '内容文本', type: 'string', description: '资源文本内容' }
+    ]
   },
   async run({ input, emit }) {
     const resourceId = String(input.resourceId || '').trim();
@@ -295,7 +304,16 @@ export const ResourceUpdateNode: NodeHandler = {
             reject(new Error('资源更新失败或资源不存在'));
             return;
           }
-          resolve({ resource: updatedResource });
+          resolve({
+            resource: updatedResource,
+            resourceId: updatedResource.id,
+            path: updatedResource.filePath,
+            name: updatedResource.title,
+            ext: updatedResource.ext,
+            mime: updatedResource.mimeType,
+            kind: updatedResource.type,
+            contentText: updatedResource.contentText
+          });
         }
       });
     });

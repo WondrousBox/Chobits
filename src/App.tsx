@@ -66,7 +66,7 @@ function App(): JSX.Element {
                 <Route path="/chat" element={<ChatPage />} />
                 <Route path="/plugin-manager" element={<PluginPage />} />
                 <Route path="/plugin-download" element={<PluginDownloadPage />} />
-                <Route path="/workflow/:id?" element={<WorkflowBuilderPage />} />
+                <Route path="/workflow" element={<WorkflowBuilderPage />} />
                 <Route path="/workflow-page" element={<WorkflowPage />} />
                 <Route path="/screenshot" element={<Screenshot />} />
                 <Route path="/workflow-history" element={<WorkflowHistoryPage />} />

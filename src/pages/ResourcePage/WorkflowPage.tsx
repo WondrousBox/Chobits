@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { TbArrowLeft, TbCheck, TbChevronDown } from 'react-icons/tb';
+import { TbCheck, TbChevronDown } from 'react-icons/tb';
 import { useNavigate } from 'react-router-dom';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
@@ -149,22 +149,23 @@ const WorkflowPage: React.FC = () => {
       console.error('加载预设工作流失败:', err);
     }
     // 如果没有预设，使用默认的空白预设
-    // navigate('/workflow/new?mode=create&presetId=blank');
-    window.YUA.window['window:open']('workflowBuilder' as any, { mode: 'create', presetId: 'blank' }, { sameDisplayAsSender: true });
+    await window.YUA.window['window:open']('workflowBuilder' as any, { mode: 'create', presetId: 'blank' }, { sameDisplayAsSender: true });
   };
 
   const handleCreateFromPreset = async (): Promise<void> => {
-    const pid = selectedPresetId || 'blank';
-    // navigate(`/workflow/new?mode=create&presetId=${pid}`);
-    window.YUA.window['window:open']('workflowBuilder' as any, { mode: 'create', presetId: pid }, { sameDisplayAsSender: true });
+    if (selectedPresetId) {
+      await window.YUA.window['window:open']('workflowBuilder' as any, { mode: 'create', presetId: selectedPresetId }, { sameDisplayAsSender: true });
+    } else {
+      // 如果没有选择，默认使用空白预设
+      await window.YUA.window['window:open']('workflowBuilder' as any, { mode: 'create', presetId: 'blank' }, { sameDisplayAsSender: true });
+    }
     setShowPresetDialog(false);
     setSelectedPresetId('');
     setPresetPopoverOpen(false);
   };
 
   const openExisting = async (id: string): Promise<void> => {
-    // navigate(`/workflow/${id}`);
-    window.YUA.window['window:open']('workflowBuilder' as any, { presetId: id }, { sameDisplayAsSender: true });
+    await window.YUA.window['window:open']('workflowBuilder' as any, { id }, { sameDisplayAsSender: true });
   };
 
   const deleteOne = async (e: React.MouseEvent, id: string): Promise<void> => {
@@ -218,9 +219,6 @@ const WorkflowPage: React.FC = () => {
       <DragAbleTitle
         title={
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="h-8 w-8 no-drag" onClick={() => navigate(-1)}>
-              <TbArrowLeft />
-            </Button>
             <span>🧩</span>
             <span className="font-semibold">工作流</span>
           </div>
@@ -257,11 +255,9 @@ const WorkflowPage: React.FC = () => {
               <TableHeader className="sticky top-0 z-10 bg-muted/50 backdrop-blur-sm">
                 <TableRow>
                   <TableHead className="w-[200px]">名称</TableHead>
-                  <TableHead>描述</TableHead>
                   <TableHead className="w-20 text-center">节点数</TableHead>
                   <TableHead className="w-24 text-center">校验状态</TableHead>
                   <TableHead className="w-28 text-center">运行状态</TableHead>
-                  <TableHead className="w-32">更新时间</TableHead>
                   <TableHead className="w-24 text-center">操作</TableHead>
                 </TableRow>
               </TableHeader>
@@ -274,13 +270,14 @@ const WorkflowPage: React.FC = () => {
                     <TableRow key={wf.id} className="cursor-pointer" onClick={() => openExisting(wf.id)}>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <div className="font-medium text-sm">{wf.name || '未命名'}</div>
-                          {isPreset && <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">预设</span>}
+                          <div>
+                            <div className="font-medium text-sm">
+                              {isPreset && <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 whitespace-nowrap">预设</span>}
+                              {wf.name || '未命名'}
+                            </div>
+                            <div className="text-xs text-muted-foreground line-clamp-2">{wf.description || '—'}</div>
+                          </div>
                         </div>
-                        <div className="text-xs text-muted-foreground mt-0.5 font-mono">{wf.id}</div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm text-foreground/80 line-clamp-2 max-w-md">{wf.description || '—'}</div>
                       </TableCell>
                       <TableCell className="text-center">
                         <span className="text-sm">{wf.nodes?.length || 0}</span>
@@ -346,11 +343,6 @@ const WorkflowPage: React.FC = () => {
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-xs text-muted-foreground">
-                          {wf.updatedAt ? new Date(wf.updatedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}
-                        </div>
                       </TableCell>
                       <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-2">

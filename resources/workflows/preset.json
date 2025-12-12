@@ -4,41 +4,156 @@
     "name": "空白工作流",
     "description": "空白的起始工作流模板，可以在此基础上添加节点",
     "nodes": [
-      { "id": "start", "type": "core/start", "x": 120, "y": 180 },
-      { "id": "end", "type": "core/end", "x": 620, "y": 180 }
+      {
+        "id": "start",
+        "type": "core/start",
+        "x": 120,
+        "y": 180
+      },
+      {
+        "id": "end",
+        "type": "core/end",
+        "x": 620,
+        "y": 180
+      }
     ],
     "edges": [],
-    "options": { "concurrency": 1, "errorStrategy": "fail-fast" }
+    "options": {
+      "concurrency": 1,
+      "errorStrategy": "fail-fast"
+    }
   },
   {
     "id": "sample:ocr",
     "name": "文字识别 (OCR)",
     "description": "识别并提取图片中的文字",
     "nodes": [
-      { "id": "start", "type": "core/start", "x": 0, "y": 34 },
-      { "id": "load", "type": "resource/load", "x": 332, "y": 0 },
-      { "id": "ocr", "type": "image/ocr", "x": 676, "y": 34, "config": { "lang": "chi_sim" } },
-      { "id": "end", "type": "core/end", "x": 1051, "y": 34 }
+      {
+        "id": "start",
+        "type": "core/start",
+        "x": 0,
+        "y": 34
+      },
+      {
+        "id": "load",
+        "type": "resource/load",
+        "x": 332,
+        "y": 0
+      },
+      {
+        "id": "ocr",
+        "type": "image/ocr",
+        "x": 676,
+        "y": 34,
+        "config": {
+          "lang": "chi_sim"
+        }
+      },
+      {
+        "id": "end",
+        "type": "core/end",
+        "x": 1051,
+        "y": 34
+      }
     ],
     "edges": [
-      { "id": "e1", "from": { "nodeId": "start", "port": "resource" }, "to": { "nodeId": "load", "port": "resource" } },
-      { "id": "e2", "from": { "nodeId": "load", "port": "path" }, "to": { "nodeId": "ocr", "port": "image" } },
-      { "id": "e3", "from": { "nodeId": "ocr", "port": "text" }, "to": { "nodeId": "end", "port": "result" } }
+      {
+        "id": "e1",
+        "from": {
+          "nodeId": "start",
+          "port": "resource"
+        },
+        "to": {
+          "nodeId": "load",
+          "port": "resource"
+        }
+      },
+      {
+        "id": "e2",
+        "from": {
+          "nodeId": "load",
+          "port": "path"
+        },
+        "to": {
+          "nodeId": "ocr",
+          "port": "image"
+        }
+      },
+      {
+        "id": "e3",
+        "from": {
+          "nodeId": "ocr",
+          "port": "text"
+        },
+        "to": {
+          "nodeId": "end",
+          "port": "result"
+        }
+      }
     ],
-    "options": { "concurrency": 1, "errorStrategy": "fail-fast" }
+    "options": {
+      "concurrency": 1,
+      "errorStrategy": "fail-fast"
+    }
   },
   {
     "id": "sample:transcribe",
     "name": "音视频 -> 字幕 (Whisper)",
     "description": "调用 Whisper 将语音转换为文字",
     "nodes": [
-      { "id": "start", "type": "core/start", "x": 0, "y": 0, "config": {} },
-      { "id": "whisper", "type": "media/transcribe-whisper", "x": 366, "y": 17.5, "config": { "model": "ggml-base.bin", "language": "zh", "outputFormats": [ "txt", "srt", "json" ] } },
-      { "id": "end", "type": "core/end", "x": 846, "y": 51, "config": {} }
+      {
+        "id": "start",
+        "type": "core/start",
+        "x": 0,
+        "y": 0,
+        "config": {}
+      },
+      {
+        "id": "whisper",
+        "type": "media/transcribe-whisper",
+        "x": 366,
+        "y": 17.5,
+        "config": {
+          "model": "ggml-base.bin",
+          "language": "zh",
+          "outputFormats": [
+            "txt",
+            "srt",
+            "json"
+          ]
+        }
+      },
+      {
+        "id": "end",
+        "type": "core/end",
+        "x": 846,
+        "y": 51,
+        "config": {}
+      }
     ],
     "edges": [
-      { "id": "t4", "from": { "nodeId": "whisper", "port": "text" }, "to": { "nodeId": "end", "port": "result" } },
-      { "id": "e-MNiAAQ", "from": { "nodeId": "start", "port": "path" }, "to": { "nodeId": "whisper", "port": "media" } }
+      {
+        "id": "t4",
+        "from": {
+          "nodeId": "whisper",
+          "port": "text"
+        },
+        "to": {
+          "nodeId": "end",
+          "port": "result"
+        }
+      },
+      {
+        "id": "e-MNiAAQ",
+        "from": {
+          "nodeId": "start",
+          "port": "path"
+        },
+        "to": {
+          "nodeId": "whisper",
+          "port": "media"
+        }
+      }
     ],
     "options": {
       "concurrency": 1,
@@ -50,57 +165,115 @@
     "name": "视频转MP3",
     "description": "调用 FFmpeg 将视频转换为高质量MP3音频文件",
     "nodes": [
-      { "id": "start", "type": "core/start", "x": 0, "y": 34 },
-      { "id": "load", "type": "resource/load", "x": 332, "y": 0 },
-      { "id": "transcode", "type": "media/transcode", "x": 676, "y": 34, "config": { "format": "mp3", "quality": "high" } },
-      { "id": "end", "type": "core/end", "x": 1047, "y": 34 }
+      {
+        "id": "start",
+        "type": "core/start",
+        "x": 0,
+        "y": 0,
+        "config": {}
+      },
+      {
+        "id": "transcode",
+        "type": "media/transcode",
+        "x": 366,
+        "y": 88,
+        "config": {
+          "format": "mp3",
+          "quality": "high"
+        }
+      },
+      {
+        "id": "end",
+        "type": "core/end",
+        "x": 737,
+        "y": 87.5,
+        "config": {}
+      }
     ],
     "edges": [
-      { "id": "tc1", "from": { "nodeId": "start", "port": "resource" }, "to": { "nodeId": "load", "port": "resource" } },
-      { "id": "tc2", "from": { "nodeId": "load", "port": "path" }, "to": { "nodeId": "transcode", "port": "input" } },
-      { "id": "tc3", "from": { "nodeId": "transcode", "port": "output" }, "to": { "nodeId": "end", "port": "result" } }
+      {
+        "id": "tc3",
+        "from": {
+          "nodeId": "transcode",
+          "port": "output"
+        },
+        "to": {
+          "nodeId": "end",
+          "port": "result"
+        }
+      },
+      {
+        "id": "e-_ty9Ht",
+        "from": {
+          "nodeId": "start",
+          "port": "path"
+        },
+        "to": {
+          "nodeId": "transcode",
+          "port": "input"
+        }
+      }
     ],
-    "options": { "concurrency": 1, "errorStrategy": "fail-fast" }
-  },
-  {
-    "id": "sample:audio-compress",
-    "name": "音频压缩 (MP3)",
-    "description": "将音频转换/压缩为中等码率的 MP3 文件，适合分享或存档",
-    "nodes": [
-      { "id": "start", "type": "core/start", "x": 0, "y": 34 },
-      { "id": "load", "type": "resource/load", "x": 332, "y": 0 },
-      { "id": "transcode", "type": "media/transcode", "x": 676, "y": 34, "config": { "format": "mp3", "quality": "medium" } },
-      { "id": "end", "type": "core/end", "x": 1047, "y": 34 }
-    ],
-    "edges": [
-      { "id": "ac1", "from": { "nodeId": "start", "port": "resource" }, "to": { "nodeId": "load", "port": "resource" } },
-      { "id": "ac2", "from": { "nodeId": "load", "port": "path" }, "to": { "nodeId": "transcode", "port": "input" } },
-      { "id": "ac3", "from": { "nodeId": "transcode", "port": "output" }, "to": { "nodeId": "end", "port": "result" } }
-    ],
-    "options": { "concurrency": 1, "errorStrategy": "fail-fast" }
+    "options": {
+      "concurrency": 1,
+      "errorStrategy": "fail-fast"
+    }
   },
   {
     "id": "sample:video-keyframes",
     "name": "提取视频关键帧",
     "description": "使用 FFmpeg 提取定间隔关键帧，生成缩略图序列",
     "nodes": [
-      { "id": "start", "type": "core/start", "x": 0, "y": 34 },
-      { "id": "load", "type": "resource/load", "x": 332, "y": 0 },
+      {
+        "id": "start",
+        "type": "core/start",
+        "x": 0,
+        "y": 0,
+        "config": {}
+      },
       {
         "id": "keyframes",
         "type": "media/extract-keyframes",
-        "x": 700,
-        "y": 34,
+        "x": 366,
+        "y": 62.5,
         "config": {}
       },
-      { "id": "end", "type": "core/end", "x": 1080, "y": 34 }
+      {
+        "id": "end",
+        "type": "core/end",
+        "x": 814,
+        "y": 87.5,
+        "config": {}
+      }
     ],
     "edges": [
-      { "id": "vk1", "from": { "nodeId": "start", "port": "resource" }, "to": { "nodeId": "load", "port": "resource" } },
-      { "id": "vk2", "from": { "nodeId": "load", "port": "path" }, "to": { "nodeId": "keyframes", "port": "input" } },
-      { "id": "vk3", "from": { "nodeId": "keyframes", "port": "result" }, "to": { "nodeId": "end", "port": "result" } }
+      {
+        "id": "vk3",
+        "from": {
+          "nodeId": "keyframes",
+          "port": "result"
+        },
+        "to": {
+          "nodeId": "end",
+          "port": "result"
+        }
+      },
+      {
+        "id": "e-9IZnsw",
+        "from": {
+          "nodeId": "start",
+          "port": "path"
+        },
+        "to": {
+          "nodeId": "keyframes",
+          "port": "input"
+        }
+      }
     ],
-    "options": { "concurrency": 1, "errorStrategy": "fail-fast" }
+    "options": {
+      "concurrency": 1,
+      "errorStrategy": "fail-fast"
+    }
   },
   {
     "id": "sample:image-generate",
@@ -193,7 +366,8 @@
       "concurrency": 1,
       "errorStrategy": "fail-fast"
     }
-  },{
+  },
+  {
     "id": "sample:image-understand",
     "name": "图片理解",
     "description": "理解图片内容，并更新资源描述和标签",
@@ -295,4 +469,3 @@
     }
   }
 ]
-
