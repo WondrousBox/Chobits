@@ -18,6 +18,7 @@ import PluginDownloadPage from './pages/PluginPage/PluginDownloadPage';
 import PluginPage from './pages/PluginPage/PluginPage';
 import RecycleBinPage from './pages/ResourcePage/RecycleBinPage';
 import ResourcePage from './pages/ResourcePage/ResourcePage';
+import WorkflowPage from './pages/ResourcePage/WorkflowPage';
 import Screenshot from './pages/Screenshot';
 import WorkspacePage from './pages/SettingsPage/components/Workspace';
 import SettingsPage from './pages/SettingsPage/SettingsPage';
@@ -25,7 +26,6 @@ import StatusPage from './pages/StatusPage/StatusPage';
 import TaggingPage from './pages/TaggingPage/TaggingPage';
 import WorkflowBuilderPage from './pages/WorkflowBuilderPage/WorkflowBuilderPage';
 import WorkflowHistoryPage from './pages/WorkflowHistoryPage/WorkflowHistoryPage';
-import WorkflowPage from './pages/WorkflowPage/WorkflowPage';
 import WorkflowStartInputWindow from './pages/WorkflowStartInputWindow/WorkflowStartInputWindow';
 import WorkspaceWizard from './pages/WorkspacePage/WorkspaceWizard';
 
@@ -66,7 +66,7 @@ function App(): JSX.Element {
                 <Route path="/chat" element={<ChatPage />} />
                 <Route path="/plugin-manager" element={<PluginPage />} />
                 <Route path="/plugin-download" element={<PluginDownloadPage />} />
-                <Route path="/workflow" element={<WorkflowBuilderPage />} />
+                <Route path="/workflow/:id?" element={<WorkflowBuilderPage />} />
                 <Route path="/workflow-page" element={<WorkflowPage />} />
                 <Route path="/screenshot" element={<Screenshot />} />
                 <Route path="/workflow-history" element={<WorkflowHistoryPage />} />

@@ -2,7 +2,8 @@ import 'reactflow/dist/style.css';
 
 import { nanoid } from 'nanoid';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbPencil, TbPlayerPlay } from 'react-icons/tb';
+import { TbArrowLeft, TbPencil, TbPlayerPlay } from 'react-icons/tb';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import ReactFlow, {
   addEdge,
   Background,
@@ -57,6 +58,9 @@ const END_NODE_ID = 'end';
 
 const WorkflowCanvasInner: React.FC = () => {
   const { fitView } = useReactFlow();
+  const navigate = useNavigate();
+  const { id: routeId } = useParams();
+  const [searchParams] = useSearchParams();
   const nodesInitialized = useNodesInitialized();
   const specs = useNodeSpecs();
   const [draft, setDraft] = useState<WorkflowDraft | null>(null);
@@ -98,23 +102,40 @@ const WorkflowCanvasInner: React.FC = () => {
   useEffect(() => {
     (async () => {
       try {
-        const payload = await window.YUA.window['window:payload:get']('workflowBuilder' as any);
         let workflowDef: any = null;
         let presetId: string | null = null;
+        let targetId: string | null = null;
 
-        if (payload && payload.id) {
+        // 优先检查路由参数
+        if (routeId) {
+          targetId = routeId;
+        } else {
+          const mode = searchParams.get('mode');
+          if (mode === 'create') {
+            presetId = searchParams.get('presetId') || 'blank';
+          } else {
+            // 兼容旧的 window payload 方式
+            const payload = await window.YUA.window['window:payload:get']('workflowBuilder' as any);
+            if (payload && payload.id) {
+              targetId = payload.id;
+            } else {
+              presetId = payload?.presetId || 'blank';
+            }
+          }
+        }
+
+        if (targetId) {
           // 加载已存在的工作流
-          workflowDef = await invoke('wf:getDefinition', { id: payload.id }).catch(() => null);
+          workflowDef = await invoke('wf:getDefinition', { id: targetId }).catch(() => null);
         } else {
           // 从预设模板创建新工作流，如果没有提供 presetId，默认使用 'blank'
-          presetId = payload?.presetId || 'blank';
-          workflowDef = await invoke('wf:getDefinition', { id: presetId }).catch(() => null);
+          workflowDef = await invoke('wf:getDefinition', { id: presetId || 'blank' }).catch(() => null);
         }
 
         if (workflowDef && workflowDef.nodes && workflowDef.edges) {
-          if (payload && payload.id) {
+          if (targetId) {
             // 加载已存在的工作流，检查是否为预设工作流
-            const isPreset = await invoke('wf:isPreset', { id: payload.id }).catch(() => false);
+            const isPreset = await invoke('wf:isPreset', { id: targetId }).catch(() => false);
             setIsPresetWorkflow(isPreset);
             // 加载已存在的工作流，保持原有 ID；不还原运行时输入（inputDefaults），默认空
             const rfNodes: Node<NodeData>[] = workflowDef.nodes.map((n: any) => {
@@ -885,6 +906,9 @@ const WorkflowCanvasInner: React.FC = () => {
       <DragAbleTitle
         title={
           <div className="flex items-center gap-2 w-full">
+            <Button variant="ghost" size="icon" className="h-7 w-7 no-drag" onClick={() => navigate(-1)}>
+              <TbArrowLeft />
+            </Button>
             {isEditingTitle ? (
               <Input
                 ref={titleInputRef}
