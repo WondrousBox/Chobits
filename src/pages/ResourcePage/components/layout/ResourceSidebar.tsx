@@ -111,7 +111,7 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
           <SidebarMenuItem
             key={'workflow'}
             onClick={() => {
-              window.YUA.window['window:open']('workflowPage');
+              navigate('/workflow-page');
             }}
           >
             <SidebarMenuButton className={`h-8 transition-colors`}>

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { TbCheck, TbChevronDown } from 'react-icons/tb';
+import { TbArrowLeft, TbCheck, TbChevronDown } from 'react-icons/tb';
 import { useNavigate } from 'react-router-dom';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
@@ -149,23 +149,22 @@ const WorkflowPage: React.FC = () => {
       console.error('加载预设工作流失败:', err);
     }
     // 如果没有预设，使用默认的空白预设
-    await window.YUA.window['window:open']('workflowBuilder' as any, { mode: 'create', presetId: 'blank' }, { sameDisplayAsSender: true });
+    // navigate('/workflow/new?mode=create&presetId=blank');
+    window.YUA.window['window:open']('workflowBuilder' as any, { mode: 'create', presetId: 'blank' }, { sameDisplayAsSender: true });
   };
 
   const handleCreateFromPreset = async (): Promise<void> => {
-    if (selectedPresetId) {
-      await window.YUA.window['window:open']('workflowBuilder' as any, { mode: 'create', presetId: selectedPresetId }, { sameDisplayAsSender: true });
-    } else {
-      // 如果没有选择，默认使用空白预设
-      await window.YUA.window['window:open']('workflowBuilder' as any, { mode: 'create', presetId: 'blank' }, { sameDisplayAsSender: true });
-    }
+    const pid = selectedPresetId || 'blank';
+    // navigate(`/workflow/new?mode=create&presetId=${pid}`);
+    window.YUA.window['window:open']('workflowBuilder' as any, { mode: 'create', presetId: pid }, { sameDisplayAsSender: true });
     setShowPresetDialog(false);
     setSelectedPresetId('');
     setPresetPopoverOpen(false);
   };
 
   const openExisting = async (id: string): Promise<void> => {
-    await window.YUA.window['window:open']('workflowBuilder' as any, { id }, { sameDisplayAsSender: true });
+    // navigate(`/workflow/${id}`);
+    window.YUA.window['window:open']('workflowBuilder' as any, { presetId: id }, { sameDisplayAsSender: true });
   };
 
   const deleteOne = async (e: React.MouseEvent, id: string): Promise<void> => {
@@ -219,6 +218,9 @@ const WorkflowPage: React.FC = () => {
       <DragAbleTitle
         title={
           <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" className="h-8 w-8 no-drag" onClick={() => navigate(-1)}>
+              <TbArrowLeft />
+            </Button>
             <span>🧩</span>
             <span className="font-semibold">工作流</span>
           </div>
