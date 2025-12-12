@@ -78,13 +78,14 @@ function createLearningCardHtml(vocabulary: Vocabulary[], sentences: Sentence[],
       padding: 40px;
       width: ${width}px;
       color: #333;
+      padding: 0;
+      margin: 0;
+      overflow: hidden;
     }
     .card {
       background: white;
-      border-radius: 16px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
       overflow: hidden;
-      padding: 40px;
+      padding: 20px;
     }
     .header {
       margin-bottom: 30px;
@@ -116,9 +117,9 @@ function createLearningCardHtml(vocabulary: Vocabulary[], sentences: Sentence[],
     .english {
       font-size: 18px;
       color: #2c3e50;
-      margin-bottom: 4px;
     }
     .chinese {
+      margin-bottom: 20px;
       font-size: 16px;
       color: #7f8c8d;
     }
@@ -337,6 +338,12 @@ export const GenerateLearningCardNode: NodeHandler = {
         label: '图片路径',
         type: 'file',
         description: '生成的图片文件路径'
+      },
+      {
+        key: 'html',
+        label: 'HTML路径',
+        type: 'file',
+        description: '生成的HTML文件路径'
       }
     ]
   },
@@ -360,18 +367,22 @@ export const GenerateLearningCardNode: NodeHandler = {
 
     const timestamp = Date.now();
     const filename = `learning-card-${timestamp}.png`;
+    const htmlFilename = `learning-card-${timestamp}.html`;
     const outputPath = path.join(ctx.tmpDir, filename);
+    const htmlOutputPath = path.join(ctx.tmpDir, htmlFilename);
 
     if (!fs.existsSync(ctx.tmpDir)) {
       fs.mkdirSync(ctx.tmpDir, { recursive: true });
     }
 
     const html = createLearningCardHtml(vocabulary, sentences, width, backgroundColor);
+    fs.writeFileSync(htmlOutputPath, html);
 
     await renderHtmlToImage(html, outputPath, width, emit);
 
     return {
-      image: outputPath
+      image: outputPath,
+      html: htmlOutputPath
     };
   }
 };

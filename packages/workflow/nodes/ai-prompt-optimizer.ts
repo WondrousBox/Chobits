@@ -145,8 +145,8 @@ export const AiPromptOptimizerNode: NodeHandler = {
     const prompt = String(input.prompt || '').trim();
     if (!prompt) throw new Error('缺少原始提示词');
 
-    const providerId = String(config?.providerId || 'zhipu');
-    const model = String(config?.model || 'glm-4-5-flash');
+    const providerId = String(config?.providerId || '');
+    const model = String(config?.model || '');
     const optimizationGoal = input.optimizationGoal ? String(input.optimizationGoal).trim() : '';
 
     emit('node:progress', { progress: 10, message: '准备调用AI服务...' });
