@@ -23,8 +23,11 @@ import { DisplayTextNode } from './nodes/display-text';
 import { DocToMarkdownNode } from './nodes/doc-to-md';
 import { EndNode } from './nodes/end';
 import { ExtractKeyframesNode } from './nodes/extract-keyframes';
+import { GenerateLearningCardNode } from './nodes/generate-learning-card';
 import { ImageGenerateNode } from './nodes/image-generate';
 import { ImageUnderstandNode } from './nodes/image-understand';
+import { JsonParseNode } from './nodes/json-parse';
+import { JsonStringifyNode } from './nodes/json-stringify';
 import { OCRNode } from './nodes/ocr';
 import { ResourceCreateNode } from './nodes/resource-create';
 import { ResourceLoadNode } from './nodes/resource-load';
@@ -89,6 +92,9 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
     ExtractKeyframesNode,
     ImageUnderstandNode,
     ImageGenerateNode,
+    GenerateLearningCardNode,
+    JsonStringifyNode,
+    JsonParseNode,
     AiChatNode,
     AiPromptOptimizerNode,
     DisplayTextNode,
