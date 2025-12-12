@@ -151,6 +151,7 @@ export const StartNode: NodeHandler = {
         default: 'resource',
         description: '选择工作流开始时的输入来源',
         inputType: 'select',
+        showInNode: true,
         options: [
           { value: 'resource', label: '资源选择（默认）' },
           { value: 'text', label: '文本输入' },

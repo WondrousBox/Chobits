@@ -5,10 +5,10 @@ import { Handle, NodeProps, Position, useReactFlow } from 'reactflow';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
+import type { NodeSpec } from '@/types/workflow';
 
+import { ConfigFieldRenderer } from './ConfigFieldRenderer';
 import { getGradientBackgroundStyle, getIconComponent } from './nodeUtils';
 import type { NodeData } from './types';
 
@@ -44,13 +44,9 @@ const SpecNode: React.FC<NodeProps<NodeData>> = ({ id, data, selected }) => {
   };
 
   // 根据配置动态获取输入/输出端口（通过 IPC 调用后端的 getInputs/getOutputs 方法）
-  const [dynamicInputs, setDynamicInputs] = useState<Array<{ key: string; label?: string; type: string | string[]; description?: string; inputType?: string; showInNode?: boolean }>>(
-    spec.inputs || []
-  );
+  const [dynamicInputs, setDynamicInputs] = useState<Array<NodeSpec['inputs'][number] & { showInNode?: boolean }>>(spec.inputs || []);
   const [dynamicOutputs, setDynamicOutputs] = useState<Array<{ key: string; label?: string; type: string | string[] }>>(spec.outputs || []);
-  const [dynamicConfig, setDynamicConfig] = useState<Array<{ key: string; label?: string; type: string | string[]; description?: string; inputType?: string; showInNode?: boolean; default?: any }>>(
-    spec.config || []
-  );
+  const [dynamicConfig, setDynamicConfig] = useState<Array<NonNullable<NodeSpec['config']>[number] & { showInNode?: boolean }>>(spec.config || []);
 
   useEffect(() => {
     // 通过 IPC 调用后端获取动态输入
@@ -103,7 +99,7 @@ const SpecNode: React.FC<NodeProps<NodeData>> = ({ id, data, selected }) => {
   }, [spec.id, spec.inputs, spec.outputs, spec.config, spec.hasDynamicConfig, config]);
 
   // 内联编辑：更新当前节点的 inputDefaults
-  const updateInlineInput = (key: string, value: string) => {
+  const updateInlineInput = (key: string, value: any) => {
     rf.setNodes((nodes) =>
       nodes.map((n) =>
         n.id === id
@@ -123,7 +119,7 @@ const SpecNode: React.FC<NodeProps<NodeData>> = ({ id, data, selected }) => {
   };
 
   // 内联编辑：更新当前节点的 config
-  const updateInlineConfig = (key: string, value: string) => {
+  const updateInlineConfig = (key: string, value: any) => {
     rf.setNodes((nodes) =>
       nodes.map((n) =>
         n.id === id
@@ -235,103 +231,17 @@ const SpecNode: React.FC<NodeProps<NodeData>> = ({ id, data, selected }) => {
         {/* 内联输入编辑区域：渲染 showInNode 为 true 的输入端口 */}
         {inlineInputs.length > 0 && (
           <div className="mt-2 border-t border-border/60 pt-1 space-y-1">
-            {inlineInputs.map((field) => {
-              const val = (data.inputDefaults || {})[field.key] ?? '';
-              const label = field.label || field.key;
-              const description = field.description;
-              const inputType = field.inputType || 'text';
-
-              const commonProps = {
-                // 使用 defaultValue 而不是受控的 value，避免外部渲染重置输入法中间态
-                defaultValue: String(val ?? ''),
-                onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-                  e.stopPropagation();
-                  updateInlineInput(field.key, e.target.value);
-                },
-                onMouseDown: (e: React.MouseEvent) => {
-                  // 避免拖拽节点
-                  e.stopPropagation();
-                },
-                onWheel: (e: React.WheelEvent) => {
-                  // 避免滚动画布
-                  e.stopPropagation();
-                },
-                onKeyDown: (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-                  // 阻止键盘事件冒泡到画布/全局，避免影响输入法候选
-                  e.stopPropagation();
-                },
-                onKeyUp: (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-                  e.stopPropagation();
-                },
-                onKeyPress: (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-                  e.stopPropagation();
-                }
-              };
-
-              return (
-                <div key={field.key} className="space-y-0.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[10px] font-medium">{label}</span>
-                  </div>
-                  {inputType === 'textarea' ? (
-                    <Textarea {...commonProps} rows={3} placeholder={description || ''} className="min-h-[60px] text-[11px] leading-snug resize-none box-border" />
-                  ) : (
-                    <Input {...commonProps} placeholder={description || ''} className="h-7 text-[11px]" />
-                  )}
-                </div>
-              );
-            })}
+            {inlineInputs.map((field) => (
+              <ConfigFieldRenderer key={field.key} field={field} value={(data.inputDefaults || {})[field.key]} onChange={(val) => updateInlineInput(field.key, val)} nodeData={data} mode="compact" />
+            ))}
           </div>
         )}
         {/* 内联配置编辑区域：渲染 showInNode 为 true 的配置字段 */}
         {inlineConfigs.length > 0 && (
           <div className="mt-2 border-t border-border/60 pt-1 space-y-1">
-            {inlineConfigs.map((field) => {
-              const val = (data.config || {})[field.key] ?? field.default ?? '';
-              const label = field.label || field.key;
-              const description = field.description;
-              const inputType = field.inputType || 'text';
-
-              const commonProps = {
-                // 使用 defaultValue 而不是受控的 value，避免外部渲染重置输入法中间态
-                defaultValue: String(val ?? ''),
-                onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-                  e.stopPropagation();
-                  updateInlineConfig(field.key, e.target.value);
-                },
-                onMouseDown: (e: React.MouseEvent) => {
-                  // 避免拖拽节点
-                  e.stopPropagation();
-                },
-                onWheel: (e: React.WheelEvent) => {
-                  // 避免滚动画布
-                  e.stopPropagation();
-                },
-                onKeyDown: (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-                  // 阻止键盘事件冒泡到画布/全局，避免影响输入法候选
-                  e.stopPropagation();
-                },
-                onKeyUp: (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-                  e.stopPropagation();
-                },
-                onKeyPress: (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-                  e.stopPropagation();
-                }
-              };
-
-              return (
-                <div key={field.key} className="space-y-0.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[10px] font-medium">{label}</span>
-                  </div>
-                  {inputType === 'textarea' ? (
-                    <Textarea {...commonProps} rows={3} placeholder={description || ''} className="min-h-[60px] text-[11px] leading-snug resize-none box-border" />
-                  ) : (
-                    <Input {...commonProps} placeholder={description || ''} className="h-7 text-[11px]" />
-                  )}
-                </div>
-              );
-            })}
+            {inlineConfigs.map((field) => (
+              <ConfigFieldRenderer key={field.key} field={field} value={(data.config || {})[field.key]} onChange={(val) => updateInlineConfig(field.key, val)} nodeData={data} mode="compact" />
+            ))}
           </div>
         )}
         {/* Display node preview区域：仅对 Display 类节点做简单渲染 */}
