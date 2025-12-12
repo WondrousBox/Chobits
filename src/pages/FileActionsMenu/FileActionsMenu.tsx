@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
+import { runWorkflow as runWorkflowUtil } from '@/lib/workflow-runner';
+
 import { Resource } from '../../../electron/main/handlers/resource/ipc-renderer';
 import RadialMenu, { RadialMenuItem } from '../../components/common/RadialMenu/RadialMenu';
 
@@ -68,31 +70,23 @@ const FileActionsMenu: React.FC = () => {
         console.warn(`[FileActionsMenu] no resource for ${purpose}`);
         return;
       }
-      const ipc = window.ipcRenderer;
-      if (!ipc?.invoke) {
-        console.warn('[FileActionsMenu] ipcRenderer not available');
-        return;
-      }
-      const result = await ipc
-        .invoke('wf:run', {
-          defId,
-          input: { resource: primary, resourceId: primary.id },
-          metadata: {
-            resourceId: primary.id,
-            resourceName: primary.title || 'Unknown',
-            thumbnailPath: primary.thumbnailPath,
-            workspaceId: primary.workspaceId
-          }
-        })
-        .catch((err) => {
-          console.warn(`[FileActionsMenu] ${purpose} error`, err);
-          return null;
-        });
-      if (result?.ok) {
-        console.log(`[FileActionsMenu] ${purpose} started, runId:`, result.runId);
-      } else if (result) {
-        console.warn(`[FileActionsMenu] ${purpose} failed:`, result.error || result.validation);
-      }
+
+      await runWorkflowUtil({
+        defId,
+        input: { resource: primary, resourceId: primary.id },
+        metadata: {
+          resourceId: primary.id,
+          resourceName: primary.title || 'Unknown',
+          thumbnailPath: primary.thumbnailPath,
+          workspaceId: primary.workspaceId
+        },
+        onSuccess: (runId) => {
+          console.log(`[FileActionsMenu] ${purpose} started, runId:`, runId);
+        },
+        onError: () => {
+          console.warn(`[FileActionsMenu] ${purpose} failed`);
+        }
+      });
     };
     const closeAfter = async (fn: () => Promise<void> | void): Promise<void> => {
       try {

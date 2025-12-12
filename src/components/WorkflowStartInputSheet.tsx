@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { TbFolder, TbLoader2, TbPlayerPlay } from 'react-icons/tb';
 import { toast } from 'sonner';
 
-import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Textarea } from '@/components/ui/textarea';
+import { runWorkflow } from '@/lib/workflow-runner';
 
 type IncomingPayload = {
   defId: string;
@@ -24,7 +25,8 @@ type Folder = {
   workspaceId?: string;
 };
 
-export default function WorkflowStartInputWindow(): JSX.Element {
+export default function WorkflowStartInputSheet(): JSX.Element {
+  const [open, setOpen] = useState(false);
   const [defId, setDefId] = useState<string>('');
   const [inputMode, setInputMode] = useState<'text' | 'url' | 'file' | 'folder'>('text');
   const [metadata, setMetadata] = useState<Record<string, any>>({});
@@ -35,48 +37,36 @@ export default function WorkflowStartInputWindow(): JSX.Element {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [loadingFolders, setLoadingFolders] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [loading, setLoading] = useState(true);
 
-  // 从窗口管理器获取 payload
+  // 监听工作流开始节点需要输入的事件
   useEffect(() => {
-    let mounted = true;
-    const bootstrap = async (): Promise<void> => {
-      try {
-        const payload = (await window.YUA.window['window:payload:get']('workflowStartInput' as any)) as IncomingPayload | undefined;
-        if (!mounted) return;
-        if (!payload?.defId || !payload?.inputMode) {
-          setLoading(false);
-          return;
-        }
-        setDefId(payload.defId);
-        setInputMode(payload.inputMode);
-        setMetadata(payload.metadata || {});
-      } catch {
-        // ignore
-      } finally {
-        if (mounted) setLoading(false);
-      }
+    const handleStartInputRequired = (_e: any, payload: IncomingPayload): void => {
+      setDefId(payload.defId);
+      setInputMode(payload.inputMode);
+      setMetadata(payload.metadata || {});
+      setOpen(true);
 
-      // 通知主进程：窗口已准备就绪
-      try {
-        await window.YUA.window['window:open:ready']('workflowStartInput' as any);
-      } catch {
-        // ignore
-      }
+      // 重置表单
+      setText('');
+      setUrl('');
+      setFilePath('');
+      setFolderId('');
     };
 
-    bootstrap().catch(() => {
-      if (mounted) setLoading(false);
-    });
+    // 监听来自渲染进程内部的事件（新逻辑）
+    const handleInternalEvent = (e: CustomEvent<IncomingPayload>): void => {
+      handleStartInputRequired(null, e.detail);
+    };
+    window.addEventListener('wf:start-input-required', handleInternalEvent as EventListener);
 
     return () => {
-      mounted = false;
+      window.removeEventListener('wf:start-input-required', handleInternalEvent as EventListener);
     };
   }, []);
 
   // 加载文件夹列表（仅在文件夹模式下）
   useEffect(() => {
-    if (inputMode !== 'folder' || loading) return;
+    if (inputMode !== 'folder' || !open) return;
 
     let mounted = true;
     const loadFolders = async (): Promise<void> => {
@@ -119,7 +109,7 @@ export default function WorkflowStartInputWindow(): JSX.Element {
     return () => {
       mounted = false;
     };
-  }, [inputMode, loading]);
+  }, [inputMode, open]);
 
   const isValidUrl = (urlString: string): boolean => {
     try {
@@ -190,22 +180,18 @@ export default function WorkflowStartInputWindow(): JSX.Element {
 
       console.log('data', data);
 
-      const result = await invoke('wf:run', {
+      await runWorkflow({
         defId,
         input,
-        metadata: data
+        metadata: data,
+        onSuccess: () => {
+          toast.success('工作流已开始执行');
+          setOpen(false);
+        }
       });
-
-      if (!result?.ok) {
-        const description = result?.error || (result?.validation ? (typeof result.validation === 'string' ? result.validation : JSON.stringify(result.validation)) : '未知错误');
-        toast.error('工作流执行失败', { description });
-        return;
-      }
-
-      toast.success('工作流已开始执行');
-      window.close();
     } catch (err: any) {
-      toast.error('工作流执行失败', { description: err?.message || String(err) });
+      // runWorkflow handles most errors, but we catch unexpected ones here
+      console.error(err);
     } finally {
       setSubmitting(false);
     }
@@ -222,29 +208,17 @@ export default function WorkflowStartInputWindow(): JSX.Element {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="w-full h-full flex items-center justify-center text-sm">
-        <span>载入中...</span>
-      </div>
-    );
-  }
-
-  if (!defId || !inputMode) {
-    return (
-      <div className="w-full h-full flex items-center justify-center text-sm">
-        <span>缺少必要参数</span>
-      </div>
-    );
-  }
-
   return (
-    <div className="w-full h-full">
-      <DragAbleTitle title={<span>工作流输入</span>} />
-      <div className="w-full h-[calc(100%-36px)] px-4 box-border flex flex-col">
-        <div className="flex-1 py-4" style={{ width: 'calc(100% - 32px)' }}>
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetContent className="w-[400px] sm:w-[540px]">
+        <SheetHeader>
+          <SheetTitle>工作流输入</SheetTitle>
+          <SheetDescription>请填写工作流所需的输入参数</SheetDescription>
+        </SheetHeader>
+
+        <div className="py-6 space-y-6">
           {inputMode === 'text' && (
-            <div className="space-y-3 box-border">
+            <div className="space-y-3">
               <Label className="text-sm">文本内容</Label>
               <Textarea
                 value={text}
@@ -342,9 +316,11 @@ export default function WorkflowStartInputWindow(): JSX.Element {
           )}
         </div>
 
-        <div className="flex justify-end gap-2 pb-4">
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setOpen(false)} disabled={submitting}>
+            取消
+          </Button>
           <Button
-            size="sm"
             onClick={handleConfirm}
             disabled={
               submitting ||
@@ -367,7 +343,7 @@ export default function WorkflowStartInputWindow(): JSX.Element {
             )}
           </Button>
         </div>
-      </div>
-    </div>
+      </SheetContent>
+    </Sheet>
   );
 }

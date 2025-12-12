@@ -19,7 +19,6 @@ declare module '@aim-packages/window-manager' {
     workflowBuilder: void;
     workflowPage: void;
     aiProviderConfig: void;
-    workflowStartInput: void;
   }
 }
 
@@ -473,37 +472,6 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
       height: 320,
       minWidth: 360,
       minHeight: 260,
-      frame: false,
-      transparent: false,
-      resizable: false,
-      alwaysOnTop: false,
-      skipTaskbar: false,
-      backgroundColor: '#ffffff',
-      show: false,
-      autoHideMenuBar: true,
-      webPreferences: { nodeIntegration: true, contextIsolation: true }
-    },
-    platformOverlays: {
-      darwin: {
-        options: {
-          titleBarStyle: 'hiddenInset',
-          titleBarOverlay: true,
-          trafficLightPosition: { x: 20, y: HEADER_COMMANDS_HEIGHT / 2 - MACOS_TRAFFIC_LIGHTS_HEIGHT / 2 },
-          frame: true
-        }
-      }
-    }
-  },
-  workflowStartInput: {
-    routeHash: 'workflow-start-input',
-    autoCenterOn: 'parent-display',
-    showOnReady: false,
-    openDevTools: true,
-    options: {
-      width: 500,
-      height: 400,
-      minWidth: 400,
-      minHeight: 300,
       frame: false,
       transparent: false,
       resizable: false,

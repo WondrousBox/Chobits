@@ -25,6 +25,7 @@ import { toast } from 'sonner';
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { runWorkflow } from '@/lib/workflow-runner';
 import { ExecutionStatus, NodeSpec, WorkflowDraft, WorkflowRunLogEntry } from '@/types/workflow';
 
 import ResourceRunPopover from '../ResourcePage/ResourceRunPopover';
@@ -436,38 +437,33 @@ const WorkflowCanvasInner: React.FC = () => {
     async (resource: ResourceItem): Promise<void> => {
       if (!draft) return;
       setRunning(true);
-      try {
-        const result = await invoke('wf:run', {
-          defId: draft.id,
-          input: { resource, resourceId: resource.id },
-          metadata: {
-            resourceId: resource.id,
-            resourceName: resource.title || 'Unknown',
-            thumbnailPath: resource.thumbnailPath,
-            workspaceId: resource.workspaceId
+      await runWorkflow({
+        defId: draft.id,
+        input: { resource, resourceId: resource.id },
+        metadata: {
+          resourceId: resource.id,
+          resourceName: resource.title || 'Unknown',
+          thumbnailPath: resource.thumbnailPath,
+          workspaceId: resource.workspaceId
+        },
+        onSuccess: (runId) => {
+          currentRunIdRef.current = runId;
+          setCurrentRunId(runId);
+          setRunLogs([]);
+          setRunStatus('queued');
+          setConsoleCollapsed(false); // 运行时自动展开日志面板
+          toast.success('工作流已开始执行', { description: resource.title || resource.filePath || resource.id });
+          try {
+            eventCh.postMessage({ type: 'run-started', defId: draft.id, resourceId: resource.id });
+          } catch {
+            // ignore
           }
-        });
-        if (!result?.ok) {
-          const description = result?.error || (result?.validation ? (typeof result.validation === 'string' ? result.validation : JSON.stringify(result.validation)) : '未知错误');
-          toast.error('工作流执行失败', { description });
-          return;
+          setRunning(false);
+        },
+        onError: () => {
+          setRunning(false);
         }
-        currentRunIdRef.current = result.runId;
-        setCurrentRunId(result.runId);
-        setRunLogs([]);
-        setRunStatus('queued');
-        setConsoleCollapsed(false); // 运行时自动展开日志面板
-        toast.success('工作流已开始执行', { description: resource.title || resource.filePath || resource.id });
-        try {
-          eventCh.postMessage({ type: 'run-started', defId: draft.id, resourceId: resource.id });
-        } catch {
-          // ignore
-        }
-      } catch (err: any) {
-        toast.error('工作流执行失败', { description: err?.message || String(err) });
-      } finally {
-        setRunning(false);
-      }
+      });
     },
     [draft, eventCh]
   );
@@ -476,35 +472,30 @@ const WorkflowCanvasInner: React.FC = () => {
     async (text: string): Promise<void> => {
       if (!draft) return;
       setRunning(true);
-      try {
-        const result = await invoke('wf:run', {
-          defId: draft.id,
-          input: { text },
-          metadata: {
-            textLength: text.length
+      await runWorkflow({
+        defId: draft.id,
+        input: { text },
+        metadata: {
+          textLength: text.length
+        },
+        onSuccess: (runId) => {
+          currentRunIdRef.current = runId;
+          setCurrentRunId(runId);
+          setRunLogs([]);
+          setRunStatus('queued');
+          setConsoleCollapsed(false); // 运行时自动展开日志面板
+          toast.success('工作流已开始执行', { description: `文本输入 (${text.length} 字符)` });
+          try {
+            eventCh.postMessage({ type: 'run-started', defId: draft.id });
+          } catch {
+            // ignore
           }
-        });
-        if (!result?.ok) {
-          const description = result?.error || (result?.validation ? (typeof result.validation === 'string' ? result.validation : JSON.stringify(result.validation)) : '未知错误');
-          toast.error('工作流执行失败', { description });
-          return;
+          setRunning(false);
+        },
+        onError: () => {
+          setRunning(false);
         }
-        currentRunIdRef.current = result.runId;
-        setCurrentRunId(result.runId);
-        setRunLogs([]);
-        setRunStatus('queued');
-        setConsoleCollapsed(false); // 运行时自动展开日志面板
-        toast.success('工作流已开始执行', { description: `文本输入 (${text.length} 字符)` });
-        try {
-          eventCh.postMessage({ type: 'run-started', defId: draft.id });
-        } catch {
-          // ignore
-        }
-      } catch (err: any) {
-        toast.error('工作流执行失败', { description: err?.message || String(err) });
-      } finally {
-        setRunning(false);
-      }
+      });
     },
     [draft, eventCh]
   );
@@ -513,36 +504,31 @@ const WorkflowCanvasInner: React.FC = () => {
     async (filePath: string): Promise<void> => {
       if (!draft) return;
       setRunning(true);
-      try {
-        const result = await invoke('wf:run', {
-          defId: draft.id,
-          input: { file: filePath },
-          metadata: {
-            filePath
+      await runWorkflow({
+        defId: draft.id,
+        input: { file: filePath },
+        metadata: {
+          filePath
+        },
+        onSuccess: (runId) => {
+          currentRunIdRef.current = runId;
+          setCurrentRunId(runId);
+          setRunLogs([]);
+          setRunStatus('queued');
+          setConsoleCollapsed(false); // 运行时自动展开日志面板
+          const fileName = filePath.split(/[/\\]/).pop() || filePath;
+          toast.success('工作流已开始执行', { description: `文件: ${fileName}` });
+          try {
+            eventCh.postMessage({ type: 'run-started', defId: draft.id });
+          } catch {
+            // ignore
           }
-        });
-        if (!result?.ok) {
-          const description = result?.error || (result?.validation ? (typeof result.validation === 'string' ? result.validation : JSON.stringify(result.validation)) : '未知错误');
-          toast.error('工作流执行失败', { description });
-          return;
+          setRunning(false);
+        },
+        onError: () => {
+          setRunning(false);
         }
-        currentRunIdRef.current = result.runId;
-        setCurrentRunId(result.runId);
-        setRunLogs([]);
-        setRunStatus('queued');
-        setConsoleCollapsed(false); // 运行时自动展开日志面板
-        const fileName = filePath.split(/[/\\]/).pop() || filePath;
-        toast.success('工作流已开始执行', { description: `文件: ${fileName}` });
-        try {
-          eventCh.postMessage({ type: 'run-started', defId: draft.id });
-        } catch {
-          // ignore
-        }
-      } catch (err: any) {
-        toast.error('工作流执行失败', { description: err?.message || String(err) });
-      } finally {
-        setRunning(false);
-      }
+      });
     },
     [draft, eventCh]
   );
@@ -551,35 +537,30 @@ const WorkflowCanvasInner: React.FC = () => {
     async (url: string): Promise<void> => {
       if (!draft) return;
       setRunning(true);
-      try {
-        const result = await invoke('wf:run', {
-          defId: draft.id,
-          input: { url },
-          metadata: {
-            url
+      await runWorkflow({
+        defId: draft.id,
+        input: { url },
+        metadata: {
+          url
+        },
+        onSuccess: (runId) => {
+          currentRunIdRef.current = runId;
+          setCurrentRunId(runId);
+          setRunLogs([]);
+          setRunStatus('queued');
+          setConsoleCollapsed(false); // 运行时自动展开日志面板
+          toast.success('工作流已开始执行', { description: `链接: ${url}` });
+          try {
+            eventCh.postMessage({ type: 'run-started', defId: draft.id });
+          } catch {
+            // ignore
           }
-        });
-        if (!result?.ok) {
-          const description = result?.error || (result?.validation ? (typeof result.validation === 'string' ? result.validation : JSON.stringify(result.validation)) : '未知错误');
-          toast.error('工作流执行失败', { description });
-          return;
+          setRunning(false);
+        },
+        onError: () => {
+          setRunning(false);
         }
-        currentRunIdRef.current = result.runId;
-        setCurrentRunId(result.runId);
-        setRunLogs([]);
-        setRunStatus('queued');
-        setConsoleCollapsed(false); // 运行时自动展开日志面板
-        toast.success('工作流已开始执行', { description: `链接: ${url}` });
-        try {
-          eventCh.postMessage({ type: 'run-started', defId: draft.id });
-        } catch {
-          // ignore
-        }
-      } catch (err: any) {
-        toast.error('工作流执行失败', { description: err?.message || String(err) });
-      } finally {
-        setRunning(false);
-      }
+      });
     },
     [draft, eventCh]
   );
@@ -588,35 +569,30 @@ const WorkflowCanvasInner: React.FC = () => {
     async (folderId: string): Promise<void> => {
       if (!draft) return;
       setRunning(true);
-      try {
-        const result = await invoke('wf:run', {
-          defId: draft.id,
-          input: { folderId },
-          metadata: {
-            folderId
+      await runWorkflow({
+        defId: draft.id,
+        input: { folderId },
+        metadata: {
+          folderId
+        },
+        onSuccess: (runId) => {
+          currentRunIdRef.current = runId;
+          setCurrentRunId(runId);
+          setRunLogs([]);
+          setRunStatus('queued');
+          setConsoleCollapsed(false); // 运行时自动展开日志面板
+          toast.success('工作流已开始执行', { description: `文件夹 ID: ${folderId}` });
+          try {
+            eventCh.postMessage({ type: 'run-started', defId: draft.id });
+          } catch {
+            // ignore
           }
-        });
-        if (!result?.ok) {
-          const description = result?.error || (result?.validation ? (typeof result.validation === 'string' ? result.validation : JSON.stringify(result.validation)) : '未知错误');
-          toast.error('工作流执行失败', { description });
-          return;
+          setRunning(false);
+        },
+        onError: () => {
+          setRunning(false);
         }
-        currentRunIdRef.current = result.runId;
-        setCurrentRunId(result.runId);
-        setRunLogs([]);
-        setRunStatus('queued');
-        setConsoleCollapsed(false); // 运行时自动展开日志面板
-        toast.success('工作流已开始执行', { description: `文件夹 ID: ${folderId}` });
-        try {
-          eventCh.postMessage({ type: 'run-started', defId: draft.id });
-        } catch {
-          // ignore
-        }
-      } catch (err: any) {
-        toast.error('工作流执行失败', { description: err?.message || String(err) });
-      } finally {
-        setRunning(false);
-      }
+      });
     },
     [draft, eventCh]
   );
@@ -659,25 +635,28 @@ const WorkflowCanvasInner: React.FC = () => {
     } else if (startNodeInputMode === 'folder') {
       // 文件夹模式会通过 wf:start-input-required 事件触发输入窗口
       // 这里直接执行，让引擎处理输入需求
-      try {
-        const result = await invoke('wf:run', {
-          defId: draft.id,
-          input: {},
-          metadata: {}
-        });
-        if (!result?.ok) {
-          const description = result?.error || (result?.validation ? (typeof result.validation === 'string' ? result.validation : JSON.stringify(result.validation)) : '未知错误');
-          toast.error('工作流执行失败', { description });
+      await runWorkflow({
+        defId: draft!.id,
+        input: {},
+        metadata: {},
+        onSuccess: (runId) => {
+          currentRunIdRef.current = runId;
+          setCurrentRunId(runId);
+          setRunLogs([]);
+          setRunStatus('queued');
+          setConsoleCollapsed(false);
+          toast.success('工作流已开始执行');
+          try {
+            eventCh.postMessage({ type: 'run-started', defId: draft.id });
+          } catch {
+            // ignore
+          }
         }
-      } catch (err: any) {
-        // 如果是因为缺少输入而失败，引擎会触发输入窗口，这里不显示错误
-        if (!err?.message?.includes('已弹出输入窗口')) {
-          toast.error('工作流执行失败', { description: err?.message || String(err) });
-        }
-      }
+      });
     }
+
     // 如果是 resource 模式，ResourceRunPopover 会自动处理
-  }, [draft, startNodeInputMode, startNodeInputValue, runWorkflowWithText, runWorkflowWithFile, runWorkflowWithUrl, runWorkflowWithFolder]);
+  }, [draft, startNodeInputMode, startNodeInputValue, runWorkflowWithText, runWorkflowWithFile, runWorkflowWithUrl, runWorkflowWithFolder, eventCh]);
 
   const handleClearLogs = useCallback(() => {
     setRunLogs([]);
