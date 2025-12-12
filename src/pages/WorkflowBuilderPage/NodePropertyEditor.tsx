@@ -1,15 +1,11 @@
 /* eslint-disable react-hooks/rules-of-hooks */
 import { AnimatePresence, motion } from 'framer-motion';
 import React, { useEffect, useMemo, useState } from 'react';
-import { TbChevronDown, TbChevronRight, TbPlus, TbTrash } from 'react-icons/tb';
+import { TbChevronDown, TbChevronRight } from 'react-icons/tb';
 
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
-import { Textarea } from '@/components/ui/textarea';
 import type { NodeSpec } from '@/types/workflow';
 
+import { ConfigFieldRenderer } from './ConfigFieldRenderer';
 import type { NodeData } from './types';
 
 const invoke = window.ipcRenderer.invoke;
@@ -19,11 +15,6 @@ type ConfigSchema = NonNullable<NodeSpec['config']>[number];
 interface NodePropertyEditorProps {
   node: any;
   onChange: (updater: (prev: NodeData) => Partial<NodeData>) => void;
-}
-
-// 类型守卫：判断是否是分组选项
-function isOptionGroup(option: { value?: string; label?: string; group?: string; options?: any[] }): option is { group: string; options: Array<{ value: string; label: string }> } {
-  return 'group' in option && 'options' in option;
 }
 
 const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange }) => {
@@ -154,314 +145,6 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
     return initial;
   });
 
-  // 通用字段渲染函数
-  const renderField = (field: ConfigSchema | NodeSpec['inputs'][number], currentValue: any, onValueChange: (val: any) => void): React.ReactNode => {
-    const label = field.label || field.key;
-    const rawValue = currentValue ?? field.default;
-
-    // 检查是否是 boolean 类型
-    const isBoolean = field.type === 'boolean' || (Array.isArray(field.type) && field.type.includes('boolean'));
-
-    // 如果是 boolean 类型，使用 Switch 组件
-    if (isBoolean) {
-      const boolValue = typeof rawValue === 'boolean' ? rawValue : rawValue === 'true' || rawValue === true || rawValue === '1';
-      return (
-        <div key={field.key} className="flex items-center justify-between">
-          <div className="flex flex-col">
-            <label className="text-xs">{label}</label>
-            {field.description && <span className="text-xs text-muted-foreground">{field.description}</span>}
-          </div>
-          <Switch checked={boolValue} onCheckedChange={onValueChange} />
-        </div>
-      );
-    }
-
-    // 检查是否是数值类型
-    const isNumber = field.type === 'number' || (Array.isArray(field.type) && field.type.includes('number')) || field.inputType === 'number';
-
-    // 如果是数值类型，使用左右结构
-    if (isNumber) {
-      const numValue = typeof rawValue === 'number' ? rawValue : rawValue === '' || rawValue === null || rawValue === undefined ? '' : Number(rawValue);
-      return (
-        <div key={field.key} className="flex items-center justify-between">
-          <div className="flex flex-col">
-            <label className="text-xs">{label}</label>
-            {field.description && <span className="text-xs text-muted-foreground">{field.description}</span>}
-          </div>
-          <Input
-            type="number"
-            value={numValue}
-            onChange={(e) => {
-              const val = e.target.value === '' ? undefined : Number(e.target.value);
-              onValueChange(val);
-            }}
-            placeholder={field.description || ''}
-            className="h-8 w-24 text-xs"
-          />
-        </div>
-      );
-    }
-
-    // 检查是否是数组类型（多选）
-    const isArrayType = field.type === 'array' || (Array.isArray(field.type) && field.type.includes('array'));
-    const isMultipleSelect = field.inputType === 'select-multiple' || (isArrayType && field.inputType === 'select');
-
-    // 处理多选的情况
-    if (isMultipleSelect && field.options && field.options.length > 0) {
-      const selectedValues = Array.isArray(rawValue) ? rawValue : rawValue ? [rawValue] : [];
-      const flatOptions = field.options.filter((opt): opt is { value: string; label: string } => !isOptionGroup(opt));
-
-      return (
-        <div key={field.key} className="space-y-1">
-          <label className="block text-xs">{label}</label>
-          {field.description && <span className="text-xs text-muted-foreground">{field.description}</span>}
-          <div className="space-y-1.5 mt-1.5">
-            {flatOptions.map((opt) => {
-              const isChecked = selectedValues.includes(opt.value);
-              return (
-                <label key={opt.value} className="flex items-center space-x-2 cursor-pointer hover:bg-accent/50 rounded px-1.5 py-1">
-                  <input
-                    type="checkbox"
-                    checked={isChecked}
-                    onChange={(e) => {
-                      const newValues = e.target.checked ? [...selectedValues, opt.value] : selectedValues.filter((v) => v !== opt.value);
-                      onValueChange(newValues);
-                    }}
-                    className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer"
-                  />
-                  <span className="text-xs">{opt.label}</span>
-                </label>
-              );
-            })}
-          </div>
-        </div>
-      );
-    }
-
-    const value = String(rawValue ?? '');
-
-    // 根据 inputType 渲染不同的输入控件
-    if (field.inputType === 'select' && field.options && field.options.length > 0) {
-      // 检查第一个选项是否是分组结构
-      const hasGroups = field.options.some((opt) => isOptionGroup(opt));
-
-      if (hasGroups) {
-        // 分组显示
-        const groups = field.options.filter(isOptionGroup);
-        return (
-          <div key={field.key} className="space-y-1">
-            <label className="block text-xs">{label}</label>
-            <Select value={value} onValueChange={onValueChange}>
-              <SelectTrigger className="h-8 text-xs">
-                <SelectValue placeholder={field.description || `选择${label}`} />
-              </SelectTrigger>
-              <SelectContent>
-                {groups.map((group, index) => (
-                  <React.Fragment key={group.group}>
-                    {index > 0 && <SelectSeparator />}
-                    <SelectGroup>
-                      <SelectLabel>{group.group}</SelectLabel>
-                      {group.options.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </React.Fragment>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        );
-      }
-
-      // 普通的下拉选择（扁平结构）
-      const flatOptions = field.options.filter((opt): opt is { value: string; label: string } => !isOptionGroup(opt));
-      return (
-        <div key={field.key} className="space-y-1">
-          <label className="block text-xs">{label}</label>
-          <Select value={value} onValueChange={onValueChange}>
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder={field.description || `选择${label}`} />
-            </SelectTrigger>
-            <SelectContent>
-              {flatOptions.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      );
-    }
-
-    // 检查是否是 port-list 类型
-    if (field.inputType === 'port-list') {
-      const ports = (Array.isArray(rawValue) ? rawValue : []) as Array<{
-        key: string;
-        label: string;
-      }>;
-
-      const addPort = () => {
-        const newPort = {
-          key: `input_${Math.random().toString(36).substring(2, 7)}`,
-          label: `输入 ${ports.length + 1}`
-        };
-        onValueChange([...ports, newPort]);
-      };
-
-      const updatePort = (index: number, updates: Partial<(typeof ports)[0]>) => {
-        const newPorts = [...ports];
-        newPorts[index] = { ...newPorts[index], ...updates };
-        onValueChange(newPorts);
-      };
-
-      const removePort = (index: number) => {
-        const newPorts = ports.filter((_, i) => i !== index);
-        onValueChange(newPorts);
-      };
-
-      return (
-        <div key={field.key} className="space-y-2">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-medium">{label}</label>
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={addPort}>
-              <TbPlus className="h-4 w-4" />
-            </Button>
-          </div>
-          <div className="space-y-2">
-            {ports.map((port, index) => (
-              <div key={port.key} className="flex items-center gap-2 rounded-md border p-2 bg-muted/30">
-                <Input value={port.key} onChange={(e) => updatePort(index, { key: e.target.value })} placeholder="Key" className="h-7 text-xs w-1/3" />
-                <Input value={port.label} onChange={(e) => updatePort(index, { label: e.target.value })} placeholder="Label" className="h-7 text-xs flex-1" />
-                <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removePort(index)}>
-                  <TbTrash className="h-3 w-3" />
-                </Button>
-              </div>
-            ))}
-            {ports.length === 0 && <div className="text-xs text-muted-foreground text-center py-2">暂无端口，点击 + 添加</div>}
-          </div>
-        </div>
-      );
-    }
-
-    // 检查是否是 condition-list 类型
-    if (field.inputType === 'condition-list') {
-      const conditions = (Array.isArray(rawValue) ? rawValue : []) as Array<{
-        id: string;
-        name: string;
-        operator: string;
-        value: string;
-        targetInput?: string;
-      }>;
-
-      // 获取可用的输入端口列表
-      const availableInputs = (data.config?.inputs || [{ key: 'input', label: '默认输入' }]) as Array<{ key: string; label: string }>;
-
-      const addCondition = () => {
-        const newCondition = {
-          id: Math.random().toString(36).substring(2, 9),
-          name: `分支 ${conditions.length + 1}`,
-          operator: 'eq',
-          value: '',
-          targetInput: availableInputs[0]?.key || 'input'
-        };
-        onValueChange([...conditions, newCondition]);
-      };
-
-      const updateCondition = (index: number, updates: Partial<(typeof conditions)[0]>) => {
-        const newConditions = [...conditions];
-        newConditions[index] = { ...newConditions[index], ...updates };
-        onValueChange(newConditions);
-      };
-
-      const removeCondition = (index: number) => {
-        const newConditions = conditions.filter((_, i) => i !== index);
-        onValueChange(newConditions);
-      };
-
-      return (
-        <div key={field.key} className="space-y-2">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-medium">{label}</label>
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={addCondition}>
-              <TbPlus className="h-4 w-4" />
-            </Button>
-          </div>
-          <div className="space-y-2">
-            {conditions.map((cond, index) => (
-              <div key={cond.id} className="flex flex-col gap-2 rounded-md border p-2 bg-muted/30">
-                <div className="flex items-center gap-2">
-                  <Input value={cond.name} onChange={(e) => updateCondition(index, { name: e.target.value })} placeholder="分支名称" className="h-7 text-xs flex-1" />
-                  <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removeCondition(index)}>
-                    <TbTrash className="h-3 w-3" />
-                  </Button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Select value={cond.targetInput || availableInputs[0]?.key} onValueChange={(val) => updateCondition(index, { targetInput: val })}>
-                    <SelectTrigger className="h-7 text-xs w-[120px]">
-                      <SelectValue placeholder="选择输入" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableInputs.map((input) => (
-                        <SelectItem key={input.key} value={input.key}>
-                          {input.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={cond.operator} onValueChange={(val) => updateCondition(index, { operator: val })}>
-                    <SelectTrigger className="h-7 text-xs w-[100px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="eq">等于</SelectItem>
-                      <SelectItem value="neq">不等于</SelectItem>
-                      <SelectItem value="contains">包含</SelectItem>
-                      <SelectItem value="not_contains">不包含</SelectItem>
-                      <SelectItem value="starts_with">开头是</SelectItem>
-                      <SelectItem value="ends_with">结尾是</SelectItem>
-                      <SelectItem value="gt">大于</SelectItem>
-                      <SelectItem value="lt">小于</SelectItem>
-                      <SelectItem value="gte">大于等于</SelectItem>
-                      <SelectItem value="lte">小于等于</SelectItem>
-                      <SelectItem value="empty">为空</SelectItem>
-                      <SelectItem value="not_empty">不为空</SelectItem>
-                      <SelectItem value="regex">正则</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {cond.operator !== 'empty' && cond.operator !== 'not_empty' && (
-                  <Input value={cond.value} onChange={(e) => updateCondition(index, { value: e.target.value })} placeholder="值" className="h-7 text-xs w-full" />
-                )}
-              </div>
-            ))}
-            {conditions.length === 0 && <div className="text-xs text-muted-foreground text-center py-2">暂无条件，点击 + 添加</div>}
-          </div>
-        </div>
-      );
-    }
-
-    // 检查是否是 textarea 类型
-    if (field.inputType === 'textarea') {
-      return (
-        <div key={field.key} className="space-y-1">
-          <label className="block text-xs">{label}</label>
-          <Textarea value={value} onChange={(e) => onValueChange(e.target.value)} placeholder={field.description || ''} className="min-h-[80px] text-xs resize-y box-border" />
-        </div>
-      );
-    }
-
-    // 默认使用 Input
-    return (
-      <div key={field.key} className="space-y-1">
-        <label className="block text-xs">{label}</label>
-        <Input value={value} onChange={(e) => onValueChange(e.target.value)} placeholder={field.description || ''} className="h-8 text-xs" />
-      </div>
-    );
-  };
-
   // 将配置项按组分类（使用动态配置）
   const groupedConfigs = React.useMemo(() => {
     const groups: Record<string, ConfigSchema[]> = {};
@@ -514,7 +197,9 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
             </div>
 
             {/* 渲染未分组的配置项 */}
-            {groupedConfigs.ungrouped.map((c) => renderField(c, (data.config || {})[c.key], (val) => onChange((prev) => ({ config: { ...prev.config, [c.key]: val } }))))}
+            {groupedConfigs.ungrouped.map((c) => (
+              <ConfigFieldRenderer key={c.key} field={c} value={(data.config || {})[c.key]} onChange={(val) => onChange((prev) => ({ config: { ...prev.config, [c.key]: val } }))} nodeData={data} />
+            ))}
 
             {/* 渲染分组的配置项 */}
             {(() => {
@@ -546,7 +231,15 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
                           style={{ overflow: 'hidden' }}
                         >
                           <div className="pl-4 space-y-2">
-                            {configs.map((c) => renderField(c, (data.config || {})[c.key], (val) => onChange((prev) => ({ config: { ...prev.config, [c.key]: val } }))))}
+                            {configs.map((c) => (
+                              <ConfigFieldRenderer
+                                key={c.key}
+                                field={c}
+                                value={(data.config || {})[c.key]}
+                                onChange={(val) => onChange((prev) => ({ config: { ...prev.config, [c.key]: val } }))}
+                                nodeData={data}
+                              />
+                            ))}
                           </div>
                         </motion.div>
                       )}
@@ -560,7 +253,15 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
         {spec.inputs && spec.inputs.length > 0 && (
           <div className="space-y-2">
             <div className="text-xs uppercase opacity-70">输入默认值</div>
-            {spec.inputs.map((inp) => renderField(inp, (data.inputDefaults || {})[inp.key], (val) => onChange((prev) => ({ inputDefaults: { ...prev.inputDefaults, [inp.key]: val } }))))}
+            {spec.inputs.map((inp) => (
+              <ConfigFieldRenderer
+                key={inp.key}
+                field={inp}
+                value={(data.inputDefaults || {})[inp.key]}
+                onChange={(val) => onChange((prev) => ({ inputDefaults: { ...prev.inputDefaults, [inp.key]: val } }))}
+                nodeData={data}
+              />
+            ))}
           </div>
         )}
       </div>
