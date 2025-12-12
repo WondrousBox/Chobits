@@ -7,6 +7,7 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator,
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { runWorkflow } from '@/lib/workflow-runner';
 
 import { ResourceItem } from '../types';
 import { ResourceItemWithSubtitles } from '../utils/subtitleUtils';
@@ -601,13 +602,13 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
                   return (
                     <ContextMenuItem
                       key={wf.id}
-                      onSelect={() => {
+                      onSelect={async () => {
                         if (inputMode === 'resource') {
                           // 资源模式需要选中资源
                           if (!firstSelected) return;
                           const item = mergedItems.find((i) => i.id === firstSelected);
                           if (item) {
-                            window.ipcRenderer.invoke('wf:run', {
+                            await runWorkflow({
                               defId: wf.id,
                               input: { resource: item, resourceId: item.id },
                               metadata: {
@@ -615,22 +616,26 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
                                 resourceName: item.title || 'Unknown',
                                 thumbnailPath: item.thumbnailPath,
                                 workspaceId: item.workspaceId
+                              },
+                              onSuccess: () => {
+                                toast.success(`已开始执行工作流: ${wf.name}`);
                               }
                             });
-                            toast.success(`已开始执行工作流: ${wf.name}`);
                           }
                         } else {
                           // 其他模式（text/url/file）不需要资源，直接执行
                           // 引擎会自动检测并弹出输入窗口
-                          window.ipcRenderer.invoke('wf:run', {
+                          await runWorkflow({
                             defId: wf.id,
                             input: {},
                             metadata: {
                               workspaceId,
                               folderId
+                            },
+                            onSuccess: () => {
+                              toast.success(`已开始执行工作流: ${wf.name}`);
                             }
                           });
-                          toast.success(`已开始执行工作流: ${wf.name}`);
                         }
                       }}
                     >
@@ -698,7 +703,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
                     <ContextMenuItem
                       key={wf.id}
                       disabled={!canExecute}
-                      onSelect={() => {
+                      onSelect={async () => {
                         const inputMode = getWorkflowInputMode(wf);
                         if (inputMode === 'resource') {
                           // 资源模式需要选中资源，但这里没有选中，所以不应该执行
@@ -706,15 +711,17 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
                         } else {
                           // 其他模式（text/url/file）不需要资源，直接执行
                           // 引擎会自动检测并弹出输入窗口
-                          window.ipcRenderer.invoke('wf:run', {
+                          await runWorkflow({
                             defId: wf.id,
                             input: {},
                             metadata: {
                               workspaceId,
                               folderId
+                            },
+                            onSuccess: () => {
+                              toast.success(`已开始执行工作流: ${wf.name}`);
                             }
                           });
-                          toast.success(`已开始执行工作流: ${wf.name}`);
                         }
                       }}
                     >

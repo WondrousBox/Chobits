@@ -125,12 +125,6 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
     broadcast('wf:ai-missing-provider', payload);
   });
 
-  // 将开始节点需要输入的事件转发到渲染进程
-  // payload: { defId: string; inputMode: 'text' | 'url' | 'file'; metadata?: Record<string, any> }
-  engine.on('wf:start-input-required', (payload: any) => {
-    broadcast('wf:start-input-required', payload);
-  });
-
   // 处理开始节点文件夹模式下的上下文更新请求
   // payload: { workspaceId: string; folderId: string; __runId: string }
   engine.on('wf:update-context', (payload: any) => {
@@ -696,6 +690,12 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
     if (!validation.ok) {
       console.warn('[WorkflowSystem] 工作流验证失败:', validation);
       return { ok: false, validation };
+    }
+
+    // 检查是否需要输入
+    const requiredInputMode = engine.checkStartInput(def, payload.input || {});
+    if (requiredInputMode) {
+      return { ok: false, error: 'input-required', inputMode: requiredInputMode };
     }
 
     const rec = await engine.run(def, payload.input || {}, payload.metadata);

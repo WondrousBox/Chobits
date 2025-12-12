@@ -138,6 +138,27 @@ export class WorkflowEngine extends EngineEmitter {
     return { ok: errors.length === 0 && missingPlugins.length === 0, errors: errors.length ? errors : undefined, missingPlugins: missingPlugins.length ? missingPlugins : undefined };
   }
 
+  /**
+   * 检查工作流开始节点是否需要输入
+   * @param def 工作流定义
+   * @param input 当前提供的输入
+   * @returns 如果需要输入，返回输入模式；否则返回 null
+   */
+  checkStartInput(def: WorkflowDefinition, input: Record<string, any> = {}): 'text' | 'url' | 'file' | 'folder' | null {
+    const startNode = def.nodes.find((n) => n.type === 'core/start');
+    if (!startNode) return null;
+
+    const inputMode = (startNode.config?.inputMode as string) || 'resource';
+    const effectiveInput = { ...(startNode.inputDefaults || {}), ...input };
+
+    if (inputMode === 'text' && !effectiveInput.text) return 'text';
+    if (inputMode === 'url' && !effectiveInput.url) return 'url';
+    if (inputMode === 'file' && !effectiveInput.file) return 'file';
+    if (inputMode === 'folder' && !effectiveInput.folderId) return 'folder';
+
+    return null;
+  }
+
   getRun(runId: string): WorkflowRunRecord | undefined {
     return this.runs.get(runId);
   }
@@ -309,13 +330,7 @@ runId: ${runId}
         // 检查开始节点是否需要输入但没有提供
         const inputMode = (inst.config?.inputMode as string) || 'resource';
         if (inputMode === 'text' && !input.text && !initialData.text) {
-          // 需要文本输入但没有提供，发出事件通知前端打开输入窗口
-          this.emit('wf:start-input-required', {
-            defId: def.id,
-            inputMode: 'text',
-            metadata
-          });
-          const error = '开始节点需要文本输入，已弹出输入窗口，请完成输入后重试。';
+          const error = '开始节点需要文本输入，请提供输入后重试。';
           this.log(runId, 'error', nodeId, `[WorkflowEngine] ${error}`);
           nodesState[nodeId] = { nodeId, status: 'failed', error };
           rec.status = 'failed';
@@ -325,13 +340,7 @@ runId: ${runId}
           return rec;
         }
         if (inputMode === 'url' && !input.url && !initialData.url) {
-          // 需要链接输入但没有提供，发出事件通知前端打开输入窗口
-          this.emit('wf:start-input-required', {
-            defId: def.id,
-            inputMode: 'url',
-            metadata
-          });
-          const error = '开始节点需要链接输入，已弹出输入窗口，请完成输入后重试。';
+          const error = '开始节点需要链接输入，请提供输入后重试。';
           this.log(runId, 'error', nodeId, `[WorkflowEngine] ${error}`);
           nodesState[nodeId] = { nodeId, status: 'failed', error };
           rec.status = 'failed';
@@ -341,13 +350,7 @@ runId: ${runId}
           return rec;
         }
         if (inputMode === 'file' && !input.file && !initialData.file) {
-          // 需要文件输入但没有提供，发出事件通知前端打开输入窗口
-          this.emit('wf:start-input-required', {
-            defId: def.id,
-            inputMode: 'file',
-            metadata
-          });
-          const error = '开始节点需要文件输入，已弹出输入窗口，请完成输入后重试。';
+          const error = '开始节点需要文件输入，请提供输入后重试。';
           this.log(runId, 'error', nodeId, `[WorkflowEngine] ${error}`);
           nodesState[nodeId] = { nodeId, status: 'failed', error };
           rec.status = 'failed';
@@ -357,13 +360,7 @@ runId: ${runId}
           return rec;
         }
         if (inputMode === 'folder' && !input.folderId && !initialData.folderId && !ctx.folderId) {
-          // 需要文件夹输入但没有提供，发出事件通知前端打开输入窗口
-          this.emit('wf:start-input-required', {
-            defId: def.id,
-            inputMode: 'folder',
-            metadata
-          });
-          const error = '开始节点需要文件夹输入，已弹出输入窗口，请完成输入后重试。';
+          const error = '开始节点需要文件夹输入，请提供输入后重试。';
           this.log(runId, 'error', nodeId, `[WorkflowEngine] ${error}`);
           nodesState[nodeId] = { nodeId, status: 'failed', error };
           rec.status = 'failed';
