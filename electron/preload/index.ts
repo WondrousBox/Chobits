@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 import { aiBridge } from '../../packages/ai/ipc-renderer';
 import { APP_EVENT_CHANNEL, AppEventPayload } from '../../packages/event/events';
-import { pluginResourceAPI } from '../../packages/plugins/ipc-renderer';
+import { pluginResourceIpcRenderer } from '../../packages/plugins/ipc-renderer';
 import { dailyCareBridge } from '../main/daily/ipc-renderer';
 import { ffmpegIpcRenderer } from '../main/handlers/ffmpeg/ipc-renderer';
 import { fileIpcRenderer } from '../main/handlers/file/ipc-renderer';
@@ -69,7 +69,7 @@ contextBridge.exposeInMainWorld('YUA', {
   shortcuts: shortcutsBridge,
   ai: aiBridge,
   dailyCare: dailyCareBridge,
-  pluginResource: pluginResourceAPI,
+  pluginResource: pluginResourceIpcRenderer,
   proxy: proxyIpcRenderer,
   theme: themeIpcRenderer,
   events: {

@@ -9,7 +9,7 @@ import type { SystemIpcType } from '../electron/main/handlers/system/ipc-rendere
 import type { ThemeIpcType } from '../electron/main/handlers/theme/ipc-renderer';
 import type { TrashIpcType } from '../electron/main/handlers/trash/ipc-renderer';
 import type { WorkspaceIpcType } from '../electron/main/handlers/workspace/ipc-renderer';
-import type { PluginResourceBridgeType } from '../electron/main/plugins/ipc-renderer';
+import type { PluginResourceIpcType } from '../electron/main/plugins/ipc-renderer';
 import type { ShortcutsBridgeType } from '../electron/preload/apis/shortcuts';
 import type { SpriteBridgeType } from '../electron/preload/apis/sprite';
 import type { StatusBridgeType } from '../electron/preload/apis/status';
@@ -46,7 +46,7 @@ declare global {
       sprite: SpriteBridgeType;
       status: StatusBridgeType;
       shortcuts: ShortcutsBridgeType;
-      pluginResource: PluginResourceBridgeType;
+      pluginResource: PluginResourceIpcType;
       dailyCare: DailyCareBridgeType;
       proxy: ProxyIpcType;
       theme: ThemeIpcType;
