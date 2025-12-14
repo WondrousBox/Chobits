@@ -1,6 +1,6 @@
 import { ipcRenderer } from 'electron';
 
-export type PluginResourceBridgeType = {
+export type PluginResourceIpcType = {
   'plugin-resource:listSupported': () => Promise<any[]>;
   'plugin-resource:listInstalledEngines': () => Promise<any[]>;
   'plugin-resource:listSupportedModels': () => Promise<any[]>;
@@ -21,7 +21,7 @@ export type PluginResourceBridgeType = {
   'plugin-resource:checkNetwork': () => Promise<{ ok: boolean; results: Array<{ name: string; url: string; success: boolean; error?: string }> }>;
 };
 
-export const pluginResourceAPI: PluginResourceBridgeType = {
+export const pluginResourceIpcRenderer: PluginResourceIpcType = {
   'plugin-resource:listSupported': () => ipcRenderer.invoke('plugin-resource:listSupported'),
   'plugin-resource:listInstalledEngines': () => ipcRenderer.invoke('plugin-resource:listInstalledEngines'),
   'plugin-resource:listSupportedModels': () => ipcRenderer.invoke('plugin-resource:listSupportedModels'),
