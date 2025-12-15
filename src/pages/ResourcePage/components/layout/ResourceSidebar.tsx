@@ -30,6 +30,7 @@ interface ResourceSidebarProps {
   folderAPI: any;
   showTasks: boolean;
   setShowTasks: (show: boolean) => void;
+  onOpenSettings: () => void;
 }
 
 const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
@@ -53,7 +54,8 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
   handleDeleteFolder,
   folderAPI,
   showTasks,
-  setShowTasks
+  setShowTasks,
+  onOpenSettings
 }) => {
   const navigate = useNavigate();
 
@@ -122,7 +124,7 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
           <SidebarMenuItem
             key={'settings'}
             onClick={() => {
-              window.YUA.window['window:open']('settings');
+              onOpenSettings();
             }}
           >
             <SidebarMenuButton>

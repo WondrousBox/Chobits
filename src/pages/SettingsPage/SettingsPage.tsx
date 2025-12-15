@@ -79,9 +79,10 @@ const defaultCategories: SettingsCategoryDef[] = [
 
 interface SettingsPageProps {
   extraCategories?: SettingsCategoryDef[];
+  hideTitleBar?: boolean;
 }
 
-export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = [] }) => {
+export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = [], hideTitleBar = false }) => {
   // 合并分类，将扩展分类放在偏好设置之后 (index 1)
   const allCategories = React.useMemo(() => {
     const cats = [...defaultCategories];
@@ -157,7 +158,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = []
 
   return (
     <div className="h-full w-full bg-background">
-      <DragAbleTitle title={<span>⚙️ 设置</span>} />
+      {!hideTitleBar && <DragAbleTitle title={<span>⚙️ 设置</span>} />}
       <SidebarProvider>
         <Sidebar className="top-9 h-[calc(100vh-36px)]">
           <SidebarContent>
