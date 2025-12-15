@@ -203,8 +203,8 @@ app.on('will-quit', async () => {
   unregisterGlobalShortcuts();
   // Flush workflow store
   try {
-    const { flushStore } = await import('../../packages/workflow/store');
-    await flushStore();
+    const { WorkflowStore } = await import('../../packages/workflow/store');
+    await WorkflowStore.flushStore();
   } catch (e) {
     console.warn('[workflow] flush store failed', e);
   }

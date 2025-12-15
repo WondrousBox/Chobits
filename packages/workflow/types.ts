@@ -90,6 +90,8 @@ export type WorkflowDefinition = {
     concurrency?: number; // default 2
     errorStrategy?: 'fail-fast' | 'continue';
   };
+  // 是否为预设工作流
+  isPreset?: boolean;
 };
 
 export type ExecutionStatus = 'queued' | 'running' | 'completed' | 'failed' | 'canceled';

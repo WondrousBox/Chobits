@@ -14,55 +14,57 @@ let presetWorkflowsCache: WorkflowDefinition[] | null = null;
 let presetWorkflowsCacheTime = 0;
 const PRESET_CACHE_TTL = 60000; // 缓存1分钟
 
-/**
- * 加载预设工作流定义（带缓存）
- */
-export async function loadPresetWorkflows(definitionsPath: string, forceReload?: boolean): Promise<WorkflowDefinition[]> {
-  const now = Date.now();
+export const WorkflowStore = {
+  /**
+   * 加载预设工作流定义（带缓存）
+   */
+  async loadPresetWorkflows(definitionsPath: string, forceReload?: boolean): Promise<WorkflowDefinition[]> {
+    const now = Date.now();
 
-  // 如果缓存有效且不强制重新加载，直接返回缓存
-  if (!forceReload && presetWorkflowsCache !== null && now - presetWorkflowsCacheTime < PRESET_CACHE_TTL) {
-    return presetWorkflowsCache;
-  }
+    // 如果缓存有效且不强制重新加载，直接返回缓存
+    if (!forceReload && presetWorkflowsCache !== null && now - presetWorkflowsCacheTime < PRESET_CACHE_TTL) {
+      return presetWorkflowsCache;
+    }
 
-  try {
-    const file = definitionsPath;
-    if (!fs.existsSync(file)) {
-      console.warn('[WorkflowStore] 预设工作流文件不存在:', file);
+    try {
+      const file = definitionsPath;
+      if (!fs.existsSync(file)) {
+        console.warn('[WorkflowStore] 预设工作流文件不存在:', file);
+        presetWorkflowsCache = [];
+        presetWorkflowsCacheTime = now;
+        return [];
+      }
+      const txt = await fsp.readFile(file, 'utf8');
+      const workflows = JSON.parse(txt) as WorkflowDefinition[];
+      // 为所有预设工作流设置 isPreset 字段
+      const workflowsWithPresetFlag = workflows.map((w) => ({ ...w, isPreset: true }));
+      // 更新预设工作流ID集合
+      presetWorkflowIds = new Set(workflows.map((w) => w.id));
+      // 更新缓存
+      presetWorkflowsCache = workflowsWithPresetFlag;
+      presetWorkflowsCacheTime = now;
+      console.log(`[WorkflowStore] 加载了 ${workflows.length} 个预设工作流`);
+      return workflowsWithPresetFlag;
+    } catch (err) {
+      console.error('[WorkflowStore] 加载预设工作流失败:', err);
       presetWorkflowsCache = [];
       presetWorkflowsCacheTime = now;
       return [];
     }
-    const txt = await fsp.readFile(file, 'utf8');
-    const workflows = JSON.parse(txt) as WorkflowDefinition[];
-    // 更新预设工作流ID集合
-    presetWorkflowIds = new Set(workflows.map((w) => w.id));
-    // 更新缓存
-    presetWorkflowsCache = workflows;
-    presetWorkflowsCacheTime = now;
-    console.log(`[WorkflowStore] 加载了 ${workflows.length} 个预设工作流`);
-    return workflows;
-  } catch (err) {
-    console.error('[WorkflowStore] 加载预设工作流失败:', err);
-    presetWorkflowsCache = [];
-    presetWorkflowsCacheTime = now;
-    return [];
-  }
-}
+  },
 
-/**
- * 检查工作流是否为预设工作流
- */
-export function isPresetWorkflow(id: string): boolean {
-  return presetWorkflowIds.has(id);
-}
+  /**
+   * 检查工作流是否为预设工作流
+   */
+  isPresetWorkflow(id: string): boolean {
+    return presetWorkflowIds.has(id);
+  },
 
-// 立即保存（用于应用退出时）- 数据库模式下不需要做任何事，但保留接口兼容
-export async function flushStore(): Promise<void> {
-  // no-op
-}
+  // 立即保存（用于应用退出时）- 数据库模式下不需要做任何事，但保留接口兼容
+  async flushStore(): Promise<void> {
+    // no-op
+  },
 
-export const WorkflowStore = {
   async list(): Promise<WorkflowDefinition[]> {
     const db = getOrm();
     if (!db) return [];
@@ -77,7 +79,8 @@ export const WorkflowStore = {
         description: row.description,
         nodes: def.nodes || [],
         edges: def.edges || [],
-        options: def.options
+        options: def.options,
+        isPreset: false // 用户自定义工作流不是预设
         // 如果 WorkflowDefinition 类型将来支持 workspaceId，可以在这里添加
         // workspaceId: row.workspaceId
       };
@@ -99,13 +102,14 @@ export const WorkflowStore = {
       description: row.description,
       nodes: def.nodes || [],
       edges: def.edges || [],
-      options: def.options
+      options: def.options,
+      isPreset: false // 用户自定义工作流不是预设
     };
   },
 
   async upsert(def: WorkflowDefinition): Promise<void> {
     // 不允许保存预设工作流
-    if (isPresetWorkflow(def.id)) {
+    if (this.isPresetWorkflow(def.id)) {
       throw new Error(`不能修改预设工作流: ${def.id}`);
     }
 
@@ -144,7 +148,7 @@ export const WorkflowStore = {
 
   async remove(id: string): Promise<void> {
     // 不允许删除预设工作流
-    if (isPresetWorkflow(id)) {
+    if (this.isPresetWorkflow(id)) {
       throw new Error(`不能删除预设工作流: ${id}`);
     }
 
