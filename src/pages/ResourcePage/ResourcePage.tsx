@@ -64,12 +64,7 @@ const ResourcePage: React.FC = () => {
 
   const workflowProgress = useWorkflowProgress();
 
-  const currentFolderResourceIds = useMemo(() => {
-    if (!folderFilter) return [] as string[];
-    return list.filter((r) => (r as any).folderId === folderFilter).map((r) => r.id);
-  }, [list, folderFilter]);
-
-  const { viewMode, handleViewModeChange } = useViewMode(folderFilter, currentFolderResourceIds);
+  const { viewMode, handleViewModeChange } = useViewMode(folderFilter);
 
   const { filtered } = useResourceFilter({
     list,
