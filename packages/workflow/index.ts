@@ -12,37 +12,37 @@ import { AppEvent } from '../event/events';
 import { pluginResourceManager } from '../plugins';
 import { FoldersRepo, ResourcesRepo, WorkspacesRepo } from './../common/db';
 import { createEngine, WorkflowEngine } from './engine';
-import { AiChatNode } from './nodes/ai-chat';
-import { AiPromptOptimizerNode } from './nodes/ai-prompt-optimizer';
-import { CollectFolderTextsNode } from './nodes/collect-folder-texts';
-import { ConditionNode } from './nodes/condition';
-import { DisplayImageNode } from './nodes/display-image';
-import { DisplayMediaNode } from './nodes/display-media';
-import { DisplayResourceCardNode } from './nodes/display-resource-card';
-import { DisplayTextNode } from './nodes/display-text';
-import { DocToMarkdownNode } from './nodes/doc-to-md';
-import { EndNode } from './nodes/end';
-import { ExtractKeyframesNode } from './nodes/extract-keyframes';
-import { GenerateLearningCardNode } from './nodes/generate-learning-card';
-import { ImageGenerateNode } from './nodes/image-generate';
-import { ImageUnderstandNode } from './nodes/image-understand';
-import { JsonParseNode } from './nodes/json-parse';
-import { JsonStringifyNode } from './nodes/json-stringify';
-import { OCRNode } from './nodes/ocr';
-import { ResourceCreateNode } from './nodes/resource-create';
-import { ResourceLoadNode } from './nodes/resource-load';
-import { ResourceUpdateNode } from './nodes/resource-update';
-import { StartNode } from './nodes/start';
-import { TextOutputNode } from './nodes/text-output';
-import { TextToImageNode } from './nodes/text-to-image';
-import { TranscodeNode } from './nodes/transcode';
-import { TranscodeAdvancedNode } from './nodes/transcode-advanced';
-import { TranscribeWhisperNode } from './nodes/transcribe-whisper';
-import { FfmpegPlugin } from './plugins/ffmpeg';
-import { TesseractPlugin } from './plugins/tesseract';
-import { WhisperPlugin } from './plugins/whisper';
+import {
+  AiChatNode,
+  AiPromptOptimizerNode,
+  CollectFolderTextsNode,
+  ConditionNode,
+  DisplayImageNode,
+  DisplayMediaNode,
+  DisplayResourceCardNode,
+  DisplayTextNode,
+  DocToMarkdownNode,
+  EndNode,
+  ExtractKeyframesNode,
+  GenerateLearningCardNode,
+  ImageGenerateNode,
+  ImageUnderstandNode,
+  JsonParseNode,
+  JsonStringifyNode,
+  OCRNode,
+  ResourceCreateNode,
+  ResourceLoadNode,
+  ResourceUpdateNode,
+  StartNode,
+  TextOutputNode,
+  TextToImageNode,
+  TranscodeAdvancedNode,
+  TranscodeNode,
+  TranscribeWhisperNode
+} from './nodes';
+import { FfmpegPlugin, TesseractPlugin, WhisperPlugin } from './plugins';
 import { getNode, listNodes, listPlugins, registerNode, registerPlugin } from './registry';
-import { loadPresetWorkflows, WorkflowStore } from './store';
+import { WorkflowStore } from './store';
 import { NodeConfig, WorkflowDefinition, WorkflowRunRecord } from './types';
 
 // 存储获取插件配置文件路径的方法
@@ -56,7 +56,7 @@ export async function runWorkflow(def: WorkflowDefinition, input?: any): Promise
 
 export async function getWorkflow(id: string): Promise<WorkflowDefinition | undefined> {
   if (getWorkflowDefinitionsPathFn) {
-    const preset = await loadPresetWorkflows(getWorkflowDefinitionsPathFn());
+    const preset = await WorkflowStore.loadPresetWorkflows(getWorkflowDefinitionsPathFn());
     const presetDef = preset.find((d) => d.id === id);
     if (presetDef) return presetDef;
   }
@@ -482,7 +482,7 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
       const totalNodes = Object.keys(rec.nodes).length;
       // 尝试获取工作流名称（异步获取，不阻塞，使用缓存）
       const workflowName = rec.workflowId;
-      loadPresetWorkflows(getWorkflowDefinitionsPathFn())
+      WorkflowStore.loadPresetWorkflows(getWorkflowDefinitionsPathFn())
         .then((preset) => {
           return WorkflowStore.list().then((custom) => {
             const allDefs = [...preset, ...custom];
@@ -531,7 +531,7 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
       let progressMessage = '';
       if (runningNode) {
         // 尝试获取节点类型和名称（使用缓存）
-        const preset = await loadPresetWorkflows(getWorkflowDefinitionsPathFn()).catch(() => []);
+        const preset = await WorkflowStore.loadPresetWorkflows(getWorkflowDefinitionsPathFn()).catch(() => []);
         const custom = await WorkflowStore.list().catch(() => []);
         const allDefs = [...preset, ...custom];
         const def = allDefs.find((d) => d.id === rec.workflowId);
@@ -558,7 +558,7 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
     if (!rec) return;
 
     // 使用缓存的工作流定义，避免频繁加载
-    loadPresetWorkflows(getWorkflowDefinitionsPathFn())
+    WorkflowStore.loadPresetWorkflows(getWorkflowDefinitionsPathFn())
       .then((preset) => {
         return WorkflowStore.list().then((custom) => {
           const allDefs = [...preset, ...custom];
@@ -638,21 +638,21 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
   ipcMain.handle('wf:listPlugins', () => listPlugins().map((p) => ({ id: p.id, label: p.label, installed: false })));
   ipcMain.handle('wf:listDefinitions', async () => {
     // 合并预设工作流和用户自定义工作流（使用缓存）
-    const [preset, custom] = await Promise.all([loadPresetWorkflows(getWorkflowDefinitionsPathFn()), WorkflowStore.list()]);
+    const [preset, custom] = await Promise.all([WorkflowStore.loadPresetWorkflows(getWorkflowDefinitionsPathFn()), WorkflowStore.list()]);
     return [...preset, ...custom];
   });
   ipcMain.handle('wf:listPresets', async () => {
     // 只返回预设工作流（使用缓存）
-    return loadPresetWorkflows(getWorkflowDefinitionsPathFn());
+    return WorkflowStore.loadPresetWorkflows(getWorkflowDefinitionsPathFn());
   });
   ipcMain.handle('wf:isPreset', async (_e, payload: { id: string }) => {
     // 检查工作流是否为预设工作流（使用缓存）
-    const preset = await loadPresetWorkflows(getWorkflowDefinitionsPathFn());
+    const preset = await WorkflowStore.loadPresetWorkflows(getWorkflowDefinitionsPathFn());
     return preset.some((w) => w.id === payload.id);
   });
   ipcMain.handle('wf:getDefinition', async (_e, payload: { id: string }) => {
     // 先尝试从预设工作流中查找（使用缓存）
-    const preset = await loadPresetWorkflows(getWorkflowDefinitionsPathFn());
+    const preset = await WorkflowStore.loadPresetWorkflows(getWorkflowDefinitionsPathFn());
     const presetDef = preset.find((d) => d.id === payload.id);
     if (presetDef) return presetDef;
     // 再从用户自定义工作流中查找
@@ -679,7 +679,7 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
   });
   ipcMain.handle('wf:run', async (_e, payload: { defId: string; input?: Record<string, any>; metadata?: Record<string, any> }) => {
     // 先尝试从预设工作流中查找
-    const preset = await loadPresetWorkflows(getWorkflowDefinitionsPathFn());
+    const preset = await WorkflowStore.loadPresetWorkflows(getWorkflowDefinitionsPathFn());
     let def = preset.find((d) => d.id === payload.defId);
     // 如果预设中没有，再从用户自定义工作流中查找
     if (!def) {

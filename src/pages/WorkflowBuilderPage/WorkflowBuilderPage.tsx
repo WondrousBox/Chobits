@@ -135,9 +135,8 @@ const WorkflowCanvasInner: React.FC = () => {
 
         if (workflowDef && workflowDef.nodes && workflowDef.edges) {
           if (targetId) {
-            // 加载已存在的工作流，检查是否为预设工作流
-            const isPreset = await invoke('wf:isPreset', { id: targetId }).catch(() => false);
-            setIsPresetWorkflow(isPreset);
+            // 加载已存在的工作流，直接使用工作流定义中的 isPreset 字段
+            setIsPresetWorkflow(workflowDef.isPreset ?? false);
             // 加载已存在的工作流，保持原有 ID；不还原运行时输入（inputDefaults），默认空
             const rfNodes: Node<NodeData>[] = workflowDef.nodes.map((n: any) => {
               const spec = specs.find((s) => s.id === n.type) || { id: n.type, label: n.type, inputs: [], outputs: [], category: 'core' };
