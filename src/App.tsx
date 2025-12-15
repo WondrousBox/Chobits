@@ -1,8 +1,10 @@
+import { TbSparkles } from 'react-icons/tb';
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import { ChatSelectionProvider } from '@/components/AIAssistant/context/ChatSelectionContext';
 import DownloadFloating from '@/components/DownloadFloating';
 import { Toaster } from '@/components/ui/sonner';
+import ExtensionSettings from '@/pages/ExtensionSettings/ExtensionSettings';
 import FileActionsMenu from '@/pages/FileActionsMenu/FileActionsMenu';
 import ResourcePreviewWindow from '@/pages/ResourcePage/ResourcePreviewWindow';
 import { ThemeProvider } from '@/pages/SettingsPage/providers/ThemeProvider';
@@ -40,7 +42,22 @@ function App(): JSX.Element {
                 <Route path="/status" element={<StatusPage />} />
                 <Route path="/menu" element={<AssistantMenuPage />} />
                 <Route path="/file-actions" element={<FileActionsMenu />} />
-                <Route path="/settings" element={<SettingsPage />} />
+                <Route
+                  path="/settings"
+                  element={
+                    <SettingsPage
+                      extraCategories={[
+                        {
+                          id: 'extensions',
+                          label: '机能扩展',
+                          icon: TbSparkles,
+                          description: '自由移动、日常关心、下载资料扩展',
+                          component: <ExtensionSettings />
+                        }
+                      ]}
+                    />
+                  }
+                />
                 <Route path="/workspace-wizard" element={<WorkspaceWizard />} />
                 <Route path="/resources" element={<ResourcePage />} />
                 <Route path="/recycle" element={<RecycleBinPage />} />

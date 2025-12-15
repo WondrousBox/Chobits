@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { TbAdjustments, TbBrain, TbCpu, TbFolderOpen, TbKeyboard, TbMessage2, TbNetwork, TbPlug, TbSparkles } from 'react-icons/tb';
+import { TbAdjustments, TbBrain, TbCpu, TbFolderOpen, TbKeyboard, TbMessage2, TbNetwork, TbPlug } from 'react-icons/tb';
 
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '@/components/ui/sidebar';
 
@@ -7,29 +7,31 @@ import DragAbleTitle from '../../components/common/DragAbleTitle';
 import EmbeddingJobsPanel from '../../components/EmbeddingJobs';
 import PluginPage from '../PluginPage/PluginPage';
 import AiSettings from './components/AiSettings';
-import ExtensionSettings from './components/ExtensionSettings';
 import PreferencesSettings from './components/PreferencesSettings';
 import PromptSetting from './components/PromptSetting';
 import ProxySettings from './components/ProxySettings';
 import ShortcutsSettings from './components/ShortcutsSettings';
 import Workspace from './components/Workspace';
 
-// 设置分类类型
-type SettingsCategory = 'preferences' | 'embedding' | 'ai' | 'prompt' | 'workspace' | 'shortcuts' | 'plugins' | 'proxy' | 'extensions';
+export type DefaultSettingsCategory = 'preferences' | 'workspace' | 'ai' | 'prompt' | 'plugins' | 'shortcuts' | 'embedding' | 'proxy';
 
-// 设置分类配置
-const settingsCategories: { id: SettingsCategory; label: string; icon: React.ElementType; description: string }[] = [
+export type SettingsCategory = DefaultSettingsCategory | (string & {});
+
+export interface SettingsCategoryDef {
+  id: SettingsCategory;
+  label: string;
+  icon: React.ElementType;
+  description: string;
+  component?: React.ReactNode;
+}
+
+// 默认设置分类配置
+const defaultCategories: SettingsCategoryDef[] = [
   {
     id: 'preferences',
     label: '偏好设置',
     icon: TbAdjustments,
     description: '主题外观和文件夹设置'
-  },
-  {
-    id: 'extensions',
-    label: '机能扩展',
-    icon: TbSparkles,
-    description: '自由移动、日常关心、下载资料扩展'
   },
   {
     id: 'workspace',
@@ -75,16 +77,29 @@ const settingsCategories: { id: SettingsCategory; label: string; icon: React.Ele
   }
 ];
 
-export const SettingsPage: React.FC = () => {
-  const [activeCategory, setActiveCategory] = useState<SettingsCategory>('extensions');
+interface SettingsPageProps {
+  extraCategories?: SettingsCategoryDef[];
+}
+
+export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = [] }) => {
+  // 合并分类，将扩展分类放在偏好设置之后 (index 1)
+  const allCategories = React.useMemo(() => {
+    const cats = [...defaultCategories];
+    if (extraCategories.length > 0) {
+      cats.splice(1, 0, ...extraCategories);
+    }
+    return cats;
+  }, [extraCategories]);
+
+  const [activeCategory, setActiveCategory] = useState<SettingsCategory>(allCategories[0]?.id || 'preferences');
   const [initialAiProviderId, setInitialAiProviderId] = useState<string | null>(null);
-  // external resource settings are handled inside ExternalResourceSettings component
+
   useEffect(() => {
     // 读取窗口打开时传入的 payload，用于直接跳转到指定分类/AI 提供商
     (async () => {
       try {
         const payload = await window.YUA.window['window:payload:get']('settings' as any);
-        if (payload?.category && settingsCategories.some((c) => c.id === payload.category)) {
+        if (payload?.category && allCategories.some((c) => c.id === payload.category)) {
           setActiveCategory(payload.category as SettingsCategory);
         }
         if (payload?.aiProviderId) setInitialAiProviderId(payload.aiProviderId);
@@ -92,10 +107,16 @@ export const SettingsPage: React.FC = () => {
         // ignore
       }
     })();
-  }, []);
+  }, [allCategories]);
 
   // 根据当前分类渲染对应内容
   const renderCurrentCategoryContent = (): JSX.Element => {
+    // 优先检查 extraCategories
+    const extra = extraCategories.find((c) => c.id === activeCategory);
+    if (extra && extra.component) {
+      return <>{extra.component}</>;
+    }
+
     switch (activeCategory) {
       case 'preferences':
         return <PreferencesSettings />;
@@ -127,8 +148,6 @@ export const SettingsPage: React.FC = () => {
         return <PromptSetting />;
       case 'shortcuts':
         return <ShortcutsSettings />;
-      case 'extensions':
-        return <ExtensionSettings />;
       case 'proxy':
         return <ProxySettings />;
       default:
@@ -145,7 +164,7 @@ export const SettingsPage: React.FC = () => {
             <SidebarGroup className="box-border">
               <SidebarGroupContent>
                 <SidebarMenu className="pl-0 my-0">
-                  {settingsCategories.map((category) => {
+                  {allCategories.map((category) => {
                     const Icon = category.icon;
                     return (
                       <SidebarMenuItem className="pl-0 list-none" key={category.id}>
@@ -165,7 +184,7 @@ export const SettingsPage: React.FC = () => {
           {/* 右侧内容区域 */}
           <div className="flex items-center gap-4 p-2">
             {(() => {
-              const currentCategory = settingsCategories.find((cat) => cat.id === activeCategory);
+              const currentCategory = allCategories.find((cat) => cat.id === activeCategory);
               const Icon = currentCategory?.icon;
               return Icon ? (
                 <div className="p-3 bg-primary/10 rounded-xl">
@@ -174,8 +193,8 @@ export const SettingsPage: React.FC = () => {
               ) : null;
             })()}
             <div>
-              <div className="text-xl font-bold text-foreground">{settingsCategories.find((cat) => cat.id === activeCategory)?.label}</div>
-              <div className="text-muted-foreground text-sm">{settingsCategories.find((cat) => cat.id === activeCategory)?.description}</div>
+              <div className="text-xl font-bold text-foreground">{allCategories.find((cat) => cat.id === activeCategory)?.label}</div>
+              <div className="text-muted-foreground text-sm">{allCategories.find((cat) => cat.id === activeCategory)?.description}</div>
             </div>
           </div>
 
