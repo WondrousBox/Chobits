@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { TbAdjustments, TbBrain, TbCpu, TbFolderOpen, TbKeyboard, TbMessage2, TbMoodKid, TbNetwork, TbPlug, TbSparkles } from 'react-icons/tb';
+import { TbAdjustments, TbBrain, TbCpu, TbFolderOpen, TbKeyboard, TbMessage2, TbNetwork, TbPlug, TbSparkles } from 'react-icons/tb';
 
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '@/components/ui/sidebar';
 
@@ -12,11 +12,10 @@ import PreferencesSettings from './components/PreferencesSettings';
 import PromptSetting from './components/PromptSetting';
 import ProxySettings from './components/ProxySettings';
 import ShortcutsSettings from './components/ShortcutsSettings';
-import SpriteManager from './components/SpriteManager';
 import Workspace from './components/Workspace';
 
 // 设置分类类型
-type SettingsCategory = 'preferences' | 'embedding' | 'ai' | 'prompt' | 'workspace' | 'sprites' | 'shortcuts' | 'plugins' | 'proxy' | 'extensions';
+type SettingsCategory = 'preferences' | 'embedding' | 'ai' | 'prompt' | 'workspace' | 'shortcuts' | 'plugins' | 'proxy' | 'extensions';
 
 // 设置分类配置
 const settingsCategories: { id: SettingsCategory; label: string; icon: React.ElementType; description: string }[] = [
@@ -67,12 +66,6 @@ const settingsCategories: { id: SettingsCategory; label: string; icon: React.Ele
     label: '嵌入任务',
     icon: TbBrain,
     description: '向量嵌入任务管理'
-  },
-  {
-    id: 'sprites',
-    label: '精灵管理',
-    icon: TbMoodKid,
-    description: '导入/删除动画，设为当前精灵'
   },
   {
     id: 'proxy',
@@ -132,8 +125,6 @@ export const SettingsPage: React.FC = () => {
         return <AiSettings initialProviderId={initialAiProviderId || undefined} />;
       case 'prompt':
         return <PromptSetting />;
-      case 'sprites':
-        return <SpriteManager />;
       case 'shortcuts':
         return <ShortcutsSettings />;
       case 'extensions':

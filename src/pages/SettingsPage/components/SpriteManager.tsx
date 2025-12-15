@@ -95,7 +95,7 @@ function SpritePreview({ src, type, width, height }: { src: string; type: string
   );
 }
 
-export default function SpriteManager(): JSX.Element {
+export default function SpriteManager({ className }: { className?: string }): JSX.Element {
   const [list, setList] = useState<SpriteAnimation[]>([]);
   const [loading, setLoading] = useState(false);
   const [addingMap, setAddingMap] = useState<Record<string, boolean>>({}); // 某分类中的添加状态
@@ -194,8 +194,8 @@ export default function SpriteManager(): JSX.Element {
   const toggleCollapse = (cat: string): void => setCollapsed((m) => ({ ...m, [cat]: !m[cat] }));
 
   return (
-    <div className="h-full">
-      <div className="flex justify-between items-center px-2">
+    <div className={className}>
+      <div className="flex justify-between items-center px-2 mb-4">
         <div className="text-sm text-muted-foreground">已注册动画：{list.length}</div>
         <div className="flex gap-2 items-center">
           <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索 (名称 / ID / 分类 / 标签)" className="h-8 w-48" />
@@ -342,7 +342,7 @@ export default function SpriteManager(): JSX.Element {
       </Dialog>
 
       {/* 防止窗口增高时 Grid 行被平均拉伸：content-start(items-start) 让多余空间留在容器底部 */}
-      <div className="overflow-y-auto pr-1" style={{ height: 'calc(100% - 32px)' }}>
+      <div className="pr-1">
         {hasAny ? (
           allCategories.map((cat) => (
             <div key={cat} className="mb-4 last:mb-0 border border-border/40 rounded-md">
