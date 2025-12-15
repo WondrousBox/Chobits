@@ -50,7 +50,7 @@ async function getDynamicConfig(providerId?: string): Promise<PortSchema[]> {
       label: '服务商',
       type: 'string',
       required: true,
-      default: 'zhipu',
+      default: '',
       description: '选择AI服务商',
       inputType: 'select',
       options: await getProviderOptions()

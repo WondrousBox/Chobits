@@ -216,7 +216,7 @@ export default function WorkflowStartInputSheet(): JSX.Element {
           <SheetDescription>请填写工作流所需的输入参数</SheetDescription>
         </SheetHeader>
 
-        <div className="py-6 space-y-6">
+        <div className="py-6 space-y-6 box-border">
           {inputMode === 'text' && (
             <div className="space-y-3">
               <Label className="text-sm">文本内容</Label>
@@ -224,7 +224,7 @@ export default function WorkflowStartInputSheet(): JSX.Element {
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 placeholder="请输入文本..."
-                className="min-h-[200px] resize-none"
+                className="min-h-[200px] resize-none box-border"
                 autoFocus
                 disabled={submitting}
                 onKeyDown={(e) => {

@@ -34,9 +34,7 @@ import FloatingActions from './FloatingActions';
 import FloatingInspector from './FloatingInspector';
 import { autoLayout } from './layout';
 import SpecNode from './SpecNode';
-import TextInputDialog from './TextInputDialog';
 import type { NodeData } from './types';
-import UrlInputDialog from './UrlInputDialog';
 import WorkflowJsonDialog from './WorkflowJsonDialog';
 import WorkflowRunConsole from './WorkflowRunConsole';
 import WorkflowSidebar from './WorkflowSidebar';
@@ -91,8 +89,6 @@ const WorkflowCanvasInner: React.FC = () => {
   const [runLogs, setRunLogs] = useState<WorkflowRunLogEntry[]>([]);
   const [runStatus, setRunStatus] = useState<ExecutionStatus | null>(null);
   const [consoleCollapsed, setConsoleCollapsed] = useState(true);
-  const [showTextInputDialog, setShowTextInputDialog] = useState(false);
-  const [showUrlInputDialog, setShowUrlInputDialog] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editingTitleValue, setEditingTitleValue] = useState('');
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -617,45 +613,23 @@ const WorkflowCanvasInner: React.FC = () => {
       }
     }
 
-    // 如果没有输入值，才弹窗让用户输入
-    if (startNodeInputMode === 'text') {
-      setShowTextInputDialog(true);
-    } else if (startNodeInputMode === 'url') {
-      setShowUrlInputDialog(true);
-    } else if (startNodeInputMode === 'file') {
-      try {
-        const result = await window.YUA.file['file:pickFile']();
-        if (!result.canceled && result.path) {
-          await runWorkflowWithFile(result.path);
-        }
-      } catch (err: any) {
-        toast.error('文件选择失败', { description: err?.message || String(err) });
-      }
-    } else if (startNodeInputMode === 'folder') {
-      // 文件夹模式会通过 wf:start-input-required 事件触发输入窗口
-      // 这里直接执行，让引擎处理输入需求
-      await runWorkflow({
-        defId: draft!.id,
-        input: {},
-        metadata: {},
-        onSuccess: (runId) => {
-          currentRunIdRef.current = runId;
-          setCurrentRunId(runId);
-          setRunLogs([]);
-          setRunStatus('queued');
-          setConsoleCollapsed(false);
-          toast.success('工作流已开始执行');
-          try {
-            eventCh.postMessage({ type: 'run-started', defId: draft.id });
-          } catch {
-            // ignore
+    // 如果没有输入值，则通过统一的右侧输入面板收集输入
+    if (draft && (startNodeInputMode === 'text' || startNodeInputMode === 'url' || startNodeInputMode === 'file' || startNodeInputMode === 'folder')) {
+      window.dispatchEvent(
+        new CustomEvent('wf:start-input-required', {
+          detail: {
+            defId: draft.id,
+            inputMode: startNodeInputMode,
+            metadata: {
+              workflowName: draft.name
+            }
           }
-        }
-      });
+        })
+      );
     }
 
     // 如果是 resource 模式，ResourceRunPopover 会自动处理
-  }, [draft, startNodeInputMode, startNodeInputValue, runWorkflowWithText, runWorkflowWithFile, runWorkflowWithUrl, runWorkflowWithFolder, eventCh]);
+  }, [draft, startNodeInputMode, startNodeInputValue, runWorkflowWithText, runWorkflowWithFile, runWorkflowWithUrl, runWorkflowWithFolder]);
 
   const handleClearLogs = useCallback(() => {
     setRunLogs([]);
@@ -925,14 +899,10 @@ const WorkflowCanvasInner: React.FC = () => {
             renderRunButton={() => {
               if (startNodeInputMode === 'text' || startNodeInputMode === 'url' || startNodeInputMode === 'file' || startNodeInputMode === 'folder') {
                 return (
-                  <>
-                    <Button size="sm" disabled={!draft || running} onClick={handleRunClick}>
-                      <TbPlayerPlay />
-                      运行示例
-                    </Button>
-                    <TextInputDialog open={showTextInputDialog} onOpenChange={setShowTextInputDialog} disabled={!draft} running={running} onConfirm={runWorkflowWithText} />
-                    <UrlInputDialog open={showUrlInputDialog} onOpenChange={setShowUrlInputDialog} disabled={!draft} running={running} onConfirm={runWorkflowWithUrl} />
-                  </>
+                  <Button size="sm" disabled={!draft || running} onClick={handleRunClick}>
+                    <TbPlayerPlay />
+                    运行示例
+                  </Button>
                 );
               }
               return <ResourceRunPopover disabled={!draft} running={running} onSelect={runWorkflowWithResource} />;
