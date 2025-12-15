@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { SidebarProvider } from '@/components/ui/sidebar';
+import SettingsPage from '@/pages/SettingsPage/SettingsPage';
 
 import { AppEvent } from '../../../packages/event/events';
 import { UIFolder } from './components/FolderSidebar';
@@ -43,6 +45,7 @@ const ResourcePage: React.FC = () => {
   const prevUploadVisibleRef = useRef<boolean>(false);
 
   const [workspaces, setWorkspaces] = useState<any[]>([]);
+  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
 
   // 使用自定义 hooks
   const { list, setList, tags, folders, load, loadTags, loadFolders } = useResourceData(wsFilter, tagFilter);
@@ -407,6 +410,7 @@ const ResourcePage: React.FC = () => {
           folderAPI={folderAPI}
           showTasks={showTasks}
           setShowTasks={setShowTasks}
+          onOpenSettings={() => setShowSettingsModal(true)}
         />
 
         {showTasks ? (
@@ -450,6 +454,12 @@ const ResourcePage: React.FC = () => {
       </SidebarProvider>
 
       <RenameFolderDialog renameOpen={renameOpen} setRenameOpen={setRenameOpen} renameName={renameName} setRenameName={setRenameName} handleRenameConfirm={handleRenameConfirm} />
+
+      <Dialog open={showSettingsModal} onOpenChange={setShowSettingsModal}>
+        <DialogContent className="max-w-6xl w-[90vw] h-[80vh] p-0 overflow-hidden">
+          <SettingsPage hideTitleBar />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
