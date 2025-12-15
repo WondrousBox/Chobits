@@ -8,16 +8,16 @@ type Props = {
   style?: React.CSSProperties;
 };
 
-export default function EmbeddingJobsPanel(props: Props) {
+export default function EmbeddingJobsPanel(props: Props): JSX.Element {
   const [jobs, setJobs] = useState<Record<string, Job>>({});
   const unsub = useRef<() => void>();
   const unsub2 = useRef<() => void>();
 
   useEffect(() => {
-    const onJob = (job: Job) => {
+    const onJob = (job: Job): void => {
       setJobs((prev) => ({ ...prev, [job.id]: job }));
     };
-    const onProg = (p: { id: string; done: number; total: number }) => {
+    const onProg = (p: { id: string; done: number; total: number }): void => {
       setJobs((prev) => {
         const old = prev[p.id] || ({ id: p.id, total: p.total, done: 0, status: 'running' } as Job);
         return { ...prev, [p.id]: { ...old, done: p.done, total: p.total } };
@@ -37,7 +37,7 @@ export default function EmbeddingJobsPanel(props: Props) {
 
   const list = useMemo(() => Object.values(jobs).sort((a, b) => a.id.localeCompare(b.id)), [jobs]);
 
-  const cancel = async (id: string) => {
+  const cancel = async (id: string): Promise<void> => {
     await window.YUA.vector['embedding:cancelJob']({ jobId: id });
   };
 
