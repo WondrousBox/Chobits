@@ -83,6 +83,7 @@ export type WorkflowDefinition = {
   id: string;
   name: string;
   description?: string;
+  icon?: string; // SVG 图标字符串
   nodes: NodeInstance[];
   edges: Edge[];
   // execution options
@@ -214,6 +215,7 @@ export type WorkflowDraft = {
   id: string;
   name: string;
   description?: string;
+  icon?: string; // SVG 图标字符串
   nodes: WorkflowNodeDraft[];
   edges: WorkflowEdgeDraft[];
 };

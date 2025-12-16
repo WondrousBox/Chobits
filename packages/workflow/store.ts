@@ -77,6 +77,7 @@ export const WorkflowStore = {
         id: row.id,
         name: row.name,
         description: row.description,
+        icon: def.icon,
         nodes: def.nodes || [],
         edges: def.edges || [],
         options: def.options,
@@ -100,6 +101,7 @@ export const WorkflowStore = {
       id: row.id,
       name: row.name,
       description: row.description,
+      icon: def.icon,
       nodes: def.nodes || [],
       edges: def.edges || [],
       options: def.options,
@@ -119,7 +121,8 @@ export const WorkflowStore = {
     const definition = JSON.stringify({
       nodes: def.nodes,
       edges: def.edges,
-      options: def.options
+      options: def.options,
+      icon: def.icon
     });
 
     const now = Date.now();
