@@ -630,12 +630,13 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
                 {(() => {
                   // 选中资源时，根据资源类型 + start.resourceKinds 过滤可用工作流
                   // 同时过滤掉空白工作流
+                  // 只显示输入模式为 resource 的工作流
                   const visibleWorkflows = workflows.filter((wf) => {
                     // 过滤空白工作流
                     if (wf.id === 'blank') return false;
                     const inputMode = getWorkflowInputMode(wf);
-                    // 非 resource 模式的工作流与具体资源类型无关，直接保留
-                    if (inputMode !== 'resource') return true;
+                    // 只保留 resource 模式的工作流
+                    if (inputMode !== 'resource') return false;
                     if (!firstSelected) return false;
                     const item = mergedItems.find((i) => i.id === firstSelected);
                     if (!item) return false;
