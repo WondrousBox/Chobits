@@ -6,17 +6,7 @@ import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
-import type { ExecutionStatus } from '../../../packages/workflow/types';
-
-interface WorkflowRunRecord {
-  runId: string;
-  workflowId: string;
-  createdAt: number;
-  status: ExecutionStatus;
-  nodes: Record<string, any>;
-  output?: Record<string, any>;
-  error?: string;
-}
+import type { ExecutionStatus, WorkflowRunRecord } from './types';
 
 const invoke = window.ipcRenderer.invoke;
 
@@ -49,7 +39,7 @@ const WorkflowHistoryPage: React.FC = () => {
     };
   }, [refreshTick]);
 
-  const formatTime = (ts: number) => {
+  const formatTime = (ts: number): string => {
     return new Date(ts).toLocaleString('zh-CN', {
       year: 'numeric',
       month: '2-digit',
@@ -60,7 +50,7 @@ const WorkflowHistoryPage: React.FC = () => {
     });
   };
 
-  const getStatusColor = (status: ExecutionStatus) => {
+  const getStatusColor = (status: ExecutionStatus): string => {
     switch (status) {
       case 'completed':
         return 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20';
@@ -77,7 +67,7 @@ const WorkflowHistoryPage: React.FC = () => {
     }
   };
 
-  const getStatusLabel = (status: ExecutionStatus) => {
+  const getStatusLabel = (status: ExecutionStatus): string => {
     switch (status) {
       case 'completed':
         return '已完成';

@@ -5,8 +5,8 @@ import path from 'node:path';
 import util from 'node:util';
 
 import { getNode, getPlugin } from './registry';
-import { EngineEmitter, ExecutionContext, NodeRunState, PortSchema, ValidateResult, WorkflowDefinition, WorkflowRunLogEntry, WorkflowRunLogLevel, WorkflowRunRecord } from './types';
-
+import type { ExecutionContext, NodeRunState, PortSchema, ValidateResult, WorkflowDefinition, WorkflowRunLogEntry, WorkflowRunLogLevel, WorkflowRunRecord } from './types';
+import { EngineEmitter } from './types';
 function now(): number {
   return Date.now();
 }

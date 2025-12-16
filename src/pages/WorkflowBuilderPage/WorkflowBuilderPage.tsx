@@ -27,14 +27,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { runWorkflow } from '@/lib/workflow-runner';
 
-import type { ExecutionStatus, NodeSpec, WorkflowDraft, WorkflowRunLogEntry } from '../../../packages/workflow/types';
 import ResourceRunPopover from '../ResourcePage/ResourceRunPopover';
 import { ResourceItem } from '../ResourcePage/types';
 import FloatingActions from './FloatingActions';
 import FloatingInspector from './FloatingInspector';
 import { autoLayout } from './layout';
 import SpecNode from './SpecNode';
-import type { NodeData } from './types';
+import type { ExecutionStatus, NodeData, NodeSpec, WorkflowDraft, WorkflowRunLogEntry } from './types';
 import WorkflowJsonDialog from './WorkflowJsonDialog';
 import WorkflowRunConsole from './WorkflowRunConsole';
 import WorkflowSidebar from './WorkflowSidebar';

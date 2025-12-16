@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import DragAbleTitle from '@/components/common/DragAbleTitle';
-import { chunkText, smartChunks } from '@/lib/textChunker';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
+
 import ServiceInstanceSelect from '@/components/AIAssistant/ServiceInstanceSelect';
+import DragAbleTitle from '@/components/common/DragAbleTitle';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Textarea } from '@/components/ui/textarea';
+import { chunkText, smartChunks } from '@/lib/textChunker';
 
 type ProgressMeta = { phase: 'start' | 'progress'; total: number; startIndex?: number; index?: number; segmentTags?: string[]; aggTop?: string[] };
 

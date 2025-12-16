@@ -3,7 +3,7 @@ import { TbChevronDown, TbChevronUp, TbTerminal2, TbTrash } from 'react-icons/tb
 
 import { Button } from '@/components/ui/button';
 
-import type { ExecutionStatus, WorkflowRunLogEntry } from '../../../packages/workflow/types';
+import type { ExecutionStatus, WorkflowRunLogEntry } from './types';
 
 type WorkflowRunConsoleProps = {
   logs: WorkflowRunLogEntry[];

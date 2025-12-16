@@ -43,7 +43,7 @@ import {
 import { FfmpegPlugin, TesseractPlugin, WhisperPlugin } from './plugins';
 import { getNode, listNodes, listPlugins, registerNode, registerPlugin } from './registry';
 import { WorkflowStore } from './store';
-import { NodeConfig, WorkflowDefinition, WorkflowRunRecord } from './types';
+import type { NodeConfig, WorkflowDefinition, WorkflowRunRecord } from './types';
 
 // 存储获取插件配置文件路径的方法
 let getWorkflowDefinitionsPathFn: () => string;
