@@ -209,7 +209,7 @@ export default function WorkflowStartInputSheet(): JSX.Element {
           {missingConfigs.length > 0 && (
             <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-2">
               {missingConfigs.map((node) => (
-                <div key={node.nodeId} className="space-y-3 border rounded-md p-4">
+                <div key={node.nodeId} className="space-y-3 border rounded-md py-4">
                   <div className="flex items-center gap-2 font-medium">
                     <div className="w-1 h-4 bg-primary rounded-full" />
                     {node.nodeLabel}

@@ -376,7 +376,7 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
 
   // 检查是否是 file 类型
   if (field.inputType === 'file') {
-    const handlePickFile = async () => {
+    const handlePickFile = async (): Promise<void> => {
       try {
         const result = await window.YUA.file['file:pickFile']();
         if (!result.canceled && result.path) {

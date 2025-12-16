@@ -5,7 +5,8 @@ import { useNavigate } from 'react-router-dom';
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ExecutionStatus } from '@/types/workflow';
+
+import type { ExecutionStatus } from '../../../packages/workflow/types';
 
 interface WorkflowRunRecord {
   runId: string;

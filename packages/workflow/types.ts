@@ -19,7 +19,7 @@ export type PortSchema = {
   // default value for inputs
   default?: any;
   // UI input type (for config fields)
-  inputType?: 'url' | 'folder' | 'text' | 'select' | 'select-multiple' | 'number' | 'textarea' | 'condition-list' | 'port-list';
+  inputType?: 'file' | 'url' | 'folder' | 'text' | 'select' | 'select-multiple' | 'number' | 'textarea' | 'condition-list' | 'port-list';
   // Options for select input type
   // Can be flat array of options or grouped options
   options?: SelectOptions;
@@ -96,9 +96,11 @@ export type WorkflowDefinition = {
 
 export type ExecutionStatus = 'queued' | 'running' | 'completed' | 'failed' | 'canceled';
 
+export type NodeRunStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+
 export type NodeRunState = {
   nodeId: string;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+  status: NodeRunStatus;
   startedAt?: number;
   finishedAt?: number;
   error?: string;
@@ -191,6 +193,29 @@ export type ValidateResult = {
   ok: boolean;
   errors?: string[];
   missingPlugins?: { id: string; hint?: string }[];
+};
+
+export type WorkflowNodeDraft = {
+  id: string;
+  type: string;
+  x: number;
+  y: number;
+  config?: Record<string, any>;
+  inputDefaults?: Record<string, any>;
+};
+
+export type WorkflowEdgeDraft = {
+  id: string;
+  from: { nodeId: string; port: string };
+  to: { nodeId: string; port: string };
+};
+
+export type WorkflowDraft = {
+  id: string;
+  name: string;
+  description?: string;
+  nodes: WorkflowNodeDraft[];
+  edges: WorkflowEdgeDraft[];
 };
 
 export interface IEngineEvents {
