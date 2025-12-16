@@ -3,9 +3,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import React, { useEffect, useMemo, useState } from 'react';
 import { TbChevronDown, TbChevronRight } from 'react-icons/tb';
 
-import type { NodeSpec } from '../../../packages/workflow/types';
 import { ConfigFieldRenderer } from './ConfigFieldRenderer';
-import type { NodeData } from './types';
+import type { NodeData, NodeSpec } from './types';
 
 const invoke = window.ipcRenderer.invoke;
 

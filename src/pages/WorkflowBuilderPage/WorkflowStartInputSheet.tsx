@@ -6,9 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { runWorkflow } from '@/lib/workflow-runner';
 
-import type { NodeSpec } from '../../../packages/workflow/types';
 import { ConfigFieldRenderer } from './ConfigFieldRenderer';
 import { getGradientBackgroundStyle, getIconComponent } from './nodeUtils';
+import type { NodeSpec } from './types';
 
 type ConfigSchema = NonNullable<NodeSpec['config']>[number];
 

@@ -8,8 +8,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSepa
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 
-import type { NodeSpec } from '../../../packages/workflow/types';
-import type { NodeData } from './types';
+import type { NodeData, NodeSpec } from './types';
 
 type ConfigSchema = NonNullable<NodeSpec['config']>[number];
 
