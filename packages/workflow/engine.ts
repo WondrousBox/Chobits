@@ -149,9 +149,6 @@ export class WorkflowEngine extends EngineEmitter {
     input: Record<string, any> = {}
   ): Promise<{ nodeId: string; nodeLabel: string; nodeType: string; missingFields: PortSchema[]; currentConfig: Record<string, any>; icon?: string; backgroundColor?: string }[]> {
     const missingConfigs: { nodeId: string; nodeLabel: string; nodeType: string; missingFields: PortSchema[]; currentConfig: Record<string, any>; icon?: string; backgroundColor?: string }[] = [];
-
-    console.log(def.nodes);
-
     for (const node of def.nodes) {
       const handler = getNode(node.type);
       if (!handler) continue;
