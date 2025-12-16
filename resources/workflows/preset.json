@@ -8,7 +8,11 @@
         "id": "start",
         "type": "core/start",
         "x": 120,
-        "y": 180
+        "y": 180,
+        "config": {
+          "inputMode": "resource",
+          "resourceKinds": ["any"]
+        }
       },
       {
         "id": "end",
@@ -32,7 +36,11 @@
         "id": "start",
         "type": "core/start",
         "x": 0,
-        "y": 34
+        "y": 34,
+        "config": {
+          "inputMode": "resource",
+          "resourceKinds": ["image"]
+        }
       },
       {
         "id": "load",
@@ -106,7 +114,10 @@
         "type": "core/start",
         "x": 0,
         "y": 0,
-        "config": {}
+        "config": {
+          "inputMode": "resource",
+          "resourceKinds": ["audio", "video"]
+        }
       },
       {
         "id": "whisper",
@@ -170,7 +181,10 @@
         "type": "core/start",
         "x": 0,
         "y": 0,
-        "config": {}
+        "config": {
+          "inputMode": "resource",
+          "resourceKinds": ["video", "audio"]
+        }
       },
       {
         "id": "transcode",
@@ -229,7 +243,10 @@
         "type": "core/start",
         "x": 0,
         "y": 0,
-        "config": {}
+        "config": {
+          "inputMode": "resource",
+          "resourceKinds": ["video"]
+        }
       },
       {
         "id": "keyframes",
@@ -373,7 +390,8 @@
         "x": 0,
         "y": 0,
         "config": {
-          "inputMode": "resource"
+          "inputMode": "resource",
+          "resourceKinds": ["image"]
         }
       },
       {

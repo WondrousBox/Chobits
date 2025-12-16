@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { TbArrowLeft } from 'react-icons/tb';
 import { VscChromeClose, VscChromeMaximize, VscChromeMinimize, VscChromeRestore } from 'react-icons/vsc';
+import { useNavigate } from 'react-router-dom';
 
 import { Button } from '../ui/button';
 
@@ -8,12 +10,14 @@ interface DragAbleTitleProps {
   icon?: React.ReactNode;
   center?: React.ReactNode;
   actions?: React.ReactNode;
+  showBack?: boolean;
   onClose?: () => void;
 }
 
-function DragAbleTitle({ title, icon, center, actions, onClose }: DragAbleTitleProps): React.ReactElement {
+function DragAbleTitle({ title, icon, center, actions, showBack = false, onClose }: DragAbleTitleProps): React.ReactElement {
   const [maximized, setMaximized] = useState(false);
   const [caps, setCaps] = useState({ minimizable: true, maximizable: true, resizable: true });
+  const navigate = useNavigate();
 
   useEffect(() => {
     let mounted = true;
@@ -40,6 +44,11 @@ function DragAbleTitle({ title, icon, center, actions, onClose }: DragAbleTitleP
   return (
     <div className="flex items-center w-full drag-region gap-2 h-9 px-2 box-border bg-background">
       {window.YUA.isMac && <div className="w-20"></div>}
+      {showBack && (
+        <Button variant="ghost" size="icon" className="h-7 w-7 no-drag" onClick={() => navigate(-1)}>
+          <TbArrowLeft />
+        </Button>
+      )}
       <div className="flex-1 w-0">{title}</div>
       {icon && <div>{icon}</div>}
       {center && <div className="absolute left-1/2 -translate-x-1/2 flex items-center">{center}</div>}

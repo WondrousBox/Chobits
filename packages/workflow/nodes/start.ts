@@ -161,6 +161,21 @@ export const StartNode: NodeHandler = {
           { value: 'url', label: '网页链接' },
           { value: 'folder', label: '文件夹' }
         ]
+      },
+      {
+        key: 'resourceKinds',
+        label: '适用资源类型',
+        type: 'array',
+        description: '限定可以从哪些类型的资源启动该工作流；为空或包含 any 时表示不限',
+        inputType: 'select-multiple',
+        options: [
+          { value: 'any', label: '不限（默认）' },
+          { value: 'image', label: '图片' },
+          { value: 'video', label: '视频' },
+          { value: 'audio', label: '音频' },
+          { value: 'document', label: '文档/文本' },
+          { value: 'other', label: '其他' }
+        ]
       }
     ]
   },

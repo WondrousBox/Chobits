@@ -87,11 +87,9 @@ const WorkflowHistoryPage: React.FC = () => {
   return (
     <div className="h-full w-full flex flex-col bg-background text-foreground">
       <DragAbleTitle
+        showBack
         title={
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="no-drag">
-              <TbArrowLeft />
-            </Button>
             <span className="font-semibold">执行记录</span>
           </div>
         }
