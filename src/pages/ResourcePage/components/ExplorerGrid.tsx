@@ -688,7 +688,10 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
                             }
                           }}
                         >
-                          {wf.name}
+                          <div className="flex items-center gap-2">
+                            {wf.icon ? <span className="w-4 h-4 flex-shrink-0 flex items-center justify-center" dangerouslySetInnerHTML={{ __html: wf.icon }} /> : null}
+                            <span>{wf.name}</span>
+                          </div>
                         </ContextMenuItem>
                       );
                     })
@@ -778,7 +781,10 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
                             });
                           }}
                         >
-                          {wf.name}
+                          <div className="flex items-center gap-2">
+                            {wf.icon ? <span className="w-4 h-4 flex-shrink-0 flex items-center justify-center" dangerouslySetInnerHTML={{ __html: wf.icon }} /> : null}
+                            <span>{wf.name}</span>
+                          </div>
                         </ContextMenuItem>
                       );
                     })

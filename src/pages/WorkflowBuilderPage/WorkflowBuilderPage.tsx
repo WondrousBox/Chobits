@@ -2,7 +2,7 @@ import 'reactflow/dist/style.css';
 
 import { nanoid } from 'nanoid';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbPencil, TbPlayerPlay } from 'react-icons/tb';
+import { TbIcons, TbPencil, TbPlayerPlay } from 'react-icons/tb';
 import { useParams, useSearchParams } from 'react-router-dom';
 import ReactFlow, {
   addEdge,
@@ -24,6 +24,7 @@ import { toast } from 'sonner';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { runWorkflow } from '@/lib/workflow-runner';
 
@@ -31,6 +32,7 @@ import ResourceRunPopover from '../ResourcePage/ResourceRunPopover';
 import { ResourceItem } from '../ResourcePage/types';
 import FloatingActions from './FloatingActions';
 import FloatingInspector from './FloatingInspector';
+import IconSelector from './IconSelector';
 import { autoLayout } from './layout';
 import SpecNode from './SpecNode';
 import type { ExecutionStatus, NodeData, NodeSpec, WorkflowDraft, WorkflowRunLogEntry } from './types';
@@ -88,6 +90,7 @@ const WorkflowCanvasInner: React.FC = () => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editingTitleValue, setEditingTitleValue] = useState('');
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const [showIconDialog, setShowIconDialog] = useState(false);
   const selectedNode = useMemo(() => draft?.nodes.find((n) => n.id === selectedNodeId), [draft, selectedNodeId]);
 
   // Load existing workflow definition if payload provides id, or load preset template if presetId is provided
@@ -141,6 +144,7 @@ const WorkflowCanvasInner: React.FC = () => {
               id: workflowDef.id,
               name: workflowDef.name || workflowDef.id,
               description: workflowDef.description,
+              icon: workflowDef.icon,
               nodes: (workflowDef.nodes || []).map((n: any) => ({
                 ...n,
                 inputDefaults: undefined
@@ -184,6 +188,7 @@ const WorkflowCanvasInner: React.FC = () => {
               id: 'new-' + nanoid(6),
               name: workflowDef.name ? workflowDef.name + ' (副本)' : '新建工作流',
               description: workflowDef.description,
+              icon: workflowDef.icon,
               nodes: rfNodes.map((n: any) => ({
                 id: n.id,
                 type: (n.data as NodeData).specId,
@@ -307,7 +312,8 @@ const WorkflowCanvasInner: React.FC = () => {
       id: draft.id,
       name: draft.name,
       description: draft.description,
-      // 校验时不需要运行时输入，避免给人“已配置默认值”的错觉
+      icon: draft.icon,
+      // 校验时不需要运行时输入，避免给人"已配置默认值"的错觉
       nodes: draft.nodes.map((n) => ({ id: n.id, type: n.type, x: n.x, y: n.y, config: n.config })),
       edges: draft.edges.map((e) => ({ id: e.id, from: e.from, to: e.to })),
       options: { concurrency: 1, errorStrategy: 'fail-fast' }
@@ -363,6 +369,7 @@ const WorkflowCanvasInner: React.FC = () => {
         id: draft.id,
         name: draft.name,
         description: draft.description,
+        icon: draft.icon,
         // 持久化时不写入 inputDefaults，让运行时输入每次都是空的
         nodes: draft.nodes.map((n) => ({ id: n.id, type: n.type, x: n.x, y: n.y, config: n.config })),
         edges: draft.edges.map((e) => ({ id: e.id, from: e.from, to: e.to })),
@@ -625,6 +632,7 @@ const WorkflowCanvasInner: React.FC = () => {
       id: draft.id,
       name: draft.name,
       description: draft.description,
+      icon: draft.icon,
       // JSON 视图与实际保存一致，不包含运行时输入
       nodes: draft.nodes.map((n) => ({ id: n.id, type: n.type, x: n.x, y: n.y, config: n.config })),
       edges: draft.edges.map((e) => ({ id: e.id, from: e.from, to: e.to })),
@@ -827,6 +835,22 @@ const WorkflowCanvasInner: React.FC = () => {
     [handleSaveTitle, handleCancelEditTitle]
   );
 
+  // 处理打开图标设置对话框
+  const handleOpenIconDialog = useCallback(() => {
+    if (!draft) return;
+    setShowIconDialog(true);
+  }, [draft]);
+
+  // 处理图标变化
+  const handleIconChange = useCallback(
+    (svg: string) => {
+      if (!draft) return;
+      const newIcon = svg.trim() || undefined;
+      setDraft((d) => (d ? { ...d, icon: newIcon } : null));
+    },
+    [draft]
+  );
+
   return (
     <div className="h-screen w-screen flex flex-col relative">
       {/* 顶部可拖拽导航栏 */}
@@ -847,14 +871,26 @@ const WorkflowCanvasInner: React.FC = () => {
               />
             ) : (
               <>
-                <div
-                  className="flex items-center gap-2 no-drag cursor-pointer"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleStartEditTitle();
-                  }}
-                >
-                  {draft?.name || '未命名工作流'} <TbPencil />
+                <div className="flex items-center gap-2 no-drag">
+                  <div
+                    className="flex items-center gap-2 cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleStartEditTitle();
+                    }}
+                  >
+                    {draft?.name || '未命名工作流'} <TbPencil />
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenIconDialog();
+                    }}
+                  >
+                    <TbIcons /> 设置图标
+                  </Button>
                 </div>
               </>
             )}
@@ -947,6 +983,16 @@ const WorkflowCanvasInner: React.FC = () => {
         </div>
       </div>
       <WorkflowJsonDialog open={showJsonDialog} onOpenChange={setShowJsonDialog} json={getWorkflowJson()} />
+      <Dialog open={showIconDialog} onOpenChange={setShowIconDialog}>
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>设置工作流图标</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0">
+            <IconSelector value={draft?.icon || ''} onChange={handleIconChange} />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
