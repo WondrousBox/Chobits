@@ -147,8 +147,8 @@ export class WorkflowEngine extends EngineEmitter {
   async checkMissingConfigs(
     def: WorkflowDefinition,
     input: Record<string, any> = {}
-  ): Promise<{ nodeId: string; nodeLabel: string; nodeType: string; missingFields: PortSchema[]; currentConfig: Record<string, any> }[]> {
-    const missingConfigs: { nodeId: string; nodeLabel: string; nodeType: string; missingFields: PortSchema[]; currentConfig: Record<string, any> }[] = [];
+  ): Promise<{ nodeId: string; nodeLabel: string; nodeType: string; missingFields: PortSchema[]; currentConfig: Record<string, any>; icon?: string; backgroundColor?: string }[]> {
+    const missingConfigs: { nodeId: string; nodeLabel: string; nodeType: string; missingFields: PortSchema[]; currentConfig: Record<string, any>; icon?: string; backgroundColor?: string }[] = [];
 
     console.log(def.nodes);
 
@@ -215,7 +215,9 @@ export class WorkflowEngine extends EngineEmitter {
           nodeLabel: node.name || handler.spec.label,
           nodeType: node.type,
           missingFields,
-          currentConfig: effectiveConfig
+          currentConfig: effectiveConfig,
+          icon: handler.spec.icon,
+          backgroundColor: handler.spec.backgroundColor
         });
       }
     }
