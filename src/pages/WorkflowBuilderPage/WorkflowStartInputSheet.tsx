@@ -1,15 +1,12 @@
 import { useEffect, useState } from 'react';
-import { TbFolder, TbLoader2, TbPlayerPlay } from 'react-icons/tb';
+import { TbLoader2, TbPlayerPlay } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { runWorkflow } from '@/lib/workflow-runner';
-import type { NodeSpec } from '@/types/workflow';
 
+import type { NodeSpec } from '../../../packages/workflow/types';
 import { ConfigFieldRenderer } from './ConfigFieldRenderer';
 
 type ConfigSchema = NonNullable<NodeSpec['config']>[number];
@@ -126,23 +123,6 @@ export default function WorkflowStartInputSheet(): JSX.Element {
     }
   };
 
-  const handlePickFile = async (nodeId: string, fieldKey: string): Promise<void> => {
-    try {
-      const result = await window.YUA.file['file:pickFile']();
-      if (!result.canceled && result.path) {
-        setConfigValues((prev) => ({
-          ...prev,
-          [nodeId]: {
-            ...prev[nodeId],
-            [fieldKey]: result.path
-          }
-        }));
-      }
-    } catch (err: any) {
-      toast.error('文件选择失败', { description: err?.message || String(err) });
-    }
-  };
-
   const handleConfirm = async (): Promise<void> => {
     if (submitting) return;
 
@@ -235,100 +215,24 @@ export default function WorkflowStartInputSheet(): JSX.Element {
                     {node.nodeLabel}
                   </div>
                   <div className="space-y-4">
-                    {node.missingFields.map((field) => {
-                      // 特殊处理文件输入
-                      if (field.inputType === 'file') {
-                        return (
-                          <div key={field.key} className="space-y-1">
-                            <Label className="text-xs font-medium">{field.label || field.key}</Label>
-                            <div className="flex gap-2">
-                              <Input
-                                value={configValues[node.nodeId]?.[field.key] || ''}
-                                onChange={(e) => {
-                                  setConfigValues((prev) => ({
-                                    ...prev,
-                                    [node.nodeId]: {
-                                      ...prev[node.nodeId],
-                                      [field.key]: e.target.value
-                                    }
-                                  }));
-                                }}
-                                placeholder="请选择文件或输入文件路径"
-                                className="flex-1 h-8 text-xs"
-                                disabled={submitting}
-                              />
-                              <Button variant="outline" size="sm" className="h-8" onClick={() => handlePickFile(node.nodeId, field.key)} disabled={submitting}>
-                                选择文件
-                              </Button>
-                            </div>
-                          </div>
-                        );
-                      }
-
-                      // 特殊处理文件夹输入
-                      if (field.inputType === 'folder') {
-                        return (
-                          <div key={field.key} className="space-y-1">
-                            <Label className="text-xs font-medium">{field.label || field.key}</Label>
-                            {loadingFolders ? (
-                              <div className="flex items-center py-2">
-                                <TbLoader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                                <span className="ml-2 text-xs text-muted-foreground">加载文件夹列表...</span>
-                              </div>
-                            ) : (
-                              <Select
-                                value={configValues[node.nodeId]?.[field.key] || ''}
-                                onValueChange={(val) => {
-                                  setConfigValues((prev) => ({
-                                    ...prev,
-                                    [node.nodeId]: {
-                                      ...prev[node.nodeId],
-                                      [field.key]: val
-                                    }
-                                  }));
-                                }}
-                                disabled={submitting}
-                              >
-                                <SelectTrigger className="w-full h-8 text-xs">
-                                  <SelectValue placeholder="请选择文件夹" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {folders.length === 0 ? (
-                                    <div className="py-2 text-center text-xs text-muted-foreground">暂无可用文件夹</div>
-                                  ) : (
-                                    folders.map((folder) => (
-                                      <SelectItem key={folder.id} value={folder.id}>
-                                        <div className="flex items-center gap-2">
-                                          <TbFolder className="h-3 w-3" />
-                                          <span>{folder.name}</span>
-                                        </div>
-                                      </SelectItem>
-                                    ))
-                                  )}
-                                </SelectContent>
-                              </Select>
-                            )}
-                          </div>
-                        );
-                      }
-
-                      return (
-                        <ConfigFieldRenderer
-                          key={field.key}
-                          field={field}
-                          value={configValues[node.nodeId]?.[field.key]}
-                          onChange={(val) => {
-                            setConfigValues((prev) => ({
-                              ...prev,
-                              [node.nodeId]: {
-                                ...prev[node.nodeId],
-                                [field.key]: val
-                              }
-                            }));
-                          }}
-                        />
-                      );
-                    })}
+                    {node.missingFields.map((field) => (
+                      <ConfigFieldRenderer
+                        key={field.key}
+                        field={field}
+                        value={configValues[node.nodeId]?.[field.key]}
+                        onChange={(val) => {
+                          setConfigValues((prev) => ({
+                            ...prev,
+                            [node.nodeId]: {
+                              ...prev[node.nodeId],
+                              [field.key]: val
+                            }
+                          }));
+                        }}
+                        folderList={folders}
+                        loadingFolders={loadingFolders}
+                      />
+                    ))}
                   </div>
                 </div>
               ))}

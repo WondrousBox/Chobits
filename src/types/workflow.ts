@@ -24,42 +24,6 @@ export type WorkflowDraft = {
 
 export type ExecutionStatus = 'queued' | 'running' | 'completed' | 'failed' | 'canceled';
 
-export type NodeSpec = {
-  id: string;
-  label: string;
-  category?: string;
-  description?: string;
-  // Visual design fields
-  backgroundColor?: string; // CSS color value, e.g. '#3b82f6', 'rgb(59, 130, 246)', 'blue-500'
-  icon?: string; // Icon name from react-icons/tb (must be imported in SpecNode.tsx iconMap)
-  // Available icons: TbEdit, TbFolderOpen, TbPhoto, TbPlayerPlay, TbRobot, TbScan, TbSquare, TbText
-  // Add more icons by importing them in SpecNode.tsx and adding to iconMap
-  inputs: {
-    key: string;
-    type: string | string[];
-    required?: boolean;
-    description?: string;
-    label?: string;
-    default?: any;
-    inputType?: 'text' | 'select' | 'select-multiple' | 'number' | 'textarea' | 'condition-list' | 'port-list';
-    options?: Array<{ value: string; label: string } | { group: string; options: Array<{ value: string; label: string }> }>;
-  }[];
-  outputs: { key: string; type: string | string[]; description?: string }[];
-  requires?: string[];
-  config?: {
-    key: string;
-    label?: string;
-    type: string | string[];
-    description?: string;
-    default?: any;
-    inputType?: 'text' | 'select' | 'select-multiple' | 'number' | 'textarea' | 'condition-list' | 'port-list';
-    options?: Array<{ value: string; label: string } | { group: string; options: Array<{ value: string; label: string }> }>;
-    group?: string;
-  }[];
-  configGroups?: Record<string, { label: string; defaultExpanded?: boolean }>;
-  hasDynamicConfig?: boolean;
-};
-
 export type ValidateResult = {
   ok: boolean;
   errors?: string[];

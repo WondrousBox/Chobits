@@ -5,8 +5,8 @@ import { TbArrowsSplit, TbLine, TbX } from 'react-icons/tb';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import type { NodeSpec } from '@/types/workflow';
 
+import type { NodeSpec } from '../../../packages/workflow/types';
 import { getIconComponent, getTextColorClass } from './nodeUtils';
 
 interface WorkflowSidebarProps {

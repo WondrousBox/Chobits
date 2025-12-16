@@ -26,8 +26,9 @@ import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { runWorkflow } from '@/lib/workflow-runner';
-import { ExecutionStatus, NodeSpec, WorkflowDraft, WorkflowRunLogEntry } from '@/types/workflow';
+import { ExecutionStatus, WorkflowDraft, WorkflowRunLogEntry } from '@/types/workflow';
 
+import type { NodeSpec } from '../../../packages/workflow/types';
 import ResourceRunPopover from '../ResourcePage/ResourceRunPopover';
 import { ResourceItem } from '../ResourcePage/types';
 import FloatingActions from './FloatingActions';

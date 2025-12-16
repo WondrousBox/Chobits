@@ -1,13 +1,14 @@
 import React from 'react';
-import { TbPlus, TbTrash } from 'react-icons/tb';
+import { TbFolder, TbLoader2, TbPlus, TbTrash } from 'react-icons/tb';
+import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import type { NodeSpec } from '@/types/workflow';
 
+import type { NodeSpec } from '../../../packages/workflow/types';
 import type { NodeData } from './types';
 
 type ConfigSchema = NonNullable<NodeSpec['config']>[number];
@@ -18,6 +19,8 @@ interface ConfigFieldRendererProps {
   onChange: (value: any) => void;
   nodeData?: NodeData;
   mode?: 'default' | 'compact';
+  folderList?: Array<{ id: string; name: string }>;
+  loadingFolders?: boolean;
 }
 
 // 类型守卫：判断是否是分组选项
@@ -25,7 +28,15 @@ function isOptionGroup(option: { value?: string; label?: string; group?: string;
   return 'group' in option && 'options' in option;
 }
 
-export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({ field, value: currentValue, onChange: onValueChange, nodeData, mode = 'default' }) => {
+export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
+  field,
+  value: currentValue,
+  onChange: onValueChange,
+  nodeData,
+  mode = 'default',
+  folderList = [],
+  loadingFolders = false
+}) => {
   const label = field.label || field.key;
   const rawValue = currentValue ?? field.default;
   const isCompact = mode === 'compact';
@@ -359,6 +370,73 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({ field,
           ))}
           {conditions.length === 0 && <div className={`${descClass} text-center py-2`}>暂无条件，点击 + 添加</div>}
         </div>
+      </div>
+    );
+  }
+
+  // 检查是否是 file 类型
+  if (field.inputType === 'file') {
+    const handlePickFile = async () => {
+      try {
+        const result = await window.YUA.file['file:pickFile']();
+        if (!result.canceled && result.path) {
+          onValueChange(result.path);
+        }
+      } catch (err: any) {
+        toast.error('文件选择失败', { description: err?.message || String(err) });
+      }
+    };
+
+    return (
+      <div className={containerClass}>
+        <label className={labelClass}>{label}</label>
+        <div className="flex gap-2">
+          <Input
+            value={value}
+            onChange={(e) => onValueChange(e.target.value)}
+            placeholder={field.description || '请选择文件或输入文件路径'}
+            className={`flex-1 ${inputHeightClass}`}
+            onMouseDown={(e) => e.stopPropagation()}
+          />
+          <Button variant="outline" size="sm" className={inputHeightClass} onClick={handlePickFile} onMouseDown={(e) => e.stopPropagation()}>
+            选择文件
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // 检查是否是 folder 类型
+  if (field.inputType === 'folder') {
+    return (
+      <div className={containerClass}>
+        <label className={labelClass}>{label}</label>
+        {loadingFolders ? (
+          <div className="flex items-center py-2">
+            <TbLoader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            <span className="ml-2 text-xs text-muted-foreground">加载文件夹列表...</span>
+          </div>
+        ) : (
+          <Select value={value} onValueChange={onValueChange}>
+            <SelectTrigger className={`w-full ${inputHeightClass}`} onMouseDown={(e) => e.stopPropagation()}>
+              <SelectValue placeholder={field.description || '请选择文件夹'} />
+            </SelectTrigger>
+            <SelectContent>
+              {folderList.length === 0 ? (
+                <div className="py-2 text-center text-xs text-muted-foreground">暂无可用文件夹</div>
+              ) : (
+                folderList.map((folder) => (
+                  <SelectItem key={folder.id} value={folder.id}>
+                    <div className="flex items-center gap-2">
+                      <TbFolder className="h-3 w-3" />
+                      <span>{folder.name}</span>
+                    </div>
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
+        )}
       </div>
     );
   }
