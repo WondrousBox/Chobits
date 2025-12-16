@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { TbChevronDown, TbChevronUp, TbTerminal2, TbTrash } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
-import { ExecutionStatus, WorkflowRunLogEntry } from '@/types/workflow';
+
+import type { ExecutionStatus, WorkflowRunLogEntry } from '../../../packages/workflow/types';
 
 type WorkflowRunConsoleProps = {
   logs: WorkflowRunLogEntry[];

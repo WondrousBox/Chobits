@@ -1,6 +1,4 @@
-import { NodeRunState } from '@/types/workflow';
-
-import type { NodeSpec } from '../../../packages/workflow/types';
+import type { NodeRunState, NodeSpec } from '../../../packages/workflow/types';
 
 export type NodeData = {
   label: string;
