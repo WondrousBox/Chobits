@@ -1,5 +1,6 @@
 import React from 'react';
 import { TbEdit, TbFile, TbFileDownload, TbFilePencil, TbFilePlus, TbFolderOpen, TbLetterT, TbPhoto, TbPlayerPlay, TbRobot, TbScan, TbSquare } from 'react-icons/tb';
+import { VscJson } from 'react-icons/vsc';
 
 /**
  * 图标映射表
@@ -23,6 +24,7 @@ export const iconMap: Record<string, React.ComponentType<{ className?: string }>
   TbFilePlus,
   TbFilePencil,
   TbFileDownload,
+  TbJson: VscJson,
   TbText: TbLetterT
 };
 
@@ -67,32 +69,6 @@ function parseColor(color: string): { r: number; g: number; b: number } | null {
   }
 
   return null;
-}
-
-/**
- * 计算颜色的相对亮度
- * @param r 红色值 (0-255)
- * @param g 绿色值 (0-255)
- * @param b 蓝色值 (0-255)
- * @returns 亮度值 (0-255)
- */
-function calculateBrightness(r: number, g: number, b: number): number {
-  return (r * 299 + g * 587 + b * 114) / 1000;
-}
-
-/**
- * 根据背景颜色计算文字颜色类名
- * @param backgroundColor 背景颜色值
- * @returns Tailwind CSS 类名
- */
-export function getTextColorClass(backgroundColor?: string): string {
-  if (!backgroundColor) return 'text-foreground';
-
-  const rgb = parseColor(backgroundColor);
-  if (!rgb) return 'text-white';
-
-  const brightness = calculateBrightness(rgb.r, rgb.g, rgb.b);
-  return brightness < 128 ? 'text-white' : 'text-gray-900';
 }
 
 /**

@@ -7,7 +7,7 @@ export const JsonStringifyNode: NodeHandler = {
     category: 'Data',
     description: '将数据转换为 JSON 字符串',
     backgroundColor: '#607d8b',
-    icon: 'TbText',
+    icon: 'TbJson',
     inputs: [
       {
         key: 'input',
