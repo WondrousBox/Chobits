@@ -8,6 +8,7 @@ import { runWorkflow } from '@/lib/workflow-runner';
 
 import type { NodeSpec } from '../../../packages/workflow/types';
 import { ConfigFieldRenderer } from './ConfigFieldRenderer';
+import { getGradientBackgroundStyle, getIconComponent } from './nodeUtils';
 
 type ConfigSchema = NonNullable<NodeSpec['config']>[number];
 
@@ -17,6 +18,8 @@ type MissingConfig = {
   nodeType?: string;
   missingFields: ConfigSchema[];
   currentConfig?: Record<string, any>;
+  icon?: string;
+  backgroundColor?: string;
 };
 
 type IncomingPayload = {
@@ -269,48 +272,54 @@ export default function WorkflowStartInputSheet(): JSX.Element {
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetContent className="w-[400px] sm:w-[540px]">
-        <SheetHeader>
+      <SheetContent className="w-[400px] h-full flex flex-col p-0">
+        <SheetHeader className="pt-6 px-4">
           <SheetTitle>完善必填项</SheetTitle>
           <SheetDescription>当前执行的任务需要你填写以下信息</SheetDescription>
         </SheetHeader>
-
-        <div className="py-6 space-y-6 box-border">
+        <div className="space-y-6 box-border flex-1 overflow-y-auto px-4">
           {missingConfigs.length > 0 && (
-            <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-2">
-              {missingConfigs.map((node) => (
-                <div key={node.nodeId} className="space-y-3 border rounded-md py-4">
-                  <div className="flex items-center gap-2 font-medium">
-                    <div className="w-1 h-4 bg-primary rounded-full" />
-                    {node.nodeLabel}
+            <div className="space-y-4 overflow-y-auto">
+              {missingConfigs.map((node) => {
+                const Icon = getIconComponent(node.icon);
+                const bgStyle = getGradientBackgroundStyle(node.backgroundColor, 0.1);
+                const iconColor = node.backgroundColor || 'currentColor';
+
+                return (
+                  <div key={node.nodeId} className="border rounded-md py-4 relative overflow-hidden">
+                    <div className="absolute inset-0 pointer-events-none" style={bgStyle} />
+                    <div className="flex items-center gap-2 font-medium px-4 relative z-10 pb-4">
+                      {Icon ? <Icon className="w-5 h-5" style={{ color: iconColor }} /> : <div className="w-1 h-4 bg-primary rounded-full" />}
+                      {node.nodeLabel}
+                    </div>
+                    <div className="space-y-4 px-4 relative z-10">
+                      {node.missingFields.map((field) => (
+                        <ConfigFieldRenderer
+                          key={field.key}
+                          field={field}
+                          value={configValues[node.nodeId]?.[field.key]}
+                          onChange={(val) => {
+                            setConfigValues((prev) => ({
+                              ...prev,
+                              [node.nodeId]: {
+                                ...prev[node.nodeId],
+                                [field.key]: val
+                              }
+                            }));
+                          }}
+                          folderList={folders}
+                          loadingFolders={loadingFolders}
+                        />
+                      ))}
+                    </div>
                   </div>
-                  <div className="space-y-4">
-                    {node.missingFields.map((field) => (
-                      <ConfigFieldRenderer
-                        key={field.key}
-                        field={field}
-                        value={configValues[node.nodeId]?.[field.key]}
-                        onChange={(val) => {
-                          setConfigValues((prev) => ({
-                            ...prev,
-                            [node.nodeId]: {
-                              ...prev[node.nodeId],
-                              [field.key]: val
-                            }
-                          }));
-                        }}
-                        folderList={folders}
-                        loadingFolders={loadingFolders}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
-          )}{' '}
+          )}
         </div>
 
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-end gap-2 box-border pb-4 px-4">
           <Button onClick={handleConfirm} disabled={submitting || !isFormValid}>
             {submitting ? (
               <>
