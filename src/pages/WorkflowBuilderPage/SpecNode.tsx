@@ -6,8 +6,8 @@ import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
-import type { NodeSpec } from '@/types/workflow';
 
+import type { NodeSpec } from '../../../packages/workflow/types';
 import { ConfigFieldRenderer } from './ConfigFieldRenderer';
 import { getGradientBackgroundStyle, getIconComponent } from './nodeUtils';
 import type { NodeData } from './types';

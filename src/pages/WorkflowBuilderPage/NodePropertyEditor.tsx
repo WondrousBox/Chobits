@@ -3,8 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import React, { useEffect, useMemo, useState } from 'react';
 import { TbChevronDown, TbChevronRight } from 'react-icons/tb';
 
-import type { NodeSpec } from '@/types/workflow';
-
+import type { NodeSpec } from '../../../packages/workflow/types';
 import { ConfigFieldRenderer } from './ConfigFieldRenderer';
 import type { NodeData } from './types';
 
