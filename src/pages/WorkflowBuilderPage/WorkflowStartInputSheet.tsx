@@ -317,9 +317,6 @@ export default function WorkflowStartInputSheet(): JSX.Element {
         </div>
 
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => setOpen(false)} disabled={submitting}>
-            取消
-          </Button>
           <Button
             onClick={handleConfirm}
             disabled={
@@ -332,12 +329,12 @@ export default function WorkflowStartInputSheet(): JSX.Element {
           >
             {submitting ? (
               <>
-                <TbLoader2 className="mr-2 h-4 w-4 animate-spin" />
+                <TbLoader2 className="animate-spin" />
                 运行中...
               </>
             ) : (
               <>
-                <TbPlayerPlay className="mr-2 h-4 w-4" />
+                <TbPlayerPlay />
                 运行
               </>
             )}
