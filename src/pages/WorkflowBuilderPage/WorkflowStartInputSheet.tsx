@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { TbLoader2, TbPlayerPlay } from 'react-icons/tb';
 import { toast } from 'sonner';
 
@@ -16,6 +16,7 @@ type MissingConfig = {
   nodeLabel: string;
   nodeType?: string;
   missingFields: ConfigSchema[];
+  currentConfig?: Record<string, any>;
 };
 
 type IncomingPayload = {
@@ -114,6 +115,69 @@ export default function WorkflowStartInputSheet(): JSX.Element {
     };
   }, [missingConfigs, open]);
 
+  // 监听配置变化，动态更新表单项
+  useEffect(() => {
+    if (!open || missingConfigs.length === 0) return;
+
+    let mounted = true;
+
+    const timer = setTimeout(async () => {
+      let hasUpdates = false;
+      const newMissingConfigs = [...missingConfigs];
+
+      for (let i = 0; i < newMissingConfigs.length; i++) {
+        if (!mounted) return;
+        const node = newMissingConfigs[i];
+        if (!node.nodeType) continue;
+
+        // 获取当前节点的配置值（合并原有配置和用户输入）
+        const userConfig = configValues[node.nodeId] || {};
+        const effectiveConfig = { ...(node.currentConfig || {}), ...userConfig };
+
+        try {
+          // 调用后端获取最新的配置 schema
+          const result = await invoke('wf:getNodeConfig', {
+            nodeId: node.nodeType,
+            config: effectiveConfig
+          });
+
+          if (!mounted) return;
+
+          if (result?.ok && Array.isArray(result.config)) {
+            const dynamicConfig = result.config as ConfigSchema[];
+
+            // 更新 missingFields 中的 options 等属性
+            const updatedMissingFields = node.missingFields.map((field) => {
+              const newField = dynamicConfig.find((f) => f.key === field.key);
+              if (newField) {
+                // 如果找到了对应的字段，更新它
+                return { ...field, ...newField };
+              }
+              return field;
+            });
+
+            // 检查是否有变化
+            if (JSON.stringify(updatedMissingFields) !== JSON.stringify(node.missingFields)) {
+              newMissingConfigs[i] = { ...node, missingFields: updatedMissingFields };
+              hasUpdates = true;
+            }
+          }
+        } catch (err) {
+          console.warn(`Failed to update dynamic config for node ${node.nodeId}`, err);
+        }
+      }
+
+      if (hasUpdates && mounted) {
+        setMissingConfigs(newMissingConfigs);
+      }
+    }, 300);
+
+    return () => {
+      mounted = false;
+      clearTimeout(timer);
+    };
+  }, [configValues, open, missingConfigs]);
+
   const isValidUrl = (urlString: string): boolean => {
     try {
       const urlObj = new URL(urlString);
@@ -123,6 +187,22 @@ export default function WorkflowStartInputSheet(): JSX.Element {
     }
   };
 
+  const isFormValid = useMemo(() => {
+    if (missingConfigs.length === 0) return true;
+    for (const node of missingConfigs) {
+      for (const field of node.missingFields) {
+        const val = configValues[node.nodeId]?.[field.key];
+        if (val === undefined || val === null || val === '') {
+          return false;
+        }
+        if ((field.key === 'url' || field.inputType === 'url') && typeof val === 'string' && !isValidUrl(val)) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }, [missingConfigs, configValues]);
+
   const handleConfirm = async (): Promise<void> => {
     if (submitting) return;
 
@@ -131,19 +211,9 @@ export default function WorkflowStartInputSheet(): JSX.Element {
     // 收集配置输入
     if (missingConfigs.length > 0) {
       // 验证配置值
-      for (const node of missingConfigs) {
-        for (const field of node.missingFields) {
-          const val = configValues[node.nodeId]?.[field.key];
-          if (val === undefined || val === null || val === '') {
-            toast.error(`请填写 ${node.nodeLabel} 的 ${field.label || field.key}`);
-            return;
-          }
-          // 验证 URL
-          if ((field.key === 'url' || field.inputType === 'url') && typeof val === 'string' && !isValidUrl(val)) {
-            toast.error(`请填写有效的 ${field.label || field.key} (以 http:// 或 https:// 开头)`);
-            return;
-          }
-        }
+      if (!isFormValid) {
+        toast.error('请完善所有必填项');
+        return;
       }
 
       // 处理 Start 节点的特殊输入
@@ -241,7 +311,7 @@ export default function WorkflowStartInputSheet(): JSX.Element {
         </div>
 
         <div className="flex justify-end gap-2">
-          <Button onClick={handleConfirm} disabled={submitting}>
+          <Button onClick={handleConfirm} disabled={submitting || !isFormValid}>
             {submitting ? (
               <>
                 <TbLoader2 className="animate-spin" />

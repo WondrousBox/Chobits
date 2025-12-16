@@ -144,8 +144,11 @@ export class WorkflowEngine extends EngineEmitter {
    * @param input 当前提供的输入 (可能包含配置覆盖)
    * @returns 缺失的配置项列表
    */
-  async checkMissingConfigs(def: WorkflowDefinition, input: Record<string, any> = {}): Promise<{ nodeId: string; nodeLabel: string; nodeType: string; missingFields: PortSchema[] }[]> {
-    const missingConfigs: { nodeId: string; nodeLabel: string; nodeType: string; missingFields: PortSchema[] }[] = [];
+  async checkMissingConfigs(
+    def: WorkflowDefinition,
+    input: Record<string, any> = {}
+  ): Promise<{ nodeId: string; nodeLabel: string; nodeType: string; missingFields: PortSchema[]; currentConfig: Record<string, any> }[]> {
+    const missingConfigs: { nodeId: string; nodeLabel: string; nodeType: string; missingFields: PortSchema[]; currentConfig: Record<string, any> }[] = [];
 
     console.log(def.nodes);
 
@@ -211,7 +214,8 @@ export class WorkflowEngine extends EngineEmitter {
           nodeId: node.id,
           nodeLabel: node.name || handler.spec.label,
           nodeType: node.type,
-          missingFields
+          missingFields,
+          currentConfig: effectiveConfig
         });
       }
     }
