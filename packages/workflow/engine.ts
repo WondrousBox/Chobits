@@ -5,7 +5,7 @@ import path from 'node:path';
 import util from 'node:util';
 
 import { getNode, getPlugin } from './registry';
-import { EngineEmitter, ExecutionContext, NodeRunState, ValidateResult, WorkflowDefinition, WorkflowRunLogEntry, WorkflowRunLogLevel, WorkflowRunRecord } from './types';
+import { EngineEmitter, ExecutionContext, NodeRunState, PortSchema, ValidateResult, WorkflowDefinition, WorkflowRunLogEntry, WorkflowRunLogLevel, WorkflowRunRecord } from './types';
 
 function now(): number {
   return Date.now();
@@ -139,24 +139,84 @@ export class WorkflowEngine extends EngineEmitter {
   }
 
   /**
-   * 检查工作流开始节点是否需要输入
+   * 检查工作流中所有节点是否缺少必填配置（包括开始节点的输入）
    * @param def 工作流定义
-   * @param input 当前提供的输入
-   * @returns 如果需要输入，返回输入模式；否则返回 null
+   * @param input 当前提供的输入 (可能包含配置覆盖)
+   * @returns 缺失的配置项列表
    */
-  checkStartInput(def: WorkflowDefinition, input: Record<string, any> = {}): 'text' | 'url' | 'file' | 'folder' | null {
-    const startNode = def.nodes.find((n) => n.type === 'core/start');
-    if (!startNode) return null;
+  async checkMissingConfigs(def: WorkflowDefinition, input: Record<string, any> = {}): Promise<{ nodeId: string; nodeLabel: string; nodeType: string; missingFields: PortSchema[] }[]> {
+    const missingConfigs: { nodeId: string; nodeLabel: string; nodeType: string; missingFields: PortSchema[] }[] = [];
 
-    const inputMode = (startNode.config?.inputMode as string) || 'resource';
-    const effectiveInput = { ...(startNode.inputDefaults || {}), ...input };
+    console.log(def.nodes);
 
-    if (inputMode === 'text' && !effectiveInput.text) return 'text';
-    if (inputMode === 'url' && !effectiveInput.url) return 'url';
-    if (inputMode === 'file' && !effectiveInput.file) return 'file';
-    if (inputMode === 'folder' && !effectiveInput.folderId) return 'folder';
+    for (const node of def.nodes) {
+      const handler = getNode(node.type);
+      if (!handler) continue;
 
-    return null;
+      const missingFields: PortSchema[] = [];
+      const overrides = input.__configOverrides__?.[node.id] || {};
+      const effectiveConfig = { ...node.config, ...overrides };
+
+      // 1. 特殊处理 Start 节点
+      if (node.type === 'core/start') {
+        const inputMode = (effectiveConfig.inputMode as string) || 'resource';
+        // Start 节点的输入可能在 input 根对象中，也可能在 inputDefaults 中
+        const effectiveInput = { ...(node.inputDefaults || {}), ...input };
+
+        if (inputMode === 'text' && !effectiveInput.text) {
+          missingFields.push({ key: 'text', label: '文本内容', type: 'string', inputType: 'textarea', required: true });
+        } else if (inputMode === 'url' && !effectiveInput.url) {
+          missingFields.push({ key: 'url', label: '链接地址', type: 'string', inputType: 'text', required: true });
+        } else if (inputMode === 'file' && !effectiveInput.file) {
+          missingFields.push({ key: 'file', label: '文件路径', type: 'string', inputType: 'file' as any, required: true });
+        } else if (inputMode === 'folder' && !effectiveInput.folderId) {
+          missingFields.push({ key: 'folderId', label: '选择文件夹', type: 'string', inputType: 'folder' as any, required: true });
+        }
+      }
+
+      // 2. 处理常规配置检查
+      // 获取节点的配置 schema
+      let configSchema: PortSchema[] = handler.spec.config || [];
+
+      // 如果节点支持动态配置，获取动态 schema
+      if ('getConfig' in handler && typeof handler.getConfig === 'function') {
+        try {
+          const dynamicConfig = await handler.getConfig(effectiveConfig);
+          if (dynamicConfig) {
+            configSchema = dynamicConfig;
+          }
+        } catch (e) {
+          console.warn(`Failed to get dynamic config for node ${node.id}`, e);
+        }
+      }
+
+      for (const field of configSchema) {
+        if (field.required) {
+          const value = effectiveConfig[field.key];
+          // 检查值是否为空 (undefined, null, or empty string)
+          const isEmpty = value === undefined || value === null || value === '';
+
+          if (isEmpty) {
+            // 检查是否有默认值
+            if (field.default !== undefined && field.default !== null && field.default !== '') {
+              continue;
+            }
+            missingFields.push(field);
+          }
+        }
+      }
+
+      if (missingFields.length > 0) {
+        missingConfigs.push({
+          nodeId: node.id,
+          nodeLabel: node.name || handler.spec.label,
+          nodeType: node.type,
+          missingFields
+        });
+      }
+    }
+
+    return missingConfigs;
   }
 
   getRun(runId: string): WorkflowRunRecord | undefined {

@@ -686,16 +686,34 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
       def = await WorkflowStore.get(payload.defId);
     }
     if (!def) return { ok: false, error: 'Workflow not found' };
+
+    // 应用临时配置覆盖
+    if (payload.input?.__configOverrides__) {
+      const overrides = payload.input.__configOverrides__;
+      // 简单的深拷贝以避免修改原始定义
+      def = JSON.parse(JSON.stringify(def));
+      for (const node of def.nodes) {
+        if (overrides[node.id]) {
+          node.config = { ...node.config, ...overrides[node.id] };
+        }
+      }
+    }
+
     const validation = await engine.validate(def);
     if (!validation.ok) {
       console.warn('[WorkflowSystem] 工作流验证失败:', validation);
       return { ok: false, validation };
     }
 
-    // 检查是否需要输入
-    const requiredInputMode = engine.checkStartInput(def, payload.input || {});
-    if (requiredInputMode) {
-      return { ok: false, error: 'input-required', inputMode: requiredInputMode };
+    // 检查是否需要输入或配置
+    const missingConfigs = await engine.checkMissingConfigs(def, payload.input);
+
+    if (missingConfigs.length > 0) {
+      return {
+        ok: false,
+        error: 'input-required',
+        missingConfigs
+      };
     }
 
     const rec = await engine.run(def, payload.input || {}, payload.metadata);
