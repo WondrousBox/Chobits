@@ -1,5 +1,5 @@
 import React from 'react';
-import { TbCheck, TbCode, TbDisc, TbLayoutBottombar, TbPlayerPlay } from 'react-icons/tb';
+import { TbCheck, TbCode, TbDownload, TbLayout, TbPlayerPlay } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 
@@ -19,12 +19,12 @@ const FloatingActions: React.FC<FloatingActionsProps> = ({ onValidate, onSave, o
   return (
     <div className="flex gap-2">
       {onLayout && (
-        <Button variant="ghost" size="sm" onClick={onLayout} title="美化布局">
-          <TbLayoutBottombar />
+        <Button variant="ghost" size="icon" className="w-8 h-8" onClick={onLayout} title="美化布局">
+          <TbLayout />
         </Button>
       )}
       {onShowJson && (
-        <Button variant="ghost" size="sm" onClick={onShowJson} title="查看 JSON">
+        <Button variant="ghost" size="icon" className="w-8 h-8" onClick={onShowJson} title="查看 JSON">
           <TbCode />
         </Button>
       )}
@@ -32,8 +32,7 @@ const FloatingActions: React.FC<FloatingActionsProps> = ({ onValidate, onSave, o
         <TbCheck />
         校验
       </Button>
-      <Button variant="ghost" size="sm" onClick={onSave} disabled={saving || isPreset} title={isPreset ? '预设工作流不允许修改' : ''}>
-        <TbDisc />
+      <Button variant="outline" size="sm" onClick={onSave} disabled={saving || isPreset} title={isPreset ? '预设工作流不允许修改' : ''}>
         保存
       </Button>
       {renderRunButton ? (
