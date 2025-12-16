@@ -65,7 +65,7 @@ const WorkflowSidebar: React.FC<WorkflowSidebarProps> = ({ specs, onAdd }) => {
 
       {/* 节点库面板 - 覆盖在画布上 */}
       {paletteOpen && (
-        <div className="fixed left-12 top-9 bottom-0 w-60 bg-background border-r border-border z-40 shadow-lg flex flex-col">
+        <div className="fixed left-12 top-9 bottom-0 w-96 bg-background border-r border-border z-40 shadow-lg flex flex-col">
           <div className="flex items-center gap-2 justify-between p-2 border-b border-border">
             <Input placeholder="搜索节点" className="h-8 flex-1" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
             <Button size="icon" className="w-8 h-8 shrink-0" variant="ghost" onClick={() => setPaletteOpen(false)}>
@@ -77,7 +77,7 @@ const WorkflowSidebar: React.FC<WorkflowSidebarProps> = ({ specs, onAdd }) => {
               {filteredGrouped.map(([cat, items]) => (
                 <div key={cat}>
                   <div className="px-1 text-sm font-medium text-muted-foreground mb-1">{cat}</div>
-                  <div className="space-y-1">
+                  <div className="grid grid-cols-2 gap-2">
                     {items.map((s) => {
                       const IconComponent = getIconComponent(s.icon);
                       const iconColorClass = getTextColorClass(s.backgroundColor);

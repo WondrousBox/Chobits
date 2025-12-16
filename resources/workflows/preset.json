@@ -284,61 +284,34 @@
         "id": "start",
         "type": "core/start",
         "x": 0,
-        "y": 13.25,
+        "y": 32.25,
         "config": {
           "inputMode": "text"
         }
       },
       {
-        "id": "ai/image-generate-BfZG",
-        "type": "ai/image-generate",
-        "x": 366,
-        "y": 0,
-        "config": {
-          "providerId": "zhipu",
-          "model": "cogview-3-flash",
-          "size": "1024x1024",
-          "quality": "hd"
-        }
-      },
-      {
         "id": "resource/create-7R-s",
         "type": "resource/create",
-        "x": 753,
-        "y": 32.75,
+        "x": 784,
+        "y": 0.75,
         "config": {}
       },
       {
         "id": "end",
         "type": "core/end",
-        "x": 1251,
-        "y": 66.25,
+        "x": 1176,
+        "y": 60.25,
+        "config": {}
+      },
+      {
+        "id": "image/image-generate-UkEO",
+        "type": "image/image-generate",
+        "x": 392,
+        "y": 0,
         "config": {}
       }
     ],
     "edges": [
-      {
-        "id": "e-pqV719",
-        "from": {
-          "nodeId": "start",
-          "port": "text"
-        },
-        "to": {
-          "nodeId": "ai/image-generate-BfZG",
-          "port": "prompt"
-        }
-      },
-      {
-        "id": "e-bQSSPK",
-        "from": {
-          "nodeId": "ai/image-generate-BfZG",
-          "port": "image"
-        },
-        "to": {
-          "nodeId": "resource/create-7R-s",
-          "port": "file"
-        }
-      },
       {
         "id": "e-YRMY_x",
         "from": {
@@ -351,7 +324,29 @@
         }
       },
       {
-        "id": "e-fbqDD5",
+        "id": "e-xWD2Iq",
+        "from": {
+          "nodeId": "start",
+          "port": "text"
+        },
+        "to": {
+          "nodeId": "image/image-generate-UkEO",
+          "port": "prompt"
+        }
+      },
+      {
+        "id": "e-Ril7zk",
+        "from": {
+          "nodeId": "image/image-generate-UkEO",
+          "port": "image"
+        },
+        "to": {
+          "nodeId": "resource/create-7R-s",
+          "port": "file"
+        }
+      },
+      {
+        "id": "e-VqJhk4",
         "from": {
           "nodeId": "start",
           "port": "text"
@@ -376,7 +371,7 @@
         "id": "start",
         "type": "core/start",
         "x": 0,
-        "y": 27.25,
+        "y": 0,
         "config": {
           "inputMode": "resource"
         }
@@ -384,51 +379,26 @@
       {
         "id": "end",
         "type": "core/end",
-        "x": 1229,
-        "y": 78.25,
+        "x": 1176,
+        "y": 87.5,
         "config": {}
-      },
-      {
-        "id": "ai/image-understand-sGVu",
-        "type": "ai/image-understand",
-        "x": 366,
-        "y": 0,
-        "config": {
-          "providerId": "qwen",
-          "model": "qwen3-vl-flash"
-        }
       },
       {
         "id": "resource/update-GUSf",
         "type": "resource/update",
-        "x": 819,
-        "y": 44.25,
+        "x": 784,
+        "y": 28,
+        "config": {}
+      },
+      {
+        "id": "image/image-understand-2L9X",
+        "type": "image/image-understand",
+        "x": 392,
+        "y": 70.5,
         "config": {}
       }
     ],
     "edges": [
-      {
-        "id": "e-KEl5qA",
-        "from": {
-          "nodeId": "ai/image-understand-sGVu",
-          "port": "contentText"
-        },
-        "to": {
-          "nodeId": "resource/update-GUSf",
-          "port": "contentText"
-        }
-      },
-      {
-        "id": "e-4ZLxuF",
-        "from": {
-          "nodeId": "ai/image-understand-sGVu",
-          "port": "description"
-        },
-        "to": {
-          "nodeId": "resource/update-GUSf",
-          "port": "description"
-        }
-      },
       {
         "id": "e-dCNR7z",
         "from": {
@@ -441,25 +411,36 @@
         }
       },
       {
-        "id": "e-RpR4EV",
-        "from": {
-          "nodeId": "start",
-          "port": "resourceId"
-        },
-        "to": {
-          "nodeId": "resource/update-GUSf",
-          "port": "resourceId"
-        }
-      },
-      {
-        "id": "e-EhXUfp",
+        "id": "e-2ACOoj",
         "from": {
           "nodeId": "start",
           "port": "path"
         },
         "to": {
-          "nodeId": "ai/image-understand-sGVu",
+          "nodeId": "image/image-understand-2L9X",
           "port": "image"
+        }
+      },
+      {
+        "id": "e-VDJSf4",
+        "from": {
+          "nodeId": "image/image-understand-2L9X",
+          "port": "contentText"
+        },
+        "to": {
+          "nodeId": "resource/update-GUSf",
+          "port": "contentText"
+        }
+      },
+      {
+        "id": "e-hmC3fc",
+        "from": {
+          "nodeId": "image/image-understand-2L9X",
+          "port": "description"
+        },
+        "to": {
+          "nodeId": "resource/update-GUSf",
+          "port": "description"
         }
       }
     ],

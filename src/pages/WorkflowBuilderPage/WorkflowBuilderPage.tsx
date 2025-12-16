@@ -885,7 +885,7 @@ const WorkflowCanvasInner: React.FC = () => {
                 return (
                   <Button size="sm" disabled={!draft || running} onClick={handleRunClick}>
                     <TbPlayerPlay />
-                    运行示例
+                    试运行
                   </Button>
                 );
               }
