@@ -2,8 +2,8 @@ import 'reactflow/dist/style.css';
 
 import { nanoid } from 'nanoid';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbArrowLeft, TbPencil, TbPlayerPlay } from 'react-icons/tb';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { TbPencil, TbPlayerPlay } from 'react-icons/tb';
+import { useParams, useSearchParams } from 'react-router-dom';
 import ReactFlow, {
   addEdge,
   Background,
@@ -49,14 +49,11 @@ function useNodeSpecs(): NodeSpec[] {
   return specs;
 }
 
-// NodeData moved to ./types
-
 const START_NODE_ID = 'start';
 const END_NODE_ID = 'end';
 
 const WorkflowCanvasInner: React.FC = () => {
   const { fitView } = useReactFlow();
-  const navigate = useNavigate();
   const { id: routeId } = useParams();
   const [searchParams] = useSearchParams();
   const nodesInitialized = useNodesInitialized();
