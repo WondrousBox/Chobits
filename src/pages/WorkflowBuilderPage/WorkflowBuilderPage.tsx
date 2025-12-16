@@ -901,6 +901,14 @@ const WorkflowCanvasInner: React.FC = () => {
               onConnect={onConnect}
               onNodeClick={(_e: React.MouseEvent, n: any) => setSelectedNodeId(n.id)}
               onPaneClick={() => setSelectedNodeId(null)}
+              onSelectionChange={({ nodes: selectedNodes }) => {
+                // 当节点被选中（包括拖拽时）时，更新属性编辑器
+                if (selectedNodes.length > 0) {
+                  setSelectedNodeId(selectedNodes[0].id);
+                } else {
+                  setSelectedNodeId(null);
+                }
+              }}
               nodeTypes={nodeTypes}
             >
               <Background />
