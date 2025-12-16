@@ -186,7 +186,7 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
         <div className="text-sm font-semibold">{spec.label}</div>
         <div className="text-xs text-muted-foreground">ID: {node.id}</div>
       </div>
-      <div className="bg-muted p-2 max-h-[80vh] overflow-auto">
+      <div className="p-2 max-h-[80vh] overflow-auto">
         {effectiveConfig && effectiveConfig.length > 0 && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">

@@ -7,7 +7,7 @@ export const JsonParseNode: NodeHandler = {
     category: 'Data',
     description: '将 JSON 字符串转换为数据对象',
     backgroundColor: '#607d8b',
-    icon: 'TbText',
+    icon: 'TbJson',
     inputs: [
       {
         key: 'input',

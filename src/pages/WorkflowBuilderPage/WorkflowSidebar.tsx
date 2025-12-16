@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
-import { getIconComponent, getTextColorClass } from './nodeUtils';
+import { getIconComponent } from './nodeUtils';
 import type { NodeSpec } from './types';
 
 interface WorkflowSidebarProps {
@@ -80,16 +80,12 @@ const WorkflowSidebar: React.FC<WorkflowSidebarProps> = ({ specs, onAdd }) => {
                   <div className="grid grid-cols-2 gap-2">
                     {items.map((s) => {
                       const IconComponent = getIconComponent(s.icon);
-                      const iconColorClass = getTextColorClass(s.backgroundColor);
 
                       return (
                         <Button className="w-full justify-start gap-2 relative overflow-hidden" variant="outline" key={s.id} onClick={() => handleAddNode(s)}>
                           {IconComponent && (
-                            <div
-                              className={clsx('rounded-full p-1 w-5 h-5 flex items-center justify-center shrink-0', !s.backgroundColor && 'bg-muted')}
-                              style={{ backgroundColor: s.backgroundColor || undefined }}
-                            >
-                              <IconComponent className={clsx('w-3.5 h-3.5', iconColorClass)} />
+                            <div className={clsx('rounded-full p-1 w-5 h-5 flex items-center justify-center shrink-0')} style={{ color: s.backgroundColor || undefined }}>
+                              <IconComponent className={clsx('w-3.5 h-3.5')} />
                             </div>
                           )}
                           <span className="flex-1 text-left truncate">{s.label}</span>
