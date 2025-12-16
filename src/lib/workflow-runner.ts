@@ -21,14 +21,16 @@ export async function runWorkflow(options: RunWorkflowOptions): Promise<void> {
       metadata
     });
 
+    console.log(result);
+
     if (!result?.ok) {
-      if (result?.error === 'input-required' && result?.inputMode) {
-        // 触发输入侧边栏
+      if (result?.error === 'input-required') {
+        // 触发输入侧边栏（包含开始节点输入和配置输入）
         window.dispatchEvent(
           new CustomEvent('wf:start-input-required', {
             detail: {
               defId,
-              inputMode: result.inputMode,
+              missingConfigs: result.missingConfigs,
               metadata
             }
           })
