@@ -94,12 +94,14 @@ const SpecNode: React.FC<NodeProps<NodeData>> = ({ id, data, selected }) => {
         });
     } else {
       // 如果不支持动态配置，直接使用静态配置
-      setDynamicConfig(spec.config || []);
+      setTimeout(() => {
+        setDynamicConfig(spec.config || []);
+      }, 0);
     }
   }, [spec.id, spec.inputs, spec.outputs, spec.config, spec.hasDynamicConfig, config]);
 
   // 内联编辑：更新当前节点的 inputDefaults
-  const updateInlineInput = (key: string, value: any) => {
+  const updateInlineInput = (key: string, value: any): void => {
     rf.setNodes((nodes) =>
       nodes.map((n) =>
         n.id === id
@@ -119,7 +121,7 @@ const SpecNode: React.FC<NodeProps<NodeData>> = ({ id, data, selected }) => {
   };
 
   // 内联编辑：更新当前节点的 config
-  const updateInlineConfig = (key: string, value: any) => {
+  const updateInlineConfig = (key: string, value: any): void => {
     rf.setNodes((nodes) =>
       nodes.map((n) =>
         n.id === id
