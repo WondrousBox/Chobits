@@ -147,19 +147,19 @@ export const StartNode: NodeHandler = {
     config: [
       {
         key: 'inputMode',
-        label: '输入模式',
+        label: '数据来源',
         type: 'string',
         required: true,
         default: 'resource',
-        description: '选择工作流开始时的输入来源',
+        description: '选择工作流开始时的数据来源',
         inputType: 'select',
         showInNode: true,
         options: [
-          { value: 'resource', label: '资源选择（默认）' },
-          { value: 'text', label: '文本输入' },
-          { value: 'file', label: '文件选择/上传' },
-          { value: 'url', label: '插入链接' },
-          { value: 'folder', label: '文件夹选择' }
+          { value: 'resource', label: '资源（默认）' },
+          { value: 'text', label: '输入文本' },
+          { value: 'file', label: '选择文件' },
+          { value: 'url', label: '网页链接' },
+          { value: 'folder', label: '文件夹' }
         ]
       }
     ]
@@ -176,8 +176,7 @@ export const StartNode: NodeHandler = {
             type: 'string',
             description: '在单独运行工作流时，可以直接在开始节点上输入文本',
             inputType: 'textarea',
-            group: 'runtime',
-            showInNode: true
+            group: 'runtime'
           }
         ];
       case 'file':
@@ -188,8 +187,7 @@ export const StartNode: NodeHandler = {
             type: 'file',
             description: '在单独运行工作流时，可以在开始节点上指定文件路径',
             inputType: 'text',
-            group: 'runtime',
-            showInNode: true
+            group: 'runtime'
           }
         ];
       case 'url':
@@ -200,8 +198,7 @@ export const StartNode: NodeHandler = {
             type: 'string',
             description: '在单独运行工作流时，可以在开始节点上输入链接',
             inputType: 'text',
-            group: 'runtime',
-            showInNode: true
+            group: 'runtime'
           }
         ];
       case 'folder':
@@ -212,8 +209,7 @@ export const StartNode: NodeHandler = {
             type: 'string',
             description: '在单独运行工作流时，可以在开始节点上指定文件夹 ID',
             inputType: 'text',
-            group: 'runtime',
-            showInNode: true
+            group: 'runtime'
           }
         ];
       case 'resource':
