@@ -11,7 +11,6 @@ import { ThemeProvider } from '@/pages/SettingsPage/providers/ThemeProvider';
 
 import { AIAssistant } from './components/AIAssistant';
 import { TooltipProvider } from './components/ui/tooltip';
-import WorkflowStartInputSheet from './components/WorkflowStartInputSheet';
 import AiProviderConfigWindow from './pages/AiProviderConfigWindow/AiProviderConfigWindow';
 import AssistantMenuPage from './pages/AssistantMenuPage/AssistantMenuPage';
 import AssistantPage from './pages/AssistantPage/AssistantPage';
@@ -27,7 +26,8 @@ import SettingsPage from './pages/SettingsPage/SettingsPage';
 import StatusPage from './pages/StatusPage/StatusPage';
 import TaggingPage from './pages/TaggingPage/TaggingPage';
 import WorkflowBuilderPage from './pages/WorkflowBuilderPage/WorkflowBuilderPage';
-import WorkflowHistoryPage from './pages/WorkflowHistoryPage/WorkflowHistoryPage';
+import WorkflowHistoryPage from './pages/WorkflowBuilderPage/WorkflowHistoryPage';
+import WorkflowStartInputSheet from './pages/WorkflowBuilderPage/WorkflowStartInputSheet';
 import WorkspaceWizard from './pages/WorkspacePage/WorkspaceWizard';
 
 function App(): JSX.Element {
