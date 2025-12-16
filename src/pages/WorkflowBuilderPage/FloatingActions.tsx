@@ -41,7 +41,7 @@ const FloatingActions: React.FC<FloatingActionsProps> = ({ onValidate, onSave, o
       ) : (
         <Button size="sm" onClick={onRun} disabled={running}>
           <TbPlayerPlay />
-          运行示例
+          试运行
         </Button>
       )}
     </div>

@@ -50,7 +50,7 @@ async function getDynamicConfig(providerId?: string): Promise<PortSchema[]> {
       label: '服务商',
       type: 'string',
       required: true,
-      default: 'zhipu',
+      default: '',
       description: '选择AI服务商',
       inputType: 'select',
       options: await getProviderOptions()
@@ -77,7 +77,7 @@ async function getDynamicConfig(providerId?: string): Promise<PortSchema[]> {
         key: 'model',
         label: '模型',
         type: 'string',
-        required: false,
+        required: true,
         default: '',
         description: `服务商 ${providerId} 暂不支持视觉模型`,
         inputType: 'select',
@@ -90,7 +90,7 @@ async function getDynamicConfig(providerId?: string): Promise<PortSchema[]> {
       key: 'model',
       label: '模型',
       type: 'string',
-      required: false,
+      required: true,
       default: '',
       description: '请先选择服务商',
       inputType: 'select',
@@ -125,10 +125,12 @@ function imageToBase64(imagePath: string): string {
 
 export const ImageUnderstandNode: NodeHandler = {
   spec: {
-    id: 'ai/image-understand',
+    id: 'image/image-understand',
     label: '图片理解',
-    category: 'AI',
-    description: '使用AI视觉模型分析图片，提取文本内容、生成描述和标签',
+    category: 'Image',
+    description: '通过 AI 视觉模型分析图片，提取文本内容、生成描述和标签',
+    backgroundColor: '#ec4899',
+    icon: 'TbPhoto',
     inputs: [{ key: 'image', label: '图片路径', type: ['file', 'string'], required: true }],
     // 静态配置作为默认值，实际配置通过 getConfig 动态获取
     config: [],

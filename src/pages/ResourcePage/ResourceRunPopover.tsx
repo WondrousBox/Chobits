@@ -94,7 +94,7 @@ const ResourceRunPopover: React.FC<ResourceRunPopoverProps> = ({ disabled, runni
       <PopoverTrigger asChild>
         <Button size="sm" disabled={disabled || running || selectingId !== null}>
           <TbPlayerPlay />
-          运行示例
+          试运行
         </Button>
       </PopoverTrigger>
       <PopoverContent side="bottom" align="end" className="w-96 p-0">

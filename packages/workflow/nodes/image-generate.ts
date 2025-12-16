@@ -136,10 +136,10 @@ async function getDynamicConfig(providerId?: string): Promise<PortSchema[]> {
 
 export const ImageGenerateNode: NodeHandler = {
   spec: {
-    id: 'ai/image-generate',
-    label: '图片生成',
-    category: 'AI',
-    description: '使用AI图像生成模型，根据文本提示生成图片',
+    id: 'image/image-generate',
+    label: '图像生成',
+    category: 'Image',
+    description: '通过文字描述/添加参考图生成图片',
     backgroundColor: '#ec4899',
     icon: 'TbPhoto',
     inputs: [{ key: 'prompt', label: '提示词', type: 'string', required: true, description: '用于生成图片的文本描述' }],
