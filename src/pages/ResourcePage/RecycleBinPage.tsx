@@ -100,14 +100,8 @@ const RecycleBinPage: React.FC = () => {
   return (
     <div className="bg-background">
       <DragAbleTitle
-        title={
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="no-drag" onClick={() => navigate(-1)}>
-              <TbArrowLeft />
-            </Button>
-            🗑️ 回收站
-          </div>
-        }
+        showBack
+        title={<div className="flex items-center gap-2">🗑️ 回收站</div>}
         actions={
           <div className="flex items-center gap-2">
             {hasItems && (

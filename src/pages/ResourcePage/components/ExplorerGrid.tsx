@@ -474,6 +474,36 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
     return (startNode.config?.inputMode as 'resource' | 'text' | 'url' | 'file' | 'folder') || 'resource';
   }, []);
 
+  // 获取工作流在开始节点上声明的适用资源类型（resourceKinds）
+  const getWorkflowResourceKinds = useCallback((wf: any): string[] => {
+    if (!wf?.nodes) return ['any'];
+    const startNode = wf.nodes.find((n: any) => n.id === 'start' || n.type === 'core/start');
+    if (!startNode || !startNode.config) return ['any'];
+    const kinds = (startNode.config as any).resourceKinds;
+    if (Array.isArray(kinds) && kinds.length > 0) {
+      return kinds;
+    }
+    return ['any'];
+  }, []);
+
+  // 推断资源的类型（与 Start 节点的 detectType 对齐）
+  const getResourceKind = useCallback((item: any): 'image' | 'video' | 'audio' | 'document' | 'other' => {
+    // 优先使用资源记录自身的类型字段（如果有）
+    if (typeof item?.type === 'string' && item.type) {
+      const t = item.type.toLowerCase();
+      if (t === 'image' || t === 'video' || t === 'audio' || t === 'document' || t === 'other') return t;
+    }
+
+    const filePath: string = item?.filePath || item?.path || '';
+    const ext = (filePath.split('.').pop() || '').toLowerCase();
+
+    if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) return 'image';
+    if (['mp4', 'webm', 'mov', 'mkv', 'ogv'].includes(ext)) return 'video';
+    if (['mp3', 'wav', 'm4a', 'flac', 'opus', 'ogg'].includes(ext)) return 'audio';
+    if (['pdf', 'doc', 'docx', 'md', 'txt', 'rtf'].includes(ext)) return 'document';
+    return 'other';
+  }, []);
+
   // 检查工作流是否需要资源输入
   const workflowRequiresResource = useCallback(
     (wf: any): boolean => {
@@ -597,53 +627,72 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
                 <TbLine className="mr-2" /> 执行任务
               </ContextMenuSubTrigger>
               <ContextMenuSubContent className="w-48">
-                {workflows.map((wf) => {
-                  const inputMode = getWorkflowInputMode(wf);
-                  return (
-                    <ContextMenuItem
-                      key={wf.id}
-                      onSelect={async () => {
-                        if (inputMode === 'resource') {
-                          // 资源模式需要选中资源
-                          if (!firstSelected) return;
-                          const item = mergedItems.find((i) => i.id === firstSelected);
-                          if (item) {
-                            await runWorkflow({
-                              defId: wf.id,
-                              input: { resource: item, resourceId: item.id },
-                              metadata: {
-                                resourceId: item.id,
-                                resourceName: item.title || 'Unknown',
-                                thumbnailPath: item.thumbnailPath,
-                                workspaceId: item.workspaceId
-                              },
-                              onSuccess: () => {
-                                toast.success(`已开始执行工作流: ${wf.name}`);
+                {(() => {
+                  // 选中资源时，根据资源类型 + start.resourceKinds 过滤可用工作流
+                  const visibleWorkflows = workflows.filter((wf) => {
+                    const inputMode = getWorkflowInputMode(wf);
+                    // 非 resource 模式的工作流与具体资源类型无关，直接保留
+                    if (inputMode !== 'resource') return true;
+                    if (!firstSelected) return false;
+                    const item = mergedItems.find((i) => i.id === firstSelected);
+                    if (!item) return false;
+                    const kind = getResourceKind(item);
+                    const kinds = getWorkflowResourceKinds(wf);
+                    if (!kinds || kinds.length === 0 || kinds.includes('any')) return true;
+                    return kinds.includes(kind);
+                  });
+
+                  return visibleWorkflows.length > 0 ? (
+                    visibleWorkflows.map((wf) => {
+                      const inputMode = getWorkflowInputMode(wf);
+                      return (
+                        <ContextMenuItem
+                          key={wf.id}
+                          onSelect={async () => {
+                            if (inputMode === 'resource') {
+                              // 资源模式需要选中资源
+                              if (!firstSelected) return;
+                              const item = mergedItems.find((i) => i.id === firstSelected);
+                              if (item) {
+                                await runWorkflow({
+                                  defId: wf.id,
+                                  input: { resource: item, resourceId: item.id },
+                                  metadata: {
+                                    resourceId: item.id,
+                                    resourceName: item.title || 'Unknown',
+                                    thumbnailPath: item.thumbnailPath,
+                                    workspaceId: item.workspaceId
+                                  },
+                                  onSuccess: () => {
+                                    toast.success(`已开始执行工作流: ${wf.name}`);
+                                  }
+                                });
                               }
-                            });
-                          }
-                        } else {
-                          // 其他模式（text/url/file）不需要资源，直接执行
-                          // 引擎会自动检测并弹出输入窗口
-                          await runWorkflow({
-                            defId: wf.id,
-                            input: {},
-                            metadata: {
-                              workspaceId,
-                              folderId
-                            },
-                            onSuccess: () => {
-                              toast.success(`已开始执行工作流: ${wf.name}`);
+                            } else {
+                              // 其他模式（text/url/file）不需要资源，直接执行
+                              // 引擎会自动检测并弹出输入窗口
+                              await runWorkflow({
+                                defId: wf.id,
+                                input: {},
+                                metadata: {
+                                  workspaceId,
+                                  folderId
+                                },
+                                onSuccess: () => {
+                                  toast.success(`已开始执行工作流: ${wf.name}`);
+                                }
+                              });
                             }
-                          });
-                        }
-                      }}
-                    >
-                      {wf.name}
-                    </ContextMenuItem>
+                          }}
+                        >
+                          {wf.name}
+                        </ContextMenuItem>
+                      );
+                    })
+                  ) : (
+                    <ContextMenuItem disabled>无可用工作流</ContextMenuItem>
                   );
-                })}
-                {workflows.length === 0 && <ContextMenuItem disabled>无可用工作流</ContextMenuItem>}
+                })()}
               </ContextMenuSubContent>
             </ContextMenuSub>
             <ContextMenuSeparator />

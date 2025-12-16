@@ -35,17 +35,6 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         action: () => window.YUA.window['window:open']('tagger')
       },
       {
-        id: 'workflow',
-        label: '工作流',
-        icon: '🛠️',
-        shortcut: 'w',
-        action: () => window.YUA.window['window:open']('workflowPage'),
-        children: [
-          { id: 'workflow-list', label: '管理工作流', icon: '🧩', action: () => window.YUA.window['window:open']('workflowPage') },
-          { id: 'workflow-builder', label: '打开设计器', icon: '🛠️', action: () => window.YUA.window['window:open']('workflowBuilder', undefined, { sameDisplayAsSender: true }) }
-        ]
-      },
-      {
         id: 'chat',
         label: '聊天',
         icon: '🗨️',

@@ -148,24 +148,22 @@ const WorkflowPage: React.FC = () => {
     } catch (err) {
       console.error('加载预设工作流失败:', err);
     }
-    // 如果没有预设，使用默认的空白预设
-    await window.YUA.window['window:open']('workflowBuilder' as any, { mode: 'create', presetId: 'blank' }, { sameDisplayAsSender: true });
+    // 如果没有预设，使用默认的空白预设，采用路由方式跳转并通过查询参数传递
+    navigate('/workflow?mode=create&presetId=blank');
   };
 
   const handleCreateFromPreset = async (): Promise<void> => {
-    if (selectedPresetId) {
-      await window.YUA.window['window:open']('workflowBuilder' as any, { mode: 'create', presetId: selectedPresetId }, { sameDisplayAsSender: true });
-    } else {
-      // 如果没有选择，默认使用空白预设
-      await window.YUA.window['window:open']('workflowBuilder' as any, { mode: 'create', presetId: 'blank' }, { sameDisplayAsSender: true });
-    }
+    const targetPresetId = selectedPresetId || 'blank';
+    // 通过路由跳转，并将 mode 和 presetId 作为查询参数传递
+    navigate(`/workflow?mode=create&presetId=${encodeURIComponent(targetPresetId)}`);
     setShowPresetDialog(false);
     setSelectedPresetId('');
     setPresetPopoverOpen(false);
   };
 
   const openExisting = async (id: string): Promise<void> => {
-    await window.YUA.window['window:open']('workflowBuilder' as any, { id }, { sameDisplayAsSender: true });
+    // 使用路由参数方式打开已有工作流
+    navigate(`/workflow/${encodeURIComponent(id)}`);
   };
 
   const deleteOne = async (e: React.MouseEvent, id: string): Promise<void> => {
@@ -217,6 +215,7 @@ const WorkflowPage: React.FC = () => {
   return (
     <div className="h-full w-full flex flex-col bg-background text-foreground">
       <DragAbleTitle
+        showBack
         title={
           <div className="flex items-center gap-2">
             <span>🧩</span>

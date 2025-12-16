@@ -1,4 +1,4 @@
-# Chobits AI 模块（主进程）设计说明
+# AI 模块（主进程）设计说明
 
 更新时间：2025-10-17
 
@@ -14,7 +14,7 @@
 
 - 分层：Main（核心逻辑/安全/IPC） → Preload（桥接） → Renderer（UI调用，不接触秘钥）
 - 可扩展：Provider/Agent 均使用注册表；新增服务商/智能体无需改动核心逻辑
-- 可移植：整个 `electron/main/ai` 模块可独立打包为插件（未来迁移到 `packages/chobits-ai`）
+- 可移植：整个 `electron/main/ai` 模块可独立打包为插件（未来迁移到 `packages/ai`）
 - 安全：秘钥仅存于主进程
 - 流式：统一事件协议，支持取消（Abort）
 
@@ -167,8 +167,8 @@ Provider 适配要点：
 ## 11. 抽离为插件的路径
 
 - 保持 `electron/main/ai/*` 接口稳定（ProviderAdapter/AgentDefinition/IPC 形状不变）
-- 未来移动至 `packages/chobits-ai`，作为可安装模块；主工程仅引入 handlers/ai.ts 并注册默认 Provider/Agent
-- 可支持“插件发现”（扫描 `node_modules/chobits-ai-provider-*` 并自动注册）
+- 未来移动至 `packages/ai`，作为可安装模块；主工程仅引入 handlers/ai.ts 并注册默认 Provider/Agent
+- 可支持“插件发现”（扫描 `node_modules/ai-provider-*` 并自动注册）
 
 ## 12. 实施计划（Milestones）
 

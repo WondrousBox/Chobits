@@ -110,13 +110,8 @@ const WorkflowCanvasInner: React.FC = () => {
           if (mode === 'create') {
             presetId = searchParams.get('presetId') || 'blank';
           } else {
-            // 兼容旧的 window payload 方式
-            const payload = await window.YUA.window['window:payload:get']('workflowBuilder' as any);
-            if (payload && payload.id) {
-              targetId = payload.id;
-            } else {
-              presetId = payload?.presetId || 'blank';
-            }
+            // 如果没有指定 mode，默认使用空白预设
+            presetId = 'blank';
           }
         }
 
@@ -839,11 +834,9 @@ const WorkflowCanvasInner: React.FC = () => {
     <div className="h-screen w-screen flex flex-col relative">
       {/* 顶部可拖拽导航栏 */}
       <DragAbleTitle
+        showBack
         title={
           <div className="flex items-center gap-2 w-full">
-            <Button variant="ghost" size="icon" className="h-7 w-7 no-drag" onClick={() => navigate(-1)}>
-              <TbArrowLeft />
-            </Button>
             {isEditingTitle ? (
               <Input
                 ref={titleInputRef}
