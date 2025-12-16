@@ -45,7 +45,7 @@ function DragAbleTitle({ title, icon, center, actions, showBack = false, onClose
     <div className="flex items-center w-full drag-region gap-2 h-9 px-2 box-border bg-background">
       {window.YUA.isMac && <div className="w-20"></div>}
       {showBack && (
-        <Button variant="ghost" size="icon" className="h-7 w-7 no-drag" onClick={() => navigate(-1)}>
+        <Button variant="ghost" size="icon" className="h-8 w-8 no-drag" onClick={() => navigate(-1)}>
           <TbArrowLeft />
         </Button>
       )}

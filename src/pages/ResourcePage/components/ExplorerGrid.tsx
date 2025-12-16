@@ -629,7 +629,10 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
               <ContextMenuSubContent className="w-48">
                 {(() => {
                   // 选中资源时，根据资源类型 + start.resourceKinds 过滤可用工作流
+                  // 同时过滤掉空白工作流
                   const visibleWorkflows = workflows.filter((wf) => {
+                    // 过滤空白工作流
+                    if (wf.id === 'blank') return false;
                     const inputMode = getWorkflowInputMode(wf);
                     // 非 resource 模式的工作流与具体资源类型无关，直接保留
                     if (inputMode !== 'resource') return true;
@@ -745,40 +748,44 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
                 <TbLine className="mr-2" /> 执行任务
               </ContextMenuSubTrigger>
               <ContextMenuSubContent className="w-48">
-                {workflows.map((wf) => {
-                  const requiresResource = workflowRequiresResource(wf);
-                  const canExecute = !requiresResource;
-                  return (
-                    <ContextMenuItem
-                      key={wf.id}
-                      disabled={!canExecute}
-                      onSelect={async () => {
-                        const inputMode = getWorkflowInputMode(wf);
-                        if (inputMode === 'resource') {
-                          // 资源模式需要选中资源，但这里没有选中，所以不应该执行
-                          return;
-                        } else {
-                          // 其他模式（text/url/file）不需要资源，直接执行
-                          // 引擎会自动检测并弹出输入窗口
-                          await runWorkflow({
-                            defId: wf.id,
-                            input: {},
-                            metadata: {
-                              workspaceId,
-                              folderId
-                            },
-                            onSuccess: () => {
-                              toast.success(`已开始执行工作流: ${wf.name}`);
-                            }
-                          });
-                        }
-                      }}
-                    >
-                      {wf.name}
-                    </ContextMenuItem>
+                {(() => {
+                  // 只显示不需要资源的工作流，并过滤掉空白工作流
+                  const visibleWorkflows = workflows.filter((wf) => {
+                    // 过滤空白工作流
+                    if (wf.id === 'blank') return false;
+                    // 只显示不需要资源的工作流
+                    return !workflowRequiresResource(wf);
+                  });
+
+                  return visibleWorkflows.length > 0 ? (
+                    visibleWorkflows.map((wf) => {
+                      return (
+                        <ContextMenuItem
+                          key={wf.id}
+                          onSelect={async () => {
+                            // 其他模式（text/url/file）不需要资源，直接执行
+                            // 引擎会自动检测并弹出输入窗口
+                            await runWorkflow({
+                              defId: wf.id,
+                              input: {},
+                              metadata: {
+                                workspaceId,
+                                folderId
+                              },
+                              onSuccess: () => {
+                                toast.success(`已开始执行工作流: ${wf.name}`);
+                              }
+                            });
+                          }}
+                        >
+                          {wf.name}
+                        </ContextMenuItem>
+                      );
+                    })
+                  ) : (
+                    <ContextMenuItem disabled>无可用工作流</ContextMenuItem>
                   );
-                })}
-                {workflows.length === 0 && <ContextMenuItem disabled>无可用工作流</ContextMenuItem>}
+                })()}
               </ContextMenuSubContent>
             </ContextMenuSub>
             <ContextMenuSeparator />
