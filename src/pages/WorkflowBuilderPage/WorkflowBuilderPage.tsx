@@ -408,9 +408,9 @@ const WorkflowCanvasInner: React.FC = () => {
 
   // 获取开始节点的输入值（从 ReactFlow nodes 状态获取，更实时）
   const startNodeInputValue = useMemo(() => {
-    const startNode = (nodes as any[]).find((n) => n.id === START_NODE_ID);
+    const startNode = nodes.find((n) => n.id === START_NODE_ID);
     if (!startNode) return null;
-    const inputDefaults = (startNode.data as NodeData)?.inputDefaults || {};
+    const inputDefaults = startNode.data?.inputDefaults || {};
     const mode = startNodeInputMode;
 
     if (mode === 'text' && inputDefaults.text && String(inputDefaults.text).trim()) {
@@ -425,7 +425,7 @@ const WorkflowCanvasInner: React.FC = () => {
     if (mode === 'folder' && inputDefaults.folderId && String(inputDefaults.folderId).trim()) {
       return { type: 'folder', value: String(inputDefaults.folderId).trim() };
     }
-    return null;
+    return { type: mode };
   }, [nodes, startNodeInputMode]);
 
   const runWorkflowWithResource = useCallback(
@@ -464,14 +464,14 @@ const WorkflowCanvasInner: React.FC = () => {
   );
 
   const runWorkflowWithText = useCallback(
-    async (text: string): Promise<void> => {
+    async (text?: string): Promise<void> => {
       if (!draft) return;
       setRunning(true);
       await runWorkflow({
         defId: draft.id,
         input: { text },
         metadata: {
-          textLength: text.length
+          textLength: text?.length
         },
         onSuccess: (runId) => {
           currentRunIdRef.current = runId;
@@ -479,7 +479,7 @@ const WorkflowCanvasInner: React.FC = () => {
           setRunLogs([]);
           setRunStatus('queued');
           setConsoleCollapsed(false); // 运行时自动展开日志面板
-          toast.success('工作流已开始执行', { description: `文本输入 (${text.length} 字符)` });
+          toast.success('工作流已开始执行', { description: `文本输入 (${text?.length} 字符)` });
           try {
             eventCh.postMessage({ type: 'run-started', defId: draft.id });
           } catch {
@@ -496,7 +496,7 @@ const WorkflowCanvasInner: React.FC = () => {
   );
 
   const runWorkflowWithFile = useCallback(
-    async (filePath: string): Promise<void> => {
+    async (filePath?: string): Promise<void> => {
       if (!draft) return;
       setRunning(true);
       await runWorkflow({
@@ -511,7 +511,7 @@ const WorkflowCanvasInner: React.FC = () => {
           setRunLogs([]);
           setRunStatus('queued');
           setConsoleCollapsed(false); // 运行时自动展开日志面板
-          const fileName = filePath.split(/[/\\]/).pop() || filePath;
+          const fileName = filePath?.split(/[/\\]/).pop() || filePath;
           toast.success('工作流已开始执行', { description: `文件: ${fileName}` });
           try {
             eventCh.postMessage({ type: 'run-started', defId: draft.id });
@@ -529,7 +529,7 @@ const WorkflowCanvasInner: React.FC = () => {
   );
 
   const runWorkflowWithUrl = useCallback(
-    async (url: string): Promise<void> => {
+    async (url?: string): Promise<void> => {
       if (!draft) return;
       setRunning(true);
       await runWorkflow({
@@ -561,7 +561,7 @@ const WorkflowCanvasInner: React.FC = () => {
   );
 
   const runWorkflowWithFolder = useCallback(
-    async (folderId: string): Promise<void> => {
+    async (folderId?: string): Promise<void> => {
       if (!draft) return;
       setRunning(true);
       await runWorkflow({
@@ -612,24 +612,8 @@ const WorkflowCanvasInner: React.FC = () => {
         return;
       }
     }
-
-    // 如果没有输入值，则通过统一的右侧输入面板收集输入
-    if (draft && (startNodeInputMode === 'text' || startNodeInputMode === 'url' || startNodeInputMode === 'file' || startNodeInputMode === 'folder')) {
-      window.dispatchEvent(
-        new CustomEvent('wf:start-input-required', {
-          detail: {
-            defId: draft.id,
-            inputMode: startNodeInputMode,
-            metadata: {
-              workflowName: draft.name
-            }
-          }
-        })
-      );
-    }
-
     // 如果是 resource 模式，ResourceRunPopover 会自动处理
-  }, [draft, startNodeInputMode, startNodeInputValue, runWorkflowWithText, runWorkflowWithFile, runWorkflowWithUrl, runWorkflowWithFolder]);
+  }, [startNodeInputValue, runWorkflowWithText, runWorkflowWithFile, runWorkflowWithUrl, runWorkflowWithFolder]);
 
   const handleClearLogs = useCallback(() => {
     setRunLogs([]);
