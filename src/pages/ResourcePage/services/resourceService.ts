@@ -39,24 +39,7 @@ export type Resource = {
   embedding?: ArrayBuffer | Uint8Array;
 };
 
-import type { ResourceItem, SelectedResourceFileType } from '../types';
-
-export const getResourceTypeFromFilename = (fileName: string): ResourceItem['type'] => {
-  const ext = (fileName.split('.').pop() || '').toLowerCase();
-  if (!ext) return 'file';
-  const imageExt = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'svg', 'ico', 'bmp']);
-  const videoExt = new Set(['mp4', 'webm', 'mov', 'avi', 'mkv', 'flv', 'mpeg', 'mpg', 'm4v']);
-  const audioExt = new Set(['mp3', 'wav', 'ogg', 'aac', 'flac', 'm4a', 'opus']);
-  const documentExt = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'md', 'markdown']);
-  const textExt = new Set(['txt', 'csv', 'json', 'yaml', 'yml', 'xml', 'html', 'css', 'js', 'ts', 'jsx', 'tsx']);
-
-  if (imageExt.has(ext)) return 'image';
-  if (videoExt.has(ext)) return 'video';
-  if (audioExt.has(ext)) return 'audio';
-  if (documentExt.has(ext)) return 'document';
-  if (textExt.has(ext)) return 'text';
-  return 'file';
-};
+import type { SelectedResourceFileType } from '../types';
 
 type ResourceLocationOptions = {
   folderId?: string | null;
@@ -97,20 +80,13 @@ export async function addResourcesFromDataTransfer(dt: DataTransfer, options?: R
     }
   });
 
-  // Insert to DB
+  // Insert to DB（资源类型统一由主进程在接收后判断，不在渲染进程侧决策）
   for (const f of fileListForIPC) {
     if (f.isDirectory) continue;
-    const now = Date.now();
     const resource = {
-      id: (crypto as any).randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      type: getResourceTypeFromFilename(f.name),
       title: f.name,
       filePath: f.path,
       sizeBytes: undefined as number | undefined,
-      collectedAt: now,
-      createdAt: now,
-      updatedAt: now,
-      status: 'new' as const,
       ...getLocationPatch(options)
     };
     try {
@@ -129,7 +105,6 @@ export async function addResourcesFromSelectedFiles(files: SelectedResourceFileT
     const f = files[i];
     if (onProgress) onProgress(i, files.length, 0);
 
-    const now = Date.now();
     const safeName = f.name || (f.path ? f.path.split(/[/\\]/).pop() || '' : '');
     let finalFilePath: string | undefined = f.path;
     let fileHash: string | undefined;
@@ -221,15 +196,11 @@ export async function addResourcesFromSelectedFiles(files: SelectedResourceFileT
 
     if (onProgress) onProgress(i, files.length, 100);
 
-    const resource = {
-      type: getResourceTypeFromFilename(safeName),
+    // 资源类型统一由主进程根据文件路径/内容判断，这里不再设置 type
+    const resource: Partial<Resource> = {
       title: safeName,
       filePath: finalFilePath,
       sizeBytes: f.size,
-      collectedAt: now,
-      createdAt: now,
-      updatedAt: now,
-      status: 'new' as const,
       ...getLocationPatch(options),
       ...(fileHash ? { metadata: JSON.stringify({ hashSha256: fileHash }) } : {})
     };

@@ -185,12 +185,10 @@ export class ScreenshotManager {
       id: randomUUID(),
       name: today,
       parentId: null,
-      workspaceId,
-      createdAt: Date.now(),
-      updatedAt: Date.now()
+      workspaceId
     };
 
-    await FoldersRepo.upsert(newFolder);
+    await FoldersRepo.create(newFolder);
     eventManager.emit(AppEvent.FOLDER_CREATED, newFolder);
     return newFolder.id;
   }

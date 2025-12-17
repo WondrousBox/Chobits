@@ -6,7 +6,7 @@ import dayjs from 'dayjs';
 import { BrowserWindow, ipcMain } from 'electron';
 import * as fs from 'fs';
 
-import { detectBasicType, getResourcePath } from '../common/utils';
+import { getResourcePath } from '../common/utils';
 import { eventManager, sendAppBusyEnd, sendAppBusyProgress, sendAppBusyStart } from '../event';
 import { AppEvent } from '../event/events';
 import { pluginResourceManager } from '../plugins';
@@ -175,56 +175,17 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
 
       console.log(resourceData);
 
-      // 自动检测资源类型
-      const filePath = resourceData.filePath;
-      let detectedType = !resourceData.filePath && resourceData.contentText ? 'text' : 'file'; // 默认类型
-      let mimeType: string | undefined;
-
-      if (filePath) {
-        const detected = detectBasicType(filePath);
-        detectedType = detected.type || 'file';
-        mimeType = detected.mimeType;
-
-        // 检查是否是 document 类型（detectBasicType 不返回 'document'，需要单独判断）
-        const ext = path.extname(filePath).toLowerCase();
-        const DOC_EXT = new Set(['.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx', '.pdf', '.key', '.pages', '.numbers']);
-        if (DOC_EXT.has(ext)) {
-          detectedType = 'document';
-          // 为 document 类型设置合适的 mimeType
-          if (!mimeType) {
-            const mimeMap: Record<string, string> = {
-              '.pdf': 'application/pdf',
-              '.doc': 'application/msword',
-              '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-              '.xls': 'application/vnd.ms-excel',
-              '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-              '.ppt': 'application/vnd.ms-powerpoint',
-              '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
-            };
-            mimeType = mimeMap[ext] || 'application/octet-stream';
-          }
-        }
-      }
-
       // Create Resource
-      const now = Date.now();
       const resource = {
         title: resourceData.title,
         filePath: resourceData.filePath,
         sizeBytes: resourceData.sizeBytes,
         description: resourceData.description,
         contentText: resourceData.contentText,
-        type: detectedType,
-        mimeType: mimeType,
         workspaceId: resourceData.workspaceId,
-        folderId: resourceData.folderId,
-        createdAt: now,
-        updatedAt: now,
-        collectedAt: resourceData.collectedAt || now,
-        status: resourceData.status || 'new'
+        folderId: resourceData.folderId
       };
 
-      console.log('Detected resource type:', detectedType, 'mimeType:', mimeType);
       console.log(resource);
 
       try {
@@ -345,11 +306,9 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
               id: randomUUID(),
               name: today,
               parentId: null,
-              workspaceId: ws.id,
-              createdAt: Date.now(),
-              updatedAt: Date.now()
+              workspaceId: ws.id
             };
-            await FoldersRepo.upsert(newFolder as any);
+            await FoldersRepo.create(newFolder as any);
             const dirPath = path.join(ws.rootPath, 'resources', 'folders', newFolder.id);
             fs.mkdirSync(dirPath, { recursive: true });
             targetFolderId = newFolder.id;

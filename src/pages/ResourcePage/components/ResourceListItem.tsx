@@ -8,7 +8,7 @@ import { formatRelativeTime } from '@/lib/time';
 
 import { ResourceItem } from '../types';
 import { makeResSrc } from '../utils/resourceProtocol';
-import { formatDuration, getResourceTypeIcon, getStatusColor, parseTags } from '../utils/resourceUtils';
+import { formatDuration, getFileCoverByPath, getStatusColor, parseTags } from '../utils/resourceUtils';
 
 interface ListItemProps {
   item: ResourceItem;
@@ -26,6 +26,7 @@ const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, onClick, on
   const [copied, setCopied] = useState(false);
   const tags = parseTags(item.tags);
   // const categories = parseCategories(item.categories);
+  const fileCover = getFileCoverByPath(item.filePath);
 
   const handleSourceClick = useCallback(
     async (e: React.MouseEvent) => {
@@ -91,7 +92,7 @@ const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, onClick, on
             <TbLetterT />
           </div>
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-2xl">{getResourceTypeIcon(item.type)}</div>
+          <div className="w-full h-full flex items-center justify-center [&>svg]:w-full [&>svg]:h-full" dangerouslySetInnerHTML={{ __html: fileCover }} />
         )}
 
         {/* 状态指示器 */}
