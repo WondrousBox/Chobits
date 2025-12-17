@@ -295,6 +295,54 @@ const WorkflowCanvasInner: React.FC = () => {
     }
   }, []);
 
+  const installModelResource = useCallback(async (pluginId: string, modelName: string, resourceId?: string): Promise<boolean> => {
+    try {
+      const pluginResourceApi = window.YUA?.pluginResource;
+      if (!pluginResourceApi) {
+        toast.error('模型安装失败', { description: '无法访问插件资源接口' });
+        return false;
+      }
+      const listFn = pluginResourceApi['plugin-resource:listSupported'];
+      if (typeof listFn !== 'function') {
+        toast.error('模型安装失败', { description: '缺少插件资源列表接口' });
+        return false;
+      }
+      const supportedResources = await listFn();
+      if (!Array.isArray(supportedResources)) {
+        toast.error('模型安装失败', { description: '无法获取插件资源列表' });
+        return false;
+      }
+      // 优先使用 resourceId 查找，否则根据 modelName 查找
+      const modelResource = resourceId
+        ? supportedResources.find((p: any) => p.id === resourceId && p.pluginId === pluginId && p.type === 'model')
+        : supportedResources.find((p: any) => p.pluginId === pluginId && p.type === 'model' && p.name === modelName);
+
+      if (!modelResource) {
+        toast.error('模型安装失败', { description: `未找到模型资源: ${modelName}` });
+        return false;
+      }
+      const installFn = pluginResourceApi['plugin-resource:install'];
+      if (typeof installFn !== 'function') {
+        toast.error('模型安装失败', { description: '缺少插件安装接口' });
+        return false;
+      }
+      const result = await installFn({
+        pluginId: modelResource.pluginId,
+        resourceId: modelResource.id,
+        deleteAfterInstall: true
+      });
+      if (result?.ok) {
+        toast.success('模型安装成功', { description: modelResource.displayName || modelName });
+        return true;
+      }
+      toast.error('模型安装失败', { description: result?.error || '未知错误' });
+      return false;
+    } catch (err: any) {
+      toast.error('模型安装失败', { description: err?.message || String(err) });
+      return false;
+    }
+  }, []);
+
   const onConnect = useCallback(
     (connection: Connection): void => {
       // Require explicit handles for strict port binding
@@ -334,27 +382,44 @@ const WorkflowCanvasInner: React.FC = () => {
       if (missingPlugins.length > 0) {
         errors.push(...missingPlugins.map((m) => `缺少插件: ${m.id}${m.hint ? `（${m.hint}）` : ''}`));
       }
+      const missingModels: Array<{ pluginId: string; modelName: string; resourceId?: string; displayName?: string }> = Array.isArray(res.missingModels) ? res.missingModels : [];
+      if (missingModels.length > 0) {
+        errors.push(...missingModels.map((m) => `缺少模型: ${m.displayName || m.modelName}（${m.pluginId}）`));
+      }
 
       const description = errors.length > 0 ? errors.join('；') : '工作流配置存在问题';
-      const firstMissing = missingPlugins[0]?.id;
+      const firstMissingPlugin = missingPlugins[0]?.id;
+      const firstMissingModel = missingModels[0];
       toast.error('校验失败', {
         description,
-        action: firstMissing
+        action: firstMissingPlugin
           ? {
             label: '下载插件',
             onClick: () => {
               void (async () => {
-                const ok = await installPluginResource(firstMissing);
+                const ok = await installPluginResource(firstMissingPlugin);
                 if (ok) {
                   await performValidate();
                 }
               })();
             }
           }
-          : undefined
+          : firstMissingModel
+            ? {
+              label: '下载模型',
+              onClick: () => {
+                void (async () => {
+                  const ok = await installModelResource(firstMissingModel.pluginId, firstMissingModel.modelName, firstMissingModel.resourceId);
+                  if (ok) {
+                    await performValidate();
+                  }
+                })();
+              }
+            }
+            : undefined
       });
     }
-  }, [draft, installPluginResource]);
+  }, [draft, installPluginResource, installModelResource]);
 
   const performSave = async (): Promise<void> => {
     if (!draft) return;

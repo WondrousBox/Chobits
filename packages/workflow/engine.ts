@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import fs from 'node:fs/promises';
+import fs from 'node:fs';
+import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import util from 'node:util';
@@ -135,7 +136,43 @@ export class WorkflowEngine extends EngineEmitter {
       const ok = await p.isInstalled(ctx).catch(() => false);
       if (!ok) missingPlugins.push({ id, hint: p.installHint });
     }
-    return { ok: errors.length === 0 && missingPlugins.length === 0, errors: errors.length ? errors : undefined, missingPlugins: missingPlugins.length ? missingPlugins : undefined };
+    // models
+    const missingModels: { pluginId: string; modelName: string; resourceId?: string; displayName?: string }[] = [];
+    if (ctx.pluginResourceManager) {
+      for (const n of def.nodes) {
+        const handler = getNode(n.type);
+        if (!handler) continue;
+
+        // 检查节点是否需要模型
+        // 目前只有 whisper 节点需要模型
+        if (n.type === 'media/transcribe-whisper') {
+          const modelName = String(n.config?.model || '');
+          if (modelName) {
+            const pluginId = 'plugin:whisper';
+            const modelPath = ctx.pluginResourceManager.getModelPath(pluginId, modelName);
+            if (!fs.existsSync(modelPath)) {
+              // 尝试从已安装的资源中查找模型资源ID
+              const { PluginResourceStore } = await import('../plugins/plugin-resource-store');
+              const installedModels = PluginResourceStore.listByType(pluginId, 'model');
+              const modelResource = installedModels.find((r) => r.name === modelName);
+
+              missingModels.push({
+                pluginId,
+                modelName,
+                resourceId: modelResource?.resourceId,
+                displayName: modelResource?.displayName
+              });
+            }
+          }
+        }
+      }
+    }
+    return {
+      ok: errors.length === 0 && missingPlugins.length === 0 && missingModels.length === 0,
+      errors: errors.length ? errors : undefined,
+      missingPlugins: missingPlugins.length ? missingPlugins : undefined,
+      missingModels: missingModels.length ? missingModels : undefined
+    };
   }
 
   /**
@@ -310,7 +347,7 @@ runId: ${runId}
     // 存储执行上下文，以便在运行时更新
     this.runContexts.set(runId, ctx);
 
-    await fs.mkdir(ctx.tmpDir, { recursive: true }).catch(() => { });
+    await fsPromises.mkdir(ctx.tmpDir, { recursive: true }).catch(() => { });
 
     // Prepare plugins once per run
     const prepared = new Set<string>();
