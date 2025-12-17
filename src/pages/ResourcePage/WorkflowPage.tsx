@@ -33,7 +33,18 @@ const WorkflowPage: React.FC = () => {
   const [filter, setFilter] = useState('');
   const [refreshTick, setRefreshTick] = useState(0);
   const [runsByWorkflow, setRunsByWorkflow] = useState<Record<string, RunBrief | undefined>>({});
-  const [validationMap, setValidationMap] = useState<Record<string, { ok: boolean; errors?: string[]; missingPlugins?: { id: string; hint?: string }[] } | undefined>>({});
+  const [validationMap, setValidationMap] = useState<
+    Record<
+      string,
+      | {
+        ok: boolean;
+        errors?: string[];
+        missingPlugins?: { id: string; hint?: string }[];
+        missingModels?: { pluginId: string; modelName: string; resourceId?: string; displayName?: string }[];
+      }
+      | undefined
+    >
+  >({});
   const [showPresetDialog, setShowPresetDialog] = useState(false);
   const [presets, setPresets] = useState<WorkflowBrief[]>([]);
   const [selectedPresetId, setSelectedPresetId] = useState<string>('');
@@ -212,6 +223,37 @@ const WorkflowPage: React.FC = () => {
     }
   };
 
+  const installModel = async (e: React.MouseEvent, pluginId: string, modelName: string, resourceId?: string): Promise<void> => {
+    e.stopPropagation();
+    try {
+      // 查找模型资源定义
+      const supportedResources = await window.YUA.pluginResource['plugin-resource:listSupported']();
+      // 优先使用 resourceId 查找，否则根据 modelName 查找
+      const modelResource = resourceId
+        ? supportedResources.find((p: any) => p.id === resourceId && p.pluginId === pluginId && p.type === 'model')
+        : supportedResources.find((p: any) => p.pluginId === pluginId && p.type === 'model' && p.name === modelName);
+
+      if (!modelResource) {
+        alert(`未找到模型资源: ${modelName}\n请前往插件管理页面安装`);
+        return;
+      }
+      // 安装模型
+      const result = await window.YUA.pluginResource['plugin-resource:install']({
+        pluginId: modelResource.pluginId,
+        resourceId: modelResource.id,
+        deleteAfterInstall: true
+      });
+      if (result.ok) {
+        // 安装成功后，重新校验工作流
+        setRefreshTick((t) => t + 1);
+      } else {
+        alert(`安装失败: ${result.error || '未知错误'}`);
+      }
+    } catch (err: any) {
+      alert(`安装模型失败: ${err?.message || String(err)}`);
+    }
+  };
+
   return (
     <div className="h-full w-full flex flex-col bg-background text-foreground">
       <DragAbleTitle
@@ -316,6 +358,22 @@ const WorkflowPage: React.FC = () => {
                                           {plugin.hint && <div className="text-xs text-muted-foreground">{plugin.hint}</div>}
                                         </div>
                                         <Button size="sm" variant="outline" onClick={(e) => installPlugin(e, plugin.id)}>
+                                          安装
+                                        </Button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                {validationStatus.missingModels && validationStatus.missingModels.length > 0 && (
+                                  <div className="space-y-2">
+                                    <div className="text-xs font-medium text-muted-foreground">缺少模型：</div>
+                                    {validationStatus.missingModels.map((model, idx) => (
+                                      <div key={idx} className="flex items-center justify-between gap-2">
+                                        <div className="flex-1">
+                                          <div className="text-xs font-medium">{model.displayName || model.modelName}</div>
+                                          <div className="text-xs text-muted-foreground">{model.pluginId}</div>
+                                        </div>
+                                        <Button size="sm" variant="outline" onClick={(e) => installModel(e, model.pluginId, model.modelName, model.resourceId)}>
                                           安装
                                         </Button>
                                       </div>

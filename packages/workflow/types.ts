@@ -194,6 +194,7 @@ export type ValidateResult = {
   ok: boolean;
   errors?: string[];
   missingPlugins?: { id: string; hint?: string }[];
+  missingModels?: { pluginId: string; modelName: string; resourceId?: string; displayName?: string }[];
 };
 
 export type WorkflowNodeDraft = {

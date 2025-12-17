@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { TbCopy } from 'react-icons/tb';
+import { TbCopy, TbPlug } from 'react-icons/tb';
 import { Handle, NodeProps, Position, useReactFlow } from 'reactflow';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 
 import { ConfigFieldRenderer } from './ConfigFieldRenderer';
@@ -178,7 +179,18 @@ const SpecNode: React.FC<NodeProps<NodeData>> = ({ id, data, selected }) => {
         <div className="flex items-center gap-2 truncate">
           {IconComponent && React.createElement(IconComponent, { className: 'w-5 h-5', style: { color: spec.backgroundColor } })}
           <span className="truncate">{spec.label}</span>
-          {hasRequires && <span className="text-[10px] px-1 py-0.5 rounded bg-secondary text-secondary-foreground whitespace-nowrap">{spec.requires!.join(',')}</span>}
+          {hasRequires && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="text-[12px] px-1 py-0.5 rounded bg-secondary text-secondary-foreground whitespace-nowrap">
+                  <TbPlug />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs">
+                <div>{spec.requires!.join(', ')}</div>
+              </TooltipContent>
+            </Tooltip>
+          )}
         </div>
         {statusBadge && <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${statusBadge.className}`}>{statusBadge.label}</span>}
       </div>
