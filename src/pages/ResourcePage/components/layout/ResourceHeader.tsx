@@ -72,11 +72,7 @@ const ResourceHeader: React.FC<ResourceHeaderProps> = ({
 
   return (
     <DragAbleTitle
-      title={
-        <span className="flex items-center gap-4">
-          <span>📚 资源库</span>
-        </span>
-      }
+      title={<span></span>}
       center={
         <div className="relative no-drag">
           <TbSearch className="absolute left-2 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
@@ -86,8 +82,8 @@ const ResourceHeader: React.FC<ResourceHeaderProps> = ({
       actions={
         <>
           <div className="flex items-center gap-2">
-            <Tabs value={viewMode} onValueChange={(value) => handleViewModeChange(value as ViewMode)}>
-              <TabsList className="w-full">
+            <Tabs className="h-8" value={viewMode} onValueChange={(value) => handleViewModeChange(value as ViewMode)}>
+              <TabsList className="w-full h-8">
                 <TabsTrigger value="grid" className="flex-1 gap-1">
                   <TbGrid3X3 />
                 </TabsTrigger>
