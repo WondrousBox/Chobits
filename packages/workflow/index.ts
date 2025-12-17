@@ -10,7 +10,7 @@ import { getResourcePath } from '../common/utils';
 import { eventManager, sendAppBusyEnd, sendAppBusyProgress, sendAppBusyStart } from '../event';
 import { AppEvent } from '../event/events';
 import { pluginResourceManager } from '../plugins';
-import { FoldersRepo, ResourcesRepo, WorkspacesRepo } from './../common/db';
+import { addResource, FoldersRepo, ResourcesRepo, WorkspacesRepo } from './../common/db';
 import { createEngine, WorkflowEngine } from './engine';
 import {
   AiChatNode,
@@ -175,7 +175,7 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
 
       console.log(resourceData);
 
-      // Create Resource
+      // Create Resource：交给主进程资源创建逻辑统一处理（复用 addResource）
       const resource = {
         title: resourceData.title,
         filePath: resourceData.filePath,
@@ -189,13 +189,9 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
       console.log(resource);
 
       try {
-        const created = await ResourcesRepo.upsert(resource as any);
-        if (created) {
-          // 发送资源创建完成事件，与其他创建节点保持一致
-          eventManager.emit(AppEvent.RESOURCE_CREATED, created);
-        }
+        const result = await addResource({ resource } as any);
         if (callback) {
-          callback(created || null);
+          callback(result?.data || null);
         }
       } catch (e) {
         console.warn('[workflow][resource:create-request] failed:', e);
@@ -227,16 +223,6 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
       if (!current) {
         if (callback) callback(null);
         return;
-      }
-
-      // 如果本次更新包含文本内容，则同步更新 sizeBytes，保证纯文本资源也有合理的大小
-      if (typeof patch.contentText === 'string') {
-        try {
-          const buf = Buffer.from(patch.contentText, 'utf8');
-          patch.sizeBytes = buf.byteLength;
-        } catch {
-          // 忽略计算失败，不阻塞更新
-        }
       }
 
       const updated = await ResourcesRepo.update(resourceId, patch as any);
