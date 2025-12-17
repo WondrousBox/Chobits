@@ -145,7 +145,6 @@ export const AIAssistant: React.FC = () => {
   const screenSizeRef = useRef(screenSize);
   const paddingRef = useRef(paddingState);
   const animateMoveWindowRef = useRef(animateMoveWindow);
-  const lastMenuActionAtRef = useRef<Record<string, number>>({});
   const autoWalkTimerRef = useRef<NodeJS.Timeout | null>(null);
   const movementConfigRef = useRef<{ enabled?: boolean } | null>(null);
   const isDraggingRef = useRef(isDragging);
@@ -162,36 +161,6 @@ export const AIAssistant: React.FC = () => {
   useEffect(() => {
     animateMoveWindowRef.current = animateMoveWindow;
   }, [animateMoveWindow]);
-
-  useEffect(() => {
-    const onMenuCommand = async (_: any, action: string): Promise<void> => {
-      // 防抖/去重：忽略极短时间内的重复事件
-      const now = performance.now();
-      const last = lastMenuActionAtRef.current[action] || 0;
-      if (now - last < 100) return;
-      lastMenuActionAtRef.current[action] = now;
-
-      if (action === 'walk-once') {
-        const size = screenSizeRef.current;
-        const padding = paddingRef.current;
-        const minX = -padding;
-        const maxX = size.width - ASSISTANT_WIDTH - padding;
-        const minY = -padding;
-        const maxY = size.height - ASSISTANT_HEIGHT - padding;
-        const targetX = Math.random() * (maxX - minX) + minX;
-        const targetY = Math.random() * (maxY - minY) + minY;
-        setAssistantState('walk:start');
-        await animateMoveWindowRef.current(targetX, targetY);
-        setAssistantState('walk:end');
-        setAssistantState('idle');
-      }
-    };
-
-    window.ipcRenderer?.on('window:command', onMenuCommand);
-    return () => {
-      window.ipcRenderer?.off('window:command', onMenuCommand);
-    };
-  }, [setAssistantState]);
 
   // --- 监听移动配置变化，实现自由移动 ---
   useEffect(() => {

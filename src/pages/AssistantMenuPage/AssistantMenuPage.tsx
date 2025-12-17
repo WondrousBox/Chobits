@@ -21,11 +21,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         label: '状态',
         icon: '💬',
         shortcut: 'i',
-        action: () => window.YUA.window['window:open']('status'),
-        children: [
-          { id: 'status', label: '状态', icon: '📖', action: () => window.YUA.window['window:open']('status') },
-          { id: 'walk', label: '立即随机走动', icon: '👣', action: () => window.ipcRenderer?.send('window:command', { type: 'walk-once' }) }
-        ]
+        action: () => window.YUA.window['window:open']('status')
       },
       {
         id: 'tagger',
