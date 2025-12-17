@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { platform } from 'node:os';
 
-import { Plugin } from '../types';
+import type { MissingModel, Plugin } from '../types';
 
 export const WhisperPlugin: Plugin = {
   id: 'plugin:whisper',
@@ -26,5 +26,33 @@ export const WhisperPlugin: Plugin = {
     // 如果资源管理器中安装了engine，可以在这里设置环境变量或路径
     // 目前whisper CLI通常通过PATH访问，所以暂时不需要额外准备
     // 后续可以在这里添加模型预下载逻辑
+  },
+  async checkRequiredModels(ctx, nodeConfig): Promise<MissingModel[]> {
+    const missingModels: MissingModel[] = [];
+    if (!ctx.pluginResourceManager) {
+      return missingModels;
+    }
+
+    // 检查配置中的模型
+    const modelName = String(nodeConfig?.model || '');
+    if (modelName) {
+      const pluginId = 'plugin:whisper';
+      const modelPath = ctx.pluginResourceManager.getModelPath(pluginId, modelName);
+      if (!fs.existsSync(modelPath)) {
+        // 尝试从已安装的资源中查找模型资源ID
+        const { PluginResourceStore } = await import('../../plugins/plugin-resource-store');
+        const installedModels = PluginResourceStore.listByType(pluginId, 'model');
+        const modelResource = installedModels.find((r) => r.name === modelName);
+
+        missingModels.push({
+          pluginId,
+          modelName,
+          resourceId: modelResource?.resourceId,
+          displayName: modelResource?.displayName
+        });
+      }
+    }
+
+    return missingModels;
   }
 };
