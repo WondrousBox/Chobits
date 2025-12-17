@@ -11,7 +11,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 
 import { ResourceItem } from '../types';
 import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from '../utils/resourceProtocol';
-import { formatDuration, getResourceSummary, getResourceTypeIcon, getStatusColor } from '../utils/resourceUtils';
+import { formatDuration, getFileCoverByPath, getResourceSummary, getStatusColor } from '../utils/resourceUtils';
 import { ResourceItemWithSubtitles } from '../utils/subtitleUtils';
 
 interface GalleryItemProps {
@@ -35,6 +35,7 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
   const [copied, setCopied] = useState(false);
   const summary = getResourceSummary(item);
   const thumbSrc = item.thumbnailPath ? makeResSrc(item.thumbnailPath) : undefined;
+  const fileCover = getFileCoverByPath(item.filePath);
   const itemWithSubtitles = item as ResourceItemWithSubtitles;
   const subtitleCount = itemWithSubtitles.subtitles?.length || 0;
 
@@ -184,16 +185,13 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
           {/* 图片资源 - 直接显示 */}
           {isImageFile(item.filePath) && <img src={item.filePath ? makeResSrc(item.filePath) : ''} alt={summary.title} className="h-full w-full object-cover" draggable={false} />}
 
-          {/* 其他资源类型 - 显示类型图标 */}
+          {/* 其他资源类型 - 尝试使用缩略图，其次使用基于后缀的封面，最后回退到类型图标 */}
           {!isImageFile(item.filePath) &&
             (thumbSrc ? (
               <img src={thumbSrc} alt={summary.title} className="h-full w-full object-cover" draggable={false} />
             ) : (
               <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground">
-                <div className="text-center">
-                  <div className="text-2xl mb-1">{getResourceTypeIcon(item.type)}</div>
-                  <div className="text-[10px] capitalize">{item.type}</div>
-                </div>
+                <div className="w-8 h-8 [&>svg]:w-full [&>svg]:h-full" dangerouslySetInnerHTML={{ __html: fileCover }} />
               </div>
             ))}
 
@@ -249,12 +247,7 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
                   <PopoverTrigger asChild>
                     <span className="flex items-center gap-1 cursor-pointer" onClick={(e) => e.stopPropagation()}>
                       字幕文件
-                      <motion.span
-                        key={subtitleCount}
-                        initial={{ scale: 1.5, color: '#22c55e' }}
-                        animate={{ scale: 1, color: 'currentColor' }}
-                        transition={{ duration: 0.5 }}
-                      >
+                      <motion.span key={subtitleCount} initial={{ scale: 1.5, color: '#22c55e' }} animate={{ scale: 1, color: 'currentColor' }} transition={{ duration: 0.5 }}>
                         {subtitleCount}
                       </motion.span>
                     </span>

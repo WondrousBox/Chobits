@@ -1,9 +1,8 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import * as fscb from 'node:fs';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
-import dayjs from 'dayjs';
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron';
 
 import { eventManager, sendAppBusyEnd, sendAppBusyProgress, sendAppBusyStart } from '../../../../packages/event';
@@ -11,7 +10,8 @@ import { AppEvent } from '../../../../packages/event/events';
 // import { TaggingService } from '../ai/tagging-service';
 import { FoldersRepo, ResourcesRepo, TagsRepo, WorkspacesRepo } from '../../db/repositories';
 // import { sendAppNotice } from '../../../../packages/event';
-import { detectBasicType, generateThumbnailForResource } from '../../utils/thumbnail';
+import { generateThumbnailForResource } from '../../utils/thumbnail';
+import { addResource, ensureDailyFolder } from '.';
 import type { Resource } from './ipc-renderer';
 
 // 存储正在上传的文件流
@@ -26,38 +26,6 @@ interface UploadStream {
 }
 
 const uploadStreams = new Map<string, UploadStream>();
-
-async function ensureDailyFolder(workspaceId: string, rootPath: string): Promise<string> {
-  const today = dayjs().format('YYYY-MM-DD');
-  // Check if folder exists in DB
-  // 只在“未删除”的顶层文件夹中查找，避免命中回收站里的文件夹
-  const siblings = await FoldersRepo.list({ workspaceId, parentId: null, deletedAt: 0 } as any, 2000, 0);
-  const existing = siblings.find((s: any) => s.name === today);
-
-  if (existing) {
-    return existing.id;
-  }
-
-  // Create new folder
-  const newFolder = {
-    id: randomUUID(),
-    name: today,
-    parentId: null,
-    workspaceId,
-    createdAt: Date.now(),
-    updatedAt: Date.now()
-  };
-
-  await FoldersRepo.upsert(newFolder as any);
-
-  // Create directory
-  const dirPath = path.join(rootPath, 'resources', 'folders', newFolder.id);
-  await fs.mkdir(dirPath, { recursive: true });
-
-  eventManager.emit(AppEvent.FOLDER_CREATED, newFolder);
-
-  return newFolder.id;
-}
 
 export function initResourceHandlers(): void {
   // 导入本地文件（仅文件）
@@ -103,186 +71,7 @@ export function initResourceHandlers(): void {
   });
 
   ipcMain.handle('resource:add', async (_event, payload: { resource: Resource }) => {
-    const res = payload.resource || {};
-    // Attach workspace: copy local file into default workspace if available
-    let workspaceId = res.workspaceId;
-    let filePath = res.filePath as string | undefined;
-    let folderId = res.folderId;
-
-    try {
-      let ws;
-      if (workspaceId) {
-        ws = await WorkspacesRepo.getById(workspaceId);
-      } else {
-        ws = await WorkspacesRepo.getDefault();
-        if (ws) workspaceId = ws.id;
-      }
-
-      // 统一：只要有工作空间根目录且未显式指定 folderId，就默认放到当天的文件夹下
-      if (ws && ws.id && ws.rootPath) {
-        if (!folderId) {
-          try {
-            folderId = await ensureDailyFolder(ws.id, ws.rootPath);
-            res.folderId = folderId;
-          } catch (e) {
-            console.warn('Failed to ensure daily folder', e);
-          }
-        }
-
-        // 对有物理文件的资源，仍然执行复制到工作空间的逻辑
-        if (filePath) {
-          try {
-            const base = path.basename(filePath);
-            let targetDir;
-            if (folderId) {
-              targetDir = path.join(ws.rootPath, 'resources', 'folders', folderId);
-            } else {
-              targetDir = path.join(ws.rootPath, 'resources');
-            }
-
-            await fs.mkdir(targetDir, { recursive: true });
-            let target = path.join(targetDir, base);
-            if (filePath !== target) {
-              // Avoid overwriting existing files
-              if (fscb.existsSync(target)) {
-                const ext = path.extname(base);
-                const name = path.basename(base, ext);
-                let i = 1;
-                while (fscb.existsSync(path.join(targetDir, `${name}(${i})${ext}`))) {
-                  i++;
-                }
-                target = path.join(targetDir, `${name}(${i})${ext}`);
-              }
-              await fs.copyFile(filePath, target);
-              filePath = target;
-            }
-          } catch (e) {
-            console.warn('[workspace] copy file into workspace failed', e);
-          }
-        }
-      }
-    } catch {
-      /* noop */
-    }
-
-    // Basic file type detection (if not provided)
-    const detected = detectBasicType(filePath, res.type);
-    if (!res.type && detected.type) res.type = detected.type as any;
-    if (!res.mimeType && detected.mimeType) res.mimeType = detected.mimeType;
-
-    // 文本资源：根据 contentText 估算 sizeBytes，避免大小始终为 0
-    if ((res.type === 'text' || (!res.type && detected.type === 'text')) && typeof (res as any).contentText === 'string') {
-      try {
-        const buf = Buffer.from((res as any).contentText as string, 'utf8');
-        (res as any).sizeBytes = buf.byteLength;
-      } catch {
-        // 如果计算失败，不影响主流程
-      }
-    }
-
-    const row = await ResourcesRepo.upsert({ ...res, workspaceId, filePath } as any);
-
-    // // Fire-and-forget: auto-tag text resources via AI TaggingService (no renderer involvement)
-    // try {
-    //   const text = (res as any).contentText || (res as any).description || (res as any).title || '';
-    //   const textStr = (typeof text === 'string' ? text : '').trim();
-    //   if (row && textStr) {
-    //     setTimeout(async () => {
-    //       try {
-    //         const tags = await TaggingService.autoTagText(textStr, { maxLabels: 8 });
-    //         if (Array.isArray(tags) && tags.length) {
-    //           try {
-    //             await ResourcesRepo.update((row as any).id, { tags: JSON.stringify(tags) } as any);
-    //           } catch {
-    //             /* ignore update errors */
-    //           }
-    //         }
-    //       } catch (e) {
-    //         console.warn('[auto-tag] failed', e);
-    //       }
-    //     }, 0);
-    //   }
-    // } catch {
-    //   /* ignore auto-tag failures */
-    // }
-
-    // Conditionally enqueue embedding only for text-like resources
-    // const isText = isTextLikeResource({ type: res.type, mimeType: res.mimeType, filePath });
-    // if (isText) {
-    //   const text = res.contentText || res.description || res.title;
-    //   if (typeof text === 'string' && text.trim().length > 0 && row) {
-    //     try {
-    //       const chunks = chunkText(text);
-    //       const items = chunks.map((c) => ({
-    //         id: `${row.id}#${c.index}`,
-    //         content: c.content,
-    //         metadata: { parentId: row.id, chunkIndex: c.index, chunkCount: c.count, source: 'resource' }
-    //       }));
-    //       embeddingQueue.enqueue({ items, dim: 384, batchSize: 16 });
-    //     } catch (e) {
-    //       console.warn('[embedding] enqueue failed', e);
-    //     }
-    //   }
-    // }
-
-    // Generate thumbnail file (new strategy) if no path present
-    if (row && !(row as any).thumbnailPath) {
-      try {
-        const ws = await WorkspacesRepo.getDefault();
-        const baseDir = ws?.rootPath ? path.join(ws.rootPath, 'resources', '.thumbs') : path.join(process.cwd(), 'uploads', '.thumbs');
-        await fs.mkdir(baseDir, { recursive: true });
-        const thumb = await generateThumbnailForResource({ filePath, type: res.type, title: res.title });
-        if (thumb) {
-          const thumbPath = path.join(baseDir, `${row.id}.png`);
-          try {
-            await fs.writeFile(thumbPath, thumb);
-          } catch (e) {
-            console.warn('[thumbnail] write file failed', e);
-          }
-          await ResourcesRepo.update(row.id, { thumbnailPath: thumbPath } as any);
-          const updated = await ResourcesRepo.getById(row.id);
-          // Broadcast insert event to all renderer windows
-          try {
-            const resData: any = updated || row;
-            eventManager.emit(AppEvent.RESOURCE_CREATED, resData);
-
-            const payload = { action: 'inserted', id: resData?.id, resource: resData };
-            BrowserWindow.getAllWindows().forEach((w) => {
-              try {
-                w.webContents.send('resource:inserted', payload);
-                w.webContents.send('resource:changed', payload);
-              } catch {
-                /* ignore */
-              }
-            });
-          } catch {
-            /* ignore */
-          }
-          return { success: true, data: updated || row };
-        }
-      } catch (e) {
-        console.warn('[thumbnail] generation failed', e);
-      }
-    }
-    // Broadcast insert event to all renderer windows
-    try {
-      if (row) {
-        eventManager.emit(AppEvent.RESOURCE_CREATED, row);
-
-        const payload2 = { action: 'inserted', id: (row as any).id, resource: row };
-        BrowserWindow.getAllWindows().forEach((w) => {
-          try {
-            w.webContents.send('resource:inserted', payload2);
-            w.webContents.send('resource:changed', payload2);
-          } catch {
-            /* ignore */
-          }
-        });
-      }
-    } catch {
-      /* ignore */
-    }
-    return { success: true, data: row };
+    return addResource(payload);
   });
   ipcMain.handle('resource:list', async () => {
     // Hide soft-deleted items by default
@@ -975,12 +764,10 @@ async function runImportTask(win: BrowserWindow, filePaths: string[], workspaceI
     for (const folder of foldersToScan) {
       try {
         // Create the folder itself
-        const createRes = await FoldersRepo.upsert({
+        const createRes = await FoldersRepo.create({
           name: folder.name,
           parentId: folder.targetParentId,
-          workspaceId: workspaceId || null,
-          createdAt: Date.now(),
-          updatedAt: Date.now()
+          workspaceId: workspaceId || null
         } as any);
 
         if (!createRes?.id) continue;
@@ -1019,12 +806,10 @@ async function runImportTask(win: BrowserWindow, filePaths: string[], workspaceI
           const parentId = parentRelPath ? relPathToId[parentRelPath] : newRootId;
 
           if (parentId) {
-            const res = await FoldersRepo.upsert({
+            const res = await FoldersRepo.create({
               name: dirName,
               parentId,
-              workspaceId: workspaceId || null,
-              createdAt: Date.now(),
-              updatedAt: Date.now()
+              workspaceId: workspaceId || null
             } as any);
             if (res?.id) {
               relPathToId[normalizedRelPath] = res.id;

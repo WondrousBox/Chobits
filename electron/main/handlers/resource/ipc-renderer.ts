@@ -40,7 +40,7 @@ export type Resource = {
 };
 
 export type ResourceIpcParams = {
-  'resource:add': IpcParams<[{ resource: PartialByKey<Resource, 'id'> }], { success: true; data: Resource }>;
+  'resource:add': IpcParams<[{ resource: PartialByKey<Resource, 'id' | 'type'> }], { success: true; data: Resource }>;
   'resource:list': IpcParams<[void], Resource[]>;
   getResource: IpcParams<[{ id: string }], Resource | undefined>;
   'resource:update': IpcParams<[{ id: string; patch: any }], { success: boolean; data?: any }>;

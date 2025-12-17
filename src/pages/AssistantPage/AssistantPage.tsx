@@ -84,18 +84,7 @@ const AssistantPage: React.FC = () => {
   const send = async (content: string): Promise<void> => {
     if (!content.trim()) return;
     try {
-      const now = Date.now();
-      const res = await window.YUA.resource['resource:add']({
-        resource: {
-          type: 'text',
-          title: content.slice(0, 40),
-          contentText: content,
-          collectedAt: now,
-          createdAt: now,
-          updatedAt: now,
-          status: 'new'
-        } as any
-      });
+      const res = await window.YUA.resource['resource:add']({ resource: { contentText: content } });
 
       if (res.success) console.log(res.data);
     } catch (e) {

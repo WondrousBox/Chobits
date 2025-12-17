@@ -101,19 +101,8 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, hideEditor
       return;
     }
     try {
-      const now = Date.now();
       const res = await window.YUA.resource['resource:add']({
-        resource: {
-          type: 'text',
-          title: textToSave.split('\n')[0].slice(0, 40) || 'New Note',
-          contentText: textToSave,
-          collectedAt: now,
-          createdAt: now,
-          updatedAt: now,
-          status: 'new',
-          ...(folderId ? { folderId } : {}),
-          ...(workspaceId ? { workspaceId } : {})
-        } as any
+        resource: { contentText: textToSave, ...(folderId ? { folderId } : {}), ...(workspaceId ? { workspaceId } : {}) }
       });
       if (res?.success) {
         toast.success('文本已保存为资源');

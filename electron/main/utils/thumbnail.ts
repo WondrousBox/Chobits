@@ -4,6 +4,7 @@ import * as path from 'node:path';
 
 import { nativeImage } from 'electron';
 import ffmpeg from 'fluent-ffmpeg';
+import mime from 'mime';
 
 // Attempt lazy import of sharp (optional)
 type SharpModule = typeof import('sharp');
@@ -26,7 +27,7 @@ async function getSharp(): Promise<SharpModule | null> {
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.tiff', '.svg']);
 const VIDEO_EXT = new Set(['.mp4', '.mov', '.mkv', '.webm', '.avi']);
 const AUDIO_EXT = new Set(['.mp3', '.wav', '.flac', '.aac', '.m4a', '.ogg']);
-const TEXT_EXT = new Set([
+const TEXT_FILE_EXT = new Set([
   '.txt',
   '.md',
   '.markdown',
@@ -63,14 +64,16 @@ const TEXT_EXT = new Set([
 
 const DOC_EXT = new Set(['.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx', '.pdf', '.key', '.pages', '.numbers']);
 
-export function detectBasicType(filePath?: string, declaredType?: string): { type?: string; mimeType?: string } {
-  if (!filePath) return { type: declaredType };
-  const ext = path.extname(filePath).toLowerCase();
-  if (IMAGE_EXT.has(ext)) return { type: 'image', mimeType: `image/${ext.replace('.', '')}` };
-  if (VIDEO_EXT.has(ext)) return { type: 'video', mimeType: `video/${ext.replace('.', '')}` };
-  if (AUDIO_EXT.has(ext)) return { type: 'audio', mimeType: `audio/${ext.replace('.', '')}` };
-  if (TEXT_EXT.has(ext)) return { type: 'text', mimeType: 'text/plain' };
-  return { type: declaredType || 'file' };
+export function detectBasicType(filePath: string): { type: string; mimeType: string | null } {
+  const ext = filePath ? path.extname(filePath).toLowerCase() : '';
+  const mimeType = mime.getType(ext.replace('.', ''));
+  let type = 'file';
+  if (IMAGE_EXT.has(ext)) type = 'image';
+  if (VIDEO_EXT.has(ext)) type = 'video';
+  if (AUDIO_EXT.has(ext)) type = 'audio';
+  if (TEXT_FILE_EXT.has(ext)) type = 'file';
+  if (DOC_EXT.has(ext)) type = 'document';
+  return { type, mimeType };
 }
 
 export function isTextLikeResource(res: { type?: string; mimeType?: string; filePath?: string }): boolean {
@@ -78,7 +81,7 @@ export function isTextLikeResource(res: { type?: string; mimeType?: string; file
   if (res.mimeType?.startsWith('text/')) return true;
   if (res.filePath) {
     const ext = path.extname(res.filePath).toLowerCase();
-    if (TEXT_EXT.has(ext)) return true;
+    if (TEXT_FILE_EXT.has(ext)) return true;
   }
   return false;
 }
@@ -128,12 +131,6 @@ export async function generateThumbnailForResource(res: { filePath?: string; typ
     if (AUDIO_EXT.has(ext)) {
       const waveform = await generateAudioWaveform(filePath, size);
       if (waveform) return waveform;
-    }
-
-    if (TEXT_EXT.has(ext)) {
-      // Use first letter(s) of title or extension
-      const label = (title?.slice(0, 4) || ext.replace('.', '').slice(0, 4) || 'TXT').toUpperCase();
-      return await generatePlaceholder('text', label, size);
     }
 
     // For any other file type not explicitly handled, do not generate a thumbnail.
