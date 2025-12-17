@@ -37,6 +37,8 @@ type Folder = {
   workspaceId?: string;
 };
 
+const WORKFLOW_START_INPUT_STORAGE_KEY = 'workflow:start-input';
+
 export default function WorkflowStartInputSheet(): JSX.Element {
   const [open, setOpen] = useState(false);
   const [defId, setDefId] = useState<string>('');
@@ -46,6 +48,60 @@ export default function WorkflowStartInputSheet(): JSX.Element {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [loadingFolders, setLoadingFolders] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [rememberConfig, setRememberConfig] = useState(false);
+
+  const loadStoredConfig = (workflowDefId: string, payloadMissingConfigs?: MissingConfig[]): void => {
+    try {
+      const raw = window.localStorage.getItem(WORKFLOW_START_INPUT_STORAGE_KEY);
+      if (!raw) {
+        setRememberConfig(false);
+        setConfigValues({});
+        return;
+      }
+
+      const parsed = JSON.parse(raw) as Record<
+        string,
+        {
+          remember: boolean;
+          configValues: Record<string, Record<string, any>>;
+        }
+      >;
+
+      const record = parsed[workflowDefId];
+      if (!record || !record.remember) {
+        setRememberConfig(false);
+        setConfigValues({});
+        return;
+      }
+
+      // 只保留当前 missingConfigs 中出现的字段，避免脏数据
+      const safeConfigValues: Record<string, Record<string, any>> = {};
+      const source = record.configValues || {};
+      const targetMissingConfigs = payloadMissingConfigs || missingConfigs;
+
+      for (const node of targetMissingConfigs) {
+        const nodeConfig = source[node.nodeId];
+        if (!nodeConfig) continue;
+
+        const filtered: Record<string, any> = {};
+        for (const field of node.missingFields) {
+          if (Object.prototype.hasOwnProperty.call(nodeConfig, field.key)) {
+            filtered[field.key] = nodeConfig[field.key];
+          }
+        }
+
+        if (Object.keys(filtered).length > 0) {
+          safeConfigValues[node.nodeId] = filtered;
+        }
+      }
+
+      setRememberConfig(true);
+      setConfigValues(safeConfigValues);
+    } catch {
+      setRememberConfig(false);
+      setConfigValues({});
+    }
+  };
 
   // 监听工作流开始节点需要输入的事件
   useEffect(() => {
@@ -55,8 +111,13 @@ export default function WorkflowStartInputSheet(): JSX.Element {
       setMissingConfigs(payload.missingConfigs || []);
       setOpen(true);
 
-      // 重置表单
-      setConfigValues({});
+      // 根据 defId 和当前缺失配置从本地缓存恢复上次设置
+      if (payload.defId) {
+        loadStoredConfig(payload.defId, payload.missingConfigs || []);
+      } else {
+        setRememberConfig(false);
+        setConfigValues({});
+      }
     };
 
     // 监听来自渲染进程内部的事件（新逻辑）
@@ -238,6 +299,36 @@ export default function WorkflowStartInputSheet(): JSX.Element {
       input = { ...input, __configOverrides__: configValues };
     }
 
+    // 处理本地记住配置
+    try {
+      const raw = window.localStorage.getItem(WORKFLOW_START_INPUT_STORAGE_KEY);
+      const parsed =
+        (raw
+          ? (JSON.parse(raw) as Record<
+            string,
+            {
+              remember: boolean;
+              configValues: Record<string, Record<string, any>>;
+            }
+          >)
+          : {}) || {};
+
+      if (rememberConfig) {
+        parsed[defId] = {
+          remember: true,
+          configValues
+        };
+      } else {
+        if (parsed[defId]) {
+          delete parsed[defId];
+        }
+      }
+
+      window.localStorage.setItem(WORKFLOW_START_INPUT_STORAGE_KEY, JSON.stringify(parsed));
+    } catch {
+      // ignore storage error
+    }
+
     setSubmitting(true);
     try {
       const data = {
@@ -319,7 +410,11 @@ export default function WorkflowStartInputSheet(): JSX.Element {
           )}
         </div>
 
-        <div className="flex justify-end gap-2 box-border pb-4 px-4">
+        <div className="flex items-center justify-between gap-2 box-border pb-4 px-4">
+          <label className="flex items-center gap-2 text-xs text-muted-foreground select-none">
+            <input type="checkbox" className="w-3 h-3 rounded border-muted-foreground/40" checked={rememberConfig} onChange={(e) => setRememberConfig(e.target.checked)} />
+            记住本次设置
+          </label>
           <Button onClick={handleConfirm} disabled={submitting || !isFormValid}>
             {submitting ? (
               <>
