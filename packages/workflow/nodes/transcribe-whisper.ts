@@ -225,10 +225,7 @@ async function runWhisper(args: string[], ctx: any, onProgress?: (progress: numb
 
 // 根据配置计算动态输出端口
 function getDynamicOutputs(config?: NodeConfig): PortSchema[] {
-  const outputs: PortSchema[] = [
-    { key: 'text', label: '全文文本', type: 'string' },
-    { key: 'segments', label: '分段 JSON', type: 'object' }
-  ];
+  const outputs: PortSchema[] = [{ key: 'segments', label: '分段 JSON', type: 'object' }];
 
   // 根据选择的输出格式添加对应的输出端口
   const outputFormats: string[] = Array.isArray(config?.outputFormats) ? config.outputFormats : ['txt', 'srt', 'vtt', 'json'];
@@ -245,6 +242,9 @@ function getDynamicOutputs(config?: NodeConfig): PortSchema[] {
   for (const format of outputFormats) {
     const formatDef = formatMap[format];
     if (formatDef) {
+      if (formatDef.key === 'txt') {
+        outputs.push({ key: 'text', label: '全文文本', type: 'string' });
+      }
       outputs.push({ key: formatDef.key, label: formatDef.label, type: formatDef.type });
     }
   }
@@ -271,7 +271,7 @@ export const TranscribeWhisperNode: NodeHandler = {
         label: '模型',
         type: 'string',
         required: true,
-        default: 'ggml-base.bin',
+        default: '',
         description: '选择 Whisper 模型，更大的模型通常更准确但速度更慢',
         inputType: 'select',
         options: [
@@ -292,9 +292,9 @@ export const TranscribeWhisperNode: NodeHandler = {
         key: 'language',
         label: '语言',
         type: 'string',
-        required: false,
+        required: true,
         description: '选择转录语言，留空或选择"自动"将自动检测',
-        default: 'auto',
+        default: '',
         inputType: 'select',
         options: [
           { value: 'auto', label: '自动' },

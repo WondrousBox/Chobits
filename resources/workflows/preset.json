@@ -114,47 +114,52 @@
         "id": "start",
         "type": "core/start",
         "x": 0,
-        "y": 0,
+        "y": 116.5,
         "config": {
           "inputMode": "resource",
-          "resourceKinds": ["audio", "video"]
+          "resourceKinds": [
+            "audio",
+            "video"
+          ]
         }
       },
       {
         "id": "whisper",
         "type": "media/transcribe-whisper",
-        "x": 366,
-        "y": 17.5,
+        "x": 392,
+        "y": 313,
         "config": {
           "model": "ggml-base.bin",
           "language": "zh",
           "outputFormats": [
-            "txt",
             "srt",
-            "json"
+            "txt"
           ]
         }
       },
       {
         "id": "end",
         "type": "core/end",
-        "x": 846,
-        "y": 51,
+        "x": 1264,
+        "y": 204,
+        "config": {}
+      },
+      {
+        "id": "resource/update-798N",
+        "type": "resource/update",
+        "x": 872,
+        "y": 0,
+        "config": {}
+      },
+      {
+        "id": "resource/create-kfIN",
+        "type": "resource/create",
+        "x": 872,
+        "y": 289,
         "config": {}
       }
     ],
     "edges": [
-      {
-        "id": "t4",
-        "from": {
-          "nodeId": "whisper",
-          "port": "text"
-        },
-        "to": {
-          "nodeId": "end",
-          "port": "result"
-        }
-      },
       {
         "id": "e-MNiAAQ",
         "from": {
@@ -164,6 +169,61 @@
         "to": {
           "nodeId": "whisper",
           "port": "media"
+        }
+      },
+      {
+        "id": "e-Z7kvuZ",
+        "from": {
+          "nodeId": "start",
+          "port": "resourceId"
+        },
+        "to": {
+          "nodeId": "resource/update-798N",
+          "port": "resourceId"
+        }
+      },
+      {
+        "id": "e-cs1As7",
+        "from": {
+          "nodeId": "resource/update-798N",
+          "port": "resourceId"
+        },
+        "to": {
+          "nodeId": "end",
+          "port": "result"
+        }
+      },
+      {
+        "id": "e-m-cAbx",
+        "from": {
+          "nodeId": "resource/create-kfIN",
+          "port": "resourceId"
+        },
+        "to": {
+          "nodeId": "end",
+          "port": "result"
+        }
+      },
+      {
+        "id": "e-_Lfxd6",
+        "from": {
+          "nodeId": "whisper",
+          "port": "srt"
+        },
+        "to": {
+          "nodeId": "resource/create-kfIN",
+          "port": "file"
+        }
+      },
+      {
+        "id": "e-V_Tp2z",
+        "from": {
+          "nodeId": "whisper",
+          "port": "text"
+        },
+        "to": {
+          "nodeId": "resource/update-798N",
+          "port": "contentText"
         }
       }
     ],
