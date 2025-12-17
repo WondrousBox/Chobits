@@ -176,6 +176,13 @@ export type NodeHandler = {
   }) => Promise<Record<string, any>>;
 };
 
+export type MissingModel = {
+  pluginId: string;
+  modelName: string;
+  resourceId?: string;
+  displayName?: string;
+};
+
 export type Plugin = {
   id: string; // 'plugin:ffmpeg'
   label: string;
@@ -188,13 +195,16 @@ export type Plugin = {
   prepare?: (ctx: ExecutionContext) => Promise<void>;
   // Capabilities declaration, e.g., ['transcode', 'probe', 'ocr']
   capabilities?: string[];
+  // Check required models for a node configuration
+  // Returns array of missing models, or empty array if all required models are installed
+  checkRequiredModels?: (ctx: ExecutionContext, nodeConfig: Record<string, any>) => Promise<MissingModel[]>;
 };
 
 export type ValidateResult = {
   ok: boolean;
   errors?: string[];
   missingPlugins?: { id: string; hint?: string }[];
-  missingModels?: { pluginId: string; modelName: string; resourceId?: string; displayName?: string }[];
+  missingModels?: MissingModel[];
 };
 
 export type WorkflowNodeDraft = {

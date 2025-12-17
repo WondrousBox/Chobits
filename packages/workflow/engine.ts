@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -136,33 +135,28 @@ export class WorkflowEngine extends EngineEmitter {
       const ok = await p.isInstalled(ctx).catch(() => false);
       if (!ok) missingPlugins.push({ id, hint: p.installHint });
     }
-    // models
+    // models - check through plugins
     const missingModels: { pluginId: string; modelName: string; resourceId?: string; displayName?: string }[] = [];
-    if (ctx.pluginResourceManager) {
-      for (const n of def.nodes) {
-        const handler = getNode(n.type);
-        if (!handler) continue;
+    for (const n of def.nodes) {
+      const handler = getNode(n.type);
+      if (!handler) continue;
 
-        // 检查节点是否需要模型
-        // 目前只有 whisper 节点需要模型
-        if (n.type === 'media/transcribe-whisper') {
-          const modelName = String(n.config?.model || '');
-          if (modelName) {
-            const pluginId = 'plugin:whisper';
-            const modelPath = ctx.pluginResourceManager.getModelPath(pluginId, modelName);
-            if (!fs.existsSync(modelPath)) {
-              // 尝试从已安装的资源中查找模型资源ID
-              const { PluginResourceStore } = await import('../plugins/plugin-resource-store');
-              const installedModels = PluginResourceStore.listByType(pluginId, 'model');
-              const modelResource = installedModels.find((r) => r.name === modelName);
+      // 检查节点所需的插件
+      const requiredPlugins = handler.spec.requires || [];
+      for (const pluginId of requiredPlugins) {
+        const plugin = getPlugin(pluginId);
+        if (!plugin) continue;
 
-              missingModels.push({
-                pluginId,
-                modelName,
-                resourceId: modelResource?.resourceId,
-                displayName: modelResource?.displayName
-              });
+        // 如果插件支持模型检查，调用其检查方法
+        if (plugin.checkRequiredModels) {
+          try {
+            const models = await plugin.checkRequiredModels(ctx, n.config || {});
+            if (models && models.length > 0) {
+              missingModels.push(...models);
             }
+          } catch (err) {
+            // 如果检查失败，记录错误但不阻止验证
+            console.warn(`[WorkflowEngine] Failed to check models for plugin ${pluginId}:`, err);
           }
         }
       }
