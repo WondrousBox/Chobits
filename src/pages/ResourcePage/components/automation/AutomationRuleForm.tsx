@@ -16,15 +16,16 @@ interface AutomationRuleFormProps {
   currentFolderId?: string;
   onRuleChange: (rule: Partial<AutomationRule>) => void;
   onSave: () => void;
-  onCancel: () => void;
 }
 
-export const AutomationRuleForm: React.FC<AutomationRuleFormProps> = ({ rule, workflows, currentWorkspaceId, currentFolderId, onRuleChange, onSave, onCancel }) => {
+export const AutomationRuleForm: React.FC<AutomationRuleFormProps> = ({ rule, workflows, currentWorkspaceId, currentFolderId, onRuleChange, onSave }) => {
   const [currentStep, setCurrentStep] = useState(0);
 
   // 当规则 ID 变化时，重置步骤到第一步
   useEffect(() => {
-    setCurrentStep(0);
+    setTimeout(() => {
+      setCurrentStep(0);
+    }, 0);
   }, [rule.id]);
 
   // Helper to get workflow ID from action config
@@ -104,8 +105,10 @@ export const AutomationRuleForm: React.FC<AutomationRuleFormProps> = ({ rule, wo
 
     switch (step) {
       case 0: // 设置范围
-        return !!rule.scope && !!getResourceType(rule);
+        return true;
       case 1: // 设置触发器
+        return !!rule.scope && !!getResourceType(rule);
+      case 2: // 执行动作
         if (!rule.triggerType) return false;
         if (rule.triggerType === 'resource_event') {
           return !!getEvent(rule);
@@ -117,7 +120,7 @@ export const AutomationRuleForm: React.FC<AutomationRuleFormProps> = ({ rule, wo
           return !!rule.triggerConfig?.event;
         }
         return true; // manual
-      case 2: // 执行动作
+      case 3: // 执行动作
         if (rule.actionType === 'workflow') {
           return !!getWorkflowId(rule);
         }
@@ -157,14 +160,10 @@ export const AutomationRuleForm: React.FC<AutomationRuleFormProps> = ({ rule, wo
 
   return (
     <div className="space-y-6">
-      {/* 规则名称输入 */}
-      <div className="space-y-2">
-        <Label htmlFor="rule-name">规则名称</Label>
-        <Input id="rule-name" placeholder="请输入规则名称" value={rule.name || ''} onChange={(e) => onRuleChange({ ...rule, name: e.target.value })} />
-      </div>
+      <Input placeholder="请输入规则名称" value={rule.name || ''} onChange={(e) => onRuleChange({ ...rule, name: e.target.value })} />
 
       {/* 步骤条 */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between pt-6">
         {[
           { label: '设置范围', step: 0 },
           { label: '设置触发器', step: 1 },
@@ -219,7 +218,7 @@ export const AutomationRuleForm: React.FC<AutomationRuleFormProps> = ({ rule, wo
       </div>
 
       {/* 步骤内容 */}
-      <div className="min-h-[300px]">
+      <div className="min-h-[200px]">
         {currentStep === 0 && (
           <div className="space-y-4">
             <div className="space-y-2">
@@ -370,17 +369,19 @@ export const AutomationRuleForm: React.FC<AutomationRuleFormProps> = ({ rule, wo
 
       {/* 步骤导航按钮 */}
       <div className="flex justify-between pt-4 border-t">
-        <Button variant="outline" onClick={handlePrev} disabled={currentStep === 0}>
-          上一步
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" disabled={currentStep === 0} onClick={handlePrev}>
+            上一步
+          </Button>
+        </div>
         <div className="flex gap-2">
           {currentStep < 2 ? (
-            <Button onClick={handleNext} disabled={!isStepValid(currentStep)}>
+            <Button size="sm" onClick={handleNext} disabled={!isStepValid(currentStep)}>
               下一步
-              <TbChevronRight className="ml-2" />
+              <TbChevronRight />
             </Button>
           ) : (
-            <Button onClick={onSave} disabled={!isStepValid(2) || !rule?.name}>
+            <Button size={'sm'} onClick={onSave} disabled={!(isStepValid(0) && isStepValid(1) && isStepValid(2) && isStepValid(3)) || !rule?.name}>
               完成
             </Button>
           )}
