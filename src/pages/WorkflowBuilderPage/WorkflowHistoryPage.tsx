@@ -1,6 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { TbArrowLeft } from 'react-icons/tb';
-import { useNavigate } from 'react-router-dom';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
@@ -11,7 +9,6 @@ import type { ExecutionStatus, WorkflowRunRecord } from './types';
 const invoke = window.ipcRenderer.invoke;
 
 const WorkflowHistoryPage: React.FC = () => {
-  const navigate = useNavigate();
   const [runs, setRuns] = useState<WorkflowRunRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshTick, setRefreshTick] = useState(0);
