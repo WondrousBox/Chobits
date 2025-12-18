@@ -9,6 +9,7 @@ import { formatRelativeTime } from '@/lib/time';
 import { ResourceItem } from '../types';
 import { makeResSrc } from '../utils/resourceProtocol';
 import { formatDuration, getFileCoverByPath, getStatusColor, parseTags } from '../utils/resourceUtils';
+import { isSubtitleFile } from '../utils/subtitleUtils';
 
 interface ListItemProps {
   item: ResourceItem;
@@ -66,8 +67,9 @@ const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, onClick, on
       const isAudio = item.type === 'audio';
       const isImageRes = item.type === 'image';
       const isVideoRes = item.type === 'video';
+      const isSubtitle = isSubtitleFile(item.filePath);
 
-      if (isAudio || isImageRes || isVideoRes) {
+      if (isAudio || isImageRes || isVideoRes || isSubtitle) {
         onPreview?.(item);
       }
     },

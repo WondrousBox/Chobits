@@ -12,7 +12,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { ResourceItem } from '../types';
 import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from '../utils/resourceProtocol';
 import { formatDuration, getFileCoverByPath, getResourceSummary, getStatusColor } from '../utils/resourceUtils';
-import { ResourceItemWithSubtitles } from '../utils/subtitleUtils';
+import { isSubtitleFile, ResourceItemWithSubtitles } from '../utils/subtitleUtils';
 
 interface GalleryItemProps {
   item: ResourceItem | ResourceItemWithSubtitles;
@@ -43,15 +43,16 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
   const isAudio = isAudioFile(item.filePath);
   const isImageRes = isImageFile(item.filePath);
   const isVideoRes = isVideoFile(item.filePath);
+  const isSubtitle = isSubtitleFile(item.filePath);
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
       onClick(e, item);
-      if (isAudio || isImageRes || isVideoRes || item.type === 'text') {
+      if (isAudio || isImageRes || isVideoRes || item.type === 'text' || isSubtitle) {
         onPreview?.(item);
       }
     },
-    [onClick, item, isAudio, isImageRes, isVideoRes, onPreview]
+    [onClick, item, isAudio, isImageRes, isVideoRes, isSubtitle, onPreview]
   );
 
   const handleSourceClick = useCallback(
@@ -89,11 +90,11 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
   const handlePlayClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      if (isAudio || isImageRes || isVideoRes || item.type === 'text') {
+      if (isAudio || isImageRes || isVideoRes || item.type === 'text' || isSubtitle) {
         onPreview?.(item);
       }
     },
-    [item, isAudio, isImageRes, isVideoRes, onPreview]
+    [item, isAudio, isImageRes, isVideoRes, isSubtitle, onPreview]
   );
 
   const handleTextPreviewClick = useCallback(

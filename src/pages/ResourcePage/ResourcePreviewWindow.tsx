@@ -7,11 +7,10 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/componen
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-import { ImagePlayer } from './components/ImagePlayer';
-import { MediaPlayer } from './components/MediaPlayer';
-import { TextPlayer } from './components/TextPlayer';
+import { ImagePlayer, MediaPlayer, SrtPlayer, TextPlayer } from './components/Players';
 import type { ResourceItem } from './types';
 import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from './utils/resourceProtocol';
+import { isSubtitleFile } from './utils/subtitleUtils';
 
 interface IncomingPayload {
   current: ResourceItem;
@@ -524,7 +523,8 @@ const ResourcePreviewWindow: React.FC = () => {
       {isImageFile(data.filePath) && fileSrc && <ImagePlayer src={fileSrc} title={title} className="w-full h-full rounded-md shadow" />}
       {isVideoFile(data.filePath) && fileSrc && <MediaPlayer src={fileSrc} type="video" title={title} autoPlay={true} className="w-full h-full" onVideoLoaded={handleVideoLoaded} />}
       {isAudioFile(data.filePath) && fileSrc && <MediaPlayer src={fileSrc} type="audio" title={title} autoPlay={true} className="w-full max-w-xl" />}
-      {!isImageFile(data.filePath) && !isVideoFile(data.filePath) && !isAudioFile(data.filePath) && <TextPlayer resource={data} />}
+      {isSubtitleFile(data.filePath) && <SrtPlayer resource={data} />}
+      {!isImageFile(data.filePath) && !isVideoFile(data.filePath) && !isAudioFile(data.filePath) && !isSubtitleFile(data.filePath) && <TextPlayer resource={data} />}
 
       {/* 收起时，鼠标移入画面显示的展开按钮（类似视频播放器控制栏） */}
       {(list.length > 0 || data) && !isPlaylistExpanded && showExpandButton && (
