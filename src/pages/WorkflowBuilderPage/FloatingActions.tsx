@@ -1,5 +1,5 @@
 import React from 'react';
-import { TbCheck, TbCode, TbDownload, TbLayout, TbPlayerPlay } from 'react-icons/tb';
+import { TbCheck, TbCode, TbLayout, TbPlayerPlay } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 
