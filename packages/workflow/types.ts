@@ -6,7 +6,18 @@ import type { PluginResourceManager } from '../plugins';
 export type ValueType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'file' | 'resource' | 'any';
 
 // Select option types
-export type SelectOption = { value: string; label: string };
+export type SelectOption = {
+  value: string;
+  label: string;
+  // 可选：用于在 UI 中展示的描述信息
+  description?: string;
+  // 可选：用于下拉菜单子选项（父级不可选，只能选 children）
+  children?: Array<{
+    value: string;
+    label: string;
+    description?: string;
+  }>;
+};
 export type SelectOptionGroup = { group: string; options: SelectOption[] };
 export type SelectOptions = Array<SelectOption | SelectOptionGroup>;
 
@@ -18,8 +29,22 @@ export type PortSchema = {
   description?: string;
   // default value for inputs
   default?: any;
+  // 是否支持在下拉选项中搜索（仅对 select / select-menu 等类型生效）
+  searchable?: boolean;
   // UI input type (for config fields)
-  inputType?: 'file' | 'url' | 'folder' | 'text' | 'select' | 'select-multiple' | 'number' | 'textarea' | 'condition-list' | 'port-list';
+  inputType?:
+  | 'file'
+  | 'url'
+  | 'folder'
+  | 'text'
+  | 'select'
+  | 'select-multiple'
+  | 'number'
+  | 'textarea'
+  | 'condition-list'
+  | 'port-list'
+  // 带描述、子菜单和搜索的下拉菜单
+  | 'select-menu';
   // Options for select input type
   // Can be flat array of options or grouped options
   options?: SelectOptions;

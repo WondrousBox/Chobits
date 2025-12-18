@@ -1,8 +1,19 @@
 import React from 'react';
-import { TbFolder, TbLoader2, TbPlus, TbTrash } from 'react-icons/tb';
+import { TbChevronDown, TbFolder, TbLoader2, TbPlus, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
@@ -39,6 +50,10 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
   const label = field.label || field.key;
   const rawValue = currentValue ?? field.default;
   const isCompact = mode === 'compact';
+
+  // 统一放在组件顶部的 hooks，避免在条件分支中调用
+  const [selectSearch, setSelectSearch] = React.useState('');
+  const [selectMenuSearch, setSelectMenuSearch] = React.useState('');
 
   // 样式定义
   const labelClass = isCompact ? 'text-[10px] font-medium' : 'text-xs font-medium';
@@ -136,7 +151,15 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
 
   // 根据 inputType 渲染不同的输入控件
   if (field.inputType === 'select' && field.options && field.options.length > 0) {
-    // 检查第一个选项是否是分组结构
+    const enableSearch = field.searchable === true;
+    const filterText = (enableSearch ? selectSearch : '').trim().toLowerCase();
+    const matches = (text?: string): boolean => {
+      if (!enableSearch || !filterText) return true;
+      if (!text) return false;
+      return text.toLowerCase().includes(filterText);
+    };
+
+    // 检查是否有分组
     const hasGroups = field.options.some((opt) => isOptionGroup(opt));
 
     if (hasGroups) {
@@ -150,19 +173,41 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
               <SelectValue placeholder={field.description || `选择${label}`} />
             </SelectTrigger>
             <SelectContent>
-              {groups.map((group, index) => (
-                <React.Fragment key={group.group}>
-                  {index > 0 && <SelectSeparator />}
-                  <SelectGroup>
-                    <SelectLabel>{group.group}</SelectLabel>
-                    {group.options.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </React.Fragment>
-              ))}
+              {enableSearch && (
+                <>
+                  <div className="px-2 pt-2 pb-1.5">
+                    <Input
+                      autoFocus
+                      value={selectSearch}
+                      onChange={(e) => setSelectSearch(e.target.value)}
+                      placeholder="搜索选项..."
+                      className="h-7 text-xs"
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => {
+                        e.stopPropagation();
+                      }}
+                    />
+                  </div>
+                  <SelectSeparator />
+                </>
+              )}
+              {groups.map((group, index) => {
+                const groupOptions = group.options.filter((opt) => matches(opt.label));
+                if (groupOptions.length === 0) return null;
+                return (
+                  <React.Fragment key={group.group}>
+                    {index > 0 && <SelectSeparator />}
+                    <SelectGroup>
+                      <SelectLabel>{group.group}</SelectLabel>
+                      {groupOptions.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </React.Fragment>
+                );
+              })}
             </SelectContent>
           </Select>
         </div>
@@ -171,6 +216,8 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
 
     // 普通的下拉选择（扁平结构）
     const flatOptions = field.options.filter((opt): opt is { value: string; label: string } => !isOptionGroup(opt));
+    const filteredOptions = flatOptions.filter((opt) => matches(opt.label));
+
     return (
       <div className={containerClass}>
         <label className={`block ${labelClass}`}>{label}</label>
@@ -179,13 +226,273 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
             <SelectValue placeholder={field.description || `选择${label}`} />
           </SelectTrigger>
           <SelectContent>
-            {flatOptions.map((opt) => (
+            {enableSearch && (
+              <>
+                <div className="px-2 pt-2 pb-1.5">
+                  <Input
+                    autoFocus
+                    value={selectSearch}
+                    onChange={(e) => setSelectSearch(e.target.value)}
+                    placeholder="搜索选项..."
+                    className="h-7 text-xs"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => {
+                      e.stopPropagation();
+                    }}
+                  />
+                </div>
+                <SelectSeparator />
+              </>
+            )}
+            {filteredOptions.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
                 {opt.label}
               </SelectItem>
             ))}
+            {enableSearch && filteredOptions.length === 0 && <div className="px-2 py-1 text-[11px] text-muted-foreground">暂无匹配结果</div>}
           </SelectContent>
         </Select>
+      </div>
+    );
+  }
+
+  // 带描述、子菜单的下拉菜单（select-menu），支持可选搜索
+  if (field.inputType === 'select-menu' && field.options && field.options.length > 0) {
+    const enableSearch = field.searchable === true; // 仅当配置 searchable: true 时才开启搜索
+
+    const allLeafOptions: Array<{ value: string; label: string; description?: string }> = [];
+
+    // 收集所有可选的叶子选项（包含 children）
+    field.options.forEach((opt: any) => {
+      if (opt && typeof opt === 'object') {
+        if (opt.group && Array.isArray(opt.options)) {
+          opt.options.forEach((gOpt: any) => {
+            if (gOpt && typeof gOpt.value === 'string' && typeof gOpt.label === 'string') {
+              if (Array.isArray(gOpt.children) && gOpt.children.length > 0) {
+                gOpt.children.forEach((child: any) => {
+                  if (child && typeof child.value === 'string' && typeof child.label === 'string') {
+                    allLeafOptions.push({
+                      value: String(child.value),
+                      label: String(child.label),
+                      description: child.description
+                    });
+                  }
+                });
+              } else {
+                allLeafOptions.push({
+                  value: String(gOpt.value),
+                  label: String(gOpt.label),
+                  description: gOpt.description
+                });
+              }
+            }
+          });
+        } else if (typeof opt.value === 'string' && typeof opt.label === 'string') {
+          if (Array.isArray(opt.children) && opt.children.length > 0) {
+            opt.children.forEach((child: any) => {
+              if (child && typeof child.value === 'string' && typeof child.label === 'string') {
+                allLeafOptions.push({
+                  value: String(child.value),
+                  label: String(child.label),
+                  description: child.description
+                });
+              }
+            });
+          } else {
+            allLeafOptions.push({
+              value: String(opt.value),
+              label: String(opt.label),
+              description: opt.description
+            });
+          }
+        }
+      }
+    });
+
+    const selected = allLeafOptions.find((opt) => opt.value === value);
+
+    const filterText = (enableSearch ? selectMenuSearch : '').trim().toLowerCase();
+    const matches = (text?: string): boolean => {
+      if (!filterText) return true;
+      if (!text) return false;
+      return text.toLowerCase().includes(filterText);
+    };
+
+    const renderOptionLabel = (opt: { label: string; description?: string }, compact: boolean): React.ReactNode => {
+      return (
+        <div className="flex flex-col">
+          <span className={compact ? 'text-[10px]' : 'text-xs'}>{opt.label}</span>
+          {opt.description && <span className={`${compact ? 'text-[9px]' : 'text-[11px]'} text-muted-foreground`}>{opt.description}</span>}
+        </div>
+      );
+    };
+
+    const renderMenuItems = (): React.ReactNode => {
+      const items: React.ReactNode[] = [];
+
+      const options: any[] = Array.isArray(field.options) ? (field.options as any[]) : [];
+
+      options.forEach((opt: any, index: number) => {
+        if (!opt || typeof opt !== 'object') return;
+
+        // 处理分组
+        if (opt.group && Array.isArray(opt.options)) {
+          const groupOptions = opt.options as any[];
+          const groupChildren: React.ReactNode[] = [];
+
+          groupOptions.forEach((gOpt: any) => {
+            if (!gOpt || typeof gOpt !== 'object' || typeof gOpt.label !== 'string') return;
+
+            const hasChildren = Array.isArray(gOpt.children) && gOpt.children.length > 0;
+
+            if (hasChildren) {
+              // 过滤子选项
+              const childItems: React.ReactNode[] = [];
+              gOpt.children.forEach((child: any) => {
+                if (!child || typeof child.value !== 'string' || typeof child.label !== 'string') return;
+                const text = `${child.label} ${child.description || ''}`;
+                if (!matches(text)) return;
+
+                childItems.push(
+                  <DropdownMenuItem
+                    key={child.value}
+                    onSelect={() => {
+                      onValueChange(child.value);
+                    }}
+                  >
+                    {renderOptionLabel(child, isCompact)}
+                  </DropdownMenuItem>
+                );
+              });
+
+              if (childItems.length > 0) {
+                groupChildren.push(
+                  <DropdownMenuSub key={gOpt.value || gOpt.label}>
+                    <DropdownMenuSubTrigger>{renderOptionLabel(gOpt, isCompact)}</DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>{childItems}</DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                );
+              }
+            } else {
+              const text = `${gOpt.label} ${gOpt.description || ''}`;
+              if (!matches(text)) return;
+
+              groupChildren.push(
+                <DropdownMenuItem
+                  key={gOpt.value}
+                  onSelect={() => {
+                    onValueChange(gOpt.value);
+                  }}
+                >
+                  {renderOptionLabel(gOpt, isCompact)}
+                </DropdownMenuItem>
+              );
+            }
+          });
+
+          if (groupChildren.length > 0) {
+            if (items.length > 0) {
+              items.push(<DropdownMenuSeparator key={`sep-${index}`} />);
+            }
+            items.push(
+              <div key={opt.group}>
+                <DropdownMenuLabel className={isCompact ? 'text-[10px]' : 'text-xs'}>{opt.group}</DropdownMenuLabel>
+                {groupChildren}
+              </div>
+            );
+          }
+        } else if (typeof opt.label === 'string') {
+          const hasChildren = Array.isArray(opt.children) && opt.children.length > 0;
+
+          if (hasChildren) {
+            // 子菜单
+            const childItems: React.ReactNode[] = [];
+            opt.children.forEach((child: any) => {
+              if (!child || typeof child.value !== 'string' || typeof child.label !== 'string') return;
+              const text = `${child.label} ${child.description || ''}`;
+              if (!matches(text)) return;
+
+              childItems.push(
+                <DropdownMenuItem
+                  key={child.value}
+                  onSelect={() => {
+                    onValueChange(child.value);
+                  }}
+                >
+                  {renderOptionLabel(child, isCompact)}
+                </DropdownMenuItem>
+              );
+            });
+
+            if (childItems.length > 0) {
+              items.push(
+                <DropdownMenuSub key={opt.value || opt.label}>
+                  <DropdownMenuSubTrigger>{renderOptionLabel(opt, isCompact)}</DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>{childItems}</DropdownMenuSubContent>
+                </DropdownMenuSub>
+              );
+            }
+          } else {
+            const text = `${opt.label} ${opt.description || ''}`;
+            if (!matches(text)) return;
+
+            items.push(
+              <DropdownMenuItem
+                key={opt.value}
+                onSelect={() => {
+                  onValueChange(opt.value);
+                }}
+              >
+                {renderOptionLabel(opt, isCompact)}
+              </DropdownMenuItem>
+            );
+          }
+        }
+      });
+
+      if (items.length === 0) {
+        return <div className="px-2 py-1 text-[11px] text-muted-foreground">暂无匹配结果</div>;
+      }
+
+      return items;
+    };
+
+    return (
+      <div className={containerClass}>
+        <label className={`block ${labelClass}`}>{label}</label>
+        {!isCompact && field.description && <span className={descClass}>{field.description}</span>}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className={`w-full justify-between ${inputHeightClass}`} onMouseDown={(e) => e.stopPropagation()}>
+              <div className="flex flex-col text-left overflow-hidden">
+                <span className={isCompact ? 'text-[10px] truncate' : 'text-xs truncate'}>{selected?.label || field.description || `选择${label}`}</span>
+              </div>
+              <TbChevronDown className="h-3 w-3 opacity-60 flex-shrink-0 ml-2" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-[260px]">
+            {enableSearch && (
+              <>
+                <div className="px-2 pt-2 pb-1.5">
+                  <Input
+                    autoFocus
+                    value={selectMenuSearch}
+                    onChange={(e) => setSelectMenuSearch(e.target.value)}
+                    placeholder="搜索选项..."
+                    className="h-7 text-xs"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => {
+                      // 避免按键事件被 DropdownMenu 捕获导致输入框失去焦点
+                      e.stopPropagation();
+                    }}
+                  />
+                </div>
+                <DropdownMenuSeparator />
+              </>
+            )}
+            {renderMenuItems()}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     );
   }

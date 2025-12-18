@@ -52,14 +52,38 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
           let hasInvalidValue = false;
 
           newConfig.forEach((field) => {
-            if (field.inputType === 'select' && field.options && currentConfigObj[field.key] !== undefined) {
-              // 扁平化选项列表（处理分组选项）
+            if ((field.inputType === 'select' || field.inputType === 'select-menu') && field.options && currentConfigObj[field.key] !== undefined) {
+              // 扁平化选项列表（处理分组选项和子菜单）
               const flatOptions: Array<{ value: string; label: string }> = [];
+
               field.options.forEach((opt) => {
                 if ('value' in opt && 'label' in opt) {
-                  flatOptions.push(opt as { value: string; label: string });
+                  const anyOpt: any = opt;
+                  // 如果有 children，则只把 children 作为可选值
+                  if (Array.isArray(anyOpt.children) && anyOpt.children.length > 0) {
+                    anyOpt.children.forEach((child: any) => {
+                      if (child && typeof child.value === 'string' && typeof child.label === 'string') {
+                        flatOptions.push({ value: String(child.value), label: String(child.label) });
+                      }
+                    });
+                  } else {
+                    flatOptions.push({ value: String(anyOpt.value), label: String(anyOpt.label) });
+                  }
                 } else if ('group' in opt && 'options' in opt) {
-                  flatOptions.push(...(opt.options || []));
+                  const groupAny: any = opt;
+                  (groupAny.options || []).forEach((gOpt: any) => {
+                    if (gOpt && typeof gOpt.value === 'string' && typeof gOpt.label === 'string') {
+                      if (Array.isArray(gOpt.children) && gOpt.children.length > 0) {
+                        gOpt.children.forEach((child: any) => {
+                          if (child && typeof child.value === 'string' && typeof child.label === 'string') {
+                            flatOptions.push({ value: String(child.value), label: String(child.label) });
+                          }
+                        });
+                      } else {
+                        flatOptions.push({ value: String(gOpt.value), label: String(gOpt.label) });
+                      }
+                    }
+                  });
                 }
               });
 

@@ -273,19 +273,41 @@ export const TranscribeWhisperNode: NodeHandler = {
         required: true,
         default: '',
         description: '选择 Whisper 模型，更大的模型通常更准确但速度更慢',
-        inputType: 'select',
+        // 使用带描述和子菜单的下拉菜单
+        inputType: 'select-menu',
         options: [
-          { value: 'ggml-tiny.bin', label: 'Tiny (最快，精度较低)' },
-          { value: 'ggml-tiny.en.bin', label: 'Tiny English (仅英语)' },
-          { value: 'ggml-base.bin', label: 'Base (平衡)' },
-          { value: 'ggml-base.en.bin', label: 'Base English (仅英语)' },
-          { value: 'ggml-small.bin', label: 'Small (较好精度)' },
-          { value: 'ggml-small.en.bin', label: 'Small English (仅英语)' },
-          { value: 'ggml-medium.bin', label: 'Medium (高精度)' },
-          { value: 'ggml-medium.en.bin', label: 'Medium English (仅英语)' },
-          { value: 'ggml-large-v1.bin', label: 'Large v1 (最高精度)' },
-          { value: 'ggml-large-v2.bin', label: 'Large v2 (最高精度)' },
-          { value: 'ggml-large-v3.bin', label: 'Large v3 (最高精度)' }
+          {
+            value: 'tiny-series',
+            label: '最快速',
+            description: '精度较低，适合实时预览',
+            children: [
+              { value: 'ggml-tiny.bin', label: 'Tiny', description: '多语言，适合大多数场景' },
+              { value: 'ggml-tiny.en.bin', label: 'Tiny English', description: '仅英语，速度快，精度较低' }
+            ]
+          },
+          {
+            value: 'base-series',
+            label: '均衡',
+            description: '速度与精度平衡，通用推荐',
+            children: [
+              { value: 'ggml-base.bin', label: 'Base', description: '多语言，综合表现平衡' },
+              { value: 'ggml-base.en.bin', label: 'Base English', description: '仅英语，略快一些' },
+              { value: 'ggml-small.bin', label: 'Small', description: '多语言，适合大多数正式场景' },
+              { value: 'ggml-small.en.bin', label: 'Small English', description: '仅英语，精度和速度折中' }
+            ]
+          },
+          {
+            value: 'large-series',
+            label: '高质量',
+            description: '最高精度，适合离线批处理和高质量场景',
+            children: [
+              { value: 'ggml-medium.bin', label: 'Medium', description: '多语言，高精度但更耗时' },
+              { value: 'ggml-medium.en.bin', label: 'Medium English', description: '仅英语，高精度' },
+              { value: 'ggml-large-v1.bin', label: 'Large v1', description: '最高精度版本 v1' },
+              { value: 'ggml-large-v2.bin', label: 'Large v2', description: '最高精度版本 v2，改进对某些语言的表现' },
+              { value: 'ggml-large-v3.bin', label: 'Large v3', description: '最新 large 模型，综合表现最好' }
+            ]
+          }
         ]
       },
       {
@@ -296,6 +318,7 @@ export const TranscribeWhisperNode: NodeHandler = {
         description: '选择转录语言，留空或选择"自动"将自动检测',
         default: '',
         inputType: 'select',
+        searchable: true,
         options: [
           { value: 'auto', label: '自动' },
           { value: 'en', label: '英语' },

@@ -129,8 +129,8 @@
         "x": 392,
         "y": 313,
         "config": {
-          "model": "ggml-base.bin",
-          "language": "zh",
+          "model": "",
+          "language": "",
           "outputFormats": [
             "srt",
             "txt"

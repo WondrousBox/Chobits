@@ -2,7 +2,7 @@
   "name": "Chobits",
   "version": "1.0.0",
   "main": "dist-electron/main/index.js",
-  "description": "Electron 开发的AI桌面精灵、助手、工具。 An AI desktop assistant and tool developed with Electron.",
+  "description": "你的 AI 桌面精灵、助手、工具。 An AI desktop assistant and tool developed with Electron.",
   "author": "Yu <yuqian.124@gmail.com>",
   "license": "MIT",
   "private": true,
