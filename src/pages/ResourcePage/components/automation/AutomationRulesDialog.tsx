@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
 
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 
-import { AutomationRuleForm } from './AutomationRuleForm';
+import { AutomationRuleDialog } from './AutomationRuleDialog';
 import { AutomationRulesList } from './AutomationRulesList';
 import type { AutomationRule, WorkflowDefinition } from './types';
 
@@ -16,6 +15,7 @@ export const AutomationRulesDialog: React.FC<{
   const [rules, setRules] = useState<AutomationRule[]>([]);
   const [workflows, setWorkflows] = useState<WorkflowDefinition[]>([]);
   const [editingRule, setEditingRule] = useState<Partial<AutomationRule> | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
   const loadRules = async (): Promise<void> => {
@@ -30,28 +30,31 @@ export const AutomationRulesDialog: React.FC<{
 
   useEffect(() => {
     if (open) {
-      loadRules();
-      loadWorkflows();
+      setTimeout(() => {
+        loadRules();
+        loadWorkflows();
+      }, 0);
     }
   }, [open]);
 
-  const handleSave = async (): Promise<void> => {
-    if (!editingRule?.name || !editingRule.triggerType || !editingRule.actionType) return;
+  const handleSave = async (rule: Partial<AutomationRule>): Promise<void> => {
+    if (!rule?.name || !rule.triggerType || !rule.actionType) return;
 
     // Ensure config objects are set
     const ruleToSave = {
-      ...editingRule,
-      triggerConfig: editingRule.triggerConfig || {},
-      actionConfig: editingRule.actionConfig || {}
+      ...rule,
+      triggerConfig: rule.triggerConfig || {},
+      actionConfig: rule.actionConfig || {}
     };
 
-    if (isEditing && editingRule.id) {
-      await window.ipcRenderer.invoke('automation:updateRule', editingRule.id, ruleToSave);
+    if (isEditing && rule.id) {
+      await window.ipcRenderer.invoke('automation:updateRule', rule.id, ruleToSave);
     } else {
       await window.ipcRenderer.invoke('automation:createRule', ruleToSave);
     }
     setEditingRule(null);
     setIsEditing(false);
+    setIsDialogOpen(false);
     loadRules();
   };
 
@@ -75,47 +78,47 @@ export const AutomationRulesDialog: React.FC<{
       actionConfig: {}
     });
     setIsEditing(false);
+    setIsDialogOpen(true);
   };
 
   const handleEditRule = (rule: AutomationRule): void => {
     setEditingRule(rule);
     setIsEditing(true);
+    setIsDialogOpen(true);
   };
 
-  const handleCancel = (): void => {
-    setEditingRule(null);
-    setIsEditing(false);
+  const handleDialogClose = (open: boolean): void => {
+    setIsDialogOpen(open);
+    if (!open) {
+      setEditingRule(null);
+      setIsEditing(false);
+    }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[80vh]">
-        <DialogHeader>
-          <DialogTitle>自动化规则配置</DialogTitle>
-          <DialogDescription>自动化规则配置，可用于自动化执行工作流，支持资源事件、定时任务、系统事件、手动触发</DialogDescription>
-        </DialogHeader>
+    <>
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent side="right" className="w-[600px] sm:max-w-[600px] flex flex-col">
+          <SheetHeader>
+            <SheetTitle>自动化规则配置</SheetTitle>
+            <SheetDescription>自动化规则配置，可用于自动化执行工作流，支持资源事件、定时任务、系统事件、手动触发</SheetDescription>
+          </SheetHeader>
 
-        {!editingRule ? (
-          <AutomationRulesList rules={rules} workflows={workflows} onAddRule={handleAddRule} onEditRule={handleEditRule} onDeleteRule={handleDelete} onToggleEnable={handleToggleEnable} />
-        ) : (
-          <>
-            <AutomationRuleForm
-              rule={editingRule}
-              workflows={workflows}
-              currentWorkspaceId={currentWorkspaceId}
-              currentFolderId={currentFolderId}
-              onRuleChange={setEditingRule}
-              onSave={handleSave}
-              onCancel={handleCancel}
-            />
-            <DialogFooter>
-              <Button variant="outline" onClick={handleCancel}>
-                取消
-              </Button>
-            </DialogFooter>
-          </>
-        )}
-      </DialogContent>
-    </Dialog>
+          <div className="flex-1 overflow-hidden mt-6">
+            <AutomationRulesList rules={rules} workflows={workflows} onAddRule={handleAddRule} onEditRule={handleEditRule} onDeleteRule={handleDelete} onToggleEnable={handleToggleEnable} />
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <AutomationRuleDialog
+        open={isDialogOpen}
+        onOpenChange={handleDialogClose}
+        rule={editingRule}
+        workflows={workflows}
+        currentWorkspaceId={currentWorkspaceId}
+        currentFolderId={currentFolderId}
+        onSave={handleSave}
+      />
+    </>
   );
 };
