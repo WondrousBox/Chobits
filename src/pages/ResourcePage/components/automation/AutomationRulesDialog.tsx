@@ -1,30 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { TbEdit, TbPlay, TbPlus, TbTrash } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-interface AutomationRule {
-  id: string;
-  name: string;
-  description?: string;
-  workspaceId?: string;
-  scope: 'global' | 'workspace';
-  triggerType: string;
-  triggerConfig: any;
-  actionType: string;
-  actionConfig: any;
-  enabled: number;
-}
-
-interface WorkflowDefinition {
-  id: string;
-  name: string;
-}
+import { AutomationRuleForm } from './AutomationRuleForm';
+import { AutomationRulesList } from './AutomationRulesList';
+import type { AutomationRule, WorkflowDefinition } from './types';
 
 export const AutomationRulesDialog: React.FC<{
   open: boolean;
@@ -84,315 +65,55 @@ export const AutomationRulesDialog: React.FC<{
     loadRules();
   };
 
-  const handleManualTrigger = async (rule: AutomationRule): Promise<void> => {
-    await window.ipcRenderer.invoke('automation:triggerRule', rule.id);
-  };
-
-  // Helper to get workflow ID from action config
-  const getWorkflowId = (rule: Partial<AutomationRule>): string | undefined => {
-    return rule.actionConfig?.workflowId;
-  };
-
-  // Helper to set workflow ID to action config
-  const setWorkflowId = (workflowId: string): void => {
-    setEditingRule((prev) => ({
-      ...prev,
-      actionConfig: { ...prev?.actionConfig, workflowId }
-    }));
-  };
-
-  // Helper to get resource type from trigger config
-  const getResourceType = (rule: Partial<AutomationRule>): string => {
-    return rule.triggerConfig?.resourceType || 'all';
-  };
-
-  // Helper to set resource type
-  const setResourceType = (resourceType: string): void => {
-    setEditingRule((prev) => ({
-      ...prev,
-      triggerConfig: { ...prev?.triggerConfig, resourceType }
-    }));
-  };
-
-  // Helper to get event from trigger config
-  const getEvent = (rule: Partial<AutomationRule>): string => {
-    return rule.triggerConfig?.event || 'created';
-  };
-
-  // Helper to set event
-  const setEvent = (event: string): void => {
-    setEditingRule((prev) => ({
-      ...prev,
-      triggerConfig: { ...prev?.triggerConfig, event }
-    }));
-  };
-
-  // Helper to get scope type (global, workspace, folder)
-  const getScopeType = (rule: Partial<AutomationRule>): 'global' | 'workspace' | 'folder' => {
-    if (rule.scope === 'global') return 'global';
-    if (rule.triggerConfig?.folderId) return 'folder';
-    return 'workspace';
-  };
-
-  // Helper to set scope type
-  const setScopeType = (type: 'global' | 'workspace' | 'folder'): void => {
-    setEditingRule((prev) => {
-      const newRule = { ...prev };
-      if (type === 'global') {
-        newRule.scope = 'global';
-        newRule.workspaceId = undefined;
-        if (newRule.triggerConfig) delete newRule.triggerConfig.folderId;
-      } else if (type === 'workspace') {
-        newRule.scope = 'workspace';
-        newRule.workspaceId = currentWorkspaceId;
-        if (newRule.triggerConfig) delete newRule.triggerConfig.folderId;
-      } else if (type === 'folder') {
-        newRule.scope = 'workspace';
-        newRule.workspaceId = currentWorkspaceId;
-        newRule.triggerConfig = { ...newRule.triggerConfig, folderId: currentFolderId };
-      }
-      return newRule;
+  const handleAddRule = (): void => {
+    setEditingRule({
+      enabled: 1,
+      scope: 'workspace',
+      triggerType: 'resource_event',
+      triggerConfig: { resourceType: 'all', event: 'created' },
+      actionType: 'workflow',
+      actionConfig: {}
     });
+    setIsEditing(false);
+  };
+
+  const handleEditRule = (rule: AutomationRule): void => {
+    setEditingRule(rule);
+    setIsEditing(true);
+  };
+
+  const handleCancel = (): void => {
+    setEditingRule(null);
+    setIsEditing(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-w-4xl max-h-[80vh]">
         <DialogHeader>
           <DialogTitle>自动化规则配置</DialogTitle>
+          <DialogDescription>自动化规则配置，可用于自动化执行工作流，支持资源事件、定时任务、系统事件、手动触发</DialogDescription>
         </DialogHeader>
 
         {!editingRule ? (
-          <div className="space-y-4">
-            <div className="flex justify-end">
-              <Button
-                onClick={() => {
-                  setEditingRule({
-                    enabled: 1,
-                    scope: 'workspace',
-                    triggerType: 'resource_event',
-                    triggerConfig: { resourceType: 'all', event: 'created' },
-                    actionType: 'workflow',
-                    actionConfig: {}
-                  });
-                  setIsEditing(false);
-                }}
-              >
-                <TbPlus className="mr-2" /> 新增规则
-              </Button>
-            </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>规则名称</TableHead>
-                  <TableHead>触发类型</TableHead>
-                  <TableHead>详情</TableHead>
-                  <TableHead>执行动作</TableHead>
-                  <TableHead>状态</TableHead>
-                  <TableHead>操作</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rules.map((rule) => (
-                  <TableRow key={rule.id}>
-                    <TableCell>{rule.name}</TableCell>
-                    <TableCell>
-                      {rule.triggerType === 'resource_event' ? '资源事件' : rule.triggerType === 'schedule' ? '定时任务' : rule.triggerType === 'system_event' ? '系统事件' : rule.triggerType}
-                    </TableCell>
-                    <TableCell>
-                      {rule.triggerType === 'resource_event' && (
-                        <span className="text-xs text-muted-foreground">
-                          {rule.triggerConfig?.resourceType === 'all' ? '任意资源' : rule.triggerConfig?.resourceType} {rule.triggerConfig?.event === 'created' ? '创建' : '更新'}
-                        </span>
-                      )}
-                      {rule.triggerType === 'schedule' && <span className="text-xs text-muted-foreground">Cron: {rule.triggerConfig?.cron}</span>}
-                      {rule.triggerType === 'system_event' && (
-                        <span className="text-xs text-muted-foreground">事件: {rule.triggerConfig?.event === 'app_started' ? '应用启动' : rule.triggerConfig?.event}</span>
-                      )}
-                    </TableCell>
-                    <TableCell>{rule.actionType === 'workflow' && <span>工作流: {workflows.find((w) => w.id === rule.actionConfig?.workflowId)?.name || '未知'}</span>}</TableCell>
-                    <TableCell>
-                      <Switch checked={!!rule.enabled} onCheckedChange={() => handleToggleEnable(rule)} />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            setEditingRule(rule);
-                            setIsEditing(true);
-                          }}
-                        >
-                          <TbEdit />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(rule.id)}>
-                          <TbTrash />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <AutomationRulesList rules={rules} workflows={workflows} onAddRule={handleAddRule} onEditRule={handleEditRule} onDeleteRule={handleDelete} onToggleEnable={handleToggleEnable} />
         ) : (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">规则名称</label>
-              <Input value={editingRule.name || ''} onChange={(e) => setEditingRule({ ...editingRule, name: e.target.value })} />
-            </div>
-
-            <div className="text-sm font-medium">设置范围</div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">生效范围</label>
-              <Select value={getScopeType(editingRule)} onValueChange={(v) => setScopeType(v as any)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="global">全局</SelectItem>
-                  <SelectItem value="workspace" disabled={!currentWorkspaceId}>
-                    当前空间
-                  </SelectItem>
-                  <SelectItem value="folder" disabled={!currentFolderId}>
-                    当前文件夹
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="text-sm font-medium">设置触发器</div>
-            <div className="border border-solid rounded-lg p-4 box-border">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">触发类型</label>
-                <Select value={editingRule.triggerType} onValueChange={(v) => setEditingRule({ ...editingRule, triggerType: v })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="resource_event">资源事件</SelectItem>
-                    <SelectItem value="schedule">定时任务</SelectItem>
-                    <SelectItem value="system_event">系统事件</SelectItem>
-                    <SelectItem value="manual">手动触发</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {editingRule.triggerType === 'manual' && (
-                <div className="col-span-2 space-y-2">
-                  <p className="text-sm text-muted-foreground">该规则需要手动点击执行按钮触发。</p>
-                </div>
-              )}
-              {editingRule.triggerType === 'system_event' && (
-                <div className="col-span-2 space-y-2">
-                  <label className="text-sm font-medium">系统事件</label>
-                  <Select
-                    value={editingRule.triggerConfig?.event || 'app_started'}
-                    onValueChange={(v) =>
-                      setEditingRule((prev) => ({
-                        ...prev,
-                        triggerConfig: { ...prev?.triggerConfig, event: v }
-                      }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="app_started">应用启动</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {editingRule.triggerType === 'schedule' && (
-                <div className="col-span-2 space-y-2">
-                  <label className="text-sm font-medium">Cron 表达式</label>
-                  <Input
-                    placeholder="* * * * *"
-                    value={editingRule.triggerConfig?.cron || ''}
-                    onChange={(e) =>
-                      setEditingRule((prev) => ({
-                        ...prev,
-                        triggerConfig: { ...prev?.triggerConfig, cron: e.target.value }
-                      }))
-                    }
-                  />
-                  <p className="text-xs text-muted-foreground">格式: [秒] 分 时 日 月 周 (例如: 0 0 * * * 每天零点; */30 * * * * * 每30秒)</p>
-                </div>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">资源类型</label>
-                <Select value={getResourceType(editingRule)} onValueChange={setResourceType}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">所有类型</SelectItem>
-                    <SelectItem value="video">视频</SelectItem>
-                    <SelectItem value="image">图片</SelectItem>
-                    <SelectItem value="audio">音频</SelectItem>
-                    <SelectItem value="text">文本</SelectItem>
-                    <SelectItem value="document">文档</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">触发事件</label>
-                <Select value={getEvent(editingRule)} onValueChange={setEvent}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="created">资源添加</SelectItem>
-                    <SelectItem value="updated">资源更新</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="text-sm font-medium">执行任务</div>
-            <div className="border border-solid rounded-lg p-4 box-border">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">设置动作</label>
-                <Select value={editingRule.actionType} onValueChange={(v) => setEditingRule({ ...editingRule, actionType: v })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="workflow">执行工作流</SelectItem>
-                    {/* Future: Script, Notification */}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {editingRule.actionType === 'workflow' && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">选择工作流</label>
-                  <Select value={getWorkflowId(editingRule)} onValueChange={setWorkflowId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="选择工作流" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {workflows.map((w) => (
-                        <SelectItem key={w.id} value={w.id}>
-                          {w.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setEditingRule(null)}>
+          <>
+            <AutomationRuleForm
+              rule={editingRule}
+              workflows={workflows}
+              currentWorkspaceId={currentWorkspaceId}
+              currentFolderId={currentFolderId}
+              onRuleChange={setEditingRule}
+              onSave={handleSave}
+              onCancel={handleCancel}
+            />
+            <DialogFooter>
+              <Button variant="outline" onClick={handleCancel}>
                 取消
               </Button>
-              <Button onClick={handleSave}>保存</Button>
-            </div>
-          </div>
+            </DialogFooter>
+          </>
         )}
       </DialogContent>
     </Dialog>
