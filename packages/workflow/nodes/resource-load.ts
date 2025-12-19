@@ -20,7 +20,8 @@ export const ResourceLoadNode: NodeHandler = {
       { key: 'ext', label: '扩展名', type: 'string', description: '资源扩展名' },
       { key: 'mime', label: 'MIME 类型', type: 'string', description: '资源 MIME 类型' },
       { key: 'kind', label: '资源类型', type: 'string', description: '资源类型（image/video/audio/text等）' },
-      { key: 'contentText', label: '内容文本', type: 'string', description: '资源文本内容' }
+      { key: 'contentText', label: '内容文本', type: 'string', description: '资源文本内容' },
+      { key: 'parentResourceId', label: '父级资源 ID', type: 'string', description: '父级资源ID（用于记录资源来源关系）' }
     ]
   },
   async run({ input }) {
@@ -40,7 +41,8 @@ export const ResourceLoadNode: NodeHandler = {
       ext,
       mime: resource.mimeType,
       kind: resource.type,
-      contentText: resource.contentText
+      contentText: resource.contentText,
+      parentResourceId: resource.parentResourceId
     };
   }
 };

@@ -147,6 +147,13 @@ export const ResourceUpdateNode: NodeHandler = {
         type: 'string',
         required: false,
         description: '标签（JSON字符串数组）'
+      },
+      {
+        key: 'parentResourceId',
+        label: '父级资源 ID',
+        type: 'string',
+        required: false,
+        description: '父级资源ID（用于记录资源来源关系）'
       }
       // {
       //   key: 'categories',
@@ -234,7 +241,8 @@ export const ResourceUpdateNode: NodeHandler = {
       { key: 'ext', label: '扩展名', type: 'string', description: '资源扩展名' },
       { key: 'mime', label: 'MIME 类型', type: 'string', description: '资源 MIME 类型' },
       { key: 'kind', label: '资源类型', type: 'string', description: '资源类型（image/video/audio/text等）' },
-      { key: 'contentText', label: '内容文本', type: 'string', description: '资源文本内容' }
+      { key: 'contentText', label: '内容文本', type: 'string', description: '资源文本内容' },
+      { key: 'parentResourceId', label: '父级资源 ID', type: 'string', description: '父级资源ID（用于记录资源来源关系）' }
     ]
   },
   async run({ input, emit }) {
@@ -263,7 +271,8 @@ export const ResourceUpdateNode: NodeHandler = {
       'contentText',
       // 'thumbnailPath',
       // 'previewUrl',
-      'tags'
+      'tags',
+      'parentResourceId'
       // 'categories'
       // 'visibility',
       // 'nsfw'
@@ -279,7 +288,12 @@ export const ResourceUpdateNode: NodeHandler = {
 
     for (const field of updatableFields) {
       if (input[field] !== undefined && input[field] !== null) {
-        patch[field] = input[field];
+        // 对于 parentResourceId，允许空字符串（表示清除父级关系）
+        if (field === 'parentResourceId') {
+          patch[field] = String(input[field]).trim() || null;
+        } else {
+          patch[field] = input[field];
+        }
       }
     }
 
@@ -312,7 +326,8 @@ export const ResourceUpdateNode: NodeHandler = {
             ext: updatedResource.ext,
             mime: updatedResource.mimeType,
             kind: updatedResource.type,
-            contentText: updatedResource.contentText
+            contentText: updatedResource.contentText,
+            parentResourceId: updatedResource.parentResourceId
           });
         }
       });

@@ -56,6 +56,13 @@ export const ResourceCreateNode: NodeHandler = {
         type: 'string',
         required: false,
         description: '标签（JSON字符串数组）'
+      },
+      {
+        key: 'parentResourceId',
+        label: '父级资源 ID',
+        type: 'string',
+        required: false,
+        description: '父级资源ID（用于记录资源来源关系）'
       }
     ],
     outputs: [
@@ -71,7 +78,8 @@ export const ResourceCreateNode: NodeHandler = {
       { key: 'ext', label: '扩展名', type: 'string' },
       { key: 'mime', label: 'MIME', type: 'string' },
       { key: 'kind', label: '类型', type: 'string' },
-      { key: 'contentText', label: '内容文本', type: 'string' }
+      { key: 'contentText', label: '内容文本', type: 'string' },
+      { key: 'parentResourceId', label: '父级资源 ID', type: 'string', description: '父级资源ID（用于记录资源来源关系）' }
     ]
   },
   async run({ input, emit, ctx }) {
@@ -169,12 +177,15 @@ export const ResourceCreateNode: NodeHandler = {
         folderId: ctx.folderId
       };
 
-      // 添加可选的 description 和 tags
+      // 添加可选的 description、tags 和 parentResourceId
       if (input.description !== undefined && input.description !== null) {
         resourceData.description = String(input.description).trim();
       }
       if (input.tags !== undefined && input.tags !== null) {
         resourceData.tags = input.tags;
+      }
+      if (input.parentResourceId !== undefined && input.parentResourceId !== null) {
+        resourceData.parentResourceId = String(input.parentResourceId).trim() || undefined;
       }
 
       // 通过事件通知主进程适配层进行实际 DB 创建
@@ -199,7 +210,8 @@ export const ResourceCreateNode: NodeHandler = {
               ext: '',
               mime: 'text/plain',
               kind: 'text',
-              contentText: createdResource.contentText
+              contentText: createdResource.contentText,
+              parentResourceId: createdResource.parentResourceId
             });
           }
         });
@@ -273,7 +285,7 @@ export const ResourceCreateNode: NodeHandler = {
       status: 'new'
     };
 
-    // 添加可选的 contentText、description 和 tags
+    // 添加可选的 contentText、description、tags 和 parentResourceId
     if (input.contentText !== undefined && input.contentText !== null) {
       resourceData.contentText = String(input.contentText).trim();
     }
@@ -282,6 +294,9 @@ export const ResourceCreateNode: NodeHandler = {
     }
     if (input.tags !== undefined && input.tags !== null) {
       resourceData.tags = input.tags;
+    }
+    if (input.parentResourceId !== undefined && input.parentResourceId !== null) {
+      resourceData.parentResourceId = String(input.parentResourceId).trim() || undefined;
     }
 
     // 如果是URL下载的，保存原始URL
@@ -316,7 +331,8 @@ export const ResourceCreateNode: NodeHandler = {
             ext: createdResource.ext || path.extname(createdResource.filePath || '').toLowerCase(),
             mime: createdResource.mimeType || 'application/octet-stream',
             kind: createdResource.type || 'file',
-            contentText: createdResource.contentText
+            contentText: createdResource.contentText,
+            parentResourceId: createdResource.parentResourceId
           });
         }
       });

@@ -165,11 +165,14 @@ export const resources = sqliteTable(
     // 归属工作空间
     workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'set null', onUpdate: 'cascade' }),
     // 归属文件夹（可为空，表示在根目录）
-    folderId: text('folder_id').references(() => folders.id, { onDelete: 'set null', onUpdate: 'cascade' })
+    folderId: text('folder_id').references(() => folders.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+    // 父资源ID（用于记录资源来源，如字幕由视频生成、截图由视频生成等）
+    parentResourceId: text('parent_resource_id').references(() => resources.id, { onDelete: 'set null', onUpdate: 'cascade' })
   },
   (t) => ({
     idxResourcesWorkspace: index('idx_resources_workspace').on(t.workspaceId),
     idxResourcesFolder: index('idx_resources_folder').on(t.folderId),
+    idxResourcesParent: index('idx_resources_parent').on(t.parentResourceId),
     idxResourcesType: index('idx_resources_type').on(t.type),
     idxResourcesStatus: index('idx_resources_status').on(t.status),
     idxResourcesCreated: index('idx_resources_created').on(t.createdAt),

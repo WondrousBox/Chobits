@@ -114,7 +114,7 @@
         "id": "start",
         "type": "core/start",
         "x": 0,
-        "y": 116.5,
+        "y": 133.5,
         "config": {
           "inputMode": "resource",
           "resourceKinds": [
@@ -127,35 +127,36 @@
         "id": "whisper",
         "type": "media/transcribe-whisper",
         "x": 392,
-        "y": 313,
+        "y": 187,
         "config": {
           "model": "",
           "language": "",
           "outputFormats": [
             "srt",
-            "txt"
+            "txt",
+            "json"
           ]
         }
       },
       {
         "id": "end",
         "type": "core/end",
-        "x": 1264,
-        "y": 204,
+        "x": 1176,
+        "y": 221,
         "config": {}
       },
       {
         "id": "resource/update-798N",
         "type": "resource/update",
-        "x": 872,
+        "x": 784,
         "y": 0,
         "config": {}
       },
       {
         "id": "resource/create-kfIN",
         "type": "resource/create",
-        "x": 872,
-        "y": 289,
+        "x": 784,
+        "y": 306,
         "config": {}
       }
     ],
@@ -225,6 +226,17 @@
           "nodeId": "resource/update-798N",
           "port": "contentText"
         }
+      },
+      {
+        "id": "e-tbIe4W",
+        "from": {
+          "nodeId": "start",
+          "port": "resourceId"
+        },
+        "to": {
+          "nodeId": "resource/create-kfIN",
+          "port": "parentResourceId"
+        }
       }
     ],
     "options": {
@@ -242,17 +254,20 @@
         "id": "start",
         "type": "core/start",
         "x": 0,
-        "y": 0,
+        "y": 38,
         "config": {
           "inputMode": "resource",
-          "resourceKinds": ["video", "audio"]
+          "resourceKinds": [
+            "video",
+            "audio"
+          ]
         }
       },
       {
         "id": "transcode",
         "type": "media/transcode",
-        "x": 366,
-        "y": 88,
+        "x": 392,
+        "y": 0,
         "config": {
           "format": "mp3",
           "quality": "high"
@@ -261,23 +276,19 @@
       {
         "id": "end",
         "type": "core/end",
-        "x": 737,
-        "y": 87.5,
+        "x": 1176,
+        "y": 125.5,
+        "config": {}
+      },
+      {
+        "id": "resource/create-D_hC",
+        "type": "resource/create",
+        "x": 784,
+        "y": 57.5,
         "config": {}
       }
     ],
     "edges": [
-      {
-        "id": "tc3",
-        "from": {
-          "nodeId": "transcode",
-          "port": "output"
-        },
-        "to": {
-          "nodeId": "end",
-          "port": "result"
-        }
-      },
       {
         "id": "e-_ty9Ht",
         "from": {
@@ -287,6 +298,39 @@
         "to": {
           "nodeId": "transcode",
           "port": "input"
+        }
+      },
+      {
+        "id": "e-wJ58Qb",
+        "from": {
+          "nodeId": "transcode",
+          "port": "output"
+        },
+        "to": {
+          "nodeId": "resource/create-D_hC",
+          "port": "file"
+        }
+      },
+      {
+        "id": "e-um0mIk",
+        "from": {
+          "nodeId": "start",
+          "port": "resourceId"
+        },
+        "to": {
+          "nodeId": "resource/create-D_hC",
+          "port": "parentResourceId"
+        }
+      },
+      {
+        "id": "e-P4m9N4",
+        "from": {
+          "nodeId": "resource/create-D_hC",
+          "port": "resourceId"
+        },
+        "to": {
+          "nodeId": "end",
+          "port": "result"
         }
       }
     ],

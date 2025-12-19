@@ -56,6 +56,8 @@ export interface ResourceItem {
   // 扩展字段
   metadata?: string; // JSON字符串
   workspaceId?: string;
+  folderId?: string;
+  parentResourceId?: string; // 父资源ID（用于记录资源来源关系）
 }
 
 export type ViewMode = 'grid' | 'list' | 'detail' | 'free';

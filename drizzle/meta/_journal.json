@@ -43,6 +43,13 @@
       "when": 1765445045851,
       "tag": "0005_cloudy_miss_america",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1766112452192,
+      "tag": "0006_icy_sugar_man",
+      "breakpoints": true
     }
   ]
 }
