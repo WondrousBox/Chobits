@@ -269,9 +269,9 @@ export const AIAssistant: React.FC = () => {
           </div>
         }
       >
-        {window.YUA.isDev && (
+        {/* {window.YUA.isDev && (
           <div className="text-xs bg-background fixed top-[100px] right-[100px] bottom-[100px] left-[100px] rounded-md border border-solid border-ring flex items-center justify-center">dev</div>
-        )}
+        )} */}
         {ASSISTANT_RENDERER_MODE === 'three' ? <ThreeSprite width={ASSISTANT_WIDTH} height={ASSISTANT_HEIGHT} /> : <VideoSprite />}
       </Dropzone>
       {notice && <SpriteNotice message={notice.message} level={notice.level} buttons={notice.buttons} onClose={dismiss} onButtonClick={handleButtonClick} />}
