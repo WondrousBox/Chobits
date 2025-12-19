@@ -21,6 +21,9 @@ export const aiBridge = {
   async clearProviderSecrets(providerId: string) {
     return ipcRenderer.invoke('ai:clearProviderSecrets', { providerId });
   },
+  async clearAllSecrets() {
+    return ipcRenderer.invoke('ai:clearAllSecrets');
+  },
   async chat(payload: any) {
     return ipcRenderer.invoke('ai:chat', payload);
   },

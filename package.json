@@ -37,6 +37,7 @@
     "@huggingface/transformers": "^3.7.3",
     "@img/sharp-libvips-win32-x64": "1.2.3",
     "@img/sharp-win32-x64": "0.34.4",
+    "@radix-ui/react-alert-dialog": "^1.1.15",
     "better-sqlite3": "^12.2.0",
     "electron-updater": "^6.3.9",
     "fluent-ffmpeg": "^2.1.3",

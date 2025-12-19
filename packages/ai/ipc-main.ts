@@ -15,7 +15,7 @@ import { OpenAIProvider } from './providers/openai';
 import { QwenProvider } from './providers/qwen';
 import { ZhipuProvider } from './providers/zhipu';
 import { getProvider, listAgents, listProviders, registerAgent, registerProvider } from './registry';
-import { clearProviderSecrets as clearSecretsStore, getAllSecrets, setProviderSecrets as setSecretsStore } from './settings-store';
+import { clearAllSecrets, clearProviderSecrets as clearSecretsStore, getAllSecrets, setProviderSecrets as setSecretsStore } from './settings-store';
 import { getAllInstanceSecrets as getAllInstSecrets, setInstanceSecrets as setInstSecrets } from './settings-store';
 import { TaggingService } from './tagging-service';
 
@@ -76,6 +76,22 @@ export function initAIHandlers(win: BrowserWindow): void {
     // If the provider caches secrets, it might need a reload or re-fetch.
     // For now, we assume the provider fetches secrets when needed or we can set empty secrets.
     if (p?.setSecrets) await Promise.resolve(p.setSecrets({}));
+    return { ok: true };
+  });
+
+  ipcMain.handle('ai:clearAllSecrets', async () => {
+    await clearAllSecrets();
+    // 清理所有 provider 的内存中的 secrets
+    const providers = listProviders();
+    for (const p of providers) {
+      if (p?.setSecrets) {
+        try {
+          await Promise.resolve(p.setSecrets({}));
+        } catch {
+          // ignore
+        }
+      }
+    }
     return { ok: true };
   });
 
