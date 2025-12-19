@@ -26,6 +26,7 @@ type IncomingPayload = {
   defId: string;
   metadata?: Record<string, any>;
   missingConfigs?: MissingConfig[];
+  originalInput?: Record<string, any>; // 保留原始输入，包括 resource 对象等
 };
 
 const invoke = window.ipcRenderer.invoke;
@@ -43,6 +44,7 @@ export default function WorkflowStartInputSheet(): JSX.Element {
   const [open, setOpen] = useState(false);
   const [defId, setDefId] = useState<string>('');
   const [metadata, setMetadata] = useState<Record<string, any>>({});
+  const [originalInput, setOriginalInput] = useState<Record<string, any>>({}); // 保留原始输入
   const [missingConfigs, setMissingConfigs] = useState<MissingConfig[]>([]);
   const [configValues, setConfigValues] = useState<Record<string, Record<string, any>>>({});
   const [folders, setFolders] = useState<Folder[]>([]);
@@ -108,6 +110,7 @@ export default function WorkflowStartInputSheet(): JSX.Element {
     const handleStartInputRequired = (_e: any, payload: IncomingPayload): void => {
       setDefId(payload.defId);
       setMetadata(payload.metadata || {});
+      setOriginalInput(payload.originalInput || {}); // 保存原始输入
       setMissingConfigs(payload.missingConfigs || []);
       setOpen(true);
 
@@ -331,22 +334,38 @@ export default function WorkflowStartInputSheet(): JSX.Element {
 
     setSubmitting(true);
     try {
+      // 构建最终的 input，合并原始 input 和用户填写的配置
+      // 优先保留原始 input 中的信息（如 resource 对象），然后合并用户填写的配置
+      const finalInput = {
+        ...originalInput, // 保留原始输入，包括 resource 对象等
+        ...input // 用户填写的配置会覆盖原始 input 中对应的字段
+      };
+
+      // 构建最终的 metadata，优先保留原始 metadata 中的所有值
       const data = {
-        // 保留原始 metadata 中的所有值（包括 workspaceId 和 folderId）
+        // 首先保留原始 metadata 中的所有值（包括 workspaceId 和 folderId）
         ...metadata,
-        // 添加输入模式相关的元数据
-        ...(input.text ? { textLength: input.text.length } : {}),
-        ...(input.url ? { url: input.url } : {}),
-        ...(input.file ? { filePath: input.file } : {}),
-        ...(input.folderId ? { folderId: input.folderId, workspaceId: input.workspaceId } : {}),
+        // 添加输入模式相关的元数据（不覆盖已有的值）
+        ...(input.text && !metadata.textLength ? { textLength: input.text.length } : {}),
+        ...(input.url && !metadata.url ? { url: input.url } : {}),
+        ...(input.file && !metadata.filePath ? { filePath: input.file } : {}),
+        // 只有在用户明确输入新的 folderId 时才更新，否则保留原始 metadata 中的值
+        ...(input.folderId
+          ? {
+            folderId: input.folderId,
+            // 优先使用用户选择的文件夹对应的 workspaceId，如果没有则保留原始 metadata 中的 workspaceId
+            workspaceId: input.workspaceId || metadata.workspaceId
+          }
+          : {}),
         ...(missingConfigs.length > 0 ? { configOverridesCount: Object.keys(configValues).length } : {})
       };
 
-      console.log('data', data);
+      console.log('finalInput', finalInput);
+      console.log('metadata', data);
 
       await runWorkflow({
         defId,
-        input,
+        input: finalInput, // 使用合并后的 input
         metadata: data,
         onSuccess: () => {
           toast.success('工作流已开始执行');
