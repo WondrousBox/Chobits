@@ -77,12 +77,14 @@ export async function runWorkflow(options: RunWorkflowOptions): Promise<void> {
     if (!result?.ok) {
       if (result?.error === 'input-required') {
         // 触发输入侧边栏（包含开始节点输入和配置输入）
+        // 传递原始的 input 和 metadata，以便在用户填写表单后保留所有上下文信息
         window.dispatchEvent(
           new CustomEvent('wf:start-input-required', {
             detail: {
               defId,
               missingConfigs: result.missingConfigs,
-              metadata
+              metadata,
+              originalInput: input // 保留原始输入，包括 resource 对象等
             }
           })
         );
