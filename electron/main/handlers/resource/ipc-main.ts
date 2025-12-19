@@ -77,6 +77,11 @@ export function initResourceHandlers(): void {
     // Hide soft-deleted items by default
     return await ResourcesRepo.list({ deletedAt: 0 } as any);
   });
+  ipcMain.handle('resource:listChildren', async (_event, payload: { parentResourceId: string; limit?: number; offset?: number }) => {
+    const { parentResourceId, limit = 100, offset = 0 } = payload || ({} as any);
+    if (!parentResourceId) return [];
+    return await ResourcesRepo.listChildren(parentResourceId, limit, offset);
+  });
   ipcMain.handle('getResource', async (_event, payload: { id: string }) => {
     const r: any = await ResourcesRepo.getById(payload.id);
     if (!r) return r;
