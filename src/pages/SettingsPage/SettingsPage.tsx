@@ -1,3 +1,4 @@
+import clsx from 'clsx';
 import React, { useEffect, useState } from 'react';
 import { TbAdjustments, TbBrain, TbCpu, TbFolderOpen, TbKeyboard, TbMessage2, TbNetwork, TbPlug } from 'react-icons/tb';
 
@@ -11,7 +12,7 @@ import PromptSetting from './components/PromptSetting';
 import ProxySettings from './components/ProxySettings';
 import ShortcutsSettings from './components/ShortcutsSettings';
 import Workspace from './components/Workspace';
-import PluginPage from './Plugins/PluginPage';
+import PluginPage from './PluginPage';
 
 export type DefaultSettingsCategory = 'preferences' | 'workspace' | 'ai' | 'prompt' | 'plugins' | 'shortcuts' | 'embedding' | 'proxy';
 
@@ -134,15 +135,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = []
           </div>
         );
       case 'plugins':
-        return (
-          <div className="space-y-6">
-            <div className="bg-card border border-border rounded-lg overflow-hidden">
-              <div className="h-[70vh]">
-                <PluginPage hideTitleBar />
-              </div>
-            </div>
-          </div>
-        );
+        return <PluginPage />;
       case 'ai':
         return <AiSettings initialProviderId={initialAiProviderId || undefined} />;
       case 'prompt':
@@ -159,7 +152,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = []
   return (
     <div className="h-full w-full bg-background">
       {!hideTitleBar && <DragAbleTitle title={<span>⚙️ 设置</span>} />}
-      <SidebarProvider>
+      <SidebarProvider className="w-full h-full min-h-[unset]">
         <Sidebar className="top-9 h-[calc(100vh-36px)]">
           <SidebarContent>
             <SidebarGroup className="box-border">
@@ -181,7 +174,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = []
             </SidebarGroup>
           </SidebarContent>
         </Sidebar>
-        <div className="flex-1 h-[calc(100vh-36px)]">
+        <div className={clsx(['flex-1', hideTitleBar ? 'h-full' : 'h-[calc(100vh-36px)]'])}>
           {/* 右侧内容区域 */}
           <div className="flex items-center gap-4 p-2">
             {(() => {

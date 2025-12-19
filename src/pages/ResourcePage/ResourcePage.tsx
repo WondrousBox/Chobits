@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import SettingsPage from '@/pages/SettingsPage/SettingsPage';
 
@@ -456,8 +456,14 @@ const ResourcePage: React.FC = () => {
       <RenameFolderDialog renameOpen={renameOpen} setRenameOpen={setRenameOpen} renameName={renameName} setRenameName={setRenameName} handleRenameConfirm={handleRenameConfirm} />
 
       <Dialog open={showSettingsModal} onOpenChange={setShowSettingsModal}>
-        <DialogContent className="max-w-6xl w-[90vw] h-[80vh] p-0 overflow-hidden">
-          <SettingsPage hideTitleBar />
+        <DialogHeader className="hidden">
+          <DialogTitle></DialogTitle>
+          <DialogDescription></DialogDescription>
+        </DialogHeader>
+        <DialogContent className="max-w-6xl w-[90vw] p-0 overflow-hidden">
+          <div className="w-full h-[80vh]">
+            <SettingsPage hideTitleBar />
+          </div>
         </DialogContent>
       </Dialog>
     </div>
