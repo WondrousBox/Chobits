@@ -39,10 +39,12 @@ const levelStyles: Record<NoticeLevel, { container: string; accent: string; icon
 export function SpriteNotice({ message, level = 'info', buttons, onClose, onButtonClick }: SpriteNoticeProps): JSX.Element {
   const styles = levelStyles[level];
   return (
-    <div className="absolute top-0 left-1/2 -translate-x-1/2 z-10 w-56 pointer-events-auto">
+    <div className="absolute -top-[32px] left-1/2 -translate-x-1/2 z-10 w-56 pointer-events-auto">
       <div className={clsx('rounded-xl px-2 py-2 shadow-lg flex items-center gap-2 text-xs backdrop-blur-sm', styles.container)}>
         <div className={clsx('shrink-0', styles.accent)}>{styles.icon}</div>
         <div className="flex-1 leading-none whitespace-nowrap w-0 truncate">{message}</div>
+      </div>
+      <div className={clsx(['absolute left-1/2 -translate-x-1/2 flex rounded-ee-lg rounded-es-lg backdrop-blur-sm', styles.container])}>
         {buttons && buttons.length > 0 && (
           <div className="flex items-center gap-1.5 ml-2">
             {buttons.map((button) => (
@@ -53,7 +55,7 @@ export function SpriteNotice({ message, level = 'info', buttons, onClose, onButt
           </div>
         )}
         {onClose && (
-          <button type="button" className="ml-2 w-8 h-8 flex items-center justify-center rounded-full text-gray-500 hover:bg-black/5 transition-colors shrink-0" onClick={onClose}>
+          <button type="button" className="w-8 h-8 flex items-center justify-center rounded-full text-gray-500 hover:bg-black/5 transition-colors shrink-0" onClick={onClose}>
             <TbX className="w-4 h-4" />
           </button>
         )}
