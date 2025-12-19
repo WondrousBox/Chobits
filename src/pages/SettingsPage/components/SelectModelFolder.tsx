@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { TbBox, TbFolderOpen } from 'react-icons/tb';
 
-type Props = {
+import { maskPath } from '@/lib/helpers';
+
+type SelectModelFolderProps = {
   /** 当插件目录已配置（初次加载发现已存在）或随后被选择/修改时调用 */
   onConfigured?: (dir: string) => void;
 };
 
-const SelectModelFolder: React.FC<Props> = ({ onConfigured }) => {
+const SelectModelFolder: React.FC<SelectModelFolderProps> = ({ onConfigured }) => {
   const [pluginsDir, setPluginsDir] = useState<string>('');
   const [pickBusy, setPickBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -38,7 +40,7 @@ const SelectModelFolder: React.FC<Props> = ({ onConfigured }) => {
     }
   }, [loading]);
 
-  const pickDir = async () => {
+  const pickDir = async (): Promise<void> => {
     setPickBusy(true);
     try {
       const r = await window.YUA.file['file:pickDir']({ allowCreate: true, defaultPath: pluginsDir });
@@ -56,7 +58,7 @@ const SelectModelFolder: React.FC<Props> = ({ onConfigured }) => {
     }
   };
 
-  const openFolder = async () => {
+  const openFolder = async (): Promise<void> => {
     if (!pluginsDir) return;
     try {
       await window.YUA.file['file:openPath'](pluginsDir);
@@ -78,7 +80,7 @@ const SelectModelFolder: React.FC<Props> = ({ onConfigured }) => {
           <div className="flex items-center justify-center text-primary">
             <TbBox size={40} />
           </div>
-          <div className="text-center select-none">{!pluginsDir ? '选择插件资源文件夹' : '修改插件资源文件夹'}</div>
+          <div className="text-center select-none">{!pluginsDir ? '选择文件夹' : '修改文件夹'}</div>
         </div>
         {pluginsDir && (
           <div
@@ -94,7 +96,10 @@ const SelectModelFolder: React.FC<Props> = ({ onConfigured }) => {
       </div>
       {pluginsDir && (
         <div className="mt-4 break-all">
-          当前位置：<span className="font-mono text-primary">{pluginsDir}</span>
+          当前位置：
+          <span className="font-mono text-primary cursor-pointer" onClick={openFolder}>
+            {maskPath(pluginsDir)}
+          </span>
         </div>
       )}
     </div>

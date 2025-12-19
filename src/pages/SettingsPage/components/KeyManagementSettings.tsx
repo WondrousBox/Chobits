@@ -62,23 +62,12 @@ const KeyManagementSettings: React.FC = () => {
       </div>
 
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-        <DialogContent>
+        <DialogContent className="w-96">
           <DialogHeader>
-            <DialogTitle>确认清理所有密钥</DialogTitle>
-            <DialogDescription>
-              此操作将永久删除所有存储在系统密钥链中的 API 密钥和敏感信息，包括：
-              <ul className="list-disc list-inside mt-2 space-y-1">
-                <li>所有 Provider 的密钥（如 OpenAI、Anthropic 等）</li>
-                <li>所有 Instance 的密钥</li>
-                <li>回退文件中的备份数据</li>
-              </ul>
-              <div className="mt-3 font-semibold text-destructive">此操作不可恢复，请谨慎操作！</div>
-            </DialogDescription>
+            <DialogTitle>确认清理</DialogTitle>
+            <DialogDescription>将永久删除所有存储在系统密钥链中的 API Key</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowConfirmDialog(false)} disabled={isClearing}>
-              取消
-            </Button>
             <Button variant="destructive" onClick={handleClearAllKeys} disabled={isClearing}>
               {isClearing ? (
                 <>
