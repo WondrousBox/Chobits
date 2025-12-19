@@ -500,7 +500,9 @@
         "y": 0,
         "config": {
           "inputMode": "resource",
-          "resourceKinds": ["image"]
+          "resourceKinds": [
+            "image"
+          ]
         }
       },
       {
@@ -514,14 +516,14 @@
         "id": "resource/update-GUSf",
         "type": "resource/update",
         "x": 784,
-        "y": 28,
+        "y": 19.5,
         "config": {}
       },
       {
         "id": "image/image-understand-2L9X",
         "type": "image/image-understand",
-        "x": 392,
-        "y": 70.5,
+        "x": 403.6891069676153,
+        "y": 76.28527968596664,
         "config": {}
       }
     ],
@@ -568,6 +570,17 @@
         "to": {
           "nodeId": "resource/update-GUSf",
           "port": "description"
+        }
+      },
+      {
+        "id": "e-pKXkPW",
+        "from": {
+          "nodeId": "start",
+          "port": "resourceId"
+        },
+        "to": {
+          "nodeId": "resource/update-GUSf",
+          "port": "resourceId"
         }
       }
     ],
