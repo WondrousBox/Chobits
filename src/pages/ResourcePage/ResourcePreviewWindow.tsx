@@ -3,6 +3,7 @@ import { TbArrowLeft, TbArrowRight, TbChevronLeft, TbChevronRight, TbDots, TbFil
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
@@ -21,6 +22,8 @@ const ResourcePreviewWindow: React.FC = () => {
   const [data, setData] = useState<ResourceItem | null>(null);
   const [list, setList] = useState<ResourceItem[]>([]);
   const [index, setIndex] = useState<number>(-1);
+  const [subtitleList, setSubtitleList] = useState<ResourceItem[]>([]);
+  const [activeSubtitle, setActiveSubtitle] = useState<ResourceItem | null>(null);
   const [isPlaylistExpanded, setIsPlaylistExpanded] = useState(true);
   const [showExpandButton, setShowExpandButton] = useState(false);
   const mainContentRef = useRef<HTMLDivElement>(null);
@@ -180,6 +183,35 @@ const ResourcePreviewWindow: React.FC = () => {
     }
   }, [data?.id]);
 
+  // 当当前资源为视频时，加载其子资源中的字幕文件
+  useEffect(() => {
+    const loadSubtitles = async () => {
+      if (!data?.id || data.type !== 'video') {
+        setSubtitleList([]);
+        setActiveSubtitle(null);
+        return;
+      }
+      try {
+        const children: ResourceItem[] = await window.YUA.resource['resource:listChildren']({
+          parentResourceId: data.id,
+          limit: 100,
+          offset: 0
+        });
+        const subs = (children || []).filter((item) => isSubtitleFile(item.filePath));
+        setSubtitleList(subs);
+        setActiveSubtitle((prev) => {
+          if (prev && subs.find((s) => s.id === prev.id)) return prev;
+          return subs[0] || null;
+        });
+      } catch (e) {
+        console.warn('load subtitle children failed', e);
+        setSubtitleList([]);
+        setActiveSubtitle(null);
+      }
+    };
+    loadSubtitles();
+  }, [data?.id, data?.type]);
+
   // 监听资源数据推送
   useEffect(() => {
     const handler = async (_e: any, payload: IncomingPayload | ResourceItem) => {
@@ -245,38 +277,14 @@ const ResourcePreviewWindow: React.FC = () => {
     };
   }, []);
 
-  // END: resource subscription
-
-  // 键盘快捷键
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        window.YUA.window['window:close']('resourcePreview');
-      }
-      if (e.key === 'PageUp') {
-        e.preventDefault();
-        go(-1);
-      }
-      if (e.key === 'PageDown') {
-        e.preventDefault();
-        go(1);
-      }
-      if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && list.length) {
-        e.preventDefault();
-        go(e.key === 'ArrowLeft' ? -1 : 1);
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [go, list.length]);
-
   if (!data) {
     return <div className="w-full h-full flex items-center justify-center bg-background text-muted-foreground text-sm">等待资源数据...</div>;
   }
 
   const title = data.title || data.filePath || data.url || data.id;
   const fileSrc = data.filePath ? makeResSrc(data.filePath) : data.url;
+
+  const hasSubtitlePanel = isVideoFile(data.filePath) && subtitleList.length > 0 && !!activeSubtitle;
 
   // 渲染文件列表内容
   const renderPlaylistContent = (): React.ReactNode => {
@@ -331,6 +339,42 @@ const ResourcePreviewWindow: React.FC = () => {
     );
   };
 
+  // 渲染字幕侧边栏内容（当当前资源为视频且存在子字幕资源时）
+  const renderSubtitlePanel = (): React.ReactNode => {
+    if (!hasSubtitlePanel || !activeSubtitle) return null;
+    return (
+      <div className="h-full flex flex-col overflow-hidden bg-background border-l">
+        <div className="px-3 py-2 border-b text-xs font-medium text-muted-foreground flex items-center justify-between gap-2">
+          <span>字幕 ({subtitleList.length})</span>
+          {subtitleList.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs flex items-center gap-1">
+                  <TbFileDescription className="w-3.5 h-3.5" />
+                  <span className="truncate max-w-[7rem]">{activeSubtitle.title || activeSubtitle.filePath || '字幕列表'}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-[10rem]">
+                {subtitleList.map((item) => {
+                  const itemTitle = item.title || item.filePath || item.url || item.id;
+                  const isActive = item.id === activeSubtitle.id;
+                  return (
+                    <DropdownMenuItem key={item.id} onClick={() => setActiveSubtitle(item)} className={`text-xs ${isActive ? 'font-semibold' : ''}`}>
+                      {itemTitle}
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
+        <div className="flex-1 min-h-0">
+          <SrtPlayer resource={activeSubtitle} />
+        </div>
+      </div>
+    );
+  };
+
   // 渲染主要内容
   const renderMainContent = (): React.ReactNode => (
     <div ref={mainContentRef} className="h-full relative flex items-center justify-center overflow-hidden">
@@ -378,12 +422,12 @@ const ResourcePreviewWindow: React.FC = () => {
       />
       {/* Content */}
       <div className="h-full overflow-hidden" style={{ height: 'calc(100% - 36px)' }}>
-        {(list.length > 0 || data) && isPlaylistExpanded ? (
+        {data && isPlaylistExpanded && (list.length > 0 || hasSubtitlePanel) ? (
           <ResizablePanelGroup direction="horizontal" className="h-full">
             <ResizablePanel defaultSize={75}>{renderMainContent()}</ResizablePanel>
             <ResizableHandle className="hover:bg-primary" withHandle />
             <ResizablePanel defaultSize={25} minSize={15}>
-              {renderPlaylistContent()}
+              {hasSubtitlePanel ? renderSubtitlePanel() : renderPlaylistContent()}
             </ResizablePanel>
           </ResizablePanelGroup>
         ) : (

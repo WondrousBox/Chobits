@@ -43,6 +43,8 @@ export type Resource = {
 export type ResourceIpcParams = {
   'resource:add': IpcParams<[{ resource: PartialByKey<Resource, 'id' | 'type'> }], { success: true; data: Resource }>;
   'resource:list': IpcParams<[void], Resource[]>;
+  /** 按父资源 ID 查询子资源列表 */
+  'resource:listChildren': IpcParams<[{ parentResourceId: string; limit?: number; offset?: number }], Resource[]>;
   getResource: IpcParams<[{ id: string }], Resource | undefined>;
   'resource:update': IpcParams<[{ id: string; patch: any }], { success: boolean; data?: any }>;
   deleteResource: IpcParams<[{ id: string }], { success: true }>;
@@ -80,6 +82,7 @@ export type ResourceIpcParams = {
 const methods: Array<keyof ResourceIpcParams> = [
   'resource:add',
   'resource:list',
+  'resource:listChildren',
   'getResource',
   'resource:update',
   'deleteResource',
