@@ -5,13 +5,13 @@ import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu
 
 import DragAbleTitle from '../../components/common/DragAbleTitle';
 import EmbeddingJobsPanel from '../../components/EmbeddingJobs';
-import PluginPage from '../PluginPage/PluginPage';
 import AiSettings from './components/AiSettings';
 import PreferencesSettings from './components/PreferencesSettings';
 import PromptSetting from './components/PromptSetting';
 import ProxySettings from './components/ProxySettings';
 import ShortcutsSettings from './components/ShortcutsSettings';
 import Workspace from './components/Workspace';
+import PluginPage from './Plugins/PluginPage';
 
 export type DefaultSettingsCategory = 'preferences' | 'workspace' | 'ai' | 'prompt' | 'plugins' | 'shortcuts' | 'embedding' | 'proxy';
 

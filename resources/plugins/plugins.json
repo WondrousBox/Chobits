@@ -46,6 +46,25 @@
         ]
       },
       {
+        "id": "whisper-tiny-en",
+        "pluginId": "plugin:whisper",
+        "type": "model",
+        "name": "ggml-tiny.en.bin",
+        "displayName": "Whisper Tiny English",
+        "description": "最小的 Whisper 英语模型，速度快但准确度较低，适合快速转录",
+        "version": "1.0.0",
+        "archiveType": "none",
+        "platforms": [
+          {
+            "platform": "all",
+            "arch": "all",
+            "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin",
+            "sizeBytes": 75700000,
+            "sha256": "be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21"
+          }
+        ]
+      },
+      {
         "id": "whisper-base",
         "pluginId": "plugin:whisper",
         "type": "model",
@@ -59,6 +78,25 @@
             "platform": "all",
             "arch": "all",
             "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin",
+            "sizeBytes": 142000000,
+            "sha256": "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe"
+          }
+        ]
+      },
+      {
+        "id": "whisper-base-en",
+        "pluginId": "plugin:whisper",
+        "type": "model",
+        "name": "ggml-base.en.bin",
+        "displayName": "Whisper Base English",
+        "description": "基础 Whisper 英语模型，平衡速度和准确度",
+        "version": "1.0.0",
+        "archiveType": "none",
+        "platforms": [
+          {
+            "platform": "all",
+            "arch": "all",
+            "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin",
             "sizeBytes": 142000000,
             "sha256": "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe"
           }
@@ -84,6 +122,25 @@
         ]
       },
       {
+        "id": "whisper-small-en",
+        "pluginId": "plugin:whisper",
+        "type": "model",
+        "name": "ggml-small.en.bin",
+        "displayName": "Whisper Small English",
+        "description": "小型 Whisper 英语模型，推荐用于大多数场景，平衡准确度和速度",
+        "version": "1.0.0",
+        "archiveType": "none",
+        "platforms": [
+          {
+            "platform": "all",
+            "arch": "all",
+            "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin",
+            "sizeBytes": 461000000,
+            "sha256": "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b"
+          }
+        ]
+      },
+      {
         "id": "whisper-medium",
         "pluginId": "plugin:whisper",
         "type": "model",
@@ -97,6 +154,25 @@
             "platform": "all",
             "arch": "all",
             "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.bin",
+            "sizeBytes": 1420000000,
+            "sha256": "6c14d5adee5f86394037b4e4e8b59f1673b6cee10e3cf0b11bbdbee79c156208"
+          }
+        ]
+      },
+      {
+        "id": "whisper-medium-en",
+        "pluginId": "plugin:whisper",
+        "type": "model",
+        "name": "ggml-medium.en.bin",
+        "displayName": "Whisper Medium English",
+        "description": "中型 Whisper 英语模型，准确度较高但速度较慢",
+        "version": "1.0.0",
+        "archiveType": "none",
+        "platforms": [
+          {
+            "platform": "all",
+            "arch": "all",
+            "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.en.bin",
             "sizeBytes": 1420000000,
             "sha256": "6c14d5adee5f86394037b4e4e8b59f1673b6cee10e3cf0b11bbdbee79c156208"
           }
@@ -135,6 +211,25 @@
             "platform": "all",
             "arch": "all",
             "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v2.bin",
+            "sizeBytes": 3100000000,
+            "sha256": "7d99f41a10525d0206bddadd86760181fa920438b6b33237e3118ff6c83bb53d"
+          }
+        ]
+      },
+      {
+        "id": "whisper-large-v3",
+        "pluginId": "plugin:whisper",
+        "type": "model",
+        "name": "ggml-large-v3.bin",
+        "displayName": "Whisper Large V3",
+        "description": "大型 Whisper 模型，准确度较高，适合高质量转录需求",
+        "version": "1.0.0",
+        "archiveType": "none",
+        "platforms": [
+          {
+            "platform": "all",
+            "arch": "all",
+            "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3.bin",
             "sizeBytes": 3100000000,
             "sha256": "7d99f41a10525d0206bddadd86760181fa920438b6b33237e3118ff6c83bb53d"
           }
