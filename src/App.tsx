@@ -15,13 +15,13 @@ import AiProviderConfigWindow from './pages/AiProviderConfigWindow/AiProviderCon
 import AssistantMenuPage from './pages/AssistantMenuPage/AssistantMenuPage';
 import AssistantPage from './pages/AssistantPage/AssistantPage';
 import ChatPage from './pages/AssistantPage/ChatPage';
-import PluginDownloadPage from './pages/PluginPage/PluginDownloadPage';
-import PluginPage from './pages/PluginPage/PluginPage';
 import RecycleBinPage from './pages/ResourcePage/RecycleBinPage';
 import ResourcePage from './pages/ResourcePage/ResourcePage';
 import WorkflowPage from './pages/ResourcePage/WorkflowPage';
 import Screenshot from './pages/Screenshot';
 import WorkspacePage from './pages/SettingsPage/components/Workspace';
+import PluginDownloadPage from './pages/SettingsPage/Plugins/PluginDownloadPage';
+import PluginPage from './pages/SettingsPage/Plugins/PluginPage';
 import SettingsPage from './pages/SettingsPage/SettingsPage';
 import StatusPage from './pages/StatusPage/StatusPage';
 import TaggingPage from './pages/TaggingPage/TaggingPage';

@@ -135,7 +135,8 @@
             "srt",
             "txt",
             "json"
-          ]
+          ],
+          "jsonFull": true
         }
       },
       {
