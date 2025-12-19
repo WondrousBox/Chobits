@@ -89,6 +89,7 @@ export const TranscodeNode: NodeHandler = {
         description: '输出格式',
         default: 'mp4',
         inputType: 'select',
+        showInNode: true,
         options: [
           {
             group: '视频格式',
@@ -124,6 +125,7 @@ export const TranscodeNode: NodeHandler = {
         description: '转码质量预设',
         default: 'medium',
         inputType: 'select',
+        showInNode: true,
         options: [
           { value: 'low', label: '低质量和大小' },
           { value: 'medium', label: '最优质量和大小' },

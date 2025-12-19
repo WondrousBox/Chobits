@@ -183,7 +183,8 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
         description: resourceData.description,
         contentText: resourceData.contentText,
         workspaceId: resourceData.workspaceId,
-        folderId: resourceData.folderId
+        folderId: resourceData.folderId,
+        parentResourceId: resourceData.parentResourceId
       };
 
       console.log(resource);

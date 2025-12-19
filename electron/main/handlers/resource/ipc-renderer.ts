@@ -7,6 +7,7 @@ export type Resource = {
   type: 'image' | 'video' | 'audio' | 'text' | 'link' | 'file' | 'document' | 'other';
   workspaceId?: string;
   folderId?: string;
+  parentResourceId?: string; // 父资源ID（用于记录资源来源关系）
   title?: string;
   description?: string;
   url?: string;

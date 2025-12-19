@@ -489,7 +489,8 @@ export const ResourcesRepo = {
         updatedAt: resources.updatedAt,
         deletedAt: resources.deletedAt,
         workspaceId: resources.workspaceId,
-        folderId: resources.folderId
+        folderId: resources.folderId,
+        parentResourceId: resources.parentResourceId
       })
       .from(resources)
       .innerJoin(resource_tags, eq(resource_tags.resourceId, resources.id));
@@ -700,7 +701,8 @@ export const ResourcesRepo = {
         updatedAt: resources.updatedAt,
         deletedAt: resources.deletedAt,
         workspaceId: resources.workspaceId,
-        folderId: resources.folderId
+        folderId: resources.folderId,
+        parentResourceId: resources.parentResourceId
       })
       .from(resources);
     const wheres: any[] = [];
@@ -713,6 +715,13 @@ export const ResourcesRepo = {
         wheres.push(isNull(resources.folderId));
       } else {
         wheres.push(eq(resources.folderId, (filter as any).folderId));
+      }
+    }
+    if ((filter as any).parentResourceId !== undefined) {
+      if ((filter as any).parentResourceId === null) {
+        wheres.push(isNull(resources.parentResourceId));
+      } else {
+        wheres.push(eq(resources.parentResourceId, (filter as any).parentResourceId));
       }
     }
     if ((filter as any).deletedAt === 0) wheres.push(isNull(resources.deletedAt));
@@ -739,6 +748,16 @@ export const ResourcesRepo = {
     if (wheres.length) query = query.where(and(...wheres));
     const rows = await query;
     return rows[0]?.count ?? 0;
+  },
+  /** 查询某个资源的所有子资源（通过parentResourceId） */
+  async listChildren(parentResourceId: string, limit = 100, offset = 0): Promise<ResourceRow[]> {
+    return this.list({ parentResourceId } as any, limit, offset);
+  },
+  /** 获取资源的父资源信息 */
+  async getParent(resourceId: string): Promise<ResourceRow | undefined> {
+    const resource = await this.getById(resourceId);
+    if (!resource?.parentResourceId) return undefined;
+    return this.getById(resource.parentResourceId);
   }
 };
 
