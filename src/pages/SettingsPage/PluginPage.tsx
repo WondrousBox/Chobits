@@ -1,9 +1,8 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { PluginDefinition } from 'packages/plugins/types';
 import React, { useEffect, useState } from 'react';
-import { TbBox, TbChevronDown, TbChevronRight, TbPlug, TbSettings, TbWifi } from 'react-icons/tb';
+import { TbBox, TbChevronDown, TbChevronRight, TbSettings, TbWifi } from 'react-icons/tb';
 
-import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -13,11 +12,9 @@ import { PluginListItem } from './components/PluginListItem';
 import SelectModelFolder from './components/SelectModelFolder';
 import type { InstalledResource } from './components/types';
 
-interface PluginPageProps {
-  hideTitleBar?: boolean;
-}
+interface PluginPageProps { }
 
-const PluginPage: React.FC<PluginPageProps> = ({ hideTitleBar }: PluginPageProps) => {
+const PluginPage: React.FC<PluginPageProps> = () => {
   const [supported, setSupported] = useState<PluginDefinition[]>([]);
   const [installed, setInstalled] = useState<InstalledResource[]>([]);
   const [loading, setLoading] = useState(true);
@@ -227,84 +224,44 @@ const PluginPage: React.FC<PluginPageProps> = ({ hideTitleBar }: PluginPageProps
 
   return (
     <>
-      {!hideTitleBar ? (
-        <DragAbleTitle
-          title={
-            <div className="flex items-center gap-2">
-              <TbPlug size={20} />
-              插件管理
-            </div>
-          }
-          actions={
-            <div className="flex items-center gap-2 no-drag">
-              <Dialog open={showFolderSettings} onOpenChange={setShowFolderSettings}>
-                <DialogTrigger asChild>
-                  <Button size="sm" variant="outline" className="w-8 h-8" title="设置下载文件夹">
-                    <TbSettings size={16} />
-                  </Button>
-                </DialogTrigger>
-                <DialogContent hideClose className="w-80">
-                  <DialogHeader>
-                    <DialogTitle></DialogTitle>
-                    <DialogDescription></DialogDescription>
-                  </DialogHeader>
-                  <SelectModelFolder
-                    onConfigured={() => {
-                      setShowFolderSettings(false);
-                    }}
-                  />
-                </DialogContent>
-              </Dialog>
-              <Button size="sm" variant="outline" onClick={() => setShowNetworkDialog(true)} className="w-8 h-8" title="检测网络连通性">
-                <TbWifi size={16} />
-              </Button>
-              <Tabs value={tabValue} onValueChange={(v) => setTabValue(v as 'available' | 'installed')}>
-                <TabsList>
-                  <TabsTrigger value="available">可用插件</TabsTrigger>
-                  <TabsTrigger value="installed">已安装</TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </div>
-          }
-        />
-      ) : (
-        <div className="flex items-center gap-2 p-2">
-          <div className="flex-1">
-            <Tabs value={tabValue} onValueChange={(v) => setTabValue(v as 'available' | 'installed')} className="no-drag">
-              <TabsList>
-                <TabsTrigger value="available">可用插件</TabsTrigger>
-                <TabsTrigger value="installed">已安装</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-          <Dialog open={showFolderSettings} onOpenChange={setShowFolderSettings}>
-            <DialogTrigger asChild>
-              <Button size="icon" variant="outline" className="w-8 h-8" title="设置下载文件夹">
-                <TbSettings />
-              </Button>
-            </DialogTrigger>
-            <DialogContent hideClose className="w-80">
-              <DialogHeader>
-                <DialogTitle></DialogTitle>
-                <DialogDescription></DialogDescription>
-              </DialogHeader>
-              <SelectModelFolder
-                onConfigured={() => {
-                  setShowFolderSettings(false);
-                }}
-              />
-            </DialogContent>
-          </Dialog>
-          <Button size="icon" variant="outline" onClick={() => setShowNetworkDialog(true)} className="w-8 h-8">
-            <TbWifi />
-          </Button>
+      <div className="flex items-center gap-2 p-2">
+        <div className="flex-1">
+          <Tabs value={tabValue} onValueChange={(v) => setTabValue(v as 'available' | 'installed')} className="no-drag">
+            <TabsList>
+              <TabsTrigger value="available">可用插件</TabsTrigger>
+              <TabsTrigger value="installed">已安装</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
-      )}
+        <Dialog open={showFolderSettings} onOpenChange={setShowFolderSettings}>
+          <DialogTrigger asChild>
+            <Button size="sm" variant="outline" title="设置下载文件夹">
+              <TbSettings />
+              存储位置
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="w-80">
+            <DialogHeader>
+              <DialogTitle></DialogTitle>
+              <DialogDescription></DialogDescription>
+            </DialogHeader>
+            <SelectModelFolder
+              onConfigured={() => {
+                setShowFolderSettings(false);
+              }}
+            />
+          </DialogContent>
+        </Dialog>
+        <Button size="sm" variant="outline" onClick={() => setShowNetworkDialog(true)}>
+          <TbWifi />
+          网络测试
+        </Button>
+      </div>
 
       <NetworkCheckDialog open={showNetworkDialog} onOpenChange={setShowNetworkDialog} />
 
       {Object.keys(resourcesByPlugin).length === 0 && <div className="text-xs text-muted-foreground border rounded px-2 text-center py-20">暂无插件。</div>}
-      <div className="space-y-1 px-2">
+      <div className="space-y-1 px-2 h-[calc(100%-52px)] overflow-y-auto">
         {Object.entries(resourcesByPlugin).map(([pluginId, { engines, models }]) => {
           const pluginName = engines[0]?.pluginId.replace('plugin:', '') || models[0]?.pluginId.replace('plugin:', '') || pluginId.replace('plugin:', '');
           const isExpanded = expandedPlugins.has(pluginId);

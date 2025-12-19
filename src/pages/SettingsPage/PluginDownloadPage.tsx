@@ -3,6 +3,7 @@ import { TbAlertCircle, TbBox, TbCheck, TbClock, TbDownload, TbPlug, TbX } from 
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface PluginDownloadProgress {
   id: string;
@@ -22,6 +23,7 @@ interface PluginDownloadProgress {
 
 const PluginDownloadPage: React.FC = () => {
   const [downloads, setDownloads] = useState<Map<string, PluginDownloadProgress>>(new Map());
+  const [activeTab, setActiveTab] = useState<'active' | 'completed' | 'failed'>('active');
 
   useEffect(() => {
     // 加载已有的下载任务（包括进行中和已完成的）
@@ -185,11 +187,26 @@ const PluginDownloadPage: React.FC = () => {
             <p className="text-sm">暂无下载任务</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {/* 进行中的下载 */}
-            {activeDownloads.length > 0 && (
-              <div>
-                <h3 className="text-sm font-semibold mb-2 text-foreground">进行中 ({activeDownloads.length})</h3>
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'active' | 'completed' | 'failed')} className="h-full flex flex-col">
+            <TabsList className="w-full mb-4">
+              <TabsTrigger value="active" className="flex-1">
+                进行中 ({activeDownloads.length})
+              </TabsTrigger>
+              <TabsTrigger value="completed" className="flex-1">
+                已完成 ({completedDownloads.length})
+              </TabsTrigger>
+              <TabsTrigger value="failed" className="flex-1">
+                失败 ({failedDownloads.length})
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="active" className="flex-1 overflow-y-auto mt-0">
+              {activeDownloads.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                  <TbClock className="w-12 h-12 mb-4 opacity-50" />
+                  <p className="text-sm">暂无进行中的下载任务</p>
+                </div>
+              ) : (
                 <div className="space-y-2">
                   {activeDownloads.map((item) => {
                     const percent = getProgressPercent(item);
@@ -246,13 +263,16 @@ const PluginDownloadPage: React.FC = () => {
                     );
                   })}
                 </div>
-              </div>
-            )}
+              )}
+            </TabsContent>
 
-            {/* 已完成的下载 */}
-            {completedDownloads.length > 0 && (
-              <div>
-                <h3 className="text-sm font-semibold mb-2 text-foreground">已完成 ({completedDownloads.length})</h3>
+            <TabsContent value="completed" className="flex-1 overflow-y-auto mt-0">
+              {completedDownloads.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                  <TbCheck className="w-12 h-12 mb-4 opacity-50" />
+                  <p className="text-sm">暂无已完成的下载任务</p>
+                </div>
+              ) : (
                 <div className="space-y-2">
                   {completedDownloads.map((item) => (
                     <div key={item.id} className="border rounded-lg p-3 bg-card">
@@ -268,13 +288,16 @@ const PluginDownloadPage: React.FC = () => {
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
+              )}
+            </TabsContent>
 
-            {/* 失败的下载 */}
-            {failedDownloads.length > 0 && (
-              <div>
-                <h3 className="text-sm font-semibold mb-2 text-foreground">失败 ({failedDownloads.length})</h3>
+            <TabsContent value="failed" className="flex-1 overflow-y-auto mt-0">
+              {failedDownloads.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                  <TbAlertCircle className="w-12 h-12 mb-4 opacity-50" />
+                  <p className="text-sm">暂无失败的下载任务</p>
+                </div>
+              ) : (
                 <div className="space-y-2">
                   {failedDownloads.map((item) => (
                     <div key={item.id} className="border rounded-lg p-3 bg-card border-red-200">
@@ -291,9 +314,9 @@ const PluginDownloadPage: React.FC = () => {
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </TabsContent>
+          </Tabs>
         )}
       </div>
     </div>
