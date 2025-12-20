@@ -18,7 +18,6 @@ import type videoDownloaderAPI from '../electron/preload/apis/video-downloader';
 import type { WindowBridgeType } from '../electron/preload/apis/window';
 import type { AppEventPayload } from '../packages/event/events';
 import type { RecorderIpcRendererType } from '../packages/recorder/ipc-renderer';
-import type { ASRIpcRendererType } from '../packages/sherpa/ipc-renderer';
 
 declare global {
   interface Window {
@@ -51,7 +50,6 @@ declare global {
       pluginResource: PluginResourceIpcType;
       dailyCare: DailyCareBridgeType;
       recorder: RecorderIpcRendererType;
-      asr: ASRIpcRendererType;
       proxy: ProxyIpcType;
       theme: ThemeIpcType;
       ai: AIApi;

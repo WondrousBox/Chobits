@@ -5,7 +5,6 @@ import { initAIHandlers } from '../../../packages/ai/ipc-main';
 import type { DownloadProgress } from '../../../packages/plugins';
 import { initPluginResourceHandlers } from '../../../packages/plugins/ipc-main';
 import { initRecorderHandlers } from '../../../packages/recorder/ipc-main';
-import { initASRHandlers } from '../../../packages/sherpa/ipc-main';
 import { initDailyCare } from '../daily';
 import { initScreenshotHandlers } from '../screenshot';
 import { getResourcePath } from '../utils/resources-path';
@@ -50,7 +49,6 @@ export function initHandlers(win: BrowserWindow): void {
   initStatusHandlers(win);
   initAIHandlers(win);
   initRecorderHandlers();
-  initASRHandlers(win);
   initShortcutsHandlers(win);
   initPluginResourceHandlers(win, {
     getHttpProxy,

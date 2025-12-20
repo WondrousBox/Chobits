@@ -4,7 +4,6 @@ import { aiBridge } from '../../packages/ai/ipc-renderer';
 import { APP_EVENT_CHANNEL, AppEventPayload } from '../../packages/event/events';
 import { pluginResourceIpcRenderer } from '../../packages/plugins/ipc-renderer';
 import { recorderIpcRenderer } from '../../packages/recorder/ipc-renderer';
-import { asrIpcRenderer } from '../../packages/sherpa/ipc-renderer';
 import { dailyCareBridge } from '../main/daily/ipc-renderer';
 import { ffmpegIpcRenderer } from '../main/handlers/ffmpeg/ipc-renderer';
 import { fileIpcRenderer } from '../main/handlers/file/ipc-renderer';
@@ -71,7 +70,6 @@ contextBridge.exposeInMainWorld('YUA', {
   shortcuts: shortcutsBridge,
   ai: aiBridge,
   recorder: recorderIpcRenderer,
-  asr: asrIpcRenderer,
   dailyCare: dailyCareBridge,
   pluginResource: pluginResourceIpcRenderer,
   proxy: proxyIpcRenderer,
