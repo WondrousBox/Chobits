@@ -37,7 +37,7 @@ export function getResourcePath(binName: 'ffmpeg' | 'recorder' | 'ffprobe' | 'yt
       return path.join(app.getPath('userData'), 'logs');
     case 'recorder':
       return getRealPath(
-        `../recorder/${os.platform() === 'darwin' ? 'recorder' : 'recorder.exe'}`,
+        `../recorder/${os.platform()}/${os.arch()}/${os.platform() === 'darwin' ? 'recorder' : 'recorder.exe'}`,
         `./resources/recorder/${os.platform()}/${os.arch()}/${os.platform() === 'darwin' ? 'recorder' : 'recorder.exe'}`
       );
     default:

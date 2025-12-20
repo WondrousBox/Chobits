@@ -39,6 +39,10 @@
       "to": "./sprites"
     },
     {
+      "from": "resources/recorder/${platform}/${arch}",
+      "to": "./recorder/${platform}/${arch}"
+    },
+    {
       "from": "resources/yt-dlp/${platform}/",
       "to": "./yt-dlp/${platform}/"
     }
