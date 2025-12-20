@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TbDownload, TbLoader2, TbMicrophone, TbWorld, TbX } from 'react-icons/tb';
+import { TbDownload, TbLoader2, TbMicrophone, TbMicrophoneOff, TbWorld, TbX } from 'react-icons/tb';
 
 import ChatInput from '@/components/AIAssistant/ChatInput';
 import { Button } from '@/components/ui/button';
@@ -35,10 +35,26 @@ const AssistantPage: React.FC = () => {
   const [showWebButton, setShowWebButton] = useState(false);
   const [isAnalyzingVideo, setIsAnalyzingVideo] = useState(false);
   const [isAnalyzingWeb, setIsAnalyzingWeb] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
   const contentRootRef = useRef<HTMLDivElement | null>(null);
   const inputBlockRef = useRef<HTMLDivElement | null>(null);
   // 控制当实例下拉展开时，暂停自动尺寸调整
   const instanceMenuOpenRef = useRef<boolean>(false);
+
+  const handleToggleRecording = useCallback(async () => {
+    try {
+      if (isRecording) {
+        await window.YUA.recorder.stop();
+        setIsRecording(false);
+      } else {
+        await window.YUA.recorder.start();
+        setIsRecording(true);
+      }
+    } catch (error) {
+      console.error('Failed to toggle recording:', error);
+      setIsRecording(false);
+    }
+  }, [isRecording]);
 
   // 实例选择由 ChatInput 自行管理；主进程在新增资源后会自动打标签，无需渲染进程参与
 
@@ -305,8 +321,13 @@ const AssistantPage: React.FC = () => {
                         {isAnalyzingWeb ? <TbLoader2 className="animate-spin" /> : <TbWorld />}
                       </Button>
                     )}
-                    <Button variant={'outline'} size={'icon'} className="rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white">
-                      <TbMicrophone />
+                    <Button
+                      variant={'outline'}
+                      size={'icon'}
+                      className={`rounded-full ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white'}`}
+                      onClick={handleToggleRecording}
+                    >
+                      {isRecording ? <TbMicrophoneOff /> : <TbMicrophone />}
                     </Button>
                   </>
                 }
