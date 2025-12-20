@@ -206,7 +206,7 @@ export const ImageGenerateNode: NodeHandler = {
       model,
       prompt,
       size,
-      // @ts-expect-error: quality 字段在部分 OpenAI 兼容实现中存在
+      // quality 字段在部分 OpenAI 兼容实现中存在
       quality
     } as any);
 

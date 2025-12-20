@@ -1,4 +1,5 @@
 import dayjs from 'dayjs';
+import { CustomReminderInput, DailyCareRoutineSnapshot, DailyCareSnapshot } from 'electron/main/daily/types';
 import { AnimatePresence, motion } from 'framer-motion';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { TbCalendarEvent, TbChevronDown, TbHeartbeat, TbRefresh, TbTrash, TbWand } from 'react-icons/tb';
@@ -9,8 +10,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-
-import type { CustomReminderInput, DailyCareRoutineSnapshot, DailyCareSnapshot } from '../../../../electron/main/daily/types';
 
 type ReminderFormState = {
   title: string;

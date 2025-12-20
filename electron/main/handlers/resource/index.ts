@@ -232,7 +232,7 @@ export async function addResource(r: { resource: Resource }): Promise<{ success:
           w.webContents.send('resource:changed', payload);
         });
 
-        return { success: true, data: updated || row };
+        return { success: true, data: (updated || row) as Resource };
       }
     } catch (e) {
       console.warn('[thumbnail] generation failed', e);
@@ -252,5 +252,5 @@ export async function addResource(r: { resource: Resource }): Promise<{ success:
   } catch {
     /* ignore */
   }
-  return { success: true, data: row };
+  return { success: true, data: row as Resource };
 }

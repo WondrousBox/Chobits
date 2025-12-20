@@ -24,8 +24,8 @@ const SETTINGS_DIR = path.join(app.getPath('home'), '.chobits');
 async function getDefaultSpritesDir(): Promise<string> {
   // Packaged resources (read-only)
   const spritesDir = getResourcePath('sprites');
-  addAllowedResourceRoot(spritesDir);
-  return spritesDir;
+  addAllowedResourceRoot(spritesDir! as string);
+  return spritesDir!;
 }
 
 async function getUserSpritesDir(): Promise<string> {

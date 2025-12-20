@@ -40,7 +40,7 @@ export default function PromptTemplateFormDialog(props: {
         else setValues(initialValues);
       }}
     >
-      <DialogContent className="sm:max-w-xl" hideClose={false}>
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{title || (mode === 'create' ? '新建模板' : '编辑模板')}</DialogTitle>
         </DialogHeader>

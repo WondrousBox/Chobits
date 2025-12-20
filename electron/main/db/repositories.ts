@@ -1426,7 +1426,7 @@ export const AutomationRulesRepo = {
       .where(and(eq(automation_rules.enabled, 1), eq(automation_rules.triggerType, 'resource_event')))
       .all();
 
-    return candidates.filter((rule) => {
+    return candidates.filter((rule: AutomationRuleRow) => {
       // 1. Check Scope
       if (rule.scope === 'workspace') {
         if (rule.workspaceId && rule.workspaceId !== workspaceId) return false;
@@ -1465,7 +1465,7 @@ export const AutomationRulesRepo = {
       .where(and(eq(automation_rules.enabled, 1), eq(automation_rules.triggerType, 'system_event')))
       .all();
 
-    return candidates.filter((rule) => {
+    return candidates.filter((rule: AutomationRuleRow) => {
       const config = rule.triggerConfig as any;
       if (!config) return false;
       return config.event === eventType;

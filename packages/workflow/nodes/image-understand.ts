@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import type { ChatMessage } from '@packages/ai/types';
+
 import { NodeConfig, NodeHandler, PortSchema } from '../types';
 
 // 动态获取可用的服务商列表
@@ -246,7 +248,7 @@ export const ImageUnderstandNode: NodeHandler = {
     // 调用AI Provider的chat方法
     const response = await provider.chat(
       {
-        messages,
+        messages: messages as unknown as ChatMessage[],
         providerId,
         extras: {
           model,
