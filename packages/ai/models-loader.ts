@@ -29,7 +29,7 @@ export type ModelInfo = {
 export function loadProviderModels(id: string): ModelInfo[] {
   try {
     const dir = getResourcePath('providers');
-    const file = path.join(dir, `${id}.models.json`);
+    const file = path.join(dir!, `${id}.models.json`);
     if (!fs.existsSync(file)) return [];
     const raw = fs.readFileSync(file, 'utf8');
     const parsed = JSON.parse(raw);

@@ -565,8 +565,8 @@ export class VideoDownloader implements Downloader {
   private ytdlPath: string;
 
   constructor() {
-    this.ffmpegPath = getResourcePath('ffmpeg');
-    this.ytdlPath = getResourcePath('yt-dlp');
+    this.ffmpegPath = getResourcePath('ffmpeg')!;
+    this.ytdlPath = getResourcePath('yt-dlp')!;
 
     binPathLog(this.ffmpegPath, 'ffmpeg');
     binPathLog(this.ytdlPath, 'yt-dlp');

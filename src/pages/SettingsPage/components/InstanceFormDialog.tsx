@@ -152,7 +152,7 @@ export function InstanceFormDialog(props: {
         }
       }}
     >
-      <DialogContent className="sm:max-w-2xl" hideClose={false}>
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {provider.schema?.icon && <TintableSvg src={provider.schema?.icon || ''} alt={provider.label} className="w-10 h-10" />}

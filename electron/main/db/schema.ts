@@ -25,7 +25,7 @@ export const documents = sqliteTable(
 
     // 溯源与类型：与资源表的弱关联及文档类型
     // 外键：documents.sourceId → resources.id（来源删除时置空，来源更新时级联更新）
-    sourceId: text('source_id').references(() => resources.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+    sourceId: text('source_id').references((): AnySQLiteColumn => resources.id, { onDelete: 'set null', onUpdate: 'cascade' }),
     docType: text('doc_type'), // 文档类型（如 'document' | 'chunk' | 'note' 等）
 
     // 层级与分块：支持大文档切片与父子关系
@@ -167,7 +167,7 @@ export const resources = sqliteTable(
     // 归属文件夹（可为空，表示在根目录）
     folderId: text('folder_id').references(() => folders.id, { onDelete: 'set null', onUpdate: 'cascade' }),
     // 父资源ID（用于记录资源来源，如字幕由视频生成、截图由视频生成等）
-    parentResourceId: text('parent_resource_id').references(() => resources.id, { onDelete: 'set null', onUpdate: 'cascade' })
+    parentResourceId: text('parent_resource_id').references((): AnySQLiteColumn => resources.id, { onDelete: 'set null', onUpdate: 'cascade' })
   },
   (t) => ({
     idxResourcesWorkspace: index('idx_resources_workspace').on(t.workspaceId),

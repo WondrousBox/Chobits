@@ -11,7 +11,7 @@ import { ProviderConfig } from './types';
 export function loadProviderSchema(id: string, defaultSchema: ProviderConfig): ProviderConfig {
   try {
     const schemaDir = getResourcePath('providers');
-    const file = path.join(schemaDir, `${id}.schema.json`);
+    const file = path.join(schemaDir!, `${id}.schema.json`);
     if (!fs.existsSync(file)) return defaultSchema;
     const raw = fs.readFileSync(file, 'utf8');
     const parsed = JSON.parse(raw);

@@ -12,7 +12,7 @@ import { VscJson } from 'react-icons/vsc';
  *
  * 可用的图标列表请参考：https://react-icons.github.io/react-icons/icons/tb/
  */
-export const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+export const iconMap: Record<string, React.ComponentType<{ className?: string; style?: React.CSSProperties }>> = {
   TbEdit,
   TbFolderOpen,
   TbPhoto,
@@ -31,7 +31,7 @@ export const iconMap: Record<string, React.ComponentType<{ className?: string }>
 /**
  * 根据图标名称获取图标组件
  */
-export function getIconComponent(iconName?: string): React.ComponentType<{ className?: string }> | null {
+export function getIconComponent(iconName?: string): React.ComponentType<{ className?: string; style?: React.CSSProperties }> | null {
   if (!iconName) return null;
   return iconMap[iconName] || null;
 }
