@@ -24,6 +24,13 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         action: () => window.YUA.window['window:open']('status')
       },
       {
+        id: 'asr-test',
+        label: 'ASR 测试',
+        icon: '🎤',
+        shortcut: 'a',
+        action: () => window.YUA.window['window:open']('asrTest')
+      },
+      {
         id: 'tagger',
         label: '总结打标',
         icon: '🏷️',

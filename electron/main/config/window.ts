@@ -17,6 +17,7 @@ declare module '@aim-packages/window-manager' {
     pluginDownload: void;
     tagger: void;
     aiProviderConfig: void;
+    asrTest: void;
   }
 }
 
@@ -422,6 +423,38 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
           titleBarStyle: 'hiddenInset',
           titleBarOverlay: true,
           trafficLightPosition: { x: 20, y: HEADER_COMMANDS_HEIGHT / 2 - MACOS_TRAFFIC_LIGHTS_HEIGHT / 2 },
+          frame: true
+        }
+      }
+    }
+  },
+  asrTest: {
+    routeHash: 'asr-test',
+    autoCenterOn: 'parent-display',
+    showOnReady: true,
+    openDevTools: true,
+    rememberState: true,
+    options: {
+      width: 1200,
+      height: 800,
+      minWidth: 800,
+      minHeight: 600,
+      frame: false,
+      transparent: false,
+      resizable: true,
+      alwaysOnTop: false,
+      skipTaskbar: false,
+      backgroundColor: '#ffffff',
+      show: false,
+      autoHideMenuBar: true,
+      webPreferences: { nodeIntegration: true, contextIsolation: true }
+    },
+    platformOverlays: {
+      darwin: {
+        options: {
+          titleBarStyle: 'hiddenInset',
+          titleBarOverlay: true,
+          trafficLightPosition: { x: 20, y: 10 },
           frame: true
         }
       }
