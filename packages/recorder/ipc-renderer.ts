@@ -7,6 +7,10 @@ export const recorderIpcRenderer = {
 
   async stop(): Promise<boolean> {
     return ipcRenderer.invoke('recorder:stop');
+  },
+
+  async getStatus(): Promise<boolean> {
+    return ipcRenderer.invoke('recorder:status');
   }
 };
 

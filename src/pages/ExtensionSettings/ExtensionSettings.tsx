@@ -3,9 +3,10 @@ import React, { useState } from 'react';
 import DailyCareSettings from './DailyCareSettings';
 import DownloadResourceSettings from './DownloadResourceSettings';
 import MovementSettings from './MovementSettings';
+import RecorderSettings from './RecorderSettings';
 import SpriteSettings from './SpriteSettings';
 
-type ExtensionPanel = 'movement' | 'dailyCare' | 'download' | 'sprite' | null;
+type ExtensionPanel = 'movement' | 'dailyCare' | 'download' | 'sprite' | 'recorder' | null;
 
 const ExtensionSettings: React.FC = () => {
   const [activePanel, setActivePanel] = useState<ExtensionPanel>('movement');
@@ -20,6 +21,7 @@ const ExtensionSettings: React.FC = () => {
       <DailyCareSettings expanded={activePanel === 'dailyCare'} onExpand={() => handleExpand('dailyCare')} />
       <DownloadResourceSettings expanded={activePanel === 'download'} onExpand={() => handleExpand('download')} />
       <SpriteSettings expanded={activePanel === 'sprite'} onExpand={() => handleExpand('sprite')} />
+      <RecorderSettings expanded={activePanel === 'recorder'} onExpand={() => handleExpand('recorder')} />
     </div>
   );
 };

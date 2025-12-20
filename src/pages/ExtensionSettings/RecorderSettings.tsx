@@ -1,0 +1,350 @@
+import { AnimatePresence, motion } from 'framer-motion';
+import React, { useEffect, useRef, useState } from 'react';
+import { TbActivity, TbChevronDown, TbLoader2, TbMicrophone, TbPlayerPlay, TbPlayerStop, TbPlugConnected, TbPlugX } from 'react-icons/tb';
+
+import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+
+type RecorderSettingsProps = {
+  expanded: boolean;
+  onExpand: () => void;
+};
+
+const RecorderSettings: React.FC<RecorderSettingsProps> = ({ expanded, onExpand }) => {
+  const [isRunning, setIsRunning] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // Test Client State
+  const [isConnected, setIsConnected] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [logs, setLogs] = useState<string[]>([]);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [audioFormat, setAudioFormat] = useState<string>('-');
+
+  const wsRef = useRef<WebSocket | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const logEndRef = useRef<HTMLDivElement | null>(null);
+  const isRecordingRef = useRef(false);
+
+  useEffect(() => {
+    isRecordingRef.current = isRecording;
+  }, [isRecording]);
+
+  const addLog = (msg: string): void => {
+    const time = new Date().toLocaleTimeString();
+    setLogs((prev) => [...prev, `[${time}] ${msg}`]);
+  };
+
+  const disconnect = (): void => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.close();
+      addLog('手动断开WebSocket连接');
+    }
+    wsRef.current = null;
+    setIsConnected(false);
+    setIsRecording(false);
+  };
+
+  const checkStatus = async (): Promise<void> => {
+    try {
+      const status = await window.YUA.recorder.getStatus();
+      setIsRunning(status);
+      if (!status && isConnected) {
+        disconnect();
+      }
+    } catch (error) {
+      console.error('Failed to get recorder status:', error);
+    }
+  };
+
+  useEffect(() => {
+    checkStatus();
+    return () => {
+      disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleToggle = async (checked: boolean): Promise<void> => {
+    setIsRunning(checked);
+    setLoading(true);
+
+    try {
+      if (checked) {
+        await window.YUA.recorder.start();
+      } else {
+        await window.YUA.recorder.stop();
+        disconnect();
+      }
+      await checkStatus();
+    } catch (error) {
+      console.error('Failed to toggle recorder:', error);
+      setIsRunning(!checked);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAudioData = (blob: Blob): void => {
+    if (isRecordingRef.current) {
+      audioChunksRef.current.push(blob);
+    }
+  };
+
+  // WebSocket & Audio Logic
+  const connect = (): void => {
+    const port = 8765;
+    const url = `ws://127.0.0.1:${port}`;
+    addLog(`正在连接到 ${url}...`);
+
+    try {
+      const ws = new WebSocket(url);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        addLog('WebSocket连接已建立');
+        setIsConnected(true);
+      };
+
+      ws.onmessage = (event) => {
+        if (event.data instanceof Blob) {
+          console.log(event.data);
+          handleAudioData(event.data);
+        } else {
+          addLog(`收到消息: ${event.data}`);
+        }
+      };
+
+      ws.onclose = () => {
+        addLog('WebSocket连接已关闭');
+        setIsConnected(false);
+        setIsRecording(false);
+      };
+
+      ws.onerror = (error) => {
+        addLog('WebSocket错误');
+        console.error(error);
+        setIsConnected(false);
+      };
+    } catch (e) {
+      addLog(`连接失败: ${e}`);
+    }
+  };
+
+  const startRecording = (): void => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      addLog('WebSocket未连接');
+      return;
+    }
+
+    audioChunksRef.current = [];
+    setAudioUrl(null);
+    setAudioFormat('-');
+
+    wsRef.current.send('start');
+    addLog('发送start消息');
+    setIsRecording(true);
+  };
+
+  const float32ToWav = (float32Array: Float32Array, sampleRate: number): Blob => {
+    const length = float32Array.length;
+    const buffer = new ArrayBuffer(44 + length * 2);
+    const view = new DataView(buffer);
+    const samples = new Int16Array(buffer, 44);
+
+    const writeString = (offset: number, string: string): void => {
+      for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+      }
+    };
+
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + length * 2, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeString(36, 'data');
+    view.setUint32(40, length * 2, true);
+
+    for (let i = 0; i < length; i++) {
+      const s = Math.max(-1, Math.min(1, float32Array[i]));
+      samples[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+    }
+
+    return new Blob([buffer], { type: 'audio/wav' });
+  };
+
+  const mergeAndPlayAudio = async (): Promise<void> => {
+    if (audioChunksRef.current.length === 0) {
+      addLog('没有录制的音频数据');
+      return;
+    }
+
+    addLog(`正在合并 ${audioChunksRef.current.length} 个音频数据块...`);
+
+    const buffers = await Promise.all(
+      audioChunksRef.current.map(
+        (blob) =>
+          new Promise<ArrayBuffer>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target?.result as ArrayBuffer);
+            reader.readAsArrayBuffer(blob);
+          })
+      )
+    );
+
+    const totalBytes = buffers.reduce((sum, buf) => sum + buf.byteLength, 0);
+    addLog(`总字节数: ${totalBytes}`);
+
+    // Simple format detection logic from original code
+    const firstChunkBytes = buffers[0].byteLength;
+    let float32Array: Float32Array;
+    let formatName = '未知';
+
+    if (firstChunkBytes % 4 === 0 && totalBytes % 4 === 0) {
+      formatName = 'Float32 (32位浮点数)';
+      const totalSamples = totalBytes / 4;
+      float32Array = new Float32Array(totalSamples);
+      let offset = 0;
+      for (const buf of buffers) {
+        const chunk = new Float32Array(buf);
+        float32Array.set(chunk, offset);
+        offset += chunk.length;
+      }
+    } else {
+      // Fallback or Int16 logic could go here, but let's assume Float32 for now as per server default
+      formatName = 'Float32 (推测)';
+      const totalSamples = Math.floor(totalBytes / 4);
+      float32Array = new Float32Array(totalSamples);
+      let offset = 0;
+      for (const buf of buffers) {
+        const chunk = new Float32Array(buf.slice(0, Math.floor(buf.byteLength / 4) * 4));
+        float32Array.set(chunk, offset);
+        offset += chunk.length;
+      }
+    }
+
+    setAudioFormat(formatName);
+    addLog(`检测到格式: ${formatName}`);
+
+    const wavBlob = float32ToWav(float32Array, 16000);
+    const url = URL.createObjectURL(wavBlob);
+    setAudioUrl(url);
+    addLog('音频已准备就绪');
+  };
+
+  const stopRecording = (): void => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      addLog('WebSocket未连接');
+      return;
+    }
+
+    wsRef.current.send('stop');
+    addLog('发送stop消息');
+    setIsRecording(false);
+
+    mergeAndPlayAudio();
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <TbMicrophone className="h-6 w-6" />
+            </div>
+            <div>
+              <div className="text-base font-semibold text-foreground">录音服务</div>
+              <div className="text-sm text-muted-foreground">管理后台录音进程，开启后可使用语音功能。</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {loading && (
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <TbLoader2 className="animate-spin" />
+                <span>{isRunning ? '启动中...' : '停止中...'}</span>
+              </div>
+            )}
+            {isRunning && (
+              <Button variant="ghost" size="icon" className={`w-8 h-8 transition-transform ${expanded ? 'rotate-180' : ''}`} onClick={onExpand}>
+                <TbChevronDown className="h-4 w-4" />
+              </Button>
+            )}
+            <Switch checked={isRunning} onCheckedChange={handleToggle} disabled={loading} />
+          </div>
+        </div>
+
+        <AnimatePresence initial={false}>
+          {expanded && isRunning && (
+            <motion.div
+              key="recorder-test-panel"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.25, ease: 'easeInOut' }}
+              className="overflow-hidden"
+            >
+              <div className="mt-4 pt-4 border-t border-border space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <TbActivity className="text-muted-foreground" />
+                    <span className="text-sm font-medium">服务测试</span>
+                  </div>
+                  <div className={`rounded-full px-2 py-1 text-xs ${isConnected ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600'}`}>{isConnected ? '已连接' : '未连接'}</div>
+                </div>
+
+                <div className="flex gap-2">
+                  {!isConnected ? (
+                    <Button size="sm" variant="outline" onClick={connect} className="gap-2">
+                      <TbPlugConnected /> 连接服务
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="outline" onClick={disconnect} className="gap-2 text-red-500 hover:text-red-600">
+                      <TbPlugX /> 断开连接
+                    </Button>
+                  )}
+
+                  <Button size="sm" variant="default" disabled={!isConnected || isRecording} onClick={startRecording} className="gap-2">
+                    <TbPlayerPlay /> 开始录音
+                  </Button>
+                  <Button size="sm" variant="destructive" disabled={!isConnected || !isRecording} onClick={stopRecording} className="gap-2">
+                    <TbPlayerStop /> 停止录音
+                  </Button>
+                </div>
+
+                {audioUrl && (
+                  <div className="bg-muted/50 rounded-lg p-3 space-y-2">
+                    <div className="text-xs text-muted-foreground flex justify-between">
+                      <span>录音回放</span>
+                      <span>格式: {audioFormat}</span>
+                    </div>
+                    <audio src={audioUrl} controls className="w-full h-8" />
+                  </div>
+                )}
+
+                <div className="bg-muted rounded-lg p-3 h-32 overflow-y-auto text-xs font-mono space-y-1">
+                  {logs.length === 0 && <div className="text-muted-foreground/50 italic">暂无日志...</div>}
+                  {logs.map((log, i) => (
+                    <div key={i} className="break-all">
+                      {log}
+                    </div>
+                  ))}
+                  <div ref={logEndRef} />
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+};
+
+export default RecorderSettings;

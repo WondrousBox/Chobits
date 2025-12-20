@@ -101,21 +101,42 @@ class RecorderServer {
   async stop(): Promise<boolean> {
     console.log('[RecorderServer] === Stopping  Recorder Server ===');
 
-    if (!this.pid) {
+    if (!this.pid || !this.process) {
       console.warn('[RecorderServer] No running server found to stop');
-      throw new Error('没有运行中的服务器');
+      // 确保状态被清理
+      this.pid = undefined;
+      this.process = undefined;
+      return true;
     }
 
     console.log(`[RecorderServer] Stopping server (PID: ${this.pid})`);
 
-    try {
-      this.process?.kill('SIGTERM');
-      console.log('[RecorderServer] Server stopped successfully');
-      return true;
-    } catch (error) {
-      console.error('[RecorderServer] Error stopping server:', error);
-      throw error;
-    }
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        if (this.process) {
+          console.warn('[RecorderServer] Process did not exit in time, force killing...');
+          this.process.kill('SIGKILL');
+        }
+      }, 5000);
+
+      // 监听一次性 close 事件
+      this.process?.once('close', () => {
+        clearTimeout(timeout);
+        console.log('[RecorderServer] Server stopped successfully (close event received)');
+        resolve(true);
+      });
+
+      // 发送终止信号
+      const killed = this.process?.kill('SIGTERM');
+      if (!killed) {
+        clearTimeout(timeout);
+        reject(new Error('Failed to send SIGTERM signal'));
+      }
+    });
+  }
+
+  isRunning(): boolean {
+    return !!this.pid;
   }
 
   private async waitForPort(port: number, maxAttempts = 10): Promise<boolean> {

@@ -10,4 +10,8 @@ export function initRecorderHandlers(): void {
   ipcMain.handle('recorder:stop', async () => {
     return recorderServer.stop();
   });
+
+  ipcMain.handle('recorder:status', async () => {
+    return recorderServer.isRunning();
+  });
 }
