@@ -17,6 +17,7 @@ import type { VectorBridgeType } from '../electron/preload/apis/vector';
 import type videoDownloaderAPI from '../electron/preload/apis/video-downloader';
 import type { WindowBridgeType } from '../electron/preload/apis/window';
 import type { AppEventPayload } from '../packages/event/events';
+import type { RecorderIpcRendererType } from '../packages/recorder/ipc-renderer';
 
 declare global {
   interface Window {
@@ -48,6 +49,7 @@ declare global {
       shortcuts: ShortcutsBridgeType;
       pluginResource: PluginResourceIpcType;
       dailyCare: DailyCareBridgeType;
+      recorder: RecorderIpcRendererType;
       proxy: ProxyIpcType;
       theme: ThemeIpcType;
       ai: AIApi;
