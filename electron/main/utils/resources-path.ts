@@ -5,7 +5,7 @@ import { app } from 'electron';
 
 import { getRealPath } from '.';
 
-export function getResourcePath(binName: 'ffmpeg' | 'recorder' | 'ffprobe' | 'yt-dlp' | 'sprites' | 'resources' | 'plugins' | 'providers' | 'logs' | 'workflows'): string | undefined {
+export function getResourcePath(binName: 'ffmpeg' | 'recorder' | 'sherpa' | 'ffprobe' | 'yt-dlp' | 'sprites' | 'resources' | 'plugins' | 'providers' | 'logs' | 'workflows'): string | undefined {
   switch (binName) {
     case 'ffmpeg':
       return getRealPath(
@@ -22,6 +22,8 @@ export function getResourcePath(binName: 'ffmpeg' | 'recorder' | 'ffprobe' | 'yt
         `../yt-dlp/${os.platform()}/${os.platform() === 'darwin' ? 'yt-dlp_macos' : 'yt-dlp.exe'}`,
         `./resources/yt-dlp/${os.platform()}/${os.platform() === 'darwin' ? 'yt-dlp_macos' : 'yt-dlp.exe'}`
       );
+    case 'sherpa':
+      return getRealPath(`../sherpa`, `./resources/sherpa`);
     case 'resources':
       return getRealPath(`../`, `./resources`);
     case 'plugins':

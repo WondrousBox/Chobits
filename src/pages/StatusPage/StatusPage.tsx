@@ -1,8 +1,9 @@
+import prettyBytes from 'pretty-bytes';
 import React, { useEffect, useState } from 'react';
+import { TbFolderOpen, TbHeartFilled, TbMicrophone, TbRefresh, TbX } from 'react-icons/tb';
+
 import EmbeddingJobsPanel from '@/components/EmbeddingJobs';
 import { Button } from '@/components/ui/button';
-import { TbFolderOpen, TbHeartFilled, TbRefresh, TbX } from 'react-icons/tb';
-import prettyBytes from 'pretty-bytes';
 
 type RoleProfile = {
   name: string;
@@ -166,6 +167,23 @@ export const StatusPage: React.FC = () => {
         </div>
 
         <EmbeddingJobsPanel />
+
+        {/* Tools */}
+        <div className="mt-4 border rounded-lg p-4">
+          <div className="font-medium mb-2">工具</div>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                window.YUA.window['window:open']('asrTest');
+              }}
+            >
+              <TbMicrophone className="w-4 h-4 mr-2" />
+              ASR 语音识别测试
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   );
