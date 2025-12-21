@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 
 import { aiBridge } from '../../packages/ai/ipc-renderer';
 import { APP_EVENT_CHANNEL, AppEventPayload } from '../../packages/event/events';
@@ -22,6 +22,8 @@ import { statusBridge } from './apis/status';
 import { vectorBridge } from './apis/vector';
 import videoDownloaderAPI from './apis/video-downloader';
 import { windowBridge } from './apis/window';
+
+const handles: Record<string, (...arg: any) => any> = {};
 
 // --------- Expose some API to the Renderer process ---------
 contextBridge.exposeInMainWorld('ipcRenderer', {
@@ -81,6 +83,19 @@ contextBridge.exposeInMainWorld('YUA', {
       const subscription = (_event: any, payload: AppEventPayload): void => callback(payload);
       ipcRenderer.on(APP_EVENT_CHANNEL, subscription);
       return () => ipcRenderer.off(APP_EVENT_CHANNEL, subscription);
+    }
+  },
+  handleMessage: (handleFunction: (event: IpcRendererEvent, data: { type: string; data: any }) => any, name: string) => {
+    if (handles[name]) {
+      ipcRenderer.removeListener('renderer-message', handles[name]);
+    }
+    handles[name] = handleFunction;
+
+    return ipcRenderer.addListener('renderer-message', handleFunction);
+  },
+  removeHandler: (name: string) => {
+    if (handles[name]) {
+      return ipcRenderer.removeListener('renderer-message', handles[name]);
     }
   }
 });

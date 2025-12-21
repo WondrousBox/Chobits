@@ -1,25 +1,34 @@
+import { utils } from '@aim-packages/subtitle';
 import { AllModels } from '@packages/sherpa/common';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { TbLoader2, TbMicrophone, TbMicrophoneOff, TbPlayerPause, TbPlayerPlay } from 'react-icons/tb';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
+
+interface RecognizedSegment {
+  text: string;
+  start: number;
+  end: number;
+}
 
 const ASRTestPage: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isASRRunning, setIsASRRunning] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedModel, setSelectedModel] = useState('sherpa-onnx-streaming-zipformer-en-20M-2023-02-17');
+  const [selectedModel, setSelectedModel] = useState('sherpa-onnx-streaming-zipformer-small-ctc-zh-int8-2025-04-01');
   const [language, setLanguage] = useState('zh');
   const [enablePunctuation, setEnablePunctuation] = useState(false);
-  const [recognizedText, setRecognizedText] = useState<string>('');
+  const [recognizedSegments, setRecognizedSegments] = useState<RecognizedSegment[]>([]);
   const [progressText, setProgressText] = useState<string>('');
+  const [progressStart, setProgressStart] = useState<number>(0);
+  const [progressEnd, setProgressEnd] = useState<number>(0);
   const wsRef = useRef<WebSocket | null>(null);
   const isRecordingRef = useRef(false);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   // 更新录音状态 ref
   useEffect(() => {
@@ -112,24 +121,56 @@ const ASRTestPage: React.FC = () => {
 
   // 监听 ASR 识别结果
   useEffect(() => {
-    const handleASRMessage = (_event: any, data: { text: string; isEndpoint: boolean; start: number; end: number }) => {
+    const handleASRMessage = (
+      _event: any,
+      d: {
+        type: string;
+        data: { text: string; isEndpoint: boolean; start: number; end: number };
+      }
+    ): void => {
+      const data = d.data;
+      if (d.type !== 'sherpa:message') return;
+
       if (data.text) {
         setProgressText(data.text);
+        setProgressStart(data.start);
+        setProgressEnd(data.end);
 
         if (data.isEndpoint) {
-          // 如果是端点，添加到完整结果
-          setRecognizedText((prev) => (prev ? `${prev}\n${data.text}` : data.text));
+          // 如果是端点，添加到完整结果列表
+          setRecognizedSegments((prev) => [
+            ...prev,
+            {
+              text: data.text,
+              start: data.start,
+              end: data.end
+            }
+          ]);
           setProgressText('');
+          setProgressStart(0);
+          setProgressEnd(0);
         }
       }
     };
 
-    window.ipcRenderer?.on('sherpa:message', handleASRMessage);
+    window.YUA.handleMessage(handleASRMessage, 'sherpa:message');
 
     return () => {
-      window.ipcRenderer?.off('sherpa:message', handleASRMessage);
+      window.YUA.removeHandler('sherpa:message');
     };
   }, []);
+
+  // 自动滚动到底部
+  useEffect(() => {
+    if (contentRef.current) {
+      const viewport = contentRef.current.closest('[data-radix-scroll-area-viewport]') as HTMLElement;
+      if (viewport) {
+        requestAnimationFrame(() => {
+          viewport.scrollTop = viewport.scrollHeight;
+        });
+      }
+    }
+  }, [recognizedSegments, progressText]);
 
   // 清理
   useEffect(() => {
@@ -199,9 +240,9 @@ const ASRTestPage: React.FC = () => {
   }, [isASRRunning, isLoading, isRecording, stopRecording]);
 
   return (
-    <div>
+    <>
       <DragAbleTitle title="ASR 语音识别测试" />
-      <div className="flex gap-6">
+      <div className="flex gap-6 px-2">
         <div>
           <div className="space-y-2">
             <Label htmlFor="model">模型</Label>
@@ -210,7 +251,7 @@ const ASRTestPage: React.FC = () => {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="sherpa-onnx-streaming-zipformer-en-20M-2023-02-17">Zipformer (英文)</SelectItem>
+                <SelectItem value="sherpa-onnx-streaming-zipformer-small-ctc-zh-int8-2025-04-01">Zipformer (英文)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -296,36 +337,59 @@ const ASRTestPage: React.FC = () => {
         </div>
 
         {/* 识别结果 */}
-        <Card>
-          <CardHeader>
-            <CardTitle>识别结果</CardTitle>
-            <CardDescription>实时显示识别文本</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <Label>实时进度</Label>
-                <Textarea value={progressText} readOnly placeholder="实时识别文本将显示在这里..." className="min-h-[60px] font-mono" />
-              </div>
-              <div>
-                <Label>完整结果</Label>
-                <Textarea value={recognizedText} readOnly placeholder="完整识别结果将显示在这里..." className="min-h-[200px] font-mono" />
-              </div>
-              <Button
-                onClick={() => {
-                  setRecognizedText('');
-                  setProgressText('');
-                }}
-                size="sm"
-                variant="outline"
-              >
-                清空结果
-              </Button>
+        <div className="space-y-4 flex-1 min-w-[500px]">
+          <div className="flex items-center justify-between">
+            <Label>识别结果</Label>
+            <Button
+              onClick={() => {
+                setRecognizedSegments([]);
+                setProgressText('');
+                setProgressStart(0);
+                setProgressEnd(0);
+              }}
+              size="sm"
+              variant="outline"
+            >
+              清空结果
+            </Button>
+          </div>
+          <ScrollArea className="h-[600px] w-full border rounded-md">
+            <div className="px-4 py-3" ref={contentRef}>
+              {/* 已识别的完整结果 */}
+              {recognizedSegments.map((segment, index) => (
+                <div key={index} className="flex items-start justify-center gap-2 relative pl-4 group mb-2">
+                  <div className="select-none pt-3 cursor-pointer text-muted-foreground text-xs hover:text-primary w-20 text-center relative">
+                    <span className="text-xs absolute left-1/2 -translate-x-1/2 -top-1 group-hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity duration-300">#{index + 1}</span>
+                    <div className="text-[10px] leading-tight">
+                      <div>{utils.cleanTimeDisplay(utils.formatTime(segment.start / 1000))}</div>
+                    </div>
+                  </div>
+                  <div className="p-2 flex-1 outline-none break-words border-none text-base text-foreground" style={{ whiteSpace: 'pre-wrap' }}>
+                    {segment.text || '\u200b'}
+                  </div>
+                </div>
+              ))}
+
+              {/* 最新的识别内容（置灰显示） */}
+              {progressText && (
+                <div className="flex items-start justify-center gap-2 relative pl-4 group mb-2">
+                  <div className="select-none pt-3 cursor-pointer text-muted-foreground/60 text-xs hover:text-primary w-20 text-center relative">
+                    <div className="text-[10px] leading-tight text-muted-foreground/60">
+                      <div>{utils.cleanTimeDisplay(utils.formatTime(progressStart / 1000))}</div>
+                    </div>
+                  </div>
+                  <div className="p-2 flex-1 outline-none break-words border-none text-base text-muted-foreground/60" style={{ whiteSpace: 'pre-wrap' }}>
+                    {progressText || '\u200b'}
+                  </div>
+                </div>
+              )}
+
+              {recognizedSegments.length === 0 && !progressText && <div className="text-center text-muted-foreground py-8">识别结果将显示在这里...</div>}
             </div>
-          </CardContent>
-        </Card>
+          </ScrollArea>
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 
