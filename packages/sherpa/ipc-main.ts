@@ -3,7 +3,7 @@ import { BrowserWindow, ipcMain } from 'electron';
 import { AllModels } from './common';
 import { ASR_createInstance, ASR_freeInstance, ASR_sendData } from './index';
 
-export function initSherpaHandlers(win?: BrowserWindow | null): void {
+export function initSherpaHandlers(): void {
   ipcMain.handle('sherpa:createInstance', async (_, data: { model: AllModels; punctuationModel?: string; language?: string }) => {
     const ins = await ASR_createInstance({
       uuid: 'stream',
@@ -13,30 +13,16 @@ export function initSherpaHandlers(win?: BrowserWindow | null): void {
     });
     if (ins) {
       ins.handler = (d) => {
-        console.log({
-          type: 'asr:message',
-          data: d
-        });
-
-        // 发送识别结果到前端
-        if (win && !win.isDestroyed()) {
-          try {
-            win.webContents.send('sherpa:message', d);
-          } catch (error) {
-            console.error('发送 ASR 识别结果失败:', error);
-          }
-        } else {
-          // 如果没有指定窗口，发送到所有窗口
-          BrowserWindow.getAllWindows().forEach((w) => {
-            if (!w.isDestroyed()) {
-              try {
-                w.webContents.send('sherpa:message', d);
-              } catch (error) {
-                console.error('发送 ASR 识别结果失败:', error);
-              }
+        // send to all windows
+        BrowserWindow.getAllWindows().forEach((w) => {
+          if (!w.isDestroyed()) {
+            try {
+              w.webContents.send('sherpa:message', d);
+            } catch (error) {
+              console.error('发送 ASR 识别结果失败:', error);
             }
-          });
-        }
+          }
+        });
       };
 
       return true;
