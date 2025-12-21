@@ -157,10 +157,10 @@ export function getModelConfig(data: { model: AllModels; modelDir: string; cpu_n
 
   let config = undefined;
 
-  // @ts-ignore
+  // @ts-ignore - ignore the type error because the model is valid
   if (SHERPA_CONFIG[data.model]) {
     try {
-      // @ts-ignore
+      // @ts-ignore - ignore the type error because the model is valid
       let str = SHERPA_CONFIG[data.model];
       str = Mustache.render(str, configData);
       str = str.replace(/\\/g, '/');
@@ -318,7 +318,7 @@ export function getModelConfig(data: { model: AllModels; modelDir: string; cpu_n
   }
 }
 
-export function punctuationModelConfig(data: { model: AllModels; modelDir: string; cpu_numThreads?: number }) {
+export function punctuationModelConfig(data: { model: AllModels; modelDir: string; cpu_numThreads?: number }): any {
   const modelDir = data.modelDir;
 
   // Please download test files from
