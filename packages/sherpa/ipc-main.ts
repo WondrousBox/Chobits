@@ -17,7 +17,7 @@ export function initSherpaHandlers(): void {
         BrowserWindow.getAllWindows().forEach((w) => {
           if (!w.isDestroyed()) {
             try {
-              w.webContents.send('sherpa:message', d);
+              w.webContents.send('renderer-message', { type: 'sherpa:message', data: d });
             } catch (error) {
               console.error('发送 ASR 识别结果失败:', error);
             }

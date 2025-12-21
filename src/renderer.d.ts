@@ -1,3 +1,5 @@
+import type { IpcRendererEvent } from 'electron';
+
 import type { AIApi } from '../electron/main/ai/types';
 import type { DailyCareBridgeType } from '../electron/main/daily/ipc-renderer';
 import type { FFmpegIpcType } from '../electron/main/handlers/ffmpeg/ipc-renderer';
@@ -58,6 +60,8 @@ declare global {
       events: {
         on: (callback: (payload: AppEventPayload) => void) => () => void;
       };
+      handleMessage: (handleFunction: (event: IpcRendererEvent, data: { type: string; data: any }) => any, name: string) => Promise<void>;
+      removeHandler: (name?: string) => Promise<void>;
     };
     ipcRenderer: import('electron').IpcRenderer;
   }

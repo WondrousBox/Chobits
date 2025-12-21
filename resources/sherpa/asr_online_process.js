@@ -110,10 +110,6 @@ function setupASR(config) {
   if (config.punctuationModelConfig) {
     log('[asr] use punctuation');
     log(JSON.stringify(config.punctuationModelConfig, null, 2));
-    // 调试：检查 sherpa_onnx 对象的结构
-    log(`[asr] sherpa_onnx keys: ${Object.keys(sherpa_onnx).join(', ')}`);
-    log(`[asr] OnlinePunctuation type: ${typeof sherpa_onnx.OnlinePunctuation}`);
-    log(`[asr] OnlinePunctuation value: ${sherpa_onnx.OnlinePunctuation}`);
 
     if (!sherpa_onnx.OnlinePunctuation) {
       log('[asr] ERROR: OnlinePunctuation is not available in sherpa_onnx');
