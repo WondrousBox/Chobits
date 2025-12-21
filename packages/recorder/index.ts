@@ -25,7 +25,7 @@ class RecorderServer {
     console.log(`[RecorderServer] Starting server on port ${port} (binary: ${recorderBinPath})`);
 
     return new Promise((resolve, reject) => {
-      const child = spawn(recorderBinPath, ['-s', '-p', port.toString()]);
+      const child = spawn(recorderBinPath, ['-s', '-p', port.toString(), '-i', '200']);
       this.process = child;
 
       child.stdout?.on('data', (data: Buffer) => {
