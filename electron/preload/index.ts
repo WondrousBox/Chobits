@@ -4,6 +4,7 @@ import { aiBridge } from '../../packages/ai/ipc-renderer';
 import { APP_EVENT_CHANNEL, AppEventPayload } from '../../packages/event/events';
 import { pluginResourceIpcRenderer } from '../../packages/plugins/ipc-renderer';
 import { recorderIpcRenderer } from '../../packages/recorder/ipc-renderer';
+import { sherpaIpcRenderer } from '../../packages/sherpa/ipc-renderer';
 import { dailyCareBridge } from '../main/daily/ipc-renderer';
 import { ffmpegIpcRenderer } from '../main/handlers/ffmpeg/ipc-renderer';
 import { fileIpcRenderer } from '../main/handlers/file/ipc-renderer';
@@ -74,6 +75,7 @@ contextBridge.exposeInMainWorld('YUA', {
   pluginResource: pluginResourceIpcRenderer,
   proxy: proxyIpcRenderer,
   theme: themeIpcRenderer,
+  sherpa: sherpaIpcRenderer,
   events: {
     on: (callback: (payload: AppEventPayload) => void) => {
       const subscription = (_event: any, payload: AppEventPayload): void => callback(payload);

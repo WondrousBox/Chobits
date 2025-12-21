@@ -7,7 +7,8 @@
     "node_modules/sqlite-vec/**/*",
     "node_modules/sharp/**/*",
     "node_modules/@img/sharp-*/**/*",
-    "node_modules/@img/sharp-libvips-*/**/*"
+    "node_modules/@img/sharp-libvips-*/**/*",
+    "node_modules/sherpa-onnx-node/**/*"
   ],
   "directories": {
     "output": "release/${version}"
@@ -19,7 +20,8 @@
     "node_modules/sqlite-vec/**/*",
     "node_modules/sharp/**/*",
     "node_modules/@img/sharp-*/**/*",
-    "node_modules/@img/sharp-libvips-*/**/*"
+    "node_modules/@img/sharp-libvips-*/**/*",
+    "node_modules/sherpa-onnx-node/**/*"
   ],
   "extraResources": [
     {
@@ -37,6 +39,10 @@
     {
       "from": "resources/sprites",
       "to": "./sprites"
+    },
+    {
+      "from": "resources/sherpa",
+      "to": "./sherpa"
     },
     {
       "from": "resources/recorder/${platform}/${arch}",
