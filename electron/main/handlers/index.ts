@@ -50,7 +50,7 @@ export function initHandlers(win: BrowserWindow): void {
   initStatusHandlers(win);
   initAIHandlers(win);
   initRecorderHandlers();
-  initSherpaHandlers(win);
+  initSherpaHandlers();
   initShortcutsHandlers(win);
   initPluginResourceHandlers(win, {
     getHttpProxy,
