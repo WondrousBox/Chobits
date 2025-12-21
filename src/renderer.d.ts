@@ -18,6 +18,7 @@ import type videoDownloaderAPI from '../electron/preload/apis/video-downloader';
 import type { WindowBridgeType } from '../electron/preload/apis/window';
 import type { AppEventPayload } from '../packages/event/events';
 import type { RecorderIpcRendererType } from '../packages/recorder/ipc-renderer';
+import type { SherpaIpcRendererType } from '../packages/sherpa/ipc-renderer';
 
 declare global {
   interface Window {
@@ -52,6 +53,7 @@ declare global {
       recorder: RecorderIpcRendererType;
       proxy: ProxyIpcType;
       theme: ThemeIpcType;
+      sherpa: SherpaIpcRendererType;
       ai: AIApi;
       events: {
         on: (callback: (payload: AppEventPayload) => void) => () => void;

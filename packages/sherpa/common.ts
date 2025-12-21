@@ -2,6 +2,9 @@ import path from 'node:path';
 
 import Mustache from 'mustache';
 
+import { getResourcePath } from '../../electron/main/utils/resources-path';
+import ChildProcessManager from './child-process-manager';
+
 const SHERPA_CONFIG = {
   'sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17': `{
     "featConfig": {
@@ -87,7 +90,7 @@ const SHERPA_CONFIG = {
 };
 
 export function getVadModel(): string {
-  return './resources/vad/silero_vad.onnx';
+  return path.resolve(getResourcePath('sherpa')!, 'silero_vad.onnx');
 }
 
 // Please download test files from
@@ -134,7 +137,8 @@ const commonConfig = {
   rule3MinUtteranceLength: 20
 };
 
-export function getModelConfig(data: { model: AllModels; modelDir: string; cpu_numThreads?: number; language?: string }) {
+export function getModelConfig(data: { model: AllModels; modelDir: string; cpu_numThreads?: number; language?: string }): any {
+  console.log(data);
   const modelDir = data.modelDir;
 
   const configData = {
@@ -152,8 +156,10 @@ export function getModelConfig(data: { model: AllModels; modelDir: string; cpu_n
 
   let config = undefined;
 
+  // @ts-ignore
   if (SHERPA_CONFIG[data.model]) {
     try {
+      // @ts-ignore
       let str = SHERPA_CONFIG[data.model];
       str = Mustache.render(str, configData);
       str = str.replace(/\\/g, '/');
@@ -311,7 +317,9 @@ export function getModelConfig(data: { model: AllModels; modelDir: string; cpu_n
   }
 }
 
-export function punctuationModelConfig(data: { model: AllModels; modelDir: string; cpu_numThreads?: number }) {
+export function punctuationModelConfig(data: { model: AllModels; modelDir: string; cpu_numThreads?: number }): {
+  model: { ctTransformer: string; debug: boolean; numThreads: number; provider: string };
+} {
   const modelDir = data.modelDir;
 
   return {
@@ -324,7 +332,12 @@ export function punctuationModelConfig(data: { model: AllModels; modelDir: strin
   };
 }
 
-export function vadModelConfig() {
+export function vadModelConfig(): {
+  sileroVad: { model: string; threshold: number; minSpeechDuration: number; minSilenceDuration: number; windowSize: number };
+  sampleRate: number;
+  debug: boolean;
+  numThreads: number;
+} {
   // please download silero_vad.onnx from
   // https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx
   const vadConfig = {
@@ -346,7 +359,8 @@ export function vadModelConfig() {
 export type StreamInstances = Record<
   string,
   {
-    type: 'direct';
+    process: ChildProcessManager;
+    type: 'process';
     handler?: (data: { start: number; end: number; text: string; isEndpoint: boolean }) => any;
   }
 >;
