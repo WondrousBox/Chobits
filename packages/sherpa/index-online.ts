@@ -73,9 +73,16 @@ export async function createInstance(data: { uuid: string; model: AllModels; pun
       asrProcess.start();
       asrProcess.send({
         data: {
-          modelConfig: getModelConfig({ model: data.model, modelDir: path.resolve(PluginConfigStore.getPluginsDir(), 'sherpa', 'model'), language: data.language }),
+          modelConfig: getModelConfig({
+            model: data.model,
+            modelDir: path.resolve(PluginConfigStore.getPluginsDir(), 'sherpa', 'model'),
+            language: data.language
+          }),
           punctuationModelConfig: data.punctuationModel
-            ? punctuationModelConfig({ modelDir: path.resolve(PluginConfigStore.getPluginsDir(), 'sherpa', 'model'), model: data.punctuationModel as any })
+            ? punctuationModelConfig({
+              modelDir: path.resolve(PluginConfigStore.getPluginsDir(), 'sherpa', 'model'),
+              model: data.punctuationModel as any
+            })
             : undefined,
           language: data.language
         },
