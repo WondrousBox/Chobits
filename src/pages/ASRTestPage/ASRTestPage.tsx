@@ -174,7 +174,7 @@ const ASRTestPage: React.FC = () => {
       const success = await window.YUA.sherpa.createInstance({
         model: selectedModel as AllModels,
         language: language,
-        punctuationModel: enablePunctuation ? 'sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17' : undefined
+        punctuationModel: enablePunctuation ? 'sherpa-onnx-online-punct-en-2024-08-06' : undefined
       });
 
       if (success) {

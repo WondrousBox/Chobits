@@ -42,7 +42,8 @@ try {
 
     const result = await tryImportModule(modulePath);
     if (result.success) {
-      sherpa_onnx = result.module;
+      // 处理 CommonJS 模块的 default 导出
+      sherpa_onnx = result.module.default || result.module;
       log(`[asr] sherpa-onnx-node loaded successfully from: ${result.path}`);
     } else {
       throw new Error(`Failed to load sherpa-onnx-node from ${modulePath}`);
@@ -51,7 +52,9 @@ try {
     // 开发环境：尝试从当前目录的 node_modules 导入
     try {
       log('[asr] Attempting to load sherpa-onnx-node from node_modules...');
-      sherpa_onnx = await import('sherpa-onnx-node');
+      const imported = await import('sherpa-onnx-node');
+      // 处理 CommonJS 模块的 default 导出
+      sherpa_onnx = imported.default || imported;
       log('[asr] sherpa-onnx-node loaded successfully from node_modules');
     } catch (error) {
       log(`[asr] Failed to load from node_modules: ${error.message}`);
@@ -69,7 +72,8 @@ try {
       for (const modulePath of possiblePaths) {
         const result = await tryImportModule(modulePath);
         if (result.success) {
-          sherpa_onnx = result.module;
+          // 处理 CommonJS 模块的 default 导出
+          sherpa_onnx = result.module.default || result.module;
           log(`[asr] sherpa-onnx-node loaded successfully from: ${result.path}`);
           loaded = true;
           break;
@@ -105,7 +109,23 @@ function setupASR(config) {
 
   if (config.punctuationModelConfig) {
     log('[asr] use punctuation');
-    punctuation = new sherpa_onnx.Punctuation(config.punctuationModelConfig);
+    log(JSON.stringify(config.punctuationModelConfig, null, 2));
+    // 调试：检查 sherpa_onnx 对象的结构
+    log(`[asr] sherpa_onnx keys: ${Object.keys(sherpa_onnx).join(', ')}`);
+    log(`[asr] OnlinePunctuation type: ${typeof sherpa_onnx.OnlinePunctuation}`);
+    log(`[asr] OnlinePunctuation value: ${sherpa_onnx.OnlinePunctuation}`);
+
+    if (!sherpa_onnx.OnlinePunctuation) {
+      log('[asr] ERROR: OnlinePunctuation is not available in sherpa_onnx');
+      throw new Error('OnlinePunctuation is not available in sherpa-onnx-node module');
+    }
+
+    if (typeof sherpa_onnx.OnlinePunctuation !== 'function') {
+      log('[asr] ERROR: OnlinePunctuation is not a constructor function');
+      throw new Error('OnlinePunctuation is not a constructor function');
+    }
+
+    punctuation = new sherpa_onnx.OnlinePunctuation(config.punctuationModelConfig);
   }
   stream = recognizer.createStream();
   // display = new sherpa_onnx.Display(50);

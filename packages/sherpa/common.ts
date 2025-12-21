@@ -121,7 +121,8 @@ export type AllModels =
   | 'sherpa-onnx-zipformer-multi-zh-hans-2023-9-2'
   | 'sherpa-onnx-zipformer-cantonese-2024-03-13'
   | 'sherpa-onnx-paraformer-zh-2024-03-09'
-  | 'sherpa-onnx-paraformer-zh-small-2024-03-09';
+  | 'sherpa-onnx-paraformer-zh-small-2024-03-09'
+  | 'sherpa-onnx-online-punct-en-2024-08-06';
 
 const featConfig = {
   sampleRate: 16000,
@@ -317,19 +318,32 @@ export function getModelConfig(data: { model: AllModels; modelDir: string; cpu_n
   }
 }
 
-export function punctuationModelConfig(data: { model: AllModels; modelDir: string; cpu_numThreads?: number }): {
-  model: { ctTransformer: string; debug: boolean; numThreads: number; provider: string };
-} {
+export function punctuationModelConfig(data: { model: AllModels; modelDir: string; cpu_numThreads?: number }) {
   const modelDir = data.modelDir;
 
-  return {
-    model: {
-      ctTransformer: path.resolve(modelDir, data.model, 'model.onnx'),
-      debug: true,
-      numThreads: 1,
-      provider: 'cpu'
-    }
-  };
+  // Please download test files from
+  // https://github.com/k2-fsa/sherpa-onnx/releases/tag/punctuation-models
+  switch (data.model) {
+    case 'sherpa-onnx-online-punct-en-2024-08-06':
+      return {
+        model: {
+          cnnBilstm: path.resolve(modelDir, data.model, 'model.onnx'),
+          bpeVocab: path.resolve(modelDir, data.model, 'bpe.vocab'),
+          debug: true,
+          numThreads: 1,
+          provider: 'cpu'
+        }
+      };
+    default:
+      return {
+        model: {
+          ctTransformer: path.resolve(modelDir, data.model, 'model.onnx'),
+          debug: true,
+          numThreads: 1,
+          provider: 'cpu'
+        }
+      };
+  }
 }
 
 export function vadModelConfig(): {
