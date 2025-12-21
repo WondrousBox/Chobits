@@ -11,8 +11,11 @@ type RecorderSettingsProps = {
 };
 
 const RecorderSettings: React.FC<RecorderSettingsProps> = ({ expanded, onExpand }) => {
+  const [recorderConfig, setRecorderConfig] = useState<{ enabled?: boolean } | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [loading, setLoading] = useState(false);
+  const loadedRef = useRef(false);
+  const applyingRef = useRef(false);
 
   // Test Client State
   const [isConnected, setIsConnected] = useState(false);
@@ -57,16 +60,69 @@ const RecorderSettings: React.FC<RecorderSettingsProps> = ({ expanded, onExpand 
     }
   };
 
+  // Load config on mount
   useEffect(() => {
-    checkStatus();
+    let cancelled = false;
+    (async () => {
+      try {
+        const cfg = await window.YUA.recorder.getConfig();
+        if (!cancelled) {
+          applyingRef.current = true;
+          setRecorderConfig(cfg);
+          loadedRef.current = true;
+
+          // Auto-start if enabled
+          if (cfg.enabled) {
+            const status = await window.YUA.recorder.getStatus();
+            if (!status) {
+              try {
+                await window.YUA.recorder.start();
+              } catch (error) {
+                console.error('Failed to auto-start recorder:', error);
+              }
+            }
+            await checkStatus();
+          } else {
+            await checkStatus();
+          }
+        }
+      } catch (error) {
+        console.warn('加载录音配置失败:', error);
+      }
+    })();
+
     return () => {
+      cancelled = true;
       disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Save config when it changes
+  useEffect(() => {
+    if (!recorderConfig) return;
+    if (!loadedRef.current) return;
+    if (applyingRef.current) {
+      applyingRef.current = false;
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        await window.YUA.recorder.updateConfig(recorderConfig);
+      } catch (error) {
+        console.error('自动保存录音配置失败:', error);
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [recorderConfig]);
+
+  const enabled = recorderConfig?.enabled !== false;
+
   const handleToggle = async (checked: boolean): Promise<void> => {
-    setIsRunning(checked);
+    if (checked && !enabled) {
+      onExpand();
+    }
+    setRecorderConfig((prev) => ({ ...prev, enabled: checked }));
     setLoading(true);
 
     try {
@@ -79,7 +135,7 @@ const RecorderSettings: React.FC<RecorderSettingsProps> = ({ expanded, onExpand 
       await checkStatus();
     } catch (error) {
       console.error('Failed to toggle recorder:', error);
-      setIsRunning(!checked);
+      setRecorderConfig((prev) => ({ ...prev, enabled: !checked }));
     } finally {
       setLoading(false);
     }
@@ -277,12 +333,12 @@ const RecorderSettings: React.FC<RecorderSettingsProps> = ({ expanded, onExpand 
                 <TbChevronDown className="h-4 w-4" />
               </Button>
             )}
-            <Switch checked={isRunning} onCheckedChange={handleToggle} disabled={loading} />
+            <Switch checked={enabled} onCheckedChange={handleToggle} disabled={loading || !recorderConfig} />
           </div>
         </div>
 
         <AnimatePresence initial={false}>
-          {expanded && isRunning && (
+          {expanded && enabled && isRunning && (
             <motion.div
               key="recorder-test-panel"
               initial={{ height: 0, opacity: 0 }}
