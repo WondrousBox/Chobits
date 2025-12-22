@@ -257,14 +257,14 @@
         "displayName": "SenseVoice",
         "description": "",
         "version": "1.0.0",
-        "archiveType": "tar.gz",
+        "archiveType": "tar.bz2",
         "category": "asr",
         "languages": ["zh", "en", "ja", "ko", "yue"],
         "platforms": [
           {
             "platform": "all",
             "arch": "all",
-            "sourceUrl": "https://model.memo.ac/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2",
+            "sourceUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2",
             "sizeBytes": 0,
             "sha256": "a6b38058add02df1decda0fe36ce08434df44fc4"
           }
@@ -278,14 +278,14 @@
         "displayName": "Paraformer-zh-en",
         "description": "",
         "version": "1.0.0",
-        "archiveType": "tar.gz",
+        "archiveType": "tar.bz2",
         "category": "asr",
         "languages": ["zh", "en"],
         "platforms": [
           {
             "platform": "all",
             "arch": "all",
-            "sourceUrl": "https://model.memo.ac/sherpa-onnx-streaming-paraformer-bilingual-zh-en.tar.bz2",
+            "sourceUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-paraformer-bilingual-zh-en.tar.bz2",
             "sizeBytes": 0,
             "sha256": "d3078d0e7802ee2add8d2aaaf64e0cc15ed61f2f"
           }
@@ -299,14 +299,14 @@
         "displayName": "Zipformer-en",
         "description": "",
         "version": "1.0.0",
-        "archiveType": "tar.gz",
+        "archiveType": "tar.bz2",
         "category": "asr",
         "languages": ["en"],
         "platforms": [
           {
             "platform": "all",
             "arch": "all",
-            "sourceUrl": "https://model.memo.ac/sherpa-onnx-streaming-zipformer-en-20M-2023-02-17.tar.bz2",
+            "sourceUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-20M-2023-02-17.tar.bz2",
             "sizeBytes": 0,
             "sha256": "b1bcb45f414d8d3e9a049bec6902d964f1b38f5d"
           }
@@ -320,37 +320,37 @@
         "displayName": "Whisper-base.en",
         "description": "",
         "version": "1.0.0",
-        "archiveType": "tar.gz",
+        "archiveType": "tar.bz2",
         "category": "asr",
         "languages": ["en"],
         "platforms": [
           {
             "platform": "all",
             "arch": "all",
-            "sourceUrl": "https://model.memo.ac/sherpa-onnx-whisper-base.en.tar.bz2",
+            "sourceUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-base.en.tar.bz2",
             "sizeBytes": 0,
             "sha256": "9edb3b7c4d70a9f3977ed4527d7034e9ffb52329"
           }
         ]
       },
       {
-        "id": "sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12",
+        "id": "sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8",
         "pluginId": "plugin:sherpa-onnx",
         "type": "model",
-        "name": "sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12",
-        "displayName": "sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12",
-        "description": "",
+        "name": "sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8",
+        "displayName": "punct-ct-transformer-zh-en",
+        "description": "Controllable Time-delay Transformer是达摩院语音团队提出的高效后处理框架中的标点模块",
         "version": "1.0.0",
-        "archiveType": "tar.gz",
+        "archiveType": "tar.bz2",
         "category": "punctuation",
         "languages": ["zh", "en"],
         "platforms": [
           {
             "platform": "all",
             "arch": "all",
-            "sourceUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/punctuation-models/sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12.tar.bz2",
+            "sourceUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/punctuation-models/sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8.tar.bz2",
             "sizeBytes": 0,
-            "sha256": "dfe6f365ee7f7e46eec9741fe0bc73bf1e901dd5"
+            "sha256": "c0d5aa5f8eeb686032345e180bedf39319dc2e0556781c6264bcadba8328a6e1"
           }
         ]
       }
