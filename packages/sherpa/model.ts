@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import { cloneDeep } from 'lodash-es';
 
-import { PluginConfigStore } from '../plugins/plugin-config-store';
+import { pluginResourceManager } from '../plugins';
 
 export interface ModelType {
   label: string;
@@ -242,8 +242,15 @@ const SHERPA_MODELS = [
 ];
 
 export function checkModelsExist(models: ModelType[]): void {
-  const modelPath = path.resolve(PluginConfigStore.getPluginsDir(), 'sherpa', 'model');
+  // 使用插件管理模块获取模型目录
+  const modelPath = pluginResourceManager.getPluginResourceDir('plugin:sherpa-onnx', 'model');
   console.log('modelPath', modelPath);
+
+  // 检查目录是否存在
+  if (!fs.existsSync(modelPath)) {
+    console.warn('模型目录不存在:', modelPath);
+    return;
+  }
 
   fs.readdirSync(modelPath).forEach((file) => {
     console.log('file', file);
