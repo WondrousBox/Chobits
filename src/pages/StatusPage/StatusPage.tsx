@@ -176,7 +176,7 @@ export const StatusPage: React.FC = () => {
               size="sm"
               variant="outline"
               onClick={() => {
-                window.YUA.window['window:open']('asrTest');
+                window.YUA.window['window:open']('asrConfig');
               }}
             >
               <TbMicrophone className="w-4 h-4 mr-2" />
