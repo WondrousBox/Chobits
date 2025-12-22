@@ -41,6 +41,89 @@ const getPackageSize = (resource: PluginDefinition): number | undefined => {
   return match?.sizeBytes;
 };
 
+// 语言代码到中文名称的映射
+const getLanguageName = (code: string): string => {
+  const languageMap: Record<string, string> = {
+    multi: '多语言',
+    en: '英语',
+    zh: '中文',
+    ja: '日语',
+    ko: '韩语',
+    yue: '粤语',
+    de: '德语',
+    es: '西班牙语',
+    ru: '俄语',
+    fr: '法语',
+    pt: '葡萄牙语',
+    tr: '土耳其语',
+    pl: '波兰语',
+    ca: '加泰罗尼亚语',
+    nl: '荷兰语',
+    ar: '阿拉伯语',
+    sv: '瑞典语',
+    it: '意大利语',
+    id: '印尼语',
+    hi: '印地语',
+    fi: '芬兰语',
+    vi: '越南语',
+    he: '希伯来语',
+    uk: '乌克兰语',
+    el: '希腊语',
+    ms: '马来语',
+    cs: '捷克语',
+    ro: '罗马尼亚语',
+    da: '丹麦语',
+    hu: '匈牙利语',
+    ta: '泰米尔语',
+    no: '挪威语',
+    th: '泰语',
+    ur: '乌尔都语',
+    hr: '克罗地亚语',
+    bg: '保加利亚语',
+    lt: '立陶宛语',
+    la: '拉丁语',
+    mi: '毛利语',
+    ml: '马拉雅拉姆语',
+    cy: '威尔士语',
+    sk: '斯洛伐克语',
+    te: '泰卢固语',
+    fa: '波斯语',
+    lv: '拉脱维亚语',
+    bn: '孟加拉语',
+    sr: '塞尔维亚语',
+    az: '阿塞拜疆语',
+    sl: '斯洛文尼亚语',
+    kn: '卡纳达语',
+    et: '爱沙尼亚语',
+    mk: '马其顿语',
+    br: '布列塔尼语',
+    eu: '巴斯克语',
+    is: '冰岛语',
+    hy: '亚美尼亚语',
+    ne: '尼泊尔语',
+    mn: '蒙古语',
+    bs: '波斯尼亚语',
+    kk: '哈萨克语',
+    sq: '阿尔巴尼亚语',
+    sw: '斯瓦希里语',
+    gl: '加利西亚语',
+    mr: '马拉地语',
+    pa: '旁遮普语',
+    si: '僧伽罗语',
+    km: '高棉语',
+    sn: '绍纳语',
+    yo: '约鲁巴语',
+    so: '索马里语',
+    af: '南非荷兰语',
+    oc: '奥克西唐语',
+    ka: '格鲁吉亚语',
+    be: '白俄罗斯语',
+    tg: '塔吉克语',
+    sd: '信德语'
+  };
+  return languageMap[code] || code.toUpperCase();
+};
+
 // 轻量状态徽章组件
 const StatusBadge: React.FC<{ status?: string }> = ({ status }) => {
   const map: Record<string, { label: string; cls: string }> = {
@@ -82,6 +165,25 @@ export const PluginListItem: React.FC<PluginListItemProps> = ({ resource, instal
           {status && <StatusBadge status={status} />}
         </div>
         {resource.description && <div className="text-xs text-muted-foreground">{resource.description}</div>}
+        {resource.languages && resource.languages.length > 0 && (
+          <div className="flex items-center gap-1.5 flex-wrap mt-1">
+            <span className="text-[10px] text-muted-foreground">支持语言：</span>
+            {resource.languages.map((lang) => {
+              const isMulti = lang === 'multi';
+              return (
+                <span
+                  key={lang}
+                  className={`text-[10px] px-1.5 py-0.5 rounded ${isMulti
+                      ? 'bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 dark:from-purple-900/40 dark:to-pink-900/40 dark:text-purple-300 font-medium'
+                      : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                    }`}
+                >
+                  {getLanguageName(lang)}
+                </span>
+              );
+            })}
+          </div>
+        )}
         {status === 'downloading' && installedResource?.sizeBytes && (
           <div className="w-full bg-muted h-2 rounded overflow-hidden mt-1">
             <div className="h-full bg-blue-500 transition-all" style={{ width: percent + '%' }}></div>

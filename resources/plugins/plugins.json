@@ -9,19 +9,21 @@
     "version": "1.8.2",
     "binaryName": "whisper",
     "archiveType": "zip",
+    "category": "asr",
+    "languages": ["multi"],
     "platforms": [
       {
         "platform": "darwin",
         "arch": "arm64",
         "sourceUrl": "https://github.com/YuQian2015/memo-build/releases/download/v1.0.0/whisper-cli-darwin-arm64-1.8.2.zip",
-        "sizeBytes": 0,
+        "sizeBytes": 1616031,
         "sha256": "8cf8cc80ecae968c9037ff4c2a35325bc01d80429c5a00eba9876118e4c2c3eb"
       },
       {
         "platform": "win32",
         "arch": "x64",
         "sourceUrl": "https://github.com/YuQian2015/memo-build/releases/download/v1.0.0/whisper-cli-win32-x64-1.8.2.zip",
-        "sizeBytes": 0,
+        "sizeBytes": 1214841,
         "sha256": "44554ebcfa274f6fe7ef3a9c61d571c0644bd3f7eac9e796d8e4e1f3edcfd39f"
       }
     ],
@@ -35,12 +37,14 @@
         "description": "最小的 Whisper 模型，速度快但准确度较低，适合快速转录",
         "version": "1.0.0",
         "archiveType": "none",
+        "category": "asr",
+        "languages": ["multi"],
         "platforms": [
           {
             "platform": "all",
             "arch": "all",
             "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin",
-            "sizeBytes": 75700000,
+            "sizeBytes": 77691713,
             "sha256": "be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21"
           }
         ]
@@ -54,12 +58,14 @@
         "description": "最小的 Whisper 英语模型，速度快但准确度较低，适合快速转录",
         "version": "1.0.0",
         "archiveType": "none",
+        "category": "asr",
+        "languages": ["en"],
         "platforms": [
           {
             "platform": "all",
             "arch": "all",
             "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin",
-            "sizeBytes": 75700000,
+            "sizeBytes": 77704715,
             "sha256": "921e4cf8686fdd993dcd081a5da5b6c365bfde1162e72b08d75ac75289920b1f"
           }
         ]
@@ -73,12 +79,14 @@
         "description": "基础 Whisper 模型，平衡速度和准确度",
         "version": "1.0.0",
         "archiveType": "none",
+        "category": "asr",
+        "languages": ["multi"],
         "platforms": [
           {
             "platform": "all",
             "arch": "all",
             "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin",
-            "sizeBytes": 142000000,
+            "sizeBytes": 147951465,
             "sha256": "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe"
           }
         ]
@@ -92,12 +100,14 @@
         "description": "基础 Whisper 英语模型，平衡速度和准确度",
         "version": "1.0.0",
         "archiveType": "none",
+        "category": "asr",
+        "languages": ["en"],
         "platforms": [
           {
             "platform": "all",
             "arch": "all",
             "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin",
-            "sizeBytes": 142000000,
+            "sizeBytes": 147964211,
             "sha256": "a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002"
           }
         ]
@@ -111,12 +121,14 @@
         "description": "小型 Whisper 模型，推荐用于大多数场景，平衡准确度和速度",
         "version": "1.0.0",
         "archiveType": "none",
+        "category": "asr",
+        "languages": ["multi"],
         "platforms": [
           {
             "platform": "all",
             "arch": "all",
             "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin",
-            "sizeBytes": 461000000,
+            "sizeBytes": 487601967,
             "sha256": "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b"
           }
         ]
@@ -130,13 +142,15 @@
         "description": "小型 Whisper 英语模型，推荐用于大多数场景，平衡准确度和速度",
         "version": "1.0.0",
         "archiveType": "none",
+        "category": "asr",
+        "languages": ["en"],
         "platforms": [
           {
             "platform": "all",
             "arch": "all",
             "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin",
-            "sizeBytes": 461000000,
-            "sha256": "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b"
+            "sizeBytes": 487614201,
+            "sha256": "c6138d6d58ecc8322097e0f987c32f1be8bb0a18532a3f88f734d1bbf9c41e5d"
           }
         ]
       },
@@ -149,12 +163,14 @@
         "description": "中型 Whisper 模型，准确度较高但速度较慢",
         "version": "1.0.0",
         "archiveType": "none",
+        "category": "asr",
+        "languages": ["multi"],
         "platforms": [
           {
             "platform": "all",
             "arch": "all",
             "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.bin",
-            "sizeBytes": 1420000000,
+            "sizeBytes": 1533763059,
             "sha256": "6c14d5adee5f86394037b4e4e8b59f1673b6cee10e3cf0b11bbdbee79c156208"
           }
         ]
@@ -168,13 +184,15 @@
         "description": "中型 Whisper 英语模型，准确度较高但速度较慢",
         "version": "1.0.0",
         "archiveType": "none",
+        "category": "asr",
+        "languages": ["en"],
         "platforms": [
           {
             "platform": "all",
             "arch": "all",
             "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.en.bin",
-            "sizeBytes": 1420000000,
-            "sha256": "6c14d5adee5f86394037b4e4e8b59f1673b6cee10e3cf0b11bbdbee79c156208"
+            "sizeBytes": 1533774781,
+            "sha256": "cc37e93478338ec7700281a7ac30a10128929eb8f427dda2e865faa8f6da4356"
           }
         ]
       },
@@ -187,12 +205,14 @@
         "description": "大型 Whisper 模型，准确度较高，适合高质量转录需求",
         "version": "1.0.0",
         "archiveType": "none",
+        "category": "asr",
+        "languages": ["multi"],
         "platforms": [
           {
             "platform": "all",
             "arch": "all",
             "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v1.bin",
-            "sizeBytes": 3100000000,
+            "sizeBytes": 3094623691,
             "sha256": "7d99f41a10525d0206bddadd86760181fa920438b6b33237e3118ff6c83bb53d"
           }
         ]
@@ -206,13 +226,15 @@
         "description": "大型 Whisper 模型，准确度较高，适合高质量转录需求",
         "version": "1.0.0",
         "archiveType": "none",
+        "category": "asr",
+        "languages": ["multi"],
         "platforms": [
           {
             "platform": "all",
             "arch": "all",
             "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v2.bin",
-            "sizeBytes": 3100000000,
-            "sha256": "7d99f41a10525d0206bddadd86760181fa920438b6b33237e3118ff6c83bb53d"
+            "sizeBytes": 3094623691,
+            "sha256": "9a423fe4d40c82774b6af34115b8b935f34152246eb19e80e376071d3f999487"
           }
         ]
       },
@@ -225,13 +247,15 @@
         "description": "大型 Whisper 模型，准确度较高，适合高质量转录需求",
         "version": "1.0.0",
         "archiveType": "none",
+        "category": "asr",
+        "languages": ["multi"],
         "platforms": [
           {
             "platform": "all",
             "arch": "all",
             "sourceUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3.bin",
-            "sizeBytes": 3100000000,
-            "sha256": "7d99f41a10525d0206bddadd86760181fa920438b6b33237e3118ff6c83bb53d"
+            "sizeBytes": 3095035904,
+            "sha256": "64d182b440b98d5203c4f9bd541544d84c605196c4f7b845dfa11fb23594d1e2"
           }
         ]
       }
