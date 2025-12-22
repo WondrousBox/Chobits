@@ -236,6 +236,125 @@
         ]
       }
     ]
+  },{
+    "id": "sherpa-onnx",
+    "pluginId": "plugin:sherpa-onnx",
+    "type": "engine",
+    "name": "sherpa-onnx",
+    "displayName": "Sherpa ONNX",
+    "description": "Sherpa ONNX 引擎，用于语音识别",
+    "version": "1.0.0",
+    "binaryName": "",
+    "archiveType": "none",
+    "category": "asr",
+    "platforms": [],
+    "models": [
+      {
+        "id": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17",
+        "pluginId": "plugin:sherpa-onnx",
+        "type": "model",
+        "name": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17",
+        "displayName": "SenseVoice",
+        "description": "",
+        "version": "1.0.0",
+        "archiveType": "tar.gz",
+        "category": "asr",
+        "languages": ["zh", "en", "ja", "ko", "yue"],
+        "platforms": [
+          {
+            "platform": "all",
+            "arch": "all",
+            "sourceUrl": "https://model.memo.ac/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2",
+            "sizeBytes": 0,
+            "sha256": "a6b38058add02df1decda0fe36ce08434df44fc4"
+          }
+        ]
+      },
+      {
+        "id": "sherpa-onnx-streaming-paraformer-bilingual-zh-en",
+        "pluginId": "plugin:sherpa-onnx",
+        "type": "model",
+        "name": "sherpa-onnx-streaming-paraformer-bilingual-zh-en",
+        "displayName": "Paraformer-zh-en",
+        "description": "",
+        "version": "1.0.0",
+        "archiveType": "tar.gz",
+        "category": "asr",
+        "languages": ["zh", "en"],
+        "platforms": [
+          {
+            "platform": "all",
+            "arch": "all",
+            "sourceUrl": "https://model.memo.ac/sherpa-onnx-streaming-paraformer-bilingual-zh-en.tar.bz2",
+            "sizeBytes": 0,
+            "sha256": "d3078d0e7802ee2add8d2aaaf64e0cc15ed61f2f"
+          }
+        ]
+      },
+      {
+        "id": "sherpa-onnx-streaming-zipformer-en-20M-2023-02-17",
+        "pluginId": "plugin:sherpa-onnx",
+        "type": "model",
+        "name": "sherpa-onnx-streaming-zipformer-en-20M-2023-02-17",
+        "displayName": "Zipformer-en",
+        "description": "",
+        "version": "1.0.0",
+        "archiveType": "tar.gz",
+        "category": "asr",
+        "languages": ["en"],
+        "platforms": [
+          {
+            "platform": "all",
+            "arch": "all",
+            "sourceUrl": "https://model.memo.ac/sherpa-onnx-streaming-zipformer-en-20M-2023-02-17.tar.bz2",
+            "sizeBytes": 0,
+            "sha256": "b1bcb45f414d8d3e9a049bec6902d964f1b38f5d"
+          }
+        ]
+      },
+      {
+        "id": "sherpa-onnx-whisper-base.en",
+        "pluginId": "plugin:sherpa-onnx",
+        "type": "model",
+        "name": "sherpa-onnx-whisper-base.en",
+        "displayName": "Whisper-base.en",
+        "description": "",
+        "version": "1.0.0",
+        "archiveType": "tar.gz",
+        "category": "asr",
+        "languages": ["en"],
+        "platforms": [
+          {
+            "platform": "all",
+            "arch": "all",
+            "sourceUrl": "https://model.memo.ac/sherpa-onnx-whisper-base.en.tar.bz2",
+            "sizeBytes": 0,
+            "sha256": "9edb3b7c4d70a9f3977ed4527d7034e9ffb52329"
+          }
+        ]
+      },
+      {
+        "id": "sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12",
+        "pluginId": "plugin:sherpa-onnx",
+        "type": "model",
+        "name": "sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12",
+        "displayName": "sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12",
+        "description": "",
+        "version": "1.0.0",
+        "archiveType": "tar.gz",
+        "category": "punctuation",
+        "languages": ["zh", "en"],
+        "platforms": [
+          {
+            "platform": "all",
+            "arch": "all",
+            "sourceUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/punctuation-models/sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12.tar.bz2",
+            "sizeBytes": 0,
+            "sha256": "dfe6f365ee7f7e46eec9741fe0bc73bf1e901dd5"
+          }
+        ]
+      }
+    ]
   }
 ]
 
