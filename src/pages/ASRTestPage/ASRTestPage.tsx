@@ -2,7 +2,7 @@ import { utils } from '@aim-packages/subtitle';
 import { PluginDefinition } from '@packages/plugins/types';
 import { AllModels } from '@packages/sherpa/common';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TbLoader2, TbMicrophone, TbMicrophoneOff, TbPlayerPause, TbPlayerPlay } from 'react-icons/tb';
+import { TbLoader2, TbMicrophone, TbMicrophoneOff } from 'react-icons/tb';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
@@ -119,6 +119,7 @@ const ASRTestPage: React.FC = () => {
   const [loadingModels, setLoadingModels] = useState(true);
   const wsRef = useRef<WebSocket | null>(null);
   const isRecordingRef = useRef(false);
+  const isASRRunningRef = useRef(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
   // 加载 sherpa 模型列表
@@ -221,6 +222,11 @@ const ASRTestPage: React.FC = () => {
     isRecordingRef.current = isRecording;
   }, [isRecording]);
 
+  // 更新 ASR 运行状态 ref
+  useEffect(() => {
+    isASRRunningRef.current = isASRRunning;
+  }, [isASRRunning]);
+
   // 连接 WebSocket
   const connectWebSocket = useCallback((): Promise<void> => {
     return new Promise((resolve, reject) => {
@@ -237,12 +243,13 @@ const ASRTestPage: React.FC = () => {
 
         ws.onmessage = async (event) => {
           if (event.data instanceof Blob && isRecordingRef.current) {
+            console.log('onmessage', event.data, isASRRunningRef.current);
             // 将 Blob 转换为 Float32Array
             const arrayBuffer = await event.data.arrayBuffer();
             const float32Array = new Float32Array(arrayBuffer);
 
             // 发送给 ASR 服务
-            if (isASRRunning) {
+            if (isASRRunningRef.current) {
               try {
                 await window.YUA.sherpa.sendData({
                   uuid: 'stream',
@@ -269,7 +276,7 @@ const ASRTestPage: React.FC = () => {
         reject(e);
       }
     });
-  }, [isASRRunning]);
+  }, []);
 
   // 开始录音
   const startRecording = useCallback(async (): Promise<void> => {
@@ -409,6 +416,8 @@ const ASRTestPage: React.FC = () => {
       }
 
       setIsASRRunning(true);
+      // 立即更新 ref，确保后续代码能获取到最新状态
+      isASRRunningRef.current = true;
 
       // 第二步：连接 WebSocket 并开始录音
       try {
@@ -419,12 +428,14 @@ const ASRTestPage: React.FC = () => {
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
           wsRef.current.send('start');
           setIsRecording(true);
+          isRecordingRef.current = true;
         }
       } catch (error) {
         console.error('开始录音失败:', error);
         // 如果录音失败，停止 ASR 服务
         await window.YUA.sherpa.freeInstance();
         setIsASRRunning(false);
+        isASRRunningRef.current = false;
       }
     } catch (error) {
       console.error('启动 ASR 失败:', error);
@@ -447,6 +458,7 @@ const ASRTestPage: React.FC = () => {
             wsRef.current.send('stop');
           }
           setIsRecording(false);
+          isRecordingRef.current = false;
         } catch (error) {
           console.error('停止录音失败:', error);
         }
@@ -463,9 +475,11 @@ const ASRTestPage: React.FC = () => {
         const success = await window.YUA.sherpa.freeInstance();
         if (success) {
           setIsASRRunning(false);
+          isASRRunningRef.current = false;
         } else {
           // 即使返回 false，也更新状态，确保可以重新启动
           setIsASRRunning(false);
+          isASRRunningRef.current = false;
         }
       }
     } catch (error) {
