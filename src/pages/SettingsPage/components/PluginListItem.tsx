@@ -1,4 +1,4 @@
-import { PluginDefinition } from 'packages/plugins/types';
+import { isSystemPresetPlugin, PluginDefinition } from '@packages/plugins/types';
 import React, { useState } from 'react';
 import { TbDownload, TbLoader2, TbTrash } from 'react-icons/tb';
 
@@ -36,9 +36,10 @@ const StatusBadge: React.FC<{ status?: string }> = ({ status }) => {
 
 export const PluginListItem: React.FC<PluginListItemProps> = ({ resource, installedResource, isInstalling, onInstall, onCancel, onRetry, onRemove }) => {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const isSystemPreset = isSystemPresetPlugin(resource);
   const status = installedResource?.status as string | undefined;
   const percent = installedResource?.sizeBytes ? Math.round((((installedResource?.progressBytes as number) || 0) / ((installedResource?.sizeBytes as number) || 1)) * 100) : 0;
-  const isInstalled = status === 'installed';
+  const isInstalled = status === 'installed' || isSystemPreset;
 
   const content = (
     <>
@@ -87,12 +88,12 @@ export const PluginListItem: React.FC<PluginListItemProps> = ({ resource, instal
             重试
           </Button>
         )}
-        {isInstalled && installedResource?.id && onRemove && (
+        {isInstalled && installedResource?.id && onRemove && !isSystemPreset && (
           <Button size="icon" variant={'destructive'} onClick={() => setShowDeleteDialog(true)}>
             <TbTrash />
           </Button>
         )}
-        {!status && (
+        {!status && !isSystemPreset && (
           <Button size="sm" variant={'outline'} disabled={isInstalling} onClick={() => onInstall(resource.pluginId, resource.id)}>
             {isInstalling ? (
               <>
@@ -106,6 +107,7 @@ export const PluginListItem: React.FC<PluginListItemProps> = ({ resource, instal
             )}
           </Button>
         )}
+        {isSystemPreset && <span className="text-[10px] px-1.5 rounded-md bg-muted text-muted-foreground">系统预设</span>}
       </div>
     </>
   );

@@ -7,6 +7,7 @@ import { DownloadProgress, PluginResource, pluginResourceManager } from '.';
 import { PluginConfigStore } from './plugin-config-store';
 import { getPluginForCurrentPlatform, loadPluginDefinitions } from './plugin-loader';
 import { PluginResourceStore } from './plugin-resource-store';
+import { isSystemPresetPlugin } from './types';
 
 // 存储获取 proxy 的方法
 let getHttpProxyFn: (() => ProxyAgent | undefined) | null = null;
@@ -58,8 +59,31 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
 
   // 列出“已安装的引擎”资源
   ipcMain.handle('plugin-resource:listInstalledEngines', async () => {
+    if (!getPluginDefinitionsPathFn) {
+      throw new Error('Plugin definitions path not configured');
+    }
+    const definitions = await loadPluginDefinitions(getPluginDefinitionsPathFn());
+    const systemPresetEngines = definitions.filter((d) => d.type === 'engine' && isSystemPresetPlugin(d));
+
     const all = PluginResourceStore.list();
-    return all.filter((r) => r.type === 'engine' && r.status === 'installed' && pluginResourceManager.isInstalled(r));
+    const installedEngines = all.filter((r) => r.type === 'engine' && r.status === 'installed' && pluginResourceManager.isInstalled(r));
+
+    // 合并系统预设引擎和已安装的引擎
+    return [
+      ...systemPresetEngines.map((d) => ({
+        id: `${d.pluginId}_${d.type}_${d.id}_${d.version}`,
+        pluginId: d.pluginId,
+        resourceId: d.id,
+        type: d.type,
+        name: d.name,
+        displayName: d.displayName,
+        version: d.version,
+        binaryName: d.binaryName,
+        archiveType: d.archiveType,
+        status: 'installed' as const
+      })),
+      ...installedEngines
+    ];
   });
 
   // 列出“支持的模型”，仅针对已安装的引擎
@@ -68,20 +92,70 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
       throw new Error('Plugin definitions path not configured');
     }
     const definitions = await loadPluginDefinitions(getPluginDefinitionsPathFn());
+
+    // 获取系统预设引擎
+    const systemPresetEngines = definitions.filter((d) => d.type === 'engine' && isSystemPresetPlugin(d));
+    const systemPresetPluginIds = new Set(systemPresetEngines.map((e) => e.pluginId));
+
+    // 获取已安装的引擎
     const installedEngines = PluginResourceStore.list().filter((r) => r.type === 'engine' && r.status === 'installed' && pluginResourceManager.isInstalled(r));
     const installedPluginIds = new Set(installedEngines.map((e) => e.pluginId));
-    return definitions.filter((d) => d.type === 'model' && installedPluginIds.has(d.pluginId));
+
+    // 合并系统预设和已安装的插件ID
+    const allPluginIds = new Set([...systemPresetPluginIds, ...installedPluginIds]);
+
+    return definitions.filter((d) => d.type === 'model' && allPluginIds.has(d.pluginId));
   });
 
   // 列出所有资源
   ipcMain.handle('plugin-resource:list', async (_e, payload?: { pluginId?: string; type?: 'engine' | 'model' }) => {
+    // 获取系统预设插件
+    let systemPresetResources: any[] = [];
+    if (getPluginDefinitionsPathFn) {
+      const definitions = await loadPluginDefinitions(getPluginDefinitionsPathFn());
+      const systemPresetPlugins = definitions.filter((d) => isSystemPresetPlugin(d));
+
+      systemPresetResources = systemPresetPlugins
+        .filter((d) => {
+          if (payload?.pluginId && d.pluginId !== payload.pluginId) return false;
+          if (payload?.type && d.type !== payload.type) return false;
+          return true;
+        })
+        .map((d) => ({
+          id: `${d.pluginId}_${d.type}_${d.id}_${d.version}`,
+          pluginId: d.pluginId,
+          resourceId: d.id,
+          type: d.type,
+          name: d.name,
+          displayName: d.displayName,
+          version: d.version,
+          binaryName: d.binaryName,
+          archiveType: d.archiveType,
+          status: 'installed' as const
+        }));
+    }
+
+    // 获取已安装的资源
+    let installedResources: any[] = [];
     if (payload?.pluginId) {
       if (payload.type) {
-        return PluginResourceStore.listByType(payload.pluginId, payload.type);
+        installedResources = PluginResourceStore.listByType(payload.pluginId, payload.type);
+      } else {
+        installedResources = PluginResourceStore.listByPlugin(payload.pluginId);
       }
-      return PluginResourceStore.listByPlugin(payload.pluginId);
+    } else {
+      installedResources = PluginResourceStore.list();
     }
-    return PluginResourceStore.list();
+
+    // 合并系统预设和已安装的资源，去重（以 id 为准）
+    const resourceMap = new Map<string, any>();
+    [...systemPresetResources, ...installedResources].forEach((r) => {
+      if (!resourceMap.has(r.id)) {
+        resourceMap.set(r.id, r);
+      }
+    });
+
+    return Array.from(resourceMap.values());
   });
 
   // 获取单个资源
@@ -102,6 +176,24 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
 
     if (!pluginDef) {
       return { ok: false, error: 'PLUGIN_NOT_FOUND' };
+    }
+
+    // 如果是系统预设插件，直接返回已安装状态
+    if (isSystemPresetPlugin(pluginDef)) {
+      const deterministicId = `${pluginDef.pluginId}_${pluginDef.type}_${pluginDef.id}_${pluginDef.version}`;
+      const resource: PluginResource = {
+        id: deterministicId,
+        pluginId: pluginDef.pluginId,
+        resourceId: pluginDef.id,
+        type: pluginDef.type,
+        name: pluginDef.name,
+        displayName: pluginDef.displayName,
+        version: pluginDef.version,
+        binaryName: pluginDef.binaryName,
+        archiveType: pluginDef.archiveType || 'none',
+        status: 'installed'
+      };
+      return { ok: true, data: resource, message: 'System preset plugin, already installed' };
     }
 
     const platformInfo = getPluginForCurrentPlatform(pluginDef);
@@ -185,6 +277,22 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
 
   // 检查资源是否已安装
   ipcMain.handle('plugin-resource:isInstalled', async (_e, payload: { id: string }) => {
+    // 先检查是否是系统预设插件
+    if (getPluginDefinitionsPathFn) {
+      const definitions = await loadPluginDefinitions(getPluginDefinitionsPathFn());
+      // 从 id 中提取信息：格式为 pluginId_type_id_version[_sha256]
+      const parts = payload.id.split('_');
+      if (parts.length >= 4) {
+        const pluginId = parts[0];
+        const type = parts[1] as 'engine' | 'model';
+        const resourceId = parts.slice(2, -1).join('_'); // 处理 id 中可能包含下划线的情况
+        const pluginDef = definitions.find((p) => p.pluginId === pluginId && p.id === resourceId && p.type === type);
+        if (pluginDef && isSystemPresetPlugin(pluginDef)) {
+          return { ok: true, installed: true };
+        }
+      }
+    }
+
     const resource = PluginResourceStore.get(payload.id);
     if (!resource) {
       return { ok: false, error: 'Resource not found' };

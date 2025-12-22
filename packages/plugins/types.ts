@@ -38,3 +38,11 @@ export type PluginDefinition = {
   // 模型作为引擎的子资源（仅当 type === 'engine' 时存在）
   models?: PluginDefinition[];
 };
+
+/**
+ * 判断插件是否是系统预设的（已内置安装）
+ * 条件：archiveType 为 'none' 且 platforms 数组为空
+ */
+export function isSystemPresetPlugin(plugin: PluginDefinition): boolean {
+  return plugin.archiveType === 'none' && (!plugin.platforms || plugin.platforms.length === 0);
+}
