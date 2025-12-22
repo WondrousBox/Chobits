@@ -363,7 +363,7 @@
         "type": "model",
         "name": "sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8",
         "displayName": "punct-ct-transformer-zh-en",
-        "description": "Controllable Time-delay Transformer是达摩院语音团队提出的高效后处理框架中的标点模块",
+        "description": "Controllable Time-delay Transformer标点模块",
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "punctuation",
