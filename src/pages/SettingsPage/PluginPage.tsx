@@ -286,7 +286,7 @@ const PluginPage: React.FC<PluginPageProps> = () => {
       <NetworkCheckDialog open={showNetworkDialog} onOpenChange={setShowNetworkDialog} />
 
       {Object.keys(resourcesByPlugin).length === 0 && <div className="text-xs text-muted-foreground border rounded px-2 text-center py-20">暂无插件。</div>}
-      <div className="space-y-1 px-2 h-[calc(100%-52px)] overflow-y-auto">
+      <div className="space-y-2 px-2 h-[calc(100%-52px)] overflow-y-auto">
         {Object.entries(resourcesByPlugin).map(([pluginId, { engines, models }]) => {
           const pluginName = engines[0]?.pluginId.replace('plugin:', '') || models[0]?.pluginId.replace('plugin:', '') || pluginId.replace('plugin:', '');
           const isExpanded = expandedPlugins.has(pluginId);
@@ -298,7 +298,7 @@ const PluginPage: React.FC<PluginPageProps> = () => {
           const shouldShowModels = hasModels && hasInstalledEngine;
 
           return (
-            <div key={pluginId}>
+            <div key={pluginId} className="border border-solid rounded-md p-2">
               {/* 引擎列表 */}
               {hasEngines && engines.map((resource) => renderResourceItem(resource))}
 
@@ -318,6 +318,7 @@ const PluginPage: React.FC<PluginPageProps> = () => {
                         exit={{ height: 0, opacity: 0 }}
                         transition={{ duration: 0.2, ease: 'easeInOut' }}
                         style={{ overflow: 'hidden' }}
+                        className="border border-solid rounded-md mt-2"
                       >
                         <div className="space-y-1">{models.map((resource) => renderResourceItem(resource))}</div>
                       </motion.div>
