@@ -1,5 +1,5 @@
+import { isSystemPresetPlugin, PluginDefinition } from '@packages/plugins/types';
 import { AnimatePresence, motion } from 'framer-motion';
-import { PluginDefinition } from 'packages/plugins/types';
 import React, { useEffect, useState } from 'react';
 import { TbBox, TbChevronDown, TbChevronRight, TbSettings, TbWifi } from 'react-icons/tb';
 
@@ -141,7 +141,7 @@ const PluginPage: React.FC<PluginPageProps> = () => {
   const getDisplayResources = (): PluginDefinition[] => {
     if (tabValue === 'installed') {
       // 已安装标签页：筛选已安装的资源，转换为 PluginDefinition 格式
-      return installed
+      const installedResources = installed
         .filter((m) => m.status === 'installed')
         .map((m) => {
           // 从支持的插件列表中找到对应的 PluginDefinition
@@ -159,6 +159,17 @@ const PluginPage: React.FC<PluginPageProps> = () => {
             }
           );
         });
+
+      // 添加系统预设插件
+      const systemPresetPlugins = supported.filter((s) => isSystemPresetPlugin(s));
+      const installedIds = new Set(installedResources.map((r) => r.id));
+      systemPresetPlugins.forEach((plugin) => {
+        if (!installedIds.has(plugin.id)) {
+          installedResources.push(plugin);
+        }
+      });
+
+      return installedResources;
     } else {
       // 可用插件标签页：返回所有支持的资源（状态会通过 installedResource prop 传递）
       return supported;
@@ -217,7 +228,21 @@ const PluginPage: React.FC<PluginPageProps> = () => {
   const renderResourceItem = (resource: PluginDefinition): React.ReactElement => {
     const busy = installing === resource.id;
     const rec = installed.find((m) => m.pluginId === resource.pluginId && m.name === resource.name && m.status !== 'removed');
-    return <PluginListItem key={resource.id} resource={resource} installedResource={rec} isInstalling={busy} onInstall={install} onCancel={cancel} onRetry={retry} onRemove={remove} />;
+    // 如果是系统预设插件，创建一个虚拟的已安装资源记录
+    const isSystemPreset = isSystemPresetPlugin(resource);
+    const installedResource = isSystemPreset
+      ? {
+        id: `${resource.pluginId}_${resource.type}_${resource.id}_${resource.version}`,
+        pluginId: resource.pluginId,
+        resourceId: resource.id,
+        type: resource.type,
+        name: resource.name,
+        displayName: resource.displayName,
+        version: resource.version,
+        status: 'installed' as const
+      }
+      : rec;
+    return <PluginListItem key={resource.id} resource={resource} installedResource={installedResource} isInstalling={busy} onInstall={install} onCancel={cancel} onRetry={retry} onRemove={remove} />;
   };
 
   if (loading) return <div className="p-4 text-xs text-muted-foreground">加载中...</div>;
@@ -267,7 +292,9 @@ const PluginPage: React.FC<PluginPageProps> = () => {
           const isExpanded = expandedPlugins.has(pluginId);
           const hasModels = models.length > 0;
           const hasEngines = engines.length > 0;
-          const hasInstalledEngine = installed.some((resource) => resource.pluginId === pluginId && resource.type === 'engine' && resource.status === 'installed');
+          // 检查是否有已安装的引擎（包括系统预设引擎）
+          const hasInstalledEngine =
+            installed.some((resource) => resource.pluginId === pluginId && resource.type === 'engine' && resource.status === 'installed') || engines.some((engine) => isSystemPresetPlugin(engine));
           const shouldShowModels = hasModels && hasInstalledEngine;
 
           return (
