@@ -1,4 +1,5 @@
 import { isSystemPresetPlugin, PluginDefinition } from '@packages/plugins/types';
+import prettyBytes from 'pretty-bytes';
 import React, { useState } from 'react';
 import { TbDownload, TbLoader2, TbTrash } from 'react-icons/tb';
 
@@ -16,6 +17,29 @@ interface PluginListItemProps {
   onRetry: (id: string) => void;
   onRemove?: (id: string) => void;
 }
+
+// 获取当前平台对应的包大小
+const getPackageSize = (resource: PluginDefinition): number | undefined => {
+  const platform = window.YUA?.platform || 'win32';
+  const arch = window.YUA?.arch || 'x64';
+
+  // 优先匹配精确的平台和架构
+  let match = resource.platforms.find((p) => p.platform === platform && p.arch === arch);
+  if (!match) {
+    match = resource.platforms.find((p) => p.platform === platform && p.arch === 'all');
+  }
+  if (!match) {
+    match = resource.platforms.find((p) => p.platform === platform);
+  }
+  if (!match) {
+    match = resource.platforms.find((p) => p.platform === 'all' && p.arch === 'all');
+  }
+  if (!match) {
+    match = resource.platforms.find((p) => p.platform === 'all');
+  }
+
+  return match?.sizeBytes;
+};
 
 // 轻量状态徽章组件
 const StatusBadge: React.FC<{ status?: string }> = ({ status }) => {
@@ -41,6 +65,10 @@ export const PluginListItem: React.FC<PluginListItemProps> = ({ resource, instal
   const percent = installedResource?.sizeBytes ? Math.round((((installedResource?.progressBytes as number) || 0) / ((installedResource?.sizeBytes as number) || 1)) * 100) : 0;
   const isInstalled = status === 'installed' || isSystemPreset;
 
+  // 获取包大小
+  const packageSize = getPackageSize(resource);
+  const displaySize = installedResource?.sizeBytes || packageSize;
+
   const content = (
     <>
       <div className="flex flex-col gap-1 flex-1">
@@ -48,6 +76,9 @@ export const PluginListItem: React.FC<PluginListItemProps> = ({ resource, instal
           <span className="text-[10px] rounded bg-muted px-1 py-0.5">{resource.type === 'engine' ? '引擎' : '模型'}</span>
           <span>{resource.displayName || resource.name}</span>
           <span className="text-[10px] rounded bg-muted px-1 py-0.5">v{resource.version}</span>
+          {displaySize !== undefined && typeof displaySize === 'number' && displaySize >= 0 && (
+            <span className="text-[10px] rounded bg-muted px-1 py-0.5 text-muted-foreground">{prettyBytes(displaySize || 0)}</span>
+          )}
           {status && <StatusBadge status={status} />}
         </div>
         {resource.description && <div className="text-xs text-muted-foreground">{resource.description}</div>}
