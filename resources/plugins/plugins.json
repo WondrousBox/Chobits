@@ -265,8 +265,8 @@
             "platform": "all",
             "arch": "all",
             "sourceUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2",
-            "sizeBytes": 0,
-            "sha256": "a6b38058add02df1decda0fe36ce08434df44fc4"
+            "sizeBytes": 1047870769,
+            "sha256": "f6b2a72ebcb1ac7a764d4cfccd886e6bcb2a95c4657c2199d0ba95ed4b9ea71a"
           }
         ]
       },
@@ -286,8 +286,8 @@
             "platform": "all",
             "arch": "all",
             "sourceUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-paraformer-bilingual-zh-en.tar.bz2",
-            "sizeBytes": 0,
-            "sha256": "d3078d0e7802ee2add8d2aaaf64e0cc15ed61f2f"
+            "sizeBytes": 1047319737,
+            "sha256": "5462a1fce42693deae572af1e8c4687124b12aa85fe61ff4d3168bb5280e205f"
           }
         ]
       },
@@ -296,7 +296,7 @@
         "pluginId": "plugin:sherpa-onnx",
         "type": "model",
         "name": "sherpa-onnx-streaming-zipformer-en-20M-2023-02-17",
-        "displayName": "Zipformer-en",
+        "displayName": "Zipformer-en-20M",
         "description": "",
         "version": "1.0.0",
         "archiveType": "tar.bz2",
@@ -307,8 +307,8 @@
             "platform": "all",
             "arch": "all",
             "sourceUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-20M-2023-02-17.tar.bz2",
-            "sizeBytes": 0,
-            "sha256": "b1bcb45f414d8d3e9a049bec6902d964f1b38f5d"
+            "sizeBytes": 127887156,
+            "sha256": "9c559283e8498d3fe95913c79ca1cb454bb26281ac2b102b41306c7d752765d9"
           }
         ]
       },
@@ -328,8 +328,8 @@
             "platform": "all",
             "arch": "all",
             "sourceUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-whisper-base.en.tar.bz2",
-            "sizeBytes": 0,
-            "sha256": "9edb3b7c4d70a9f3977ed4527d7034e9ffb52329"
+            "sizeBytes": 208576005,
+            "sha256": "475bc7052ce299c007f6d5d5407ba8601f819a2867f6eecee510ed17df581542"
           }
         ]
       },
@@ -349,7 +349,7 @@
             "platform": "all",
             "arch": "all",
             "sourceUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/punctuation-models/sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8.tar.bz2",
-            "sizeBytes": 0,
+            "sizeBytes": 64717756,
             "sha256": "c0d5aa5f8eeb686032345e180bedf39319dc2e0556781c6264bcadba8328a6e1"
           }
         ]
