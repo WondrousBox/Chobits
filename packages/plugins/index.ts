@@ -26,7 +26,7 @@ export interface PluginResource {
   sha256?: string; // SHA256校验和
   sourceUrl: string; // 下载URL
   sourceType?: 'http' | 'https'; // 源类型
-  archiveType?: 'zip' | 'tar.gz' | 'tar' | 'none'; // 压缩包类型，none表示不压缩
+  archiveType?: 'zip' | 'tar.gz' | 'tar.bz2' | 'tar' | 'none'; // 压缩包类型，none表示不压缩
   installPath?: string; // 安装路径
   status?: DownloadStatus; // 下载状态
   progressBytes?: number; // 已下载字节数
@@ -444,11 +444,10 @@ export class PluginResourceManager extends EventEmitter {
     this.kick();
   }
 
-  private async extractArchive(archivePath: string, targetDir: string, archiveType: 'zip' | 'tar.gz' | 'tar', extractTo?: string, task?: InternalTask): Promise<void> {
+  private async extractArchive(archivePath: string, targetDir: string, archiveType: 'zip' | 'tar.gz' | 'tar.bz2' | 'tar', extractTo?: string, task?: InternalTask): Promise<void> {
     const finalDir = extractTo ? path.join(targetDir, extractTo) : targetDir;
     fs.mkdirSync(finalDir, { recursive: true });
 
-    // 使用封装的unzipFileWith7Z统一解压所有格式（zip, tar, tar.gz等）
     const progressCallback = task
       ? (data: { total: number; current: number; filePath: string; type: 'Directory' | 'File'; size?: number; percent?: number }) => {
         // 更新解压进度
@@ -462,7 +461,55 @@ export class PluginResourceManager extends EventEmitter {
       }
       : undefined;
 
-    await unzipFileWith7Z(archivePath, finalDir, progressCallback);
+    // tar.bz2 需要解压两次：先解压 bz2 得到 tar 文件，再解压 tar 文件
+    if (archiveType === 'tar.bz2') {
+      // 第一次解压：解压 bz2 压缩层，得到 tar 文件
+      const tempDir = path.join(targetDir, '.temp-extract');
+      fs.mkdirSync(tempDir, { recursive: true });
+
+      try {
+        await unzipFileWith7Z(archivePath, tempDir, progressCallback);
+
+        // 查找解压出来的 .tar 文件
+        const files = fs.readdirSync(tempDir);
+        const tarFile = files.find((f) => f.endsWith('.tar'));
+
+        if (!tarFile) {
+          throw new Error(`No .tar file found after extracting ${archivePath}`);
+        }
+
+        const tarFilePath = path.join(tempDir, tarFile);
+
+        // 第二次解压：解压 tar 文件到最终目录
+        await unzipFileWith7Z(tarFilePath, finalDir, progressCallback);
+
+        // 清理临时目录和 tar 文件
+        try {
+          if (fs.existsSync(tarFilePath)) {
+            fs.unlinkSync(tarFilePath);
+          }
+          // 递归删除临时目录
+          if (fs.existsSync(tempDir)) {
+            fs.rmSync(tempDir, { recursive: true, force: true });
+          }
+        } catch {
+          // 忽略清理错误
+        }
+      } catch (error) {
+        // 清理临时目录（即使出错也要清理）
+        try {
+          if (fs.existsSync(tempDir)) {
+            fs.rmSync(tempDir, { recursive: true, force: true });
+          }
+        } catch {
+          // 忽略清理错误
+        }
+        throw error;
+      }
+    } else {
+      // 其他格式直接解压
+      await unzipFileWith7Z(archivePath, finalDir, progressCallback);
+    }
   }
 }
 

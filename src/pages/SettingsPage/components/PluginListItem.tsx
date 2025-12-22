@@ -47,9 +47,7 @@ export const PluginListItem: React.FC<PluginListItemProps> = ({ resource, instal
         <div className="text-sm font-medium flex items-center gap-2">
           <span className="text-[10px] rounded bg-muted px-1 py-0.5">{resource.type === 'engine' ? '引擎' : '模型'}</span>
           <span>{resource.displayName || resource.name}</span>
-          <span className="text-[10px] rounded bg-muted px-1 py-0.5">
-            {resource.id}@{resource.version}
-          </span>
+          <span className="text-[10px] rounded bg-muted px-1 py-0.5">v{resource.version}</span>
           {status && <StatusBadge status={status} />}
         </div>
         {resource.description && <div className="text-xs text-muted-foreground">{resource.description}</div>}

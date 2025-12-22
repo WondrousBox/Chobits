@@ -20,7 +20,7 @@ export type PluginDefinition = {
   description?: string;
   version: string;
   binaryName?: string;
-  archiveType?: 'zip' | 'tar.gz' | 'tar' | 'none';
+  archiveType?: 'zip' | 'tar.gz' | 'tar.bz2' | 'tar' | 'none';
   category?: PluginCategory;
   /**
    * 支持的语言列表
