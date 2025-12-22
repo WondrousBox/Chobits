@@ -2,7 +2,7 @@ import { app } from 'electron';
 import path from 'path';
 
 import { getResourcePath } from '../../electron/main/utils/resources-path';
-import { PluginConfigStore } from '../plugins/plugin-config-store';
+import { pluginResourceManager } from '../plugins';
 import ChildProcessManager from './child-process-manager';
 import { AllModels, getModelConfig, punctuationModelConfig, StreamInstances } from './common';
 
@@ -71,16 +71,19 @@ export async function createInstance(data: { uuid: string; model: AllModels; pun
 
     if (!asrProcess.exist()) {
       asrProcess.start();
+      // 使用插件管理模块获取模型目录
+      const modelDir = pluginResourceManager.getPluginResourceDir('plugin:sherpa-onnx', 'model');
+
       asrProcess.send({
         data: {
           modelConfig: getModelConfig({
             model: data.model,
-            modelDir: path.resolve(PluginConfigStore.getPluginsDir(), 'sherpa', 'model'),
+            modelDir: modelDir,
             language: data.language
           }),
           punctuationModelConfig: data.punctuationModel
             ? punctuationModelConfig({
-              modelDir: path.resolve(PluginConfigStore.getPluginsDir(), 'sherpa', 'model'),
+              modelDir: modelDir,
               model: data.punctuationModel as any
             })
             : undefined,
