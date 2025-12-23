@@ -24,7 +24,7 @@ export interface PluginResource {
   version?: string; // 版本号
   sizeBytes?: number; // 文件大小（字节）
   sha256?: string; // SHA256校验和
-  sourceUrl: string; // 下载URL
+  sourceUrl?: string; // 下载URL
   sourceType?: 'http' | 'https'; // 源类型
   archiveType?: 'zip' | 'tar.gz' | 'tar.bz2' | 'tar' | 'none'; // 压缩包类型，none表示不压缩
   installPath?: string; // 安装路径
@@ -278,7 +278,7 @@ export class PluginResourceManager extends EventEmitter {
       // 从URL中提取文件名，如果无法提取则使用资源名称
       let urlFileName: string;
       try {
-        const urlObj = new URL(url);
+        const urlObj = new URL(url!);
         urlFileName = path.basename(urlObj.pathname) || '';
       } catch {
         urlFileName = '';
@@ -323,7 +323,7 @@ export class PluginResourceManager extends EventEmitter {
       if (!skipDownload) {
         console.log('[PluginDL] start download', { id: task.resource.id, url, downloadFile });
         // 下载文件（带.download后缀）
-        await this.downloader.download(url, downloadFile, {
+        await this.downloader.download(url!, downloadFile, {
           onProgress: (p) => {
             this.emitProgress(task.resource.id, {
               status: 'downloading',
