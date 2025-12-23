@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/explicit-function-return-type */
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { pathToFileURL } from 'url';
@@ -19,16 +20,22 @@ function log(text) {
 
 // 尝试导入模块的辅助函数
 async function tryImportModule(modulePath, possibleEntries = []) {
-  const entries = possibleEntries.length > 0 ? possibleEntries : ['', '/index.js', '/sherpa-onnx.js'];
+  // 优先尝试 sherpa-onnx.js，这是 ESM 模块的正确入口
+  const entries = possibleEntries.length > 0 ? possibleEntries : ['/sherpa-onnx.js', '/index.js'];
 
   for (const entry of entries) {
     try {
       const fullPath = path.join(modulePath, entry);
+      // 检查文件是否存在
+      if (!fs.existsSync(fullPath)) {
+        continue;
+      }
       const moduleUrl = pathToFileURL(fullPath).href;
       const module = await import(moduleUrl);
       return { success: true, module, path: fullPath };
     } catch (e) {
       // 继续尝试下一个入口
+      log(`[asr] Failed to import ${path.join(modulePath, entry)}: ${e.message}`);
     }
   }
   return { success: false };

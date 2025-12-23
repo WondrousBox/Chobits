@@ -1,4 +1,5 @@
 import { app } from 'electron';
+import fs from 'fs';
 import path from 'path';
 
 import { getResourcePath } from '../../electron/main/utils/resources-path';
@@ -7,6 +8,99 @@ import ChildProcessManager from './child-process-manager';
 import { AllModels, getModelConfig, punctuationModelConfig, StreamInstances } from './common';
 
 const Ins: StreamInstances = {};
+
+// 查找 pnpm 模块路径的辅助函数
+function findPnpmModulePath(basePath: string, moduleName: string): string | null {
+  const pnpmDir = path.resolve(basePath, 'node_modules', '.pnpm');
+  if (fs.existsSync(pnpmDir)) {
+    try {
+      const entries = fs.readdirSync(pnpmDir);
+      // 查找匹配的模块目录（格式：moduleName@version）
+      const matched = entries.find((entry) => entry.startsWith(`${moduleName}@`));
+      if (matched) {
+        const modulePath = path.resolve(pnpmDir, matched, 'node_modules', moduleName);
+        if (fs.existsSync(modulePath)) {
+          return modulePath;
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+  return null;
+}
+
+// 查找 sherpa-onnx-node 模块的实际路径（支持 pnpm 的 node_modules 结构）
+function findSherpaOnnxNodePath(): string | null {
+  const appPath = app.getAppPath();
+
+  if (appPath.includes('app.asar')) {
+    // 打包后的环境：模块在 app.asar.unpacked 中
+    const unpackedPath = appPath.replace('app.asar', 'app.asar.unpacked');
+    const possiblePath = path.resolve(unpackedPath, 'node_modules', 'sherpa-onnx-node');
+    if (fs.existsSync(possiblePath)) {
+      return possiblePath;
+    }
+  } else {
+    // 开发环境：尝试多个可能的路径
+    const searchPaths = [appPath, process.cwd()];
+
+    for (const basePath of searchPaths) {
+      // 1. 尝试直接路径
+      const directPath = path.resolve(basePath, 'node_modules', 'sherpa-onnx-node');
+      if (fs.existsSync(directPath)) {
+        return directPath;
+      }
+
+      // 2. 尝试 pnpm 路径
+      const pnpmPath = findPnpmModulePath(basePath, 'sherpa-onnx-node');
+      if (pnpmPath) {
+        return pnpmPath;
+      }
+    }
+
+    // 3. 如果都找不到，尝试通过 require.resolve 查找
+    try {
+      const resolvedPath = require.resolve('sherpa-onnx-node/package.json');
+      return path.dirname(resolvedPath);
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  return null;
+}
+
+// 查找 sherpa-onnx-darwin-arm64 原生库路径
+function findSherpaOnnxNativeLibPath(): string | null {
+  const appPath = app.getAppPath();
+
+  if (appPath.includes('app.asar')) {
+    const unpackedPath = appPath.replace('app.asar', 'app.asar.unpacked');
+    const possiblePath = path.resolve(unpackedPath, 'node_modules', 'sherpa-onnx-darwin-arm64');
+    if (fs.existsSync(possiblePath)) {
+      return possiblePath;
+    }
+  } else {
+    const searchPaths = [appPath, process.cwd()];
+
+    for (const basePath of searchPaths) {
+      // 1. 尝试直接路径
+      const directPath = path.resolve(basePath, 'node_modules', 'sherpa-onnx-darwin-arm64');
+      if (fs.existsSync(directPath)) {
+        return directPath;
+      }
+
+      // 2. 尝试 pnpm 路径
+      const pnpmPath = findPnpmModulePath(basePath, 'sherpa-onnx-darwin-arm64');
+      if (pnpmPath) {
+        return pnpmPath;
+      }
+    }
+  }
+
+  return null;
+}
 
 export async function createInstance(data: { uuid: string; model: AllModels; punctuationModel?: string; language?: string }): Promise<StreamInstances[string]> {
   console.log('create online asr', data);
@@ -21,32 +115,33 @@ export async function createInstance(data: { uuid: string; model: AllModels; pun
     console.log(getResourcePath('sherpa'));
 
     // 获取 sherpa-onnx-node 模块的路径
-    // 在打包后的应用中，模块在 app.asar.unpacked 目录中
-    // ESM 模块不使用 NODE_PATH，所以需要传递完整路径
-    const appPath = app.getAppPath();
-    let sherpaOnnxNodePath: string;
+    const sherpaOnnxNodePath = findSherpaOnnxNodePath();
+    if (!sherpaOnnxNodePath) {
+      reject(new Error('Cannot find sherpa-onnx-node module'));
+      return;
+    }
 
-    if (appPath.includes('app.asar')) {
-      // 打包后的环境：模块在 app.asar.unpacked 中
-      const unpackedPath = appPath.replace('app.asar', 'app.asar.unpacked');
-      sherpaOnnxNodePath = path.resolve(unpackedPath, 'node_modules', 'sherpa-onnx-node');
-      console.log('[asr online] Production mode - appPath:', appPath);
-      console.log('[asr online] Production mode - unpackedPath:', unpackedPath);
-      console.log('[asr online] Production mode - sherpaOnnxNodePath:', sherpaOnnxNodePath);
+    console.log('[asr online] sherpaOnnxNodePath:', sherpaOnnxNodePath);
+
+    // 获取原生库路径并设置 DYLD_LIBRARY_PATH
+    const nativeLibPath = findSherpaOnnxNativeLibPath();
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      SHERPA_ONNX_NODE_PATH: sherpaOnnxNodePath
+    };
+
+    if (nativeLibPath) {
+      console.log('[asr online] Found native lib at:', nativeLibPath);
+      // 设置 DYLD_LIBRARY_PATH 以便找到原生库
+      const existingDyldPath = process.env.DYLD_LIBRARY_PATH || '';
+      env.DYLD_LIBRARY_PATH = existingDyldPath ? `${nativeLibPath}:${existingDyldPath}` : nativeLibPath;
     } else {
-      // 开发环境：模块在项目根目录的 node_modules 中
-      sherpaOnnxNodePath = path.resolve(appPath, 'node_modules', 'sherpa-onnx-node');
-      console.log('[asr online] Development mode - appPath:', appPath);
-      console.log('[asr online] Development mode - sherpaOnnxNodePath:', sherpaOnnxNodePath);
+      console.warn('[asr online] Warning: Could not find sherpa-onnx-darwin-arm64 native library');
     }
 
     const asrProcess = new ChildProcessManager(processPath, {
       forkOptions: {
-        env: {
-          ...process.env, // 保留当前进程的环境变量
-          SHERPA_ONNX_NODE_PATH: sherpaOnnxNodePath // 传递模块的完整路径给子进程
-          // DYLD_LIBRARY_PATH: libPath
-        },
+        env,
         stdio: ['pipe', 'pipe', 'pipe', 'ipc'] // Ensure stdio is set correctly
       }
     });

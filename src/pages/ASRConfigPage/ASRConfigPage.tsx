@@ -370,7 +370,7 @@ const ASRConfigPage: React.FC = () => {
         </div>
 
         <div className="flex gap-2 pt-4 border-t">
-          <Button disabled={isLoading || !selectedModel || !sherpaModels.find((m) => m.id === selectedModel)?.isInstalled} onClick={handleStartASR} size="sm" className="flex-1">
+          <Button disabled={isLoading || !selectedModel || !sherpaModels.find((m) => m.id === selectedModel)?.isInstalled} onClick={handleStartASR} className="flex-1">
             {isLoading ? (
               <>
                 <TbLoader2 className="animate-spin" />
@@ -378,8 +378,8 @@ const ASRConfigPage: React.FC = () => {
               </>
             ) : (
               <>
-                <TbPlayerPlay className="w-4 h-4 mr-2" />
-                启动并开始测试
+                <TbPlayerPlay />
+                启动
               </>
             )}
           </Button>
