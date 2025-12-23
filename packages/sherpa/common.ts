@@ -122,7 +122,9 @@ export type AllModels =
   | 'sherpa-onnx-zipformer-cantonese-2024-03-13'
   | 'sherpa-onnx-paraformer-zh-2024-03-09'
   | 'sherpa-onnx-paraformer-zh-small-2024-03-09'
-  | 'sherpa-onnx-online-punct-en-2024-08-06';
+  | 'sherpa-onnx-online-punct-en-2024-08-06'
+  | 'sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8'
+  | 'sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12';
 
 const featConfig = {
   sampleRate: 16000,
@@ -329,6 +331,24 @@ export function punctuationModelConfig(data: { model: AllModels; modelDir: strin
         model: {
           cnnBilstm: path.resolve(modelDir, data.model, 'model.onnx'),
           bpeVocab: path.resolve(modelDir, data.model, 'bpe.vocab'),
+          debug: true,
+          numThreads: 1,
+          provider: 'cpu'
+        }
+      };
+    case 'sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8':
+      return {
+        model: {
+          ctTransformer: path.resolve(modelDir, data.model, 'model.int8.onnx'),
+          debug: true,
+          numThreads: 1,
+          provider: 'cpu'
+        }
+      };
+    case 'sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12':
+      return {
+        model: {
+          ctTransformer: path.resolve(modelDir, data.model, 'model.onnx'),
           debug: true,
           numThreads: 1,
           provider: 'cpu'
