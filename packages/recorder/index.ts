@@ -2,6 +2,7 @@ import { ChildProcess, spawn } from 'child_process';
 import net from 'net';
 import os from 'os';
 
+import pkg from '../../package.json';
 import { getResourcePath } from '../common/utils';
 
 // 等待指定时间
@@ -14,6 +15,67 @@ class RecorderServer {
   constructor() {
     this.process = undefined;
     this.pid = undefined;
+  }
+
+  private async checkMacOSPermissions(): Promise<boolean> {
+    if (os.platform() !== 'darwin') {
+      return true;
+    }
+
+    try {
+      const { systemPreferences, shell, dialog, desktopCapturer } = await import('electron');
+
+      const status = systemPreferences.getMediaAccessStatus('screen');
+      console.log(`[RecorderServer] Screen recording permission status: ${status}`);
+
+      if (status === 'granted') {
+        return true;
+      }
+
+      if (status === 'denied') {
+        const { response } = await dialog.showMessageBox({
+          type: 'warning',
+          title: '需要屏幕录制权限',
+          message: pkg.name + ' 需要屏幕录制权限才能进行录制。',
+          detail: '请在"系统设置 > 隐私与安全性 > 屏幕录制"中允许 ' + pkg.name + '，然后重启应用。',
+          buttons: ['打开系统设置', '取消'],
+          defaultId: 0,
+          cancelId: 1
+        });
+
+        if (response === 0) {
+          await shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture');
+        }
+        return false;
+      }
+
+      if (status === 'not-determined' || status === 'unknown') {
+        console.log('[RecorderServer] Permission not determined, triggering prompt...');
+        try {
+          await desktopCapturer.getSources({ types: ['screen'] });
+          const newStatus = systemPreferences.getMediaAccessStatus('screen');
+          if (newStatus === 'granted') {
+            return true;
+          }
+
+          await dialog.showMessageBox({
+            type: 'info',
+            title: '请授予权限',
+            message: '请在弹出的窗口中允许屏幕录制权限。',
+            detail: '授予权限后，您可能需要重启应用。'
+          });
+          return false;
+        } catch (e) {
+          console.error('[RecorderServer] Failed to trigger permission prompt:', e);
+          return false;
+        }
+      }
+
+      return false;
+    } catch (error) {
+      console.error('[RecorderServer] Error checking permissions:', error);
+      return true;
+    }
   }
 
   private spawnServer(port = 8765): Promise<{ pid: number | undefined; port: number }> {
@@ -73,6 +135,14 @@ class RecorderServer {
 
   async start(port = 8765): Promise<boolean> {
     console.log(`[RecorderServer] === Starting  Recorder Server (port: ${port}, platform: ${os.platform()}, arch: ${os.arch()}) ===`);
+
+    const hasPermission = await this.checkMacOSPermissions();
+    console.log(hasPermission);
+
+    if (!hasPermission) {
+      console.warn('[RecorderServer] Screen recording permission missing, aborting start.');
+      return false;
+    }
 
     try {
       // 启动服务器
