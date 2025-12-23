@@ -12,8 +12,8 @@ import { ThemeProvider } from '@/pages/SettingsPage/providers/ThemeProvider';
 import { AIAssistant } from './components/AIAssistant';
 import { TooltipProvider } from './components/ui/tooltip';
 import AiProviderConfigWindow from './pages/AiProviderConfigWindow/AiProviderConfigWindow';
-import ASRConfigPage from './pages/ASRConfigPage/ASRConfigPage';
-import ASRTestPage from './pages/ASRTestPage/ASRTestPage';
+import ASRConfigPage from './pages/ASRPage/ASRConfigPage';
+import ASRPage from './pages/ASRPage/ASRPage';
 import AssistantMenuPage from './pages/AssistantMenuPage/AssistantMenuPage';
 import AssistantPage from './pages/AssistantPage/AssistantPage';
 import ChatPage from './pages/AssistantPage/ChatPage';
@@ -43,7 +43,7 @@ function App(): JSX.Element {
                 <Route path="/" element={<AIAssistant />} />
                 <Route path="/status" element={<StatusPage />} />
                 <Route path="/asr-config" element={<ASRConfigPage />} />
-                <Route path="/asr-test" element={<ASRTestPage />} />
+                <Route path="/asr" element={<ASRPage />} />
                 <Route path="/menu" element={<AssistantMenuPage />} />
                 <Route path="/file-actions" element={<FileActionsMenu />} />
                 <Route

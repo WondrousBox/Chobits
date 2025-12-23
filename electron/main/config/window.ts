@@ -18,7 +18,7 @@ declare module '@aim-packages/window-manager' {
     tagger: void;
     aiProviderConfig: void;
     asrConfig: void;
-    asrTest: void;
+    asr: void;
   }
 }
 
@@ -435,18 +435,15 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     showOnReady: true,
     openDevTools: true,
     options: {
-      width: 500,
-      height: 600,
-      minWidth: 400,
-      minHeight: 500,
+      width: 400,
+      height: 400,
       frame: false,
-      transparent: false,
+      transparent: true,
       resizable: true,
       alwaysOnTop: false,
-      skipTaskbar: false,
-      backgroundColor: '#ffffff',
+      skipTaskbar: true,
       show: false,
-      autoHideMenuBar: true,
+      backgroundColor: '#00000000',
       webPreferences: { nodeIntegration: true, contextIsolation: true }
     },
     platformOverlays: {
@@ -460,18 +457,15 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
       }
     }
   },
-  asrTest: {
-    routeHash: 'asr-test',
+  asr: {
+    routeHash: 'asr',
     autoCenterOn: 'parent-display',
     showOnReady: true,
     openDevTools: true,
     rememberState: true,
     options: {
       width: 800,
-      height: 200,
-      minWidth: 600,
-      minHeight: 200,
-      maxHeight: 800,
+      height: 600,
       frame: false,
       transparent: false,
       resizable: true,
