@@ -239,7 +239,7 @@ const ASRConfigPage: React.FC = () => {
       }
 
       // 启动成功后，打开测试页面并关闭配置页面
-      window.YUA.window['window:open']('asrTest');
+      window.YUA.window['window:open']('asr');
       window.YUA.window['window:close']('asrConfig');
     } catch (error) {
       console.error('启动 ASR 失败:', error);
@@ -250,18 +250,19 @@ const ASRConfigPage: React.FC = () => {
 
   return (
     <>
-      <DragAbleTitle title="ASR 配置" />
-      <div className="flex flex-col gap-6 px-2 py-4 max-w-2xl mx-auto">
+      <div className="flex flex-col gap-6 p-4 max-w-2xl mx-auto box-border drag-region rounded-lg bg-background">
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="model">模型</Label>
+            <Label className="no-drag" htmlFor="model">
+              模型
+            </Label>
             <Select value={selectedModel} onValueChange={setSelectedModel} disabled={loadingModels}>
-              <SelectTrigger id="model">
+              <SelectTrigger className="no-drag" id="model">
                 <SelectValue placeholder={loadingModels ? '加载中...' : '请选择模型'}>
                   {selectedModel ? sherpaModels.find((m) => m.id === selectedModel)?.displayName || sherpaModels.find((m) => m.id === selectedModel)?.name : null}
                 </SelectValue>
               </SelectTrigger>
-              <SelectContent className="max-w-md">
+              <SelectContent className="max-w-md no-drag">
                 {sherpaModels.length === 0 && !loadingModels && (
                   <SelectItem value="" disabled>
                     暂无可用模型
@@ -296,12 +297,14 @@ const ASRConfigPage: React.FC = () => {
 
             return (
               <div className="space-y-2">
-                <Label htmlFor="language">语言</Label>
+                <Label className="no-drag" htmlFor="language">
+                  语言
+                </Label>
                 <Select value={language} onValueChange={setLanguage} disabled={!selectedModel || loadingModels}>
-                  <SelectTrigger id="language">
+                  <SelectTrigger className="no-drag" id="language">
                     <SelectValue placeholder={!selectedModel ? '请先选择模型' : '请选择语言'} />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="no-drag">
                     {(() => {
                       // 如果模型支持 multi，显示所有常见语言
                       if (supportedLanguages.includes('multi')) {
@@ -336,16 +339,18 @@ const ASRConfigPage: React.FC = () => {
           })()}
           {punctuationModels.length > 0 && (
             <div className="space-y-2">
-              <Label htmlFor="punctuationModel">标点符号模型（可选）</Label>
+              <Label className="no-drag" htmlFor="punctuationModel">
+                标点符号模型（可选）
+              </Label>
               <Select value={selectedPunctuationModel || '__none__'} onValueChange={(value) => setSelectedPunctuationModel(value === '__none__' ? '' : value)} disabled={loadingModels}>
-                <SelectTrigger id="punctuationModel">
+                <SelectTrigger className="no-drag" id="punctuationModel">
                   <SelectValue placeholder="不启用标点符号">
                     {selectedPunctuationModel
                       ? punctuationModels.find((m) => m.id === selectedPunctuationModel)?.displayName || punctuationModels.find((m) => m.id === selectedPunctuationModel)?.name
                       : '不使用标点符号'}
                   </SelectValue>
                 </SelectTrigger>
-                <SelectContent className="max-w-md">
+                <SelectContent className="max-w-md no-drag">
                   <SelectItem value="__none__">
                     <span className="text-muted-foreground">不启用标点符号</span>
                   </SelectItem>
@@ -369,8 +374,11 @@ const ASRConfigPage: React.FC = () => {
           )}
         </div>
 
-        <div className="flex gap-2 pt-4 border-t">
-          <Button disabled={isLoading || !selectedModel || !sherpaModels.find((m) => m.id === selectedModel)?.isInstalled} onClick={handleStartASR} className="flex-1">
+        <div className="flex gap-2 border-t">
+          <Button variant="outline" className="flex-1 no-drag" onClick={() => window.YUA.window['window:close']('asrConfig')}>
+            取消
+          </Button>
+          <Button disabled={isLoading || !selectedModel || !sherpaModels.find((m) => m.id === selectedModel)?.isInstalled} onClick={handleStartASR} className="flex-1 no-drag">
             {isLoading ? (
               <>
                 <TbLoader2 className="animate-spin" />

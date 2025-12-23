@@ -12,7 +12,7 @@ interface RecognizedSegment {
   end: number;
 }
 
-const ASRTestPage: React.FC = () => {
+const ASRPage: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isASRRunning, setIsASRRunning] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -417,4 +417,4 @@ const ASRTestPage: React.FC = () => {
   );
 };
 
-export default ASRTestPage;
+export default ASRPage;
