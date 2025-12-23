@@ -377,6 +377,48 @@
             "sha256": "c0d5aa5f8eeb686032345e180bedf39319dc2e0556781c6264bcadba8328a6e1"
           }
         ]
+      },
+      {
+        "id": "sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12",
+        "pluginId": "plugin:sherpa-onnx",
+        "type": "model",
+        "name": "sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12",
+        "displayName": "punct-ct-transformer-zh-en",
+        "description": "",
+        "version": "1.0.0",
+        "archiveType": "tar.bz2",
+        "category": "punctuation",
+        "languages": ["zh", "en"],
+        "platforms": [
+          {
+            "platform": "all",
+            "arch": "all",
+            "sourceUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/punctuation-models/sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12.tar.bz2",
+            "sizeBytes": 279028058,
+            "sha256": "50f73f8cccffc2303999fda28b785ffcffbd7ea442c47385c30b9d045ee6afc3"
+          }
+        ]
+      },
+      {
+        "id": "sherpa-onnx-online-punct-en-2024-08-06",
+        "pluginId": "plugin:sherpa-onnx",
+        "type": "model",
+        "name": "sherpa-onnx-online-punct-en-2024-08-06",
+        "displayName": "online-punct-en",
+        "description": "",
+        "version": "1.0.0",
+        "archiveType": "tar.bz2",
+        "category": "punctuation",
+        "languages": ["en"],
+        "platforms": [
+          {
+            "platform": "all",
+            "arch": "all",
+            "sourceUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/punctuation-models/sherpa-onnx-online-punct-en-2024-08-06.tar.bz2",
+            "sizeBytes": 30667839,
+            "sha256": "9f5e5a72c7d2829635bd074fce92b6bbd5b78da8a52e7ad8ed1be933f366b99d"
+          }
+        ]
       }
     ]
   }
