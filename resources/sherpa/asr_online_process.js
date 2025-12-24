@@ -128,7 +128,9 @@ function setupASR(config) {
       throw new Error('OnlinePunctuation is not a constructor function');
     }
 
-    punctuation = config.punctuationModelConfig.ctTransformer ? new sherpa_onnx.OfflinePunctuation(config.punctuationModelConfig) : new sherpa_onnx.OnlinePunctuation(config.punctuationModelConfig);
+    punctuation = config.punctuationModelConfig.model.ctTransformer
+      ? new sherpa_onnx.OfflinePunctuation(config.punctuationModelConfig)
+      : new sherpa_onnx.OnlinePunctuation(config.punctuationModelConfig);
   }
   stream = recognizer.createStream();
   // display = new sherpa_onnx.Display(50);
