@@ -124,7 +124,8 @@ export type AllModels =
   | 'sherpa-onnx-paraformer-zh-small-2024-03-09'
   | 'sherpa-onnx-online-punct-en-2024-08-06'
   | 'sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8'
-  | 'sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12';
+  | 'sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12'
+  | 'sherpa-onnx-streaming-zipformer-ctc-multi-zh-hans-2023-12-13';
 
 const featConfig = {
   sampleRate: 16000,
@@ -224,6 +225,9 @@ export function getModelConfig(data: { model: AllModels; modelDir: string; cpu_n
           provider: 'cpu',
           debug: 1
         },
+        ctcFstDecoderConfig: {
+          graph: path.resolve(modelDir, data.model, 'HLG.fst')
+        },
         ...commonConfig
       };
 
@@ -272,6 +276,25 @@ export function getModelConfig(data: { model: AllModels; modelDir: string; cpu_n
           provider: 'cpu',
           debug: 1
         }
+      };
+    case 'sherpa-onnx-streaming-zipformer-ctc-multi-zh-hans-2023-12-13':
+      return {
+        featConfig,
+        modelConfig: {
+          zipformer2Ctc: {
+            model: path.resolve(modelDir, data.model, 'ctc-epoch-20-avg-1-chunk-16-left-128.onnx')
+          },
+          tokens: path.resolve(modelDir, data.model, 'tokens.txt'),
+          numThreads: data.cpu_numThreads || 1,
+          provider: 'cpu',
+          debug: 1
+        },
+        decodingMethod: 'greedy_search',
+        maxActivePaths: 4,
+        enableEndpoint: 1,
+        rule1MinTrailingSilence: 2.4,
+        rule2MinTrailingSilence: 1.2,
+        rule3MinUtteranceLength: 20
       };
     case 'sherpa-onnx-zipformer-multi-zh-hans-2023-9-2':
       return {

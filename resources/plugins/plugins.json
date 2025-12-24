@@ -316,6 +316,48 @@
         ]
       },
       {
+        "id": "sherpa-onnx-streaming-zipformer-ctc-small-2024-03-18",
+        "pluginId": "plugin:sherpa-onnx",
+        "type": "model",
+        "name": "sherpa-onnx-streaming-zipformer-ctc-small-2024-03-18",
+        "displayName": "Zipformer-small",
+        "description": "",
+        "version": "1.0.0",
+        "archiveType": "tar.bz2",
+        "category": "asr",
+        "languages": ["en"],
+        "platforms": [
+          {
+            "platform": "all",
+            "arch": "all",
+            "sourceUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-ctc-small-2024-03-18.tar.bz2",
+            "sizeBytes": 184604253,
+            "sha256": "cd8ed7371b1a0c49e919549a606235c8092f9006425aa06a9e8e6395054126bd"
+          }
+        ]
+      },
+      {
+        "id": "sherpa-onnx-streaming-zipformer-ctc-multi-zh-hans-2023-12-13",
+        "pluginId": "plugin:sherpa-onnx",
+        "type": "model",
+        "name": "sherpa-onnx-streaming-zipformer-ctc-multi-zh-hans-2023-12-13",
+        "displayName": "Zipformer-multi-zh-hans",
+        "description": "",
+        "version": "1.0.0",
+        "archiveType": "tar.bz2",
+        "category": "asr",
+        "languages": ["zh", "hans"],
+        "platforms": [
+          {
+            "platform": "all",
+            "arch": "all",
+            "sourceUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-ctc-multi-zh-hans-2023-12-13.tar.bz2",
+            "sizeBytes": 247200045,
+            "sha256": "99c129581f9a5b04845f3ab1d6d1485f12bf56582fd76bea0798fccc42c70071"
+          }
+        ]
+      },
+      {
         "id": "sherpa-onnx-streaming-zipformer-en-20M-2023-02-17",
         "pluginId": "plugin:sherpa-onnx",
         "type": "model",
