@@ -50,26 +50,25 @@ const SHERPA_MODELS = [
     languages: ['zh', 'en', 'ja', 'ko', 'yue'],
     enableLanguages: true
   },
-  // {
-  //   label: "Zipformer-small",
-  //   value: "sherpa-onnx-streaming-zipformer-ctc-small-2024-03-18",
-  //   size: "176 MB",
-  //   description: "",
-  //   disabled: true,
-  //   downloadLink:
-  //     "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-ctc-small-2024-03-18.tar.bz2",
-  //   speed: 6,
-  //   speedLabel: "common.fast",
-  //   speedValue: "fast",
-  //   quality: 2,
-  //   download: false,
-  //   lang: "",
-  //   langLabel: "",
-  //   sha: "3dee1055efec2f4375905b000ae0891744c41116",
-  //   provider: "sherpa-onnx",
-  //   type: "asr",
-  //   mode: "online",
-  // },
+  {
+    label: 'Zipformer-small',
+    value: 'sherpa-onnx-streaming-zipformer-ctc-small-2024-03-18',
+    size: '176 MB',
+    description: '',
+    disabled: true,
+    downloadLink: 'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-ctc-small-2024-03-18.tar.bz2',
+    speed: 6,
+    speedLabel: 'common.fast',
+    speedValue: 'fast',
+    quality: 2,
+    download: false,
+    lang: '',
+    langLabel: '',
+    sha: '3dee1055efec2f4375905b000ae0891744c41116',
+    provider: 'sherpa-onnx',
+    type: 'asr',
+    mode: 'online'
+  },
   {
     label: 'Paraformer-zh-en',
     value: 'sherpa-onnx-streaming-paraformer-bilingual-zh-en',
@@ -109,6 +108,26 @@ const SHERPA_MODELS = [
     type: 'asr',
     mode: 'online',
     languages: ['en']
+  },
+  {
+    label: 'Zipformer-multi-zh-hans',
+    value: 'sherpa-onnx-streaming-zipformer-ctc-multi-zh-hans-2023-12-13',
+    size: '247 MB',
+    description: '',
+    disabled: true,
+    downloadLink: 'https://model.memo.ac/sherpa-onnx-streaming-zipformer-ctc-multi-zh-hans-2023-12-13.tar.bz2',
+    speed: 6,
+    speedLabel: 'common.fast',
+    speedValue: 'fast',
+    quality: 2,
+    download: false,
+    lang: '',
+    langLabel: '',
+    sha: 'b1bcb45f414d8d3e9a049bec6902d964f1b38f5d',
+    provider: 'sherpa-onnx',
+    type: 'asr',
+    mode: 'online',
+    languages: ['zh', 'hans']
   },
   // {
   //   label: "Zipformer-zh",
@@ -253,8 +272,6 @@ export function checkModelsExist(models: ModelType[]): void {
   }
 
   fs.readdirSync(modelPath).forEach((file) => {
-    console.log('file', file);
-
     const model = models.find((m) => m.value === file);
     if (model) {
       model.disabled = false;

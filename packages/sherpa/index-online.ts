@@ -169,19 +169,25 @@ export async function createInstance(data: { uuid: string; model: AllModels; pun
       // 使用插件管理模块获取模型目录
       const modelDir = pluginResourceManager.getPluginResourceDir('plugin:sherpa-onnx', 'model');
 
+      const modelConfig = getModelConfig({
+        model: data.model,
+        modelDir: modelDir,
+        language: data.language
+      });
+
+      console.log(modelConfig);
+
+      const punctuationModelConfigData = data.punctuationModel
+        ? punctuationModelConfig({
+          modelDir: modelDir,
+          model: data.punctuationModel as any
+        })
+        : undefined;
+
       asrProcess.send({
         data: {
-          modelConfig: getModelConfig({
-            model: data.model,
-            modelDir: modelDir,
-            language: data.language
-          }),
-          punctuationModelConfig: data.punctuationModel
-            ? punctuationModelConfig({
-              modelDir: modelDir,
-              model: data.punctuationModel as any
-            })
-            : undefined,
+          modelConfig,
+          punctuationModelConfig: punctuationModelConfigData,
           language: data.language
         },
         event: 'start'
