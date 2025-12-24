@@ -118,14 +118,14 @@ export function initWindowHandlers(win: BrowserWindow): void {
   function startHook(): void {
     stopHook();
     // macOS: 检查辅助功能授权，未授权时引导用户授权
-    if (process.platform === 'darwin') {
-      try {
-        const trusted = systemPreferences.isTrustedAccessibilityClient(false);
-        if (!trusted) systemPreferences.isTrustedAccessibilityClient(true);
-      } catch {
-        /* ignore */
-      }
-    }
+    // if (process.platform === 'darwin') {
+    //   try {
+    //     const trusted = systemPreferences.isTrustedAccessibilityClient(false);
+    //     if (!trusted) systemPreferences.isTrustedAccessibilityClient(true);
+    //   } catch {
+    //     /* ignore */
+    //   }
+    // }
     try {
       const mod = require('uiohook-napi');
       uIOhook = mod?.uIOhook ?? mod; // 兼容不同导出形式
