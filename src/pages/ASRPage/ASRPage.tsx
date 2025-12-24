@@ -110,7 +110,6 @@ const ASRPage: React.FC = () => {
 
         ws.onmessage = async (event) => {
           if (event.data instanceof Blob && isRecordingRef.current) {
-            console.log('onmessage', event.data, isASRRunningRef.current);
             // 将 Blob 转换为 Float32Array
             const arrayBuffer = await event.data.arrayBuffer();
             const float32Array = new Float32Array(arrayBuffer);
