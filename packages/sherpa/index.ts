@@ -1,16 +1,17 @@
+import { PluginDefinition } from '@packages/plugins/types';
+
 import { AllModels, StreamInstances } from './common';
 import { createInstance as createInstanceOnline, freeInstance as freeInstanceOnline, sendData as sendDataOnline } from './index-online';
-import { getDefaultSherpaModels, ModelType } from './model';
+import { getDefaultSherpaModels } from './model';
 
-let openedModel: ModelType | undefined;
-export function ASR_createInstance(data: { uuid: string; model: AllModels; punctuationModel?: string; language?: string }): Promise<StreamInstances[string]> {
-  const models = getDefaultSherpaModels();
+let openedModel: PluginDefinition | undefined;
+export async function ASR_createInstance(data: { uuid: string; model: AllModels; punctuationModel?: string; language?: string }): Promise<StreamInstances[string]> {
+  const models = await getDefaultSherpaModels();
 
-  const model = models.find((m) => m.value === data.model);
+  const model = models.find((m) => m.id === data.model);
 
   if (!model) {
-    // @ts-ignore
-    return;
+    throw new Error(`Model ${data.model} not found`);
   }
   openedModel = model;
   console.log('openedModel', openedModel);
