@@ -38,7 +38,8 @@ export type AllModels =
   | 'sherpa-onnx-paraformer-zh-small-2024-03-09'
   | 'sherpa-onnx-online-punct-en-2024-08-06'
   | 'sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8'
-  | 'sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12';
+  | 'sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12'
+  | 'sherpa-onnx-streaming-zipformer-ctc-small-2024-03-18';
 
 const featConfig = {
   sampleRate: 16000,
@@ -48,7 +49,7 @@ const featConfig = {
 const commonConfig = {
   decodingMethod: 'greedy_search',
   maxActivePaths: 4,
-  enableEndpoint: 1,
+  enableEndpoint: true,
   rule1MinTrailingSilence: 2.4,
   rule2MinTrailingSilence: 1.2,
   rule3MinUtteranceLength: 20
@@ -106,6 +107,23 @@ export function getModelConfig(data: { model: AllModels; modelDir: string; cpu_n
           numThreads: data.cpu_numThreads || 2,
           provider: 'cpu',
           debug: 1
+        },
+        ...commonConfig
+      };
+    case 'sherpa-onnx-streaming-zipformer-ctc-small-2024-03-18':
+      return {
+        featConfig,
+        modelConfig: {
+          zipformer2Ctc: {
+            model: path.resolve(modelDir, data.model, 'ctc-epoch-30-avg-3-chunk-16-left-128.int8.onnx')
+          },
+          tokens: path.resolve(modelDir, data.model, 'tokens.txt'),
+          numThreads: 2,
+          provider: 'cpu',
+          debug: 1
+        },
+        ctcFstDecoderConfig: {
+          graph: path.resolve(modelDir, data.model, 'HLG.fst')
         },
         ...commonConfig
       };
