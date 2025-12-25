@@ -79,7 +79,7 @@ export const SHERPA_CONFIG: Record<string, string> = {
     },
     "ctcFstDecoderConfig": {
       "graph": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/HLG.fst",
-      "maxActive": 3000,
+      "maxActive": 3000
     }
   }`,
 
