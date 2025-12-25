@@ -1,4 +1,4 @@
-export const SHERPA_CONFIG = {
+export const SHERPA_CONFIG: Record<string, string> = {
   'sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17': `{
     "featConfig": {
       "sampleRate": {{featConfig.sampleRate}},
@@ -26,6 +26,28 @@ export const SHERPA_CONFIG = {
       "paraformer": {
         "encoder": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/encoder.int8.onnx",
         "decoder": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/decoder.int8.onnx"
+      },
+      "tokens": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/tokens.txt",
+      "numThreads": {{modelConfig.numThreads}},
+      "provider": "{{modelConfig.provider}}",
+      "debug": {{modelConfig.debug}}
+    },
+    "decodingMethod": "{{decodingMethod}}",
+    "maxActivePaths": {{maxActivePaths}},
+    "enableEndpoint": {{enableEndpoint}},
+    "rule1MinTrailingSilence": {{rule1MinTrailingSilence}},
+    "rule2MinTrailingSilence": {{rule2MinTrailingSilence}},
+    "rule3MinUtteranceLength": {{rule3MinUtteranceLength}}
+  }`,
+
+  'sherpa-onnx-streaming-zipformer-ctc-multi-zh-hans-2023-12-13': `{
+    "featConfig": {
+      "sampleRate": {{featConfig.sampleRate}},
+      "featureDim": {{featConfig.featureDim}}
+    },
+    "modelConfig": {
+      "zipformer2Ctc": {
+        "model": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/ctc-epoch-20-avg-1-chunk-16-left-128.onnx"
       },
       "tokens": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/tokens.txt",
       "numThreads": {{modelConfig.numThreads}},

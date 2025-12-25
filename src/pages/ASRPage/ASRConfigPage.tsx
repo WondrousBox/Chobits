@@ -3,7 +3,6 @@ import { AllModels } from '@packages/sherpa/common';
 import React, { useEffect, useState } from 'react';
 import { TbLoader2, TbPlayerPlay } from 'react-icons/tb';
 
-import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -259,7 +258,17 @@ const ASRConfigPage: React.FC = () => {
             <Select value={selectedModel} onValueChange={setSelectedModel} disabled={loadingModels}>
               <SelectTrigger className="no-drag" id="model">
                 <SelectValue placeholder={loadingModels ? '加载中...' : '请选择模型'}>
-                  {selectedModel ? sherpaModels.find((m) => m.id === selectedModel)?.displayName || sherpaModels.find((m) => m.id === selectedModel)?.name : null}
+                  {(() => {
+                    const selectedModelInfo = selectedModel ? sherpaModels.find((m) => m.id === selectedModel) : null;
+                    if (!selectedModelInfo) return null;
+                    const isStreaming = selectedModelInfo.id.toLowerCase().includes('stream');
+                    return (
+                      <div className="flex items-center gap-2">
+                        <span>{selectedModelInfo.displayName || selectedModelInfo.name}</span>
+                        {isStreaming && <span className="text-xs text-primary shrink-0">流式</span>}
+                      </div>
+                    );
+                  })()}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent className="max-w-md no-drag">
@@ -268,17 +277,21 @@ const ASRConfigPage: React.FC = () => {
                     暂无可用模型
                   </SelectItem>
                 )}
-                {sherpaModels.map((model) => (
-                  <SelectItem key={model.id} value={model.id} disabled={!model.isInstalled} className="items-center box-border" textValue={model.displayName || model.name}>
-                    <div className="flex flex-col gap-0.5 py-0.5 w-full min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium break-words">{model.displayName || model.name}</span>
-                        {!model.isInstalled && <span className="text-xs text-muted-foreground shrink-0">(未安装)</span>}
+                {sherpaModels.map((model) => {
+                  const isStreaming = model.id.toLowerCase().includes('stream');
+                  return (
+                    <SelectItem key={model.id} value={model.id} disabled={!model.isInstalled} className="items-center box-border" textValue={model.displayName || model.name}>
+                      <div className="flex flex-col gap-0.5 py-0.5 w-full min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium break-words">{model.displayName || model.name}</span>
+                          {isStreaming && <span className="text-xs text-primary shrink-0">流式</span>}
+                          {!model.isInstalled && <span className="text-xs text-muted-foreground shrink-0">(未安装)</span>}
+                        </div>
+                        {model.description && <div className="text-xs text-muted-foreground leading-relaxed break-words">{model.description}</div>}
                       </div>
-                      {model.description && <div className="text-xs text-muted-foreground leading-relaxed break-words">{model.description}</div>}
-                    </div>
-                  </SelectItem>
-                ))}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
             {selectedModel && !sherpaModels.find((m) => m.id === selectedModel)?.isInstalled && <div className="text-xs text-amber-600 dark:text-amber-400">该模型未安装，请先在插件管理中安装</div>}
