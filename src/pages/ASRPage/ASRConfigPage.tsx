@@ -279,6 +279,8 @@ const ASRConfigPage: React.FC = () => {
                 )}
                 {sherpaModels.map((model) => {
                   const isStreaming = model.id.toLowerCase().includes('stream');
+                  const supportedLanguages = model.languages || [];
+                  const languageDisplay = supportedLanguages.includes('multi') ? '多语言' : supportedLanguages.map((lang) => getLanguageName(lang)).join('、');
                   return (
                     <SelectItem key={model.id} value={model.id} disabled={!model.isInstalled} className="items-center box-border" textValue={model.displayName || model.name}>
                       <div className="flex flex-col gap-0.5 py-0.5 w-full min-w-0">
@@ -287,6 +289,7 @@ const ASRConfigPage: React.FC = () => {
                           {isStreaming && <span className="text-xs text-primary shrink-0">流式</span>}
                           {!model.isInstalled && <span className="text-xs text-muted-foreground shrink-0">(未安装)</span>}
                         </div>
+                        {supportedLanguages.length > 0 && <div className="text-xs text-muted-foreground">支持语言: {languageDisplay}</div>}
                         {model.description && <div className="text-xs text-muted-foreground leading-relaxed break-words">{model.description}</div>}
                       </div>
                     </SelectItem>
