@@ -21,7 +21,9 @@ export function checkModelsExist(models: PluginDefinition[]): void {
   fs.readdirSync(modelPath).forEach((file) => {
     const model = models.find((m) => m.name === file);
     if (model) {
+      // @ts-ignore
       model.disabled = false;
+      // @ts-ignore
       model.download = true;
     }
   });
