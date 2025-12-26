@@ -39,6 +39,7 @@ export const documents = sqliteTable(
 
     // 向量元信息：便于模型并存、迁移与一致性校验
     embedModel: text('embed_model'), // 嵌入所用模型（如 'text-embedding-3-large'）
+    embedProviderId: text('embed_provider_id'), // 嵌入服务商ID（如 'openai', 'ollama', 'transformers'），用于区分不同服务商的向量
     embedDim: integer('embed_dim'), // 向量维度（与 vec_docs 维度校验）
     embedAt: integer('embed_at'), // 生成向量时间（毫秒）
 

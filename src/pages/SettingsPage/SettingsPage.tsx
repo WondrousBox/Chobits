@@ -2,6 +2,7 @@ import clsx from 'clsx';
 import React, { useEffect, useState } from 'react';
 import { TbAdjustments, TbBrain, TbCpu, TbFolderOpen, TbKeyboard, TbMessage2, TbNetwork, TbPlug } from 'react-icons/tb';
 
+import { Separator } from '@/components/ui/separator';
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '@/components/ui/sidebar';
 
 import DragAbleTitle from '../../components/common/DragAbleTitle';
@@ -11,6 +12,7 @@ import PreferencesSettings from './components/PreferencesSettings';
 import PromptSetting from './components/PromptSetting';
 import ProxySettings from './components/ProxySettings';
 import ShortcutsSettings from './components/ShortcutsSettings';
+import VectorManagement from './components/VectorManagement';
 import Workspace from './components/Workspace';
 import PluginPage from './PluginPage';
 
@@ -123,7 +125,16 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = []
       case 'preferences':
         return <PreferencesSettings />;
       case 'embedding':
-        return <EmbeddingJobsPanel />;
+        return (
+          <div className="space-y-6">
+            <VectorManagement />
+            <Separator />
+            <div className="p-6">
+              <h3 className="text-lg font-semibold mb-4">嵌入任务队列</h3>
+              <EmbeddingJobsPanel />
+            </div>
+          </div>
+        );
       case 'workspace':
         return (
           <div className="space-y-6">
