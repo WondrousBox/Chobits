@@ -1,9 +1,12 @@
-import { ChildProcess, spawn } from 'child_process';
+import { ChildProcess, exec, spawn } from 'child_process';
 import net from 'net';
 import os from 'os';
+import { promisify } from 'util';
 
 import pkg from '../../package.json';
 import { getResourcePath } from '../common/utils';
+
+const execAsync = promisify(exec);
 
 // 等待指定时间
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -15,6 +18,53 @@ class RecorderServer {
   constructor() {
     this.process = undefined;
     this.pid = undefined;
+  }
+
+  /**
+   * 检查并清理占用指定端口的进程（仅 macOS）
+   */
+  private async killProcessOnPort(port: number): Promise<boolean> {
+    if (os.platform() !== 'darwin') {
+      return false;
+    }
+
+    try {
+      // 使用 lsof 查找占用端口的进程
+      const { stdout } = await execAsync(`lsof -ti :${port}`);
+      const pids = stdout
+        .trim()
+        .split('\n')
+        .filter((pid) => pid.length > 0);
+
+      if (pids.length === 0) {
+        console.log(`[RecorderServer] Port ${port} is not in use`);
+        return false;
+      }
+
+      console.log(`[RecorderServer] Found ${pids.length} process(es) using port ${port}: ${pids.join(', ')}`);
+
+      // 终止所有占用端口的进程
+      for (const pid of pids) {
+        try {
+          await execAsync(`kill -9 ${pid}`);
+          console.log(`[RecorderServer] Killed process ${pid} on port ${port}`);
+        } catch (error) {
+          console.warn(`[RecorderServer] Failed to kill process ${pid}:`, error);
+        }
+      }
+
+      // 等待端口释放
+      await sleep(500);
+      return true;
+    } catch (error: any) {
+      // lsof 返回非零退出码表示没有找到进程，这是正常的
+      if (error.code === 1) {
+        console.log(`[RecorderServer] Port ${port} is not in use`);
+        return false;
+      }
+      console.error(`[RecorderServer] Error checking port ${port}:`, error);
+      return false;
+    }
   }
 
   private async checkMacOSPermissions(): Promise<boolean> {
@@ -35,9 +85,9 @@ class RecorderServer {
       if (status === 'denied') {
         const { response } = await dialog.showMessageBox({
           type: 'warning',
-          title: '需要屏幕录制权限',
+          title: '需要屏幕录制和系统音频权限',
           message: pkg.name + ' 需要屏幕录制权限才能进行录制。',
-          detail: '请在"系统设置 > 隐私与安全性 > 屏幕录制"中允许 ' + pkg.name + '，然后重启应用。',
+          detail: '请在"系统设置 > 隐私与安全性 > 屏幕录制"中允许 ' + pkg.name + '，并在弹出的对话框中勾选"允许系统音频录制"。授予权限后请重启应用。',
           buttons: ['打开系统设置', '取消'],
           defaultId: 0,
           cancelId: 1
@@ -61,8 +111,8 @@ class RecorderServer {
           await dialog.showMessageBox({
             type: 'info',
             title: '请授予权限',
-            message: '请在弹出的窗口中允许屏幕录制权限。',
-            detail: '授予权限后，您可能需要重启应用。'
+            message: '请在弹出的窗口中允许屏幕录制权限，并勾选"允许系统音频录制"。',
+            detail: '授予权限后，您可能需要重启应用才能录制系统音频。'
           });
           return false;
         } catch (e) {
@@ -145,6 +195,9 @@ class RecorderServer {
     }
 
     try {
+      // 在启动前检查并清理端口占用
+      await this.killProcessOnPort(port);
+
       // 启动服务器
       const { port: serverPort } = await this.spawnServer(port);
 

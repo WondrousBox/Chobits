@@ -431,12 +431,15 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
   },
   asrConfig: {
     routeHash: 'asr-config',
+    parent: 'main',
     autoCenterOn: 'parent-display',
-    showOnReady: true,
+    showOnReady: false,
     openDevTools: true,
     options: {
       width: 400,
       height: 400,
+      minWidth: 360,
+      minHeight: 300,
       frame: false,
       transparent: true,
       resizable: true,
@@ -445,16 +448,6 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
       show: false,
       backgroundColor: '#00000000',
       webPreferences: { nodeIntegration: true, contextIsolation: true }
-    },
-    platformOverlays: {
-      darwin: {
-        options: {
-          titleBarStyle: 'hiddenInset',
-          titleBarOverlay: true,
-          trafficLightPosition: { x: 20, y: HEADER_COMMANDS_HEIGHT / 2 - MACOS_TRAFFIC_LIGHTS_HEIGHT / 2 },
-          frame: true
-        }
-      }
     }
   },
   asr: {

@@ -249,7 +249,7 @@ const ASRConfigPage: React.FC = () => {
 
   return (
     <>
-      <div className="flex flex-col gap-6 p-4 max-w-2xl mx-auto box-border drag-region rounded-lg bg-background">
+      <div className="flex flex-col h-full w-full gap-6 p-4 max-w-2xl mx-auto box-border drag-region rounded-lg bg-background">
         <div className="space-y-4">
           <div className="space-y-2">
             <Label className="no-drag" htmlFor="model">
@@ -273,7 +273,7 @@ const ASRConfigPage: React.FC = () => {
               </SelectTrigger>
               <SelectContent className="max-w-md no-drag">
                 {sherpaModels.length === 0 && !loadingModels && (
-                  <SelectItem value="" disabled>
+                  <SelectItem value="__no_models__" disabled>
                     暂无可用模型
                   </SelectItem>
                 )}

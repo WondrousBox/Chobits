@@ -1,0 +1,150 @@
+import React, { Component, ReactNode } from 'react';
+import { TbCheck, TbChevronDown, TbChevronUp, TbCopy } from 'react-icons/tb';
+
+import { Button } from '@/components/ui/button';
+
+interface ErrorBoundaryProps {
+  children: ReactNode;
+  fallback?: ReactNode | ((error: Error, errorInfo: React.ErrorInfo) => ReactNode);
+  onError?: (error: Error, errorInfo: React.ErrorInfo) => void;
+  title?: string;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+  errorInfo: React.ErrorInfo | null;
+  expanded: boolean;
+  copied: boolean;
+}
+
+export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = {
+      hasError: false,
+      error: null,
+      errorInfo: null,
+      expanded: false,
+      copied: false
+    };
+  }
+
+  static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {
+    return {
+      hasError: true,
+      error
+    };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
+    this.setState({
+      error,
+      errorInfo
+    });
+
+    // 调用外部错误处理函数
+    this.props.onError?.(error, errorInfo);
+
+    // 输出错误到控制台
+    console.error('ErrorBoundary 捕获到错误:', error, errorInfo);
+  }
+
+  render(): ReactNode {
+    if (this.state.hasError) {
+      if (this.props.fallback) {
+        if (typeof this.props.fallback === 'function') {
+          return this.props.fallback(this.state.error!, this.state.errorInfo!);
+        }
+        return this.props.fallback;
+      }
+
+      // 默认错误 UI
+      const errorMessage = this.state.error?.message || '未知错误';
+      const errorStack = this.state.error?.stack || '';
+      const componentStack = this.state.errorInfo?.componentStack || '';
+
+      const errorText = [`错误信息: ${errorMessage}`, errorStack && `\n堆栈信息:\n${errorStack}`, componentStack && `\n组件堆栈:\n${componentStack}`].filter(Boolean).join('\n');
+
+      const handleCopy = async (): Promise<void> => {
+        try {
+          await navigator.clipboard.writeText(errorText);
+          this.setState({ copied: true });
+          setTimeout(() => {
+            this.setState({ copied: false });
+          }, 2000);
+        } catch (err) {
+          console.error('复制失败:', err);
+        }
+      };
+
+      const handleToggleExpand = (): void => {
+        this.setState((prev) => ({ expanded: !prev.expanded }));
+      };
+
+      const errorTitle = this.props.title || '应用出错';
+
+      return (
+        <div className="w-full h-full flex items-center justify-center p-4">
+          <div className="p-4 border border-destructive/50 rounded-lg bg-destructive/10 max-w-2xl w-full">
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <div className="flex-1">
+                <div className="text-sm font-medium text-destructive mb-1">{errorTitle}</div>
+                <div className="text-xs text-muted-foreground">{errorMessage}</div>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <Button variant="ghost" size="sm" onClick={handleCopy} className="h-8 w-8 p-0" title={this.state.copied ? '已复制' : '复制错误信息'}>
+                  {this.state.copied ? <TbCheck className="w-4 h-4" /> : <TbCopy className="w-4 h-4" />}
+                </Button>
+                {(errorStack || componentStack) && (
+                  <Button variant="ghost" size="sm" onClick={handleToggleExpand} className="h-8 w-8 p-0" title={this.state.expanded ? '收起详情' : '展开详情'}>
+                    {this.state.expanded ? <TbChevronUp className="w-4 h-4" /> : <TbChevronDown className="w-4 h-4" />}
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {this.state.expanded && (errorStack || componentStack) && (
+              <div className="mt-3 p-3 bg-background/50 rounded border border-border/50">
+                <div className="space-y-3 text-xs font-mono">
+                  {errorStack && (
+                    <div>
+                      <div className="text-muted-foreground mb-1 font-semibold">堆栈信息:</div>
+                      <pre className="whitespace-pre-wrap break-words text-muted-foreground overflow-auto max-h-40">{errorStack}</pre>
+                    </div>
+                  )}
+                  {componentStack && (
+                    <div>
+                      <div className="text-muted-foreground mb-1 font-semibold">组件堆栈:</div>
+                      <pre className="whitespace-pre-wrap break-words text-muted-foreground overflow-auto max-h-40">{componentStack}</pre>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-3 flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  this.setState({
+                    hasError: false,
+                    error: null,
+                    errorInfo: null,
+                    expanded: false,
+                    copied: false
+                  });
+                }}
+              >
+                重试
+              </Button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}

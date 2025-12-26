@@ -45,12 +45,24 @@
       "to": "./sherpa"
     },
     {
+      "from": "resources/plugins",
+      "to": "./plugins"
+    },
+    {
+      "from": "resources/workflows",
+      "to": "./workflows"
+    },
+    {
       "from": "resources/recorder/${platform}/${arch}",
       "to": "./recorder/${platform}/${arch}"
     },
     {
       "from": "resources/yt-dlp/${platform}/",
       "to": "./yt-dlp/${platform}/"
+    },
+    {
+      "from": "resources/7zip/${platform}/${arch}",
+      "to": "./7zip/${platform}/${arch}"
     }
   ],
   "mac": {
@@ -63,10 +75,10 @@
     "entitlements": "public/entitlements.plist",
     "entitlementsInherit": "public/entitlements.plist",
     "extendInfo": {
-      "NSMicrophoneUsageDescription": "Please allow this program to access your microphone",
-      "NSCameraUsageDescription": "Please allow this program to access your camera",
-      "NSSpeechRecognitionUsageDescription": "Please allow this program to access speech recognition service",
-      "NSScreenCaptureUsageDescription": "Please allow this program to record the screen"
+      "NSMicrophoneUsageDescription": "此应用需要访问麦克风以进行音频录制",
+      "NSCameraUsageDescription": "此应用需要访问摄像头以进行视频录制",
+      "NSSpeechRecognitionUsageDescription": "此应用需要访问语音识别服务",
+      "NSScreenCaptureUsageDescription": "此应用需要屏幕录制权限以录制屏幕和系统音频"
     }
   },
   "win": {

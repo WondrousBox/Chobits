@@ -77,11 +77,18 @@ const RecorderSettings: React.FC<RecorderSettingsProps> = ({ expanded, onExpand 
             if (!status) {
               try {
                 await window.YUA.recorder.start();
+                await checkStatus();
               } catch (error) {
                 console.error('Failed to auto-start recorder:', error);
+                // 启动失败时重置为关闭状态
+                const updatedConfig = { ...cfg, enabled: false };
+                setRecorderConfig(updatedConfig);
+                await window.YUA.recorder.updateConfig(updatedConfig);
+                await checkStatus();
               }
+            } else {
+              await checkStatus();
             }
-            await checkStatus();
           } else {
             await checkStatus();
           }
@@ -128,14 +135,27 @@ const RecorderSettings: React.FC<RecorderSettingsProps> = ({ expanded, onExpand 
     try {
       if (checked) {
         await window.YUA.recorder.start();
+        await checkStatus();
+        // 检查启动是否真的成功
+        const status = await window.YUA.recorder.getStatus();
+        if (!status) {
+          throw new Error('启动失败：状态检查未通过');
+        }
       } else {
         await window.YUA.recorder.stop();
         disconnect();
+        await checkStatus();
       }
-      await checkStatus();
     } catch (error) {
       console.error('Failed to toggle recorder:', error);
-      setRecorderConfig((prev) => ({ ...prev, enabled: !checked }));
+      // 启动失败时重置为关闭状态
+      setRecorderConfig((prev) => ({ ...prev, enabled: false }));
+      // 确保配置保存
+      try {
+        await window.YUA.recorder.updateConfig({ ...recorderConfig, enabled: false });
+      } catch (saveError) {
+        console.error('Failed to save config after error:', saveError);
+      }
     } finally {
       setLoading(false);
     }

@@ -6,7 +6,9 @@ import os from 'os';
 
 const path7za = path.resolve(
   app.getAppPath(),
-  app.isPackaged ? `../7zip/${os.platform() === 'darwin' ? '7za' : '7za.exe'}` : `./resources/7zip/${os.platform()}/${os.arch()}/${os.platform() === 'darwin' ? '7za' : '7za.exe'}`
+  app.isPackaged
+    ? `../7zip/${os.platform()}/${os.arch()}/${os.platform() === 'darwin' ? '7za' : '7za.exe'}`
+    : `./resources/7zip/${os.platform()}/${os.arch()}/${os.platform() === 'darwin' ? '7za' : '7za.exe'}`
 );
 
 type CallbackFn = (err: Error | null, result?: any) => void;
