@@ -85,23 +85,36 @@ export const AIAssistant: React.FC = () => {
             id: 'doc-1',
             content: '你好，世界',
             metadata: { lang: 'zh' },
-            embedding: new Array(384).fill(0).map((_, i) => Math.sin(i))
+            embedding: new Array(768).fill(0).map((_, i) => Math.sin(i))
           }
         ],
-        dim: 384
+        dim: 768
       })
-      .then((_res: any) => {
-        console.log('inserted', _res);
+      .then((res: any) => {
+        console.log('inserted', res);
+        if (res.inserted === 0) {
+          console.error('插入失败：返回 inserted=0');
+        }
+      })
+      .catch((err: any) => {
+        console.error('插入向量时出错:', err);
       });
 
+    // 搜索时需要使用与插入时相同的维度！
     window.YUA.vector
       .searchVectors({
-        embedding: new Array(384).fill(0),
+        embedding: new Array(768).fill(0).map((_, i) => Math.sin(i)),
         k: 5,
-        dim: 384
+        dim: 768 // 必须与插入时的维度一致
       })
-      .then((_res: any) => {
-        console.log(_res);
+      .then((res: any) => {
+        console.log('search results', res);
+        if (Array.isArray(res) && res.length === 0) {
+          console.warn('搜索返回空数组，可能原因：1) 维度不匹配 2) 数据未成功插入 3) 查询向量与存储向量差异太大');
+        }
+      })
+      .catch((err: any) => {
+        console.error('搜索向量时出错:', err);
       });
   }, []);
 

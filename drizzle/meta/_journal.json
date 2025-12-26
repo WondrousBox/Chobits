@@ -50,6 +50,13 @@
       "when": 1766112452192,
       "tag": "0006_icy_sugar_man",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1766749321429,
+      "tag": "0007_pale_celestials",
+      "breakpoints": true
     }
   ]
 }

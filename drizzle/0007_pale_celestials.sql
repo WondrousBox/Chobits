@@ -1,0 +1,1 @@
+ALTER TABLE `documents` ADD `embed_provider_id` text;

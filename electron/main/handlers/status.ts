@@ -84,9 +84,17 @@ export function initStatusHandlers(_win: BrowserWindow) {
     const docWithEmb = getSingle<{ count: number }>(`SELECT COUNT(*) as count FROM documents WHERE deleted_at IS NULL AND embedding IS NOT NULL`, [])?.count ?? 0;
     const docByType = getAll<{ docType: string | null; count: number }>(`SELECT doc_type as docType, COUNT(*) as count FROM documents WHERE deleted_at IS NULL GROUP BY doc_type`);
 
-    const vecTable = getSingle<{ name?: string }>(`SELECT name FROM sqlite_master WHERE type='table' AND name='vec_docs'`, []);
-    const vecEnabled = !!vecTable?.name;
-    const vecTotal = vecEnabled ? (getSingle<{ count: number }>(`SELECT COUNT(*) as count FROM vec_docs`, [])?.count ?? 0) : 0;
+    // 检查是否存在任何维度表（支持多维度并存）
+    const vecTables = getAll<{ name: string }>(`SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'vec_docs_%'`, []);
+    const vecEnabled = vecTables.length > 0;
+    // 统计所有维度表的向量总数
+    let vecTotal = 0;
+    if (vecEnabled) {
+      for (const table of vecTables) {
+        const count = getSingle<{ count: number }>(`SELECT COUNT(*) as count FROM ${table.name}`, [])?.count ?? 0;
+        vecTotal += count;
+      }
+    }
 
     const recycleTotal = getSingle<{ count: number }>(`SELECT COUNT(*) as count FROM recycle_bin`, [])?.count ?? 0;
 
