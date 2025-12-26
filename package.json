@@ -31,7 +31,8 @@
     "download-ytdlp-darwin": "mkdir -p resources/yt-dlp/darwin && cd resources/yt-dlp/darwin && wget https://github.com/yt-dlp/yt-dlp/releases/download/2025.10.14/yt-dlp_macos.zip -O yt-dlp.zip && unzip yt-dlp.zip && rm yt-dlp.zip",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "check:permissions": "node scripts/check-permissions.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.7.3",

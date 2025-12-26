@@ -6,14 +6,17 @@ import ReactDOM from 'react-dom/client';
 import { toast } from 'sonner';
 
 import { SpritePlayerProvider } from '@/components/AIAssistant/context/SpritePlayerContext';
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 
 import App from './App';
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <SpritePlayerProvider>
-      <App />
-    </SpritePlayerProvider>
+    <ErrorBoundary>
+      <SpritePlayerProvider>
+        <App />
+      </SpritePlayerProvider>
+    </ErrorBoundary>
   </React.StrictMode>
 );
 
