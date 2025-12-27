@@ -464,7 +464,7 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
       frame: false,
       transparent: true,
       resizable: true,
-      alwaysOnTop: false,
+      alwaysOnTop: true,
       skipTaskbar: true,
       backgroundColor: '#00000000',
       webPreferences: { nodeIntegration: true, contextIsolation: true }

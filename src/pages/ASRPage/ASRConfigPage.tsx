@@ -1,11 +1,13 @@
 import { PluginDefinition } from '@packages/plugins/types';
 import { AllModels } from '@packages/sherpa/common';
-import React, { useEffect, useState } from 'react';
+import { ScrollArea } from '@radix-ui/react-scroll-area';
+import React, { useCallback, useEffect, useState } from 'react';
 import { TbLoader2, TbPlayerPlay } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 
 interface SherpaModel extends PluginDefinition {
   isInstalled: boolean;
@@ -102,6 +104,134 @@ const ASRConfigPage: React.FC = () => {
   const [sherpaModels, setSherpaModels] = useState<SherpaModel[]>([]);
   const [punctuationModels, setPunctuationModels] = useState<SherpaModel[]>([]);
   const [loadingModels, setLoadingModels] = useState(true);
+  const [enableTranslation, setEnableTranslation] = useState(false);
+  const [targetLanguage, setTargetLanguage] = useState('en');
+  const [providers, setProviders] = useState<any[]>([]);
+  const [selectedProviderId, setSelectedProviderId] = useState<string>('');
+  const [providerConfigured, setProviderConfigured] = useState<boolean>(false);
+
+  // 检测Provider配置状态
+  const checkProviderConfig = useCallback(
+    async (providerId: string): Promise<boolean> => {
+      if (!providerId) {
+        setProviderConfigured(false);
+        return false;
+      }
+
+      try {
+        const provider = providers.find((p) => p.id === providerId);
+        if (!provider) {
+          setProviderConfigured(false);
+          return false;
+        }
+
+        // 获取provider的schema，检查required字段
+        const schema = provider.schema;
+        const requiredFields = schema?.fields?.filter((f: any) => f.required) || [];
+        console.log('requiredFields:', requiredFields);
+
+        if (requiredFields.length === 0) {
+          // 如果没有required字段，认为已配置
+          setProviderConfigured(true);
+          return true;
+        }
+
+        // 获取已配置的secrets
+        const secrets = await window.YUA.ai.getProviderSecrets(providerId).catch(() => ({}));
+
+        console.log('secrets:', secrets);
+
+        // 检查所有required字段是否都有值
+        const allConfigured = requiredFields.every((f: any) => {
+          const value = secrets[f.key];
+          return value && value.trim().length > 0;
+        });
+
+        setProviderConfigured(allConfigured);
+        return allConfigured;
+      } catch (error) {
+        console.error('检测Provider配置失败:', error);
+        setProviderConfigured(false);
+        return false;
+      }
+    },
+    [providers]
+  );
+
+  // 加载 AI Providers
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const provs = await window.YUA.ai.getProviders();
+        if (!mounted) return;
+        setProviders(provs || []);
+        // 默认选择第一个provider
+        if (provs && provs.length > 0 && !selectedProviderId) {
+          setSelectedProviderId(provs[0].id);
+        }
+      } catch (error) {
+        console.error('加载 AI Providers 失败:', error);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // 当选择provider或providers变化时，检测配置
+  useEffect(() => {
+    if (enableTranslation && selectedProviderId && providers.length > 0) {
+      checkProviderConfig(selectedProviderId);
+    } else {
+      setProviderConfigured(false);
+    }
+  }, [selectedProviderId, enableTranslation, providers, checkProviderConfig]);
+
+  // 监听配置窗口关闭事件，重新检测配置
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout | null = null;
+
+    // 如果启用了翻译且选择了provider，定期检测配置状态（用于检测配置窗口关闭后的状态）
+    if (enableTranslation && selectedProviderId && !providerConfigured) {
+      intervalId = setInterval(() => {
+        checkProviderConfig(selectedProviderId);
+      }, 2000); // 每2秒检测一次
+    }
+
+    // 监听窗口focus事件，当窗口重新获得焦点时检测配置
+    const handleFocus = () => {
+      if (enableTranslation && selectedProviderId) {
+        checkProviderConfig(selectedProviderId);
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [enableTranslation, selectedProviderId, providerConfigured, checkProviderConfig]);
+
+  // 打开配置窗口
+  const handleOpenProviderConfig = useCallback(async () => {
+    if (!selectedProviderId) return;
+
+    try {
+      const provider = providers.find((p) => p.id === selectedProviderId);
+      if (!provider) return;
+
+      const schema = provider.schema;
+      const requiredFields = schema?.fields?.filter((f: any) => f.required) || [];
+      const fields = requiredFields.map((f: any) => f.key);
+
+      await window.YUA.window['window:open']('aiProviderConfig' as any, { providerId: selectedProviderId, fields }, { sameDisplayAsSender: true });
+    } catch (error) {
+      console.error('打开配置窗口失败:', error);
+    }
+  }, [selectedProviderId, providers]);
 
   // 加载 sherpa 模型列表
   useEffect(() => {
@@ -222,6 +352,20 @@ const ASRConfigPage: React.FC = () => {
       }
     }
 
+    // 如果启用了翻译，检查AI服务商是否已配置
+    if (enableTranslation) {
+      if (!selectedProviderId) {
+        console.error('请选择AI服务商');
+        return;
+      }
+      const isConfigured = await checkProviderConfig(selectedProviderId);
+      if (!isConfigured) {
+        // 如果未配置，打开配置窗口
+        handleOpenProviderConfig();
+        return;
+      }
+    }
+
     setIsLoading(true);
 
     try {
@@ -238,7 +382,11 @@ const ASRConfigPage: React.FC = () => {
       }
 
       // 启动成功后，打开测试页面并关闭配置页面
-      window.YUA.window['window:open']('asr');
+      window.YUA.window['window:open']('asr', {
+        enableTranslation,
+        targetLanguage: enableTranslation ? targetLanguage : undefined,
+        providerId: enableTranslation ? selectedProviderId : undefined
+      });
       window.YUA.window['window:close']('asrConfig');
     } catch (error) {
       console.error('启动 ASR 失败:', error);
@@ -249,8 +397,8 @@ const ASRConfigPage: React.FC = () => {
 
   return (
     <>
-      <div className="flex flex-col h-full w-full gap-6 p-4 max-w-2xl mx-auto box-border drag-region rounded-lg bg-background">
-        <div className="space-y-4">
+      <div className="flex flex-col h-full w-full box-border rounded-lg bg-background">
+        <ScrollArea className="space-y-4 flex-1 overflow-y-auto pt-4 px-4">
           <div className="space-y-2">
             <Label className="no-drag" htmlFor="model">
               模型
@@ -388,13 +536,81 @@ const ASRConfigPage: React.FC = () => {
               )}
             </div>
           )}
-        </div>
+          <div className="space-y-4 border-t pt-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="no-drag" htmlFor="enableTranslation">
+                  启用实时翻译
+                </Label>
+                <Switch id="enableTranslation" checked={enableTranslation} onCheckedChange={setEnableTranslation} className="no-drag" />
+              </div>
+              {enableTranslation && (
+                <>
+                  <div className="space-y-2">
+                    <Label className="no-drag" htmlFor="targetLanguage">
+                      目标语言
+                    </Label>
+                    <Select value={targetLanguage} onValueChange={setTargetLanguage} disabled={!enableTranslation}>
+                      <SelectTrigger className="no-drag" id="targetLanguage">
+                        <SelectValue placeholder="请选择目标语言" />
+                      </SelectTrigger>
+                      <SelectContent className="no-drag">
+                        {['en', 'zh', 'ja', 'ko', 'de', 'es', 'ru', 'fr', 'pt', 'it', 'ar', 'hi', 'vi', 'th'].map((lang) => (
+                          <SelectItem key={lang} value={lang}>
+                            {getLanguageName(lang)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {providers.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="no-drag" htmlFor="provider">
+                          AI 服务商
+                        </Label>
+                        {selectedProviderId && (
+                          <div className="flex items-center gap-2">
+                            {providerConfigured ? (
+                              <span className="text-xs text-green-600 dark:text-green-400">已配置</span>
+                            ) : (
+                              <Button size="sm" variant="outline" className="h-6 text-xs px-2 no-drag" onClick={handleOpenProviderConfig}>
+                                未配置
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <Select value={selectedProviderId} onValueChange={setSelectedProviderId} disabled={!enableTranslation || providers.length === 0}>
+                        <SelectTrigger className="no-drag" id="provider">
+                          <SelectValue placeholder="请选择AI服务商" />
+                        </SelectTrigger>
+                        <SelectContent className="no-drag">
+                          {providers.map((provider) => (
+                            <SelectItem key={provider.id} value={provider.id}>
+                              {provider.label || provider.id}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {selectedProviderId && !providerConfigured && <div className="text-xs text-amber-600 dark:text-amber-400">该服务商未配置API密钥，请点击按钮进行配置</div>}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </ScrollArea>
 
-        <div className="flex gap-2 border-t">
+        <div className="flex gap-2 border-t p-2 px-4">
           <Button variant="outline" className="flex-1 no-drag" onClick={() => window.YUA.window['window:close']('asrConfig')}>
             取消
           </Button>
-          <Button disabled={isLoading || !selectedModel || !sherpaModels.find((m) => m.id === selectedModel)?.isInstalled} onClick={handleStartASR} className="flex-1 no-drag">
+          <Button
+            disabled={isLoading || !selectedModel || !sherpaModels.find((m) => m.id === selectedModel)?.isInstalled || (enableTranslation && (!selectedProviderId || !providerConfigured))}
+            onClick={handleStartASR}
+            className="flex-1 no-drag"
+          >
             {isLoading ? (
               <>
                 <TbLoader2 className="animate-spin" />
@@ -402,8 +618,8 @@ const ASRConfigPage: React.FC = () => {
               </>
             ) : (
               <>
-                <TbPlayerPlay />
                 启动
+                <TbPlayerPlay />
               </>
             )}
           </Button>

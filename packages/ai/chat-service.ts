@@ -111,23 +111,22 @@ export class ChatService {
 
   // Streaming Ephemeral chat: stream events without persisting any history
   private async chatStreamEphemeral(sender: WebContents, req: ChatRequest & { requestId?: string }): Promise<{ requestId: string; eventsChannel: string }> {
-    const requestId = req.abortId || (req as any)['requestId'] || safeUuid();
+    const requestId = req.abortId || req['requestId'] || safeUuid();
     const eventsChannel = `ai:stream:${requestId}`;
     const ctrl = new AbortController();
     this.controllers.set(requestId, ctrl);
 
     let emittedCompleted = false;
     const emit = (event: StreamEvent): void => {
-      try {
-        if (event?.type === 'message_completed') emittedCompleted = true;
-        (sender || this.defaultWin?.webContents)?.send(eventsChannel, event);
-      } catch {
-        //
+      if (event?.type === 'message_completed') {
+        emittedCompleted = true;
       }
+      (sender || this.defaultWin?.webContents)?.send(eventsChannel, event);
     };
 
     setTimeout(async () => {
       try {
+        console.log('req', req);
         const resolvedReq = await this.withInstance(req);
         const ctx = { window: BrowserWindow.fromWebContents(sender) || this.defaultWin, emit, getProvider: (id?: string) => getProvider(id) };
         // Notify renderer that channel is ready
@@ -140,6 +139,27 @@ export class ChatService {
         } else {
           const prov = getProvider(resolvedReq.providerId);
           if (!prov?.chat) throw new Error('No provider available');
+          // 如果没有通过 instance 加载 secrets，从存储中加载 provider 的 secrets
+          if (!resolvedReq.extras?.secrets && resolvedReq.providerId) {
+            try {
+              const { getAllSecrets } = await import('./settings-store');
+              const schema = prov.getConfigSchema?.();
+              const keys = (schema?.fields || []).map((f) => f.key);
+              const secrets = await getAllSecrets(resolvedReq.providerId, keys);
+              if (Object.keys(secrets).length > 0) {
+                // 设置 provider 的 secrets
+                if (prov.setSecrets) {
+                  await Promise.resolve(prov.setSecrets(secrets));
+                }
+                // 同时设置到 req.extras.secrets 作为 override
+                if (!resolvedReq.extras) resolvedReq.extras = {};
+                resolvedReq.extras.secrets = secrets;
+              }
+            } catch (err) {
+              console.error('Failed to load provider secrets:', err);
+            }
+          }
+
           finalResp = await prov.chat({ ...resolvedReq, stream: true, abortId: requestId }, emit, ctrl.signal);
         }
         if (!emittedCompleted && finalResp?.message) {

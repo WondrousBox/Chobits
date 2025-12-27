@@ -33,7 +33,7 @@ export type StreamEvent =
   | { type: 'tool_result'; data: { callId: string; result: any } }
   | { type: 'metadata'; data: Record<string, any> }
   | { type: 'error'; data: { message: string; code?: string; cause?: any } }
-  | { type: 'done'; data?: {} };
+  | { type: 'done' };
 
 export type ChatResponse = {
   message: ChatMessage;
