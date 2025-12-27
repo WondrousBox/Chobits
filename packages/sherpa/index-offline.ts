@@ -3,20 +3,20 @@ import path from 'path';
 import { getResourcePath } from '../../electron/main/utils/resources-path';
 import { pluginResourceManager } from '../plugins';
 import ChildProcessManager from './child-process-manager';
-import { AllModels, getModelConfig, punctuationModelConfig, StreamInstances } from './common';
+import { AllModels, getModelConfig, punctuationModelConfig, StreamInstances, vadModelConfig } from './common';
 import { findSherpaOnnxNativeLibPath, findSherpaOnnxNodePath } from './utils';
 
 const Ins: StreamInstances = {};
 
 export async function createInstance(data: { uuid: string; model: AllModels; punctuationModel?: string; language?: string }): Promise<StreamInstances[string]> {
-  console.log('create online asr', data);
+  console.log('create offline asr', data);
 
   if (Ins[data.uuid]) {
     return Ins[data.uuid];
   }
 
   return new Promise((resolve, reject) => {
-    const processPath = path.resolve(getResourcePath('sherpa')!, 'asr_online_process.js');
+    const processPath = path.resolve(getResourcePath('sherpa')!, 'asr_offline_process.js');
     console.log(processPath);
     console.log(getResourcePath('sherpa'));
 
@@ -27,7 +27,7 @@ export async function createInstance(data: { uuid: string; model: AllModels; pun
       return;
     }
 
-    console.log('[asr online] sherpaOnnxNodePath:', sherpaOnnxNodePath);
+    console.log('[asr offline] sherpaOnnxNodePath:', sherpaOnnxNodePath);
 
     // 获取原生库路径并设置 DYLD_LIBRARY_PATH
     const nativeLibPath = findSherpaOnnxNativeLibPath();
@@ -37,12 +37,12 @@ export async function createInstance(data: { uuid: string; model: AllModels; pun
     };
 
     if (nativeLibPath) {
-      console.log('[asr online] Found native lib at:', nativeLibPath);
+      console.log('[asr offline] Found native lib at:', nativeLibPath);
       // 设置 DYLD_LIBRARY_PATH 以便找到原生库
       const existingDyldPath = process.env.DYLD_LIBRARY_PATH || '';
       env.DYLD_LIBRARY_PATH = existingDyldPath ? `${nativeLibPath}:${existingDyldPath}` : nativeLibPath;
     } else {
-      console.warn('[asr online] Warning: Could not find sherpa-onnx-darwin-arm64 native library');
+      console.warn('[asr offline] Warning: Could not find sherpa-onnx-darwin-arm64 native library');
     }
 
     const asrProcess = new ChildProcessManager(processPath, {
@@ -54,7 +54,7 @@ export async function createInstance(data: { uuid: string; model: AllModels; pun
 
     asrProcess.on('message', (res) => {
       if (res.event === 'started') {
-        console.log('[asr online] start complete');
+        console.log('[asr offline] start complete');
         resolve(Ins[data.uuid]);
       }
       if (res.event === 'asr:progress') {
@@ -67,7 +67,7 @@ export async function createInstance(data: { uuid: string; model: AllModels; pun
 
     asrProcess.on('exit', (code) => {
       asrProcess.stop();
-      console.log(`[asr online] process exit: ${code}`);
+      console.log(`[asr offline] process exit: ${code}`);
     });
 
     if (!asrProcess.exist()) {
@@ -94,6 +94,7 @@ export async function createInstance(data: { uuid: string; model: AllModels; pun
         data: {
           modelConfig,
           punctuationModelConfig: punctuationModelConfigData,
+          vadConfig: vadModelConfig(),
           language: data.language
         },
         event: 'start'
@@ -101,14 +102,14 @@ export async function createInstance(data: { uuid: string; model: AllModels; pun
 
       // console.log(processPath, libPath);
 
-      console.log('[asr online] process created and sent start data');
+      console.log('[asr offline] process created and sent start data');
       Ins[data.uuid] = {
         process: asrProcess,
         type: 'process'
       };
     } else {
-      console.log('[asr online] process already exists, cannot create new process');
-      reject(new Error('[asr online] process already exists, cannot create new process'));
+      console.log('[asr offline] process already exists, cannot create new process');
+      reject(new Error('[asr offline] process already exists, cannot create new process'));
     }
   });
 }
