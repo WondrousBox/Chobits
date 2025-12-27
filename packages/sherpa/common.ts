@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 
 import Mustache from 'mustache';
@@ -7,7 +8,11 @@ import ChildProcessManager from './child-process-manager';
 import { SHERPA_CONFIG } from './sherpa-config';
 
 export function getVadModel(): string {
-  return path.resolve(getResourcePath('sherpa')!, 'silero_vad.onnx');
+  const modelPath = path.resolve(getResourcePath('sherpa')!, 'silero_vad.onnx');
+  if (!fs.existsSync(modelPath)) {
+    throw new Error(`VAD model not found at ${modelPath}`);
+  }
+  return modelPath;
 }
 
 // Please download test files from
