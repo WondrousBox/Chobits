@@ -1,12 +1,22 @@
 import { PluginDefinition } from '@packages/plugins/types';
 
+import { createASRInstance, freeASRInstance, sendASRData } from './asr-instance-manager';
 import { AllModels, StreamInstances } from './common';
-import { createInstance as createInstanceOffline, freeInstance as freeInstanceOffline, getInstance as getInstanceOffline, sendData as sendDataOffline } from './index-offline';
-import { createInstance as createInstanceOnline, freeInstance as freeInstanceOnline, getInstance as getInstanceOnline, sendData as sendDataOnline } from './index-online';
 import { getDefaultSherpaModels } from './model';
 
 let openedModel: PluginDefinition | undefined;
-export async function ASR_createInstance(data: { uuid: string; model: AllModels; punctuationModel?: string; language?: string }): Promise<StreamInstances[string]> {
+export async function ASR_createInstance(data: {
+  uuid: string;
+  model: AllModels;
+  punctuationModel?: string;
+  language?: string;
+  vad?: {
+    threshold?: number;
+    minSpeechDuration?: number;
+    minSilenceDuration?: number;
+    windowSize?: number;
+  };
+}): Promise<StreamInstances[string]> {
   const models = await getDefaultSherpaModels();
 
   const model = models.find((m) => m.id === data.model);
@@ -17,11 +27,12 @@ export async function ASR_createInstance(data: { uuid: string; model: AllModels;
   openedModel = model;
   console.log('openedModel', openedModel);
 
-  if (data.model.includes('streaming')) {
-    return createInstanceOnline(data);
-  } else {
-    return createInstanceOffline(data);
-  }
+  const type = data.model.includes('streaming') ? 'online' : 'offline';
+
+  return createASRInstance({
+    ...data,
+    type
+  });
 }
 
 export function ASR_sendData(
@@ -30,17 +41,9 @@ export function ASR_sendData(
   },
   array: Float32Array
 ): void {
-  if (getInstanceOnline(data.uuid)) {
-    return sendDataOnline(data.uuid, array);
-  } else if (getInstanceOffline(data.uuid)) {
-    return sendDataOffline(data.uuid, array);
-  }
+  return sendASRData(data.uuid, array);
 }
 
 export function ASR_freeInstance(data: { uuid: string }): void {
-  if (getInstanceOnline(data.uuid)) {
-    return freeInstanceOnline(data.uuid);
-  } else if (getInstanceOffline(data.uuid)) {
-    return freeInstanceOffline(data.uuid);
-  }
+  return freeASRInstance(data.uuid);
 }
