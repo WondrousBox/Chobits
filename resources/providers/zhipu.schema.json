@@ -4,6 +4,6 @@
   "enabled": true,
   "icon": "providers/icons/zhipu-color.svg",
   "fields": [
-    { "key": "apiKey", "label": "API Key", "type": "password" }
+    { "key": "apiKey", "label": "API Key", "type": "password", "required": true }
   ]
 }
