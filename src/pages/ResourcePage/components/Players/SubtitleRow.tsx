@@ -1,4 +1,4 @@
-import { AimSegments, utils } from '@aim-packages/subtitle';
+import { AimSegments, tools, utils } from '@aim-packages/subtitle';
 import clsx from 'clsx';
 import React, { useRef, useState } from 'react';
 import Textarea from 'react-expanding-textarea';
@@ -39,9 +39,17 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({ index, segment, onText
     setEditingText(segment.text);
   };
 
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>): void => {
+    const newText = e.target.value;
+    setEditingText(newText);
+    // 内容变更时立即触发保存
+    onTextChange(index, newText);
+  };
+
   const handleBlur = (): void => {
     if (!isEditing) return;
 
+    // 失焦时确保最后一次变更被保存
     onTextChange(index, editingText);
     setIsEditing(false);
   };
@@ -57,7 +65,7 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({ index, segment, onText
           ref={inputRef}
           className={textareaStyle}
           value={editingText}
-          onChange={(e) => setEditingText(e.target.value)}
+          onChange={handleChange}
           onBlur={handleBlur}
           rows={Math.max(1, editingText.split('\n').length)}
           onFocus={
