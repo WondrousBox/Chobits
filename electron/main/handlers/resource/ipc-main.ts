@@ -218,6 +218,37 @@ export function initResourceHandlers(): void {
     const { id } = payload;
     const patch = { ...(payload.patch || {}) };
 
+    // 如果本次更新包含 SRT 内容，需要写入文件
+    if (typeof patch.srtContent === 'string') {
+      try {
+        // 获取当前资源信息
+        const current = await ResourcesRepo.getById(id);
+        if (current && current.filePath) {
+          const lower = current.filePath.toLowerCase();
+          // 检查是否是 SRT 文件
+          if (lower.endsWith('.srt')) {
+            // 确保目录存在
+            const dir = path.dirname(current.filePath);
+            await fs.mkdir(dir, { recursive: true });
+            // 写入文件
+            await fs.writeFile(current.filePath, patch.srtContent, 'utf8');
+            // 更新文件大小
+            try {
+              const buf = Buffer.from(patch.srtContent, 'utf8');
+              patch.sizeBytes = buf.byteLength;
+            } catch {
+              // 忽略计算失败，不阻塞更新
+            }
+          }
+        }
+        // 移除 srtContent，不保存到数据库
+        delete patch.srtContent;
+      } catch (e: any) {
+        console.error('[resource:update] 写入 SRT 文件失败:', e);
+        // 不阻塞更新，继续执行数据库更新
+      }
+    }
+
     // 如果本次更新包含文本内容，则同步更新 sizeBytes，保证纯文本资源也有合理的大小
     if (typeof patch.contentText === 'string') {
       try {
