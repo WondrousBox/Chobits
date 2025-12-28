@@ -3,7 +3,7 @@ import { ipcRenderer } from 'electron';
 import { AllModels } from './common';
 
 export const sherpaIpcRenderer = {
-  createInstance(data: { model: AllModels; punctuationModel?: string; language?: string }): Promise<boolean> {
+  createInstance(data: { model?: AllModels; punctuationModel?: string; language?: string; type?: 'online' | 'offline' | 'vad' }): Promise<boolean> {
     return ipcRenderer.invoke('sherpa:createInstance', data);
   },
 

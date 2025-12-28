@@ -8,11 +8,11 @@ import { findSherpaOnnxNativeLibPath, findSherpaOnnxNodePath } from './utils';
 
 const Ins: StreamInstances = {};
 
-export type ASRType = 'online' | 'offline';
+export type ASRType = 'online' | 'offline' | 'vad';
 
 export interface CreateInstanceOptions {
   uuid: string;
-  model: AllModels;
+  model?: AllModels;
   punctuationModel?: string;
   language?: string;
   vad?: {
@@ -32,7 +32,12 @@ export async function createASRInstance(data: CreateInstanceOptions): Promise<St
   }
 
   return new Promise((resolve, reject) => {
-    const scriptName = data.type === 'online' ? 'asr_online_process.js' : 'asr_offline_process.js';
+    let scriptName = 'asr_offline_process.js';
+    if (data.type === 'online') {
+      scriptName = 'asr_online_process.js';
+    } else if (data.type === 'vad') {
+      scriptName = 'vad_process.js';
+    }
     const processPath = path.resolve(getResourcePath('sherpa')!, scriptName);
     console.log(processPath);
     console.log(getResourcePath('sherpa'));
@@ -74,7 +79,7 @@ export async function createASRInstance(data: CreateInstanceOptions): Promise<St
         console.log(`[asr ${data.type}] start complete`);
         resolve(Ins[data.uuid]);
       }
-      if (res.event === 'asr:progress') {
+      if (res.event === 'asr:progress' || res.event === 'vad:segment') {
         Ins[data.uuid]?.handler?.(res.data);
       }
       if (res.event === 'log') {
@@ -92,13 +97,15 @@ export async function createASRInstance(data: CreateInstanceOptions): Promise<St
       // 使用插件管理模块获取模型目录
       const modelDir = pluginResourceManager.getPluginResourceDir('plugin:sherpa-onnx', 'model');
 
-      const modelConfig = getModelConfig({
-        model: data.model,
-        modelDir: modelDir,
-        language: data.language
-      });
-
-      console.log(modelConfig);
+      let modelConfig;
+      if (data.type !== 'vad' && data.model) {
+        modelConfig = getModelConfig({
+          model: data.model,
+          modelDir: modelDir,
+          language: data.language
+        });
+        console.log(modelConfig);
+      }
 
       const punctuationModelConfigData = data.punctuationModel
         ? punctuationModelConfig({
@@ -113,7 +120,7 @@ export async function createASRInstance(data: CreateInstanceOptions): Promise<St
         language: data.language
       };
 
-      if (data.type === 'offline') {
+      if (data.type === 'offline' || data.type === 'vad') {
         // @ts-ignore
         startData.vadConfig = vadModelConfig(data.vad);
       }

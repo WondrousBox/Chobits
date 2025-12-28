@@ -14,26 +14,22 @@ export class ZhipuProvider extends OpenAICompatibleProvider {
 
     const formData = new FormData();
 
-    // Handle different input types
-    if (Buffer.isBuffer(file)) {
-      const blob = new Blob([file as unknown as BlobPart], { type: 'audio/wav' });
-      formData.append('file', blob, 'audio.wav');
+    if (Buffer.isBuffer(file) || file instanceof ArrayBuffer) {
+      const fileObj = new File([file as any], 'audio.wav', { type: 'audio/wav' });
+      formData.append('file', fileObj);
+    } else if (file instanceof Blob) {
+      formData.append('file', file, 'audio.wav');
     } else {
       formData.append('file', file);
     }
 
     formData.append('model', options?.model || 'glm-asr-2512');
 
-    // Zhipu ASR specific parameters can be added here if needed
-    // Note: Zhipu documentation mentions 'stream' parameter, but we are implementing non-stream for now as requested.
-
     try {
-      const baseUrl = secrets.baseUrl || 'https://open.bigmodel.cn/api/paas/v4/';
-      const response = await fetch(`${baseUrl}audio/transcriptions`, {
+      const response = await fetch('https://open.bigmodel.cn/api/paas/v4/audio/transcriptions', {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${secrets.apiKey}`
-          // Content-Type is automatically set by fetch when using FormData
         },
         body: formData
       });
