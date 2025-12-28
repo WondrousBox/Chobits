@@ -14,6 +14,9 @@ const ASRPage: React.FC = () => {
   const [enableTranslation, setEnableTranslation] = useState(false);
   const [targetLanguage, setTargetLanguage] = useState<string>('en');
   const [providerId, setProviderId] = useState<string>('');
+  const [mode, setMode] = useState<'local' | 'cloud'>('local');
+  const [cloudProviderId, setCloudProviderId] = useState<string>('');
+  const [cloudModelId, setCloudModelId] = useState<string>('');
 
   const pendingCloseRef = useRef(false);
   const waveformRef = useRef<WaveformRef>(null);
@@ -28,6 +31,9 @@ const ASRPage: React.FC = () => {
             enableTranslation?: boolean;
             targetLanguage?: string;
             providerId?: string;
+            mode?: 'local' | 'cloud';
+            cloudProviderId?: string;
+            cloudModelId?: string;
           }
           | undefined;
         if (!mounted) return;
@@ -35,6 +41,9 @@ const ASRPage: React.FC = () => {
           setEnableTranslation(payload.enableTranslation || false);
           setTargetLanguage(payload.targetLanguage || 'en');
           setProviderId(payload.providerId || '');
+          setMode(payload.mode || 'local');
+          setCloudProviderId(payload.cloudProviderId || '');
+          setCloudModelId(payload.cloudModelId || '');
         }
       } catch (error) {
         console.error('获取配置参数失败:', error);
@@ -58,7 +67,10 @@ const ASRPage: React.FC = () => {
   const { isRecording, isASRRunning, setIsASRRunning, recognizedSegments, progressText, startRecording, stopRecording, wsRef } = useASR({
     enableTranslation,
     translateText,
-    onAudioLevel
+    onAudioLevel,
+    mode,
+    cloudProviderId,
+    cloudModelId
   });
 
   // 停止录音（不停止 ASR 服务）

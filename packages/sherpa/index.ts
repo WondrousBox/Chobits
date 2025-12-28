@@ -7,7 +7,8 @@ import { getDefaultSherpaModels } from './model';
 let openedModel: PluginDefinition | undefined;
 export async function ASR_createInstance(data: {
   uuid: string;
-  model: AllModels;
+  model?: AllModels;
+  type?: 'online' | 'offline' | 'vad';
   punctuationModel?: string;
   language?: string;
   vad?: {
@@ -17,21 +18,26 @@ export async function ASR_createInstance(data: {
     windowSize?: number;
   };
 }): Promise<StreamInstances[string]> {
-  const models = await getDefaultSherpaModels();
-
-  const model = models.find((m) => m.id === data.model);
-
-  if (!model) {
-    throw new Error(`Model ${data.model} not found`);
+  let type = data.type;
+  if (!type && data.model) {
+    type = data.model.includes('streaming') ? 'online' : 'offline';
   }
-  openedModel = model;
-  console.log('openedModel', openedModel);
 
-  const type = data.model.includes('streaming') ? 'online' : 'offline';
+  if (type !== 'vad') {
+    const models = await getDefaultSherpaModels();
+
+    const model = models.find((m) => m.id === data.model);
+
+    if (!model) {
+      throw new Error(`Model ${data.model} not found`);
+    }
+    openedModel = model;
+    console.log('openedModel', openedModel);
+  }
 
   return createASRInstance({
     ...data,
-    type
+    type: type as any
   });
 }
 

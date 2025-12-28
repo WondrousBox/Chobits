@@ -380,38 +380,32 @@ const ASRConfigPage: React.FC = () => {
     if (activeTab === 'cloud') {
       if (!cloudProviderId || !cloudModelId) return;
 
-      // 打开ASR页面，传递云端配置
-      window.YUA.window['window:open']('asr', {
-        mode: 'cloud',
-        providerId: cloudProviderId,
-        modelId: cloudModelId,
-        enableTranslation,
-        targetLanguage: enableTranslation ? targetLanguage : undefined,
-        translationProviderId: enableTranslation ? selectedProviderId : undefined
-      });
-      window.YUA.window['window:close']('asrConfig');
-      return;
-    }
-
-    if (isLoading || !selectedModel) return;
-
-    // 检查模型是否已安装
-    const selectedModelInfo = sherpaModels.find((m) => m.id === selectedModel);
-    if (!selectedModelInfo) {
-      console.error('未找到选中的模型');
-      return;
-    }
-    if (!selectedModelInfo.isInstalled) {
-      console.error('模型未安装，请先在插件管理中安装');
-      return;
-    }
-
-    // 如果选择了标点模型，检查是否已安装
-    if (selectedPunctuationModel) {
-      const selectedPunctuationModelInfo = punctuationModels.find((m) => m.id === selectedPunctuationModel);
-      if (selectedPunctuationModelInfo && !selectedPunctuationModelInfo.isInstalled) {
-        console.error('标点模型未安装，请先在插件管理中安装');
+      const isConfigured = await checkProviderConfig(cloudProviderId);
+      if (!isConfigured) {
+        window.YUA.window['window:open']('aiProviderConfig' as any, { providerId: cloudProviderId }, { sameDisplayAsSender: true });
         return;
+      }
+    } else {
+      if (isLoading || !selectedModel) return;
+
+      // 检查模型是否已安装
+      const selectedModelInfo = sherpaModels.find((m) => m.id === selectedModel);
+      if (!selectedModelInfo) {
+        console.error('未找到选中的模型');
+        return;
+      }
+      if (!selectedModelInfo.isInstalled) {
+        console.error('模型未安装，请先在插件管理中安装');
+        return;
+      }
+
+      // 如果选择了标点模型，检查是否已安装
+      if (selectedPunctuationModel) {
+        const selectedPunctuationModelInfo = punctuationModels.find((m) => m.id === selectedPunctuationModel);
+        if (selectedPunctuationModelInfo && !selectedPunctuationModelInfo.isInstalled) {
+          console.error('标点模型未安装，请先在插件管理中安装');
+          return;
+        }
       }
     }
 
@@ -432,12 +426,20 @@ const ASRConfigPage: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // 启动 ASR 服务
-      const success = await window.YUA.sherpa.createInstance({
-        model: selectedModel as AllModels,
-        language: language,
-        punctuationModel: selectedPunctuationModel || undefined
-      });
+      let success = false;
+      if (activeTab === 'local') {
+        // 启动 ASR 服务
+        success = await window.YUA.sherpa.createInstance({
+          model: selectedModel as AllModels,
+          language: language,
+          punctuationModel: selectedPunctuationModel || undefined
+        });
+      } else {
+        // 启动 VAD 服务
+        success = await window.YUA.sherpa.createInstance({
+          type: 'vad'
+        });
+      }
 
       if (!success) {
         setIsLoading(false);
@@ -446,6 +448,9 @@ const ASRConfigPage: React.FC = () => {
 
       // 启动成功后，打开测试页面并关闭配置页面
       window.YUA.window['window:open']('asr', {
+        mode: activeTab,
+        cloudProviderId: activeTab === 'cloud' ? cloudProviderId : undefined,
+        cloudModelId: activeTab === 'cloud' ? cloudModelId : undefined,
         enableTranslation,
         targetLanguage: enableTranslation ? targetLanguage : undefined,
         providerId: enableTranslation ? selectedProviderId : undefined

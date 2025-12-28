@@ -4,12 +4,13 @@ import { AllModels } from './common';
 import { ASR_createInstance, ASR_freeInstance, ASR_sendData } from './index';
 
 export function initSherpaHandlers(): void {
-  ipcMain.handle('sherpa:createInstance', async (_, data: { model: AllModels; punctuationModel?: string; language?: string }) => {
+  ipcMain.handle('sherpa:createInstance', async (_, data: { model?: AllModels; punctuationModel?: string; language?: string; type?: 'online' | 'offline' | 'vad' }) => {
     const ins = await ASR_createInstance({
       uuid: 'stream',
       model: data.model,
       language: data.language,
-      punctuationModel: data.punctuationModel
+      punctuationModel: data.punctuationModel,
+      type: data.type
     });
     if (ins) {
       ins.handler = (d) => {

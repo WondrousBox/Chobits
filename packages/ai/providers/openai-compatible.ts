@@ -39,7 +39,7 @@ export class OpenAICompatibleProvider implements ProviderAdapter {
     return this.secrets;
   }
 
-  private client(override?: { apiKey?: string; baseUrl?: string }) {
+  protected client(override?: { apiKey?: string; baseUrl?: string }) {
     const cfg: any = {};
     const s = { ...this.secrets, ...(override || {}) };
     if (s.apiKey) cfg.apiKey = s.apiKey;

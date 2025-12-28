@@ -6,12 +6,61 @@ interface UseASRProps {
   enableTranslation: boolean;
   translateText: (text: string, onUpdate?: (translation: string) => void) => Promise<void>;
   onAudioLevel?: (level: number) => void;
+  mode?: 'local' | 'cloud';
+  cloudProviderId?: string;
+  cloudModelId?: string;
+}
+
+// Helper to convert Float32Array to WAV Blob
+function float32ToWav(samples: Float32Array, sampleRate: number = 16000): Blob {
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+
+  // RIFF chunk descriptor
+  writeString(view, 0, 'RIFF');
+  view.setUint32(4, 36 + samples.length * 2, true);
+  writeString(view, 8, 'WAVE');
+
+  // fmt sub-chunk
+  writeString(view, 12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, 1, true); // Mono
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true); // Block align
+  view.setUint16(34, 16, true); // Bits per sample
+
+  // data sub-chunk
+  writeString(view, 36, 'data');
+  view.setUint32(40, samples.length * 2, true);
+
+  // Write samples
+  floatTo16BitPCM(view, 44, samples);
+
+  return new Blob([view], { type: 'audio/wav' });
+}
+
+function writeString(view: DataView, offset: number, string: string): void {
+  for (let i = 0; i < string.length; i++) {
+    view.setUint8(offset + i, string.charCodeAt(i));
+  }
+}
+
+function floatTo16BitPCM(output: DataView, offset: number, input: Float32Array): void {
+  for (let i = 0; i < input.length; i++, offset += 2) {
+    const s = Math.max(-1, Math.min(1, input[i]));
+    output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+  }
 }
 
 export const useASR = ({
   enableTranslation,
   translateText,
-  onAudioLevel
+  onAudioLevel,
+  mode = 'local',
+  cloudProviderId,
+  cloudModelId
 }: UseASRProps): {
   isRecording: boolean;
   isASRRunning: boolean;
@@ -143,15 +192,69 @@ export const useASR = ({
 
   // 监听 ASR 识别结果
   useEffect(() => {
-    const handleASRMessage = (
+    const handleASRMessage = async (
       _event: any,
       d: {
         type: string;
-        data: { text: string; isEndpoint: boolean; start: number; end: number };
+        data: any;
       }
-    ): void => {
+    ): Promise<void> => {
       const data = d.data;
       if (d.type !== 'sherpa:message') return;
+
+      // 处理 VAD 片段 (云端模式)
+      if (mode === 'cloud' && data.samples && cloudProviderId) {
+        try {
+          // 转换音频数据
+          const samples = new Float32Array(data.samples);
+          const wavBlob = float32ToWav(samples);
+          const wavBuffer = await wavBlob.arrayBuffer();
+
+          // 显示正在识别状态
+          setProgressText('正在识别...');
+          setProgressStart(data.start);
+          setProgressEnd(data.start + data.duration);
+
+          // 调用云端识别
+          const result = await window.YUA.ai.transcribe({
+            providerId: cloudProviderId,
+            file: wavBuffer as any,
+            model: cloudModelId,
+            language: 'zh' // TODO: 支持多语言配置
+          });
+
+          console.log(result);
+
+          if (result && result.text) {
+            const newSegment: RecognizedSegment = {
+              text: result.text,
+              start: data.start,
+              end: data.start + data.duration
+            };
+
+            setRecognizedSegments((prev) => [...prev, newSegment]);
+
+            // 翻译
+            if (enableTranslation && result.text.trim()) {
+              translateText(result.text, (translation) => {
+                setRecognizedSegments((prev) => {
+                  const updated = [...prev];
+                  const index = updated.findIndex((s) => s.start === newSegment.start && s.end === newSegment.end);
+                  if (index !== -1) {
+                    updated[index] = { ...updated[index], translation };
+                  }
+                  return updated;
+                });
+              });
+            }
+          }
+          setProgressText('');
+        } catch (error) {
+          console.error('云端识别失败:', error);
+          setProgressText('识别失败');
+        }
+        return;
+      }
 
       if (data.text) {
         setProgressText(data.text);
@@ -195,7 +298,7 @@ export const useASR = ({
     return () => {
       window.YUA.removeHandler('sherpa:message');
     };
-  }, [enableTranslation, translateText]);
+  }, [enableTranslation, translateText, mode, cloudProviderId, cloudModelId]);
 
   // 自动开始录音
   useEffect(() => {
