@@ -84,6 +84,7 @@ export const useASR = ({
   const wsRef = useRef<WebSocket | null>(null);
   const isRecordingRef = useRef(false);
   const isASRRunningRef = useRef(true);
+  const recognizedTextRef = useRef('');
 
   // 更新录音状态 ref
   useEffect(() => {
@@ -94,6 +95,15 @@ export const useASR = ({
   useEffect(() => {
     isASRRunningRef.current = isASRRunning;
   }, [isASRRunning]);
+
+  // 更新已识别文本 ref (用于 prompt)
+  useEffect(() => {
+    // 取最近的 5 条记录作为上下文
+    const recentSegments = recognizedSegments.slice(-5);
+    const text = recentSegments.map((s) => s.text).join('');
+    // 限制长度，避免过长
+    recognizedTextRef.current = text.slice(-500);
+  }, [recognizedSegments]);
 
   // 连接 WebSocket
   const connectWebSocket = useCallback((): Promise<void> => {
@@ -220,7 +230,8 @@ export const useASR = ({
             providerId: cloudProviderId,
             file: wavBuffer as any,
             model: cloudModelId,
-            language: 'zh' // TODO: 支持多语言配置
+            language: 'zh', // TODO: 支持多语言配置
+            prompt: recognizedTextRef.current
           });
 
           console.log(result);

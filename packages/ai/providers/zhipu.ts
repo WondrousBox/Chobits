@@ -24,6 +24,9 @@ export class ZhipuProvider extends OpenAICompatibleProvider {
     }
 
     formData.append('model', options?.model || 'glm-asr-2512');
+    if (options?.prompt) {
+      formData.append('prompt', options.prompt);
+    }
 
     try {
       const response = await fetch('https://open.bigmodel.cn/api/paas/v4/audio/transcriptions', {
