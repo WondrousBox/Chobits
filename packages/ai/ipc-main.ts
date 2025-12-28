@@ -99,6 +99,29 @@ export function initAIHandlers(win: BrowserWindow): void {
     return listAgents().map((a) => ({ id: a.id, label: a.label, description: a.description }));
   });
 
+  ipcMain.handle('ai:transcribe', async (_e, payload: { providerId: string; file: Buffer; model?: string; language?: string; prompt?: string }) => {
+    const provider = getProvider(payload.providerId);
+    if (!provider) {
+      throw new Error(`Provider ${payload.providerId} not found`);
+    }
+    if (!provider.transcribe) {
+      throw new Error(`Provider ${payload.providerId} does not support transcription`);
+    }
+
+    // Ensure secrets are loaded
+    const secrets = await getAllSecrets(
+      payload.providerId,
+      (provider.getConfigSchema().fields || []).map((f) => f.key)
+    );
+    await Promise.resolve(provider.setSecrets(secrets));
+
+    return await provider.transcribe(payload.file, {
+      model: payload.model,
+      language: payload.language,
+      prompt: payload.prompt
+    });
+  });
+
   ipcMain.handle('ai:listModels', async (_e, payload: { providerId: string; instanceId?: string }) => {
     const p = getProvider(payload.providerId);
     if (!p) return [];

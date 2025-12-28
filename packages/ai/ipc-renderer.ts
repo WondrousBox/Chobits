@@ -24,6 +24,15 @@ export const aiBridge = {
   async clearAllSecrets() {
     return ipcRenderer.invoke('ai:clearAllSecrets');
   },
+  async transcribe(payload: { providerId: string; file: Blob | Buffer; model?: string; language?: string; prompt?: string }) {
+    // If file is Blob, convert to Buffer/ArrayBuffer before sending over IPC
+    let fileToSend = payload.file;
+    if (payload.file instanceof Blob) {
+      const arrayBuffer = await payload.file.arrayBuffer();
+      fileToSend = Buffer.from(arrayBuffer);
+    }
+    return ipcRenderer.invoke('ai:transcribe', { ...payload, file: fileToSend });
+  },
   async chat(payload: any) {
     return ipcRenderer.invoke('ai:chat', payload);
   },
