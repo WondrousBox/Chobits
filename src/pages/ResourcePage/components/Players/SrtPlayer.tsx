@@ -1,4 +1,4 @@
-import { AimSegments, parser, tools } from '@aim-packages/subtitle';
+import { AimSegments, parser, tools, utils } from '@aim-packages/subtitle';
 import { debounce } from 'lodash-es';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -126,12 +126,49 @@ export const SrtPlayer = ({ resource }: SrtPlayerProps): React.ReactNode => {
     [resource.id, debouncedSave, isLoading]
   );
 
+  const handleMergePrev = useCallback(
+    (index: number): void => {
+      // 向前合并：将当前字幕与前一个字幕合并
+      if (index > 0) {
+        setSubtitleEntries((prev) => {
+          // 使用 utils.mergeAimSegmentRange 合并字幕片段
+          const merged = utils.mergeAimSegmentRange(prev, index - 1, index);
+          // 触发防抖保存（仅在非加载状态下）
+          if (resource.id && !isLoading) {
+            debouncedSave(resource.id, merged);
+          }
+          return merged;
+        });
+      }
+    },
+    [resource.id, debouncedSave, isLoading]
+  );
+
+  const handleMergeNext = useCallback(
+    (index: number): void => {
+      // 向后合并：将当前字幕与后一个字幕合并
+      setSubtitleEntries((prev) => {
+        if (index < prev.length - 1) {
+          // 使用 utils.mergeAimSegmentRange 合并字幕片段
+          const merged = utils.mergeAimSegmentRange(prev, index, index + 1);
+          // 触发防抖保存（仅在非加载状态下）
+          if (resource.id && !isLoading) {
+            debouncedSave(resource.id, merged);
+          }
+          return merged;
+        }
+        return prev;
+      });
+    },
+    [resource.id, debouncedSave, isLoading]
+  );
+
   return (
     <div className="flex h-full w-full flex-col text-muted-foreground">
       <ScrollArea className="h-full w-full">
         <div className="box-border h-full w-full select-text overflow-auto rounded border px-4 py-3 leading-relaxed shadow-inner">
           {subtitleEntries.map((entry, idx) => (
-            <SubtitleRow key={idx} index={idx} segment={entry} onTextChange={handleTextChange} />
+            <SubtitleRow key={idx} index={idx} segment={entry} onTextChange={handleTextChange} onMergePrev={handleMergePrev} onMergeNext={handleMergeNext} />
           ))}
         </div>
       </ScrollArea>
