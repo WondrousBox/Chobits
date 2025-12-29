@@ -19,7 +19,9 @@ export const ControlBar: React.FC<ControlBarProps> = ({ isRecording, progressTex
         {/* <div className={`absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l z-10 pointer-events-none ${isTransparent ? 'from-transparent to-transparent' : 'from-background to-transparent'}`} /> */}
         {progressText && (
           <div className="absolute top-1/2 -translate-y-1/2 right-0 z-0">
-            <div className={`font-bold whitespace-nowrap text-right overflow-hidden ${isTransparent ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`}>{progressText || '\u200b'}</div>
+            <div className={`font-bold text-xl whitespace-nowrap text-right overflow-hidden ${isTransparent ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`}>
+              {progressText || '\u200b'}
+            </div>
           </div>
         )}
         {/* 波形图 */}

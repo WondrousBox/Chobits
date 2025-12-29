@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TbArrowDown, TbBackground, TbLoader2, TbMicrophone, TbMicrophoneOff, TbX } from 'react-icons/tb';
+import { TbArrowDown, TbArrowUp, TbBackground, TbLoader2, TbMicrophone, TbMicrophoneOff, TbX } from 'react-icons/tb';
 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
@@ -144,6 +144,23 @@ const ASRPage: React.FC = () => {
     };
   }, [isASRRunning]);
 
+  // 根据展开/收起状态调整窗口高度
+  useEffect(() => {
+    const adjustWindowHeight = async (): Promise<void> => {
+      try {
+        const currentWidth = window.innerWidth;
+        // 展开模式：高度较大（例如 600px）
+        // 收起模式：高度较小（例如 200px）
+        const targetHeight = isCollapsed ? 200 : 600;
+        await window.YUA.window['window:size:set']('asr' as any, currentWidth, targetHeight);
+      } catch (error) {
+        console.error('调整窗口高度失败:', error);
+      }
+    };
+
+    adjustWindowHeight();
+  }, [isCollapsed]);
+
   // 清理
   useEffect(() => {
     return () => {
@@ -167,12 +184,14 @@ const ASRPage: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <div className={`flex flex-col h-full rounded-3xl drag-region overflow-hidden border border-solid border-ring box-border ${isTransparent ? 'bg-transparent' : 'bg-muted'}`}>
+      <div
+        className={`flex flex-col h-full rounded-3xl drag-region overflow-hidden border border-solid border-ring box-border ${isTransparent ? 'bg-transparent border-ring/50 border-b-ring/80 border-t-0' : 'bg-muted'}`}
+      >
         {/* 状态指示器 */}
         <div className={`flex items-center justify-between gap-3 px-2 py-2 ${isTransparent ? 'border-b border-transparent' : 'border-b'}`}>
           <div>
             {isRecording ? (
-              <Button size="icon" variant="destructive" className="w-8 h-8 rounded-full no-drag" onClick={handleStopRecording} disabled={isLoading}>
+              <Button size="icon" variant="destructive" className="w-8 h-8 rounded-full no-drag ml-2" onClick={handleStopRecording} disabled={isLoading}>
                 <TbMicrophoneOff className={isTransparent ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''} />
               </Button>
             ) : (
@@ -189,7 +208,11 @@ const ASRPage: React.FC = () => {
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button size="icon" variant="ghost" className="no-drag w-8 h-8" onClick={() => setIsCollapsed(!isCollapsed)}>
-                  <TbArrowDown className={`h-4 w-4 ${isTransparent ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`} />
+                  {isCollapsed ? (
+                    <TbArrowDown className={`h-4 w-4 ${isTransparent ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`} />
+                  ) : (
+                    <TbArrowUp className={`h-4 w-4 ${isTransparent ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`} />
+                  )}
                 </Button>
               </TooltipTrigger>
               <TooltipContent>{isCollapsed ? '展开窗口' : '收起窗口'}</TooltipContent>
@@ -214,7 +237,7 @@ const ASRPage: React.FC = () => {
           enableTranslation={enableTranslation}
           isTransparent={isTransparent}
         />
-        <div className={clsx(['flex', isTransparent ? 'bg-transparent' : 'bg-background'])}>
+        <div className={clsx(['flex', isTransparent ? 'bg-gradient-to-t from-background/20 via-background/5 to-transparent' : 'bg-background'])}>
           <div className="w-4"></div>
           <div className="flex-1">
             {/* 底部控制栏 */}
