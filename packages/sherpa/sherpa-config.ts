@@ -40,6 +40,31 @@ export const SHERPA_CONFIG: Record<string, string> = {
     "rule3MinUtteranceLength": {{rule3MinUtteranceLength}}
   }`,
 
+  'sherpa-onnx-streaming-zipformer-ctc-small-2024-03-18': `{
+    "featConfig": {
+      "sampleRate": {{featConfig.sampleRate}},
+      "featureDim": {{featConfig.featureDim}}
+    },
+    "modelConfig": {
+      "zipformer2Ctc": {
+        "model": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/ctc-epoch-30-avg-3-chunk-16-left-128.int8.onnx"
+      },
+      "tokens": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/tokens.txt",
+      "numThreads": {{modelConfig.numThreads}},
+      "provider": "{{modelConfig.provider}}",
+      "debug": {{modelConfig.debug}}
+    },
+    "ctcFstDecoderConfig": {
+      "graph": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/HLG.fst"
+    },
+    "decodingMethod": "{{decodingMethod}}",
+    "maxActivePaths": {{maxActivePaths}},
+    "enableEndpoint": {{enableEndpoint}},
+    "rule1MinTrailingSilence": {{rule1MinTrailingSilence}},
+    "rule2MinTrailingSilence": {{rule2MinTrailingSilence}},
+    "rule3MinUtteranceLength": {{rule3MinUtteranceLength}}
+  }`,
+
   'sherpa-onnx-streaming-zipformer-ctc-multi-zh-hans-2023-12-13': `{
     "featConfig": {
       "sampleRate": {{featConfig.sampleRate}},
