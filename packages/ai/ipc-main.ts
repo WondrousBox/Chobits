@@ -197,4 +197,147 @@ export function initAIHandlers(win: BrowserWindow): void {
     const row = await ChatRepo.restoreConversation(payload.id);
     return row ? { ok: true } : { ok: false };
   });
+
+  // 字幕翻译：在主进程中处理，向所有窗口发送消息
+  ipcMain.handle(
+    'ai:translateSubtitles',
+    async (
+      _e,
+      payload: {
+        requestId: string;
+        providerId: string;
+        model: string;
+        segments: Array<{ text: string; index: number }>;
+        targetLanguage: string;
+        languageNames: Record<string, string>;
+      }
+    ) => {
+      const { requestId, providerId, model, segments, targetLanguage, languageNames } = payload;
+      const eventsChannel = `subtitle:translate:${requestId}`;
+
+      // 向所有窗口发送消息的函数
+      const emit = (event: { type: string; data?: any }): void => {
+        BrowserWindow.getAllWindows().forEach((w) => {
+          if (!w.isDestroyed()) {
+            try {
+              w.webContents.send('renderer-message', {
+                type: 'subtitle:translate',
+                data: { requestId, ...event }
+              });
+            } catch (error) {
+              console.error('发送翻译消息失败:', error);
+            }
+          }
+        });
+      };
+
+      // 异步处理翻译
+      setTimeout(async () => {
+        try {
+          emit({ type: 'connected' });
+          emit({ type: 'progress', data: { message: '准备翻译...' } });
+
+          const provider = getProvider(providerId);
+          if (!provider || !provider.chat) {
+            throw new Error(`Provider ${providerId} not found or does not support chat`);
+          }
+
+          // 确保 secrets 已加载
+          const schema = provider.getConfigSchema?.();
+          const keys = (schema?.fields || []).map((f) => f.key);
+          const secrets = await getAllSecrets(providerId, keys);
+          if (Object.keys(secrets).length > 0 && provider.setSecrets) {
+            await Promise.resolve(provider.setSecrets(secrets));
+          }
+
+          // 构建翻译提示词
+          const targetLangName = languageNames[targetLanguage] || targetLanguage;
+          const segmentsText = segments.map((seg) => `${seg.index + 1}. ${seg.text}`).join('\n');
+          const prompt = `请将以下字幕翻译成${targetLangName}，保持原有的编号格式，只返回翻译结果，不要添加任何解释或说明。每个翻译结果占一行，格式为：编号. 翻译文本\n\n${segmentsText}`;
+
+          emit({ type: 'progress', data: { message: '正在连接AI服务...' } });
+
+          let currentTranslation = '';
+          let hasReceivedCompleted = false;
+          const ctrl = new AbortController();
+
+          // 解析翻译结果的辅助函数
+          const parseTranslation = (translation: string): string[] => {
+            const lines = translation.split('\n').filter((line: string) => line.trim());
+            const translations: string[] = [];
+
+            lines.forEach((line: string) => {
+              const match = line.match(/^\d+[\.、\s]+\s*(.+)$/);
+              if (match) {
+                translations.push(match[1].trim());
+              } else if (line.trim()) {
+                translations.push(line.trim());
+              }
+            });
+
+            if (translations.length === 0 && lines.length > 0) {
+              translations.push(...lines.map((l) => l.trim()).filter(Boolean));
+            }
+
+            return translations;
+          };
+
+          // 调用 provider 的 chat 方法进行流式翻译
+          const response = await provider.chat(
+            {
+              messages: [{ role: 'user', content: prompt }],
+              providerId,
+              extras: { model, secrets },
+              stream: true,
+              abortId: requestId
+            },
+            (event: any) => {
+              if (event?.type === 'delta' && event.data?.text) {
+                currentTranslation += event.data.text;
+                emit({ type: 'progress', data: { message: '正在翻译...', translation: currentTranslation } });
+              } else if (event?.type === 'message_completed' && event.data?.message?.content) {
+                hasReceivedCompleted = true;
+                const translation = event.data.message.content.trim();
+                emit({ type: 'progress', data: { message: '翻译完成，正在解析结果...' } });
+
+                const translations = parseTranslation(translation);
+
+                emit({
+                  type: 'completed',
+                  data: {
+                    translations,
+                    originalTranslation: translation
+                  }
+                });
+              } else if (event?.type === 'error') {
+                emit({ type: 'error', data: { message: event.data?.message || '翻译失败' } });
+              }
+            },
+            ctrl.signal
+          );
+
+          // 如果没有通过流式事件收到完成消息，使用最终响应
+          if (!hasReceivedCompleted && response?.message?.content) {
+            const translation = response.message.content.trim();
+            const translations = parseTranslation(translation);
+
+            emit({
+              type: 'completed',
+              data: {
+                translations,
+                originalTranslation: translation
+              }
+            });
+          }
+
+          emit({ type: 'done' });
+        } catch (err: any) {
+          console.error('翻译失败:', err);
+          emit({ type: 'error', data: { message: err?.message || '翻译失败' } });
+        }
+      }, 0);
+
+      return { requestId, eventsChannel };
+    }
+  );
 }

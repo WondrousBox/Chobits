@@ -56,6 +56,8 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
   // AI 翻译相关状态
   const [selectedProviderId, setSelectedProviderId] = useState<string>('');
   const [selectedModel, setSelectedModel] = useState<string>('');
+  const [providers, setProviders] = useState<any[]>([]);
+  const [providerConfigured, setProviderConfigured] = useState<boolean>(false);
 
   // 普通翻译相关状态
   const [selectedService, setSelectedService] = useState<TranslationService>('google');
@@ -65,6 +67,122 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
   const [isTranslating, setIsTranslating] = useState(false);
   const [translationProgress, setTranslationProgress] = useState<string>('');
   const translationStreamRef = useRef<{ dispose: () => void; cancel: () => Promise<any> } | null>(null);
+
+  // 加载 AI Providers
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const provs = await window.YUA.ai.getProviders();
+        if (!mounted) return;
+        setProviders(provs || []);
+      } catch (error) {
+        console.error('加载 AI Providers 失败:', error);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // 检测Provider配置状态
+  const checkProviderConfig = useCallback(
+    async (providerId: string): Promise<boolean> => {
+      if (!providerId) {
+        setProviderConfigured(false);
+        return false;
+      }
+
+      try {
+        const provider = providers.find((p) => p.id === providerId);
+        if (!provider) {
+          setProviderConfigured(false);
+          return false;
+        }
+
+        // 获取provider的schema，检查required字段
+        const schema = provider.schema;
+        const requiredFields = schema?.fields?.filter((f: any) => f.required) || [];
+
+        if (requiredFields.length === 0) {
+          // 如果没有required字段，认为已配置
+          setProviderConfigured(true);
+          return true;
+        }
+
+        // 获取已配置的secrets
+        const secrets = await window.YUA.ai.getProviderSecrets(providerId).catch(() => ({}));
+
+        // 检查所有required字段是否都有值
+        const allConfigured = requiredFields.every((f: any) => {
+          const value = secrets[f.key];
+          return value && (typeof value === 'string' ? value.trim().length > 0 : true);
+        });
+
+        setProviderConfigured(allConfigured);
+        return allConfigured;
+      } catch (error) {
+        console.error('检测Provider配置失败:', error);
+        setProviderConfigured(false);
+        return false;
+      }
+    },
+    [providers]
+  );
+
+  // 打开配置窗口
+  const handleOpenProviderConfig = useCallback(async () => {
+    if (!selectedProviderId) return;
+
+    try {
+      const provider = providers.find((p) => p.id === selectedProviderId);
+      if (!provider) return;
+
+      const schema = provider.schema;
+      const requiredFields = schema?.fields?.filter((f: any) => f.required) || [];
+      const fields = requiredFields.map((f: any) => f.key);
+
+      await window.YUA.window['window:open']('aiProviderConfig' as any, { providerId: selectedProviderId, fields }, { sameDisplayAsSender: true });
+    } catch (error) {
+      console.error('打开配置窗口失败:', error);
+    }
+  }, [selectedProviderId, providers]);
+
+  // 当选择provider或providers变化时，检测配置
+  useEffect(() => {
+    if (translationMode === 'ai' && selectedProviderId && providers.length > 0) {
+      checkProviderConfig(selectedProviderId);
+    } else {
+      setProviderConfigured(false);
+    }
+  }, [selectedProviderId, translationMode, providers, checkProviderConfig]);
+
+  // 监听配置窗口关闭事件，重新检测配置
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout | null = null;
+
+    // 如果选择了provider且未配置，定期检测配置状态（用于检测配置窗口关闭后的状态）
+    if (translationMode === 'ai' && selectedProviderId && !providerConfigured) {
+      intervalId = setInterval(() => {
+        checkProviderConfig(selectedProviderId);
+      }, 2000); // 每2秒检测一次
+    }
+
+    // 监听窗口focus事件，当窗口重新获得焦点时检测配置
+    const handleFocus = () => {
+      if (translationMode === 'ai' && selectedProviderId) {
+        checkProviderConfig(selectedProviderId);
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [translationMode, selectedProviderId, providerConfigured, checkProviderConfig]);
 
   // 处理服务商和模型的选择
   const handleProviderModelChange = useCallback((providerId: string, modelId: string) => {
@@ -85,6 +203,13 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
   // AI 翻译功能
   const handleAITranslate = useCallback(async () => {
     if (!selectedProviderId || !selectedModel || !targetLanguage || subtitleEntries.length === 0) {
+      return;
+    }
+
+    // 检查API配置
+    const isConfigured = await checkProviderConfig(selectedProviderId);
+    if (!isConfigured) {
+      handleOpenProviderConfig();
       return;
     }
 
@@ -111,58 +236,44 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
         translationStreamRef.current = null;
       }
 
-      // 构建翻译提示词
-      const targetLangName = languageNames[targetLanguage] || targetLanguage;
-      const segmentsText = validSegments.map((seg, idx) => `${idx + 1}. ${seg.text}`).join('\n');
-      const prompt = `请将以下字幕翻译成${targetLangName}，保持原有的编号格式，只返回翻译结果，不要添加任何解释或说明。每个翻译结果占一行，格式为：编号. 翻译文本\n\n${segmentsText}`;
+      // 生成请求 ID
+      const requestId = `translate-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-      let currentTranslation = '';
+      // 准备翻译数据
+      const segmentsData = validSegments.map((seg, idx) => ({
+        text: seg.text,
+        index: idx
+      }));
 
-      const stream = await window.YUA.ai.chatStreamEphemeral(
+      // 调用主进程的翻译功能
+      const stream = await window.YUA.ai.translateSubtitles(
         {
-          messages: [{ role: 'user', content: prompt }],
+          requestId,
           providerId: selectedProviderId,
           model: selectedModel,
-          stream: true
+          segments: segmentsData,
+          targetLanguage,
+          languageNames
         },
         (ev: any) => {
           if (ev.type === 'connected') {
             setTranslationProgress('正在连接AI服务...');
-          } else if (ev.type === 'delta' && ev.data?.text) {
-            currentTranslation += ev.data.text;
-            setTranslationProgress('正在翻译...');
-          } else if (ev.type === 'message_completed' && ev.data?.message?.content) {
-            const translation = ev.data.message.content.trim();
+          } else if (ev.type === 'progress') {
+            if (ev.data?.message) {
+              setTranslationProgress(ev.data.message);
+            }
+          } else if (ev.type === 'completed' && ev.data?.translations) {
+            const translations = ev.data.translations;
             setTranslationProgress('翻译完成，正在更新字幕...');
 
             // 更新字幕内容
             try {
-              // 解析翻译结果 - 支持多种格式
-              const lines = translation.split('\n').filter((line: string) => line.trim());
-              const translations: string[] = [];
-
-              lines.forEach((line: string) => {
-                // 尝试匹配格式：编号. 翻译文本 或 编号、翻译文本 或 编号 翻译文本
-                const match = line.match(/^\d+[\.、\s]+\s*(.+)$/);
-                if (match) {
-                  translations.push(match[1].trim());
-                } else if (line.trim()) {
-                  // 如果没有编号，直接使用整行作为翻译
-                  translations.push(line.trim());
-                }
-              });
-
-              // 如果解析失败，尝试按行顺序直接使用
-              if (translations.length === 0 && lines.length > 0) {
-                translations.push(...lines.map((l) => l.trim()).filter(Boolean));
-              }
-
               if (translations.length > 0) {
                 const updated = [...subtitleEntries];
                 let validIndex = 0;
 
                 // 只更新有效的（未删除的）片段
-                translations.forEach((translatedText, idx) => {
+                translations.forEach((translatedText: string, idx: number) => {
                   // 找到下一个有效片段
                   while (validIndex < updated.length && updated[validIndex].delete) {
                     validIndex++;
@@ -188,14 +299,14 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
 
               setTranslationProgress('翻译完成');
             } catch (error) {
-              console.error('解析翻译结果失败:', error);
-              setTranslationProgress('翻译完成，但解析结果时出错');
+              console.error('更新字幕失败:', error);
+              setTranslationProgress('翻译完成，但更新字幕时出错');
             }
 
             setIsTranslating(false);
           } else if (ev.type === 'error') {
             console.error('翻译错误:', ev.data);
-            setTranslationProgress('翻译失败');
+            setTranslationProgress(ev.data?.message || '翻译失败');
             setIsTranslating(false);
           } else if (ev.type === 'done') {
             if (translationStreamRef.current) {
@@ -213,7 +324,7 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
       setTranslationProgress('翻译失败');
       setIsTranslating(false);
     }
-  }, [selectedProviderId, selectedModel, targetLanguage, subtitleEntries, resourceId, isLoading, debouncedSave, onTranslateComplete]);
+  }, [selectedProviderId, selectedModel, targetLanguage, subtitleEntries, resourceId, isLoading, debouncedSave, onTranslateComplete, checkProviderConfig, handleOpenProviderConfig]);
 
   // 普通翻译功能
   const handleNormalTranslate = useCallback(async () => {
@@ -292,6 +403,14 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
                   modelTypes={['chat']}
                   showModelDetails
                 />
+                {selectedProviderId && !providerConfigured && (
+                  <div className="flex items-center justify-between p-2 text-xs bg-yellow-50 border border-yellow-200 rounded-md">
+                    <span className="text-yellow-800">API 配置未完成</span>
+                    <Button size="sm" variant="outline" className="h-6 text-xs" onClick={handleOpenProviderConfig}>
+                      去配置
+                    </Button>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -310,7 +429,12 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
                 </Select>
               </div>
 
-              <Button size="sm" className="w-full" onClick={handleAITranslate} disabled={!selectedProviderId || !selectedModel || !targetLanguage || isTranslating || subtitleEntries.length === 0}>
+              <Button
+                size="sm"
+                className="w-full"
+                onClick={handleAITranslate}
+                disabled={!selectedProviderId || !selectedModel || !targetLanguage || isTranslating || subtitleEntries.length === 0 || !providerConfigured}
+              >
                 {isTranslating ? (
                   <>
                     <span className="mr-2">{translationProgress}</span>
