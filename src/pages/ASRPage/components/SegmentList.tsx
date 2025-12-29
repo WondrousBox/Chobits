@@ -33,7 +33,7 @@ export const SegmentList: React.FC<SegmentListProps> = ({ segments, progressText
         <div className="p-3" ref={contentRef}>
           {/* 已识别的完整结果 */}
           {segments.map((segment, index) => (
-            <div key={index} className={`mb-2 group p-2 rounded-md last:mb-0 ${isTransparent ? 'bg-transparent' : 'bg-background/80'}`}>
+            <div key={index} className={`mb-1 group p-2 rounded-md last:mb-0`}>
               <div className={`text-base leading-tight break-words select-text ${isTransparent ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`} style={{ whiteSpace: 'pre-wrap' }}>
                 <span className={`mr-2 hover:text-primary font-mono select-text ${isTransparent ? 'text-white/90 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : 'text-muted-foreground'}`}>
                   {utils.cleanTimeDisplay(utils.formatTime(segment.start / 1000))}
