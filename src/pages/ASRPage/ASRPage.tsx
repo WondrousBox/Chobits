@@ -1,6 +1,10 @@
+import clsx from 'clsx';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { TbArrowDown, TbBackground, TbLoader2, TbMicrophone, TbMicrophoneOff, TbX } from 'react-icons/tb';
 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 import { ControlBar } from './components/ControlBar';
 import { SegmentList } from './components/SegmentList';
@@ -17,6 +21,8 @@ const ASRPage: React.FC = () => {
   const [mode, setMode] = useState<'local' | 'cloud'>('local');
   const [cloudProviderId, setCloudProviderId] = useState<string>('');
   const [cloudModelId, setCloudModelId] = useState<string>('');
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isTransparent, setIsTransparent] = useState(false);
 
   const pendingCloseRef = useRef(false);
   const waveformRef = useRef<WaveformRef>(null);
@@ -161,29 +167,61 @@ const ASRPage: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <div className="flex flex-col h-full bg-muted rounded-3xl drag-region overflow-hidden border border-solid border-ring box-border">
+      <div className={`flex flex-col h-full rounded-3xl drag-region overflow-hidden border border-solid border-ring box-border ${isTransparent ? 'bg-transparent' : 'bg-muted'}`}>
         {/* 状态指示器 */}
-        <div className="flex items-center gap-3 px-4 py-2 border-b">
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${isASRRunning ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} title="ASR 状态" />
-            <span className="text-xs text-muted-foreground">ASR</span>
+        <div className={`flex items-center justify-between gap-3 px-2 py-2 ${isTransparent ? 'border-b border-transparent' : 'border-b'}`}>
+          <div>
+            {isRecording ? (
+              <Button size="icon" variant="destructive" className="w-8 h-8 rounded-full no-drag" onClick={handleStopRecording} disabled={isLoading}>
+                <TbMicrophoneOff className={isTransparent ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''} />
+              </Button>
+            ) : (
+              <Button size="icon" className="w-8 h-8 rounded-full no-drag" onClick={startRecording} disabled={!isASRRunning || isLoading}>
+                {isLoading ? (
+                  <TbLoader2 className={`animate-spin ${isTransparent ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`} />
+                ) : (
+                  <TbMicrophone className={isTransparent ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''} />
+                )}
+              </Button>
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="icon" variant="ghost" className="no-drag w-8 h-8" onClick={() => setIsCollapsed(!isCollapsed)}>
+                  <TbArrowDown className={`h-4 w-4 ${isTransparent ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{isCollapsed ? '展开窗口' : '收起窗口'}</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="icon" variant="ghost" className="no-drag w-8 h-8" onClick={() => setIsTransparent(!isTransparent)}>
+                  <TbBackground className={`h-4 w-4 ${isTransparent ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{isTransparent ? '恢复背景' : '透明背景'}</TooltipContent>
+            </Tooltip>
+            <Button size="icon" variant="ghost" className="no-drag w-8 h-8" onClick={handleCloseRequest}>
+              <TbX className={`h-4 w-4 ${isTransparent ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`} />
+            </Button>
           </div>
         </div>
-
         {/* 识别结果区域 */}
-        <SegmentList segments={recognizedSegments} progressText={progressText} enableTranslation={enableTranslation} />
-
-        {/* 底部控制栏 */}
-        <ControlBar
-          isRecording={isRecording}
-          isLoading={isLoading}
-          isASRRunning={isASRRunning}
+        <SegmentList
+          segments={isCollapsed && recognizedSegments.length > 0 ? [recognizedSegments[recognizedSegments.length - 1]] : recognizedSegments}
           progressText={progressText}
-          onStartRecording={startRecording}
-          onStopRecording={handleStopRecording}
-          onClose={handleCloseRequest}
-          waveformRef={waveformRef}
+          enableTranslation={enableTranslation}
+          isTransparent={isTransparent}
         />
+        <div className={clsx(['flex', isTransparent ? 'bg-transparent' : 'bg-background'])}>
+          <div className="w-4"></div>
+          <div className="flex-1">
+            {/* 底部控制栏 */}
+            <ControlBar isRecording={isRecording} progressText={progressText} waveformRef={waveformRef} isTransparent={isTransparent} />
+          </div>
+          <div className="w-4"></div>
+        </div>
       </div>
     </>
   );
