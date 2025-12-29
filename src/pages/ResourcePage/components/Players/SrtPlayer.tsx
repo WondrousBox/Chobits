@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/set-state-in-effect */
 import { AimSegments, parser, tools, utils } from '@aim-packages/subtitle';
 import { debounce } from 'lodash-es';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -7,6 +6,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 
 import type { ResourceItem } from '../../types';
 import { SubtitleRow } from './SubtitleRow';
+import { SubtitleTranslator } from './SubtitleTranslator';
 
 interface SrtPlayerProps {
   resource: ResourceItem;
@@ -238,8 +238,16 @@ export const SrtPlayer = ({ resource, currentTime = 0, onSeek }: SrtPlayerProps)
     }
   }, [activeIndex]);
 
+  // 处理翻译完成回调
+  const handleTranslateComplete = useCallback((updatedSegments: AimSegments[]) => {
+    setSubtitleEntries(updatedSegments);
+  }, []);
+
   return (
     <div className="flex h-full w-full flex-col text-muted-foreground">
+      {/* 翻译按钮和配置 */}
+      <SubtitleTranslator subtitleEntries={subtitleEntries} onTranslateComplete={handleTranslateComplete} resourceId={resource.id} isLoading={isLoading} debouncedSave={debouncedSave} />
+
       <ScrollArea className="h-full w-full">
         <div className="box-border h-full w-full select-text overflow-auto rounded border px-4 py-3 leading-relaxed shadow-inner">
           {subtitleEntries.map((entry, idx) => (
