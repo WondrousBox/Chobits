@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { AimSegments, parser, tools, utils } from '@aim-packages/subtitle';
 import { debounce } from 'lodash-es';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -87,8 +88,8 @@ export const SrtPlayer = ({ resource, currentTime = 0, onSeek }: SrtPlayerProps)
     const data = resource;
 
     if (!data) {
-      setIsLoading(false);
       setTimeout(() => {
+        setIsLoading(false);
         setSubtitleEntries([]);
       }, 0);
       return;

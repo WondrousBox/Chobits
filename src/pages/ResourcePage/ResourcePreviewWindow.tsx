@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { TbArrowLeft, TbArrowRight, TbChevronLeft, TbChevronRight, TbDots, TbFile, TbFileDescription, TbLetterT, TbLink, TbMusic, TbPhoto, TbVideo } from 'react-icons/tb';
 
@@ -188,7 +189,7 @@ const ResourcePreviewWindow: React.FC = () => {
 
   // 当当前资源为视频时，加载其子资源中的字幕文件
   useEffect(() => {
-    const loadSubtitles = async () => {
+    const loadSubtitles = async (): Promise<void> => {
       if (!data?.id || data.type !== 'video') {
         setSubtitleList([]);
         setActiveSubtitle(null);
@@ -218,7 +219,7 @@ const ResourcePreviewWindow: React.FC = () => {
 
   // 监听资源数据推送
   useEffect(() => {
-    const handler = async (_e: any, payload: IncomingPayload | ResourceItem) => {
+    const handler = async (_e: any, payload: IncomingPayload | ResourceItem): Promise<void> => {
       console.log(payload);
 
       let current: ResourceItem;
