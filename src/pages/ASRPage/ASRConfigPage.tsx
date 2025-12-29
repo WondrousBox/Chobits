@@ -6,7 +6,7 @@ import { TbLoader2, TbPlayerPlay } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -96,6 +96,9 @@ const getLanguageName = (code: string): string => {
   };
   return languageMap[code] || code.toUpperCase();
 };
+
+// 推荐模型ID列表
+const RECOMMENDED_MODEL_IDS = ['sherpa-onnx-streaming-zipformer-ctc-multi-zh-hans-2023-12-13', 'sherpa-onnx-streaming-zipformer-ctc-small-2024-03-18'];
 
 const ASRConfigPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -206,7 +209,7 @@ const ASRConfigPage: React.FC = () => {
     }
 
     // 监听窗口focus事件，当窗口重新获得焦点时检测配置
-    const handleFocus = () => {
+    const handleFocus = (): void => {
       if (enableTranslation && selectedProviderId) {
         checkProviderConfig(selectedProviderId);
       }
@@ -289,13 +292,29 @@ const ASRConfigPage: React.FC = () => {
         setSherpaModels(modelsWithStatus);
         setPunctuationModels(punctuationModelsWithStatus);
 
-        // 如果有已安装的模型，默认选择第一个已安装的
-        const firstInstalled = modelsWithStatus.find((m) => m.isInstalled);
-        if (firstInstalled && !selectedModel) {
-          setSelectedModel(firstInstalled.id);
-        } else if (modelsWithStatus.length > 0 && !selectedModel) {
-          // 如果没有已安装的，选择第一个
-          setSelectedModel(modelsWithStatus[0].id);
+        // 优先选择推荐模型的第一个
+        if (!selectedModel) {
+          // 分离推荐模型和其他模型
+          const recommendedModels = modelsWithStatus.filter((m) => RECOMMENDED_MODEL_IDS.includes(m.id));
+
+          if (recommendedModels.length > 0) {
+            // 优先选择已安装的推荐模型
+            const firstInstalledRecommended = recommendedModels.find((m) => m.isInstalled);
+            if (firstInstalledRecommended) {
+              setSelectedModel(firstInstalledRecommended.id);
+            } else {
+              // 如果没有已安装的推荐模型，选择第一个推荐模型
+              setSelectedModel(recommendedModels[0].id);
+            }
+          } else if (modelsWithStatus.length > 0) {
+            // 如果没有推荐模型，回退到原来的逻辑
+            const firstInstalled = modelsWithStatus.find((m) => m.isInstalled);
+            if (firstInstalled) {
+              setSelectedModel(firstInstalled.id);
+            } else {
+              setSelectedModel(modelsWithStatus[0].id);
+            }
+          }
         }
       } catch (error) {
         console.error('加载 sherpa 模型列表失败:', error);
@@ -478,48 +497,87 @@ const ASRConfigPage: React.FC = () => {
                 <Label className="no-drag" htmlFor="model">
                   模型
                 </Label>
-                <Select value={selectedModel} onValueChange={setSelectedModel} disabled={loadingModels}>
-                  <SelectTrigger className="no-drag" id="model">
-                    <SelectValue placeholder={loadingModels ? '加载中...' : '请选择模型'}>
-                      {(() => {
-                        const selectedModelInfo = selectedModel ? sherpaModels.find((m) => m.id === selectedModel) : null;
-                        if (!selectedModelInfo) return null;
-                        const isStreaming = selectedModelInfo.id.toLowerCase().includes('stream');
-                        return (
-                          <div className="flex items-center gap-2">
-                            <span>{selectedModelInfo.displayName || selectedModelInfo.name}</span>
-                            {isStreaming && <span className="text-xs text-primary shrink-0">流式</span>}
-                          </div>
-                        );
-                      })()}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent className="max-w-md no-drag">
-                    {sherpaModels.length === 0 && !loadingModels && (
-                      <SelectItem value="__no_models__" disabled>
-                        暂无可用模型
-                      </SelectItem>
-                    )}
-                    {sherpaModels.map((model) => {
-                      const isStreaming = model.id.toLowerCase().includes('stream');
-                      const supportedLanguages = model.languages || [];
-                      const languageDisplay = supportedLanguages.includes('multi') ? '多语言' : supportedLanguages.map((lang) => getLanguageName(lang)).join('、');
-                      return (
-                        <SelectItem key={model.id} value={model.id} disabled={!model.isInstalled} className="items-center box-border" textValue={model.displayName || model.name}>
-                          <div className="flex flex-col gap-0.5 py-0.5 w-full min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-medium break-words">{model.displayName || model.name}</span>
-                              {isStreaming && <span className="text-xs text-primary shrink-0">流式</span>}
-                              {!model.isInstalled && <span className="text-xs text-muted-foreground shrink-0">(未安装)</span>}
-                            </div>
-                            {supportedLanguages.length > 0 && <div className="text-xs text-muted-foreground">支持语言: {languageDisplay}</div>}
-                            {model.description && <div className="text-xs text-muted-foreground leading-relaxed break-words">{model.description}</div>}
-                          </div>
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
+                {(() => {
+                  // 分离推荐模型和其他模型
+                  const recommendedModels = sherpaModels.filter((m) => RECOMMENDED_MODEL_IDS.includes(m.id));
+                  const otherModels = sherpaModels.filter((m) => !RECOMMENDED_MODEL_IDS.includes(m.id));
+
+                  return (
+                    <Select value={selectedModel} onValueChange={setSelectedModel} disabled={loadingModels}>
+                      <SelectTrigger className="no-drag" id="model">
+                        <SelectValue placeholder={loadingModels ? '加载中...' : '请选择模型'}>
+                          {(() => {
+                            const selectedModelInfo = selectedModel ? sherpaModels.find((m) => m.id === selectedModel) : null;
+                            if (!selectedModelInfo) return null;
+                            const isStreaming = selectedModelInfo.id.toLowerCase().includes('stream');
+                            return (
+                              <div className="flex items-center gap-2">
+                                <span>{selectedModelInfo.displayName || selectedModelInfo.name}</span>
+                                {isStreaming && <span className="text-xs text-primary shrink-0">流式</span>}
+                              </div>
+                            );
+                          })()}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent className="max-w-md no-drag">
+                        {sherpaModels.length === 0 && !loadingModels && (
+                          <SelectItem value="__no_models__" disabled>
+                            暂无可用模型
+                          </SelectItem>
+                        )}
+                        {recommendedModels.length > 0 && (
+                          <SelectGroup>
+                            <SelectLabel>推荐模型</SelectLabel>
+                            {recommendedModels.map((model) => {
+                              const isStreaming = model.id.toLowerCase().includes('stream');
+                              const supportedLanguages = model.languages || [];
+                              const languageDisplay = supportedLanguages.includes('multi') ? '多语言' : supportedLanguages.map((lang) => getLanguageName(lang)).join('、');
+                              return (
+                                <SelectItem key={model.id} value={model.id} disabled={!model.isInstalled} className="items-center box-border" textValue={model.displayName || model.name}>
+                                  <div className="flex flex-col gap-0.5 py-0.5 w-full min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="font-medium break-words">{model.displayName || model.name}</span>
+                                      {isStreaming && <span className="text-xs text-primary shrink-0">流式</span>}
+                                      {!model.isInstalled && <span className="text-xs text-muted-foreground shrink-0">(未安装)</span>}
+                                    </div>
+                                    {supportedLanguages.length > 0 && <div className="text-xs text-muted-foreground">支持语言: {languageDisplay}</div>}
+                                    {model.description && <div className="text-xs text-muted-foreground leading-relaxed break-words">{model.description}</div>}
+                                  </div>
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectGroup>
+                        )}
+                        {otherModels.length > 0 && (
+                          <>
+                            {recommendedModels.length > 0 && <SelectSeparator />}
+                            <SelectGroup>
+                              <SelectLabel>其他模型</SelectLabel>
+                              {otherModels.map((model) => {
+                                const isStreaming = model.id.toLowerCase().includes('stream');
+                                const supportedLanguages = model.languages || [];
+                                const languageDisplay = supportedLanguages.includes('multi') ? '多语言' : supportedLanguages.map((lang) => getLanguageName(lang)).join('、');
+                                return (
+                                  <SelectItem key={model.id} value={model.id} disabled={!model.isInstalled} className="items-center box-border" textValue={model.displayName || model.name}>
+                                    <div className="flex flex-col gap-0.5 py-0.5 w-full min-w-0">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="font-medium break-words">{model.displayName || model.name}</span>
+                                        {isStreaming && <span className="text-xs text-primary shrink-0">流式</span>}
+                                        {!model.isInstalled && <span className="text-xs text-muted-foreground shrink-0">(未安装)</span>}
+                                      </div>
+                                      {supportedLanguages.length > 0 && <div className="text-xs text-muted-foreground">支持语言: {languageDisplay}</div>}
+                                      {model.description && <div className="text-xs text-muted-foreground leading-relaxed break-words">{model.description}</div>}
+                                    </div>
+                                  </SelectItem>
+                                );
+                              })}
+                            </SelectGroup>
+                          </>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  );
+                })()}
                 {selectedModel && !sherpaModels.find((m) => m.id === selectedModel)?.isInstalled && (
                   <div className="text-xs text-amber-600 dark:text-amber-400">该模型未安装，请先在插件管理中安装</div>
                 )}
