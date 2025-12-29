@@ -27,12 +27,13 @@ interface SubtitleRowProps {
 const textareaStyle = 'resize-none block p-2 flex-1 outline-none box-border bg-background text-foreground border-none text-base';
 
 const getClassName = (isDelete?: boolean): Array<string> => {
-  return ['p-2 flex-1 outline-none break-words cursor-text border-none text-base text-foreground', isDelete ? 'line-through pointer-events-none text-muted-foreground' : ''];
+  return ['p-2 flex-1 outline-none break-words cursor-text border-none text-base text-foreground select-text', isDelete ? 'line-through pointer-events-none text-muted-foreground' : ''];
 };
 
 export const SubtitleRow: React.FC<SubtitleRowProps> = ({ index, segment, onTextChange, onMergePrev, onMergeNext }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editingText, setEditingText] = useState(segment.text);
+  const [hasChanged, setHasChanged] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const clickPosition = useRef(0);
 
@@ -42,21 +43,36 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({ index, segment, onText
     clickPosition.current = offset;
     setIsEditing(true);
     setEditingText(segment.text);
+    setHasChanged(false);
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>): void => {
     const newText = e.target.value;
     setEditingText(newText);
-    // 内容变更时立即触发保存
-    onTextChange(index, newText);
+    // 检查内容是否与原始内容不同
+    if (newText !== segment.text) {
+      if (!hasChanged) {
+        setHasChanged(true);
+      }
+      // 内容变更时触发保存
+      onTextChange(index, newText);
+    } else {
+      // 如果内容恢复为原始值，重置变更状态
+      if (hasChanged) {
+        setHasChanged(false);
+      }
+    }
   };
 
   const handleBlur = (): void => {
     if (!isEditing) return;
 
-    // 失焦时确保最后一次变更被保存
-    onTextChange(index, editingText);
+    // 失焦时如果内容有变更，确保最后一次变更被保存
+    if (hasChanged) {
+      onTextChange(index, editingText);
+    }
     setIsEditing(false);
+    setHasChanged(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>): void => {
@@ -78,10 +94,13 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({ index, segment, onText
     <div className="flex items-start justify-center gap-2 relative pl-4 group">
       {/* 合并按钮：绝对定位在两行之间，不占高度 */}
       {index > 0 && onMergePrev && (
-        <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 pointer-events-auto">
+        <div className="absolute left-1 top-0 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 pointer-events-auto">
+          <div className="w-14 h-1 absolute -top-1 left-4 rounded-tl-lg border border-dashed border-ring border-r-0 border-b-0"></div>
           <Button size="sm" variant="outline" className="w-8 h-8 rounded-full p-0 bg-background shadow-sm hover:bg-accent" onClick={() => onMergePrev(index)} title="合并到上一行">
-            <TbArrowMerge className="rotate-90" />
+            <TbArrowMerge />
           </Button>
+          <div className="w-4 h-1 absolute -top-2 left-16 rounded-br-lg border border-dashed border-ring border-t-0 border-l-0"></div>
+          <div className=" w-2 h-2 absolute -top-4 left-16 rounded-lg ml-3 bg-ring"></div>
         </div>
       )}
       <div className="select-none pt-3 cursor-pointer text-muted-foreground text-xs hover:text-primary w-12 text-center relative" onClick={() => { }}>
