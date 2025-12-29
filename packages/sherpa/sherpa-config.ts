@@ -52,10 +52,12 @@ export const SHERPA_CONFIG: Record<string, string> = {
       "tokens": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/tokens.txt",
       "numThreads": {{modelConfig.numThreads}},
       "provider": "{{modelConfig.provider}}",
-      "debug": {{modelConfig.debug}}
+      "debug": {{modelConfig.debug}},
+      "modelType": ""
     },
     "ctcFstDecoderConfig": {
-      "graph": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/HLG.fst"
+      "graph": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/HLG.fst",
+      "maxActive": 3000
     },
     "decodingMethod": "{{decodingMethod}}",
     "maxActivePaths": {{maxActivePaths}},
