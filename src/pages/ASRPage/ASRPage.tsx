@@ -2,7 +2,6 @@ import clsx from 'clsx';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { TbArrowDown, TbArrowUp, TbBackground, TbLoader2, TbMicrophone, TbMicrophoneOff, TbX } from 'react-icons/tb';
 
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -14,7 +13,6 @@ import { useTranslation } from './hooks/useTranslation';
 
 const ASRPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
-  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [enableTranslation, setEnableTranslation] = useState(false);
   const [targetLanguage, setTargetLanguage] = useState<string>('en');
   const [providerId, setProviderId] = useState<string>('');
@@ -120,29 +118,8 @@ const ASRPage: React.FC = () => {
 
   // 处理窗口关闭请求
   const handleCloseRequest = useCallback(() => {
-    if (isASRRunning) {
-      setShowCloseConfirm(true);
-    } else {
-      window.YUA.window['window:close:self']();
-    }
-  }, [isASRRunning]);
-
-  // 监听窗口关闭事件
-  useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent): void => {
-      if (isASRRunning && !pendingCloseRef.current) {
-        e.preventDefault();
-        e.returnValue = '';
-        setShowCloseConfirm(true);
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [isASRRunning]);
+    handleStopASRAndClose();
+  }, [handleStopASRAndClose]);
 
   // 根据展开/收起状态调整窗口高度
   useEffect(() => {
@@ -170,20 +147,6 @@ const ASRPage: React.FC = () => {
 
   return (
     <>
-      <AlertDialog open={showCloseConfirm} onOpenChange={setShowCloseConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>确认关闭</AlertDialogTitle>
-            <AlertDialogDescription>ASR 服务正在运行，关闭窗口将停止 ASR 服务。确定要关闭吗？</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setShowCloseConfirm(false)}>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={handleStopASRAndClose} disabled={isLoading}>
-              {isLoading ? '正在关闭...' : '确定关闭'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
       <div
         className={`flex flex-col h-full rounded-3xl drag-region overflow-hidden border border-solid border-ring box-border ${isTransparent ? 'bg-transparent border-ring/50 border-b-ring/80 border-t-0' : 'bg-muted'}`}
       >
