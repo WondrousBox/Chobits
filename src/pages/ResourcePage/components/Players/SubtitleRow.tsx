@@ -1,6 +1,6 @@
-import { AimSegments, tools, utils } from '@aim-packages/subtitle';
+import { AimSegments, utils } from '@aim-packages/subtitle';
 import clsx from 'clsx';
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import Textarea from 'react-expanding-textarea';
 import { TbArrowMerge } from 'react-icons/tb';
 
@@ -19,23 +19,62 @@ function getClickTextPosition(e: MouseEvent): number {
 interface SubtitleRowProps {
   index: number;
   segment: AimSegments;
+  isActive?: boolean; // 是否正在播放（高亮显示）
+  rowRef?: React.RefObject<HTMLDivElement>; // 用于滚动定位的 ref
   onTextChange: (index: number, text: string) => void;
   onMergePrev?: (index: number) => void;
   onMergeNext?: (index: number) => void;
+  onTimeClick?: (time: number) => void; // 点击时间戳的回调，传递时间（秒）
 }
 
 const textareaStyle = 'resize-none block p-2 flex-1 outline-none box-border bg-background text-foreground border-none text-base';
 
-const getClassName = (isDelete?: boolean): Array<string> => {
-  return ['p-2 flex-1 outline-none break-words cursor-text border-none text-base text-foreground select-text', isDelete ? 'line-through pointer-events-none text-muted-foreground' : ''];
+const getClassName = (isDelete?: boolean, isActive?: boolean): Array<string> => {
+  return [
+    'p-2 flex-1 outline-none break-words cursor-text border-none text-base text-foreground select-text',
+    isDelete ? 'line-through pointer-events-none text-muted-foreground' : '',
+    isActive ? 'bg-primary/10 text-primary' : ''
+  ];
 };
 
-export const SubtitleRow: React.FC<SubtitleRowProps> = ({ index, segment, onTextChange, onMergePrev, onMergeNext }) => {
+// 将 SRT 时间字符串转换为秒数
+// 支持格式: "00:00:10,500" 或 "00:00:10.500"
+function timeStringToSeconds(timeStr: string): number {
+  if (!timeStr) return 0;
+
+  // 替换逗号为点，统一格式
+  const normalized = timeStr.replace(',', '.');
+
+  // 匹配格式: HH:MM:SS.mmm
+  const match = normalized.match(/(\d{2}):(\d{2}):(\d{2})\.(\d{3})/);
+  if (!match) return 0;
+
+  const hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  const seconds = parseInt(match[3], 10);
+  const milliseconds = parseInt(match[4], 10);
+
+  return hours * 3600 + minutes * 60 + seconds + milliseconds / 1000;
+}
+
+export const SubtitleRow: React.FC<SubtitleRowProps> = ({ index, segment, isActive = false, rowRef, onTextChange, onMergePrev, onTimeClick }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editingText, setEditingText] = useState(segment.text);
   const [hasChanged, setHasChanged] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const clickPosition = useRef(0);
+  const internalRowRef = useRef<HTMLDivElement>(null);
+
+  // 使用传入的 rowRef 或内部的 ref
+  const currentRowRef = rowRef || internalRowRef;
+
+  // 处理时间戳点击
+  const handleTimeClick = useCallback(() => {
+    if (onTimeClick) {
+      const time = timeStringToSeconds(segment.st);
+      onTimeClick(time);
+    }
+  }, [onTimeClick, segment.st]);
 
   const handleTextClick = (event: React.MouseEvent<HTMLDivElement>): void => {
     // 使用 getClickTextPosition 获取点击位置的字符偏移
@@ -91,7 +130,7 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({ index, segment, onText
   };
 
   return (
-    <div className="flex items-start justify-center gap-2 relative pl-4 group">
+    <div ref={currentRowRef} className={clsx('flex items-start justify-center gap-2 relative pl-4 group transition-colors duration-200', isActive && 'bg-primary/5')}>
       {/* 合并按钮：绝对定位在两行之间，不占高度 */}
       {index > 0 && onMergePrev && (
         <div className="absolute left-1 top-0 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 pointer-events-auto">
@@ -103,7 +142,15 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({ index, segment, onText
           <div className=" w-2 h-2 absolute -top-4 left-16 rounded-lg ml-3 bg-ring"></div>
         </div>
       )}
-      <div className="select-none pt-3 cursor-pointer text-muted-foreground text-xs hover:text-primary w-12 text-center relative" onClick={() => { }}>
+      <div
+        className={clsx(
+          'select-none pt-3 cursor-pointer text-xs w-12 text-center relative transition-colors duration-200',
+          isActive ? 'text-primary font-medium' : 'text-muted-foreground hover:text-primary',
+          onTimeClick && 'hover:underline'
+        )}
+        onClick={handleTimeClick}
+        title={onTimeClick ? '点击跳转到此时间' : undefined}
+      >
         <span className="text-xs absolute left-1/2 -translate-x-1/2 -top-1  group-hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity duration-300">#{index + 1}</span>
         {utils.cleanTimeDisplay(segment.st)}
       </div>
@@ -119,13 +166,12 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({ index, segment, onText
           onFocus={
             // // https://stackoverflow.com/questions/44983286/send-cursor-to-the-end-of-input-value-in-react
             // (e) => e.currentTarget.setSelectionRange(e.currentTarget.value.length, e.currentTarget.value.length)
-
             (e) => e.currentTarget.setSelectionRange(clickPosition.current, clickPosition.current)
           }
           autoFocus
         />
       ) : (
-        <div className={clsx(getClassName(segment.delete))} style={{ whiteSpace: 'pre-wrap' }} onClick={handleTextClick}>
+        <div className={clsx(getClassName(segment.delete, isActive))} style={{ whiteSpace: 'pre-wrap' }} onClick={handleTextClick}>
           {segment.text || '\u200b'}
         </div>
       )}

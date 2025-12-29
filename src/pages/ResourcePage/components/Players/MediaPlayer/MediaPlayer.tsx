@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 
 import { CenterPlayButton } from './CenterPlayButton';
 import { MediaControls } from './MediaControls';
@@ -10,9 +10,14 @@ interface MediaPlayerProps {
   autoPlay?: boolean;
   className?: string;
   onVideoLoaded?: (videoElement: HTMLVideoElement) => void;
+  onTimeUpdate?: (currentTime: number) => void; // 播放时间更新回调
 }
 
-export const MediaPlayer: React.FC<MediaPlayerProps> = ({ src, type, title, autoPlay = false, className = '', onVideoLoaded }) => {
+export interface MediaPlayerRef {
+  seekTo: (time: number) => void; // 跳转到指定时间
+}
+
+export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(({ src, type, title, autoPlay = false, className = '', onVideoLoaded, onTimeUpdate }, ref) => {
   const mediaRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -33,10 +38,15 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({ src, type, title, auto
   // 更新时间信息
   const updateTime = useCallback(() => {
     if (mediaRef.current) {
-      setCurrentTime(mediaRef.current.currentTime);
+      const time = mediaRef.current.currentTime;
+      setCurrentTime(time);
       setDuration(mediaRef.current.duration || 0);
+      // 通知父组件播放时间更新
+      if (onTimeUpdate) {
+        onTimeUpdate(time);
+      }
     }
-  }, []);
+  }, [onTimeUpdate]);
 
   // 播放/暂停
   const togglePlay = useCallback(async () => {
@@ -59,6 +69,15 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({ src, type, title, auto
       mediaRef.current.currentTime = time;
     }
   }, []);
+
+  // 暴露方法给父组件
+  useImperativeHandle(
+    ref,
+    () => ({
+      seekTo
+    }),
+    [seekTo]
+  );
 
   // 设置音量
   const changeVolume = useCallback((vol: number) => {
@@ -280,4 +299,6 @@ export const MediaPlayer: React.FC<MediaPlayerProps> = ({ src, type, title, auto
       {title && <div className="text-[11px] text-muted-foreground px-1">音频预览 - {title}</div>}
     </div>
   );
-};
+});
+
+MediaPlayer.displayName = 'MediaPlayer';
