@@ -194,6 +194,75 @@ export const aiBridge = {
   // Utilities
   async autoTagText(text: string, maxLabels?: number): Promise<{ success: true; tags: string[] }> {
     return ipcRenderer.invoke('ai:autoTagText', { text, maxLabels });
+  },
+  // 字幕翻译：在主进程中处理，通过 renderer-message 发送消息
+  async translateSubtitles(
+    payload: {
+      requestId: string;
+      providerId: string;
+      model: string;
+      segments: Array<{ text: string; index: number }>;
+      targetLanguage: string;
+      languageNames: Record<string, string>;
+    },
+    onEvent?: StreamCallback
+  ) {
+    const res = await ipcRenderer.invoke('ai:translateSubtitles', payload);
+    const listeners = new Set<StreamCallback>();
+
+    // 监听 renderer-message 事件
+    const handler = (_event: any, message: { type: string; data?: any }): void => {
+      if (message.type === 'subtitle:translate' && message.data?.requestId === payload.requestId) {
+        const event = message.data;
+        listeners.forEach((cb) => {
+          try {
+            cb(event);
+          } catch {
+            //
+          }
+        });
+      }
+    };
+
+    ipcRenderer.on('renderer-message', handler);
+
+    if (onEvent) listeners.add(onEvent);
+
+    const cleanup = (): void => {
+      try {
+        ipcRenderer.off('renderer-message', handler);
+      } catch {
+        //
+      }
+      listeners.clear();
+    };
+
+    const api = {
+      requestId: res.requestId as string,
+      on(cb: StreamCallback) {
+        listeners.add(cb);
+        return () => listeners.delete(cb);
+      },
+      off(cb: StreamCallback) {
+        listeners.delete(cb);
+      },
+      dispose: cleanup,
+      cancel: async () => {
+        // 取消功能可以后续实现
+        cleanup();
+        return { ok: true };
+      }
+    };
+
+    const autoCleanup = (ev: any): void => {
+      if (ev?.type === 'done' || ev?.type === 'error') {
+        cleanup();
+        api.off(autoCleanup as any);
+      }
+    };
+    listeners.add(autoCleanup as any);
+
+    return api;
   }
 };
 
