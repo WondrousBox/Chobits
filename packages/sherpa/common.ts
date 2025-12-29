@@ -51,6 +51,7 @@ const featConfig = {
 };
 
 const commonConfig = {
+  // decodingMethod: 'modified_beam_search',
   decodingMethod: 'greedy_search',
   maxActivePaths: 4,
   enableEndpoint: true,
