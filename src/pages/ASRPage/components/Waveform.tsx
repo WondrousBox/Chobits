@@ -6,7 +6,7 @@ import { WaveBar } from '../types';
 const WAVE_HEIGHT_SCALE = 1.5;
 
 // 波形移动速度，可在此处修改（值越小线条越密集，值越大线条越稀疏，建议范围：0.1-2）
-const WAVE_MOVE_SPEED = 0.2;
+const WAVE_MOVE_SPEED = 0.3;
 
 // 波形线条宽度，可在此处修改（单位：像素，建议范围：0.5-3）
 const WAVE_BAR_WIDTH = 0.6;
@@ -64,7 +64,7 @@ export const Waveform = forwardRef<WaveformRef, WaveformProps>(({ isRecording },
     ctxRef.current = ctx;
 
     // 设置 canvas 尺寸（考虑 devicePixelRatio）
-    const setupCanvas = () => {
+    const setupCanvas = (): void => {
       const rect = canvas.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
       canvas.width = rect.width * dpr;
@@ -75,7 +75,7 @@ export const Waveform = forwardRef<WaveformRef, WaveformProps>(({ isRecording },
     setupCanvas();
 
     // 绘制函数
-    const draw = () => {
+    const draw = (): void => {
       if (!ctx || !canvas) return;
 
       const width = canvas.width / (window.devicePixelRatio || 1);
@@ -84,7 +84,7 @@ export const Waveform = forwardRef<WaveformRef, WaveformProps>(({ isRecording },
 
       for (let i = barsRef.current.length - 1; i >= 0; i--) {
         const bar = barsRef.current[i];
-        ctx.fillStyle = 'hsl(var(--primary))';
+        ctx.fillStyle = 'rgb(41, 126, 255)';
         ctx.fillRect(bar.x, bar.y, bar.width, bar.height);
         bar.x = bar.x - WAVE_MOVE_SPEED;
 
@@ -95,7 +95,7 @@ export const Waveform = forwardRef<WaveformRef, WaveformProps>(({ isRecording },
     };
 
     // 绘制循环
-    const loop = () => {
+    const loop = (): void => {
       if (isRecording) {
         draw();
         animationFrameIdRef.current = requestAnimationFrame(loop);
@@ -113,7 +113,7 @@ export const Waveform = forwardRef<WaveformRef, WaveformProps>(({ isRecording },
     }
 
     // 监听窗口大小变化
-    const handleResize = () => {
+    const handleResize = (): void => {
       setupCanvas();
     };
     window.addEventListener('resize', handleResize);
@@ -127,7 +127,7 @@ export const Waveform = forwardRef<WaveformRef, WaveformProps>(({ isRecording },
     };
   }, [isRecording]);
 
-  return <canvas ref={canvasRef} className="h-8 w-full no-drag opacity-30" />;
+  return <canvas ref={canvasRef} className="h-8 w-full no-drag opacity-50" />;
 });
 
 Waveform.displayName = 'Waveform';
