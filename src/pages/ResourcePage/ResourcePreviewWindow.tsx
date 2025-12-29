@@ -8,6 +8,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/componen
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 import { ImagePlayer, MediaPlayer, SrtPlayer, TextPlayer } from './components/Players';
+import type { MediaPlayerRef } from './components/Players/MediaPlayer/MediaPlayer';
 import type { ResourceItem } from './types';
 import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from './utils/resourceProtocol';
 import { isSubtitleFile } from './utils/subtitleUtils';
@@ -26,7 +27,9 @@ const ResourcePreviewWindow: React.FC = () => {
   const [activeSubtitle, setActiveSubtitle] = useState<ResourceItem | null>(null);
   const [isPlaylistExpanded, setIsPlaylistExpanded] = useState(true);
   const [showExpandButton, setShowExpandButton] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0); // 当前播放时间（秒）
   const mainContentRef = useRef<HTMLDivElement>(null);
+  const mediaPlayerRef = useRef<MediaPlayerRef>(null); // 媒体播放器的 ref
 
   // 处理视频加载完成，调整窗口大小
   const handleVideoLoaded = useCallback(async (videoElement: HTMLVideoElement) => {
@@ -189,6 +192,7 @@ const ResourcePreviewWindow: React.FC = () => {
       if (!data?.id || data.type !== 'video') {
         setSubtitleList([]);
         setActiveSubtitle(null);
+        setCurrentTime(0); // 切换资源时重置播放时间
         return;
       }
       try {
@@ -251,6 +255,7 @@ const ResourcePreviewWindow: React.FC = () => {
       setData(current);
       setList(lst);
       setIndex(idx);
+      setCurrentTime(0); // 切换资源时重置播放时间
     };
     window.ipcRenderer?.on('on:window:open:ready', handler);
     // 如果 120ms 后仍未接收到数据，主动拉取缓存（避免 race）
@@ -369,7 +374,16 @@ const ResourcePreviewWindow: React.FC = () => {
           )}
         </div>
         <div className="flex-1 min-h-0">
-          <SrtPlayer resource={activeSubtitle} />
+          <SrtPlayer
+            resource={activeSubtitle}
+            currentTime={currentTime}
+            onSeek={(time) => {
+              // 跳转到指定时间
+              if (mediaPlayerRef.current) {
+                mediaPlayerRef.current.seekTo(time);
+              }
+            }}
+          />
         </div>
       </div>
     );
@@ -379,8 +393,10 @@ const ResourcePreviewWindow: React.FC = () => {
   const renderMainContent = (): React.ReactNode => (
     <div ref={mainContentRef} className="h-full relative flex items-center justify-center overflow-hidden">
       {isImageFile(data.filePath) && fileSrc && <ImagePlayer src={fileSrc} title={title} className="w-full h-full rounded-md shadow" />}
-      {isVideoFile(data.filePath) && fileSrc && <MediaPlayer src={fileSrc} type="video" title={title} autoPlay={true} className="w-full h-full" onVideoLoaded={handleVideoLoaded} />}
-      {isAudioFile(data.filePath) && fileSrc && <MediaPlayer src={fileSrc} type="audio" title={title} autoPlay={true} className="w-full max-w-xl" />}
+      {isVideoFile(data.filePath) && fileSrc && (
+        <MediaPlayer ref={mediaPlayerRef} src={fileSrc} type="video" title={title} autoPlay={true} className="w-full h-full" onVideoLoaded={handleVideoLoaded} onTimeUpdate={setCurrentTime} />
+      )}
+      {isAudioFile(data.filePath) && fileSrc && <MediaPlayer ref={mediaPlayerRef} src={fileSrc} type="audio" title={title} autoPlay={true} className="w-full max-w-xl" onTimeUpdate={setCurrentTime} />}
       {isSubtitleFile(data.filePath) && <SrtPlayer resource={data} />}
       {!isImageFile(data.filePath) && !isVideoFile(data.filePath) && !isAudioFile(data.filePath) && !isSubtitleFile(data.filePath) && <TextPlayer resource={data} />}
 
