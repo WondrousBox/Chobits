@@ -54,6 +54,8 @@ function floatTo16BitPCM(output: DataView, offset: number, input: Float32Array):
   }
 }
 
+const SAMPLE_RATE = 16000; // 采样率 16kHz
+
 export const useASR = ({
   enableTranslation,
   translateText,
@@ -69,6 +71,7 @@ export const useASR = ({
   progressText: string;
   progressStart: number;
   progressEnd: number;
+  recordingDuration: number; // 录音时长（秒）
   startRecording: () => Promise<void>;
   stopRecording: () => Promise<void>;
   wsRef: React.MutableRefObject<WebSocket | null>;
@@ -80,6 +83,7 @@ export const useASR = ({
   const [progressText, setProgressText] = useState<string>('');
   const [progressStart, setProgressStart] = useState<number>(0);
   const [progressEnd, setProgressEnd] = useState<number>(0);
+  const [totalSamples, setTotalSamples] = useState<number>(0); // 已发送的总采样点数
 
   const wsRef = useRef<WebSocket | null>(null);
   const isRecordingRef = useRef(false);
@@ -144,6 +148,8 @@ export const useASR = ({
                   uuid: 'stream',
                   data: float32Array
                 });
+                // 累加已发送的采样点数
+                setTotalSamples((prev) => prev + float32Array.length);
               } catch (error) {
                 console.error('发送音频数据到 ASR 失败:', error);
               }
@@ -181,6 +187,8 @@ export const useASR = ({
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.send('start');
         setIsRecording(true);
+        // 重置采样点数计数器
+        setTotalSamples(0);
       }
     } catch (error) {
       console.error('开始录音失败:', error);
@@ -321,6 +329,8 @@ export const useASR = ({
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
           wsRef.current.send('start');
           setIsRecording(true);
+          // 重置采样点数计数器
+          setTotalSamples(0);
         }
       } catch (error) {
         console.error('自动开始录音失败:', error);
@@ -347,6 +357,9 @@ export const useASR = ({
     };
   }, [stopRecording]);
 
+  // 计算录音时长（秒）
+  const recordingDuration = totalSamples / SAMPLE_RATE;
+
   return {
     isRecording,
     isASRRunning,
@@ -355,6 +368,7 @@ export const useASR = ({
     progressText,
     progressStart,
     progressEnd,
+    recordingDuration,
     startRecording,
     stopRecording,
     wsRef
