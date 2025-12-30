@@ -46,6 +46,15 @@ export const SrtPlayer = ({ resource, currentTime = 0, onSeek }: SrtPlayerProps)
   const [isLoading, setIsLoading] = useState(false);
   const activeRowRef = useRef<HTMLDivElement>(null);
 
+  // 翻译状态管理
+  const [translatingChunks, setTranslatingChunks] = useState<Set<number>>(new Set()); // 正在翻译的片段索引
+  const [translatedChunks, setTranslatedChunks] = useState<Set<number>>(new Set()); // 已翻译完成的片段索引
+  const [chunkSummaries, setChunkSummaries] = useState<Map<number, string>>(new Map()); // 片段索引 -> summary
+  const [typingTexts, setTypingTexts] = useState<Map<number, string>>(new Map()); // 片段索引 -> 正在打字的文本
+  const [isTranslationComplete, setIsTranslationComplete] = useState(false);
+  const [currentSummary, setCurrentSummary] = useState<string>(''); // 当前翻译的总结
+  const activeTranslationRequestIdRef = useRef<string | null>(null);
+
   // 防抖保存函数
   const debouncedSave = useMemo(
     () =>
@@ -238,9 +247,168 @@ export const SrtPlayer = ({ resource, currentTime = 0, onSeek }: SrtPlayerProps)
     }
   }, [activeIndex]);
 
-  // 处理翻译完成回调
+  // 监听翻译事件
+  useEffect(() => {
+    // 清理翻译状态的辅助函数
+    const clearTranslationState = (markComplete: boolean = false) => {
+      if (markComplete) {
+        setIsTranslationComplete(true);
+      }
+      setTranslatingChunks(new Set());
+      // 保留打字效果，不清除
+      setCurrentSummary('');
+      activeTranslationRequestIdRef.current = null;
+    };
+
+    const handleTranslationEvent = (event: { type: string; data?: any }) => {
+      if (event.type === 'progress' && event.data?.message) {
+        // 检测是否开始翻译某个片段
+        const message = event.data.message;
+        if (message.includes('正在翻译片段')) {
+          // 如果提供了 startIndex 和 endIndex，标记为正在翻译
+          if (event.data.startIndex !== undefined && event.data.endIndex !== undefined) {
+            setTranslatingChunks((prev) => {
+              const next = new Set(prev);
+              for (let i = event.data.startIndex; i <= event.data.endIndex; i++) {
+                next.add(i);
+              }
+              return next;
+            });
+          }
+        }
+      } else if (event.type === 'summary' && event.data) {
+        // 保存总结信息，根据 startIndex 和 endIndex 将 summary 应用到所有相关片段
+        const { chunkIndex, summary, startIndex, endIndex } = event.data;
+        if (summary && startIndex !== undefined && endIndex !== undefined) {
+          // 更新当前总结（显示最新的总结）
+          setCurrentSummary(summary);
+          setChunkSummaries((prev) => {
+            const next = new Map(prev);
+            // 将 summary 应用到该 chunk 范围内的所有片段
+            for (let i = startIndex; i <= endIndex; i++) {
+              next.set(i, summary);
+            }
+            return next;
+          });
+        }
+      } else if (event.type === 'parsed' && event.data) {
+        // 解析完成的数据，更新翻译状态（不修改原始字幕片段）
+        const data = Array.isArray(event.data) ? event.data : [event.data];
+        data.forEach((item: any) => {
+          if (item.index !== undefined && item.text !== undefined) {
+            const segmentIndex = item.index;
+            // 标记为已翻译
+            setTranslatedChunks((prev) => {
+              const next = new Set(prev);
+              next.add(segmentIndex);
+              return next;
+            });
+            // 保留打字效果，不清除
+            // 如果提供了 startIndex 和 endIndex，更新 summary
+            if (item.summary && item.startIndex !== undefined && item.endIndex !== undefined) {
+              // 更新当前总结（显示最新的总结）
+              setCurrentSummary(item.summary);
+              setChunkSummaries((prev) => {
+                const next = new Map(prev);
+                for (let i = item.startIndex; i <= item.endIndex; i++) {
+                  next.set(i, item.summary);
+                }
+                return next;
+              });
+            }
+          }
+        });
+      } else if (event.type === 'parseProgress' && event.data) {
+        // 实时翻译进度，显示打字效果
+        const data = Array.isArray(event.data) ? event.data : [event.data];
+        data.forEach((item: any) => {
+          if (item.index !== undefined && item.text !== undefined) {
+            const segmentIndex = item.index;
+            // 更新打字效果
+            setTypingTexts((prev) => {
+              const next = new Map(prev);
+              next.set(segmentIndex, item.text);
+              return next;
+            });
+            // 如果这是新 chunk 的开始，标记为正在翻译
+            if (item.startIndex !== undefined && item.endIndex !== undefined) {
+              setTranslatingChunks((prev) => {
+                const next = new Set(prev);
+                // 标记整个范围
+                for (let i = item.startIndex; i <= item.endIndex; i++) {
+                  next.add(i);
+                }
+                return next;
+              });
+              // 更新 summary
+              if (item.summary) {
+                // 更新当前总结（显示最新的总结）
+                setCurrentSummary(item.summary);
+                setChunkSummaries((prev) => {
+                  const next = new Map(prev);
+                  for (let i = item.startIndex; i <= item.endIndex; i++) {
+                    next.set(i, item.summary);
+                  }
+                  return next;
+                });
+              }
+            }
+          }
+        });
+      } else if (event.type === 'completed' && event.data?.translations) {
+        // 翻译完成，清除所有翻译中状态
+        clearTranslationState(true);
+      } else if (event.type === 'done') {
+        // 翻译完成，清除所有翻译中状态
+        clearTranslationState(true);
+      } else if (event.type === 'error') {
+        // 翻译出错，清除翻译中状态
+        clearTranslationState(false);
+      }
+    };
+
+    const handleRendererMessage = (_event: any, message: { type: string; data?: any }): void => {
+      // 只处理翻译相关的事件
+      if (message.type !== 'subtitle:translate') return;
+
+      const event = message.data;
+      if (!event) return;
+
+      // 如果这是新的翻译请求开始，记录 requestId
+      if (event.type === 'connected' || event.type === 'progress') {
+        if (event.requestId && !activeTranslationRequestIdRef.current) {
+          activeTranslationRequestIdRef.current = event.requestId;
+        }
+      }
+
+      // 只处理当前活跃的翻译请求的事件
+      if (activeTranslationRequestIdRef.current && event.requestId !== activeTranslationRequestIdRef.current) {
+        return;
+      }
+
+      // 处理翻译事件
+      handleTranslationEvent(event);
+    };
+
+    // 监听 renderer-message 事件
+    window.ipcRenderer.on('renderer-message', handleRendererMessage);
+
+    return () => {
+      window.ipcRenderer.off('renderer-message', handleRendererMessage);
+    };
+  }, [subtitleEntries, resource.id, isLoading, debouncedSave]);
+
+  // 处理翻译完成回调（用于普通翻译模式）
   const handleTranslateComplete = useCallback((updatedSegments: AimSegments[]) => {
     setSubtitleEntries(updatedSegments);
+    // 重置翻译状态
+    setIsTranslationComplete(false);
+    setTranslatedChunks(new Set());
+    setChunkSummaries(new Map());
+    setTypingTexts(new Map());
+    setTranslatingChunks(new Set());
+    setCurrentSummary('');
+    activeTranslationRequestIdRef.current = null;
   }, []);
 
   return (
@@ -248,21 +416,38 @@ export const SrtPlayer = ({ resource, currentTime = 0, onSeek }: SrtPlayerProps)
       {/* 翻译按钮和配置 */}
       <SubtitleTranslator subtitleEntries={subtitleEntries} onTranslateComplete={handleTranslateComplete} resourceId={resource.id} isLoading={isLoading} debouncedSave={debouncedSave} />
 
+      {currentSummary && (
+        <div className="px-4 py-2 border-b bg-blue-50/50 dark:bg-blue-950/20">
+          <div className="text-xs text-muted-foreground italic border-l-2 border-blue-300 dark:border-blue-700 pl-2 py-1">
+            <span className="ml-1">{currentSummary}</span>
+          </div>
+        </div>
+      )}
+
       <ScrollArea className="h-full w-full">
         <div className="box-border h-full w-full select-text overflow-auto rounded border px-4 py-3 leading-relaxed shadow-inner">
-          {subtitleEntries.map((entry, idx) => (
-            <SubtitleRow
-              key={idx}
-              index={idx}
-              segment={entry}
-              isActive={idx === activeIndex}
-              rowRef={idx === activeIndex ? activeRowRef : undefined}
-              onTextChange={handleTextChange}
-              onMergePrev={handleMergePrev}
-              onMergeNext={handleMergeNext}
-              onTimeClick={onSeek}
-            />
-          ))}
+          {subtitleEntries.map((entry, idx) => {
+            const disabled = translatingChunks.has(idx);
+            const highlight = translatedChunks.has(idx) && !isTranslationComplete;
+            const appendText = typingTexts.get(idx);
+
+            return (
+              <SubtitleRow
+                key={idx}
+                index={idx}
+                segment={entry}
+                isActive={idx === activeIndex}
+                rowRef={idx === activeIndex ? activeRowRef : undefined}
+                onTextChange={handleTextChange}
+                onMergePrev={handleMergePrev}
+                onMergeNext={handleMergeNext}
+                onTimeClick={onSeek}
+                disabled={disabled}
+                highlight={highlight}
+                appendText={appendText}
+              />
+            );
+          })}
         </div>
       </ScrollArea>
     </div>

@@ -127,7 +127,11 @@ Now translate the following into **{targetLanguage}** and only show me the trans
 
         emit({
           type: 'progress',
-          data: { message: `正在翻译片段 ${chunkIndex + 1}/${chunks.indexStringResult.length}...` }
+          data: {
+            message: `正在翻译片段 ${chunkIndex + 1}/${chunks.indexStringResult.length}...`,
+            startIndex,
+            endIndex
+          }
         });
 
         const prompt = defaultSegmentPrompt.replace(/{targetLanguage}/g, targetLangName).replace(/{content}/g, chunk);
@@ -145,7 +149,6 @@ Now translate the following into **{targetLanguage}** and only show me the trans
           onParse: (event) => {
             if (event.type === 'event' && event.event === 'message') {
               if (event.data) {
-                // example { index: 5, text: '让他生气，或者让他伤心。事实上，我们甚至能把他变成一位\n' }
                 // 将 summaryContent、startIndex 和 endIndex 添加到 data 中
                 const dataWithMetadata = Array.isArray(event.data)
                   ? event.data.map((item: any) => ({
@@ -154,12 +157,14 @@ Now translate the following into **{targetLanguage}** and only show me the trans
                     startIndex,
                     endIndex
                   }))
-                  : {
-                    ...event.data,
-                    summary: summaryContent,
-                    startIndex,
-                    endIndex
-                  };
+                  : [
+                    {
+                      ...event.data,
+                      summary: summaryContent,
+                      startIndex,
+                      endIndex
+                    }
+                  ];
 
                 emit({
                   type: 'parsed',
@@ -178,12 +183,14 @@ Now translate the following into **{targetLanguage}** and only show me the trans
                   startIndex,
                   endIndex
                 }))
-                : {
-                  ...event.data,
-                  summary: summaryContent,
-                  startIndex,
-                  endIndex
-                };
+                : [
+                  {
+                    ...event.data,
+                    summary: summaryContent,
+                    startIndex,
+                    endIndex
+                  }
+                ];
 
               emit({
                 type: 'parseProgress',
@@ -219,7 +226,9 @@ Now translate the following into **{targetLanguage}** and only show me the trans
                   type: 'summary',
                   data: {
                     chunkIndex,
-                    summary: summaryContent
+                    summary: summaryContent,
+                    startIndex,
+                    endIndex
                   }
                 });
 
@@ -333,3 +342,12 @@ Now translate the following into **{targetLanguage}** and only show me the trans
     emit({ type: 'done' });
   }
 };
+
+// 先在在开始翻译之前，都会发送开始翻译的消息，
+// 翻译过程中还会实时发送翻译的内容和所在的字幕index，以及当前翻译的行数和所在的片段的开始和结束位置，还有当前的片段总结信息
+// 当翻译完成之后，会发送翻译完成的消息，并返回翻译好的数组
+// 我想要实现这些消息发送到字幕播放组件 asrplayer中时，那边监听这些消息并展示对应的UI效果：
+// 1. 我希望正在翻译中的片段要有对应的颜色展示，并且要禁止用户修改
+// 2. 我希望新翻译出来的片段要有对应的颜色展示，等到全部翻译完成之后才恢复原样
+// 3. 我希望当前的片段总结信息要展示在片段的旁边，说明当前片段在AI的眼中是站在什么角度去翻译的
+// 4. 我希望翻译过程中的打字效果要展示出来，就像AI在打字一样
