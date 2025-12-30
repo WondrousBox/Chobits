@@ -116,14 +116,17 @@ export type AIApi = {
   chatStreamEphemeral(payload: any, onEvent: (ev: { type: string; data?: any }) => void): Promise<{ requestId: string; dispose: () => void; cancel: () => Promise<any> }>;
   chatStream(payload: ChatRequest, onEvent: (ev: { type: string; data?: any }) => void): Promise<{ requestId: string; dispose: () => void; cancel: () => Promise<any> }>;
   // Subtitle translation: handled in main process, sends messages to all windows
-  translateSubtitles(payload: {
-    requestId: string;
-    providerId: string;
-    model: string;
-    segments: Array<{ text: string; index: number }>;
-    targetLanguage: string;
-    languageNames: Record<string, string>;
-  }, onEvent?: (ev: { type: string; data?: any }) => void): Promise<{ requestId: string; dispose: () => void; cancel: () => Promise<any> }>;
+  translate(
+    payload: {
+      requestId: string;
+      providerId: string;
+      model: string;
+      segments: Array<{ text: string; index: number }>;
+      targetLanguage: string;
+      languageNames: Record<string, string>;
+    },
+    onEvent?: (ev: { type: string; data?: any }) => void
+  ): Promise<{ requestId: string; dispose: () => void; cancel: () => Promise<any> }>;
   transcribe(payload: { providerId: string; file: Blob | Buffer; model?: string; language?: string; prompt?: string }): Promise<{ text: string }>;
   embed(payload: { texts: string[]; providerId?: string; model?: string; normalize?: boolean }): Promise<{ vectors: number[][]; dim: number }>;
   // Instances
