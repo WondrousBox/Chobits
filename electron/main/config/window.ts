@@ -431,8 +431,6 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
   },
   asrConfig: {
     routeHash: 'asr-config',
-    parent: 'main',
-    autoCenterOn: 'parent-display',
     showOnReady: false,
     openDevTools: true,
     options: {
@@ -455,7 +453,6 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     autoCenterOn: 'parent-display',
     showOnReady: true,
     openDevTools: true,
-    rememberState: true,
     options: {
       width: 500,
       height: 300,

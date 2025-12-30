@@ -109,7 +109,7 @@ let segmentIndex = 0;
 let duration = 0;
 let lastText = '';
 
-let useDuration = undefined;
+let firstReceivedTime = undefined;
 
 function setupASR(config) {
   recognizer = new sherpa_onnx.OnlineRecognizer(config.modelConfig);
@@ -157,6 +157,22 @@ function sendData(samples) {
 
   const result = recognizer.getResult(stream);
 
+  // 返回的数据结构
+  // {
+  //   text: ' THIS IS SAM',
+  //   tokens: [ ' THIS', ' IS', ' SA', 'M' ],
+  //   timestamps: [ 0.96, 1.16, 1.44, 1.56 ],
+  //   ys_probs: [],
+  //   lm_probs: [],
+  //   context_scores: [],
+  //   segment: 0,
+  //   words: [ 176496, 89394, 153540 ],
+  //   start_time: 102.4,
+  //   is_final: false,
+  //   is_eof: false
+  // }
+  // console.log(result);
+
   if (isEndpoint) {
     if (result.text.length > 0) {
       const text = result.text.toLowerCase().trim();
@@ -165,7 +181,7 @@ function sendData(samples) {
       process.send({
         event: 'asr:progress',
         data: {
-          start: useDuration !== undefined ? useDuration : result.start_time * 1000,
+          start: firstReceivedTime !== undefined ? firstReceivedTime : result.start_time * 1000,
           end: duration,
           // timestamp: Math.round((result.timestamps[result.timestamps.length - 1] + result.start_time) * 1000),
           text: punctuation ? punctuation.addPunct(text) : text,
@@ -174,24 +190,26 @@ function sendData(samples) {
       });
     }
     lastText = '';
-    useDuration = undefined;
+    firstReceivedTime = undefined;
     recognizer.reset(stream);
   } else {
     if (result.text.length > 0) {
-      if (result.timestamps.length === 0 && result.start_time === 0 && useDuration === undefined) {
-        useDuration = duration;
+      if (result.timestamps.length === 0 && result.start_time === 0 && firstReceivedTime === undefined) {
+        firstReceivedTime = duration;
       }
-      const text = result.text.toLowerCase().trim();
-      if (text !== lastText) {
-        lastText = text;
+      const rawText = result.text.toLowerCase().trim();
+
+      // 只有当原始文本变化时才处理标点和发送更新，避免重复计算
+      if (rawText !== lastText) {
+        lastText = rawText; // 保存原始文本用于下次比较
         // display.print(segmentIndex, text);
         process.send({
           event: 'asr:progress',
           data: {
-            start: useDuration !== undefined ? useDuration : result.start_time * 1000,
+            start: firstReceivedTime !== undefined ? firstReceivedTime : result.start_time * 1000,
             end: duration,
             // timestamp: Math.round((result.timestamps[result.timestamps.length - 1] + result.start_time) * 1000),
-            text,
+            text: punctuation ? punctuation.addPunct(rawText) : rawText,
             isEndpoint
           }
         });
@@ -212,7 +230,7 @@ function stopASR() {
   duration = 0;
   lastText = '';
 
-  useDuration = undefined;
+  firstReceivedTime = undefined;
 
   log('[asr] stopped');
 }

@@ -1,3 +1,4 @@
+import { utils } from '@aim-packages/subtitle';
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { TbArrowDown, TbArrowUp, TbBackground, TbLoader2, TbMicrophone, TbMicrophoneOff, TbX } from 'react-icons/tb';
@@ -68,7 +69,7 @@ const ASRPage: React.FC = () => {
     waveformRef.current?.addBar(level);
   }, []);
 
-  const { isRecording, isASRRunning, setIsASRRunning, recognizedSegments, progressText, startRecording, stopRecording, wsRef } = useASR({
+  const { isRecording, isASRRunning, setIsASRRunning, recognizedSegments, progressText, recordingDuration, startRecording, stopRecording, wsRef } = useASR({
     enableTranslation,
     translateText,
     onAudioLevel,
@@ -152,7 +153,7 @@ const ASRPage: React.FC = () => {
       >
         {/* 状态指示器 */}
         <div className={`flex items-center justify-between gap-3 px-2 py-2 ${isTransparent ? 'border-b border-transparent' : 'border-b'}`}>
-          <div>
+          <div className="flex items-center gap-2">
             {isRecording ? (
               <Button size="icon" variant="destructive" className="w-8 h-8 rounded-full no-drag ml-2" onClick={handleStopRecording} disabled={isLoading}>
                 <TbMicrophoneOff className={isTransparent ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''} />
@@ -165,6 +166,11 @@ const ASRPage: React.FC = () => {
                   <TbMicrophone className={isTransparent ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''} />
                 )}
               </Button>
+            )}
+            {isRecording && (
+              <span className={`text-sm tabular-nums ${isTransparent ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : 'text-muted-foreground'}`}>
+                {utils.cleanTimeDisplay(recordingDuration)}
+              </span>
             )}
           </div>
           <div className="flex items-center gap-1">
