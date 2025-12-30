@@ -25,6 +25,9 @@ interface SubtitleRowProps {
   onMergePrev?: (index: number) => void;
   onMergeNext?: (index: number) => void;
   onTimeClick?: (time: number) => void; // 点击时间戳的回调，传递时间（秒）
+  disabled?: boolean; // 是否禁用编辑
+  highlight?: boolean; // 是否高亮显示（用于标识新变更的内容，引起用户注意）
+  appendText?: string; // 附加文本，显示在原始文本下方
 }
 
 const textareaStyle = 'resize-none block p-2 flex-1 outline-none box-border bg-background text-foreground border-none text-base';
@@ -57,7 +60,7 @@ function timeStringToSeconds(timeStr: string): number {
   return hours * 3600 + minutes * 60 + seconds + milliseconds / 1000;
 }
 
-export const SubtitleRow: React.FC<SubtitleRowProps> = ({ index, segment, isActive = false, rowRef, onTextChange, onMergePrev, onTimeClick }) => {
+export const SubtitleRow: React.FC<SubtitleRowProps> = ({ index, segment, isActive = false, rowRef, onTextChange, onMergePrev, onTimeClick, disabled = false, highlight = false, appendText }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editingText, setEditingText] = useState(segment.text);
   const [hasChanged, setHasChanged] = useState(false);
@@ -77,6 +80,10 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({ index, segment, isActi
   }, [onTimeClick, segment.st]);
 
   const handleTextClick = (event: React.MouseEvent<HTMLDivElement>): void => {
+    // 如果禁用，禁止编辑
+    if (disabled) {
+      return;
+    }
     // 使用 getClickTextPosition 获取点击位置的字符偏移
     const offset = getClickTextPosition(event.nativeEvent);
     clickPosition.current = offset;
@@ -130,7 +137,15 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({ index, segment, isActi
   };
 
   return (
-    <div ref={currentRowRef} className={clsx('flex items-start justify-center gap-2 relative pl-4 group transition-colors duration-200', isActive && 'bg-primary/5')}>
+    <div
+      ref={currentRowRef}
+      className={clsx(
+        'flex items-start justify-center gap-2 relative pl-4 group transition-colors duration-200',
+        isActive && 'bg-primary/5',
+        disabled && 'bg-blue-50 dark:bg-blue-950/30 border-l-2 border-blue-500',
+        highlight && !disabled && 'bg-green-50 dark:bg-green-950/30'
+      )}
+    >
       {/* 合并按钮：绝对定位在两行之间，不占高度 */}
       {index > 0 && onMergePrev && (
         <div className="absolute left-1 top-0 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 pointer-events-auto">
@@ -171,8 +186,17 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({ index, segment, isActi
           autoFocus
         />
       ) : (
-        <div className={clsx(getClassName(segment.delete, isActive))} style={{ whiteSpace: 'pre-wrap' }} onClick={handleTextClick}>
-          {segment.text || '\u200b'}
+        <div className="flex-1 relative">
+          {/* 原始文本 */}
+          <div className={clsx(getClassName(segment.delete, isActive), disabled && 'pointer-events-none cursor-not-allowed opacity-80')} style={{ whiteSpace: 'pre-wrap' }} onClick={handleTextClick}>
+            {segment.text || '\u200b'}
+          </div>
+          {/* 附加文本，显示在原始文本下方 */}
+          {appendText && (
+            <div className={clsx(getClassName(segment.delete, isActive), disabled && 'pointer-events-none cursor-not-allowed opacity-80')} style={{ whiteSpace: 'pre-wrap' }} onClick={handleTextClick}>
+              {appendText || '\u200b'}
+            </div>
+          )}
         </div>
       )}
     </div>

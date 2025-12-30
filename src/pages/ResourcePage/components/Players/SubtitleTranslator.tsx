@@ -1,5 +1,5 @@
 import { AimSegments } from '@aim-packages/subtitle';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { TbLanguage } from 'react-icons/tb';
 
 import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
@@ -95,8 +95,6 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
   // 共用状态
   const [targetLanguage, setTargetLanguage] = useState<string>(savedPreferences?.targetLanguage || 'en');
   const [isTranslating, setIsTranslating] = useState(false);
-  const [translationProgress, setTranslationProgress] = useState<string>('');
-  const translationStreamRef = useRef<{ dispose: () => void; cancel: () => Promise<any> } | null>(null);
 
   // 保存偏好设置到 localStorage
   useEffect(() => {
@@ -231,16 +229,6 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
     setSelectedModel(modelId);
   }, []);
 
-  // 清理翻译流
-  useEffect(() => {
-    return () => {
-      if (translationStreamRef.current) {
-        translationStreamRef.current.dispose();
-        translationStreamRef.current = null;
-      }
-    };
-  }, []);
-
   // AI 翻译功能
   const handleAITranslate = useCallback(async () => {
     if (!selectedProviderId || !selectedModel || !targetLanguage || subtitleEntries.length === 0) {
@@ -260,23 +248,10 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
       return;
     }
 
-    const validSegmentsLength = validSegments.length;
-
+    setIsTranslationPopoverOpen(false);
     setIsTranslating(true);
-    setTranslationProgress('准备翻译...');
 
     try {
-      // 取消之前的翻译请求
-      if (translationStreamRef.current) {
-        try {
-          await translationStreamRef.current.cancel();
-          translationStreamRef.current.dispose();
-        } catch (error) {
-          console.error('取消翻译失败:', error);
-        }
-        translationStreamRef.current = null;
-      }
-
       // 生成请求 ID
       const requestId = `translate-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -286,86 +261,20 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
         index: idx
       }));
 
-      // 调用主进程的翻译功能
-      const stream = await window.YUA.ai.translate(
-        {
-          requestId,
-          providerId: selectedProviderId,
-          model: selectedModel,
-          segments: segmentsData,
-          targetLanguage,
-          languageNames
-        },
-        (ev: any) => {
-          if (ev.type === 'connected') {
-            setTranslationProgress('正在连接AI服务...');
-          } else if (ev.type === 'progress') {
-            if (ev.data?.message) {
-              setTranslationProgress(ev.data.message);
-            }
-          } else if (ev.type === 'completed' && ev.data?.translations) {
-            const translations = ev.data.translations;
-            setTranslationProgress('翻译完成，正在更新字幕...');
-
-            // 更新字幕内容
-            try {
-              if (translations.length > 0) {
-                const updated = [...subtitleEntries];
-                let validIndex = 0;
-
-                // 只更新有效的（未删除的）片段
-                translations.forEach((translatedText: string, idx: number) => {
-                  // 找到下一个有效片段
-                  while (validIndex < updated.length && updated[validIndex].delete) {
-                    validIndex++;
-                  }
-
-                  if (validIndex < updated.length && idx < validSegmentsLength) {
-                    updated[validIndex] = {
-                      ...updated[validIndex],
-                      text: translatedText
-                    };
-                    validIndex++;
-                  }
-                });
-
-                // 通知父组件更新
-                onTranslateComplete(updated);
-
-                // 触发保存
-                if (resourceId && !isLoading) {
-                  debouncedSave(resourceId, updated);
-                }
-              }
-
-              setTranslationProgress('翻译完成');
-            } catch (error) {
-              console.error('更新字幕失败:', error);
-              setTranslationProgress('翻译完成，但更新字幕时出错');
-            }
-
-            setIsTranslating(false);
-          } else if (ev.type === 'error') {
-            console.error('翻译错误:', ev.data);
-            setTranslationProgress(ev.data?.message || '翻译失败');
-            setIsTranslating(false);
-          } else if (ev.type === 'done') {
-            if (translationStreamRef.current) {
-              translationStreamRef.current.dispose();
-              translationStreamRef.current = null;
-            }
-            setIsTranslating(false);
-          }
-        }
-      );
-
-      translationStreamRef.current = stream;
+      // 调用主进程的翻译功能（事件会通过 renderer-message 发送到所有窗口）
+      await window.YUA.ai.translate({
+        requestId,
+        providerId: selectedProviderId,
+        model: selectedModel,
+        segments: segmentsData,
+        targetLanguage,
+        languageNames
+      });
     } catch (error) {
       console.error('翻译失败:', error);
-      setTranslationProgress('翻译失败');
       setIsTranslating(false);
     }
-  }, [selectedProviderId, selectedModel, targetLanguage, subtitleEntries, resourceId, isLoading, debouncedSave, onTranslateComplete, checkProviderConfig, handleOpenProviderConfig]);
+  }, [selectedProviderId, selectedModel, targetLanguage, subtitleEntries, checkProviderConfig, handleOpenProviderConfig]);
 
   // 普通翻译功能
   const handleNormalTranslate = useCallback(async () => {
@@ -379,14 +288,10 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
       return;
     }
 
+    setIsTranslationPopoverOpen(false);
     setIsTranslating(true);
-    setTranslationProgress('准备翻译...');
 
     try {
-      // TODO: 实现实际的翻译服务 API 调用
-      // 这里先创建一个占位实现
-      setTranslationProgress('正在翻译...');
-
       // 模拟翻译过程
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
@@ -404,11 +309,9 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
         debouncedSave(resourceId, updated);
       }
 
-      setTranslationProgress('翻译完成');
       setIsTranslating(false);
     } catch (error) {
       console.error('翻译失败:', error);
-      setTranslationProgress('翻译失败');
       setIsTranslating(false);
     }
   }, [selectedService, targetLanguage, subtitleEntries, resourceId, isLoading, debouncedSave, onTranslateComplete]);
@@ -471,22 +374,12 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
               </div>
 
               <Button
-                size="sm"
                 className="w-full"
                 onClick={handleAITranslate}
                 disabled={!selectedProviderId || !selectedModel || !targetLanguage || isTranslating || subtitleEntries.length === 0 || !providerConfigured}
               >
-                {isTranslating ? (
-                  <>
-                    <span className="mr-2">{translationProgress}</span>
-                    <span className="animate-spin">⏳</span>
-                  </>
-                ) : (
-                  '开始翻译'
-                )}
+                开始翻译
               </Button>
-
-              {translationProgress && !isTranslating && <div className="text-xs text-muted-foreground">{translationProgress}</div>}
             </TabsContent>
 
             <TabsContent value="normal" className="space-y-4 mt-0">
@@ -523,17 +416,8 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
               </div>
 
               <Button size="sm" className="w-full" onClick={handleNormalTranslate} disabled={!selectedService || !targetLanguage || isTranslating || subtitleEntries.length === 0}>
-                {isTranslating ? (
-                  <>
-                    <span className="mr-2">{translationProgress}</span>
-                    <span className="animate-spin">⏳</span>
-                  </>
-                ) : (
-                  '开始翻译'
-                )}
+                开始翻译
               </Button>
-
-              {translationProgress && !isTranslating && <div className="text-xs text-muted-foreground">{translationProgress}</div>}
             </TabsContent>
           </Tabs>
         </PopoverContent>
