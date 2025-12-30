@@ -218,7 +218,6 @@ export function initAIHandlers(win: BrowserWindow): void {
 
       // 向所有窗口发送消息的函数
       const emit = (event: { type: string; data?: any }): void => {
-        console.log('emit', event);
         BrowserWindow.getAllWindows().forEach((w) => {
           if (!w.isDestroyed()) {
             try {
