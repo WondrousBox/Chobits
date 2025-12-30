@@ -363,7 +363,7 @@ Now translate the following into **{targetLanguage}** and only show me the trans
               let hasReceivedCompleted = false;
 
               // 调用 provider 的 chat 方法进行流式翻译
-              const response = await provider.chat(
+              const response = await provider?.chat?.(
                 {
                   messages: [{ role: 'user', content: prompt }],
                   providerId,

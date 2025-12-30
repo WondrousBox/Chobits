@@ -484,10 +484,10 @@ const ASRConfigPage: React.FC = () => {
 
   return (
     <>
-      <div className="flex flex-col h-full w-full box-border rounded-lg bg-background">
+      <div className="flex flex-col h-full w-full box-border rounded-lg bg-background drag-region">
         <ScrollArea className="space-y-4 flex-1 overflow-y-auto pt-4 px-4">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-4">
+            <TabsList className="grid w-full grid-cols-2 mb-4 no-drag">
               <TabsTrigger value="local">本地识别</TabsTrigger>
               <TabsTrigger value="cloud">云端转写</TabsTrigger>
             </TabsList>
@@ -746,6 +746,39 @@ const ASRConfigPage: React.FC = () => {
               {enableTranslation && (
                 <>
                   <div className="space-y-2">
+                    {providers.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="no-drag" htmlFor="provider">
+                            AI 服务商
+                          </Label>
+                          {selectedProviderId && (
+                            <div className="flex items-center gap-2">
+                              {providerConfigured ? (
+                                <span className="text-xs text-green-600 dark:text-green-400">已配置</span>
+                              ) : (
+                                <Button size="sm" variant="outline" className="h-6 text-xs px-2 no-drag" onClick={handleOpenProviderConfig}>
+                                  未配置
+                                </Button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <Select value={selectedProviderId} onValueChange={setSelectedProviderId} disabled={!enableTranslation || providers.length === 0}>
+                          <SelectTrigger className="no-drag" id="provider">
+                            <SelectValue placeholder="请选择AI服务商" />
+                          </SelectTrigger>
+                          <SelectContent className="no-drag">
+                            {providers.map((provider) => (
+                              <SelectItem key={provider.id} value={provider.id}>
+                                {provider.label || provider.id}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {selectedProviderId && !providerConfigured && <div className="text-xs text-amber-600 dark:text-amber-400">该服务商未配置API密钥，请点击按钮进行配置</div>}
+                      </div>
+                    )}
                     <Label className="no-drag" htmlFor="targetLanguage">
                       目标语言
                     </Label>
@@ -762,39 +795,6 @@ const ASRConfigPage: React.FC = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  {providers.length > 0 && (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label className="no-drag" htmlFor="provider">
-                          AI 服务商
-                        </Label>
-                        {selectedProviderId && (
-                          <div className="flex items-center gap-2">
-                            {providerConfigured ? (
-                              <span className="text-xs text-green-600 dark:text-green-400">已配置</span>
-                            ) : (
-                              <Button size="sm" variant="outline" className="h-6 text-xs px-2 no-drag" onClick={handleOpenProviderConfig}>
-                                未配置
-                              </Button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <Select value={selectedProviderId} onValueChange={setSelectedProviderId} disabled={!enableTranslation || providers.length === 0}>
-                        <SelectTrigger className="no-drag" id="provider">
-                          <SelectValue placeholder="请选择AI服务商" />
-                        </SelectTrigger>
-                        <SelectContent className="no-drag">
-                          {providers.map((provider) => (
-                            <SelectItem key={provider.id} value={provider.id}>
-                              {provider.label || provider.id}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {selectedProviderId && !providerConfigured && <div className="text-xs text-amber-600 dark:text-amber-400">该服务商未配置API密钥，请点击按钮进行配置</div>}
-                    </div>
-                  )}
                 </>
               )}
             </div>

@@ -468,16 +468,6 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
       skipTaskbar: true,
       backgroundColor: '#00000000',
       webPreferences: { nodeIntegration: true, contextIsolation: true }
-    },
-    platformOverlays: {
-      darwin: {
-        options: {
-          titleBarStyle: 'hiddenInset',
-          titleBarOverlay: true,
-          trafficLightPosition: { x: 20, y: 10 },
-          frame: true
-        }
-      }
     }
   }
 };

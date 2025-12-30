@@ -1,3 +1,4 @@
+import { AppEvent } from '@packages/event/events';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -5,7 +6,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { SidebarProvider } from '@/components/ui/sidebar';
 import SettingsPage from '@/pages/SettingsPage/SettingsPage';
 
-import { AppEvent } from '../../../packages/event/events';
 import { UIFolder } from './components/FolderSidebar';
 import RenameFolderDialog from './components/layout/RenameFolderDialog';
 import ResourceContent from './components/layout/ResourceContent';
@@ -460,7 +460,7 @@ const ResourcePage: React.FC = () => {
           <DialogTitle></DialogTitle>
           <DialogDescription></DialogDescription>
         </DialogHeader>
-        <DialogContent className="max-w-6xl w-[90vw] p-0 overflow-hidden">
+        <DialogContent className="w-[90vw] p-0 overflow-hidden" style={{ maxWidth: 1152 }}>
           <div className="w-full h-[80vh]">
             <SettingsPage hideTitleBar />
           </div>
