@@ -49,24 +49,65 @@ const translationServices: { value: TranslationService; label: string }[] = [
   { value: 'deepl', label: 'DeepL' }
 ];
 
+// localStorage 键名
+const STORAGE_KEY = 'subtitle-translator-preferences';
+
+// 从 localStorage 读取保存的偏好设置
+const loadPreferences = () => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (error) {
+    console.error('读取翻译偏好设置失败:', error);
+  }
+  return null;
+};
+
+// 保存偏好设置到 localStorage
+const savePreferences = (preferences: { translationMode?: 'ai' | 'normal'; selectedProviderId?: string; selectedModel?: string; selectedService?: TranslationService; targetLanguage?: string }) => {
+  try {
+    const existing = loadPreferences() || {};
+    const updated = { ...existing, ...preferences };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  } catch (error) {
+    console.error('保存翻译偏好设置失败:', error);
+  }
+};
+
 export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitleEntries, onTranslateComplete, resourceId, isLoading, debouncedSave }) => {
+  // 从 localStorage 加载保存的偏好设置
+  const savedPreferences = loadPreferences();
+
   const [isTranslationPopoverOpen, setIsTranslationPopoverOpen] = useState(false);
-  const [translationMode, setTranslationMode] = useState<'ai' | 'normal'>('ai');
+  const [translationMode, setTranslationMode] = useState<'ai' | 'normal'>(savedPreferences?.translationMode || 'ai');
 
   // AI 翻译相关状态
-  const [selectedProviderId, setSelectedProviderId] = useState<string>('');
-  const [selectedModel, setSelectedModel] = useState<string>('');
+  const [selectedProviderId, setSelectedProviderId] = useState<string>(savedPreferences?.selectedProviderId || '');
+  const [selectedModel, setSelectedModel] = useState<string>(savedPreferences?.selectedModel || '');
   const [providers, setProviders] = useState<any[]>([]);
   const [providerConfigured, setProviderConfigured] = useState<boolean>(false);
 
   // 普通翻译相关状态
-  const [selectedService, setSelectedService] = useState<TranslationService>('google');
+  const [selectedService, setSelectedService] = useState<TranslationService>(savedPreferences?.selectedService || 'google');
 
   // 共用状态
-  const [targetLanguage, setTargetLanguage] = useState<string>('en');
+  const [targetLanguage, setTargetLanguage] = useState<string>(savedPreferences?.targetLanguage || 'en');
   const [isTranslating, setIsTranslating] = useState(false);
   const [translationProgress, setTranslationProgress] = useState<string>('');
   const translationStreamRef = useRef<{ dispose: () => void; cancel: () => Promise<any> } | null>(null);
+
+  // 保存偏好设置到 localStorage
+  useEffect(() => {
+    savePreferences({
+      translationMode,
+      selectedProviderId,
+      selectedModel,
+      selectedService,
+      targetLanguage
+    });
+  }, [translationMode, selectedProviderId, selectedModel, selectedService, targetLanguage]);
 
   // 加载 AI Providers
   useEffect(() => {
