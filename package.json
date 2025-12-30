@@ -13,7 +13,7 @@
   },
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "chcp 65001 && vite",
     "build": "tsc && vite build && electron-builder",
     "postinstall": "electron-builder install-app-deps",
     "build:rebuild": "pnpm rebuild && pnpm build",
