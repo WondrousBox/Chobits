@@ -441,9 +441,9 @@ const ResourcePreviewWindow: React.FC = () => {
       <div className="h-full overflow-hidden" style={{ height: 'calc(100% - 36px)' }}>
         {data && isPlaylistExpanded && (list.length > 0 || hasSubtitlePanel) ? (
           <ResizablePanelGroup direction="horizontal" className="h-full">
-            <ResizablePanel defaultSize={75}>{renderMainContent()}</ResizablePanel>
+            <ResizablePanel defaultSize={50}>{renderMainContent()}</ResizablePanel>
             <ResizableHandle className="hover:bg-primary" withHandle />
-            <ResizablePanel defaultSize={25} minSize={15}>
+            <ResizablePanel defaultSize={50} minSize={15}>
               {hasSubtitlePanel ? renderSubtitlePanel() : renderPlaylistContent()}
             </ResizablePanel>
           </ResizablePanelGroup>

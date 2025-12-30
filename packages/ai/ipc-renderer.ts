@@ -196,7 +196,7 @@ export const aiBridge = {
     return ipcRenderer.invoke('ai:autoTagText', { text, maxLabels });
   },
   // 字幕翻译：在主进程中处理，通过 renderer-message 发送消息
-  async translateSubtitles(
+  async translate(
     payload: {
       requestId: string;
       providerId: string;
@@ -207,7 +207,7 @@ export const aiBridge = {
     },
     onEvent?: StreamCallback
   ) {
-    const res = await ipcRenderer.invoke('ai:translateSubtitles', payload);
+    const res = await ipcRenderer.invoke('ai:translate', payload);
     const listeners = new Set<StreamCallback>();
 
     // 监听 renderer-message 事件

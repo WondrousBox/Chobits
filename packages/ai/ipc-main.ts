@@ -1,3 +1,4 @@
+import { type AimSegments, utils } from '@aim-packages/subtitle';
 import { BrowserWindow, ipcMain } from 'electron';
 
 import { ChatRepo } from '../common/db';
@@ -200,14 +201,14 @@ export function initAIHandlers(win: BrowserWindow): void {
 
   // 字幕翻译：在主进程中处理，向所有窗口发送消息
   ipcMain.handle(
-    'ai:translateSubtitles',
+    'ai:translate',
     async (
       _e,
       payload: {
         requestId: string;
         providerId: string;
         model: string;
-        segments: Array<{ text: string; index: number }>;
+        segments: AimSegments[];
         targetLanguage: string;
         languageNames: Record<string, string>;
       }
@@ -250,31 +251,76 @@ export function initAIHandlers(win: BrowserWindow): void {
             await Promise.resolve(provider.setSecrets(secrets));
           }
 
-          // 构建翻译提示词
           const targetLangName = languageNames[targetLanguage] || targetLanguage;
-          const segmentsText = segments.map((seg) => `${seg.index + 1}. ${seg.text}`).join('\n');
-          const prompt = `请将以下字幕翻译成${targetLangName}，保持原有的编号格式，只返回翻译结果，不要添加任何解释或说明。每个翻译结果占一行，格式为：编号. 翻译文本\n\n${segmentsText}`;
-
-          emit({ type: 'progress', data: { message: '正在连接AI服务...' } });
-
-          let currentTranslation = '';
-          let hasReceivedCompleted = false;
           const ctrl = new AbortController();
 
-          // 解析翻译结果的辅助函数
-          const parseTranslation = (translation: string): string[] => {
+          // 按顺序执行 Promise 的辅助函数
+          const executePromisesInOrder = async <T>(promises: Array<() => Promise<T>>, signal?: AbortSignal, timeout?: number): Promise<Array<{ result?: T; error?: Error }>> => {
+            const results: Array<{ result?: T; error?: Error }> = [];
+
+            for (let i = 0; i < promises.length; i++) {
+              if (signal?.aborted) {
+                results.push({ error: new Error('Aborted') });
+                break;
+              }
+
+              try {
+                const promise = promises[i]();
+                const result = timeout ? await Promise.race([promise, new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout))]) : await promise;
+                results.push({ result });
+              } catch (error) {
+                results.push({ error: error instanceof Error ? error : new Error(String(error)) });
+                // 如果出错，可以选择继续或停止
+                // 这里选择继续执行后续请求
+              }
+            }
+
+            return results;
+          };
+
+          // 解析翻译结果的辅助函数（支持 [number]text 格式）
+          const parseTranslation = (translation: string, originalIndices: number[]): string[] => {
             const lines = translation.split('\n').filter((line: string) => line.trim());
             const translations: string[] = [];
+            const translationMap = new Map<number, string>();
 
+            // 解析 [number]text 格式
             lines.forEach((line: string) => {
-              const match = line.match(/^\d+[\.、\s]+\s*(.+)$/);
+              const match = line.match(/^\[(\d+)\](.+)$/);
               if (match) {
-                translations.push(match[1].trim());
+                const index = parseInt(match[1], 10);
+                const text = match[2].trim();
+                translationMap.set(index, text);
               } else if (line.trim()) {
-                translations.push(line.trim());
+                // 如果没有匹配到格式，尝试提取可能的翻译文本
+                const textOnly = line.replace(/^\[\d+\]\s*/, '').trim();
+                if (textOnly) {
+                  // 如果还有未匹配的索引，使用第一个未匹配的
+                  const unmatchedIndex = originalIndices.find((idx) => !translationMap.has(idx));
+                  if (unmatchedIndex !== undefined) {
+                    translationMap.set(unmatchedIndex, textOnly);
+                  }
+                }
               }
             });
 
+            // 按照原始索引顺序构建翻译数组
+            originalIndices.forEach((idx) => {
+              const translated = translationMap.get(idx);
+              if (translated) {
+                translations.push(translated);
+              } else {
+                // 如果某个索引没有翻译，尝试从剩余行中获取
+                const remainingLine = lines.find((l) => l.trim() && !l.match(/^\[\d+\]/));
+                if (remainingLine) {
+                  translations.push(remainingLine.trim());
+                } else {
+                  translations.push(''); // 保持索引对应关系
+                }
+              }
+            });
+
+            // 如果解析失败，尝试按行顺序直接使用
             if (translations.length === 0 && lines.length > 0) {
               translations.push(...lines.map((l) => l.trim()).filter(Boolean));
             }
@@ -282,53 +328,113 @@ export function initAIHandlers(win: BrowserWindow): void {
             return translations;
           };
 
-          // 调用 provider 的 chat 方法进行流式翻译
-          const response = await provider.chat(
-            {
-              messages: [{ role: 'user', content: prompt }],
-              providerId,
-              extras: { model, secrets },
-              stream: true,
-              abortId: requestId
-            },
-            (event: any) => {
-              if (event?.type === 'delta' && event.data?.text) {
-                currentTranslation += event.data.text;
-                emit({ type: 'progress', data: { message: '正在翻译...', translation: currentTranslation } });
-              } else if (event?.type === 'message_completed' && event.data?.message?.content) {
-                hasReceivedCompleted = true;
-                const translation = event.data.message.content.trim();
-                emit({ type: 'progress', data: { message: '翻译完成，正在解析结果...' } });
+          // 默认的翻译提示词
+          const defaultSegmentPrompt = `You are a professional translator. You will always maintain the structural integrity of the '[]' positions within the sentences. The text following the '[]' must not be omitted.
+I will provide you with text in this format and "[number]" means the starting for each line:
+[number]text
+[number]text
+You must keep all "[number]", Force break **translated text** reasonably to follow after "[number]". Follow the same structure:
+[number]translated text
+[number]translated text
 
-                const translations = parseTranslation(translation);
+Now translate the following into **{targetLanguage}** and only show me the translated content:
+{content}`;
 
-                emit({
-                  type: 'completed',
-                  data: {
-                    translations,
-                    originalTranslation: translation
+          // 分块处理字幕
+          const chunks = utils.chunkSegmentStringsWithIndex(segments, 1000);
+          emit({ type: 'progress', data: { message: `准备翻译 ${chunks.indexStringResult.length} 个字幕片段...` } });
+
+          // 创建翻译 Promise 数组
+          const translatePromises = chunks.indexStringResult.map((chunk: string, chunkIndex: number) => {
+            return async (): Promise<string> => {
+              if (ctrl.signal.aborted) {
+                throw new Error('Aborted');
+              }
+
+              emit({
+                type: 'progress',
+                data: { message: `正在翻译片段 ${chunkIndex + 1}/${chunks.indexStringResult.length}...` }
+              });
+
+              const prompt = defaultSegmentPrompt.replace(/{targetLanguage}/g, targetLangName).replace(/{content}/g, chunk);
+              console.log('prompt', prompt);
+
+              let currentTranslation = '';
+              let hasReceivedCompleted = false;
+
+              // 调用 provider 的 chat 方法进行流式翻译
+              const response = await provider.chat(
+                {
+                  messages: [{ role: 'user', content: prompt }],
+                  providerId,
+                  extras: { model, secrets },
+                  stream: true,
+                  abortId: `${requestId}-chunk-${chunkIndex}`
+                },
+                (event: any) => {
+                  console.log(event.data);
+                  if (event?.type === 'delta' && event.data?.text) {
+                    currentTranslation += event.data.text;
+                  } else if (event?.type === 'message_completed' && event.data?.message?.content) {
+                    hasReceivedCompleted = true;
+                    currentTranslation = event.data.message.content.trim();
+                  } else if (event?.type === 'error') {
+                    throw new Error(event.data?.message || '翻译失败');
                   }
-                });
-              } else if (event?.type === 'error') {
-                emit({ type: 'error', data: { message: event.data?.message || '翻译失败' } });
-              }
-            },
-            ctrl.signal
-          );
+                },
+                ctrl.signal
+              );
 
-          // 如果没有通过流式事件收到完成消息，使用最终响应
-          if (!hasReceivedCompleted && response?.message?.content) {
-            const translation = response.message.content.trim();
-            const translations = parseTranslation(translation);
-
-            emit({
-              type: 'completed',
-              data: {
-                translations,
-                originalTranslation: translation
+              // 如果没有通过流式事件收到完成消息，使用最终响应
+              if (!hasReceivedCompleted && response?.message?.content) {
+                currentTranslation = response.message.content.trim();
               }
-            });
+
+              if (!currentTranslation) {
+                throw new Error('翻译结果为空');
+              }
+
+              return currentTranslation;
+            };
+          });
+
+          // 按顺序执行翻译请求
+          emit({ type: 'progress', data: { message: '正在连接AI服务...' } });
+          const results = await executePromisesInOrder(translatePromises, ctrl.signal);
+
+          // 处理结果并合并
+          const allTranslations: string[] = [];
+          const errors: Error[] = [];
+
+          // results.forEach((result, chunkIndex) => {
+          //   if (result.error) {
+          //     console.error(`片段 ${chunkIndex + 1} 翻译失败:`, result.error);
+          //     errors.push(result.error);
+          //     // 为失败的片段填充空字符串
+          //     const chunk = chunks.[chunkIndex];
+          //     chunk.originalIndices.forEach(() => {
+          //       allTranslations.push('');
+          //     });
+          //   } else if (result.result) {
+          //     const chunk = chunks[chunkIndex];
+          //     const translations = parseTranslation(result.result, chunk.originalIndices);
+          //     allTranslations.push(...translations);
+          //   }
+          // });
+
+          if (errors.length > 0 && allTranslations.length === 0) {
+            throw new Error(`翻译失败: ${errors[0].message}`);
           }
+
+          emit({ type: 'progress', data: { message: '翻译完成，正在解析结果...' } });
+
+          emit({
+            type: 'completed',
+            data: {
+              translations: allTranslations,
+              originalTranslation: allTranslations.join('\n')
+            }
+          });
 
           emit({ type: 'done' });
         } catch (err: any) {

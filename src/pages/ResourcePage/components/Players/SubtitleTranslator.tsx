@@ -169,7 +169,7 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
     }
 
     // 监听窗口focus事件，当窗口重新获得焦点时检测配置
-    const handleFocus = () => {
+    const handleFocus = (): void => {
       if (translationMode === 'ai' && selectedProviderId) {
         checkProviderConfig(selectedProviderId);
       }
@@ -246,7 +246,7 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
       }));
 
       // 调用主进程的翻译功能
-      const stream = await window.YUA.ai.translateSubtitles(
+      const stream = await window.YUA.ai.translate(
         {
           requestId,
           providerId: selectedProviderId,
@@ -376,7 +376,7 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
     <div className="flex items-center justify-end gap-2 px-4 py-2 border-b">
       <Popover open={isTranslationPopoverOpen} onOpenChange={setIsTranslationPopoverOpen}>
         <PopoverTrigger asChild>
-          <Button size="sm" variant="outline" className="h-8">
+          <Button size="sm" variant="outline">
             <TbLanguage />
             翻译
           </Button>
