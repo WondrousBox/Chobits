@@ -53,6 +53,8 @@ export const SrtPlayer = ({ resource, currentTime = 0, onSeek }: SrtPlayerProps)
   const [typingTexts, setTypingTexts] = useState<Map<number, string>>(new Map()); // 片段索引 -> 正在打字的文本
   const [isTranslationComplete, setIsTranslationComplete] = useState(false);
   const [currentSummary, setCurrentSummary] = useState<string>(''); // 当前翻译的总结
+  const [translationProgress, setTranslationProgress] = useState(0); // 翻译进度 0-100
+  const [isTranslating, setIsTranslating] = useState(false); // 是否正在翻译
   const activeTranslationRequestIdRef = useRef<string | null>(null);
 
   // 防抖保存函数
@@ -257,13 +259,23 @@ export const SrtPlayer = ({ resource, currentTime = 0, onSeek }: SrtPlayerProps)
       setTranslatingChunks(new Set());
       // 保留打字效果，不清除
       setCurrentSummary('');
+      setIsTranslating(false);
+      setTranslationProgress(0);
       activeTranslationRequestIdRef.current = null;
     };
 
     const handleTranslationEvent = (event: { type: string; data?: any }) => {
-      if (event.type === 'progress' && event.data?.message) {
+      if (event.type === 'connected') {
+        setIsTranslating(true);
+        setTranslationProgress(0);
+      } else if (event.type === 'progress' && event.data) {
+        // 更新进度
+        if (event.data.percentage !== undefined) {
+          setTranslationProgress(event.data.percentage);
+        }
+
         // 检测是否开始翻译某个片段
-        const message = event.data.message;
+        const message = event.data.message || '';
         if (message.includes('正在翻译片段')) {
           // 如果提供了 startIndex 和 endIndex，标记为正在翻译
           if (event.data.startIndex !== undefined && event.data.endIndex !== undefined) {
@@ -276,6 +288,8 @@ export const SrtPlayer = ({ resource, currentTime = 0, onSeek }: SrtPlayerProps)
             });
           }
         }
+      } else if (event.type === 'chunk-start' && event.data) {
+        console.log(event.data);
       } else if (event.type === 'summary' && event.data) {
         // 保存总结信息，根据 startIndex 和 endIndex 将 summary 应用到所有相关片段
         const { chunkIndex, summary, startIndex, endIndex } = event.data;
@@ -374,13 +388,6 @@ export const SrtPlayer = ({ resource, currentTime = 0, onSeek }: SrtPlayerProps)
       const event = message.data;
       if (!event) return;
 
-      // 如果这是新的翻译请求开始，记录 requestId
-      if (event.type === 'connected' || event.type === 'progress') {
-        if (event.requestId && !activeTranslationRequestIdRef.current) {
-          activeTranslationRequestIdRef.current = event.requestId;
-        }
-      }
-
       // 只处理当前活跃的翻译请求的事件
       if (activeTranslationRequestIdRef.current && event.requestId !== activeTranslationRequestIdRef.current) {
         return;
@@ -408,13 +415,45 @@ export const SrtPlayer = ({ resource, currentTime = 0, onSeek }: SrtPlayerProps)
     setTypingTexts(new Map());
     setTranslatingChunks(new Set());
     setCurrentSummary('');
+    setIsTranslating(false);
+    setTranslationProgress(0);
     activeTranslationRequestIdRef.current = null;
+  }, []);
+
+  // 停止翻译
+  const handleStopTranslation = useCallback(async () => {
+    console.log(activeTranslationRequestIdRef.current);
+
+    if (activeTranslationRequestIdRef.current) {
+      try {
+        await window.YUA.ai.cancelTranslate(activeTranslationRequestIdRef.current);
+      } catch (error) {
+        console.error('停止翻译失败:', error);
+      }
+    }
+  }, []);
+
+  // 处理翻译开始
+  const handleTranslationStart = useCallback((requestId: string) => {
+    activeTranslationRequestIdRef.current = requestId;
+    setIsTranslating(true);
+    setTranslationProgress(0);
   }, []);
 
   return (
     <div className="flex h-full w-full flex-col text-muted-foreground">
       {/* 翻译按钮和配置 */}
-      <SubtitleTranslator subtitleEntries={subtitleEntries} onTranslateComplete={handleTranslateComplete} resourceId={resource.id} isLoading={isLoading} debouncedSave={debouncedSave} />
+      <SubtitleTranslator
+        subtitleEntries={subtitleEntries}
+        onTranslateComplete={handleTranslateComplete}
+        resourceId={resource.id}
+        isLoading={isLoading}
+        debouncedSave={debouncedSave}
+        isTranslating={isTranslating}
+        translationProgress={translationProgress}
+        onStopTranslation={handleStopTranslation}
+        onTranslationStart={handleTranslationStart}
+      />
 
       {currentSummary && (
         <div className="px-4 py-2 border-b bg-blue-50/50 dark:bg-blue-950/20">
@@ -427,8 +466,10 @@ export const SrtPlayer = ({ resource, currentTime = 0, onSeek }: SrtPlayerProps)
       <ScrollArea className="h-full w-full">
         <div className="box-border h-full w-full select-text overflow-auto rounded border px-4 py-3 leading-relaxed shadow-inner">
           {subtitleEntries.map((entry, idx) => {
-            const disabled = translatingChunks.has(idx);
-            const highlight = translatedChunks.has(idx) && !isTranslationComplete;
+            const isTranslatingChunk = translatingChunks.has(idx);
+            const disabled = isTranslatingChunk;
+            // 只高亮当前正在翻译的片段
+            const highlight = isTranslatingChunk;
             const appendText = typingTexts.get(idx);
 
             return (

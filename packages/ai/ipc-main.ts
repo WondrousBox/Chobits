@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { BrowserWindow, ipcMain } from 'electron';
 
 import { ChatRepo } from '../common/db';
@@ -38,6 +39,15 @@ export function initAIHandlers(win: BrowserWindow): void {
   chat.registerIpc();
   // Register AI utility IPCs (e.g., auto-tagging)
   TaggingService.registerIpc();
+
+  // 取消翻译任务
+  ipcMain.handle('ai:cancelTranslate', async (_e, requestId: string) => {
+    const success = TranslationService.cancelTranslation(requestId);
+    if (success) {
+      return { success: true };
+    }
+    return { success: false, message: 'Task not found' };
+  });
 
   // Settings & registry inspection
   ipcMain.handle('ai:getProviders', async () => {
@@ -205,7 +215,6 @@ export function initAIHandlers(win: BrowserWindow): void {
     async (
       _e,
       payload: {
-        requestId: string;
         providerId: string;
         model: string;
         segments: any[];
@@ -213,7 +222,7 @@ export function initAIHandlers(win: BrowserWindow): void {
         languageNames: Record<string, string>;
       }
     ) => {
-      const { requestId } = payload;
+      const requestId = randomUUID();
       const eventsChannel = `subtitle:translate:${requestId}`;
 
       // 向所有窗口发送消息的函数
@@ -233,13 +242,15 @@ export function initAIHandlers(win: BrowserWindow): void {
       };
 
       // 异步处理翻译
-      try {
-        const ctrl = new AbortController();
-        await TranslationService.translateSubtitles(payload, emit, ctrl.signal);
-      } catch (err: any) {
+      TranslationService.translateSubtitles({ ...payload, requestId }, emit).catch((err: any) => {
         console.error('翻译失败:', err);
-        emit({ type: 'error', data: { message: err?.message || '翻译失败' } });
-      }
+        // 如果是手动取消，可能不需要发送 error 事件，或者发送特定的 cancel 事件
+        if (err.message === 'Aborted') {
+          emit({ type: 'done' }); // 或者发送一个 cancelled 事件
+        } else {
+          emit({ type: 'error', data: { message: err?.message || '翻译失败' } });
+        }
+      });
 
       return { requestId, eventsChannel };
     }
