@@ -76,8 +76,6 @@ export async function getAllSecrets(providerId: string, keys: string[]): Promise
     const v = await getSecret(providerId, k);
     if (v != null) out[k] = v;
   }
-
-  console.log('getAllSecrets:', out);
   return out;
 }
 

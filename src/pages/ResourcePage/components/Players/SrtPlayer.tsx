@@ -14,26 +14,6 @@ interface SrtPlayerProps {
   onSeek?: (time: number) => void; // 跳转到指定时间的回调
 }
 
-// 将 SRT 时间字符串转换为秒数
-// 支持格式: "00:00:10,500" 或 "00:00:10.500"
-function timeStringToSeconds(timeStr: string): number {
-  if (!timeStr) return 0;
-
-  // 替换逗号为点，统一格式
-  const normalized = timeStr.replace(',', '.');
-
-  // 匹配格式: HH:MM:SS.mmm
-  const match = normalized.match(/(\d{2}):(\d{2}):(\d{2})\.(\d{3})/);
-  if (!match) return 0;
-
-  const hours = parseInt(match[1], 10);
-  const minutes = parseInt(match[2], 10);
-  const seconds = parseInt(match[3], 10);
-  const milliseconds = parseInt(match[4], 10);
-
-  return hours * 3600 + minutes * 60 + seconds + milliseconds / 1000;
-}
-
 // 将 AimSegments 转换为 ISegment 格式
 // ISegment = [string, string, string, string | undefined]
 // 第一个是开始时间，第二个是结束时间，第三个是文本，第四个是可选的
@@ -206,8 +186,8 @@ export const SrtPlayer = ({ resource, currentTime = 0, onSeek }: SrtPlayerProps)
       const segment = subtitleEntries[i];
       if (segment.delete) continue;
 
-      const startTime = timeStringToSeconds(segment.st);
-      const endTime = timeStringToSeconds(segment.et);
+      const startTime = utils.convertToSeconds(segment.st);
+      const endTime = utils.convertToSeconds(segment.et);
 
       if (currentTime >= startTime && currentTime < endTime) {
         return i;
