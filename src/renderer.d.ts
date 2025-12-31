@@ -1,6 +1,5 @@
 import type { IpcRendererEvent } from 'electron';
 
-import type { AIApi } from '../electron/main/ai/types';
 import type { DailyCareBridgeType } from '../electron/main/daily/ipc-renderer';
 import type { FFmpegIpcType } from '../electron/main/handlers/ffmpeg/ipc-renderer';
 import type { FileIpcType } from '../electron/main/handlers/file/ipc-renderer';
@@ -18,6 +17,7 @@ import type { StatusBridgeType } from '../electron/preload/apis/status';
 import type { VectorBridgeType } from '../electron/preload/apis/vector';
 import type videoDownloaderAPI from '../electron/preload/apis/video-downloader';
 import type { WindowBridgeType } from '../electron/preload/apis/window';
+import type { AIApi } from '../packages/ai/types';
 import type { AppEventPayload } from '../packages/event/events';
 import type { RecorderIpcRendererType } from '../packages/recorder/ipc-renderer';
 import type { SherpaIpcRendererType } from '../packages/sherpa/ipc-renderer';

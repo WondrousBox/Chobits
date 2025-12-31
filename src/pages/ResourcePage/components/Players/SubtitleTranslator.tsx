@@ -325,7 +325,10 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({
           segments: segmentsData,
           targetLanguage: targetLang,
           languageNames,
-          force
+          force,
+          metadata: {
+            resourceId
+          }
         });
 
         // 记录到历史
