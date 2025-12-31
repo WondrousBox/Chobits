@@ -209,6 +209,12 @@ export function initAIHandlers(win: BrowserWindow): void {
     return row ? { ok: true } : { ok: false };
   });
 
+  // 获取服务商翻译状态
+  ipcMain.handle('ai:getProviderTranslationStatus', async (_e, payload: { providerId: string }) => {
+    const activeRequests = TranslationService.getProviderActiveRequests(payload.providerId);
+    return { busy: activeRequests.length > 0, activeRequests };
+  });
+
   // 字幕翻译：在主进程中处理，向所有窗口发送消息
   ipcMain.handle(
     'ai:translate',
@@ -220,6 +226,7 @@ export function initAIHandlers(win: BrowserWindow): void {
         segments: any[];
         targetLanguage: string;
         languageNames: Record<string, string>;
+        force?: boolean;
       }
     ) => {
       const requestId = randomUUID();

@@ -4,13 +4,27 @@ import { getProvider } from './registry';
 import { getAllSecrets } from './settings-store';
 
 // 在这边实现一个翻译函数，目的是用AI来翻译用户传过来的大批量的文本片段，片段的类型已经定义在 AimSegments ，我的思路就是先将这些片段分组，拿到符合长度限制的各个分组之后，再进行翻译。
-
 // 所以涉及到几个问题：
 // 1. 要解决不同分组的顺序执行
 // 2. 每个分组在翻译完成之后会得到一个总结，所以我需要将这个总结放到下一个分组的片段的提示词里面，方便保留上下文的理解能力
 // 3. 开始每个分组翻译之前，要发送一个分组开始的消息，这个用来发送之前的所有分组翻译出来的内容
 // 4. 如果有上一个分组发送过来的总结内容，要带到下一个分组的提示词里面，方便下一个分组可以理解并更好的翻译
 // 5. 我希望全部的分组翻译完成之后返回一个新的，翻译好的数组，也是 AimSegments 数组
+
+// 我认为这个翻译服务还要进一步优化，一个用户可能对多个字幕同时执行翻译。
+// 那就意味着，如果使用单个服务商进行翻译很容易导致达到限流状态，所以有可能需要提醒当前用户正在使用的服务商翻译时存在正在翻译中的内容，这样用户可以确认是否更换一个
+// 当用户更换后的翻译服务商没有正在翻译内容时，可以立即开始翻译。
+// 当然如果用户一定要使用当前服务商进行翻译，也不是不可以，但是这种情况就需要额外的参数强制启动翻译。
+// 因此我需要实现几个能力：
+// 1. 要能够记录每个翻译请求ID采用的是什么翻译服务和模型
+// 2. 要能够查询当服务商是否有正在翻译的请求，并且也要返回正在翻译中的请求ID列表
+// 3. 要能够启动多个翻译服务商并进行管理
+// 4. 要能够取消某个翻译请求，并且实现翻译服务商的中止释放能力
+// 5. 要能够在翻译之前返回通知说存在占用的情况，等用户确定是否继续
+
+// 对应的，在渲染进程要实现：
+// 1. 记录最近五次使用的翻译服务和模型，方便用户快速选择，记录的时候要不能记录重复的服务商，并且要把最新使用的放在最前面
+// 2. 提供一个继续使用配置和更换配置的选项给用户选择
 
 /**
  * 翻译进度数据
@@ -88,26 +102,50 @@ export interface TranslationRequest {
   segments: AimSegments[];
   targetLanguage: string;
   languageNames: Record<string, string>;
+  force?: boolean;
 }
 
 export interface TranslationEmitter {
   (event: TranslationEvent): void;
 }
 
-// 存储翻译任务的 AbortController
-const translationControllers = new Map<string, AbortController>();
+interface ActiveTranslation {
+  requestId: string;
+  providerId: string;
+  model: string;
+  startTime: number;
+  controller: AbortController;
+}
+
+// 存储翻译任务
+const activeTranslations = new Map<string, ActiveTranslation>();
 
 export const TranslationService = {
+  /**
+   * 获取服务商当前的活跃请求
+   * @param providerId 服务商 ID
+   * @returns 活跃请求 ID 列表
+   */
+  getProviderActiveRequests(providerId: string): string[] {
+    const requests: string[] = [];
+    for (const task of activeTranslations.values()) {
+      if (task.providerId === providerId) {
+        requests.push(task.requestId);
+      }
+    }
+    return requests;
+  },
+
   /**
    * 取消翻译任务
    * @param requestId 请求 ID
    * @returns 是否成功取消
    */
   cancelTranslation(requestId: string): boolean {
-    const controller = translationControllers.get(requestId);
-    if (controller) {
-      controller.abort();
-      translationControllers.delete(requestId);
+    const task = activeTranslations.get(requestId);
+    if (task) {
+      task.controller.abort();
+      activeTranslations.delete(requestId);
       return true;
     }
     return false;
@@ -120,11 +158,23 @@ export const TranslationService = {
    * @param externalSignal 外部取消信号（可选）
    */
   async translateSubtitles(request: TranslationRequest, emit: TranslationEmitter, externalSignal?: AbortSignal): Promise<void> {
-    const { requestId, providerId, model, segments, targetLanguage, languageNames } = request;
+    const { requestId, providerId, model, segments, targetLanguage, languageNames, force } = request;
+
+    // 检查服务商是否繁忙
+    const activeRequests = this.getProviderActiveRequests(providerId);
+    if (activeRequests.length > 0 && !force) {
+      throw new Error(`BUSY:${activeRequests.join(',')}`);
+    }
 
     // 创建并注册 AbortController
     const controller = new AbortController();
-    translationControllers.set(requestId, controller);
+    activeTranslations.set(requestId, {
+      requestId,
+      providerId,
+      model,
+      startTime: Date.now(),
+      controller
+    });
 
     // 如果提供了外部信号，当外部信号中止时也中止内部控制器
     if (externalSignal) {
@@ -442,7 +492,7 @@ Now translate the following into **{targetLanguage}** and only show me the trans
       emit({ type: 'done' });
     } finally {
       // 清理 controller
-      translationControllers.delete(requestId);
+      activeTranslations.delete(requestId);
     }
   }
 };

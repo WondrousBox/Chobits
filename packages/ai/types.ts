@@ -118,15 +118,16 @@ export type AIApi = {
   // Subtitle translation: handled in main process, sends messages to all windows
   translate(
     payload: {
-      requestId: string;
       providerId: string;
       model: string;
       segments: Array<{ text: string; index: number }>;
       targetLanguage: string;
       languageNames: Record<string, string>;
-    },
-    onEvent?: (ev: { type: string; data?: any }) => void
-  ): Promise<{ requestId: string; dispose: () => void; cancel: () => Promise<any> }>;
+      force?: boolean;
+    }
+  ): Promise<{ requestId: string }>;
+  cancelTranslate(requestId: string): Promise<{ ok: boolean }>;
+  getProviderTranslationStatus(providerId: string): Promise<{ busy: boolean; activeRequests: string[] }>;
   transcribe(payload: { providerId: string; file: Blob | Buffer; model?: string; language?: string; prompt?: string }): Promise<{ text: string }>;
   embed(payload: { texts: string[]; providerId?: string; model?: string; normalize?: boolean }): Promise<{ vectors: number[][]; dim: number }>;
   // Instances

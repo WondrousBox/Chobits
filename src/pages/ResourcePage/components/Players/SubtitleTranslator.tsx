@@ -5,6 +5,7 @@ import { TbLanguage, TbPlayerStop } from 'react-icons/tb';
 
 import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -54,6 +55,16 @@ const translationServices: { value: TranslationService; label: string }[] = [
   { value: 'deepl', label: 'DeepL' }
 ];
 
+// 翻译历史记录项
+interface TranslationHistoryItem {
+  mode: 'ai' | 'normal';
+  providerId?: string;
+  model?: string;
+  service?: TranslationService;
+  targetLanguage: string;
+  timestamp: number;
+}
+
 // localStorage 键名
 const STORAGE_KEY = 'subtitle-translator-preferences';
 
@@ -77,6 +88,7 @@ const savePreferences = (preferences: {
   selectedModel?: string;
   selectedService?: TranslationService;
   targetLanguage?: string;
+  history?: TranslationHistoryItem[];
 }): void => {
   try {
     const existing = loadPreferences() || {};
@@ -103,6 +115,7 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({
 
   const [isTranslationPopoverOpen, setIsTranslationPopoverOpen] = useState(false);
   const [translationMode, setTranslationMode] = useState<'ai' | 'normal'>(savedPreferences?.translationMode || 'ai');
+  const [history, setHistory] = useState<TranslationHistoryItem[]>(savedPreferences?.history || []);
 
   // AI 翻译相关状态
   const [selectedProviderId, setSelectedProviderId] = useState<string>(savedPreferences?.selectedProviderId || '');
@@ -115,8 +128,6 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({
 
   // 共用状态
   const [targetLanguage, setTargetLanguage] = useState<string>(savedPreferences?.targetLanguage || 'en');
-  // 内部状态 isTranslating 移除，使用 props 传入的 isTranslating
-  // const [isTranslating, setIsTranslating] = useState(false);
 
   // 保存偏好设置到 localStorage
   useEffect(() => {
@@ -125,9 +136,39 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({
       selectedProviderId,
       selectedModel,
       selectedService,
-      targetLanguage
+      targetLanguage,
+      history
     });
-  }, [translationMode, selectedProviderId, selectedModel, selectedService, targetLanguage]);
+  }, [translationMode, selectedProviderId, selectedModel, selectedService, targetLanguage, history]);
+
+  // 添加到历史记录
+  const addToHistory = useCallback((item: Omit<TranslationHistoryItem, 'timestamp'>) => {
+    setHistory((prev) => {
+      const newItem = { ...item, timestamp: Date.now() };
+      // 过滤掉重复项（相同的配置）
+      const filtered = prev.filter((h) => {
+        if (item.mode === 'ai') {
+          return !(h.mode === 'ai' && h.providerId === item.providerId && h.model === item.model && h.targetLanguage === item.targetLanguage);
+        } else {
+          return !(h.mode === 'normal' && h.service === item.service && h.targetLanguage === item.targetLanguage);
+        }
+      });
+      // 将新项添加到开头，保留最近 5 条
+      return [newItem, ...filtered].slice(0, 5);
+    });
+  }, []);
+
+  // 应用历史记录
+  const applyHistory = useCallback((item: TranslationHistoryItem) => {
+    setTranslationMode(item.mode);
+    setTargetLanguage(item.targetLanguage);
+    if (item.mode === 'ai') {
+      if (item.providerId) setSelectedProviderId(item.providerId);
+      if (item.model) setSelectedModel(item.model);
+    } else {
+      if (item.service) setSelectedService(item.service);
+    }
+  }, []);
 
   // 加载 AI Providers
   useEffect(() => {
@@ -251,7 +292,62 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({
     setSelectedModel(modelId);
   }, []);
 
-  // AI 翻译功能
+  // 繁忙提示对话框状态
+  const [busyDialogState, setBusyDialogState] = useState<{
+    open: boolean;
+    providerId: string;
+    activeCount: number;
+  }>({ open: false, providerId: '', activeCount: 0 });
+
+  // 执行 AI 翻译的核心逻辑
+  const executeAITranslation = useCallback(
+    async (params: { providerId: string; model: string; targetLang: string; force: boolean }) => {
+      const { providerId, model, targetLang, force } = params;
+
+      // 过滤掉已删除的片段
+      const validSegments = subtitleEntries.filter((seg) => !seg.delete);
+      if (validSegments.length === 0) return;
+
+      setIsTranslationPopoverOpen(false);
+      setBusyDialogState((prev) => ({ ...prev, open: false }));
+
+      try {
+        // 准备翻译数据
+        const segmentsData = validSegments.map((seg, idx) => ({
+          text: seg.text,
+          index: idx
+        }));
+
+        // 调用主进程的翻译功能
+        const { requestId } = await window.YUA.ai.translate({
+          providerId,
+          model,
+          segments: segmentsData,
+          targetLanguage: targetLang,
+          languageNames,
+          force
+        });
+
+        // 记录到历史
+        addToHistory({
+          mode: 'ai',
+          providerId,
+          model,
+          targetLanguage: targetLang
+        });
+
+        // 通知父组件翻译开始
+        if (onTranslationStart && requestId) {
+          onTranslationStart(requestId);
+        }
+      } catch (error) {
+        console.error('翻译失败:', error);
+      }
+    },
+    [subtitleEntries, addToHistory, onTranslationStart]
+  );
+
+  // AI 翻译功能入口
   const handleAITranslate = useCallback(async () => {
     if (!selectedProviderId || !selectedModel || !targetLanguage || subtitleEntries.length === 0) {
       return;
@@ -264,40 +360,61 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({
       return;
     }
 
-    // 过滤掉已删除的片段
-    const validSegments = subtitleEntries.filter((seg) => !seg.delete);
-    if (validSegments.length === 0) {
-      return;
-    }
-
-    setIsTranslationPopoverOpen(false);
-    // setIsTranslating(true); // 由父组件控制
-
+    // 检查服务商状态
     try {
-      // 准备翻译数据
-      const segmentsData = validSegments.map((seg, idx) => ({
-        text: seg.text,
-        index: idx
-      }));
-
-      // 调用主进程的翻译功能（事件会通过 renderer-message 发送到所有窗口）
-      const { requestId } = await window.YUA.ai.translate({
-        providerId: selectedProviderId,
-        model: selectedModel,
-        segments: segmentsData,
-        targetLanguage,
-        languageNames
-      });
-
-      // 通知父组件翻译开始
-      if (onTranslationStart && requestId) {
-        onTranslationStart(requestId);
+      const status = await window.YUA.ai.getProviderTranslationStatus(selectedProviderId);
+      if (status.busy) {
+        setBusyDialogState({
+          open: true,
+          providerId: selectedProviderId,
+          activeCount: status.activeRequests.length
+        });
+        return;
       }
     } catch (error) {
-      console.error('翻译失败:', error);
-      // setIsTranslating(false); // 由父组件控制
+      console.error('检查服务商状态失败:', error);
     }
-  }, [selectedProviderId, selectedModel, targetLanguage, subtitleEntries, checkProviderConfig, handleOpenProviderConfig, onTranslationStart]);
+
+    // 如果不繁忙，直接开始
+    await executeAITranslation({
+      providerId: selectedProviderId,
+      model: selectedModel,
+      targetLang: targetLanguage,
+      force: false
+    });
+  }, [selectedProviderId, selectedModel, targetLanguage, subtitleEntries, checkProviderConfig, handleOpenProviderConfig, executeAITranslation]);
+
+  // 强制开始翻译
+  const handleForceStart = useCallback(() => {
+    executeAITranslation({
+      providerId: selectedProviderId,
+      model: selectedModel,
+      targetLang: targetLanguage,
+      force: true
+    });
+  }, [selectedProviderId, selectedModel, targetLanguage, executeAITranslation]);
+
+  // 切换到历史记录中的其他服务商并尝试开始
+  const handleSwitchAndStart = useCallback(
+    (item: TranslationHistoryItem) => {
+      if (item.mode !== 'ai' || !item.providerId || !item.model) return;
+
+      // 更新当前选择
+      applyHistory(item);
+      setBusyDialogState((prev) => ({ ...prev, open: false }));
+
+      // 这里我们不自动开始，而是让用户确认新的配置，或者我们可以自动开始（但需要处理状态更新的异步性）
+      // 为了简单和安全，我们只更新配置并关闭对话框，用户可以再次点击"开始翻译"
+      // 或者我们可以直接调用 executeAITranslation 使用 item 的参数
+      // 但这样 UI 上的选择可能还没更新（因为 setState 是异步的）
+      // 不过 executeAITranslation 接受参数，所以可以直接调用
+      // 但是新的 provider 也可能 busy，所以最好是走 handleAITranslate 的流程
+      // 但 handleAITranslate 依赖 state。
+      // 方案：更新 state，关闭 dialog。用户需要再次点击。或者我们可以在 useEffect 中监听？不，太复杂。
+      // 简单方案：只更新配置，关闭 Dialog。
+    },
+    [applyHistory]
+  );
 
   // 普通翻译功能
   const handleNormalTranslate = useCallback(async () => {
@@ -323,6 +440,13 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({
 
       // 临时占位：直接使用原文（实际应该调用翻译 API）
       const updated = [...subtitleEntries];
+
+      // 记录到历史
+      addToHistory({
+        mode: 'normal',
+        service: selectedService,
+        targetLanguage
+      });
 
       // 通知父组件更新
       onTranslateComplete(updated);
@@ -355,6 +479,19 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({
             </Button>
           </PopoverTrigger>
           <PopoverContent align="end" className="w-80">
+            {history.length > 0 && (
+              <div className="mb-4 space-y-2 border-b pb-4">
+                <Label className="text-xs font-medium text-muted-foreground">最近使用</Label>
+                <div className="flex flex-wrap gap-2">
+                  {history.map((item, index) => (
+                    <Button key={index} variant="outline" size="sm" className="h-auto py-1 px-2 text-xs flex flex-col items-start gap-0.5" onClick={() => applyHistory(item)}>
+                      <span className="font-medium">{item.mode === 'ai' ? `${item.providerId} · ${item.model}` : translationServices.find((s) => s.value === item.service)?.label}</span>
+                      <span className="text-[10px] text-muted-foreground">→ {languageNames[item.targetLanguage] || item.targetLanguage}</span>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
             <Tabs value={translationMode} onValueChange={(value) => setTranslationMode(value as 'ai' | 'normal')} className="w-full">
               <TabsList className="grid w-full grid-cols-2 mb-4">
                 <TabsTrigger value="ai">AI 翻译</TabsTrigger>
@@ -363,14 +500,14 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({
 
               <TabsContent value="ai" className="space-y-4 mt-0">
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">翻译服务商 · 模型</Label>
+                  <Label className="text-sm font-medium">翻译模型</Label>
                   <ProviderModelSelect
                     providerId={selectedProviderId}
                     modelId={selectedModel}
                     onChange={handleProviderModelChange}
-                    placeholder="选择服务商 · 模型"
+                    placeholder="选择模型"
                     buttonVariant="outline"
-                    buttonSize="sm"
+                    buttonSize="default"
                     className="w-full justify-between"
                     autoLoadFirst={true}
                     modelTypes={['chat']}
@@ -452,6 +589,43 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({
           </PopoverContent>
         </Popover>
       )}
+
+      {/* 繁忙提示对话框 */}
+      <Dialog open={busyDialogState.open} onOpenChange={(open) => setBusyDialogState((prev) => ({ ...prev, open }))}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>服务商繁忙</DialogTitle>
+            <DialogDescription>当前有 {busyDialogState.activeCount} 个正在进行的翻译任务。</DialogDescription>
+          </DialogHeader>
+
+          {/* 最近使用的其他服务商 */}
+          {history.filter((h) => h.mode === 'ai' && h.providerId !== busyDialogState.providerId).length > 0 && (
+            <div className="py-2">
+              <Label className="text-xs font-medium text-muted-foreground mb-2 block">切换到最近使用的其他配置：</Label>
+              <div className="flex flex-wrap gap-2">
+                {history
+                  .filter((h) => h.mode === 'ai' && h.providerId !== busyDialogState.providerId)
+                  .slice(0, 3)
+                  .map((item, index) => (
+                    <Button key={index} variant="outline" size="sm" className="h-auto py-1 px-2 text-xs flex flex-col items-start gap-0.5" onClick={() => handleSwitchAndStart(item)}>
+                      <span className="font-medium">{`${item.providerId} · ${item.model}`}</span>
+                      <span className="text-[10px] text-muted-foreground">→ {languageNames[item.targetLanguage] || item.targetLanguage}</span>
+                    </Button>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBusyDialogState((prev) => ({ ...prev, open: false }))}>
+              取消
+            </Button>
+            <Button variant="destructive" onClick={handleForceStart}>
+              强制开始
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
