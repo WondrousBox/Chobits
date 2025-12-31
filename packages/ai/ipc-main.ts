@@ -41,8 +41,8 @@ export function initAIHandlers(win: BrowserWindow): void {
   TaggingService.registerIpc();
 
   // 取消翻译任务
-  ipcMain.handle('ai:cancelTranslate', async (_e, requestId: string) => {
-    const success = TranslationService.cancelTranslation(requestId);
+  ipcMain.handle('ai:cancelTranslate', async (_e, payload: { requestId: string }) => {
+    const success = TranslationService.cancelTranslation(payload.requestId);
     if (success) {
       return { success: true };
     }
@@ -215,6 +215,19 @@ export function initAIHandlers(win: BrowserWindow): void {
     return { busy: activeRequests.length > 0, activeRequests };
   });
 
+  // 获取所有活跃的翻译任务
+  ipcMain.handle('ai:getTranslationTasks', async () => {
+    const tasks = TranslationService.getAllActiveTranslations();
+    // 移除 controller 对象，因为它不能被序列化
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    return tasks.map(({ controller, ...rest }) => rest);
+  });
+
+  // 获取指定任务已翻译的片段
+  ipcMain.handle('ai:getTranslatedSegments', async (_e, payload: { requestId: string }) => {
+    return TranslationService.getTranslatedSegments(payload.requestId);
+  });
+
   // 字幕翻译：在主进程中处理，向所有窗口发送消息
   ipcMain.handle(
     'ai:translate',
@@ -227,6 +240,7 @@ export function initAIHandlers(win: BrowserWindow): void {
         targetLanguage: string;
         languageNames: Record<string, string>;
         force?: boolean;
+        metadata?: Record<string, any>;
       }
     ) => {
       const requestId = randomUUID();

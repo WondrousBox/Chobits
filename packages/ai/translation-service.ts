@@ -103,6 +103,7 @@ export interface TranslationRequest {
   targetLanguage: string;
   languageNames: Record<string, string>;
   force?: boolean;
+  metadata?: Record<string, any>;
 }
 
 export interface TranslationEmitter {
@@ -115,12 +116,32 @@ interface ActiveTranslation {
   model: string;
   startTime: number;
   controller: AbortController;
+  metadata?: Record<string, any>;
+  translatedSegments: AimSegments[];
 }
 
 // 存储翻译任务
 const activeTranslations = new Map<string, ActiveTranslation>();
 
 export const TranslationService = {
+  /**
+   * 获取所有活跃的翻译任务
+   * @returns 活跃任务列表
+   */
+  getAllActiveTranslations(): ActiveTranslation[] {
+    return Array.from(activeTranslations.values());
+  },
+
+  /**
+   * 获取指定任务已翻译的片段
+   * @param requestId 请求 ID
+   * @returns 已翻译的片段列表
+   */
+  getTranslatedSegments(requestId: string): AimSegments[] {
+    const task = activeTranslations.get(requestId);
+    return task?.translatedSegments || [];
+  },
+
   /**
    * 获取服务商当前的活跃请求
    * @param providerId 服务商 ID
@@ -145,7 +166,8 @@ export const TranslationService = {
     const task = activeTranslations.get(requestId);
     if (task) {
       task.controller.abort();
-      activeTranslations.delete(requestId);
+      // Do not delete immediately; let the task cleanup itself in finally block
+      // activeTranslations.delete(requestId);
       return true;
     }
     return false;
@@ -158,7 +180,7 @@ export const TranslationService = {
    * @param externalSignal 外部取消信号（可选）
    */
   async translateSubtitles(request: TranslationRequest, emit: TranslationEmitter, externalSignal?: AbortSignal): Promise<void> {
-    const { requestId, providerId, model, segments, targetLanguage, languageNames, force } = request;
+    const { requestId, providerId, model, segments, targetLanguage, languageNames, force, metadata } = request;
 
     // 检查服务商是否繁忙
     const activeRequests = this.getProviderActiveRequests(providerId);
@@ -173,7 +195,9 @@ export const TranslationService = {
       providerId,
       model,
       startTime: Date.now(),
-      controller
+      controller,
+      metadata,
+      translatedSegments: []
     });
 
     // 如果提供了外部信号，当外部信号中止时也中止内部控制器
@@ -288,7 +312,8 @@ Now translate the following into **{targetLanguage}** and only show me the trans
             }
           });
 
-          const percentage = Math.round(((endIndex + 1) / segments.length) * 100);
+          // 进度应该是基于已经完成的片段数，而不是当前分块的结束位置
+          const percentage = Math.round((startIndex / segments.length) * 100);
 
           emit({
             type: 'progress',
@@ -333,9 +358,26 @@ Now translate the following into **{targetLanguage}** and only show me the trans
 
                   currentChunkSegments.push(...dataWithMetadata);
 
+                  // 实时更新任务中的已翻译片段，包含当前 chunk 已解析的部分
+                  const task = activeTranslations.get(requestId);
+                  if (task) {
+                    task.translatedSegments = [...allParsedSegments, ...currentChunkSegments];
+                  }
+
                   emit({
                     type: 'parsed',
                     data: dataWithMetadata
+                  });
+
+                  // 实时更新进度
+                  const currentTotal = allParsedSegments.length + currentChunkSegments.length;
+                  const newPercentage = Math.round((currentTotal / segments.length) * 100);
+                  emit({
+                    type: 'progress',
+                    data: {
+                      message: `正在翻译片段 ${chunkIndex + 1}/${chunks.indexStringResult.length}...`,
+                      percentage: newPercentage
+                    }
                   });
                 }
               }
@@ -435,7 +477,7 @@ Now translate the following into **{targetLanguage}** and only show me the trans
           };
 
           // 调用 provider 的 chat 方法进行流式翻译
-          const response = await provider?.chat?.(
+          await provider?.chat?.(
             {
               messages: [{ role: 'user', content: prompt }],
               providerId,
@@ -465,6 +507,12 @@ Now translate the following into **{targetLanguage}** and only show me the trans
           );
 
           allParsedSegments.push(...currentChunkSegments);
+
+          // 更新任务中的已翻译片段
+          const task = activeTranslations.get(requestId);
+          if (task) {
+            task.translatedSegments = [...allParsedSegments];
+          }
 
           if (!currentTranslation) {
             throw new Error('翻译结果为空');

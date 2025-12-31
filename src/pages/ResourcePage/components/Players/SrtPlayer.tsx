@@ -229,6 +229,69 @@ export const SrtPlayer = ({ resource, currentTime = 0, onSeek }: SrtPlayerProps)
     }
   }, [activeIndex]);
 
+  // 检查是否有正在进行的翻译任务
+  useEffect(() => {
+    let mounted = true;
+    const checkActiveTranslation = async () => {
+      if (!resource.id) return;
+      try {
+        const tasks = await window.YUA.ai.getTranslationTasks();
+        if (!mounted) return;
+
+        const activeTask = tasks.find((task: any) => task.metadata?.resourceId === resource.id);
+
+        if (activeTask) {
+          console.log('Found active translation task:', activeTask);
+          activeTranslationRequestIdRef.current = activeTask.requestId;
+          setIsTranslating(true);
+
+          // 获取已翻译的片段并恢复状态
+          try {
+            const segments = await window.YUA.ai.getTranslatedSegments(activeTask.requestId);
+
+            console.log(segments, mounted);
+
+            if (mounted && segments && segments.length > 0) {
+              const newTranslatedChunks = new Set<number>();
+              const newChunkSummaries = new Map<number, string>();
+              const newTypingTexts = new Map<number, string>();
+
+              segments.forEach((item: any) => {
+                if (item.index !== undefined) {
+                  newTranslatedChunks.add(item.index);
+                  if (item.text) {
+                    newTypingTexts.set(item.index, item.text);
+                  }
+                }
+                if (item.summary && item.startIndex !== undefined && item.endIndex !== undefined) {
+                  for (let i = item.startIndex; i <= item.endIndex; i++) {
+                    newChunkSummaries.set(i, item.summary);
+                  }
+                  // 设置当前总结为最后一个找到的总结
+                  setCurrentSummary(item.summary);
+                }
+              });
+
+              setTranslatedChunks(newTranslatedChunks);
+              setChunkSummaries(newChunkSummaries);
+              setTypingTexts(newTypingTexts);
+            }
+          } catch (err) {
+            console.error('Failed to restore translated segments:', err);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to check active translation tasks:', error);
+      }
+    };
+
+    checkActiveTranslation();
+
+    return () => {
+      mounted = false;
+    };
+  }, [resource.id]);
+
   // 监听翻译事件
   useEffect(() => {
     // 清理翻译状态的辅助函数
@@ -369,7 +432,7 @@ export const SrtPlayer = ({ resource, currentTime = 0, onSeek }: SrtPlayerProps)
       if (!event) return;
 
       // 只处理当前活跃的翻译请求的事件
-      if (activeTranslationRequestIdRef.current && event.requestId !== activeTranslationRequestIdRef.current) {
+      if (!activeTranslationRequestIdRef.current || event.requestId !== activeTranslationRequestIdRef.current) {
         return;
       }
 

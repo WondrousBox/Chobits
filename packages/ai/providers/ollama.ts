@@ -35,14 +35,15 @@ export class OllamaProvider implements ProviderAdapter {
     return `${this.secrets.baseUrl || 'http://127.0.0.1:11434'}${path}`;
   }
 
-  async chat(req: ChatRequest, onStream?: (event: StreamEvent) => void): Promise<ChatResponse> {
+  async chat(req: ChatRequest, onStream?: (event: StreamEvent) => void, signal?: AbortSignal): Promise<ChatResponse> {
     const model = (req.extras?.model as string) || this.secrets.model || 'llama3.1';
     const messages = req.messages.map((m) => ({ role: m.role, content: m.content }));
     if (req.stream && onStream) {
       const r = await fetch(this.url('/api/chat'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, messages, stream: true })
+        body: JSON.stringify({ model, messages, stream: true }),
+        signal
       });
       let full = '';
       const reader = r.body?.getReader();
@@ -69,7 +70,8 @@ export class OllamaProvider implements ProviderAdapter {
     const r = await fetch(this.url('/api/chat'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, messages, stream: false })
+      body: JSON.stringify({ model, messages, stream: false }),
+      signal
     });
     const data: any = await r.json();
     const text = data?.message?.content || '';
