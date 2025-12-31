@@ -1,6 +1,7 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { AimSegments } from '@aim-packages/subtitle';
 import React, { useCallback, useEffect, useState } from 'react';
-import { TbLanguage } from 'react-icons/tb';
+import { TbLanguage, TbPlayerStop } from 'react-icons/tb';
 
 import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
 import { Button } from '@/components/ui/button';
@@ -38,6 +39,10 @@ interface SubtitleTranslatorProps {
   resourceId: string;
   isLoading: boolean;
   debouncedSave: (resourceId: string, segments: AimSegments[]) => void;
+  isTranslating?: boolean;
+  translationProgress?: number;
+  onStopTranslation?: () => void;
+  onTranslationStart?: (requestId: string) => void;
 }
 
 // 翻译服务类型
@@ -53,7 +58,7 @@ const translationServices: { value: TranslationService; label: string }[] = [
 const STORAGE_KEY = 'subtitle-translator-preferences';
 
 // 从 localStorage 读取保存的偏好设置
-const loadPreferences = () => {
+const loadPreferences = (): Record<string, any> | null => {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
@@ -66,7 +71,13 @@ const loadPreferences = () => {
 };
 
 // 保存偏好设置到 localStorage
-const savePreferences = (preferences: { translationMode?: 'ai' | 'normal'; selectedProviderId?: string; selectedModel?: string; selectedService?: TranslationService; targetLanguage?: string }) => {
+const savePreferences = (preferences: {
+  translationMode?: 'ai' | 'normal';
+  selectedProviderId?: string;
+  selectedModel?: string;
+  selectedService?: TranslationService;
+  targetLanguage?: string;
+}): void => {
   try {
     const existing = loadPreferences() || {};
     const updated = { ...existing, ...preferences };
@@ -76,7 +87,17 @@ const savePreferences = (preferences: { translationMode?: 'ai' | 'normal'; selec
   }
 };
 
-export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitleEntries, onTranslateComplete, resourceId, isLoading, debouncedSave }) => {
+export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({
+  subtitleEntries,
+  onTranslateComplete,
+  resourceId,
+  isLoading,
+  debouncedSave,
+  isTranslating = false,
+  translationProgress = 0,
+  onStopTranslation,
+  onTranslationStart
+}) => {
   // 从 localStorage 加载保存的偏好设置
   const savedPreferences = loadPreferences();
 
@@ -94,7 +115,8 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
 
   // 共用状态
   const [targetLanguage, setTargetLanguage] = useState<string>(savedPreferences?.targetLanguage || 'en');
-  const [isTranslating, setIsTranslating] = useState(false);
+  // 内部状态 isTranslating 移除，使用 props 传入的 isTranslating
+  // const [isTranslating, setIsTranslating] = useState(false);
 
   // 保存偏好设置到 localStorage
   useEffect(() => {
@@ -249,12 +271,9 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
     }
 
     setIsTranslationPopoverOpen(false);
-    setIsTranslating(true);
+    // setIsTranslating(true); // 由父组件控制
 
     try {
-      // 生成请求 ID
-      const requestId = `translate-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
       // 准备翻译数据
       const segmentsData = validSegments.map((seg, idx) => ({
         text: seg.text,
@@ -262,19 +281,23 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
       }));
 
       // 调用主进程的翻译功能（事件会通过 renderer-message 发送到所有窗口）
-      await window.YUA.ai.translate({
-        requestId,
+      const { requestId } = await window.YUA.ai.translate({
         providerId: selectedProviderId,
         model: selectedModel,
         segments: segmentsData,
         targetLanguage,
         languageNames
       });
+
+      // 通知父组件翻译开始
+      if (onTranslationStart && requestId) {
+        onTranslationStart(requestId);
+      }
     } catch (error) {
       console.error('翻译失败:', error);
-      setIsTranslating(false);
+      // setIsTranslating(false); // 由父组件控制
     }
-  }, [selectedProviderId, selectedModel, targetLanguage, subtitleEntries, checkProviderConfig, handleOpenProviderConfig]);
+  }, [selectedProviderId, selectedModel, targetLanguage, subtitleEntries, checkProviderConfig, handleOpenProviderConfig, onTranslationStart]);
 
   // 普通翻译功能
   const handleNormalTranslate = useCallback(async () => {
@@ -289,7 +312,7 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
     }
 
     setIsTranslationPopoverOpen(false);
-    setIsTranslating(true);
+    // setIsTranslating(true); // 暂时不支持普通翻译的进度显示，或者也需要父组件支持
 
     try {
       // 模拟翻译过程
@@ -309,119 +332,126 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
         debouncedSave(resourceId, updated);
       }
 
-      setIsTranslating(false);
+      // setIsTranslating(false);
     } catch (error) {
       console.error('翻译失败:', error);
-      setIsTranslating(false);
+      // setIsTranslating(false);
     }
   }, [selectedService, targetLanguage, subtitleEntries, resourceId, isLoading, debouncedSave, onTranslateComplete]);
 
   return (
     <div className="flex items-center justify-end gap-2 px-4 py-2 border-b">
-      <Popover open={isTranslationPopoverOpen} onOpenChange={setIsTranslationPopoverOpen}>
-        <PopoverTrigger asChild>
-          <Button size="sm" variant="outline">
-            <TbLanguage />
-            翻译
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent align="end" className="w-80">
-          <Tabs value={translationMode} onValueChange={(value) => setTranslationMode(value as 'ai' | 'normal')} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-4">
-              <TabsTrigger value="ai">AI 翻译</TabsTrigger>
-              <TabsTrigger value="normal">普通翻译</TabsTrigger>
-            </TabsList>
+      {isTranslating ? (
+        <Button size="sm" variant="outline" onClick={onStopTranslation}>
+          <TbPlayerStop className="animate-pulse" />
+          停止翻译<span className="font-mono">({translationProgress}%)</span>
+        </Button>
+      ) : (
+        <Popover open={isTranslationPopoverOpen} onOpenChange={setIsTranslationPopoverOpen}>
+          <PopoverTrigger asChild>
+            <Button size="sm" variant="ghost">
+              <TbLanguage />
+              翻译
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-80">
+            <Tabs value={translationMode} onValueChange={(value) => setTranslationMode(value as 'ai' | 'normal')} className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-4">
+                <TabsTrigger value="ai">AI 翻译</TabsTrigger>
+                <TabsTrigger value="normal">普通翻译</TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="ai" className="space-y-4 mt-0">
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">翻译服务商 · 模型</Label>
-                <ProviderModelSelect
-                  providerId={selectedProviderId}
-                  modelId={selectedModel}
-                  onChange={handleProviderModelChange}
-                  placeholder="选择服务商 · 模型"
-                  buttonVariant="outline"
-                  buttonSize="sm"
-                  className="w-full justify-between"
-                  autoLoadFirst={true}
-                  modelTypes={['chat']}
-                  showModelDetails
-                />
-                {selectedProviderId && !providerConfigured && (
-                  <div className="flex items-center justify-between p-2 text-xs bg-yellow-50 border border-yellow-200 rounded-md">
-                    <span className="text-yellow-800">API 配置未完成</span>
-                    <Button size="sm" variant="outline" className="h-6 text-xs" onClick={handleOpenProviderConfig}>
-                      去配置
-                    </Button>
-                  </div>
-                )}
-              </div>
+              <TabsContent value="ai" className="space-y-4 mt-0">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">翻译服务商 · 模型</Label>
+                  <ProviderModelSelect
+                    providerId={selectedProviderId}
+                    modelId={selectedModel}
+                    onChange={handleProviderModelChange}
+                    placeholder="选择服务商 · 模型"
+                    buttonVariant="outline"
+                    buttonSize="sm"
+                    className="w-full justify-between"
+                    autoLoadFirst={true}
+                    modelTypes={['chat']}
+                    showModelDetails
+                  />
+                  {selectedProviderId && !providerConfigured && (
+                    <div className="flex items-center justify-between p-2 text-xs bg-yellow-50 border border-yellow-200 rounded-md">
+                      <span className="text-yellow-800">API 配置未完成</span>
+                      <Button size="sm" variant="outline" className="h-6 text-xs" onClick={handleOpenProviderConfig}>
+                        去配置
+                      </Button>
+                    </div>
+                  )}
+                </div>
 
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">目标语言</Label>
-                <Select value={targetLanguage} onValueChange={setTargetLanguage}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="选择目标语言" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {languageOptions.map((lang) => (
-                      <SelectItem key={lang.value} value={lang.value}>
-                        {lang.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">目标语言</Label>
+                  <Select value={targetLanguage} onValueChange={setTargetLanguage}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="选择目标语言" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {languageOptions.map((lang) => (
+                        <SelectItem key={lang.value} value={lang.value}>
+                          {lang.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <Button
-                className="w-full"
-                onClick={handleAITranslate}
-                disabled={!selectedProviderId || !selectedModel || !targetLanguage || isTranslating || subtitleEntries.length === 0 || !providerConfigured}
-              >
-                开始翻译
-              </Button>
-            </TabsContent>
+                <Button
+                  className="w-full"
+                  onClick={handleAITranslate}
+                  disabled={!selectedProviderId || !selectedModel || !targetLanguage || isTranslating || subtitleEntries.length === 0 || !providerConfigured}
+                >
+                  开始翻译
+                </Button>
+              </TabsContent>
 
-            <TabsContent value="normal" className="space-y-4 mt-0">
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">翻译服务</Label>
-                <Select value={selectedService} onValueChange={(value) => setSelectedService(value as TranslationService)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="选择翻译服务" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {translationServices.map((service) => (
-                      <SelectItem key={service.value} value={service.value}>
-                        {service.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <TabsContent value="normal" className="space-y-4 mt-0">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">翻译服务</Label>
+                  <Select value={selectedService} onValueChange={(value) => setSelectedService(value as TranslationService)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="选择翻译服务" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {translationServices.map((service) => (
+                        <SelectItem key={service.value} value={service.value}>
+                          {service.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">目标语言</Label>
-                <Select value={targetLanguage} onValueChange={setTargetLanguage}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="选择目标语言" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {languageOptions.map((lang) => (
-                      <SelectItem key={lang.value} value={lang.value}>
-                        {lang.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">目标语言</Label>
+                  <Select value={targetLanguage} onValueChange={setTargetLanguage}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="选择目标语言" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {languageOptions.map((lang) => (
+                        <SelectItem key={lang.value} value={lang.value}>
+                          {lang.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <Button size="sm" className="w-full" onClick={handleNormalTranslate} disabled={!selectedService || !targetLanguage || isTranslating || subtitleEntries.length === 0}>
-                开始翻译
-              </Button>
-            </TabsContent>
-          </Tabs>
-        </PopoverContent>
-      </Popover>
+                <Button size="sm" className="w-full" onClick={handleNormalTranslate} disabled={!selectedService || !targetLanguage || isTranslating || subtitleEntries.length === 0}>
+                  开始翻译
+                </Button>
+              </TabsContent>
+            </Tabs>
+          </PopoverContent>
+        </Popover>
+      )}
     </div>
   );
 };

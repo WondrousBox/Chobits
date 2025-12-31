@@ -13,7 +13,7 @@
   },
   "type": "module",
   "scripts": {
-    "dev": "chcp 65001 && vite",
+    "dev": "node -e \"if (process.platform === 'win32') process.exit(1)\" || chcp 65001 && vite",
     "build": "tsc && vite build && electron-builder",
     "postinstall": "electron-builder install-app-deps",
     "build:rebuild": "pnpm rebuild && pnpm build",

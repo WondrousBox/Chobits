@@ -197,9 +197,12 @@ export const aiBridge = {
   },
   // 字幕翻译：在主进程中处理，通过 renderer-message 发送消息
   // 事件会直接发送到所有窗口，需要监听的地方直接监听 renderer-message 事件即可
-  async translate(payload: { requestId: string; providerId: string; model: string; segments: Array<{ text: string; index: number }>; targetLanguage: string; languageNames: Record<string, string> }) {
+  async translate(payload: { providerId: string; model: string; segments: Array<{ text: string; index: number }>; targetLanguage: string; languageNames: Record<string, string> }) {
     const res = await ipcRenderer.invoke('ai:translate', payload);
     return { requestId: res.requestId as string };
+  },
+  async cancelTranslate(requestId: string) {
+    return ipcRenderer.invoke('ai:cancelTranslate', requestId);
   }
 };
 
