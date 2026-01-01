@@ -9,6 +9,8 @@ import { BrowserWindow } from 'electron';
 import { eventManager } from '../../../../packages/event';
 import { AppEvent } from '../../../../packages/event/events';
 import { FoldersRepo, ResourcesRepo, WorkspacesRepo } from '../../db/repositories';
+import { chunkText } from '../../embedding/chunker';
+import { embeddingQueue } from '../../embedding/queue';
 import { detectBasicType, generateThumbnailForResource } from '../../utils/thumbnail';
 import type { Resource } from './ipc-renderer';
 
@@ -189,23 +191,22 @@ export async function addResource(r: { resource: Resource }): Promise<{ success:
   // }
 
   // Conditionally enqueue embedding only for text-like resources
-  // const isText = isTextLikeResource({ type: res.type, mimeType: res.mimeType, filePath });
-  // if (isText) {
-  //   const text = res.contentText || res.description || res.title;
-  //   if (typeof text === 'string' && text.trim().length > 0 && row) {
-  //     try {
-  //       const chunks = chunkText(text);
-  //       const items = chunks.map((c) => ({
-  //         id: `${row.id}#${c.index}`,
-  //         content: c.content,
-  //         metadata: { parentId: row.id, chunkIndex: c.index, chunkCount: c.count, source: 'resource' }
-  //       }));
-  //       embeddingQueue.enqueue({ items, dim: 384, batchSize: 16 });
-  //     } catch (e) {
-  //       console.warn('[embedding] enqueue failed', e);
-  //     }
-  //   }
-  // }
+  if (res.type === 'text') {
+    const text = res.contentText || res.description || res.title;
+    if (typeof text === 'string' && text.trim().length > 0 && row) {
+      try {
+        const chunks = chunkText(text);
+        const items = chunks.map((c) => ({
+          id: `${row.id}#${c.index}`,
+          content: c.content,
+          metadata: { parentId: row.id, chunkIndex: c.index, chunkCount: c.count, source: 'resource' }
+        }));
+        embeddingQueue.enqueue({ items, dim: 384, batchSize: 16 });
+      } catch (e) {
+        console.warn('[embedding] enqueue failed', e);
+      }
+    }
+  }
 
   // 生成缩略图
   if (row && !row.thumbnailPath) {

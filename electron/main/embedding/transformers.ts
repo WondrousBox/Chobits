@@ -73,6 +73,6 @@ function meanPool(matrix: number[][]): number[] {
   return out;
 }
 
-export function createTransformersProvider(config?: { model?: string; normalize?: boolean }) {
+export function createTransformersProvider(config?: { model?: string; normalize?: boolean }): TransformersEmbeddingProvider {
   return new TransformersEmbeddingProvider(config);
 }

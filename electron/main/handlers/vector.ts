@@ -10,13 +10,13 @@ import { TransformersEmbeddingProvider } from '../embedding/transformers';
 const DEFAULT_DIM = 384;
 let provider: TransformersEmbeddingProvider | null = null;
 
-async function getProvider() {
+async function getProvider(): Promise<TransformersEmbeddingProvider> {
   if (!provider) provider = new TransformersEmbeddingProvider({ model: 'Xenova/gte-small', normalize: true });
   await provider.init();
   return provider;
 }
 
-export function initVectorHandlers(win: BrowserWindow) {
+export function initVectorHandlers(win: BrowserWindow): void {
   ipcMain.handle('insertVectors', (_e, payload: { items: VectorInsertItem[]; dim?: number }) => {
     const dim = payload.dim || DEFAULT_DIM;
     return insertVectors(payload.items, dim);
@@ -62,15 +62,11 @@ export function initVectorHandlers(win: BrowserWindow) {
   });
 
   // Queue-based background indexing
-  const sendProgress = (job: any) => {
-    try {
-      win.webContents.send('embedding:job', job);
-    } catch { }
+  const sendProgress = (job: any): void => {
+    win.webContents.send('embedding:job', job);
   };
-  const sendTick = (progress: any) => {
-    try {
-      win.webContents.send('embedding:progress', progress);
-    } catch { }
+  const sendTick = (progress: any): void => {
+    win.webContents.send('embedding:progress', progress);
   };
   embeddingQueue.on('job', sendProgress);
   embeddingQueue.on('progress', sendTick);

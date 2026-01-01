@@ -76,16 +76,6 @@ export function detectBasicType(filePath: string): { type: string; mimeType: str
   return { type, mimeType };
 }
 
-export function isTextLikeResource(res: { type?: string; mimeType?: string; filePath?: string }): boolean {
-  if (res.type === 'text') return true;
-  if (res.mimeType?.startsWith('text/')) return true;
-  if (res.filePath) {
-    const ext = path.extname(res.filePath).toLowerCase();
-    if (TEXT_FILE_EXT.has(ext)) return true;
-  }
-  return false;
-}
-
 interface ThumbOptions {
   size?: number; // max size (square)
   frameAtSeconds?: number; // for video
