@@ -14,6 +14,7 @@ import { ResourcesRepo, WorkspacesRepo } from '../db/repositories';
 import { binPathLog } from '../logger';
 import { getResourcePath } from '../utils/resources-path';
 import { generateThumbnailForResource } from '../utils/thumbnail';
+import { ensureDailyFolder } from './resource';
 
 // 默认文件夹配置
 const DEFAULT_FOLDERS = {
@@ -182,7 +183,7 @@ async function getCurrentWorkspaceResourcePath(): Promise<string> {
 }
 
 // 将下载的文件添加到资源数据库
-async function addDownloadedFileToResources(filePath: string, videoInfo: any, workspaceId?: string, thumbnailPath?: string): Promise<any> {
+async function addDownloadedFileToResources(filePath: string, videoInfo: any, workspaceId?: string, thumbnailPath?: string, folderId?: string): Promise<any> {
   try {
     const stats = fs.statSync(filePath);
     const filename = path.basename(filePath);
@@ -220,6 +221,7 @@ async function addDownloadedFileToResources(filePath: string, videoInfo: any, wo
       mimeType: videoInfo?.mime_type || undefined,
       thumbnailPath: thumbnailPath || undefined,
       workspaceId: currentWorkspaceId,
+      folderId: folderId || undefined,
       collectedAt: Date.now()
     } as any);
 
@@ -581,7 +583,26 @@ export class VideoDownloader implements Downloader {
     const { url, filename, destination, thumbnailUrl, videoInfo, onProgress, onError, onCompleted } = options;
 
     // 获取当前工作空间的资源文件夹路径
-    const workspaceResourcePath = await getCurrentWorkspaceResourcePath();
+    let workspaceResourcePath = await getCurrentWorkspaceResourcePath();
+    let dailyFolderId: string | undefined;
+
+    // 如果没有指定 destination，默认使用当天的文件夹
+    if (!destination) {
+      try {
+        const workspace = await WorkspacesRepo.getDefault();
+        if (workspace?.id && workspace?.rootPath) {
+          dailyFolderId = await ensureDailyFolder(workspace.id, workspace.rootPath);
+          workspaceResourcePath = path.join(workspace.rootPath, 'resources', 'folders', dailyFolderId);
+          // 确保目录存在
+          if (!fs.existsSync(workspaceResourcePath)) {
+            fs.mkdirSync(workspaceResourcePath, { recursive: true });
+          }
+        }
+      } catch (error) {
+        console.warn('[VideoDownloader] Failed to get daily folder, using default resource path:', error);
+      }
+    }
+
     const actualDestination = destination || workspaceResourcePath;
 
     const quality: string[] = [];
@@ -701,7 +722,8 @@ ${destPath}`);
         // 先将下载的文件添加到资源数据库（不包含缩略图路径）
         let resourceId = '';
         try {
-          const resource = await addDownloadedFileToResources(destPath, videoInfo);
+          const workspace = await WorkspacesRepo.getDefault();
+          const resource = await addDownloadedFileToResources(destPath, videoInfo, workspace?.id, undefined, dailyFolderId);
           resourceId = resource?.id || '';
         } catch (error) {
           console.warn('[VideoDownloader] Failed to add file to resources:', error);
