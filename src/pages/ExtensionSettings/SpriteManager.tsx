@@ -17,6 +17,9 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 
 function baseName(p: string): string {
@@ -110,6 +113,23 @@ export default function SpriteManager({ className }: { className?: string }): JS
   const [outputPath, setOutputPath] = useState<string>('');
   const [converting, setConverting] = useState(false);
   const [convertMsg, setConvertMsg] = useState<string>('');
+  // 绿幕抠图工具弹窗与状态
+  const [greenScreenToolOpen, setGreenScreenToolOpen] = useState(false);
+  const [greenScreenInputPath, setGreenScreenInputPath] = useState<string>('');
+  const [greenScreenOutputPath, setGreenScreenOutputPath] = useState<string>('');
+  const [greenScreenConverting, setGreenScreenConverting] = useState(false);
+  const [greenScreenConvertMsg, setGreenScreenConvertMsg] = useState<string>('');
+  const [greenScreenColor, setGreenScreenColor] = useState<string>('0x00ff00');
+  const [greenScreenSimilarity, setGreenScreenSimilarity] = useState<number>(0.3);
+  const [greenScreenBlend, setGreenScreenBlend] = useState<number>(0.1);
+  const [greenScreenCodec, setGreenScreenCodec] = useState<'prores_ks' | 'qtrle'>('prores_ks');
+  const [useAIModel, setUseAIModel] = useState<boolean>(false); // 是否使用 AI 模型
+  // 单张图片抠图工具弹窗与状态
+  const [imageRemoveBgOpen, setImageRemoveBgOpen] = useState(false);
+  const [imageRemoveBgInputPath, setImageRemoveBgInputPath] = useState<string>('');
+  const [imageRemoveBgOutputPath, setImageRemoveBgOutputPath] = useState<string>('');
+  const [imageRemoveBgProcessing, setImageRemoveBgProcessing] = useState(false);
+  const [imageRemoveBgMsg, setImageRemoveBgMsg] = useState<string>('');
   // 默认的内置分类：使用全部预设事件类型（不包含 custom）
   const BUILTIN = React.useMemo(() => ALL_SPRITE_EVENT_TYPES.filter((c) => c !== 'custom'), []);
 
@@ -246,10 +266,19 @@ export default function SpriteManager({ className }: { className?: string }): JS
           <Button size="sm" variant="outline" onClick={refresh} disabled={loading}>
             刷新
           </Button>
-          <Button size="sm" variant="outline" onClick={() => setToolOpen(true)}>
-            <TbTools />
-            工具
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline">
+                <TbTools />
+                工具
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setImageRemoveBgOpen(true)}>AI 图片抠背景</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setToolOpen(true)}>转码为 WebM（含透明通道）</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setGreenScreenToolOpen(true)}>绿幕抠图（导出 MOV）</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
       {/* 转码工具弹窗 */}
@@ -335,6 +364,270 @@ export default function SpriteManager({ className }: { className?: string }): JS
                 disabled={converting || !inputPath || !outputPath}
               >
                 {converting ? '转码中…' : '开始转码'}
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 绿幕抠图工具弹窗 */}
+      <Dialog open={greenScreenToolOpen} onOpenChange={setGreenScreenToolOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>视频抠图并导出 MOV（含透明通道）</DialogTitle>
+            <DialogDescription>
+              {useAIModel ? '使用 AI 模型进行背景移除，无需绿幕，效果更好但处理速度较慢。首次使用需要下载模型（约 100MB）。' : '使用 FFmpeg 的 chromakey 滤镜进行绿幕抠图，速度快但需要纯色背景。'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b pb-3">
+              <div className="space-y-0.5">
+                <Label htmlFor="use-ai">使用 AI 模型（推荐）</Label>
+                <div className="text-xs text-muted-foreground">{useAIModel ? '使用 AI 模型，无需绿幕，效果更好' : '使用 FFmpeg chromakey，需要绿幕背景'}</div>
+              </div>
+              <Switch id="use-ai" checked={useAIModel} onCheckedChange={setUseAIModel} />
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  const pick = await window.YUA.file['file:pickFile']({
+                    filters: [
+                      { name: 'Videos', extensions: ['mov', 'mp4', 'mkv', 'avi', 'webm', 'm4v', 'ogg', 'ogv'] },
+                      { name: 'All Files', extensions: ['*'] }
+                    ],
+                    multi: false
+                  });
+                  if (!pick.canceled && pick.path) {
+                    setGreenScreenInputPath(pick.path);
+                    // 如果未选择过输出，自动建议同目录同名 .mov
+                    try {
+                      const suggested = pick.path.replace(/\.[^.\\/]+$/i, '') + '.mov';
+                      if (!greenScreenOutputPath) setGreenScreenOutputPath(suggested);
+                    } catch {
+                      /* noop */
+                    }
+                  }
+                }}
+              >
+                选择输入视频
+              </Button>
+              <Input className="flex-1" placeholder="未选择" value={greenScreenInputPath} readOnly />
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  const save = await window.YUA.file['file:saveFile']({
+                    filters: [{ name: 'MOV', extensions: ['mov'] }],
+                    defaultPath: greenScreenOutputPath || (greenScreenInputPath ? greenScreenInputPath.replace(/\.[^.\\/]+$/i, '') + '.mov' : undefined),
+                    title: '保存为 MOV 文件'
+                  });
+                  if (!save.canceled && save.path) setGreenScreenOutputPath(save.path);
+                }}
+              >
+                选择输出位置
+              </Button>
+              <Input className="flex-1" placeholder="未选择" value={greenScreenOutputPath} readOnly />
+            </div>
+
+            {!useAIModel && (
+              <div className="space-y-3 border-t pt-3">
+                <div className="space-y-2">
+                  <Label htmlFor="color">抠除颜色</Label>
+                  <div className="flex items-center gap-2">
+                    <Input id="color" type="text" value={greenScreenColor} onChange={(e) => setGreenScreenColor(e.target.value)} placeholder="0x00ff00" className="flex-1" />
+                    <div className="w-12 h-8 rounded border border-border" style={{ backgroundColor: greenScreenColor.replace('0x', '#') }} />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setGreenScreenColor('0x00ff00')}>
+                      绿色
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setGreenScreenColor('0x0000ff')}>
+                      蓝色
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setGreenScreenColor('0xff0000')}>
+                      红色
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="similarity">相似度阈值: {greenScreenSimilarity.toFixed(2)}</Label>
+                  <Input
+                    id="similarity"
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={greenScreenSimilarity}
+                    onChange={(e) => setGreenScreenSimilarity(parseFloat(e.target.value))}
+                    className="w-full"
+                  />
+                  <div className="text-xs text-muted-foreground">值越大，去除的颜色范围越广（推荐：0.1-0.5）</div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="blend">边缘混合: {greenScreenBlend.toFixed(2)}</Label>
+                  <Input id="blend" type="range" min="0" max="1" step="0.01" value={greenScreenBlend} onChange={(e) => setGreenScreenBlend(parseFloat(e.target.value))} className="w-full" />
+                  <div className="text-xs text-muted-foreground">值越大，边缘过渡越柔和（推荐：0.0-0.2）</div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="codec">视频编码器</Label>
+                  <Select value={greenScreenCodec} onValueChange={(v: 'prores_ks' | 'qtrle') => setGreenScreenCodec(v)}>
+                    <SelectTrigger id="codec">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="prores_ks">Apple ProRes 4444（高质量，推荐）</SelectItem>
+                      <SelectItem value="qtrle">QuickTime Animation（无损压缩）</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
+            {greenScreenConvertMsg && <div className="text-xs text-muted-foreground">{greenScreenConvertMsg}</div>}
+          </div>
+          <DialogFooter>
+            <div className="flex items-center gap-2 w-full justify-end">
+              <Button variant="ghost" onClick={() => setGreenScreenToolOpen(false)} disabled={greenScreenConverting}>
+                关闭
+              </Button>
+              <Button
+                onClick={async () => {
+                  if (!greenScreenInputPath || !greenScreenOutputPath) {
+                    setGreenScreenConvertMsg('请先选择输入与输出路径');
+                    return;
+                  }
+                  setGreenScreenConverting(true);
+                  setGreenScreenConvertMsg(useAIModel ? '开始 AI 抠图（首次使用需要下载模型，请耐心等待）…' : '开始抠图…');
+                  try {
+                    let ret: string;
+                    if (useAIModel) {
+                      ret = await window.YUA.ffmpeg.removeBackgroundWithAI({
+                        inputPath: greenScreenInputPath,
+                        outputPath: greenScreenOutputPath
+                      });
+                    } else {
+                      ret = await window.YUA.ffmpeg.removeGreenScreenToMov({
+                        inputPath: greenScreenInputPath,
+                        outputPath: greenScreenOutputPath,
+                        color: greenScreenColor,
+                        similarity: greenScreenSimilarity,
+                        blend: greenScreenBlend,
+                        codec: greenScreenCodec
+                      });
+                    }
+                    setGreenScreenConvertMsg(ret || '抠图完成');
+                    // 打开目标文件所在文件夹
+                    const parent = dirName(greenScreenOutputPath);
+                    if (parent) {
+                      await window.YUA.file['file:openPath'](parent);
+                    }
+                  } catch (e: any) {
+                    setGreenScreenConvertMsg('抠图失败：' + (e?.message || String(e)));
+                  } finally {
+                    setGreenScreenConverting(false);
+                  }
+                }}
+                disabled={greenScreenConverting || !greenScreenInputPath || !greenScreenOutputPath}
+              >
+                {greenScreenConverting ? '抠图中…' : '开始抠图'}
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 单张图片 AI 抠背景工具弹窗 */}
+      <Dialog open={imageRemoveBgOpen} onOpenChange={setImageRemoveBgOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>AI 图片抠背景</DialogTitle>
+            <DialogDescription>使用 AI 模型自动移除图片背景，无需绿幕。支持导出 PNG 格式（含透明通道）。首次使用需要下载模型（约 100MB）。</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  const pick = await window.YUA.file['file:pickFile']({
+                    filters: [
+                      { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp'] },
+                      { name: 'All Files', extensions: ['*'] }
+                    ],
+                    multi: false
+                  });
+                  if (!pick.canceled && pick.path) {
+                    setImageRemoveBgInputPath(pick.path);
+                    // 如果未选择过输出，自动建议同目录同名 .png
+                    try {
+                      const suggested = pick.path.replace(/\.[^.\\/]+$/i, '') + '_nobg.png';
+                      if (!imageRemoveBgOutputPath) setImageRemoveBgOutputPath(suggested);
+                    } catch {
+                      /* noop */
+                    }
+                  }
+                }}
+              >
+                选择输入图片
+              </Button>
+              <Input className="flex-1" placeholder="未选择" value={imageRemoveBgInputPath} readOnly />
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  const save = await window.YUA.file['file:saveFile']({
+                    filters: [{ name: 'PNG', extensions: ['png'] }],
+                    defaultPath: imageRemoveBgOutputPath || (imageRemoveBgInputPath ? imageRemoveBgInputPath.replace(/\.[^.\\/]+$/i, '') + '_nobg.png' : undefined),
+                    title: '保存为 PNG 文件'
+                  });
+                  if (!save.canceled && save.path) setImageRemoveBgOutputPath(save.path);
+                }}
+              >
+                选择输出位置
+              </Button>
+              <Input className="flex-1" placeholder="未选择" value={imageRemoveBgOutputPath} readOnly />
+            </div>
+
+            {imageRemoveBgMsg && <div className="text-xs text-muted-foreground p-2 bg-muted rounded">{imageRemoveBgMsg}</div>}
+          </div>
+          <DialogFooter>
+            <div className="flex items-center gap-2 w-full justify-end">
+              <Button variant="ghost" onClick={() => setImageRemoveBgOpen(false)} disabled={imageRemoveBgProcessing}>
+                关闭
+              </Button>
+              <Button
+                onClick={async () => {
+                  if (!imageRemoveBgInputPath || !imageRemoveBgOutputPath) {
+                    setImageRemoveBgMsg('请先选择输入与输出路径');
+                    return;
+                  }
+                  setImageRemoveBgProcessing(true);
+                  setImageRemoveBgMsg('开始处理（首次使用需要下载模型，请耐心等待）…');
+                  try {
+                    const ret = await window.YUA.ffmpeg.removeBackgroundFromImage({
+                      inputPath: imageRemoveBgInputPath,
+                      outputPath: imageRemoveBgOutputPath
+                    });
+                    setImageRemoveBgMsg('处理完成！');
+                    // 打开目标文件所在文件夹
+                    const parent = dirName(imageRemoveBgOutputPath);
+                    if (parent) {
+                      await window.YUA.file['file:openPath'](parent);
+                    }
+                  } catch (e: any) {
+                    setImageRemoveBgMsg('处理失败：' + (e?.message || String(e)));
+                  } finally {
+                    setImageRemoveBgProcessing(false);
+                  }
+                }}
+                disabled={imageRemoveBgProcessing || !imageRemoveBgInputPath || !imageRemoveBgOutputPath}
+              >
+                {imageRemoveBgProcessing ? '处理中…' : '开始处理'}
               </Button>
             </div>
           </DialogFooter>
