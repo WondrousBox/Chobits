@@ -50,15 +50,28 @@ export function useAssistant(): {
     };
   }, []);
 
-  // Get screen and movement config, and place window
+  // Get screen info, set window size, and place window
   useEffect(() => {
     const getScreenInfo = async (): Promise<void> => {
       try {
         const size = await window.YUA.window['screen:size:get']();
         setScreenSize(size);
-        const cfg = await window.YUA.window.getMovementConfig();
-        const pad = cfg.assistantPadding;
+        // 使用默认 padding，后续可以通过其他方式动态调整
+        const pad = DEFAULT_ASSISTANT_PADDING;
         setPadding(pad);
+
+        // 通过 IPC 设置窗口大小和 padding
+        const result = await window.YUA.window.setAssistantSize({
+          width: ASSISTANT_WIDTH,
+          height: ASSISTANT_HEIGHT,
+          padding: pad
+        });
+
+        if (!result.success) {
+          console.error('Failed to set assistant size:', result.error);
+        }
+
+        // 计算窗口位置（窗口大小已由主进程设置）
         const winWidth = ASSISTANT_WIDTH + pad * 2;
         const winHeight = ASSISTANT_HEIGHT + pad * 2;
         const winX = Math.max(0, size.width - winWidth - 20);
