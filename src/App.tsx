@@ -1,7 +1,7 @@
 import { TbSparkles } from 'react-icons/tb';
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 
-import { ChatSelectionProvider } from '@/components/AIAssistant/context/ChatSelectionContext';
+import { ChatSelectionProvider } from '@/pages/ChatPage/context/ChatSelectionContext';
 import DownloadFloating from '@/components/DownloadFloating';
 import { Toaster } from '@/components/ui/sonner';
 import ExtensionSettings from '@/pages/ExtensionSettings/ExtensionSettings';

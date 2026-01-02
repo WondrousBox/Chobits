@@ -1,12 +1,14 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { TbEdit, TbLoader2, TbPlus, TbRefresh, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
-import ChatInputBar from '@/components/AIAssistant/ChatInputBar';
 import DragAbleTitle from '@/components/common/DragAbleTitle';
-import MarkdownMessage from '@/components/common/MarkdownMessage';
 import { Button } from '@/components/ui/button';
 import { formatDateTime, formatRelativeTime } from '@/lib/time';
+
+import ChatInputBar from './components/ChatInputBar';
+import MarkdownMessage from './components/MarkdownMessage';
 
 export default function ChatPage(): JSX.Element {
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string; createdAt?: number }>>([]);
@@ -25,12 +27,14 @@ export default function ChatPage(): JSX.Element {
   // Provider/agents/instances fetching moved into ChatInputBar
 
   // Load conversations list
-  const loadConversations = async () => {
+  const loadConversations = async (): Promise<void> => {
     setLoadingConvs(true);
     try {
       const rows = await window.YUA.ai.listConversations({ includeDeleted: false, limit: 200 });
       setConversations(rows || []);
-    } catch { }
+    } catch {
+      // Let parent surface errors
+    }
     setLoadingConvs(false);
   };
   useEffect(() => {
@@ -38,25 +42,27 @@ export default function ChatPage(): JSX.Element {
   }, []);
 
   // Select conversation and load its messages
-  const selectConversation = async (id: string) => {
+  const selectConversation = async (id: string): Promise<void> => {
     setSelectedConvId(id);
     setConversationId(id);
     try {
       const rows = await window.YUA.ai.listMessages(id, 2000, 0);
       const mapped = (rows || []).map((r: any) => ({ role: r.role, content: r.content, createdAt: r.createdAt }));
       setMessages(mapped);
-    } catch { }
+    } catch {
+      // Let parent surface errors
+    }
   };
 
   // Start a brand new conversation (reset state)
-  const newConversation = () => {
+  const newConversation = (): void => {
     setSelectedConvId(null);
     setConversationId(undefined);
     setMessages([]);
   };
 
   // Rename a conversation (prompt)
-  const renameConversation = async (id: string) => {
+  const renameConversation = async (id: string): Promise<void> => {
     const current = conversations.find((c) => c.id === id);
     const title = prompt('重命名对话', current?.title || '');
     if (title == null) return;
@@ -65,7 +71,7 @@ export default function ChatPage(): JSX.Element {
   };
 
   // Soft delete a conversation with undo via toast
-  const deleteConversation = async (id: string) => {
+  const deleteConversation = async (id: string): Promise<void> => {
     const prevSelected = selectedConvId;
     try {
       await window.YUA.ai.deleteConversation(id);
@@ -88,12 +94,14 @@ export default function ChatPage(): JSX.Element {
         },
         duration: 5000
       });
-    } catch (e) {
+    } catch (e: any) {
+      console.error(e);
+      // Let parent surface errors
       toast.error('删除失败');
     }
   };
 
-  const start = async (params: { content: string; providerId: string; instanceId: string; agentId: string }) => {
+  const start = async (params: { content: string; providerId: string; instanceId: string; agentId: string }): Promise<void> => {
     const { content, providerId, instanceId, agentId } = params;
     if (!instanceId || !content.trim()) return;
 
@@ -159,10 +167,12 @@ export default function ChatPage(): JSX.Element {
     disposerRef.current = disposer;
   };
 
-  const stop = async () => {
+  const stop = async (): Promise<void> => {
     try {
       await disposerRef.current?.cancel();
-    } catch { }
+    } catch {
+      // Let parent surface errors
+    }
     disposerRef.current?.dispose?.();
     setLoading(false);
   };

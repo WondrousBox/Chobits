@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { TbDownload, TbLoader2, TbMicrophone, TbMicrophoneOff, TbWorld, TbX } from 'react-icons/tb';
 
-import ChatInput from '@/components/AIAssistant/ChatInput';
 import { Button } from '@/components/ui/button';
+
+import ChatInput from './components/ChatInput';
 
 // URL检测函数
 const isVideoUrl = (url: string): boolean => {

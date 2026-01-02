@@ -1,7 +1,7 @@
-import ChatInput from '@/components/AIAssistant/ChatInput';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-import { useChatSelection } from './context/ChatSelectionContext';
+import { useChatSelection } from '../context/ChatSelectionContext';
+import ChatInput from './ChatInput';
 
 export interface ChatInputBarProps {
   // Triggered when user hits send (Enter or button)
