@@ -4,29 +4,15 @@ import { ipcRenderer } from 'electron';
 import { IPCParams } from '../type';
 
 type WindowBridgeParams = {
-  /** 获取移动配置 */
-  getMovementConfig: IPCParams<
-    [void],
-    { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number; enabled?: boolean }
-  >;
-  /** 更新移动配置 */
-  updateMovementConfig: IPCParams<
-    [
-      Partial<{
-        walkSpeed: number;
-        fpsLimit: number;
-        movementMode: 'stepped' | 'smooth';
-        stepGrid: number;
-        pathCurveFactor: number;
-        assistantPadding: number;
-        enabled?: boolean;
-      }>
-    ],
-    { walkSpeed: number; fpsLimit: number; movementMode: 'stepped' | 'smooth'; stepGrid: number; pathCurveFactor: number; assistantPadding: number; enabled?: boolean }
-  >;
+  /** 获取自动移动开关状态 */
+  getAutoWalkEnabled: IPCParams<[void], boolean>;
+  /** 设置自动移动开关状态 */
+  setAutoWalkEnabled: IPCParams<[boolean], boolean>;
+  /** 设置助手窗口大小和 padding */
+  setAssistantSize: IPCParams<[{ width: number; height: number; padding: number }], { success: boolean; error?: string }>;
 };
 
-const methods: Array<keyof WindowBridgeParams> = ['getMovementConfig', 'updateMovementConfig'];
+const methods: Array<keyof WindowBridgeParams> = ['getAutoWalkEnabled', 'setAutoWalkEnabled', 'setAssistantSize'];
 
 export type WindowBridgeType = {
   [K in keyof WindowBridgeParams]: (...args: WindowBridgeParams[K]['request']) => Promise<WindowBridgeParams[K]['response']>;

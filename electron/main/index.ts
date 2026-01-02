@@ -60,14 +60,14 @@ async function createWindow(): Promise<void> {
   win = new BrowserWindow({
     title: 'Main window',
     icon: path.join(process.env.VITE_PUBLIC, 'favicon.ico'),
-    // Assistant size: 180x240, plus 100px padding on each side
-    width: 380,
-    height: 440,
+    // 窗口大小由渲染进程通过 IPC 设置，这里只设置一个很小的默认值
+    width: 1,
+    height: 1,
     frame: false, // frameless for a floating assistant
     transparent: true, // transparent background
     backgroundColor: '#00000000',
     alwaysOnTop: true, // stay on top
-    resizable: false, // fixed size to preserve 100px padding
+    resizable: false, // fixed size to preserve padding
     skipTaskbar: true, // do not show in taskbar
     hasShadow: false,
     show: false, // 延迟显示，等待 ready-to-show 以防白屏闪烁

@@ -9,8 +9,6 @@ export const ASSISTANT_HEIGHT = 240;
 export const DEFAULT_WALK_SPEED = 500;
 export const DEFAULT_FPS_LIMIT = 30;
 export const FRAME_INTERVAL = 1000 / DEFAULT_FPS_LIMIT;
-export type MovementMode = 'stepped' | 'smooth';
-export const DEFAULT_MOVEMENT_MODE: MovementMode = 'stepped';
 export const STEP_GRID = 12;
 export const PATH_CURVE_FACTOR = 0.15;
 
@@ -18,7 +16,7 @@ export const PATH_CURVE_FACTOR = 0.15;
 export const DEFAULT_ASSISTANT_PADDING = 100;
 
 // Debug overlay toggle for padding boundary
-export const SHOW_PADDING_DEBUG = false;
+export const SHOW_PADDING_DEBUG = true;
 
 // Renderer mode toggle: 'video' (current sprite videos) or 'three' (3D demo)
 export type AssistantRendererMode = 'video' | 'three';

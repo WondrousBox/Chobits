@@ -1,60 +1,30 @@
-import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
 import { initIpcMain, windowManager } from '@aim-packages/window-manager';
 import type { IpcMainInvokeEvent } from 'electron';
 import { BrowserWindow, ipcMain } from 'electron';
-import { app, screen, systemPreferences } from 'electron';
+import { app, screen } from 'electron';
 
-import { ASSISTANT_HEIGHT, ASSISTANT_WIDTH } from '../config';
 import defaultWindowConfigs from '../config/window';
 
 export function initWindowHandlers(win: BrowserWindow): void {
-  // Movement config persistence ------------------------------------------------
-  type MovementConfig = {
-    walkSpeed: number;
-    fpsLimit: number;
-    movementMode: 'stepped' | 'smooth';
-    stepGrid: number;
-    pathCurveFactor: number;
-    assistantPadding: number;
-    enabled?: boolean;
-  };
-  const defaultConfig: MovementConfig = {
-    walkSpeed: 500,
-    fpsLimit: 30,
-    movementMode: 'stepped',
-    stepGrid: 12,
-    pathCurveFactor: 0.15,
-    assistantPadding: 100,
-    enabled: true
-  };
-  const configDir = app.getPath('userData');
-  const configFile = path.join(configDir, 'data', 'movement-config.json');
-  let movementConfig: MovementConfig = defaultConfig;
-  try {
-    if (fs.existsSync(configFile)) {
-      const txt = fs.readFileSync(configFile, 'utf8');
-      const parsed = JSON.parse(txt);
-      movementConfig = { ...defaultConfig, ...parsed };
-    }
-  } catch {
-    movementConfig = defaultConfig;
-  }
-  function saveConfig(): void {
-    try {
-      fs.writeFileSync(configFile, JSON.stringify(movementConfig, null, 2), 'utf8');
-    } catch {
-      //
-    }
-  }
+  // 自动移动开关（运行时状态，不持久化）
+  let autoWalkEnabled = true; // 默认启用
+
+  // 记录助手窗口的 padding（由渲染进程通过 IPC 动态设置）
+  let assistantPadding = 100; // 默认值，等待渲染进程通过 setAssistantSize 设置
 
   // ---------------- Hover monitor to manage click-through ---------------
   // 在透明窗口上，为了让外部（Finder）拖拽能进入助手区域，我们需要在鼠标进入助手内层矩形时
   // 自动关闭 ignoreMouseEvents（否则不会收到 dragenter/over 事件）。
   // 优先使用全局系统级鼠标事件钩子（uiohook-napi），不可用时回退到低频轮询。
   const require = createRequire(import.meta.url);
+
+  // 记录助手窗口的实际尺寸（由渲染进程通过 IPC 设置）
+  // 初始值为 0，等待渲染进程通过 setAssistantSize 设置
+  let assistantWidth = 0;
+  let assistantHeight = 0;
 
   // 缓存窗口边界，避免每次事件都调用 getBounds()
   let cachedBounds = win.getBounds();
@@ -71,11 +41,13 @@ export function initWindowHandlers(win: BrowserWindow): void {
 
   let lastInside = false;
   function pointInside(x: number, y: number): boolean {
-    const padding = movementConfig.assistantPadding ?? 0;
+    // 如果尺寸还未设置，返回 false（不认为在区域内）
+    if (assistantWidth <= 0 || assistantHeight <= 0) return false;
+    const padding = assistantPadding ?? 0;
     const ax = cachedBounds.x + padding;
     const ay = cachedBounds.y + padding;
-    const aw = ASSISTANT_WIDTH;
-    const ah = ASSISTANT_HEIGHT;
+    const aw = assistantWidth;
+    const ah = assistantHeight;
     return x >= ax && x <= ax + aw && y >= ay && y <= ay + ah;
   }
 
@@ -177,11 +149,13 @@ export function initWindowHandlers(win: BrowserWindow): void {
   startHoverMonitor();
 
   // Bootstrap WindowManager with main window context
+  // 注意：anchorWidth 和 anchorHeight 初始为 0，会在 setAssistantSize 时更新
+  // windowManager 可能需要这些值，但会在渲染进程设置后通过其他方式更新
   windowManager.init(win, {
     preloadPath: (win as any).__preloadPath,
-    assistantPadding: movementConfig.assistantPadding,
-    anchorHeight: ASSISTANT_HEIGHT,
-    anchorWidth: ASSISTANT_WIDTH,
+    assistantPadding: assistantPadding, // 初始为默认值，等待渲染进程设置
+    anchorHeight: assistantHeight, // 初始为 0，等待渲染进程设置
+    anchorWidth: assistantWidth, // 初始为 0，等待渲染进程设置
     loadURL: process.env.VITE_DEV_SERVER_URL,
     loadFile: path.join(process.env.APP_ROOT || app.getAppPath(), 'dist'),
     windowConfigs: defaultWindowConfigs,
@@ -193,32 +167,70 @@ export function initWindowHandlers(win: BrowserWindow): void {
     }
   });
 
-  // ---------------- Movement Config IPC --------------------
-  ipcMain.handle('getMovementConfig', () => {
-    return movementConfig;
+  // ---------------- Auto Walk Control IPC --------------------
+  // 获取自动移动开关状态
+  ipcMain.handle('getAutoWalkEnabled', () => {
+    return autoWalkEnabled;
   });
-  ipcMain.handle('updateMovementConfig', (_: IpcMainInvokeEvent, partial: Partial<MovementConfig>) => {
-    const oldPadding = movementConfig.assistantPadding;
-    movementConfig = { ...movementConfig, ...partial };
-    saveConfig();
-    if (partial.assistantPadding !== undefined) {
-      // 使用窗口管理器的内边距调整功能，它会自动更新跟随窗口位置
-      windowManager.adjustMainWindowForPadding(oldPadding, movementConfig.assistantPadding);
-      // 重新计算缓存边界（padding 影响命中区域）
+
+  // 设置自动移动开关状态
+  ipcMain.handle('setAutoWalkEnabled', (_: IpcMainInvokeEvent, enabled: boolean) => {
+    autoWalkEnabled = enabled;
+    // 广播状态变化
+    try {
+      win?.webContents.send('auto-walk-enabled-changed', enabled);
+    } catch {
+      /* ignore */
+    }
+    try {
+      windowManager.get('settings')?.webContents.send('auto-walk-enabled-changed', enabled);
+    } catch {
+      /* ignore */
+    }
+    return enabled;
+  });
+
+  // ---------------- Assistant Size IPC --------------------
+  // 渲染进程通过此接口设置窗口大小和 padding
+  ipcMain.handle('setAssistantSize', (_: IpcMainInvokeEvent, params: { width: number; height: number; padding: number }) => {
+    try {
+      if (!win || win.isDestroyed()) return { success: false };
+
+      // 更新记录的尺寸（这些值用于鼠标移动效果和窗口贴边等计算）
+      assistantWidth = params.width;
+      assistantHeight = params.height;
+
+      // 计算窗口总大小（助手尺寸 + padding * 2）
+      const winWidth = params.width + params.padding * 2;
+      const winHeight = params.height + params.padding * 2;
+
+      // 设置窗口大小
+      win.setSize(winWidth, winHeight, false);
+
+      // 更新 padding（如果不同）
+      if (assistantPadding !== params.padding) {
+        const oldPadding = assistantPadding;
+        assistantPadding = params.padding;
+
+        // 更新窗口管理器的 anchor 尺寸和 padding
+        try {
+          windowManager.setAnchorWidth?.(assistantWidth);
+          windowManager.setAnchorHeight?.(assistantHeight);
+        } catch {
+          // 如果方法不存在，忽略
+        }
+        // 更新窗口管理器的 padding（这个方法可能会调整窗口位置，但不会改变大小，因为我们已经设置了）
+        windowManager.adjustMainWindowForPadding(oldPadding, params.padding);
+      }
+
+      // 刷新缓存边界
       refreshBounds();
+
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to set assistant size:', error);
+      return { success: false, error: String(error) };
     }
-    // 广播更新
-    try {
-      win?.webContents.send('movement-config-updated', movementConfig);
-    } catch {
-      /* ignore */
-    }
-    try {
-      windowManager.get('settings')?.webContents.send('movement-config-updated', movementConfig);
-    } catch {
-      /* ignore */
-    }
-    return movementConfig;
   });
 
   initIpcMain(win);

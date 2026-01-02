@@ -70,7 +70,7 @@ export const AIAssistant: React.FC = () => {
   const handleMouseLeave = (): void => {
     isHoveringRef.current = false;
     // 如果自由移动已启用，重新启动自动移动
-    if (movementConfigRef.current?.enabled !== false && startAutoWalkRef.current) {
+    if (autoWalkEnabledRef.current && startAutoWalkRef.current) {
       startAutoWalkRef.current();
     }
   };
@@ -158,7 +158,7 @@ export const AIAssistant: React.FC = () => {
   const paddingRef = useRef(paddingState);
   const animateMoveWindowRef = useRef(animateMoveWindow);
   const autoWalkTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const movementConfigRef = useRef<{ enabled?: boolean } | null>(null);
+  const autoWalkEnabledRef = useRef(true); // 默认启用
   const isDraggingRef = useRef(isDragging);
   const isWalkingRef = useRef(isWalking);
   const isHoveringRef = useRef(false);
@@ -174,19 +174,19 @@ export const AIAssistant: React.FC = () => {
     animateMoveWindowRef.current = animateMoveWindow;
   }, [animateMoveWindow]);
 
-  // --- 监听移动配置变化，实现自由移动 ---
+  // --- 监听自动移动开关变化，实现自由移动 ---
   useEffect(() => {
     const loadConfig = async (): Promise<void> => {
       try {
-        const cfg = await window.YUA.window.getMovementConfig();
-        movementConfigRef.current = cfg;
-        if (cfg.enabled !== false) {
+        const enabled = await window.YUA.window.getAutoWalkEnabled();
+        autoWalkEnabledRef.current = enabled;
+        if (enabled) {
           startAutoWalk();
         } else {
           stopAutoWalk();
         }
       } catch (error) {
-        console.error('加载移动配置失败:', error);
+        console.error('加载自动移动开关失败:', error);
       }
     };
 
@@ -196,7 +196,7 @@ export const AIAssistant: React.FC = () => {
       const scheduleNextWalk = (): void => {
         const delay = Math.random() * 5000 + 5000; // 5-10秒
         autoWalkTimerRef.current = setTimeout(async () => {
-          if (movementConfigRef.current?.enabled === false || isDraggingRef.current || isWalkingRef.current || isHoveringRef.current) {
+          if (!autoWalkEnabledRef.current || isDraggingRef.current || isWalkingRef.current || isHoveringRef.current) {
             scheduleNextWalk();
             return;
           }
@@ -226,9 +226,9 @@ export const AIAssistant: React.FC = () => {
       }
     };
 
-    const onConfigUpdated = (_: any, cfg: { enabled?: boolean }): void => {
-      movementConfigRef.current = cfg;
-      if (cfg.enabled !== false) {
+    const onEnabledChanged = (_: any, enabled: boolean): void => {
+      autoWalkEnabledRef.current = enabled;
+      if (enabled) {
         startAutoWalk();
       } else {
         stopAutoWalk();
@@ -236,11 +236,11 @@ export const AIAssistant: React.FC = () => {
     };
 
     loadConfig();
-    window.ipcRenderer?.on('movement-config-updated', onConfigUpdated);
+    window.ipcRenderer?.on('auto-walk-enabled-changed', onEnabledChanged);
 
     return () => {
       stopAutoWalk();
-      window.ipcRenderer?.off('movement-config-updated', onConfigUpdated as any);
+      window.ipcRenderer?.off('auto-walk-enabled-changed', onEnabledChanged as any);
     };
   }, [setAssistantState]);
 

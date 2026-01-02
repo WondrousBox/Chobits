@@ -7,7 +7,7 @@ import { useCallback, useRef, useState } from 'react';
 
 import { bezierQ, clamp, lerp } from '@/lib/helpers';
 
-import { DEFAULT_MOVEMENT_MODE, DEFAULT_WALK_SPEED, FRAME_INTERVAL, PATH_CURVE_FACTOR, STEP_GRID } from '../constants';
+import { DEFAULT_WALK_SPEED, FRAME_INTERVAL, PATH_CURVE_FACTOR, STEP_GRID } from '../constants';
 
 export function useWalkAnimation(): {
   animateMoveWindow: (targetX: number, targetY: number) => Promise<void>;
@@ -81,13 +81,8 @@ export function useWalkAnimation(): {
         const segLen = Math.max(1e-6, cur.d - prevD);
         const segT = clamp((progressed - prevD) / segLen, 0, 1);
 
-        let x = lerp(prevX, cur.x, segT);
-        let y = lerp(prevY, cur.y, segT);
-
-        if (DEFAULT_MOVEMENT_MODE === 'stepped') {
-          x = Math.round(x / STEP_GRID) * STEP_GRID;
-          y = Math.round(y / STEP_GRID) * STEP_GRID;
-        }
+        const x = lerp(prevX, cur.x, segT);
+        const y = lerp(prevY, cur.y, segT);
 
         if (lastIpcSendRef.current === 0 || now - lastIpcSendRef.current >= FRAME_INTERVAL || progressed >= acc) {
           lastIpcSendRef.current = now;
