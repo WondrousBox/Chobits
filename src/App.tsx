@@ -15,8 +15,8 @@ import AiProviderConfigWindow from './pages/AiProviderConfigWindow/AiProviderCon
 import ASRConfigPage from './pages/ASRPage/ASRConfigPage';
 import ASRPage from './pages/ASRPage/ASRPage';
 import AssistantMenuPage from './pages/AssistantMenuPage/AssistantMenuPage';
-import AssistantPage from './pages/AssistantPage/AssistantPage';
-import ChatPage from './pages/AssistantPage/ChatPage';
+import ChatPage from './pages/ChatPage/ChatPage';
+import AssistantPage from './pages/ChatPage/StartPage';
 import RecycleBinPage from './pages/ResourcePage/RecycleBinPage';
 import ResourcePage from './pages/ResourcePage/ResourcePage';
 import WorkflowPage from './pages/ResourcePage/WorkflowPage';
