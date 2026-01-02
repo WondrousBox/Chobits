@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
-import ServiceInstanceSelect from '@/components/AIAssistant/ServiceInstanceSelect';
+import ServiceInstanceSelect from '@/pages/ChatPage/components/ServiceInstanceSelect';
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
