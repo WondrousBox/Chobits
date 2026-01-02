@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import { TbSettings } from 'react-icons/tb';
 
-import { InstanceRow, ProviderRow, useProvidersInstances } from '@/pages/ChatPage/hooks/useProvidersInstances';
 import TintableSvg from '@/components/common/TintableSvg';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+
+import { InstanceRow, ProviderRow, useProvidersInstances } from '../hooks/useProvidersInstances';
 
 export interface ServiceInstanceSelectProps {
   providerId?: string;
