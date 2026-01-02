@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
-import { useProvidersInstances } from '@/components/AIAssistant/hooks/useProvidersInstances';
+import { useProvidersInstances } from '../hooks/useProvidersInstances';
 
 type Provider = any;
 type Agent = any;

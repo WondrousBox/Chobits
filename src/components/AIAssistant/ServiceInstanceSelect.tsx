@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { TbSettings } from 'react-icons/tb';
 
-import { InstanceRow, ProviderRow, useProvidersInstances } from '@/components/AIAssistant/hooks/useProvidersInstances';
+import { InstanceRow, ProviderRow, useProvidersInstances } from '@/pages/ChatPage/hooks/useProvidersInstances';
 import TintableSvg from '@/components/common/TintableSvg';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';

@@ -6,7 +6,7 @@ import ServiceInstanceSelect from '@/components/AIAssistant/ServiceInstanceSelec
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 
-import { useChatSelection } from './context/ChatSelectionContext';
+import { useChatSelection } from '../context/ChatSelectionContext';
 
 export interface ChatInputProps {
   // Controlled value; if omitted, component manages its own state
