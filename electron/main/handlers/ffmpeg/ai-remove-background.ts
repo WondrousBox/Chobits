@@ -1,9 +1,7 @@
 import fs from 'node:fs';
-import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { env, pipeline } from '@huggingface/transformers';
-import ffmpeg from 'fluent-ffmpeg';
 import sharp from 'sharp';
 
 import { PluginConfigStore } from '../../../../packages/plugins/plugin-config-store';
@@ -19,7 +17,7 @@ export class AIRemoveBackground {
   private pipeline: Pipeline | null = null;
   private modelId: string;
 
-  constructor(modelId: string = 'briaai/RMBG-1.4') {
+  constructor(modelId: string = 'briaai/RMBG-2.0') {
     this.modelId = modelId;
   }
 
@@ -39,10 +37,20 @@ export class AIRemoveBackground {
     console.log('[AI抠图] 模型缓存目录:', env.cacheDir);
 
     try {
-      // 使用 image-segmentation pipeline 进行背景移除
-      this.pipeline = await pipeline('image-segmentation', this.modelId, {
-        quantized: true // 使用量化模型以节省内存
-      });
+      // RMBG 模型是专门的背景移除模型，可能需要使用不同的 pipeline
+      // 尝试使用 image-segmentation，如果失败则尝试其他方式
+      try {
+        this.pipeline = await pipeline('image-segmentation', this.modelId, {
+          quantized: true // 使用量化模型以节省内存
+        });
+      } catch (e: any) {
+        // 如果 image-segmentation 失败，尝试直接使用模型
+        console.warn('[AI抠图] image-segmentation pipeline 失败，尝试其他方式:', e.message);
+        // 某些模型可能需要使用 'image-to-image' 或其他 pipeline
+        this.pipeline = await pipeline('image-to-image', this.modelId, {
+          quantized: true
+        });
+      }
       console.log('[AI抠图] 模型加载完成');
     } catch (error: any) {
       console.error('[AI抠图] 模型加载失败:', error);
@@ -119,9 +127,9 @@ export class AIRemoveBackground {
         }
       }
 
-      // 处理掩码：RawImage 通常是单通道灰度图，需要转换为 RGBA
-      // 掩码值：0 = 背景（透明），255 = 前景（不透明）
-      // 注意：某些模型的掩码可能需要反转
+      // 处理掩码：RawImage 通常是单通道灰度图
+      // 掩码值：255 = 前景（要保留），0 = 背景（要移除）
+      // 注意：某些模型的掩码方向可能相反，需要反转
       const maskWidth = maskRawImage.width || width;
       const maskHeight = maskRawImage.height || height;
 
@@ -141,6 +149,12 @@ export class AIRemoveBackground {
         if (channels < 1 || channels > 4) channels = 1;
       }
 
+      console.log(`[AI抠图] 掩码尺寸: ${maskWidth}x${maskHeight}, 通道数: ${channels}, 数据长度: ${actualLength}`);
+
+      // 处理掩码：将掩码的灰度值作为 alpha 通道
+      // 掩码值：255 = 前景（不透明），0 = 背景（透明）
+      // 注意：某些模型的掩码方向可能相反，如果效果不对，需要反转掩码
+
       const maskSharp = sharp(maskBuffer, {
         raw: {
           width: maskWidth,
@@ -149,121 +163,52 @@ export class AIRemoveBackground {
         }
       })
         .resize(width, height, { fit: 'fill' })
-        .greyscale()
-        .ensureAlpha(); // 确保有 alpha 通道
+        .greyscale(); // 确保是单通道灰度图
 
-      // 将掩码作为 alpha 通道应用到原图
-      const maskBufferProcessed = await maskSharp.png().toBuffer();
+      // 获取原图的 RGB 数据
+      const originalRGB = await image
+        .removeAlpha() // 移除原图的 alpha（如果有）
+        .raw()
+        .toBuffer();
 
-      // 使用掩码作为 alpha 通道
-      await image
-        .composite([
-          {
-            input: maskBufferProcessed,
-            blend: 'dest-in' // 使用掩码的 alpha 通道
-          }
-        ])
+      // 获取掩码的灰度数据（作为 alpha 通道）
+      const maskAlpha = await maskSharp.raw().toBuffer();
+
+      // 直接使用模型输出的掩码，不进行颜色计算判断
+      // RMBG 模型返回的掩码：前景（要保留）是白色(255)，背景（要移除）是黑色(0)
+      // 直接将掩码作为 alpha 通道使用
+      const finalAlpha = maskAlpha;
+      console.log('[AI抠图] 直接使用模型输出的掩码作为 alpha 通道');
+
+      // 组合 RGB 和 Alpha：创建 RGBA 图像
+      const outputPixels = Buffer.alloc(width * height * 4);
+      for (let i = 0; i < width * height; i++) {
+        const rgbIdx = i * 3;
+        const rgbaIdx = i * 4;
+
+        // RGB 来自原图
+        outputPixels[rgbaIdx] = originalRGB[rgbIdx]; // R
+        outputPixels[rgbaIdx + 1] = originalRGB[rgbIdx + 1]; // G
+        outputPixels[rgbaIdx + 2] = originalRGB[rgbIdx + 2]; // B
+        // Alpha 来自掩码
+        outputPixels[rgbaIdx + 3] = finalAlpha[i]; // A
+      }
+
+      // 保存结果
+      await sharp(outputPixels, {
+        raw: {
+          width: width,
+          height: height,
+          channels: 4
+        }
+      })
         .png()
         .toFile(outputPath);
+
+      console.log('[AI抠图] 图片处理完成');
     } catch (error: any) {
       console.error('[AI抠图] 处理图片失败:', error);
       throw new Error(`AI 抠图处理失败: ${error.message}`);
     }
-  }
-
-  /**
-   * 处理视频，逐帧移除背景
-   * @param inputPath 输入视频路径
-   * @param outputPath 输出视频路径
-   * @param onProgress 进度回调 (currentFrame, totalFrames)
-   */
-  async processVideo(inputPath: string, outputPath: string, onProgress?: (current: number, total: number) => void): Promise<void> {
-    await this.init();
-
-    const tempDir = path.join(tmpdir(), `ai-remove-bg-${Date.now()}`);
-    await fs.promises.mkdir(tempDir, { recursive: true });
-
-    try {
-      // 1. 提取视频帧
-      const framesDir = path.join(tempDir, 'frames');
-      const processedFramesDir = path.join(tempDir, 'processed_frames');
-      await fs.promises.mkdir(framesDir, { recursive: true });
-      await fs.promises.mkdir(processedFramesDir, { recursive: true });
-
-      console.log('[AI抠图] 提取视频帧...');
-
-      // 获取视频信息
-      const videoInfo = await new Promise<any>((resolve, reject) => {
-        ffmpeg.ffprobe(inputPath, (err, metadata) => {
-          if (err) reject(err);
-          else resolve(metadata);
-        });
-      });
-
-      const duration = videoInfo.format.duration || 0;
-      const fps = videoInfo.streams[0]?.r_frame_rate?.split('/').reduce((a: number, b: number) => a / b) || 30;
-      const totalFrames = Math.ceil(duration * fps);
-
-      // 提取所有帧
-      await new Promise<void>((resolve, reject) => {
-        ffmpeg(inputPath)
-          .outputOptions(['-vf', `fps=${fps}`])
-          .output(path.join(framesDir, 'frame_%06d.png'))
-          .on('end', () => resolve())
-          .on('error', reject)
-          .run();
-      });
-
-      // 2. 处理每一帧
-      console.log('[AI抠图] 处理视频帧...');
-      const frameFiles = (await fs.promises.readdir(framesDir)).filter((f) => f.endsWith('.png')).sort();
-
-      for (let i = 0; i < frameFiles.length; i++) {
-        const frameFile = frameFiles[i];
-        const framePath = path.join(framesDir, frameFile);
-        const outputFramePath = path.join(processedFramesDir, frameFile);
-
-        await this.processImage(framePath, outputFramePath);
-
-        if (onProgress) {
-          onProgress(i + 1, frameFiles.length);
-        }
-      }
-
-      // 3. 重新合成视频
-      console.log('[AI抠图] 合成视频...');
-      await new Promise<void>((resolve, reject) => {
-        ffmpeg(path.join(processedFramesDir, 'frame_%06d.png'))
-          .inputOptions(['-framerate', String(fps)])
-          .videoCodec('prores_ks')
-          .outputOptions(['-profile:v', '4444', '-pix_fmt', 'yuva444p10le'])
-          .output(outputPath)
-          .on('end', () => resolve())
-          .on('error', reject)
-          .run();
-      });
-
-      console.log('[AI抠图] 完成');
-    } finally {
-      // 清理临时文件
-      try {
-        await fs.promises.rm(tempDir, { recursive: true, force: true });
-      } catch (e) {
-        console.warn('[AI抠图] 清理临时文件失败:', e);
-      }
-    }
-  }
-
-  private async maskToBuffer(mask: any): Promise<Buffer> {
-    // 将掩码转换为 Buffer
-    // 这里需要根据实际模型输出格式实现
-    // 如果 mask 已经是 ImageData 或 Buffer，直接返回
-    if (Buffer.isBuffer(mask)) {
-      return mask;
-    }
-
-    // 如果是其他格式，需要转换
-    // 这里提供一个基础实现
-    throw new Error('掩码格式转换未实现，请检查模型输出格式');
   }
 }

@@ -171,90 +171,10 @@ export function initFFmpegHandlers(win: BrowserWindow): void {
   });
 
   /**
-   * 绿幕抠像并导出带透明通道的MOV视频（使用FFmpeg chromakey）
-   * @param arg.inputPath - 输入视频路径
-   * @param arg.outputPath - 输出视频路径（必须是.mov格式）
-   * @param arg.color - 要抠除的颜色，默认 '0x00ff00' (绿色)
-   * @param arg.similarity - 颜色相似度阈值 (0.0-1.0)，默认 0.3
-   * @param arg.blend - 边缘混合阈值 (0.0-1.0)，默认 0.1
-   * @param arg.codec - 视频编码器，'prores_ks' (ProRes 4444) 或 'qtrle' (QuickTime Animation)，默认 'prores_ks'
-   */
-  ipcMain.handle(
-    'removeGreenScreenToMov',
-    async (
-      _evt,
-      arg?: {
-        inputPath: string;
-        outputPath: string;
-        color?: string;
-        similarity?: number;
-        blend?: number;
-        codec?: 'prores_ks' | 'qtrle';
-      }
-    ) => {
-      const input = arg?.inputPath;
-      const output = arg?.outputPath;
-      if (!input || !output) throw new Error('inputPath 和 outputPath 必须指定');
-
-      // 默认参数
-      const color = arg?.color || '0x00ff00'; // 绿色
-      const similarity = arg?.similarity ?? 0.3; // 相似度阈值
-      const blend = arg?.blend ?? 0.1; // 边缘混合
-      const codec = arg?.codec || 'prores_ks'; // 默认使用 ProRes 4444
-
-      return await new Promise<string>((resolve, reject) => {
-        try {
-          // 构建 chromakey 滤镜参数
-          // chromakey=color=0x00ff00:similarity=0.3:blend=0.1
-          const chromakeyFilter = `chromakey=color=${color}:similarity=${similarity}:blend=${blend}`;
-
-          const cmd = ffmpeg(input);
-
-          // 设置视频编码器
-          if (codec === 'prores_ks') {
-            // Apple ProRes 4444 - 高质量，支持透明通道
-            cmd.videoCodec('prores_ks').outputOptions(['-profile:v', '4444', '-pix_fmt', 'yuva444p10le']);
-          } else if (codec === 'qtrle') {
-            // QuickTime Animation - 无损压缩，支持透明通道
-            cmd.videoCodec('qtrle').outputOptions(['-pix_fmt', 'argb']);
-          }
-
-          // 应用 chromakey 滤镜
-          cmd
-            .videoFilters(chromakeyFilter)
-            .output(output)
-            .on('start', (commandLine: string) => {
-              console.log('[ffmpeg] 绿幕抠像开始:', commandLine);
-            })
-            .on('stderr', (line: string) => {
-              console.log('[ffmpeg][stderr]', line);
-            })
-            .on('progress', (progress: any) => {
-              if (progress.percent) {
-                console.log(`[ffmpeg] 处理进度: ${Math.round(progress.percent)}%`);
-              }
-            })
-            .on('error', (err: any) => {
-              console.error('[ffmpeg] 绿幕抠像错误:', err);
-              reject(err);
-            })
-            .on('end', () => {
-              console.log('[ffmpeg] 绿幕抠像完成');
-              resolve('success');
-            })
-            .run();
-        } catch (e) {
-          reject(e);
-        }
-      });
-    }
-  );
-
-  /**
    * 使用 AI 模型进行单张图片背景移除
    * @param arg.inputPath - 输入图片路径
    * @param arg.outputPath - 输出图片路径（PNG格式，支持透明通道）
-   * @param arg.modelId - AI模型ID，默认 'briaai/RMBG-1.4'
+   * @param arg.modelId - AI模型ID，默认 'briaai/RMBG-2.0'
    */
   ipcMain.handle(
     'removeBackgroundFromImage',
@@ -270,7 +190,7 @@ export function initFFmpegHandlers(win: BrowserWindow): void {
       const output = arg?.outputPath;
       if (!input || !output) throw new Error('inputPath 和 outputPath 必须指定');
 
-      const modelId = arg?.modelId || 'briaai/RMBG-1.4';
+      const modelId = arg?.modelId || 'briaai/RMBG-2.0';
 
       return await new Promise<string>((resolve, reject) => {
         const remover = new AIRemoveBackground(modelId);
@@ -283,51 +203,6 @@ export function initFFmpegHandlers(win: BrowserWindow): void {
           })
           .catch((error: any) => {
             console.error('[AI抠图] 图片处理错误:', error);
-            reject(error);
-          });
-      });
-    }
-  );
-
-  /**
-   * 使用 AI 模型进行背景移除并导出带透明通道的MOV视频
-   * 注意：此方法会逐帧处理，速度较慢，但效果更好，无需绿幕
-   * @param arg.inputPath - 输入视频路径
-   * @param arg.outputPath - 输出视频路径（必须是.mov格式）
-   * @param arg.modelId - AI模型ID，默认 'briaai/RMBG-1.4'
-   */
-  ipcMain.handle(
-    'removeBackgroundWithAI',
-    async (
-      _evt,
-      arg?: {
-        inputPath: string;
-        outputPath: string;
-        modelId?: string;
-      }
-    ) => {
-      const input = arg?.inputPath;
-      const output = arg?.outputPath;
-      if (!input || !output) throw new Error('inputPath 和 outputPath 必须指定');
-
-      const modelId = arg?.modelId || 'briaai/RMBG-1.4';
-
-      return await new Promise<string>((resolve, reject) => {
-        const remover = new AIRemoveBackground(modelId);
-
-        remover
-          .processVideo(input, output, (current, total) => {
-            const percent = Math.round((current / total) * 100);
-            console.log(`[AI抠图] 进度: ${current}/${total} (${percent}%)`);
-            // 可以通过 IPC 发送进度到前端
-            win.webContents.send('ai-remove-bg-progress', { current, total, percent });
-          })
-          .then(() => {
-            console.log('[AI抠图] 完成');
-            resolve('success');
-          })
-          .catch((error: any) => {
-            console.error('[AI抠图] 错误:', error);
             reject(error);
           });
       });
