@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 
+import { DEFAULT_ASSISTANT_PADDING } from './constants';
 import { useSpritePlayer } from './context/SpritePlayerContext';
 import { resolveSpriteSrc } from './utils/resource';
 
@@ -51,6 +52,7 @@ export default function VideoSprite(): JSX.Element | null {
       type: type || 'video/webm',
       width: anim.width ?? 180,
       height: anim.height ?? 240,
+      padding: anim.padding ?? DEFAULT_ASSISTANT_PADDING,
       autoplay: anim.autoplay ?? true,
       muted: anim.muted ?? true,
       playsInline: anim.playsInline ?? true,
@@ -58,6 +60,28 @@ export default function VideoSprite(): JSX.Element | null {
       cutoffSeconds: anim.cutoffSeconds
     };
   }, [current]);
+
+  // 当动画切换时，动态设置窗口大小
+  useEffect(() => {
+    if (!computed) return;
+
+    const setSize = async (): Promise<void> => {
+      try {
+        const result = await window.YUA.window.setAssistantSize({
+          width: computed.width,
+          height: computed.height,
+          padding: computed.padding
+        });
+        if (!result.success) {
+          console.error('Failed to set assistant size:', result.error);
+        }
+      } catch (error) {
+        console.error('Failed to set assistant size:', error);
+      }
+    };
+
+    setSize();
+  }, [computed]);
 
   return computed ? (
     <video

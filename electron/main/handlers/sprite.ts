@@ -174,6 +174,7 @@ export function initSpriteHandlers(): void {
       source: { localPath: finalPath!, type: type || 'video/webm' },
       width: anim.width ?? 180,
       height: anim.height ?? 240,
+      padding: anim.padding ?? 100,
       autoplay: anim.autoplay ?? true,
       muted: anim.muted ?? true,
       playsInline: anim.playsInline ?? true,

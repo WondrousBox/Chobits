@@ -155,6 +155,7 @@ export interface MessagesProvider {
 export interface SpriteAnimation {
   width?: number;
   height?: number;
+  padding?: number;
   autoplay?: boolean;
   muted?: boolean;
   playsInline?: boolean;

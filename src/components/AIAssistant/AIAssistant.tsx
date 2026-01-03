@@ -6,8 +6,9 @@
 import React, { useEffect, useRef } from 'react';
 
 import Dropzone from '../common/Dropzone';
-import { ASSISTANT_HEIGHT, ASSISTANT_WIDTH, SHOW_PADDING_DEBUG } from './constants';
+import { SHOW_PADDING_DEBUG } from './constants';
 import { ASSISTANT_RENDERER_MODE } from './constants';
+import { useSpritePlayer } from './context/SpritePlayerContext';
 import useAssistant from './hooks';
 import useBusyState from './hooks/useBusyState';
 import useClickThrough from './hooks/useClickThrough';
@@ -27,6 +28,11 @@ import VideoSprite from './VideoSprite';
 
 export const AIAssistant: React.FC = () => {
   const { padding: paddingState, screenSize, messageState, setAssistantState } = useAssistant();
+  const { current: currentSprite } = useSpritePlayer();
+
+  // 从当前精灵动画定义中获取尺寸，如果没有则使用默认值
+  const spriteWidth = currentSprite?.width ?? 180;
+  const spriteHeight = currentSprite?.height ?? 240;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const { setClickThrough } = useClickThrough(containerRef);
@@ -156,6 +162,8 @@ export const AIAssistant: React.FC = () => {
   // --- 稳定订阅 window:command，避免依赖变化导致重复绑定 ---
   const screenSizeRef = useRef(screenSize);
   const paddingRef = useRef(paddingState);
+  const spriteWidthRef = useRef(spriteWidth);
+  const spriteHeightRef = useRef(spriteHeight);
   const animateMoveWindowRef = useRef(animateMoveWindow);
   const autoWalkTimerRef = useRef<NodeJS.Timeout | null>(null);
   const autoWalkEnabledRef = useRef(true); // 默认启用
@@ -170,6 +178,12 @@ export const AIAssistant: React.FC = () => {
   useEffect(() => {
     paddingRef.current = paddingState;
   }, [paddingState]);
+  useEffect(() => {
+    spriteWidthRef.current = spriteWidth;
+  }, [spriteWidth]);
+  useEffect(() => {
+    spriteHeightRef.current = spriteHeight;
+  }, [spriteHeight]);
   useEffect(() => {
     animateMoveWindowRef.current = animateMoveWindow;
   }, [animateMoveWindow]);
@@ -202,10 +216,12 @@ export const AIAssistant: React.FC = () => {
           }
           const size = screenSizeRef.current;
           const padding = paddingRef.current;
+          const width = spriteWidthRef.current;
+          const height = spriteHeightRef.current;
           const minX = -padding;
-          const maxX = size.width - ASSISTANT_WIDTH - padding;
+          const maxX = size.width - width - padding;
           const minY = -padding;
-          const maxY = size.height - ASSISTANT_HEIGHT - padding;
+          const maxY = size.height - height - padding;
           const targetX = Math.random() * (maxX - minX) + minX;
           const targetY = Math.random() * (maxY - minY) + minY;
           setAssistantState('walk:start');
@@ -247,8 +263,12 @@ export const AIAssistant: React.FC = () => {
   return (
     <div
       ref={containerRef}
+      style={{
+        width: spriteWidth,
+        height: spriteHeight
+      }}
       className={`
-        fixed w-[180px] h-[240px] select-none z-[9999] 
+        fixed select-none z-[9999] 
         transition-transform duration-300 ease-in-out
         top-[100px] left-[100px] pointer-events-auto
         ${isDragReady ? 'cursor-grabbing opacity-70' : 'cursor-grab'}
@@ -282,10 +302,20 @@ export const AIAssistant: React.FC = () => {
           </div>
         }
       >
-        {window.YUA.isDev && (
-          <div className="text-xs bg-background fixed top-[100px] right-[100px] bottom-[100px] left-[100px] rounded-md border border-solid border-ring flex items-center justify-center">dev</div>
-        )}
-        {ASSISTANT_RENDERER_MODE === 'three' ? <ThreeSprite width={ASSISTANT_WIDTH} height={ASSISTANT_HEIGHT} /> : <VideoSprite />}
+        {/* {window.YUA.isDev && (
+          <div
+            style={{
+              left: paddingState,
+              top: paddingState,
+              bottom: paddingState,
+              right: paddingState
+            }}
+            className="text-xs bg-background fixed rounded-md border border-solid border-ring"
+          >
+            dev {paddingState}
+          </div>
+        )} */}
+        {ASSISTANT_RENDERER_MODE === 'three' ? <ThreeSprite width={spriteWidth} height={spriteHeight} /> : <VideoSprite />}
       </Dropzone>
       {notice && <SpriteNotice message={notice.message} level={notice.level} buttons={notice.buttons} onClose={dismiss} onButtonClick={handleButtonClick} />}
 
