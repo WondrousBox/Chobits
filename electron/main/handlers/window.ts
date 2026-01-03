@@ -207,18 +207,22 @@ export function initWindowHandlers(win: BrowserWindow): void {
       // 设置窗口大小
       win.setSize(winWidth, winHeight, false);
 
+      // 更新窗口管理器的 anchor 尺寸（无论 padding 是否改变都要更新）
+      try {
+        if (typeof windowManager.setAnchorWidth === 'function') {
+          windowManager.setAnchorWidth(assistantWidth);
+        }
+        if (typeof windowManager.setAnchorHeight === 'function') {
+          windowManager.setAnchorHeight(assistantHeight);
+        }
+      } catch (error) {
+        console.warn('Failed to update windowManager anchor size:', error);
+      }
+
       // 更新 padding（如果不同）
       if (assistantPadding !== params.padding) {
         const oldPadding = assistantPadding;
         assistantPadding = params.padding;
-
-        // 更新窗口管理器的 anchor 尺寸和 padding
-        try {
-          windowManager.setAnchorWidth?.(assistantWidth);
-          windowManager.setAnchorHeight?.(assistantHeight);
-        } catch {
-          // 如果方法不存在，忽略
-        }
         // 更新窗口管理器的 padding（这个方法可能会调整窗口位置，但不会改变大小，因为我们已经设置了）
         windowManager.adjustMainWindowForPadding(oldPadding, params.padding);
       }
