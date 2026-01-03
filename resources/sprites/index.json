@@ -18,6 +18,7 @@
       },
       "width": 180,
       "height": 240,
+      "padding": 100,
       "autoplay": true,
       "muted": true,
       "playsInline": true,
