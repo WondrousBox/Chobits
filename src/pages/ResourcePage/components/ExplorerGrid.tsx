@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { runWorkflow } from '@/lib/workflow-runner';
 
+import { useResourceTaskStatus } from '../hooks/useResourceTaskStatus';
 import { ResourceItem } from '../types';
 import { ResourceItemWithSubtitles } from '../utils/subtitleUtils';
 import type { UIFolder } from './FolderSidebar';
@@ -215,6 +216,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
   onMoveFolder,
   onFolderCreated
 }) => {
+  const taskStatuses = useResourceTaskStatus();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -556,6 +558,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
                   onClick={(e) => handleItemClick(e, item.id, idx)}
                   onToggleFavorite={onToggleFavorite}
                   onToggleVisibility={onToggleVisibility}
+                  taskStatus={taskStatuses[item.id]}
                   onPreview={() => {
                     const current = mergedItems[idx];
                     if (!current) return;

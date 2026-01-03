@@ -404,19 +404,16 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({
 
       // 更新当前选择
       applyHistory(item);
-      setBusyDialogState((prev) => ({ ...prev, open: false }));
 
-      // 这里我们不自动开始，而是让用户确认新的配置，或者我们可以自动开始（但需要处理状态更新的异步性）
-      // 为了简单和安全，我们只更新配置并关闭对话框，用户可以再次点击"开始翻译"
-      // 或者我们可以直接调用 executeAITranslation 使用 item 的参数
-      // 但这样 UI 上的选择可能还没更新（因为 setState 是异步的）
-      // 不过 executeAITranslation 接受参数，所以可以直接调用
-      // 但是新的 provider 也可能 busy，所以最好是走 handleAITranslate 的流程
-      // 但 handleAITranslate 依赖 state。
-      // 方案：更新 state，关闭 dialog。用户需要再次点击。或者我们可以在 useEffect 中监听？不，太复杂。
-      // 简单方案：只更新配置，关闭 Dialog。
+      // 直接开始翻译
+      executeAITranslation({
+        providerId: item.providerId,
+        model: item.model,
+        targetLang: item.targetLanguage,
+        force: false
+      });
     },
-    [applyHistory]
+    [applyHistory, executeAITranslation]
   );
 
   // 普通翻译功能

@@ -2,13 +2,14 @@ import { clsx } from 'clsx';
 import { motion } from 'framer-motion';
 import prettyBytes from 'pretty-bytes';
 import React, { useCallback, useState } from 'react';
-import { TbCheck, TbClock, TbCopy, TbEye, TbEyeOff, TbFile, TbFileText, TbHeart, TbPlayerPlay, TbStar } from 'react-icons/tb';
+import { TbActivity, TbCheck, TbClock, TbCopy, TbEye, TbEyeOff, TbFile, TbFileText, TbHeart, TbLanguage, TbPlayerPlay, TbPlayerStop, TbStar } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
+import { ResourceTaskStatus } from '../hooks/useResourceTaskStatus';
 import { ResourceItem } from '../types';
 import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from '../utils/resourceProtocol';
 import { formatDuration, getFileCoverByPath, getResourceSummary, getStatusColor } from '../utils/resourceUtils';
@@ -27,11 +28,24 @@ interface GalleryItemProps {
   onPreview?: (item: ResourceItem) => void;
   // 是否占满容器（自由布局中使用），否则保持视频比例（网格布局中使用）
   fillContainer?: boolean;
+  taskStatus?: ResourceTaskStatus;
 }
 
 // Basic preview: if resource has a filePath with image extension, show <img>. Otherwise show a placeholder.
 
-const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onClick, onToggleFavorite, onToggleVisibility, innerRef, draggable, onDragStart, onPreview, fillContainer = false }) => {
+const ResourceGalleryItem: React.FC<GalleryItemProps> = ({
+  item,
+  selected,
+  onClick,
+  onToggleFavorite,
+  onToggleVisibility,
+  innerRef,
+  draggable,
+  onDragStart,
+  onPreview,
+  fillContainer = false,
+  taskStatus
+}) => {
   const [copied, setCopied] = useState(false);
   const summary = getResourceSummary(item);
   const thumbSrc = item.thumbnailPath ? makeResSrc(item.thumbnailPath) : undefined;
@@ -312,6 +326,42 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({ item, selected, onCli
 
         {/* 选中状态指示器 */}
         {selected && <div className="absolute top-0 left-0 right-0 bottom-0 bg-primary/40 z-50 pointer-events-none"></div>}
+
+        {/* 任务状态悬浮层 */}
+        {taskStatus && (
+          <div className="absolute top-2 left-2 z-30 flex items-center gap-2 rounded-md bg-background/90 p-1.5 text-xs shadow-md backdrop-blur-sm animate-pulse border border-primary/20 max-w-[80%] group/task">
+            <div className="text-primary shrink-0">{taskStatus.icon === 'translation' ? <TbLanguage className="w-4 h-4" /> : <TbActivity className="w-4 h-4" />}</div>
+            <div className="flex flex-col min-w-0">
+              <span className="font-medium text-primary truncate">{taskStatus.label}</span>
+              {taskStatus.subLabel && <span className="text-[10px] text-muted-foreground truncate">{taskStatus.subLabel}</span>}
+            </div>
+            {taskStatus.progress !== undefined && <span className="text-[10px] font-mono text-muted-foreground ml-1">{taskStatus.progress}%</span>}
+
+            {/* 停止按钮 */}
+            {taskStatus.requestId && (
+              <div className="ml-1 opacity-0 group-hover/task:opacity-100 transition-opacity">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (taskStatus.requestId) {
+                          window.YUA.ai.cancelTranslate(taskStatus.requestId);
+                        }
+                      }}
+                    >
+                      <TbPlayerStop className="w-3 h-3" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>停止任务</TooltipContent>
+                </Tooltip>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
