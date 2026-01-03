@@ -271,9 +271,18 @@ Make sure the following:
 Now translate the following into **{targetLanguage}** and only show me the translated content:
 {content}`;
 
+      // 任务展示信息
+      const displayInfo = {
+        type: 'translation',
+        label: 'AI 翻译中...',
+        subLabel: `${providerId} · ${model}`,
+        icon: 'translation',
+        resourceId: metadata?.resourceId
+      };
+
       // 分块处理字幕
       const chunks = utils.chunkSegmentStringsWithIndex(segments, 1000);
-      emit({ type: 'progress', data: { message: `准备翻译 ${chunks.indexStringResult.length} 个字幕片段...`, percentage: 0 } });
+      emit({ type: 'progress', data: { message: `准备翻译 ${chunks.indexStringResult.length} 个字幕片段...`, percentage: 0, displayInfo } });
 
       let lastSummary = '';
       const allParsedSegments: any[] = [];
@@ -321,7 +330,8 @@ Now translate the following into **{targetLanguage}** and only show me the trans
               message: `正在翻译片段 ${chunkIndex + 1}/${chunks.indexStringResult.length}...`,
               startIndex,
               endIndex,
-              percentage
+              percentage,
+              displayInfo
             }
           });
 
@@ -376,7 +386,8 @@ Now translate the following into **{targetLanguage}** and only show me the trans
                     type: 'progress',
                     data: {
                       message: `正在翻译片段 ${chunkIndex + 1}/${chunks.indexStringResult.length}...`,
-                      percentage: newPercentage
+                      percentage: newPercentage,
+                      displayInfo
                     }
                   });
                 }
@@ -526,14 +537,15 @@ Now translate the following into **{targetLanguage}** and only show me the trans
       emit({ type: 'progress', data: { message: '正在连接AI服务...', percentage: 0 } });
       const allTranslations = await executePromisesInOrder(translatePromises, abortSignal);
 
-      emit({ type: 'progress', data: { message: '翻译完成，正在解析结果...', percentage: 100 } });
+      emit({ type: 'progress', data: { message: '翻译完成，正在解析结果...', percentage: 100, displayInfo } });
 
       emit({
         type: 'completed',
         data: {
           translations: allTranslations,
           originalTranslation: allTranslations.join('\n'),
-          segments: allParsedSegments
+          segments: allParsedSegments,
+          displayInfo
         }
       });
 

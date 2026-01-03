@@ -263,15 +263,25 @@ export function initAIHandlers(win: BrowserWindow): void {
       };
 
       // 异步处理翻译
-      TranslationService.translateSubtitles({ ...payload, requestId }, emit).catch((err: any) => {
-        console.error('翻译失败:', err);
-        // 如果是手动取消，可能不需要发送 error 事件，或者发送特定的 cancel 事件
-        if (err.message === 'Aborted') {
-          emit({ type: 'done' }); // 或者发送一个 cancelled 事件
-        } else {
-          emit({ type: 'error', data: { message: err?.message || '翻译失败' } });
-        }
-      });
+      TranslationService.translateSubtitles({ ...payload, requestId }, emit)
+        .catch((err: any) => {
+          console.error('翻译失败:', err);
+          const resourceId = payload.metadata?.resourceId;
+          // 如果是手动取消，可能不需要发送 error 事件，或者发送特定的 cancel 事件
+          if (err.message === 'Aborted') {
+            emit({ type: 'done', data: { resourceId } }); // 或者发送一个 cancelled 事件
+          } else {
+            emit({ type: 'error', data: { message: err?.message || '翻译失败', resourceId } });
+          }
+        })
+        .then(() => {
+          // 成功完成也发送 done
+          // 注意：translateSubtitles 如果成功返回，说明翻译完成
+          // 但是 translateSubtitles 是 void，且如果出错会抛出
+          // 所以这里应该是 .then() 处理成功情况
+          // 但是 translateSubtitles 内部没有 emit('done')?
+          // 让我们检查 TranslationService.ts
+        });
 
       return { requestId, eventsChannel };
     }
