@@ -4,7 +4,7 @@
  * - 返回：{ padding, setPadding, screenSize, messageState, setMessageState }
  * - 场景：AIAssistant 组件挂载时调用一次。
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { DEFAULT_ASSISTANT_PADDING } from '../constants';
 import { useSpritePlayer } from '../context/SpritePlayerContext';
@@ -23,6 +23,7 @@ export function useAssistant(): {
   const [padding, setPadding] = useState(DEFAULT_ASSISTANT_PADDING);
   const [screenSize, setScreenSize] = useState<{ width: number; height: number }>({ width: 1920, height: 1080 });
   const [messageState, setMessageState] = useState<MessageCategory>('welcome');
+  const isInitialMountRef = useRef(true);
 
   // Greeting + workspace check
   useEffect(() => {
@@ -73,28 +74,66 @@ export function useAssistant(): {
     getScreenInfo();
   }, []);
 
-  // 当精灵动画或屏幕尺寸变化时，重新计算并设置窗口位置
+  // 当精灵动画或屏幕尺寸变化时，处理窗口位置
   useEffect(() => {
     if (!currentSprite || !screenSize.width || !screenSize.height) return;
 
-    const placeWindow = async (): Promise<void> => {
+    const handleWindowPosition = async (): Promise<void> => {
       try {
         const width = currentSprite.width ?? 180;
         const height = currentSprite.height ?? 240;
         const pad = currentSprite.padding ?? DEFAULT_ASSISTANT_PADDING;
-
-        // 计算窗口位置（窗口大小已由 VideoSprite 组件通过 setAssistantSize 设置）
         const winWidth = width + pad * 2;
         const winHeight = height + pad * 2;
-        const winX = Math.max(0, screenSize.width - winWidth - 20);
-        const winY = Math.max(0, screenSize.height - winHeight - 40);
-        await window.YUA.window['window:move']({ x: winX, y: winY });
+
+        // 首次启动时，重置位置到右下角
+        if (isInitialMountRef.current) {
+          const winX = Math.max(0, screenSize.width - winWidth - 20);
+          const winY = Math.max(0, screenSize.height - winHeight - 40);
+          await window.YUA.window['window:move']({ x: winX, y: winY });
+          isInitialMountRef.current = false;
+        } else {
+          // 非首次启动时，获取当前位置并检查是否超出屏幕
+          const [currentX, currentY] = await window.YUA.window['window:position:get']();
+
+          // 计算边界
+          const minX = -pad;
+          const maxX = screenSize.width - winWidth + pad;
+          const minY = -pad;
+          const maxY = screenSize.height - winHeight + pad;
+
+          // 如果位置超出屏幕，调整到边界内
+          let newX = currentX;
+          let newY = currentY;
+          let needsMove = false;
+
+          if (currentX < minX) {
+            newX = minX;
+            needsMove = true;
+          } else if (currentX > maxX) {
+            newX = maxX;
+            needsMove = true;
+          }
+
+          if (currentY < minY) {
+            newY = minY;
+            needsMove = true;
+          } else if (currentY > maxY) {
+            newY = maxY;
+            needsMove = true;
+          }
+
+          // 只有在需要调整时才移动窗口
+          if (needsMove) {
+            await window.YUA.window['window:move']({ x: newX, y: newY });
+          }
+        }
       } catch (error) {
-        console.error('Failed to place window:', error);
+        console.error('Failed to handle window position:', error);
       }
     };
 
-    placeWindow();
+    handleWindowPosition();
   }, [currentSprite, screenSize]);
 
   const setAssistantState = useCallback((eventType: SpriteEventName, messageState?: MessageCategory) => {

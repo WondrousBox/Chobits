@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { TbTools, TbTrash } from 'react-icons/tb';
 
 import type { SpriteAnimation, SpriteEventType } from '@/components/AIAssistant/types';
-import { AdditionalSpriteEventGroups, ALL_SPRITE_EVENT_TYPES, SpriteEventGroups } from '@/components/AIAssistant/types';
+import { SPRITE_EVENT_TYPES, SpriteEventGroups } from '@/components/AIAssistant/types';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
@@ -117,7 +117,7 @@ export default function SpriteManager({ className }: { className?: string }): JS
   const [imageRemoveBgProcessing, setImageRemoveBgProcessing] = useState(false);
   const [imageRemoveBgMsg, setImageRemoveBgMsg] = useState<string>('');
   // 默认的内置分类：使用全部预设事件类型（不包含 custom）
-  const BUILTIN = React.useMemo(() => ALL_SPRITE_EVENT_TYPES.filter((c) => c !== 'custom'), []);
+  const BUILTIN = React.useMemo(() => SPRITE_EVENT_TYPES.filter((c) => c !== 'custom'), []);
 
   const refresh = React.useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -215,22 +215,8 @@ export default function SpriteManager({ className }: { className?: string }): JS
             <DropdownMenuContent align="start" className="max-h-[460px]">
               <DropdownMenuItem onClick={() => setGlobalCat('')}>未分类</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuLabel>消息语义</DropdownMenuLabel>
+              <DropdownMenuLabel>动画事件</DropdownMenuLabel>
               {Object.entries(SpriteEventGroups).map(([group, items]) => (
-                <DropdownMenuSub key={group}>
-                  <DropdownMenuSubTrigger>{group}</DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent>
-                    {items.map((ev) => (
-                      <DropdownMenuItem key={ev} onClick={() => setGlobalCat(ev)}>
-                        {ev}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel>扩展动画</DropdownMenuLabel>
-              {Object.entries(AdditionalSpriteEventGroups).map(([group, items]) => (
                 <DropdownMenuSub key={group}>
                   <DropdownMenuSubTrigger>{group}</DropdownMenuSubTrigger>
                   <DropdownMenuSubContent>
@@ -489,28 +475,8 @@ export default function SpriteManager({ className }: { className?: string }): JS
                                     </Button>
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent side="top" align="start">
-                                    <DropdownMenuLabel>消息语义</DropdownMenuLabel>
+                                    <DropdownMenuLabel>动画事件</DropdownMenuLabel>
                                     {Object.entries(SpriteEventGroups).map(([group, items]) => (
-                                      <DropdownMenuSub key={group}>
-                                        <DropdownMenuSubTrigger>{group}</DropdownMenuSubTrigger>
-                                        <DropdownMenuSubContent>
-                                          {items.map((ev) => (
-                                            <DropdownMenuItem
-                                              key={ev}
-                                              onClick={async () => {
-                                                await window.YUA.sprite.updateMeta(item.meta.id, { eventType: ev as SpriteEventType });
-                                                await refresh();
-                                              }}
-                                            >
-                                              {ev}
-                                            </DropdownMenuItem>
-                                          ))}
-                                        </DropdownMenuSubContent>
-                                      </DropdownMenuSub>
-                                    ))}
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuLabel>扩展动画</DropdownMenuLabel>
-                                    {Object.entries(AdditionalSpriteEventGroups).map(([group, items]) => (
                                       <DropdownMenuSub key={group}>
                                         <DropdownMenuSubTrigger>{group}</DropdownMenuSubTrigger>
                                         <DropdownMenuSubContent>
