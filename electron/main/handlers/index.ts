@@ -10,6 +10,7 @@ import { initDailyCare } from '../daily';
 import { initScreenshotHandlers } from '../screenshot';
 import { getResourcePath } from '../utils/resources-path';
 import { initAutomationHandlers } from './automation/ipc-main';
+import { initDownloadHandlers } from './downloader/ipc-main';
 import { initVectorHandlers } from './embedding/ipc-main';
 import { initFFmpegHandlers } from './ffmpeg/ipc-main';
 import { initFileHandlers } from './file/ipc-main';
@@ -23,7 +24,6 @@ import { initStatusHandlers } from './status';
 import { initSystemHandlers } from './system/ipc-main';
 import { initThemeHandlers } from './theme/ipc-main';
 import { initTrashHandlers } from './trash/ipc-main';
-import { initVideoDownloadHandlers } from './video-download';
 import { initWindowHandlers } from './window';
 import { initWorkspaceHandlers } from './workspace/ipc-main';
 
@@ -40,7 +40,7 @@ export function initHandlers(win: BrowserWindow): void {
   initWorkspaceHandlers();
   initFileHandlers(win);
   initSystemHandlers();
-  initVideoDownloadHandlers(win);
+  initDownloadHandlers(win);
   initSpriteHandlers();
   initDailyCare(() => {
     if (win && !win.isDestroyed()) return win;

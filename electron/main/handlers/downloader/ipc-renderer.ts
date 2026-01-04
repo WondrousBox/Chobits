@@ -1,7 +1,7 @@
 import { ipcRenderer } from 'electron';
 
 // 视频下载相关的API接口
-const videoDownloaderAPI = {
+const downloaderIpcRenderer = {
   // 获取视频信息
   getVideoInfo: (url: string, timeoutMs?: number) => ipcRenderer.invoke('video-downloader:get-info', url, timeoutMs),
 
@@ -47,4 +47,6 @@ const videoDownloaderAPI = {
 };
 
 // 导出API
-export default videoDownloaderAPI;
+export default downloaderIpcRenderer;
+
+export type DownloaderIpcRendererType = typeof downloaderIpcRenderer;
