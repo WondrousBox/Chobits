@@ -1,6 +1,7 @@
 import type { IpcRendererEvent } from 'electron';
 
 import type { DailyCareBridgeType } from '../electron/main/daily/ipc-renderer';
+import type { DownloaderIpcRendererType } from '../electron/main/handlers/downloader/ipc-renderer';
 import type { VectorIpcType } from '../electron/main/handlers/embedding/ipc-renderer';
 import type { FFmpegIpcType } from '../electron/main/handlers/ffmpeg/ipc-renderer';
 import type { FileIpcType } from '../electron/main/handlers/file/ipc-renderer';
@@ -15,7 +16,6 @@ import type { PluginResourceIpcType } from '../electron/main/plugins/ipc-rendere
 import type { ShortcutsBridgeType } from '../electron/preload/apis/shortcuts';
 import type { SpriteBridgeType } from '../electron/preload/apis/sprite';
 import type { StatusBridgeType } from '../electron/preload/apis/status';
-import type videoDownloaderAPI from '../electron/preload/apis/video-downloader';
 import type { WindowBridgeType } from '../electron/preload/apis/window';
 import type { AIApi } from '../packages/ai/types';
 import type { AppEventPayload } from '../packages/event/events';
@@ -46,7 +46,7 @@ declare global {
       file: FileIpcType;
       system: SystemIpcType;
       folder: FolderIpcType;
-      videoDownloader: typeof videoDownloaderAPI;
+      videoDownloader: DownloaderIpcRendererType;
       sprite: SpriteBridgeType;
       status: StatusBridgeType;
       shortcuts: ShortcutsBridgeType;

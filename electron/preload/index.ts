@@ -6,6 +6,7 @@ import { pluginResourceIpcRenderer } from '../../packages/plugins/ipc-renderer';
 import { recorderIpcRenderer } from '../../packages/recorder/ipc-renderer';
 import { sherpaIpcRenderer } from '../../packages/sherpa/ipc-renderer';
 import { dailyCareBridge } from '../main/daily/ipc-renderer';
+import downloaderIpcRenderer from '../main/handlers/downloader/ipc-renderer';
 import { vectorIpcRenderer } from '../main/handlers/embedding/ipc-renderer';
 import { ffmpegIpcRenderer } from '../main/handlers/ffmpeg/ipc-renderer';
 import { fileIpcRenderer } from '../main/handlers/file/ipc-renderer';
@@ -20,7 +21,6 @@ import { arch, isLinux, isMac, isMacIntel, isWindows, platform } from '../main/u
 import { shortcutsBridge } from './apis/shortcuts';
 import { spriteBridge } from './apis/sprite';
 import { statusBridge } from './apis/status';
-import videoDownloaderAPI from './apis/video-downloader';
 import { windowBridge } from './apis/window';
 
 const handles: Record<string, (...arg: any) => any> = {};
@@ -67,7 +67,7 @@ contextBridge.exposeInMainWorld('YUA', {
   file: fileIpcRenderer,
   system: systemIpcRenderer,
   folder: folderIpcRenderer,
-  videoDownloader: videoDownloaderAPI,
+  videoDownloader: downloaderIpcRenderer,
   sprite: spriteBridge,
   status: statusBridge,
   shortcuts: shortcutsBridge,
