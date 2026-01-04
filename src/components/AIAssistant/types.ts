@@ -45,7 +45,9 @@ export type MessageCategory =
   | 'event' // 事件相关
   | 'task' // 任务相关 / 执行任务中的反馈
   | 'drag' // 拖拽提示/状态
-  | 'drop' // 文件放下
+  | 'drop' // 拖拽精灵后松开鼠标（放置精灵）
+  | 'fileDragOver' // 文件拖拽悬停在精灵上方
+  | 'fileDrop' // 文件放置
   | 'recommend' // 推荐/建议
   | 'tip' // 提示
   | 'system' // 系统/错误
@@ -54,7 +56,7 @@ export type MessageCategory =
 
 // 精灵动画使用的事件分类，按功能分组（包含消息语义和动画事件）
 export const SpriteEventGroups = {
-  interaction: ['idle', 'hover', 'click', 'focus', 'input', 'scroll', 'drag', 'drop', 'selection'],
+  interaction: ['idle', 'hover', 'click', 'focus', 'input', 'scroll', 'drag', 'drop', 'fileDragOver', 'fileDrop', 'selection'],
   feedback: ['success', 'failure', 'error', 'warning', 'info', 'celebrate', 'tip', 'recommend'],
   status: ['loading', 'processing', 'waiting', 'timeout', 'retry'],
   workflow: ['confirmation', 'cancellation', 'task', 'update', 'install', 'remove', 'configure', 'settings'],

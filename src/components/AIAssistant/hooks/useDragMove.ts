@@ -17,13 +17,14 @@ export function useDragMove(
     padding: number;
     onHoldStart?: () => void;
     onDragStateChange?: (dragging: boolean) => void;
+    onDragEnd?: () => void;
   }
 ): {
   bind: { onMouseDown: (e: React.MouseEvent) => void };
   isDragging: boolean;
   isDragReady: boolean;
 } {
-  const { screenSize, padding, onHoldStart, onDragStateChange } = options;
+  const { screenSize, padding, onHoldStart, onDragStateChange, onDragEnd } = options;
   const [isDragging, setIsDragging] = useState(false);
   const [isDragReady, setIsDragReady] = useState(false);
   const dragTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -88,6 +89,7 @@ export function useDragMove(
   };
 
   const handleMouseUp = useCallback(() => {
+    const wasDragging = isDragging && isDragReady;
     if (dragTimerRef.current) {
       clearTimeout(dragTimerRef.current);
       dragTimerRef.current = null;
@@ -95,7 +97,11 @@ export function useDragMove(
     setIsDragging(false);
     onDragStateChange?.(false);
     setIsDragReady(false);
-  }, [onDragStateChange]);
+    // 如果之前正在拖拽，触发拖拽结束事件
+    if (wasDragging) {
+      onDragEnd?.();
+    }
+  }, [isDragging, isDragReady, onDragStateChange, onDragEnd]);
 
   const handleMouseMove = useCallback(
     async (e: MouseEvent) => {

@@ -4,7 +4,7 @@ import { useSpritePlayer } from '../context/SpritePlayerContext';
 import type { SpriteAnimation, SpriteEventType } from '../types';
 import { resolveSpriteSrc } from '../utils/resource';
 
-export type AssistantVisualState = 'idle' | 'dragging' | 'walking' | 'running' | 'click' | 'hold' | 'drop';
+export type AssistantVisualState = 'idle' | 'dragging' | 'walking' | 'running' | 'click' | 'hold' | 'drop' | 'fileDragOver' | 'fileDrop';
 
 function pickByEvent(animations: SpriteAnimation[], event: SpriteEventType): SpriteAnimation | undefined {
   return animations.find((a) => a.meta.eventType === event);
@@ -27,6 +27,10 @@ function resolveEventsForState(state: AssistantVisualState): SpriteEventType[] {
       return ['hold'];
     case 'drop':
       return ['drop'];
+    case 'fileDragOver':
+      return ['fileDragOver', 'drag'];
+    case 'fileDrop':
+      return ['fileDrop', 'drop'];
   }
 }
 
@@ -82,7 +86,7 @@ export default function useSpriteConductor(): {
       }
       stateRef.current = s;
       setState(s);
-      if (s !== 'click' && s !== 'hold') previousStableRef.current = s;
+      if (s !== 'click' && s !== 'hold' && s !== 'drop' && s !== 'fileDrop') previousStableRef.current = s;
     },
     [currentId, pick, setCurrent]
   );
