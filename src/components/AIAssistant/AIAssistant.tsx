@@ -7,7 +7,6 @@ import React, { useEffect, useRef } from 'react';
 
 import Dropzone from '../common/Dropzone';
 import { SHOW_PADDING_DEBUG } from './constants';
-import { ASSISTANT_RENDERER_MODE } from './constants';
 import { useSpritePlayer } from './context/SpritePlayerContext';
 import useAssistant from './hooks';
 import useBusyState from './hooks/useBusyState';
@@ -19,12 +18,11 @@ import useSpriteEventController from './hooks/useSpriteEventController';
 import useWalkAnimation from './hooks/useWalkAnimation';
 import { MessageBubble } from './messages/MessageBubble';
 import Messages from './messages/zh-CN';
-import ThreeSprite from './renderers/ThreeSprite';
+import { Renderer } from './renderers';
 import BusyProgressBar from './ui/BusyProgressBar';
 import PaddingDebugOverlay from './ui/PaddingDebugOverlay';
 import SpriteNotice from './ui/SpriteNotice';
 import StatusIndicator from './ui/StatusIndicator';
-import VideoSprite from './renderers/VideoSprite';
 
 export const AIAssistant: React.FC = () => {
   const { padding: paddingState, screenSize, messageState, setAssistantState } = useAssistant();
@@ -314,7 +312,7 @@ export const AIAssistant: React.FC = () => {
             {paddingState} {spriteWidth} {spriteHeight}
           </div>
         )}
-        {ASSISTANT_RENDERER_MODE === 'three' ? <ThreeSprite width={spriteWidth} height={spriteHeight} /> : <VideoSprite />}
+        <Renderer width={spriteWidth} height={spriteHeight} />
       </Dropzone>
       {notice && <SpriteNotice message={notice.message} level={notice.level} buttons={notice.buttons} onClose={dismiss} onButtonClick={handleButtonClick} />}
 
