@@ -1,15 +1,14 @@
-/* eslint-disable react-hooks/set-state-in-effect */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TbArrowLeft, TbArrowRight, TbChevronLeft, TbChevronRight, TbDots, TbFile, TbFileDescription, TbLetterT, TbLink, TbMusic, TbPhoto, TbVideo } from 'react-icons/tb';
+import { TbFileDescription, TbList } from 'react-icons/tb';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
-import { ScrollArea } from '@/components/ui/scroll-area';
 
 import { ImagePlayer, MediaPlayer, SrtPlayer, TextPlayer } from './components/Players';
 import type { MediaPlayerRef } from './components/Players/MediaPlayer/MediaPlayer';
+import ResourceFileList from './components/ResourceFileList';
 import type { ResourceItem } from './types';
 import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from './utils/resourceProtocol';
 import { isSubtitleFile } from './utils/subtitleUtils';
@@ -22,14 +21,10 @@ interface IncomingPayload {
 
 const ResourcePreviewWindow: React.FC = () => {
   const [data, setData] = useState<ResourceItem | null>(null);
-  const [list, setList] = useState<ResourceItem[]>([]);
-  const [index, setIndex] = useState<number>(-1);
   const [subtitleList, setSubtitleList] = useState<ResourceItem[]>([]);
   const [activeSubtitle, setActiveSubtitle] = useState<ResourceItem | null>(null);
-  const [isPlaylistExpanded, setIsPlaylistExpanded] = useState(true);
-  const [showExpandButton, setShowExpandButton] = useState(false);
+  const [isPlaylistExpanded, setIsPlaylistExpanded] = useState(false);
   const [currentTime, setCurrentTime] = useState(0); // 当前播放时间（秒）
-  const mainContentRef = useRef<HTMLDivElement>(null);
   const mediaPlayerRef = useRef<MediaPlayerRef>(null); // 媒体播放器的 ref
 
   // 处理视频加载完成，调整窗口大小
@@ -76,102 +71,31 @@ const ResourcePreviewWindow: React.FC = () => {
     }
   }, []);
 
-  const go = useCallback(
-    (dir: 1 | -1) => {
-      setIndex((prev) => {
-        if (!list.length) return prev;
-        let next = prev + dir;
-        if (next < 0) next = list.length - 1;
-        if (next >= list.length) next = 0;
-        const target = list[next];
-        if (target) {
-          setData(target);
+  // 处理资源切换
+  const handleResourceChange = useCallback(async (resource: ResourceItem) => {
+    // 获取完整资源信息
+    if (resource?.id) {
+      try {
+        const fullResource = await window.ipcRenderer.invoke('getResource', { id: resource.id });
+        if (fullResource) {
+          setData(fullResource);
+          setCurrentTime(0); // 切换资源时重置播放时间
+        } else {
+          setData(resource);
         }
-        return next;
-      });
-    },
-    [list]
-  );
-
-  // 切换到指定索引的资源
-  const goToIndex = useCallback(
-    (targetIndex: number) => {
-      if (targetIndex < 0 || targetIndex >= list.length) return;
-      const target = list[targetIndex];
-      if (target) {
-        setData(target);
-        setIndex(targetIndex);
+      } catch (error) {
+        console.warn('Failed to fetch full resource details:', error);
+        setData(resource);
       }
-    },
-    [list]
-  );
-
-  // 获取资源类型图标
-  const getResourceIcon = useCallback((resource: ResourceItem) => {
-    switch (resource.type) {
-      case 'image':
-        return TbPhoto;
-      case 'video':
-        return TbVideo;
-      case 'audio':
-        return TbMusic;
-      case 'text':
-        return TbLetterT;
-      case 'document':
-        return TbFileDescription;
-      case 'link':
-        return TbLink;
-      case 'file':
-        return TbFile;
-      default:
-        return TbDots;
+    } else {
+      setData(resource);
     }
   }, []);
-
-  // 文件列表滚动到当前项
-  const playlistRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (playlistRef.current && index >= 0) {
-      const itemElement = playlistRef.current.querySelector(`[data-index="${index}"]`);
-      if (itemElement) {
-        itemElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
-    }
-  }, [index]);
 
   // 切换文件列表展开/收起
   const togglePlaylistExpanded = useCallback(() => {
     setIsPlaylistExpanded((prev) => !prev);
   }, []);
-
-  // 检测鼠标是否在主内容区域（类似视频播放器控制栏）
-  useEffect(() => {
-    if (!mainContentRef.current) {
-      setShowExpandButton(false);
-      return;
-    }
-    if (isPlaylistExpanded) {
-      setShowExpandButton(false);
-      return;
-    }
-
-    const handleMouseEnter = (): void => {
-      setShowExpandButton(true);
-    };
-
-    const handleMouseLeave = (): void => {
-      setShowExpandButton(false);
-    };
-
-    const mainContent = mainContentRef.current;
-    mainContent.addEventListener('mouseenter', handleMouseEnter);
-    mainContent.addEventListener('mouseleave', handleMouseLeave);
-
-    return () => {
-      mainContent.removeEventListener('mouseenter', handleMouseEnter);
-      mainContent.removeEventListener('mouseleave', handleMouseLeave);
-    };
-  }, [isPlaylistExpanded, list.length]);
 
   // 监听 data.id 变化，重新获取完整资源信息（处理列表切换的情况）
   useEffect(() => {
@@ -223,18 +147,12 @@ const ResourcePreviewWindow: React.FC = () => {
       console.log(payload);
 
       let current: ResourceItem;
-      let lst: ResourceItem[] = [];
-      let idx: number = -1;
 
       if ((payload as any).current) {
         const p = payload as IncomingPayload;
         current = p.current;
-        lst = p.list || [];
-        idx = typeof p.index === 'number' ? p.index : p.list ? p.list.findIndex((r) => r.id === p.current.id) : -1;
       } else {
         current = payload as ResourceItem;
-        lst = [];
-        idx = -1;
       }
 
       // 获取完整资源信息
@@ -243,10 +161,6 @@ const ResourcePreviewWindow: React.FC = () => {
           const fullResource = await window.ipcRenderer.invoke('getResource', { id: current.id });
           if (fullResource) {
             current = fullResource;
-            // 更新列表中的对应项
-            if (idx !== -1 && lst[idx]) {
-              lst[idx] = fullResource;
-            }
           }
         } catch (error) {
           console.warn('Failed to fetch full resource details:', error);
@@ -254,8 +168,6 @@ const ResourcePreviewWindow: React.FC = () => {
       }
 
       setData(current);
-      setList(lst);
-      setIndex(idx);
       setCurrentTime(0); // 切换资源时重置播放时间
     };
     window.ipcRenderer?.on('on:window:open:ready', handler);
@@ -291,59 +203,6 @@ const ResourcePreviewWindow: React.FC = () => {
   const fileSrc = data.filePath ? makeResSrc(data.filePath) : data.url;
 
   const hasSubtitlePanel = isVideoFile(data.filePath) && subtitleList.length > 0 && !!activeSubtitle;
-
-  // 渲染文件列表内容
-  const renderPlaylistContent = (): React.ReactNode => {
-    return (
-      <div className="h-full flex flex-col overflow-hidden bg-background border-l">
-        <div className="px-3 py-2 border-b text-xs font-medium text-muted-foreground flex items-center justify-between">
-          <Button size="sm" variant="ghost" className="h-8 w-8" onClick={togglePlaylistExpanded}>
-            <TbChevronRight />
-          </Button>
-          <span>文件列表 ({list.length})</span>
-        </div>
-        <ScrollArea className="flex-1">
-          <div ref={playlistRef} className="p-2 space-y-1">
-            {list.map((item, idx) => {
-              const Icon = getResourceIcon(item);
-              const itemTitle = item.title || item.filePath || item.url || item.id;
-              const itemSrc = item.filePath ? makeResSrc(item.filePath) : item.url;
-              const isActive = idx === index;
-              const hasThumbnail = item.thumbnailPath || (isImageFile(item.filePath) && itemSrc);
-
-              return (
-                <div
-                  key={item.id}
-                  data-index={idx}
-                  onClick={() => goToIndex(idx)}
-                  className={`
-                    flex items-center gap-2 p-2 rounded cursor-pointer transition-colors
-                    ${isActive ? 'bg-primary/20 border border-primary/50' : 'hover:bg-muted/50 border border-transparent'}
-                  `}
-                >
-                  {/* 缩略图或图标 */}
-                  <div className="w-12 h-12 flex-shrink-0 rounded bg-muted flex items-center justify-center overflow-hidden">
-                    {hasThumbnail && isImageFile(item.filePath) ? (
-                      <img src={item.thumbnailPath ? makeResSrc(item.thumbnailPath) : itemSrc} alt={itemTitle} className="w-full h-full object-cover" />
-                    ) : (
-                      <Icon className="w-6 h-6 text-muted-foreground" />
-                    )}
-                  </div>
-                  {/* 标题和索引 */}
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-medium truncate">{itemTitle}</div>
-                    <div className="text-[10px] text-muted-foreground">
-                      {idx + 1} / {list.length}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </ScrollArea>
-      </div>
-    );
-  };
 
   // 渲染字幕侧边栏内容（当当前资源为视频且存在子字幕资源时）
   const renderSubtitlePanel = (): React.ReactNode => {
@@ -392,7 +251,7 @@ const ResourcePreviewWindow: React.FC = () => {
 
   // 渲染主要内容
   const renderMainContent = (): React.ReactNode => (
-    <div ref={mainContentRef} className="h-full relative flex items-center justify-center overflow-hidden">
+    <div className="h-full relative flex items-center justify-center overflow-hidden">
       {isImageFile(data.filePath) && fileSrc && <ImagePlayer src={fileSrc} title={title} className="w-full h-full rounded-md shadow" />}
       {isVideoFile(data.filePath) && fileSrc && (
         <MediaPlayer ref={mediaPlayerRef} src={fileSrc} type="video" title={title} autoPlay={true} className="w-full h-full" onVideoLoaded={handleVideoLoaded} onTimeUpdate={setCurrentTime} />
@@ -400,15 +259,6 @@ const ResourcePreviewWindow: React.FC = () => {
       {isAudioFile(data.filePath) && fileSrc && <MediaPlayer ref={mediaPlayerRef} src={fileSrc} type="audio" title={title} autoPlay={true} className="w-full max-w-xl" onTimeUpdate={setCurrentTime} />}
       {isSubtitleFile(data.filePath) && <SrtPlayer resource={data} />}
       {!isImageFile(data.filePath) && !isVideoFile(data.filePath) && !isAudioFile(data.filePath) && !isSubtitleFile(data.filePath) && <TextPlayer resource={data} />}
-
-      {/* 收起时，鼠标移入画面显示的展开按钮（类似视频播放器控制栏） */}
-      {(list.length > 0 || data) && !isPlaylistExpanded && showExpandButton && (
-        <div className="absolute right-0 top-1/2 -translate-y-1/2 z-10 transition-opacity duration-200">
-          <Button size="sm" variant="ghost" className="h-8 w-8 bg-background/90 backdrop-blur-sm border shadow-lg hover:bg-background/95" onClick={togglePlaylistExpanded}>
-            <TbChevronLeft />
-          </Button>
-        </div>
-      )}
     </div>
   );
 
@@ -418,37 +268,33 @@ const ResourcePreviewWindow: React.FC = () => {
       <DragAbleTitle
         title={<div className="text-xs font-medium truncate">{title}</div>}
         actions={
-          <>
-            <div className="flex items-center gap-2 min-w-0 flex-1">
-              {list.length > 0 && (
-                <>
-                  <Button size={'icon'} className="w-8 h-8" variant={'ghost'} onClick={() => go(-1)} disabled={!list.length}>
-                    <TbArrowLeft />
-                  </Button>
-                  <span className="text-[10px] text-muted-foreground font-mono">
-                    {index >= 0 ? index + 1 : '-'} / {list.length || '-'}
-                  </span>
-                  <Button size={'icon'} className="w-8 h-8" variant={'ghost'} onClick={() => go(1)} disabled={!list.length}>
-                    <TbArrowRight />
-                  </Button>
-                </>
-              )}
-            </div>
-          </>
+          <Button size="icon" className="w-8 h-8" variant="ghost" onClick={togglePlaylistExpanded} title={isPlaylistExpanded ? '收起文件列表' : '展开文件列表'}>
+            <TbList />
+          </Button>
         }
       />
       {/* Content */}
       <div className="h-full overflow-hidden" style={{ height: 'calc(100% - 36px)' }}>
-        {data && isPlaylistExpanded && (list.length > 0 || hasSubtitlePanel) ? (
+        {data && (
           <ResizablePanelGroup direction="horizontal" className="h-full">
-            <ResizablePanel defaultSize={50}>{renderMainContent()}</ResizablePanel>
-            <ResizableHandle className="hover:bg-primary" withHandle />
-            <ResizablePanel defaultSize={50} minSize={15}>
-              {hasSubtitlePanel ? renderSubtitlePanel() : renderPlaylistContent()}
-            </ResizablePanel>
+            <ResizablePanel defaultSize={60}>{renderMainContent()}</ResizablePanel>
+            {hasSubtitlePanel && (
+              <>
+                <ResizableHandle className="hover:bg-primary" withHandle />
+                <ResizablePanel defaultSize={40} minSize={15}>
+                  {renderSubtitlePanel()}
+                </ResizablePanel>
+              </>
+            )}
+            {isPlaylistExpanded && (
+              <>
+                <ResizableHandle className="hover:bg-primary" withHandle />
+                <ResizablePanel defaultSize={30} minSize={15}>
+                  <ResourceFileList currentResource={data} onResourceChange={handleResourceChange} onClose={togglePlaylistExpanded} />
+                </ResizablePanel>
+              </>
+            )}
           </ResizablePanelGroup>
-        ) : (
-          renderMainContent()
         )}
       </div>
     </div>
