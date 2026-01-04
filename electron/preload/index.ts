@@ -6,7 +6,7 @@ import { pluginResourceIpcRenderer } from '../../packages/plugins/ipc-renderer';
 import { recorderIpcRenderer } from '../../packages/recorder/ipc-renderer';
 import { sherpaIpcRenderer } from '../../packages/sherpa/ipc-renderer';
 import { dailyCareBridge } from '../main/daily/ipc-renderer';
-import { vectorIpcRenderer } from '../main/handlers/embedding/vector';
+import { vectorIpcRenderer } from '../main/handlers/embedding/ipc-renderer';
 import { ffmpegIpcRenderer } from '../main/handlers/ffmpeg/ipc-renderer';
 import { fileIpcRenderer } from '../main/handlers/file/ipc-renderer';
 import { folderIpcRenderer } from '../main/handlers/folder/ipc-renderer';
