@@ -33,7 +33,7 @@ export const AIAssistant: React.FC = () => {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const { setClickThrough } = useClickThrough(containerRef);
-  const { animateMoveWindow, stopWalking, isWalking } = useWalkAnimation();
+  const { animateMoveWindow, stopWalking, isWalking, walkDirection } = useWalkAnimation();
   useSpriteEventController();
   const { busyState } = useBusyState();
   const { notice, dismiss, handleButtonClick } = useNoticeState();
@@ -314,7 +314,7 @@ export const AIAssistant: React.FC = () => {
             {paddingState} {spriteWidth} {spriteHeight}
           </div>
         )} */}
-        <Renderer width={spriteWidth} height={spriteHeight} />
+        <Renderer width={spriteWidth} height={spriteHeight} walkDirection={walkDirection} />
       </Dropzone>
       {notice && <SpriteNotice message={notice.message} level={notice.level} buttons={notice.buttons} onClose={dismiss} onButtonClick={handleButtonClick} />}
 

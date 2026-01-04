@@ -6,7 +6,7 @@
 export const ASSISTANT_WIDTH = 180;
 export const ASSISTANT_HEIGHT = 240;
 
-export const DEFAULT_WALK_SPEED = 500;
+export const DEFAULT_WALK_SPEED = 100;
 export const DEFAULT_FPS_LIMIT = 30;
 export const FRAME_INTERVAL = 1000 / DEFAULT_FPS_LIMIT;
 export const STEP_GRID = 12;
