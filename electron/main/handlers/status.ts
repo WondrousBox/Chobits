@@ -7,7 +7,7 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import { getDB } from '../db';
 import { WorkspacesRepo } from '../db/repositories';
 
-const SETTINGS_DIR = path.join(app.getPath('home'), '.chobits');
+const SETTINGS_DIR = path.join(app.getPath('userData'), 'data');
 const ROLE_FILE = path.join(SETTINGS_DIR, 'role.json');
 
 type RoleProfile = {

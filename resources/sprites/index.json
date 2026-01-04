@@ -23,6 +23,29 @@
       "muted": true,
       "playsInline": true,
       "loopStrategy": "native"
+    },
+    {
+      "meta": {
+        "id": "walk-default",
+        "title": "Walk 行走",
+        "description": "默认的行走动画",
+        "tags": [
+          "walk",
+          "default"
+        ],
+        "eventType": "walk"
+      },
+      "source": {
+        "localPath": "./walk.webm",
+        "type": "video/webm"
+      },
+      "width": 180,
+      "height": 240,
+      "padding": 100,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loopStrategy": "native"
     }
   ]
 }
