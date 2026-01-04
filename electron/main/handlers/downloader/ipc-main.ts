@@ -2,7 +2,7 @@ import { windowManager } from '@aim-packages/window-manager';
 import { BrowserWindow, ipcMain, screen } from 'electron';
 
 import { getMainWindow } from '../../index';
-import { downloadManager, getSetting, getThumbnail, getVideoInfo, setSetting } from '../video-downloader';
+import { downloadManager, getSetting, getThumbnail, getVideoInfo, setSetting } from '.';
 
 export function initDownloadHandlers(win: BrowserWindow): void {
   console.log('[VideoDownload] Initializing video download handlers');
