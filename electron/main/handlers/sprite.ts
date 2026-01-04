@@ -19,7 +19,7 @@ async function ensureDirs(dir: string): Promise<void> {
   await fs.mkdir(dir, { recursive: true });
 }
 
-const SETTINGS_DIR = path.join(app.getPath('home'), '.chobits');
+const SETTINGS_DIR = path.join(app.getPath('userData'), 'data');
 
 async function getDefaultSpritesDir(): Promise<string> {
   // Packaged resources (read-only)

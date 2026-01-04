@@ -5,7 +5,7 @@ import { app } from 'electron';
 
 import type { DailyCareStorage } from './types';
 
-const SETTINGS_DIR = path.join(app.getPath('home'), '.chobits');
+const SETTINGS_DIR = path.join(app.getPath('userData'), 'data');
 const STORAGE_FILE = path.join(SETTINGS_DIR, 'daily-care.json');
 
 const DEFAULT_STATE: DailyCareStorage = {
