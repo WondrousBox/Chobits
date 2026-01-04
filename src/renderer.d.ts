@@ -1,7 +1,7 @@
 import type { IpcRendererEvent } from 'electron';
 
 import type { DailyCareBridgeType } from '../electron/main/daily/ipc-renderer';
-import type { VectorIpcType } from '../electron/main/handlers/embedding/vector';
+import type { VectorIpcType } from '../electron/main/handlers/embedding/ipc-renderer';
 import type { FFmpegIpcType } from '../electron/main/handlers/ffmpeg/ipc-renderer';
 import type { FileIpcType } from '../electron/main/handlers/file/ipc-renderer';
 import type { FolderIpcType } from '../electron/main/handlers/folder/ipc-renderer';
