@@ -287,7 +287,7 @@ export const AIAssistant: React.FC = () => {
         // }
       }}
     >
-      {SHOW_PADDING_DEBUG && <PaddingDebugOverlay padding={paddingState} />}
+      <PaddingDebugOverlay padding={paddingState} />
       <MessageBubble state={messageState} />
       <Dropzone
         onDragEnter={handleDragEnter}
