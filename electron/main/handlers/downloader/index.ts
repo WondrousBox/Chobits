@@ -9,12 +9,12 @@ import { app, BrowserWindow } from 'electron';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 
-import ytdlpStatic from '../../../packages/common/libs/ytdlp-static';
-import { ResourcesRepo, WorkspacesRepo } from '../db/repositories';
-import { binPathLog } from '../logger';
-import { getResourcePath } from '../utils/resources-path';
-import { generateThumbnailForResource } from '../utils/thumbnail';
-import { ensureDailyFolder } from './resource';
+import ytdlpStatic from '../../../../packages/common/libs/ytdlp-static';
+import { ResourcesRepo, WorkspacesRepo } from '../../db/repositories';
+import { binPathLog } from '../../logger';
+import { getResourcePath } from '../../utils/resources-path';
+import { generateThumbnailForResource } from '../../utils/thumbnail';
+import { ensureDailyFolder } from '../resource';
 
 // 默认文件夹配置
 const DEFAULT_FOLDERS = {
@@ -279,7 +279,7 @@ type ExternalResourceSettings = {
   preferredBrowser: string;
 };
 
-const SETTINGS_DIR = path.join(app.getPath('home'), '.chobits');
+const SETTINGS_DIR = path.join(app.getPath('userData'), 'data');
 const SETTINGS_FILE = path.join(SETTINGS_DIR, 'external-resource-settings.json');
 
 function ensureSettingsDir() {
