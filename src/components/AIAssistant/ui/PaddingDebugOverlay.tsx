@@ -4,7 +4,7 @@
  */
 import React from 'react';
 
-import { DEFAULT_ASSISTANT_PADDING } from '../constants';
+import { DEFAULT_ASSISTANT_PADDING, SHOW_PADDING_DEBUG } from '../constants';
 import { useSpritePlayer } from '../context/SpritePlayerContext';
 
 export const PaddingDebugOverlay: React.FC<{ padding: number }> = ({ padding }) => {
@@ -18,7 +18,7 @@ export const PaddingDebugOverlay: React.FC<{ padding: number }> = ({ padding }) 
   // 使用精灵动画定义的 padding，如果没有则使用传入的 padding
   const actualPadding = spritePadding ?? padding;
 
-  return (
+  return SHOW_PADDING_DEBUG ? (
     <div
       style={{
         position: 'absolute',
@@ -37,7 +37,7 @@ export const PaddingDebugOverlay: React.FC<{ padding: number }> = ({ padding }) 
         padding={actualPadding} | {width}×{height}
       </div>
     </div>
-  );
+  ) : null;
 };
 
 export default PaddingDebugOverlay;
