@@ -6,7 +6,6 @@
 import React, { useEffect, useRef } from 'react';
 
 import Dropzone from '../common/Dropzone';
-import { SHOW_PADDING_DEBUG } from './constants';
 import { useSpritePlayer } from './context/SpritePlayerContext';
 import useAssistant from './hooks';
 import useBusyState from './hooks/useBusyState';
@@ -299,7 +298,7 @@ export const AIAssistant: React.FC = () => {
           </div>
         }
       >
-        {window.YUA.isDev && (
+        {/* {window.YUA.isDev && (
           <div
             style={{
               left: paddingState,
@@ -311,7 +310,7 @@ export const AIAssistant: React.FC = () => {
           >
             {paddingState} {spriteWidth} {spriteHeight}
           </div>
-        )}
+        )} */}
         <Renderer width={spriteWidth} height={spriteHeight} />
       </Dropzone>
       {notice && <SpriteNotice message={notice.message} level={notice.level} buttons={notice.buttons} onClose={dismiss} onButtonClick={handleButtonClick} />}
