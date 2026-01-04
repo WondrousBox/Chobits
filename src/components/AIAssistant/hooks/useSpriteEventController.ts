@@ -20,6 +20,12 @@ export default function useSpriteEventController(): void {
         case 'drop':
           sprite.playOnce('drop', { durationMs: 600 });
           break;
+        case 'fileDragOver':
+          sprite.to('fileDragOver');
+          break;
+        case 'fileDrop':
+          sprite.playOnce('fileDrop', { durationMs: 600, fallback: 'idle' });
+          break;
         case 'hold:start':
           sprite.playOnce('hold', { durationMs: 300 });
           break;
@@ -78,6 +84,12 @@ export default function useSpriteEventController(): void {
           break;
         case 'sprite:drop':
           sprite.playOnce('drop', { durationMs: payload?.durationMs || 600 });
+          break;
+        case 'sprite:fileDragOver':
+          sprite.to('fileDragOver');
+          break;
+        case 'sprite:fileDrop':
+          sprite.playOnce('fileDrop', { durationMs: payload?.durationMs || 600, fallback: 'drop' });
           break;
         default:
           break;

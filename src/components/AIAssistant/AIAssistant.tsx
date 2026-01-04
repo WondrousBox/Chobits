@@ -49,6 +49,9 @@ export const AIAssistant: React.FC = () => {
     },
     onDragStateChange: (dragging) => {
       if (dragging) setClickThrough(false);
+    },
+    onDragEnd: () => {
+      setAssistantState('drop');
     }
   });
   const { isFileDragOver, handleDragEnter, handleDragLeave, handleDropFiles } = useFileDrop(stopWalking, setClickThrough);
@@ -142,7 +145,7 @@ export const AIAssistant: React.FC = () => {
   // reflect file drag-over on sprite
   useEffect(() => {
     if (isFileDragOver) {
-      setAssistantState('drag:start');
+      setAssistantState('fileDragOver');
     } else if (!isDragging && !isWalking) {
       setAssistantState('idle');
     }
@@ -150,7 +153,7 @@ export const AIAssistant: React.FC = () => {
 
   const onDropFiles = React.useCallback(
     async (files: any) => {
-      setAssistantState('drop');
+      setAssistantState('fileDrop');
       await handleDropFiles(files);
     },
     [handleDropFiles, setAssistantState]

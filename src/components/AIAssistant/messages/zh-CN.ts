@@ -1,4 +1,4 @@
-import { MessageCatalog, MessagesProvider, MessageCategory, MessageProducer } from '../types';
+import { MessageCatalog, MessageCategory, MessageProducer, MessagesProvider } from '../types';
 
 const asText = (m: MessageProducer | string, ctx?: any): string => (typeof m === 'function' ? m(ctx) : m);
 
@@ -9,13 +9,14 @@ const catalog: MessageCatalog = {
   click: ['叽~有什么可以帮助你的吗？', '我在～需要我做点什么吗？', '收到～告诉我你的想法吧。'],
   hold: ['可以把我拖到任何位置。'],
   drag: '把文件拖给我吧 ⤓',
-  drop: (ctx?: {
+  drop: '放置完成',
+  fileDrop: (ctx?: {
     // Optional runtime parameters to format messages
     count?: number;
     names?: string[];
     singleName?: string;
   }) => {
-    if (ctx?.count === 1 && ctx.singleName) return `我收到了文件“${ctx.singleName}” ✅`;
+    if (ctx?.count === 1 && ctx.singleName) return `我收到了文件"${ctx.singleName}" ✅`;
     if (ctx?.count && ctx?.names?.length) {
       const preview = ctx.names.slice(0, 3).join('、');
       return `我收到了 ${ctx.count} 个项目：${preview}${ctx.count > 3 ? ' 等' : ''} ✅`;
