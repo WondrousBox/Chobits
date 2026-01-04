@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef } from 'react';
 
-import { DEFAULT_ASSISTANT_PADDING } from './constants';
-import { useSpritePlayer } from './context/SpritePlayerContext';
-import { resolveSpriteSrc } from './utils/resource';
+import { DEFAULT_ASSISTANT_PADDING } from '../constants';
+import { useSpritePlayer } from '../context/SpritePlayerContext';
+import { resolveSpriteSrc } from '../utils/resource';
 
 export default function VideoSprite(): JSX.Element | null {
   const videoRef = useRef<HTMLVideoElement | null>(null);

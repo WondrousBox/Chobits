@@ -24,7 +24,7 @@ import BusyProgressBar from './ui/BusyProgressBar';
 import PaddingDebugOverlay from './ui/PaddingDebugOverlay';
 import SpriteNotice from './ui/SpriteNotice';
 import StatusIndicator from './ui/StatusIndicator';
-import VideoSprite from './VideoSprite';
+import VideoSprite from './renderers/VideoSprite';
 
 export const AIAssistant: React.FC = () => {
   const { padding: paddingState, screenSize, messageState, setAssistantState } = useAssistant();
