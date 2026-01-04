@@ -1,6 +1,6 @@
 import { env, pipeline } from '@huggingface/transformers';
 
-import { PluginConfigStore } from '../../../packages/plugins/plugin-config-store';
+import { PluginConfigStore } from '../../../../packages/plugins/plugin-config-store';
 import { EmbeddingProvider, EmbedOptions, getDefaultModels, getModelCacheDir, l2Normalize } from './provider';
 
 // Could not load the "sharp" module using the win32-x64 runtime

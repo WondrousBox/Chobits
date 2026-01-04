@@ -1,9 +1,9 @@
 import { BrowserWindow, ipcMain } from 'electron';
 
-import { deleteVectors, findDocumentsNeedingReembedding, insertVectors, reembedDocuments, searchVectors, VectorInsertItem } from '../db';
-import { fitToDim } from '../embedding/provider';
-import { embeddingQueue } from '../embedding/queue';
-import { TransformersEmbeddingProvider } from '../embedding/transformers';
+import { deleteVectors, findDocumentsNeedingReembedding, insertVectors, reembedDocuments, searchVectors, VectorInsertItem } from '../../db';
+import { fitToDim } from './provider';
+import { embeddingQueue } from './queue';
+import { TransformersEmbeddingProvider } from './transformers';
 
 // Default to a small multilingual local model (384d) for offline speed.
 // You can switch to 1536 if using OpenAI provider later.
@@ -85,7 +85,7 @@ export function initVectorHandlers(win: BrowserWindow): void {
 
   // 获取向量统计信息（按服务商和模型分组）
   ipcMain.handle('vector:getStatistics', async () => {
-    const { getDB } = await import('../db');
+    const { getDB } = await import('../../db');
     const database = getDB();
     if (!database) return { providers: [] };
 

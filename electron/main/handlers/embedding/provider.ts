@@ -24,14 +24,14 @@ export type ProviderConfig = {
   normalize?: boolean;
 };
 
-export function getDefaultModels() {
+export function getDefaultModels(): { transformers: string } {
   // Default to multilingual small model (384d) for speed and footprint
   return {
     transformers: 'Xenova/gte-small'
   } as const;
 }
 
-export function getModelCacheDir() {
+export function getModelCacheDir(): string {
   // Cache under userData/models for offline usage and packaging control
   return path.join(app.getPath('userData'), 'data', 'models');
 }

@@ -9,9 +9,9 @@ import { BrowserWindow } from 'electron';
 import { eventManager } from '../../../../packages/event';
 import { AppEvent } from '../../../../packages/event/events';
 import { FoldersRepo, ResourcesRepo, WorkspacesRepo } from '../../db/repositories';
-import { chunkText } from '../../embedding/chunker';
-import { embeddingQueue } from '../../embedding/queue';
 import { detectBasicType, generateThumbnailForResource } from '../../utils/thumbnail';
+import { chunkText } from '../embedding/chunker';
+import { embeddingQueue } from '../embedding/queue';
 import type { Resource } from './ipc-renderer';
 
 export async function ensureDailyFolder(workspaceId: string, rootPath: string): Promise<string> {

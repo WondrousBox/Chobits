@@ -1,7 +1,8 @@
 import { EventEmitter } from 'node:events';
-import { TransformersEmbeddingProvider } from './transformers';
+
+import { insertVectors, VectorInsertItem } from '../../db';
 import { fitToDim } from './provider';
-import { insertVectors, VectorInsertItem } from '../db';
+import { TransformersEmbeddingProvider } from './transformers';
 
 export type IndexItem = { id?: string; content: string; metadata?: any };
 

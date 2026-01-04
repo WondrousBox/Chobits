@@ -1,6 +1,7 @@
 import type { IpcRendererEvent } from 'electron';
 
 import type { DailyCareBridgeType } from '../electron/main/daily/ipc-renderer';
+import type { VectorIpcType } from '../electron/main/handlers/embedding/vector';
 import type { FFmpegIpcType } from '../electron/main/handlers/ffmpeg/ipc-renderer';
 import type { FileIpcType } from '../electron/main/handlers/file/ipc-renderer';
 import type { FolderIpcType } from '../electron/main/handlers/folder/ipc-renderer';
@@ -14,7 +15,6 @@ import type { PluginResourceIpcType } from '../electron/main/plugins/ipc-rendere
 import type { ShortcutsBridgeType } from '../electron/preload/apis/shortcuts';
 import type { SpriteBridgeType } from '../electron/preload/apis/sprite';
 import type { StatusBridgeType } from '../electron/preload/apis/status';
-import type { VectorBridgeType } from '../electron/preload/apis/vector';
 import type videoDownloaderAPI from '../electron/preload/apis/video-downloader';
 import type { WindowBridgeType } from '../electron/preload/apis/window';
 import type { AIApi } from '../packages/ai/types';
@@ -36,7 +36,7 @@ declare global {
 
       window: WindowBridgeType;
       ffmpeg: FFmpegIpcType;
-      vector: VectorBridgeType & {
+      vector: VectorIpcType & {
         onEmbeddingJob(cb: (job: any) => void): () => void;
         onEmbeddingProgress(cb: (p: { id: string; done: number; total: number; status?: string }) => void): () => void;
       };
