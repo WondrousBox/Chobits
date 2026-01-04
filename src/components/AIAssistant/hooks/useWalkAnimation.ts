@@ -13,8 +13,10 @@ export function useWalkAnimation(): {
   animateMoveWindow: (targetX: number, targetY: number) => Promise<void>;
   stopWalking: () => void;
   isWalking: boolean;
+  walkDirection: 'left' | 'right' | null;
 } {
   const [isWalking, setIsWalking] = useState(false);
+  const [walkDirection, setWalkDirection] = useState<'left' | 'right' | null>(null);
   const autoWalkRef = useRef(false);
   const animationFrameRef = useRef<number>();
   const cancelAnimRef = useRef({ cancelled: false });
@@ -32,8 +34,13 @@ export function useWalkAnimation(): {
     const totalDist = Math.hypot(dx, dy);
     if (totalDist < 1) {
       setIsWalking(false);
+      setWalkDirection(null);
       return;
     }
+
+    // 判断移动方向：向右移动需要翻转动画
+    const direction: 'left' | 'right' = dx > 0 ? 'right' : 'left';
+    setWalkDirection(direction);
 
     const mx = (startX + targetX) / 2;
     const my = (startY + targetY) / 2;
@@ -93,6 +100,7 @@ export function useWalkAnimation(): {
           animationFrameRef.current = requestAnimationFrame(step);
         } else {
           setIsWalking(false);
+          setWalkDirection(null);
           resolve();
         }
       };
@@ -110,9 +118,10 @@ export function useWalkAnimation(): {
     autoWalkRef.current = false;
     cancelAnimation();
     setIsWalking(false);
+    setWalkDirection(null);
   }, [cancelAnimation]);
 
-  return { animateMoveWindow, stopWalking, isWalking };
+  return { animateMoveWindow, stopWalking, isWalking, walkDirection };
 }
 
 export default useWalkAnimation;

@@ -4,7 +4,7 @@ import { DEFAULT_ASSISTANT_PADDING } from '../constants';
 import { useSpritePlayer } from '../context/SpritePlayerContext';
 import { resolveSpriteSrc } from '../utils/resource';
 
-export default function VideoSprite(): JSX.Element | null {
+export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' | 'right' | null }): JSX.Element | null {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const { current } = useSpritePlayer();
 
@@ -83,10 +83,19 @@ export default function VideoSprite(): JSX.Element | null {
     setSize();
   }, [computed]);
 
+  // 判断是否需要翻转：当行走动画且向右移动时需要翻转
+  const shouldFlip = computed && current?.meta.eventType === 'walk' && walkDirection === 'right';
+
   return computed ? (
     <video
       ref={videoRef}
-      style={{ width: computed.width ?? 180, height: computed.height ?? 240, userSelect: 'none' }}
+      style={{
+        width: computed.width ?? 180,
+        height: computed.height ?? 240,
+        userSelect: 'none',
+        transform: shouldFlip ? 'scaleX(-1)' : 'none',
+        transformOrigin: 'center center'
+      }}
       autoPlay={computed.autoplay ?? true}
       muted={computed.muted ?? true}
       playsInline={computed.playsInline ?? true}
