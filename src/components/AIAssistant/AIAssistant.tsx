@@ -301,7 +301,7 @@ export const AIAssistant: React.FC = () => {
           </div>
         }
       >
-        {/* {window.YUA.isDev && (
+        {window.YUA.isDev && (
           <div
             style={{
               left: paddingState,
@@ -311,9 +311,9 @@ export const AIAssistant: React.FC = () => {
             }}
             className="text-xs bg-background fixed rounded-md border border-solid border-ring"
           >
-            dev {paddingState}
+            {paddingState} {spriteWidth} {spriteHeight}
           </div>
-        )} */}
+        )}
         {ASSISTANT_RENDERER_MODE === 'three' ? <ThreeSprite width={spriteWidth} height={spriteHeight} /> : <VideoSprite />}
       </Dropzone>
       {notice && <SpriteNotice message={notice.message} level={notice.level} buttons={notice.buttons} onClose={dismiss} onButtonClick={handleButtonClick} />}

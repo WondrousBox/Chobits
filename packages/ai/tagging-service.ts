@@ -1,6 +1,6 @@
 import { BrowserWindow, ipcMain } from 'electron';
 
-import { chunkText } from '../../electron/main/embedding/chunker';
+import { chunkText } from '../../electron/main/handlers/embedding/chunker';
 import { TaggerAgent } from './agents/tagger';
 import { InstancesStore } from './instances-store';
 import { getProvider } from './registry';

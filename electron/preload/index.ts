@@ -6,6 +6,7 @@ import { pluginResourceIpcRenderer } from '../../packages/plugins/ipc-renderer';
 import { recorderIpcRenderer } from '../../packages/recorder/ipc-renderer';
 import { sherpaIpcRenderer } from '../../packages/sherpa/ipc-renderer';
 import { dailyCareBridge } from '../main/daily/ipc-renderer';
+import { vectorIpcRenderer } from '../main/handlers/embedding/vector';
 import { ffmpegIpcRenderer } from '../main/handlers/ffmpeg/ipc-renderer';
 import { fileIpcRenderer } from '../main/handlers/file/ipc-renderer';
 import { folderIpcRenderer } from '../main/handlers/folder/ipc-renderer';
@@ -19,7 +20,6 @@ import { arch, isLinux, isMac, isMacIntel, isWindows, platform } from '../main/u
 import { shortcutsBridge } from './apis/shortcuts';
 import { spriteBridge } from './apis/sprite';
 import { statusBridge } from './apis/status';
-import { vectorBridge } from './apis/vector';
 import videoDownloaderAPI from './apis/video-downloader';
 import { windowBridge } from './apis/window';
 
@@ -60,7 +60,7 @@ contextBridge.exposeInMainWorld('YUA', {
   isDev: process.env.NODE_ENV === 'development',
   window: windowBridge,
   ffmpeg: ffmpegIpcRenderer,
-  vector: vectorBridge,
+  vector: vectorIpcRenderer,
   resource: resourceIpcRenderer,
   trash: trashIpcRenderer,
   workspace: workspaceIpcRenderer,

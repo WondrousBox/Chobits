@@ -5,7 +5,7 @@ import { env, pipeline } from '@huggingface/transformers';
 import sharp from 'sharp';
 
 import { PluginConfigStore } from '../../../../packages/plugins/plugin-config-store';
-import { getModelCacheDir } from '../../embedding/provider';
+import { getModelCacheDir } from '../embedding/provider';
 
 type Pipeline = any;
 
