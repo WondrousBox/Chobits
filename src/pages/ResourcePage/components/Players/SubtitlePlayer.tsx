@@ -8,7 +8,7 @@ import type { ResourceItem } from '../../types';
 import { SubtitleRow } from './SubtitleRow';
 import { SubtitleTranslator } from './SubtitleTranslator';
 
-interface SrtPlayerProps {
+interface SubtitlePlayerProps {
   resource: ResourceItem;
   currentTime?: number; // 当前播放时间（秒）
   onSeek?: (time: number) => void; // 跳转到指定时间的回调
@@ -23,7 +23,7 @@ function convertToISegment(segment: AimSegments): [string, string, string, strin
 
 type SubtitleFormat = 'srt' | 'vtt' | 'ass';
 
-export const SrtPlayer = ({ resource, currentTime = 0, onSeek }: SrtPlayerProps): React.ReactNode => {
+export const SubtitlePlayer = ({ resource, currentTime = 0, onSeek }: SubtitlePlayerProps): React.ReactNode => {
   const [subtitleEntries, setSubtitleEntries] = useState<AimSegments[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [subtitleFormat, setSubtitleFormat] = useState<SubtitleFormat>('srt');
@@ -66,7 +66,7 @@ export const SrtPlayer = ({ resource, currentTime = 0, onSeek }: SrtPlayerProps)
           // 通过资源更新接口保存，主进程会处理文件写入
           const result = await window.YUA.resource['resource:update']({
             id: resourceId,
-            patch: { srtContent: content }
+            patch: { subtitleContent: content }
           });
           if (result.success) {
             console.log(`[auto-save] 字幕已保存 (${format})`);
@@ -133,7 +133,7 @@ export const SrtPlayer = ({ resource, currentTime = 0, onSeek }: SrtPlayerProps)
                 }
                 setSubtitleEntries(segments);
               } catch (error) {
-                console.error(`[SrtPlayer] 解析${format.toUpperCase()}文件失败:`, error);
+                console.error(`[SubtitlePlayer] 解析${format.toUpperCase()}文件失败:`, error);
                 setSubtitleEntries([]);
               }
             } else {
@@ -141,7 +141,7 @@ export const SrtPlayer = ({ resource, currentTime = 0, onSeek }: SrtPlayerProps)
             }
           })
           .catch((error) => {
-            console.error('[SrtPlayer] 读取文件失败:', error);
+            console.error('[SubtitlePlayer] 读取文件失败:', error);
             setSubtitleEntries([]);
           })
           .finally(() => {

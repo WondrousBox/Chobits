@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 
-import { ImagePlayer, MediaPlayer, SrtPlayer, TextPlayer } from './components/Players';
+import { ImagePlayer, MediaPlayer, SubtitlePlayer, TextPlayer } from './components/Players';
 import type { MediaPlayerRef } from './components/Players/MediaPlayer/MediaPlayer';
 import ResourceFileList from './components/ResourceFileList';
 import type { ResourceItem } from './types';
@@ -234,7 +234,7 @@ const ResourcePreviewWindow: React.FC = () => {
           )}
         </div>
         <div className="flex-1 min-h-0">
-          <SrtPlayer
+          <SubtitlePlayer
             resource={activeSubtitle}
             currentTime={currentTime}
             onSeek={(time) => {
@@ -257,7 +257,7 @@ const ResourcePreviewWindow: React.FC = () => {
         <MediaPlayer ref={mediaPlayerRef} src={fileSrc} type="video" title={title} autoPlay={true} className="w-full h-full" onVideoLoaded={handleVideoLoaded} onTimeUpdate={setCurrentTime} />
       )}
       {isAudioFile(data.filePath) && fileSrc && <MediaPlayer ref={mediaPlayerRef} src={fileSrc} type="audio" title={title} autoPlay={true} className="w-full max-w-xl" onTimeUpdate={setCurrentTime} />}
-      {isSubtitleFile(data.filePath) && <SrtPlayer resource={data} />}
+      {isSubtitleFile(data.filePath) && <SubtitlePlayer resource={data} />}
       {!isImageFile(data.filePath) && !isVideoFile(data.filePath) && !isAudioFile(data.filePath) && !isSubtitleFile(data.filePath) && <TextPlayer resource={data} />}
     </div>
   );

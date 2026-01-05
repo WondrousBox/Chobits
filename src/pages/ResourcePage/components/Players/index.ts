@@ -1,4 +1,4 @@
 export { ImagePlayer } from './ImagePlayer';
 export { MediaPlayer } from './MediaPlayer';
-export { SrtPlayer } from './SrtPlayer';
+export { SubtitlePlayer } from './SubtitlePlayer';
 export { TextPlayer } from './TextPlayer';
