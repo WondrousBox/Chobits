@@ -14,8 +14,8 @@ export const createBehaviors = (actions: BehaviorActions, config: { autoWalkEnab
       name: 'Auto Walk',
       type: 'random_interval',
       enabled: config.autoWalkEnabled,
-      minIntervalMs: 60000,
-      maxIntervalMs: 120000,
+      minIntervalMs: 10000,
+      maxIntervalMs: 20000,
       condition: (ctx) => {
         return !ctx.isDragging && !ctx.isWalking && !ctx.isHovering;
       },

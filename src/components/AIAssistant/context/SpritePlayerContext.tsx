@@ -7,6 +7,12 @@ interface SpritePlayerContextValue {
   current?: SpriteAnimation;
   setCurrent: (id: string) => void;
   list: () => SpriteAnimation[];
+  /** Whether the current animation is actively playing (not in idle/loop state) */
+  isPlaying: boolean;
+  /** Start playing the animation from intro phase */
+  play: () => void;
+  /** Stop the animation and transition to outro phase */
+  stop: () => void;
 }
 
 const SpritePlayerContext = createContext<SpritePlayerContextValue | null>(null);
@@ -14,6 +20,7 @@ const SpritePlayerContext = createContext<SpritePlayerContextValue | null>(null)
 export const SpritePlayerProvider: React.FC<React.PropsWithChildren<{}>> = ({ children }) => {
   const [anims, setAnims] = useState<SpriteAnimation[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
     let stopped = false;
@@ -35,10 +42,21 @@ export const SpritePlayerProvider: React.FC<React.PropsWithChildren<{}>> = ({ ch
 
   const setCurrent = useCallback(
     (id: string) => {
-      if (anims.find((a) => a.meta.id === id)) setCurrentId(id);
+      if (anims.find((a) => a.meta.id === id)) {
+        setCurrentId(id);
+        setIsPlaying(false); // Reset playing state when switching animations
+      }
     },
     [anims]
   );
+
+  const play = useCallback(() => {
+    setIsPlaying(true);
+  }, []);
+
+  const stop = useCallback(() => {
+    setIsPlaying(false);
+  }, []);
 
   const list = useCallback(() => anims, [anims]);
 
@@ -47,9 +65,12 @@ export const SpritePlayerProvider: React.FC<React.PropsWithChildren<{}>> = ({ ch
       currentId,
       current: currentId ? anims.find((a) => a.meta.id === currentId) : undefined,
       setCurrent,
-      list
+      list,
+      isPlaying,
+      play,
+      stop
     }),
-    [currentId, anims, setCurrent, list]
+    [currentId, anims, setCurrent, list, isPlaying, play, stop]
   );
 
   return <SpritePlayerContext.Provider value={value}>{children}</SpritePlayerContext.Provider>;
