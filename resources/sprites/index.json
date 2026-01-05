@@ -44,8 +44,8 @@
       "autoplay": true,
       "muted": true,
       "playsInline": true,
-      "loopStartMs": 1000,
-      "loopEndMs": 5000
+      "loopStartMs": 500,
+      "loopEndMs": 2500
     }
   ]
 }
