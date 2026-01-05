@@ -1,6 +1,6 @@
 import React from 'react';
 import { TbFilter, TbHeart, TbLine, TbSettings, TbTrash } from 'react-icons/tb';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import { Button } from '@/components/ui/button';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
@@ -28,8 +28,6 @@ interface ResourceSidebarProps {
   handleRenameFolder: (id: string) => void;
   handleDeleteFolder: (id: string) => void;
   folderAPI: any;
-  showTasks: boolean;
-  setShowTasks: (show: boolean) => void;
   onOpenSettings: () => void;
 }
 
@@ -53,11 +51,12 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
   handleRenameFolder,
   handleDeleteFolder,
   folderAPI,
-  showTasks,
-  setShowTasks,
   onOpenSettings
 }) => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isTasksRoute = location.pathname.includes('/tasks');
+  const isWorkflowsRoute = location.pathname.includes('/workflows');
 
   return (
     <Sidebar collapsible="none" className="h-full w-80 bg-sidebar">
@@ -77,7 +76,7 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
                   // 如果当前选择的是"全部"类型，则取消类型筛选
                   setFavoriteFilter(true);
                   setFolderFilter(''); // 取消文件夹选中状态
-                  setShowTasks(false); // 取消任务显示
+                  navigate('/resources', { replace: true }); // 导航回主资源页面
                   if (typeFilter.length === 0) {
                     setTypeFilter([]);
                   }
@@ -96,15 +95,15 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
           <SidebarMenuItem
             key={'tasks'}
             onClick={() => {
-              setShowTasks(true);
+              navigate('/resources/tasks', { replace: true });
               setFavoriteFilter(false);
               setFolderFilter('');
               setTypeFilter([]);
             }}
           >
             <SidebarMenuButton
-              variant={showTasks ? 'outline' : 'default'}
-              className={`h-8 transition-colors ${showTasks ? 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground' : ''}`}
+              variant={isTasksRoute ? 'outline' : 'default'}
+              className={`h-8 transition-colors ${isTasksRoute ? 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground' : ''}`}
             >
               <TbFilter />
               任务
@@ -113,10 +112,16 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
           <SidebarMenuItem
             key={'workflow'}
             onClick={() => {
-              navigate('/workflow-page');
+              navigate('/resources/workflows', { replace: true });
+              setFavoriteFilter(false);
+              setFolderFilter('');
+              setTypeFilter([]);
             }}
           >
-            <SidebarMenuButton className={`h-8 transition-colors`}>
+            <SidebarMenuButton
+              variant={isWorkflowsRoute ? 'outline' : 'default'}
+              className={`h-8 transition-colors ${isWorkflowsRoute ? 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground' : ''}`}
+            >
               <TbLine />
               工作流
             </SidebarMenuButton>
@@ -145,7 +150,7 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
             saveCurrentFolder(folderId);
             setFavoriteFilter(false);
             setTypeFilter([]);
-            setShowTasks(false);
+            navigate('/resources', { replace: true }); // 导航回主资源页面
           }}
           counts={folderCounts}
           allCount={allCount}
