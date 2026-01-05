@@ -111,6 +111,40 @@ export const SpriteEventGroups = {
     'lookDown'
   ],
   transition: ['appear', 'disappear', 'enter', 'exit', 'fadeIn', 'fadeOut', 'spawn', 'despawn', 'teleport', 'transform', 'powerUp', 'powerDown'],
+  /**
+   * 衔接动画 (connector)
+   * 用于不同动作/状态之间的平滑过渡，包括：
+   * - 方向转换：turnLeft, turnRight, turnBack, turnFront, turnAround
+   * - 姿态切换：standToSit, sitToStand, idleToWalk, walkToIdle, walkToRun, runToWalk
+   * - 朝向调整：faceLeft, faceRight, faceUp, faceDown, faceCamera
+   * - 准备动作：readyStance, windUp, coolDown, recover
+   */
+  connector: [
+    // 方向转换
+    'turnLeft',
+    'turnRight',
+    'turnBack',
+    'turnFront',
+    'turnAround',
+    // 姿态切换
+    'standToSit',
+    'sitToStand',
+    'idleToWalk',
+    'walkToIdle',
+    'walkToRun',
+    'runToWalk',
+    // 朝向调整
+    'faceLeft',
+    'faceRight',
+    'faceUp',
+    'faceDown',
+    'faceCamera',
+    // 准备/恢复动作
+    'readyStance',
+    'windUp',
+    'coolDown',
+    'recover'
+  ],
   ambient: ['breath', 'blink', 'float', 'idle2', 'idle3', 'loadingLoop', 'successLoop', 'errorLoop', 'charging', 'saving'],
   seasonal: ['holiday', 'newYear', 'spring', 'summer', 'autumn', 'winter', 'halloween', 'christmas', 'birthday'],
   special: ['glow', 'pulse', 'sparkle', 'burst', 'flare', 'aura', 'shield', 'trail', 'impact', 'hit']

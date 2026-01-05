@@ -137,11 +137,9 @@ export function useAssistant(): {
   }, [currentSprite, screenSize]);
 
   const setAssistantState = useCallback((eventType: SpriteEventName, messageState?: MessageCategory) => {
+    dispatchSpriteEvent(eventType);
     if (messageState) {
       setMessageState(messageState);
-    }
-    if (eventType) {
-      dispatchSpriteEvent(eventType);
     }
   }, []);
 
