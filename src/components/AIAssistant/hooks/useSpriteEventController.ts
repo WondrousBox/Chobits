@@ -50,6 +50,12 @@ export default function useSpriteEventController(): void {
         case 'run:end':
           sprite.to('idle');
           break;
+        case 'sleepy':
+          sprite.playOnce('sleepy', { fallback: 'idle' });
+          break;
+        case 'bored':
+          sprite.playOnce('bored', { fallback: 'idle' });
+          break;
         default:
           break;
       }

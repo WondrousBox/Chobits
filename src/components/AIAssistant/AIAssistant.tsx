@@ -3,11 +3,13 @@
  * - 职责：拼装 UI（VideoSprite、MessageBubble、指示器）与行为 hooks（初始化、拖动、穿透、行走、文件拖拽）。
  * - 约束：不在此文件内编写复杂业务逻辑/IPC 调用，逻辑统一下沉到 hooks/services。
  */
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import Dropzone from '../common/Dropzone';
+import { createBehaviors } from './behaviors';
 import { useSpritePlayer } from './context/SpritePlayerContext';
 import useAssistant from './hooks';
+import { useBehaviorScheduler } from './hooks/useBehaviorScheduler';
 import useBusyState from './hooks/useBusyState';
 import useClickThrough from './hooks/useClickThrough';
 import useDragMove from './hooks/useDragMove';
@@ -26,6 +28,8 @@ import StatusIndicator from './ui/StatusIndicator';
 export const AIAssistant: React.FC = () => {
   const { padding: paddingState, screenSize, messageState, setAssistantState } = useAssistant();
   const { current: currentSprite } = useSpritePlayer();
+  const [isHovering, setIsHovering] = useState(false);
+  const [autoWalkEnabled, setAutoWalkEnabled] = useState(true);
 
   // 从当前精灵动画定义中获取尺寸，如果没有则使用默认值
   const spriteWidth = currentSprite?.width ?? 180;
@@ -62,23 +66,14 @@ export const AIAssistant: React.FC = () => {
     setAssistantState('click', 'click');
   };
 
-  // 鼠标进入精灵区域，暂停自动移动
+  // 鼠标进入精灵区域
   const handleMouseEnter = (): void => {
-    isHoveringRef.current = true;
-    // 停止当前的自动移动定时器
-    if (autoWalkTimerRef.current) {
-      clearTimeout(autoWalkTimerRef.current);
-      autoWalkTimerRef.current = null;
-    }
+    setIsHovering(true);
   };
 
-  // 鼠标离开精灵区域，恢复自动移动（如果启用）
+  // 鼠标离开精灵区域
   const handleMouseLeave = (): void => {
-    isHoveringRef.current = false;
-    // 如果自由移动已启用，重新启动自动移动
-    if (autoWalkEnabledRef.current && startAutoWalkRef.current) {
-      startAutoWalkRef.current();
-    }
+    setIsHovering(false);
   };
 
   // keep dev vector probe to preserve previous behavior
@@ -131,8 +126,6 @@ export const AIAssistant: React.FC = () => {
 
   // drive sprite states from drag/walk flags
   useEffect(() => {
-    isDraggingRef.current = isDragging;
-    isWalkingRef.current = isWalking;
     if (isDragging) {
       setAssistantState('drag:start');
     } else if (isWalking) {
@@ -160,105 +153,55 @@ export const AIAssistant: React.FC = () => {
   );
 
   // --- 稳定订阅 window:command，避免依赖变化导致重复绑定 ---
-  const screenSizeRef = useRef(screenSize);
-  const paddingRef = useRef(paddingState);
-  const spriteWidthRef = useRef(spriteWidth);
-  const spriteHeightRef = useRef(spriteHeight);
-  const animateMoveWindowRef = useRef(animateMoveWindow);
-  const autoWalkTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const autoWalkEnabledRef = useRef(true); // 默认启用
-  const isDraggingRef = useRef(isDragging);
-  const isWalkingRef = useRef(isWalking);
-  const isHoveringRef = useRef(false);
-  const startAutoWalkRef = useRef<(() => void) | null>(null);
-
-  useEffect(() => {
-    screenSizeRef.current = screenSize;
-  }, [screenSize]);
-  useEffect(() => {
-    paddingRef.current = paddingState;
-  }, [paddingState]);
-  useEffect(() => {
-    spriteWidthRef.current = spriteWidth;
-  }, [spriteWidth]);
-  useEffect(() => {
-    spriteHeightRef.current = spriteHeight;
-  }, [spriteHeight]);
-  useEffect(() => {
-    animateMoveWindowRef.current = animateMoveWindow;
-  }, [animateMoveWindow]);
-
-  // --- 监听自动移动开关变化，实现自由移动 ---
+  // --- 监听自动移动开关变化 ---
   useEffect(() => {
     const loadConfig = async (): Promise<void> => {
       try {
         const enabled = await window.YUA.window.getAutoWalkEnabled();
-        autoWalkEnabledRef.current = enabled;
-        if (enabled) {
-          startAutoWalk();
-        } else {
-          stopAutoWalk();
-        }
+        setAutoWalkEnabled(enabled);
       } catch (error) {
         console.error('加载自动移动开关失败:', error);
       }
     };
 
-    const startAutoWalk = (): void => {
-      stopAutoWalk();
-      // 每 5-10 秒随机移动一次
-      const scheduleNextWalk = (): void => {
-        const delay = Math.random() * 5000 + 5000; // 5-10秒
-        autoWalkTimerRef.current = setTimeout(async () => {
-          if (!autoWalkEnabledRef.current || isDraggingRef.current || isWalkingRef.current || isHoveringRef.current) {
-            scheduleNextWalk();
-            return;
-          }
-          const size = screenSizeRef.current;
-          const padding = paddingRef.current;
-          const width = spriteWidthRef.current;
-          const height = spriteHeightRef.current;
-          const minX = -padding;
-          const maxX = size.width - width - padding;
-          const minY = -padding;
-          const maxY = size.height - height - padding;
-          const targetX = Math.random() * (maxX - minX) + minX;
-          const targetY = Math.random() * (maxY - minY) + minY;
-          setAssistantState('walk:start');
-          await animateMoveWindowRef.current(targetX, targetY);
-          setAssistantState('walk:end');
-          setAssistantState('idle');
-          scheduleNextWalk();
-        }, delay);
-      };
-      scheduleNextWalk();
-    };
-    startAutoWalkRef.current = startAutoWalk;
-
-    const stopAutoWalk = (): void => {
-      if (autoWalkTimerRef.current) {
-        clearTimeout(autoWalkTimerRef.current);
-        autoWalkTimerRef.current = null;
-      }
-    };
-
     const onEnabledChanged = (_: any, enabled: boolean): void => {
-      autoWalkEnabledRef.current = enabled;
-      if (enabled) {
-        startAutoWalk();
-      } else {
-        stopAutoWalk();
-      }
+      setAutoWalkEnabled(enabled);
     };
 
     loadConfig();
     window.ipcRenderer?.on('auto-walk-enabled-changed', onEnabledChanged);
 
     return () => {
-      stopAutoWalk();
       window.ipcRenderer?.off('auto-walk-enabled-changed', onEnabledChanged as any);
     };
-  }, [setAssistantState]);
+  }, []);
+
+  // --- 行为调度器 ---
+  const behaviors = useMemo(
+    () =>
+      createBehaviors(
+        {
+          animateMoveWindow,
+          setAssistantState
+        },
+        { autoWalkEnabled }
+      ),
+    [animateMoveWindow, setAssistantState, autoWalkEnabled]
+  );
+
+  useBehaviorScheduler(
+    {
+      isDragging,
+      isWalking,
+      isHovering,
+      screenSize,
+      padding: paddingState,
+      spriteWidth,
+      spriteHeight,
+      getPosition: () => window.YUA.window['window:position:get']()
+    },
+    behaviors
+  );
 
   return (
     <div

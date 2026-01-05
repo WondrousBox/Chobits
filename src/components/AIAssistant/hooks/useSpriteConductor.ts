@@ -4,7 +4,7 @@ import { useSpritePlayer } from '../context/SpritePlayerContext';
 import type { SpriteAnimation, SpriteEventType } from '../types';
 import { resolveSpriteSrc } from '../utils/resource';
 
-export type AssistantVisualState = 'idle' | 'dragging' | 'walking' | 'running' | 'click' | 'hold' | 'drop' | 'fileDragOver' | 'fileDrop';
+export type AssistantVisualState = 'idle' | 'dragging' | 'walking' | 'running' | 'click' | 'hold' | 'drop' | 'fileDragOver' | 'fileDrop' | 'sleepy' | 'bored';
 
 function pickByEvent(animations: SpriteAnimation[], event: SpriteEventType): SpriteAnimation | undefined {
   return animations.find((a) => a.meta.eventType === event);
@@ -31,6 +31,12 @@ function resolveEventsForState(state: AssistantVisualState): SpriteEventType[] {
       return ['fileDragOver', 'drag'];
     case 'fileDrop':
       return ['fileDrop', 'drop'];
+    case 'sleepy':
+      return ['sleepy', 'yawn', 'sleep'];
+    case 'bored':
+      return ['bored', 'lookAround', 'rubEyes'];
+    default:
+      return ['idle'];
   }
 }
 
@@ -86,7 +92,7 @@ export default function useSpriteConductor(): {
       }
       stateRef.current = s;
       setState(s);
-      if (s !== 'click' && s !== 'hold' && s !== 'drop' && s !== 'fileDrop') previousStableRef.current = s;
+      if (s !== 'click' && s !== 'hold' && s !== 'drop' && s !== 'fileDrop' && s !== 'sleepy' && s !== 'bored') previousStableRef.current = s;
     },
     [currentId, pick, setCurrent]
   );
