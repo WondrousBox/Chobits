@@ -1,4 +1,19 @@
-type SpriteEventName = 'idle' | 'drag:start' | 'drag:end' | 'walk:start' | 'walk:end' | 'run:start' | 'run:end' | 'click' | 'drop' | 'fileDragOver' | 'fileDrop' | 'hold:start' | 'hold:end';
+type SpriteEventName =
+  | 'idle'
+  | 'drag:start'
+  | 'drag:end'
+  | 'walk:start'
+  | 'walk:end'
+  | 'run:start'
+  | 'run:end'
+  | 'click'
+  | 'drop'
+  | 'fileDragOver'
+  | 'fileDrop'
+  | 'hold:start'
+  | 'hold:end'
+  | 'sleepy'
+  | 'bored';
 
 export interface SpriteEventPayload {
   // reserved for future metadata (e.g., speed for run/walk)
