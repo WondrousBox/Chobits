@@ -246,7 +246,7 @@ export const AIAssistant: React.FC = () => {
           </div>
         }
       >
-        {/* {window.YUA.isDev && (
+        {window.YUA.isDev && (
           <div
             style={{
               left: paddingState,
@@ -258,7 +258,7 @@ export const AIAssistant: React.FC = () => {
           >
             {paddingState} {spriteWidth} {spriteHeight}
           </div>
-        )} */}
+        )}
         <Renderer width={spriteWidth} height={spriteHeight} walkDirection={walkDirection} />
       </Dropzone>
       {notice && <SpriteNotice message={notice.message} level={notice.level} buttons={notice.buttons} onClose={dismiss} onButtonClick={handleButtonClick} />}

@@ -1,3 +1,4 @@
+import clsx from 'clsx';
 import { useEffect, useState } from 'react';
 import { TbArrowLeft } from 'react-icons/tb';
 import { VscChromeClose, VscChromeMaximize, VscChromeMinimize, VscChromeRestore } from 'react-icons/vsc';
@@ -8,13 +9,14 @@ import { Button } from '../ui/button';
 interface DragAbleTitleProps {
   title: React.ReactNode | string;
   icon?: React.ReactNode;
+  fixed?: boolean;
   center?: React.ReactNode;
   actions?: React.ReactNode;
   showBack?: boolean;
   onClose?: () => void;
 }
 
-function DragAbleTitle({ title, icon, center, actions, showBack = false, onClose }: DragAbleTitleProps): React.ReactElement {
+function DragAbleTitle({ title, icon, center, actions, showBack = false, fixed, onClose }: DragAbleTitleProps): React.ReactElement {
   const [maximized, setMaximized] = useState(false);
   const [caps, setCaps] = useState({ minimizable: true, maximizable: true, resizable: true });
   const navigate = useNavigate();
@@ -42,7 +44,7 @@ function DragAbleTitle({ title, icon, center, actions, showBack = false, onClose
     };
   }, []);
   return (
-    <div className="flex items-center w-full drag-region gap-2 h-9 px-2 box-border bg-background">
+    <div className={clsx(['flex items-center w-full drag-region gap-2 h-9 px-2 box-border bg-background', fixed && 'fixed top-0 left-0 right-0'])}>
       {window.YUA.isMac && <div className="w-20"></div>}
       {showBack && (
         <Button variant="ghost" size="icon" className="h-8 w-8 no-drag" onClick={() => navigate(-1)}>

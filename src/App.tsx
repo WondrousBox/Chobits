@@ -63,7 +63,7 @@ function App(): JSX.Element {
                   }
                 />
                 <Route path="/workspace-wizard" element={<WorkspaceWizard />} />
-                <Route path="/resources" element={<ResourcePage />} />
+                <Route path="/resources/*" element={<ResourcePage />} />
                 <Route path="/recycle" element={<RecycleBinPage />} />
                 <Route path="/workspace" element={<WorkspacePage />} />
                 <Route path="/assistant" element={<AssistantPage />} />

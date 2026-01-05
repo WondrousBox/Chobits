@@ -1,5 +1,6 @@
 import { AppEvent } from '@packages/event/events';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Route, Routes } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -23,6 +24,7 @@ import { useWorkflowProgress } from './hooks/useWorkflowProgress';
 import { SelectedResourceFileType, SortField, SortOrder } from './types';
 import { typeOptions } from './utils/constants';
 import { mergeVideoWithSubtitles } from './utils/subtitleUtils';
+import WorkflowPage from './WorkflowPage';
 
 const ResourcePage: React.FC = () => {
   // 当前页面不再提供空间切换，始终使用"当前选中的默认空间"进行筛选
@@ -30,7 +32,6 @@ const ResourcePage: React.FC = () => {
   const [tagFilter, setTagFilter] = useState<string>(''); // '' means all
   const [typeFilter, setTypeFilter] = useState<string[]>([]); // empty means all types
   const [favoriteFilter, setFavoriteFilter] = useState<boolean>(false); // false means all, true means favorites only
-  const [showTasks, setShowTasks] = useState<boolean>(false); // Show task list
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sortField, setSortField] = useState<SortField>('collectedAt');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
@@ -408,49 +409,52 @@ const ResourcePage: React.FC = () => {
           handleRenameFolder={handleRenameFolder}
           handleDeleteFolder={handleDeleteFolder}
           folderAPI={folderAPI}
-          showTasks={showTasks}
-          setShowTasks={setShowTasks}
           onOpenSettings={() => setShowSettingsModal(true)}
         />
 
-        {showTasks ? (
-          <TaskList workspaceId={wsFilter} />
-        ) : (
-          <ResourceContent
-            uploadProgress={uploadProgress}
-            onDropFiles={onDropFiles}
-            importProgress={importProgress}
-            workflowProgress={workflowProgress}
-            childFolders={childFolders}
-            filtered={filtered}
-            viewMode={viewMode}
-            folderCounts={folderCounts}
-            folderParentMap={folderParentMap}
-            selectedItems={selectedItems}
-            folderFilter={folderFilter}
-            wsFilter={wsFilter}
-            setFolderFilter={setFolderFilter}
-            saveCurrentFolder={saveCurrentFolder}
-            setFavoriteFilter={setFavoriteFilter}
-            setTypeFilter={setTypeFilter}
-            handleMoveResourcesToFolder={handleMoveResourcesToFolder}
-            handleMoveFolder={handleMoveFolder}
-            handleRenameFolder={handleRenameFolder}
-            handleDeleteFolder={handleDeleteFolder}
-            handleOpenFolderLocation={handleOpenFolderLocation}
-            handleDelete={handleDelete}
-            handleDeleteMany={handleDeleteMany}
-            handleToggleFavorite={handleToggleFavorite}
-            handleToggleVisibility={handleToggleVisibility}
-            handleItemClick={handleItemClick}
-            load={load}
-            loadFolders={loadFolders}
-            currentFolderPath={currentFolderPath}
-            setSelectedItems={setSelectedItems}
-            list={list}
-            isCollapseMode={isCollapseMode}
+        <Routes>
+          <Route path="tasks" element={<TaskList workspaceId={wsFilter} />} />
+          <Route path="workflows" element={<WorkflowPage />} />
+          <Route
+            path="*"
+            element={
+              <ResourceContent
+                uploadProgress={uploadProgress}
+                onDropFiles={onDropFiles}
+                importProgress={importProgress}
+                workflowProgress={workflowProgress}
+                childFolders={childFolders}
+                filtered={filtered}
+                viewMode={viewMode}
+                folderCounts={folderCounts}
+                folderParentMap={folderParentMap}
+                selectedItems={selectedItems}
+                folderFilter={folderFilter}
+                wsFilter={wsFilter}
+                setFolderFilter={setFolderFilter}
+                saveCurrentFolder={saveCurrentFolder}
+                setFavoriteFilter={setFavoriteFilter}
+                setTypeFilter={setTypeFilter}
+                handleMoveResourcesToFolder={handleMoveResourcesToFolder}
+                handleMoveFolder={handleMoveFolder}
+                handleRenameFolder={handleRenameFolder}
+                handleDeleteFolder={handleDeleteFolder}
+                handleOpenFolderLocation={handleOpenFolderLocation}
+                handleDelete={handleDelete}
+                handleDeleteMany={handleDeleteMany}
+                handleToggleFavorite={handleToggleFavorite}
+                handleToggleVisibility={handleToggleVisibility}
+                handleItemClick={handleItemClick}
+                load={load}
+                loadFolders={loadFolders}
+                currentFolderPath={currentFolderPath}
+                setSelectedItems={setSelectedItems}
+                list={list}
+                isCollapseMode={isCollapseMode}
+              />
+            }
           />
-        )}
+        </Routes>
       </SidebarProvider>
 
       <RenameFolderDialog renameOpen={renameOpen} setRenameOpen={setRenameOpen} renameName={renameName} setRenameName={setRenameName} handleRenameConfirm={handleRenameConfirm} />
