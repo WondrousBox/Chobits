@@ -27,7 +27,7 @@ import StatusIndicator from './ui/StatusIndicator';
 
 export const AIAssistant: React.FC = () => {
   const { padding: paddingState, screenSize, messageState, setAssistantState } = useAssistant();
-  const { current: currentSprite } = useSpritePlayer();
+  const { current: currentSprite, play: playAnimation, stop: stopAnimation } = useSpritePlayer();
   const [isHovering, setIsHovering] = useState(false);
   const [autoWalkEnabled, setAutoWalkEnabled] = useState(true);
 
@@ -130,10 +130,12 @@ export const AIAssistant: React.FC = () => {
       setAssistantState('drag:start');
     } else if (isWalking) {
       setAssistantState('walk:start');
+      playAnimation(); // Start three-phase animation when walking starts
     } else {
       setAssistantState('idle');
+      stopAnimation(); // Stop animation and play outro when walking stops
     }
-  }, [isDragging, isWalking, setAssistantState]);
+  }, [isDragging, isWalking, setAssistantState, playAnimation, stopAnimation]);
 
   // reflect file drag-over on sprite
   useEffect(() => {

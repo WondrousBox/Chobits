@@ -139,10 +139,24 @@ export interface SpriteAnimation {
   autoplay?: boolean;
   muted?: boolean;
   playsInline?: boolean;
-  loopStrategy?: 'native' | 'early';
-  cutoffSeconds?: number;
   // 可选的时长（毫秒），未提供时以 <video> 元数据为准
   durationMs?: number;
+  /**
+   * 循环片段开始时间（毫秒）。
+   * - 同时指定 loopStartMs 和 loopEndMs：在该区间内循环播放
+   * - 仅指定 loopStartMs：从该时间点循环到视频末尾
+   * - 仅指定 loopEndMs：从视频开头循环到该时间点
+   * - 都不指定：使用原生 loop 属性全程循环
+   *
+   * 对于行走动画（三段式）：视频先播放 0 ~ loopStartMs（开始转身），
+   * 然后在 loopStartMs ~ loopEndMs 之间循环（行走中），
+   * 停止行走时跳转到 loopEndMs 播放结束动画（转回正面）。
+   */
+  loopStartMs?: number;
+  /**
+   * 循环片段结束时间（毫秒）。
+   */
+  loopEndMs?: number;
   meta: {
     id: string;
     title: string;
