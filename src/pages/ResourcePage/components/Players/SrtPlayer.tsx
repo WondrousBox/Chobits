@@ -21,9 +21,12 @@ function convertToISegment(segment: AimSegments): [string, string, string, strin
   return [segment.st, segment.et, segment.text, undefined];
 }
 
+type SubtitleFormat = 'srt' | 'vtt' | 'ass';
+
 export const SrtPlayer = ({ resource, currentTime = 0, onSeek }: SrtPlayerProps): React.ReactNode => {
   const [subtitleEntries, setSubtitleEntries] = useState<AimSegments[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [subtitleFormat, setSubtitleFormat] = useState<SubtitleFormat>('srt');
   const activeRowRef = useRef<HTMLDivElement>(null);
 
   // 翻译状态管理
@@ -40,7 +43,7 @@ export const SrtPlayer = ({ resource, currentTime = 0, onSeek }: SrtPlayerProps)
   // 防抖保存函数
   const debouncedSave = useMemo(
     () =>
-      debounce(async (resourceId: string, segments: AimSegments[]) => {
+      debounce(async (resourceId: string, segments: AimSegments[], format: SubtitleFormat) => {
         if (!resourceId) return;
 
         try {
@@ -48,15 +51,25 @@ export const SrtPlayer = ({ resource, currentTime = 0, onSeek }: SrtPlayerProps)
           const validSegments = segments.filter((seg) => !seg.delete);
           // 转换为 ISegment 格式
           const iSegments = validSegments.map(convertToISegment);
-          // 调用 tools.outputSrt 生成 SRT 内容
-          const srtContent = tools.outputSrt({ segments1: iSegments });
+
+          // 根据格式选择不同的输出方法
+          let content: string;
+          if (format === 'vtt' && 'outputVtt' in tools && typeof tools.outputVtt === 'function') {
+            content = tools.outputVtt({ segments1: iSegments });
+          } else if (format === 'ass' && 'outputAss' in tools && typeof tools.outputAss === 'function') {
+            content = tools.outputAss({ segments1: iSegments });
+          } else {
+            // 默认使用 SRT 格式输出
+            content = tools.outputSrt({ segments1: iSegments });
+          }
+
           // 通过资源更新接口保存，主进程会处理文件写入
           const result = await window.YUA.resource['resource:update']({
             id: resourceId,
-            patch: { srtContent }
+            patch: { srtContent: content }
           });
           if (result.success) {
-            console.log('[auto-save] 字幕已保存');
+            console.log(`[auto-save] 字幕已保存 (${format})`);
           } else {
             console.error('[auto-save] 保存失败');
           }
@@ -74,7 +87,7 @@ export const SrtPlayer = ({ resource, currentTime = 0, onSeek }: SrtPlayerProps)
     };
   }, [resource.id, debouncedSave]);
 
-  // 加载 SRT 文件内容
+  // 加载字幕文件内容（支持 srt、vtt、ass 格式）
   useEffect(() => {
     const data = resource;
 
@@ -89,24 +102,46 @@ export const SrtPlayer = ({ resource, currentTime = 0, onSeek }: SrtPlayerProps)
     // 通过主进程读取文件内容
     if (data.filePath) {
       const lower = data.filePath.toLowerCase();
+      let format: SubtitleFormat | null = null;
+
+      // 判断文件格式
       if (lower.endsWith('.srt')) {
+        format = 'srt';
+      } else if (lower.endsWith('.vtt')) {
+        format = 'vtt';
+      } else if (lower.endsWith('.ass') || lower.endsWith('.ssa')) {
+        format = 'ass';
+      }
+
+      if (format) {
         setIsLoading(true);
+        setSubtitleFormat(format);
         // 取消之前的保存操作
         debouncedSave.cancel();
         window.YUA.file['file:readContent'](data.filePath, 20000)
           .then(async (result: any) => {
             if (result.success) {
               try {
-                const segments = await parser.srtToAimSegments(result.content || '');
+                let segments: AimSegments[];
+                // 根据格式选择不同的 parser
+                if (format === 'vtt') {
+                  segments = await parser.vttToAimSegments(result.content || '');
+                } else if (format === 'ass') {
+                  segments = await parser.assToAimSegments(result.content || '');
+                } else {
+                  segments = await parser.srtToAimSegments(result.content || '');
+                }
                 setSubtitleEntries(segments);
-              } catch {
+              } catch (error) {
+                console.error(`[SrtPlayer] 解析${format.toUpperCase()}文件失败:`, error);
                 setSubtitleEntries([]);
               }
             } else {
               setSubtitleEntries([]);
             }
           })
-          .catch(() => {
+          .catch((error) => {
+            console.error('[SrtPlayer] 读取文件失败:', error);
             setSubtitleEntries([]);
           })
           .finally(() => {
@@ -133,7 +168,7 @@ export const SrtPlayer = ({ resource, currentTime = 0, onSeek }: SrtPlayerProps)
         });
         // 触发防抖保存（仅在非加载状态下）
         if (resource.id && !isLoading) {
-          debouncedSave(resource.id, updated);
+          debouncedSave(resource.id, updated, subtitleFormat);
         }
         return updated;
       });
@@ -150,7 +185,7 @@ export const SrtPlayer = ({ resource, currentTime = 0, onSeek }: SrtPlayerProps)
           const merged = utils.mergeAimSegmentRange(prev, index - 1, index);
           // 触发防抖保存（仅在非加载状态下）
           if (resource.id && !isLoading) {
-            debouncedSave(resource.id, merged);
+            debouncedSave(resource.id, merged, subtitleFormat);
           }
           return merged;
         });
@@ -168,7 +203,7 @@ export const SrtPlayer = ({ resource, currentTime = 0, onSeek }: SrtPlayerProps)
           const merged = utils.mergeAimSegmentRange(prev, index, index + 1);
           // 触发防抖保存（仅在非加载状态下）
           if (resource.id && !isLoading) {
-            debouncedSave(resource.id, merged);
+            debouncedSave(resource.id, merged, subtitleFormat);
           }
           return merged;
         }
