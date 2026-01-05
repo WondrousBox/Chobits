@@ -46,6 +46,28 @@
       "playsInline": true,
       "loopStartMs": 500,
       "loopEndMs": 2500
+    },
+    {
+      "meta": {
+        "id": "sleep-default",
+        "title": "Sleep 睡觉",
+        "description": "默认的睡觉动画",
+        "tags": [
+          "sleep",
+          "default"
+        ],
+        "eventType": "sleep"
+      },
+      "source": {
+        "localPath": "./sleep.webm",
+        "type": "video/webm"
+      },
+      "width": 180,
+      "height": 240,
+      "padding": 100,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true
     }
   ]
 }
