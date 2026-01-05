@@ -218,33 +218,34 @@ export function initResourceHandlers(): void {
     const { id } = payload;
     const patch = { ...(payload.patch || {}) };
 
-    // 如果本次更新包含 SRT 内容，需要写入文件
-    if (typeof patch.srtContent === 'string') {
+    // 如果本次更新包含字幕内容，需要写入文件（支持 srt、vtt、ass、ssa 格式）
+    if (typeof patch.subtitleContent === 'string') {
       try {
         // 获取当前资源信息
         const current = await ResourcesRepo.getById(id);
         if (current && current.filePath) {
           const lower = current.filePath.toLowerCase();
-          // 检查是否是 SRT 文件
-          if (lower.endsWith('.srt')) {
+          // 检查是否是字幕文件
+          const isSubtitleFile = lower.endsWith('.srt') || lower.endsWith('.vtt') || lower.endsWith('.ass') || lower.endsWith('.ssa');
+          if (isSubtitleFile) {
             // 确保目录存在
             const dir = path.dirname(current.filePath);
             await fs.mkdir(dir, { recursive: true });
             // 写入文件
-            await fs.writeFile(current.filePath, patch.srtContent, 'utf8');
+            await fs.writeFile(current.filePath, patch.subtitleContent, 'utf8');
             // 更新文件大小
             try {
-              const buf = Buffer.from(patch.srtContent, 'utf8');
+              const buf = Buffer.from(patch.subtitleContent, 'utf8');
               patch.sizeBytes = buf.byteLength;
             } catch {
               // 忽略计算失败，不阻塞更新
             }
           }
         }
-        // 移除 srtContent，不保存到数据库
-        delete patch.srtContent;
+        // 移除 subtitleContent，不保存到数据库
+        delete patch.subtitleContent;
       } catch (e: any) {
-        console.error('[resource:update] 写入 SRT 文件失败:', e);
+        console.error('[resource:update] 写入字幕文件失败:', e);
         // 不阻塞更新，继续执行数据库更新
       }
     }
