@@ -49,7 +49,7 @@ export const createBehaviors = (actions: BehaviorActions, config: { autoWalkEnab
       name: 'Night Idle',
       type: 'interval',
       enabled: true,
-      intervalMs: 60000, // Check every minute
+      intervalMs: 6000, // Check every minute
       condition: (ctx) => {
         if (ctx.isDragging || ctx.isWalking || ctx.isHovering) return false;
         const hour = new Date().getHours();
