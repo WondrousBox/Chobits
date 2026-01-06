@@ -78,9 +78,21 @@ const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, onClick, on
 
   const selectionClass = selected ? 'ring-2 ring-primary border-primary/50 bg-primary/5' : 'hover:bg-muted/50 hover:border-primary/30';
 
+  // 点击行：选中资源，普通点击时触发预览（Shift/Cmd/Ctrl 点击不触发预览）
+  const handleRowClick = useCallback(
+    (e: React.MouseEvent) => {
+      onClick(e, item);
+      // 只有普通点击（没有 Shift/Cmd/Ctrl）才触发预览
+      if (!e.shiftKey && !e.metaKey && !e.ctrlKey) {
+        onPreview?.(item);
+      }
+    },
+    [onClick, item, onPreview]
+  );
+
   return (
     <div
-      onClick={(e) => onClick(e, item)}
+      onClick={handleRowClick}
       draggable={!!draggable}
       onDragStart={(e) => onDragStart?.(e, item)}
       className={`group relative flex items-center gap-4 p-2 rounded-lg border transition-all cursor-pointer select-none ${selectionClass}`}

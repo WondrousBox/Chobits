@@ -7,6 +7,7 @@ export const useResourceData = (wsFilter?: string, tagFilter?: string) => {
   const [list, setList] = useState<ResourceItem[]>([]);
   const [tags, setTags] = useState<Array<{ tag: string; count: number }>>([]);
   const [folders, setFolders] = useState<UIFolder[]>([]);
+  const [foldersLoading, setFoldersLoading] = useState<boolean>(true); // 标记文件夹是否正在加载
   const folderAPI: any = window.YUA?.folder;
 
   const load = useCallback(async (): Promise<void> => {
@@ -39,11 +40,14 @@ export const useResourceData = (wsFilter?: string, tagFilter?: string) => {
   const loadFolders = useCallback(
     async (workspaceId?: string): Promise<void> => {
       try {
+        setFoldersLoading(true);
         const wsId = workspaceId || wsFilter || undefined;
         const rows = await folderAPI['folder.list']({ workspaceId: wsId, deletedAt: 0 });
         setFolders((rows || []).map((r: any) => ({ id: r.id, name: r.name, parentId: r.parentId || null, workspaceId: r.workspaceId, rank: r.rank })));
       } catch (e) {
         console.warn('load folders failed', e);
+      } finally {
+        setFoldersLoading(false);
       }
     },
     [folderAPI, wsFilter]
@@ -88,6 +92,7 @@ export const useResourceData = (wsFilter?: string, tagFilter?: string) => {
     tags,
     folders,
     setFolders,
+    foldersLoading,
     load,
     loadTags,
     loadFolders

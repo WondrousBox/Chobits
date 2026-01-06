@@ -42,6 +42,7 @@ function buildTree(flat: UIFolder[]): UIFolder[] {
 
 interface FolderSidebarProps {
   folders: UIFolder[];
+  loading?: boolean; // 是否正在加载文件夹数据
   selectedId?: string;
   onSelect: (id: string | '') => void;
   onCreate: (parentId?: string | null) => Promise<string | void>;
@@ -57,6 +58,7 @@ interface FolderSidebarProps {
 
 const FolderSidebar = ({
   folders,
+  loading,
   selectedId,
   onSelect,
   onCreate,
@@ -369,7 +371,8 @@ const FolderSidebar = ({
         </SidebarGroupContent>
       </SidebarGroup>
 
-      {tree.length === 0 && (
+      {/* 只有在非加载状态且确实没有文件夹时才显示空状态提示 */}
+      {!loading && tree.length === 0 && (
         <div className="h-full flex items-center justify-center text-xs text-muted-foreground whitespace-nowrap">
           暂无文件夹，点击 <TbPlus className="mx-2" /> 创建
         </div>
