@@ -182,6 +182,8 @@ export interface ExplorerGridProps {
   selectedItems?: Set<string>;
   /** 更新选中状态的回调（受控模式） */
   setSelectedItems?: (items: Set<string>) => void;
+  /** 最近新增资源的 ID 集合，用于高亮显示 */
+  highlightedIds?: Set<string>;
   onDelete?: (id: string) => void;
   onDeleteMany?: (ids: string[]) => void;
   onToggleFavorite?: (id: string) => void;
@@ -212,6 +214,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
   workspaceId,
   selectedItems: selectedItemsProp,
   setSelectedItems: setSelectedItemsProp,
+  highlightedIds,
   onDelete,
   onDeleteMany,
   onToggleFavorite,
@@ -562,11 +565,13 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
           {/* 再渲染资源项 */}
           {mergedItems.map((item, idx) => {
             const isSelected = selected.has(item.id);
+            const isNew = highlightedIds?.has(item.id);
             return (
               <div key={item.id} className="aspect-video w-full">
                 <ResourceGalleryItem
                   item={item}
                   selected={isSelected}
+                  isNew={!!isNew}
                   innerRef={updateItemRef(item.id)}
                   onClick={(e) => handleItemClick(e, item.id, idx)}
                   onToggleFavorite={onToggleFavorite}

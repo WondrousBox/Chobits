@@ -112,6 +112,75 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
     return filtered;
   }, [filtered, isCollapseMode]);
 
+  // 新增资源高亮：在当前工作区/文件夹内，记录「最近出现」的资源 ID，并在短时间内高亮显示
+  const [recentlyAddedIds, setRecentlyAddedIds] = useState<Set<string>>(new Set());
+  const previousIdsRef = useRef<Set<string>>(new Set());
+  const initializedRef = useRef(false);
+  const highlightTimeoutsRef = useRef<Map<string, number>>(new Map());
+
+  // 当工作区 / 文件夹切换时，重置高亮状态，避免误把视图切换当成「新资源」
+  useEffect(() => {
+    initializedRef.current = false;
+    previousIdsRef.current = new Set();
+    setRecentlyAddedIds(new Set());
+    highlightTimeoutsRef.current.forEach((timeoutId) => {
+      window.clearTimeout(timeoutId);
+    });
+    highlightTimeoutsRef.current.clear();
+  }, [folderFilter, wsFilter, viewMode]);
+
+  useEffect(() => {
+    const currentIds = new Set<string>((mergedItems as any[]).map((item) => item.id));
+
+    // 首次初始化：只记录当前已有的 ID，不触发高亮
+    if (!initializedRef.current) {
+      previousIdsRef.current = currentIds;
+      initializedRef.current = true;
+      return;
+    }
+
+    const previousIds = previousIdsRef.current;
+    previousIdsRef.current = currentIds;
+
+    const newlyAdded: string[] = [];
+    currentIds.forEach((id) => {
+      if (!previousIds.has(id)) {
+        newlyAdded.push(id);
+      }
+    });
+
+    if (newlyAdded.length === 0) return;
+
+    const HIGHLIGHT_DURATION = 8000; // 高亮时长（毫秒）
+
+    newlyAdded.forEach((id) => {
+      setRecentlyAddedIds((prev) => {
+        if (prev.has(id)) return prev;
+        const next = new Set(prev);
+        next.add(id);
+        return next;
+      });
+
+      // 在一段时间后自动移除高亮
+      const timeoutId = window.setTimeout(() => {
+        setRecentlyAddedIds((prev) => {
+          if (!prev.has(id)) return prev;
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+        highlightTimeoutsRef.current.delete(id);
+      }, HIGHLIGHT_DURATION);
+
+      // 记录 timer，便于视图切换时清理
+      const oldTimeout = highlightTimeoutsRef.current.get(id);
+      if (oldTimeout) {
+        window.clearTimeout(oldTimeout);
+      }
+      highlightTimeoutsRef.current.set(id, timeoutId);
+    });
+  }, [mergedItems]);
+
   // 处理预览资源
   const handlePreview = useCallback((item: ResourceItem) => {
     setPreviewResource(item);
@@ -166,6 +235,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
           workspaceId={wsFilter}
           selectedItems={selectedItems}
           setSelectedItems={setSelectedItems}
+          highlightedIds={recentlyAddedIds}
           onOpenFolder={(id) => {
             setFolderFilter(id);
             saveCurrentFolder(id);
@@ -218,6 +288,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
             await loadFolders(wsFilter || undefined);
           }}
           setSelectedItems={setSelectedItems}
+          highlightedIds={recentlyAddedIds}
         />
       ) : viewMode === 'free' ? (
         <ExplorerFreeLayout

@@ -18,6 +18,8 @@ import { isSubtitleFile, ResourceItemWithSubtitles } from '../utils/subtitleUtil
 interface GalleryItemProps {
   item: ResourceItem | ResourceItemWithSubtitles;
   selected: boolean;
+  /** 是否为刚生成/刚导入的资源，用于临时高亮 */
+  isNew?: boolean;
   onClick: (e: React.MouseEvent, item: ResourceItem) => void;
   onToggleFavorite?: (id: string) => void;
   onToggleVisibility?: (id: string) => void;
@@ -36,6 +38,7 @@ interface GalleryItemProps {
 const ResourceGalleryItem: React.FC<GalleryItemProps> = ({
   item,
   selected,
+  isNew,
   onClick,
   onToggleFavorite,
   onToggleVisibility,
@@ -134,7 +137,11 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({
       <div
         className={clsx(
           'relative z-10 h-full w-full overflow-hidden rounded-md bg-card text-card-foreground shadow-sm transition-all bg-gradient-to-br from-background to-muted',
-          selected ? 'ring-2 ring-primary' : 'group-hover:shadow-md'
+          selected
+            ? 'ring-2 ring-primary'
+            : isNew
+              ? 'ring-2 ring-amber-400 border border-amber-300/80 shadow-[0_0_0_1px_rgba(251,191,36,0.8)] animate-pulse'
+              : 'group-hover:shadow-md'
         )}
       >
         {/* 顶部状态栏 */}
