@@ -50,6 +50,7 @@ export const SHERPA_CONFIG: Record<string, string> = {
         "model": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/ctc-epoch-30-avg-3-chunk-16-left-128.int8.onnx"
       },
       "tokens": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/tokens.txt",
+      "bpe": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/bpe.model",
       "numThreads": {{modelConfig.numThreads}},
       "provider": "{{modelConfig.provider}}",
       "debug": {{modelConfig.debug}},
@@ -57,6 +58,8 @@ export const SHERPA_CONFIG: Record<string, string> = {
     },
     "ctcFstDecoderConfig": {
       "graph": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/HLG.fst",
+      "lexicon": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/lexicon.txt",
+      "words": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/words.txt",
       "maxActive": 3000
     },
     "decodingMethod": "{{decodingMethod}}",
@@ -77,6 +80,7 @@ export const SHERPA_CONFIG: Record<string, string> = {
         "model": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/ctc-epoch-20-avg-1-chunk-16-left-128.onnx"
       },
       "tokens": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/tokens.txt",
+      "bpe": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/bpe.model",
       "numThreads": {{modelConfig.numThreads}},
       "provider": "{{modelConfig.provider}}",
       "debug": {{modelConfig.debug}}
@@ -124,6 +128,22 @@ export const SHERPA_CONFIG: Record<string, string> = {
           "decoder": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/base.en-decoder.int8.onnx"
         },
         "tokens": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/base.en-tokens.txt",
+        "numThreads": {{modelConfig.numThreads}},
+        "provider": "{{modelConfig.provider}}",
+        "debug": {{modelConfig.debug}}
+      }
+    }`,
+
+  'sherpa-onnx-zh-wenet-aishell': `{
+      "featConfig": {
+        "sampleRate": {{featConfig.sampleRate}},
+        "featureDim": {{featConfig.featureDim}}
+      },
+      "modelConfig": {
+        "wenetCtc": {
+          "model": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/model.int8.onnx"
+        },
+        "tokens": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/tokens.txt",
         "numThreads": {{modelConfig.numThreads}},
         "provider": "{{modelConfig.provider}}",
         "debug": {{modelConfig.debug}}

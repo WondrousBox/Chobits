@@ -400,6 +400,27 @@
         ]
       },
       {
+        "id": "sherpa-onnx-zh-wenet-aishell",
+        "pluginId": "plugin:sherpa-onnx",
+        "type": "model",
+        "name": "sherpa-onnx-zh-wenet-aishell",
+        "displayName": "Zh-Wenet-Aishell",
+        "description": "",
+        "version": "1.0.0",
+        "archiveType": "tar.bz2",
+        "category": "asr",
+        "languages": ["zh"],
+        "platforms": [
+          {
+            "platform": "all",
+            "arch": "all",
+            "sourceUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-zh-wenet-aishell.tar.bz2",
+            "sizeBytes": 355342084,
+            "sha256": "b042ede46f496d4b6be4c1d160ae2a6a11a2cda53c7b832d7ae1772aee68d42d"
+          }
+        ]
+      },
+      {
         "id": "sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8",
         "pluginId": "plugin:sherpa-onnx",
         "type": "model",
