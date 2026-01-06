@@ -15,7 +15,8 @@ interface WorkflowSidebarProps {
 }
 
 const WorkflowSidebar: React.FC<WorkflowSidebarProps> = ({ specs, onAdd }) => {
-  const [paletteOpen, setPaletteOpen] = useState(false);
+  // 默认展开节点库
+  const [paletteOpen, setPaletteOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredSpecs = useMemo(() => {
@@ -53,9 +54,16 @@ const WorkflowSidebar: React.FC<WorkflowSidebarProps> = ({ specs, onAdd }) => {
   };
 
   return (
-    <>
-      <div className="fixed left-0 top-9 bottom-0 w-12 bg-background border-r border-border z-30 flex flex-col items-center py-2 gap-2">
-        <Button size="icon" variant={paletteOpen ? 'secondary' : 'ghost'} className={cn('w-8 h-8', paletteOpen && 'bg-accent')} onClick={() => setPaletteOpen((prev) => !prev)} title="节点库">
+    <div className={cn('h-full flex border-r border-border bg-background transition-[width] duration-200 ease-in-out', paletteOpen ? 'w-96' : 'w-12')}>
+      {/* 左侧图标栏：始终显示，只占固定 12 宽度 */}
+      <div className="w-12 flex flex-col items-center py-2 gap-2">
+        <Button
+          size="icon"
+          variant={paletteOpen ? 'secondary' : 'ghost'}
+          className={cn('w-8 h-8', paletteOpen && 'bg-accent')}
+          onClick={() => setPaletteOpen((prev) => !prev)}
+          title={paletteOpen ? '收起节点库' : '展开节点库'}
+        >
           <TbLine />
         </Button>
         <Button size="icon" variant="ghost" className="w-8 h-8" title="链接">
@@ -63,9 +71,9 @@ const WorkflowSidebar: React.FC<WorkflowSidebarProps> = ({ specs, onAdd }) => {
         </Button>
       </div>
 
-      {/* 节点库面板 - 覆盖在画布上 */}
+      {/* 右侧节点库内容：仅在展开时显示，宽度固定，不覆盖画布 */}
       {paletteOpen && (
-        <div className="fixed left-12 top-9 bottom-0 w-96 bg-background border-r border-border z-40 shadow-lg flex flex-col">
+        <div className="flex-1 min-w-0 flex flex-col">
           <div className="flex items-center gap-2 justify-between p-2 border-b border-border">
             <Input placeholder="搜索节点" className="h-8 flex-1" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
             <Button size="icon" className="w-8 h-8 shrink-0" variant="ghost" onClick={() => setPaletteOpen(false)}>
@@ -99,7 +107,7 @@ const WorkflowSidebar: React.FC<WorkflowSidebarProps> = ({ specs, onAdd }) => {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 };
 

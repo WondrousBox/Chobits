@@ -974,66 +974,69 @@ const WorkflowCanvasInner: React.FC = () => {
         }
       />
 
-      {/* 左侧菜单栏 */}
-      <WorkflowSidebar specs={specs} onAdd={addSpecNode} />
+      {/* 主布局：左侧菜单 + 右侧画布 */}
+      <div className="flex flex-1 min-h-0">
+        {/* 左侧菜单栏（占用固定宽度，不悬浮在画布之上） */}
+        <WorkflowSidebar specs={specs} onAdd={addSpecNode} />
 
-      {/* 主内容区域：画布和日志面板 */}
-      <div className="relative flex-1 min-h-0 flex flex-col ml-12">
-        {/* 画布容器 */}
-        <div className={`relative flex-1 min-h-0 transition-all ${consoleCollapsed ? '' : 'pb-0'}`}>
-          {/* ReactFlow 充满容器 */}
-          <div className="absolute inset-0">
-            <ReactFlow
-              nodes={nodes}
-              edges={edges}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onConnect={onConnect}
-              onNodeClick={(_e: React.MouseEvent, n: any) => setSelectedNodeId(n.id)}
-              onPaneClick={() => setSelectedNodeId(null)}
-              onSelectionChange={({ nodes: selectedNodes }) => {
-                // 当节点被选中（包括拖拽时）时，更新属性编辑器
-                if (selectedNodes.length > 0) {
-                  setSelectedNodeId(selectedNodes[0].id);
-                } else {
-                  setSelectedNodeId(null);
-                }
-              }}
-              nodeTypes={nodeTypes}
-            >
-              <Background />
-              <MiniMap className="bg-background text-foreground" zoomable pannable />
-              <Controls />
-            </ReactFlow>
-            {loadingExisting && (
-              <div className="absolute inset-0 bg-background/70 backdrop-blur-sm flex items-center justify-center z-50 text-sm">
-                <div className="flex items-center gap-2">
-                  <div className="h-4 w-4 rounded-full border-2 border-neutral-500 border-t-transparent animate-spin" />
-                  <span>载入中...</span>
+        {/* 主内容区域：画布和日志面板 */}
+        <div className="relative flex-1 min-h-0 flex flex-col">
+          {/* 画布容器 */}
+          <div className={`relative flex-1 min-h-0 transition-all ${consoleCollapsed ? '' : 'pb-0'}`}>
+            {/* ReactFlow 充满容器 */}
+            <div className="absolute inset-0">
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                onNodeClick={(_e: React.MouseEvent, n: any) => setSelectedNodeId(n.id)}
+                onPaneClick={() => setSelectedNodeId(null)}
+                onSelectionChange={({ nodes: selectedNodes }) => {
+                  // 当节点被选中（包括拖拽时）时，更新属性编辑器
+                  if (selectedNodes.length > 0) {
+                    setSelectedNodeId(selectedNodes[0].id);
+                  } else {
+                    setSelectedNodeId(null);
+                  }
+                }}
+                nodeTypes={nodeTypes}
+              >
+                <Background />
+                <MiniMap className="bg-background text-foreground" zoomable pannable />
+                <Controls />
+              </ReactFlow>
+              {loadingExisting && (
+                <div className="absolute inset-0 bg-background/70 backdrop-blur-sm flex items-center justify-center z-50 text-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 w-4 rounded-full border-2 border-neutral-500 border-t-transparent animate-spin" />
+                    <span>载入中...</span>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
+
+            {/* 右侧浮动属性面板：选中节点时显示 */}
+            <FloatingInspector
+              node={selectedNode ? (nodes.find((n) => n.id === selectedNode.id) as any) : null}
+              onChange={(updater: (prev: NodeData) => Partial<NodeData>) =>
+                setNodes((nds) => (nds as any[]).map((n: any) => (n.id === selectedNodeId ? { ...n, data: { ...n.data, ...updater(n.data as NodeData) } as any } : n)))
+              }
+            />
           </div>
 
-          {/* 右侧浮动属性面板：选中节点时显示 */}
-          <FloatingInspector
-            node={selectedNode ? (nodes.find((n) => n.id === selectedNode.id) as any) : null}
-            onChange={(updater: (prev: NodeData) => Partial<NodeData>) =>
-              setNodes((nds) => (nds as any[]).map((n: any) => (n.id === selectedNodeId ? { ...n, data: { ...n.data, ...updater(n.data as NodeData) } as any } : n)))
-            }
-          />
-        </div>
-
-        {/* 日志面板 */}
-        <div className={consoleCollapsed ? 'h-0 overflow-hidden' : 'h-[200px] min-h-[200px] flex-shrink-0'}>
-          <WorkflowRunConsole
-            logs={runLogs}
-            currentRunId={currentRunId}
-            collapsed={consoleCollapsed}
-            onToggle={() => setConsoleCollapsed((prev) => !prev)}
-            onClear={handleClearLogs}
-            status={runStatus}
-          />
+          {/* 日志面板 */}
+          <div className={consoleCollapsed ? 'h-0 overflow-hidden' : 'h-[200px] min-h-[200px] flex-shrink-0'}>
+            <WorkflowRunConsole
+              logs={runLogs}
+              currentRunId={currentRunId}
+              collapsed={consoleCollapsed}
+              onToggle={() => setConsoleCollapsed((prev) => !prev)}
+              onClear={handleClearLogs}
+              status={runStatus}
+            />
+          </div>
         </div>
       </div>
       <WorkflowJsonDialog open={showJsonDialog} onOpenChange={setShowJsonDialog} json={getWorkflowJson()} />
