@@ -114,7 +114,7 @@
         "id": "start",
         "type": "core/start",
         "x": 0,
-        "y": 133.5,
+        "y": 286.5,
         "config": {
           "inputMode": "resource",
           "resourceKinds": [
@@ -127,7 +127,7 @@
         "id": "whisper",
         "type": "media/transcribe-whisper",
         "x": 392,
-        "y": 187,
+        "y": 231.5,
         "config": {
           "model": "",
           "language": "",
@@ -143,7 +143,7 @@
         "id": "end",
         "type": "core/end",
         "x": 1176,
-        "y": 221,
+        "y": 374,
         "config": {}
       },
       {
@@ -158,6 +158,13 @@
         "type": "resource/create",
         "x": 784,
         "y": 306,
+        "config": {}
+      },
+      {
+        "id": "resource/create-W6MJ",
+        "type": "resource/create",
+        "x": 784,
+        "y": 612,
         "config": {}
       }
     ],
@@ -237,6 +244,39 @@
         "to": {
           "nodeId": "resource/create-kfIN",
           "port": "parentResourceId"
+        }
+      },
+      {
+        "id": "e-yUR8rK",
+        "from": {
+          "nodeId": "whisper",
+          "port": "json"
+        },
+        "to": {
+          "nodeId": "resource/create-W6MJ",
+          "port": "file"
+        }
+      },
+      {
+        "id": "e-qdsjlk",
+        "from": {
+          "nodeId": "start",
+          "port": "resourceId"
+        },
+        "to": {
+          "nodeId": "resource/create-W6MJ",
+          "port": "parentResourceId"
+        }
+      },
+      {
+        "id": "e-whXbt4",
+        "from": {
+          "nodeId": "resource/create-W6MJ",
+          "port": "resource"
+        },
+        "to": {
+          "nodeId": "end",
+          "port": "result"
         }
       }
     ],

@@ -49,7 +49,7 @@ const WorkflowSidebar: React.FC<WorkflowSidebarProps> = ({ specs, onAdd }) => {
 
   const handleAddNode = (spec: NodeSpec): void => {
     onAdd(spec);
-    setPaletteOpen(false);
+    // 点击节点后保持面板展开，只清空搜索关键字
     setSearchQuery('');
   };
 
