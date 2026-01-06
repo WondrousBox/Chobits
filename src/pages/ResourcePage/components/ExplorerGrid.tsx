@@ -178,6 +178,10 @@ export interface ExplorerGridProps {
   // 当前资源所在的文件夹/工作区，用于从空白处创建新文件夹
   folderId?: string;
   workspaceId?: string;
+  /** 选中的资源 ID 集合（受控模式） */
+  selectedItems?: Set<string>;
+  /** 更新选中状态的回调（受控模式） */
+  setSelectedItems?: (items: Set<string>) => void;
   onDelete?: (id: string) => void;
   onDeleteMany?: (ids: string[]) => void;
   onToggleFavorite?: (id: string) => void;
@@ -189,6 +193,8 @@ export interface ExplorerGridProps {
   onOpenFolderLocation?: (id: string) => void;
   onMoveFolder?: (id: string, newParentId: string | null) => void | Promise<void>;
   onFolderCreated?: () => void | Promise<void>;
+  /** 预览资源回调（用于在侧边面板预览） */
+  onPreview?: (item: ResourceItem) => void;
 }
 
 type Point = { x: number; y: number };
@@ -204,6 +210,8 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
   counts,
   folderId,
   workspaceId,
+  selectedItems: selectedItemsProp,
+  setSelectedItems: setSelectedItemsProp,
   onDelete,
   onDeleteMany,
   onToggleFavorite,
@@ -214,14 +222,20 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
   onDeleteFolder,
   onOpenFolderLocation,
   onMoveFolder,
-  onFolderCreated
+  onFolderCreated,
+  onPreview
 }) => {
   const taskStatuses = useResourceTaskStatus();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  // 内部选择状态（用于非受控模式）
+  const [internalSelected, setInternalSelected] = useState<Set<string>>(new Set());
   const [anchorIndex, setAnchorIndex] = useState<number | null>(null);
+
+  // 使用受控模式（如果提供了 props）或非受控模式
+  const selected = selectedItemsProp ?? internalSelected;
+  const setSelected = setSelectedItemsProp ?? setInternalSelected;
 
   const [dragStart, setDragStart] = useState<Point | null>(null);
   const [dragEnd, setDragEnd] = useState<Point | null>(null);
@@ -253,7 +267,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
     []
   );
 
-  const clearSelection = useCallback(() => setSelected(new Set()), []);
+  const clearSelection = useCallback(() => setSelected(new Set()), [setSelected]);
 
   const setSelectionToRange = useCallback(
     (startIdx: number, endIdx: number, additive = false) => {
@@ -262,7 +276,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
       for (let i = lo; i <= hi; i++) newSel.add(mergedItems[i].id);
       setSelected(newSel);
     },
-    [mergedItems, selected]
+    [mergedItems, selected, setSelected]
   );
 
   const handleItemClick = useCallback(
@@ -281,7 +295,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
         setAnchorIndex(index);
       }
     },
-    [anchorIndex, selected, setSelectionToRange]
+    [anchorIndex, selected, setSelected, setSelectionToRange]
   );
 
   const handleBackgroundPointerDown = useCallback(
@@ -328,7 +342,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
       });
       setSelected(base);
     },
-    [dragStart, selected]
+    [dragStart, selected, setSelected]
   );
 
   const endDrag = useCallback(
@@ -354,7 +368,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
         setAnchorIndex(idx);
       }
     },
-    [selected, idToIndex]
+    [selected, setSelected, idToIndex]
   );
 
   const handleKeyDown = useCallback(
@@ -374,7 +388,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
         }
       }
     },
-    [items, selected, onDelete, onDeleteMany, clearSelection]
+    [mergedItems, selected, setSelected, onDelete, onDeleteMany, clearSelection]
   );
 
   useEffect(() => {
@@ -382,14 +396,13 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
     const idSet = new Set(mergedItems.map((i) => i.id));
     // Defer setState to avoid synchronous state update warning in effects
     const t = setTimeout(() => {
-      setSelected((prev) => {
-        const next = new Set(Array.from(prev).filter((id) => idSet.has(id)));
-        if (next.size === prev.size) return prev;
-        return next;
-      });
+      const filteredSelection = new Set(Array.from(selected).filter((id) => idSet.has(id)));
+      if (filteredSelection.size !== selected.size) {
+        setSelected(filteredSelection);
+      }
     }, 0);
     return () => clearTimeout(t);
-  }, [mergedItems]);
+  }, [mergedItems, selected, setSelected]);
 
   const selectedCount = selected.size;
   const firstSelected = selectedCount > 0 ? Array.from(selected)[0] : undefined;
@@ -562,17 +575,23 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
                   onPreview={() => {
                     const current = mergedItems[idx];
                     if (!current) return;
-                    window.YUA.window['window:open'](
-                      'resourcePreview',
-                      {
-                        current,
-                        list: mergedItems,
-                        index: idx
-                      },
-                      {
-                        sameDisplayAsSender: true
-                      }
-                    );
+                    // 使用父组件传入的 onPreview 回调（侧边面板预览）
+                    if (onPreview) {
+                      onPreview(current);
+                    } else {
+                      // 如果没有传入回调，则使用独立窗口预览（后备方案）
+                      window.YUA.window['window:open'](
+                        'resourcePreview',
+                        {
+                          current,
+                          list: mergedItems,
+                          index: idx
+                        },
+                        {
+                          sameDisplayAsSender: true
+                        }
+                      );
+                    }
                   }}
                   draggable
                   onDragStart={(e: React.DragEvent) => {
@@ -719,7 +738,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
             </ContextMenuItem>
             <ContextMenuSeparator />
             <ContextMenuItem
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 text-destructive"
               onSelect={() => {
                 const ids = Array.from(selected);
                 if (ids.length === 0) return;

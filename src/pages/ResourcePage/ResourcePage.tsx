@@ -49,7 +49,7 @@ const ResourcePage: React.FC = () => {
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
 
   // 使用自定义 hooks
-  const { list, setList, tags, folders, load, loadTags, loadFolders } = useResourceData(wsFilter, tagFilter);
+  const { list, setList, tags, folders, foldersLoading, load, loadTags, loadFolders } = useResourceData(wsFilter, tagFilter);
 
   const { uploadProgress, onDropFiles } = useResourceUpload({
     folderFilter,
@@ -399,6 +399,7 @@ const ResourcePage: React.FC = () => {
           setTypeFilter={setTypeFilter}
           typeFilter={typeFilter}
           folders={folders}
+          foldersLoading={foldersLoading}
           folderFilter={folderFilter}
           saveCurrentFolder={saveCurrentFolder}
           folderCounts={folderCounts}

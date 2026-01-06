@@ -1,15 +1,20 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ImperativePanelHandle } from 'react-resizable-panels';
 
 import Dropzone from '@/components/common/Dropzone';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 
-import { ViewMode } from '../../types';
+import { ResourceItem, ViewMode } from '../../types';
 import { mergeVideoWithSubtitles } from '../../utils/subtitleUtils';
 import DefaultEmptyFolder from '../DefaultEmptyFolder';
 import ExplorerFreeLayout from '../ExplorerFreeLayout';
 import ExplorerGrid from '../ExplorerGrid';
 import ExplorerList from '../ExplorerList';
 import { UIFolder } from '../FolderSidebar';
+import ResourcePreviewPanel from '../ResourcePreviewPanel';
 import ResourceFooter from './ResourceFooter';
+
+const usePreviewWindow = true;
 
 interface ResourceContentProps {
   uploadProgress: any;
@@ -85,6 +90,20 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
   list,
   isCollapseMode
 }) => {
+  // 预览面板状态
+  const [previewResource, setPreviewResource] = useState<ResourceItem | null>(null);
+
+  // 用于控制面板大小的 ref
+  const mainPanelRef = useRef<ImperativePanelHandle>(null);
+
+  // 当预览面板打开/关闭时，调整主面板大小
+  useEffect(() => {
+    if (mainPanelRef.current) {
+      // 预览面板打开时，主面板缩小到 60%；关闭时恢复到 100%
+      mainPanelRef.current.resize(previewResource ? 60 : 100);
+    }
+  }, [previewResource]);
+
   // 合并视频和字幕文件
   const mergedItems = useMemo(() => {
     if (isCollapseMode) {
@@ -93,129 +112,167 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
     return filtered;
   }, [filtered, isCollapseMode]);
 
-  return (
-    <div className="w-full h-full" style={{ height: 'calc(100% - 36px)' }}>
-      <Dropzone
-        className="w-full h-full overflow-y-auto relative"
-        onDropFiles={onDropFiles}
-        customDropzoneInside={<div className="px-5 py-3 rounded-lg border-2 border-dashed border-primary/60 bg-primary/5 text-primary text-sm font-medium">释放鼠标即可添加文件…</div>}
-      >
-        {(uploadProgress.visible || importProgress.visible || workflowProgress.visible) && (
-          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-40 bg-background/95 backdrop-blur border shadow-lg rounded-lg p-4 w-80 flex flex-col gap-2">
-            <div className="flex justify-between text-sm font-medium">
-              <span>
-                {workflowProgress.visible
-                  ? `${workflowProgress.workflowName || '工作流'}: ${workflowProgress.message}`
-                  : importProgress.visible
-                    ? importProgress.message
-                    : `正在上传 (${uploadProgress.current}/${uploadProgress.total})`}
-              </span>
-              <span>{Math.round(workflowProgress.visible ? workflowProgress.progress : importProgress.visible ? importProgress.percent : uploadProgress.percent)}%</span>
-            </div>
-            <div className="h-2 bg-secondary rounded-full overflow-hidden">
-              <div
-                className="h-full bg-primary"
-                style={{
-                  width: `${workflowProgress.visible ? workflowProgress.progress : importProgress.visible ? importProgress.percent : uploadProgress.percent}%`
-                }}
-              />
-            </div>
-          </div>
-        )}
+  // 处理预览资源
+  const handlePreview = useCallback((item: ResourceItem) => {
+    setPreviewResource(item);
+  }, []);
 
-        {childFolders.length === 0 && mergedItems.length === 0 ? null : viewMode === 'grid' ? (
-          <ExplorerGrid
-            items={mergedItems}
-            folders={childFolders}
-            counts={folderCounts}
-            folderId={folderFilter || undefined}
-            workspaceId={wsFilter}
-            onOpenFolder={(id) => {
-              setFolderFilter(id);
-              saveCurrentFolder(id);
-              setFavoriteFilter(false);
-              setTypeFilter([]);
-            }}
-            onDropResourcesToFolder={(fid, ids) => handleMoveResourcesToFolder(fid, ids)}
-            onMoveFolder={handleMoveFolder}
-            onRenameFolder={handleRenameFolder}
-            onDeleteFolder={handleDeleteFolder}
-            onOpenFolderLocation={handleOpenFolderLocation}
-            onFolderCreated={async () => {
-              await load();
-              await loadFolders(wsFilter || undefined);
-            }}
-            onDelete={handleDelete}
-            onDeleteMany={handleDeleteMany}
-            onToggleFavorite={handleToggleFavorite}
-            onToggleVisibility={handleToggleVisibility}
-          />
-        ) : viewMode === 'list' ? (
-          <ExplorerList
-            items={mergedItems}
-            folders={childFolders}
-            counts={folderCounts}
-            folderParentMap={folderParentMap}
-            selectedItems={selectedItems}
-            onItemClick={handleItemClick}
-            onToggleFavorite={handleToggleFavorite}
-            onToggleVisibility={handleToggleVisibility}
-            onOpenFolder={(id) => {
-              setFolderFilter(id);
-              saveCurrentFolder(id);
-              setFavoriteFilter(false);
-              setTypeFilter([]);
-            }}
-            onDropResourcesToFolder={(fid, ids) => handleMoveResourcesToFolder(fid, ids)}
-            onMoveFolder={handleMoveFolder}
-            onRenameFolder={handleRenameFolder}
-            onDeleteFolder={handleDeleteFolder}
-            onOpenFolderLocation={handleOpenFolderLocation}
-          />
-        ) : viewMode === 'free' ? (
-          <ExplorerFreeLayout
-            items={mergedItems}
-            folderId={folderFilter || undefined}
-            selectedItems={selectedItems}
-            onItemClick={handleItemClick}
-            onToggleFavorite={handleToggleFavorite}
-            onToggleVisibility={handleToggleVisibility}
-            onPreview={(item, index) => {
-              window.YUA.window['window:open'](
-                'resourcePreview',
-                {
-                  current: item,
-                  list: mergedItems,
-                  index
-                },
-                {
-                  sameDisplayAsSender: true
-                }
-              );
-            }}
-            draggable
-            onDragStart={(e, item, ids) => {
-              try {
-                e.dataTransfer.setData('application/x-resource-ids', JSON.stringify(ids));
-                e.dataTransfer.effectAllowed = 'move';
-                e.dataTransfer.dropEffect = 'move';
-              } catch {
-                /* ignore */
-              }
-            }}
-          />
-        ) : null}
-        {childFolders.length === 0 && mergedItems.length === 0 ? (
-          <DefaultEmptyFolder
-            folderId={folderFilter || undefined}
-            workspaceId={wsFilter || undefined}
-            onDone={async () => {
-              await load();
-              await loadFolders(wsFilter || undefined);
-            }}
-          />
-        ) : null}
-      </Dropzone>
+  // 关闭预览面板
+  const handleClosePreview = useCallback(() => {
+    setPreviewResource(null);
+  }, []);
+
+  // 切换预览的资源
+  const handlePreviewResourceChange = useCallback((newResource: ResourceItem) => {
+    setPreviewResource(newResource);
+  }, []);
+
+  // 渲染资源列表内容
+  const renderResourceList = () => (
+    <Dropzone
+      className="w-full h-full overflow-y-auto relative"
+      onDropFiles={onDropFiles}
+      customDropzoneInside={<div className="px-5 py-3 rounded-lg border-2 border-dashed border-primary/60 bg-primary/5 text-primary text-sm font-medium">释放鼠标即可添加文件…</div>}
+    >
+      {(uploadProgress.visible || importProgress.visible || workflowProgress.visible) && (
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-40 bg-background/95 backdrop-blur border shadow-lg rounded-lg p-4 w-80 flex flex-col gap-2">
+          <div className="flex justify-between text-sm font-medium">
+            <span>
+              {workflowProgress.visible
+                ? `${workflowProgress.workflowName || '工作流'}: ${workflowProgress.message}`
+                : importProgress.visible
+                  ? importProgress.message
+                  : `正在上传 (${uploadProgress.current}/${uploadProgress.total})`}
+            </span>
+            <span>{Math.round(workflowProgress.visible ? workflowProgress.progress : importProgress.visible ? importProgress.percent : uploadProgress.percent)}%</span>
+          </div>
+          <div className="h-2 bg-secondary rounded-full overflow-hidden">
+            <div
+              className="h-full bg-primary"
+              style={{
+                width: `${workflowProgress.visible ? workflowProgress.progress : importProgress.visible ? importProgress.percent : uploadProgress.percent}%`
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {childFolders.length === 0 && mergedItems.length === 0 ? null : viewMode === 'grid' ? (
+        <ExplorerGrid
+          items={mergedItems}
+          folders={childFolders}
+          counts={folderCounts}
+          folderId={folderFilter || undefined}
+          workspaceId={wsFilter}
+          selectedItems={selectedItems}
+          setSelectedItems={setSelectedItems}
+          onOpenFolder={(id) => {
+            setFolderFilter(id);
+            saveCurrentFolder(id);
+            setFavoriteFilter(false);
+            setTypeFilter([]);
+          }}
+          onDropResourcesToFolder={(fid, ids) => handleMoveResourcesToFolder(fid, ids)}
+          onMoveFolder={handleMoveFolder}
+          onRenameFolder={handleRenameFolder}
+          onDeleteFolder={handleDeleteFolder}
+          onOpenFolderLocation={handleOpenFolderLocation}
+          onFolderCreated={async () => {
+            await load();
+            await loadFolders(wsFilter || undefined);
+          }}
+          onDelete={handleDelete}
+          onDeleteMany={handleDeleteMany}
+          onToggleFavorite={handleToggleFavorite}
+          onToggleVisibility={handleToggleVisibility}
+          onPreview={usePreviewWindow ? undefined : handlePreview}
+        />
+      ) : viewMode === 'list' ? (
+        <ExplorerList
+          items={mergedItems}
+          folders={childFolders}
+          counts={folderCounts}
+          folderParentMap={folderParentMap}
+          selectedItems={selectedItems}
+          folderId={folderFilter || undefined}
+          workspaceId={wsFilter}
+          onItemClick={handleItemClick}
+          onToggleFavorite={handleToggleFavorite}
+          onToggleVisibility={handleToggleVisibility}
+          onOpenFolder={(id) => {
+            setFolderFilter(id);
+            saveCurrentFolder(id);
+            setFavoriteFilter(false);
+            setTypeFilter([]);
+          }}
+          onDropResourcesToFolder={(fid, ids) => handleMoveResourcesToFolder(fid, ids)}
+          onMoveFolder={handleMoveFolder}
+          onRenameFolder={handleRenameFolder}
+          onDeleteFolder={handleDeleteFolder}
+          onOpenFolderLocation={handleOpenFolderLocation}
+          onPreview={usePreviewWindow ? undefined : handlePreview}
+          onDelete={handleDelete}
+          onDeleteMany={handleDeleteMany}
+          onFolderCreated={async () => {
+            await load();
+            await loadFolders(wsFilter || undefined);
+          }}
+          setSelectedItems={setSelectedItems}
+        />
+      ) : viewMode === 'free' ? (
+        <ExplorerFreeLayout
+          items={mergedItems}
+          folderId={folderFilter || undefined}
+          selectedItems={selectedItems}
+          onItemClick={handleItemClick}
+          onToggleFavorite={handleToggleFavorite}
+          onToggleVisibility={handleToggleVisibility}
+          onPreview={usePreviewWindow ? undefined : (item) => handlePreview(item)}
+          draggable
+          onDragStart={(e, item, ids) => {
+            try {
+              e.dataTransfer.setData('application/x-resource-ids', JSON.stringify(ids));
+              e.dataTransfer.effectAllowed = 'move';
+              e.dataTransfer.dropEffect = 'move';
+            } catch {
+              /* ignore */
+            }
+          }}
+        />
+      ) : null}
+      {childFolders.length === 0 && mergedItems.length === 0 ? (
+        <DefaultEmptyFolder
+          folderId={folderFilter || undefined}
+          workspaceId={wsFilter || undefined}
+          onDone={async () => {
+            await load();
+            await loadFolders(wsFilter || undefined);
+          }}
+        />
+      ) : null}
+    </Dropzone>
+  );
+
+  return (
+    <div className="w-full h-full flex flex-col" style={{ height: 'calc(100% - 36px)' }}>
+      <div className="flex-1 overflow-hidden">
+        <ResizablePanelGroup direction="horizontal" className="h-full">
+          {/* 资源列表区域 */}
+          <ResizablePanel ref={mainPanelRef} defaultSize={100} minSize={30}>
+            {renderResourceList()}
+          </ResizablePanel>
+
+          {/* 预览面板 */}
+          {previewResource && (
+            <>
+              <ResizableHandle className="hover:bg-primary" withHandle />
+              <ResizablePanel defaultSize={40} minSize={20}>
+                <ResourcePreviewPanel resource={previewResource} resourceList={mergedItems} onClose={handleClosePreview} onResourceChange={handlePreviewResourceChange} />
+              </ResizablePanel>
+            </>
+          )}
+        </ResizablePanelGroup>
+      </div>
 
       <ResourceFooter
         folderFilter={folderFilter}

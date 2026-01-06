@@ -18,6 +18,7 @@ interface ResourceSidebarProps {
   setTypeFilter: (types: string[]) => void;
   typeFilter: string[];
   folders: UIFolder[];
+  foldersLoading?: boolean;
   folderFilter: string;
   saveCurrentFolder: (folderId: string) => void;
   folderCounts: Record<string, number>;
@@ -41,6 +42,7 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
   setTypeFilter,
   typeFilter,
   folders,
+  foldersLoading,
   folderFilter,
   saveCurrentFolder,
   folderCounts,
@@ -143,6 +145,7 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
       <SidebarContent>
         <FolderSidebar
           folders={folders}
+          loading={foldersLoading}
           selectedId={folderFilter || undefined}
           onSelect={(id) => {
             const folderId = id as string;

@@ -1,10 +1,15 @@
 import React, { useEffect, useState } from 'react';
+import { TbArrowLeft } from 'react-icons/tb';
 
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-import { AutomationRuleDialog } from './AutomationRuleDialog';
+import { AutomationRuleForm } from './AutomationRuleForm';
 import { AutomationRulesList } from './AutomationRulesList';
 import type { AutomationRule, WorkflowDefinition } from './types';
+
+// 视图模式：列表或表单
+type ViewMode = 'list' | 'form';
 
 export const AutomationRulesDialog: React.FC<{
   open: boolean;
@@ -15,7 +20,7 @@ export const AutomationRulesDialog: React.FC<{
   const [rules, setRules] = useState<AutomationRule[]>([]);
   const [workflows, setWorkflows] = useState<WorkflowDefinition[]>([]);
   const [editingRule, setEditingRule] = useState<Partial<AutomationRule> | null>(null);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [isEditing, setIsEditing] = useState(false);
 
   const loadRules = async (): Promise<void> => {
@@ -37,24 +42,37 @@ export const AutomationRulesDialog: React.FC<{
     }
   }, [open]);
 
-  const handleSave = async (rule: Partial<AutomationRule>): Promise<void> => {
-    if (!rule?.name || !rule.triggerType || !rule.actionType) return;
+  // 弹窗关闭时重置视图到列表
+  useEffect(() => {
+    if (!open) {
+      // 延迟重置，避免关闭动画时闪烁
+      setTimeout(() => {
+        setViewMode('list');
+        setEditingRule(null);
+        setIsEditing(false);
+      }, 200);
+    }
+  }, [open]);
 
-    // Ensure config objects are set
+  const handleSave = async (): Promise<void> => {
+    if (!editingRule?.name || !editingRule.triggerType || !editingRule.actionType) return;
+
+    // 确保 config 对象存在
     const ruleToSave = {
-      ...rule,
-      triggerConfig: rule.triggerConfig || {},
-      actionConfig: rule.actionConfig || {}
+      ...editingRule,
+      triggerConfig: editingRule.triggerConfig || {},
+      actionConfig: editingRule.actionConfig || {}
     };
 
-    if (isEditing && rule.id) {
-      await window.ipcRenderer.invoke('automation:updateRule', rule.id, ruleToSave);
+    if (isEditing && editingRule.id) {
+      await window.ipcRenderer.invoke('automation:updateRule', editingRule.id, ruleToSave);
     } else {
       await window.ipcRenderer.invoke('automation:createRule', ruleToSave);
     }
+    // 保存成功后返回列表
     setEditingRule(null);
     setIsEditing(false);
-    setIsDialogOpen(false);
+    setViewMode('list');
     loadRules();
   };
 
@@ -78,47 +96,54 @@ export const AutomationRulesDialog: React.FC<{
       actionConfig: {}
     });
     setIsEditing(false);
-    setIsDialogOpen(true);
+    setViewMode('form');
   };
 
   const handleEditRule = (rule: AutomationRule): void => {
     setEditingRule(rule);
     setIsEditing(true);
-    setIsDialogOpen(true);
+    setViewMode('form');
   };
 
-  const handleDialogClose = (open: boolean): void => {
-    setIsDialogOpen(open);
-    if (!open) {
-      setEditingRule(null);
-      setIsEditing(false);
-    }
+  // 返回列表视图
+  const handleBackToList = (): void => {
+    setViewMode('list');
+    setEditingRule(null);
+    setIsEditing(false);
   };
 
   return (
-    <>
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="right" className="w-[600px] sm:max-w-[600px] flex flex-col">
-          <SheetHeader>
-            <SheetTitle>自动化规则配置</SheetTitle>
-            <SheetDescription>自动化规则配置，可用于自动化执行工作流，支持资源事件、定时任务、系统事件、手动触发</SheetDescription>
-          </SheetHeader>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-3xl w-[800px] h-[600px] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
+          {viewMode === 'form' && (
+            <Button variant="ghost" size="sm" className="w-fit -ml-2 mb-2" onClick={handleBackToList}>
+              <TbArrowLeft className="mr-1" />
+              返回列表
+            </Button>
+          )}
+          <DialogTitle>{viewMode === 'list' ? '自动化规则配置' : isEditing ? '编辑自动化规则' : '新增自动化规则'}</DialogTitle>
+          {viewMode === 'list' && <DialogDescription>配置自动化规则，当满足触发条件时自动执行指定动作</DialogDescription>}
+        </DialogHeader>
 
-          <div className="flex-1 overflow-hidden mt-6">
+        <div className="flex-1 overflow-hidden">
+          {viewMode === 'list' ? (
             <AutomationRulesList rules={rules} workflows={workflows} onAddRule={handleAddRule} onEditRule={handleEditRule} onDeleteRule={handleDelete} onToggleEnable={handleToggleEnable} />
-          </div>
-        </SheetContent>
-      </Sheet>
-
-      <AutomationRuleDialog
-        open={isDialogOpen}
-        onOpenChange={handleDialogClose}
-        rule={editingRule}
-        workflows={workflows}
-        currentWorkspaceId={currentWorkspaceId}
-        currentFolderId={currentFolderId}
-        onSave={handleSave}
-      />
-    </>
+          ) : (
+            editingRule && (
+              <AutomationRuleForm
+                rule={editingRule}
+                workflows={workflows}
+                currentWorkspaceId={currentWorkspaceId}
+                currentFolderId={currentFolderId}
+                onRuleChange={setEditingRule}
+                onSave={handleSave}
+                onCancel={handleBackToList}
+              />
+            )
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 };
