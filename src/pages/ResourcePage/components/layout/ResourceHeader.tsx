@@ -116,9 +116,6 @@ const ResourceHeader: React.FC<ResourceHeaderProps> = ({
                   <h4 className="font-medium leading-none">发现视频字幕</h4>
                   <p className="text-sm text-muted-foreground">检测到存在同名的视频和字幕文件，是否开启“收起同名资源”模式？</p>
                   <div className="flex justify-end gap-2 pt-2">
-                    <Button variant="outline" size="sm" onClick={() => setShowCollapseSuggestion(false)}>
-                      忽略
-                    </Button>
                     <Button
                       size="sm"
                       onClick={() => {
@@ -126,7 +123,7 @@ const ResourceHeader: React.FC<ResourceHeaderProps> = ({
                         setShowCollapseSuggestion(false);
                       }}
                     >
-                      开启收起
+                      开启
                     </Button>
                   </div>
                 </div>

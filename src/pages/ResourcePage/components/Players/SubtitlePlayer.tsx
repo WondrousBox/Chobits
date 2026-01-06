@@ -122,15 +122,9 @@ export const SubtitlePlayer = ({ resource, currentTime = 0, onSeek }: SubtitlePl
           .then(async (result: any) => {
             if (result.success) {
               try {
-                let segments: AimSegments[];
-                // 根据格式选择不同的 parser
-                if (format === 'vtt') {
-                  segments = await parser.vttToAimSegments(result.content || '');
-                } else if (format === 'ass') {
-                  segments = await parser.assToAimSegments(result.content || '');
-                } else {
-                  segments = await parser.srtToAimSegments(result.content || '');
-                }
+                const res = await parser.parseSubtitle(result.content || '');
+
+                const segments: AimSegments[] = res?.segments || [];
                 setSubtitleEntries(segments);
               } catch (error) {
                 console.error(`[SubtitlePlayer] 解析${format.toUpperCase()}文件失败:`, error);
