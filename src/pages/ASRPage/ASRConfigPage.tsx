@@ -485,13 +485,20 @@ const ASRConfigPage: React.FC = () => {
   return (
     <>
       <div className="flex flex-col h-full w-full box-border rounded-lg bg-background drag-region">
-        <ScrollArea className="space-y-4 flex-1 overflow-y-auto pt-4 px-4">
+        <div className="p-4 box-border">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-4 no-drag">
-              <TabsTrigger value="local">本地识别</TabsTrigger>
-              <TabsTrigger value="cloud">云端转写</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="local" className="no-drag">
+                本地识别
+              </TabsTrigger>
+              <TabsTrigger value="cloud" disabled>
+                云端转写
+              </TabsTrigger>
             </TabsList>
-
+          </Tabs>
+        </div>
+        <ScrollArea className="space-y-4 flex-1 overflow-y-auto px-4 no-drag">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsContent value="local" className="space-y-4 mt-0">
               <div className="space-y-2">
                 <Label className="no-drag" htmlFor="model">
