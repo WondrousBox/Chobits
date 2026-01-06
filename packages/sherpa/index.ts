@@ -1,6 +1,6 @@
 import { PluginDefinition } from '@packages/plugins/types';
 
-import { createASRInstance, freeASRInstance, sendASRData } from './asr-instance-manager';
+import { ASRType, createASRInstance, freeASRInstance, sendASRData } from './asr-instance-manager';
 import { AllModels, StreamInstances } from './common';
 import { getDefaultSherpaModels } from './model';
 
@@ -8,7 +8,7 @@ let openedModel: PluginDefinition | undefined;
 export async function ASR_createInstance(data: {
   uuid: string;
   model?: AllModels;
-  type?: 'online' | 'offline' | 'vad';
+  type?: ASRType;
   punctuationModel?: string;
   language?: string;
   vad?: {
@@ -18,6 +18,13 @@ export async function ASR_createInstance(data: {
     windowSize?: number;
   };
 }): Promise<StreamInstances[string]> {
+  console.log(
+    data,
+    `
+====== [ASR] ===================================================================
+ASR_createInstance: ${JSON.stringify(data, null, 2)}
+================================================================================`
+  );
   let type = data.type;
   if (!type && data.model) {
     type = data.model.includes('streaming') ? 'online' : 'offline';
@@ -37,7 +44,7 @@ export async function ASR_createInstance(data: {
 
   return createASRInstance({
     ...data,
-    type: type as any
+    type: type as ASRType
   });
 }
 
