@@ -53,14 +53,6 @@ function applyRegistration(getMainWindow: GetMainWindow): void {
     screenshot: () => {
       console.log('[shortcut] screenshot');
       screenshotManager.start();
-    },
-    favoriteCurrentResource: () => {
-      try {
-        const win = getMainWindow();
-        win?.webContents?.send('shortcut:favorite-current-resource');
-      } catch {
-        /* noop */
-      }
     }
   };
 

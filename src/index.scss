@@ -131,6 +131,11 @@ body,
   -webkit-app-region: no-drag;
 }
 
+/* Hide ReactFlow attribution watermark */
+.react-flow__attribution {
+  display: none !important;
+}
+
 input {
   box-sizing: border-box;
 }
@@ -142,9 +147,4 @@ button {
 
 .react-grid-item > .react-resizable-handle.react-resizable-handle-se {
   z-index: 100;
-}
-
-/* Hide ReactFlow attribution watermark */
-.react-flow__attribution {
-  display: none !important;
 }
