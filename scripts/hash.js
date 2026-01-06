@@ -1,6 +1,6 @@
-const fs = require('fs');
-const crypto = require('crypto');
-const readline = require('readline');
+import crypto from 'crypto';
+import fs from 'fs';
+import readline from 'readline';
 
 function calculateFileHash(filePath) {
     return new Promise((resolve, reject) => {

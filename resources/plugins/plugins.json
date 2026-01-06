@@ -421,6 +421,27 @@
         ]
       },
       {
+        "id": "sherpa-onnx-en-wenet-gigaspeech",
+        "pluginId": "plugin:sherpa-onnx",
+        "type": "model",
+        "name": "sherpa-onnx-en-wenet-gigaspeech",
+        "displayName": "En-Wenet-Gigaspeech",
+        "description": "",
+        "version": "1.0.0",
+        "archiveType": "tar.bz2",
+        "category": "asr",
+        "languages": ["en"],
+        "platforms": [
+          {
+            "platform": "all",
+            "arch": "all",
+            "sourceUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-en-wenet-gigaspeech.tar.bz2",
+            "sizeBytes": 933151114,
+            "sha256": "75fdf34e68e97fbb4949f15794b6653b73108bc7cdd1ddb9935187760594fcd3"
+          }
+        ]
+      },
+      {
         "id": "sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8",
         "pluginId": "plugin:sherpa-onnx",
         "type": "model",
