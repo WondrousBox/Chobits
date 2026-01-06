@@ -117,7 +117,16 @@ export interface ExplorerFreeLayoutProps {
   onDragStart?: (e: React.DragEvent, item: ResourceItem, selectedIds: string[]) => void;
 }
 
-export const ExplorerFreeLayout: React.FC<ExplorerFreeLayoutProps> = ({ items, folderId, selectedItems, onItemClick, onToggleFavorite, onToggleVisibility, onPreview, draggable = true }) => {
+export const ExplorerFreeLayout: React.FC<ExplorerFreeLayoutProps> = ({
+  items,
+  folderId,
+  selectedItems,
+  onItemClick,
+  onToggleFavorite,
+  onToggleVisibility,
+  onPreview,
+  draggable = true
+}) => {
   const [layoutConfig, setLayoutConfig] = useState<MasonryLayoutConfig | null>(null);
   const [currentLayout, setCurrentLayout] = useState<Layout[]>([]);
   const [loading, setLoading] = useState(true);

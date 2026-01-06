@@ -201,6 +201,8 @@ export interface ExplorerListProps {
   onDeleteMany?: (ids: string[]) => void;
   onFolderCreated?: () => void | Promise<void>;
   setSelectedItems?: (items: Set<string>) => void;
+  /** 最近新增资源的 ID 集合，用于高亮显示 */
+  highlightedIds?: Set<string>;
 }
 
 export const ExplorerList: React.FC<ExplorerListProps> = ({
@@ -224,7 +226,8 @@ export const ExplorerList: React.FC<ExplorerListProps> = ({
   onDelete,
   onDeleteMany,
   onFolderCreated,
-  setSelectedItems
+  setSelectedItems,
+  highlightedIds
 }) => {
   const isWin = (window as any).YUA?.isWindows;
   const revealLabel = isWin ? '在资源管理器中显示' : '在 Finder 中显示';
@@ -616,6 +619,7 @@ export const ExplorerList: React.FC<ExplorerListProps> = ({
                 <ResourceListItem
                   item={item}
                   selected={selectedItems.has(item.id)}
+                  isNew={!!highlightedIds?.has(item.id)}
                   onClick={handleEnhancedItemClick}
                   onToggleFavorite={onToggleFavorite}
                   onToggleVisibility={onToggleVisibility}

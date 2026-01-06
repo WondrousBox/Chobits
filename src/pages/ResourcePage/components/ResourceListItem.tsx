@@ -14,6 +14,8 @@ import { isSubtitleFile } from '../utils/subtitleUtils';
 interface ListItemProps {
   item: ResourceItem;
   selected: boolean;
+  /** 是否为刚生成/刚导入的资源，用于临时高亮 */
+  isNew?: boolean;
   onClick: (e: React.MouseEvent, item: ResourceItem) => void;
   onToggleFavorite?: (id: string) => void;
   onToggleVisibility?: (id: string) => void;
@@ -23,7 +25,7 @@ interface ListItemProps {
   onPreview?: (item: ResourceItem) => void;
 }
 
-const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, onClick, onToggleFavorite, onToggleVisibility, draggable, onDragStart, onPreview }) => {
+const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, isNew, onClick, onToggleFavorite, onToggleVisibility, draggable, onDragStart, onPreview }) => {
   const [copied, setCopied] = useState(false);
   const tags = parseTags(item.tags);
   // const categories = parseCategories(item.categories);
@@ -77,6 +79,7 @@ const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, onClick, on
   );
 
   const selectionClass = selected ? 'ring-2 ring-primary border-primary/50 bg-primary/5' : 'hover:bg-muted/50 hover:border-primary/30';
+  const newHighlightClass = isNew ? 'border-amber-400 bg-amber-50/70 dark:bg-amber-950/40 shadow-[0_0_0_1px_rgba(251,191,36,0.85)] animate-pulse' : '';
 
   // 点击行：选中资源，普通点击时触发预览（Shift/Cmd/Ctrl 点击不触发预览）
   const handleRowClick = useCallback(
@@ -95,7 +98,7 @@ const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, onClick, on
       onClick={handleRowClick}
       draggable={!!draggable}
       onDragStart={(e) => onDragStart?.(e, item)}
-      className={`group relative flex items-center gap-4 p-2 rounded-lg border transition-all cursor-pointer select-none ${selectionClass}`}
+      className={`group relative flex items-center gap-4 p-2 rounded-lg border transition-all cursor-pointer select-none ${selectionClass} ${newHighlightClass}`}
     >
       {/* 左侧缩略图和类型图标 */}
       <div className="relative flex-shrink-0 w-16 h-16 rounded-md overflow-hidden bg-muted">
