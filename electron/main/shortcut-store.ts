@@ -44,13 +44,6 @@ export const SHORTCUT_SCHEMA: ShortcutAction[] = [
     type: 'single',
     defaults: { darwin: 'CommandOrControl+Shift+A', win32: 'CommandOrControl+Shift+A', linux: 'CommandOrControl+Shift+A' }
   }
-  // {
-  //   id: 'favoriteCurrentResource',
-  //   label: '收藏当前资源',
-  //   description: '触发收藏当前资源（由资源页面监听实现）',
-  //   type: 'single',
-  //   defaults: { darwin: 'CommandOrControl+Shift+F', win32: 'CommandOrControl+Shift+F', linux: 'CommandOrControl+Shift+F' }
-  // }
 ];
 
 const emitter = new EventEmitter();
