@@ -43,7 +43,16 @@ export type AllModels =
   | 'sherpa-onnx-paraformer-zh-small-2024-03-09'
   | 'sherpa-onnx-online-punct-en-2024-08-06'
   | 'sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8'
-  | 'sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12';
+  | 'sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12'
+  | 'sherpa-onnx-zh-wenet-aishell'
+  | 'sherpa-onnx-zh-wenet-aishell2'
+  | 'sherpa-onnx-zh-wenet-wenetspeech'
+  | 'sherpa-onnx-en-wenet-librispeech'
+  | 'sherpa-onnx-en-wenet-gigaspeech'
+  | 'sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17'
+  | 'sherpa-onnx-streaming-paraformer-bilingual-zh-en'
+  | 'sherpa-onnx-streaming-zipformer-ctc-small-2024-03-18'
+  | 'sherpa-onnx-streaming-zipformer-ctc-multi-zh-hans-2023-12-13';
 
 const featConfig = {
   sampleRate: 16000,

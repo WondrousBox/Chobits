@@ -148,5 +148,69 @@ export const SHERPA_CONFIG: Record<string, string> = {
         "provider": "{{modelConfig.provider}}",
         "debug": {{modelConfig.debug}}
       }
+    }`,
+
+  'sherpa-onnx-zh-wenet-aishell2': `{
+      "featConfig": {
+        "sampleRate": {{featConfig.sampleRate}},
+        "featureDim": {{featConfig.featureDim}}
+      },
+      "modelConfig": {
+        "wenetCtc": {
+          "model": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/model.int8.onnx"
+        },
+        "tokens": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/tokens.txt",
+        "numThreads": {{modelConfig.numThreads}},
+        "provider": "{{modelConfig.provider}}",
+        "debug": {{modelConfig.debug}}
+      }
+    }`,
+
+  'sherpa-onnx-zh-wenet-wenetspeech': `{
+      "featConfig": {
+        "sampleRate": {{featConfig.sampleRate}},
+        "featureDim": {{featConfig.featureDim}}
+      },
+      "modelConfig": {
+        "wenetCtc": {
+          "model": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/model.int8.onnx"
+        },
+        "tokens": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/tokens.txt",
+        "numThreads": {{modelConfig.numThreads}},
+        "provider": "{{modelConfig.provider}}",
+        "debug": {{modelConfig.debug}}
+      }
+    }`,
+
+  'sherpa-onnx-en-wenet-librispeech': `{
+      "featConfig": {
+        "sampleRate": {{featConfig.sampleRate}},
+        "featureDim": {{featConfig.featureDim}}
+      },
+      "modelConfig": {
+        "wenetCtc": {
+          "model": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/model.int8.onnx"
+        },
+        "tokens": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/tokens.txt",
+        "numThreads": {{modelConfig.numThreads}},
+        "provider": "{{modelConfig.provider}}",
+        "debug": {{modelConfig.debug}}
+      }
+    }`,
+
+  'sherpa-onnx-en-wenet-gigaspeech': `{
+      "featConfig": {
+        "sampleRate": {{featConfig.sampleRate}},
+        "featureDim": {{featConfig.featureDim}}
+      },
+      "modelConfig": {
+        "wenetCtc": {
+          "model": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/model.int8.onnx"
+        },
+        "tokens": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/tokens.txt",
+        "numThreads": {{modelConfig.numThreads}},
+        "provider": "{{modelConfig.provider}}",
+        "debug": {{modelConfig.debug}}
+      }
     }`
 };
