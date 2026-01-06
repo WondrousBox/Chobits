@@ -3,6 +3,8 @@ import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import DownloadFloating from '@/components/DownloadFloating';
 import { Toaster } from '@/components/ui/sonner';
+import { useAIProviderConfig } from '@/hooks/useAIProviderConfig';
+import { useWorkspaceCheck } from '@/hooks/useWorkspaceCheck';
 import { ChatSelectionProvider } from '@/pages/ChatPage/context/ChatSelectionContext';
 import ExtensionSettings from '@/pages/ExtensionSettings/ExtensionSettings';
 import FileActionsMenu from '@/pages/FileActionsMenu/FileActionsMenu';
@@ -33,6 +35,9 @@ import WorkflowStartInputSheet from './pages/WorkflowBuilderPage/WorkflowStartIn
 import WorkspaceWizard from './pages/WorkspacePage/WorkspaceWizard';
 
 function App(): JSX.Element {
+  useWorkspaceCheck();
+  useAIProviderConfig();
+
   return (
     <ThemeProvider>
       <HashRouter>

@@ -1,6 +1,6 @@
 /**
  * useAssistant
- * - 负责：问候/工作区检查、获取屏幕与精灵动画配置（含 padding）、初始窗口定位、阻止默认拖拽行为。
+ * - 负责：获取屏幕与精灵动画配置（含 padding）、初始窗口定位、阻止默认拖拽行为。
  * - 返回：{ padding, setPadding, screenSize, messageState, setMessageState }
  * - 场景：AIAssistant 组件挂载时调用一次。
  */
@@ -24,34 +24,6 @@ export function useAssistant(): {
   const [screenSize, setScreenSize] = useState<{ width: number; height: number }>({ width: 1920, height: 1080 });
   const [messageState, setMessageState] = useState<MessageCategory>('welcome');
   const isInitialMountRef = useRef(true);
-
-  // Greeting + workspace check
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        setMessageState('welcome');
-        await new Promise((r) => setTimeout(r, 600));
-        if (!mounted) return;
-        setMessageState('loading');
-        const list = await window.YUA.workspace['workspace:list']({ filter: { deletedAt: 0 } as any, limit: 1, offset: 0 });
-        if (!mounted) return;
-        if (!Array.isArray(list) || list.length === 0) {
-          setMessageState('configure');
-          setTimeout(() => {
-            try {
-              window.YUA.window['window:open']('workspaceWizard');
-            } catch { }
-          }, 800);
-        }
-      } catch {
-        /* noop */
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
 
   // 根据当前精灵动画更新 padding
   useEffect(() => {
