@@ -54,6 +54,16 @@ export type AllModels =
   | 'sherpa-onnx-streaming-zipformer-ctc-small-2024-03-18'
   | 'sherpa-onnx-streaming-zipformer-ctc-multi-zh-hans-2023-12-13';
 
+// 需要强制使用 online (streaming) 模式的模型列表
+// 这些模型即使名称中没有 'streaming'，也应该使用流式识别
+export const FORCE_ONLINE_MODELS: readonly AllModels[] = [
+  // 'sherpa-onnx-en-wenet-gigaspeech',
+  // 'sherpa-onnx-zh-wenet-wenetspeech',
+  // 'sherpa-onnx-en-wenet-librispeech',
+  // 'sherpa-onnx-zh-wenet-aishell2',
+  // 'sherpa-onnx-zh-wenet-aishell'
+] as const;
+
 const featConfig = {
   sampleRate: 16000,
   featureDim: 80

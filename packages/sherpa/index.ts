@@ -1,7 +1,7 @@
 import { PluginDefinition } from '@packages/plugins/types';
 
 import { ASRType, createASRInstance, freeASRInstance, sendASRData } from './asr-instance-manager';
-import { AllModels, StreamInstances } from './common';
+import { AllModels, FORCE_ONLINE_MODELS, StreamInstances } from './common';
 import { getDefaultSherpaModels } from './model';
 
 let openedModel: PluginDefinition | undefined;
@@ -27,7 +27,10 @@ ASR_createInstance: ${JSON.stringify(data, null, 2)}
   );
   let type = data.type;
   if (!type && data.model) {
-    type = data.model.includes('streaming') ? 'online' : 'offline';
+    // 检查是否在强制使用 online 模式的模型列表中
+    const isForceOnline = FORCE_ONLINE_MODELS.includes(data.model as AllModels);
+    // 如果模型名称包含 'streaming' 或在强制列表中，使用 online 模式
+    type = data.model.includes('streaming') || isForceOnline ? 'online' : 'offline';
   }
 
   if (type !== 'vad') {
