@@ -179,6 +179,7 @@ export function initSpriteHandlers(): void {
       muted: anim.muted ?? true,
       playsInline: anim.playsInline ?? true,
       loop: anim.loop ?? false,
+      autoIdle: anim.autoIdle ?? true,
       loopStartMs: anim.loopStartMs,
       loopEndMs: anim.loopEndMs,
       durationMs: anim.durationMs

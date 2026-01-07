@@ -179,6 +179,12 @@ export interface SpriteAnimation {
    * - 如果没有配置循环片段：默认 false（不循环），设置为 true 时使用原生 loop 属性全程循环
    */
   loop?: boolean;
+  /**
+   * 播放完成后是否自动切换到 idle 状态。
+   * - true（默认）：播放完成后自动切换到 idle 状态
+   * - false：播放完成后保持当前状态（暂停在最后一帧），不自动切换
+   */
+  autoIdle?: boolean;
   // 可选的时长（毫秒），未提供时以 <video> 元数据为准
   durationMs?: number;
   /**

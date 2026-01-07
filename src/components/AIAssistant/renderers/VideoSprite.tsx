@@ -123,10 +123,13 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
           v.currentTime = 0;
           v.play();
         } else {
-          // Not looping: stop and return to idle state
+          // Not looping: stop and optionally return to idle state
           phaseRef.current = 'idle';
           v.pause();
-          dispatchSpriteEvent('idle');
+          const autoIdle = current?.autoIdle ?? true;
+          if (autoIdle) {
+            dispatchSpriteEvent('idle');
+          }
         }
       } else if (phase === 'idle') {
         // Not actively playing: loop the intro segment (0 ~ loopStartMs) if shouldLoop
@@ -145,9 +148,12 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
           v.currentTime = effectiveStart / 1000;
           v.play();
         } else {
-          // Not looping: stop and return to idle state
+          // Not looping: stop and optionally return to idle state
           v.pause();
-          dispatchSpriteEvent('idle');
+          const autoIdle = current?.autoIdle ?? true;
+          if (autoIdle) {
+            dispatchSpriteEvent('idle');
+          }
         }
       }
       return;
@@ -173,6 +179,7 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
       muted: anim.muted ?? true,
       playsInline: anim.playsInline ?? true,
       loop: anim.loop ?? false,
+      autoIdle: anim.autoIdle ?? true,
       loopStartMs: anim.loopStartMs,
       loopEndMs: anim.loopEndMs
     };
@@ -214,8 +221,12 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
     // 如果没有配置循环片段，根据 loop 字段决定（默认 false）
     const shouldLoop = hasCustomLoop ? current.loop !== false : (current.loop ?? false);
     if (shouldLoop) return; // 如果应该循环，不处理
-    // 播放完成且不循环，恢复为 idle 状态
-    dispatchSpriteEvent('idle');
+    // 播放完成且不循环，根据 autoIdle 配置决定是否切换到 idle 状态
+    const autoIdle = current.autoIdle ?? true;
+    if (autoIdle) {
+      dispatchSpriteEvent('idle');
+    }
+    // 如果 autoIdle 为 false，视频会保持暂停在最后一帧，不做任何操作
   };
 
   return computed ? (
