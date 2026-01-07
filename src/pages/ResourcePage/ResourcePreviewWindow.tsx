@@ -332,9 +332,21 @@ const ResourcePreviewWindow: React.FC = () => {
     <div className="h-full relative flex items-center justify-center overflow-hidden">
       {isImageFile(data.filePath) && fileSrc && <ImagePlayer src={fileSrc} title={title} className="w-full h-full rounded-md shadow" />}
       {isVideoFile(data.filePath) && fileSrc && (
-        <MediaPlayer ref={mediaPlayerRef} src={fileSrc} type="video" title={title} autoPlay={true} className="w-full h-full" onVideoLoaded={handleVideoLoaded} onTimeUpdate={setCurrentTime} onPlay={handlePlay} />
+        <MediaPlayer
+          ref={mediaPlayerRef}
+          src={fileSrc}
+          type="video"
+          title={title}
+          autoPlay={true}
+          className="w-full h-full"
+          onVideoLoaded={handleVideoLoaded}
+          onTimeUpdate={setCurrentTime}
+          onPlay={handlePlay}
+        />
       )}
-      {isAudioFile(data.filePath) && fileSrc && <MediaPlayer ref={mediaPlayerRef} src={fileSrc} type="audio" title={title} autoPlay={true} className="w-full max-w-xl" onTimeUpdate={setCurrentTime} onPlay={handlePlay} />}
+      {isAudioFile(data.filePath) && fileSrc && (
+        <MediaPlayer ref={mediaPlayerRef} src={fileSrc} type="audio" title={title} autoPlay={true} className="w-full max-w-xl" onTimeUpdate={setCurrentTime} onPlay={handlePlay} />
+      )}
       {isSubtitleFile(data.filePath) && <SubtitlePlayer resource={data} />}
       {!isImageFile(data.filePath) && !isVideoFile(data.filePath) && !isAudioFile(data.filePath) && !isSubtitleFile(data.filePath) && <TextPlayer resource={data} />}
     </div>

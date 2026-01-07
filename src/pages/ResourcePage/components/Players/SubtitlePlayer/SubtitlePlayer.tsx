@@ -4,9 +4,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ScrollArea } from '@/components/ui/scroll-area';
 
-import type { ResourceItem } from '../../types';
+import type { ResourceItem } from '../../../types';
+import { SubtitleTranslator } from '../SubtitleTranslator';
 import { SubtitleRow } from './SubtitleRow';
-import { SubtitleTranslator } from './SubtitleTranslator';
 
 interface SubtitlePlayerProps {
   resource: ResourceItem;
