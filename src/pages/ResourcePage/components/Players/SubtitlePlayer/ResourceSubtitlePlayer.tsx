@@ -494,15 +494,20 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
         onTranslationStart={handleTranslationStart}
       />
 
-      {/* 通用字幕展示组件：主轨 + 第二轨道（翻译） */}
+      {/* 通用字幕展示组件：支持多轨道（主轨 + 附加轨道） */}
       <SubtitlePlayer
-        segments={subtitleEntries}
+        tracks={useMemo(() => {
+          const tracksArray: AimSegments[][] = [subtitleEntries];
+          if (typingTexts.length > 0) {
+            tracksArray.push(typingTexts);
+          }
+          return tracksArray;
+        }, [subtitleEntries, typingTexts])}
         currentTime={currentTime}
         onSeek={onSeek}
         onSegmentsChange={handleSegmentsChange}
         disabledIndices={translatingChunks}
         highlightIndices={translatingChunks}
-        track2Segments={typingTexts}
         summaries={summaries}
         autoScrollToSummary={true}
       />
