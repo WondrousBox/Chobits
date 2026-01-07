@@ -68,6 +68,25 @@
       "autoplay": true,
       "muted": true,
       "playsInline": true
+    },
+    {
+      "meta": {
+        "id": "fileDragOver-default",
+        "title": "fileDragOver 默认",
+        "eventType": "fileDragOver"
+      },
+      "source": {
+        "localPath": "./fileDragOver.webm",
+        "type": "video/webm"
+      },
+      "width": 180,
+      "height": 240,
+      "padding": 100,
+      "autoplay": true,
+      "muted": true,
+      "playsInline": true,
+      "loopStartMs": 750,
+      "loopEndMs": 3000
     }
   ]
 }

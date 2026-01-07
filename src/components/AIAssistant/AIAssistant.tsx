@@ -141,10 +141,12 @@ export const AIAssistant: React.FC = () => {
   useEffect(() => {
     if (isFileDragOver) {
       setAssistantState('fileDragOver');
+      playAnimation(); // Start three-phase animation when file drag over starts
     } else if (!isDragging && !isWalking) {
       setAssistantState('idle');
+      stopAnimation(); // Stop animation and play outro when file drag over stops
     }
-  }, [isFileDragOver, isDragging, isWalking, setAssistantState]);
+  }, [isFileDragOver, isDragging, isWalking, setAssistantState, playAnimation, stopAnimation]);
 
   const onDropFiles = React.useCallback(
     async (files: any) => {
@@ -216,7 +218,6 @@ export const AIAssistant: React.FC = () => {
       }}
       className={`fixed select-none z-[9999] transition-transform duration-300 ease-in-out pointer-events-auto
         ${isDragReady ? 'cursor-grabbing opacity-80' : 'cursor-grab'}
-        ${isFileDragOver ? 'outline-2 outline-dashed outline-indigo-500/60 outline-offset-[6px] shadow-[0_0_0_6px_rgba(99,102,241,0.15)_inset,0_12px_35px_rgba(99,102,241,0.25)]' : ''}
       `}
       onMouseDown={dragBind.onMouseDown}
       onMouseEnter={handleMouseEnter}

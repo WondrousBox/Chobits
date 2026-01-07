@@ -8,7 +8,7 @@ const catalog: MessageCatalog = {
   configure: '叽~没有工作空间，请先创建。',
   click: ['叽~有什么可以帮助你的吗？', '我在～需要我做点什么吗？', '收到～告诉我你的想法吧。'],
   hold: ['可以把我拖到任何位置。'],
-  drag: '把文件拖给我吧 ⤓',
+  drag: '把文件交给我吧',
   drop: '放置完成',
   fileDrop: (ctx?: {
     // Optional runtime parameters to format messages
