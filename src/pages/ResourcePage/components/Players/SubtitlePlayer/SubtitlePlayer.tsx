@@ -21,8 +21,8 @@ export interface SubtitlePlayerProps {
   disabledIndices?: Set<number> | number[];
   /** 需要高亮显示的行索引集合（例如当前翻译中的片段） */
   highlightIndices?: Set<number> | number[];
-  /** 第二轨道文本（例如翻译结果），key 为片段索引 */
-  track2Texts?: Map<number, string> | Record<number, string>;
+  /** 第二轨道字幕（例如翻译结果），与主轨道 segments 一一对应 */
+  track2Segments?: AimSegments[];
   /** 总结信息，仅负责展示 */
   summaries?: {
     /** 上一段翻译的总结 */
@@ -39,14 +39,6 @@ const toIndexSet = (value?: Set<number> | number[]): Set<number> | undefined => 
   return value instanceof Set ? value : new Set(value);
 };
 
-const getTrack2Text = (track2Texts: SubtitlePlayerProps['track2Texts'], index: number): string | undefined => {
-  if (!track2Texts) return undefined;
-  if (track2Texts instanceof Map) {
-    return track2Texts.get(index);
-  }
-  return track2Texts[index];
-};
-
 // 仅负责渲染和交互的字幕组件
 export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
   segments,
@@ -55,7 +47,7 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
   onSegmentsChange,
   disabledIndices,
   highlightIndices,
-  track2Texts,
+  track2Segments,
   summaries,
   autoScrollToSummary = false
 }) => {
@@ -195,7 +187,7 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
           {segments.map((entry, idx) => {
             const disabled = !!disabledSet?.has(idx);
             const highlight = !!highlightSet?.has(idx);
-            const appendText = getTrack2Text(track2Texts, idx);
+            const track2Segment = track2Segments?.[idx];
             // 如果当前索引是第一个正在翻译的片段，且存在总结，则在它前面显示总结
             const shouldShowSummaryBefore = idx === firstTranslatingIndex && (summaries?.prev || summaries?.current);
 
@@ -263,8 +255,20 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
                   onTimeClick={onSeek}
                   disabled={disabled}
                   highlight={highlight}
-                  appendText={appendText}
                 />
+                {track2Segment && track2Segment.text && (
+                  <SubtitleRow
+                    index={idx}
+                    segment={track2Segment}
+                    isActive={false}
+                    disabled={disabled}
+                    highlight={highlight}
+                    onTextChange={handleTextChange}
+                    onMergePrev={handleMergePrev}
+                    onMergeNext={handleMergeNext}
+                    onTimeClick={onSeek}
+                  />
+                )}
               </React.Fragment>
             );
           })}

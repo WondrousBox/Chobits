@@ -27,7 +27,6 @@ interface SubtitleRowProps {
   onTimeClick?: (time: number) => void; // 点击时间戳的回调，传递时间（秒）
   disabled?: boolean; // 是否禁用编辑
   highlight?: boolean; // 是否高亮显示（用于标识新变更的内容，引起用户注意）
-  appendText?: string; // 附加文本，显示在原始文本下方
 }
 
 const textareaStyle = 'resize-none block p-2 flex-1 outline-none box-border bg-background text-foreground border-none text-base';
@@ -60,7 +59,7 @@ function timeStringToSeconds(timeStr: string): number {
   return hours * 3600 + minutes * 60 + seconds + milliseconds / 1000;
 }
 
-export const SubtitleRow: React.FC<SubtitleRowProps> = ({ index, segment, isActive = false, rowRef, onTextChange, onMergePrev, onTimeClick, disabled = false, highlight = false, appendText }) => {
+export const SubtitleRow: React.FC<SubtitleRowProps> = ({ index, segment, isActive = false, rowRef, onTextChange, onMergePrev, onTimeClick, disabled = false, highlight = false }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editingText, setEditingText] = useState(segment.text);
   const [hasChanged, setHasChanged] = useState(false);
@@ -211,12 +210,6 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({ index, segment, isActi
           <div className={clsx(getClassName(segment.delete, isActive), disabled && 'pointer-events-none cursor-not-allowed opacity-80')} style={{ whiteSpace: 'pre-wrap' }} onClick={handleTextClick}>
             {segment.text || '\u200b'}
           </div>
-          {/* 附加文本，显示在原始文本下方 */}
-          {appendText && (
-            <div className={clsx(getClassName(segment.delete, isActive), disabled && 'pointer-events-none cursor-not-allowed opacity-80')} style={{ whiteSpace: 'pre-wrap' }} onClick={handleTextClick}>
-              {appendText || '\u200b'}
-            </div>
-          )}
         </div>
       )}
     </div>
