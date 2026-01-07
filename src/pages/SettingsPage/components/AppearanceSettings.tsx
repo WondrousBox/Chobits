@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { TbDeviceDesktop, TbLoader2, TbMoon, TbPalette, TbSunHigh } from 'react-icons/tb';
+import { TbCheck, TbDeviceDesktop, TbLoader2, TbMoon, TbSunHigh } from 'react-icons/tb';
 
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 import { useThemePreference } from '../providers/ThemeProvider';
+import { SettingGroup, SettingItem } from './SettingComponents';
 
 type ThemeSource = 'system' | 'light' | 'dark';
 
@@ -17,24 +18,24 @@ const AppearanceSettings: React.FC = () => {
       {
         value: 'system' as const,
         label: '跟随系统',
-        description: '根据系统的颜色方案在明亮与黑暗之间自动切换。',
         icon: TbDeviceDesktop
       },
       {
         value: 'light' as const,
         label: '明亮模式',
-        description: '保持浅色界面，适合日间与亮色环境使用。',
         icon: TbSunHigh
       },
       {
         value: 'dark' as const,
         label: '黑暗模式',
-        description: '降低亮度并突出内容，适合夜间或弱光环境。',
         icon: TbMoon
       }
     ],
     []
   );
+
+  const currentOption = options.find((o) => o.value === mode) || options[0];
+  const CurrentIcon = currentOption.icon;
 
   const handleChange = async (value: ThemeSource): Promise<void> => {
     if (pending || value === mode) return;
@@ -47,54 +48,39 @@ const AppearanceSettings: React.FC = () => {
   };
 
   return (
-    <div className="px-2">
-      <div className="rounded-2xl border border-border bg-card p-5 shadow-sm space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <TbPalette className="h-6 w-6" />
-            </div>
-            <div>
-              <div className="text-base font-semibold text-foreground">主题外观</div>
-              <div className="text-sm text-muted-foreground">切换界面颜色模式，或根据系统自动调整。</div>
-            </div>
-          </div>
-        </div>
-
-        <RadioGroup value={pending ?? mode} onValueChange={(value) => handleChange(value as ThemeSource)} className="grid gap-3 md:grid-cols-3">
-          {options.map((option) => {
-            const Icon = option.icon;
-            const isActive = (pending ?? mode) === option.value;
-            return (
-              <label
-                key={option.value}
-                htmlFor={`theme-${option.value}`}
-                className={cn(
-                  'relative flex cursor-pointer flex-col gap-3 rounded-2xl border p-4 transition-all',
-                  isActive ? 'border-primary bg-primary/5 shadow-inner' : 'border-border hover:border-primary/50'
+    <SettingGroup title="外观">
+      <SettingItem
+        title="主题外观"
+        description="切换界面颜色模式，或根据系统自动调整"
+        action={
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" disabled={pending !== null} className="min-w-[100px]">
+                {pending !== null ? (
+                  <TbLoader2 className="h-4 w-4 animate-spin mr-1.5" />
+                ) : (
+                  <CurrentIcon className="h-4 w-4 mr-1.5" />
                 )}
-              >
-                <div className="flex items-center gap-3">
-                  <RadioGroupItem id={`theme-${option.value}`} value={option.value} className="mt-0.5" />
-                  <div>
-                    <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                      <Icon className="h-5 w-5" />
-                      {option.label}
-                    </div>
-                    <p className="text-xs text-muted-foreground">{option.description}</p>
-                  </div>
-                </div>
-                {pending === option.value && (
-                  <div className="absolute right-4 top-4 text-primary">
-                    <TbLoader2 className="h-4 w-4 animate-spin" />
-                  </div>
-                )}
-              </label>
-            );
-          })}
-        </RadioGroup>
-      </div>
-    </div>
+                {pending !== null ? '切换中...' : currentOption.label}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {options.map((option) => {
+                const Icon = option.icon;
+                const isActive = mode === option.value;
+                return (
+                  <DropdownMenuItem key={option.value} onClick={() => handleChange(option.value)} className="flex items-center gap-2">
+                    <Icon className="h-4 w-4" />
+                    <span className="flex-1">{option.label}</span>
+                    {isActive && <TbCheck className="h-4 w-4 text-primary" />}
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
+      />
+    </SettingGroup>
   );
 };
 

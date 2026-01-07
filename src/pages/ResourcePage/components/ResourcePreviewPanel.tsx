@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbFileText, TbLanguage, TbList, TbSparkles, TbX } from 'react-icons/tb';
+import { TbExternalLink, TbFileText, TbLanguage, TbList, TbSparkles, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { BroadcastChannelManager, CHANNEL_NAMES, type MediaSyncMessage } from '@/utils/broadcastChannels';
 
 import type { ResourceItem } from '../types';
 import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from '../utils/resourceProtocol';
@@ -18,15 +19,15 @@ type TabType = 'subtitle' | 'translate' | 'summary' | 'list';
 interface TabConfig {
   id: TabType;
   label: string;
-  icon: React.ReactNode;
+  Icon: React.ComponentType<{ className?: string }>;
 }
 
-// 所有可用的标签配置
+// 所有可用的标签配置（使用组件引用而非 JSX 实例，避免模块加载时创建对象）
 const ALL_TABS: TabConfig[] = [
-  { id: 'translate', label: '翻译', icon: <TbLanguage className="w-4 h-4" /> },
-  { id: 'subtitle', label: '字幕', icon: <TbFileText className="w-4 h-4" /> },
-  { id: 'summary', label: '总结', icon: <TbSparkles className="w-4 h-4" /> },
-  { id: 'list', label: '列表', icon: <TbList className="w-4 h-4" /> }
+  { id: 'translate', label: '翻译', Icon: TbLanguage },
+  { id: 'subtitle', label: '字幕', Icon: TbFileText },
+  { id: 'summary', label: '总结', Icon: TbSparkles },
+  { id: 'list', label: '列表', Icon: TbList }
 ];
 
 interface ResourcePreviewPanelProps {
@@ -130,6 +131,42 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
     loadSubtitles();
   }, [data?.id, data?.type]);
 
+  // 监听弹窗的播放进度同步和互斥播放
+  useEffect(() => {
+    const channel = BroadcastChannelManager.acquire(CHANNEL_NAMES.MEDIA_SYNC);
+
+    const handleMessage = (event: MessageEvent<MediaSyncMessage>): void => {
+      const { type } = event.data;
+      // 播放进度同步（弹窗关闭时）
+      if (type === 'playbackProgress' && event.data.resourceId === data?.id && event.data.currentTime > 0) {
+        if (mediaPlayerRef.current) {
+          mediaPlayerRef.current.seekTo(event.data.currentTime);
+        }
+        setCurrentTime(event.data.currentTime);
+      }
+      // 互斥播放：弹窗开始播放时，面板暂停
+      if (type === 'playStarted' && event.data.source === 'window' && event.data.resourceId === data?.id) {
+        mediaPlayerRef.current?.pause();
+      }
+    };
+
+    channel.addEventListener('message', handleMessage);
+    return () => {
+      channel.removeEventListener('message', handleMessage);
+      BroadcastChannelManager.release(CHANNEL_NAMES.MEDIA_SYNC);
+    };
+  }, [data?.id]);
+
+  // 面板播放时通知弹窗暂停
+  const handlePlay = useCallback(() => {
+    if (!data?.id) return;
+    BroadcastChannelManager.postMessage(CHANNEL_NAMES.MEDIA_SYNC, {
+      type: 'playStarted',
+      source: 'panel',
+      resourceId: data.id
+    });
+  }, [data?.id]);
+
   if (!data) {
     return <div className="w-full h-full flex items-center justify-center bg-background text-muted-foreground text-sm">选择资源进行预览</div>;
   }
@@ -143,7 +180,7 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
     if (isVideo && fileSrc) {
       return (
         <div className="w-full aspect-video bg-black">
-          <MediaPlayer ref={mediaPlayerRef} src={fileSrc} type="video" title={title} autoPlay={false} className="w-full h-full" onTimeUpdate={setCurrentTime} />
+          <MediaPlayer ref={mediaPlayerRef} src={fileSrc} type="video" title={title} autoPlay={false} className="w-full h-full" onTimeUpdate={setCurrentTime} onPlay={handlePlay} />
         </div>
       );
     }
@@ -161,7 +198,7 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
     if (isAudio && fileSrc) {
       return (
         <div className="w-full p-4 bg-muted/30">
-          <MediaPlayer ref={mediaPlayerRef} src={fileSrc} type="audio" title={title} autoPlay={false} className="w-full" onTimeUpdate={setCurrentTime} />
+          <MediaPlayer ref={mediaPlayerRef} src={fileSrc} type="audio" title={title} autoPlay={false} className="w-full" onTimeUpdate={setCurrentTime} onPlay={handlePlay} />
         </div>
       );
     }
@@ -267,9 +304,40 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30 shrink-0">
         <div className="text-xs font-medium truncate flex-1 mr-2">{title}</div>
-        <Button size="icon" className="w-7 h-7" variant="ghost" onClick={onClose} title="关闭预览">
-          <TbX className="w-4 h-4" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            size="icon"
+            className="w-7 h-7"
+            variant="ghost"
+            onClick={() => {
+              // 获取当前播放时间并暂停视频
+              let startTime: number | undefined;
+              if ((isVideo || isAudio) && mediaPlayerRef.current) {
+                startTime = mediaPlayerRef.current.getCurrentTime();
+                mediaPlayerRef.current.pause();
+              }
+              // 使用独立窗口打开当前资源，传递播放进度
+              window.YUA.window['window:open'](
+                'resourcePreview',
+                {
+                  current: data,
+                  list: resourceList,
+                  index: resourceList?.findIndex((r) => r.id === data.id) ?? 0,
+                  startTime
+                },
+                {
+                  sameDisplayAsSender: true
+                }
+              );
+            }}
+            title="在弹窗中打开"
+          >
+            <TbExternalLink className="w-4 h-4" />
+          </Button>
+          <Button size="icon" className="w-7 h-7" variant="ghost" onClick={onClose} title="关闭预览">
+            <TbX className="w-4 h-4" />
+          </Button>
+        </div>
       </div>
 
       {/* 主内容区 + 标签区 */}
@@ -284,7 +352,7 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
             <TabsList className="w-full justify-start rounded-none border-y bg-muted/30 h-9 px-2 shrink-0">
               {availableTabs.map((tab) => (
                 <TabsTrigger key={tab.id} value={tab.id} className="text-xs gap-1.5 data-[state=active]:bg-background">
-                  {tab.icon}
+                  <tab.Icon className="w-4 h-4" />
                   {tab.label}
                 </TabsTrigger>
               ))}

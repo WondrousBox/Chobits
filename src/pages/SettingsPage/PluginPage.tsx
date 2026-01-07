@@ -1,7 +1,7 @@
 import { isSystemPresetPlugin, PluginDefinition } from '@packages/plugins/types';
 import { AnimatePresence, motion } from 'framer-motion';
 import React, { useEffect, useState } from 'react';
-import { TbBox, TbChevronDown, TbChevronRight, TbSettings, TbWifi } from 'react-icons/tb';
+import { TbBox, TbChevronDown, TbChevronRight, TbLoader, TbSettings, TbWifi } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -12,7 +12,7 @@ import { PluginListItem } from './components/PluginListItem';
 import SelectModelFolder from './components/SelectModelFolder';
 import type { InstalledResource } from './components/types';
 
-interface PluginPageProps { }
+interface PluginPageProps {}
 
 const PluginPage: React.FC<PluginPageProps> = () => {
   const [supported, setSupported] = useState<PluginDefinition[]>([]);
@@ -232,40 +232,50 @@ const PluginPage: React.FC<PluginPageProps> = () => {
     const isSystemPreset = isSystemPresetPlugin(resource);
     const installedResource = isSystemPreset
       ? {
-        id: `${resource.pluginId}_${resource.type}_${resource.id}_${resource.version}`,
-        pluginId: resource.pluginId,
-        resourceId: resource.id,
-        type: resource.type,
-        name: resource.name,
-        displayName: resource.displayName,
-        version: resource.version,
-        status: 'installed' as const
-      }
+          id: `${resource.pluginId}_${resource.type}_${resource.id}_${resource.version}`,
+          pluginId: resource.pluginId,
+          resourceId: resource.id,
+          type: resource.type,
+          name: resource.name,
+          displayName: resource.displayName,
+          version: resource.version,
+          status: 'installed' as const
+        }
       : rec;
     return <PluginListItem key={resource.id} resource={resource} installedResource={installedResource} isInstalling={busy} onInstall={install} onCancel={cancel} onRetry={retry} onRemove={remove} />;
   };
 
-  if (loading) return <div className="p-4 text-xs text-muted-foreground">加载中...</div>;
+  if (loading) {
+    return (
+      <div className="p-4 flex items-center justify-center text-muted-foreground">
+        <TbLoader className="h-4 w-4 mr-2 animate-spin" />
+        加载中...
+      </div>
+    );
+  }
 
   return (
-    <>
-      <div className="flex items-center gap-2 p-2">
-        <div className="flex-1">
-          <Tabs value={tabValue} onValueChange={(v) => setTabValue(v as 'available' | 'installed')} className="no-drag">
-            <TabsList>
-              <TabsTrigger value="available">可用插件</TabsTrigger>
-              <TabsTrigger value="installed">已安装</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
+    <div className="h-full flex flex-col">
+      {/* 顶部工具栏 */}
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+        <Tabs value={tabValue} onValueChange={(v) => setTabValue(v as 'available' | 'installed')} className="no-drag flex-1">
+          <TabsList className="h-8">
+            <TabsTrigger value="available" className="text-xs px-3">
+              可用插件
+            </TabsTrigger>
+            <TabsTrigger value="installed" className="text-xs px-3">
+              已安装
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
         <Dialog open={showFolderSettings} onOpenChange={setShowFolderSettings}>
           <DialogTrigger asChild>
-            <Button size="sm" variant="outline" title="设置下载文件夹">
-              <TbSettings />
+            <Button size="sm" variant="outline" className="h-8 text-xs" title="设置下载文件夹">
+              <TbSettings className="h-4 w-4 mr-1" />
               存储位置
             </Button>
           </DialogTrigger>
-          <DialogContent className="w-80">
+          <DialogContent className="w-full max-w-md">
             <DialogHeader>
               <DialogTitle></DialogTitle>
               <DialogDescription></DialogDescription>
@@ -277,60 +287,75 @@ const PluginPage: React.FC<PluginPageProps> = () => {
             />
           </DialogContent>
         </Dialog>
-        <Button size="sm" variant="outline" onClick={() => setShowNetworkDialog(true)}>
-          <TbWifi />
+        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setShowNetworkDialog(true)}>
+          <TbWifi className="h-4 w-4 mr-1" />
           网络测试
         </Button>
       </div>
 
       <NetworkCheckDialog open={showNetworkDialog} onOpenChange={setShowNetworkDialog} />
 
-      {Object.keys(resourcesByPlugin).length === 0 && <div className="text-xs text-muted-foreground border rounded px-2 text-center py-20">暂无插件。</div>}
-      <div className="space-y-2 px-2 h-[calc(100%-52px)] overflow-y-auto">
-        {Object.entries(resourcesByPlugin).map(([pluginId, { engines, models }]) => {
-          const pluginName = engines[0]?.pluginId.replace('plugin:', '') || models[0]?.pluginId.replace('plugin:', '') || pluginId.replace('plugin:', '');
-          const isExpanded = expandedPlugins.has(pluginId);
-          const hasModels = models.length > 0;
-          const hasEngines = engines.length > 0;
-          // 检查是否有已安装的引擎（包括系统预设引擎）
-          const hasInstalledEngine =
-            installed.some((resource) => resource.pluginId === pluginId && resource.type === 'engine' && resource.status === 'installed') || engines.some((engine) => isSystemPresetPlugin(engine));
-          const shouldShowModels = hasModels && hasInstalledEngine;
-
-          return (
-            <div key={pluginId} className="border border-solid rounded-md p-2">
-              {/* 引擎列表 */}
-              {hasEngines && engines.map((resource) => renderResourceItem(resource))}
-
-              {/* 模型列表（可展开） */}
-              {shouldShowModels && (
-                <div>
-                  <Button size="sm" variant="outline" onClick={() => togglePluginExpanded(pluginId)}>
-                    {isExpanded ? <TbChevronDown /> : <TbChevronRight />}
-                    <TbBox className="w-4 h-4" />
-                    {pluginName} 模型列表 ({models.length})
-                  </Button>
-                  <AnimatePresence initial={false}>
-                    {isExpanded && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.2, ease: 'easeInOut' }}
-                        style={{ overflow: 'hidden' }}
-                        className="border border-solid rounded-md mt-2"
-                      >
-                        <div className="space-y-1">{models.map((resource) => renderResourceItem(resource))}</div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              )}
+      {/* 插件列表 */}
+      <div className="flex-1 overflow-y-auto p-4">
+        {Object.keys(resourcesByPlugin).length === 0 ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center text-muted-foreground">
+              <TbBox className="h-12 w-12 mx-auto mb-3 opacity-30" />
+              <p className="text-sm">暂无插件</p>
             </div>
-          );
-        })}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {Object.entries(resourcesByPlugin).map(([pluginId, { engines, models }]) => {
+              const pluginName = engines[0]?.pluginId.replace('plugin:', '') || models[0]?.pluginId.replace('plugin:', '') || pluginId.replace('plugin:', '');
+              const isExpanded = expandedPlugins.has(pluginId);
+              const hasModels = models.length > 0;
+              const hasEngines = engines.length > 0;
+              // 检查是否有已安装的引擎（包括系统预设引擎）
+              const hasInstalledEngine =
+                installed.some((resource) => resource.pluginId === pluginId && resource.type === 'engine' && resource.status === 'installed') || engines.some((engine) => isSystemPresetPlugin(engine));
+              const shouldShowModels = hasModels && hasInstalledEngine;
+
+              return (
+                <div key={pluginId} className="bg-card/10 border border-border/70 rounded-xl overflow-hidden">
+                  {/* 引擎列表 */}
+                  {hasEngines && <div className="divide-y divide-border/70">{engines.map((resource) => renderResourceItem(resource))}</div>}
+
+                  {/* 模型列表（可展开） */}
+                  {shouldShowModels && (
+                    <div className={hasEngines ? 'border-t border-border/70' : ''}>
+                      <button
+                        onClick={() => togglePluginExpanded(pluginId)}
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-muted-foreground hover:bg-muted/30 transition-colors"
+                      >
+                        {isExpanded ? <TbChevronDown className="h-4 w-4" /> : <TbChevronRight className="h-4 w-4" />}
+                        <TbBox className="h-4 w-4" />
+                        <span>
+                          {pluginName} 模型列表 ({models.length})
+                        </span>
+                      </button>
+                      <AnimatePresence initial={false}>
+                        {isExpanded && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.2, ease: 'easeInOut' }}
+                            style={{ overflow: 'hidden' }}
+                          >
+                            <div className="border-t border-border/50 divide-y divide-border/50">{models.map((resource) => renderResourceItem(resource))}</div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
-    </>
+    </div>
   );
 };
 

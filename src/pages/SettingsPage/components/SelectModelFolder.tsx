@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { TbBox, TbFolderOpen } from 'react-icons/tb';
+import { TbFolder, TbFolderOpen, TbLoader } from 'react-icons/tb';
 
+import { Button } from '@/components/ui/button';
 import { maskPath } from '@/lib/helpers';
 
 type SelectModelFolderProps = {
@@ -67,41 +68,44 @@ const SelectModelFolder: React.FC<SelectModelFolderProps> = ({ onConfigured }) =
     }
   };
 
-  if (loading) return <div className="text-xs text-muted-foreground py-2">读取配置...</div>;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+        <TbLoader className="h-4 w-4 mr-2 animate-spin" />
+        读取配置...
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-4 text-sm">
-      <div className="text-sm text-muted-foreground mb-4 text-center">选择插件资源存储位置（包含引擎和模型文件，可能占用较大空间，建议选择非系统盘）。</div>
-      <div className="flex gap-6 items-center justify-center">
-        <div
-          className="w-36 h-36 flex items-center flex-col justify-center rounded-md cursor-pointer text-sm font-medium transition-colors border border-solid border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground"
-          onClick={pickDir}
-        >
-          <div className="flex items-center justify-center text-primary">
-            <TbBox size={40} />
-          </div>
-          <div className="text-center select-none">{!pluginsDir ? '选择文件夹' : '修改文件夹'}</div>
+    <div className="space-y-5">
+      {/* 当前路径显示 */}
+      <div
+        className="group flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+        onClick={openFolder}
+      >
+        <div className="flex-shrink-0 w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center">
+          <TbFolder className="h-4 w-4 text-primary" />
         </div>
-        {pluginsDir && (
-          <div
-            className="w-36 h-36 flex items-center flex-col justify-center rounded-md cursor-pointer text-sm font-medium transition-colors border border-solid border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground"
-            onClick={openFolder}
-          >
-            <div className="flex items-center justify-center text-primary">
-              <TbFolderOpen size={40} />
-            </div>
-            <div className="text-center select-none">打开所在位置</div>
+        <div className="flex-1 min-w-0 overflow-hidden">
+          <div className="text-xs text-muted-foreground">当前存储位置</div>
+          <div className="text-xs font-medium truncate group-hover:text-primary transition-colors" title={pluginsDir}>
+            {pluginsDir ? maskPath(pluginsDir) : '未设置'}
           </div>
-        )}
+        </div>
+        {pluginsDir && <TbFolderOpen className="h-4 w-4 flex-shrink-0 text-muted-foreground group-hover:text-primary transition-colors" />}
       </div>
-      {pluginsDir && (
-        <div className="mt-4 break-all">
-          当前位置：
-          <span className="font-mono text-primary cursor-pointer" onClick={openFolder}>
-            {maskPath(pluginsDir)}
-          </span>
-        </div>
-      )}
+
+      {/* 说明文字 */}
+      <p className="text-xs text-muted-foreground leading-relaxed">
+        插件资源包含引擎和模型文件，可能占用较大空间，建议选择非系统盘存储。
+      </p>
+
+      {/* 操作按钮 */}
+      <Button variant="outline" className="w-full" onClick={pickDir} disabled={pickBusy}>
+        {pickBusy ? <TbLoader className="h-4 w-4 mr-2 animate-spin" /> : <TbFolder className="h-4 w-4 mr-2" />}
+        {!pluginsDir ? '选择存储位置' : '更改存储位置'}
+      </Button>
     </div>
   );
 };

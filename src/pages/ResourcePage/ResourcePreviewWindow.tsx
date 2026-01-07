@@ -5,6 +5,7 @@ import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
+import { BroadcastChannelManager, CHANNEL_NAMES, type MediaSyncMessage } from '@/utils/broadcastChannels';
 
 import { ImagePlayer, MediaPlayer, SubtitlePlayer, TextPlayer } from './components/Players';
 import type { MediaPlayerRef } from './components/Players/MediaPlayer/MediaPlayer';
@@ -17,6 +18,12 @@ interface IncomingPayload {
   current: ResourceItem;
   list?: ResourceItem[];
   index?: number;
+  startTime?: number; // 从指定时间开始播放（秒）
+}
+
+// 类型守卫：判断 payload 是否为 IncomingPayload
+function isIncomingPayload(payload: unknown): payload is IncomingPayload {
+  return typeof payload === 'object' && payload !== null && 'current' in payload;
 }
 
 const ResourcePreviewWindow: React.FC = () => {
@@ -25,6 +32,7 @@ const ResourcePreviewWindow: React.FC = () => {
   const [activeSubtitle, setActiveSubtitle] = useState<ResourceItem | null>(null);
   const [isPlaylistExpanded, setIsPlaylistExpanded] = useState(false);
   const [currentTime, setCurrentTime] = useState(0); // 当前播放时间（秒）
+  const [pendingStartTime, setPendingStartTime] = useState<number | null>(null); // 待跳转的起始时间
   const mediaPlayerRef = useRef<MediaPlayerRef>(null); // 媒体播放器的 ref
 
   // 处理视频加载完成，调整窗口大小
@@ -71,6 +79,19 @@ const ResourcePreviewWindow: React.FC = () => {
     }
   }, []);
 
+  // 处理 startTime 跳转（视频和音频都适用）
+  useEffect(() => {
+    if (pendingStartTime === null || pendingStartTime <= 0) {
+      return;
+    }
+    // 延迟执行，确保媒体已加载
+    const timer = setTimeout(() => {
+      mediaPlayerRef.current?.seekTo(pendingStartTime);
+      setPendingStartTime(null);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [pendingStartTime]);
+
   // 处理资源切换
   const handleResourceChange = useCallback(async (resource: ResourceItem) => {
     // 获取完整资源信息
@@ -97,27 +118,14 @@ const ResourcePreviewWindow: React.FC = () => {
     setIsPlaylistExpanded((prev) => !prev);
   }, []);
 
-  // 监听 data.id 变化，重新获取完整资源信息（处理列表切换的情况）
-  useEffect(() => {
-    if (data?.id) {
-      window.ipcRenderer
-        .invoke('getResource', { id: data.id })
-        .then((fullResource) => {
-          if (fullResource) {
-            setData((prev) => (prev ? { ...prev, ...fullResource } : fullResource));
-          }
-        })
-        .catch((err) => console.warn('Failed to refresh resource:', err));
-    }
-  }, [data?.id]);
-
   // 当当前资源为视频时，加载其子资源中的字幕文件
+  // 注意：完整资源信息已在 handleResourceChange 和初始化 handler 中获取，无需重复获取
+  // 注意：currentTime 的重置已在 handleResourceChange 和初始化 handler 中处理，此处不应重复
   useEffect(() => {
     const loadSubtitles = async (): Promise<void> => {
       if (!data?.id || data.type !== 'video') {
         setSubtitleList([]);
         setActiveSubtitle(null);
-        setCurrentTime(0); // 切换资源时重置播放时间
         return;
       }
       try {
@@ -141,18 +149,26 @@ const ResourcePreviewWindow: React.FC = () => {
     loadSubtitles();
   }, [data?.id, data?.type]);
 
+  // 用于跟踪是否已接收到数据（避免闭包陷阱）
+  const hasReceivedDataRef = useRef(false);
+
   // 监听资源数据推送
   useEffect(() => {
-    const handler = async (_e: any, payload: IncomingPayload | ResourceItem): Promise<void> => {
-      console.log(payload);
+    hasReceivedDataRef.current = false;
+
+    const handler = async (_e: Electron.IpcRendererEvent | null, payload: IncomingPayload | ResourceItem): Promise<void> => {
+      // 标记已接收到数据
+      hasReceivedDataRef.current = true;
 
       let current: ResourceItem;
+      let startTime: number | undefined;
 
-      if ((payload as any).current) {
-        const p = payload as IncomingPayload;
-        current = p.current;
+      // 使用类型守卫判断 payload 类型
+      if (isIncomingPayload(payload)) {
+        current = payload.current;
+        startTime = payload.startTime;
       } else {
-        current = payload as ResourceItem;
+        current = payload;
       }
 
       // 获取完整资源信息
@@ -168,15 +184,21 @@ const ResourcePreviewWindow: React.FC = () => {
       }
 
       setData(current);
-      setCurrentTime(0); // 切换资源时重置播放时间
+      setCurrentTime(startTime ?? 0); // 设置初始播放时间
+      // 如果有起始时间，设置待跳转时间（在视频加载完成后跳转）
+      if (startTime && startTime > 0) {
+        setPendingStartTime(startTime);
+      }
     };
     window.ipcRenderer?.on('on:window:open:ready', handler);
+
     // 如果 120ms 后仍未接收到数据，主动拉取缓存（避免 race）
     const timer = setTimeout(async () => {
-      if (!data) {
+      // 使用 ref 判断，避免闭包陷阱
+      if (!hasReceivedDataRef.current) {
         try {
           const cached = await window.YUA.window['window:payload:get']('resourcePreview');
-          if (cached && !data) {
+          if (cached && !hasReceivedDataRef.current) {
             // 模拟事件处理逻辑
             handler(null, cached);
           }
@@ -186,14 +208,70 @@ const ResourcePreviewWindow: React.FC = () => {
       }
     }, 120);
 
-    console.log('ResourcePreviewWindow mounted with data: ');
-
     window.YUA.window['window:open:ready']('resourcePreview');
     return () => {
       window.ipcRenderer?.off('on:window:open:ready', handler);
       clearTimeout(timer);
     };
   }, []);
+
+  // 使用 ref 持有 channel 实例，确保 beforeunload 时可用
+  const mediaSyncChannelRef = useRef<BroadcastChannel | null>(null);
+
+  // 初始化媒体同步 channel 并监听互斥播放事件
+  useEffect(() => {
+    const channel = BroadcastChannelManager.acquire(CHANNEL_NAMES.MEDIA_SYNC);
+    mediaSyncChannelRef.current = channel;
+
+    const handleMessage = (event: MessageEvent<MediaSyncMessage>): void => {
+      const { type } = event.data;
+      // 互斥播放：面板开始播放时，弹窗暂停
+      if (type === 'playStarted' && event.data.source === 'panel' && event.data.resourceId === data?.id) {
+        mediaPlayerRef.current?.pause();
+      }
+    };
+
+    channel.addEventListener('message', handleMessage);
+
+    return () => {
+      channel.removeEventListener('message', handleMessage);
+      BroadcastChannelManager.release(CHANNEL_NAMES.MEDIA_SYNC);
+      mediaSyncChannelRef.current = null;
+    };
+  }, [data?.id]);
+
+  // 窗口关闭时广播播放进度，以便右侧面板同步
+  useEffect(() => {
+    const handleBeforeUnload = (): void => {
+      if (data?.id && mediaPlayerRef.current) {
+        const time = mediaPlayerRef.current.getCurrentTime();
+        if (time > 0 && mediaSyncChannelRef.current) {
+          // 使用已持有的 channel 实例发送消息，避免竞态条件
+          mediaSyncChannelRef.current.postMessage({
+            type: 'playbackProgress',
+            resourceId: data.id,
+            currentTime: time
+          });
+        }
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [data?.id]);
+
+  // 弹窗播放时通知面板暂停
+  const handlePlay = useCallback(() => {
+    if (!data?.id) return;
+    // 使用管理器发送一次性消息
+    BroadcastChannelManager.postMessage(CHANNEL_NAMES.MEDIA_SYNC, {
+      type: 'playStarted',
+      source: 'window',
+      resourceId: data.id
+    });
+  }, [data?.id]);
 
   if (!data) {
     return <div className="w-full h-full flex items-center justify-center bg-background text-muted-foreground text-sm">等待资源数据...</div>;
@@ -254,9 +332,9 @@ const ResourcePreviewWindow: React.FC = () => {
     <div className="h-full relative flex items-center justify-center overflow-hidden">
       {isImageFile(data.filePath) && fileSrc && <ImagePlayer src={fileSrc} title={title} className="w-full h-full rounded-md shadow" />}
       {isVideoFile(data.filePath) && fileSrc && (
-        <MediaPlayer ref={mediaPlayerRef} src={fileSrc} type="video" title={title} autoPlay={true} className="w-full h-full" onVideoLoaded={handleVideoLoaded} onTimeUpdate={setCurrentTime} />
+        <MediaPlayer ref={mediaPlayerRef} src={fileSrc} type="video" title={title} autoPlay={true} className="w-full h-full" onVideoLoaded={handleVideoLoaded} onTimeUpdate={setCurrentTime} onPlay={handlePlay} />
       )}
-      {isAudioFile(data.filePath) && fileSrc && <MediaPlayer ref={mediaPlayerRef} src={fileSrc} type="audio" title={title} autoPlay={true} className="w-full max-w-xl" onTimeUpdate={setCurrentTime} />}
+      {isAudioFile(data.filePath) && fileSrc && <MediaPlayer ref={mediaPlayerRef} src={fileSrc} type="audio" title={title} autoPlay={true} className="w-full max-w-xl" onTimeUpdate={setCurrentTime} onPlay={handlePlay} />}
       {isSubtitleFile(data.filePath) && <SubtitlePlayer resource={data} />}
       {!isImageFile(data.filePath) && !isVideoFile(data.filePath) && !isAudioFile(data.filePath) && !isSubtitleFile(data.filePath) && <TextPlayer resource={data} />}
     </div>

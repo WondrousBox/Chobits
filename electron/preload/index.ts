@@ -11,6 +11,7 @@ import { vectorIpcRenderer } from '../main/handlers/embedding/ipc-renderer';
 import { ffmpegIpcRenderer } from '../main/handlers/ffmpeg/ipc-renderer';
 import { fileIpcRenderer } from '../main/handlers/file/ipc-renderer';
 import { folderIpcRenderer } from '../main/handlers/folder/ipc-renderer';
+import { preferencesIpcRenderer } from '../main/handlers/preferences/ipc-renderer';
 import { proxyIpcRenderer } from '../main/handlers/proxy/ipc-renderer';
 import { resourceIpcRenderer } from '../main/handlers/resource/ipc-renderer';
 import { systemIpcRenderer } from '../main/handlers/system/ipc-renderer';
@@ -78,6 +79,7 @@ contextBridge.exposeInMainWorld('YUA', {
   proxy: proxyIpcRenderer,
   theme: themeIpcRenderer,
   sherpa: sherpaIpcRenderer,
+  preferences: preferencesIpcRenderer,
   events: {
     on: (callback: (payload: AppEventPayload) => void) => {
       const subscription = (_event: any, payload: AppEventPayload): void => callback(payload);

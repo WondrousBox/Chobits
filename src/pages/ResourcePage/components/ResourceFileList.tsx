@@ -10,7 +10,8 @@ import { isImageFile, makeResSrc } from '../utils/resourceProtocol';
 interface ResourceFileListProps {
   currentResource: ResourceItem;
   onResourceChange: (resource: ResourceItem) => void;
-  onClose: () => void;
+  /** 关闭列表回调（可选，仅在独立侧边栏模式下使用） */
+  onClose?: () => void;
 }
 
 const ResourceFileList: React.FC<ResourceFileListProps> = ({ currentResource, onResourceChange, onClose }) => {
@@ -110,9 +111,11 @@ const ResourceFileList: React.FC<ResourceFileListProps> = ({ currentResource, on
     return (
       <div className="h-full flex flex-col overflow-hidden bg-background border-l">
         <div className="px-3 py-2 border-b text-xs font-medium text-muted-foreground flex items-center justify-between">
-          <Button size="sm" variant="ghost" className="h-8 w-8" onClick={onClose}>
-            <TbChevronRight />
-          </Button>
+          {onClose && (
+            <Button size="sm" variant="ghost" className="h-8 w-8" onClick={onClose}>
+              <TbChevronRight />
+            </Button>
+          )}
           <span>文件列表</span>
         </div>
         <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">加载中...</div>
@@ -123,9 +126,11 @@ const ResourceFileList: React.FC<ResourceFileListProps> = ({ currentResource, on
   return (
     <div className="h-full flex flex-col overflow-hidden bg-background border-l">
       <div className="px-3 py-2 border-b text-xs font-medium text-muted-foreground flex items-center justify-between">
-        <Button size="sm" variant="ghost" className="h-8 w-8" onClick={onClose}>
-          <TbChevronRight />
-        </Button>
+        {onClose && (
+          <Button size="sm" variant="ghost" className="h-8 w-8" onClick={onClose}>
+            <TbChevronRight />
+          </Button>
+        )}
         <span>文件列表 ({list.length})</span>
       </div>
       <ScrollArea className="flex-1">

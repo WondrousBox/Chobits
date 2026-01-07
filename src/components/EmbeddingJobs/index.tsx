@@ -1,14 +1,19 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { TbLoader, TbPlayerStop } from 'react-icons/tb';
 
-// Minimal in-memory job store synced from IPC events
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
+import { cn } from '@/lib/utils';
+
+// 内存中的任务状态，通过 IPC 事件同步
 
 type Job = { id: string; total: number; done: number; status: string; error?: string };
 
 type Props = {
-  style?: React.CSSProperties;
+  className?: string;
 };
 
-export default function EmbeddingJobsPanel(props: Props): JSX.Element {
+export default function EmbeddingJobsPanel({ className }: Props): JSX.Element {
   const [jobs, setJobs] = useState<Record<string, Job>>({});
   const unsub = useRef<() => void>();
   const unsub2 = useRef<() => void>();
@@ -25,8 +30,6 @@ export default function EmbeddingJobsPanel(props: Props): JSX.Element {
     };
     unsub.current = window.YUA.vector.onEmbeddingJob(onJob);
     unsub2.current = window.YUA.vector.onEmbeddingProgress((data: any) => {
-      // vector.ts 主进程发送的 progress 中不含 id，这里用 job 事件同步获取，或扩展主进程带上 jobId
-      // 为简化，这里尝试读取 data.id；若不存在，则不更新。
       if ((data as any).id) onProg(data as any);
     });
     return () => {
@@ -41,37 +44,53 @@ export default function EmbeddingJobsPanel(props: Props): JSX.Element {
     await window.YUA.vector['embedding:cancelJob']({ jobId: id });
   };
 
+  const statusLabel: Record<string, string> = {
+    running: '运行中',
+    completed: '已完成',
+    error: '错误',
+    cancelled: '已取消'
+  };
+
   return (
-    <div style={{ padding: 12, border: '1px solid #eee', borderRadius: 8, ...props.style }}>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-        <strong style={{ fontSize: 14 }}>Embedding Jobs</strong>
-      </div>
+    <div className={cn('bg-card border border-border rounded-lg overflow-hidden', className)}>
       {list.length === 0 ? (
-        <div style={{ color: '#888' }}>No jobs</div>
+        <div className="px-4 py-8 text-center text-sm text-muted-foreground">暂无嵌入任务</div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div className="divide-y divide-border">
           {list.map((job) => {
             const pct = job.total ? Math.round((job.done / job.total) * 100) : 0;
+            const isRunning = job.status === 'running';
+            const isError = job.status === 'error';
             return (
-              <div key={job.id} style={{ border: '1px solid #ddd', padding: 8, borderRadius: 6 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <div style={{ fontFamily: 'monospace' }}>{job.id}</div>
-                  <div>
-                    <span style={{ marginRight: 12 }}>
+              <div key={job.id} className="px-4 py-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-mono text-muted-foreground truncate max-w-[200px]">{job.id}</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-muted-foreground">
                       {pct}% ({job.done}/{job.total})
                     </span>
-                    <span style={{ color: job.status === 'error' ? '#b00' : '#555' }}>{job.status}</span>
+                    <span
+                      className={cn('text-xs', {
+                        'text-primary': isRunning,
+                        'text-destructive': isError,
+                        'text-muted-foreground': !isRunning && !isError
+                      })}
+                    >
+                      {isRunning && <TbLoader className="inline h-3 w-3 mr-1 animate-spin" />}
+                      {statusLabel[job.status] || job.status}
+                    </span>
                   </div>
                 </div>
-                <div style={{ height: 6, background: '#f0f0f0', borderRadius: 4, overflow: 'hidden' }}>
-                  <div style={{ width: `${pct}%`, height: '100%', background: '#4f46e5' }} />
-                </div>
-                <div style={{ marginTop: 6, display: 'flex', gap: 8 }}>
-                  <button onClick={() => cancel(job.id)} disabled={job.status !== 'running'} style={{ padding: '4px 8px' }}>
-                    Cancel
-                  </button>
-                </div>
-                {job.error && <div style={{ color: '#b00', marginTop: 6 }}>Error: {job.error}</div>}
+                <Progress value={pct} className={cn('h-1.5', isError && '[&>[data-slot=progress-indicator]]:bg-destructive')} />
+                {isRunning && (
+                  <div className="mt-2">
+                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => cancel(job.id)}>
+                      <TbPlayerStop className="h-3.5 w-3.5 mr-1" />
+                      取消
+                    </Button>
+                  </div>
+                )}
+                {job.error && <div className="mt-2 text-xs text-destructive">{job.error}</div>}
               </div>
             );
           })}

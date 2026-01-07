@@ -46,6 +46,7 @@ const Workspace: React.FC = () => {
       /* ignore */
     }
   };
+
   const commitRename = async (): Promise<void> => {
     if (!editingId) return;
     const name = editingName.trim();
@@ -61,6 +62,7 @@ const Workspace: React.FC = () => {
       /* ignore */
     }
   };
+
   const openFolder = async (id: string): Promise<void> => {
     try {
       await window.YUA.workspace['workspace:open']({ id });
@@ -68,6 +70,7 @@ const Workspace: React.FC = () => {
       /* ignore */
     }
   };
+
   const scan = async (id: string): Promise<void> => {
     if (scanningIds.has(id)) return;
     setScanningIds((prev) => new Set([...prev, id]));
@@ -84,12 +87,14 @@ const Workspace: React.FC = () => {
       load();
     }
   };
+
   const scanAll = async (): Promise<void> => {
     const ids = filtered.map((ws) => ws.id);
     for (const id of ids) {
       await scan(id);
     }
   };
+
   const remove = (id: string): void => {
     const ws = list.find((w) => w.id === id);
     setDeleting({ id, name: ws?.name || '未命名' });
@@ -120,7 +125,7 @@ const Workspace: React.FC = () => {
   }, [list, search]);
 
   return (
-    <div className="h-full w-full flex flex-col bg-background text-foreground">
+    <div className="h-full w-full flex flex-col">
       {/* 删除确认对话框 */}
       <Dialog
         open={!!deleting}
@@ -170,94 +175,106 @@ const Workspace: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <div className="flex items-center gap-2 px-2">
-        <Input className="w-48 h-8" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="搜索 名称/路径..." />
-        <Button size="sm" variant={'outline'} onClick={scanAll} disabled={filtered.length === 0 || scanningIds.size > 0}>
-          <TbScanEye /> {scanningIds.size > 0 ? '扫描中...' : '全部扫描'}
-        </Button>
-        <Button size="icon" className="w-8 h-8" variant={'outline'} onClick={load} disabled={loading}>
-          <TbRefresh />
-        </Button>
-        <Button size="sm" onClick={() => window.YUA.window['window:open']('workspaceWizard')}>
-          <TbPlus /> 新建
-        </Button>
+
+      {/* 工具栏 */}
+      <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border">
+        <Input className="w-48 h-8" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="搜索名称或路径..." />
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={scanAll} disabled={filtered.length === 0 || scanningIds.size > 0}>
+            <TbScanEye className="h-4 w-4 mr-1" />
+            {scanningIds.size > 0 ? '扫描中...' : '全部扫描'}
+          </Button>
+          <Button size="icon" className="w-8 h-8" variant="outline" onClick={load} disabled={loading}>
+            <TbRefresh className="h-4 w-4" />
+          </Button>
+          <Button size="sm" onClick={() => window.YUA.window['window:open']('workspaceWizard')}>
+            <TbPlus className="h-4 w-4 mr-1" />
+            新建
+          </Button>
+        </div>
       </div>
-      <div className="flex-1 overflow-auto p-2 space-y-3">
-        {error && <div className="text-red-500 text-sm">{error}</div>}
-        {filtered.map((ws) => (
-          <div key={ws.id} className="p-2 rounded border border-ring border-solid bg-card text-card-foreground flex flex-col gap-2 relative">
-            <div className="flex items-center justify-between">
-              <div className="font-semibold text-sm flex items-center gap-2">
-                {ws.isDefault === 1 && <div className="text-primary bg-primary/20 px-2 py-1 rounded-md text-xs whitespace-nowrap">默认</div>}
-                {editingId === ws.id ? (
-                  <Input
-                    autoFocus
-                    value={editingName}
-                    onChange={(e) => setEditingName(e.target.value)}
-                    onBlur={commitRename}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') commitRename();
-                      if (e.key === 'Escape') {
-                        setEditingId(null);
-                      }
-                    }}
-                    className="h-8"
-                  />
-                ) : (
-                  <span
-                    className="cursor-pointer"
-                    onClick={() => {
-                      setEditingId(ws.id);
-                      setEditingName(ws.name || '');
-                    }}
-                  >
-                    {ws.name}
-                  </span>
-                )}
-                {/* 默认标记已移动为左上角星标 */}
+
+      {/* 工作空间列表 */}
+      <div className="flex-1 overflow-auto p-4">
+        {error && <div className="text-destructive text-sm mb-3">{error}</div>}
+
+        <div className="space-y-1">
+          <div className="text-xs font-medium text-muted-foreground px-2 py-1">工作空间列表</div>
+          <div className="bg-card border border-border rounded-lg overflow-hidden divide-y divide-border">
+            {filtered.length === 0 ? (
+              <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                {loading ? '加载中...' : list.length === 0 ? '尚未创建任何工作空间，点击右上角新建' : '未找到匹配的工作空间'}
               </div>
-              <div className="flex items-center gap-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button size="icon" className="w-8 h-8" variant={'outline'}>
-                      <TbDotsVertical />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    {ws.isDefault !== 1 && (
-                      <DropdownMenuItem onSelect={() => setDefault(ws.id)}>
-                        <TbCheck /> 设为默认
-                      </DropdownMenuItem>
-                    )}
-                    <DropdownMenuItem onSelect={() => openFolder(ws.id)}>
-                      <TbFolderOpen /> 打开
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      disabled={scanningIds.has(ws.id)}
-                      onSelect={() => {
-                        if (!scanningIds.has(ws.id)) scan(ws.id);
-                      }}
-                    >
-                      <TbScanEye /> {scanningIds.has(ws.id) ? '扫描中...' : '扫描'}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onSelect={() => remove(ws.id)}>
-                      <TbTrash /> 删除
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-            <div className="text-xs opacity-80 break-all">{maskPath(ws.rootPath)}</div>
-            <div className="text-xs flex flex-wrap gap-4 opacity-70">
-              <span>文件数: {ws.fileCount ?? '-'}</span>
-              <span>容量: {prettyBytes(ws.sizeBytes || 0)}</span>
-              {ws.lastScanAt && <span>上次扫描: {formatRelativeTime(ws.lastScanAt)}</span>}
-            </div>
-            {ws.description && <div className="text-xs opacity-70">{ws.description}</div>}
+            ) : (
+              filtered.map((ws) => (
+                <div key={ws.id} className="px-4 py-3 hover:bg-muted/30 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      {ws.isDefault === 1 && <span className="text-primary bg-primary/10 px-1.5 py-0.5 rounded text-xs flex-shrink-0">默认</span>}
+                      {editingId === ws.id ? (
+                        <Input
+                          autoFocus
+                          value={editingName}
+                          onChange={(e) => setEditingName(e.target.value)}
+                          onBlur={commitRename}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') commitRename();
+                            if (e.key === 'Escape') setEditingId(null);
+                          }}
+                          className="h-7 text-sm"
+                        />
+                      ) : (
+                        <span
+                          className="text-sm font-medium text-foreground cursor-pointer hover:text-primary truncate"
+                          onClick={() => {
+                            setEditingId(ws.id);
+                            setEditingName(ws.name || '');
+                          }}
+                        >
+                          {ws.name}
+                        </span>
+                      )}
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="icon" className="w-7 h-7 flex-shrink-0" variant="ghost">
+                          <TbDotsVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {ws.isDefault !== 1 && (
+                          <DropdownMenuItem onSelect={() => setDefault(ws.id)}>
+                            <TbCheck className="h-4 w-4 mr-2" />
+                            设为默认
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem onSelect={() => openFolder(ws.id)}>
+                          <TbFolderOpen className="h-4 w-4 mr-2" />
+                          打开目录
+                        </DropdownMenuItem>
+                        <DropdownMenuItem disabled={scanningIds.has(ws.id)} onSelect={() => !scanningIds.has(ws.id) && scan(ws.id)}>
+                          <TbScanEye className="h-4 w-4 mr-2" />
+                          {scanningIds.has(ws.id) ? '扫描中...' : '扫描统计'}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem className="text-destructive" onSelect={() => remove(ws.id)}>
+                          <TbTrash className="h-4 w-4 mr-2" />
+                          删除
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground truncate">{maskPath(ws.rootPath)}</div>
+                  <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                    <span>{ws.fileCount ?? '-'} 个文件</span>
+                    <span>{prettyBytes(ws.sizeBytes || 0)}</span>
+                    {ws.lastScanAt && <span>扫描于 {formatRelativeTime(ws.lastScanAt)}</span>}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
-        ))}
-        {!loading && filtered.length === 0 && <div className="text-sm text-muted-foreground">未找到匹配工作空间。{list.length === 0 ? '尚未创建任何工作空间，点击右上角 新建/导入。' : ''}</div>}
+        </div>
       </div>
     </div>
   );
