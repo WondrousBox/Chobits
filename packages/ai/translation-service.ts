@@ -26,6 +26,15 @@ import { getAllSecrets } from './settings-store';
 // 1. 记录最近五次使用的翻译服务和模型，方便用户快速选择，记录的时候要不能记录重复的服务商，并且要把最新使用的放在最前面
 // 2. 提供一个继续使用配置和更换配置的选项给用户选择
 
+// 这是一个通用的LLM翻译字幕的服务，目前每次进行翻译都会先总结当前文本片段的内容，也就是说只有当前内容总结输出了之后猜忌心输出后续翻译内容。
+// 然后当一段文本分组翻译完成之后才继续翻译下一段，并且带上上一段的总结作为上下文提示词，方便后续翻译的内容能够更好的理解上下文。
+// 现在需要加速翻译过程，也就是说不能按照顺序一段一段翻译了，这样太慢，因此需要按照下面的思路实现：
+// 1. 当前面分组的总结文本完成返回之后，就不要管前面的翻译是否完成了，可以直接用这个总结进行后续的分组翻译
+// 2. 需要定义一个最大同时并行翻译请求数量，目前可以定义为3个，也就是说最多可以同时三个请求存在
+// 3. 当一个分组翻译完成之后，要立即开始翻译下一个分组，并且要使用上一个分组的总结作为上下文提示词
+// 4. 如果中途取消翻译，所有的翻译请求都要被中止，并且要释放资源，如果存在某一个翻译失败，需要支持自动重试两次
+// 5. 我希望全部的分组翻译完成之后返回一个新的，翻译好的数组，也是 AimSegments 数组
+
 /**
  * 翻译进度数据
  */
@@ -236,25 +245,55 @@ export const TranslationService = {
       // const ctrl = signal ? undefined : new AbortController(); // 已废弃，使用统一的 signal
       const abortSignal = signal; // 使用统一管理的 signal
 
-      // 按顺序执行 Promise 的辅助函数
-      const executePromisesInOrder = async <T>(promises: Array<() => Promise<T>>, abortSignal?: AbortSignal, timeout?: number): Promise<T[]> => {
-        const results: T[] = [];
+      // 并发执行 Promise 的辅助函数（带最大并发控制）
+      const runWithConcurrency = async <T>(count: number, worker: (index: number) => Promise<T>, options?: { maxConcurrency?: number; abortSignal?: AbortSignal }): Promise<T[]> => {
+        const results: T[] = new Array(count);
+        const { maxConcurrency = 3, abortSignal } = options || {};
 
-        for (let i = 0; i < promises.length; i++) {
-          if (abortSignal?.aborted) {
-            throw new Error('Aborted');
-          }
+        let nextIndex = 0;
+        let activeCount = 0;
+        let rejected = false;
 
-          try {
-            const promise = promises[i]();
-            const result = timeout ? await Promise.race([promise, new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout))]) : await promise;
-            results.push(result);
-          } catch (error) {
-            throw error instanceof Error ? error : new Error(String(error));
-          }
-        }
+        return new Promise<T[]>((resolve, reject) => {
+          const maybeStartNext = () => {
+            if (rejected) return;
 
-        return results;
+            if (abortSignal?.aborted) {
+              rejected = true;
+              reject(new Error('Aborted'));
+              return;
+            }
+
+            // 所有任务都已完成
+            if (nextIndex >= count && activeCount === 0) {
+              resolve(results);
+              return;
+            }
+
+            // 启动新的任务直到达到并发上限
+            while (activeCount < maxConcurrency && nextIndex < count && !rejected) {
+              const current = nextIndex++;
+              activeCount++;
+
+              worker(current)
+                .then((res) => {
+                  results[current] = res;
+                })
+                .catch((err) => {
+                  if (!rejected) {
+                    rejected = true;
+                    reject(err);
+                  }
+                })
+                .finally(() => {
+                  activeCount--;
+                  maybeStartNext();
+                });
+            }
+          };
+
+          maybeStartNext();
+        });
       };
 
       // 默认的翻译提示词
@@ -286,126 +325,131 @@ Now translate the following into **{targetLanguage}** and only show me the trans
 
       // 分块处理字幕
       const chunks = utils.chunkSegmentStringsWithIndex(segments, 1000);
-      emit({ type: 'progress', data: { message: `准备翻译 ${chunks.indexStringResult.length} 个字幕片段...`, percentage: 0, displayInfo } });
+      emit({
+        type: 'progress',
+        data: { message: `准备翻译 ${chunks.indexStringResult.length} 个字幕片段...`, percentage: 0, displayInfo }
+      });
+
+      const totalChunks = chunks.indexStringResult.length;
 
       // 记录每个分块自身的 summary，避免用一个全局 lastSummary 在流式过程中被「提前覆盖」
       // key 为 chunkIndex，value 为该分块最终解析出的 summary
       const chunkSummaries: Record<number, string> = {};
       const allParsedSegments: any[] = [];
 
-      // 创建翻译 Promise 数组
-      const translatePromises = chunks.indexStringResult.map((chunk: string, chunkIndex: number) => {
-        return async (): Promise<string> => {
-          if (abortSignal?.aborted) {
-            throw new Error('Aborted');
-          }
+      // 为「某个分块的 summary 已准备好」建立等待/通知机制
+      const summaryWaiters = new Map<number, Array<() => void>>();
 
-          // 从 chunk 字符串中提取开始和结束索引
-          const extractIndexRange = (chunkText: string): { startIndex: number; endIndex: number } => {
-            const indexPattern = /\[(\d+)\]/g;
-            const matches = Array.from(chunkText.matchAll(indexPattern));
-            if (matches.length === 0) {
-              return { startIndex: -1, endIndex: -1 };
-            }
-            const indices = matches.map((m) => parseInt(m[1], 10));
-            return {
-              startIndex: Math.min(...indices),
-              endIndex: Math.max(...indices)
-            };
+      const notifySummaryReady = (index: number) => {
+        const waiters = summaryWaiters.get(index);
+        if (waiters && waiters.length > 0) {
+          waiters.forEach((fn) => fn());
+          summaryWaiters.delete(index);
+        }
+      };
+
+      const waitForSummary = (index: number): Promise<void> => {
+        if (index < 0) return Promise.resolve();
+        if (chunkSummaries[index] !== undefined) {
+          return Promise.resolve();
+        }
+        return new Promise<void>((resolve) => {
+          const list = summaryWaiters.get(index) || [];
+          list.push(resolve);
+          summaryWaiters.set(index, list);
+        });
+      };
+
+      const MAX_RETRIES = 2;
+
+      // 单个分块的翻译逻辑：
+      // 1. 等待上一分块 summary 完成
+      // 2. 使用上一分块 summary 作为上下文提示词
+      // 3. 流式解析 & 事件
+      // 4. 失败自动重试两次
+      const translateChunk = async (chunkIndex: number, attempt: number = 0): Promise<string> => {
+        if (abortSignal?.aborted) {
+          throw new Error('Aborted');
+        }
+
+        const chunk = chunks.indexStringResult[chunkIndex];
+
+        // 从 chunk 字符串中提取开始和结束索引
+        const extractIndexRange = (chunkText: string): { startIndex: number; endIndex: number } => {
+          const indexPattern = /\[(\d+)\]/g;
+          const matches = Array.from(chunkText.matchAll(indexPattern));
+          if (matches.length === 0) {
+            return { startIndex: -1, endIndex: -1 };
+          }
+          const indices = matches.map((m) => parseInt(m[1], 10));
+          return {
+            startIndex: Math.min(...indices),
+            endIndex: Math.max(...indices)
           };
+        };
 
-          const { startIndex, endIndex } = extractIndexRange(chunk);
+        const { startIndex, endIndex } = extractIndexRange(chunk);
 
-          // 计算本分块的「上一分块总结」，只依赖已经完成的前一分块的 summary
-          const prevSummary = chunkIndex > 0 ? chunkSummaries[chunkIndex - 1] || '' : '';
+        // 等待上一分块的 summary 完成后再启动当前分块（chunkIndex 为 0 则无需等待）
+        if (chunkIndex > 0) {
+          await waitForSummary(chunkIndex - 1);
+        }
 
-          emit({
-            type: 'chunk-start',
-            data: {
-              chunkIndex,
-              totalChunks: chunks.indexStringResult.length,
-              previousSegments: allParsedSegments,
-              startIndex,
-              endIndex,
-              prevSummary: prevSummary || undefined
-            }
-          });
+        if (abortSignal?.aborted) {
+          throw new Error('Aborted');
+        }
 
-          // 进度应该是基于已经完成的片段数，而不是当前分块的结束位置
-          const percentage = Math.round((startIndex / segments.length) * 100);
+        const prevSummary = chunkIndex > 0 ? chunkSummaries[chunkIndex - 1] || '' : '';
 
-          emit({
-            type: 'progress',
-            data: {
-              message: `正在翻译片段 ${chunkIndex + 1}/${chunks.indexStringResult.length}...`,
-              startIndex,
-              endIndex,
-              percentage,
-              displayInfo,
-              prevSummary: prevSummary || undefined
-            }
-          });
-
-          let prompt = defaultSegmentPrompt.replace(/{targetLanguage}/g, targetLangName).replace(/{content}/g, chunk);
-
-          if (prevSummary) {
-            prompt = prompt.replace('{context}', `\nContext from previous part:\n${prevSummary}\n`);
-          } else {
-            prompt = prompt.replace('{context}', '');
+        emit({
+          type: 'chunk-start',
+          data: {
+            chunkIndex,
+            totalChunks,
+            previousSegments: allParsedSegments,
+            startIndex,
+            endIndex,
+            prevSummary: prevSummary || undefined
           }
+        });
 
-          let currentTranslation = '';
+        // 进度应该是基于已经完成的片段数，而不是当前分块的结束位置
+        const percentage = Math.round((startIndex / segments.length) * 100);
 
-          // 用于处理 summary 标签的状态
-          let accumulatedText = ''; // 累积所有接收到的文本
-          let processedLength = 0; // 已经处理过的文本长度（用于跟踪已发送给 parser 的文本）
-          let summaryExtracted = false;
-          let summaryContent = ''; // 保存当前 chunk 的 summary
+        emit({
+          type: 'progress',
+          data: {
+            message: `正在翻译片段 ${chunkIndex + 1}/${totalChunks}...`,
+            startIndex,
+            endIndex,
+            percentage,
+            displayInfo,
+            prevSummary: prevSummary || undefined
+          }
+        });
 
-          const currentChunkSegments: any[] = [];
+        let prompt = defaultSegmentPrompt.replace(/{targetLanguage}/g, targetLangName).replace(/{content}/g, chunk);
 
-          // 为每个 chunk 创建独立的 parser
-          const translateParser = parser.createTranslateStreamParser({
-            onParse: (event) => {
-              if (event.type === 'event' && event.event === 'message') {
-                if (event.data) {
-                  // 将 summaryContent、startIndex 和 endIndex 添加到 data 中
-                  const dataWithMetadata = event.data.map((item: any) => ({
-                    ...item,
-                    summary: summaryContent,
-                    startIndex,
-                    endIndex
-                  }));
+        if (prevSummary) {
+          prompt = prompt.replace('{context}', `\nContext from previous part:\n${prevSummary}\n`);
+        } else {
+          prompt = prompt.replace('{context}', '');
+        }
 
-                  currentChunkSegments.push(...dataWithMetadata);
+        let currentTranslation = '';
 
-                  // 实时更新任务中的已翻译片段，包含当前 chunk 已解析的部分
-                  const task = activeTranslations.get(requestId);
-                  if (task) {
-                    task.translatedSegments = [...allParsedSegments, ...currentChunkSegments];
-                  }
+        // 用于处理 summary 标签的状态
+        let accumulatedText = ''; // 累积所有接收到的文本
+        let processedLength = 0; // 已经处理过的文本长度（用于跟踪已发送给 parser 的文本）
+        let summaryExtracted = false;
+        let summaryContent = ''; // 保存当前 chunk 的 summary
 
-                  emit({
-                    type: 'parsed',
-                    data: dataWithMetadata
-                  });
+        const currentChunkSegments: any[] = [];
 
-                  // 实时更新进度
-                  const currentTotal = allParsedSegments.length + currentChunkSegments.length;
-                  const newPercentage = Math.round((currentTotal / segments.length) * 100);
-                  emit({
-                    type: 'progress',
-                    data: {
-                      message: `正在翻译片段 ${chunkIndex + 1}/${chunks.indexStringResult.length}...`,
-                      percentage: newPercentage,
-                      displayInfo,
-                      prevSummary: prevSummary || undefined
-                    }
-                  });
-                }
-              }
-            },
-            onProgress: (event) => {
+        // 为每个 chunk 创建独立的 parser
+        const translateParser = parser.createTranslateStreamParser({
+          onParse: (event) => {
+            if (event.type === 'event' && event.event === 'message') {
               if (event.data) {
                 // 将 summaryContent、startIndex 和 endIndex 添加到 data 中
                 const dataWithMetadata = event.data.map((item: any) => ({
@@ -415,91 +459,131 @@ Now translate the following into **{targetLanguage}** and only show me the trans
                   endIndex
                 }));
 
+                currentChunkSegments.push(...dataWithMetadata);
+
+                // 实时更新任务中的已翻译片段，包含当前 chunk 已解析的部分
+                const task = activeTranslations.get(requestId);
+                if (task) {
+                  task.translatedSegments = [...allParsedSegments, ...currentChunkSegments];
+                }
+
                 emit({
-                  type: 'parseProgress',
+                  type: 'parsed',
                   data: dataWithMetadata
+                });
+
+                // 实时更新进度
+                const currentTotal = allParsedSegments.length + currentChunkSegments.length;
+                const newPercentage = Math.round((currentTotal / segments.length) * 100);
+                emit({
+                  type: 'progress',
+                  data: {
+                    message: `正在翻译片段 ${chunkIndex + 1}/${totalChunks}...`,
+                    percentage: newPercentage,
+                    displayInfo,
+                    prevSummary: prevSummary || undefined
+                  }
                 });
               }
             }
-          });
+          },
+          onProgress: (event) => {
+            if (event.data) {
+              // 将 summaryContent、startIndex 和 endIndex 添加到 data 中
+              const dataWithMetadata = event.data.map((item: any) => ({
+                ...item,
+                summary: summaryContent,
+                startIndex,
+                endIndex
+              }));
 
-          // 处理 summary 标签的辅助函数
-          const processTextWithSummary = (deltaText: string): string => {
-            if (summaryExtracted) {
-              return deltaText;
+              emit({
+                type: 'parseProgress',
+                data: dataWithMetadata
+              });
             }
+          }
+        });
 
-            // 累积新的 delta 文本
-            accumulatedText += deltaText;
+        // 处理 summary 标签的辅助函数
+        const processTextWithSummary = (deltaText: string): string => {
+          if (summaryExtracted) {
+            return deltaText;
+          }
 
-            // 如果还没有提取 summary，检测是否有完整的 summary 标签
-            if (!summaryExtracted) {
-              const summaryStartIndex = accumulatedText.indexOf('<summary>');
-              if (summaryStartIndex !== -1) {
-                // 找到了开始标签，检查是否有结束标签
-                const textAfterStart = accumulatedText.substring(summaryStartIndex + '<summary>'.length);
-                const summaryEndIndex = textAfterStart.indexOf('</summary>');
+          // 累积新的 delta 文本
+          accumulatedText += deltaText;
 
-                if (summaryEndIndex !== -1) {
-                  // 找到了完整的 summary 标签
-                  summaryContent = textAfterStart.substring(0, summaryEndIndex).trim();
-                  // 记录当前分块的 summary，供后续分块作为「上一分块总结」使用
-                  chunkSummaries[chunkIndex] = summaryContent;
-                  const textAfterEnd = textAfterStart.substring(summaryEndIndex + '</summary>'.length);
-                  summaryExtracted = true;
+          // 如果还没有提取 summary，检测是否有完整的 summary 标签
+          if (!summaryExtracted) {
+            const summaryStartIndex = accumulatedText.indexOf('<summary>');
+            if (summaryStartIndex !== -1) {
+              // 找到了开始标签，检查是否有结束标签
+              const textAfterStart = accumulatedText.substring(summaryStartIndex + '<summary>'.length);
+              const summaryEndIndex = textAfterStart.indexOf('</summary>');
 
-                  // 发送 summary 事件
-                  emit({
-                    type: 'summary',
-                    data: {
-                      chunkIndex,
-                      summary: summaryContent,
-                      startIndex,
-                      endIndex
-                    }
-                  });
+              if (summaryEndIndex !== -1) {
+                // 找到了完整的 summary 标签
+                summaryContent = textAfterStart.substring(0, summaryEndIndex).trim();
+                // 记录当前分块的 summary，供后续分块作为「上一分块总结」使用
+                chunkSummaries[chunkIndex] = summaryContent;
+                notifySummaryReady(chunkIndex);
+                const textAfterEnd = textAfterStart.substring(summaryEndIndex + '</summary>'.length);
+                summaryExtracted = true;
 
-                  // 释放内存
-                  accumulatedText = '';
-
-                  // 返回 summary 标签之后的新内容（如果有）
-                  if (textAfterEnd) {
-                    return textAfterEnd;
+                // 发送 summary 事件
+                emit({
+                  type: 'summary',
+                  data: {
+                    chunkIndex,
+                    summary: summaryContent,
+                    startIndex,
+                    endIndex
                   }
-                  return '';
-                } else {
-                  // 还没有结束标签，继续等待（不返回任何内容给 parser）
-                  return '';
+                });
+
+                // 释放内存
+                accumulatedText = '';
+
+                // 返回 summary 标签之后的新内容（如果有）
+                if (textAfterEnd) {
+                  return textAfterEnd;
                 }
+                return '';
               } else {
-                // 还没有找到完整的 summary 标签，检查是否可能正在形成中
-                // 检查是否有部分 summary 开始标签（可能被分割）
-                const possibleStartPatterns = ['<summ', '<summa', '<summar', '<summari', '<summary'];
-                let mightBeForming = false;
-
-                // 检查最后几个字符是否可能是 summary 标签的开始
-                for (const pattern of possibleStartPatterns) {
-                  if (accumulatedText.endsWith(pattern) || accumulatedText.includes('<' + pattern.substring(1))) {
-                    mightBeForming = true;
-                    break;
-                  }
-                }
-
-                if (mightBeForming) {
-                  // 可能正在形成 summary 标签，继续等待
-                  return '';
-                }
-
-                // 没有 summary 标签，返回新接收到的 delta（从上次处理的位置开始）
-                const newText = accumulatedText.substring(processedLength);
-                processedLength = accumulatedText.length;
-                return newText;
+                // 还没有结束标签，继续等待（不返回任何内容给 parser）
+                return '';
               }
+            } else {
+              // 还没有找到完整的 summary 标签，检查是否可能正在形成中
+              // 检查是否有部分 summary 开始标签（可能被分割）
+              const possibleStartPatterns = ['<summ', '<summa', '<summar', '<summari', '<summary'];
+              let mightBeForming = false;
+
+              // 检查最后几个字符是否可能是 summary 标签的开始
+              for (const pattern of possibleStartPatterns) {
+                if (accumulatedText.endsWith(pattern) || accumulatedText.includes('<' + pattern.substring(1))) {
+                  mightBeForming = true;
+                  break;
+                }
+              }
+
+              if (mightBeForming) {
+                // 可能正在形成 summary 标签，继续等待
+                return '';
+              }
+
+              // 没有 summary 标签，返回新接收到的 delta（从上次处理的位置开始）
+              const newText = accumulatedText.substring(processedLength);
+              processedLength = accumulatedText.length;
+              return newText;
             }
+          }
 
-            return '';
-          };
+          return '';
+        };
 
+        try {
           // 调用 provider 的 chat 方法进行流式翻译
           await provider?.chat?.(
             {
@@ -529,26 +613,52 @@ Now translate the following into **{targetLanguage}** and only show me the trans
             },
             abortSignal
           );
-
-          allParsedSegments.push(...currentChunkSegments);
-
-          // 更新任务中的已翻译片段
-          const task = activeTranslations.get(requestId);
-          if (task) {
-            task.translatedSegments = [...allParsedSegments];
+        } catch (error) {
+          // 如果被外部中止，则直接抛出
+          if (abortSignal?.aborted) {
+            throw new Error('Aborted');
           }
 
-          if (!currentTranslation) {
-            throw new Error('翻译结果为空');
+          // 自动重试，最多 2 次
+          if (attempt < MAX_RETRIES) {
+            emit({
+              type: 'progress',
+              data: {
+                message: `分块 ${chunkIndex + 1}/${totalChunks} 翻译失败，正在重试 (${attempt + 1}/${MAX_RETRIES})...`,
+                displayInfo
+              }
+            });
+            return translateChunk(chunkIndex, attempt + 1);
           }
 
-          return currentTranslation;
-        };
-      });
+          // 超过重试次数，抛出最终错误
+          throw error instanceof Error ? error : new Error(String(error));
+        }
 
-      // 按顺序执行翻译请求
+        allParsedSegments.push(...currentChunkSegments);
+
+        // 更新任务中的已翻译片段
+        const task = activeTranslations.get(requestId);
+        if (task) {
+          task.translatedSegments = [...allParsedSegments];
+        }
+
+        if (!currentTranslation) {
+          throw new Error('翻译结果为空');
+        }
+
+        return currentTranslation;
+      };
+
+      // 带并发的分块翻译调度：
+      // - 最多同时 3 个请求
+      // - 每个分块在「上一分块 summary 完成」后即可启动
+      // - 失败自动重试两次
       emit({ type: 'progress', data: { message: '正在连接AI服务...', percentage: 0 } });
-      const allTranslations = await executePromisesInOrder(translatePromises, abortSignal);
+      const allTranslations = await runWithConcurrency<string>(totalChunks, (index) => translateChunk(index), {
+        maxConcurrency: 3,
+        abortSignal
+      });
 
       emit({ type: 'progress', data: { message: '翻译完成，正在解析结果...', percentage: 100, displayInfo } });
 
