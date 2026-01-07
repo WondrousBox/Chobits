@@ -9,7 +9,7 @@ import { BroadcastChannelManager, CHANNEL_NAMES, type MediaSyncMessage } from '@
 import type { ResourceItem } from '../types';
 import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from '../utils/resourceProtocol';
 import { isSubtitleFile } from '../utils/subtitleUtils';
-import { ImagePlayer, MediaPlayer, SubtitlePlayer, TextPlayer } from './Players';
+import { ImagePlayer, MediaPlayer, ResourceSubtitlePlayer, TextPlayer } from './Players';
 import type { MediaPlayerRef } from './Players/MediaPlayer/MediaPlayer';
 import ResourceFileList from './ResourceFileList';
 
@@ -203,16 +203,7 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
       );
     }
 
-    // 字幕：使用固定高度区域
-    if (isSubtitle) {
-      return (
-        <div className="w-full h-[200px] overflow-auto">
-          <SubtitlePlayer resource={data} />
-        </div>
-      );
-    }
-
-    // 其他文本：使用固定高度区域
+    // 字幕或其他文本：使用固定高度区域
     return (
       <div className="w-full h-[200px] overflow-auto">
         <TextPlayer resource={data} />
@@ -255,7 +246,7 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
         {/* 字幕播放器 */}
         <div className="flex-1 min-h-0">
           {activeSubtitle && (
-            <SubtitlePlayer
+            <ResourceSubtitlePlayer
               resource={activeSubtitle}
               currentTime={currentTime}
               onSeek={(time) => {

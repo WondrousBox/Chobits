@@ -38,6 +38,8 @@ export interface TranslationProgressData {
   startIndex?: number;
   /** 当前处理的片段结束索引 */
   endIndex?: number;
+  /** 上一段的总结内容 */
+  prevSummary?: string;
 }
 
 /**
@@ -54,6 +56,8 @@ export interface TranslationChunkStartData {
   startIndex: number;
   /** 当前分块的结束索引 */
   endIndex: number;
+  /** 上一段的总结内容 */
+  prevSummary?: string;
 }
 
 /**
@@ -284,7 +288,9 @@ Now translate the following into **{targetLanguage}** and only show me the trans
       const chunks = utils.chunkSegmentStringsWithIndex(segments, 1000);
       emit({ type: 'progress', data: { message: `准备翻译 ${chunks.indexStringResult.length} 个字幕片段...`, percentage: 0, displayInfo } });
 
-      let lastSummary = '';
+      // 记录每个分块自身的 summary，避免用一个全局 lastSummary 在流式过程中被「提前覆盖」
+      // key 为 chunkIndex，value 为该分块最终解析出的 summary
+      const chunkSummaries: Record<number, string> = {};
       const allParsedSegments: any[] = [];
 
       // 创建翻译 Promise 数组
@@ -310,6 +316,9 @@ Now translate the following into **{targetLanguage}** and only show me the trans
 
           const { startIndex, endIndex } = extractIndexRange(chunk);
 
+          // 计算本分块的「上一分块总结」，只依赖已经完成的前一分块的 summary
+          const prevSummary = chunkIndex > 0 ? chunkSummaries[chunkIndex - 1] || '' : '';
+
           emit({
             type: 'chunk-start',
             data: {
@@ -317,7 +326,8 @@ Now translate the following into **{targetLanguage}** and only show me the trans
               totalChunks: chunks.indexStringResult.length,
               previousSegments: allParsedSegments,
               startIndex,
-              endIndex
+              endIndex,
+              prevSummary: prevSummary || undefined
             }
           });
 
@@ -331,14 +341,15 @@ Now translate the following into **{targetLanguage}** and only show me the trans
               startIndex,
               endIndex,
               percentage,
-              displayInfo
+              displayInfo,
+              prevSummary: prevSummary || undefined
             }
           });
 
           let prompt = defaultSegmentPrompt.replace(/{targetLanguage}/g, targetLangName).replace(/{content}/g, chunk);
 
-          if (lastSummary) {
-            prompt = prompt.replace('{context}', `\nContext from previous part:\n${lastSummary}\n`);
+          if (prevSummary) {
+            prompt = prompt.replace('{context}', `\nContext from previous part:\n${prevSummary}\n`);
           } else {
             prompt = prompt.replace('{context}', '');
           }
@@ -387,7 +398,8 @@ Now translate the following into **{targetLanguage}** and only show me the trans
                     data: {
                       message: `正在翻译片段 ${chunkIndex + 1}/${chunks.indexStringResult.length}...`,
                       percentage: newPercentage,
-                      displayInfo
+                      displayInfo,
+                      prevSummary: prevSummary || undefined
                     }
                   });
                 }
@@ -431,7 +443,8 @@ Now translate the following into **{targetLanguage}** and only show me the trans
                 if (summaryEndIndex !== -1) {
                   // 找到了完整的 summary 标签
                   summaryContent = textAfterStart.substring(0, summaryEndIndex).trim();
-                  lastSummary = summaryContent;
+                  // 记录当前分块的 summary，供后续分块作为「上一分块总结」使用
+                  chunkSummaries[chunkIndex] = summaryContent;
                   const textAfterEnd = textAfterStart.substring(summaryEndIndex + '</summary>'.length);
                   summaryExtracted = true;
 
