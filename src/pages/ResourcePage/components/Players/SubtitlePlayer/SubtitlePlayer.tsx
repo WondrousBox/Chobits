@@ -9,8 +9,8 @@ import { SubtitleRow } from './SubtitleRow';
  * 纯展示型字幕播放器（不包含资源读取、保存、翻译等业务逻辑）
  */
 export interface SubtitlePlayerProps {
-  /** 字幕主轨（负责时间轴和原文） */
-  segments: AimSegments[];
+  /** 字幕轨道数组，第一个轨道（tracks[0]）作为主轨（负责时间轴和原文），其他轨道作为附加轨道显示 */
+  tracks: AimSegments[][];
   /** 当前播放时间（秒），用于自动滚动和高亮 */
   currentTime?: number;
   /** 点击时间戳时的跳转回调 */
@@ -21,8 +21,6 @@ export interface SubtitlePlayerProps {
   disabledIndices?: Set<number> | number[];
   /** 需要高亮显示的行索引集合（例如当前翻译中的片段） */
   highlightIndices?: Set<number> | number[];
-  /** 第二轨道字幕（例如翻译结果），与主轨道 segments 一一对应 */
-  track2Segments?: AimSegments[];
   /** 总结信息，仅负责展示 */
   summaries?: {
     /** 上一段翻译的总结 */
@@ -40,19 +38,14 @@ const toIndexSet = (value?: Set<number> | number[]): Set<number> | undefined => 
 };
 
 // 仅负责渲染和交互的字幕组件
-export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
-  segments,
-  currentTime = 0,
-  onSeek,
-  onSegmentsChange,
-  disabledIndices,
-  highlightIndices,
-  track2Segments,
-  summaries,
-  autoScrollToSummary = false
-}) => {
+export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({ tracks, currentTime = 0, onSeek, onSegmentsChange, disabledIndices, highlightIndices, summaries, autoScrollToSummary = false }) => {
   const activeRowRef = useRef<HTMLDivElement>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
+
+  // 第一个轨道作为主轨道
+  const mainTrack = tracks[0] || [];
+  // 其他轨道作为附加轨道
+  const additionalTracks = tracks.slice(1);
 
   const disabledSet = toIndexSet(disabledIndices);
   const highlightSet = toIndexSet(highlightIndices);
@@ -60,7 +53,7 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
   const handleTextChange = useCallback(
     (index: number, text: string): void => {
       if (!onSegmentsChange) return;
-      const updated = segments.map((item, i) => {
+      const updated = mainTrack.map((item, i) => {
         if (i === index) {
           return { ...item, text };
         }
@@ -68,33 +61,33 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
       });
       onSegmentsChange(updated);
     },
-    [segments, onSegmentsChange]
+    [mainTrack, onSegmentsChange]
   );
 
   const handleMergePrev = useCallback(
     (index: number): void => {
       if (!onSegmentsChange || index <= 0) return;
-      const merged = utils.mergeAimSegmentRange(segments, index - 1, index);
+      const merged = utils.mergeAimSegmentRange(mainTrack, index - 1, index);
       onSegmentsChange(merged);
     },
-    [segments, onSegmentsChange]
+    [mainTrack, onSegmentsChange]
   );
 
   const handleMergeNext = useCallback(
     (index: number): void => {
       if (!onSegmentsChange) return;
-      const merged = utils.mergeAimSegmentRange(segments, index, index + 1);
+      const merged = utils.mergeAimSegmentRange(mainTrack, index, index + 1);
       onSegmentsChange(merged);
     },
-    [segments, onSegmentsChange]
+    [mainTrack, onSegmentsChange]
   );
 
-  // 根据当前时间找到对应的字幕索引
+  // 根据当前时间找到对应的字幕索引（基于主轨道）
   const activeIndex = useMemo(() => {
-    if (!currentTime || segments.length === 0) return -1;
+    if (!currentTime || mainTrack.length === 0) return -1;
 
-    for (let i = 0; i < segments.length; i++) {
-      const segment = segments[i];
+    for (let i = 0; i < mainTrack.length; i++) {
+      const segment = mainTrack[i];
       if (segment.delete) continue;
 
       const startTime = utils.convertToSeconds(segment.st);
@@ -106,7 +99,7 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
     }
 
     return -1;
-  }, [currentTime, segments]);
+  }, [currentTime, mainTrack]);
 
   // 找到正在翻译的片段的最小索引（用于在它前面显示总结）
   const firstTranslatingIndex = useMemo(() => {
@@ -184,10 +177,9 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
     <div className="flex h-full w-full flex-col text-muted-foreground">
       <ScrollArea className="h-full w-full">
         <div className="box-border h-full w-full select-text overflow-auto rounded border px-4 py-3 leading-relaxed shadow-inner">
-          {segments.map((entry, idx) => {
+          {mainTrack.map((entry, idx) => {
             const disabled = !!disabledSet?.has(idx);
             const highlight = !!highlightSet?.has(idx);
-            const track2Segment = track2Segments?.[idx];
             // 如果当前索引是第一个正在翻译的片段，且存在总结，则在它前面显示总结
             const shouldShowSummaryBefore = idx === firstTranslatingIndex && (summaries?.prev || summaries?.current);
 
@@ -244,6 +236,7 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
                     `}</style>
                   </div>
                 )}
+                {/* 主轨道 */}
                 <SubtitleRow
                   index={idx}
                   segment={entry}
@@ -256,19 +249,25 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
                   disabled={disabled}
                   highlight={highlight}
                 />
-                {track2Segment && track2Segment.text && (
-                  <SubtitleRow
-                    index={idx}
-                    segment={track2Segment}
-                    isActive={false}
-                    disabled={disabled}
-                    highlight={highlight}
-                    onTextChange={handleTextChange}
-                    onMergePrev={handleMergePrev}
-                    onMergeNext={handleMergeNext}
-                    onTimeClick={onSeek}
-                  />
-                )}
+                {/* 附加轨道 */}
+                {additionalTracks.map((track, trackIndex) => {
+                  const trackSegment = track[idx];
+                  if (!trackSegment || !trackSegment.text) return null;
+                  return (
+                    <SubtitleRow
+                      key={`track-${trackIndex}-${idx}`}
+                      index={idx}
+                      segment={trackSegment}
+                      isActive={false}
+                      disabled={disabled}
+                      highlight={highlight}
+                      onTextChange={handleTextChange}
+                      onMergePrev={handleMergePrev}
+                      onMergeNext={handleMergeNext}
+                      onTimeClick={onSeek}
+                    />
+                  );
+                })}
               </React.Fragment>
             );
           })}
