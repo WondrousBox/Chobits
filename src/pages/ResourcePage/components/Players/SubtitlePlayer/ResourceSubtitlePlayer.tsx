@@ -31,16 +31,22 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
   const [isLoading, setIsLoading] = useState(false);
   const [subtitleFormat, setSubtitleFormat] = useState<SubtitleFormat>('srt');
 
+  // 保持 subtitleEntries 的引用始终是最新的
+  useEffect(() => {
+    subtitleEntriesRef.current = subtitleEntries;
+  }, [subtitleEntries]);
+
   // 翻译状态管理
   const [translatingChunks, setTranslatingChunks] = useState<Set<number>>(new Set()); // 正在翻译的片段索引
   const [translatedChunks, setTranslatedChunks] = useState<Set<number>>(new Set()); // 已翻译完成的片段索引（目前未在 UI 中使用，预留）
   const [chunkSummaries, setChunkSummaries] = useState<Map<number, string>>(new Map()); // 片段索引 -> summary
-  const [typingTexts, setTypingTexts] = useState<Map<number, string>>(new Map()); // 片段索引 -> 正在打字的文本（第二轨道实时内容）
+  const [typingTexts, setTypingTexts] = useState<AimSegments[]>([]); // 第二轨道字幕（与主轨道 segments 一一对应）
   const [isTranslationComplete, setIsTranslationComplete] = useState(false);
   const [summaries, setSummaries] = useState<{ prev?: string; current?: string }>({}); // 总结信息：上一段 & 当前段
   const [translationProgress, setTranslationProgress] = useState(0); // 翻译进度 0-100
   const [isTranslating, setIsTranslating] = useState(false); // 是否正在翻译
   const activeTranslationRequestIdRef = useRef<string | null>(null);
+  const subtitleEntriesRef = useRef<AimSegments[]>([]);
 
   // 防抖保存函数（业务逻辑，负责写回资源）
   const debouncedSave = useMemo(
@@ -164,6 +170,11 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     [resource.id, debouncedSave, isLoading, subtitleFormat]
   );
 
+  // 保持 subtitleEntries 的引用始终是最新的
+  useEffect(() => {
+    subtitleEntriesRef.current = subtitleEntries;
+  }, [subtitleEntries]);
+
   // 检查是否有正在进行的翻译任务
   useEffect(() => {
     let mounted = true;
@@ -189,13 +200,16 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
             if (mounted && segments && segments.length > 0) {
               const newTranslatedChunks = new Set<number>();
               const newChunkSummaries = new Map<number, string>();
-              const newTypingTexts = new Map<number, string>();
+              // 初始化数组，长度与 subtitleEntries 一致
+              const currentEntries = subtitleEntriesRef.current;
+              const newTypingTexts: AimSegments[] = currentEntries.map((seg) => ({ ...seg, text: '' }));
 
               segments.forEach((item: any) => {
                 if (item.index !== undefined) {
                   newTranslatedChunks.add(item.index);
-                  if (item.text) {
-                    newTypingTexts.set(item.index, item.text);
+                  if (item.text && newTypingTexts[item.index]) {
+                    // 保持原有的时间信息，只更新文本
+                    newTypingTexts[item.index] = { ...newTypingTexts[item.index], text: item.text };
                   }
                 }
                 if (item.summary && item.startIndex !== undefined && item.endIndex !== undefined) {
@@ -304,7 +318,28 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
               next.add(segmentIndex);
               return next;
             });
-            // 保留打字效果，不清除
+            // 更新打字效果
+            setTypingTexts((prev) => {
+              const currentEntries = subtitleEntriesRef.current;
+              const next = [...prev];
+              while (next.length <= segmentIndex) {
+                const baseSegment = currentEntries[next.length] || currentEntries[currentEntries.length - 1];
+                if (baseSegment) {
+                  next.push({ ...baseSegment, text: '' });
+                } else {
+                  next.push({ st: '00:00:00,000', et: '00:00:00,000', text: '' });
+                }
+              }
+              if (next[segmentIndex]) {
+                next[segmentIndex] = { ...next[segmentIndex], text: item.text };
+              } else {
+                const baseSegment = currentEntries[segmentIndex];
+                if (baseSegment) {
+                  next[segmentIndex] = { ...baseSegment, text: item.text };
+                }
+              }
+              return next;
+            });
             // 如果提供了 startIndex 和 endIndex，更新 summary
             if (item.summary && item.startIndex !== undefined && item.endIndex !== undefined) {
               // 更新当前总结（显示最新的总结）
@@ -327,8 +362,27 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
             const segmentIndex = item.index;
             // 更新打字效果
             setTypingTexts((prev) => {
-              const next = new Map(prev);
-              next.set(segmentIndex, item.text);
+              // 确保数组长度与 subtitleEntries 一致
+              const currentEntries = subtitleEntriesRef.current;
+              const next = [...prev];
+              while (next.length <= segmentIndex) {
+                // 如果索引超出范围，用对应的 subtitleEntry 初始化
+                const baseSegment = currentEntries[next.length] || currentEntries[currentEntries.length - 1];
+                if (baseSegment) {
+                  next.push({ ...baseSegment, text: '' });
+                } else {
+                  next.push({ st: '00:00:00,000', et: '00:00:00,000', text: '' });
+                }
+              }
+              // 更新指定索引的文本，保持原有的时间信息
+              if (next[segmentIndex]) {
+                next[segmentIndex] = { ...next[segmentIndex], text: item.text };
+              } else {
+                const baseSegment = currentEntries[segmentIndex];
+                if (baseSegment) {
+                  next[segmentIndex] = { ...baseSegment, text: item.text };
+                }
+              }
               return next;
             });
             // 如果这是新 chunk 的开始，标记为正在翻译
@@ -399,7 +453,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     setIsTranslationComplete(false);
     setTranslatedChunks(new Set());
     setChunkSummaries(new Map());
-    setTypingTexts(new Map());
+    setTypingTexts([]);
     setTranslatingChunks(new Set());
     setSummaries({});
     setIsTranslating(false);
@@ -448,7 +502,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
         onSegmentsChange={handleSegmentsChange}
         disabledIndices={translatingChunks}
         highlightIndices={translatingChunks}
-        track2Texts={typingTexts}
+        track2Segments={typingTexts}
         summaries={summaries}
         autoScrollToSummary={true}
       />
