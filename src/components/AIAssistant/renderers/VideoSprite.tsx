@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 
 import { DEFAULT_ASSISTANT_PADDING } from '../constants';
 import { useSpritePlayer } from '../context/SpritePlayerContext';
+import { dispatchSpriteEvent } from '../events/spriteEvents';
 import { resolveSpriteSrc } from '../utils/resource';
 
 /**
@@ -93,23 +94,43 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
     const effectiveEnd = loopEndMs ?? durationMs;
     const hasCustomLoop = loopStartMs != null || loopEndMs != null;
 
+    // 如果配置了 loopStartMs 或 loopEndMs，默认循环（除非显式设置 loop: false）
+    // 如果没有配置，则根据 loop 字段决定（默认 false，不循环）
+    const shouldLoop = hasCustomLoop
+      ? current?.loop !== false // 配置了循环片段时，默认循环，除非显式设置为 false
+      : (current?.loop ?? false); // 没有配置循环片段时，默认不循环
+
     // Handle three-phase animation (when both loopStartMs and loopEndMs are set)
     if (loopStartMs != null && loopEndMs != null) {
       if (phase === 'intro' && currentTimeMs >= loopStartMs) {
         // Intro finished, enter loop phase
         phaseRef.current = 'loop';
       } else if (phase === 'loop' && currentTimeMs >= loopEndMs - 50) {
-        // Loop segment ended, jump back to loop start
-        v.currentTime = loopStartMs / 1000;
-        v.play();
+        // Loop segment ended, jump back to loop start (only if shouldLoop)
+        if (shouldLoop) {
+          v.currentTime = loopStartMs / 1000;
+          v.play();
+        } else {
+          // Not looping: continue to outro
+          v.currentTime = loopEndMs / 1000;
+          phaseRef.current = 'outro';
+        }
       } else if (phase === 'outro' && currentTimeMs >= durationMs - 50) {
-        // Outro finished, reset to idle
-        phaseRef.current = 'idle';
-        v.currentTime = 0;
-        v.play();
+        // Outro finished
+        if (shouldLoop) {
+          // Reset to idle and loop intro segment
+          phaseRef.current = 'idle';
+          v.currentTime = 0;
+          v.play();
+        } else {
+          // Not looping: stop and return to idle state
+          phaseRef.current = 'idle';
+          v.pause();
+          dispatchSpriteEvent('idle');
+        }
       } else if (phase === 'idle') {
-        // Not actively playing: loop the intro segment (0 ~ loopStartMs)
-        if (currentTimeMs >= loopStartMs - 50) {
+        // Not actively playing: loop the intro segment (0 ~ loopStartMs) if shouldLoop
+        if (shouldLoop && currentTimeMs >= loopStartMs - 50) {
           v.currentTime = 0;
           v.play();
         }
@@ -120,11 +141,20 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
     // Handle simple loop (only loopStartMs or only loopEndMs specified)
     if (hasCustomLoop) {
       if (currentTimeMs >= effectiveEnd - 50) {
-        v.currentTime = effectiveStart / 1000;
-        v.play();
+        if (shouldLoop) {
+          v.currentTime = effectiveStart / 1000;
+          v.play();
+        } else {
+          // Not looping: stop and return to idle state
+          v.pause();
+          dispatchSpriteEvent('idle');
+        }
       }
+      return;
     }
-    // If no custom loop config, native loop attribute handles it
+
+    // If no custom loop config, native loop attribute handles it (only if shouldLoop)
+    // If shouldLoop is false, onEnded event will handle returning to idle
   };
 
   const computed = useMemo(() => {
@@ -142,6 +172,7 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
       autoplay: anim.autoplay ?? true,
       muted: anim.muted ?? true,
       playsInline: anim.playsInline ?? true,
+      loop: anim.loop ?? false,
       loopStartMs: anim.loopStartMs,
       loopEndMs: anim.loopEndMs
     };
@@ -172,8 +203,20 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
   // 判断是否需要翻转：当行走动画且向右移动时需要翻转
   const shouldFlip = computed && current?.meta.eventType === 'walk' && walkDirection === 'right';
 
-  // 如果没有自定义循环配置，使用原生 loop 属性
-  const useNativeLoop = computed && computed.loopStartMs == null && computed.loopEndMs == null;
+  // 如果没有自定义循环配置且需要循环，使用原生 loop 属性
+  const useNativeLoop = computed && computed.loop === true && computed.loopStartMs == null && computed.loopEndMs == null;
+
+  // 处理视频播放完成事件（当不循环时）
+  const handleEnded = (): void => {
+    if (!computed || !current) return;
+    const hasCustomLoop = current.loopStartMs != null || current.loopEndMs != null;
+    // 如果配置了循环片段，默认循环，除非显式设置为 false
+    // 如果没有配置循环片段，根据 loop 字段决定（默认 false）
+    const shouldLoop = hasCustomLoop ? current.loop !== false : (current.loop ?? false);
+    if (shouldLoop) return; // 如果应该循环，不处理
+    // 播放完成且不循环，恢复为 idle 状态
+    dispatchSpriteEvent('idle');
+  };
 
   return computed ? (
     <video
@@ -190,6 +233,7 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
       playsInline={computed.playsInline ?? true}
       loop={useNativeLoop}
       onTimeUpdate={handleTimeUpdate}
+      onEnded={handleEnded}
       src={computed.srcUrl}
       onError={(e) => {
         // 简单错误日志，便于排查路径/权限问题
