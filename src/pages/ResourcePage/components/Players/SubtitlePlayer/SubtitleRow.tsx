@@ -140,15 +140,35 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({ index, segment, isActi
     <div
       ref={currentRowRef}
       className={clsx(
-        'flex items-start justify-center gap-2 relative pl-4 group transition-colors duration-200',
-        isActive && 'bg-primary/5',
-        disabled && 'bg-blue-50 dark:bg-blue-950/30 border-l-2 border-blue-500',
-        highlight && !disabled && 'bg-green-50 dark:bg-green-950/30'
+        'flex items-start justify-center gap-2 relative pl-4 group transition-colors duration-200 overflow-hidden',
+        isActive && 'bg-primary/10',
+        disabled && 'pointer-events-none',
+        highlight && !disabled && 'rounded-lg'
       )}
     >
+      {/* 高亮时的炫酷动画效果 */}
+      {highlight && (
+        <>
+          {/* 渐变背景 */}
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-500/15 via-purple-500/15 to-pink-500/15 dark:from-blue-500/8 dark:via-purple-500/8 dark:to-pink-500/8 animate-pulse" />
+          {/* 流动光效 */}
+          <div
+            className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent dark:via-white/8 animate-[shimmer_3s_ease-in-out_infinite] -translate-x-full"
+            style={{ animationDelay: '0.5s' }}
+          />
+          {/* 边框光晕 */}
+          <div className="absolute inset-0 rounded-lg border-2 border-blue-400/40 dark:border-blue-500/40 shadow-[0_0_10px_rgba(59,130,246,0.4)] dark:shadow-[0_0_10px_rgba(59,130,246,0.25)] animate-pulse" />
+          <style>{`
+            @keyframes shimmer {
+              0% { transform: translateX(-100%) skewX(-15deg); }
+              100% { transform: translateX(200%) skewX(-15deg); }
+            }
+          `}</style>
+        </>
+      )}
       {/* 合并按钮：绝对定位在两行之间，不占高度 */}
       {index > 0 && onMergePrev && (
-        <div className="absolute left-1 top-0 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 pointer-events-auto">
+        <div className="absolute left-1 top-0 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20 pointer-events-auto">
           <div className="w-14 h-1 absolute -top-1 left-4 rounded-tl-lg border border-dashed border-ring border-r-0 border-b-0"></div>
           <Button size="sm" variant="outline" className="w-8 h-8 rounded-full p-0 bg-background shadow-sm hover:bg-accent" onClick={() => onMergePrev(index)} title="合并到上一行">
             <TbArrowMerge />
@@ -159,7 +179,7 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({ index, segment, isActi
       )}
       <div
         className={clsx(
-          'select-none pt-3 cursor-pointer text-xs w-12 text-center relative transition-colors duration-200',
+          'select-none pt-3 cursor-pointer text-xs w-12 text-center relative transition-colors duration-200 z-10',
           isActive ? 'text-primary font-medium' : 'text-muted-foreground hover:text-primary',
           onTimeClick && 'hover:underline'
         )}
@@ -172,7 +192,7 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({ index, segment, isActi
       {isEditing ? (
         <Textarea
           ref={inputRef}
-          className={textareaStyle}
+          className={clsx(textareaStyle, 'relative z-10')}
           value={editingText}
           onChange={handleChange}
           onBlur={handleBlur}
@@ -186,7 +206,7 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({ index, segment, isActi
           autoFocus
         />
       ) : (
-        <div className="flex-1 relative">
+        <div className="flex-1 relative z-10">
           {/* 原始文本 */}
           <div className={clsx(getClassName(segment.delete, isActive), disabled && 'pointer-events-none cursor-not-allowed opacity-80')} style={{ whiteSpace: 'pre-wrap' }} onClick={handleTextClick}>
             {segment.text || '\u200b'}
