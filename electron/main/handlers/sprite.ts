@@ -178,8 +178,9 @@ export function initSpriteHandlers(): void {
       autoplay: anim.autoplay ?? true,
       muted: anim.muted ?? true,
       playsInline: anim.playsInline ?? true,
-      loopStrategy: anim.loopStrategy ?? 'early',
-      cutoffSeconds: anim.cutoffSeconds,
+      loop: anim.loop ?? false,
+      loopStartMs: anim.loopStartMs,
+      loopEndMs: anim.loopEndMs,
       durationMs: anim.durationMs
     };
     // mark deletable for user-created item

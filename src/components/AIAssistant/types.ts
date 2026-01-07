@@ -173,14 +173,21 @@ export interface SpriteAnimation {
   autoplay?: boolean;
   muted?: boolean;
   playsInline?: boolean;
+  /**
+   * 是否循环播放。
+   * - 如果配置了 loopStartMs 或 loopEndMs：默认循环，除非显式设置为 false
+   * - 如果没有配置循环片段：默认 false（不循环），设置为 true 时使用原生 loop 属性全程循环
+   */
+  loop?: boolean;
   // 可选的时长（毫秒），未提供时以 <video> 元数据为准
   durationMs?: number;
   /**
    * 循环片段开始时间（毫秒）。
-   * - 同时指定 loopStartMs 和 loopEndMs：在该区间内循环播放
-   * - 仅指定 loopStartMs：从该时间点循环到视频末尾
-   * - 仅指定 loopEndMs：从视频开头循环到该时间点
-   * - 都不指定：使用原生 loop 属性全程循环
+   * - 同时指定 loopStartMs 和 loopEndMs：在该区间内循环播放（默认循环，除非设置 loop: false）
+   * - 仅指定 loopStartMs：从该时间点循环到视频末尾（默认循环，除非设置 loop: false）
+   * - 仅指定 loopEndMs：从视频开头循环到该时间点（默认循环，除非设置 loop: false）
+   * - 都不指定且 loop: true：使用原生 loop 属性全程循环
+   * - 都不指定且 loop: false 或未设置：只播放一遍，播放完成后恢复为 idle 状态
    *
    * 对于行走动画（三段式）：视频先播放 0 ~ loopStartMs（开始转身），
    * 然后在 loopStartMs ~ loopEndMs 之间循环（行走中），
