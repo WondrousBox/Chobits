@@ -60,6 +60,7 @@ const ListFolderRow: React.FC<{
               const rowStateClass = over ? (overInvalid ? 'ring-1 ring-destructive bg-destructive/10' : 'bg-muted/50 border-primary/30') : 'hover:bg-muted/50 hover:border-primary/30';
               return (
                 <div
+                  data-list-folder-row
                   className={'group relative flex items-center gap-4 p-2 rounded-lg border transition-all cursor-pointer select-none ' + rowStateClass}
                   onClick={() => onOpen?.()}
                   onContextMenu={(e) => e.stopPropagation()}

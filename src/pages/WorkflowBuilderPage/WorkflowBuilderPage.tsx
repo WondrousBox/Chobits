@@ -27,6 +27,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { runWorkflow } from '@/lib/workflow-runner';
+import { BroadcastChannelManager, CHANNEL_NAMES } from '@/utils/broadcastChannels';
 
 import ResourceRunPopover from '../ResourcePage/ResourceRunPopover';
 import { ResourceItem } from '../ResourcePage/types';
@@ -76,7 +77,22 @@ const WorkflowCanvasInner: React.FC = () => {
     [rawOnNodesChange]
   );
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  const eventCh = useMemo(() => new BroadcastChannel('wf-events'), []);
+
+  // 使用 BroadcastChannelManager 管理工作流事件 channel
+  const eventChRef = useRef<BroadcastChannel | null>(null);
+  if (!eventChRef.current) {
+    eventChRef.current = BroadcastChannelManager.acquire(CHANNEL_NAMES.WF_EVENTS);
+  }
+  const eventCh = eventChRef.current;
+
+  // 组件卸载时释放 channel
+  useEffect(() => {
+    return () => {
+      BroadcastChannelManager.release(CHANNEL_NAMES.WF_EVENTS);
+      eventChRef.current = null;
+    };
+  }, []);
+
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);

@@ -11,9 +11,7 @@ import PromptTemplateFormDialog, { type PromptTemplateFormValues } from './Promp
 type Template = { id: string; name: string; type: 'system' | 'user'; content: string };
 
 export default function PromptSetting(): JSX.Element {
-  // Local UI state
   const [tmplSearch, setTmplSearch] = useState('');
-  // Unified form dialog state
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
   const [formValues, setFormValues] = useState<PromptTemplateFormValues>({ name: '', content: '', type: 'user' });
@@ -25,7 +23,6 @@ export default function PromptSetting(): JSX.Element {
   const refresh = useCallback(async (): Promise<void> => {
     const tmpl = await window.YUA.ai.listPromptTemplates().catch(() => []);
     setTemplates(tmpl || []);
-    // ensure selected
     const list: Template[] = tmpl || [];
     if (!selectedId || !list.find((t) => t.id === selectedId)) {
       const firstId = list[0]?.id ?? null;
@@ -40,7 +37,6 @@ export default function PromptSetting(): JSX.Element {
   }, [selectedId]);
 
   useEffect(() => {
-    // Defer to next tick to avoid setState synchronously in effect lint warning
     const timer = setTimeout(() => {
       void refresh();
     }, 0);
@@ -89,88 +85,89 @@ export default function PromptSetting(): JSX.Element {
   };
 
   return (
-    <div className="h-full grid" style={{ gridTemplateColumns: '260px 1fr' }}>
-      {/* Left: title list */}
-      <div className="border-r h-full flex flex-col">
-        <div className="p-2 flex items-center gap-2 border-b">
-          <Input className="h-8" placeholder="搜索…" value={tmplSearch} onChange={(e) => setTmplSearch(e.target.value)} />
-          <Button size="icon" className="w-8 h-8 shrink-0" title="新建" onClick={openCreate}>
-            <TbPlus />
+    <div className="h-full flex">
+      {/* 左侧：模板列表 */}
+      <div className="w-[220px] flex flex-col border-r border-border">
+        <div className="p-3 flex items-center gap-2">
+          <Input className="h-8 flex-1" placeholder="搜索..." value={tmplSearch} onChange={(e) => setTmplSearch(e.target.value)} />
+          <Button size="icon" className="w-8 h-8 flex-shrink-0" onClick={openCreate}>
+            <TbPlus className="h-4 w-4" />
           </Button>
         </div>
         <ScrollArea className="flex-1">
-          <div className="p-1">
-            {filteredTemplates.map((t) => (
-              <div
-                key={t.id}
-                className={'flex items-center justify-between px-2 py-1 rounded cursor-pointer select-none ' + (t.id === selectedId ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50')}
-                onClick={() => {
-                  setSelectedId(t.id);
-                  setDraftContent(t.content || '');
-                }}
-              >
-                <div className="truncate text-sm" title={t.name}>
-                  {t.name}
-                </div>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="w-7 h-7 text-muted-foreground hover:text-destructive"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void deleteTemplate(t.id);
-                  }}
-                >
-                  <TbTrash />
-                </Button>
+          <div className="px-2 pb-2">
+            {filteredTemplates.length === 0 ? (
+              <div className="text-xs text-muted-foreground text-center py-6">
+                {templates.length === 0 ? '暂无模板' : '无匹配结果'}
               </div>
-            ))}
-            {filteredTemplates.length === 0 && (
-              <div className="text-xs text-muted-foreground text-center py-4">
-                <div className="mb-2">无匹配模板</div>
-                <Button size={'sm'} onClick={openCreate}>
-                  <TbPlus />
-                  新建模板
-                </Button>
+            ) : (
+              <div className="space-y-0.5">
+                {filteredTemplates.map((t) => (
+                  <div
+                    key={t.id}
+                    className={
+                      'group flex items-center justify-between px-3 py-2 cursor-pointer transition-colors ' +
+                      (t.id === selectedId ? 'bg-accent text-accent-foreground' : 'hover:bg-muted/50')
+                    }
+                    onClick={() => {
+                      setSelectedId(t.id);
+                      setDraftContent(t.content || '');
+                    }}
+                  >
+                    <span className="truncate text-sm">{t.name}</span>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="w-6 h-6 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void deleteTemplate(t.id);
+                      }}
+                    >
+                      <TbTrash className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
         </ScrollArea>
       </div>
 
-      {/* Right: content editor */}
-      <div className="h-full flex flex-col">
-        <div className="p-3 border-b">
-          <div className="text-sm font-medium">{selected ? selected.name : '未选择模板'}</div>
-          <div className="text-xs text-muted-foreground">在此直接编辑提示词内容并保存</div>
+      {/* 右侧：编辑器 */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+          <div className="text-sm font-medium text-foreground">{selected ? selected.name : '未选择模板'}</div>
+          {selected && (
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  if (selected) setDraftContent(selected.content || '');
+                }}
+              >
+                重置
+              </Button>
+              <Button size="sm" onClick={saveDraft}>
+                保存
+              </Button>
+            </div>
+          )}
         </div>
-        <div className="p-3 flex-1 flex flex-col gap-3 min-h-0">
+        <div className="flex-1 p-4 min-h-0">
           <Textarea
-            className="flex-1 min-h-0"
-            placeholder={selected ? '编辑模板内容…' : '请选择左侧模板'}
+            className="h-full w-full resize-none shadow-none border-none bg-transparent focus-visible:ring-0 p-0"
+            placeholder={selected ? '编辑模板内容...' : '请先选择或创建一个模板'}
             value={draftContent}
             onChange={(e) => setDraftContent(e.target.value)}
             disabled={!selected}
           />
-          <div className="flex items-center gap-2 justify-end">
-            <Button
-              onClick={() => {
-                if (selected) setDraftContent(selected.content || '');
-              }}
-              variant="ghost"
-              disabled={!selected}
-            >
-              重置
-            </Button>
-            <Button onClick={saveDraft} disabled={!selected}>
-              保存
-            </Button>
-          </div>
         </div>
       </div>
 
-      {/* Create dialog (add from left) */}
-      <PromptTemplateFormDialog open={formOpen} mode={formMode} title={'新建模板'} initialValues={formValues} onClose={() => setFormOpen(false)} onSubmit={submitForm} />
+      {/* 新建对话框 */}
+      <PromptTemplateFormDialog open={formOpen} mode={formMode} title="新建模板" initialValues={formValues} onClose={() => setFormOpen(false)} onSubmit={submitForm} />
     </div>
   );
 }

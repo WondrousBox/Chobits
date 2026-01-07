@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import { TbDatabase, TbDownload, TbFileText, TbFolder, TbFolderOpen, TbPlug } from 'react-icons/tb';
+import { TbFolderOpen } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { maskPath } from '@/lib/helpers';
+
+import { SettingGroup, SettingItem, SettingPath } from './SettingComponents';
 
 function FolderSetting(): JSX.Element {
   const [pluginsDir, setPluginsDir] = useState<string>('');
@@ -50,6 +52,7 @@ function FolderSetting(): JSX.Element {
   const openDatabaseLocation = async (): Promise<void> => {
     window.YUA.system['database:openLocation']();
   };
+
   const openLogsLocation = async (): Promise<void> => {
     window.YUA.system['logs:openLocation']();
   };
@@ -87,86 +90,71 @@ function FolderSetting(): JSX.Element {
   };
 
   return (
-    <div className="px-2">
-      <div className="rounded-2xl border border-border bg-card p-5 shadow-sm space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <TbFolder className="h-6 w-6" />
-            </div>
-            <div>
-              <div className="text-base font-semibold text-foreground">文件夹设置</div>
-              <div className="text-sm text-muted-foreground">设置数据、日志、下载和插件资源文件夹。</div>
-            </div>
-          </div>
-        </div>
-        <div className="bg-card border border-border rounded-lg p-2">
-          <div className="flex items-center text-foreground gap-1">
-            <TbDatabase /> 数据
-          </div>
-          <div className="flex items-center justify-center gap-2 mt-2">
-            <div className="p-2 bg-muted rounded-md text-xs text-muted-foreground flex-1">data/</div>
+    <SettingGroup title="文件夹">
+      <SettingItem
+        title="数据目录"
+        description="应用数据存储位置"
+        action={
+          <div className="flex items-center gap-2">
+            <SettingPath path="data/" />
             <Button size="sm" variant="outline" onClick={openDatabaseLocation}>
-              <TbFolderOpen />
+              <TbFolderOpen className="h-4 w-4 mr-1" />
               打开
             </Button>
           </div>
-        </div>
-
-        <div className="bg-card border border-border rounded-lg p-2 mt-3">
-          <div className="flex items-center text-foreground gap-1">
-            <TbFileText /> 日志
-          </div>
-          <div className="flex items-center justify-center gap-2 mt-2">
-            <div className="p-2 bg-muted rounded-md text-xs text-muted-foreground flex-1">logs/</div>
+        }
+      />
+      <SettingItem
+        title="日志目录"
+        description="应用日志文件位置"
+        action={
+          <div className="flex items-center gap-2">
+            <SettingPath path="logs/" />
             <Button size="sm" variant="outline" onClick={openLogsLocation}>
-              <TbFolderOpen />
+              <TbFolderOpen className="h-4 w-4 mr-1" />
               打开
             </Button>
           </div>
-        </div>
-
-        <div className="bg-card border border-border rounded-lg p-2 mt-3">
-          <div className="flex items-center text-foreground gap-1">
-            <TbDownload /> 下载
-          </div>
-          <div className="flex items-center justify-center gap-2 mt-2">
-            <div className="p-2 bg-muted rounded-md text-xs text-muted-foreground flex-1 break-all font-mono">{maskPath(downloadDir) || '未设置'}</div>
+        }
+      />
+      <SettingItem
+        title="下载目录"
+        description="文件下载保存位置"
+        action={
+          <div className="flex items-center gap-2">
+            <SettingPath path={maskPath(downloadDir)} placeholder="未设置" />
             {downloadDir && (
               <Button size="sm" variant="outline" onClick={openDownloadLocation}>
-                <TbFolderOpen />
+                <TbFolderOpen className="h-4 w-4 mr-1" />
                 打开
               </Button>
             )}
           </div>
-        </div>
-
-        <div className="bg-card border border-border rounded-lg p-2 mt-3">
-          <div className="flex items-center text-foreground gap-1">
-            <TbPlug /> 插件资源
-          </div>
-          <div className="text-xs text-muted-foreground mt-1 mb-2">插件引擎和模型文件存储位置（可能占用较大空间，建议选择非系统盘）</div>
-          {loading ? (
-            <div className="text-xs text-muted-foreground py-2">读取配置...</div>
+        }
+      />
+      <SettingItem
+        title="插件资源目录"
+        description="插件引擎和模型文件存储位置"
+        action={
+          loading ? (
+            <span className="text-xs text-muted-foreground">加载中...</span>
           ) : (
-            <>
-              <div className="flex items-center justify-center gap-2 mt-2">
-                <div className="p-2 bg-muted rounded-md text-muted-foreground flex-1 break-all font-mono text-xs">{maskPath(pluginsDir) || '未设置'}</div>
-                <Button size="sm" variant="outline" onClick={pickPluginsDir}>
-                  选择
+            <div className="flex items-center gap-2">
+              <SettingPath path={maskPath(pluginsDir)} placeholder="未设置" />
+              <Button size="sm" variant="outline" onClick={pickPluginsDir}>
+                选择
+              </Button>
+              {pluginsDir && (
+                <Button size="sm" variant="outline" onClick={openPluginsLocation}>
+                  <TbFolderOpen className="h-4 w-4 mr-1" />
+                  打开
                 </Button>
-                {pluginsDir && (
-                  <Button size="sm" variant="outline" onClick={openPluginsLocation}>
-                    <TbFolderOpen />
-                    打开
-                  </Button>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
+              )}
+            </div>
+          )
+        }
+      />
+    </SettingGroup>
   );
 }
 

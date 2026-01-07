@@ -15,6 +15,7 @@ import { initVectorHandlers } from './embedding/ipc-main';
 import { initFFmpegHandlers } from './ffmpeg/ipc-main';
 import { initFileHandlers } from './file/ipc-main';
 import { initFolderHandlers } from './folder/ipc-main';
+import { initPreferencesHandlers } from './preferences/ipc-main';
 import { initProxyHandlers } from './proxy/ipc-main';
 import { getHttpProxy } from './proxy/proxy';
 import { initResourceHandlers } from './resource/ipc-main';
@@ -52,6 +53,7 @@ export function initHandlers(win: BrowserWindow): void {
   initRecorderHandlers();
   initSherpaHandlers();
   initShortcutsHandlers(win);
+  initPreferencesHandlers(win);
   initPluginResourceHandlers(win, {
     getHttpProxy,
     getPluginDefinitionsPath: () => getResourcePath('plugins')!,

@@ -24,6 +24,13 @@ p {
   margin: 0;
 }
 
+ul {
+  padding: 0;
+}
+[data-sidebar='group'] {
+  box-sizing: border-box !important;
+}
+
 /* Allow text selection inside the rich text editor specifically */
 .tiptap,
 .tiptap * {

@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react';
-import { TbAlertCircle, TbDatabase, TbRefresh, TbSearch, TbServer, TbX } from 'react-icons/tb';
+import { TbAlertCircle, TbDatabase, TbLoader, TbRefresh, TbSearch, TbServer, TbX } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+
+import { SettingGroup, SettingItem } from './SettingComponents';
 
 type ProviderStat = {
   providerId: string;
@@ -132,202 +133,173 @@ export default function VectorManagement(): JSX.Element {
   const totalDocuments = statistics.providers.reduce((sum, p) => sum + p.total, 0);
 
   return (
-    <div className="space-y-6 p-6">
-      {/* 统计概览 */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>向量统计</CardTitle>
-              <CardDescription>按服务商和模型分组的向量文档统计</CardDescription>
-            </div>
-            <Button size="sm" variant="outline" onClick={loadStatistics} disabled={loading}>
-              <TbRefresh className={loading ? 'animate-spin' : ''} />
+    <div className="space-y-4">
+      {/* 向量统计 */}
+      <SettingGroup title="向量统计">
+        <div className="px-4 py-3">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm text-muted-foreground">
+              总计 <span className="font-medium text-foreground">{totalDocuments}</span> 个文档
+            </span>
+            <Button size="sm" variant="ghost" className="h-7" onClick={loadStatistics} disabled={loading}>
+              {loading ? <TbLoader className="h-4 w-4 mr-1 animate-spin" /> : <TbRefresh className="h-4 w-4 mr-1" />}
               刷新
             </Button>
           </div>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="text-center py-8 text-muted-foreground">加载中...</div>
-          ) : (
-            <>
-              <div className="mb-4 flex items-center gap-4">
-                <div className="flex-1">
-                  <Label>服务商筛选</Label>
-                  <Select value={selectedProvider} onValueChange={setSelectedProvider}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="全部服务商" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">全部服务商</SelectItem>
-                      {allProviders.map((p) => (
-                        <SelectItem key={p} value={p}>
-                          {p}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex-1">
-                  <Label>模型筛选</Label>
-                  <Select value={selectedModel} onValueChange={setSelectedModel}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="全部模型" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">全部模型</SelectItem>
-                      {allModels.map((m) => (
-                        <SelectItem key={m} value={m}>
-                          {m}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex-1">
-                  <Label>搜索</Label>
-                  <div className="relative">
-                    <TbSearch className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input placeholder="搜索服务商..." value={searchText} onChange={(e) => setSearchText(e.target.value)} className="pl-8" />
-                  </div>
-                </div>
-              </div>
 
-              <div className="mb-4">
-                <div className="text-sm text-muted-foreground">
-                  总计: <span className="font-semibold text-foreground">{totalDocuments}</span> 个文档
-                </div>
-              </div>
-
-              <ScrollArea className="h-[400px]">
-                <div className="space-y-4">
-                  {filteredStats.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">没有找到匹配的统计信息</div>
-                  ) : (
-                    filteredStats.map((provider) => (
-                      <Card key={provider.providerId}>
-                        <CardHeader className="pb-3">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <TbServer className="h-5 w-5" />
-                              <CardTitle className="text-lg">{provider.providerId || '未知服务商'}</CardTitle>
-                              <Badge variant="secondary">{provider.total} 个文档</Badge>
-                            </div>
-                          </div>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-2">
-                            {provider.models.map((model, idx) => (
-                              <div key={idx} className="flex items-center justify-between p-2 rounded-md bg-muted/50">
-                                <div className="flex items-center gap-2">
-                                  <TbDatabase className="h-4 w-4 text-muted-foreground" />
-                                  <span className="font-medium">{model.model || '未知模型'}</span>
-                                  {model.dim && (
-                                    <Badge variant="outline" className="text-xs">
-                                      {model.dim}D
-                                    </Badge>
-                                  )}
-                                </div>
-                                <Badge>{model.count} 个</Badge>
-                              </div>
-                            ))}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))
-                  )}
-                </div>
-              </ScrollArea>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* 重新向量化 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>重新向量化</CardTitle>
-          <CardDescription>查找并重新向量化不符合目标服务商和模型的文档</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <Label>目标服务商</Label>
-              <Input placeholder="如: openai" value={targetProvider} onChange={(e) => setTargetProvider(e.target.value)} />
-            </div>
-            <div>
-              <Label>目标模型</Label>
-              <Input placeholder="如: text-embedding-3-small" value={targetModel} onChange={(e) => setTargetModel(e.target.value)} />
-            </div>
-            <div>
-              <Label>目标维度（可选）</Label>
-              <Input type="number" placeholder="如: 1536" value={targetDim || ''} onChange={(e) => setTargetDim(e.target.value ? parseInt(e.target.value, 10) : undefined)} />
+          {/* 筛选器 */}
+          <div className="flex items-center gap-2 mb-3">
+            <Select value={selectedProvider} onValueChange={setSelectedProvider}>
+              <SelectTrigger className="h-8 w-[140px]">
+                <SelectValue placeholder="全部服务商" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部服务商</SelectItem>
+                {allProviders.map((p) => (
+                  <SelectItem key={p} value={p}>
+                    {p}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={selectedModel} onValueChange={setSelectedModel}>
+              <SelectTrigger className="h-8 w-[160px]">
+                <SelectValue placeholder="全部模型" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部模型</SelectItem>
+                {allModels.map((m) => (
+                  <SelectItem key={m} value={m}>
+                    {m}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="relative flex-1">
+              <TbSearch className="absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="搜索服务商..." value={searchText} onChange={(e) => setSearchText(e.target.value)} className="h-8 pl-8" />
             </div>
           </div>
 
-          <div className="flex gap-2">
-            <Button onClick={findDocumentsNeedingReembedding} disabled={reembeddingLoading || !targetProvider || !targetModel}>
-              <TbSearch />
-              查找需要重新向量化的文档
+          {/* 统计列表 */}
+          {loading ? (
+            <div className="text-center py-6 text-sm text-muted-foreground">加载中...</div>
+          ) : filteredStats.length === 0 ? (
+            <div className="text-center py-6 text-sm text-muted-foreground">没有找到匹配的统计信息</div>
+          ) : (
+            <ScrollArea className="h-[240px]">
+              <div className="space-y-2">
+                {filteredStats.map((provider) => (
+                  <div key={provider.providerId} className="border border-border rounded-md p-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <TbServer className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">{provider.providerId || '未知服务商'}</span>
+                      <Badge variant="secondary" className="text-xs">
+                        {provider.total} 个
+                      </Badge>
+                    </div>
+                    <div className="space-y-1">
+                      {provider.models.map((model, idx) => (
+                        <div key={idx} className="flex items-center justify-between text-xs px-2 py-1.5 bg-muted/50 rounded">
+                          <div className="flex items-center gap-2">
+                            <TbDatabase className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span>{model.model || '未知模型'}</span>
+                            {model.dim && (
+                              <Badge variant="outline" className="text-[10px] px-1 py-0">
+                                {model.dim}D
+                              </Badge>
+                            )}
+                          </div>
+                          <span className="text-muted-foreground">{model.count} 个</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          )}
+        </div>
+      </SettingGroup>
+
+      {/* 重新向量化 */}
+      <SettingGroup title="重新向量化">
+        <div className="px-4 py-3 space-y-3">
+          <p className="text-xs text-muted-foreground">查找并重新向量化不符合目标服务商和模型的文档</p>
+
+          <div className="flex items-center gap-2">
+            <Input placeholder="目标服务商" value={targetProvider} onChange={(e) => setTargetProvider(e.target.value)} className="h-8 flex-1" />
+            <Input placeholder="目标模型" value={targetModel} onChange={(e) => setTargetModel(e.target.value)} className="h-8 flex-1" />
+            <Input
+              type="number"
+              placeholder="维度"
+              value={targetDim || ''}
+              onChange={(e) => setTargetDim(e.target.value ? parseInt(e.target.value, 10) : undefined)}
+              className="h-8 w-20"
+            />
+            <Button size="sm" className="h-8" onClick={findDocumentsNeedingReembedding} disabled={reembeddingLoading || !targetProvider || !targetModel}>
+              {reembeddingLoading ? <TbLoader className="h-4 w-4 mr-1 animate-spin" /> : <TbSearch className="h-4 w-4 mr-1" />}
+              查找
             </Button>
-            {reembeddingDocs.length > 0 && (
-              <Button variant="outline" onClick={() => setReembeddingDocs([])}>
-                <TbX />
-                清空列表
-              </Button>
-            )}
           </div>
 
           {reembeddingDocs.length > 0 && (
             <>
               <div className="flex items-center justify-between">
-                <div className="text-sm text-muted-foreground">
-                  找到 <span className="font-semibold text-foreground">{reembeddingDocs.length}</span> 个需要重新向量化的文档
+                <span className="text-xs text-muted-foreground">
+                  找到 <span className="font-medium text-foreground">{reembeddingDocs.length}</span> 个文档
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setReembeddingDocs([])}>
+                    <TbX className="h-3.5 w-3.5 mr-1" />
+                    清空
+                  </Button>
+                  <Button size="sm" className="h-7 text-xs" onClick={handleReembed} disabled={!targetDim || !!reembeddingProgress}>
+                    <TbRefresh className="h-3.5 w-3.5 mr-1" />
+                    开始向量化
+                  </Button>
                 </div>
-                <Button onClick={handleReembed} disabled={!targetProvider || !targetModel || !targetDim || !!reembeddingProgress}>
-                  <TbRefresh />
-                  开始重新向量化
-                </Button>
               </div>
 
               {reembeddingProgress && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>进度</span>
                     <span>
                       {reembeddingProgress.current} / {reembeddingProgress.total}
                     </span>
                   </div>
-                  <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
-                    <div className="bg-primary h-full transition-all" style={{ width: `${(reembeddingProgress.current / reembeddingProgress.total) * 100}%` }} />
-                  </div>
+                  <Progress value={(reembeddingProgress.current / reembeddingProgress.total) * 100} className="h-1.5" />
                 </div>
               )}
 
-              <ScrollArea className="h-[300px] border rounded-md">
+              <ScrollArea className="h-[200px] border border-border rounded-md">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>ID</TableHead>
-                      <TableHead>当前服务商</TableHead>
-                      <TableHead>当前模型</TableHead>
-                      <TableHead>当前维度</TableHead>
-                      <TableHead>内容预览</TableHead>
+                      <TableHead className="text-xs">ID</TableHead>
+                      <TableHead className="text-xs">服务商</TableHead>
+                      <TableHead className="text-xs">模型</TableHead>
+                      <TableHead className="text-xs">维度</TableHead>
+                      <TableHead className="text-xs">内容预览</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {reembeddingDocs.map((doc) => (
                       <TableRow key={doc.id}>
-                        <TableCell className="font-mono text-xs">{doc.id.slice(0, 8)}...</TableCell>
-                        <TableCell>
-                          <Badge variant={doc.currentProviderId ? 'default' : 'secondary'}>{doc.currentProviderId || '未设置'}</Badge>
+                        <TableCell className="font-mono text-xs py-2">{doc.id.slice(0, 8)}...</TableCell>
+                        <TableCell className="py-2">
+                          <Badge variant={doc.currentProviderId ? 'default' : 'secondary'} className="text-[10px]">
+                            {doc.currentProviderId || '未设置'}
+                          </Badge>
                         </TableCell>
-                        <TableCell>
-                          <Badge variant={doc.currentModel ? 'default' : 'secondary'}>{doc.currentModel || '未设置'}</Badge>
+                        <TableCell className="py-2">
+                          <Badge variant={doc.currentModel ? 'default' : 'secondary'} className="text-[10px]">
+                            {doc.currentModel || '未设置'}
+                          </Badge>
                         </TableCell>
-                        <TableCell>{doc.currentDim ? `${doc.currentDim}D` : '-'}</TableCell>
-                        <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">{doc.content.slice(0, 50)}...</TableCell>
+                        <TableCell className="text-xs py-2">{doc.currentDim ? `${doc.currentDim}D` : '-'}</TableCell>
+                        <TableCell className="max-w-[150px] truncate text-xs text-muted-foreground py-2">{doc.content.slice(0, 40)}...</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -337,13 +309,13 @@ export default function VectorManagement(): JSX.Element {
           )}
 
           {reembeddingDocs.length === 0 && !reembeddingLoading && (
-            <div className="text-center py-8 text-muted-foreground">
-              <TbAlertCircle className="h-12 w-12 mx-auto mb-2 opacity-50" />
-              <div>请先填写目标服务商和模型，然后点击"查找"按钮</div>
+            <div className="text-center py-6 text-muted-foreground">
+              <TbAlertCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p className="text-xs">填写目标配置后点击"查找"按钮</p>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </SettingGroup>
     </div>
   );
 }

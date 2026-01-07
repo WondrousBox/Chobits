@@ -4,7 +4,10 @@ import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+import { SettingGroup, SettingItem } from './SettingComponents';
 
 type ProxyType = 'none' | 'system' | 'custom';
 type ProxyAgentType = 'http' | 'socks5';
@@ -25,17 +28,15 @@ const ProxySettings: React.FC = () => {
   const [config, setConfig] = useState<ProxyConfig>({ type: 'none' });
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [systemProxyInfo, setSystemProxyInfo] = useState<{ host: string; port: string } | null>(null);
-  // 用于存储每个代理项的防抖定时器
   const debounceTimersRef = useRef<Map<number, NodeJS.Timeout>>(new Map());
-  // 用于存储每个代理项的本地状态（用于输入框的即时显示）
   const [localProxies, setLocalProxies] = useState<CustomProxy[]>([]);
 
   useEffect(() => {
     loadConfig();
   }, []);
 
-  // 当配置加载后，同步本地状态
   useEffect(() => {
     if (config.proxies) {
       setLocalProxies(config.proxies);
@@ -57,13 +58,10 @@ const ProxySettings: React.FC = () => {
   const handleTypeChange = async (type: ProxyType): Promise<void> => {
     setLoading(true);
     try {
-      // 切换类型时保留现有的代理列表，不清空
       const result = await window.YUA.proxy['proxy:setConfig']({ config: { type } });
       if (result?.ok && result.config) {
         setConfig(result.config);
         toast.success('设置成功', { description: '代理配置已更新' });
-
-        // 如果选择系统代理，自动获取系统代理信息
         if (type === 'system') {
           await loadSystemProxy();
         }
@@ -93,15 +91,16 @@ const ProxySettings: React.FC = () => {
 
   const handleTestProxy = async (): Promise<void> => {
     setTesting(true);
+    setTestResult(null);
     try {
       const result = await window.YUA.proxy['proxy:test']();
       if (result?.ok) {
-        toast.success('测试成功', { description: `代理连接正常，延迟: ${result.latency}ms` });
+        setTestResult({ ok: true, message: `连接正常，延迟: ${result.latency}ms` });
       } else {
         throw new Error(result?.error || '测试失败');
       }
     } catch (error: any) {
-      toast.error('测试失败', { description: error.message || '无法连接到代理服务器' });
+      setTestResult({ ok: false, message: error.message || '无法连接到代理服务器' });
     } finally {
       setTesting(false);
     }
@@ -118,7 +117,6 @@ const ProxySettings: React.FC = () => {
       const result = await window.YUA.proxy['proxy:addCustom']({ proxy: newProxy });
       if (result?.ok && result.config) {
         setConfig(result.config);
-        // 同步本地状态
         if (result.config.proxies) {
           setLocalProxies(result.config.proxies);
         }
@@ -131,13 +129,11 @@ const ProxySettings: React.FC = () => {
     }
   };
 
-  // 立即保存（用于选择框和按钮操作）
   const handleUpdateProxyImmediate = async (index: number, updates: Partial<CustomProxy>): Promise<void> => {
     try {
       const result = await window.YUA.proxy['proxy:updateCustom']({ index, proxy: updates });
       if (result?.ok && result.config) {
         setConfig(result.config);
-        // 同步本地状态
         if (result.config.proxies) {
           setLocalProxies(result.config.proxies);
         }
@@ -150,9 +146,7 @@ const ProxySettings: React.FC = () => {
     }
   };
 
-  // 防抖保存（用于输入框）
   const handleUpdateProxyDebounced = (index: number, updates: Partial<CustomProxy>): void => {
-    // 更新本地状态以立即显示
     setLocalProxies((prev) => {
       const newProxies = [...prev];
       if (newProxies[index]) {
@@ -161,19 +155,16 @@ const ProxySettings: React.FC = () => {
       return newProxies;
     });
 
-    // 清除之前的定时器
     const existingTimer = debounceTimersRef.current.get(index);
     if (existingTimer) {
       clearTimeout(existingTimer);
     }
 
-    // 设置新的防抖定时器
     const timer = setTimeout(async () => {
       try {
         const result = await window.YUA.proxy['proxy:updateCustom']({ index, proxy: updates });
         if (result?.ok && result.config) {
           setConfig(result.config);
-          // 同步本地状态
           if (result.config.proxies) {
             setLocalProxies(result.config.proxies);
           }
@@ -182,17 +173,15 @@ const ProxySettings: React.FC = () => {
         }
       } catch (error: any) {
         console.error('防抖保存失败:', error);
-        // 保存失败时，重新加载配置以恢复状态
         await loadConfig();
       } finally {
         debounceTimersRef.current.delete(index);
       }
-    }, 600); // 600ms 防抖延迟
+    }, 600);
 
     debounceTimersRef.current.set(index, timer);
   };
 
-  // 清理所有防抖定时器
   useEffect(() => {
     const timers = debounceTimersRef.current;
     return () => {
@@ -202,7 +191,6 @@ const ProxySettings: React.FC = () => {
   }, []);
 
   const handleRemoveProxy = async (index: number): Promise<void> => {
-    // 清除该索引的防抖定时器
     const timer = debounceTimersRef.current.get(index);
     if (timer) {
       clearTimeout(timer);
@@ -213,7 +201,6 @@ const ProxySettings: React.FC = () => {
       const result = await window.YUA.proxy['proxy:removeCustom']({ index });
       if (result?.ok && result.config) {
         setConfig(result.config);
-        // 同步本地状态
         if (result.config.proxies) {
           setLocalProxies(result.config.proxies);
         }
@@ -226,111 +213,131 @@ const ProxySettings: React.FC = () => {
     }
   };
 
+  const proxyTypeLabel = {
+    none: '禁用代理',
+    system: '系统代理',
+    custom: '自定义代理'
+  };
+
   return (
-    <div className="space-y-6 px-2">
-      <div className="bg-card border border-border rounded-lg p-6">
-        <div className="space-y-6">
-          <div>
-            <h3 className="text-lg font-semibold mb-2">代理设置</h3>
-            <p className="text-sm text-muted-foreground mb-4">配置网络代理以访问受限资源</p>
-          </div>
+    <div className="p-4 space-y-6">
+      <SettingGroup title="代理模式">
+        <SettingItem
+          title="代理类型"
+          description="选择网络代理模式"
+          action={
+            <RadioGroup value={config.type} onValueChange={(v) => handleTypeChange(v as ProxyType)} className="flex items-center gap-4" disabled={loading}>
+              <div className="flex items-center gap-1.5">
+                <RadioGroupItem value="none" id="none" />
+                <label htmlFor="none" className="text-sm cursor-pointer">
+                  禁用
+                </label>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <RadioGroupItem value="system" id="system" />
+                <label htmlFor="system" className="text-sm cursor-pointer">
+                  系统
+                </label>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <RadioGroupItem value="custom" id="custom" />
+                <label htmlFor="custom" className="text-sm cursor-pointer">
+                  自定义
+                </label>
+              </div>
+            </RadioGroup>
+          }
+        />
+        {config.type === 'system' && (
+          <SettingItem
+            title="系统代理信息"
+            description={systemProxyInfo ? `${systemProxyInfo.host}:${systemProxyInfo.port}` : '未检测到系统代理'}
+            action={
+              <Button size="sm" variant="outline" onClick={loadSystemProxy}>
+                <TbRefresh className="h-4 w-4 mr-1" />
+                刷新
+              </Button>
+            }
+          />
+        )}
+      </SettingGroup>
 
-          <div className="space-y-3">
-            <div className="flex items-center space-x-2 h-8">
-              <input type="radio" id="none" name="proxyType" value="none" checked={config.type === 'none'} onChange={() => handleTypeChange('none')} disabled={loading} className="w-4 h-4" />
-              <label htmlFor="none" className="cursor-pointer">
-                禁用代理
-              </label>
+      {config.type === 'custom' && (
+        <SettingGroup title="自定义代理">
+          {localProxies.length === 0 ? (
+            <div className="px-4 py-8 text-center">
+              <TbNetwork className="w-10 h-10 mx-auto mb-2 text-muted-foreground opacity-50" />
+              <p className="text-sm text-muted-foreground mb-3">暂无代理配置</p>
+              <Button size="sm" onClick={handleAddProxy}>
+                <TbPlus className="h-4 w-4 mr-1" />
+                添加代理
+              </Button>
             </div>
-            <div className="flex items-center space-x-2 h-8">
-              <input type="radio" id="system" name="proxyType" value="system" checked={config.type === 'system'} onChange={() => handleTypeChange('system')} disabled={loading} className="w-4 h-4" />
-              <label htmlFor="system" className="cursor-pointer">
-                系统代理
-              </label>
-              {config.type === 'system' && (
-                <div className="ml-4 flex items-center gap-2">
-                  <Button variant="ghost" size="sm" onClick={loadSystemProxy} className="h-8">
-                    <TbRefresh />
-                    刷新
-                  </Button>
-                  {systemProxyInfo && (
-                    <span className="text-sm text-muted-foreground">
-                      {systemProxyInfo.host}:{systemProxyInfo.port}
-                    </span>
-                  )}
+          ) : (
+            <>
+              {localProxies.map((proxy, index) => (
+                <div key={index} className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <Select value={proxy.type} onValueChange={(value: ProxyAgentType) => handleUpdateProxyImmediate(index, { type: value })}>
+                      <SelectTrigger className="w-24 h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="http">HTTP</SelectItem>
+                        <SelectItem value="socks5">SOCKS5</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      className="flex-1 h-8"
+                      value={proxy.hostname}
+                      onChange={(e) => handleUpdateProxyDebounced(index, { hostname: e.target.value })}
+                      placeholder="127.0.0.1"
+                    />
+                    <Input
+                      className="w-20 h-8"
+                      type="number"
+                      value={proxy.port}
+                      onChange={(e) => handleUpdateProxyDebounced(index, { port: parseInt(e.target.value) || 0 })}
+                      placeholder="7890"
+                    />
+                    <Button size="sm" variant={proxy.active ? 'default' : 'outline'} onClick={() => handleUpdateProxyImmediate(index, { active: true })} disabled={proxy.active}>
+                      {proxy.active && <TbCheck className="h-4 w-4 mr-1" />}
+                      {proxy.active ? '已启用' : '启用'}
+                    </Button>
+                    <Button size="icon" variant="ghost" className="w-8 h-8 text-muted-foreground hover:text-destructive" onClick={() => handleRemoveProxy(index)}>
+                      <TbTrash className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-              )}
-            </div>
-            <div className="flex items-center space-x-2 h-8">
-              <input type="radio" id="custom" name="proxyType" value="custom" checked={config.type === 'custom'} onChange={() => handleTypeChange('custom')} disabled={loading} className="w-4 h-4" />
-              <label htmlFor="custom" className="cursor-pointer">
-                自定义代理
-              </label>
-            </div>
-          </div>
-
-          {config.type === 'custom' && (
-            <div className="space-y-4 border-t pt-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">代理列表</span>
-                <Button variant="outline" size="sm" onClick={handleAddProxy} className="h-8">
-                  <TbPlus className="w-4 h-4 mr-1" />
+              ))}
+              <div className="px-4 py-3 border-t border-border">
+                <Button size="sm" variant="outline" onClick={handleAddProxy}>
+                  <TbPlus className="h-4 w-4 mr-1" />
                   添加代理
                 </Button>
               </div>
-
-              {localProxies && localProxies.length > 0 ? (
-                <div className="space-y-3">
-                  {localProxies.map((proxy, index) => (
-                    <div key={index} className={`border rounded-lg p-4 ${proxy.active ? 'border-primary bg-primary/5' : 'border-border'}`}>
-                      <div className="grid grid-cols-12 gap-4 items-end">
-                        <div className="col-span-2">
-                          <span className="text-sm font-medium mb-2 block">类型</span>
-                          <Select value={proxy.type} onValueChange={(value: ProxyAgentType) => handleUpdateProxyImmediate(index, { type: value })}>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="http">HTTP</SelectItem>
-                              <SelectItem value="socks5">SOCKS5</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="col-span-5">
-                          <span className="text-sm font-medium mb-2 block">地址</span>
-                          <Input value={proxy.hostname} onChange={(e) => handleUpdateProxyDebounced(index, { hostname: e.target.value })} placeholder="127.0.0.1 或 proxy.example.com" />
-                        </div>
-                        <div className="col-span-2">
-                          <span className="text-sm font-medium mb-2 block">端口</span>
-                          <Input type="number" value={proxy.port} onChange={(e) => handleUpdateProxyDebounced(index, { port: parseInt(e.target.value) || 0 })} placeholder="7890" />
-                        </div>
-                        <div className="col-span-3 flex items-end gap-2">
-                          <Button variant={proxy.active ? 'default' : 'outline'} onClick={() => handleUpdateProxyImmediate(index, { active: true })} disabled={proxy.active}>
-                            {proxy.active && <TbCheck />}
-                            {proxy.active ? '已启用' : '启用'}
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleRemoveProxy(index)}>
-                            <TbTrash />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <TbNetwork className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                  <p>暂无代理配置</p>
-                </div>
-              )}
-            </div>
+            </>
           )}
-        </div>
-      </div>
-      <Button onClick={handleTestProxy} disabled={testing} variant="outline">
-        {testing ? <TbLoader className="animate-spin" /> : <TbTestPipe className="w-4 h-4 mr-1" />}
-        {testing ? '测试中...' : '测试网络'}
-      </Button>
+        </SettingGroup>
+      )}
+
+      <SettingGroup title="网络测试">
+        <SettingItem
+          title="测试代理连接"
+          description="检测当前代理配置是否正常工作"
+          action={
+            <div className="flex items-center gap-3">
+              {testResult && (
+                <span className={`text-xs ${testResult.ok ? 'text-green-600' : 'text-destructive'}`}>{testResult.message}</span>
+              )}
+              <Button size="sm" variant="outline" onClick={handleTestProxy} disabled={testing}>
+                {testing ? <TbLoader className="h-4 w-4 mr-1 animate-spin" /> : <TbTestPipe className="h-4 w-4 mr-1" />}
+                {testing ? '测试中...' : '测试'}
+              </Button>
+            </div>
+          }
+        />
+      </SettingGroup>
     </div>
   );
 };

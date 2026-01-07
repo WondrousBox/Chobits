@@ -1,8 +1,10 @@
+import { debounce } from 'lodash-es';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 
 import Dropzone from '@/components/common/Dropzone';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
+import { BroadcastChannelManager, CHANNEL_NAMES, type PreferencesMessage } from '@/utils/broadcastChannels';
 
 import { ResourceItem, ViewMode } from '../../types';
 import { mergeVideoWithSubtitles } from '../../utils/subtitleUtils';
@@ -13,8 +15,6 @@ import ExplorerList from '../ExplorerList';
 import { UIFolder } from '../FolderSidebar';
 import ResourcePreviewPanel from '../ResourcePreviewPanel';
 import ResourceFooter from './ResourceFooter';
-
-const usePreviewWindow = true;
 
 interface ResourceContentProps {
   uploadProgress: any;
@@ -90,19 +90,87 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
   list,
   isCollapseMode
 }) => {
+  // 预览模式配置: 'window' 表示弹窗，'panel' 表示右侧面板
+  const [previewMode, setPreviewMode] = useState<'window' | 'panel'>('window');
+
   // 预览面板状态
   const [previewResource, setPreviewResource] = useState<ResourceItem | null>(null);
 
+  // 预览面板尺寸（从 localStorage 读取缓存）
+  const PREVIEW_PANEL_SIZE_KEY = 'resource-preview-panel-size';
+  const [previewPanelSize, setPreviewPanelSize] = useState<number>(() => {
+    const cached = localStorage.getItem(PREVIEW_PANEL_SIZE_KEY);
+    return cached ? Number(cached) : 40;
+  });
+
   // 用于控制面板大小的 ref
   const mainPanelRef = useRef<ImperativePanelHandle>(null);
+  const previewPanelRef = useRef<ImperativePanelHandle>(null);
+
+  // 加载预览模式配置
+  useEffect(() => {
+    const loadPreviewMode = async (): Promise<void> => {
+      try {
+        const result = await window.YUA.preferences['preferences:getPreviewMode']();
+        if (result.ok && result.previewMode) {
+          setPreviewMode(result.previewMode);
+        }
+      } catch (error) {
+        console.warn('加载预览模式配置失败:', error);
+      }
+    };
+    loadPreviewMode();
+
+    // 使用 BroadcastChannel 监听跨窗口的配置变化
+    const channel = BroadcastChannelManager.acquire(CHANNEL_NAMES.PREFERENCES);
+    const handleMessage = (event: MessageEvent<PreferencesMessage>): void => {
+      if (event.data?.type === 'previewModeChanged' && event.data?.previewMode) {
+        setPreviewMode(event.data.previewMode);
+      }
+    };
+    channel.addEventListener('message', handleMessage);
+
+    return () => {
+      channel.removeEventListener('message', handleMessage);
+      BroadcastChannelManager.release(CHANNEL_NAMES.PREFERENCES);
+    };
+  }, []);
 
   // 当预览面板打开/关闭时，调整主面板大小
   useEffect(() => {
     if (mainPanelRef.current) {
-      // 预览面板打开时，主面板缩小到 60%；关闭时恢复到 100%
-      mainPanelRef.current.resize(previewResource ? 60 : 100);
+      // 预览面板打开时，使用缓存的尺寸；关闭时恢复到 100%
+      mainPanelRef.current.resize(previewResource ? 100 - previewPanelSize : 100);
     }
-  }, [previewResource]);
+  }, [previewResource, previewPanelSize]);
+
+  // 防抖保存预览面板尺寸到 localStorage（避免频繁写入）
+  const debouncedSaveToStorage = useMemo(
+    () =>
+      debounce((size: number) => {
+        localStorage.setItem(PREVIEW_PANEL_SIZE_KEY, String(size));
+      }, 300),
+    []
+  );
+
+  // 保存预览面板尺寸
+  const handlePanelResize = useCallback(
+    (sizes: number[]) => {
+      if (sizes.length === 2) {
+        const newPreviewSize = sizes[1];
+        setPreviewPanelSize(newPreviewSize);
+        debouncedSaveToStorage(newPreviewSize);
+      }
+    },
+    [debouncedSaveToStorage]
+  );
+
+  // 组件卸载时清理 debounce
+  useEffect(() => {
+    return () => {
+      debouncedSaveToStorage.cancel();
+    };
+  }, [debouncedSaveToStorage]);
 
   // 合并视频和字幕文件
   const mergedItems = useMemo(() => {
@@ -255,7 +323,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
           onDeleteMany={handleDeleteMany}
           onToggleFavorite={handleToggleFavorite}
           onToggleVisibility={handleToggleVisibility}
-          onPreview={usePreviewWindow ? undefined : handlePreview}
+          onPreview={previewMode === 'window' ? undefined : handlePreview}
         />
       ) : viewMode === 'list' ? (
         <ExplorerList
@@ -280,7 +348,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
           onRenameFolder={handleRenameFolder}
           onDeleteFolder={handleDeleteFolder}
           onOpenFolderLocation={handleOpenFolderLocation}
-          onPreview={usePreviewWindow ? undefined : handlePreview}
+          onPreview={previewMode === 'window' ? undefined : handlePreview}
           onDelete={handleDelete}
           onDeleteMany={handleDeleteMany}
           onFolderCreated={async () => {
@@ -298,9 +366,9 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
           onItemClick={handleItemClick}
           onToggleFavorite={handleToggleFavorite}
           onToggleVisibility={handleToggleVisibility}
-          onPreview={usePreviewWindow ? undefined : (item) => handlePreview(item)}
+          onPreview={previewMode === 'window' ? undefined : (item) => handlePreview(item)}
           draggable
-          onDragStart={(e, item, ids) => {
+          onDragStart={(e, _item, ids) => {
             try {
               e.dataTransfer.setData('application/x-resource-ids', JSON.stringify(ids));
               e.dataTransfer.effectAllowed = 'move';
@@ -327,9 +395,9 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
   return (
     <div className="w-full h-full flex flex-col" style={{ height: 'calc(100% - 36px)' }}>
       <div className="flex-1 overflow-hidden">
-        <ResizablePanelGroup direction="horizontal" className="h-full">
+        <ResizablePanelGroup direction="horizontal" className="h-full" onLayout={handlePanelResize}>
           {/* 资源列表区域 */}
-          <ResizablePanel ref={mainPanelRef} defaultSize={100} minSize={30}>
+          <ResizablePanel ref={mainPanelRef} defaultSize={previewResource ? 100 - previewPanelSize : 100} minSize={30}>
             {renderResourceList()}
           </ResizablePanel>
 
@@ -337,7 +405,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
           {previewResource && (
             <>
               <ResizableHandle className="hover:bg-primary" withHandle />
-              <ResizablePanel defaultSize={40} minSize={20}>
+              <ResizablePanel ref={previewPanelRef} defaultSize={previewPanelSize} minSize={20}>
                 <ResourcePreviewPanel resource={previewResource} resourceList={mergedItems} onClose={handleClosePreview} onResourceChange={handlePreviewResourceChange} />
               </ResizablePanel>
             </>

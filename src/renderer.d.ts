@@ -6,6 +6,7 @@ import type { VectorIpcType } from '../electron/main/handlers/embedding/ipc-rend
 import type { FFmpegIpcType } from '../electron/main/handlers/ffmpeg/ipc-renderer';
 import type { FileIpcType } from '../electron/main/handlers/file/ipc-renderer';
 import type { FolderIpcType } from '../electron/main/handlers/folder/ipc-renderer';
+import type { PreferencesIpcType } from '../electron/main/handlers/preferences/ipc-renderer';
 import type { ProxyIpcType } from '../electron/main/handlers/proxy/ipc-renderer';
 import type { ResourceIpcType } from '../electron/main/handlers/resource/ipc-renderer';
 import type { SystemIpcType } from '../electron/main/handlers/system/ipc-renderer';
@@ -56,6 +57,7 @@ declare global {
       proxy: ProxyIpcType;
       theme: ThemeIpcType;
       sherpa: SherpaIpcRendererType;
+      preferences: PreferencesIpcType;
       ai: AIApi;
       events: {
         on: (callback: (payload: AppEventPayload) => void) => () => void;

@@ -11,6 +11,7 @@ import AiSettings from './components/AiSettings';
 import PreferencesSettings from './components/PreferencesSettings';
 import PromptSetting from './components/PromptSetting';
 import ProxySettings from './components/ProxySettings';
+import { SettingGroup } from './components/SettingComponents';
 import ShortcutsSettings from './components/ShortcutsSettings';
 import VectorManagement from './components/VectorManagement';
 import Workspace from './components/Workspace';
@@ -126,25 +127,16 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = []
         return <PreferencesSettings />;
       case 'embedding':
         return (
-          <div className="space-y-6">
+          <div className="p-4 space-y-4">
             <VectorManagement />
-            <Separator />
-            <div className="p-6">
-              <h3 className="text-lg font-semibold mb-4">嵌入任务队列</h3>
+            <div className="space-y-1">
+              <div className="text-xs font-medium text-muted-foreground px-2 py-1">嵌入任务队列</div>
               <EmbeddingJobsPanel />
             </div>
           </div>
         );
       case 'workspace':
-        return (
-          <div className="space-y-6">
-            <div className="bg-card border border-border rounded-lg overflow-hidden">
-              <div className="h-[70vh]">
-                <Workspace />
-              </div>
-            </div>
-          </div>
-        );
+        return <Workspace />;
       case 'plugins':
         return <PluginPage />;
       case 'ai':
@@ -164,11 +156,11 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = []
     <div className="h-full w-full bg-background">
       {!hideTitleBar && <DragAbleTitle title={<span>⚙️ 设置</span>} />}
       <SidebarProvider className="w-full h-full min-h-[unset]">
-        <Sidebar className="top-9 h-[calc(100vh-36px)]">
-          <SidebarContent>
-            <SidebarGroup className="box-border">
+        <Sidebar>
+          <SidebarContent className="gap-0">
+            <SidebarGroup className="px-2 !py-0 !pt-[12px]">
               <SidebarGroupContent>
-                <SidebarMenu className="pl-0 my-0">
+                <SidebarMenu>
                   {allCategories.map((category) => {
                     const Icon = category.icon;
                     return (
@@ -186,24 +178,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = []
           </SidebarContent>
         </Sidebar>
         <div className={clsx(['flex-1', hideTitleBar ? 'h-full' : 'h-[calc(100vh-36px)]'])}>
-          {/* 右侧内容区域 */}
-          <div className="flex items-center gap-4 p-2">
-            {(() => {
-              const currentCategory = allCategories.find((cat) => cat.id === activeCategory);
-              const Icon = currentCategory?.icon;
-              return Icon ? (
-                <div className="p-3 bg-primary/10 rounded-xl">
-                  <Icon className="w-7 h-7 text-primary" />
-                </div>
-              ) : null;
-            })()}
-            <div>
-              <div className="text-xl font-bold text-foreground">{allCategories.find((cat) => cat.id === activeCategory)?.label}</div>
-              <div className="text-muted-foreground text-sm">{allCategories.find((cat) => cat.id === activeCategory)?.description}</div>
-            </div>
+          {/* 右侧内容区域 - 简洁头部 */}
+          <div className="px-4 py-3 border-b border-border">
+            <h1 className="text-lg font-semibold text-foreground">{allCategories.find((cat) => cat.id === activeCategory)?.label}</h1>
           </div>
 
-          <div className="w-full overflow-y-auto overflow-x-hidden h-[calc(100%-72px)]">{renderCurrentCategoryContent()}</div>
+          <div className="w-full overflow-y-auto overflow-x-hidden h-[calc(100%-49px)]">{renderCurrentCategoryContent()}</div>
         </div>
       </SidebarProvider>
     </div>

@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { BroadcastChannelManager, CHANNEL_NAMES, type WorkflowEventMessage } from '@/utils/broadcastChannels';
 
 interface WorkflowBrief {
   id: string;
@@ -115,27 +116,35 @@ const WorkflowPage: React.FC = () => {
     };
   }, [list]);
 
-  // listen to cross-window workflow events for optimistic updates
+  // 监听跨窗口工作流事件，用于乐观更新
   useEffect(() => {
-    const ch = new BroadcastChannel('wf-events');
-    ch.onmessage = (e) => {
-      const data = e.data || {};
-      if (data.type === 'definition-upserted') {
+    const channel = BroadcastChannelManager.acquire(CHANNEL_NAMES.WF_EVENTS);
+
+    const handleMessage = (event: MessageEvent<WorkflowEventMessage>): void => {
+      const { type } = event.data;
+      if (type === 'definition-upserted') {
+        const { def, id } = event.data;
         setList((prev) => {
-          const idx = prev.findIndex((p) => p.id === data.def?.id || p.id === data.id);
+          const idx = prev.findIndex((p) => p.id === (def as WorkflowBrief)?.id || p.id === id);
           if (idx >= 0) {
             const next = prev.slice();
-            next[idx] = { ...next[idx], ...(data.def || {}), updatedAt: new Date().toISOString() } as any;
+            next[idx] = { ...next[idx], ...(def || {}), updatedAt: new Date().toISOString() } as WorkflowBrief;
             return next;
           }
-          if (data.def) return [{ ...(data.def as any) }, ...prev];
+          if (def) return [{ ...(def as WorkflowBrief) }, ...prev];
           return prev;
         });
-      } else if (data.type === 'run-started') {
-        setRunsByWorkflow((prev) => ({ ...prev, [data.defId]: { workflowId: data.defId, status: 'queued', createdAt: Date.now() } }));
+      } else if (type === 'run-started') {
+        const { defId } = event.data;
+        setRunsByWorkflow((prev) => ({ ...prev, [defId]: { workflowId: defId, status: 'queued', createdAt: Date.now() } }));
       }
     };
-    return () => ch.close();
+
+    channel.addEventListener('message', handleMessage);
+    return () => {
+      channel.removeEventListener('message', handleMessage);
+      BroadcastChannelManager.release(CHANNEL_NAMES.WF_EVENTS);
+    };
   }, []);
 
   const filtered = useMemo(() => {

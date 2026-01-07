@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import { TbLoader, TbRefresh } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+
+import { SettingGroup } from './SettingComponents';
 
 type PlatformKey = 'darwin' | 'win32' | 'linux';
 type ShortcutsConfig = Record<string, string | string[] | Partial<Record<PlatformKey, string | string[]>>>;
@@ -13,7 +16,7 @@ const ShortcutsSettings: React.FC = () => {
   const [cfg, setCfg] = useState<ShortcutsConfig>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  // Detect current platform
+  // 检测当前平台
   const currentPlatform: PlatformKey = ((): PlatformKey => {
     try {
       if (window.YUA?.isMac) return 'darwin';
@@ -113,7 +116,7 @@ const ShortcutsSettings: React.FC = () => {
 
   const restoreDefaults = async (): Promise<void> => {
     if (!schema.length) return;
-    // Build a config from schema defaults
+    // 从 schema defaults 构建配置
     const next: ShortcutsConfig = {};
     for (const act of schema) next[act.id] = act.defaults as any;
     setCfg(next);
@@ -129,7 +132,7 @@ const ShortcutsSettings: React.FC = () => {
   const persist = async (): Promise<void> => {
     setSaving(true);
     try {
-      // Precheck
+      // 预检
       const vr = await window.YUA.shortcuts['shortcuts:validate'](cfg);
       if (!vr?.ok || !vr.data?.ok) {
         const failures: string[] = [];
@@ -152,36 +155,48 @@ const ShortcutsSettings: React.FC = () => {
     }
   };
 
-  if (loading) return <div className="p-4 text-muted-foreground">加载中...</div>;
+  if (loading) {
+    return (
+      <div className="p-4 flex items-center justify-center text-muted-foreground">
+        <TbLoader className="h-4 w-4 mr-2 animate-spin" />
+        加载中...
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6 p-2">
-      <div className="bg-card border border-border rounded-lg p-4 space-y-6">
-        {schema.map((act) => (
-          <div key={act.id} className="space-y-2">
-            <div className="text-sm font-medium text-foreground">
-              {act.label}
-              {act.type === 'multi' ? '（逗号分隔）' : ''}
+    <div className="p-4 space-y-4">
+      <SettingGroup title="快捷键配置">
+        <div className="divide-y divide-border">
+          {schema.map((act) => (
+            <div key={act.id} className="px-4 py-3">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-foreground">{act.label}</div>
+                  {act.description && <div className="text-xs text-muted-foreground mt-0.5">{act.description}</div>}
+                  {act.type === 'multi' && <div className="text-xs text-muted-foreground mt-0.5">多个快捷键用逗号分隔</div>}
+                </div>
+                <Input
+                  className="w-[240px] h-8 text-sm"
+                  placeholder={act.type === 'multi' ? 'F12, Cmd+Shift+I' : 'Cmd+K'}
+                  value={getDisplayValue(act.id, currentPlatform, act.type === 'multi')}
+                  onChange={(e) => setValue(act.id, currentPlatform, e.target.value, act.type === 'multi')}
+                />
+              </div>
             </div>
-            {act.description && <div className="text-xs text-muted-foreground">{act.description}</div>}
-            <div className="space-y-1">
-              <Input
-                placeholder={act.type === 'multi' ? '例如：F12, CommandOrControl+Shift+I' : '例如：CommandOrControl+K'}
-                value={getDisplayValue(act.id, currentPlatform, act.type === 'multi')}
-                onChange={(e) => setValue(act.id, currentPlatform, e.target.value, act.type === 'multi')}
-              />
-            </div>
-          </div>
-        ))}
-
-        <div className="flex justify-end gap-2 pt-2">
-          <Button variant="outline" onClick={restoreDefaults} disabled={saving}>
-            恢复默认
-          </Button>
-          <Button onClick={persist} disabled={saving}>
-            {saving ? '保存中...' : '保存设置（预检）'}
-          </Button>
+          ))}
         </div>
+      </SettingGroup>
+
+      <div className="flex justify-end gap-2 px-2">
+        <Button size="sm" variant="outline" onClick={restoreDefaults} disabled={saving}>
+          <TbRefresh className="h-4 w-4 mr-1" />
+          恢复默认
+        </Button>
+        <Button size="sm" onClick={persist} disabled={saving}>
+          {saving ? <TbLoader className="h-4 w-4 mr-1 animate-spin" /> : null}
+          {saving ? '保存中...' : '保存设置'}
+        </Button>
       </div>
     </div>
   );

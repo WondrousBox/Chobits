@@ -245,7 +245,7 @@ export const PluginListItem: React.FC<PluginListItemProps> = ({ resource, instal
 
   return (
     <>
-      <div className="border p-3 rounded flex items-center justify-between bg-background/60">{content}</div>
+      <div className="px-4 py-3 flex items-center justify-between hover:bg-muted/20 transition-colors">{content}</div>
       {onRemove && installedResource?.id && (
         <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
           <DialogContent>
