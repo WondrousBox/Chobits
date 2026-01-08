@@ -117,7 +117,6 @@ export function getModelConfig(data: { model: AllModels; modelDir: string; cpu_n
   // Please download test files from
   // https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models
   switch (data.model) {
-    case 'sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20':
     case 'sherpa-onnx-streaming-zipformer-en-20M-2023-02-17':
     case 'sherpa-onnx-streaming-zipformer-zh-14M-2023-02-23':
       return {

@@ -17,6 +17,24 @@ export const SHERPA_CONFIG: Record<string, string> = {
     }
   }`,
 
+  'sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2025-09-09': `{
+    "featConfig": {
+      "sampleRate": {{featConfig.sampleRate}},
+      "featureDim": {{featConfig.featureDim}}
+    },
+    "modelConfig": {
+      "senseVoice": {
+        "model": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/model.int8.onnx",
+        "useInverseTextNormalization": 1,
+        "language": "{{modelConfig.language}}"
+      },
+      "tokens": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/tokens.txt",
+      "numThreads": {{modelConfig.numThreads}},
+      "provider": "{{modelConfig.provider}}",
+      "debug": {{modelConfig.debug}}
+    }
+  }`,
+
   'sherpa-onnx-streaming-paraformer-bilingual-zh-en': `{
     "featConfig": {
       "sampleRate": {{featConfig.sampleRate}},
@@ -28,6 +46,31 @@ export const SHERPA_CONFIG: Record<string, string> = {
         "decoder": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/decoder.int8.onnx"
       },
       "tokens": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/tokens.txt",
+      "numThreads": {{modelConfig.numThreads}},
+      "provider": "{{modelConfig.provider}}",
+      "debug": {{modelConfig.debug}}
+    },
+    "decodingMethod": "{{decodingMethod}}",
+    "maxActivePaths": {{maxActivePaths}},
+    "enableEndpoint": {{enableEndpoint}},
+    "rule1MinTrailingSilence": {{rule1MinTrailingSilence}},
+    "rule2MinTrailingSilence": {{rule2MinTrailingSilence}},
+    "rule3MinUtteranceLength": {{rule3MinUtteranceLength}}
+  }`,
+
+  'sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20': `{
+    "featConfig": {
+      "sampleRate": {{featConfig.sampleRate}},
+      "featureDim": {{featConfig.featureDim}}
+    },
+    "modelConfig": {
+      "transducer": {
+        "encoder": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/encoder-epoch-99-avg-1.onnx",
+        "decoder": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/decoder-epoch-99-avg-1.onnx",
+        "joiner": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/joiner-epoch-99-avg-1.onnx"
+      },
+      "tokens": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/tokens.txt",
+      "bpe": "{{{modelConfig.modelDir}}}/{{modelConfig.model}}/bpe.model",
       "numThreads": {{modelConfig.numThreads}},
       "provider": "{{modelConfig.provider}}",
       "debug": {{modelConfig.debug}}
