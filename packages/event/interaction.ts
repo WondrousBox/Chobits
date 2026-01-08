@@ -1,8 +1,11 @@
 import { BrowserWindow } from 'electron';
 
-// --- App Notice Types & Functions ---
+// ============================================================================
+// 通用类型定义
+// ============================================================================
 
 export type AppNoticeLevel = 'info' | 'success' | 'warning' | 'error';
+export type MessageType = 'toast' | 'notice' | 'busy';
 
 export interface AppNoticeButton {
   id: string; // 按钮唯一标识
@@ -10,6 +13,31 @@ export interface AppNoticeButton {
   action?: string; // 预定义动作：'dismiss'（关闭消息）、'snooze'（稍后提醒）等
   variant?: 'default' | 'secondary' | 'outline' | 'ghost'; // 按钮样式
 }
+
+// ============================================================================
+// 统一消息系统类型（新）
+// ============================================================================
+
+/**
+ * 统一消息 payload
+ */
+export interface SpriteMessagePayload {
+  type: MessageType;
+  id?: string;
+  content?: string;
+  level?: AppNoticeLevel;
+  progress?: number;
+  buttons?: AppNoticeButton[];
+  duration?: number;
+  persistent?: boolean;
+  routineId?: string;
+  category?: string;
+  ctx?: any;
+}
+
+// ============================================================================
+// 旧版兼容类型
+// ============================================================================
 
 export interface AppNoticePayload {
   message: string;
@@ -116,4 +144,111 @@ export function sendAppBusyProgress(progress: number, message?: string, win?: Br
     },
     win
   );
+}
+
+// ============================================================================
+// 统一消息系统 API（新）
+// ============================================================================
+
+/**
+ * 发送统一消息
+ * @param payload 消息内容
+ * @param win 目标窗口，如果不提供则广播给所有窗口
+ */
+export function sendSpriteMessage(payload: SpriteMessagePayload, win?: BrowserWindow | null): void {
+  sendToWindows('app:message', payload, win);
+}
+
+/**
+ * 发送 Toast 消息（轻量提示）
+ * @param content 消息内容
+ * @param options 选项
+ * @param win 目标窗口
+ */
+export function sendToast(
+  content: string,
+  options?: {
+    level?: AppNoticeLevel;
+    duration?: number;
+    category?: string;
+    ctx?: any;
+  },
+  win?: BrowserWindow | null
+): void {
+  sendSpriteMessage(
+    {
+      type: 'toast',
+      content,
+      level: options?.level,
+      duration: options?.duration,
+      category: options?.category,
+      ctx: options?.ctx
+    },
+    win
+  );
+}
+
+/**
+ * 发送 Notice 消息（通知）
+ * @param content 消息内容
+ * @param options 选项
+ * @param win 目标窗口
+ */
+export function sendNotice(
+  content: string,
+  options?: {
+    level?: AppNoticeLevel;
+    duration?: number;
+    persistent?: boolean;
+    buttons?: AppNoticeButton[];
+    routineId?: string;
+  },
+  win?: BrowserWindow | null
+): void {
+  sendSpriteMessage(
+    {
+      type: 'notice',
+      content,
+      level: options?.level,
+      duration: options?.duration,
+      persistent: options?.persistent,
+      buttons: options?.buttons,
+      routineId: options?.routineId
+    },
+    win
+  );
+}
+
+/**
+ * 发送 Busy 消息（忙碌状态）
+ * @param content 消息内容
+ * @param progress 进度值 (0-100)
+ * @param win 目标窗口
+ */
+export function sendBusy(content?: string, progress?: number, win?: BrowserWindow | null): void {
+  sendSpriteMessage(
+    {
+      type: 'busy',
+      content,
+      progress
+    },
+    win
+  );
+}
+
+/**
+ * 清除消息
+ * @param options 选项（可指定 id 或 type）
+ * @param win 目标窗口
+ */
+export function clearSpriteMessage(options?: { id?: string; type?: MessageType | 'all' }, win?: BrowserWindow | null): void {
+  sendToWindows('app:message:clear', options || { type: 'all' }, win);
+}
+
+/**
+ * 清除 Busy 状态
+ * @param win 目标窗口
+ */
+export function clearBusy(win?: BrowserWindow | null): void {
+  clearSpriteMessage({ type: 'busy' }, win);
 }

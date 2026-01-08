@@ -1,6 +1,6 @@
 /**
  * AIAssistant 组装层
- * - 职责：拼装 UI（VideoSprite、MessageBubble、指示器）与行为 hooks（初始化、拖动、穿透、行走、文件拖拽）。
+ * - 职责：拼装 UI（VideoSprite、统一消息组件、指示器）与行为 hooks（初始化、拖动、穿透、行走、文件拖拽）。
  * - 约束：不在此文件内编写复杂业务逻辑/IPC 调用，逻辑统一下沉到 hooks/services。
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -10,26 +10,25 @@ import { createBehaviors } from './behaviors';
 import { useSpritePlayer } from './context/SpritePlayerContext';
 import useAssistant from './hooks';
 import { useBehaviorScheduler } from './hooks/useBehaviorScheduler';
-import useBusyState from './hooks/useBusyState';
 import useClickThrough from './hooks/useClickThrough';
 import useDragMove from './hooks/useDragMove';
 import useFileDrop from './hooks/useFileDrop';
-import useNoticeState from './hooks/useNoticeState';
 import useSpriteEventController from './hooks/useSpriteEventController';
 import useWalkAnimation from './hooks/useWalkAnimation';
-import { MessageBubble } from './messages/MessageBubble';
-import Messages from './messages/zh-CN';
+import { MessageProvider, SpriteMessage, useMessageSync } from './message';
 import { Renderer } from './renderers';
-import BusyProgressBar from './ui/BusyProgressBar';
 import PaddingDebugOverlay from './ui/PaddingDebugOverlay';
-import SpriteNotice from './ui/SpriteNotice';
 import StatusIndicator from './ui/StatusIndicator';
 
-export const AIAssistant: React.FC = () => {
+/** 内部组件：包含实际逻辑 */
+const AIAssistantInner: React.FC = () => {
   const { padding: paddingState, screenSize, messageState, setAssistantState } = useAssistant();
   const { current: currentSprite, play: playAnimation, stop: stopAnimation } = useSpritePlayer();
   const [isHovering, setIsHovering] = useState(false);
   const [autoWalkEnabled, setAutoWalkEnabled] = useState(true);
+
+  // 同步 messageState 到统一消息系统
+  useMessageSync(messageState);
 
   // 从当前精灵动画定义中获取尺寸，如果没有则使用默认值
   const spriteWidth = currentSprite?.width ?? 180;
@@ -39,8 +38,6 @@ export const AIAssistant: React.FC = () => {
   const { setClickThrough } = useClickThrough(containerRef);
   const { animateMoveWindow, stopWalking, isWalking, walkDirection } = useWalkAnimation();
   useSpriteEventController();
-  const { busyState } = useBusyState();
-  const { notice, dismiss, handleButtonClick } = useNoticeState();
   const {
     bind: dragBind,
     isDragging,
@@ -69,6 +66,10 @@ export const AIAssistant: React.FC = () => {
   // 鼠标进入精灵区域
   const handleMouseEnter = (): void => {
     setIsHovering(true);
+    if (isWalking) {
+      stopWalking();
+      stopAnimation();
+    }
   };
 
   // 鼠标离开精灵区域
@@ -249,17 +250,9 @@ export const AIAssistant: React.FC = () => {
       }}
     >
       <PaddingDebugOverlay padding={paddingState} />
-      <MessageBubble state={messageState} />
-      <Dropzone
-        onDragEnter={handleDragEnter}
-        onDragLeave={handleDragLeave}
-        onDropFiles={onDropFiles}
-        customDropzoneInside={
-          <div className="flex items-center justify-center absolute top-2 left-1/2 -translate-x-1/2 p-1 rounded-md bg-primary text-primary-foreground text-xs whitespace-nowrap z-10">
-            {Messages.t('drag')}
-          </div>
-        }
-      >
+      {/* 统一消息组件 */}
+      <SpriteMessage />
+      <Dropzone onDragEnter={handleDragEnter} onDragLeave={handleDragLeave} onDropFiles={onDropFiles}>
         {
           // window.YUA.isDev && (
           //   <div
@@ -277,11 +270,16 @@ export const AIAssistant: React.FC = () => {
         }
         <Renderer width={spriteWidth} height={spriteHeight} walkDirection={walkDirection} />
       </Dropzone>
-      {notice && <SpriteNotice message={notice.message} level={notice.level} buttons={notice.buttons} onClose={dismiss} onButtonClick={handleButtonClick} />}
-
-      {busyState.isBusy && <BusyProgressBar progress={busyState.progress} message={busyState.message} />}
-
       <StatusIndicator isDragging={isDragging} isWalking={isWalking} />
     </div>
+  );
+};
+
+/** AIAssistant 组件：包裹 MessageProvider */
+export const AIAssistant: React.FC = () => {
+  return (
+    <MessageProvider>
+      <AIAssistantInner />
+    </MessageProvider>
   );
 };
