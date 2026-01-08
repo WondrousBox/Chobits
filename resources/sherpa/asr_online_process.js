@@ -112,17 +112,42 @@ let lastText = '';
 let firstReceivedTime = undefined;
 
 /**
+ * 检测文本是否主要由CJK字符组成
+ * @param {string} text - 要检测的文本
+ * @returns {boolean} 是否主要是CJK字符
+ */
+function isCJKText(text) {
+  const cjkRegex = /[\u4e00-\u9fff\u3400-\u4dbf\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]/g;
+  const cjkMatches = text.match(cjkRegex) || [];
+  const alphaRegex = /[a-zA-Z]/g;
+  const alphaMatches = text.match(alphaRegex) || [];
+
+  // 如果CJK字符数量大于等于字母数量，认为是CJK文本
+  return cjkMatches.length >= alphaMatches.length;
+}
+
+/**
  * 根据标点符号拆分识别结果
  * @param {string} originalText - 原始无标点文本
  * @param {string} punctuatedText - 带标点的文本
  * @param {string[]} tokens - token数组
  * @param {number[]} timestamps - 时间戳数组
  * @param {number} startTime - 开始时间（秒）
+ * @param {Object} options - 配置选项
+ * @param {number} options.minCJKLength - CJK文本最短句子长度，默认5
+ * @param {number} options.minAlphaLength - 字母文本最短句子长度，默认15
  * @returns {Array} 拆分后的结果数组
  */
-function splitByPunctuation(originalText, punctuatedText, tokens, timestamps, startTime) {
-  // 定义句子结束的标点符号（用于拆分）
-  const sentenceEndPunctuationRegex = /[，。！？,\.!?；;：:、]/;
+function splitByPunctuation(originalText, punctuatedText, tokens, timestamps, startTime, options = {}) {
+  const { minCJKLength = 20, minAlphaLength = 75 } = options;
+
+  // 强制分段的标点符号（句号、问号、感叹号、分号、省略号等）
+  const strongPunctuationRegex = /[。！？!?；;…]/;
+  // 弱标点符号（逗号、冒号等）- 需要结合长度判断
+  // 注意：顿号「、」不参与分段，因为顿号表示并列关系，句子应保持连续
+  const weakPunctuationRegex = /[，,：:]/;
+  // 所有标点符号（用于识别标点，但不一定都会触发分段）
+  const allPunctuationRegex = /[，。！？,.!?；;：:、…]/;
 
   // 如果没有tokens或timestamps，返回简单结果
   if (!tokens || tokens.length === 0 || !timestamps || timestamps.length === 0) {
@@ -138,7 +163,7 @@ function splitByPunctuation(originalText, punctuatedText, tokens, timestamps, st
   }
 
   // 移除标点符号得到纯文本，用于与原始文本对比
-  const textWithoutPunct = punctuatedText.replace(/[，。！？,\.!?；;：:、]/g, '');
+  const textWithoutPunct = punctuatedText.replace(/[，。！？,.!?；;：:、…]/g, '');
 
   // 如果没有标点符号，直接返回原始结果
   if (textWithoutPunct === punctuatedText) {
@@ -189,26 +214,52 @@ function splitByPunctuation(originalText, punctuatedText, tokens, timestamps, st
   for (let i = 0; i < punctuatedText.length; i++) {
     const char = punctuatedText[i];
 
-    if (sentenceEndPunctuationRegex.test(char)) {
-      // 遇到标点符号，结束当前段落
-      currentSegment.punctuation = char;
-      currentSegment.text = currentSegment.text.trim();
+    // 顿号不参与分段判断，直接加入文本
+    if (char === '、') {
+      currentSegment.text += char;
+      continue;
+    }
 
-      if (currentSegment.text.length > 0 || currentSegment.tokens.length > 0) {
-        results.push(currentSegment);
+    if (allPunctuationRegex.test(char)) {
+      // 检测当前段落文本是否主要是CJK
+      const currentText = currentSegment.text.trim();
+      const isCJK = isCJKText(currentText);
+      const minLength = isCJK ? minCJKLength : minAlphaLength;
+
+      // 计算当前段落的有效字符长度（不含空格）
+      const effectiveLength = currentText.replace(/\s/g, '').length;
+
+      // 判断是否应该在此处分段
+      const isStrongPunctuation = strongPunctuationRegex.test(char);
+      const isWeakPunctuation = weakPunctuationRegex.test(char);
+
+      // 强标点直接分段，弱标点需要长度足够才分段
+      const shouldSplit = isStrongPunctuation || (isWeakPunctuation && effectiveLength >= minLength);
+
+      if (shouldSplit) {
+        // 遇到强标点符号，或弱标点且长度足够，结束当前段落
+        currentSegment.punctuation = char;
+        currentSegment.text = currentText;
+
+        if (currentSegment.text.length > 0 || currentSegment.tokens.length > 0) {
+          results.push(currentSegment);
+        }
+
+        // 开始新段落
+        const nextStartTime = currentSegment.timestamps.length > 0 ? currentSegment.timestamps[currentSegment.timestamps.length - 1] + startTime : startTime;
+
+        currentSegment = {
+          text: '',
+          tokens: [],
+          timestamps: [],
+          punctuation: null,
+          start_time: nextStartTime
+        };
+        lastTokenIndex = -1;
+      } else {
+        // 弱标点但长度不够，将标点符号也加入当前段落文本
+        currentSegment.text += char;
       }
-
-      // 开始新段落
-      const nextStartTime = currentSegment.timestamps.length > 0 ? currentSegment.timestamps[currentSegment.timestamps.length - 1] + startTime : startTime;
-
-      currentSegment = {
-        text: '',
-        tokens: [],
-        timestamps: [],
-        punctuation: null,
-        start_time: nextStartTime
-      };
-      lastTokenIndex = -1;
     } else {
       // 普通字符
       currentSegment.text += char;
