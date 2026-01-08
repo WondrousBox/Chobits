@@ -78,6 +78,7 @@ export const useASR = ({
   startRecording: () => Promise<void>;
   stopRecording: () => Promise<void>;
   wsRef: React.MutableRefObject<WebSocket | null>;
+  getRecordingResourceId: () => string | null; // 获取当前录音的资源ID
 } => {
   const [isRecording, setIsRecording] = useState(false);
   // 默认假设 ASR 服务已启动，因为是从配置页面进入的
@@ -93,6 +94,7 @@ export const useASR = ({
   const isRecordingRef = useRef(false);
   const isASRRunningRef = useRef(true);
   const recognizedTextRef = useRef('');
+  const recordingResourceIdRef = useRef<string | null>(null); // 当前录音的资源ID
 
   // 更新录音状态 ref
   useEffect(() => {
@@ -150,7 +152,8 @@ export const useASR = ({
               try {
                 await window.YUA.sherpa.sendData({
                   uuid: 'stream',
-                  data: float32Array
+                  data: float32Array,
+                  save: isRecordingRef.current && recordingResourceIdRef.current !== null // 如果正在录音且有资源ID，则保存
                 });
                 // 累加已发送的采样点数
                 setTotalSamples((prev) => prev + float32Array.length);
@@ -179,24 +182,99 @@ export const useASR = ({
 
   // 开始录音
   const startRecording = useCallback(async (): Promise<void> => {
+    console.log('[ASR] ========== startRecording函数被调用 ==========');
+    console.log('[ASR] ========== 开始录音流程 ==========');
+    console.log('[ASR] isASRRunning:', isASRRunning);
+    console.log('[ASR] isASRRunningRef.current:', isASRRunningRef.current);
+
     if (!isASRRunning) {
+      console.error('[ASR] ❌ ASR服务未运行，无法开始录音');
+      console.error('[ASR] ❌ isASRRunning:', isASRRunning);
+      console.error('[ASR] ❌ isASRRunningRef.current:', isASRRunningRef.current);
       return;
     }
 
+    console.log('[ASR] ✅ ASR服务正在运行，继续执行');
+
     try {
+      console.log('[ASR] 检查WebSocket连接状态');
+      console.log('[ASR] wsRef.current:', wsRef.current);
+      console.log('[ASR] wsRef.current?.readyState:', wsRef.current?.readyState);
+
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+        console.log('[ASR] WebSocket未连接，开始连接...');
         await connectWebSocket();
+        console.log('[ASR] WebSocket连接完成');
       }
 
+      console.log('[ASR] 检查WebSocket最终状态');
+      console.log('[ASR] wsRef.current:', wsRef.current);
+      console.log('[ASR] wsRef.current?.readyState:', wsRef.current?.readyState);
+      console.log('[ASR] WebSocket.OPEN:', WebSocket.OPEN);
+
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        console.log('[ASR] WebSocket已连接，开始创建录音资源');
+
+        // 开始录音存储
+        try {
+          console.log('[ASR] 开始调用主进程创建录音资源');
+          console.log('[ASR] 当前recordingResourceIdRef.current:', recordingResourceIdRef.current);
+
+          const result = await window.YUA.sherpa.startRecording({});
+          console.log('[ASR] 录音资源创建结果:', result);
+          console.log('[ASR] result.success:', result.success);
+          console.log('[ASR] result.resourceId:', result.resourceId);
+          console.log('[ASR] result.error:', result.error);
+
+          if (result.success && result.resourceId) {
+            recordingResourceIdRef.current = result.resourceId;
+            console.log('[ASR] ✅ 录音资源ID已保存到ref:', recordingResourceIdRef.current);
+            // 保存到localStorage用于恢复（包含 segments 字段用于意外关闭时恢复）
+            const sessionInfo = {
+              resourceId: result.resourceId,
+              startTime: Date.now(),
+              segments: [] // 初始为空，ASRPage 会实时更新
+            };
+            localStorage.setItem('asr-current-recording', JSON.stringify(sessionInfo));
+            console.log('[ASR] ✅ 录音会话信息已保存到localStorage:', sessionInfo);
+
+            // 验证保存是否成功
+            const saved = localStorage.getItem('asr-current-recording');
+            console.log('[ASR] ✅ 验证localStorage保存结果:', saved);
+          } else {
+            console.error('[ASR] ❌ 录音资源创建失败:', result.error || '未知错误');
+            console.error('[ASR] ❌ result对象:', JSON.stringify(result, null, 2));
+          }
+        } catch (error) {
+          console.error('[ASR] ❌ 开始录音存储异常:', error);
+          if (error instanceof Error) {
+            console.error('[ASR] ❌ 错误堆栈:', error.stack);
+          }
+        }
+
+        console.log('[ASR] 发送WebSocket start消息');
         wsRef.current.send('start');
         setIsRecording(true);
+        console.log('[ASR] 录音状态已设置为true');
         // 重置采样点数计数器
         setTotalSamples(0);
+        console.log('[ASR] ========== 开始录音流程完成 ==========');
+      } else {
+        console.error('[ASR] ❌ WebSocket未连接，无法开始录音');
+        console.error('[ASR] ❌ wsRef.current:', wsRef.current);
+        console.error('[ASR] ❌ readyState:', wsRef.current?.readyState);
+        console.error('[ASR] ❌ WebSocket.OPEN常量值:', WebSocket.OPEN);
+        console.error('[ASR] ❌ 条件检查: wsRef.current =', !!wsRef.current, ', readyState === OPEN =', wsRef.current?.readyState === WebSocket.OPEN);
+        console.error('[ASR] ❌ 注意：由于WebSocket未连接，录音资源创建代码未执行！');
       }
     } catch (error) {
-      console.error('开始录音失败:', error);
+      console.error('[ASR] ❌ 开始录音失败:', error);
+      if (error instanceof Error) {
+        console.error('[ASR] ❌ 错误堆栈:', error.stack);
+      }
     }
+
+    console.log('[ASR] ========== startRecording函数执行完毕 ==========');
   }, [isASRRunning, connectWebSocket]);
 
   // 停止录音
@@ -205,6 +283,69 @@ export const useASR = ({
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.send('stop');
       }
+
+      // 停止录音存储
+      console.log('[ASR] ========== 停止录音流程 ==========');
+      console.log('[ASR] 检查录音资源ID，recordingResourceIdRef.current:', recordingResourceIdRef.current);
+
+      // 尝试从localStorage恢复资源ID（如果ref为空）
+      if (!recordingResourceIdRef.current) {
+        console.log('[ASR] ref为空，尝试从localStorage恢复...');
+        try {
+          const savedRecording = localStorage.getItem('asr-current-recording');
+          console.log('[ASR] localStorage中的录音记录:', savedRecording);
+          if (savedRecording) {
+            const parsed = JSON.parse(savedRecording);
+            console.log('[ASR] 解析后的录音记录:', parsed);
+            const { resourceId } = parsed;
+            if (resourceId) {
+              console.log('[ASR] ✅ 从localStorage恢复录音资源ID:', resourceId);
+              recordingResourceIdRef.current = resourceId;
+            } else {
+              console.warn('[ASR] ⚠️ localStorage中的录音记录没有resourceId字段');
+            }
+          } else {
+            console.warn('[ASR] ⚠️ localStorage中没有录音记录');
+          }
+        } catch (error) {
+          console.error('[ASR] ❌ 从localStorage恢复录音资源ID失败:', error);
+        }
+      }
+
+      console.log('[ASR] 最终检查，recordingResourceIdRef.current:', recordingResourceIdRef.current);
+
+      if (recordingResourceIdRef.current) {
+        console.log('[ASR] ✅ 找到录音资源ID，开始停止录音存储，resourceId:', recordingResourceIdRef.current);
+        try {
+          const result = await window.YUA.sherpa.stopRecording();
+          console.log('[ASR] 停止录音存储结果:', result);
+
+          if (result.success) {
+            console.log('[ASR] ✅ 录音存储已停止，resourceId:', result.resourceId);
+            // 清空ref
+            recordingResourceIdRef.current = null;
+            console.log('[ASR] ✅ 已清空录音资源ID ref');
+          } else {
+            console.error('[ASR] ❌ 停止录音存储失败:', result.error);
+          }
+
+          // 清除localStorage中的录音记录
+          localStorage.removeItem('asr-current-recording');
+          console.log('[ASR] ✅ 已清除localStorage中的录音记录');
+        } catch (error) {
+          console.error('[ASR] ❌ 停止录音存储异常:', error);
+          if (error instanceof Error) {
+            console.error('[ASR] ❌ 错误堆栈:', error.stack);
+          }
+        }
+      } else {
+        console.error('[ASR] ❌ 没有活动的录音资源ID，跳过停止录音存储');
+        console.error('[ASR] ❌ 可能的原因：1) 开始录音时未成功创建资源 2) ref被意外清空');
+        console.error('[ASR] ❌ 请检查开始录音时的日志，确认是否看到"开始调用主进程创建录音资源"');
+      }
+
+      console.log('[ASR] ========== 停止录音流程完成 ==========');
+
       setIsRecording(false);
     } catch (error) {
       console.error('停止录音失败:', error);
@@ -257,6 +398,11 @@ export const useASR = ({
 
             setRecognizedSegments((prev) => [...prev, newSegment]);
 
+            // 流式写入字幕文件
+            window.YUA.sherpa.appendSubtitle({ segment: newSegment }).catch((err) => {
+              console.error('[ASR] 流式写入字幕失败:', err);
+            });
+
             // 翻译
             if (enableTranslation && result.text.trim()) {
               translateText(result.text, (translation) => {
@@ -297,7 +443,14 @@ export const useASR = ({
 
             setRecognizedSegments((prev) => [...prev, ...smallSegments]);
 
-            // 翻译每个小段
+            // 流式写入字幕文件（每个小段都写入）
+            smallSegments.forEach((segment) => {
+              window.YUA.sherpa.appendSubtitle({ segment }).catch((err) => {
+                console.error('[ASR] 流式写入字幕失败:', err);
+              });
+            });
+
+            // 翻译每个小段（翻译完成后更新字幕文件）
             if (enableTranslation) {
               smallSegments.forEach((segment) => {
                 if (segment.text.trim()) {
@@ -310,6 +463,8 @@ export const useASR = ({
                       }
                       return updated;
                     });
+                    // 注意：翻译结果暂不更新已写入的字幕文件，因为 SRT 格式不支持原地更新
+                    // 如果需要翻译结果，可以在停止录音后重新生成完整的 SRT 文件
                   });
                 }
               });
@@ -323,6 +478,11 @@ export const useASR = ({
             };
 
             setRecognizedSegments((prev) => [...prev, newSegment]);
+
+            // 流式写入字幕文件
+            window.YUA.sherpa.appendSubtitle({ segment: newSegment }).catch((err) => {
+              console.error('[ASR] 流式写入字幕失败:', err);
+            });
 
             // 翻译完整片段
             if (enableTranslation && data.text.trim()) {
@@ -381,30 +541,15 @@ export const useASR = ({
 
   // 自动开始录音
   useEffect(() => {
-    const autoStart = async (): Promise<void> => {
-      try {
-        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-          await connectWebSocket();
-        }
-        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          wsRef.current.send('start');
-          setIsRecording(true);
-          // 重置采样点数计数器
-          setTotalSamples(0);
-        }
-      } catch (error) {
-        console.error('自动开始录音失败:', error);
-      }
-    };
-
     const timer = setTimeout(() => {
-      autoStart();
+      console.log('[ASR] 自动开始录音，调用 startRecording');
+      startRecording();
     }, 300);
 
     return () => {
       clearTimeout(timer);
     };
-  }, [connectWebSocket]);
+  }, [startRecording]);
 
   // 清理
   useEffect(() => {
@@ -420,6 +565,29 @@ export const useASR = ({
   // 计算录音时长（秒）
   const recordingDuration = totalSamples / SAMPLE_RATE;
 
+  // 获取当前录音的资源ID
+  const getRecordingResourceId = useCallback(() => {
+    const id = recordingResourceIdRef.current;
+    console.log('[ASR] getRecordingResourceId调用，ref值:', id);
+
+    // 如果ref为空，尝试从localStorage恢复
+    if (!id) {
+      try {
+        const savedRecording = localStorage.getItem('asr-current-recording');
+        if (savedRecording) {
+          const { resourceId } = JSON.parse(savedRecording);
+          console.log('[ASR] 从localStorage恢复录音资源ID:', resourceId);
+          recordingResourceIdRef.current = resourceId;
+          return resourceId;
+        }
+      } catch (error) {
+        console.error('[ASR] 从localStorage恢复录音资源ID失败:', error);
+      }
+    }
+
+    return id;
+  }, []);
+
   return {
     isRecording,
     isASRRunning,
@@ -432,6 +600,7 @@ export const useASR = ({
     recordingDuration,
     startRecording,
     stopRecording,
-    wsRef
+    wsRef,
+    getRecordingResourceId
   };
 };

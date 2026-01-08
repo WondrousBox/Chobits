@@ -1,5 +1,5 @@
 import { utils } from '@aim-packages/subtitle';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { TbClock, TbTrash } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';

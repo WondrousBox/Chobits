@@ -26,6 +26,31 @@ export const sherpaIpcRenderer = {
     ];
   }): Promise<boolean> {
     return ipcRenderer.invoke('sherpa:sendData', data);
+  },
+
+  startRecording(data: { workspaceId?: string; folderId?: string }): Promise<{ success: boolean; resourceId?: string; error?: string }> {
+    return ipcRenderer.invoke('sherpa:startRecording', data);
+  },
+
+  stopRecording(): Promise<{ success: boolean; resourceId?: string; srtResourceId?: string; segmentCount?: number; error?: string }> {
+    return ipcRenderer.invoke('sherpa:stopRecording');
+  },
+
+  // 追加字幕片段（流式写入）
+  appendSubtitle(data: { segment: { text: string; start: number; end: number; translation?: string } }): Promise<{ success: boolean; segmentIndex?: number; error?: string }> {
+    return ipcRenderer.invoke('sherpa:appendSubtitle', data);
+  },
+
+  saveSubtitle(data: { resourceId: string; srtContent: string }): Promise<{ success: boolean; srtResourceId?: string; error?: string }> {
+    return ipcRenderer.invoke('sherpa:saveSubtitle', data);
+  },
+
+  checkPendingRecording(data: { resourceId: string }): Promise<{ success: boolean; resourceId?: string; filePath?: string; error?: string }> {
+    return ipcRenderer.invoke('sherpa:checkPendingRecording', data);
+  },
+
+  cleanupStreams(): Promise<{ success: boolean; error?: string }> {
+    return ipcRenderer.invoke('sherpa:cleanupStreams');
   }
 };
 
