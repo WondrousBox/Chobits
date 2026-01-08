@@ -32,6 +32,11 @@ export const sherpaIpcRenderer = {
     return ipcRenderer.invoke('sherpa:startRecording', data);
   },
 
+  // 继续之前的录音（追加模式）
+  resumeRecording(data: { resourceId: string }): Promise<{ success: boolean; resourceId?: string; segmentCount?: number; error?: string }> {
+    return ipcRenderer.invoke('sherpa:resumeRecording', data);
+  },
+
   stopRecording(): Promise<{ success: boolean; resourceId?: string; srtResourceId?: string; segmentCount?: number; error?: string }> {
     return ipcRenderer.invoke('sherpa:stopRecording');
   },

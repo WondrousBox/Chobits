@@ -204,6 +204,118 @@ export function initSherpaHandlers(): void {
     }
   });
 
+  // 继续之前的录音（追加模式打开已有文件）
+  ipcMain.handle('sherpa:resumeRecording', async (_, data: { resourceId: string }) => {
+    try {
+      console.log('[Sherpa] 收到继续录音请求，resourceId:', data.resourceId);
+
+      // 检查是否已有活动的录音流
+      if (recordingStreams.has('stream')) {
+        return { success: false, error: 'Already has an active recording stream' };
+      }
+
+      // 获取资源记录
+      const resource = await ResourcesRepo.getById(data.resourceId);
+      if (!resource) {
+        return { success: false, error: 'Resource not found' };
+      }
+
+      if (resource.status === 'ready') {
+        return { success: false, error: 'Recording already completed, cannot resume' };
+      }
+
+      const audioFilePath = resource.filePath;
+      if (!audioFilePath) {
+        return { success: false, error: 'Audio file path not found' };
+      }
+
+      // 构建字幕文件路径（与音频文件同名，扩展名为 .srt）
+      const subtitleFilePath = audioFilePath.replace(/\.pcm$/, '.srt');
+
+      // 检查音频文件是否存在
+      try {
+        await fs.access(audioFilePath);
+      } catch {
+        return { success: false, error: 'Audio file does not exist' };
+      }
+
+      // 获取现有字幕的片段数量（用于继续编号）
+      let existingSegmentCount = 0;
+      try {
+        const srtContent = await fs.readFile(subtitleFilePath, 'utf8');
+        // 计算现有的片段数量（通过匹配 SRT 序号行）
+        const matches = srtContent.match(/^\d+$/gm);
+        if (matches) {
+          existingSegmentCount = matches.length;
+        }
+      } catch {
+        // 字幕文件不存在，从 0 开始
+        existingSegmentCount = 0;
+      }
+
+      console.log('[Sherpa] 继续录音，已有字幕片段数:', existingSegmentCount);
+
+      // 以追加模式打开音频写入流
+      const audioWriteStream = fscb.createWriteStream(audioFilePath, { flags: 'a' });
+      console.log('[Sherpa] 音频写入流已创建（追加模式）');
+
+      // 以追加模式打开字幕写入流
+      const subtitleWriteStream = fscb.createWriteStream(subtitleFilePath, { flags: 'a', encoding: 'utf8' });
+      console.log('[Sherpa] 字幕写入流已创建（追加模式）');
+
+      // 保存流信息
+      const stream: RecordingStream = {
+        resourceId: data.resourceId,
+        audioFilePath,
+        subtitleFilePath,
+        audioWriteStream,
+        subtitleWriteStream,
+        workspaceId: resource.workspaceId || '',
+        folderId: resource.folderId || '',
+        startTime: resource.createdAt || Date.now(),
+        segmentCount: existingSegmentCount
+      };
+
+      recordingStreams.set('stream', stream);
+      console.log('[Sherpa] 录音流已保存到Map（继续录音），resourceId:', data.resourceId);
+
+      // 更新资源状态为 new（正在录音）
+      await ResourcesRepo.update(data.resourceId, {
+        status: 'new',
+        updatedAt: Date.now()
+      });
+
+      // 通过事件发送给渲染进程
+      BrowserWindow.getAllWindows().forEach((w) => {
+        if (!w.isDestroyed()) {
+          try {
+            w.webContents.send('asr:recording-resumed', {
+              resourceId: data.resourceId,
+              workspaceId: resource.workspaceId,
+              folderId: resource.folderId,
+              segmentCount: existingSegmentCount
+            });
+            console.log('[Sherpa] 已发送录音恢复事件到窗口');
+          } catch (error) {
+            console.error('[Sherpa] 发送录音恢复事件失败:', error);
+          }
+        }
+      });
+
+      return {
+        success: true,
+        resourceId: data.resourceId,
+        segmentCount: existingSegmentCount
+      };
+    } catch (error) {
+      console.error('[Sherpa] 继续录音失败:', error);
+      if (error instanceof Error) {
+        console.error('[Sherpa] 错误堆栈:', error.stack);
+      }
+      return { success: false, error: String(error) };
+    }
+  });
+
   // 追加字幕片段（流式写入）
   ipcMain.handle('sherpa:appendSubtitle', async (_, data: { segment: SubtitleSegment }) => {
     try {

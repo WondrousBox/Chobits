@@ -1,19 +1,25 @@
 import { utils } from '@aim-packages/subtitle';
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TbArrowDown, TbArrowUp, TbBackground, TbBrain, TbClock, TbLoader2, TbMicrophone, TbMicrophoneOff, TbX } from 'react-icons/tb';
+import { TbArrowDown, TbArrowLeft, TbArrowUp, TbBackground, TbBrain, TbClock, TbLoader2, TbMicrophone, TbMicrophoneOff, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 import { AIActionsPanel } from './components/AIActionsPanel';
+import { AudioPlayer } from './components/AudioPlayer';
 import { ControlBar } from './components/ControlBar';
-import { HistoryPanel } from './components/HistoryPanel';
+import { HistoryPanel, RecordingHistoryItem } from './components/HistoryPanel';
 import { SegmentList } from './components/SegmentList';
 import { WaveformRef } from './components/Waveform';
 import { useASR } from './hooks/useASR';
 import { useTranslation } from './hooks/useTranslation';
+import { RecognizedSegment } from './types';
+import { parseSrtContent } from './utils/srt-parser';
+
+// 视图模式
+type ViewMode = 'recording' | 'preview';
 
 const ASRPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -27,6 +33,12 @@ const ASRPage: React.FC = () => {
   const [isTransparent, setIsTransparent] = useState(false);
   const [showLeftPanel, setShowLeftPanel] = useState(false);
   const [showRightPanel, setShowRightPanel] = useState(false);
+
+  // 预览模式状态
+  const [viewMode, setViewMode] = useState<ViewMode>('recording');
+  const [previewRecording, setPreviewRecording] = useState<RecordingHistoryItem | null>(null);
+  const [previewSegments, setPreviewSegments] = useState<RecognizedSegment[]>([]);
+
   // 保存收起前的面板状态，用于恢复（使用 ref 避免在 useEffect 中触发额外渲染）
   const savedLeftPanelStateRef = useRef(false);
   const savedRightPanelStateRef = useRef(false);
@@ -106,7 +118,20 @@ const ASRPage: React.FC = () => {
     waveformRef.current?.addBar(level);
   }, []);
 
-  const { isRecording, isASRRunning, setIsASRRunning, recognizedSegments, pendingSegments, progressText, recordingDuration, startRecording, stopRecording, wsRef } = useASR({
+  const {
+    isRecording,
+    isASRRunning,
+    setIsASRRunning,
+    recognizedSegments,
+    pendingSegments,
+    progressText,
+    recordingDuration,
+    startRecording,
+    stopRecording,
+    resumeRecording,
+    wsRef,
+    getRecordingResourceId
+  } = useASR({
     enableTranslation,
     translateText,
     onAudioLevel,
@@ -121,6 +146,37 @@ const ASRPage: React.FC = () => {
     await stopRecording();
     waveformRef.current?.clear();
   }, [isRecording, isLoading, stopRecording]);
+
+  // 选择历史录音进行预览
+  const handleSelectRecording = useCallback((recording: RecordingHistoryItem, subtitleContent?: string) => {
+    // 解析字幕内容
+    const segments = subtitleContent ? parseSrtContent(subtitleContent) : [];
+    setPreviewRecording(recording);
+    setPreviewSegments(segments);
+    setViewMode('preview');
+  }, []);
+
+  // 继续录制选中的录音
+  const handleResumeRecording = useCallback(async () => {
+    if (!previewRecording || previewRecording.status === 'ready') return;
+
+    try {
+      await resumeRecording(previewRecording.id);
+      // 切换回录音模式
+      setViewMode('recording');
+      setPreviewRecording(null);
+      setPreviewSegments([]);
+    } catch (error) {
+      console.error('继续录音失败:', error);
+    }
+  }, [previewRecording, resumeRecording]);
+
+  // 返回录音模式
+  const handleBackToRecording = useCallback(() => {
+    setViewMode('recording');
+    setPreviewRecording(null);
+    setPreviewSegments([]);
+  }, []);
 
   // 停止 ASR 服务并关闭窗口
   const handleStopASRAndClose = useCallback(async (): Promise<void> => {
@@ -334,7 +390,7 @@ const ASRPage: React.FC = () => {
             {showLeftPanel && (
               <>
                 <ResizablePanel defaultSize={20} minSize={15} maxSize={40} className="min-w-[200px]">
-                  <HistoryPanel isTransparent={isTransparent} />
+                  <HistoryPanel isTransparent={isTransparent} isRecording={isRecording} selectedId={viewMode === 'preview' ? previewRecording?.id : null} onSelectRecording={handleSelectRecording} />
                 </ResizablePanel>
                 <ResizableHandle withHandle />
               </>
@@ -343,18 +399,43 @@ const ASRPage: React.FC = () => {
             {/* 中间：识别结果区域 */}
             <ResizablePanel defaultSize={showLeftPanel && showRightPanel ? 50 : showLeftPanel ? 70 : showRightPanel ? 60 : 100} minSize={30}>
               <div className="flex flex-col h-full">
+                {/* 预览模式时显示返回按钮和录音信息 */}
+                {viewMode === 'preview' && previewRecording && (
+                  <div className={`flex items-center justify-between gap-2 px-4 py-2 border-b ${isTransparent ? 'border-border/50' : ''}`}>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={handleBackToRecording}>
+                        <TbArrowLeft className="h-4 w-4 mr-1" />
+                        返回录音
+                      </Button>
+                      <span className={`text-sm ${isTransparent ? 'text-white/70' : 'text-muted-foreground'}`}>{previewRecording.title || '未命名录音'}</span>
+                    </div>
+                    {/* 如果录音状态不是 ready，显示继续录音按钮 */}
+                    {previewRecording.status !== 'ready' && (
+                      <Button size="sm" variant="default" className="h-7" onClick={handleResumeRecording}>
+                        <TbMicrophone className="h-4 w-4 mr-1" />
+                        继续录音
+                      </Button>
+                    )}
+                  </div>
+                )}
+
                 <SegmentList
-                  segments={isCollapsed && recognizedSegments.length > 0 ? [recognizedSegments[recognizedSegments.length - 1]] : recognizedSegments}
-                  pendingSegments={isCollapsed ? [] : pendingSegments}
-                  progressText={progressText}
+                  segments={viewMode === 'preview' ? previewSegments : isCollapsed && recognizedSegments.length > 0 ? [recognizedSegments[recognizedSegments.length - 1]] : recognizedSegments}
+                  pendingSegments={viewMode === 'preview' ? [] : isCollapsed ? [] : pendingSegments}
+                  progressText={viewMode === 'preview' ? '' : progressText}
                   enableTranslation={enableTranslation}
                   isTransparent={isTransparent}
                 />
+
                 <div className={clsx(['flex', isTransparent ? 'bg-gradient-to-t from-background/20 via-background/5 to-transparent' : 'bg-background'])}>
                   <div className="w-4"></div>
                   <div className="flex-1">
-                    {/* 底部控制栏 */}
-                    <ControlBar isRecording={isRecording} progressText={progressText} waveformRef={waveformRef} isTransparent={isTransparent} />
+                    {/* 预览模式显示音频播放器，录音模式显示波形控制栏 */}
+                    {viewMode === 'preview' && previewRecording ? (
+                      <AudioPlayer audioFilePath={previewRecording.audioFilePath} isTransparent={isTransparent} />
+                    ) : (
+                      <ControlBar isRecording={isRecording} progressText={progressText} waveformRef={waveformRef} isTransparent={isTransparent} />
+                    )}
                   </div>
                   <div className="w-4"></div>
                 </div>
@@ -366,7 +447,7 @@ const ASRPage: React.FC = () => {
               <>
                 <ResizableHandle withHandle />
                 <ResizablePanel defaultSize={30} minSize={20} maxSize={50} className="min-w-[300px]">
-                  <AIActionsPanel segments={recognizedSegments} isTransparent={isTransparent} />
+                  <AIActionsPanel segments={viewMode === 'preview' ? previewSegments : recognizedSegments} isTransparent={isTransparent} />
                 </ResizablePanel>
               </>
             )}

@@ -1,11 +1,11 @@
 import { utils } from '@aim-packages/subtitle';
 import React, { useCallback, useEffect, useState } from 'react';
-import { TbClock, TbLoader2, TbRefresh, TbTrash } from 'react-icons/tb';
+import { TbClock, TbLoader2, TbMicrophone, TbRefresh, TbTrash } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
-interface RecordingHistoryItem {
+export interface RecordingHistoryItem {
   id: string;
   title: string;
   audioFilePath: string;
@@ -22,10 +22,14 @@ interface RecordingHistoryItem {
 
 interface HistoryPanelProps {
   isTransparent?: boolean;
+  isRecording?: boolean; // 是否正在录音
+  currentRecordingId?: string | null; // 当前录音的ID
+  selectedId?: string | null; // 当前选中的历史记录ID
   onSelectRecording?: (recording: RecordingHistoryItem, subtitleContent?: string) => void;
+  onRefresh?: () => void; // 外部触发刷新
 }
 
-export const HistoryPanel: React.FC<HistoryPanelProps> = ({ isTransparent = false, onSelectRecording }) => {
+export const HistoryPanel: React.FC<HistoryPanelProps> = ({ isTransparent = false, isRecording = false, currentRecordingId = null, selectedId = null, onSelectRecording, onRefresh }) => {
   const [history, setHistory] = useState<RecordingHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,8 +58,16 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ isTransparent = fals
     loadHistory();
   }, [loadHistory]);
 
+  // 外部触发刷新
+  useEffect(() => {
+    if (onRefresh) {
+      // 注册刷新回调，但这里不直接调用
+    }
+  }, [onRefresh]);
+
   // 删除历史记录
-  const handleDelete = async (id: string): Promise<void> => {
+  const handleDelete = async (e: React.MouseEvent, id: string): Promise<void> => {
+    e.stopPropagation();
     try {
       const result = await window.YUA.sherpa.deleteRecording({ resourceId: id });
       if (result.success) {
@@ -70,6 +82,9 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ isTransparent = fals
 
   // 点击录音项
   const handleClick = async (item: RecordingHistoryItem): Promise<void> => {
+    // 如果正在录音，不允许切换（除非暂停）
+    if (isRecording) return;
+
     if (!onSelectRecording) return;
 
     let subtitleContent: string | undefined;
@@ -105,6 +120,9 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ isTransparent = fals
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  // 暴露刷新方法
+  const refreshHistory = loadHistory;
+
   return (
     <div className="flex flex-col h-full border-r bg-background">
       <div className={`flex items-center justify-between px-4 py-2 border-b ${isTransparent ? 'border-border/50' : ''}`}>
@@ -112,11 +130,11 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ isTransparent = fals
           <TbClock className="h-4 w-4" />
           <span className="text-sm font-medium">历史记录</span>
         </div>
-        <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={loadHistory} disabled={isLoading}>
+        <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={refreshHistory} disabled={isLoading}>
           <TbRefresh className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
         </Button>
       </div>
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 no-drag">
         <div className="p-2 space-y-2">
           {isLoading && history.length === 0 ? (
             <div className={`flex items-center justify-center py-8 gap-2 text-sm ${isTransparent ? 'text-white/70' : 'text-muted-foreground'}`}>
@@ -126,49 +144,59 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ isTransparent = fals
           ) : error ? (
             <div className={`text-center py-8 text-sm ${isTransparent ? 'text-white/70' : 'text-muted-foreground'}`}>
               <p>{error}</p>
-              <Button size="sm" variant="ghost" className="mt-2" onClick={loadHistory}>
+              <Button size="sm" variant="ghost" className="mt-2" onClick={refreshHistory}>
                 重试
               </Button>
             </div>
           ) : history.length === 0 ? (
             <div className={`text-center py-8 text-sm ${isTransparent ? 'text-white/70' : 'text-muted-foreground'}`}>暂无历史记录</div>
           ) : (
-            history.map((item) => (
-              <div
-                key={item.id}
-                className={`p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors ${isTransparent ? 'border-border/50 bg-background/50' : ''}`}
-                onClick={() => handleClick(item)}
-              >
-                <div className="flex items-start justify-between gap-2 mb-1">
-                  <div className="text-sm font-medium truncate flex-1">{item.title || '未命名录音'}</div>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-6 w-6 shrink-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(item.id);
-                    }}
-                  >
-                    <TbTrash className="h-3 w-3" />
-                  </Button>
+            history.map((item) => {
+              const isSelected = selectedId === item.id;
+              const isCurrentRecording = currentRecordingId === item.id;
+              const isDisabled = isRecording && !isCurrentRecording;
+
+              return (
+                <div
+                  key={item.id}
+                  className={`p-3 rounded-lg border transition-colors ${isSelected ? 'border-primary bg-primary/10' : isCurrentRecording ? 'border-orange-500 bg-orange-500/10' : isTransparent ? 'border-border/50 bg-background/50' : 'border-border'
+                    } ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-muted/50'}`}
+                  onClick={() => !isDisabled && handleClick(item)}
+                >
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      {isCurrentRecording && <TbMicrophone className="h-4 w-4 text-orange-500 animate-pulse shrink-0" />}
+                      <div className="text-sm font-medium truncate">{item.title || '未命名录音'}</div>
+                    </div>
+                    {!isCurrentRecording && (
+                      <Button size="icon" variant="ghost" className="h-6 w-6 shrink-0" onClick={(e) => handleDelete(e, item.id)}>
+                        <TbTrash className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <TbClock className="h-3 w-3" />
+                    <span>{formatTime(item.createdAt)}</span>
+                    <span>·</span>
+                    <span>{utils.cleanTimeDisplay(item.duration)}</span>
+                    <span>·</span>
+                    <span>{formatSize(item.sizeBytes)}</span>
+                    {item.subtitleFilePath && (
+                      <>
+                        <span>·</span>
+                        <span className="text-green-500">有字幕</span>
+                      </>
+                    )}
+                    {item.status === 'new' && (
+                      <>
+                        <span>·</span>
+                        <span className="text-orange-500">录制中</span>
+                      </>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <TbClock className="h-3 w-3" />
-                  <span>{formatTime(item.createdAt)}</span>
-                  <span>·</span>
-                  <span>{utils.cleanTimeDisplay(item.duration)}</span>
-                  <span>·</span>
-                  <span>{formatSize(item.sizeBytes)}</span>
-                  {item.subtitleFilePath && (
-                    <>
-                      <span>·</span>
-                      <span className="text-green-500">有字幕</span>
-                    </>
-                  )}
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </ScrollArea>
