@@ -2,12 +2,12 @@ import { PluginDefinition } from '@packages/plugins/types';
 import { AllModels } from '@packages/sherpa/common';
 import { ScrollArea } from '@radix-ui/react-scroll-area';
 import React, { useCallback, useEffect, useState } from 'react';
-import { TbLoader2, TbPlayerPlay } from 'react-icons/tb';
+import { TbChevronDown, TbChevronUp, TbLoader2, TbPlayerPlay } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface SherpaModel extends PluginDefinition {
@@ -98,10 +98,68 @@ const getLanguageName = (code: string): string => {
 };
 
 // 推荐模型ID列表
-const RECOMMENDED_MODEL_IDS = ['sherpa-onnx-streaming-zipformer-ctc-multi-zh-hans-2023-12-13', 'sherpa-onnx-streaming-zipformer-ctc-small-2024-03-18'];
+const RECOMMENDED_MODEL_IDS = [
+  'sherpa-onnx-streaming-zipformer-ctc-multi-zh-hans-2023-12-13',
+  'sherpa-onnx-streaming-zipformer-ctc-small-2024-03-18',
+  'sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20'
+];
+
+// 场景配置类型
+interface SceneConfig {
+  id: string;
+  name: string;
+  description: string;
+  recommendedModelIds: string[]; // 推荐模型ID列表（按优先级排序）
+  defaultLanguage: string;
+  enableTranslation: boolean;
+  targetLanguage?: string; // 如果启用翻译，目标语言
+  recommendedPunctuationModelId?: string; // 推荐的标点符号模型ID（如果为空则不启用）
+}
+
+// 场景配置列表
+const SCENE_CONFIGS: SceneConfig[] = [
+  {
+    id: 'meeting',
+    name: '会议',
+    description: '适用于中文会议场景，自动识别中文语音',
+    recommendedModelIds: ['sherpa-onnx-streaming-zipformer-ctc-multi-zh-hans-2023-12-13'],
+    defaultLanguage: 'zh',
+    enableTranslation: false,
+    recommendedPunctuationModelId: 'sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8' // 中英文标点
+  },
+  {
+    id: 'english-learning',
+    name: '英语学习',
+    description: '适用于英语学习场景，自动识别英语语音',
+    recommendedModelIds: ['sherpa-onnx-streaming-zipformer-ctc-small-2024-03-18'],
+    defaultLanguage: 'en',
+    enableTranslation: true,
+    targetLanguage: 'zh', // 翻译成中文
+    recommendedPunctuationModelId: 'sherpa-onnx-online-punct-en-2024-08-06' // 英文标点
+  },
+  {
+    id: 'bilingual',
+    name: '中英双语',
+    description: '适用于中英双语场景，自动识别中英文混合语音',
+    recommendedModelIds: ['sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20'],
+    defaultLanguage: 'zh',
+    enableTranslation: false,
+    recommendedPunctuationModelId: 'sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8' // 中英文标点
+  },
+  {
+    id: 'multilingual',
+    name: '多语言',
+    description: '适用于多语言场景，支持多种语言识别',
+    recommendedModelIds: ['sherpa-onnx-streaming-zipformer-ctc-multi-zh-hans-2023-12-13'],
+    defaultLanguage: 'zh',
+    enableTranslation: false,
+    recommendedPunctuationModelId: 'sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8' // 中英文标点
+  }
+];
 
 const ASRConfigPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedScene, setSelectedScene] = useState<string>('meeting');
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [language, setLanguage] = useState('zh');
   const [selectedPunctuationModel, setSelectedPunctuationModel] = useState<string>('');
@@ -118,6 +176,7 @@ const ASRConfigPage: React.FC = () => {
   const [loadingCloudModels, setLoadingCloudModels] = useState(false);
   const [activeTab, setActiveTab] = useState('local');
   const [providerConfigured, setProviderConfigured] = useState<boolean>(false);
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
 
   // 检测Provider配置状态
   const checkProviderConfig = useCallback(
@@ -152,7 +211,7 @@ const ASRConfigPage: React.FC = () => {
 
         // 检查所有required字段是否都有值
         const allConfigured = requiredFields.every((f: any) => {
-          const value = secrets[f.key];
+          const value = (secrets as Record<string, string>)[f.key];
           return value && value.trim().length > 0;
         });
 
@@ -292,22 +351,75 @@ const ASRConfigPage: React.FC = () => {
         setSherpaModels(modelsWithStatus);
         setPunctuationModels(punctuationModelsWithStatus);
 
-        // 优先选择推荐模型的第一个
-        if (!selectedModel) {
-          // 分离推荐模型和其他模型
-          const recommendedModels = modelsWithStatus.filter((m) => RECOMMENDED_MODEL_IDS.includes(m.id));
+        // 根据场景自动选择模型和标点符号模型
+        if (selectedScene) {
+          const sceneConfig = SCENE_CONFIGS.find((s) => s.id === selectedScene);
+          if (sceneConfig) {
+            // 按优先级查找推荐模型
+            let foundModel = null;
+            for (const modelId of sceneConfig.recommendedModelIds) {
+              const model = modelsWithStatus.find((m) => m.id === modelId);
+              if (model && model.isInstalled) {
+                foundModel = model;
+                break;
+              }
+            }
+            // 如果推荐模型都未安装，选择第一个推荐模型
+            if (!foundModel && sceneConfig.recommendedModelIds.length > 0) {
+              const model = modelsWithStatus.find((m) => m.id === sceneConfig.recommendedModelIds[0]);
+              if (model) {
+                foundModel = model;
+              }
+            }
+            // 如果还是没找到，回退到原来的逻辑
+            if (!foundModel) {
+              const recommendedModels = modelsWithStatus.filter((m) => RECOMMENDED_MODEL_IDS.includes(m.id));
+              if (recommendedModels.length > 0) {
+                const firstInstalledRecommended = recommendedModels.find((m) => m.isInstalled);
+                foundModel = firstInstalledRecommended || recommendedModels[0];
+              } else if (modelsWithStatus.length > 0) {
+                const firstInstalled = modelsWithStatus.find((m) => m.isInstalled);
+                foundModel = firstInstalled || modelsWithStatus[0];
+              }
+            }
+            if (foundModel) {
+              setSelectedModel(foundModel.id);
+            }
 
+            // 根据场景选择推荐标点符号模型
+            if (sceneConfig.recommendedPunctuationModelId && punctuationModelsWithStatus.length > 0) {
+              const punctuationModel = punctuationModelsWithStatus.find((m) => m.id === sceneConfig.recommendedPunctuationModelId);
+              if (punctuationModel) {
+                // 优先选择已安装的标点模型
+                if (punctuationModel.isInstalled) {
+                  setSelectedPunctuationModel(punctuationModel.id);
+                } else {
+                  // 如果推荐模型未安装，尝试查找同类型的已安装模型
+                  const alternativeModel = punctuationModelsWithStatus.find((m) => m.isInstalled && m.languages?.some((lang) => punctuationModel.languages?.includes(lang)));
+                  if (alternativeModel) {
+                    setSelectedPunctuationModel(alternativeModel.id);
+                  } else {
+                    // 如果都没有安装，仍然选择推荐的模型（用户会看到提示）
+                    setSelectedPunctuationModel(punctuationModel.id);
+                  }
+                }
+              }
+            } else if (!sceneConfig.recommendedPunctuationModelId) {
+              // 如果场景没有推荐标点模型，清空选择
+              setSelectedPunctuationModel('');
+            }
+          }
+        } else if (!selectedModel) {
+          // 如果没有选择场景，使用原来的逻辑
+          const recommendedModels = modelsWithStatus.filter((m) => RECOMMENDED_MODEL_IDS.includes(m.id));
           if (recommendedModels.length > 0) {
-            // 优先选择已安装的推荐模型
             const firstInstalledRecommended = recommendedModels.find((m) => m.isInstalled);
             if (firstInstalledRecommended) {
               setSelectedModel(firstInstalledRecommended.id);
             } else {
-              // 如果没有已安装的推荐模型，选择第一个推荐模型
               setSelectedModel(recommendedModels[0].id);
             }
           } else if (modelsWithStatus.length > 0) {
-            // 如果没有推荐模型，回退到原来的逻辑
             const firstInstalled = modelsWithStatus.find((m) => m.isInstalled);
             if (firstInstalled) {
               setSelectedModel(firstInstalled.id);
@@ -328,9 +440,69 @@ const ASRConfigPage: React.FC = () => {
     };
   }, []);
 
-  // 当模型改变时，检查并重置语言选择
+  // 当场景改变时，自动应用场景配置
   useEffect(() => {
-    if (!selectedModel) return;
+    if (!selectedScene) return;
+    const sceneConfig = SCENE_CONFIGS.find((s) => s.id === selectedScene);
+    if (!sceneConfig) return;
+
+    // 设置语言
+    setLanguage(sceneConfig.defaultLanguage);
+
+    // 设置翻译
+    setEnableTranslation(sceneConfig.enableTranslation);
+    if (sceneConfig.targetLanguage) {
+      setTargetLanguage(sceneConfig.targetLanguage);
+    }
+
+    // 根据场景选择推荐模型
+    if (sherpaModels.length > 0) {
+      let foundModel = null;
+      for (const modelId of sceneConfig.recommendedModelIds) {
+        const model = sherpaModels.find((m) => m.id === modelId);
+        if (model && model.isInstalled) {
+          foundModel = model;
+          break;
+        }
+      }
+      if (!foundModel && sceneConfig.recommendedModelIds.length > 0) {
+        const model = sherpaModels.find((m) => m.id === sceneConfig.recommendedModelIds[0]);
+        if (model) {
+          foundModel = model;
+        }
+      }
+      if (foundModel) {
+        setSelectedModel(foundModel.id);
+      }
+    }
+
+    // 根据场景选择推荐标点符号模型
+    if (punctuationModels.length > 0 && sceneConfig.recommendedPunctuationModelId) {
+      const punctuationModel = punctuationModels.find((m) => m.id === sceneConfig.recommendedPunctuationModelId);
+      if (punctuationModel) {
+        // 优先选择已安装的标点模型
+        if (punctuationModel.isInstalled) {
+          setSelectedPunctuationModel(punctuationModel.id);
+        } else {
+          // 如果推荐模型未安装，尝试查找同类型的已安装模型
+          const alternativeModel = punctuationModels.find((m) => m.isInstalled && m.languages?.some((lang) => punctuationModel.languages?.includes(lang)));
+          if (alternativeModel) {
+            setSelectedPunctuationModel(alternativeModel.id);
+          } else {
+            // 如果都没有安装，仍然选择推荐的模型（用户会看到提示）
+            setSelectedPunctuationModel(punctuationModel.id);
+          }
+        }
+      }
+    } else if (!sceneConfig.recommendedPunctuationModelId) {
+      // 如果场景没有推荐标点模型，清空选择
+      setSelectedPunctuationModel('');
+    }
+  }, [selectedScene, sherpaModels, punctuationModels]);
+
+  // 当模型改变时，检查并重置语言选择（仅在高级设置中手动修改时生效）
+  useEffect(() => {
+    if (!selectedModel || !showAdvancedSettings) return;
     const selectedModelInfo = sherpaModels.find((m) => m.id === selectedModel);
     if (!selectedModelInfo) return;
 
@@ -351,7 +523,7 @@ const ASRConfigPage: React.FC = () => {
       // 如果没有指定语言，保持当前选择
       return;
     }
-  }, [selectedModel, sherpaModels, language]);
+  }, [selectedModel, sherpaModels, language, showAdvancedSettings]);
 
   // 加载云端模型列表
   useEffect(() => {
@@ -500,184 +672,323 @@ const ASRConfigPage: React.FC = () => {
         <ScrollArea className="space-y-4 flex-1 overflow-y-auto px-4 no-drag">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsContent value="local" className="space-y-4 mt-0">
+              {/* 场景选择 */}
               <div className="space-y-2">
-                <Label className="no-drag" htmlFor="model">
-                  模型
-                </Label>
-                {(() => {
-                  // 分离推荐模型和其他模型
-                  const recommendedModels = sherpaModels.filter((m) => RECOMMENDED_MODEL_IDS.includes(m.id));
-                  const otherModels = sherpaModels.filter((m) => !RECOMMENDED_MODEL_IDS.includes(m.id));
-
-                  return (
-                    <Select value={selectedModel} onValueChange={setSelectedModel} disabled={loadingModels}>
-                      <SelectTrigger className="no-drag" id="model">
-                        <SelectValue placeholder={loadingModels ? '加载中...' : '请选择模型'}>
-                          {(() => {
-                            const selectedModelInfo = selectedModel ? sherpaModels.find((m) => m.id === selectedModel) : null;
-                            if (!selectedModelInfo) return null;
-                            const isStreaming = selectedModelInfo.id.toLowerCase().includes('stream');
-                            return (
-                              <div className="flex items-center gap-2">
-                                <span>{selectedModelInfo.displayName || selectedModelInfo.name}</span>
-                                {isStreaming && <span className="text-xs text-primary shrink-0">流式</span>}
-                              </div>
-                            );
-                          })()}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent className="max-w-md no-drag">
-                        {sherpaModels.length === 0 && !loadingModels && (
-                          <SelectItem value="__no_models__" disabled>
-                            暂无可用模型
-                          </SelectItem>
-                        )}
-                        {recommendedModels.length > 0 && (
-                          <SelectGroup>
-                            <SelectLabel>推荐模型</SelectLabel>
-                            {recommendedModels.map((model) => {
-                              const isStreaming = model.id.toLowerCase().includes('stream');
-                              const supportedLanguages = model.languages || [];
-                              const languageDisplay = supportedLanguages.includes('multi') ? '多语言' : supportedLanguages.map((lang) => getLanguageName(lang)).join('、');
-                              return (
-                                <SelectItem key={model.id} value={model.id} disabled={!model.isInstalled} className="items-center box-border" textValue={model.displayName || model.name}>
-                                  <div className="flex flex-col gap-0.5 py-0.5 w-full min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <span className="font-medium break-words">{model.displayName || model.name}</span>
-                                      {isStreaming && <span className="text-xs text-primary shrink-0">流式</span>}
-                                      {!model.isInstalled && <span className="text-xs text-muted-foreground shrink-0">(未安装)</span>}
-                                    </div>
-                                    {supportedLanguages.length > 0 && <div className="text-xs text-muted-foreground">支持语言: {languageDisplay}</div>}
-                                    {model.description && <div className="text-xs text-muted-foreground leading-relaxed break-words">{model.description}</div>}
-                                  </div>
-                                </SelectItem>
-                              );
-                            })}
-                          </SelectGroup>
-                        )}
-                        {otherModels.length > 0 && (
-                          <>
-                            {recommendedModels.length > 0 && <SelectSeparator />}
-                            <SelectGroup>
-                              <SelectLabel>其他模型</SelectLabel>
-                              {otherModels.map((model) => {
-                                const isStreaming = model.id.toLowerCase().includes('stream');
-                                const supportedLanguages = model.languages || [];
-                                const languageDisplay = supportedLanguages.includes('multi') ? '多语言' : supportedLanguages.map((lang) => getLanguageName(lang)).join('、');
-                                return (
-                                  <SelectItem key={model.id} value={model.id} disabled={!model.isInstalled} className="items-center box-border" textValue={model.displayName || model.name}>
-                                    <div className="flex flex-col gap-0.5 py-0.5 w-full min-w-0">
-                                      <div className="flex items-center gap-2 flex-wrap">
-                                        <span className="font-medium break-words">{model.displayName || model.name}</span>
-                                        {isStreaming && <span className="text-xs text-primary shrink-0">流式</span>}
-                                        {!model.isInstalled && <span className="text-xs text-muted-foreground shrink-0">(未安装)</span>}
-                                      </div>
-                                      {supportedLanguages.length > 0 && <div className="text-xs text-muted-foreground">支持语言: {languageDisplay}</div>}
-                                      {model.description && <div className="text-xs text-muted-foreground leading-relaxed break-words">{model.description}</div>}
-                                    </div>
-                                  </SelectItem>
-                                );
-                              })}
-                            </SelectGroup>
-                          </>
-                        )}
-                      </SelectContent>
-                    </Select>
-                  );
-                })()}
-                {selectedModel && !sherpaModels.find((m) => m.id === selectedModel)?.isInstalled && (
-                  <div className="text-xs text-amber-600 dark:text-amber-400">该模型未安装，请先在插件管理中安装</div>
-                )}
+                <div className="grid grid-cols-2 gap-3">
+                  {SCENE_CONFIGS.map((scene) => (
+                    <Card
+                      key={scene.id}
+                      className={`cursor-pointer transition-all hover:border-primary ${selectedScene === scene.id ? 'border-primary bg-primary/5' : ''}`}
+                      onClick={() => !loadingModels && setSelectedScene(scene.id)}
+                    >
+                      <CardHeader>
+                        <CardTitle>{scene.name}</CardTitle>
+                      </CardHeader>
+                    </Card>
+                  ))}
+                </div>
               </div>
-              {(() => {
-                const selectedModelInfo = sherpaModels.find((m) => m.id === selectedModel);
-                const supportedLanguages = selectedModelInfo?.languages || [];
-                // 排除 multi，计算实际支持的语言数量
-                const actualLanguages = supportedLanguages.filter((lang) => lang !== 'multi');
-                // 如果只有一种语言，不显示语言选择器
-                const shouldShowLanguageSelect = actualLanguages.length > 1 || supportedLanguages.includes('multi');
 
-                if (!shouldShowLanguageSelect) {
-                  return null;
-                }
-
-                return (
+              {/* 实时翻译配置（根据场景自动显示） */}
+              {enableTranslation && (
+                <div className="space-y-4 border rounded-lg p-4">
                   <div className="space-y-2">
-                    <Label className="no-drag" htmlFor="language">
-                      语言
-                    </Label>
-                    <Select value={language} onValueChange={setLanguage} disabled={!selectedModel || loadingModels}>
-                      <SelectTrigger className="no-drag" id="language">
-                        <SelectValue placeholder={!selectedModel ? '请先选择模型' : '请选择语言'} />
-                      </SelectTrigger>
-                      <SelectContent className="no-drag">
-                        {(() => {
-                          // 如果模型支持 multi，显示所有常见语言
-                          if (supportedLanguages.includes('multi')) {
-                            const commonLanguages = ['zh', 'en', 'ja', 'ko', 'yue', 'de', 'es', 'ru', 'fr', 'pt', 'tr', 'pl', 'it', 'ar', 'hi', 'vi', 'th'];
-                            return commonLanguages.map((lang) => (
-                              <SelectItem key={lang} value={lang}>
-                                {getLanguageName(lang)}
-                              </SelectItem>
-                            ));
-                          }
-
-                          // 如果模型有指定支持的语言，只显示这些语言
-                          if (supportedLanguages.length > 0) {
-                            return supportedLanguages.map((lang) => (
-                              <SelectItem key={lang} value={lang}>
-                                {getLanguageName(lang)}
-                              </SelectItem>
-                            ));
-                          }
-
-                          // 如果没有指定语言，显示提示
-                          return (
-                            <SelectItem value="__no_language__" disabled>
-                              该模型未指定支持的语言
-                            </SelectItem>
-                          );
-                        })()}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                );
-              })()}
-              {punctuationModels.length > 0 && (
-                <div className="space-y-2">
-                  <Label className="no-drag" htmlFor="punctuationModel">
-                    标点符号模型（可选）
-                  </Label>
-                  <Select value={selectedPunctuationModel || '__none__'} onValueChange={(value) => setSelectedPunctuationModel(value === '__none__' ? '' : value)} disabled={loadingModels}>
-                    <SelectTrigger className="no-drag" id="punctuationModel">
-                      <SelectValue placeholder="不启用标点符号">
-                        {selectedPunctuationModel
-                          ? punctuationModels.find((m) => m.id === selectedPunctuationModel)?.displayName || punctuationModels.find((m) => m.id === selectedPunctuationModel)?.name
-                          : '不使用标点符号'}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent className="max-w-md no-drag">
-                      <SelectItem value="__none__">
-                        <span className="text-muted-foreground">不启用标点符号</span>
-                      </SelectItem>
-                      {punctuationModels.map((model) => (
-                        <SelectItem key={model.id} value={model.id} disabled={!model.isInstalled} className="items-start box-border" textValue={model.displayName || model.name}>
-                          <div className="flex flex-col gap-0.5 py-0.5 w-full min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-medium break-words">{model.displayName || model.name}</span>
-                              {!model.isInstalled && <span className="text-xs text-muted-foreground shrink-0">(未安装)</span>}
-                            </div>
-                            {model.description && <div className="text-xs text-muted-foreground leading-relaxed break-words">{model.description}</div>}
+                    <Label className="no-drag">实时翻译</Label>
+                    <p className="text-xs text-muted-foreground">当前场景已启用实时翻译功能</p>
+                    <div className="space-y-2">
+                      {providers.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label className="no-drag" htmlFor="provider">
+                              AI 服务商
+                            </Label>
+                            {selectedProviderId && (
+                              <div className="flex items-center gap-2">
+                                {providerConfigured ? (
+                                  <span className="text-xs text-green-600 dark:text-green-400">已配置</span>
+                                ) : (
+                                  <Button size="sm" variant="outline" className="h-6 text-xs px-2 no-drag" onClick={handleOpenProviderConfig}>
+                                    未配置
+                                  </Button>
+                                )}
+                              </div>
+                            )}
                           </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {selectedPunctuationModel && !punctuationModels.find((m) => m.id === selectedPunctuationModel)?.isInstalled && (
-                    <div className="text-xs text-amber-600 dark:text-amber-400">该标点模型未安装，请先在插件管理中安装</div>
-                  )}
+                          <Select value={selectedProviderId} onValueChange={setSelectedProviderId} disabled={!enableTranslation || providers.length === 0}>
+                            <SelectTrigger className="no-drag" id="provider">
+                              <SelectValue placeholder="请选择AI服务商" />
+                            </SelectTrigger>
+                            <SelectContent className="no-drag">
+                              {providers.map((provider) => (
+                                <SelectItem key={provider.id} value={provider.id}>
+                                  {provider.label || provider.id}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {selectedProviderId && !providerConfigured && <div className="text-xs text-amber-600 dark:text-amber-400">该服务商未配置API密钥，请点击按钮进行配置</div>}
+                        </div>
+                      )}
+                      <Label className="no-drag" htmlFor="targetLanguage">
+                        目标语言
+                      </Label>
+                      <Select value={targetLanguage} onValueChange={setTargetLanguage} disabled={!enableTranslation}>
+                        <SelectTrigger className="no-drag" id="targetLanguage">
+                          <SelectValue placeholder="请选择目标语言" />
+                        </SelectTrigger>
+                        <SelectContent className="no-drag">
+                          {['en', 'zh', 'ja', 'ko', 'de', 'es', 'ru', 'fr', 'pt', 'it', 'ar', 'hi', 'vi', 'th'].map((lang) => (
+                            <SelectItem key={lang} value={lang}>
+                              {getLanguageName(lang)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
               )}
+
+              {/* 高级设置 */}
+              <div className="space-y-2 border rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+                  className="w-full flex items-center justify-between px-4 py-2 text-sm font-medium hover:bg-muted/50 transition-colors rounded-t-lg"
+                >
+                  <span className="no-drag">自定义</span>
+                  {showAdvancedSettings ? <TbChevronUp className="h-4 w-4 no-drag" /> : <TbChevronDown className="h-4 w-4 no-drag" />}
+                </button>
+                {showAdvancedSettings && (
+                  <div className="px-4 pb-4 space-y-4 border-t">
+                    <div className="space-y-2 pt-4">
+                      <Label className="no-drag" htmlFor="model">
+                        模型
+                      </Label>
+                      {(() => {
+                        // 分离推荐模型和其他模型
+                        const recommendedModels = sherpaModels.filter((m) => RECOMMENDED_MODEL_IDS.includes(m.id));
+                        const otherModels = sherpaModels.filter((m) => !RECOMMENDED_MODEL_IDS.includes(m.id));
+
+                        return (
+                          <Select value={selectedModel} onValueChange={setSelectedModel} disabled={loadingModels}>
+                            <SelectTrigger className="no-drag" id="model">
+                              <SelectValue placeholder={loadingModels ? '加载中...' : '请选择模型'}>
+                                {(() => {
+                                  const selectedModelInfo = selectedModel ? sherpaModels.find((m) => m.id === selectedModel) : null;
+                                  if (!selectedModelInfo) return null;
+                                  const isStreaming = selectedModelInfo.id.toLowerCase().includes('stream');
+                                  return (
+                                    <div className="flex items-center gap-2">
+                                      <span>{selectedModelInfo.displayName || selectedModelInfo.name}</span>
+                                      {isStreaming && <span className="text-xs text-primary shrink-0">流式</span>}
+                                    </div>
+                                  );
+                                })()}
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent className="max-w-md no-drag">
+                              {sherpaModels.length === 0 && !loadingModels && (
+                                <SelectItem value="__no_models__" disabled>
+                                  暂无可用模型
+                                </SelectItem>
+                              )}
+                              {recommendedModels.length > 0 && (
+                                <SelectGroup>
+                                  <SelectLabel>推荐模型</SelectLabel>
+                                  {recommendedModels.map((model) => {
+                                    const isStreaming = model.id.toLowerCase().includes('stream');
+                                    const supportedLanguages = model.languages || [];
+                                    const languageDisplay = supportedLanguages.includes('multi') ? '多语言' : supportedLanguages.map((lang) => getLanguageName(lang)).join('、');
+                                    return (
+                                      <SelectItem key={model.id} value={model.id} disabled={!model.isInstalled} className="items-center box-border" textValue={model.displayName || model.name}>
+                                        <div className="flex flex-col gap-0.5 py-0.5 w-full min-w-0">
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="font-medium break-words">{model.displayName || model.name}</span>
+                                            {isStreaming && <span className="text-xs text-primary shrink-0">流式</span>}
+                                            {!model.isInstalled && <span className="text-xs text-muted-foreground shrink-0">(未安装)</span>}
+                                          </div>
+                                          {supportedLanguages.length > 0 && <div className="text-xs text-muted-foreground">支持语言: {languageDisplay}</div>}
+                                          {model.description && <div className="text-xs text-muted-foreground leading-relaxed break-words">{model.description}</div>}
+                                        </div>
+                                      </SelectItem>
+                                    );
+                                  })}
+                                </SelectGroup>
+                              )}
+                              {otherModels.length > 0 && (
+                                <>
+                                  {recommendedModels.length > 0 && <SelectSeparator />}
+                                  <SelectGroup>
+                                    <SelectLabel>其他模型</SelectLabel>
+                                    {otherModels.map((model) => {
+                                      const isStreaming = model.id.toLowerCase().includes('stream');
+                                      const supportedLanguages = model.languages || [];
+                                      const languageDisplay = supportedLanguages.includes('multi') ? '多语言' : supportedLanguages.map((lang) => getLanguageName(lang)).join('、');
+                                      return (
+                                        <SelectItem key={model.id} value={model.id} disabled={!model.isInstalled} className="items-center box-border" textValue={model.displayName || model.name}>
+                                          <div className="flex flex-col gap-0.5 py-0.5 w-full min-w-0">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                              <span className="font-medium break-words">{model.displayName || model.name}</span>
+                                              {isStreaming && <span className="text-xs text-primary shrink-0">流式</span>}
+                                              {!model.isInstalled && <span className="text-xs text-muted-foreground shrink-0">(未安装)</span>}
+                                            </div>
+                                            {supportedLanguages.length > 0 && <div className="text-xs text-muted-foreground">支持语言: {languageDisplay}</div>}
+                                            {model.description && <div className="text-xs text-muted-foreground leading-relaxed break-words">{model.description}</div>}
+                                          </div>
+                                        </SelectItem>
+                                      );
+                                    })}
+                                  </SelectGroup>
+                                </>
+                              )}
+                            </SelectContent>
+                          </Select>
+                        );
+                      })()}
+                      {selectedModel && !sherpaModels.find((m) => m.id === selectedModel)?.isInstalled && (
+                        <div className="text-xs text-amber-600 dark:text-amber-400">该模型未安装，请先在插件管理中安装</div>
+                      )}
+                    </div>
+                    {(() => {
+                      const selectedModelInfo = sherpaModels.find((m) => m.id === selectedModel);
+                      const supportedLanguages = selectedModelInfo?.languages || [];
+                      // 排除 multi，计算实际支持的语言数量
+                      const actualLanguages = supportedLanguages.filter((lang) => lang !== 'multi');
+                      // 如果只有一种语言，不显示语言选择器
+                      const shouldShowLanguageSelect = actualLanguages.length > 1 || supportedLanguages.includes('multi');
+
+                      if (!shouldShowLanguageSelect) {
+                        return null;
+                      }
+
+                      return (
+                        <div className="space-y-2">
+                          <Label className="no-drag" htmlFor="language">
+                            语言
+                          </Label>
+                          <Select value={language} onValueChange={setLanguage} disabled={!selectedModel || loadingModels}>
+                            <SelectTrigger className="no-drag" id="language">
+                              <SelectValue placeholder={!selectedModel ? '请先选择模型' : '请选择语言'} />
+                            </SelectTrigger>
+                            <SelectContent className="no-drag">
+                              {(() => {
+                                // 如果模型支持 multi，显示所有常见语言
+                                if (supportedLanguages.includes('multi')) {
+                                  const commonLanguages = ['zh', 'en', 'ja', 'ko', 'yue', 'de', 'es', 'ru', 'fr', 'pt', 'tr', 'pl', 'it', 'ar', 'hi', 'vi', 'th'];
+                                  return commonLanguages.map((lang) => (
+                                    <SelectItem key={lang} value={lang}>
+                                      {getLanguageName(lang)}
+                                    </SelectItem>
+                                  ));
+                                }
+
+                                // 如果模型有指定支持的语言，只显示这些语言
+                                if (supportedLanguages.length > 0) {
+                                  return supportedLanguages.map((lang) => (
+                                    <SelectItem key={lang} value={lang}>
+                                      {getLanguageName(lang)}
+                                    </SelectItem>
+                                  ));
+                                }
+
+                                // 如果没有指定语言，显示提示
+                                return (
+                                  <SelectItem value="__no_language__" disabled>
+                                    该模型未指定支持的语言
+                                  </SelectItem>
+                                );
+                              })()}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      );
+                    })()}
+                    {punctuationModels.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label className="no-drag" htmlFor="punctuationModel">
+                            标点符号模型
+                          </Label>
+                          {(() => {
+                            const sceneConfig = SCENE_CONFIGS.find((s) => s.id === selectedScene);
+                            if (sceneConfig?.recommendedPunctuationModelId) {
+                              const recommendedModel = punctuationModels.find((m) => m.id === sceneConfig.recommendedPunctuationModelId);
+                              if (recommendedModel && selectedPunctuationModel === recommendedModel.id) {
+                                return <span className="text-xs text-muted-foreground">场景推荐</span>;
+                              }
+                            }
+                            return null;
+                          })()}
+                        </div>
+                        <Select value={selectedPunctuationModel || '__none__'} onValueChange={(value) => setSelectedPunctuationModel(value === '__none__' ? '' : value)} disabled={loadingModels}>
+                          <SelectTrigger className="no-drag" id="punctuationModel">
+                            <SelectValue placeholder="不启用标点符号">
+                              {selectedPunctuationModel
+                                ? punctuationModels.find((m) => m.id === selectedPunctuationModel)?.displayName || punctuationModels.find((m) => m.id === selectedPunctuationModel)?.name
+                                : '不使用标点符号'}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent className="max-w-md no-drag">
+                            <SelectItem value="__none__">
+                              <span className="text-muted-foreground">不启用标点符号</span>
+                            </SelectItem>
+                            {(() => {
+                              const sceneConfig = SCENE_CONFIGS.find((s) => s.id === selectedScene);
+                              const recommendedModelId = sceneConfig?.recommendedPunctuationModelId;
+                              const recommendedModels = recommendedModelId ? punctuationModels.filter((m) => m.id === recommendedModelId) : [];
+                              const otherModels = recommendedModelId ? punctuationModels.filter((m) => m.id !== recommendedModelId) : punctuationModels;
+
+                              return (
+                                <>
+                                  {recommendedModels.length > 0 && (
+                                    <SelectGroup>
+                                      <SelectLabel>场景推荐</SelectLabel>
+                                      {recommendedModels.map((model) => (
+                                        <SelectItem key={model.id} value={model.id} disabled={!model.isInstalled} className="items-start box-border" textValue={model.displayName || model.name}>
+                                          <div className="flex flex-col gap-0.5 py-0.5 w-full min-w-0">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                              <span className="font-medium break-words">{model.displayName || model.name}</span>
+                                              {!model.isInstalled && <span className="text-xs text-muted-foreground shrink-0">(未安装)</span>}
+                                            </div>
+                                            {model.description && <div className="text-xs text-muted-foreground leading-relaxed break-words">{model.description}</div>}
+                                          </div>
+                                        </SelectItem>
+                                      ))}
+                                    </SelectGroup>
+                                  )}
+                                  {otherModels.length > 0 && (
+                                    <>
+                                      {recommendedModels.length > 0 && <SelectSeparator />}
+                                      <SelectGroup>
+                                        <SelectLabel>其他模型</SelectLabel>
+                                        {otherModels.map((model) => (
+                                          <SelectItem key={model.id} value={model.id} disabled={!model.isInstalled} className="items-start box-border" textValue={model.displayName || model.name}>
+                                            <div className="flex flex-col gap-0.5 py-0.5 w-full min-w-0">
+                                              <div className="flex items-center gap-2 flex-wrap">
+                                                <span className="font-medium break-words">{model.displayName || model.name}</span>
+                                                {!model.isInstalled && <span className="text-xs text-muted-foreground shrink-0">(未安装)</span>}
+                                              </div>
+                                              {model.description && <div className="text-xs text-muted-foreground leading-relaxed break-words">{model.description}</div>}
+                                            </div>
+                                          </SelectItem>
+                                        ))}
+                                      </SelectGroup>
+                                    </>
+                                  )}
+                                </>
+                              );
+                            })()}
+                          </SelectContent>
+                        </Select>
+                        {selectedPunctuationModel && !punctuationModels.find((m) => m.id === selectedPunctuationModel)?.isInstalled && (
+                          <div className="text-xs text-amber-600 dark:text-amber-400">该标点模型未安装，请先在插件管理中安装</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </TabsContent>
 
             <TabsContent value="cloud" className="space-y-4 mt-0">
@@ -741,71 +1052,6 @@ const ASRConfigPage: React.FC = () => {
               </div>
             </TabsContent>
           </Tabs>
-
-          <div className="space-y-4 border-t pt-4">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="no-drag" htmlFor="enableTranslation">
-                  启用实时翻译
-                </Label>
-                <Switch id="enableTranslation" checked={enableTranslation} onCheckedChange={setEnableTranslation} className="no-drag" />
-              </div>
-              {enableTranslation && (
-                <>
-                  <div className="space-y-2">
-                    {providers.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label className="no-drag" htmlFor="provider">
-                            AI 服务商
-                          </Label>
-                          {selectedProviderId && (
-                            <div className="flex items-center gap-2">
-                              {providerConfigured ? (
-                                <span className="text-xs text-green-600 dark:text-green-400">已配置</span>
-                              ) : (
-                                <Button size="sm" variant="outline" className="h-6 text-xs px-2 no-drag" onClick={handleOpenProviderConfig}>
-                                  未配置
-                                </Button>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        <Select value={selectedProviderId} onValueChange={setSelectedProviderId} disabled={!enableTranslation || providers.length === 0}>
-                          <SelectTrigger className="no-drag" id="provider">
-                            <SelectValue placeholder="请选择AI服务商" />
-                          </SelectTrigger>
-                          <SelectContent className="no-drag">
-                            {providers.map((provider) => (
-                              <SelectItem key={provider.id} value={provider.id}>
-                                {provider.label || provider.id}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {selectedProviderId && !providerConfigured && <div className="text-xs text-amber-600 dark:text-amber-400">该服务商未配置API密钥，请点击按钮进行配置</div>}
-                      </div>
-                    )}
-                    <Label className="no-drag" htmlFor="targetLanguage">
-                      目标语言
-                    </Label>
-                    <Select value={targetLanguage} onValueChange={setTargetLanguage} disabled={!enableTranslation}>
-                      <SelectTrigger className="no-drag" id="targetLanguage">
-                        <SelectValue placeholder="请选择目标语言" />
-                      </SelectTrigger>
-                      <SelectContent className="no-drag">
-                        {['en', 'zh', 'ja', 'ko', 'de', 'es', 'ru', 'fr', 'pt', 'it', 'ar', 'hi', 'vi', 'th'].map((lang) => (
-                          <SelectItem key={lang} value={lang}>
-                            {getLanguageName(lang)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
         </ScrollArea>
 
         <div className="flex gap-2 border-t p-2 px-4">
