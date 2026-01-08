@@ -295,6 +295,27 @@
         ]
       },
       {
+        "id": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2025-09-09",
+        "pluginId": "plugin:sherpa-onnx",
+        "type": "model",
+        "name": "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2025-09-09",
+        "displayName": "SenseVoice-zh-en-ja-ko-yue-2025-09-09",
+        "description": "",
+        "version": "1.0.0",
+        "archiveType": "tar.bz2",
+        "category": "asr",
+        "languages": ["zh", "en", "ja", "ko", "yue"],
+        "platforms": [
+          {
+            "platform": "all",
+            "arch": "all",
+            "sourceUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2025-09-09.tar.bz2",
+            "sizeBytes": 886547748,
+            "sha256": "bce28acdb0fb3a5b1e0b93f8b202e904ea1d2eca4f3a4c0cd5006626f10d540e"
+          }
+        ]
+      },
+      {
         "id": "sherpa-onnx-streaming-paraformer-bilingual-zh-en",
         "pluginId": "plugin:sherpa-onnx",
         "type": "model",
@@ -312,6 +333,27 @@
             "sourceUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-paraformer-bilingual-zh-en.tar.bz2",
             "sizeBytes": 1047319737,
             "sha256": "5462a1fce42693deae572af1e8c4687124b12aa85fe61ff4d3168bb5280e205f"
+          }
+        ]
+      },
+      {
+        "id": "sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20",
+        "pluginId": "plugin:sherpa-onnx",
+        "type": "model",
+        "name": "sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20",
+        "displayName": "Zipformer-bilingual-zh-en",
+        "description": "",
+        "version": "1.0.0",
+        "archiveType": "tar.bz2",
+        "category": "asr",
+        "languages": ["zh", "en"],
+        "platforms": [
+          {
+            "platform": "all",
+            "arch": "all",
+            "sourceUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20.tar.bz2",
+            "sizeBytes": 511279104,
+            "sha256": "27ffbd9ee24ad186d99acc2f6354d7992b27bcab490812510665fa8f9389c5f8"
           }
         ]
       },
