@@ -117,13 +117,15 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
         }
       } else if (phase === 'outro' && currentTimeMs >= durationMs - 50) {
         // Outro finished
-        if (shouldLoop) {
-          // Reset to idle and loop intro segment
+        // 如果 isPlaying 为 false，说明是通过 stopAnimation() 停止的，应该触发 idle 事件
+        // 如果 isPlaying 为 true 且 shouldLoop 为 true，则继续循环 intro
+        if (shouldLoop && isPlaying) {
+          // Still playing and should loop: reset to idle and loop intro segment
           phaseRef.current = 'idle';
           v.currentTime = 0;
           v.play();
         } else {
-          // Not looping: stop and optionally return to idle state
+          // Not playing (stopped) or not looping: stop and optionally return to idle state
           phaseRef.current = 'idle';
           v.pause();
           const autoIdle = current?.autoIdle ?? true;
@@ -132,8 +134,8 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
           }
         }
       } else if (phase === 'idle') {
-        // Not actively playing: loop the intro segment (0 ~ loopStartMs) if shouldLoop
-        if (shouldLoop && currentTimeMs >= loopStartMs - 50) {
+        // Not actively playing: loop the intro segment (0 ~ loopStartMs) only if shouldLoop AND isPlaying
+        if (shouldLoop && isPlaying && currentTimeMs >= loopStartMs - 50) {
           v.currentTime = 0;
           v.play();
         }
