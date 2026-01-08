@@ -124,6 +124,9 @@ export const AIAssistant: React.FC = () => {
     window.YUA.window['window:open']('menu');
   };
 
+  // 判断当前动画是否是三段式动画（有 outro 部分需要播放）
+  const hasOutro = currentSprite?.loopStartMs != null && currentSprite?.loopEndMs != null;
+
   // drive sprite states from drag/walk flags
   useEffect(() => {
     if (isDragging) {
@@ -132,10 +135,15 @@ export const AIAssistant: React.FC = () => {
       setAssistantState('walk:start');
       playAnimation(); // Start three-phase animation when walking starts
     } else {
-      setAssistantState('idle');
-      stopAnimation(); // Stop animation and play outro when walking stops
+      // 停止动画，让 VideoSprite 播放 outro 部分
+      stopAnimation();
+      // 如果不是三段式动画，直接切换到 idle
+      // 如果是三段式动画，VideoSprite 会在 outro 播放完成后自动触发 idle 事件
+      if (!hasOutro) {
+        setAssistantState('idle');
+      }
     }
-  }, [isDragging, isWalking, setAssistantState, playAnimation, stopAnimation]);
+  }, [isDragging, isWalking, setAssistantState, playAnimation, stopAnimation, hasOutro]);
 
   // reflect file drag-over on sprite
   useEffect(() => {
@@ -143,10 +151,15 @@ export const AIAssistant: React.FC = () => {
       setAssistantState('fileDragOver');
       playAnimation(); // Start three-phase animation when file drag over starts
     } else if (!isDragging && !isWalking) {
-      setAssistantState('idle');
-      stopAnimation(); // Stop animation and play outro when file drag over stops
+      // 停止动画，让 VideoSprite 播放 outro 部分
+      stopAnimation();
+      // 如果不是三段式动画，直接切换到 idle
+      // 如果是三段式动画，VideoSprite 会在 outro 播放完成后自动触发 idle 事件
+      if (!hasOutro) {
+        setAssistantState('idle');
+      }
     }
-  }, [isFileDragOver, isDragging, isWalking, setAssistantState, playAnimation, stopAnimation]);
+  }, [isFileDragOver, isDragging, isWalking, setAssistantState, playAnimation, stopAnimation, hasOutro]);
 
   const onDropFiles = React.useCallback(
     async (files: any) => {
@@ -247,19 +260,21 @@ export const AIAssistant: React.FC = () => {
           </div>
         }
       >
-        {window.YUA.isDev && (
-          <div
-            style={{
-              left: paddingState,
-              top: paddingState,
-              bottom: paddingState,
-              right: paddingState
-            }}
-            className="text-xs bg-background fixed rounded-md border border-solid border-ring"
-          >
-            {paddingState} {spriteWidth} {spriteHeight}
-          </div>
-        )}
+        {
+          // window.YUA.isDev && (
+          //   <div
+          //     style={{
+          //       left: paddingState,
+          //       top: paddingState,
+          //       bottom: paddingState,
+          //       right: paddingState
+          //     }}
+          //     className="text-xs bg-background fixed rounded-md border border-solid border-ring"
+          //   >
+          //     {paddingState} {spriteWidth} {spriteHeight}
+          //   </div>
+          // )
+        }
         <Renderer width={spriteWidth} height={spriteHeight} walkDirection={walkDirection} />
       </Dropzone>
       {notice && <SpriteNotice message={notice.message} level={notice.level} buttons={notice.buttons} onClose={dismiss} onButtonClick={handleButtonClick} />}
