@@ -164,7 +164,7 @@ export function initSherpaHandlers(): void {
         id: resourceId,
         title: `录音-${new Date(timestamp).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}`,
         filePath: audioFilePath,
-        type: 'audio',
+        type: 'recording', // 使用 'recording' 类型标识录音资源，与普通 'audio' 区分
         workspaceId: ws.id,
         folderId,
         status: 'new',
@@ -269,7 +269,7 @@ export function initSherpaHandlers(): void {
                   type: 'subtitle',
                   workspaceId: stream.workspaceId,
                   folderId: stream.folderId,
-                  sourceId: stream.resourceId, // 关联到音频资源
+                  parentResourceId: stream.resourceId, // 关联到音频资源（作为父资源）
                   sizeBytes: subtitleStats.size,
                   status: 'ready',
                   createdAt: Date.now(),
@@ -374,7 +374,7 @@ export function initSherpaHandlers(): void {
         type: 'subtitle',
         workspaceId: resource.workspaceId,
         folderId: resource.folderId,
-        sourceId: resourceId, // 关联到音频资源
+        parentResourceId: resourceId, // 关联到音频资源（作为父资源）
         sizeBytes: Buffer.from(srtContent, 'utf8').byteLength,
         status: 'ready',
         createdAt: Date.now(),
@@ -492,6 +492,86 @@ export function initSherpaHandlers(): void {
       return { success: true };
     } catch (error) {
       console.error('清理录音流失败:', error);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  // 获取录音历史记录
+  ipcMain.handle('sherpa:getRecordingHistory', async (_, data: { limit?: number; offset?: number }) => {
+    try {
+      const { limit = 50, offset = 0 } = data || {};
+
+      // 查询所有录音类型的资源（未删除的，按创建时间倒序）
+      const audioResources = await ResourcesRepo.list({ type: 'recording', deletedAt: 0 } as any, limit, offset);
+
+      // 为每个音频资源查找关联的字幕资源（通过 parentResourceId 关联）
+      const result = await Promise.all(
+        audioResources.map(async (audio: any) => {
+          // 查找与此音频关联的字幕（通过 parentResourceId 关联）
+          const subtitles = await ResourcesRepo.listChildren(audio.id, 10, 0);
+          // 筛选出字幕类型的子资源
+          const subtitle = (subtitles as any[]).find((s) => s.type === 'subtitle' && !s.deletedAt);
+
+          return {
+            id: audio.id,
+            title: audio.title,
+            audioFilePath: audio.filePath,
+            subtitleFilePath: subtitle?.filePath || null,
+            subtitleResourceId: subtitle?.id || null,
+            duration: audio.durationMs || 0,
+            sizeBytes: audio.sizeBytes || 0,
+            createdAt: audio.createdAt,
+            updatedAt: audio.updatedAt,
+            workspaceId: audio.workspaceId,
+            folderId: audio.folderId,
+            status: audio.status
+          };
+        })
+      );
+
+      return { success: true, data: result };
+    } catch (error) {
+      console.error('[Sherpa] 获取录音历史失败:', error);
+      return { success: false, error: String(error), data: [] };
+    }
+  });
+
+  // 删除录音记录（软删除音频和关联的字幕）
+  ipcMain.handle('sherpa:deleteRecording', async (_, data: { resourceId: string }) => {
+    try {
+      const { resourceId } = data;
+
+      // 查找并软删除关联的字幕
+      const subtitles = await ResourcesRepo.listChildren(resourceId, 10, 0);
+      for (const sub of subtitles as any[]) {
+        if (sub.type === 'subtitle') {
+          await ResourcesRepo.update(sub.id, { deletedAt: Date.now() } as any);
+        }
+      }
+
+      // 软删除音频资源
+      await ResourcesRepo.update(resourceId, { deletedAt: Date.now() } as any);
+
+      console.log('[Sherpa] 录音记录已删除，resourceId:', resourceId);
+      return { success: true };
+    } catch (error) {
+      console.error('[Sherpa] 删除录音记录失败:', error);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  // 读取字幕文件内容
+  ipcMain.handle('sherpa:readSubtitleContent', async (_, data: { filePath: string }) => {
+    try {
+      const { filePath } = data;
+      if (!filePath || !fscb.existsSync(filePath)) {
+        return { success: false, error: 'File not found' };
+      }
+
+      const content = await fs.readFile(filePath, 'utf8');
+      return { success: true, content };
+    } catch (error) {
+      console.error('[Sherpa] 读取字幕文件失败:', error);
       return { success: false, error: String(error) };
     }
   });
