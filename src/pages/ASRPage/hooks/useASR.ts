@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { RecognizedSegment } from '../types';
+import { PendingSegment, PunctuationSegment, RecognizedSegment } from '../types';
 
 interface UseASRProps {
   enableTranslation: boolean;
@@ -9,6 +9,7 @@ interface UseASRProps {
   mode?: 'local' | 'cloud';
   cloudProviderId?: string;
   cloudModelId?: string;
+  enableSmallSegments?: boolean; // 是否启用分小段模式（按标点符号拆分）
 }
 
 // Helper to convert Float32Array to WAV Blob
@@ -62,12 +63,14 @@ export const useASR = ({
   onAudioLevel,
   mode = 'local',
   cloudProviderId,
-  cloudModelId
+  cloudModelId,
+  enableSmallSegments = true // 默认开启分小段模式
 }: UseASRProps): {
   isRecording: boolean;
   isASRRunning: boolean;
   setIsASRRunning: React.Dispatch<React.SetStateAction<boolean>>;
   recognizedSegments: RecognizedSegment[];
+  pendingSegments: PendingSegment[]; // 临时展示的片段（未到 endpoint）
   progressText: string;
   progressStart: number;
   progressEnd: number;
@@ -80,6 +83,7 @@ export const useASR = ({
   // 默认假设 ASR 服务已启动，因为是从配置页面进入的
   const [isASRRunning, setIsASRRunning] = useState(true);
   const [recognizedSegments, setRecognizedSegments] = useState<RecognizedSegment[]>([]);
+  const [pendingSegments, setPendingSegments] = useState<PendingSegment[]>([]); // 临时展示的片段
   const [progressText, setProgressText] = useState<string>('');
   const [progressStart, setProgressStart] = useState<number>(0);
   const [progressEnd, setProgressEnd] = useState<number>(0);
@@ -276,38 +280,94 @@ export const useASR = ({
       }
 
       if (data.text) {
-        setProgressText(data.text);
-        setProgressStart(data.start);
-        setProgressEnd(data.end);
+        // 处理 result_with_punctuation 数据
+        const resultWithPunctuation: PunctuationSegment[] | undefined = data.result_with_punctuation;
 
         if (data.isEndpoint) {
-          // 如果是端点，添加到完整结果列表
-          const newSegment: RecognizedSegment = {
-            text: data.text,
-            start: data.start,
-            end: data.end
-          };
+          // 如果是端点，清空临时展示的片段，添加到完整结果列表
+          setPendingSegments([]);
 
-          // 先添加到列表
-          setRecognizedSegments((prev) => [...prev, newSegment]);
+          if (enableSmallSegments && resultWithPunctuation && resultWithPunctuation.length > 0) {
+            // 分小段模式：将每个标点分割的片段都作为独立的已识别片段
+            const smallSegments: RecognizedSegment[] = resultWithPunctuation.map((seg, index) => ({
+              text: seg.text + (seg.punctuation || ''),
+              start: data.start + (index === 0 ? 0 : (resultWithPunctuation[index - 1].timestamps?.slice(-1)[0] || 0) * 1000),
+              end: data.end
+            }));
 
-          // 翻译完整片段（仅在句子结束时）
-          if (enableTranslation && data.text.trim()) {
-            translateText(data.text, (translation) => {
-              setRecognizedSegments((prev) => {
-                const updated = [...prev];
-                // 查找对应的片段进行更新
-                const index = updated.findIndex((s) => s.start === data.start && s.end === data.end && s.text === data.text);
-                if (index !== -1) {
-                  updated[index] = { ...updated[index], translation };
+            setRecognizedSegments((prev) => [...prev, ...smallSegments]);
+
+            // 翻译每个小段
+            if (enableTranslation) {
+              smallSegments.forEach((segment) => {
+                if (segment.text.trim()) {
+                  translateText(segment.text, (translation) => {
+                    setRecognizedSegments((prev) => {
+                      const updated = [...prev];
+                      const index = updated.findIndex((s) => s.start === segment.start && s.text === segment.text);
+                      if (index !== -1) {
+                        updated[index] = { ...updated[index], translation };
+                      }
+                      return updated;
+                    });
+                  });
                 }
-                return updated;
               });
-            });
+            }
+          } else {
+            // 原始模式：合并成一大段
+            const newSegment: RecognizedSegment = {
+              text: data.text,
+              start: data.start,
+              end: data.end
+            };
+
+            setRecognizedSegments((prev) => [...prev, newSegment]);
+
+            // 翻译完整片段
+            if (enableTranslation && data.text.trim()) {
+              translateText(data.text, (translation) => {
+                setRecognizedSegments((prev) => {
+                  const updated = [...prev];
+                  const index = updated.findIndex((s) => s.start === data.start && s.end === data.end && s.text === data.text);
+                  if (index !== -1) {
+                    updated[index] = { ...updated[index], translation };
+                  }
+                  return updated;
+                });
+              });
+            }
           }
+
           setProgressText('');
           setProgressStart(0);
           setProgressEnd(0);
+        } else {
+          // 非 endpoint，处理实时识别结果
+          if (enableSmallSegments && resultWithPunctuation && resultWithPunctuation.length > 0) {
+            // 如果有多个片段，把非最后一段放入 pendingSegments
+            if (resultWithPunctuation.length > 1) {
+              const pendingItems = resultWithPunctuation.slice(0, -1).map((seg, index) => ({
+                text: seg.text + (seg.punctuation || ''),
+                start: data.start + (index === 0 ? 0 : (resultWithPunctuation[index - 1].timestamps?.slice(-1)[0] || 0) * 1000),
+                end: data.end,
+                isPending: true as const
+              }));
+              setPendingSegments(pendingItems);
+            } else {
+              setPendingSegments([]);
+            }
+
+            // 最后一段作为 progressText 展示
+            const lastSegment = resultWithPunctuation[resultWithPunctuation.length - 1];
+            setProgressText(lastSegment.text);
+          } else {
+            // 没有 result_with_punctuation 或未启用分小段模式，使用原来的逻辑
+            setPendingSegments([]);
+            setProgressText(data.text);
+          }
+          setProgressStart(data.start);
+          setProgressEnd(data.end);
         }
       }
     };
@@ -317,7 +377,7 @@ export const useASR = ({
     return () => {
       window.YUA.removeHandler('sherpa:message');
     };
-  }, [enableTranslation, translateText, mode, cloudProviderId, cloudModelId]);
+  }, [enableTranslation, translateText, mode, cloudProviderId, cloudModelId, enableSmallSegments]);
 
   // 自动开始录音
   useEffect(() => {
@@ -365,6 +425,7 @@ export const useASR = ({
     isASRRunning,
     setIsASRRunning,
     recognizedSegments,
+    pendingSegments,
     progressText,
     progressStart,
     progressEnd,

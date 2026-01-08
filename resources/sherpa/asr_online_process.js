@@ -111,6 +111,133 @@ let lastText = '';
 
 let firstReceivedTime = undefined;
 
+/**
+ * 根据标点符号拆分识别结果
+ * @param {string} originalText - 原始无标点文本
+ * @param {string} punctuatedText - 带标点的文本
+ * @param {string[]} tokens - token数组
+ * @param {number[]} timestamps - 时间戳数组
+ * @param {number} startTime - 开始时间（秒）
+ * @returns {Array} 拆分后的结果数组
+ */
+function splitByPunctuation(originalText, punctuatedText, tokens, timestamps, startTime) {
+  // 定义句子结束的标点符号（用于拆分）
+  const sentenceEndPunctuationRegex = /[，。！？,\.!?；;：:、]/;
+
+  // 如果没有tokens或timestamps，返回简单结果
+  if (!tokens || tokens.length === 0 || !timestamps || timestamps.length === 0) {
+    return [
+      {
+        text: punctuatedText,
+        tokens: tokens || [],
+        timestamps: timestamps || [],
+        punctuation: null,
+        start_time: startTime
+      }
+    ];
+  }
+
+  // 移除标点符号得到纯文本，用于与原始文本对比
+  const textWithoutPunct = punctuatedText.replace(/[，。！？,\.!?；;：:、]/g, '');
+
+  // 如果没有标点符号，直接返回原始结果
+  if (textWithoutPunct === punctuatedText) {
+    return [
+      {
+        text: punctuatedText,
+        tokens: tokens,
+        timestamps: timestamps,
+        punctuation: null,
+        start_time: startTime
+      }
+    ];
+  }
+
+  const results = [];
+  let currentSegment = {
+    text: '',
+    tokens: [],
+    timestamps: [],
+    punctuation: null,
+    start_time: startTime
+  };
+
+  // 将tokens连接成文本，并建立字符到token索引的映射
+  let tokenTexts = tokens.map((t) => t.trim().toLowerCase());
+  let tokenStartPositions = []; // 每个token在连接文本中的起始位置
+  let joinedTokenText = '';
+
+  for (let i = 0; i < tokenTexts.length; i++) {
+    tokenStartPositions.push(joinedTokenText.length);
+    joinedTokenText += tokenTexts[i];
+  }
+
+  // 找到每个字符对应的token索引
+  function findTokenIndexForPosition(pos) {
+    for (let i = tokenStartPositions.length - 1; i >= 0; i--) {
+      if (pos >= tokenStartPositions[i]) {
+        return i;
+      }
+    }
+    return 0;
+  }
+
+  // 遍历带标点的文本，按标点拆分
+  let charIndexInOriginal = 0; // 在原始文本（不含标点）中的位置
+  let lastTokenIndex = -1;
+
+  for (let i = 0; i < punctuatedText.length; i++) {
+    const char = punctuatedText[i];
+
+    if (sentenceEndPunctuationRegex.test(char)) {
+      // 遇到标点符号，结束当前段落
+      currentSegment.punctuation = char;
+      currentSegment.text = currentSegment.text.trim();
+
+      if (currentSegment.text.length > 0 || currentSegment.tokens.length > 0) {
+        results.push(currentSegment);
+      }
+
+      // 开始新段落
+      const nextStartTime = currentSegment.timestamps.length > 0 ? currentSegment.timestamps[currentSegment.timestamps.length - 1] + startTime : startTime;
+
+      currentSegment = {
+        text: '',
+        tokens: [],
+        timestamps: [],
+        punctuation: null,
+        start_time: nextStartTime
+      };
+      lastTokenIndex = -1;
+    } else {
+      // 普通字符
+      currentSegment.text += char;
+
+      // 找到对应的token
+      if (char !== ' ') {
+        const tokenIndex = findTokenIndexForPosition(charIndexInOriginal);
+
+        // 如果是新的token，添加到当前段落
+        if (tokenIndex !== lastTokenIndex && tokenIndex < tokens.length) {
+          currentSegment.tokens.push(tokens[tokenIndex]);
+          currentSegment.timestamps.push(timestamps[tokenIndex]);
+          lastTokenIndex = tokenIndex;
+        }
+
+        charIndexInOriginal++;
+      }
+    }
+  }
+
+  // 处理最后一个段落（如果有内容）
+  currentSegment.text = currentSegment.text.trim();
+  if (currentSegment.text.length > 0 || currentSegment.tokens.length > 0) {
+    results.push(currentSegment);
+  }
+
+  return results;
+}
+
 function setupASR(config) {
   recognizer = new sherpa_onnx.OnlineRecognizer(config.modelConfig);
 
@@ -157,25 +284,46 @@ function sendData(samples) {
 
   const result = recognizer.getResult(stream);
 
-  // 返回的数据结构
-  // {
-  //   text: ' THIS IS SAM',
-  //   tokens: [ ' THIS', ' IS', ' SA', 'M' ],
-  //   timestamps: [ 0.96, 1.16, 1.44, 1.56 ],
-  //   ys_probs: [],
-  //   lm_probs: [],
-  //   context_scores: [],
-  //   segment: 0,
-  //   words: [ 176496, 89394, 153540 ],
-  //   start_time: 102.4,
-  //   is_final: false,
-  //   is_eof: false
-  // }
+  /**
+    这个是sherpa-onnx-node的子进程代码，用来启动语音识别asr的能力。
+    每当有内容被识别之后就会返回注释中的这段结构，里面有开始时间和每个字符token的时间戳。
+    而且这里面还会启动punctuation来进行标点符号预测
+    如果开启了标点符号预测，那么最终返回的文本会被标记上标点符号
+    每次识别可能都有30秒左右的文本，在这期间都没有出发任何endpoint，直到识别秒数结束。然后会开启下一段音频的流式识别。
+    但是在每段30秒左右的文本中，可能已经被标点符号预测了很多逗号和句号。我需要：
+    1. 只要检测到标点符号预测出来了，就要把这些文本按照标点符号拆分的效果拆分成多个数组，并且时间戳也一起拆分
+    2. 每个数组之间还要将预测的表单符号放进去，类似于[
+      {text: '带标点的文本', tokens: [], timestamps: [], punctuation},
+      {text: '带标点的文本', tokens: [], timestamps: [], punctuation},
+    ]
+    3. 最后将个组数复制给result，自定一个名称，比如叫result_with_punctuation
+    
+    返回的数据结构
+    {
+      text: ' THIS IS SAM',
+      tokens: [ ' THIS', ' IS', ' SA', 'M' ],
+      timestamps: [ 0.96, 1.16, 1.44, 1.56 ],
+      ys_probs: [],
+      lm_probs: [],
+      context_scores: [],
+      segment: 0,
+      words: [ 176496, 89394, 153540 ],
+      start_time: 102.4,
+      is_final: false,
+      is_eof: false
+    }
+
   // console.log(result);
+  */
 
   if (isEndpoint) {
     if (result.text.length > 0) {
       const text = result.text.toLowerCase().trim();
+      const punctuatedText = punctuation ? punctuation.addPunct(text) : text;
+
+      // 根据标点符号拆分结果
+      const resultWithPunctuation = splitByPunctuation(text, punctuatedText, result.tokens, result.timestamps, result.start_time);
+
       // display.print(segmentIndex, text);
       segmentIndex += 1;
       process.send({
@@ -184,8 +332,9 @@ function sendData(samples) {
           start: firstReceivedTime !== undefined ? firstReceivedTime : result.start_time * 1000,
           end: duration,
           // timestamp: Math.round((result.timestamps[result.timestamps.length - 1] + result.start_time) * 1000),
-          text: punctuation ? punctuation.addPunct(text) : text,
-          isEndpoint
+          text: punctuatedText,
+          isEndpoint,
+          result_with_punctuation: resultWithPunctuation
         }
       });
     }
@@ -202,6 +351,11 @@ function sendData(samples) {
       // 只有当原始文本变化时才处理标点和发送更新，避免重复计算
       if (rawText !== lastText) {
         lastText = rawText; // 保存原始文本用于下次比较
+        const punctuatedText = punctuation ? punctuation.addPunct(rawText) : rawText;
+
+        // 根据标点符号拆分结果
+        const resultWithPunctuation = splitByPunctuation(rawText, punctuatedText, result.tokens, result.timestamps, result.start_time);
+
         // display.print(segmentIndex, text);
         process.send({
           event: 'asr:progress',
@@ -209,8 +363,9 @@ function sendData(samples) {
             start: firstReceivedTime !== undefined ? firstReceivedTime : result.start_time * 1000,
             end: duration,
             // timestamp: Math.round((result.timestamps[result.timestamps.length - 1] + result.start_time) * 1000),
-            text: punctuation ? punctuation.addPunct(rawText) : rawText,
-            isEndpoint
+            text: punctuatedText,
+            isEndpoint,
+            result_with_punctuation: resultWithPunctuation
           }
         });
       }
