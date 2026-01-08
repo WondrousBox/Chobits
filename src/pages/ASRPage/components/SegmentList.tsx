@@ -18,25 +18,11 @@ interface SegmentListProps {
 const pendingVariants = {
   initial: {
     opacity: 0,
-    y: 40,
-    scale: 0.92,
-    originY: 1 // 从底部开始缩放
+    y: 40
   },
   animate: {
     opacity: 1,
     y: 0,
-    scale: 1,
-    transition: {
-      type: 'spring' as const,
-      stiffness: 280,
-      damping: 24,
-      mass: 0.9
-    }
-  },
-  exit: {
-    opacity: 0,
-    y: -8,
-    scale: 0.98,
     transition: {
       duration: 0.15,
       ease: 'easeOut' as const
