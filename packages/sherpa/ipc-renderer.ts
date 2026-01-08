@@ -51,6 +51,38 @@ export const sherpaIpcRenderer = {
 
   cleanupStreams(): Promise<{ success: boolean; error?: string }> {
     return ipcRenderer.invoke('sherpa:cleanupStreams');
+  },
+
+  // 获取录音历史记录
+  getRecordingHistory(data?: { limit?: number; offset?: number }): Promise<{
+    success: boolean;
+    data: Array<{
+      id: string;
+      title: string;
+      audioFilePath: string;
+      subtitleFilePath: string | null;
+      subtitleResourceId: string | null;
+      duration: number;
+      sizeBytes: number;
+      createdAt: number;
+      updatedAt: number;
+      workspaceId: string;
+      folderId: string;
+      status: string;
+    }>;
+    error?: string;
+  }> {
+    return ipcRenderer.invoke('sherpa:getRecordingHistory', data || {});
+  },
+
+  // 删除录音记录
+  deleteRecording(data: { resourceId: string }): Promise<{ success: boolean; error?: string }> {
+    return ipcRenderer.invoke('sherpa:deleteRecording', data);
+  },
+
+  // 读取字幕文件内容
+  readSubtitleContent(data: { filePath: string }): Promise<{ success: boolean; content?: string; error?: string }> {
+    return ipcRenderer.invoke('sherpa:readSubtitleContent', data);
   }
 };
 
