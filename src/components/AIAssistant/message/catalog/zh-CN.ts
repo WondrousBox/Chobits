@@ -1,4 +1,8 @@
-import { MessageCatalog, MessageCategory, MessageProducer, MessagesProvider } from '../types';
+/**
+ * 消息文案目录 - 中文简体
+ */
+
+import type { MessageCatalog, MessageCategory, MessageProducer, MessagesProvider } from '../../types';
 
 const asText = (m: MessageProducer | string, ctx?: any): string => (typeof m === 'function' ? m(ctx) : m);
 
@@ -10,12 +14,7 @@ const catalog: MessageCatalog = {
   hold: ['可以把我拖到任何位置。'],
   drag: '把文件交给我吧',
   drop: '放置完成',
-  fileDrop: (ctx?: {
-    // Optional runtime parameters to format messages
-    count?: number;
-    names?: string[];
-    singleName?: string;
-  }) => {
+  fileDrop: (ctx?: { count?: number; names?: string[]; singleName?: string }) => {
     if (ctx?.count === 1 && ctx.singleName) return `我收到了文件"${ctx.singleName}" ✅`;
     if (ctx?.count && ctx?.names?.length) {
       const preview = ctx.names.slice(0, 3).join('、');
@@ -25,7 +24,13 @@ const catalog: MessageCatalog = {
   },
   tip: ['小提示：你可以右键我打开更多功能菜单。', '提示：将我拖动到屏幕边缘，我会自动避让窗口。'],
   reminder: ['记得适时休息一下，喝口水～', '久坐伤身哦，起来活动一下吧。'],
-  system: '发生了一点小状况，请稍后再试。'
+  system: '发生了一点小状况，请稍后再试。',
+  success: '操作成功！',
+  error: '出错了，请重试。',
+  warning: '请注意！',
+  info: '提示信息',
+  processing: '处理中...',
+  waiting: '请稍候...'
 };
 
 export const zhCN: MessagesProvider = {
