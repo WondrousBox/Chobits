@@ -34,7 +34,7 @@ const ASRPage: React.FC = () => {
   const pendingCloseRef = useRef(false);
   const waveformRef = useRef<WaveformRef>(null);
 
-  // 获取配置参数
+  // 获取配置参数并检查未完成的录音
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -57,6 +57,35 @@ const ASRPage: React.FC = () => {
           setMode(payload.mode || 'local');
           setCloudProviderId(payload.cloudProviderId || '');
           setCloudModelId(payload.cloudModelId || '');
+        }
+
+        // 检查是否有未完成的录音需要恢复
+        // 由于字幕现在是流式写入的，只需要完成音频文件状态的更新
+        try {
+          const savedRecording = localStorage.getItem('asr-current-recording');
+          if (savedRecording) {
+            const parsed = JSON.parse(savedRecording);
+            const { resourceId } = parsed;
+            console.log('[ASR] 发现未完成的录音记录，resourceId:', resourceId);
+
+            // 完成音频和字幕文件的保存（更新状态为 ready，创建字幕资源记录）
+            const result = await window.YUA.sherpa.checkPendingRecording({ resourceId });
+            console.log('[ASR] checkPendingRecording 结果:', result);
+
+            if (result.success && result.filePath) {
+              console.log('[ASR] 未完成的录音已恢复，资源ID:', resourceId, '文件路径:', result.filePath);
+            } else {
+              console.log('[ASR] 资源不存在或文件为空，error:', result.error);
+            }
+
+            // 清除 localStorage 中的录音记录
+            localStorage.removeItem('asr-current-recording');
+            console.log('[ASR] 已清除 localStorage 中的录音记录');
+          }
+        } catch (error) {
+          console.error('[ASR] 检查未完成录音失败:', error);
+          // 发生错误时也清除记录，避免下次继续报错
+          localStorage.removeItem('asr-current-recording');
         }
       } catch (error) {
         console.error('获取配置参数失败:', error);
@@ -99,9 +128,11 @@ const ASRPage: React.FC = () => {
     pendingCloseRef.current = true;
 
     try {
-      // 第一步：如果正在录音，先停止录音
+      // 第一步：如果正在录音，先停止录音（这会同时关闭音频和字幕写入流）
       if (isRecording) {
+        console.log('[ASR] 正在停止录音...');
         await stopRecording();
+        console.log('[ASR] 录音已停止，音频和字幕流已关闭');
       }
 
       // 第二步：关闭 WebSocket 连接
@@ -116,7 +147,13 @@ const ASRPage: React.FC = () => {
         setIsASRRunning(false);
       }
 
-      // 第四步：关闭窗口
+      // 第四步：清理录音流（以防万一）
+      await window.YUA.sherpa.cleanupStreams();
+
+      // 第五步：清除 localStorage 中的录音记录
+      localStorage.removeItem('asr-current-recording');
+
+      // 第六步：关闭窗口
       window.YUA.window['window:close:self']();
     } catch (error) {
       console.error('停止 ASR 失败:', error);
@@ -129,6 +166,25 @@ const ASRPage: React.FC = () => {
   const handleCloseRequest = useCallback(() => {
     handleStopASRAndClose();
   }, [handleStopASRAndClose]);
+
+  // 监听窗口关闭事件（beforeunload），用于意外关闭时提示
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent): void => {
+      // 如果正在录音，提示用户
+      if (isRecording) {
+        console.log('[ASR] beforeunload: 检测到窗口即将关闭，正在录音');
+        // 字幕已通过流式写入保存到文件，这里只是提示用户
+        event.preventDefault();
+        event.returnValue = '您正在录音中，关闭窗口可能导致数据丢失。确定要关闭吗？';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isRecording]);
 
   // 基础窗口尺寸
   const baseWidth = 400; // 基础宽度（无面板时）
@@ -210,7 +266,17 @@ const ASRPage: React.FC = () => {
                 <TbMicrophoneOff className={isTransparent ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''} />
               </Button>
             ) : (
-              <Button size="icon" className="w-8 h-8 rounded-full no-drag" onClick={startRecording} disabled={!isASRRunning || isLoading}>
+              <Button
+                size="icon"
+                className="w-8 h-8 rounded-full no-drag"
+                onClick={() => {
+                  console.log('[ASR] 录音按钮被点击');
+                  console.log('[ASR] isASRRunning:', isASRRunning);
+                  console.log('[ASR] isLoading:', isLoading);
+                  startRecording();
+                }}
+                disabled={!isASRRunning || isLoading}
+              >
                 {isLoading ? (
                   <TbLoader2 className={`animate-spin ${isTransparent ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`} />
                 ) : (

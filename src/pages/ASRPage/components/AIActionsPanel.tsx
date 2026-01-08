@@ -25,7 +25,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
   const allText = segments.map((s) => s.text).join(' ');
 
   // AI操作：总结
-  const handleSummarize = async () => {
+  const handleSummarize = async (): Promise<void> => {
     if (!selectedText && !allText) return;
     setIsProcessing(true);
     setResult('');
@@ -47,7 +47,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
   };
 
   // AI操作：改写
-  const handleRewrite = async () => {
+  const handleRewrite = async (): Promise<void> => {
     if (!selectedText && !allText) return;
     setIsProcessing(true);
     setResult('');
@@ -69,7 +69,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
   };
 
   // AI操作：提取要点
-  const handleExtractKeyPoints = async () => {
+  const handleExtractKeyPoints = async (): Promise<void> => {
     if (!selectedText && !allText) return;
     setIsProcessing(true);
     setResult('');

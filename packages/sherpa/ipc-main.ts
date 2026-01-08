@@ -1,7 +1,56 @@
+import { randomUUID } from 'node:crypto';
+import * as fscb from 'node:fs';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
+
 import { BrowserWindow, ipcMain } from 'electron';
 
+import { ResourcesRepo, WorkspacesRepo } from '../../electron/main/db/repositories';
+import { ensureDailyFolder } from '../../electron/main/handlers/resource';
 import { AllModels } from './common';
 import { ASR_createInstance, ASR_freeInstance, ASR_sendData } from './index';
+
+// 字幕片段接口
+interface SubtitleSegment {
+  text: string;
+  start: number;
+  end: number;
+  translation?: string;
+}
+
+// 录音流管理（包含音频和字幕）
+interface RecordingStream {
+  resourceId: string;
+  audioFilePath: string;
+  subtitleFilePath: string;
+  audioWriteStream: fscb.WriteStream;
+  subtitleWriteStream: fscb.WriteStream;
+  workspaceId: string;
+  folderId: string;
+  startTime: number;
+  segmentCount: number; // 字幕片段计数
+}
+
+const recordingStreams = new Map<string, RecordingStream>();
+
+// 将字幕片段转换为 SRT 格式的单条记录
+function segmentToSrtEntry(index: number, segment: SubtitleSegment): string {
+  const formatTime = (ms: number): string => {
+    const totalSeconds = Math.floor(ms / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    const milliseconds = ms % 1000;
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')},${milliseconds.toString().padStart(3, '0')}`;
+  };
+
+  let entry = `${index}\n${formatTime(segment.start)} --> ${formatTime(segment.end)}\n${segment.text}`;
+  if (segment.translation) {
+    entry += `\n${segment.translation}`;
+  }
+  entry += '\n\n';
+  return entry;
+}
 
 export function initSherpaHandlers(): void {
   ipcMain.handle('sherpa:createInstance', async (_, data: { model?: AllModels; punctuationModel?: string; language?: string; type?: 'online' | 'offline' | 'vad' }) => {
@@ -39,6 +88,356 @@ export function initSherpaHandlers(): void {
     return true;
   });
 
+  // 开始录音存储（同时创建音频和字幕流）
+  ipcMain.handle('sherpa:startRecording', async (_, data: { workspaceId?: string; folderId?: string }) => {
+    try {
+      console.log('[Sherpa] 收到开始录音请求，data:', data);
+      let { workspaceId, folderId } = data;
+
+      // 获取工作空间
+      let ws;
+      if (workspaceId) {
+        console.log('[Sherpa] 使用指定的workspaceId:', workspaceId);
+        ws = await WorkspacesRepo.getById(workspaceId);
+      } else {
+        console.log('[Sherpa] 获取默认工作空间');
+        ws = await WorkspacesRepo.getDefault();
+        if (ws) workspaceId = ws.id;
+      }
+
+      if (!ws || !ws.rootPath) {
+        console.error('[Sherpa] 工作空间不可用，ws:', ws);
+        return { success: false, error: 'No workspace available' };
+      }
+
+      console.log('[Sherpa] 工作空间获取成功，id:', ws.id, 'rootPath:', ws.rootPath);
+
+      // 确保当天文件夹存在
+      if (!folderId) {
+        console.log('[Sherpa] 确保当天文件夹存在');
+        folderId = await ensureDailyFolder(ws.id, ws.rootPath);
+        console.log('[Sherpa] 当天文件夹ID:', folderId);
+      }
+
+      // 创建资源ID
+      const resourceId = randomUUID();
+      const timestamp = Date.now();
+      const baseName = `asr-recording-${timestamp}`;
+      const baseDir = path.join(ws.rootPath, 'resources', 'folders', folderId);
+      console.log('[Sherpa] 创建目录:', baseDir);
+      await fs.mkdir(baseDir, { recursive: true });
+
+      // 音频文件路径
+      const audioFilePath = path.join(baseDir, `${baseName}.pcm`);
+      console.log('[Sherpa] 音频文件路径:', audioFilePath);
+
+      // 字幕文件路径（SRT 格式，流式写入）
+      const subtitleFilePath = path.join(baseDir, `${baseName}.srt`);
+      console.log('[Sherpa] 字幕文件路径:', subtitleFilePath);
+
+      // 创建音频写入流（Float32 PCM，16kHz）
+      const audioWriteStream = fscb.createWriteStream(audioFilePath);
+      console.log('[Sherpa] 音频写入流已创建');
+
+      // 创建字幕写入流（SRT 格式，UTF-8）
+      const subtitleWriteStream = fscb.createWriteStream(subtitleFilePath, { encoding: 'utf8' });
+      console.log('[Sherpa] 字幕写入流已创建');
+
+      // 保存流信息
+      const stream: RecordingStream = {
+        resourceId,
+        audioFilePath,
+        subtitleFilePath,
+        audioWriteStream,
+        subtitleWriteStream,
+        workspaceId: ws.id,
+        folderId,
+        startTime: timestamp,
+        segmentCount: 0
+      };
+
+      recordingStreams.set('stream', stream);
+      console.log('[Sherpa] 录音流已保存到Map，resourceId:', resourceId);
+
+      // 创建音频资源记录（状态为new，等待完成）
+      const audioResource = {
+        id: resourceId,
+        title: `录音-${new Date(timestamp).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}`,
+        filePath: audioFilePath,
+        type: 'audio',
+        workspaceId: ws.id,
+        folderId,
+        status: 'new',
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        collectedAt: timestamp
+      };
+
+      console.log('[Sherpa] 准备创建音频资源记录:', JSON.stringify(audioResource, null, 2));
+      await ResourcesRepo.upsert(audioResource as any);
+      console.log('[Sherpa] 音频资源记录创建成功，resourceId:', resourceId);
+
+      // 通过事件发送给渲染进程
+      BrowserWindow.getAllWindows().forEach((w) => {
+        if (!w.isDestroyed()) {
+          try {
+            w.webContents.send('asr:recording-started', {
+              resourceId,
+              startTime: timestamp,
+              workspaceId: ws.id,
+              folderId
+            });
+            console.log('[Sherpa] 已发送录音开始事件到窗口');
+          } catch (error) {
+            console.error('[Sherpa] 发送录音开始事件失败:', error);
+          }
+        }
+      });
+
+      return { success: true, resourceId };
+    } catch (error) {
+      console.error('[Sherpa] 开始录音存储失败:', error);
+      if (error instanceof Error) {
+        console.error('[Sherpa] 错误堆栈:', error.stack);
+      }
+      return { success: false, error: String(error) };
+    }
+  });
+
+  // 追加字幕片段（流式写入）
+  ipcMain.handle('sherpa:appendSubtitle', async (_, data: { segment: SubtitleSegment }) => {
+    try {
+      const stream = recordingStreams.get('stream');
+      if (!stream) {
+        return { success: false, error: 'No active recording stream' };
+      }
+
+      // 增加片段计数
+      stream.segmentCount++;
+
+      // 将片段转换为 SRT 格式并写入
+      const srtEntry = segmentToSrtEntry(stream.segmentCount, data.segment);
+      stream.subtitleWriteStream.write(srtEntry);
+
+      console.log('[Sherpa] 字幕片段已追加，序号:', stream.segmentCount, '文本:', data.segment.text.substring(0, 20) + '...');
+
+      return { success: true, segmentIndex: stream.segmentCount };
+    } catch (error) {
+      console.error('[Sherpa] 追加字幕片段失败:', error);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  // 停止录音存储（同时关闭音频和字幕流）
+  ipcMain.handle('sherpa:stopRecording', async () => {
+    try {
+      const stream = recordingStreams.get('stream');
+      if (!stream) {
+        return { success: false, error: 'No active recording stream' };
+      }
+
+      console.log('[Sherpa] 开始停止录音，resourceId:', stream.resourceId);
+
+      // 同时关闭音频和字幕写入流
+      return new Promise((resolve) => {
+        let audioEnded = false;
+        let subtitleEnded = false;
+
+        const checkComplete = async (): Promise<void> => {
+          if (!audioEnded || !subtitleEnded) return;
+
+          try {
+            // 获取音频文件大小
+            const audioStats = await fs.stat(stream.audioFilePath);
+            console.log('[Sherpa] 音频文件大小:', audioStats.size);
+
+            // 获取字幕文件大小
+            let subtitleStats;
+            let srtResourceId: string | undefined;
+            try {
+              subtitleStats = await fs.stat(stream.subtitleFilePath);
+              console.log('[Sherpa] 字幕文件大小:', subtitleStats.size);
+
+              // 如果字幕文件有内容，创建字幕资源记录
+              if (subtitleStats.size > 0) {
+                srtResourceId = randomUUID();
+                const audioName = path.basename(stream.audioFilePath, path.extname(stream.audioFilePath));
+                const srtResource = {
+                  id: srtResourceId,
+                  title: `${audioName}.srt`,
+                  filePath: stream.subtitleFilePath,
+                  type: 'subtitle',
+                  workspaceId: stream.workspaceId,
+                  folderId: stream.folderId,
+                  sourceId: stream.resourceId, // 关联到音频资源
+                  sizeBytes: subtitleStats.size,
+                  status: 'ready',
+                  createdAt: Date.now(),
+                  updatedAt: Date.now(),
+                  collectedAt: Date.now()
+                };
+                await ResourcesRepo.upsert(srtResource as any);
+                console.log('[Sherpa] 字幕资源记录创建成功，srtResourceId:', srtResourceId);
+              } else {
+                // 字幕文件为空，删除它
+                console.log('[Sherpa] 字幕文件为空，删除它');
+                await fs.unlink(stream.subtitleFilePath).catch(() => { });
+              }
+            } catch (error) {
+              console.log('[Sherpa] 字幕文件不存在或无法访问:', error);
+            }
+
+            // 更新音频资源状态和大小
+            await ResourcesRepo.update(stream.resourceId, {
+              status: 'ready',
+              sizeBytes: audioStats.size,
+              updatedAt: Date.now()
+            });
+            console.log('[Sherpa] 音频资源状态已更新为ready，resourceId:', stream.resourceId);
+
+            recordingStreams.delete('stream');
+            resolve({
+              success: true,
+              resourceId: stream.resourceId,
+              srtResourceId,
+              segmentCount: stream.segmentCount
+            });
+          } catch (error) {
+            console.error('[Sherpa] 停止录音处理失败:', error);
+            recordingStreams.delete('stream');
+            resolve({ success: false, error: String(error) });
+          }
+        };
+
+        // 关闭音频写入流
+        stream.audioWriteStream.end(() => {
+          console.log('[Sherpa] 音频写入流已关闭');
+          audioEnded = true;
+          checkComplete();
+        });
+
+        // 关闭字幕写入流
+        stream.subtitleWriteStream.end(() => {
+          console.log('[Sherpa] 字幕写入流已关闭');
+          subtitleEnded = true;
+          checkComplete();
+        });
+      });
+    } catch (error) {
+      console.error('停止录音存储失败:', error);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  // 保存SRT字幕文件
+  ipcMain.handle('sherpa:saveSubtitle', async (_, data: { resourceId: string; srtContent: string }) => {
+    try {
+      const { resourceId, srtContent } = data;
+      console.log('[Sherpa] 收到保存SRT请求，resourceId:', resourceId, 'SRT内容长度:', srtContent.length);
+
+      // 获取资源信息
+      console.log('[Sherpa] 查询资源信息，resourceId:', resourceId);
+      const resource = await ResourcesRepo.getById(resourceId);
+      if (!resource) {
+        console.error('[Sherpa] 资源不存在，resourceId:', resourceId);
+        return { success: false, error: 'Resource not found' };
+      }
+
+      if (!resource.filePath) {
+        console.error('[Sherpa] 资源没有文件路径，resourceId:', resourceId, 'resource:', JSON.stringify(resource, null, 2));
+        return { success: false, error: 'Resource filePath is missing' };
+      }
+
+      console.log('[Sherpa] 资源信息获取成功，filePath:', resource.filePath);
+
+      // 生成SRT文件路径（与音频文件同目录）
+      const audioDir = path.dirname(resource.filePath);
+      const audioName = path.basename(resource.filePath, path.extname(resource.filePath));
+      const srtPath = path.join(audioDir, `${audioName}.srt`);
+      console.log('[Sherpa] SRT文件路径:', srtPath);
+
+      // 确保目录存在
+      await fs.mkdir(audioDir, { recursive: true });
+      console.log('[Sherpa] 目录已确保存在:', audioDir);
+
+      // 写入SRT文件
+      console.log('[Sherpa] 开始写入SRT文件');
+      await fs.writeFile(srtPath, srtContent, 'utf8');
+      console.log('[Sherpa] SRT文件写入成功:', srtPath);
+
+      // 创建SRT资源记录
+      const srtResourceId = randomUUID();
+      const srtResource = {
+        id: srtResourceId,
+        title: `${audioName}.srt`,
+        filePath: srtPath,
+        type: 'subtitle',
+        workspaceId: resource.workspaceId,
+        folderId: resource.folderId,
+        sourceId: resourceId, // 关联到音频资源
+        sizeBytes: Buffer.from(srtContent, 'utf8').byteLength,
+        status: 'ready',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        collectedAt: Date.now()
+      };
+
+      console.log('[Sherpa] 准备创建SRT资源记录:', JSON.stringify(srtResource, null, 2));
+      await ResourcesRepo.upsert(srtResource as any);
+      console.log('[Sherpa] SRT资源记录创建成功，srtResourceId:', srtResourceId);
+
+      return { success: true, srtResourceId };
+    } catch (error) {
+      console.error('[Sherpa] 保存SRT文件失败:', error);
+      if (error instanceof Error) {
+        console.error('[Sherpa] 错误堆栈:', error.stack);
+      }
+      return { success: false, error: String(error) };
+    }
+  });
+
+  // 检查并恢复未完成的录音
+  ipcMain.handle('sherpa:checkPendingRecording', async (_, data: { resourceId: string }) => {
+    try {
+      const { resourceId } = data;
+
+      // 检查资源是否存在
+      const resource = await ResourcesRepo.getById(resourceId);
+      if (!resource) {
+        return { success: false, error: 'Resource not found' };
+      }
+
+      // 检查音频文件是否存在
+      if (!resource.filePath || !fscb.existsSync(resource.filePath)) {
+        return { success: false, error: 'Audio file not found' };
+      }
+
+      // 检查文件大小
+      const stats = await fs.stat(resource.filePath);
+      if (stats.size === 0) {
+        // 文件为空，标记为删除（设置deletedAt）
+        console.log('[Sherpa] 音频文件为空，标记资源为已删除');
+        await ResourcesRepo.update(resourceId, {
+          deletedAt: Date.now()
+        });
+        return { success: false, error: 'Audio file is empty' };
+      }
+
+      // 更新资源状态
+      console.log('[Sherpa] 更新资源状态为ready，文件大小:', stats.size);
+      await ResourcesRepo.update(resourceId, {
+        status: 'ready',
+        sizeBytes: stats.size,
+        updatedAt: Date.now()
+      });
+
+      return { success: true, resourceId, filePath: resource.filePath };
+    } catch (error) {
+      console.error('检查待恢复录音失败:', error);
+      return { success: false, error: String(error) };
+    }
+  });
+
   ipcMain.handle(
     'sherpa:sendData',
     async (
@@ -59,16 +458,41 @@ export function initSherpaHandlers(): void {
       }
     ) => {
       ASR_sendData({ uuid: 'stream' }, data.data);
-      // if (data.save) {
-      //   // 将 PCM 数据写入文件
-      //   // 写 Float32 PCM：
-      //   const f32 = new Float32Array(data.data);
-      //   writeStreams[data.uuid]?.write(Buffer.from(f32.buffer));
 
-      //   if (data.tracks) {
-      //     writeStreams[data.uuid + "stt"]?.write(JSON.stringify(data.tracks));
-      //   }
-      // }
+      // 如果启用了保存，将音频数据写入文件流
+      if (data.save) {
+        const stream = recordingStreams.get('stream');
+        if (stream && stream.audioWriteStream) {
+          try {
+            // Float32 PCM 转 Buffer
+            const buffer = Buffer.from(data.data.buffer, data.data.byteOffset, data.data.byteLength);
+            stream.audioWriteStream.write(buffer);
+          } catch (error) {
+            console.error('写入音频数据失败:', error);
+          }
+        }
+      }
     }
   );
+
+  // 清理所有录音流（窗口关闭时调用）
+  ipcMain.handle('sherpa:cleanupStreams', async () => {
+    try {
+      for (const [key, stream] of recordingStreams.entries()) {
+        // 关闭音频写入流
+        if (stream.audioWriteStream && !stream.audioWriteStream.destroyed) {
+          stream.audioWriteStream.end();
+        }
+        // 关闭字幕写入流
+        if (stream.subtitleWriteStream && !stream.subtitleWriteStream.destroyed) {
+          stream.subtitleWriteStream.end();
+        }
+        recordingStreams.delete(key);
+      }
+      return { success: true };
+    } catch (error) {
+      console.error('清理录音流失败:', error);
+      return { success: false, error: String(error) };
+    }
+  });
 }
