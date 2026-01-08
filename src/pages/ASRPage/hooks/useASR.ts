@@ -77,6 +77,7 @@ export const useASR = ({
   recordingDuration: number; // 录音时长（秒）
   startRecording: () => Promise<void>;
   stopRecording: () => Promise<void>;
+  resumeRecording: (resourceId: string) => Promise<void>; // 继续之前的录音
   wsRef: React.MutableRefObject<WebSocket | null>;
   getRecordingResourceId: () => string | null; // 获取当前录音的资源ID
 } => {
@@ -353,6 +354,66 @@ export const useASR = ({
     }
   }, []);
 
+  // 继续之前的录音
+  const resumeRecording = useCallback(
+    async (resourceId: string): Promise<void> => {
+      console.log('[ASR] ========== resumeRecording函数被调用 ==========');
+      console.log('[ASR] resourceId:', resourceId);
+
+      if (!isASRRunning) {
+        console.error('[ASR] ❌ ASR服务未运行，无法继续录音');
+        return;
+      }
+
+      try {
+        // 确保 WebSocket 已连接
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+          console.log('[ASR] WebSocket未连接，开始连接...');
+          await connectWebSocket();
+        }
+
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          console.log('[ASR] 开始调用主进程继续录音');
+
+          // 调用继续录音接口
+          const result = await window.YUA.sherpa.resumeRecording({ resourceId });
+          console.log('[ASR] 继续录音结果:', result);
+
+          if (result.success && result.resourceId) {
+            recordingResourceIdRef.current = result.resourceId;
+            console.log('[ASR] ✅ 录音资源ID已恢复:', recordingResourceIdRef.current);
+
+            // 保存到 localStorage
+            const sessionInfo = {
+              resourceId: result.resourceId,
+              startTime: Date.now(),
+              segments: [],
+              isResumed: true,
+              previousSegmentCount: result.segmentCount || 0
+            };
+            localStorage.setItem('asr-current-recording', JSON.stringify(sessionInfo));
+            console.log('[ASR] ✅ 录音会话信息已保存到localStorage');
+
+            // 发送 start 消息
+            wsRef.current.send('start');
+            setIsRecording(true);
+            // 重置采样点数（继续录音时从0开始计算新增部分）
+            setTotalSamples(0);
+
+            console.log('[ASR] ========== 继续录音成功 ==========');
+          } else {
+            console.error('[ASR] ❌ 继续录音失败:', result.error);
+          }
+        } else {
+          console.error('[ASR] ❌ WebSocket未连接，无法继续录音');
+        }
+      } catch (error) {
+        console.error('[ASR] ❌ 继续录音失败:', error);
+      }
+    },
+    [isASRRunning, connectWebSocket]
+  );
+
   // 监听 ASR 识别结果
   useEffect(() => {
     const handleASRMessage = async (
@@ -600,6 +661,7 @@ export const useASR = ({
     recordingDuration,
     startRecording,
     stopRecording,
+    resumeRecording,
     wsRef,
     getRecordingResourceId
   };
