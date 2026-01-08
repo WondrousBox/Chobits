@@ -69,7 +69,7 @@ const ASRPage: React.FC = () => {
     waveformRef.current?.addBar(level);
   }, []);
 
-  const { isRecording, isASRRunning, setIsASRRunning, recognizedSegments, progressText, recordingDuration, startRecording, stopRecording, wsRef } = useASR({
+  const { isRecording, isASRRunning, setIsASRRunning, recognizedSegments, pendingSegments, progressText, recordingDuration, startRecording, stopRecording, wsRef } = useASR({
     enableTranslation,
     translateText,
     onAudioLevel,
@@ -202,6 +202,7 @@ const ASRPage: React.FC = () => {
         {/* 识别结果区域 */}
         <SegmentList
           segments={isCollapsed && recognizedSegments.length > 0 ? [recognizedSegments[recognizedSegments.length - 1]] : recognizedSegments}
+          pendingSegments={isCollapsed ? [] : pendingSegments}
           progressText={progressText}
           enableTranslation={enableTranslation}
           isTransparent={isTransparent}

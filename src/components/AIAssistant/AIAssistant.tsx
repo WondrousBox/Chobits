@@ -247,21 +247,19 @@ export const AIAssistant: React.FC = () => {
           </div>
         }
       >
-        {
-          // window.YUA.isDev && (
-          //   <div
-          //     style={{
-          //       left: paddingState,
-          //       top: paddingState,
-          //       bottom: paddingState,
-          //       right: paddingState
-          //     }}
-          //     className="text-xs bg-background fixed rounded-md border border-solid border-ring"
-          //   >
-          //     {paddingState} {spriteWidth} {spriteHeight}
-          //   </div>
-          // )
-        }
+        {window.YUA.isDev && (
+          <div
+            style={{
+              left: paddingState,
+              top: paddingState,
+              bottom: paddingState,
+              right: paddingState
+            }}
+            className="text-xs bg-background fixed rounded-md border border-solid border-ring"
+          >
+            {paddingState} {spriteWidth} {spriteHeight}
+          </div>
+        )}
         <Renderer width={spriteWidth} height={spriteHeight} walkDirection={walkDirection} />
       </Dropzone>
       {notice && <SpriteNotice message={notice.message} level={notice.level} buttons={notice.buttons} onClose={dismiss} onButtonClick={handleButtonClick} />}
