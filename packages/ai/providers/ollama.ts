@@ -1,4 +1,4 @@
-import { loadProviderModels } from '../models-loader';
+import { loadProviderModelsFromBank } from '../models-loader';
 import { loadProviderSchema } from '../schema-loader';
 import { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, ProviderAdapter, ProviderConfig, ProviderSecrets, StreamEvent } from '../types';
 
@@ -99,7 +99,7 @@ export class OllamaProvider implements ProviderAdapter {
       return models.map((m: any) => ({ id: m.name || m.model || m.id || '' })).filter((m: any) => m.id);
     } catch {
       // Prefer curated JSON as fallback
-      const curated = loadProviderModels(this.id);
+      const curated = await loadProviderModelsFromBank(this.id);
       if (curated.length) return curated;
       return [];
     }

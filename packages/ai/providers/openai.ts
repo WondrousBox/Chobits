@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 
-import { loadProviderModels } from '../models-loader';
+import { loadProviderModelsFromBank } from '../models-loader';
 import { loadProviderSchema } from '../schema-loader';
 import { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, ProviderAdapter, ProviderConfig, ProviderSecrets, StreamEvent } from '../types';
 
@@ -77,7 +77,7 @@ export class OpenAIProvider implements ProviderAdapter {
 
   async listModels(opts?: { secrets?: Partial<OpenAISecrets> }) {
     // Prefer curated JSON if present; otherwise, try live API; finally fallback
-    const curated = loadProviderModels(this.id);
+    const curated = await loadProviderModelsFromBank(this.id);
     if (curated.length) return curated;
     try {
       const client = this.client(opts?.secrets);
