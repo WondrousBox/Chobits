@@ -464,16 +464,16 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({
   }, [selectedService, targetLanguage, subtitleEntries, resourceId, isLoading, debouncedSave, onTranslateComplete]);
 
   return (
-    <div className="flex items-center justify-end gap-2 px-4 py-2 border-b">
+    <div className="flex items-center justify-end gap-2 px-3 py-1">
       {isTranslating ? (
-        <Button size="sm" variant="outline" onClick={onStopTranslation}>
+        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onStopTranslation}>
           <TbPlayerStop className="animate-pulse" />
           停止翻译<span className="font-mono">({translationProgress}%)</span>
         </Button>
       ) : (
         <Popover open={isTranslationPopoverOpen} onOpenChange={setIsTranslationPopoverOpen}>
           <PopoverTrigger asChild>
-            <Button size="sm" variant="ghost">
+            <Button size="sm" variant="outline" className="h-7 text-xs">
               <TbLanguage />
               翻译
             </Button>

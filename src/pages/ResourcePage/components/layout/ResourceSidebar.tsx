@@ -2,7 +2,6 @@ import React from 'react';
 import { TbFilter, TbHeart, TbLine, TbSettings, TbTrash } from 'react-icons/tb';
 import { useLocation, useNavigate } from 'react-router-dom';
 
-import { Button } from '@/components/ui/button';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 
 import FolderSidebar, { type UIFolder } from '../FolderSidebar';
@@ -29,7 +28,7 @@ interface ResourceSidebarProps {
   handleRenameFolder: (id: string) => void;
   handleDeleteFolder: (id: string) => void;
   folderAPI: any;
-  onOpenSettings: () => void;
+  onOpenSettings: (category?: string) => void;
 }
 
 const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
@@ -61,9 +60,9 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
   const isWorkflowsRoute = location.pathname.includes('/workflows');
 
   return (
-    <Sidebar collapsible="none" className="h-full w-80 bg-sidebar">
+    <Sidebar collapsible="none" className="h-full w-80 bg-sidebar border-t">
       <SidebarHeader>
-        <WorkspaceSwitcher workspaces={workspaces} currentWorkspaceId={wsFilter} />
+        <WorkspaceSwitcher workspaces={workspaces} currentWorkspaceId={wsFilter} onOpenSettings={() => onOpenSettings('workspace')} />
         <SidebarMenu className="pl-0 my-0">
           {/* 收藏筛选按钮 - 只在存在收藏内容时显示 */}
           {hasFavorites && (
@@ -87,7 +86,7 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
             >
               <SidebarMenuButton
                 variant={favoriteFilter ? 'outline' : 'default'}
-                className={`h-8 transition-colors ${favoriteFilter ? 'bg-red-500 hover:bg-red-600 text-white' : 'hover:text-red-500 hover:bg-red-50'}`}
+                className={`h-8 transition-colors ${favoriteFilter ? 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground' : ''}`}
               >
                 <TbHeart className={`${favoriteFilter ? 'fill-current' : ''}`} />
                 星标
@@ -196,10 +195,14 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
         />
       </SidebarContent>
       <SidebarFooter>
-        <Button className="w-full" variant="ghost" onClick={() => navigate('/recycle')}>
-          <TbTrash />
-          回收站
-        </Button>
+        <SidebarMenu>
+          <SidebarMenuItem onClick={() => navigate('/resources/recycle')}>
+            <SidebarMenuButton>
+              <TbTrash />
+              回收站
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
   );

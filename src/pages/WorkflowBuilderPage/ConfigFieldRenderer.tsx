@@ -69,12 +69,12 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
   if (isBoolean) {
     const boolValue = typeof rawValue === 'boolean' ? rawValue : rawValue === 'true' || rawValue === true || rawValue === '1';
     return (
-      <div className={`flex items-center justify-between ${isCompact ? 'py-1' : ''}`}>
-        <div className="flex flex-col">
-          <label className={labelClass}>{label}</label>
+      <div className={`flex items-center justify-between gap-3 ${isCompact ? 'py-0.5' : 'py-1'} group`}>
+        <div className="flex flex-col min-w-0">
+          <label className={`${labelClass} group-hover:text-foreground/80 transition-colors`}>{label}</label>
           {field.description && !isCompact && <span className={descClass}>{field.description}</span>}
         </div>
-        <Switch checked={boolValue} onCheckedChange={onValueChange} className={isCompact ? 'scale-75 origin-right' : ''} />
+        <Switch checked={boolValue} onCheckedChange={onValueChange} className={isCompact ? 'scale-[0.8] origin-right' : 'scale-[0.85]'} />
       </div>
     );
   }
@@ -86,9 +86,9 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
   if (isNumber) {
     const numValue = typeof rawValue === 'number' ? rawValue : rawValue === '' || rawValue === null || rawValue === undefined ? '' : Number(rawValue);
     return (
-      <div className={`flex items-center justify-between ${isCompact ? 'gap-2' : ''}`}>
-        <div className="flex flex-col">
-          <label className={labelClass}>{label}</label>
+      <div className={`flex items-center justify-between gap-3 ${isCompact ? 'py-0.5' : 'py-1'} group`}>
+        <div className="flex flex-col min-w-0">
+          <label className={`${labelClass} group-hover:text-foreground/80 transition-colors`}>{label}</label>
           {field.description && !isCompact && <span className={descClass}>{field.description}</span>}
         </div>
         <Input
@@ -100,7 +100,7 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
             onValueChange(val);
           }}
           placeholder={field.description || ''}
-          className={`${inputHeightClass} w-24`}
+          className={`${inputHeightClass} w-20 text-right bg-muted/30 border-transparent focus:border-border focus:bg-background transition-colors`}
           onMouseDown={(e) => e.stopPropagation()}
           onWheel={(e) => e.stopPropagation()}
           onKeyDown={(e) => e.stopPropagation()}
@@ -120,13 +120,29 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
 
     return (
       <div className={containerClass}>
-        <label className={`block ${labelClass}`}>{label}</label>
-        {field.description && !isCompact && <span className={descClass}>{field.description}</span>}
-        <div className="space-y-1.5 mt-1.5">
+        <label className={`block ${labelClass} mb-1.5`}>{label}</label>
+        {field.description && !isCompact && <span className={`${descClass} block mb-2`}>{field.description}</span>}
+        <div className="space-y-0.5">
           {flatOptions.map((opt) => {
             const isChecked = selectedValues.includes(opt.value);
             return (
-              <label key={opt.value} className="flex items-center space-x-2 cursor-pointer hover:bg-accent/50 rounded px-1.5 py-1">
+              <label
+                key={opt.value}
+                className={`flex items-center gap-2 cursor-pointer rounded-md px-2 py-1.5 transition-colors ${
+                  isChecked ? 'bg-primary/8 text-foreground' : 'hover:bg-muted/50 text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <div
+                  className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors shrink-0 ${
+                    isChecked ? 'bg-primary border-primary' : 'border-muted-foreground/30 bg-background'
+                  }`}
+                >
+                  {isChecked && (
+                    <svg className="w-2.5 h-2.5 text-primary-foreground" viewBox="0 0 12 12" fill="none">
+                      <path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </div>
                 <input
                   type="checkbox"
                   checked={isChecked}
@@ -135,10 +151,10 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
                     const newValues = e.target.checked ? [...selectedValues, opt.value] : selectedValues.filter((v) => v !== opt.value);
                     onValueChange(newValues);
                   }}
-                  className="h-4 w-4 rounded border-input text-primary focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer"
+                  className="sr-only"
                   onMouseDown={(e) => e.stopPropagation()}
                 />
-                <span className={isCompact ? 'text-[10px]' : 'text-xs'}>{opt.label}</span>
+                <span className={isCompact ? 'text-[10px]' : 'text-[11px]'}>{opt.label}</span>
               </label>
             );
           })}
@@ -167,9 +183,9 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
       const groups = field.options.filter(isOptionGroup);
       return (
         <div className={containerClass}>
-          <label className={`block ${labelClass}`}>{label}</label>
+          <label className={`block ${labelClass} mb-1`}>{label}</label>
           <Select value={value} onValueChange={onValueChange}>
-            <SelectTrigger className={inputHeightClass} onMouseDown={(e) => e.stopPropagation()}>
+            <SelectTrigger className={`${inputHeightClass} bg-muted/30 border-transparent hover:border-border focus:border-border focus:bg-background transition-colors`} onMouseDown={(e) => e.stopPropagation()}>
               <SelectValue placeholder={field.description || `选择${label}`} />
             </SelectTrigger>
             <SelectContent>
@@ -181,7 +197,7 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
                       value={selectSearch}
                       onChange={(e) => setSelectSearch(e.target.value)}
                       placeholder="搜索选项..."
-                      className="h-7 text-xs"
+                      className="h-6 text-[11px] bg-muted/50 border-transparent focus:border-border"
                       onMouseDown={(e) => e.stopPropagation()}
                       onKeyDown={(e) => {
                         e.stopPropagation();
@@ -198,9 +214,9 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
                   <React.Fragment key={group.group}>
                     {index > 0 && <SelectSeparator />}
                     <SelectGroup>
-                      <SelectLabel>{group.group}</SelectLabel>
+                      <SelectLabel className="text-[10px] text-muted-foreground/70">{group.group}</SelectLabel>
                       {groupOptions.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
+                        <SelectItem key={opt.value} value={opt.value} className="text-[11px]">
                           {opt.label}
                         </SelectItem>
                       ))}
@@ -220,9 +236,9 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
 
     return (
       <div className={containerClass}>
-        <label className={`block ${labelClass}`}>{label}</label>
+        <label className={`block ${labelClass} mb-1`}>{label}</label>
         <Select value={value} onValueChange={onValueChange}>
-          <SelectTrigger className={inputHeightClass} onMouseDown={(e) => e.stopPropagation()}>
+          <SelectTrigger className={`${inputHeightClass} bg-muted/30 border-transparent hover:border-border focus:border-border focus:bg-background transition-colors`} onMouseDown={(e) => e.stopPropagation()}>
             <SelectValue placeholder={field.description || `选择${label}`} />
           </SelectTrigger>
           <SelectContent>
@@ -234,7 +250,7 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
                     value={selectSearch}
                     onChange={(e) => setSelectSearch(e.target.value)}
                     placeholder="搜索选项..."
-                    className="h-7 text-xs"
+                    className="h-6 text-[11px] bg-muted/50 border-transparent focus:border-border"
                     onMouseDown={(e) => e.stopPropagation()}
                     onKeyDown={(e) => {
                       e.stopPropagation();
@@ -245,11 +261,11 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
               </>
             )}
             {filteredOptions.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
+              <SelectItem key={opt.value} value={opt.value} className="text-[11px]">
                 {opt.label}
               </SelectItem>
             ))}
-            {enableSearch && filteredOptions.length === 0 && <div className="px-2 py-1 text-[11px] text-muted-foreground">暂无匹配结果</div>}
+            {enableSearch && filteredOptions.length === 0 && <div className="px-2 py-1 text-[10px] text-muted-foreground">暂无匹配结果</div>}
           </SelectContent>
         </Select>
       </div>
@@ -321,8 +337,8 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
     const renderOptionLabel = (opt: { label: string; description?: string }, compact: boolean): React.ReactNode => {
       return (
         <div className="flex flex-col">
-          <span className={compact ? 'text-[10px]' : 'text-xs'}>{opt.label}</span>
-          {opt.description && <span className={`${compact ? 'text-[9px]' : 'text-[11px]'} text-muted-foreground`}>{opt.description}</span>}
+          <span className={compact ? 'text-[10px]' : 'text-[11px]'}>{opt.label}</span>
+          {opt.description && <span className={`${compact ? 'text-[9px]' : 'text-[10px]'} text-muted-foreground/70`}>{opt.description}</span>}
         </div>
       );
     };
@@ -459,15 +475,20 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
 
     return (
       <div className={containerClass}>
-        <label className={`block ${labelClass}`}>{label}</label>
-        {!isCompact && field.description && <span className={descClass}>{field.description}</span>}
+        <label className={`block ${labelClass} mb-1`}>{label}</label>
+        {!isCompact && field.description && <span className={`${descClass} block mb-1.5`}>{field.description}</span>}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className={`w-full justify-between ${inputHeightClass}`} onMouseDown={(e) => e.stopPropagation()}>
+            <Button
+              variant="outline"
+              size="sm"
+              className={`w-full justify-between ${inputHeightClass} bg-muted/30 border-transparent hover:border-border hover:bg-muted/50 transition-colors font-normal`}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
               <div className="flex flex-col text-left overflow-hidden">
-                <span className={isCompact ? 'text-[10px] truncate' : 'text-xs truncate'}>{selected?.label || field.description || `选择${label}`}</span>
+                <span className={isCompact ? 'text-[10px] truncate' : 'text-[11px] truncate'}>{selected?.label || field.description || `选择${label}`}</span>
               </div>
-              <TbChevronDown className="h-3 w-3 opacity-60 flex-shrink-0 ml-2" />
+              <TbChevronDown className="h-3 w-3 opacity-50 flex-shrink-0 ml-2" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-[260px]">
@@ -479,7 +500,7 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
                     value={selectMenuSearch}
                     onChange={(e) => setSelectMenuSearch(e.target.value)}
                     placeholder="搜索选项..."
-                    className="h-7 text-xs"
+                    className="h-6 text-[11px] bg-muted/50 border-transparent focus:border-border"
                     onMouseDown={(e) => e.stopPropagation()}
                     onKeyDown={(e) => {
                       // 避免按键事件被 DropdownMenu 捕获导致输入框失去焦点
@@ -524,16 +545,16 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
     };
 
     return (
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         <div className="flex items-center justify-between">
-          <label className={`${labelClass}`}>{label}</label>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={addPort} onMouseDown={(e) => e.stopPropagation()}>
-            <TbPlus className="h-4 w-4" />
+          <label className={labelClass}>{label}</label>
+          <Button variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-foreground" onClick={addPort} onMouseDown={(e) => e.stopPropagation()}>
+            <TbPlus className="h-3.5 w-3.5" />
           </Button>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-1">
           {ports.map((port, index) => (
-            <div key={port.key} className="flex items-center gap-2 rounded-md border p-2 bg-muted/30">
+            <div key={port.key} className="flex items-center gap-1.5 group">
               <Input
                 value={port.key}
                 onChange={(e) => {
@@ -541,7 +562,7 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
                   updatePort(index, { key: e.target.value });
                 }}
                 placeholder="Key"
-                className={`${inputHeightClass} w-1/3`}
+                className={`${inputHeightClass} w-1/3 bg-muted/30 border-transparent focus:border-border focus:bg-background transition-colors`}
                 onMouseDown={(e) => e.stopPropagation()}
               />
               <Input
@@ -551,10 +572,16 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
                   updatePort(index, { label: e.target.value });
                 }}
                 placeholder="Label"
-                className={`${inputHeightClass} flex-1`}
+                className={`${inputHeightClass} flex-1 bg-muted/30 border-transparent focus:border-border focus:bg-background transition-colors`}
                 onMouseDown={(e) => e.stopPropagation()}
               />
-              <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removePort(index)} onMouseDown={(e) => e.stopPropagation()}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+                onClick={() => removePort(index)}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
                 <TbTrash className="h-3 w-3" />
               </Button>
             </div>
@@ -601,17 +628,17 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
     };
 
     return (
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         <div className="flex items-center justify-between">
-          <label className={`${labelClass}`}>{label}</label>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={addCondition} onMouseDown={(e) => e.stopPropagation()}>
-            <TbPlus className="h-4 w-4" />
+          <label className={labelClass}>{label}</label>
+          <Button variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-foreground" onClick={addCondition} onMouseDown={(e) => e.stopPropagation()}>
+            <TbPlus className="h-3.5 w-3.5" />
           </Button>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {conditions.map((cond, index) => (
-            <div key={cond.id} className="flex flex-col gap-2 rounded-md border p-2 bg-muted/30">
-              <div className="flex items-center gap-2">
+            <div key={cond.id} className="flex flex-col gap-1.5 rounded-md bg-muted/20 p-2 group">
+              <div className="flex items-center gap-1.5">
                 <Input
                   value={cond.name}
                   onChange={(e) => {
@@ -619,44 +646,50 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
                     updateCondition(index, { name: e.target.value });
                   }}
                   placeholder="分支名称"
-                  className={`${inputHeightClass} flex-1`}
+                  className={`${inputHeightClass} flex-1 bg-background/50 border-transparent focus:border-border transition-colors`}
                   onMouseDown={(e) => e.stopPropagation()}
                 />
-                <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => removeCondition(index)} onMouseDown={(e) => e.stopPropagation()}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+                  onClick={() => removeCondition(index)}
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
                   <TbTrash className="h-3 w-3" />
                 </Button>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <Select value={cond.targetInput || availableInputs[0]?.key} onValueChange={(val) => updateCondition(index, { targetInput: val })}>
-                  <SelectTrigger className={`${inputHeightClass} w-[120px]`} onMouseDown={(e) => e.stopPropagation()}>
+                  <SelectTrigger className={`${inputHeightClass} w-[100px] bg-background/50 border-transparent text-[11px]`} onMouseDown={(e) => e.stopPropagation()}>
                     <SelectValue placeholder="选择输入" />
                   </SelectTrigger>
                   <SelectContent>
                     {availableInputs.map((input) => (
-                      <SelectItem key={input.key} value={input.key}>
+                      <SelectItem key={input.key} value={input.key} className="text-[11px]">
                         {input.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <Select value={cond.operator} onValueChange={(val) => updateCondition(index, { operator: val })}>
-                  <SelectTrigger className={`${inputHeightClass} w-[100px]`} onMouseDown={(e) => e.stopPropagation()}>
+                  <SelectTrigger className={`${inputHeightClass} w-[90px] bg-background/50 border-transparent text-[11px]`} onMouseDown={(e) => e.stopPropagation()}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="eq">等于</SelectItem>
-                    <SelectItem value="neq">不等于</SelectItem>
-                    <SelectItem value="contains">包含</SelectItem>
-                    <SelectItem value="not_contains">不包含</SelectItem>
-                    <SelectItem value="starts_with">开头是</SelectItem>
-                    <SelectItem value="ends_with">结尾是</SelectItem>
-                    <SelectItem value="gt">大于</SelectItem>
-                    <SelectItem value="lt">小于</SelectItem>
-                    <SelectItem value="gte">大于等于</SelectItem>
-                    <SelectItem value="lte">小于等于</SelectItem>
-                    <SelectItem value="empty">为空</SelectItem>
-                    <SelectItem value="not_empty">不为空</SelectItem>
-                    <SelectItem value="regex">正则</SelectItem>
+                    <SelectItem value="eq" className="text-[11px]">等于</SelectItem>
+                    <SelectItem value="neq" className="text-[11px]">不等于</SelectItem>
+                    <SelectItem value="contains" className="text-[11px]">包含</SelectItem>
+                    <SelectItem value="not_contains" className="text-[11px]">不包含</SelectItem>
+                    <SelectItem value="starts_with" className="text-[11px]">开头是</SelectItem>
+                    <SelectItem value="ends_with" className="text-[11px]">结尾是</SelectItem>
+                    <SelectItem value="gt" className="text-[11px]">大于</SelectItem>
+                    <SelectItem value="lt" className="text-[11px]">小于</SelectItem>
+                    <SelectItem value="gte" className="text-[11px]">大于等于</SelectItem>
+                    <SelectItem value="lte" className="text-[11px]">小于等于</SelectItem>
+                    <SelectItem value="empty" className="text-[11px]">为空</SelectItem>
+                    <SelectItem value="not_empty" className="text-[11px]">不为空</SelectItem>
+                    <SelectItem value="regex" className="text-[11px]">正则</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -668,7 +701,7 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
                     updateCondition(index, { value: e.target.value });
                   }}
                   placeholder="值"
-                  className={`${inputHeightClass} w-full`}
+                  className={`${inputHeightClass} w-full bg-background/50 border-transparent focus:border-border transition-colors`}
                   onMouseDown={(e) => e.stopPropagation()}
                 />
               )}
@@ -695,17 +728,23 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
 
     return (
       <div className={containerClass}>
-        <label className={labelClass}>{label}</label>
-        <div className="flex gap-2">
+        <label className={`${labelClass} mb-1 block`}>{label}</label>
+        <div className="flex gap-1.5">
           <Input
             value={value}
             onChange={(e) => onValueChange(e.target.value)}
             placeholder={field.description || '请选择文件或输入文件路径'}
-            className={`flex-1 ${inputHeightClass}`}
+            className={`flex-1 ${inputHeightClass} bg-muted/30 border-transparent focus:border-border focus:bg-background transition-colors`}
             onMouseDown={(e) => e.stopPropagation()}
           />
-          <Button variant="outline" size="sm" className={inputHeightClass} onClick={handlePickFile} onMouseDown={(e) => e.stopPropagation()}>
-            选择文件
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`${inputHeightClass} px-2.5 text-[11px] text-muted-foreground hover:text-foreground`}
+            onClick={handlePickFile}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            选择
           </Button>
         </div>
       </div>
@@ -716,25 +755,25 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
   if (field.inputType === 'folder') {
     return (
       <div className={containerClass}>
-        <label className={labelClass}>{label}</label>
+        <label className={`${labelClass} mb-1 block`}>{label}</label>
         {loadingFolders ? (
-          <div className="flex items-center py-2">
-            <TbLoader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            <span className="ml-2 text-xs text-muted-foreground">加载文件夹列表...</span>
+          <div className="flex items-center py-1.5">
+            <TbLoader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+            <span className="ml-2 text-[11px] text-muted-foreground">加载文件夹列表...</span>
           </div>
         ) : (
           <Select value={value} onValueChange={onValueChange}>
-            <SelectTrigger className={`w-full ${inputHeightClass}`} onMouseDown={(e) => e.stopPropagation()}>
+            <SelectTrigger className={`w-full ${inputHeightClass} bg-muted/30 border-transparent hover:border-border focus:border-border focus:bg-background transition-colors`} onMouseDown={(e) => e.stopPropagation()}>
               <SelectValue placeholder={field.description || '请选择文件夹'} />
             </SelectTrigger>
             <SelectContent>
               {folderList.length === 0 ? (
-                <div className="py-2 text-center text-xs text-muted-foreground">暂无可用文件夹</div>
+                <div className="py-2 text-center text-[11px] text-muted-foreground">暂无可用文件夹</div>
               ) : (
                 folderList.map((folder) => (
-                  <SelectItem key={folder.id} value={folder.id}>
-                    <div className="flex items-center gap-2">
-                      <TbFolder className="h-3 w-3" />
+                  <SelectItem key={folder.id} value={folder.id} className="text-[11px]">
+                    <div className="flex items-center gap-1.5">
+                      <TbFolder className="h-3 w-3 text-muted-foreground" />
                       <span>{folder.name}</span>
                     </div>
                   </SelectItem>
@@ -751,12 +790,12 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
   if (field.inputType === 'textarea') {
     return (
       <div className={containerClass}>
-        <label className={`block ${labelClass}`}>{label}</label>
+        <label className={`block ${labelClass} mb-1`}>{label}</label>
         <Textarea
           value={value}
           onChange={(e) => onValueChange(e.target.value)}
           placeholder={field.description || ''}
-          className={`${textareaClass} resize-y box-border`}
+          className={`${textareaClass} resize-y box-border bg-muted/30 border-transparent focus:border-border focus:bg-background transition-colors`}
           onMouseDown={(e) => e.stopPropagation()}
           onWheel={(e) => e.stopPropagation()}
           onKeyDown={(e) => e.stopPropagation()}
@@ -768,12 +807,12 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
   // 默认使用 Input
   return (
     <div className={containerClass}>
-      <label className={`block ${labelClass}`}>{label}</label>
+      <label className={`block ${labelClass} mb-1`}>{label}</label>
       <Input
         value={value}
         onChange={(e) => onValueChange(e.target.value)}
         placeholder={field.description || ''}
-        className={inputHeightClass}
+        className={`${inputHeightClass} bg-muted/30 border-transparent focus:border-border focus:bg-background transition-colors`}
         onMouseDown={(e) => e.stopPropagation()}
         onWheel={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}

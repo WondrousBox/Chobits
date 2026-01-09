@@ -1,16 +1,22 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { TbCheck, TbChevronDown } from 'react-icons/tb';
+import { TbBolt, TbCheck, TbChevronDown, TbDots, TbEdit, TbEye, TbSparkles, TbTopologyRing3, TbTrash } from 'react-icons/tb';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
+import PageToolbar from '@/components/common/PageToolbar';
 import { Button } from '@/components/ui/button';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { BroadcastChannelManager, CHANNEL_NAMES, type WorkflowEventMessage } from '@/utils/broadcastChannels';
+
+import AIChatSidebar from './components/AIChatSidebar';
 
 interface WorkflowBrief {
   id: string;
@@ -51,6 +57,8 @@ const WorkflowPage: React.FC = () => {
   const [selectedPresetId, setSelectedPresetId] = useState<string>('');
   const [presetIds, setPresetIds] = useState<Set<string>>(new Set());
   const [presetPopoverOpen, setPresetPopoverOpen] = useState(false);
+  // AI 侧边栏状态
+  const [aiChatOpen, setAiChatOpen] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -265,171 +273,234 @@ const WorkflowPage: React.FC = () => {
 
   return (
     <div className="h-full w-full flex flex-col bg-background text-foreground">
-      <DragAbleTitle
-        fixed
-        title={
-          <div className="flex items-center gap-2">
-            <span>🧩</span>
-            <span className="font-semibold">工作流</span>
-          </div>
-        }
-        actions={
-          <div className="flex items-center gap-2">
-            <Input placeholder="搜索名称/描述" className="h-8 w-48" value={filter} onChange={(e) => setFilter(e.target.value)} />
-            <Button size="sm" variant="outline" onClick={() => setRefreshTick((t) => t + 1)} disabled={loading}>
-              刷新
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => navigate('/workflow-history')}>
-              执行记录
-            </Button>
-            <Button size="sm" onClick={openNew}>
-              新建工作流
-            </Button>
-          </div>
-        }
-      />
-      <div className="flex-1 overflow-auto bg-background">
-        {loading && (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-sm text-muted-foreground">加载中...</div>
-          </div>
-        )}
-        {!loading && filtered.length === 0 && (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-sm text-muted-foreground">暂无工作流或无匹配结果</div>
-          </div>
-        )}
-        {!loading && filtered.length > 0 && (
-          <div className="w-full">
-            <Table>
-              <TableHeader className="sticky top-0 z-10 bg-muted/50 backdrop-blur-sm">
-                <TableRow>
-                  <TableHead className="w-[200px]">名称</TableHead>
-                  <TableHead className="w-20 text-center">节点数</TableHead>
-                  <TableHead className="w-24 text-center">校验状态</TableHead>
-                  <TableHead className="w-28 text-center">运行状态</TableHead>
-                  <TableHead className="w-24 text-center">操作</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((wf) => {
-                  const validationStatus = validationMap[wf.id];
-                  const runStatus = runsByWorkflow[wf.id]?.status;
-                  const isPreset = presetIds.has(wf.id);
-                  return (
-                    <TableRow key={wf.id} className="cursor-pointer" onClick={() => openExisting(wf.id)}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div>
-                            <div className="font-medium text-sm">
-                              {isPreset && <span className="text-xs px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 whitespace-nowrap">预设</span>}
-                              {wf.name || '未命名'}
-                            </div>
-                            <div className="text-xs text-muted-foreground line-clamp-2">{wf.description || '—'}</div>
+      {/* 顶部标题栏 + 分割线 */}
+      <div className="border-b">
+        <DragAbleTitle
+          fixed
+          title={<span />}
+          actions={
+            <div className="flex items-center gap-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    className={`p-1.5 rounded transition-colors ${aiChatOpen ? 'bg-muted text-primary' : 'hover:bg-muted'}`}
+                    onClick={() => setAiChatOpen((prev) => !prev)}
+                  >
+                    <TbSparkles className="w-4 h-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>AI 助手</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button className="p-1.5 rounded hover:bg-muted transition-colors" onClick={() => toast.info('自动化功能即将上线')}>
+                    <TbBolt className="w-4 h-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>自动化</TooltipContent>
+              </Tooltip>
+            </div>
+          }
+        />
+      </div>
+
+      {/* 主内容区域 + AI 侧边栏 */}
+      <ResizablePanelGroup direction="horizontal" className="flex-1">
+        <ResizablePanel defaultSize={aiChatOpen ? 70 : 100} minSize={40}>
+          <div className="h-full flex flex-col">
+            {/* 工具栏 */}
+            <PageToolbar
+              icon={<TbTopologyRing3 className="w-4 h-4" />}
+              title="工作流"
+              searchPlaceholder="搜索名称/描述"
+              searchValue={filter}
+              onSearchChange={setFilter}
+              actions={
+                <>
+                  <Button size="sm" variant="outline" onClick={() => setRefreshTick((t) => t + 1)} disabled={loading}>
+                    刷新
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => navigate('/workflow-history')}>
+                    执行记录
+                  </Button>
+                  <Button size="sm" onClick={openNew}>
+                    新建工作流
+                  </Button>
+                </>
+              }
+            />
+
+            {/* 卡片列表内容 */}
+            <div className="flex-1 overflow-auto bg-background p-3">
+              {loading && (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-sm text-muted-foreground">加载中...</div>
+                </div>
+              )}
+              {!loading && filtered.length === 0 && (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-sm text-muted-foreground">暂无工作流或无匹配结果</div>
+                </div>
+              )}
+              {!loading && filtered.length > 0 && (
+                <div className="space-y-2">
+                  {filtered.map((wf) => {
+                    const validationStatus = validationMap[wf.id];
+                    const runStatus = runsByWorkflow[wf.id]?.status;
+                    const isPreset = presetIds.has(wf.id);
+                    return (
+                      <div
+                        key={wf.id}
+                        className="group relative flex items-center gap-3 px-3 py-2.5 rounded-lg border border-transparent hover:border-border hover:bg-muted/50 cursor-pointer transition-all"
+                        onClick={() => openExisting(wf.id)}
+                      >
+                        {/* 左侧：图标 */}
+                        <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                          <TbTopologyRing3 className="w-5 h-5 text-primary" />
+                        </div>
+
+                        {/* 中间：名称和描述 */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm truncate">{wf.name || '未命名'}</span>
+                            {isPreset && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 shrink-0">
+                                预设
+                              </span>
+                            )}
+                            {/* 校验状态 */}
+                            {validationStatus === undefined ? (
+                              <span className="text-[10px] text-muted-foreground shrink-0">校验中...</span>
+                            ) : validationStatus.ok ? (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/10 text-green-600 dark:text-green-400 shrink-0">
+                                通过
+                              </span>
+                            ) : (
+                              <Popover>
+                                <PopoverTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                  <button className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 hover:bg-yellow-500/20 transition-colors shrink-0">
+                                    需修复
+                                  </button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-80" onClick={(e) => e.stopPropagation()}>
+                                  <div className="space-y-3">
+                                    <div className="font-medium text-sm">校验失败原因</div>
+                                    {validationStatus.errors && validationStatus.errors.length > 0 && (
+                                      <div className="space-y-1">
+                                        <div className="text-xs font-medium text-muted-foreground">错误信息：</div>
+                                        {validationStatus.errors.map((error, idx) => (
+                                          <div key={idx} className="text-xs text-destructive">
+                                            • {error}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {validationStatus.missingPlugins && validationStatus.missingPlugins.length > 0 && (
+                                      <div className="space-y-2">
+                                        <div className="text-xs font-medium text-muted-foreground">缺少插件：</div>
+                                        {validationStatus.missingPlugins.map((plugin, idx) => (
+                                          <div key={idx} className="flex items-center justify-between gap-2">
+                                            <div className="flex-1">
+                                              <div className="text-xs font-medium">{plugin.id}</div>
+                                              {plugin.hint && <div className="text-xs text-muted-foreground">{plugin.hint}</div>}
+                                            </div>
+                                            <Button size="sm" variant="outline" onClick={(e) => installPlugin(e, plugin.id)}>
+                                              安装
+                                            </Button>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {validationStatus.missingModels && validationStatus.missingModels.length > 0 && (
+                                      <div className="space-y-2">
+                                        <div className="text-xs font-medium text-muted-foreground">缺少模型：</div>
+                                        {validationStatus.missingModels.map((model, idx) => (
+                                          <div key={idx} className="flex items-center justify-between gap-2">
+                                            <div className="flex-1">
+                                              <div className="text-xs font-medium">{model.displayName || model.modelName}</div>
+                                              <div className="text-xs text-muted-foreground">{model.pluginId}</div>
+                                            </div>
+                                            <Button size="sm" variant="outline" onClick={(e) => installModel(e, model.pluginId, model.modelName, model.resourceId)}>
+                                              安装
+                                            </Button>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground truncate mt-0.5">
+                            {wf.description || '暂无描述'}
                           </div>
                         </div>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <span className="text-sm">{wf.nodes?.length || 0}</span>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {validationStatus === undefined ? (
-                          <span className="text-xs text-muted-foreground">校验中</span>
-                        ) : validationStatus.ok ? (
-                          <span className="text-xs px-2 py-0.5 rounded bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20">通过</span>
-                        ) : (
-                          <Popover>
-                            <PopoverTrigger asChild onClick={(e) => e.stopPropagation()}>
-                              <button className="text-xs px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/20 hover:bg-yellow-500/20 transition-colors cursor-pointer">
-                                点击修复
-                              </button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-80" onClick={(e) => e.stopPropagation()}>
-                              <div className="space-y-3">
-                                <div className="font-medium text-sm">校验失败原因</div>
-                                {validationStatus.errors && validationStatus.errors.length > 0 && (
-                                  <div className="space-y-1">
-                                    <div className="text-xs font-medium text-muted-foreground">错误信息：</div>
-                                    {validationStatus.errors.map((error, idx) => (
-                                      <div key={idx} className="text-xs text-destructive">
-                                        • {error}
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                                {validationStatus.missingPlugins && validationStatus.missingPlugins.length > 0 && (
-                                  <div className="space-y-2">
-                                    <div className="text-xs font-medium text-muted-foreground">缺少插件：</div>
-                                    {validationStatus.missingPlugins.map((plugin, idx) => (
-                                      <div key={idx} className="flex items-center justify-between gap-2">
-                                        <div className="flex-1">
-                                          <div className="text-xs font-medium">{plugin.id}</div>
-                                          {plugin.hint && <div className="text-xs text-muted-foreground">{plugin.hint}</div>}
-                                        </div>
-                                        <Button size="sm" variant="outline" onClick={(e) => installPlugin(e, plugin.id)}>
-                                          安装
-                                        </Button>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                                {validationStatus.missingModels && validationStatus.missingModels.length > 0 && (
-                                  <div className="space-y-2">
-                                    <div className="text-xs font-medium text-muted-foreground">缺少模型：</div>
-                                    {validationStatus.missingModels.map((model, idx) => (
-                                      <div key={idx} className="flex items-center justify-between gap-2">
-                                        <div className="flex-1">
-                                          <div className="text-xs font-medium">{model.displayName || model.modelName}</div>
-                                          <div className="text-xs text-muted-foreground">{model.pluginId}</div>
-                                        </div>
-                                        <Button size="sm" variant="outline" onClick={(e) => installModel(e, model.pluginId, model.modelName, model.resourceId)}>
-                                          安装
-                                        </Button>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            </PopoverContent>
-                          </Popover>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {runStatus ? (
-                          <span
-                            className={`text-xs px-2 py-0.5 rounded border ${runStatus === 'completed'
-                                ? 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20'
-                                : runStatus === 'failed'
-                                  ? 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20'
-                                  : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
-                              }`}
-                          >
-                            {runStatus === 'completed' ? '已完成' : runStatus === 'failed' ? '失败' : runStatus === 'running' ? '运行中' : runStatus === 'queued' ? '排队中' : runStatus}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-center gap-2">
-                          <Button size="sm" variant="ghost" onClick={() => openExisting(wf.id)} disabled={isPreset} title={isPreset ? '预设工作流不允许修改' : ''}>
-                            {isPreset ? '查看' : '编辑'}
-                          </Button>
-                          {!isPreset && (
-                            <Button size="sm" variant="ghost" onClick={(e) => deleteOne(e, wf.id)}>
-                              删除
-                            </Button>
+
+                        {/* 右侧：元信息 */}
+                        <div className="flex items-center gap-3 shrink-0">
+                          {/* 节点数 */}
+                          <div className="text-xs text-muted-foreground">
+                            <span className="tabular-nums">{wf.nodes?.length || 0}</span> 节点
+                          </div>
+
+                          {/* 运行状态 */}
+                          {runStatus && (
+                            <span
+                              className={cn(
+                                'text-[10px] px-1.5 py-0.5 rounded',
+                                runStatus === 'completed' && 'bg-green-500/10 text-green-600 dark:text-green-400',
+                                runStatus === 'failed' && 'bg-red-500/10 text-red-600 dark:text-red-400',
+                                (runStatus === 'running' || runStatus === 'queued') && 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
+                              )}
+                            >
+                              {runStatus === 'completed' ? '已完成' : runStatus === 'failed' ? '失败' : runStatus === 'running' ? '运行中' : '排队中'}
+                            </span>
                           )}
+
+                          {/* 操作按钮 - 悬停时显示 */}
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-7 w-7">
+                                  <TbDots className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => openExisting(wf.id)}>
+                                  {isPreset ? <TbEye className="w-4 h-4 mr-2" /> : <TbEdit className="w-4 h-4 mr-2" />}
+                                  {isPreset ? '查看' : '编辑'}
+                                </DropdownMenuItem>
+                                {!isPreset && (
+                                  <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={(e) => deleteOne(e as any, wf.id)}>
+                                    <TbTrash className="w-4 h-4 mr-2" />
+                                    删除
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
                         </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
+        </ResizablePanel>
+
+        {/* AI 侧边栏 */}
+        {aiChatOpen && (
+          <>
+            <ResizableHandle className="hover:bg-primary" withHandle />
+            <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
+              <AIChatSidebar onClose={() => setAiChatOpen(false)} />
+            </ResizablePanel>
+          </>
         )}
-      </div>
+      </ResizablePanelGroup>
+
       <Dialog open={showPresetDialog} onOpenChange={setShowPresetDialog}>
         <DialogContent className="w-96">
           <DialogHeader>

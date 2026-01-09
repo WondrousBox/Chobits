@@ -38,9 +38,10 @@ import {
   TextToImageNode,
   TranscodeAdvancedNode,
   TranscodeNode,
+  TranscribeParakeetNode,
   TranscribeWhisperNode
 } from './nodes';
-import { FfmpegPlugin, TesseractPlugin, WhisperPlugin } from './plugins';
+import { FfmpegPlugin, ParakeetPlugin, TesseractPlugin, WhisperPlugin } from './plugins';
 import { getNode, listNodes, listPlugins, registerNode, registerPlugin } from './registry';
 import { WorkflowStore } from './store';
 import type { NodeConfig, WorkflowDefinition, WorkflowRunRecord } from './types';
@@ -71,6 +72,7 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
   getWorkflowDefinitionsPathFn = getWorkflowDefinitionsPath;
   // Register plugins first
   registerPlugin(FfmpegPlugin);
+  registerPlugin(ParakeetPlugin);
   registerPlugin(TesseractPlugin);
   registerPlugin(WhisperPlugin);
   // Register nodes
@@ -88,6 +90,7 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
     TranscodeAdvancedNode,
     OCRNode,
     TranscribeWhisperNode,
+    TranscribeParakeetNode,
     DocToMarkdownNode,
     ExtractKeyframesNode,
     ImageUnderstandNode,

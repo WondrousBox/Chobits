@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { TbArrowRight, TbChevronDown, TbChevronRight, TbCircleFilled, TbFolderOpen, TbPlayerStop, TbTrash } from 'react-icons/tb';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { TbArrowRight, TbChevronDown, TbChevronRight, TbCircleFilled, TbFolderOpen, TbListCheck, TbPlayerStop, TbTrash } from 'react-icons/tb';
 
+import PageToolbar from '@/components/common/PageToolbar';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
@@ -33,6 +34,8 @@ const TaskList: React.FC<TaskListProps> = ({ workspaceId }) => {
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
   const [workflowNames, setWorkflowNames] = useState<Record<string, string>>({});
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
+  const [filter, setFilter] = useState('');
+  const [refreshTick, setRefreshTick] = useState(0);
 
   // Load workflow definitions once
   useEffect(() => {
@@ -43,7 +46,7 @@ const TaskList: React.FC<TaskListProps> = ({ workspaceId }) => {
     });
   }, []);
 
-  const loadTasks = async (): Promise<void> => {
+  const loadTasks = useCallback(async (): Promise<void> => {
     try {
       const res = await window.ipcRenderer.invoke('wf:listRuns', { limit: 100, workspaceId: workspaceId });
       if (Array.isArray(res)) {
@@ -67,10 +70,21 @@ const TaskList: React.FC<TaskListProps> = ({ workspaceId }) => {
     } catch (e) {
       console.error('Failed to load tasks', e);
     }
-  };
+  }, [workspaceId]);
+
+  // 过滤任务列表
+  const filteredTasks = useMemo(() => {
+    const f = filter.trim().toLowerCase();
+    if (!f) return tasks;
+    return tasks.filter((task) => {
+      const resourceName = task.metadata?.resourceName?.toLowerCase() || '';
+      const workflowName = workflowNames[task.workflowId]?.toLowerCase() || task.workflowId.toLowerCase();
+      return resourceName.includes(f) || workflowName.includes(f);
+    });
+  }, [tasks, filter, workflowNames]);
 
   useEffect(() => {
-    const poll = async () => {
+    const poll = async (): Promise<void> => {
       await loadTasks();
       // Poll details for expanded tasks
       const expandedIds = Array.from(expandedTasks);
@@ -90,7 +104,7 @@ const TaskList: React.FC<TaskListProps> = ({ workspaceId }) => {
     poll();
     const timer = setInterval(poll, 2000); // Poll every 2s
     return () => clearInterval(timer);
-  }, [workspaceId, expandedTasks]);
+  }, [workspaceId, expandedTasks, loadTasks, refreshTick]);
 
   const handleOpenFolder = (path: string): void => {
     window.YUA.file['file:reveal'](path);
@@ -137,9 +151,25 @@ const TaskList: React.FC<TaskListProps> = ({ workspaceId }) => {
   };
 
   return (
-    <ScrollArea className="w-full h-full" style={{ height: 'calc(100% - 36px)' }}>
-      <div className="px-2 space-y-2">
-        {tasks.map((task, index) => (
+    <div className="w-full h-full flex flex-col">
+      {/* 工具栏 */}
+      <PageToolbar
+        icon={<TbListCheck className="w-4 h-4" />}
+        title="任务"
+        searchPlaceholder="搜索资源/工作流"
+        searchValue={filter}
+        onSearchChange={setFilter}
+        actions={
+          <Button size="sm" variant="outline" onClick={() => setRefreshTick((t) => t + 1)}>
+            刷新
+          </Button>
+        }
+      />
+
+      {/* 列表内容 */}
+      <ScrollArea className="flex-1">
+        <div className="px-2 py-2 space-y-2">
+          {filteredTasks.map((task, index) => (
           <div key={task.runId + index} className="p-3 border rounded-lg bg-card hover:bg-accent/50 transition-colors">
             <div className="flex gap-3">
               {/* Thumbnail */}
@@ -303,9 +333,14 @@ const TaskList: React.FC<TaskListProps> = ({ workspaceId }) => {
             </div>
           </div>
         ))}
-        {tasks.length === 0 && <div className="text-center text-muted-foreground py-8">暂无任务</div>}
-      </div>
-    </ScrollArea>
+          {filteredTasks.length === 0 && (
+            <div className="text-center text-muted-foreground py-8">
+              {filter ? '无匹配任务' : '暂无任务'}
+            </div>
+          )}
+        </div>
+      </ScrollArea>
+    </div>
   );
 };
 

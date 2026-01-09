@@ -66,7 +66,9 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, hideEditor
     },
     loadFolders: async () => {
       await doAfter();
-    }
+    },
+    // 不显示 toast，由 ResourcePage 中的 useFolderImport 统一处理
+    showSuccessToast: false
   });
 
   const onCreateSubfolder = useCallback(async () => {

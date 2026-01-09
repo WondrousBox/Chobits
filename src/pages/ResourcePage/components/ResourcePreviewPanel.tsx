@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbExternalLink, TbFileText, TbLanguage, TbList, TbSparkles, TbX } from 'react-icons/tb';
+import { TbExternalLink, TbFileText, TbFileTextAi, TbLanguage, TbList, TbSparkles, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -7,14 +7,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BroadcastChannelManager, CHANNEL_NAMES, type MediaSyncMessage } from '@/utils/broadcastChannels';
 
 import type { ResourceItem } from '../types';
-import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from '../utils/resourceProtocol';
+import { isAudioFile, isDocumentFile, isEbookFile, isImageFile, isPdfFile, isPresentationFile, isSpreadsheetFile, isVideoFile, makeResSrc } from '../utils/resourceProtocol';
 import { isSubtitleFile } from '../utils/subtitleUtils';
-import { ImagePlayer, MediaPlayer, ResourceSubtitlePlayer, TextPlayer } from './Players';
+import { ImagePlayer, MediaPlayer, ResourceSubtitlePlayer, SubtitlePlayer, TextPlayer } from './Players';
 import type { MediaPlayerRef } from './Players/MediaPlayer/MediaPlayer';
 import ResourceFileList from './ResourceFileList';
 
 // 功能标签类型
-type TabType = 'subtitle' | 'translate' | 'summary' | 'list';
+type TabType = 'content' | 'subtitle' | 'translate' | 'summary' | 'list';
 
 interface TabConfig {
   id: TabType;
@@ -24,6 +24,7 @@ interface TabConfig {
 
 // 所有可用的标签配置（使用组件引用而非 JSX 实例，避免模块加载时创建对象）
 const ALL_TABS: TabConfig[] = [
+  { id: 'content', label: '内容', Icon: TbFileTextAi },
   { id: 'translate', label: '翻译', Icon: TbLanguage },
   { id: 'subtitle', label: '字幕', Icon: TbFileText },
   { id: 'summary', label: '总结', Icon: TbSparkles },
@@ -49,7 +50,11 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
   const [data, setData] = useState<ResourceItem>(resource);
   const [subtitleList, setSubtitleList] = useState<ResourceItem[]>([]);
   const [activeSubtitle, setActiveSubtitle] = useState<ResourceItem | null>(null);
-  const [activeTab, setActiveTab] = useState<TabType>('subtitle');
+  // 默认 Tab：文本类型选中 'content'，媒体类型选中 'subtitle'
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    const initialIsTextType = !isVideoFile(resource?.filePath) && !isAudioFile(resource?.filePath) && !isImageFile(resource?.filePath);
+    return initialIsTextType ? 'content' : 'subtitle';
+  });
   const [currentTime, setCurrentTime] = useState(0);
   const mediaPlayerRef = useRef<MediaPlayerRef>(null);
 
@@ -58,34 +63,48 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
   const isAudio = isAudioFile(data?.filePath);
   const isImage = isImageFile(data?.filePath);
   const isSubtitle = isSubtitleFile(data?.filePath);
+  const isPdf = isPdfFile(data?.filePath);
+  const isDocument = isDocumentFile(data?.filePath);
+  const isSpreadsheet = isSpreadsheetFile(data?.filePath);
+  const isPresentation = isPresentationFile(data?.filePath);
+  const isEbook = isEbookFile(data?.filePath);
+  // 是否为 Office 文档（Word、Excel、PPT）
+  const isOffice = isDocument || isSpreadsheet || isPresentation;
+  // 是否为文本类型（非媒体类型，内容在 Tab 中展示）
+  const isTextType = !isVideo && !isAudio && !isImage;
 
   // 根据资源类型获取可用的标签
   const availableTabs = useMemo((): TabConfig[] => {
     if (isVideo) {
-      // 视频：显示所有标签
-      return ALL_TABS;
+      // 视频：显示字幕、翻译、总结、列表（不含内容Tab，视频在上方播放）
+      return ALL_TABS.filter((t) => ['subtitle', 'translate', 'summary', 'list'].includes(t.id));
     } else if (isAudio) {
-      // 音频：翻译、总结、列表
+      // 音频：翻译、总结、列表（不含内容Tab，音频在上方播放）
       return ALL_TABS.filter((t) => ['translate', 'summary', 'list'].includes(t.id));
     } else if (isImage) {
-      // 图片：总结、列表
+      // 图片：总结、列表（不含内容Tab，图片在上方显示）
       return ALL_TABS.filter((t) => ['summary', 'list'].includes(t.id));
     } else if (isSubtitle) {
-      // 字幕：翻译、总结、列表
-      return ALL_TABS.filter((t) => ['translate', 'summary', 'list'].includes(t.id));
+      // 字幕：内容、翻译、总结、列表（内容Tab显示字幕内容）
+      return ALL_TABS.filter((t) => ['content', 'translate', 'summary', 'list'].includes(t.id));
     } else {
-      // 其他文本：翻译、总结、列表
-      return ALL_TABS.filter((t) => ['translate', 'summary', 'list'].includes(t.id));
+      // 其他文本（JSON、TXT、PDF等）：内容、翻译、总结、列表
+      return ALL_TABS.filter((t) => ['content', 'translate', 'summary', 'list'].includes(t.id));
     }
   }, [isVideo, isAudio, isImage, isSubtitle]);
 
-  // 当外部 resource 变化时，更新内部状态
+  // 当外部 resource 变化时，更新内部状态并重置到合适的默认 Tab
   useEffect(() => {
     setData(resource);
     setCurrentTime(0);
+
+    // 根据新资源类型设置默认 Tab
+    const newIsTextType = !isVideoFile(resource?.filePath) && !isAudioFile(resource?.filePath) && !isImageFile(resource?.filePath);
+    const defaultTab = newIsTextType ? 'content' : 'subtitle';
+    setActiveTab(defaultTab);
   }, [resource]);
 
-  // 当可用标签变化时，确保当前选中的标签有效
+  // 当可用标签变化时，确保当前选中的标签有效（防止选中不可用的 Tab）
   useEffect(() => {
     if (availableTabs.length > 0 && !availableTabs.find((t) => t.id === activeTab)) {
       setActiveTab(availableTabs[0].id);
@@ -174,7 +193,8 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
   const title = data.title || data.filePath || data.url || data.id;
   const fileSrc = data.filePath ? makeResSrc(data.filePath) : data.url;
 
-  // 渲染主要内容（播放器）
+  // 渲染主要内容（播放器）- 仅用于视频、音频、图片等媒体类型
+  // 文本类型（字幕、JSON、TXT等）将在"内容"Tab 中显示
   const renderMainContent = (): React.ReactNode => {
     // 视频：使用 aspect-video 保持 16:9 比例
     if (isVideo && fileSrc) {
@@ -203,12 +223,8 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
       );
     }
 
-    // 字幕或其他文本：使用固定高度区域
-    return (
-      <div className="w-full h-[200px] overflow-auto">
-        <TextPlayer resource={data} />
-      </div>
-    );
+    // 字幕和其他文本类型：不在此处渲染，将在"内容"Tab 中显示
+    return null;
   };
 
   // 渲染字幕内容
@@ -246,7 +262,7 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
         {/* 字幕播放器 */}
         <div className="flex-1 min-h-0">
           {activeSubtitle && (
-            <ResourceSubtitlePlayer
+            <SubtitlePlayer
               resource={activeSubtitle}
               currentTime={currentTime}
               onSeek={(time) => {
@@ -274,9 +290,73 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
     </div>
   );
 
+  // 渲染"内容"Tab（用于文本类型资源：字幕、JSON、TXT、PDF等）
+  const renderContentTab = (): React.ReactNode => {
+    // 字幕文件：使用 ResourceSubtitlePlayer（负责从资源加载字幕内容）
+    if (isSubtitle) {
+      return (
+        <div className="h-full overflow-auto">
+          <ResourceSubtitlePlayer resource={data} />
+        </div>
+      );
+    }
+
+    // PDF 文件：使用 iframe 预览
+    if (isPdf && fileSrc) {
+      return (
+        <div className="h-full w-full">
+          <iframe src={fileSrc} className="w-full h-full border-0" title={title} />
+        </div>
+      );
+    }
+
+    // Office 文档和电子书：显示文件信息和打开按钮
+    if ((isOffice || isEbook) && data.filePath) {
+      const fileExt = data.filePath.split('.').pop()?.toUpperCase() || '文档';
+      const fileTypeLabel = isDocument
+        ? 'Word 文档'
+        : isSpreadsheet
+          ? 'Excel 表格'
+          : isPresentation
+            ? 'PowerPoint 演示文稿'
+            : isEbook
+              ? '电子书'
+              : '文档';
+
+      return (
+        <div className="h-full w-full flex flex-col items-center justify-center gap-4 p-4">
+          <div className="text-6xl text-muted-foreground/50">{fileExt}</div>
+          <div className="text-sm text-muted-foreground text-center">
+            <div className="font-medium">{title}</div>
+            <div className="text-xs mt-1">{fileTypeLabel}</div>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => {
+              // 使用系统默认程序打开文件
+              window.YUA.file['file:openInDefaultApp'](data.filePath!);
+            }}
+          >
+            <TbExternalLink className="w-4 h-4 mr-2" />
+            用默认程序打开
+          </Button>
+        </div>
+      );
+    }
+
+    // 其他文本文件（JSON、TXT、MD等）：使用 TextPlayer
+    return (
+      <div className="h-full overflow-auto">
+        <TextPlayer resource={data} />
+      </div>
+    );
+  };
+
   // 渲染标签内容
   const renderTabContent = (tabId: TabType): React.ReactNode => {
     switch (tabId) {
+      case 'content':
+        return renderContentTab();
       case 'subtitle':
         return renderSubtitleContent();
       case 'translate':
@@ -333,8 +413,8 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
 
       {/* 主内容区 + 标签区 */}
       <div className="flex-1 overflow-hidden flex flex-col">
-        {/* 播放器区域 - 根据内容自适应高度 */}
-        <div className="shrink-0">{renderMainContent()}</div>
+        {/* 播放器区域 - 仅用于视频、音频、图片等媒体类型 */}
+        {(isVideo || isAudio || isImage) && <div className="shrink-0">{renderMainContent()}</div>}
 
         {/* 功能标签区域 */}
         {availableTabs.length > 0 && (

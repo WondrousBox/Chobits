@@ -13,9 +13,10 @@ export interface Workspace {
 interface WorkspaceSwitcherProps {
   workspaces: Workspace[];
   currentWorkspaceId?: string;
+  onOpenSettings?: () => void;
 }
 
-export default function WorkspaceSwitcher({ workspaces, currentWorkspaceId }: WorkspaceSwitcherProps): React.ReactElement | null {
+export default function WorkspaceSwitcher({ workspaces, currentWorkspaceId, onOpenSettings }: WorkspaceSwitcherProps): React.ReactElement | null {
   const { isMobile } = useSidebar();
 
   console.log('WorkspaceSwitcher', currentWorkspaceId);
@@ -56,7 +57,7 @@ export default function WorkspaceSwitcher({ workspaces, currentWorkspaceId }: Wo
               <TbPlus />
               创建新空间
             </DropdownMenuItem>
-            <DropdownMenuItem className="text-muted-foreground" onClick={() => window.YUA.window['window:open']('settings', { tab: 'workspace' })}>
+            <DropdownMenuItem className="text-muted-foreground" onClick={() => onOpenSettings?.()}>
               <TbSettings2 />
               管理空间
             </DropdownMenuItem>

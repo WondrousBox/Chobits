@@ -8,10 +8,10 @@ import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu
 import DragAbleTitle from '../../components/common/DragAbleTitle';
 import EmbeddingJobsPanel from '../../components/EmbeddingJobs';
 import AiSettings from './components/AiSettings';
+import { SettingGroup } from './components/SettingComponents';
 import PreferencesSettings from './components/PreferencesSettings';
 import PromptSetting from './components/PromptSetting';
 import ProxySettings from './components/ProxySettings';
-import { SettingGroup } from './components/SettingComponents';
 import ShortcutsSettings from './components/ShortcutsSettings';
 import VectorManagement from './components/VectorManagement';
 import Workspace from './components/Workspace';
@@ -84,9 +84,10 @@ const defaultCategories: SettingsCategoryDef[] = [
 interface SettingsPageProps {
   extraCategories?: SettingsCategoryDef[];
   hideTitleBar?: boolean;
+  defaultCategory?: SettingsCategory;
 }
 
-export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = [], hideTitleBar = false }) => {
+export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = [], hideTitleBar = false, defaultCategory }) => {
   // 合并分类，将扩展分类放在偏好设置之后 (index 1)
   const allCategories = React.useMemo(() => {
     const cats = [...defaultCategories];
@@ -96,8 +97,16 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = []
     return cats;
   }, [extraCategories]);
 
-  const [activeCategory, setActiveCategory] = useState<SettingsCategory>(allCategories[0]?.id || 'preferences');
+  const [activeCategory, setActiveCategory] = useState<SettingsCategory>(defaultCategory || allCategories[0]?.id || 'preferences');
   const [initialAiProviderId, setInitialAiProviderId] = useState<string | null>(null);
+
+  // 当 defaultCategory 变化时，更新 activeCategory
+  useEffect(() => {
+    if (defaultCategory) {
+      setActiveCategory(defaultCategory);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultCategory]);
 
   useEffect(() => {
     // 读取窗口打开时传入的 payload，用于直接跳转到指定分类/AI 提供商

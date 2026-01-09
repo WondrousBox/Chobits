@@ -19,7 +19,6 @@ import ASRPage from './pages/ASRPage/ASRPage';
 import AssistantMenuPage from './pages/AssistantMenuPage/AssistantMenuPage';
 import ChatPage from './pages/ChatPage/ChatPage';
 import AssistantPage from './pages/ChatPage/StartPage';
-import RecycleBinPage from './pages/ResourcePage/RecycleBinPage';
 import ResourcePage from './pages/ResourcePage/ResourcePage';
 import WorkflowPage from './pages/ResourcePage/WorkflowPage';
 import Screenshot from './pages/Screenshot';
@@ -69,7 +68,6 @@ function App(): JSX.Element {
                 />
                 <Route path="/workspace-wizard" element={<WorkspaceWizard />} />
                 <Route path="/resources/*" element={<ResourcePage />} />
-                <Route path="/recycle" element={<RecycleBinPage />} />
                 <Route path="/workspace" element={<WorkspacePage />} />
                 <Route path="/assistant" element={<AssistantPage />} />
                 <Route path="/chat" element={<ChatPage />} />

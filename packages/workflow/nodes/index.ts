@@ -24,3 +24,4 @@ export { TextToImageNode } from './text-to-image';
 export { TranscodeNode } from './transcode';
 export { TranscodeAdvancedNode } from './transcode-advanced';
 export { TranscribeWhisperNode } from './transcribe-whisper';
+export { TranscribeParakeetNode } from './transcribe-parakeet';

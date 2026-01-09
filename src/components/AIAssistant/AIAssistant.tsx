@@ -253,21 +253,19 @@ const AIAssistantInner: React.FC = () => {
       {/* 统一消息组件 */}
       <SpriteMessage />
       <Dropzone onDragEnter={handleDragEnter} onDragLeave={handleDragLeave} onDropFiles={onDropFiles}>
-        {
-          // window.YUA.isDev && (
-          //   <div
-          //     style={{
-          //       left: paddingState,
-          //       top: paddingState,
-          //       bottom: paddingState,
-          //       right: paddingState
-          //     }}
-          //     className="text-xs bg-background fixed rounded-md border border-solid border-ring"
-          //   >
-          //     {paddingState} {spriteWidth} {spriteHeight}
-          //   </div>
-          // )
-        }
+        {window.YUA.isDev && (
+          <div
+            style={{
+              left: paddingState,
+              top: paddingState,
+              bottom: paddingState,
+              right: paddingState
+            }}
+            className="text-xs bg-background fixed rounded-md border border-solid border-ring"
+          >
+            {paddingState} {spriteWidth} {spriteHeight}
+          </div>
+        )}
         <Renderer width={spriteWidth} height={spriteHeight} walkDirection={walkDirection} />
       </Dropzone>
       <StatusIndicator isDragging={isDragging} isWalking={isWalking} />

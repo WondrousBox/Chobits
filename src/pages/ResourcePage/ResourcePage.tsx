@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SidebarProvider } from '@/components/ui/sidebar';
-import SettingsPage from '@/pages/SettingsPage/SettingsPage';
+import SettingsPage, { SettingsCategory } from '@/pages/SettingsPage/SettingsPage';
 
 import { UIFolder } from './components/FolderSidebar';
 import RenameFolderDialog from './components/layout/RenameFolderDialog';
@@ -21,6 +21,7 @@ import { useResourceOperations } from './hooks/useResourceOperations';
 import { useResourceUpload } from './hooks/useResourceUpload';
 import { useViewMode } from './hooks/useViewMode';
 import { useWorkflowProgress } from './hooks/useWorkflowProgress';
+import RecycleBinPage from './RecycleBinPage';
 import { SelectedResourceFileType, SortField, SortOrder } from './types';
 import { typeOptions } from './utils/constants';
 import { mergeVideoWithSubtitles } from './utils/subtitleUtils';
@@ -46,7 +47,8 @@ const ResourcePage: React.FC = () => {
   const prevUploadVisibleRef = useRef<boolean>(false);
 
   const [workspaces, setWorkspaces] = useState<any[]>([]);
-  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
+  // 设置对话框状态：null 表示关闭，字符串表示打开并指定默认分类
+  const [settingsModalCategory, setSettingsModalCategory] = useState<SettingsCategory | null>(null);
 
   // 使用自定义 hooks
   const { list, setList, tags, folders, foldersLoading, load, loadTags, loadFolders } = useResourceData(wsFilter, tagFilter);
@@ -360,33 +362,7 @@ const ResourcePage: React.FC = () => {
 
   return (
     <div className="h-full bg-background">
-      <ResourceHeader
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-        viewMode={viewMode}
-        handleViewModeChange={handleViewModeChange}
-        load={load}
-        loadTags={() => loadTags(wsFilter)}
-        typeOptions={typeOptions}
-        visibleTypes={visibleTypes}
-        typeFilter={typeFilter}
-        setTypeFilter={setTypeFilter}
-        setFavoriteFilter={setFavoriteFilter}
-        folderFilter={folderFilter}
-        setFolderFilter={setFolderFilter}
-        wsFilter={wsFilter}
-        tagFilter={tagFilter}
-        setTagFilter={setTagFilter}
-        tags={tags}
-        sortField={sortField}
-        setSortField={setSortField}
-        sortOrder={sortOrder}
-        setSortOrder={setSortOrder}
-        isCollapseMode={isCollapseMode}
-        setIsCollapseMode={setIsCollapseMode}
-        showCollapseSuggestion={showCollapseSuggestion}
-        setShowCollapseSuggestion={setShowCollapseSuggestion}
-      />
+      <ResourceHeader />
 
       <SidebarProvider style={{ height: 'calc(100% - 36px)', minHeight: 'unset' }}>
         <ResourceSidebar
@@ -410,12 +386,13 @@ const ResourcePage: React.FC = () => {
           handleRenameFolder={handleRenameFolder}
           handleDeleteFolder={handleDeleteFolder}
           folderAPI={folderAPI}
-          onOpenSettings={() => setShowSettingsModal(true)}
+          onOpenSettings={(category) => setSettingsModalCategory((category as SettingsCategory) || 'preferences')}
         />
 
         <Routes>
           <Route path="tasks" element={<TaskList workspaceId={wsFilter} />} />
           <Route path="workflows" element={<WorkflowPage />} />
+          <Route path="recycle" element={<RecycleBinPage hideTitleBar />} />
           <Route
             path="*"
             element={
@@ -448,10 +425,29 @@ const ResourcePage: React.FC = () => {
                 handleItemClick={handleItemClick}
                 load={load}
                 loadFolders={loadFolders}
-                currentFolderPath={currentFolderPath}
+                loadTags={() => loadTags(wsFilter)}
                 setSelectedItems={setSelectedItems}
                 list={list}
                 isCollapseMode={isCollapseMode}
+                // ContentToolbar 相关 props
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                handleViewModeChange={handleViewModeChange}
+                typeOptions={typeOptions}
+                visibleTypes={visibleTypes}
+                typeFilter={typeFilter}
+                tagFilter={tagFilter}
+                setTagFilter={setTagFilter}
+                tags={tags}
+                sortField={sortField}
+                setSortField={setSortField}
+                sortOrder={sortOrder}
+                setSortOrder={setSortOrder}
+                setIsCollapseMode={setIsCollapseMode}
+                showCollapseSuggestion={showCollapseSuggestion}
+                setShowCollapseSuggestion={setShowCollapseSuggestion}
+                // 面包屑导航
+                currentFolderPath={currentFolderPath}
               />
             }
           />
@@ -460,14 +456,14 @@ const ResourcePage: React.FC = () => {
 
       <RenameFolderDialog renameOpen={renameOpen} setRenameOpen={setRenameOpen} renameName={renameName} setRenameName={setRenameName} handleRenameConfirm={handleRenameConfirm} />
 
-      <Dialog open={showSettingsModal} onOpenChange={setShowSettingsModal}>
+      <Dialog open={settingsModalCategory !== null} onOpenChange={(open) => !open && setSettingsModalCategory(null)}>
         <DialogHeader className="hidden">
           <DialogTitle></DialogTitle>
           <DialogDescription></DialogDescription>
         </DialogHeader>
         <DialogContent className="w-[90vw] p-0 overflow-hidden" style={{ maxWidth: 1152 }}>
           <div className="w-full h-[80vh]">
-            <SettingsPage hideTitleBar />
+            <SettingsPage hideTitleBar defaultCategory={settingsModalCategory || undefined} />
           </div>
         </DialogContent>
       </Dialog>

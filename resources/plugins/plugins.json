@@ -547,6 +547,78 @@
         ]
       }
     ]
+  },
+  {
+    "id": "parakeet-cli",
+    "pluginId": "plugin:parakeet",
+    "type": "engine",
+    "name": "parakeet",
+    "displayName": "Parakeet CLI",
+    "description": "NVIDIA Parakeet 命令行工具，用于音频和视频转录",
+    "version": "1.0.0",
+    "binaryName": "parakeet",
+    "archiveType": "zip",
+    "category": "asr",
+    "languages": [
+      "multi"
+    ],
+    "platforms": [
+      {
+        "platform": "darwin",
+        "arch": "arm64",
+        "sourceUrl": "https://github.com/YuQian2015/memo-build/releases/download/v1.0.0/parakeet-darwin-arm64-1.0.0.zip",
+        "sizeBytes": 5242880,
+        "sha256": "4a405541491e7d36b69653617dc3a40d652e09485886f4bea1686523ee3874f4"
+      }
+    ],
+    "models": [
+      {
+        "id": "parakeet-v2",
+        "pluginId": "plugin:parakeet",
+        "type": "model",
+        "name": "parakeet-v2",
+        "displayName": "Parakeet V2",
+        "description": "只支持英语",
+        "version": "1.0.0",
+        "archiveType": "zip",
+        "category": "asr",
+        "languages": [
+          "en"
+        ],
+        "platforms": [
+          {
+            "platform": "darwin",
+            "arch": "arm64",
+            "sourceUrl": "https://github.com/YuQian2015/memo-build/releases/download/v1.0.0/Parakeet-models-v2-darwin-arm64.zip",
+            "sizeBytes": 450887680,
+            "sha256": "4a405541491e7d36b69653617dc3a40d652e09485886f4bea1686523ee3874f4"
+          }
+        ]
+      },
+      {
+        "id": "parakeet-v3",
+        "pluginId": "plugin:parakeet",
+        "type": "model",
+        "name": "parakeet-v3",
+        "displayName": "Parakeet V3",
+        "description": "支持多语言",
+        "version": "1.0.0",
+        "archiveType": "zip",
+        "category": "asr",
+        "languages": [
+          "multi"
+        ],
+        "platforms": [
+          {
+            "platform": "darwin",
+            "arch": "arm64",
+            "sourceUrl": "https://github.com/YuQian2015/memo-build/releases/download/v1.0.0/Parakeet-models-v3-darwin-arm64.zip",
+            "sizeBytes": 466616320,
+            "sha256": "342d68e28fdac557c6fdd17dd07ca27f3ead0c3930ad048ebf01fc136033eea2"
+          }
+        ]
+      }
+    ]
   }
 ]
 
