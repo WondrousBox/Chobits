@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 
-import { loadProviderModels } from '../models-loader';
+import { loadProviderModelsFromBank } from '../models-loader';
 import { loadProviderSchema } from '../schema-loader';
 import { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, ProviderAdapter, ProviderConfig, ProviderSecrets, StreamEvent } from '../types';
 
@@ -73,7 +73,7 @@ export class AnthropicProvider implements ProviderAdapter {
   }
 
   async listModels() {
-    const curated = loadProviderModels(this.id);
+    const curated = await loadProviderModelsFromBank(this.id);
     if (curated.length) return curated;
     return [];
   }
