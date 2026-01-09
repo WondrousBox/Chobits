@@ -1,5 +1,5 @@
 import { utils } from '@aim-packages/subtitle';
-import { AnimatePresence, motion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import React, { useEffect, useRef } from 'react';
 
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -13,22 +13,6 @@ interface SegmentListProps {
   enableTranslation: boolean;
   isTransparent?: boolean;
 }
-
-// pending 片段的动画配置 - 从底部冒泡上去的效果
-const pendingVariants = {
-  initial: {
-    opacity: 0,
-    y: 40
-  },
-  animate: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.15,
-      ease: 'easeOut' as const
-    }
-  }
-};
 
 export const SegmentList: React.FC<SegmentListProps> = ({ segments, pendingSegments, progressText, enableTranslation, isTransparent = false }) => {
   const contentRef = useRef<HTMLDivElement>(null);
@@ -73,31 +57,21 @@ export const SegmentList: React.FC<SegmentListProps> = ({ segments, pendingSegme
           ))}
 
           {/* 临时展示的片段（未到 endpoint，带冒泡动画和流光效果） */}
-          <AnimatePresence mode="popLayout">
-            {pendingSegments.map((segment, index) => (
-              <motion.div
-                key={`pending-${segment.start}-${segment.text.slice(0, 10)}-${index}`}
-                layout
-                variants={pendingVariants}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-                className="mb-1 group p-2 rounded-md last:mb-0 relative overflow-hidden origin-bottom"
+          {pendingSegments.map((segment, index) => (
+            <div key={`pending-${segment.start}-${segment.text.slice(0, 10)}-${index}`} className="mb-1 group p-2 rounded-md last:mb-0 relative overflow-hidden origin-bottom">
+              {/* 流光效果背景 */}
+              <motion.div className="absolute inset-0 shimmer-bg rounded-md" initial={{ opacity: 0 }} animate={{ opacity: 0.3 }} exit={{ opacity: 0 }} />
+              <div
+                className={`relative text-base leading-tight break-words select-text ${isTransparent ? 'text-amber-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : 'text-amber-600 dark:text-amber-400'}`}
+                style={{ whiteSpace: 'pre-wrap' }}
               >
-                {/* 流光效果背景 */}
-                <motion.div className="absolute inset-0 shimmer-bg rounded-md" initial={{ opacity: 0 }} animate={{ opacity: 0.3 }} exit={{ opacity: 0 }} />
-                <div
-                  className={`relative text-base leading-tight break-words select-text ${isTransparent ? 'text-amber-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : 'text-amber-600 dark:text-amber-400'}`}
-                  style={{ whiteSpace: 'pre-wrap' }}
-                >
-                  <span className={`mr-2 font-mono select-text ${isTransparent ? 'text-amber-300/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : 'text-amber-500/80 dark:text-amber-500/80'}`}>
-                    {utils.cleanTimeDisplay(utils.formatTime(segment.start / 1000))}
-                  </span>
-                  {segment.text || '\u200b'}
-                </div>
-              </motion.div>
-            ))}
-          </AnimatePresence>
+                <span className={`mr-2 font-mono select-text ${isTransparent ? 'text-amber-300/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : 'text-amber-500/80 dark:text-amber-500/80'}`}>
+                  {utils.cleanTimeDisplay(utils.formatTime(segment.start / 1000))}
+                </span>
+                {segment.text || '\u200b'}
+              </div>
+            </div>
+          ))}
 
           {segments.length === 0 && pendingSegments.length === 0 && !progressText && (
             <div className={`text-center py-12 ${isTransparent ? 'text-white/90 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : 'text-muted-foreground'}`}>
