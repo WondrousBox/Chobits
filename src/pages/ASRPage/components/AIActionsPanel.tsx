@@ -91,7 +91,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
   };
 
   return (
-    <div className="flex flex-col h-full border-l bg-background">
+    <div className="flex flex-col h-full border-l bg-background no-drag">
       <div className={`flex items-center gap-2 px-4 py-2 border-b ${isTransparent ? 'border-border/50' : ''}`}>
         <TbBrain className="h-4 w-4" />
         <span className="text-sm font-medium">AI 操作</span>

@@ -30,7 +30,7 @@ const ASRPage: React.FC = () => {
   const [cloudProviderId, setCloudProviderId] = useState<string>('');
   const [cloudModelId, setCloudModelId] = useState<string>('');
   const [isSubtitleMode, setIsSubtitleMode] = useState(false); // 字幕模式（合并了透明和收起功能）
-  const [showLeftPanel, setShowLeftPanel] = useState(true); // 默认显示左侧面板
+  const [showLeftPanel, setShowLeftPanel] = useState(false); // 默认显示左侧面板
   const [showRightPanel, setShowRightPanel] = useState(false);
 
   // 预览模式状态
@@ -292,13 +292,15 @@ const ASRPage: React.FC = () => {
           {/* 顶部工具栏 */}
           <div className={`flex items-center justify-between gap-3 p-1 ${isSubtitleMode ? 'border-b border-transparent' : 'border-b'}`}>
             {/* 左侧：面板控制按钮 */}
-            {!isSubtitleMode && (
-              <PanelLeft
-                className={`h-4 w-4 mx-2 cursor-pointer no-drag ${isSubtitleMode ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`}
-                onClick={() => setShowLeftPanel(!showLeftPanel)}
-              />
-            )}
-            {isSubtitleMode && <div className="flex-1"></div>}
+            {
+              // !isSubtitleMode && (
+              //   <PanelLeft
+              //     className={`h-4 w-4 mx-2 cursor-pointer no-drag ${isSubtitleMode ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`}
+              //     onClick={() => setShowLeftPanel(!showLeftPanel)}
+              //   />
+              // )
+            }
+            {<div className="flex-1"></div>}
 
             {/* 右侧：面板控制和其他操作 */}
             <div className="flex items-center gap-1">
@@ -311,11 +313,6 @@ const ASRPage: React.FC = () => {
                 {isSubtitleMode ? <TbX /> : '字幕模式'}
               </Button>
               {!isSubtitleMode && (
-                <Button size="icon" variant="ghost" className="no-drag w-8 h-8" onClick={handleCloseRequest}>
-                  <TbX className={`h-4 w-4 ${isSubtitleMode ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`} />
-                </Button>
-              )}
-              {!isSubtitleMode && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button size="icon" variant={showRightPanel ? 'secondary' : 'ghost'} className="no-drag w-8 h-8" onClick={() => setShowRightPanel(!showRightPanel)}>
@@ -324,6 +321,11 @@ const ASRPage: React.FC = () => {
                   </TooltipTrigger>
                   <TooltipContent>{showRightPanel ? '隐藏AI操作' : '显示AI操作'}</TooltipContent>
                 </Tooltip>
+              )}
+              {!isSubtitleMode && (
+                <Button size="icon" variant="ghost" className="no-drag w-8 h-8" onClick={handleCloseRequest}>
+                  <TbX className={`h-4 w-4 ${isSubtitleMode ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`} />
+                </Button>
               )}
             </div>
           </div>
