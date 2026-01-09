@@ -205,89 +205,115 @@ const NodePropertyEditor: React.FC<NodePropertyEditorProps> = ({ node, onChange 
   };
 
   return (
-    <>
-      <div className="bg-background p-2">
-        <div className="text-sm font-semibold">{spec.label}</div>
-        <div className="text-xs text-muted-foreground">ID: {node.id}</div>
+    <div className="h-full flex flex-col">
+      {/* 头部：节点信息 */}
+      <div className="px-4 py-3 border-b bg-muted/30 shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+            <span className="text-xs font-medium text-primary">{spec.label?.charAt(0) || 'N'}</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium truncate">{spec.label}</div>
+            <div className="text-[10px] text-muted-foreground font-mono truncate">{node.id}</div>
+          </div>
+        </div>
       </div>
-      <div className="p-2 max-h-[80vh] overflow-auto">
+
+      {/* 配置内容区域 */}
+      <div className="flex-1 overflow-y-auto">
         {effectiveConfig && effectiveConfig.length > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="text-xs uppercase opacity-70">配置</div>
-              {loadingConfig && <div className="text-xs text-muted-foreground">加载中...</div>}
+          <div className="p-3">
+            {/* 配置标题 */}
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-xs font-medium text-muted-foreground">配置</div>
+              {loadingConfig && (
+                <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                  <div className="w-3 h-3 rounded-full border border-muted-foreground/30 border-t-muted-foreground animate-spin" />
+                  加载中
+                </div>
+              )}
             </div>
 
-            {/* 渲染未分组的配置项 */}
-            {groupedConfigs.ungrouped.map((c) => (
-              <ConfigFieldRenderer key={c.key} field={c} value={(data.config || {})[c.key]} onChange={(val) => onChange((prev) => ({ config: { ...prev.config, [c.key]: val } }))} nodeData={data} />
-            ))}
+            <div className="space-y-3">
+              {/* 渲染未分组的配置项 */}
+              {groupedConfigs.ungrouped.map((c) => (
+                <ConfigFieldRenderer key={c.key} field={c} value={(data.config || {})[c.key]} onChange={(val) => onChange((prev) => ({ config: { ...prev.config, [c.key]: val } }))} nodeData={data} />
+              ))}
 
-            {/* 渲染分组的配置项 */}
-            {(() => {
-              // 按照 configGroups 定义的顺序渲染分组
-              const groupOrder = spec.configGroups ? Object.keys(spec.configGroups) : [];
-              const allGroups = Object.keys(groupedConfigs.groups);
+              {/* 渲染分组的配置项 */}
+              {(() => {
+                // 按照 configGroups 定义的顺序渲染分组
+                const groupOrder = spec.configGroups ? Object.keys(spec.configGroups) : [];
+                const allGroups = Object.keys(groupedConfigs.groups);
 
-              // 先渲染在 configGroups 中定义的分组（按定义顺序）
-              const definedGroups = groupOrder.filter((name) => allGroups.includes(name));
-              // 再渲染未在 configGroups 中定义的分组
-              const undefinedGroups = allGroups.filter((name) => !groupOrder.includes(name));
+                // 先渲染在 configGroups 中定义的分组（按定义顺序）
+                const definedGroups = groupOrder.filter((name) => allGroups.includes(name));
+                // 再渲染未在 configGroups 中定义的分组
+                const undefinedGroups = allGroups.filter((name) => !groupOrder.includes(name));
 
-              return [...definedGroups, ...undefinedGroups].map((groupName) => {
-                const configs = groupedConfigs.groups[groupName];
-                const isExpanded = expandedGroups.has(groupName);
-                return (
-                  <div key={groupName} className="space-y-2">
-                    <button type="button" onClick={() => toggleGroup(groupName)} className="flex items-center gap-1 w-full text-xs font-medium opacity-70 hover:opacity-100 transition-opacity">
-                      {isExpanded ? <TbChevronDown className="w-4 h-4" /> : <TbChevronRight className="w-4 h-4" />}
-                      <span>{getGroupLabel(groupName)}</span>
-                    </button>
-                    <AnimatePresence initial={false}>
-                      {isExpanded && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.2, ease: 'easeInOut' }}
-                          style={{ overflow: 'hidden' }}
-                        >
-                          <div className="pl-4 space-y-2">
-                            {configs.map((c) => (
-                              <ConfigFieldRenderer
-                                key={c.key}
-                                field={c}
-                                value={(data.config || {})[c.key]}
-                                onChange={(val) => onChange((prev) => ({ config: { ...prev.config, [c.key]: val } }))}
-                                nodeData={data}
-                              />
-                            ))}
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                );
-              });
-            })()}
+                return [...definedGroups, ...undefinedGroups].map((groupName) => {
+                  const configs = groupedConfigs.groups[groupName];
+                  const isExpanded = expandedGroups.has(groupName);
+                  return (
+                    <div key={groupName} className="rounded-md border bg-muted/20">
+                      <button
+                        type="button"
+                        onClick={() => toggleGroup(groupName)}
+                        className="flex items-center gap-2 w-full px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {isExpanded ? <TbChevronDown className="w-3.5 h-3.5" /> : <TbChevronRight className="w-3.5 h-3.5" />}
+                        <span>{getGroupLabel(groupName)}</span>
+                      </button>
+                      <AnimatePresence initial={false}>
+                        {isExpanded && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.15, ease: 'easeOut' }}
+                            style={{ overflow: 'hidden' }}
+                          >
+                            <div className="px-3 pb-3 space-y-3">
+                              {configs.map((c) => (
+                                <ConfigFieldRenderer
+                                  key={c.key}
+                                  field={c}
+                                  value={(data.config || {})[c.key]}
+                                  onChange={(val) => onChange((prev) => ({ config: { ...prev.config, [c.key]: val } }))}
+                                  nodeData={data}
+                                />
+                              ))}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
           </div>
         )}
+
+        {/* 输入默认值区域 */}
         {spec.inputs && spec.inputs.length > 0 && (
-          <div className="space-y-2">
-            <div className="text-xs uppercase opacity-70">输入默认值</div>
-            {spec.inputs.map((inp) => (
-              <ConfigFieldRenderer
-                key={inp.key}
-                field={inp}
-                value={(data.inputDefaults || {})[inp.key]}
-                onChange={(val) => onChange((prev) => ({ inputDefaults: { ...prev.inputDefaults, [inp.key]: val } }))}
-                nodeData={data}
-              />
-            ))}
+          <div className="p-3 border-t">
+            <div className="text-xs font-medium text-muted-foreground mb-3">输入默认值</div>
+            <div className="space-y-3">
+              {spec.inputs.map((inp) => (
+                <ConfigFieldRenderer
+                  key={inp.key}
+                  field={inp}
+                  value={(data.inputDefaults || {})[inp.key]}
+                  onChange={(val) => onChange((prev) => ({ inputDefaults: { ...prev.inputDefaults, [inp.key]: val } }))}
+                  nodeData={data}
+                />
+              ))}
+            </div>
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 };
 

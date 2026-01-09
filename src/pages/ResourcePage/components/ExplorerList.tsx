@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbFolderFilled, TbFolderOpen, TbFolderPlus, TbLine, TbPencil, TbTrash } from 'react-icons/tb';
+import { TbArrowDown, TbArrowUp, TbCalendar, TbChevronRight, TbFile, TbFolderFilled, TbFolderOpen, TbFolderPlus, TbLine, TbPencil, TbStack2, TbTrash, TbTypography } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -7,9 +7,10 @@ import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator,
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 import { runWorkflow } from '@/lib/workflow-runner';
 
-import { ResourceItem } from '../types';
+import { ResourceItem, SortField, SortOrder } from '../types';
 import type { UIFolder } from './FolderSidebar';
 import ResourceListItem from './ResourceListItem';
 
@@ -21,7 +22,87 @@ function rectsIntersect(a: Rect, b: Rect): boolean {
   return !(a.left > b.right || a.right < b.left || a.top > b.bottom || a.bottom < b.top);
 }
 
-// Inline folder row for list view
+// 表头组件
+interface TableHeaderProps {
+  sortField: SortField;
+  sortOrder: SortOrder;
+  onSort: (field: SortField) => void;
+}
+
+const TableHeader: React.FC<TableHeaderProps> = ({
+  sortField,
+  sortOrder,
+  onSort
+}) => {
+  // 渲染排序图标
+  const renderSortIcon = (field: SortField) => {
+    if (sortField !== field) return null;
+    return sortOrder === 'asc' ? (
+      <TbArrowUp className="w-3 h-3" />
+    ) : (
+      <TbArrowDown className="w-3 h-3" />
+    );
+  };
+
+  return (
+    <div
+      className="flex items-center h-8 border-b border-border/50 text-xs text-muted-foreground sticky top-0 z-10 bg-background"
+    >
+      {/* 名称列 */}
+      <div
+        className="flex-1 min-w-0 h-full flex items-center border-r border-border/30 cursor-pointer hover:bg-muted/50 transition-colors"
+        onClick={() => onSort('title')}
+      >
+        <div className="flex items-center gap-1.5 px-2">
+          <TbTypography className="w-3.5 h-3.5 text-muted-foreground/70" />
+          <span>名称</span>
+          {renderSortIcon('title')}
+        </div>
+      </div>
+
+      {/* 类型列 */}
+      <div
+        className="w-24 shrink-0 h-full flex items-center border-r border-border/30 cursor-pointer hover:bg-muted/50 transition-colors"
+        onClick={() => onSort('type')}
+      >
+        <div className="flex items-center gap-1.5 px-2">
+          <TbFile className="w-3.5 h-3.5 text-muted-foreground/70" />
+          <span>类型</span>
+          {renderSortIcon('type')}
+        </div>
+      </div>
+
+      {/* 大小列 */}
+      <div
+        className="w-20 shrink-0 h-full flex items-center border-r border-border/30 cursor-pointer hover:bg-muted/50 transition-colors"
+        onClick={() => onSort('sizeBytes')}
+      >
+        <div className="flex items-center gap-1.5 px-2">
+          <TbStack2 className="w-3.5 h-3.5 text-muted-foreground/70" />
+          <span>大小</span>
+          {renderSortIcon('sizeBytes')}
+        </div>
+      </div>
+
+      {/* 时间列 */}
+      <div
+        className="w-28 shrink-0 h-full flex items-center border-r border-border/30 cursor-pointer hover:bg-muted/50 transition-colors"
+        onClick={() => onSort('collectedAt')}
+      >
+        <div className="flex items-center gap-1.5 px-2">
+          <TbCalendar className="w-3.5 h-3.5 text-muted-foreground/70" />
+          <span>收集时间</span>
+          {renderSortIcon('collectedAt')}
+        </div>
+      </div>
+
+      {/* 右侧空白列 - 保留空间用于对齐 */}
+      <div className="w-8 shrink-0 h-full" />
+    </div>
+  );
+};
+
+// Notion 风格的文件夹行组件
 const ListFolderRow: React.FC<{
   folder: UIFolder;
   count?: number;
@@ -39,6 +120,7 @@ const ListFolderRow: React.FC<{
   const isWin = (window as any).YUA?.isWindows;
   const revealLabel = isWin ? '在资源管理器中显示' : '在 Finder 中显示';
 
+  // 检查是否为祖先文件夹（防止循环移动）
   const isAncestor = (ancestorId: string, descendantId: string): boolean => {
     let cur: string | null | undefined = descendantId;
     const guard = new Set<string>();
@@ -56,109 +138,124 @@ const ListFolderRow: React.FC<{
       <ContextMenuTrigger asChild>
         <Tooltip open={overInvalid || tipOpen}>
           <TooltipTrigger asChild>
-            {(() => {
-              const rowStateClass = over ? (overInvalid ? 'ring-1 ring-destructive bg-destructive/10' : 'bg-muted/50 border-primary/30') : 'hover:bg-muted/50 hover:border-primary/30';
-              return (
-                <div
-                  data-list-folder-row
-                  className={'group relative flex items-center gap-4 p-2 rounded-lg border transition-all cursor-pointer select-none ' + rowStateClass}
-                  onClick={() => onOpen?.()}
-                  onContextMenu={(e) => e.stopPropagation()}
-                  draggable
-                  onDragStart={(e) => {
-                    try {
-                      e.dataTransfer.setData('application/x-folder-id', folder.id);
-                      e.dataTransfer.effectAllowed = 'move';
-                    } catch {
-                      /* noop */
+            <div
+              data-list-folder-row
+              className={cn(
+                // Notion 风格表格行
+                'group relative flex items-center h-[33px] border-b border-border/20 transition-colors duration-75 cursor-pointer select-none',
+                // 拖拽悬停状态
+                over && !overInvalid && 'bg-primary/10',
+                over && overInvalid && 'bg-destructive/10',
+                // 默认 hover 效果
+                !over && 'hover:bg-muted/50'
+              )}
+              onClick={() => onOpen?.()}
+              onContextMenu={(e) => e.stopPropagation()}
+              draggable
+              onDragStart={(e) => {
+                try {
+                  e.dataTransfer.setData('application/x-folder-id', folder.id);
+                  e.dataTransfer.effectAllowed = 'move';
+                } catch {
+                  /* noop */
+                }
+              }}
+              onDragOver={(e) => {
+                const types = Array.from((e.dataTransfer?.types as any) || []);
+                const maybeFolder = types.includes('application/x-folder-id');
+                if (maybeFolder) {
+                  try {
+                    const fid = e.dataTransfer.getData('application/x-folder-id');
+                    const invalid = fid === folder.id || isAncestor(fid, folder.id);
+                    setOverInvalid(invalid);
+                    if (!invalid) {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      setOver(true);
+                    } else {
+                      setOver(false);
+                      e.dataTransfer.dropEffect = 'none';
                     }
-                  }}
-                  onDragOver={(e) => {
-                    const types = Array.from((e.dataTransfer?.types as any) || []);
-                    const maybeFolder = types.includes('application/x-folder-id');
-                    if (maybeFolder) {
-                      try {
-                        const fid = e.dataTransfer.getData('application/x-folder-id');
-                        const invalid = fid === folder.id || isAncestor(fid, folder.id);
-                        setOverInvalid(invalid);
-                        if (!invalid) {
-                          e.preventDefault();
-                          e.dataTransfer.dropEffect = 'move';
-                          setOver(true);
-                        } else {
-                          setOver(false);
-                          e.dataTransfer.dropEffect = 'none';
-                        }
-                      } catch {
-                        e.preventDefault();
-                        setOver(true);
-                        setOverInvalid(false);
-                      }
-                      return;
-                    }
+                  } catch {
                     e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
                     setOver(true);
                     setOverInvalid(false);
-                  }}
-                  onDragLeave={() => {
-                    setOver(false);
-                    setOverInvalid(false);
-                    setTipOpen(false);
-                  }}
-                  onDrop={async (e) => {
-                    setOver(false);
-                    setOverInvalid(false);
-                    setTipOpen(false);
-                    try {
-                      const fid = e.dataTransfer.getData('application/x-folder-id');
-                      if (fid) {
-                        if (fid !== folder.id && !isAncestor(fid, folder.id)) {
-                          const targetPid = folder.id;
-                          try {
-                            if (onMoveFolder) await onMoveFolder(fid, targetPid);
-                          } catch (err) {
-                            const msg = String((err as any)?.message || err || '');
-                            const isUnique = /UNIQUE|constraint/i.test(msg);
-                            if (isUnique) {
-                              toast.error('移动文件夹失败', { description: '目标文件夹内已存在同名文件夹' });
-                            } else {
-                              toast.error('移动文件夹失败');
-                            }
-                          }
+                  }
+                  return;
+                }
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                setOver(true);
+                setOverInvalid(false);
+              }}
+              onDragLeave={() => {
+                setOver(false);
+                setOverInvalid(false);
+                setTipOpen(false);
+              }}
+              onDrop={async (e) => {
+                setOver(false);
+                setOverInvalid(false);
+                setTipOpen(false);
+                try {
+                  const fid = e.dataTransfer.getData('application/x-folder-id');
+                  if (fid) {
+                    if (fid !== folder.id && !isAncestor(fid, folder.id)) {
+                      const targetPid = folder.id;
+                      try {
+                        if (onMoveFolder) await onMoveFolder(fid, targetPid);
+                      } catch (err) {
+                        const msg = String((err as any)?.message || err || '');
+                        const isUnique = /UNIQUE|constraint/i.test(msg);
+                        if (isUnique) {
+                          toast.error('移动文件夹失败', { description: '目标文件夹内已存在同名文件夹' });
                         } else {
-                          setTipOpen(true);
-                          setTimeout(() => setTipOpen(false), 1200);
+                          toast.error('移动文件夹失败');
                         }
-                        return;
                       }
-                    } catch {
-                      /* ignore folder move */
+                    } else {
+                      setTipOpen(true);
+                      setTimeout(() => setTipOpen(false), 1200);
                     }
-                    try {
-                      const raw = e.dataTransfer.getData('application/x-resource-ids');
-                      if (!raw) return;
-                      const ids: string[] = JSON.parse(raw);
-                      if (Array.isArray(ids) && ids.length) onDropResources?.(ids);
-                    } catch {
-                      /* ignore */
-                    }
-                  }}
-                >
-                  <div className="relative flex-shrink-0 w-16 h-16 rounded-md overflow-hidden bg-muted flex items-center justify-center text-3xl text-muted-foreground">
-                    <TbFolderFilled />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="mb-1">
-                      <h3 className="font-medium text-sm truncate mb-1 flex items-center gap-2">
-                        <span className="truncate">{folder.name}</span>
-                        {typeof count === 'number' && <span className="inline-flex items-center justify-center bg-primary/10 text-primary text-[10px] px-1.5 py-0.5 rounded-full">{count}</span>}
-                      </h3>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
+                    return;
+                  }
+                } catch {
+                  /* ignore folder move */
+                }
+                try {
+                  const raw = e.dataTransfer.getData('application/x-resource-ids');
+                  if (!raw) return;
+                  const ids: string[] = JSON.parse(raw);
+                  if (Array.isArray(ids) && ids.length) onDropResources?.(ids);
+                } catch {
+                  /* ignore */
+                }
+              }}
+            >
+              {/* 文件夹名称 */}
+              <div className="flex-1 min-w-0 h-full flex items-center px-2 border-r border-border/20 gap-2">
+                <TbFolderFilled className="w-4 h-4 text-primary/70 shrink-0" />
+                <span className="text-sm truncate">{folder.name}</span>
+              </div>
+
+              {/* 类型列 - 显示"文件夹" */}
+              <div className="w-24 shrink-0 h-full flex items-center px-2 border-r border-border/20">
+                <span className="text-xs text-muted-foreground">文件夹</span>
+              </div>
+
+              {/* 大小列 - 显示子项数量 */}
+              <div className="w-20 shrink-0 h-full flex items-center px-2 border-r border-border/20">
+                <span className="text-xs text-muted-foreground">{typeof count === 'number' ? `${count} 项` : '-'}</span>
+              </div>
+
+              {/* 时间列 - 显示箭头图标 */}
+              <div className="w-28 shrink-0 h-full flex items-center px-2 border-r border-border/20 justify-end">
+                <TbChevronRight className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+
+              {/* 右侧空白列 - 对齐表头的添加列按钮 */}
+              <div className="w-8 shrink-0" />
+            </div>
           </TooltipTrigger>
           <TooltipContent side="top">不能移动到自己的子文件夹中</TooltipContent>
         </Tooltip>
@@ -180,6 +277,20 @@ const ListFolderRow: React.FC<{
   );
 };
 
+// 底部统计信息组件
+const StatsRow: React.FC<{
+  filteredCount: number;
+  totalCount: number;
+}> = ({ filteredCount, totalCount }) => {
+  return (
+    <div className="flex items-center h-[33px] text-xs text-muted-foreground justify-end px-4">
+      <span>
+        共 {filteredCount}/{totalCount} 个资源
+      </span>
+    </div>
+  );
+};
+
 export interface ExplorerListProps {
   items: ResourceItem[];
   folders?: UIFolder[];
@@ -188,9 +299,10 @@ export interface ExplorerListProps {
   selectedItems: Set<string>;
   folderId?: string;
   workspaceId?: string;
+  sortField?: SortField;
+  sortOrder?: SortOrder;
+  onSort?: (field: SortField, order: SortOrder) => void;
   onItemClick: (e: React.MouseEvent, item: ResourceItem) => void;
-  onToggleFavorite?: (id: string) => void;
-  onToggleVisibility?: (id: string) => void;
   onOpenFolder?: (id: string) => void;
   onDropResourcesToFolder?: (folderId: string, ids: string[]) => void;
   onRenameFolder?: (id: string) => void;
@@ -204,6 +316,8 @@ export interface ExplorerListProps {
   setSelectedItems?: (items: Set<string>) => void;
   /** 最近新增资源的 ID 集合，用于高亮显示 */
   highlightedIds?: Set<string>;
+  /** 所有资源的总数（用于统计显示） */
+  totalCount?: number;
 }
 
 export const ExplorerList: React.FC<ExplorerListProps> = ({
@@ -214,9 +328,10 @@ export const ExplorerList: React.FC<ExplorerListProps> = ({
   selectedItems,
   folderId,
   workspaceId,
+  sortField = 'collectedAt',
+  sortOrder = 'desc',
+  onSort,
   onItemClick,
-  onToggleFavorite,
-  onToggleVisibility,
   onOpenFolder,
   onDropResourcesToFolder,
   onRenameFolder,
@@ -228,7 +343,8 @@ export const ExplorerList: React.FC<ExplorerListProps> = ({
   onDeleteMany,
   onFolderCreated,
   setSelectedItems,
-  highlightedIds
+  highlightedIds,
+  totalCount = 0
 }) => {
   const isWin = (window as any).YUA?.isWindows;
   const revealLabel = isWin ? '在资源管理器中显示' : '在 Finder 中显示';
@@ -429,6 +545,21 @@ export const ExplorerList: React.FC<ExplorerListProps> = ({
     [items, selectedItems, setSelectedItems, onDelete, onDeleteMany]
   );
 
+  // 排序处理
+  const handleSort = useCallback(
+    (field: SortField) => {
+      if (!onSort) return;
+      // 如果点击当前排序字段，切换排序顺序
+      if (field === sortField) {
+        onSort(field, sortOrder === 'asc' ? 'desc' : 'asc');
+      } else {
+        // 否则按新字段降序排序
+        onSort(field, 'desc');
+      }
+    },
+    [sortField, sortOrder, onSort]
+  );
+
   // 工作流列表
   const [workflows, setWorkflows] = useState<any[]>([]);
   useEffect(() => {
@@ -572,85 +703,89 @@ export const ExplorerList: React.FC<ExplorerListProps> = ({
     }
   }, [items, setSelectedItems]);
 
-  // 取消选择
-  const handleClearSelection = useCallback(() => {
-    if (setSelectedItems) {
-      setSelectedItems(new Set());
-    }
-  }, [setSelectedItems]);
-
   return (
     <>
       <ContextMenu>
         <ContextMenuTrigger asChild>
           <div
             ref={containerRef}
-            className="relative space-y-2 px-2 box-border w-full min-h-full outline-none"
+            className="relative flex flex-col w-full min-h-full outline-none"
             tabIndex={0}
             onKeyDown={handleKeyDown}
             onPointerDown={handleBackgroundPointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={endDrag}
           >
-            {/* 先渲染子文件夹列表条目 */}
-            {folders.map((f) => (
-              <ListFolderRow
-                key={`folder-row-${f.id}`}
-                folder={f}
-                count={counts[f.id]}
-                folderParentMap={folderParentMap}
-                onOpen={() => onOpenFolder?.(f.id)}
-                onDropResources={(ids: string[]) => onDropResourcesToFolder?.(f.id, ids)}
-                onMoveFolder={onMoveFolder}
-                onRename={() => onRenameFolder?.(f.id)}
-                onDelete={() => onDeleteFolder?.(f.id)}
-                onOpenLocation={() => onOpenFolderLocation?.(f.id)}
-              />
-            ))}
+            {/* 表头 */}
+            <TableHeader
+              sortField={sortField}
+              sortOrder={sortOrder}
+              onSort={handleSort}
+            />
 
-            {/* 再渲染资源列表条目 */}
-            {items.map((item, idx) => (
-              <div
-                key={item.id}
-                ref={updateItemRef(item.id)}
-                data-explorer-item
-                data-id={item.id}
-                onContextMenu={(e) => handleContextMenu(e, item)}
-              >
-                <ResourceListItem
-                  item={item}
-                  selected={selectedItems.has(item.id)}
-                  isNew={!!highlightedIds?.has(item.id)}
-                  onClick={handleEnhancedItemClick}
-                  onToggleFavorite={onToggleFavorite}
-                  onToggleVisibility={onToggleVisibility}
-                  onPreview={() => {
-                    const current = items[idx];
-                    if (!current) return;
-                    if (onPreview) {
-                      onPreview(current);
-                    } else {
-                      window.YUA.window['window:open'](
-                        'resourcePreview',
-                        { current, list: items, index: idx },
-                        { sameDisplayAsSender: true }
-                      );
-                    }
-                  }}
-                  draggable
-                  onDragStart={(e) => {
-                    const ids = selectedItems.has(item.id) && selectedItems.size > 0 ? Array.from(selectedItems) : [item.id];
-                    try {
-                      e.dataTransfer.setData('application/x-resource-ids', JSON.stringify(ids));
-                      e.dataTransfer.effectAllowed = 'move';
-                      e.dataTransfer.dropEffect = 'move';
-                    } catch {
-                      /* ignore */
-                    }
-                  }}
+            {/* 列表内容 */}
+            <div className="flex-1">
+              {/* 先渲染子文件夹列表条目 */}
+              {folders.map((f) => (
+                <ListFolderRow
+                  key={`folder-row-${f.id}`}
+                  folder={f}
+                  count={counts[f.id]}
+                  folderParentMap={folderParentMap}
+                  onOpen={() => onOpenFolder?.(f.id)}
+                  onDropResources={(ids: string[]) => onDropResourcesToFolder?.(f.id, ids)}
+                  onMoveFolder={onMoveFolder}
+                  onRename={() => onRenameFolder?.(f.id)}
+                  onDelete={() => onDeleteFolder?.(f.id)}
+                  onOpenLocation={() => onOpenFolderLocation?.(f.id)}
                 />
-              </div>
-            ))}
+                ))}
+
+              {/* 再渲染资源列表条目 */}
+              {items.map((item, idx) => (
+                <div
+                  key={item.id}
+                  ref={updateItemRef(item.id)}
+                  data-explorer-item
+                  data-id={item.id}
+                  onContextMenu={(e) => handleContextMenu(e, item)}
+                >
+                  <ResourceListItem
+                    item={item}
+                    selected={selectedItems.has(item.id)}
+                    isNew={!!highlightedIds?.has(item.id)}
+                    onClick={handleEnhancedItemClick}
+                    onPreview={() => {
+                      const current = items[idx];
+                      if (!current) return;
+                      if (onPreview) {
+                        onPreview(current);
+                      } else {
+                        window.YUA.window['window:open'](
+                          'resourcePreview',
+                          { current, list: items, index: idx },
+                          { sameDisplayAsSender: true }
+                        );
+                      }
+                    }}
+                    draggable
+                    onDragStart={(e) => {
+                      const ids = selectedItems.has(item.id) && selectedItems.size > 0 ? Array.from(selectedItems) : [item.id];
+                      try {
+                        e.dataTransfer.setData('application/x-resource-ids', JSON.stringify(ids));
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.dropEffect = 'move';
+                      } catch {
+                        /* ignore */
+                      }
+                    }}
+                  />
+                </div>
+              ))}
+
+              {/* 底部统计信息 */}
+              <StatsRow filteredCount={items.length} totalCount={totalCount} />
+            </div>
 
             {/* 拖拽框选的选择框 */}
             {isDragging && selectionRect && (
@@ -775,7 +910,7 @@ export const ExplorerList: React.FC<ExplorerListProps> = ({
 
               {/* 全选/取消选择 */}
               <ContextMenuItem onSelect={handleSelectAll}>全选</ContextMenuItem>
-              <ContextMenuItem onSelect={handleClearSelection}>取消选择</ContextMenuItem>
+              <ContextMenuItem onSelect={clearSelection}>取消选择</ContextMenuItem>
             </>
           ) : (
             <>

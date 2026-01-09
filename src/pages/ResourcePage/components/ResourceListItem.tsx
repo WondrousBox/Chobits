@@ -1,15 +1,68 @@
 import prettyBytes from 'pretty-bytes';
-import React, { useCallback, useState } from 'react';
-import { TbAppWindow, TbCalendar, TbCheck, TbClock, TbCopy, TbEye, TbEyeOff, TbHeart, TbLetterT, TbPlayerPlay, TbStar, TbTag, TbUser } from 'react-icons/tb';
+import React, { useCallback } from 'react';
+import { TbFile, TbFileText, TbFileTypeDoc, TbLink, TbMusic, TbPhoto, TbSubtask, TbVideo } from 'react-icons/tb';
 
-import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/lib/time';
 
 import { ResourceItem } from '../types';
-import { makeResSrc } from '../utils/resourceProtocol';
-import { formatDuration, getFileCoverByPath, getStatusColor, parseTags } from '../utils/resourceUtils';
-import { isSubtitleFile } from '../utils/subtitleUtils';
+
+// 类型标签配置（包含图标）
+const TYPE_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
+  video: { label: '视频', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400', icon: TbVideo },
+  audio: { label: '音频', color: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400', icon: TbMusic },
+  image: { label: '图片', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400', icon: TbPhoto },
+  document: { label: '文档', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400', icon: TbFileTypeDoc },
+  text: { label: '文本', color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400', icon: TbFileText },
+  subtitle: { label: '字幕', color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400', icon: TbSubtask },
+  link: { label: '链接', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400', icon: TbLink },
+  file: { label: '文件', color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400', icon: TbFile },
+  other: { label: '其他', color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400', icon: TbFile }
+};
+
+// 根据文件扩展名推断更精细的类型
+const getDetailedType = (item: ResourceItem): string => {
+  // 优先使用 item.type
+  if (item.type && TYPE_CONFIG[item.type]) {
+    return item.type;
+  }
+
+  // 根据文件扩展名判断
+  const filePath = item.filePath || '';
+  const ext = filePath.split('.').pop()?.toLowerCase() || '';
+
+  // 字幕文件
+  if (['srt', 'vtt', 'ass', 'ssa', 'sub', 'lrc'].includes(ext)) {
+    return 'subtitle';
+  }
+
+  // 视频文件
+  if (['mp4', 'webm', 'mov', 'mkv', 'avi', 'flv', 'wmv', 'm4v', 'ogv'].includes(ext)) {
+    return 'video';
+  }
+
+  // 音频文件
+  if (['mp3', 'wav', 'm4a', 'flac', 'opus', 'ogg', 'aac', 'wma'].includes(ext)) {
+    return 'audio';
+  }
+
+  // 图片文件
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'ico', 'tiff'].includes(ext)) {
+    return 'image';
+  }
+
+  // 文档文件
+  if (['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp'].includes(ext)) {
+    return 'document';
+  }
+
+  // 文本文件
+  if (['txt', 'md', 'json', 'xml', 'yaml', 'yml', 'csv', 'log', 'ini', 'conf'].includes(ext)) {
+    return 'text';
+  }
+
+  return item.type || 'other';
+};
 
 interface ListItemProps {
   item: ResourceItem;
@@ -17,71 +70,26 @@ interface ListItemProps {
   /** 是否为刚生成/刚导入的资源，用于临时高亮 */
   isNew?: boolean;
   onClick: (e: React.MouseEvent, item: ResourceItem) => void;
-  onToggleFavorite?: (id: string) => void;
-  onToggleVisibility?: (id: string) => void;
   draggable?: boolean;
   onDragStart?: (e: React.DragEvent<HTMLDivElement>, item: ResourceItem) => void;
-  // Ask parent to open preview (centralized in parent)
   onPreview?: (item: ResourceItem) => void;
 }
 
-const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, isNew, onClick, onToggleFavorite, onToggleVisibility, draggable, onDragStart, onPreview }) => {
-  const [copied, setCopied] = useState(false);
-  const tags = parseTags(item.tags);
-  // const categories = parseCategories(item.categories);
-  const fileCover = getFileCoverByPath(item.filePath);
+const ResourceListItem: React.FC<ListItemProps> = ({
+  item,
+  selected,
+  isNew,
+  onClick,
+  draggable,
+  onDragStart,
+  onPreview
+}) => {
+  // 获取详细类型和配置
+  const detailedType = getDetailedType(item);
+  const typeConfig = TYPE_CONFIG[detailedType] || TYPE_CONFIG.other;
+  const IconComponent = typeConfig.icon;
 
-  const handleSourceClick = useCallback(
-    async (e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (item.url) {
-        try {
-          await navigator.clipboard.writeText(item.url);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 2000);
-        } catch (err) {
-          console.warn('复制链接失败:', err);
-        }
-      }
-    },
-    [item.url]
-  );
-
-  const handleFavoriteClick = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      onToggleFavorite?.(item.id);
-    },
-    [item.id, onToggleFavorite]
-  );
-
-  const handleVisibilityClick = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      onToggleVisibility?.(item.id);
-    },
-    [item.id, onToggleVisibility]
-  );
-
-  const handlePlayClick = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      const isAudio = item.type === 'audio';
-      const isImageRes = item.type === 'image';
-      const isVideoRes = item.type === 'video';
-      const isSubtitle = isSubtitleFile(item.filePath);
-
-      if (isAudio || isImageRes || isVideoRes || isSubtitle) {
-        onPreview?.(item);
-      }
-    },
-    [item, onPreview]
-  );
-
-  const selectionClass = selected ? 'ring-2 ring-primary border-primary/50 bg-primary/5' : 'hover:bg-muted/50 hover:border-primary/30';
-  const newHighlightClass = isNew ? 'border-amber-400 bg-amber-50/70 dark:bg-amber-950/40 shadow-[0_0_0_1px_rgba(251,191,36,0.85)] animate-pulse' : '';
-
-  // 点击行：选中资源，普通点击时触发预览（Shift/Cmd/Ctrl 点击不触发预览）
+  // 点击行：选中资源，普通点击时触发预览
   const handleRowClick = useCallback(
     (e: React.MouseEvent) => {
       onClick(e, item);
@@ -93,166 +101,59 @@ const ResourceListItem: React.FC<ListItemProps> = ({ item, selected, isNew, onCl
     [onClick, item, onPreview]
   );
 
+  // 获取显示名称
+  const displayName = item.title || item.filePath?.split('/').pop() || item.url || item.id;
+
   return (
     <div
       onClick={handleRowClick}
       draggable={!!draggable}
       onDragStart={(e) => onDragStart?.(e, item)}
-      className={`group relative flex items-center gap-4 p-2 rounded-lg border transition-all cursor-pointer select-none ${selectionClass} ${newHighlightClass}`}
+      className={cn(
+        // Notion 风格表格行
+        'group relative flex items-center h-[33px] border-b border-border/20 transition-colors duration-75 cursor-pointer select-none',
+        // 选中状态
+        selected && 'bg-primary/10',
+        // 未选中时 hover 效果
+        !selected && 'hover:bg-muted/50',
+        // 新增资源高亮
+        isNew && 'bg-amber-50/70 dark:bg-amber-950/40'
+      )}
     >
-      {/* 左侧缩略图和类型图标 */}
-      <div className="relative flex-shrink-0 w-16 h-16 rounded-md overflow-hidden bg-muted">
-        {item.thumbnailPath ? (
-          <img src={makeResSrc(item.thumbnailPath)} alt={item.title || ''} className="w-full h-full object-cover" />
-        ) : item.type === 'text' ? (
-          <div className="w-full h-full flex items-center justify-center text-2xl">
-            <TbLetterT />
-          </div>
-        ) : (
-          <div className="w-full h-full flex items-center justify-center [&>svg]:w-full [&>svg]:h-full" dangerouslySetInnerHTML={{ __html: fileCover }} />
-        )}
-
-        {/* 状态指示器 */}
-        <div className={`absolute top-1 left-1 w-2 h-2 rounded-full ${getStatusColor(item.status)}`} />
+      {/* 名称列 - 弹性宽度 */}
+      <div className="flex-1 min-w-0 h-full flex items-center px-2 border-r border-border/20 gap-2">
+        <IconComponent className="w-4 h-4 shrink-0 text-muted-foreground" />
+        <span className="text-sm truncate">{displayName}</span>
       </div>
 
-      {/* 主要内容区域 */}
-      <div className="flex-1 w-0">
-        {/* 标题和描述 */}
-        <div className="mb-2">
-          <h3 className="font-medium text-sm truncate mb-1">{item.title || item.filePath?.split('/').pop() || item.url || item.id}</h3>
-          {item.description && <p className="text-xs text-muted-foreground line-clamp-2">{item.description}</p>}
-        </div>
-
-        {/* 元数据信息 */}
-        <div className="flex items-center gap-4 text-xs text-muted-foreground mb-2">
-          {/* 文件大小 */}
-          <span className="flex items-center whitespace-nowrap">{prettyBytes(item.sizeBytes || 0)}</span>
-
-          {/* 时长 */}
-          {item.durationMs && (
-            <span className="flex items-center gap-1">
-              <TbClock className="w-3 h-3" />
-              {formatDuration(item.durationMs)}
-            </span>
+      {/* 类型列 - 固定宽度 */}
+      <div className="w-24 shrink-0 h-full flex items-center px-2 border-r border-border/20">
+        <span
+          className={cn(
+            'inline-flex items-center px-1.5 py-0.5 rounded text-xs',
+            typeConfig.color
           )}
-
-          {/* 分辨率 */}
-          {item.width && item.height && (
-            <span>
-              {item.width}×{item.height}
-            </span>
-          )}
-
-          {/* 收集时间 */}
-          {item.collectedAt && (
-            <span className="flex items-center gap-1 whitespace-nowrap">
-              <TbCalendar />
-              {formatRelativeTime(item.collectedAt)}
-            </span>
-          )}
-        </div>
-
-        {/* 来源和作者信息 */}
-        {(item.domain || item.sourceName || item.authorName) && (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-            {item.domain && <span className="bg-muted px-2 py-1 rounded text-[10px] font-medium">{item.domain}</span>}
-            {(item.sourceName || item.authorName) && (
-              <span className="flex items-center gap-1">
-                <TbUser className="w-3 h-3" />
-                {item.sourceName || item.authorName}
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* 标签 */}
-        {tags.length > 0 && (
-          <div className="flex items-center gap-1 flex-wrap">
-            <TbTag className="w-3 h-3 text-muted-foreground" />
-            {tags.slice(0, 5).map((tag, index) => (
-              <span key={index} className="bg-primary/10 text-primary px-1.5 py-0.5 rounded text-[10px]">
-                #{tag}
-              </span>
-            ))}
-            {tags.length > 5 && <span className="text-[10px] text-muted-foreground">+{tags.length - 5}</span>}
-          </div>
-        )}
+        >
+          {typeConfig.label}
+        </span>
       </div>
 
-      {/* 右侧操作区域 */}
-      <div className="flex items-center gap-1">
-        {/* 评分 */}
-        {item.rating && item.rating > 0 && (
-          <div className="flex items-center gap-1 text-yellow-500 text-sm mr-2">
-            <TbStar className="w-4 h-4 fill-current" />
-            <span>{item.rating}</span>
-          </div>
-        )}
-
-        {/* 播放按钮 */}
-        {(item.type === 'audio' || item.type === 'image' || item.type === 'video') && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant={'ghost'} size={'icon'} onClick={handlePlayClick}>
-                <TbPlayerPlay />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>播放预览</TooltipContent>
-          </Tooltip>
-        )}
-
-        {/* 收藏按钮 */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant={'ghost'} size={'icon'} onClick={handleFavoriteClick} className={`w-8 h-8 ${item.favorite === 1 ? 'text-red-500' : ''}`}>
-              <TbHeart className={`${item.favorite === 1 ? 'fill-current' : ''}`} />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{item.favorite === 1 ? '取消收藏' : '添加收藏'}</TooltipContent>
-        </Tooltip>
-
-        {/* 可见性按钮 */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant={'ghost'} size={'icon'} onClick={handleVisibilityClick}>
-              {item.visibility === 'public' ? <TbEye /> : <TbEyeOff />}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{item.visibility === 'public' ? '设为私有' : '设为公开'}</TooltipContent>
-        </Tooltip>
-
-        {/* 复制链接按钮 */}
-        {item.url && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant={'ghost'} size={'icon'} onClick={handleSourceClick}>
-                {copied ? <TbCheck /> : <TbCopy />}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{copied ? '已复制!' : '复制链接'}</TooltipContent>
-          </Tooltip>
-        )}
-
-        {/* 外部链接按钮 */}
-        {item.url && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant={'ghost'}
-                size={'icon'}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  window.open(item.url, '_blank');
-                }}
-              >
-                <TbAppWindow />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>在新窗口中打开</TooltipContent>
-          </Tooltip>
-        )}
+      {/* 大小列 - 固定宽度 */}
+      <div className="w-20 shrink-0 h-full flex items-center px-2 border-r border-border/20">
+        <span className="text-xs text-muted-foreground">
+          {item.sizeBytes ? prettyBytes(item.sizeBytes) : '-'}
+        </span>
       </div>
+
+      {/* 时间列 - 固定宽度 */}
+      <div className="w-28 shrink-0 h-full flex items-center px-2 border-r border-border/20">
+        <span className="text-xs text-muted-foreground">
+          {item.collectedAt ? formatRelativeTime(item.collectedAt) : '-'}
+        </span>
+      </div>
+
+      {/* 右侧空白列 - 对齐表头的添加列按钮 */}
+      <div className="w-8 shrink-0" />
     </div>
   );
 };

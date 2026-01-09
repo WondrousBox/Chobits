@@ -26,28 +26,33 @@ const WorkflowJsonDialog: React.FC<WorkflowJsonDialogProps> = ({ open, onOpenCha
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[80vh] w-[700px]">
+      <DialogContent className="sm:max-w-3xl max-h-[80vh]">
         <DialogHeader>
           <DialogTitle>工作流 JSON</DialogTitle>
           <DialogDescription>工作流 JSON 定义，可用于导入到其他系统</DialogDescription>
         </DialogHeader>
-        <div className="space-y-2">
+        <div className="space-y-3">
           <div className="flex justify-end">
-            <Button variant="outline" size="sm" onClick={handleCopy}>
+            <Button variant="outline" size="sm" onClick={handleCopy} className="h-7 text-xs">
               {copied ? (
                 <>
-                  <TbCheck className="mr-1" />
+                  <TbCheck className="mr-1.5 h-3.5 w-3.5" />
                   已复制
                 </>
               ) : (
                 <>
-                  <TbCopy className="mr-1" />
+                  <TbCopy className="mr-1.5 h-3.5 w-3.5" />
                   复制
                 </>
               )}
             </Button>
           </div>
-          <Textarea value={json} readOnly className="font-mono text-xs min-h-[400px] resize-none bg-muted w-[670px]" onClick={(e) => (e.target as HTMLTextAreaElement).select()} />
+          <Textarea
+            value={json}
+            readOnly
+            className="font-mono text-xs min-h-[400px] resize-none bg-muted/50 w-full"
+            onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+          />
         </div>
       </DialogContent>
     </Dialog>

@@ -108,7 +108,7 @@ export const TextPlayer: React.FC<TextPlayerProps> = ({ resource }) => {
             </div>
           ) : (
             <ScrollArea className="h-full w-full">
-              <div className="box-border h-full w-full select-text overflow-auto rounded border px-2 text-left font-mono text-xs leading-relaxed shadow-inner">
+              <div className="box-border h-full w-full select-text overflow-auto px-4 py-3 text-left font-mono text-xs leading-relaxed">
                 {loadingText ? '加载中…' : textContent || '（无文本内容）'}
               </div>
             </ScrollArea>

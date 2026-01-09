@@ -6,9 +6,11 @@ interface UseFolderImportProps {
   wsFilter: string | undefined;
   load: () => Promise<void>;
   loadFolders: (wsId?: string) => Promise<void>;
+  // 是否显示成功 toast，默认为 true。当多个组件使用此 hook 时，只需一个显示 toast
+  showSuccessToast?: boolean;
 }
 
-export function useFolderImport({ folderFilter, wsFilter, load, loadFolders }: UseFolderImportProps): {
+export function useFolderImport({ folderFilter, wsFilter, load, loadFolders, showSuccessToast = true }: UseFolderImportProps): {
   importFiles: () => Promise<void>;
   importFolders: () => Promise<void>;
   importProgress: {
@@ -39,7 +41,10 @@ export function useFolderImport({ folderFilter, wsFilter, load, loadFolders }: U
       } else {
         setImportProgress(payload);
         if (!payload.visible && payload.percent === 100) {
-          toast.success('导入完成');
+          if (showSuccessToast) {
+            // 使用固定 id 去重，防止 preload ipcRenderer.off 无法正确移除监听器导致的重复 toast
+            toast.success('导入完成', { id: 'import-complete' });
+          }
           load();
           loadFolders(wsFilter);
         }
@@ -49,7 +54,7 @@ export function useFolderImport({ folderFilter, wsFilter, load, loadFolders }: U
     return () => {
       window.ipcRenderer.off('resource:import-progress', fn);
     };
-  }, [load, loadFolders, wsFilter]);
+  }, [load, loadFolders, wsFilter, showSuccessToast]);
 
   const importFiles = useCallback(async () => {
     try {

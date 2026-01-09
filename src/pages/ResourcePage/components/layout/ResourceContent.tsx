@@ -1,20 +1,26 @@
 import { debounce } from 'lodash-es';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
+import { TbChevronLeft, TbPlayerPlay, TbSparkles, TbTrash, TbBolt, TbX } from 'react-icons/tb';
+import { toast } from 'sonner';
 
 import Dropzone from '@/components/common/Dropzone';
+import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
+import { runWorkflow } from '@/lib/workflow-runner';
 import { BroadcastChannelManager, CHANNEL_NAMES, type PreferencesMessage } from '@/utils/broadcastChannels';
 
-import { ResourceItem, ViewMode } from '../../types';
+import { ResourceItem, SortField, SortOrder, ViewMode } from '../../types';
 import { mergeVideoWithSubtitles } from '../../utils/subtitleUtils';
+import AIChatSidebar from '../AIChatSidebar';
 import DefaultEmptyFolder from '../DefaultEmptyFolder';
 import ExplorerFreeLayout from '../ExplorerFreeLayout';
 import ExplorerGrid from '../ExplorerGrid';
 import ExplorerList from '../ExplorerList';
 import { UIFolder } from '../FolderSidebar';
 import ResourcePreviewPanel from '../ResourcePreviewPanel';
-import ResourceFooter from './ResourceFooter';
+import ContentToolbar from './ContentToolbar';
 
 interface ResourceContentProps {
   uploadProgress: any;
@@ -50,10 +56,29 @@ interface ResourceContentProps {
   handleItemClick: any;
   load: any;
   loadFolders: any;
-  currentFolderPath: UIFolder[];
+  loadTags: any;
   setSelectedItems: (items: Set<string>) => void;
   list: any[];
   isCollapseMode: boolean;
+  // ContentToolbar 相关 props
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
+  handleViewModeChange: (mode: ViewMode) => void;
+  typeOptions: any[];
+  visibleTypes: Set<string>;
+  typeFilter: string[];
+  tagFilter: string;
+  setTagFilter: (tag: string) => void;
+  tags: any[];
+  sortField: SortField;
+  setSortField: (field: SortField) => void;
+  sortOrder: SortOrder;
+  setSortOrder: (order: SortOrder) => void;
+  setIsCollapseMode: (mode: boolean) => void;
+  showCollapseSuggestion: boolean;
+  setShowCollapseSuggestion: (show: boolean) => void;
+  // 面包屑导航
+  currentFolderPath: UIFolder[];
 }
 
 const ResourceContent: React.FC<ResourceContentProps> = ({
@@ -85,13 +110,46 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
   handleItemClick,
   load,
   loadFolders,
-  currentFolderPath,
+  loadTags,
   setSelectedItems,
   list,
-  isCollapseMode
+  isCollapseMode,
+  // ContentToolbar 相关 props
+  searchQuery,
+  setSearchQuery,
+  handleViewModeChange,
+  typeOptions,
+  visibleTypes,
+  typeFilter,
+  tagFilter,
+  setTagFilter,
+  tags,
+  sortField,
+  setSortField,
+  sortOrder,
+  setSortOrder,
+  setIsCollapseMode,
+  showCollapseSuggestion,
+  setShowCollapseSuggestion,
+  // 面包屑导航
+  currentFolderPath
 }) => {
   // 预览模式配置: 'window' 表示弹窗，'panel' 表示右侧面板
   const [previewMode, setPreviewMode] = useState<'window' | 'panel'>('window');
+
+  // AI 侧边对话栏状态
+  const [aiChatOpen, setAiChatOpen] = useState(false);
+
+  // 工作流列表（提升到父组件，避免 SelectionActionBar 每次挂载时重新加载）
+  const [workflows, setWorkflows] = useState<any[]>([]);
+  useEffect(() => {
+    window.ipcRenderer
+      .invoke('wf:listDefinitions')
+      .then((defs: any[]) => {
+        setWorkflows(defs || []);
+      })
+      .catch(() => {});
+  }, []);
 
   // 预览面板状态
   const [previewResource, setPreviewResource] = useState<ResourceItem | null>(null);
@@ -186,7 +244,10 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
   const initializedRef = useRef(false);
   const highlightTimeoutsRef = useRef<Map<string, number>>(new Map());
 
-  // 当工作区 / 文件夹切换时，重置高亮状态，避免误把视图切换当成「新资源」
+  // typeFilter 的稳定化字符串（避免数组引用变化导致不必要的重渲染）
+  const typeFilterKey = typeFilter.join(',');
+
+  // 当工作区 / 文件夹 / 筛选条件切换时，重置高亮状态，避免误把视图切换当成「新资源」
   useEffect(() => {
     initializedRef.current = false;
     previousIdsRef.current = new Set();
@@ -195,7 +256,8 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
       window.clearTimeout(timeoutId);
     });
     highlightTimeoutsRef.current.clear();
-  }, [folderFilter, wsFilter, viewMode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [folderFilter, wsFilter, viewMode, typeFilterKey, searchQuery, tagFilter, isCollapseMode]);
 
   useEffect(() => {
     const currentIds = new Set<string>((mergedItems as any[]).map((item) => item.id));
@@ -304,6 +366,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
           selectedItems={selectedItems}
           setSelectedItems={setSelectedItems}
           highlightedIds={recentlyAddedIds}
+          totalCount={list.length}
           onOpenFolder={(id) => {
             setFolderFilter(id);
             saveCurrentFolder(id);
@@ -334,9 +397,8 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
           selectedItems={selectedItems}
           folderId={folderFilter || undefined}
           workspaceId={wsFilter}
+          totalCount={list.length}
           onItemClick={handleItemClick}
-          onToggleFavorite={handleToggleFavorite}
-          onToggleVisibility={handleToggleVisibility}
           onOpenFolder={(id) => {
             setFolderFilter(id);
             saveCurrentFolder(id);
@@ -392,40 +454,316 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
     </Dropzone>
   );
 
+  // 多选操作栏显示条件：选中超过 1 个
+  const showSelectionBar = selectedItems.size > 1;
+
   return (
-    <div className="w-full h-full flex flex-col" style={{ height: 'calc(100% - 36px)' }}>
-      <div className="flex-1 overflow-hidden">
-        <ResizablePanelGroup direction="horizontal" className="h-full" onLayout={handlePanelResize}>
-          {/* 资源列表区域 */}
-          <ResizablePanel ref={mainPanelRef} defaultSize={previewResource ? 100 - previewPanelSize : 100} minSize={30}>
-            {renderResourceList()}
+    <div className="w-full h-full flex flex-col relative">
+      {/* 面包屑导航 - 绝对定位到标题栏区域 */}
+      <div
+        className="absolute top-[-36px] left-0 right-0 h-9 flex items-center justify-between px-3 text-sm text-muted-foreground pointer-events-none"
+        style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+      >
+        {/* 左侧：面包屑导航 */}
+        <div className="pointer-events-auto flex items-center" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          {/* 回退按钮 - 只在有上级目录时显示 */}
+          {folderFilter && (
+            <button
+              className="mr-1 p-0.5 rounded hover:bg-muted transition-colors"
+              onClick={() => {
+                // 返回上一级：如果有多级路径，返回倒数第二个；否则返回根目录
+                const parentId = currentFolderPath.length > 1 ? currentFolderPath[currentFolderPath.length - 2].id : '';
+                setFolderFilter(parentId);
+                saveCurrentFolder(parentId);
+                setFavoriteFilter(false);
+                setTypeFilter([]);
+              }}
+            >
+              <TbChevronLeft className="w-4 h-4" />
+            </button>
+          )}
+          <span
+            className={`cursor-pointer hover:underline ${folderFilter ? 'text-muted-foreground' : 'text-foreground font-medium'}`}
+            onClick={() => {
+              setFolderFilter('');
+              saveCurrentFolder('');
+              setFavoriteFilter(false);
+              setTypeFilter([]);
+            }}
+          >
+            全部
+          </span>
+          {currentFolderPath.map((f) => (
+            <React.Fragment key={f.id}>
+              <span className="mx-1 text-muted-foreground">/</span>
+              <span
+                className="cursor-pointer hover:underline text-foreground font-medium"
+                onClick={() => {
+                  setFolderFilter(f.id);
+                  saveCurrentFolder(f.id);
+                  setFavoriteFilter(false);
+                  setTypeFilter([]);
+                }}
+              >
+                {f.name}
+              </span>
+            </React.Fragment>
+          ))}
+        </div>
+
+        {/* 右侧：功能按钮 */}
+        <div className="pointer-events-auto flex items-center gap-1" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+          {/* AI 助手按钮 */}
+          <button
+            className={`p-1.5 rounded transition-colors ${aiChatOpen ? 'bg-muted text-primary' : 'hover:bg-muted'}`}
+            onClick={() => setAiChatOpen((prev) => !prev)}
+            title="AI 助手"
+          >
+            <TbSparkles className="w-4 h-4" />
+          </button>
+          {/* 自动化任务按钮 */}
+          <button
+            className="p-1.5 rounded hover:bg-muted transition-colors"
+            onClick={() => {
+              toast.info('自动化任务功能即将上线');
+            }}
+          >
+            <TbBolt className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-hidden border-t">
+        <ResizablePanelGroup direction="horizontal" className="h-full">
+          {/* 主内容区（工具栏 + 资源列表 + 预览面板） */}
+          <ResizablePanel defaultSize={aiChatOpen ? 70 : 100} minSize={40}>
+            <div className="h-full flex flex-col relative">
+              {/* 工具栏 */}
+              <ContentToolbar
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                viewMode={viewMode}
+                handleViewModeChange={handleViewModeChange}
+                load={load}
+                loadTags={loadTags}
+                typeOptions={typeOptions}
+                visibleTypes={visibleTypes}
+                typeFilter={typeFilter}
+                setTypeFilter={setTypeFilter}
+                setFavoriteFilter={setFavoriteFilter}
+                folderFilter={folderFilter}
+                setFolderFilter={setFolderFilter}
+                wsFilter={wsFilter}
+                tagFilter={tagFilter}
+                setTagFilter={setTagFilter}
+                tags={tags}
+                sortField={sortField}
+                setSortField={setSortField}
+                sortOrder={sortOrder}
+                setSortOrder={setSortOrder}
+                isCollapseMode={isCollapseMode}
+                setIsCollapseMode={setIsCollapseMode}
+                showCollapseSuggestion={showCollapseSuggestion}
+                setShowCollapseSuggestion={setShowCollapseSuggestion}
+              />
+
+              {/* 多选操作栏（悬浮在底部） */}
+              {showSelectionBar && (
+                <SelectionActionBar
+                  selectedItems={selectedItems}
+                  setSelectedItems={setSelectedItems}
+                  handleDeleteMany={handleDeleteMany}
+                  filtered={mergedItems}
+                  workflows={workflows}
+                />
+              )}
+
+              {/* 资源列表 + 预览面板 */}
+              <div className="flex-1 overflow-hidden">
+                <ResizablePanelGroup direction="horizontal" className="h-full" onLayout={handlePanelResize}>
+                  {/* 资源列表区域 */}
+                  <ResizablePanel ref={mainPanelRef} defaultSize={previewResource ? 100 - previewPanelSize : 100} minSize={30}>
+                    {renderResourceList()}
+                  </ResizablePanel>
+
+                  {/* 预览面板 */}
+                  {previewResource && (
+                    <>
+                      <ResizableHandle className="hover:bg-primary" withHandle />
+                      <ResizablePanel ref={previewPanelRef} defaultSize={previewPanelSize} minSize={20}>
+                        <ResourcePreviewPanel resource={previewResource} resourceList={mergedItems} onClose={handleClosePreview} onResourceChange={handlePreviewResourceChange} />
+                      </ResizablePanel>
+                    </>
+                  )}
+                </ResizablePanelGroup>
+              </div>
+            </div>
           </ResizablePanel>
 
-          {/* 预览面板 */}
-          {previewResource && (
+          {/* AI 侧边对话栏（可拖拽调整宽度） */}
+          {aiChatOpen && (
             <>
               <ResizableHandle className="hover:bg-primary" withHandle />
-              <ResizablePanel ref={previewPanelRef} defaultSize={previewPanelSize} minSize={20}>
-                <ResourcePreviewPanel resource={previewResource} resourceList={mergedItems} onClose={handleClosePreview} onResourceChange={handlePreviewResourceChange} />
+              <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
+                <AIChatSidebar onClose={() => setAiChatOpen(false)} />
               </ResizablePanel>
             </>
           )}
         </ResizablePanelGroup>
       </div>
+    </div>
+  );
+};
 
-      <ResourceFooter
-        folderFilter={folderFilter}
-        setFolderFilter={setFolderFilter}
-        saveCurrentFolder={saveCurrentFolder}
-        setFavoriteFilter={setFavoriteFilter}
-        setTypeFilter={setTypeFilter}
-        currentFolderPath={currentFolderPath}
-        selectedItems={selectedItems}
-        handleDeleteMany={handleDeleteMany}
-        setSelectedItems={setSelectedItems}
-        filtered={mergedItems}
-        list={list}
-      />
+// 多选操作栏组件
+interface SelectionActionBarProps {
+  selectedItems: Set<string>;
+  setSelectedItems: (items: Set<string>) => void;
+  handleDeleteMany: (ids: string[]) => void;
+  filtered: ResourceItem[];
+  workflows: any[];
+}
+
+const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
+  selectedItems,
+  setSelectedItems,
+  handleDeleteMany,
+  filtered,
+  workflows
+}) => {
+  // 获取选中的资源列表
+  const selectedResources = useMemo(() => {
+    return filtered.filter((item) => selectedItems.has(item.id));
+  }, [filtered, selectedItems]);
+
+  // 推断资源的类型
+  const getResourceKind = useCallback((item: ResourceItem): 'image' | 'video' | 'audio' | 'document' | 'other' => {
+    if (typeof item?.type === 'string' && item.type) {
+      const t = item.type.toLowerCase();
+      if (t === 'image' || t === 'video' || t === 'audio' || t === 'document' || t === 'other') return t as any;
+    }
+    const filePath: string = item?.filePath || '';
+    const ext = (filePath.split('.').pop() || '').toLowerCase();
+    if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) return 'image';
+    if (['mp4', 'webm', 'mov', 'mkv', 'ogv'].includes(ext)) return 'video';
+    if (['mp3', 'wav', 'm4a', 'flac', 'opus', 'ogg'].includes(ext)) return 'audio';
+    if (['pdf', 'doc', 'docx', 'md', 'txt', 'rtf'].includes(ext)) return 'document';
+    return 'other';
+  }, []);
+
+  // 检查选中的资源是否都是同一类型
+  const selectedResourceKind = useMemo(() => {
+    if (selectedResources.length === 0) return null;
+    const firstKind = getResourceKind(selectedResources[0]);
+    const allSameKind = selectedResources.every((item) => getResourceKind(item) === firstKind);
+    return allSameKind ? firstKind : null;
+  }, [selectedResources, getResourceKind]);
+
+  // 获取工作流的开始节点输入模式
+  const getWorkflowInputMode = useCallback((wf: any): 'resource' | 'text' | 'url' | 'file' | 'folder' => {
+    if (!wf?.nodes) return 'resource';
+    const startNode = wf.nodes.find((n: any) => n.id === 'start' || n.type === 'core/start');
+    if (!startNode) return 'resource';
+    return (startNode.config?.inputMode as 'resource' | 'text' | 'url' | 'file' | 'folder') || 'resource';
+  }, []);
+
+  // 获取工作流在开始节点上声明的适用资源类型
+  const getWorkflowResourceKinds = useCallback((wf: any): string[] => {
+    if (!wf?.nodes) return ['any'];
+    const startNode = wf.nodes.find((n: any) => n.id === 'start' || n.type === 'core/start');
+    if (!startNode || !startNode.config) return ['any'];
+    const kinds = (startNode.config as any).resourceKinds;
+    if (Array.isArray(kinds) && kinds.length > 0) {
+      return kinds;
+    }
+    return ['any'];
+  }, []);
+
+  // 过滤出可用的工作流（基于选中资源的类型）
+  const availableWorkflows = useMemo(() => {
+    if (!selectedResourceKind) return [];
+    return workflows.filter((wf) => {
+      if (wf.id === 'blank') return false;
+      const inputMode = getWorkflowInputMode(wf);
+      if (inputMode !== 'resource') return false;
+      const kinds = getWorkflowResourceKinds(wf);
+      if (!kinds || kinds.length === 0 || kinds.includes('any')) return true;
+      return kinds.includes(selectedResourceKind);
+    });
+  }, [workflows, selectedResourceKind, getWorkflowInputMode, getWorkflowResourceKinds]);
+
+  // 执行工作流（对选中的资源逐个执行）
+  const handleRunWorkflow = useCallback(
+    async (wf: any) => {
+      if (selectedResources.length === 0) return;
+
+      // 对每个选中的资源执行工作流
+      for (const item of selectedResources) {
+        await runWorkflow({
+          defId: wf.id,
+          input: { resource: item, resourceId: item.id },
+          metadata: {
+            resourceId: item.id,
+            resourceName: item.title || 'Unknown',
+            thumbnailPath: item.thumbnailPath,
+            workspaceId: item.workspaceId
+          },
+          onSuccess: () => {}
+        });
+      }
+      toast.success(`已开始对 ${selectedResources.length} 个资源执行工作流: ${wf.name}`);
+    },
+    [selectedResources]
+  );
+
+  return (
+    <div className="absolute left-1/2 -translate-x-1/2 bottom-4 z-50">
+      <div className="flex items-center gap-3 px-4 py-2 bg-primary text-primary-foreground rounded-lg shadow-lg">
+        <span className="text-sm font-medium whitespace-nowrap">已选择 {selectedItems.size} 个项目</span>
+        <div className="w-px h-4 bg-primary-foreground/30" />
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground"
+          onClick={() => handleDeleteMany(Array.from(selectedItems))}
+        >
+          <TbTrash className="w-4 h-4 mr-1" />
+          删除
+        </Button>
+        {/* 工作流执行按钮（仅当选中相同类型资源时显示） */}
+        {availableWorkflows.length > 0 && (
+          <>
+            <div className="w-px h-4 bg-primary-foreground/30" />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground"
+                >
+                  <TbPlayerPlay className="w-4 h-4 mr-1" />
+                  执行任务
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="center" className="min-w-[10rem]">
+                {availableWorkflows.map((wf) => (
+                  <DropdownMenuItem key={wf.id} onClick={() => handleRunWorkflow(wf)}>
+                    {wf.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        )}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground"
+          onClick={() => setSelectedItems(new Set())}
+        >
+          <TbX className="w-4 h-4" />
+        </Button>
+      </div>
     </div>
   );
 };

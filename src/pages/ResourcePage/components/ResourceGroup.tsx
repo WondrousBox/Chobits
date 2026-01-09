@@ -110,9 +110,8 @@ export const ResourceGroup: React.FC<ResourceGroupProps> = ({
               key={item.id}
               item={item}
               selected={selectedItems.has(item.id)}
+              hasSelection={selectedItems.size > 0}
               onClick={onItemClick}
-              onToggleFavorite={onToggleFavorite}
-              onToggleVisibility={onToggleVisibility}
               onPreview={() => onPreview?.(item, idx, resources)}
               draggable={draggable}
               onDragStart={(e) => {

@@ -11,7 +11,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 
 import { ResourceTaskStatus } from '../hooks/useResourceTaskStatus';
 import { ResourceItem } from '../types';
-import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from '../utils/resourceProtocol';
+import { isAudioFile, isImageFile, isPreviewableFile, isVideoFile, makeResSrc } from '../utils/resourceProtocol';
 import { formatDuration, getFileCoverByPath, getResourceSummary, getStatusColor } from '../utils/resourceUtils';
 import { isSubtitleFile, ResourceItemWithSubtitles } from '../utils/subtitleUtils';
 
@@ -61,15 +61,18 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({
   const isImageRes = isImageFile(item.filePath);
   const isVideoRes = isVideoFile(item.filePath);
   const isSubtitle = isSubtitleFile(item.filePath);
+  // 是否为应用内可直接预览的文件类型（图片、视频、音频、PDF）
+  const isPreviewable = isPreviewableFile(item.filePath);
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
       onClick(e, item);
-      if (isAudio || isImageRes || isVideoRes || item.type === 'text' || isSubtitle) {
+      // 可预览的文件类型、文本类型、字幕文件都可以触发预览
+      if (isPreviewable || item.type === 'text' || isSubtitle) {
         onPreview?.(item);
       }
     },
-    [onClick, item, isAudio, isImageRes, isVideoRes, isSubtitle, onPreview]
+    [onClick, item, isPreviewable, isSubtitle, onPreview]
   );
 
   const handleSourceClick = useCallback(
@@ -107,11 +110,11 @@ const ResourceGalleryItem: React.FC<GalleryItemProps> = ({
   const handlePlayClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      if (isAudio || isImageRes || isVideoRes || item.type === 'text' || isSubtitle) {
+      if (isPreviewable || item.type === 'text' || isSubtitle) {
         onPreview?.(item);
       }
     },
-    [item, isAudio, isImageRes, isVideoRes, isSubtitle, onPreview]
+    [item, isPreviewable, isSubtitle, onPreview]
   );
 
   const handleTextPreviewClick = useCallback(

@@ -197,6 +197,8 @@ export interface ExplorerGridProps {
   onFolderCreated?: () => void | Promise<void>;
   /** 预览资源回调（用于在侧边面板预览） */
   onPreview?: (item: ResourceItem) => void;
+  /** 所有资源的总数（用于统计显示） */
+  totalCount?: number;
 }
 
 type Point = { x: number; y: number };
@@ -226,7 +228,8 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
   onOpenFolderLocation,
   onMoveFolder,
   onFolderCreated,
-  onPreview
+  onPreview,
+  totalCount = 0
 }) => {
   const taskStatuses = useResourceTaskStatus();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -534,16 +537,17 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <div
-          ref={containerRef}
-          className="relative grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-2 p-2 outline-none min-h-full content-start box-border"
-          tabIndex={0}
-          onPointerDown={handleBackgroundPointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={endDrag}
-          onKeyDown={handleKeyDown}
-          onContextMenu={handleContextMenu}
-        >
+        <div className="flex flex-col min-h-full">
+          <div
+            ref={containerRef}
+            className="relative grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-2 p-2 outline-none flex-1 content-start box-border"
+            tabIndex={0}
+            onPointerDown={handleBackgroundPointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={endDrag}
+            onKeyDown={handleKeyDown}
+            onContextMenu={handleContextMenu}
+          >
           {/* 先渲染子文件夹 */}
           {(folders || []).map((f) => (
             <GridFolderTile
@@ -627,6 +631,14 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
               }}
             />
           )}
+          </div>
+
+          {/* 底部统计信息 */}
+          <div className="flex items-center h-8 text-xs text-muted-foreground justify-end px-4 shrink-0">
+            <span>
+              共 {mergedItems.length}/{totalCount} 个资源
+            </span>
+          </div>
         </div>
       </ContextMenuTrigger>
 

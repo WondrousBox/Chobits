@@ -183,35 +183,6 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
       }
     }
   },
-  recycle: {
-    routeHash: 'recycle',
-    autoCenterOn: 'parent-display',
-    showOnReady: true,
-    openDevTools: true,
-    options: {
-      width: 1000,
-      height: 600,
-      frame: false,
-      transparent: false,
-      resizable: true,
-      alwaysOnTop: false,
-      skipTaskbar: false,
-      backgroundColor: '#ffffff',
-      show: false,
-      autoHideMenuBar: true,
-      webPreferences: { nodeIntegration: true, contextIsolation: true }
-    },
-    platformOverlays: {
-      darwin: {
-        options: {
-          titleBarStyle: 'hiddenInset',
-          titleBarOverlay: true,
-          trafficLightPosition: { x: 20, y: HEADER_COMMANDS_HEIGHT / 2 - MACOS_TRAFFIC_LIGHTS_HEIGHT / 2 },
-          frame: true
-        }
-      }
-    }
-  },
   assistant: {
     routeHash: 'assistant',
     autoCenterOn: 'none',
