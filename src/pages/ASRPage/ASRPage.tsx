@@ -1,10 +1,10 @@
 import { utils } from '@aim-packages/subtitle';
 import clsx from 'clsx';
+import { PanelLeft, PanelRight } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TbArrowDown, TbArrowLeft, TbArrowUp, TbBackground, TbBrain, TbClock, TbLoader2, TbMicrophone, TbMicrophoneOff, TbX } from 'react-icons/tb';
+import { TbArrowLeft, TbLoader2, TbMicrophone, TbMicrophoneOff, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 import { AIActionsPanel } from './components/AIActionsPanel';
@@ -29,9 +29,8 @@ const ASRPage: React.FC = () => {
   const [mode, setMode] = useState<'local' | 'cloud'>('local');
   const [cloudProviderId, setCloudProviderId] = useState<string>('');
   const [cloudModelId, setCloudModelId] = useState<string>('');
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [isTransparent, setIsTransparent] = useState(false);
-  const [showLeftPanel, setShowLeftPanel] = useState(false);
+  const [isSubtitleMode, setIsSubtitleMode] = useState(false); // 字幕模式（合并了透明和收起功能）
+  const [showLeftPanel, setShowLeftPanel] = useState(true); // 默认显示左侧面板
   const [showRightPanel, setShowRightPanel] = useState(false);
 
   // 预览模式状态
@@ -39,8 +38,8 @@ const ASRPage: React.FC = () => {
   const [previewRecording, setPreviewRecording] = useState<RecordingHistoryItem | null>(null);
   const [previewSegments, setPreviewSegments] = useState<RecognizedSegment[]>([]);
 
-  // 保存收起前的面板状态，用于恢复（使用 ref 避免在 useEffect 中触发额外渲染）
-  const savedLeftPanelStateRef = useRef(false);
+  // 保存字幕模式前的状态，用于恢复
+  const savedLeftPanelStateRef = useRef(true);
   const savedRightPanelStateRef = useRef(false);
 
   const pendingCloseRef = useRef(false);
@@ -223,71 +222,58 @@ const ASRPage: React.FC = () => {
     handleStopASRAndClose();
   }, [handleStopASRAndClose]);
 
-  // 监听窗口关闭事件（beforeunload），用于意外关闭时提示
-  useEffect(() => {
-    const handleBeforeUnload = (event: BeforeUnloadEvent): void => {
-      // 如果正在录音，提示用户
-      if (isRecording) {
-        console.log('[ASR] beforeunload: 检测到窗口即将关闭，正在录音');
-        // 字幕已通过流式写入保存到文件，这里只是提示用户
-        event.preventDefault();
-        event.returnValue = '您正在录音中，关闭窗口可能导致数据丢失。确定要关闭吗？';
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [isRecording]);
-
   // 基础窗口尺寸
-  const baseWidth = 400; // 基础宽度（无面板时）
-  const leftPanelWidth = 300; // 左侧历史面板的宽度
-  const rightPanelWidth = 400; // 右侧AI面板的宽度（更宽）
+  const baseWidth = 520; // 基础宽度（无面板时）
+  const leftPanelWidth = 260; // 左侧历史面板的宽度
+  const rightPanelWidth = 320; // 右侧AI面板的宽度（更宽）
   const baseHeight = 600; // 基础高度（展开时）
-  const collapsedHeight = 200; // 收起时的高度
+  const subtitleModeHeight = 200; // 字幕模式的高度
 
-  // 处理收起/展开切换
-  const handleToggleCollapse = useCallback(() => {
-    if (isCollapsed) {
-      // 展开时：恢复之前保存的面板状态
+  // 处理字幕模式切换
+  const handleToggleSubtitleMode = useCallback(() => {
+    if (isSubtitleMode) {
+      // 退出字幕模式：恢复之前保存的状态
       setShowLeftPanel(savedLeftPanelStateRef.current);
       setShowRightPanel(savedRightPanelStateRef.current);
     } else {
-      // 收起时：保存当前面板状态并隐藏
+      // 进入字幕模式：保存当前状态并设置字幕模式
       savedLeftPanelStateRef.current = showLeftPanel;
       savedRightPanelStateRef.current = showRightPanel;
-      setShowLeftPanel(false);
-      setShowRightPanel(false);
+      setShowLeftPanel(false); // 隐藏左侧面板
+      setShowRightPanel(true); // 显示右侧面板
     }
-    setIsCollapsed(!isCollapsed);
-  }, [isCollapsed, showLeftPanel, showRightPanel]);
+    setIsSubtitleMode(!isSubtitleMode);
+  }, [isSubtitleMode, showLeftPanel, showRightPanel]);
 
-  // 根据展开/收起状态和面板显示状态调整窗口大小
+  // 根据字幕模式和面板显示状态调整窗口大小
   useEffect(() => {
     const adjustWindowSize = async (): Promise<void> => {
       try {
-        // 收起时不显示面板，所以宽度只计算基础宽度
-        // 展开时根据实际显示的面板计算宽度（使用不同的面板宽度）
-        let targetWidth = baseWidth;
-        if (!isCollapsed) {
+        let targetWidth: number;
+        let targetHeight: number;
+
+        if (isSubtitleMode) {
+          // 字幕模式：只显示中间和右侧面板
+          targetWidth = baseWidth + rightPanelWidth;
+          targetHeight = subtitleModeHeight;
+        } else {
+          // 正常模式：根据实际显示的面板计算宽度
+          targetWidth = baseWidth;
           if (showLeftPanel) targetWidth += leftPanelWidth;
           if (showRightPanel) targetWidth += rightPanelWidth;
+          targetHeight = baseHeight;
         }
 
-        // 计算目标高度
-        const targetHeight = isCollapsed ? collapsedHeight : baseHeight;
+        console.log('调整窗口大小:', { targetWidth, targetHeight, isSubtitleMode, showLeftPanel, showRightPanel });
 
-        await window.YUA.window['window:size:set']('asr' as any, targetWidth, targetHeight);
+        await window.YUA.window['window:size:set']('asr', targetWidth, targetHeight);
       } catch (error) {
         console.error('调整窗口大小失败:', error);
       }
     };
 
     adjustWindowSize();
-  }, [isCollapsed, showLeftPanel, showRightPanel, baseWidth, leftPanelWidth, rightPanelWidth, baseHeight, collapsedHeight]);
+  }, [isSubtitleMode, showLeftPanel, showRightPanel, baseWidth, leftPanelWidth, rightPanelWidth, baseHeight, subtitleModeHeight]);
 
   // 清理
   useEffect(() => {
@@ -298,116 +284,63 @@ const ASRPage: React.FC = () => {
 
   return (
     <>
-      <div
-        className={`flex flex-col h-full rounded-3xl drag-region overflow-hidden border border-solid border-ring box-border ${isTransparent ? 'bg-transparent border-ring/50 border-b-ring/80 border-t-0' : 'bg-muted'}`}
-      >
-        {/* 顶部工具栏 */}
-        <div className={`flex items-center justify-between gap-3 px-2 py-2 ${isTransparent ? 'border-b border-transparent' : 'border-b'}`}>
-          {/* 左侧：面板控制按钮 */}
-          <div className="flex items-center gap-1">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button size="icon" variant={showLeftPanel ? 'secondary' : 'ghost'} className="no-drag w-8 h-8" onClick={() => setShowLeftPanel(!showLeftPanel)}>
-                  <TbClock className={`h-4 w-4 ${isTransparent ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{showLeftPanel ? '隐藏历史记录' : '显示历史记录'}</TooltipContent>
-            </Tooltip>
-          </div>
+      <div className="flex h-full w-full">
+        {showLeftPanel && (
+          <HistoryPanel isTransparent={isSubtitleMode} isRecording={isRecording} selectedId={viewMode === 'preview' ? previewRecording?.id : null} onSelectRecording={handleSelectRecording} />
+        )}
+        <div className={`flex flex-col h-full group drag-region overflow-hidden box-border ${isSubtitleMode ? 'bg-transparent' : 'bg-muted'}`}>
+          {/* 顶部工具栏 */}
+          <div className={`flex items-center justify-between gap-3 p-1 ${isSubtitleMode ? 'border-b border-transparent' : 'border-b'}`}>
+            {/* 左侧：面板控制按钮 */}
+            {!isSubtitleMode && (
+              <PanelLeft
+                className={`h-4 w-4 mx-2 cursor-pointer no-drag ${isSubtitleMode ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`}
+                onClick={() => setShowLeftPanel(!showLeftPanel)}
+              />
+            )}
+            {isSubtitleMode && <div className="flex-1"></div>}
 
-          {/* 中间：录音控制 */}
-          <div className="flex items-center gap-2 flex-1 justify-center">
-            {isRecording ? (
-              <Button size="icon" variant="destructive" className="w-8 h-8 rounded-full no-drag" onClick={handleStopRecording} disabled={isLoading}>
-                <TbMicrophoneOff className={isTransparent ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''} />
-              </Button>
-            ) : (
+            {/* 右侧：面板控制和其他操作 */}
+            <div className="flex items-center gap-1">
               <Button
-                size="icon"
-                className="w-8 h-8 rounded-full no-drag"
-                onClick={() => {
-                  console.log('[ASR] 录音按钮被点击');
-                  console.log('[ASR] isASRRunning:', isASRRunning);
-                  console.log('[ASR] isLoading:', isLoading);
-                  startRecording();
-                }}
-                disabled={!isASRRunning || isLoading}
+                size={isSubtitleMode ? 'icon' : 'sm'}
+                variant={isSubtitleMode ? 'secondary' : 'ghost'}
+                className={clsx(['no-drag', isSubtitleMode && 'group-hover:opacity-100 opacity-0 w-8 h-8'])}
+                onClick={handleToggleSubtitleMode}
               >
-                {isLoading ? (
-                  <TbLoader2 className={`animate-spin ${isTransparent ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`} />
-                ) : (
-                  <TbMicrophone className={isTransparent ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''} />
-                )}
+                {isSubtitleMode ? <TbX /> : '字幕模式'}
               </Button>
-            )}
-            {isRecording && (
-              <span className={`text-sm tabular-nums ${isTransparent ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : 'text-muted-foreground'}`}>
-                {utils.cleanTimeDisplay(recordingDuration)}
-              </span>
-            )}
+              {!isSubtitleMode && (
+                <Button size="icon" variant="ghost" className="no-drag w-8 h-8" onClick={handleCloseRequest}>
+                  <TbX className={`h-4 w-4 ${isSubtitleMode ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`} />
+                </Button>
+              )}
+              {!isSubtitleMode && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="icon" variant={showRightPanel ? 'secondary' : 'ghost'} className="no-drag w-8 h-8" onClick={() => setShowRightPanel(!showRightPanel)}>
+                      <PanelRight className={`h-4 w-4 ${isSubtitleMode ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{showRightPanel ? '隐藏AI操作' : '显示AI操作'}</TooltipContent>
+                </Tooltip>
+              )}
+            </div>
           </div>
 
-          {/* 右侧：面板控制和其他操作 */}
-          <div className="flex items-center gap-1">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button size="icon" variant={showRightPanel ? 'secondary' : 'ghost'} className="no-drag w-8 h-8" onClick={() => setShowRightPanel(!showRightPanel)}>
-                  <TbBrain className={`h-4 w-4 ${isTransparent ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{showRightPanel ? '隐藏AI操作' : '显示AI操作'}</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button size="icon" variant="ghost" className="no-drag w-8 h-8" onClick={handleToggleCollapse}>
-                  {isCollapsed ? (
-                    <TbArrowDown className={`h-4 w-4 ${isTransparent ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`} />
-                  ) : (
-                    <TbArrowUp className={`h-4 w-4 ${isTransparent ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`} />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{isCollapsed ? '展开窗口' : '收起窗口'}</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button size="icon" variant="ghost" className="no-drag w-8 h-8" onClick={() => setIsTransparent(!isTransparent)}>
-                  <TbBackground className={`h-4 w-4 ${isTransparent ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{isTransparent ? '恢复背景' : '透明背景'}</TooltipContent>
-            </Tooltip>
-            <Button size="icon" variant="ghost" className="no-drag w-8 h-8" onClick={handleCloseRequest}>
-              <TbX className={`h-4 w-4 ${isTransparent ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`} />
-            </Button>
-          </div>
-        </div>
-
-        {/* 主内容区域（包含左右面板） */}
-        <div className="flex-1 min-h-0 overflow-hidden">
-          <ResizablePanelGroup direction="horizontal" className="h-full">
-            {/* 左侧面板：历史记录 */}
-            {showLeftPanel && (
-              <>
-                <ResizablePanel defaultSize={20} minSize={15} maxSize={40} className="min-w-[200px]">
-                  <HistoryPanel isTransparent={isTransparent} isRecording={isRecording} selectedId={viewMode === 'preview' ? previewRecording?.id : null} onSelectRecording={handleSelectRecording} />
-                </ResizablePanel>
-                <ResizableHandle withHandle />
-              </>
-            )}
-
-            {/* 中间：识别结果区域 */}
-            <ResizablePanel defaultSize={showLeftPanel && showRightPanel ? 50 : showLeftPanel ? 70 : showRightPanel ? 60 : 100} minSize={30}>
+          {/* 主内容区域（包含左右面板） */}
+          <div className="flex-1 min-h-0 flex overflow-hidden">
+            <div style={{ width: isSubtitleMode ? baseWidth + rightPanelWidth : baseWidth }}>
               <div className="flex flex-col h-full">
                 {/* 预览模式时显示返回按钮和录音信息 */}
                 {viewMode === 'preview' && previewRecording && (
-                  <div className={`flex items-center justify-between gap-2 px-4 py-2 border-b ${isTransparent ? 'border-border/50' : ''}`}>
+                  <div className={`flex items-center justify-between gap-2 px-4 py-2 border-b ${isSubtitleMode ? 'border-border/50' : ''}`}>
                     <div className="flex items-center gap-2">
                       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={handleBackToRecording}>
                         <TbArrowLeft className="h-4 w-4 mr-1" />
                         返回录音
                       </Button>
-                      <span className={`text-sm ${isTransparent ? 'text-white/70' : 'text-muted-foreground'}`}>{previewRecording.title || '未命名录音'}</span>
+                      <span className={`text-sm ${isSubtitleMode ? 'text-white/70' : 'text-muted-foreground'}`}>{previewRecording.title || '未命名录音'}</span>
                     </div>
                     {/* 如果录音状态不是 ready，显示继续录音按钮 */}
                     {previewRecording.status !== 'ready' && (
@@ -420,38 +353,68 @@ const ASRPage: React.FC = () => {
                 )}
 
                 <SegmentList
-                  segments={viewMode === 'preview' ? previewSegments : isCollapsed && recognizedSegments.length > 0 ? [recognizedSegments[recognizedSegments.length - 1]] : recognizedSegments}
-                  pendingSegments={viewMode === 'preview' ? [] : isCollapsed ? [] : pendingSegments}
+                  segments={viewMode === 'preview' ? previewSegments : isSubtitleMode && recognizedSegments.length > 0 ? [recognizedSegments[recognizedSegments.length - 1]] : recognizedSegments}
+                  pendingSegments={viewMode === 'preview' ? [] : pendingSegments}
                   progressText={viewMode === 'preview' ? '' : progressText}
                   enableTranslation={enableTranslation}
-                  isTransparent={isTransparent}
+                  isTransparent={isSubtitleMode}
                 />
 
-                <div className={clsx(['flex', isTransparent ? 'bg-gradient-to-t from-background/20 via-background/5 to-transparent' : 'bg-background'])}>
-                  <div className="w-4"></div>
+                <div className={clsx(['flex', isSubtitleMode ? 'bg-gradient-to-t from-background/20 via-background/5 to-transparent' : 'bg-background'])}>
+                  {isSubtitleMode ? (
+                    <div className="w-4"></div>
+                  ) : (
+                    <div className="p-2 flex gap-2 items-center">
+                      {isRecording ? (
+                        <Button size="icon" variant="destructive" className="w-8 h-8 rounded-full no-drag" onClick={handleStopRecording} disabled={isLoading}>
+                          <TbMicrophoneOff className={isSubtitleMode ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''} />
+                        </Button>
+                      ) : (
+                        <Button
+                          size="icon"
+                          className="w-8 h-8 rounded-full no-drag"
+                          onClick={() => {
+                            console.log('[ASR] 录音按钮被点击');
+                            console.log('[ASR] isASRRunning:', isASRRunning);
+                            console.log('[ASR] isLoading:', isLoading);
+                            startRecording();
+                          }}
+                          disabled={!isASRRunning || isLoading}
+                        >
+                          {isLoading ? (
+                            <TbLoader2 className={`animate-spin ${isSubtitleMode ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`} />
+                          ) : (
+                            <TbMicrophone className={isSubtitleMode ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''} />
+                          )}
+                        </Button>
+                      )}
+                      {isRecording && (
+                        <div className={`text-sm tabular-nums ${isSubtitleMode ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : 'text-muted-foreground'}`}>
+                          {utils.cleanTimeDisplay(recordingDuration)}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div className="flex-1">
                     {/* 预览模式显示音频播放器，录音模式显示波形控制栏 */}
                     {viewMode === 'preview' && previewRecording ? (
-                      <AudioPlayer audioFilePath={previewRecording.audioFilePath} isTransparent={isTransparent} />
+                      <AudioPlayer audioFilePath={previewRecording.audioFilePath} isTransparent={isSubtitleMode} />
                     ) : (
-                      <ControlBar isRecording={isRecording} progressText={progressText} waveformRef={waveformRef} isTransparent={isTransparent} />
+                      <ControlBar isRecording={isRecording} progressText={progressText} waveformRef={waveformRef} isSubtitleMode={isSubtitleMode} />
                     )}
                   </div>
                   <div className="w-4"></div>
                 </div>
               </div>
-            </ResizablePanel>
+            </div>
 
             {/* 右侧面板：AI操作 */}
-            {showRightPanel && (
-              <>
-                <ResizableHandle withHandle />
-                <ResizablePanel defaultSize={30} minSize={20} maxSize={50} className="min-w-[300px]">
-                  <AIActionsPanel segments={viewMode === 'preview' ? previewSegments : recognizedSegments} isTransparent={isTransparent} />
-                </ResizablePanel>
-              </>
+            {showRightPanel && !isSubtitleMode && (
+              <div style={{ width: rightPanelWidth }}>
+                <AIActionsPanel segments={viewMode === 'preview' ? previewSegments : recognizedSegments} isTransparent={isSubtitleMode} />
+              </div>
             )}
-          </ResizablePanelGroup>
+          </div>
         </div>
       </div>
     </>

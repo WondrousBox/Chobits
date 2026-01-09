@@ -1,4 +1,5 @@
 import { utils } from '@aim-packages/subtitle';
+import prettyBytes from 'pretty-bytes';
 import React, { useCallback, useEffect, useState } from 'react';
 import { TbClock, TbLoader2, TbMicrophone, TbRefresh, TbTrash } from 'react-icons/tb';
 
@@ -113,13 +114,6 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ isTransparent = fals
     });
   };
 
-  // 格式化文件大小
-  const formatSize = (bytes: number): string => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
   // 暴露刷新方法
   const refreshHistory = loadHistory;
 
@@ -175,18 +169,9 @@ export const HistoryPanel: React.FC<HistoryPanelProps> = ({ isTransparent = fals
                     )}
                   </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <TbClock className="h-3 w-3" />
                     <span>{formatTime(item.createdAt)}</span>
-                    <span>·</span>
                     <span>{utils.cleanTimeDisplay(item.duration)}</span>
-                    <span>·</span>
-                    <span>{formatSize(item.sizeBytes)}</span>
-                    {item.subtitleFilePath && (
-                      <>
-                        <span>·</span>
-                        <span className="text-green-500">有字幕</span>
-                      </>
-                    )}
+                    <span>{prettyBytes(item.sizeBytes)}</span>
                     {item.status === 'new' && (
                       <>
                         <span>·</span>
