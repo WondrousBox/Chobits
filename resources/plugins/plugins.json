@@ -503,6 +503,26 @@
             "sha256": "c133d26353d776da730870dac7da07dbfc9a5e3bc80cc5e8e83ab6e823be7046"
           }
         ]
+      },{
+        "id": "kokoro-int8-multi-lang-v1_0",
+        "pluginId": "plugin:sherpa-onnx",
+        "type": "model",
+        "name": "kokoro-int8-multi-lang-v1_0",
+        "displayName": "Kokoro-int8-multi-lang-v1_0",
+        "description": "",
+        "version": "1.0.0",
+        "archiveType": "tar.bz2",
+        "category": "tts",
+        "languages": ["multi"],
+        "platforms": [
+          {
+            "platform": "all",
+            "arch": "all",
+            "sourceUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-int8-multi-lang-v1_0.tar.bz2",
+            "sizeBytes": 131839838,
+            "sha256": "75654a84864be26f345f020f4070c2c019e96dd1b7f9bf6e2ffd59efac6aa5a3"
+          }
+        ]
       },
       {
         "id": "sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8",
