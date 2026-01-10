@@ -1,8 +1,9 @@
 import { PluginDefinition } from '@packages/plugins/types';
 
 import { ASRType, createASRInstance, freeASRInstance, sendASRData } from './asr-instance-manager';
-import { AllModels, CommonConfig, FORCE_ONLINE_MODELS, StreamInstances } from './common';
+import { AllModels, CommonConfig, FORCE_ONLINE_MODELS, StreamInstances, TTSInstances } from './common';
 import { getDefaultSherpaModels } from './model';
+import { createTTSInstance, CreateTTSInstanceOptions, freeTTSInstance, generateSpeech, GenerateSpeechOptions, TTSResult } from './tts-instance-manager';
 
 let openedModel: PluginDefinition | undefined;
 export async function ASR_createInstance(data: {
@@ -64,3 +65,28 @@ export function ASR_sendData(
 export function ASR_freeInstance(data: { uuid: string }): void {
   return freeASRInstance(data.uuid);
 }
+
+// ==================== TTS 相关函数 ====================
+
+export async function TTS_createInstance(data: CreateTTSInstanceOptions): Promise<TTSInstances[string]> {
+  console.log(
+    data,
+    `
+====== [TTS] ===================================================================
+TTS_createInstance: ${JSON.stringify(data, null, 2)}
+================================================================================`
+  );
+
+  return createTTSInstance(data);
+}
+
+export function TTS_generateSpeech(options: GenerateSpeechOptions): void {
+  return generateSpeech(options);
+}
+
+export function TTS_freeInstance(data: { uuid: string }): void {
+  return freeTTSInstance(data.uuid);
+}
+
+// 导出类型
+export type { CreateTTSInstanceOptions, GenerateSpeechOptions, TTSResult };

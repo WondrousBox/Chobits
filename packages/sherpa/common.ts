@@ -303,3 +303,140 @@ export type StreamInstances = Record<
     handler?: (data: { start: number; end: number; text: string; isEndpoint: boolean }) => any;
   }
 >;
+
+// ==================== TTS 相关类型 ====================
+
+export type TTSModels =
+  | 'kokoro-multi-lang-v1_0'
+  | 'kokoro-v1_0-zh'
+  | 'kokoro-v1_0-en'
+  | 'vits-zh-hf-theresa'
+  | 'vits-zh-hf-eula'
+  | 'vits-melo-tts-zh_en'
+  | 'vits-piper-en_US-amy'
+  | 'vits-piper-en_US-lessac'
+  | 'vits-piper-zh_CN-huayan';
+
+export interface TTSModelConfig {
+  model: {
+    kokoro?: {
+      model: string;
+      voices: string;
+      tokens: string;
+      dataDir: string;
+      lexicon?: string;
+    };
+    vits?: {
+      model: string;
+      tokens: string;
+      dataDir?: string;
+      lexicon?: string;
+      dictDir?: string;
+    };
+    debug: boolean;
+    numThreads: number;
+    provider: string;
+  };
+  maxNumSentences: number;
+}
+
+export interface TTSInstances {
+  [key: string]: {
+    process: ChildProcessManager;
+    type: 'process';
+    handler?: (data: { requestId: string; samples?: number[]; sampleRate?: number; duration?: number; outputPath?: string; elapsedSeconds?: number; rtf?: number; error?: string }) => void;
+  };
+}
+
+export function getTTSModelConfig(data: { model: string; modelDir: string; numThreads?: number; maxNumSentences?: number }): TTSModelConfig {
+  const { model, modelDir, numThreads = 1, maxNumSentences = 1 } = data;
+  const modelPath = path.resolve(modelDir, model);
+
+  // Kokoro 多语言模型
+  if (model.startsWith('kokoro-multi-lang')) {
+    return {
+      model: {
+        kokoro: {
+          model: path.join(modelPath, 'model.onnx'),
+          voices: path.join(modelPath, 'voices.bin'),
+          tokens: path.join(modelPath, 'tokens.txt'),
+          dataDir: path.join(modelPath, 'espeak-ng-data'),
+          lexicon: `${path.join(modelPath, 'lexicon-us-en.txt')},${path.join(modelPath, 'lexicon-zh.txt')}`
+        },
+        debug: true,
+        numThreads,
+        provider: 'cpu'
+      },
+      maxNumSentences
+    };
+  }
+
+  // Kokoro 单语言模型
+  if (model.startsWith('kokoro-v1_0')) {
+    const lang = model.includes('-zh') ? 'zh' : 'en';
+    return {
+      model: {
+        kokoro: {
+          model: path.join(modelPath, 'model.onnx'),
+          voices: path.join(modelPath, 'voices.bin'),
+          tokens: path.join(modelPath, 'tokens.txt'),
+          dataDir: path.join(modelPath, 'espeak-ng-data'),
+          lexicon: path.join(modelPath, `lexicon-${lang === 'zh' ? 'zh' : 'us-en'}.txt`)
+        },
+        debug: true,
+        numThreads,
+        provider: 'cpu'
+      },
+      maxNumSentences
+    };
+  }
+
+  // VITS MeloTTS 模型
+  if (model.includes('melo-tts')) {
+    return {
+      model: {
+        vits: {
+          model: path.join(modelPath, 'model.onnx'),
+          tokens: path.join(modelPath, 'tokens.txt'),
+          lexicon: path.join(modelPath, 'lexicon.txt'),
+          dictDir: path.join(modelPath, 'dict')
+        },
+        debug: true,
+        numThreads,
+        provider: 'cpu'
+      },
+      maxNumSentences
+    };
+  }
+
+  // VITS Piper 模型
+  if (model.includes('piper')) {
+    return {
+      model: {
+        vits: {
+          model: path.join(modelPath, 'model.onnx'),
+          tokens: path.join(modelPath, 'tokens.txt'),
+          dataDir: path.join(modelPath, 'espeak-ng-data')
+        },
+        debug: true,
+        numThreads,
+        provider: 'cpu'
+      },
+      maxNumSentences
+    };
+  }
+
+  // 通用 VITS 模型（默认）
+  return {
+    model: {
+      vits: {
+        model: path.join(modelPath, 'model.onnx'),
+        tokens: path.join(modelPath, 'tokens.txt')
+      },
+      debug: true,
+      numThreads,
+      provider: 'cpu'
+    },
+    maxNumSentences
+  };
+}

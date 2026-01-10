@@ -88,6 +88,34 @@ export const sherpaIpcRenderer = {
   // 读取字幕文件内容
   readSubtitleContent(data: { filePath: string }): Promise<{ success: boolean; content?: string; error?: string }> {
     return ipcRenderer.invoke('sherpa:readSubtitleContent', data);
+  },
+
+  // ==================== TTS 相关方法 ====================
+
+  // 创建 TTS 实例
+  ttsCreateInstance(data: { model: string; numThreads?: number; maxNumSentences?: number }): Promise<{ success: boolean; error?: string }> {
+    return ipcRenderer.invoke('sherpa:tts:createInstance', data);
+  },
+
+  // 释放 TTS 实例
+  ttsFreeInstance(): Promise<{ success: boolean; error?: string }> {
+    return ipcRenderer.invoke('sherpa:tts:freeInstance');
+  },
+
+  // 生成语音（异步，结果通过 renderer-message 事件返回）
+  ttsGenerate(data: { text: string; sid?: number; speed?: number; outputPath?: string; requestId: string }): Promise<{ success: boolean; requestId: string; error?: string }> {
+    return ipcRenderer.invoke('sherpa:tts:generate', data);
+  },
+
+  // 生成语音并保存到文件（同步返回结果）
+  ttsGenerateToFile(data: {
+    text: string;
+    sid?: number;
+    speed?: number;
+    outputPath: string;
+    requestId: string;
+  }): Promise<{ success: boolean; outputPath?: string; duration?: number; error?: string; requestId: string }> {
+    return ipcRenderer.invoke('sherpa:tts:generateToFile', data);
   }
 };
 

@@ -19,6 +19,8 @@ declare module '@aim-packages/window-manager' {
     aiProviderConfig: void;
     asrConfig: void;
     asr: void;
+    ttsConfig: void;
+    tts: void;
   }
 }
 
@@ -427,6 +429,46 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     options: {
       width: 500,
       height: 300,
+      show: false,
+      autoHideMenuBar: true,
+      frame: false,
+      transparent: true,
+      resizable: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      backgroundColor: '#00000000',
+      webPreferences: { nodeIntegration: true, contextIsolation: true }
+    }
+  },
+  ttsConfig: {
+    routeHash: 'tts-config',
+    showOnReady: false,
+    openDevTools: false,
+    options: {
+      width: 400,
+      height: 500,
+      minWidth: 360,
+      minHeight: 400,
+      frame: false,
+      transparent: true,
+      resizable: true,
+      alwaysOnTop: false,
+      skipTaskbar: true,
+      show: false,
+      backgroundColor: '#00000000',
+      webPreferences: { nodeIntegration: true, contextIsolation: true }
+    }
+  },
+  tts: {
+    routeHash: 'tts',
+    autoCenterOn: 'parent-display',
+    showOnReady: true,
+    openDevTools: true,
+    options: {
+      width: 500,
+      height: 420,
+      minWidth: 400,
+      minHeight: 360,
       show: false,
       autoHideMenuBar: true,
       frame: false,
