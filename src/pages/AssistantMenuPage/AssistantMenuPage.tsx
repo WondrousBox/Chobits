@@ -31,6 +31,13 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         action: () => window.YUA.window['window:open']('asrConfig')
       },
       {
+        id: 'tts-config',
+        label: 'TTS 测试',
+        icon: '🔊',
+        shortcut: 'v',
+        action: () => window.YUA.window['window:open']('ttsConfig')
+      },
+      {
         id: 'tagger',
         label: '总结打标',
         icon: '🏷️',

@@ -28,6 +28,8 @@ import PluginPage from './pages/SettingsPage/PluginPage';
 import SettingsPage from './pages/SettingsPage/SettingsPage';
 import StatusPage from './pages/StatusPage/StatusPage';
 import TaggingPage from './pages/TaggingPage/TaggingPage';
+import TTSConfigPage from './pages/TTSPage/TTSConfigPage';
+import TTSPage from './pages/TTSPage/TTSPage';
 import WorkflowBuilderPage from './pages/WorkflowBuilderPage/WorkflowBuilderPage';
 import WorkflowHistoryPage from './pages/WorkflowBuilderPage/WorkflowHistoryPage';
 import WorkflowStartInputSheet from './pages/WorkflowBuilderPage/WorkflowStartInputSheet';
@@ -48,6 +50,8 @@ function App(): JSX.Element {
                 <Route path="/status" element={<StatusPage />} />
                 <Route path="/asr-config" element={<ASRConfigPage />} />
                 <Route path="/asr" element={<ASRPage />} />
+                <Route path="/tts-config" element={<TTSConfigPage />} />
+                <Route path="/tts" element={<TTSPage />} />
                 <Route path="/menu" element={<AssistantMenuPage />} />
                 <Route path="/file-actions" element={<FileActionsMenu />} />
                 <Route

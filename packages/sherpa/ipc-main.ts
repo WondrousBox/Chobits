@@ -8,7 +8,7 @@ import { BrowserWindow, ipcMain } from 'electron';
 import { ResourcesRepo, WorkspacesRepo } from '../../electron/main/db/repositories';
 import { ensureDailyFolder } from '../../electron/main/handlers/resource';
 import { AllModels, CommonConfig } from './common';
-import { ASR_createInstance, ASR_freeInstance, ASR_sendData } from './index';
+import { ASR_createInstance, ASR_freeInstance, ASR_sendData, TTS_createInstance, TTS_freeInstance, TTS_generateSpeech } from './index';
 
 // 字幕片段接口
 interface SubtitleSegment {
@@ -688,4 +688,138 @@ export function initSherpaHandlers(): void {
       return { success: false, error: String(error) };
     }
   });
+
+  // ==================== TTS 相关 Handlers ====================
+
+  // 创建 TTS 实例
+  ipcMain.handle('sherpa:tts:createInstance', async (_, data: { model: string; numThreads?: number; maxNumSentences?: number }) => {
+    try {
+      const ins = await TTS_createInstance({
+        uuid: 'tts-stream',
+        model: data.model,
+        numThreads: data.numThreads,
+        maxNumSentences: data.maxNumSentences
+      });
+
+      if (ins) {
+        ins.handler = (d) => {
+          // 发送 TTS 结果到所有窗口
+          BrowserWindow.getAllWindows().forEach((w) => {
+            if (!w.isDestroyed()) {
+              try {
+                w.webContents.send('renderer-message', { type: 'sherpa:tts:message', data: d });
+              } catch (error) {
+                console.error('[TTS] 发送 TTS 结果失败:', error);
+              }
+            }
+          });
+        };
+
+        return { success: true };
+      }
+
+      return { success: false, error: 'Failed to create TTS instance' };
+    } catch (error) {
+      console.error('[TTS] 创建实例失败:', error);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  // 释放 TTS 实例
+  ipcMain.handle('sherpa:tts:freeInstance', async () => {
+    try {
+      TTS_freeInstance({ uuid: 'tts-stream' });
+      return { success: true };
+    } catch (error) {
+      console.error('[TTS] 释放实例失败:', error);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  // 生成语音
+  ipcMain.handle(
+    'sherpa:tts:generate',
+    async (
+      _,
+      data: {
+        text: string;
+        sid?: number;
+        speed?: number;
+        outputPath?: string;
+        requestId: string;
+      }
+    ) => {
+      try {
+        TTS_generateSpeech({
+          uuid: 'tts-stream',
+          text: data.text,
+          sid: data.sid,
+          speed: data.speed,
+          outputPath: data.outputPath,
+          requestId: data.requestId
+        });
+
+        return { success: true, requestId: data.requestId };
+      } catch (error) {
+        console.error('[TTS] 生成语音失败:', error);
+        return { success: false, error: String(error), requestId: data.requestId };
+      }
+    }
+  );
+
+  // 生成语音并保存到文件（同步返回结果）
+  ipcMain.handle(
+    'sherpa:tts:generateToFile',
+    async (
+      _,
+      data: {
+        text: string;
+        sid?: number;
+        speed?: number;
+        outputPath: string;
+        requestId: string;
+      }
+    ): Promise<{ success: boolean; outputPath?: string; duration?: number; error?: string; requestId: string }> => {
+      return new Promise((resolve) => {
+        try {
+          const ins = TTS_createInstance({
+            uuid: `tts-file-${data.requestId}`,
+            model: 'kokoro-multi-lang-v1_0' // 默认模型，可以从参数中传入
+          }).then((instance) => {
+            if (!instance) {
+              resolve({ success: false, error: 'Failed to create TTS instance', requestId: data.requestId });
+              return;
+            }
+
+            instance.handler = (result) => {
+              TTS_freeInstance({ uuid: `tts-file-${data.requestId}` });
+
+              if (result.error) {
+                resolve({ success: false, error: result.error, requestId: data.requestId });
+              } else {
+                resolve({
+                  success: true,
+                  outputPath: result.outputPath,
+                  duration: result.duration,
+                  requestId: data.requestId
+                });
+              }
+            };
+
+            TTS_generateSpeech({
+              uuid: `tts-file-${data.requestId}`,
+              text: data.text,
+              sid: data.sid,
+              speed: data.speed,
+              outputPath: data.outputPath,
+              requestId: data.requestId
+            });
+          });
+        } catch (error) {
+          console.error('[TTS] 生成语音文件失败:', error);
+          resolve({ success: false, error: String(error), requestId: data.requestId });
+        }
+      });
+    }
+  );
 }
