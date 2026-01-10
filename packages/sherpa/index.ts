@@ -1,7 +1,7 @@
 import { PluginDefinition } from '@packages/plugins/types';
 
 import { ASRType, createASRInstance, freeASRInstance, sendASRData } from './asr-instance-manager';
-import { AllModels, FORCE_ONLINE_MODELS, StreamInstances } from './common';
+import { AllModels, CommonConfig, FORCE_ONLINE_MODELS, StreamInstances } from './common';
 import { getDefaultSherpaModels } from './model';
 
 let openedModel: PluginDefinition | undefined;
@@ -11,6 +11,7 @@ export async function ASR_createInstance(data: {
   type?: ASRType;
   punctuationModel?: string;
   language?: string;
+  commonConfig?: CommonConfig;
   vad?: {
     threshold?: number;
     minSpeechDuration?: number;

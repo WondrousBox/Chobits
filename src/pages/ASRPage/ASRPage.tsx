@@ -292,14 +292,12 @@ const ASRPage: React.FC = () => {
           {/* 顶部工具栏 */}
           <div className={`flex items-center justify-between gap-3 p-1 ${isSubtitleMode ? 'border-b border-transparent' : 'border-b'}`}>
             {/* 左侧：面板控制按钮 */}
-            {
-              // !isSubtitleMode && (
-              //   <PanelLeft
-              //     className={`h-4 w-4 mx-2 cursor-pointer no-drag ${isSubtitleMode ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`}
-              //     onClick={() => setShowLeftPanel(!showLeftPanel)}
-              //   />
-              // )
-            }
+            {!isSubtitleMode && (
+              <PanelLeft
+                className={`h-4 w-4 mx-2 cursor-pointer no-drag ${isSubtitleMode ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : ''}`}
+                onClick={() => setShowLeftPanel(!showLeftPanel)}
+              />
+            )}
             {<div className="flex-1"></div>}
 
             {/* 右侧：面板控制和其他操作 */}

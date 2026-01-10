@@ -3,7 +3,7 @@ import path from 'path';
 import { getResourcePath } from '../../electron/main/utils/resources-path';
 import { pluginResourceManager } from '../plugins';
 import ChildProcessManager from './child-process-manager';
-import { AllModels, getModelConfig, punctuationModelConfig, StreamInstances, vadModelConfig } from './common';
+import { AllModels, CommonConfig, getModelConfig, punctuationModelConfig, StreamInstances, vadModelConfig } from './common';
 import { findSherpaOnnxNativeLibPath, findSherpaOnnxNodePath } from './utils';
 
 const Ins: StreamInstances = {};
@@ -15,6 +15,7 @@ export interface CreateInstanceOptions {
   model?: AllModels;
   punctuationModel?: string;
   language?: string;
+  commonConfig?: CommonConfig;
   vad?: {
     threshold?: number;
     minSpeechDuration?: number;
@@ -102,7 +103,8 @@ export async function createASRInstance(data: CreateInstanceOptions): Promise<St
         modelConfig = getModelConfig({
           model: data.model,
           modelDir: modelDir,
-          language: data.language
+          language: data.language,
+          commonConfig: data.commonConfig
         });
         console.log(modelConfig);
       }

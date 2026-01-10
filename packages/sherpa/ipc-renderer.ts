@@ -1,9 +1,9 @@
 import { ipcRenderer } from 'electron';
 
-import { AllModels } from './common';
+import { AllModels, CommonConfig } from './common';
 
 export const sherpaIpcRenderer = {
-  createInstance(data: { model?: AllModels; punctuationModel?: string; language?: string; type?: 'online' | 'offline' | 'vad' }): Promise<boolean> {
+  createInstance(data: { model?: AllModels; punctuationModel?: string; language?: string; type?: 'online' | 'offline' | 'vad'; commonConfig?: CommonConfig }): Promise<boolean> {
     return ipcRenderer.invoke('sherpa:createInstance', data);
   },
 
