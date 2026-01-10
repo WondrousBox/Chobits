@@ -308,6 +308,7 @@ export type StreamInstances = Record<
 
 export type TTSModels =
   | 'kokoro-multi-lang-v1_0'
+  | 'kokoro-int8-multi-lang-v1_0'
   | 'kokoro-v1_0-zh'
   | 'kokoro-v1_0-en'
   | 'vits-zh-hf-theresa'
@@ -325,6 +326,7 @@ export interface TTSModelConfig {
       tokens: string;
       dataDir: string;
       lexicon?: string;
+      ruleFsts?: string;
     };
     vits?: {
       model: string;
@@ -352,8 +354,28 @@ export function getTTSModelConfig(data: { model: string; modelDir: string; numTh
   const { model, modelDir, numThreads = 1, maxNumSentences = 1 } = data;
   const modelPath = path.resolve(modelDir, model);
 
-  // Kokoro 多语言模型
-  if (model.startsWith('kokoro-multi-lang')) {
+  if (model.startsWith('kokoro-multi-lang') && !model.includes('int8')) {
+    // 构建词典路径（包含美式英文、英式英文和中文）
+    const lexiconUsEn = path.join(modelPath, 'lexicon-us-en.txt');
+    const lexiconGbEn = path.join(modelPath, 'lexicon-gb-en.txt');
+    const lexiconZh = path.join(modelPath, 'lexicon-zh.txt');
+
+    // 检查文件是否存在，只添加存在的文件
+    const lexicons: string[] = [];
+    if (fs.existsSync(lexiconUsEn)) lexicons.push(lexiconUsEn);
+    if (fs.existsSync(lexiconGbEn)) lexicons.push(lexiconGbEn);
+    if (fs.existsSync(lexiconZh)) lexicons.push(lexiconZh);
+
+    // 构建规则 FST 文件路径（中文音素、数字、日期）
+    const ruleFsts: string[] = [];
+    const phoneZh = path.join(modelPath, 'phone-zh.fst');
+    const numberZh = path.join(modelPath, 'number-zh.fst');
+    const dateZh = path.join(modelPath, 'date-zh.fst');
+
+    if (fs.existsSync(phoneZh)) ruleFsts.push(phoneZh);
+    if (fs.existsSync(numberZh)) ruleFsts.push(numberZh);
+    if (fs.existsSync(dateZh)) ruleFsts.push(dateZh);
+
     return {
       model: {
         kokoro: {
@@ -361,7 +383,48 @@ export function getTTSModelConfig(data: { model: string; modelDir: string; numTh
           voices: path.join(modelPath, 'voices.bin'),
           tokens: path.join(modelPath, 'tokens.txt'),
           dataDir: path.join(modelPath, 'espeak-ng-data'),
-          lexicon: `${path.join(modelPath, 'lexicon-us-en.txt')},${path.join(modelPath, 'lexicon-zh.txt')}`
+          lexicon: lexicons.length > 0 ? lexicons.join(',') : undefined,
+          ruleFsts: ruleFsts.length > 0 ? ruleFsts.join(',') : undefined
+        },
+        debug: true,
+        numThreads,
+        provider: 'cpu'
+      },
+      maxNumSentences
+    };
+  }
+
+  if (model.startsWith('kokoro-int8-multi-lang')) {
+    // 构建词典路径（包含美式英文、英式英文和中文）
+    const lexiconUsEn = path.join(modelPath, 'lexicon-us-en.txt');
+    const lexiconGbEn = path.join(modelPath, 'lexicon-gb-en.txt');
+    const lexiconZh = path.join(modelPath, 'lexicon-zh.txt');
+
+    // 检查文件是否存在，只添加存在的文件
+    const lexicons: string[] = [];
+    if (fs.existsSync(lexiconUsEn)) lexicons.push(lexiconUsEn);
+    if (fs.existsSync(lexiconGbEn)) lexicons.push(lexiconGbEn);
+    if (fs.existsSync(lexiconZh)) lexicons.push(lexiconZh);
+
+    // 构建规则 FST 文件路径（中文音素、数字、日期）
+    const ruleFsts: string[] = [];
+    const phoneZh = path.join(modelPath, 'phone-zh.fst');
+    const numberZh = path.join(modelPath, 'number-zh.fst');
+    const dateZh = path.join(modelPath, 'date-zh.fst');
+
+    if (fs.existsSync(phoneZh)) ruleFsts.push(phoneZh);
+    if (fs.existsSync(numberZh)) ruleFsts.push(numberZh);
+    if (fs.existsSync(dateZh)) ruleFsts.push(dateZh);
+
+    return {
+      model: {
+        kokoro: {
+          model: path.join(modelPath, 'model.int8.onnx'),
+          voices: path.join(modelPath, 'voices.bin'),
+          tokens: path.join(modelPath, 'tokens.txt'),
+          dataDir: path.join(modelPath, 'espeak-ng-data'),
+          lexicon: lexicons.length > 0 ? lexicons.join(',') : undefined,
+          ruleFsts: ruleFsts.length > 0 ? ruleFsts.join(',') : undefined
         },
         debug: true,
         numThreads,

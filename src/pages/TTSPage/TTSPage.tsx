@@ -6,7 +6,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
@@ -28,7 +27,7 @@ interface TTSResult {
   error?: string;
 }
 
-// Kokoro 说话人列表
+// Kokoro 说话人列表（仅支持英文和中文）
 const KOKORO_SPEAKERS = [
   // American Female (af_)
   { id: 0, name: 'af_alloy', label: 'Alloy', group: 'American Female' },
@@ -62,34 +61,6 @@ const KOKORO_SPEAKERS = [
   { id: 25, name: 'bm_fable', label: 'Fable', group: 'British Male' },
   { id: 26, name: 'bm_george', label: 'George', group: 'British Male' },
   { id: 27, name: 'bm_lewis', label: 'Lewis', group: 'British Male' },
-  // European Female (ef_)
-  { id: 28, name: 'ef_dora', label: 'Dora', group: 'European Female' },
-  // European Male (em_)
-  { id: 29, name: 'em_alex', label: 'Alex', group: 'European Male' },
-  // French Female (ff_)
-  { id: 30, name: 'ff_siwis', label: 'Siwis', group: 'French Female' },
-  // Hindi Female (hf_)
-  { id: 31, name: 'hf_alpha', label: 'Alpha', group: 'Hindi Female' },
-  { id: 32, name: 'hf_beta', label: 'Beta', group: 'Hindi Female' },
-  // Hindi Male (hm_)
-  { id: 33, name: 'hm_omega', label: 'Omega', group: 'Hindi Male' },
-  { id: 34, name: 'hm_psi', label: 'Psi', group: 'Hindi Male' },
-  // Italian Female (if_)
-  { id: 35, name: 'if_sara', label: 'Sara', group: 'Italian Female' },
-  // Italian Male (im_)
-  { id: 36, name: 'im_nicola', label: 'Nicola', group: 'Italian Male' },
-  // Japanese Female (jf_)
-  { id: 37, name: 'jf_alpha', label: 'Alpha', group: 'Japanese Female' },
-  { id: 38, name: 'jf_gongitsune', label: 'Gongitsune', group: 'Japanese Female' },
-  { id: 39, name: 'jf_nezumi', label: 'Nezumi', group: 'Japanese Female' },
-  { id: 40, name: 'jf_tebukuro', label: 'Tebukuro', group: 'Japanese Female' },
-  // Japanese Male (jm_)
-  { id: 41, name: 'jm_kumo', label: 'Kumo', group: 'Japanese Male' },
-  // Portuguese Female (pf_)
-  { id: 42, name: 'pf_dora', label: 'Dora', group: 'Portuguese Female' },
-  // Portuguese Male (pm_)
-  { id: 43, name: 'pm_alex', label: 'Alex', group: 'Portuguese Male' },
-  { id: 44, name: 'pm_santa', label: 'Santa', group: 'Portuguese Male' },
   // Chinese Female (zf_)
   { id: 45, name: 'zf_xiaobei', label: '小贝', group: 'Chinese Female' },
   { id: 46, name: 'zf_xiaoni', label: '小妮', group: 'Chinese Female' },
@@ -104,7 +75,7 @@ const KOKORO_SPEAKERS = [
 
 const TTSPage: React.FC = () => {
   // 配置状态
-  const [speakerId, setSpeakerId] = useState(48); // 默认选择中文女声 zf_xiaoyi
+  const [speakerId, setSpeakerId] = useState(31); // 默认选择中文女声 zf_xiaoyi
   const [speed, setSpeed] = useState(1.0);
   const [isConfigured, setIsConfigured] = useState(false); // 是否已确认配置
 
@@ -121,7 +92,7 @@ const TTSPage: React.FC = () => {
   const requestIdRef = useRef<string>('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // 按组分类说话人
+  // 按组分类说话人（一级菜单）
   const speakerGroups = useMemo(() => {
     const groups: Record<string, typeof KOKORO_SPEAKERS> = {};
     KOKORO_SPEAKERS.forEach((speaker) => {
@@ -130,24 +101,7 @@ const TTSPage: React.FC = () => {
       }
       groups[speaker.group].push(speaker);
     });
-    // 按照语言分大类
-    const organized: Record<string, Record<string, typeof KOKORO_SPEAKERS>> = {
-      English: {},
-      Chinese: {},
-      Other: {}
-    };
-
-    Object.entries(groups).forEach(([groupName, speakers]) => {
-      if (groupName.includes('American') || groupName.includes('British')) {
-        organized.English[groupName] = speakers;
-      } else if (groupName.includes('Chinese')) {
-        organized.Chinese[groupName] = speakers;
-      } else {
-        organized.Other[groupName] = speakers;
-      }
-    });
-
-    return organized;
+    return groups;
   }, []);
 
   // 获取当前选中的说话人信息
@@ -292,55 +246,6 @@ const TTSPage: React.FC = () => {
     }
   }, [text, speakerId, speed, isGenerating]);
 
-  // 播放音频
-  const handlePlay = useCallback(async () => {
-    if (!audioData) return;
-
-    try {
-      // 如果正在播放，暂停/停止
-      if (isPlaying && sourceNodeRef.current) {
-        sourceNodeRef.current.stop();
-        sourceNodeRef.current = null;
-        setIsPlaying(false);
-        return;
-      }
-
-      // 创建 AudioContext（如果不存在）
-      if (!audioContextRef.current) {
-        audioContextRef.current = new AudioContext();
-      }
-
-      const audioContext = audioContextRef.current;
-
-      // 确保 AudioContext 处于运行状态
-      if (audioContext.state === 'suspended') {
-        await audioContext.resume();
-      }
-
-      // 创建 AudioBuffer
-      const audioBuffer = audioContext.createBuffer(1, audioData.samples.length, audioData.sampleRate);
-      audioBuffer.getChannelData(0).set(audioData.samples);
-
-      // 创建 BufferSource
-      const source = audioContext.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(audioContext.destination);
-
-      // 播放结束时的处理
-      source.onended = () => {
-        setIsPlaying(false);
-        sourceNodeRef.current = null;
-      };
-
-      sourceNodeRef.current = source;
-      source.start();
-      setIsPlaying(true);
-    } catch (err) {
-      console.error('播放失败:', err);
-      setError(err instanceof Error ? err.message : '播放失败');
-    }
-  }, [audioData, isPlaying]);
-
   // 停止播放
   const handleStop = useCallback(() => {
     if (sourceNodeRef.current) {
@@ -399,72 +304,42 @@ const TTSPage: React.FC = () => {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-[280px] no-drag" align="start">
-                    {/* English 分组 */}
-                    <DropdownMenuSub>
-                      <DropdownMenuSubTrigger>
-                        <span>🇬🇧 English</span>
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent className="max-h-[400px] overflow-y-auto">
-                        {Object.entries(speakerGroups.English).map(([groupName, speakers], groupIndex) => (
-                          <React.Fragment key={groupName}>
-                            {groupIndex > 0 && <DropdownMenuSeparator />}
-                            <DropdownMenuLabel className="text-xs">{groupName}</DropdownMenuLabel>
-                            {speakers.map((speaker) => (
-                              <DropdownMenuItem key={speaker.id} onClick={() => setSpeakerId(speaker.id)} className={speakerId === speaker.id ? 'bg-accent' : ''}>
-                                <span className="flex-1">{speaker.label}</span>
-                                <span className="text-xs text-muted-foreground ml-2">{speaker.name}</span>
-                              </DropdownMenuItem>
-                            ))}
-                          </React.Fragment>
-                        ))}
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
+                    {Object.entries(speakerGroups).map(([groupName, speakers], groupIndex) => {
+                      // 转换为中文显示名称
+                      let displayName = groupName;
+                      if (groupName === 'American Female') {
+                        displayName = '🇺🇸 美式英文女性';
+                      } else if (groupName === 'American Male') {
+                        displayName = '🇺🇸 美式英文男性';
+                      } else if (groupName === 'British Female') {
+                        displayName = '🇬🇧 英式英文女性';
+                      } else if (groupName === 'British Male') {
+                        displayName = '🇬🇧 英式英文男性';
+                      } else if (groupName === 'Chinese Female') {
+                        displayName = '🇨🇳 中文女性';
+                      } else if (groupName === 'Chinese Male') {
+                        displayName = '🇨🇳 中文男性';
+                      }
 
-                    <DropdownMenuSeparator />
-
-                    {/* Chinese 分组 */}
-                    <DropdownMenuSub>
-                      <DropdownMenuSubTrigger>
-                        <span>🇨🇳 Chinese</span>
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent className="max-h-[400px] overflow-y-auto">
-                        {Object.entries(speakerGroups.Chinese).map(([groupName, speakers], groupIndex) => (
-                          <React.Fragment key={groupName}>
-                            {groupIndex > 0 && <DropdownMenuSeparator />}
-                            <DropdownMenuLabel className="text-xs">{groupName}</DropdownMenuLabel>
-                            {speakers.map((speaker) => (
-                              <DropdownMenuItem key={speaker.id} onClick={() => setSpeakerId(speaker.id)} className={speakerId === speaker.id ? 'bg-accent' : ''}>
-                                <span className="flex-1">{speaker.label}</span>
-                                <span className="text-xs text-muted-foreground ml-2">{speaker.name}</span>
-                              </DropdownMenuItem>
-                            ))}
-                          </React.Fragment>
-                        ))}
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-
-                    <DropdownMenuSeparator />
-
-                    {/* Other Languages 分组 */}
-                    <DropdownMenuSub>
-                      <DropdownMenuSubTrigger>
-                        <span>🌍 Other Languages</span>
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent className="max-h-[400px] overflow-y-auto">
-                        {Object.entries(speakerGroups.Other).map(([groupName, speakers], groupIndex) => (
-                          <React.Fragment key={groupName}>
-                            {groupIndex > 0 && <DropdownMenuSeparator />}
-                            <DropdownMenuLabel className="text-xs">{groupName}</DropdownMenuLabel>
-                            {speakers.map((speaker) => (
-                              <DropdownMenuItem key={speaker.id} onClick={() => setSpeakerId(speaker.id)} className={speakerId === speaker.id ? 'bg-accent' : ''}>
-                                <span className="flex-1">{speaker.label}</span>
-                                <span className="text-xs text-muted-foreground ml-2">{speaker.name}</span>
-                              </DropdownMenuItem>
-                            ))}
-                          </React.Fragment>
-                        ))}
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
+                      return (
+                        <React.Fragment key={groupName}>
+                          {groupIndex > 0 && <DropdownMenuSeparator />}
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger>
+                              <span>{displayName}</span>
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuSubContent className="max-h-[400px] overflow-y-auto">
+                              {speakers.map((speaker) => (
+                                <DropdownMenuItem key={speaker.id} onClick={() => setSpeakerId(speaker.id)} className={speakerId === speaker.id ? 'bg-accent' : ''}>
+                                  <span className="flex-1">{speaker.label}</span>
+                                  <span className="text-xs text-muted-foreground ml-2">{speaker.name}</span>
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuSubContent>
+                          </DropdownMenuSub>
+                        </React.Fragment>
+                      );
+                    })}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>

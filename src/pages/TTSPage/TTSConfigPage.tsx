@@ -4,7 +4,6 @@ import React, { useEffect, useState } from 'react';
 import { TbLoader2, TbPlayerPlay } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -13,7 +12,7 @@ interface TTSModel extends PluginDefinition {
 }
 
 // 推荐模型ID列表
-const RECOMMENDED_MODEL_IDS = ['kokoro-multi-lang-v1_0', 'kokoro-v1_0-zh', 'kokoro-v1_0-en'];
+const RECOMMENDED_MODEL_IDS = ['kokoro-int8-multi-lang-v1_0'];
 
 const TTSConfigPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -185,42 +184,6 @@ const TTSConfigPage: React.FC = () => {
             </Select>
             {selectedModel && !ttsModels.find((m) => m.id === selectedModel)?.isInstalled && <div className="text-xs text-amber-600 dark:text-amber-400">该模型未安装，请先在插件管理中安装</div>}
           </div>
-
-          {/* 模型说明卡片 */}
-          {selectedModel && (
-            <Card className="border-dashed">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">模型信息</CardTitle>
-              </CardHeader>
-              <div className="px-4 pb-4 space-y-2 text-sm text-muted-foreground">
-                {(() => {
-                  const model = ttsModels.find((m) => m.id === selectedModel);
-                  if (!model) return null;
-
-                  return (
-                    <>
-                      <div>
-                        <span className="font-medium text-foreground">名称：</span>
-                        {model.displayName || model.name}
-                      </div>
-                      {model.description && (
-                        <div>
-                          <span className="font-medium text-foreground">描述：</span>
-                          {model.description}
-                        </div>
-                      )}
-                      {model.languages && model.languages.length > 0 && (
-                        <div>
-                          <span className="font-medium text-foreground">支持语言：</span>
-                          {model.languages.join(', ')}
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-            </Card>
-          )}
         </div>
       </ScrollArea>
 
