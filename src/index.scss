@@ -12,6 +12,11 @@ body {
 
 body * {
   user-select: none;
+  .prose {
+    * {
+      user-select: text !important;
+    }
+  }
 }
 
 h1,
