@@ -138,6 +138,13 @@ const TTSPage: React.FC = () => {
 
             // 自动播放
             try {
+              // 停止任何可能正在播放的旧音频
+              if (sourceNodeRef.current) {
+                sourceNodeRef.current.stop();
+                sourceNodeRef.current.onended = null; // 移除旧的 onended 回调
+                sourceNodeRef.current = null;
+              }
+
               // 创建 AudioContext（如果不存在）
               if (!audioContextRef.current) {
                 audioContextRef.current = new AudioContext();
