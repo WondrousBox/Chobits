@@ -80,6 +80,7 @@ export const useASR = ({
   resumeRecording: (resourceId: string) => Promise<void>; // 继续之前的录音
   wsRef: React.MutableRefObject<WebSocket | null>;
   getRecordingResourceId: () => string | null; // 获取当前录音的资源ID
+  updateSegmentTranslation: (index: number, translation: string) => void; // 更新指定索引的翻译
 } => {
   const [isRecording, setIsRecording] = useState(false);
   // 默认假设 ASR 服务已启动，因为是从配置页面进入的
@@ -649,6 +650,16 @@ export const useASR = ({
     return id;
   }, []);
 
+  // 更新指定索引的 segment 的翻译
+  const updateSegmentTranslation = useCallback((index: number, translation: string) => {
+    setRecognizedSegments((prev) => {
+      if (index < 0 || index >= prev.length) return prev;
+      const updated = [...prev];
+      updated[index] = { ...updated[index], translation };
+      return updated;
+    });
+  }, []);
+
   return {
     isRecording,
     isASRRunning,
@@ -663,6 +674,7 @@ export const useASR = ({
     stopRecording,
     resumeRecording,
     wsRef,
-    getRecordingResourceId
+    getRecordingResourceId,
+    updateSegmentTranslation
   };
 };

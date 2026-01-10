@@ -14,7 +14,6 @@ import { HistoryPanel, RecordingHistoryItem } from './components/HistoryPanel';
 import { SegmentList } from './components/SegmentList';
 import { WaveformRef } from './components/Waveform';
 import { useASR } from './hooks/useASR';
-import { useTranslation } from './hooks/useTranslation';
 import { RecognizedSegment } from './types';
 import { parseSrtContent } from './utils/srt-parser';
 
@@ -23,15 +22,12 @@ type ViewMode = 'recording' | 'preview';
 
 const ASRPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
-  const [enableTranslation, setEnableTranslation] = useState(false);
-  const [targetLanguage, setTargetLanguage] = useState<string>('en');
-  const [providerId, setProviderId] = useState<string>('');
   const [mode, setMode] = useState<'local' | 'cloud'>('local');
   const [cloudProviderId, setCloudProviderId] = useState<string>('');
   const [cloudModelId, setCloudModelId] = useState<string>('');
   const [isSubtitleMode, setIsSubtitleMode] = useState(false); // 字幕模式（合并了透明和收起功能）
   const [showLeftPanel, setShowLeftPanel] = useState(false); // 默认显示左侧面板
-  const [showRightPanel, setShowRightPanel] = useState(false);
+  const [showRightPanel, setShowRightPanel] = useState(true); // 默认显示右侧 AI 面板
 
   // 预览模式状态
   const [viewMode, setViewMode] = useState<ViewMode>('recording');
@@ -52,9 +48,6 @@ const ASRPage: React.FC = () => {
       try {
         const payload = (await window.YUA.window['window:payload:get']('asr' as any)) as
           | {
-            enableTranslation?: boolean;
-            targetLanguage?: string;
-            providerId?: string;
             mode?: 'local' | 'cloud';
             cloudProviderId?: string;
             cloudModelId?: string;
@@ -62,9 +55,7 @@ const ASRPage: React.FC = () => {
           | undefined;
         if (!mounted) return;
         if (payload) {
-          setEnableTranslation(payload.enableTranslation || false);
-          setTargetLanguage(payload.targetLanguage || 'en');
-          setProviderId(payload.providerId || '');
+          // 翻译配置现在由 AI 面板控制，不再从 payload 获取
           setMode(payload.mode || 'local');
           setCloudProviderId(payload.cloudProviderId || '');
           setCloudModelId(payload.cloudModelId || '');
@@ -107,16 +98,11 @@ const ASRPage: React.FC = () => {
     };
   }, []);
 
-  const { translateText, cleanupTranslation } = useTranslation({
-    enableTranslation,
-    targetLanguage,
-    providerId
-  });
-
   const onAudioLevel = useCallback((level: number) => {
     waveformRef.current?.addBar(level);
   }, []);
 
+  // 翻译功能已移至 AIActionsPanel，这里禁用内置翻译
   const {
     isRecording,
     isASRRunning,
@@ -129,15 +115,23 @@ const ASRPage: React.FC = () => {
     stopRecording,
     resumeRecording,
     wsRef,
-    getRecordingResourceId
+    updateSegmentTranslation
   } = useASR({
-    enableTranslation,
-    translateText,
+    enableTranslation: false,
+    translateText: async () => { },
     onAudioLevel,
     mode,
     cloudProviderId,
     cloudModelId
   });
+
+  // 处理AI面板的翻译更新
+  const handleTranslationUpdate = useCallback(
+    (segmentIndex: number, translation: string) => {
+      updateSegmentTranslation(segmentIndex, translation);
+    },
+    [updateSegmentTranslation]
+  );
 
   // 停止录音（不停止 ASR 服务）
   const handleStopRecording = useCallback(async (): Promise<void> => {
@@ -275,13 +269,6 @@ const ASRPage: React.FC = () => {
     adjustWindowSize();
   }, [isSubtitleMode, showLeftPanel, showRightPanel, baseWidth, leftPanelWidth, rightPanelWidth, baseHeight, subtitleModeHeight]);
 
-  // 清理
-  useEffect(() => {
-    return () => {
-      cleanupTranslation();
-    };
-  }, [cleanupTranslation]);
-
   return (
     <>
       <div className="flex h-full w-full">
@@ -356,7 +343,7 @@ const ASRPage: React.FC = () => {
                   segments={viewMode === 'preview' ? previewSegments : isSubtitleMode && recognizedSegments.length > 0 ? [recognizedSegments[recognizedSegments.length - 1]] : recognizedSegments}
                   pendingSegments={viewMode === 'preview' ? [] : pendingSegments}
                   progressText={viewMode === 'preview' ? '' : progressText}
-                  enableTranslation={enableTranslation}
+                  enableTranslation={true}
                   isTransparent={isSubtitleMode}
                 />
 
@@ -411,7 +398,7 @@ const ASRPage: React.FC = () => {
             {/* 右侧面板：AI操作 */}
             {showRightPanel && !isSubtitleMode && (
               <div style={{ width: rightPanelWidth }}>
-                <AIActionsPanel segments={viewMode === 'preview' ? previewSegments : recognizedSegments} isTransparent={isSubtitleMode} />
+                <AIActionsPanel segments={viewMode === 'preview' ? previewSegments : recognizedSegments} isTransparent={isSubtitleMode} onTranslationUpdate={handleTranslationUpdate} />
               </div>
             )}
           </div>
