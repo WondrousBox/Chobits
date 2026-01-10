@@ -49,7 +49,7 @@ export function ToastRenderer({ message, className }: ToastRendererProps): JSX.E
         // 基础样式
         'rounded-xl shadow-lg backdrop-blur-sm',
         'px-4 py-2 text-xs',
-        'max-w-[280px] whitespace-normal break-words text-center',
+        'max-w-[280px] w-48 whitespace-normal break-words text-center',
         // 等级样式
         levelStyles[level],
         className

@@ -326,7 +326,6 @@ export interface TTSModelConfig {
       tokens: string;
       dataDir: string;
       lexicon?: string;
-      ruleFsts?: string;
     };
     vits?: {
       model: string;
@@ -339,6 +338,7 @@ export interface TTSModelConfig {
     numThreads: number;
     provider: string;
   };
+  ruleFsts?: string;
   maxNumSentences: number;
 }
 
@@ -383,13 +383,13 @@ export function getTTSModelConfig(data: { model: string; modelDir: string; numTh
           voices: path.join(modelPath, 'voices.bin'),
           tokens: path.join(modelPath, 'tokens.txt'),
           dataDir: path.join(modelPath, 'espeak-ng-data'),
-          lexicon: lexicons.length > 0 ? lexicons.join(',') : undefined,
-          ruleFsts: ruleFsts.length > 0 ? ruleFsts.join(',') : undefined
+          lexicon: lexicons.length > 0 ? lexicons.join(',') : undefined
         },
         debug: true,
         numThreads,
         provider: 'cpu'
       },
+      ruleFsts: ruleFsts.length > 0 ? ruleFsts.join(',') : undefined,
       maxNumSentences
     };
   }
@@ -423,13 +423,13 @@ export function getTTSModelConfig(data: { model: string; modelDir: string; numTh
           voices: path.join(modelPath, 'voices.bin'),
           tokens: path.join(modelPath, 'tokens.txt'),
           dataDir: path.join(modelPath, 'espeak-ng-data'),
-          lexicon: lexicons.length > 0 ? lexicons.join(',') : undefined,
-          ruleFsts: ruleFsts.length > 0 ? ruleFsts.join(',') : undefined
+          lexicon: lexicons.length > 0 ? lexicons.join(',') : undefined
         },
         debug: true,
         numThreads,
         provider: 'cpu'
       },
+      ruleFsts: ruleFsts.length > 0 ? ruleFsts.join(',') : undefined,
       maxNumSentences
     };
   }
