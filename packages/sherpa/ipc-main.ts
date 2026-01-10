@@ -7,7 +7,7 @@ import { BrowserWindow, ipcMain } from 'electron';
 
 import { ResourcesRepo, WorkspacesRepo } from '../../electron/main/db/repositories';
 import { ensureDailyFolder } from '../../electron/main/handlers/resource';
-import { AllModels } from './common';
+import { AllModels, CommonConfig } from './common';
 import { ASR_createInstance, ASR_freeInstance, ASR_sendData } from './index';
 
 // 字幕片段接口
@@ -53,13 +53,14 @@ function segmentToSrtEntry(index: number, segment: SubtitleSegment): string {
 }
 
 export function initSherpaHandlers(): void {
-  ipcMain.handle('sherpa:createInstance', async (_, data: { model?: AllModels; punctuationModel?: string; language?: string; type?: 'online' | 'offline' | 'vad' }) => {
+  ipcMain.handle('sherpa:createInstance', async (_, data: { model?: AllModels; punctuationModel?: string; language?: string; type?: 'online' | 'offline' | 'vad'; commonConfig?: CommonConfig }) => {
     const ins = await ASR_createInstance({
       uuid: 'stream',
       model: data.model,
       language: data.language,
       punctuationModel: data.punctuationModel,
-      type: data.type
+      type: data.type,
+      commonConfig: data.commonConfig
     });
     if (ins) {
       ins.handler = (d) => {

@@ -1,11 +1,11 @@
 import { PluginDefinition } from '@packages/plugins/types';
-import { AllModels } from '@packages/sherpa/common';
+import { AllModels, CommonConfig } from '@packages/sherpa/common';
 import { ScrollArea } from '@radix-ui/react-scroll-area';
 import React, { useCallback, useEffect, useState } from 'react';
 import { TbChevronDown, TbChevronUp, TbLoader2, TbPlayerPlay } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -114,6 +114,7 @@ interface SceneConfig {
   enableTranslation: boolean;
   targetLanguage?: string; // 如果启用翻译，目标语言
   recommendedPunctuationModelId?: string; // 推荐的标点符号模型ID（如果为空则不启用）
+  commonConfig?: CommonConfig; // 场景特定的 common 配置
 }
 
 // 场景配置列表
@@ -125,7 +126,11 @@ const SCENE_CONFIGS: SceneConfig[] = [
     recommendedModelIds: ['sherpa-onnx-streaming-zipformer-ctc-multi-zh-hans-2023-12-13'],
     defaultLanguage: 'zh',
     enableTranslation: false,
-    recommendedPunctuationModelId: 'sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8' // 中英文标点
+    recommendedPunctuationModelId: 'sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8', // 中英文标点
+    commonConfig: {
+      enableEndpoint: false
+      // 会议场景：使用默认配置，保持较短的静音检测以便快速响应
+    }
   },
   {
     id: 'english-learning',
@@ -135,16 +140,39 @@ const SCENE_CONFIGS: SceneConfig[] = [
     defaultLanguage: 'en',
     enableTranslation: true,
     targetLanguage: 'zh', // 翻译成中文
-    recommendedPunctuationModelId: 'sherpa-onnx-online-punct-en-2024-08-06' // 英文标点
+    recommendedPunctuationModelId: 'sherpa-onnx-online-punct-en-2024-08-06', // 英文标点
+    commonConfig: {
+      enableEndpoint: false,
+      rule3MinUtteranceLength: 10
+    }
   },
   {
-    id: 'bilingual',
-    name: '中英双语',
+    id: 'english',
+    name: '英语',
     description: '适用于中英双语场景，自动识别中英文混合语音',
     recommendedModelIds: ['sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20'],
     defaultLanguage: 'zh',
     enableTranslation: false,
-    recommendedPunctuationModelId: 'sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8' // 中英文标点
+    recommendedPunctuationModelId: 'sherpa-onnx-online-punct-en-2024-08-06', // 中英文标点
+    commonConfig: {
+      enableEndpoint: false,
+      rule1MinTrailingSilence: 2.4,
+      rule2MinTrailingSilence: 1.2,
+      rule3MinUtteranceLength: 20
+    }
+  },
+  {
+    id: 'chinese',
+    name: '中文',
+    description: '适用于中英双语场景，自动识别中英文混合语音',
+    recommendedModelIds: ['sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20'],
+    defaultLanguage: 'zh',
+    enableTranslation: false,
+    recommendedPunctuationModelId: 'sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8', // 中英文标点
+    commonConfig: {
+      enableEndpoint: false
+      // 双语场景：使用默认配置
+    }
   },
   {
     id: 'multilingual',
@@ -153,7 +181,11 @@ const SCENE_CONFIGS: SceneConfig[] = [
     recommendedModelIds: ['sherpa-onnx-streaming-zipformer-ctc-multi-zh-hans-2023-12-13'],
     defaultLanguage: 'zh',
     enableTranslation: false,
-    recommendedPunctuationModelId: 'sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8' // 中英文标点
+    recommendedPunctuationModelId: 'sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8', // 中英文标点
+    commonConfig: {
+      enableEndpoint: false
+      // 多语言场景：使用默认配置
+    }
   }
 ];
 
@@ -619,11 +651,16 @@ const ASRConfigPage: React.FC = () => {
     try {
       let success = false;
       if (activeTab === 'local') {
+        // 获取当前场景的 commonConfig
+        const sceneConfig = SCENE_CONFIGS.find((s) => s.id === selectedScene);
+        const commonConfig = sceneConfig?.commonConfig;
+
         // 启动 ASR 服务
         success = await window.YUA.sherpa.createInstance({
           model: selectedModel as AllModels,
           language: language,
-          punctuationModel: selectedPunctuationModel || undefined
+          punctuationModel: selectedPunctuationModel || undefined,
+          commonConfig: commonConfig
         });
       } else {
         // 启动 VAD 服务

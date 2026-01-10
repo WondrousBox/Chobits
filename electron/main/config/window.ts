@@ -403,7 +403,7 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
   asrConfig: {
     routeHash: 'asr-config',
     showOnReady: false,
-    openDevTools: true,
+    openDevTools: false,
     options: {
       width: 400,
       height: 600,

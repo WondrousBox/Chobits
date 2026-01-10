@@ -79,9 +79,17 @@ const commonConfig = {
   rule3MinUtteranceLength: 20
 };
 
-export function getModelConfig(data: { model: AllModels; modelDir: string; cpu_numThreads?: number; language?: string }): any {
+export type CommonConfig = Partial<typeof commonConfig>;
+
+export function getModelConfig(data: { model: AllModels; modelDir: string; cpu_numThreads?: number; language?: string; commonConfig?: CommonConfig }): any {
   console.log(data);
   const modelDir = data.modelDir;
+
+  // 合并默认 commonConfig 和传入的 commonConfig
+  const mergedCommonConfig = {
+    ...commonConfig,
+    ...(data.commonConfig || {})
+  };
 
   const configData = {
     featConfig,
@@ -93,7 +101,7 @@ export function getModelConfig(data: { model: AllModels; modelDir: string; cpu_n
       provider: 'cpu',
       debug: 1
     },
-    ...commonConfig
+    ...mergedCommonConfig
   };
 
   let config = undefined;
@@ -132,7 +140,7 @@ export function getModelConfig(data: { model: AllModels; modelDir: string; cpu_n
           provider: 'cpu',
           debug: 1
         },
-        ...commonConfig
+        ...mergedCommonConfig
       };
     // whisper offline
     case 'sherpa-onnx-whisper-tiny':
@@ -164,7 +172,8 @@ export function getModelConfig(data: { model: AllModels; modelDir: string; cpu_n
           numThreads: data.cpu_numThreads || 2,
           provider: 'cpu',
           debug: 1
-        }
+        },
+        ...mergedCommonConfig
       };
     case 'sherpa-onnx-zipformer-multi-zh-hans-2023-9-2':
       return {
@@ -179,7 +188,8 @@ export function getModelConfig(data: { model: AllModels; modelDir: string; cpu_n
           numThreads: data.cpu_numThreads || 2,
           provider: 'cpu',
           debug: 1
-        }
+        },
+        ...mergedCommonConfig
       };
     case 'sherpa-onnx-zipformer-cantonese-2024-03-13':
       return {
@@ -194,7 +204,8 @@ export function getModelConfig(data: { model: AllModels; modelDir: string; cpu_n
           numThreads: data.cpu_numThreads || 2,
           provider: 'cpu',
           debug: 1
-        }
+        },
+        ...mergedCommonConfig
       };
     case 'sherpa-onnx-paraformer-zh-2024-03-09':
     case 'sherpa-onnx-paraformer-zh-small-2024-03-09':
@@ -208,7 +219,8 @@ export function getModelConfig(data: { model: AllModels; modelDir: string; cpu_n
           numThreads: data.cpu_numThreads || 2,
           provider: 'cpu',
           debug: 1
-        }
+        },
+        ...mergedCommonConfig
       };
   }
 }
