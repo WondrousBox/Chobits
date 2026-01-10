@@ -1,8 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbChevronDown, TbLoader2, TbPlayerPause, TbPlayerPlay, TbPlayerStop, TbVolume, TbX } from 'react-icons/tb';
+import { TbChevronDown, TbLoader2, TbPlayerPlay, TbPlayerStop, TbVolume, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
@@ -93,9 +103,13 @@ const KOKORO_SPEAKERS = [
 ];
 
 const TTSPage: React.FC = () => {
-  const [text, setText] = useState('你好，这是一个语音合成测试。Hello, this is a TTS test.');
+  // 配置状态
   const [speakerId, setSpeakerId] = useState(48); // 默认选择中文女声 zf_xiaoyi
   const [speed, setSpeed] = useState(1.0);
+  const [isConfigured, setIsConfigured] = useState(false); // 是否已确认配置
+
+  // 输入和播放状态
+  const [text, setText] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioData, setAudioData] = useState<{ samples: Float32Array; sampleRate: number } | null>(null);
@@ -105,6 +119,7 @@ const TTSPage: React.FC = () => {
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
   const requestIdRef = useRef<string>('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // 按组分类说话人
   const speakerGroups = useMemo(() => {
@@ -121,7 +136,7 @@ const TTSPage: React.FC = () => {
       Chinese: {},
       Other: {}
     };
-    
+
     Object.entries(groups).forEach(([groupName, speakers]) => {
       if (groupName.includes('American') || groupName.includes('British')) {
         organized.English[groupName] = speakers;
@@ -131,7 +146,7 @@ const TTSPage: React.FC = () => {
         organized.Other[groupName] = speakers;
       }
     });
-    
+
     return organized;
   }, []);
 
@@ -140,9 +155,9 @@ const TTSPage: React.FC = () => {
     return KOKORO_SPEAKERS.find((s) => s.id === speakerId) || KOKORO_SPEAKERS[0];
   }, [speakerId]);
 
-  // 监听 TTS 结果
+  // 监听 TTS 结果并自动播放
   useEffect(() => {
-    const handleMessage = (_event: any, message: { type: string; data: TTSResult }): void => {
+    const handleMessage = async (_event: any, message: { type: string; data: TTSResult }): Promise<void> => {
       if (message.type === 'sherpa:tts:message') {
         const data = message.data;
         console.log('[TTS] Received result:', data);
@@ -162,10 +177,47 @@ const TTSPage: React.FC = () => {
           setError(null);
           setResult(data);
 
-          // 如果返回了音频数据，保存起来
+          // 如果返回了音频数据，保存并自动播放
           if (data.samples && data.sampleRate) {
             const floatSamples = new Float32Array(data.samples);
             setAudioData({ samples: floatSamples, sampleRate: data.sampleRate });
+
+            // 自动播放
+            try {
+              // 创建 AudioContext（如果不存在）
+              if (!audioContextRef.current) {
+                audioContextRef.current = new AudioContext();
+              }
+
+              const audioContext = audioContextRef.current;
+
+              // 确保 AudioContext 处于运行状态
+              if (audioContext.state === 'suspended') {
+                await audioContext.resume();
+              }
+
+              // 创建 AudioBuffer
+              const audioBuffer = audioContext.createBuffer(1, floatSamples.length, data.sampleRate);
+              audioBuffer.getChannelData(0).set(floatSamples);
+
+              // 创建 BufferSource
+              const source = audioContext.createBufferSource();
+              source.buffer = audioBuffer;
+              source.connect(audioContext.destination);
+
+              // 播放结束时的处理
+              source.onended = () => {
+                setIsPlaying(false);
+                sourceNodeRef.current = null;
+              };
+
+              sourceNodeRef.current = source;
+              source.start();
+              setIsPlaying(true);
+            } catch (err) {
+              console.error('[TTS] 自动播放失败:', err);
+              setError(err instanceof Error ? err.message : '播放失败');
+            }
           }
         }
       }
@@ -177,8 +229,32 @@ const TTSPage: React.FC = () => {
     };
   }, []);
 
-  // 生成语音
-  const handleGenerate = useCallback(async () => {
+  // 确认配置
+  const handleConfirmConfig = useCallback(() => {
+    setIsConfigured(true);
+    // 聚焦到文本输入框
+    setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 100);
+  }, []);
+
+  // 重新配置
+  const handleReconfigure = useCallback(() => {
+    setIsConfigured(false);
+    setText('');
+    setAudioData(null);
+    setResult(null);
+    setError(null);
+    // 停止播放
+    if (sourceNodeRef.current) {
+      sourceNodeRef.current.stop();
+      sourceNodeRef.current = null;
+    }
+    setIsPlaying(false);
+  }, []);
+
+  // 生成并播放语音
+  const handleGenerateAndPlay = useCallback(async () => {
     if (!text.trim() || isGenerating) return;
 
     setIsGenerating(true);
@@ -209,6 +285,7 @@ const TTSPage: React.FC = () => {
         setError(response.error || '生成失败');
         setIsGenerating(false);
       }
+      // 生成成功后会自动播放（在监听器中处理）
     } catch (err) {
       setError(err instanceof Error ? err.message : '生成失败');
       setIsGenerating(false);
@@ -304,167 +381,205 @@ const TTSPage: React.FC = () => {
 
       {/* 内容区域 */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 no-drag">
-        {/* 文本输入 */}
-        <div className="space-y-2">
-          <Label htmlFor="text">输入文本</Label>
-          <Textarea id="text" value={text} onChange={(e) => setText(e.target.value)} placeholder="请输入要合成的文本..." className="min-h-[100px] resize-none" disabled={isGenerating} />
-        </div>
+        {!isConfigured ? (
+          // 配置阶段
+          <>
+            {/* 参数设置 */}
+            <div className="space-y-4">
+              {/* 说话人选择 */}
+              <div className="space-y-2">
+                <Label>说话人</Label>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="w-full justify-between no-drag" disabled={isGenerating}>
+                      <span className="truncate">
+                        {currentSpeaker.label} ({currentSpeaker.name})
+                      </span>
+                      <TbChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-[280px] no-drag" align="start">
+                    {/* English 分组 */}
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <span>🇬🇧 English</span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent className="max-h-[400px] overflow-y-auto">
+                        {Object.entries(speakerGroups.English).map(([groupName, speakers], groupIndex) => (
+                          <React.Fragment key={groupName}>
+                            {groupIndex > 0 && <DropdownMenuSeparator />}
+                            <DropdownMenuLabel className="text-xs">{groupName}</DropdownMenuLabel>
+                            {speakers.map((speaker) => (
+                              <DropdownMenuItem key={speaker.id} onClick={() => setSpeakerId(speaker.id)} className={speakerId === speaker.id ? 'bg-accent' : ''}>
+                                <span className="flex-1">{speaker.label}</span>
+                                <span className="text-xs text-muted-foreground ml-2">{speaker.name}</span>
+                              </DropdownMenuItem>
+                            ))}
+                          </React.Fragment>
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
 
-        {/* 参数设置 */}
-        <div className="space-y-4">
-          {/* 说话人选择 */}
-          <div className="space-y-2">
-            <Label>说话人</Label>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="w-full justify-between no-drag" disabled={isGenerating}>
-                  <span className="truncate">
-                    {currentSpeaker.label} ({currentSpeaker.name})
-                  </span>
-                  <TbChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    <DropdownMenuSeparator />
+
+                    {/* Chinese 分组 */}
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <span>🇨🇳 Chinese</span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent className="max-h-[400px] overflow-y-auto">
+                        {Object.entries(speakerGroups.Chinese).map(([groupName, speakers], groupIndex) => (
+                          <React.Fragment key={groupName}>
+                            {groupIndex > 0 && <DropdownMenuSeparator />}
+                            <DropdownMenuLabel className="text-xs">{groupName}</DropdownMenuLabel>
+                            {speakers.map((speaker) => (
+                              <DropdownMenuItem key={speaker.id} onClick={() => setSpeakerId(speaker.id)} className={speakerId === speaker.id ? 'bg-accent' : ''}>
+                                <span className="flex-1">{speaker.label}</span>
+                                <span className="text-xs text-muted-foreground ml-2">{speaker.name}</span>
+                              </DropdownMenuItem>
+                            ))}
+                          </React.Fragment>
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+
+                    <DropdownMenuSeparator />
+
+                    {/* Other Languages 分组 */}
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <span>🌍 Other Languages</span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent className="max-h-[400px] overflow-y-auto">
+                        {Object.entries(speakerGroups.Other).map(([groupName, speakers], groupIndex) => (
+                          <React.Fragment key={groupName}>
+                            {groupIndex > 0 && <DropdownMenuSeparator />}
+                            <DropdownMenuLabel className="text-xs">{groupName}</DropdownMenuLabel>
+                            {speakers.map((speaker) => (
+                              <DropdownMenuItem key={speaker.id} onClick={() => setSpeakerId(speaker.id)} className={speakerId === speaker.id ? 'bg-accent' : ''}>
+                                <span className="flex-1">{speaker.label}</span>
+                                <span className="text-xs text-muted-foreground ml-2">{speaker.name}</span>
+                              </DropdownMenuItem>
+                            ))}
+                          </React.Fragment>
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              {/* 语速 */}
+              <div className="space-y-2">
+                <Label htmlFor="speed">语速: {speed.toFixed(1)}x</Label>
+                <Slider id="speed" value={[speed]} onValueChange={(v) => setSpeed(v[0])} min={0.5} max={2.0} step={0.1} />
+              </div>
+
+              {/* 确认按钮 */}
+              <div className="pt-2">
+                <Button onClick={handleConfirmConfig} className="w-full">
+                  <TbVolume className="mr-2" />
+                  确认配置
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-[280px] no-drag" align="start">
-                {/* English 分组 */}
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>
-                    <span>🇬🇧 English</span>
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className="max-h-[400px] overflow-y-auto">
-                    {Object.entries(speakerGroups.English).map(([groupName, speakers], groupIndex) => (
-                      <React.Fragment key={groupName}>
-                        {groupIndex > 0 && <DropdownMenuSeparator />}
-                        <DropdownMenuLabel className="text-xs">{groupName}</DropdownMenuLabel>
-                        {speakers.map((speaker) => (
-                          <DropdownMenuItem key={speaker.id} onClick={() => setSpeakerId(speaker.id)} className={speakerId === speaker.id ? 'bg-accent' : ''}>
-                            <span className="flex-1">{speaker.label}</span>
-                            <span className="text-xs text-muted-foreground ml-2">{speaker.name}</span>
-                          </DropdownMenuItem>
-                        ))}
-                      </React.Fragment>
-                    ))}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-
-                <DropdownMenuSeparator />
-
-                {/* Chinese 分组 */}
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>
-                    <span>🇨🇳 Chinese</span>
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className="max-h-[400px] overflow-y-auto">
-                    {Object.entries(speakerGroups.Chinese).map(([groupName, speakers], groupIndex) => (
-                      <React.Fragment key={groupName}>
-                        {groupIndex > 0 && <DropdownMenuSeparator />}
-                        <DropdownMenuLabel className="text-xs">{groupName}</DropdownMenuLabel>
-                        {speakers.map((speaker) => (
-                          <DropdownMenuItem key={speaker.id} onClick={() => setSpeakerId(speaker.id)} className={speakerId === speaker.id ? 'bg-accent' : ''}>
-                            <span className="flex-1">{speaker.label}</span>
-                            <span className="text-xs text-muted-foreground ml-2">{speaker.name}</span>
-                          </DropdownMenuItem>
-                        ))}
-                      </React.Fragment>
-                    ))}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-
-                <DropdownMenuSeparator />
-
-                {/* Other Languages 分组 */}
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>
-                    <span>🌍 Other Languages</span>
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className="max-h-[400px] overflow-y-auto">
-                    {Object.entries(speakerGroups.Other).map(([groupName, speakers], groupIndex) => (
-                      <React.Fragment key={groupName}>
-                        {groupIndex > 0 && <DropdownMenuSeparator />}
-                        <DropdownMenuLabel className="text-xs">{groupName}</DropdownMenuLabel>
-                        {speakers.map((speaker) => (
-                          <DropdownMenuItem key={speaker.id} onClick={() => setSpeakerId(speaker.id)} className={speakerId === speaker.id ? 'bg-accent' : ''}>
-                            <span className="flex-1">{speaker.label}</span>
-                            <span className="text-xs text-muted-foreground ml-2">{speaker.name}</span>
-                          </DropdownMenuItem>
-                        ))}
-                      </React.Fragment>
-                    ))}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-
-          {/* 语速 */}
-          <div className="space-y-2">
-            <Label htmlFor="speed">语速: {speed.toFixed(1)}x</Label>
-            <Slider id="speed" value={[speed]} onValueChange={(v) => setSpeed(v[0])} min={0.5} max={2.0} step={0.1} disabled={isGenerating} />
-          </div>
-        </div>
-
-        {/* 结果显示 */}
-        {result && (
-          <div className="p-3 rounded-lg bg-muted/50 space-y-2 text-sm">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <TbVolume className="h-4 w-4" />
-              <span>生成完成</span>
-            </div>
-            <div className="grid grid-cols-3 gap-2 text-xs">
-              <div>
-                <span className="text-muted-foreground">时长: </span>
-                <span className="font-medium">{result.duration?.toFixed(2)}s</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">耗时: </span>
-                <span className="font-medium">{result.elapsedSeconds?.toFixed(2)}s</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">RTF: </span>
-                <span className="font-medium">{result.rtf?.toFixed(3)}</span>
               </div>
             </div>
-          </div>
+          </>
+        ) : (
+          // 输入和播放阶段
+          <>
+            {/* 当前配置显示 */}
+            <div className="p-3 rounded-lg bg-muted/50 space-y-1 text-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-muted-foreground">说话人: </span>
+                  <span className="font-medium">{currentSpeaker.label}</span>
+                </div>
+                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleReconfigure}>
+                  重新配置
+                </Button>
+              </div>
+              <div>
+                <span className="text-muted-foreground">语速: </span>
+                <span className="font-medium">{speed.toFixed(1)}x</span>
+              </div>
+            </div>
+
+            {/* 文本输入 */}
+            <div className="space-y-2">
+              <Label htmlFor="text">输入文本</Label>
+              <Textarea
+                ref={textareaRef}
+                id="text"
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                placeholder="粘贴或输入要合成的文本..."
+                className="min-h-[150px] resize-none"
+                disabled={isGenerating}
+              />
+            </div>
+
+            {/* 播放按钮 */}
+            {text.trim() && (
+              <div className="flex gap-2">
+                <Button onClick={handleGenerateAndPlay} disabled={isGenerating || isPlaying} className="flex-1">
+                  {isGenerating ? (
+                    <>
+                      <TbLoader2 className="animate-spin mr-2" />
+                      生成中...
+                    </>
+                  ) : isPlaying ? (
+                    <>
+                      <TbVolume className="mr-2" />
+                      播放中...
+                    </>
+                  ) : (
+                    <>
+                      <TbPlayerPlay className="mr-2" />
+                      生成并播放
+                    </>
+                  )}
+                </Button>
+                {(audioData || isPlaying) && (
+                  <Button variant="outline" size="icon" onClick={handleStop} disabled={isGenerating || !isPlaying}>
+                    <TbPlayerStop />
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {/* 结果显示 */}
+            {result && (
+              <div className="p-3 rounded-lg bg-muted/50 space-y-2 text-sm">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <TbVolume className="h-4 w-4" />
+                  <span>生成完成</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div>
+                    <span className="text-muted-foreground">时长: </span>
+                    <span className="font-medium">{result.duration?.toFixed(2)}s</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">耗时: </span>
+                    <span className="font-medium">{result.elapsedSeconds?.toFixed(2)}s</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">RTF: </span>
+                    <span className="font-medium">{result.rtf?.toFixed(3)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 错误显示 */}
+            {error && (
+              <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+                <span className="font-medium">错误: </span>
+                {error}
+              </div>
+            )}
+          </>
         )}
-
-        {/* 错误显示 */}
-        {error && (
-          <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-            <span className="font-medium">错误: </span>
-            {error}
-          </div>
-        )}
-      </div>
-
-      {/* 操作按钮 */}
-      <div className="flex gap-2 border-t p-3">
-        {/* 播放控制 */}
-        {audioData && (
-          <div className="flex gap-1">
-            <Button variant="outline" size="icon" className="h-8 w-8 no-drag" onClick={handlePlay} disabled={isGenerating}>
-              {isPlaying ? <TbPlayerPause className="h-4 w-4" /> : <TbPlayerPlay className="h-4 w-4" />}
-            </Button>
-            <Button variant="outline" size="icon" className="h-8 w-8 no-drag" onClick={handleStop} disabled={isGenerating || !isPlaying}>
-              <TbPlayerStop className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
-
-        <div className="flex-1" />
-
-        {/* 生成按钮 */}
-        <Button className="no-drag" onClick={handleGenerate} disabled={!text.trim() || isGenerating}>
-          {isGenerating ? (
-            <>
-              <TbLoader2 className="animate-spin mr-1" />
-              生成中...
-            </>
-          ) : (
-            <>
-              <TbVolume className="mr-1" />
-              生成语音
-            </>
-          )}
-        </Button>
       </div>
     </div>
   );
