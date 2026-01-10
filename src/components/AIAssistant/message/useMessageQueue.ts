@@ -26,6 +26,35 @@ const sortByPriority = (messages: SpriteMessage[]): SpriteMessage[] => {
   });
 };
 
+/**
+ * 生成消息的去重键
+ * - Notice: 使用 routineId（如果有）或 content 作为去重键
+ * - Busy: 使用 content 作为去重键
+ * - Toast: 使用 category 或 content 作为去重键
+ */
+const getDedupeKey = (message: SpriteMessage): string => {
+  const { type } = message;
+
+  if (type === 'notice') {
+    const notice = message as NoticeMessage;
+    // 优先使用 routineId（表示同一类提醒），否则用 content
+    return `notice:${notice.routineId || notice.content}`;
+  }
+
+  if (type === 'busy') {
+    const busy = message as BusyMessage;
+    return `busy:${busy.content || 'default'}`;
+  }
+
+  if (type === 'toast') {
+    const toast = message as ToastMessage;
+    // 使用 category（预设文案类型）或 content 作为去重键
+    return `toast:${toast.category || toast.content || 'default'}`;
+  }
+
+  return `unknown:${message.id}`;
+};
+
 export interface UseMessageQueueReturn {
   /** 当前显示的消息 */
   current: SpriteMessage | null;
@@ -67,9 +96,24 @@ export function useMessageQueue(): UseMessageQueueReturn {
   /** 添加消息到队列 */
   const addMessage = useCallback((message: SpriteMessage) => {
     setState((prev) => {
-      // 检查是否是相同类型的消息替换
+      const newDedupeKey = getDedupeKey(message);
+
+      // 检查是否已存在相同的消息（去重）
+      const hasDuplicate = prev.queue.some((m) => {
+        // 相同 ID 视为同一消息（会被替换）
+        if (m.id === message.id) return false;
+        // 检查去重键是否相同
+        return getDedupeKey(m) === newDedupeKey;
+      });
+
+      // 如果已存在相同内容的消息，不添加新消息
+      if (hasDuplicate) {
+        return prev;
+      }
+
+      // 过滤掉需要被替换的消息
       const filteredQueue = prev.queue.filter((m) => {
-        // busy 消息只保留一个
+        // busy 消息只保留一个（新的替换旧的）
         if (message.type === 'busy' && m.type === 'busy') return false;
         // 相同 ID 的消息替换
         if (m.id === message.id) return false;

@@ -128,7 +128,7 @@ const SCENE_CONFIGS: SceneConfig[] = [
     enableTranslation: false,
     recommendedPunctuationModelId: 'sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8', // 中英文标点
     commonConfig: {
-      enableEndpoint: false
+      enableEndpoint: true
       // 会议场景：使用默认配置，保持较短的静音检测以便快速响应
     }
   },
@@ -142,7 +142,7 @@ const SCENE_CONFIGS: SceneConfig[] = [
     targetLanguage: 'zh', // 翻译成中文
     recommendedPunctuationModelId: 'sherpa-onnx-online-punct-en-2024-08-06', // 英文标点
     commonConfig: {
-      enableEndpoint: false,
+      enableEndpoint: true,
       rule3MinUtteranceLength: 10
     }
   },
@@ -155,7 +155,7 @@ const SCENE_CONFIGS: SceneConfig[] = [
     enableTranslation: false,
     recommendedPunctuationModelId: 'sherpa-onnx-online-punct-en-2024-08-06', // 中英文标点
     commonConfig: {
-      enableEndpoint: false,
+      enableEndpoint: true,
       rule1MinTrailingSilence: 2.4,
       rule2MinTrailingSilence: 1.2,
       rule3MinUtteranceLength: 20
@@ -163,27 +163,27 @@ const SCENE_CONFIGS: SceneConfig[] = [
   },
   {
     id: 'chinese',
-    name: '中文',
+    name: '中英',
     description: '适用于中英双语场景，自动识别中英文混合语音',
     recommendedModelIds: ['sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20'],
     defaultLanguage: 'zh',
     enableTranslation: false,
     recommendedPunctuationModelId: 'sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8', // 中英文标点
     commonConfig: {
-      enableEndpoint: false
+      enableEndpoint: true
       // 双语场景：使用默认配置
     }
   },
   {
     id: 'multilingual',
-    name: '多语言',
+    name: '简繁中文',
     description: '适用于多语言场景，支持多种语言识别',
     recommendedModelIds: ['sherpa-onnx-streaming-zipformer-ctc-multi-zh-hans-2023-12-13'],
     defaultLanguage: 'zh',
     enableTranslation: false,
     recommendedPunctuationModelId: 'sherpa-onnx-punct-ct-transformer-zh-en-vocab272727-2024-04-12-int8', // 中英文标点
     commonConfig: {
-      enableEndpoint: false
+      enableEndpoint: true
       // 多语言场景：使用默认配置
     }
   }
@@ -198,78 +198,24 @@ const ASRConfigPage: React.FC = () => {
   const [sherpaModels, setSherpaModels] = useState<SherpaModel[]>([]);
   const [punctuationModels, setPunctuationModels] = useState<SherpaModel[]>([]);
   const [loadingModels, setLoadingModels] = useState(true);
-  const [enableTranslation, setEnableTranslation] = useState(false);
-  const [targetLanguage, setTargetLanguage] = useState('en');
-  const [providers, setProviders] = useState<any[]>([]);
-  const [selectedProviderId, setSelectedProviderId] = useState<string>('');
   const [cloudProviderId, setCloudProviderId] = useState<string>('');
   const [cloudModelId, setCloudModelId] = useState<string>('');
   const [cloudModels, setCloudModels] = useState<any[]>([]);
   const [loadingCloudModels, setLoadingCloudModels] = useState(false);
   const [activeTab, setActiveTab] = useState('local');
-  const [providerConfigured, setProviderConfigured] = useState<boolean>(false);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
 
-  // 检测Provider配置状态
-  const checkProviderConfig = useCallback(
-    async (providerId: string): Promise<boolean> => {
-      if (!providerId) {
-        setProviderConfigured(false);
-        return false;
-      }
+  // 云端模式：加载 AI Providers（仅用于云端转写模式）
+  const [cloudProviders, setCloudProviders] = useState<any[]>([]);
 
-      try {
-        const provider = providers.find((p) => p.id === providerId);
-        if (!provider) {
-          setProviderConfigured(false);
-          return false;
-        }
-
-        // 获取provider的schema，检查required字段
-        const schema = provider.schema;
-        const requiredFields = schema?.fields?.filter((f: any) => f.required) || [];
-        console.log('requiredFields:', requiredFields);
-
-        if (requiredFields.length === 0) {
-          // 如果没有required字段，认为已配置
-          setProviderConfigured(true);
-          return true;
-        }
-
-        // 获取已配置的secrets
-        const secrets = await window.YUA.ai.getProviderSecrets(providerId).catch(() => ({}));
-
-        console.log('secrets:', secrets);
-
-        // 检查所有required字段是否都有值
-        const allConfigured = requiredFields.every((f: any) => {
-          const value = (secrets as Record<string, string>)[f.key];
-          return value && value.trim().length > 0;
-        });
-
-        setProviderConfigured(allConfigured);
-        return allConfigured;
-      } catch (error) {
-        console.error('检测Provider配置失败:', error);
-        setProviderConfigured(false);
-        return false;
-      }
-    },
-    [providers]
-  );
-
-  // 加载 AI Providers
+  // 加载云端 AI Providers（用于云端转写模式）
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
         const provs = await window.YUA.ai.getProviders();
         if (!mounted) return;
-        setProviders(provs || []);
-        // 默认选择第一个provider
-        if (provs && provs.length > 0 && !selectedProviderId) {
-          setSelectedProviderId(provs[0].id);
-        }
+        setCloudProviders(provs || []);
       } catch (error) {
         console.error('加载 AI Providers 失败:', error);
       }
@@ -278,60 +224,6 @@ const ASRConfigPage: React.FC = () => {
       mounted = false;
     };
   }, []);
-
-  // 当选择provider或providers变化时，检测配置
-  useEffect(() => {
-    if (enableTranslation && selectedProviderId && providers.length > 0) {
-      checkProviderConfig(selectedProviderId);
-    } else {
-      setProviderConfigured(false);
-    }
-  }, [selectedProviderId, enableTranslation, providers, checkProviderConfig]);
-
-  // 监听配置窗口关闭事件，重新检测配置
-  useEffect(() => {
-    let intervalId: NodeJS.Timeout | null = null;
-
-    // 如果启用了翻译且选择了provider，定期检测配置状态（用于检测配置窗口关闭后的状态）
-    if (enableTranslation && selectedProviderId && !providerConfigured) {
-      intervalId = setInterval(() => {
-        checkProviderConfig(selectedProviderId);
-      }, 2000); // 每2秒检测一次
-    }
-
-    // 监听窗口focus事件，当窗口重新获得焦点时检测配置
-    const handleFocus = (): void => {
-      if (enableTranslation && selectedProviderId) {
-        checkProviderConfig(selectedProviderId);
-      }
-    };
-
-    window.addEventListener('focus', handleFocus);
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
-    };
-  }, [enableTranslation, selectedProviderId, providerConfigured, checkProviderConfig]);
-
-  // 打开配置窗口
-  const handleOpenProviderConfig = useCallback(async () => {
-    if (!selectedProviderId) return;
-
-    try {
-      const provider = providers.find((p) => p.id === selectedProviderId);
-      if (!provider) return;
-
-      const schema = provider.schema;
-      const requiredFields = schema?.fields?.filter((f: any) => f.required) || [];
-      const fields = requiredFields.map((f: any) => f.key);
-
-      await window.YUA.window['window:open']('aiProviderConfig' as any, { providerId: selectedProviderId, fields }, { sameDisplayAsSender: true });
-    } catch (error) {
-      console.error('打开配置窗口失败:', error);
-    }
-  }, [selectedProviderId, providers]);
 
   // 加载 sherpa 模型列表
   useEffect(() => {
@@ -481,11 +373,7 @@ const ASRConfigPage: React.FC = () => {
     // 设置语言
     setLanguage(sceneConfig.defaultLanguage);
 
-    // 设置翻译
-    setEnableTranslation(sceneConfig.enableTranslation);
-    if (sceneConfig.targetLanguage) {
-      setTargetLanguage(sceneConfig.targetLanguage);
-    }
+    // 翻译配置现在由 ASR 页面的 AI 面板控制
 
     // 根据场景选择推荐模型
     if (sherpaModels.length > 0) {
@@ -598,12 +486,39 @@ const ASRConfigPage: React.FC = () => {
     };
   }, [cloudProviderId]); // cloudModelId is intentionally omitted to avoid loop
 
+  // 检测云端Provider配置状态
+  const checkCloudProviderConfig = useCallback(
+    async (providerId: string): Promise<boolean> => {
+      if (!providerId) return false;
+
+      try {
+        const provider = cloudProviders.find((p: any) => p.id === providerId);
+        if (!provider) return false;
+
+        const schema = provider.schema;
+        const requiredFields = schema?.fields?.filter((f: any) => f.required) || [];
+
+        if (requiredFields.length === 0) return true;
+
+        const secrets = await window.YUA.ai.getProviderSecrets(providerId).catch(() => ({}));
+        return requiredFields.every((f: any) => {
+          const value = (secrets as Record<string, string>)[f.key];
+          return value && value.trim().length > 0;
+        });
+      } catch (error) {
+        console.error('检测Provider配置失败:', error);
+        return false;
+      }
+    },
+    [cloudProviders]
+  );
+
   // 启动ASR服务并打开测试页面
   const handleStartASR = async (): Promise<void> => {
     if (activeTab === 'cloud') {
       if (!cloudProviderId || !cloudModelId) return;
 
-      const isConfigured = await checkProviderConfig(cloudProviderId);
+      const isConfigured = await checkCloudProviderConfig(cloudProviderId);
       if (!isConfigured) {
         window.YUA.window['window:open']('aiProviderConfig' as any, { providerId: cloudProviderId }, { sameDisplayAsSender: true });
         return;
@@ -632,19 +547,7 @@ const ASRConfigPage: React.FC = () => {
       }
     }
 
-    // 如果启用了翻译，检查AI服务商是否已配置
-    if (enableTranslation) {
-      if (!selectedProviderId) {
-        console.error('请选择AI服务商');
-        return;
-      }
-      const isConfigured = await checkProviderConfig(selectedProviderId);
-      if (!isConfigured) {
-        // 如果未配置，打开配置窗口
-        handleOpenProviderConfig();
-        return;
-      }
-    }
+    // 翻译配置现在由 ASR 页面的 AI 面板控制，这里不再检查
 
     setIsLoading(true);
 
@@ -678,10 +581,8 @@ const ASRConfigPage: React.FC = () => {
       window.YUA.window['window:open']('asr', {
         mode: activeTab,
         cloudProviderId: activeTab === 'cloud' ? cloudProviderId : undefined,
-        cloudModelId: activeTab === 'cloud' ? cloudModelId : undefined,
-        enableTranslation,
-        targetLanguage: enableTranslation ? targetLanguage : undefined,
-        providerId: enableTranslation ? selectedProviderId : undefined
+        cloudModelId: activeTab === 'cloud' ? cloudModelId : undefined
+        // 翻译配置现在由 ASR 页面的 AI 面板控制
       });
       window.YUA.window['window:close']('asrConfig');
     } catch (error) {
@@ -725,66 +626,6 @@ const ASRConfigPage: React.FC = () => {
                   ))}
                 </div>
               </div>
-
-              {/* 实时翻译配置（根据场景自动显示） */}
-              {enableTranslation && (
-                <div className="space-y-4 border rounded-lg p-4">
-                  <div className="space-y-2">
-                    <Label className="no-drag">实时翻译</Label>
-                    <p className="text-xs text-muted-foreground">当前场景已启用实时翻译功能</p>
-                    <div className="space-y-2">
-                      {providers.length > 0 && (
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <Label className="no-drag" htmlFor="provider">
-                              AI 服务商
-                            </Label>
-                            {selectedProviderId && (
-                              <div className="flex items-center gap-2">
-                                {providerConfigured ? (
-                                  <span className="text-xs text-green-600 dark:text-green-400">已配置</span>
-                                ) : (
-                                  <Button size="sm" variant="outline" className="h-6 text-xs px-2 no-drag" onClick={handleOpenProviderConfig}>
-                                    未配置
-                                  </Button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                          <Select value={selectedProviderId} onValueChange={setSelectedProviderId} disabled={!enableTranslation || providers.length === 0}>
-                            <SelectTrigger className="no-drag" id="provider">
-                              <SelectValue placeholder="请选择AI服务商" />
-                            </SelectTrigger>
-                            <SelectContent className="no-drag">
-                              {providers.map((provider) => (
-                                <SelectItem key={provider.id} value={provider.id}>
-                                  {provider.label || provider.id}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {selectedProviderId && !providerConfigured && <div className="text-xs text-amber-600 dark:text-amber-400">该服务商未配置API密钥，请点击按钮进行配置</div>}
-                        </div>
-                      )}
-                      <Label className="no-drag" htmlFor="targetLanguage">
-                        目标语言
-                      </Label>
-                      <Select value={targetLanguage} onValueChange={setTargetLanguage} disabled={!enableTranslation}>
-                        <SelectTrigger className="no-drag" id="targetLanguage">
-                          <SelectValue placeholder="请选择目标语言" />
-                        </SelectTrigger>
-                        <SelectContent className="no-drag">
-                          {['en', 'zh', 'ja', 'ko', 'de', 'es', 'ru', 'fr', 'pt', 'it', 'ar', 'hi', 'vi', 'th'].map((lang) => (
-                            <SelectItem key={lang} value={lang}>
-                              {getLanguageName(lang)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* 高级设置 */}
               <div className="space-y-2 border rounded-lg">
@@ -1055,7 +896,7 @@ const ASRConfigPage: React.FC = () => {
                       <SelectValue placeholder="请选择AI服务商" />
                     </SelectTrigger>
                     <SelectContent className="no-drag">
-                      {providers.map((provider) => (
+                      {cloudProviders.map((provider: any) => (
                         <SelectItem key={provider.id} value={provider.id}>
                           {provider.label || provider.id}
                         </SelectItem>
@@ -1099,8 +940,7 @@ const ASRConfigPage: React.FC = () => {
             disabled={
               isLoading ||
               (activeTab === 'local' && (!selectedModel || !sherpaModels.find((m) => m.id === selectedModel)?.isInstalled)) ||
-              (activeTab === 'cloud' && (!cloudProviderId || !cloudModelId)) ||
-              (enableTranslation && (!selectedProviderId || !providerConfigured))
+              (activeTab === 'cloud' && (!cloudProviderId || !cloudModelId))
             }
             onClick={handleStartASR}
             className="flex-1 no-drag"
