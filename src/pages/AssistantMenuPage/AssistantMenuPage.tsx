@@ -42,7 +42,22 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         label: '总结打标',
         icon: '🏷️',
         shortcut: 't',
-        action: () => window.YUA.window['window:open']('tagger')
+        action: () => window.YUA.window['window:open']('tagger'),
+        children: [
+          {
+            id: 'tagger-sum',
+            label: '总结打标',
+            icon: '📝',
+            shortcut: 's',
+            action: () => window.YUA.window['window:open']('tagger')
+          },
+          {
+            id: 'tagger-tag',
+            label: '标签打标',
+            icon: '🏷️',
+            shortcut: 't'
+          }
+        ]
       },
       {
         id: 'chat',
