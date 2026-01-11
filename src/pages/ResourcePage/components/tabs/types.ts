@@ -32,7 +32,7 @@ export interface TabComponent {
 /**
  * Tab 注册变化事件类型
  */
-export type TabRegistryEventType = 'register' | 'unregister' | 'enable' | 'disable';
+export type TabRegistryEventType = 'register' | 'unregister' | 'enable' | 'disable' | 'reorder';
 
 /**
  * Tab 注册变化事件
@@ -74,6 +74,8 @@ export interface TabRegistry {
   setOrder(orderedIds: string[]): void;
   /** 获取当前 tab 顺序 */
   getOrder(): string[];
+  /** 从 localStorage 加载顺序 */
+  loadOrder(): void;
   /** 添加事件监听器 */
   addEventListener(listener: TabRegistryEventListener): () => void;
   /** 移除事件监听器 */
