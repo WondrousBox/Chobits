@@ -42,10 +42,10 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({ tracks, currentT
   const activeRowRef = useRef<HTMLDivElement>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
 
-  // 第一个轨道作为主轨道
-  const mainTrack = tracks[0] || [];
+  // 第一个轨道作为主轨道（添加空值保护）
+  const mainTrack = tracks?.[0] || [];
   // 其他轨道作为附加轨道
-  const additionalTracks = tracks.slice(1);
+  const additionalTracks = tracks?.slice(1) || [];
 
   const disabledSet = toIndexSet(disabledIndices);
   const highlightSet = toIndexSet(highlightIndices);
