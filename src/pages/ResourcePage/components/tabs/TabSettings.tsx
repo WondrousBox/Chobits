@@ -6,12 +6,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 import type { TabType } from '../ResourceTabs';
+import { tabPanelManager } from './TabPanelManager';
 import { tabRegistry } from './TabRegistry';
 import type { TabComponent } from './types';
 
 interface TabSettingsProps {
+  /** 面板ID（必须，每个面板需要唯一标识） */
+  panelId: string;
   /** 当前资源类型允许的 tab ID 列表 */
   allowedTabIds: (TabType | string)[];
 }
@@ -19,53 +23,61 @@ interface TabSettingsProps {
 /**
  * Tab 设置面板
  * 允许用户启用/禁用不同的 tab 组件（类似浏览器扩展管理）
+ * 不同面板的 tab 设置互斥，一个 tab 只能被一个面板 pin
  */
-export const TabSettings: React.FC<TabSettingsProps> = ({ allowedTabIds }) => {
+export const TabSettings: React.FC<TabSettingsProps> = ({ panelId, allowedTabIds }) => {
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [allAppsDialogOpen, setAllAppsDialogOpen] = useState(false);
   const [tabs, setTabs] = useState<TabComponent[]>([]);
   const [allTabs, setAllTabs] = useState<TabComponent[]>([]);
-  const [enabledStates, setEnabledStates] = useState<Record<string, boolean>>({});
+  const [pinnedStates, setPinnedStates] = useState<Record<string, boolean>>({});
+  const [tabOwners, setTabOwners] = useState<Record<string, string | null>>({});
+
+  // 更新 tab 状态
+  const updateTabStates = (): void => {
+    const allRegisteredTabs = tabRegistry.getAll();
+    setAllTabs(allRegisteredTabs);
+
+    // 只显示当前资源类型允许的 tab（用于 popover）
+    const filteredTabs = allRegisteredTabs.filter((tab) => allowedTabIds.includes(tab.id));
+    setTabs(filteredTabs);
+
+    // 更新 pin 状态和所有者
+    const pinStates: Record<string, boolean> = {};
+    const owners: Record<string, string | null> = {};
+    allRegisteredTabs.forEach((tab) => {
+      pinStates[tab.id] = tabPanelManager.isTabPinned(panelId, tab.id);
+      owners[tab.id] = tabPanelManager.getTabOwner(tab.id);
+    });
+    setPinnedStates(pinStates);
+    setTabOwners(owners);
+  };
 
   // 加载所有已注册的 tab
   useEffect(() => {
-    const updateTabs = (): void => {
-      const allRegisteredTabs = tabRegistry.getAll();
-      setAllTabs(allRegisteredTabs);
-
-      // 只显示当前资源类型允许的 tab（用于 popover）
-      const filteredTabs = allRegisteredTabs.filter((tab) => allowedTabIds.includes(tab.id));
-      setTabs(filteredTabs);
-
-      // 更新启用状态
-      const states: Record<string, boolean> = {};
-      allRegisteredTabs.forEach((tab) => {
-        states[tab.id] = tabRegistry.isEnabled(tab.id);
-      });
-      setEnabledStates(states);
-    };
-
-    updateTabs();
+    updateTabStates();
 
     // 监听注册表变化
-    const unsubscribe = tabRegistry.addEventListener((event) => {
-      if (event.type === 'register' || event.type === 'unregister' || event.type === 'enable' || event.type === 'disable') {
-        updateTabs();
+    const unsubscribeRegistry = tabRegistry.addEventListener((event) => {
+      if (event.type === 'register' || event.type === 'unregister') {
+        updateTabStates();
       }
     });
 
-    return unsubscribe;
-  }, [allowedTabIds]);
+    // 监听面板管理器变化
+    const unsubscribePanel = tabPanelManager.addEventListener(() => {
+      updateTabStates();
+    });
+
+    return () => {
+      unsubscribeRegistry();
+      unsubscribePanel();
+    };
+  }, [panelId, allowedTabIds]);
 
   const handlePinToggle = (tabId: string, e: React.MouseEvent): void => {
     e.stopPropagation();
-    const isEnabled = tabRegistry.isEnabled(tabId);
-    if (isEnabled) {
-      tabRegistry.disable(tabId);
-    } else {
-      tabRegistry.enable(tabId);
-    }
-    setEnabledStates((prev) => ({ ...prev, [tabId]: !isEnabled }));
+    tabPanelManager.toggleTab(panelId, tabId);
   };
 
   // 将 tab 分为本地和远程
@@ -77,16 +89,33 @@ export const TabSettings: React.FC<TabSettingsProps> = ({ allowedTabIds }) => {
 
   // 渲染组件列表项
   const renderTabItem = (tab: TabComponent, showType: boolean = false): React.ReactNode => {
-    const isEnabled = enabledStates[tab.id] ?? true;
+    const isPinned = pinnedStates[tab.id] ?? false;
+    const owner = tabOwners[tab.id];
+    const isPinnedByOther = owner !== null && owner !== panelId;
+
     return (
       <div key={tab.id} className="flex items-center justify-between p-2 rounded hover:bg-muted/50 group">
         <div className="flex items-center space-x-2 flex-1 min-w-0">
-          <span className="text-sm truncate">{tab.name}</span>
+          <span className={`text-sm truncate ${isPinnedByOther ? 'text-muted-foreground' : ''}`}>{tab.name}</span>
           {showType && <span className="text-xs text-muted-foreground shrink-0">{tab.isDynamic ? '远程' : '本地'}</span>}
+          {isPinnedByOther && <span className="text-xs text-amber-500 shrink-0">({owner})</span>}
         </div>
-        <Button size="icon" variant="ghost" className="w-6 h-6 shrink-0" onClick={(e) => handlePinToggle(tab.id, e)} title={isEnabled ? '取消固定' : '固定'}>
-          {isEnabled ? <TbPinFilled className="w-4 h-4 text-primary" /> : <TbPin className="w-4 h-4 text-muted-foreground" />}
-        </Button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="w-6 h-6 shrink-0"
+                onClick={(e) => handlePinToggle(tab.id, e)}
+                title={isPinned ? '取消固定' : isPinnedByOther ? `从 ${owner} 面板抢占` : '固定'}
+              >
+                {isPinned ? <TbPinFilled className="w-4 h-4 text-primary" /> : isPinnedByOther ? <TbPin className="w-4 h-4 text-amber-500" /> : <TbPin className="w-4 h-4 text-muted-foreground" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{isPinned ? '取消固定' : isPinnedByOther ? `从 "${owner}" 面板抢占` : '固定到此面板'}</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
     );
   };
@@ -102,6 +131,9 @@ export const TabSettings: React.FC<TabSettingsProps> = ({ allowedTabIds }) => {
         <PopoverContent align="end" className="w-64 p-0" side="bottom">
           <ScrollArea className="max-h-[400px]">
             <div className="p-2">
+              {/* 面板标识 */}
+              <div className="px-2 py-1 text-xs text-muted-foreground mb-2">面板: {panelId}</div>
+
               {/* 本地组件 */}
               {localTabs.length > 0 && <div className="space-y-1">{localTabs.map((tab) => renderTabItem(tab))}</div>}
 
@@ -136,7 +168,7 @@ export const TabSettings: React.FC<TabSettingsProps> = ({ allowedTabIds }) => {
       <Dialog open={allAppsDialogOpen} onOpenChange={setAllAppsDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>所有 Tab 组件</DialogTitle>
+            <DialogTitle>所有 Tab 组件 (面板: {panelId})</DialogTitle>
           </DialogHeader>
           <ScrollArea className="max-h-[60vh] pr-4">
             <div className="space-y-4">

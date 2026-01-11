@@ -8,6 +8,8 @@ export type { ResourceTabContextValue } from './ResourceTabContext';
 export { ResourceTabContextProvider, useResourceTabContext } from './ResourceTabContext';
 export { default as SubtitleTab } from './SubtitleTab';
 export { default as SummaryTab } from './SummaryTab';
+export type { PanelTabChangeEvent, PanelTabChangeListener } from './TabPanelManager';
+export { tabPanelManager } from './TabPanelManager';
 export { tabRegistry } from './TabRegistry';
 export { default as TranslateTab } from './TranslateTab';
 export type { TabComponent, TabIcon as TabIconType, TabRegistry } from './types';

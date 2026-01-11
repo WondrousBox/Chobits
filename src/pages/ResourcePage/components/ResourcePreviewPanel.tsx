@@ -208,6 +208,7 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
 
         {/* 功能标签区域 */}
         <ResourceTabs
+          panelId="preview-panel-main"
           resource={data}
           currentTime={currentTime}
           mediaPlayerRef={mediaPlayerRef}
@@ -215,6 +216,7 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
           activeSubtitle={activeSubtitle}
           setActiveSubtitle={setActiveSubtitle}
           onResourceChange={handleResourceChange}
+          defaultPinnedTabs={['content', 'subtitle', 'translate', 'summary', 'list']}
         />
       </div>
     </div>

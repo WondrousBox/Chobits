@@ -9,7 +9,7 @@ import type { ResourceItem } from '../types';
 import { isAudioFile, isImageFile, isVideoFile } from '../utils/resourceProtocol';
 import { isSubtitleFile } from '../utils/subtitleUtils';
 import type { MediaPlayerRef } from './Players/MediaPlayer/MediaPlayer';
-import { ResourceTabContextProvider, tabRegistry } from './tabs';
+import { ResourceTabContextProvider, tabPanelManager, tabRegistry } from './tabs';
 import { registerDefaultTabs } from './tabs/registerTabs';
 import { SortableTabTrigger, TabPreview } from './tabs/SortableTabTrigger';
 import { TabSettings } from './tabs/TabSettings';
@@ -44,6 +44,8 @@ if (!defaultTabsRegistered) {
 }
 
 interface ResourceTabsProps {
+  /** 面板ID（必须，用于区分不同的 ResourceTabs 实例） */
+  panelId: string;
   /** 当前预览的资源 */
   resource: ResourceItem;
   /** 当前播放时间（用于字幕同步） */
@@ -58,13 +60,18 @@ interface ResourceTabsProps {
   setActiveSubtitle: (subtitle: ResourceItem | null) => void;
   /** 资源切换回调 */
   onResourceChange?: (resource: ResourceItem) => void;
+  /** 默认启用的 tab 列表（仅在面板首次注册时生效） */
+  defaultPinnedTabs?: string[];
 }
 
 /**
  * 资源标签组件
  * 封装了资源预览面板中的所有 tab 相关功能
+ *
+ * @param panelId - 必须的面板ID，用于区分不同的 ResourceTabs 实例
+ *                  同一个 tab 只能被一个面板 pin，实现多面板间的互斥
  */
-const ResourceTabs: React.FC<ResourceTabsProps> = ({ resource, currentTime, mediaPlayerRef, subtitleList, activeSubtitle, setActiveSubtitle, onResourceChange }) => {
+const ResourceTabs: React.FC<ResourceTabsProps> = ({ panelId, resource, currentTime, mediaPlayerRef, subtitleList, activeSubtitle, setActiveSubtitle, onResourceChange, defaultPinnedTabs }) => {
   // 判断资源类型
   const isVideo = isVideoFile(resource?.filePath);
   const isAudio = isAudioFile(resource?.filePath);
@@ -86,25 +93,52 @@ const ResourceTabs: React.FC<ResourceTabsProps> = ({ resource, currentTime, medi
     }
   }, [isVideo, isAudio, isImage, isSubtitle]);
 
-  // 监听注册表变化，动态更新可用的 tab
-  const [registeredTabs, setRegisteredTabs] = useState(() => tabRegistry.getEnabled());
+  // 注册面板到 TabPanelManager
+  useEffect(() => {
+    // 确定默认 pin 的 tab（基于资源类型和传入的默认值）
+    const defaultTabs = defaultPinnedTabs ?? allowedTabIds;
+    tabPanelManager.registerPanel(panelId, defaultTabs);
+
+    // 组件卸载时不注销面板，保留配置
+    // return () => tabPanelManager.unregisterPanel(panelId);
+  }, [panelId, allowedTabIds, defaultPinnedTabs]);
+
+  // 监听注册表变化和面板管理器变化，动态更新可用的 tab
+  const [registeredTabs, setRegisteredTabs] = useState(() => tabRegistry.getAll());
+  const [pinnedTabIds, setPinnedTabIds] = useState<string[]>(() => tabPanelManager.getPinnedTabs(panelId));
 
   useEffect(() => {
     const updateTabs = (): void => {
-      setRegisteredTabs(tabRegistry.getEnabled());
+      setRegisteredTabs(tabRegistry.getAll());
+    };
+
+    const updatePinnedTabs = (): void => {
+      setPinnedTabIds(tabPanelManager.getPinnedTabs(panelId));
     };
 
     updateTabs();
+    updatePinnedTabs();
 
     // 监听注册表变化事件（包括 reorder）
-    const unsubscribe = tabRegistry.addEventListener((event) => {
+    const unsubscribeRegistry = tabRegistry.addEventListener((event) => {
       if (event.type === 'register' || event.type === 'unregister' || event.type === 'enable' || event.type === 'disable' || event.type === 'reorder') {
         updateTabs();
       }
     });
 
-    return unsubscribe;
-  }, []);
+    // 监听面板管理器变化
+    const unsubscribePanel = tabPanelManager.addEventListener((event) => {
+      // 只响应与当前面板相关的事件
+      if (event.panelId === panelId) {
+        updatePinnedTabs();
+      }
+    });
+
+    return () => {
+      unsubscribeRegistry();
+      unsubscribePanel();
+    };
+  }, [panelId]);
 
   // 拖拽传感器 - 增加激活距离避免误触
   const sensors = useSensors(
@@ -118,16 +152,17 @@ const ResourceTabs: React.FC<ResourceTabsProps> = ({ resource, currentTime, medi
     })
   );
 
-  // 根据资源类型和启用状态过滤可用的标签
+  // 根据资源类型、启用状态和面板 pin 状态过滤可用的标签
   const availableTabs = useMemo((): TabConfig[] => {
+    // 获取该面板 pin 的且在允许列表中的 tab
     return registeredTabs
-      .filter((tab) => allowedTabIds.includes(tab.id))
+      .filter((tab) => allowedTabIds.includes(tab.id) && pinnedTabIds.includes(tab.id))
       .map((tab) => ({
         id: tab.id as TabType,
         label: tab.name,
         icon: tab.icon || TAB_ICONS[tab.id] || TbFileText
       }));
-  }, [registeredTabs, allowedTabIds]);
+  }, [registeredTabs, allowedTabIds, pinnedTabIds]);
 
   // 当前拖拽的 tab
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -197,11 +232,6 @@ const ResourceTabs: React.FC<ResourceTabsProps> = ({ resource, currentTime, medi
     return <Component />;
   }, []);
 
-  // 如果没有可用的标签，不渲染任何内容
-  if (availableTabs.length === 0) {
-    return null;
-  }
-
   // Context 值
   const contextValue = {
     resource,
@@ -215,35 +245,50 @@ const ResourceTabs: React.FC<ResourceTabsProps> = ({ resource, currentTime, medi
 
   return (
     <ResourceTabContextProvider value={contextValue}>
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabType)} className="flex-1 flex flex-col overflow-hidden min-h-0">
-        {/* 标签栏 */}
+      <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+        {/* 标签栏 - 始终显示，即使没有可用的tab */}
         <div className="flex items-center border-y bg-muted/30 shrink-0 h-9">
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
-            <div className="flex-1 flex items-center h-full px-1 gap-0.5 overflow-x-auto">
-              <SortableContext items={availableTabs.map((tab) => tab.id)} strategy={horizontalListSortingStrategy}>
-                {availableTabs.map((tab) => (
-                  <SortableTabTrigger key={tab.id} id={tab.id} value={tab.id} icon={tab.icon} label={tab.label} isActive={activeTab === tab.id} onClick={() => setActiveTab(tab.id)} />
-                ))}
-              </SortableContext>
-            </div>
-            {/* DragOverlay - Chrome 风格拖拽预览 */}
-            <DragOverlay dropAnimation={null}>{activeTabConfig && <TabPreview icon={activeTabConfig.icon} label={activeTabConfig.label} isActive={activeTab === activeId} />}</DragOverlay>
-          </DndContext>
-          {/* 应用按钮 */}
+          {availableTabs.length > 0 ? (
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
+              <div className="flex-1 flex items-center h-full px-1 gap-0.5 overflow-x-auto">
+                <SortableContext items={availableTabs.map((tab) => tab.id)} strategy={horizontalListSortingStrategy}>
+                  {availableTabs.map((tab) => (
+                    <SortableTabTrigger key={tab.id} id={tab.id} value={tab.id} icon={tab.icon} label={tab.label} isActive={activeTab === tab.id} onClick={() => setActiveTab(tab.id)} />
+                  ))}
+                </SortableContext>
+              </div>
+              {/* DragOverlay - Chrome 风格拖拽预览 */}
+              <DragOverlay dropAnimation={null}>{activeTabConfig && <TabPreview icon={activeTabConfig.icon} label={activeTabConfig.label} isActive={activeTab === activeId} />}</DragOverlay>
+            </DndContext>
+          ) : (
+            <div className="flex-1 flex items-center h-full px-2 text-xs text-muted-foreground">暂无 Tab，请点击右侧按钮添加</div>
+          )}
+          {/* 设置按钮 - 始终显示 */}
           <div className="px-2 border-l h-full flex items-center">
-            <TabSettings allowedTabIds={allowedTabIds} />
+            <TabSettings panelId={panelId} allowedTabIds={allowedTabIds} />
           </div>
         </div>
 
         {/* 标签内容 */}
-        <div className="flex-1 overflow-hidden min-h-0">
-          {availableTabs.map((tab) => (
-            <TabsContent key={tab.id} value={tab.id} className="h-full m-0 data-[state=inactive]:hidden">
-              {renderTabContent(tab.id)}
-            </TabsContent>
-          ))}
-        </div>
-      </Tabs>
+        {availableTabs.length > 0 ? (
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabType)} className="flex-1 flex flex-col overflow-hidden min-h-0">
+            <div className="flex-1 overflow-hidden min-h-0">
+              {availableTabs.map((tab) => (
+                <TabsContent key={tab.id} value={tab.id} className="h-full m-0 data-[state=inactive]:hidden">
+                  {renderTabContent(tab.id)}
+                </TabsContent>
+              ))}
+            </div>
+          </Tabs>
+        ) : (
+          <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+            <div className="text-center">
+              <p>此面板尚未配置任何 Tab</p>
+              <p className="text-xs mt-1">请点击右上角设置按钮添加 Tab</p>
+            </div>
+          </div>
+        )}
+      </div>
     </ResourceTabContextProvider>
   );
 };
