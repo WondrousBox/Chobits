@@ -331,6 +331,7 @@ const ResourcePreviewWindow: React.FC = () => {
                 <ResizablePanel defaultSize={40} minSize={20}>
                   <div className="h-full flex flex-col overflow-hidden bg-background border-t">
                     <ResourceTabs
+                      panelId="preview-window-bottom"
                       resource={data}
                       currentTime={currentTime}
                       mediaPlayerRef={mediaPlayerRef}
@@ -338,6 +339,7 @@ const ResourcePreviewWindow: React.FC = () => {
                       activeSubtitle={activeSubtitle}
                       setActiveSubtitle={setActiveSubtitle}
                       onResourceChange={handleResourceChange}
+                      defaultPinnedTabs={['subtitle', 'translate']}
                     />
                   </div>
                 </ResizablePanel>
@@ -350,6 +352,7 @@ const ResourcePreviewWindow: React.FC = () => {
                 <ResizablePanel defaultSize={40} minSize={20}>
                   <div className="h-full flex flex-col overflow-hidden bg-background border-l">
                     <ResourceTabs
+                      panelId="preview-window-sidebar"
                       resource={data}
                       currentTime={currentTime}
                       mediaPlayerRef={mediaPlayerRef}
@@ -357,6 +360,7 @@ const ResourcePreviewWindow: React.FC = () => {
                       activeSubtitle={activeSubtitle}
                       setActiveSubtitle={setActiveSubtitle}
                       onResourceChange={handleResourceChange}
+                      defaultPinnedTabs={['summary', 'list']}
                     />
                   </div>
                 </ResizablePanel>
