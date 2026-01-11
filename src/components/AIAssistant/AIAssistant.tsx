@@ -252,7 +252,16 @@ const AIAssistantInner: React.FC = () => {
       <PaddingDebugOverlay padding={paddingState} />
       {/* 统一消息组件 */}
       <SpriteMessage />
-      <Dropzone onDragEnter={handleDragEnter} onDragLeave={handleDragLeave} onDropFiles={onDropFiles}>
+      <Dropzone
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDropFiles={onDropFiles}
+        customDropzoneInside={
+          <div className="flex items-center justify-center absolute top-2 left-1/2 -translate-x-1/2 p-1 rounded-md bg-primary text-primary-foreground text-xs whitespace-nowrap z-10">
+            把文件交给我吧
+          </div>
+        }
+      >
         {
           // window.YUA.isDev && (
           //   <div

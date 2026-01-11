@@ -32,6 +32,190 @@ export interface RadialMenuProps {
   onClose?: () => void;
 }
 
+/** Clock-hand style pointer line (thick at center, thin at target) */
+const PointerLine: React.FC<{
+  cx: number;
+  cy: number;
+  tx: number;
+  ty: number;
+  id: string;
+}> = ({ cx, cy, tx, ty, id }) => {
+  // Calculate angle for gradient direction
+  const angle = Math.atan2(ty - cy, tx - cx);
+
+  // Perpendicular offsets for polygon shape (thick end = 5px, thin end = 1.5px)
+  const perpX = Math.sin(angle);
+  const perpY = -Math.cos(angle);
+
+  const thickWidth = 5;
+  const thinWidth = 1.5;
+
+  // Four corners of the tapered line
+  const points = [
+    [cx + perpX * thickWidth, cy + perpY * thickWidth],
+    [cx - perpX * thickWidth, cy - perpY * thickWidth],
+    [tx - perpX * thinWidth, ty - perpY * thinWidth],
+    [tx + perpX * thinWidth, ty + perpY * thinWidth]
+  ];
+
+  return (
+    <g>
+      <defs>
+        <linearGradient id={`${id}-grad`} x1={cx} y1={cy} x2={tx} y2={ty} gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="white" stopOpacity="1" />
+          <stop offset="100%" stopColor="white" stopOpacity="0.6" />
+        </linearGradient>
+        <filter id={`${id}-glow`} x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="2" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+      {/* Main pointer with glow */}
+      <polygon points={points.map((p) => p.join(',')).join(' ')} fill={`url(#${id}-grad)`} filter={`url(#${id}-glow)`} />
+      {/* Bright center highlight */}
+      <circle cx={cx} cy={cy} r={3} fill="white" />
+    </g>
+  );
+};
+
+/** Skill ring background effect */
+const SkillRing: React.FC<{
+  cx: number;
+  cy: number;
+  radius: number;
+  itemCount: number;
+  selectedIndex: number;
+  id: string;
+}> = ({ cx, cy, radius, itemCount, selectedIndex, id }) => {
+  const ringId = `${id}-ring`;
+  const glowId = `${id}-glow`;
+
+  // Generate segment arcs
+  const segments = useMemo(() => {
+    if (itemCount === 0) return [];
+    const segmentAngle = (2 * Math.PI) / itemCount;
+    const gap = 0.08; // Gap between segments in radians
+
+    return Array.from({ length: itemCount }, (_, i) => {
+      const startAngle = i * segmentAngle - Math.PI / 2 + gap / 2;
+      const endAngle = (i + 1) * segmentAngle - Math.PI / 2 - gap / 2;
+
+      const innerRadius = radius - 28;
+      const outerRadius = radius + 28;
+
+      const x1 = cx + Math.cos(startAngle) * innerRadius;
+      const y1 = cy + Math.sin(startAngle) * innerRadius;
+      const x2 = cx + Math.cos(startAngle) * outerRadius;
+      const y2 = cy + Math.sin(startAngle) * outerRadius;
+      const x3 = cx + Math.cos(endAngle) * outerRadius;
+      const y3 = cy + Math.sin(endAngle) * outerRadius;
+      const x4 = cx + Math.cos(endAngle) * innerRadius;
+      const y4 = cy + Math.sin(endAngle) * innerRadius;
+
+      const largeArc = endAngle - startAngle > Math.PI ? 1 : 0;
+
+      return {
+        index: i,
+        path: `M ${x1} ${y1} L ${x2} ${y2} A ${outerRadius} ${outerRadius} 0 ${largeArc} 1 ${x3} ${y3} L ${x4} ${y4} A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${x1} ${y1} Z`
+      };
+    });
+  }, [cx, cy, radius, itemCount]);
+
+  return (
+    <g>
+      <defs>
+        {/* Radial gradient for ring glow */}
+        <radialGradient id={ringId} cx="50%" cy="50%" r="50%">
+          <stop offset="70%" stopColor="hsl(var(--primary))" stopOpacity="0" />
+          <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.15" />
+        </radialGradient>
+        {/* Filter for outer glow */}
+        <filter id={glowId} x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="3" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+
+      {/* Outer glow ring */}
+      <circle cx={cx} cy={cy} r={radius + 35} fill="none" stroke="hsl(var(--primary))" strokeWidth="1" strokeOpacity="0.1" />
+      <circle cx={cx} cy={cy} r={radius - 35} fill="none" stroke="hsl(var(--primary))" strokeWidth="1" strokeOpacity="0.1" />
+
+      {/* Background fill */}
+      <circle cx={cx} cy={cy} r={radius + 30} fill={`url(#${ringId})`} />
+
+      {/* Segment arcs */}
+      {segments.map((seg) => (
+        <motion.path
+          key={seg.index}
+          d={seg.path}
+          fill={seg.index === selectedIndex ? 'hsl(var(--primary))' : 'hsl(var(--muted))'}
+          fillOpacity={seg.index === selectedIndex ? 0.25 : 0.08}
+          stroke={seg.index === selectedIndex ? 'hsl(var(--primary))' : 'hsl(var(--border))'}
+          strokeWidth={seg.index === selectedIndex ? 2 : 1}
+          strokeOpacity={seg.index === selectedIndex ? 0.8 : 0.3}
+          filter={seg.index === selectedIndex ? `url(#${glowId})` : undefined}
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{
+            opacity: 1,
+            scale: 1,
+            fillOpacity: seg.index === selectedIndex ? 0.25 : 0.08
+          }}
+          transition={{ duration: 0.2 }}
+        />
+      ))}
+
+      {/* Decorative tick marks */}
+      {Array.from({ length: itemCount * 2 }, (_, i) => {
+        const angle = (i * Math.PI) / itemCount - Math.PI / 2;
+        const isMajor = i % 2 === 0;
+        const innerR = radius + (isMajor ? 32 : 30);
+        const outerR = radius + (isMajor ? 38 : 34);
+        return (
+          <line
+            key={`tick-${i}`}
+            x1={cx + Math.cos(angle) * innerR}
+            y1={cy + Math.sin(angle) * innerR}
+            x2={cx + Math.cos(angle) * outerR}
+            y2={cy + Math.sin(angle) * outerR}
+            stroke="hsl(var(--primary))"
+            strokeWidth={isMajor ? 2 : 1}
+            strokeOpacity={isMajor ? 0.4 : 0.2}
+          />
+        );
+      })}
+    </g>
+  );
+};
+
+/** Center hub decoration */
+const CenterHub: React.FC<{ cx: number; cy: number; id: string }> = ({ cx, cy, id }) => {
+  const hubGradientId = `${id}-hub-grad`;
+
+  return (
+    <g>
+      <defs>
+        <radialGradient id={hubGradientId} cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.8" />
+          <stop offset="70%" stopColor="hsl(var(--primary))" stopOpacity="0.4" />
+          <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      {/* Outer glow */}
+      <circle cx={cx} cy={cy} r={20} fill={`url(#${hubGradientId})`} />
+      {/* Inner ring */}
+      <circle cx={cx} cy={cy} r={10} fill="none" stroke="hsl(var(--primary))" strokeWidth="2" strokeOpacity="0.6" />
+      {/* Center dot */}
+      <circle cx={cx} cy={cy} r={4} fill="hsl(var(--primary))" />
+    </g>
+  );
+};
+
 const defaultRadii = { level1: 140, level2: 130 } as const;
 
 export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anchor, size = 600, radii, className, onClose }) => {
@@ -208,20 +392,24 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
 
         <LayoutGroup>
           <div className="relative w-full h-full">
-            {/* connector line (level 1 or 2) */}
+            {/* SVG layer for skill ring, pointer line, and center hub */}
             {!isSubMenuOpen && (
-              <svg className="absolute inset-0 text-primary" width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
-                <line x1={size / 2} y1={size / 2} x2={size / 2 + selectedPosition.x} y2={size / 2 + selectedPosition.y} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                <circle cx={size / 2} cy={size / 2} r={6} fill="currentColor" />
-                <circle cx={size / 2 + selectedPosition.x} cy={size / 2 + selectedPosition.y} r={3} fill="currentColor" />
+              <svg className="absolute inset-0" width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
+                {/* Skill ring background */}
+                <SkillRing cx={size / 2} cy={size / 2} radius={level1} itemCount={items.length} selectedIndex={selectedIndex} id="l1" />
+                {/* Clock-hand pointer */}
+                <PointerLine cx={size / 2} cy={size / 2} tx={size / 2 + selectedPosition.x} ty={size / 2 + selectedPosition.y} id="l1-pointer" />
+                {/* Center hub */}
+                <CenterHub cx={size / 2} cy={size / 2} id="l1" />
               </svg>
             )}
 
             {isSubMenuOpen && (
-              <svg className="absolute inset-0 text-primary" width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
-                <line x1={size / 2} y1={size / 2} x2={size / 2 + subSelectedPosition.x} y2={size / 2 + subSelectedPosition.y} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                <circle cx={size / 2} cy={size / 2} r={6} fill="currentColor" />
-                <circle cx={size / 2 + subSelectedPosition.x} cy={size / 2 + subSelectedPosition.y} r={3} fill="currentColor" />
+              <svg className="absolute inset-0" width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
+                {/* Skill ring background for submenu */}
+                <SkillRing cx={size / 2} cy={size / 2} radius={level2} itemCount={activeChildren.length} selectedIndex={subSelectedIndex} id="l2" />
+                {/* Clock-hand pointer */}
+                <PointerLine cx={size / 2} cy={size / 2} tx={size / 2 + subSelectedPosition.x} ty={size / 2 + subSelectedPosition.y} id="l2-pointer" />
               </svg>
             )}
 
@@ -234,22 +422,30 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
                   return (
                     <motion.div
                       key={item.id}
-                      layout
                       layoutId={`menu-item-${item.id}`}
                       className={`
-                        absolute w-16 h-16 rounded-full flex items-center justify-center
-                        cursor-pointer select-none
-                        ${isSelected ? 'bg-muted text-muted-foreground shadow-xl ring-2' : 'bg-foreground text-background'}
+                        absolute flex items-center justify-center
+                        cursor-pointer select-none rounded-full
+                        w-16 h-16
+                        ${isSelected
+                          ? 'bg-primary text-primary-foreground shadow-[0_0_20px_rgba(var(--primary-rgb),0.5)] ring-2 ring-primary/50 z-10'
+                          : 'bg-card/90 text-foreground border border-border/50 hover:border-primary/30'
+                        }
                       `}
                       style={{
                         left: `calc(50% + ${position.x}px - 32px)`,
                         top: `calc(50% + ${position.y}px - 32px)`
                       }}
                       initial={{ scale: 0, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
+                      animate={{ scale: isSelected ? 1.1 : 1, opacity: 1 }}
                       exit={{ scale: 0, opacity: 0 }}
-                      // Skip staggered delay when returning from level-2 to level-1
-                      transition={{ type: 'spring', delay: skipL1Stagger ? 0 : index * 0.06, duration: 0.5, layout: { duration: 0.35 } }}
+                      transition={{
+                        type: 'spring',
+                        stiffness: 400,
+                        damping: 25,
+                        delay: skipL1Stagger ? 0 : index * 0.02,
+                        layout: { duration: 0.2 }
+                      }}
                       onClick={(e) => {
                         e.stopPropagation();
                         if (item.children && item.children.length > 0) {
@@ -264,10 +460,26 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
                       onMouseEnter={() => setSelectedIndex(index)}
                       title={typeof item.label === 'string' ? item.label : undefined}
                     >
-                      <div className="text-2xl">{item.icon}</div>
+                      {/* Glow effect for selected item */}
+                      {isSelected && (
+                        <motion.div
+                          className="absolute inset-0 rounded-full bg-primary/20"
+                          initial={{ scale: 1 }}
+                          animate={{ scale: [1, 1.2, 1] }}
+                          transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+                        />
+                      )}
+                      <div className="text-2xl relative z-10">{item.icon}</div>
                       {(item.label || item.shortcut) && (
-                        <div className="pointer-events-none absolute -bottom-6 left-1/2 -translate-x-1/2 text-[11px] leading-4 font-mono whitespace-nowrap px-2 py-0.5 rounded bg-black/60 text-white backdrop-blur-sm shadow-sm">
-                          {item.label} {item.shortcut ? <span className="uppercase opacity-80">({item.shortcut})</span> : null}
+                        <div
+                          className={`
+                          pointer-events-none absolute -bottom-7 left-1/2 -translate-x-1/2 
+                          text-[11px] leading-4 font-mono whitespace-nowrap px-2 py-1 rounded-md
+                          ${isSelected ? 'bg-primary text-primary-foreground shadow-lg' : 'bg-card/95 text-foreground border border-border/50'}
+                          backdrop-blur-sm
+                        `}
+                        >
+                          {item.label} {item.shortcut ? <span className="uppercase opacity-70">({item.shortcut})</span> : null}
                         </div>
                       )}
                     </motion.div>
@@ -281,14 +493,13 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
               <>
                 {/* center parent button: click to go back */}
                 <motion.div
-                  layout
                   layoutId={`menu-item-${items[activeParentIndex].id}`}
-                  className="absolute w-20 h-20 rounded-full flex items-center justify-center bg-foreground text-background shadow-xl ring-2 cursor-pointer select-none"
-                  style={{ left: 'calc(50% - 40px)', top: 'calc(50% - 40px)' }}
+                  className="absolute w-16 h-16 rounded-full flex items-center justify-center bg-primary text-primary-foreground shadow-[0_0_25px_rgba(var(--primary-rgb),0.4)] ring-2 ring-primary/50 cursor-pointer select-none z-10"
+                  style={{ left: 'calc(50% - 32px)', top: 'calc(50% - 32px)' }}
                   initial={false}
-                  animate={{ opacity: 1 }}
+                  animate={{ opacity: 1, scale: 1.15 }}
                   exit={{ opacity: 0 }}
-                  transition={{ type: 'spring', duration: 0.4, layout: { duration: 0.35 } }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 25, layout: { duration: 0.2 } }}
                   onClick={(e) => {
                     e.stopPropagation();
                     setSkipL1Stagger(true);
@@ -298,7 +509,7 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
                 >
                   <div className="text-2xl">{items[activeParentIndex].icon}</div>
                   {items[activeParentIndex].label && (
-                    <div className="pointer-events-none absolute -bottom-6 left-1/2 -translate-x-1/2 text-[11px] leading-4 font-mono whitespace-nowrap px-2 py-0.5 rounded bg-black/60 text-white backdrop-blur-sm shadow-sm">
+                    <div className="pointer-events-none absolute -bottom-7 left-1/2 -translate-x-1/2 text-[11px] leading-4 font-mono whitespace-nowrap px-2 py-1 rounded-md bg-primary text-primary-foreground shadow-lg">
                       {items[activeParentIndex].label}
                     </div>
                   )}
@@ -312,18 +523,22 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
                     <motion.div
                       key={child.id}
                       className={`
-                        absolute w-16 h-16 rounded-full flex items-center justify-center
-                        cursor-pointer select-none
-                        ${isSelected ? 'bg-muted text-muted-foreground shadow-xl ring-2' : 'bg-foreground text-background'}
+                        absolute flex items-center justify-center
+                        cursor-pointer select-none rounded-full
+                        w-16 h-16
+                        ${isSelected
+                          ? 'bg-primary text-primary-foreground shadow-[0_0_20px_rgba(var(--primary-rgb),0.5)] ring-2 ring-primary/50 z-10'
+                          : 'bg-card/90 text-foreground border border-border/50 hover:border-primary/30'
+                        }
                       `}
                       style={{
                         left: `calc(50% + ${position.x}px - 32px)`,
                         top: `calc(50% + ${position.y}px - 32px)`
                       }}
                       initial={{ scale: 0, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
+                      animate={{ scale: isSelected ? 1.1 : 1, opacity: 1 }}
                       exit={{ scale: 0, opacity: 0 }}
-                      transition={{ type: 'spring', delay: index * 0.06, duration: 0.5 }}
+                      transition={{ type: 'spring', stiffness: 400, damping: 25, delay: index * 0.02 }}
                       onClick={(e) => {
                         e.stopPropagation();
                         child.action();
@@ -332,9 +547,25 @@ export const RadialMenu: React.FC<RadialMenuProps> = ({ items, open = true, anch
                       onMouseEnter={() => setSubSelectedIndex(index)}
                       title={typeof child.label === 'string' ? child.label : undefined}
                     >
-                      <div className="text-2xl">{child.icon ?? '•'}</div>
+                      {/* Glow effect for selected item */}
+                      {isSelected && (
+                        <motion.div
+                          className="absolute inset-0 rounded-full bg-primary/20"
+                          initial={{ scale: 1 }}
+                          animate={{ scale: [1, 1.2, 1] }}
+                          transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+                        />
+                      )}
+                      <div className="text-2xl relative z-10">{child.icon ?? '•'}</div>
                       {child.label && (
-                        <div className="pointer-events-none absolute -bottom-6 left-1/2 -translate-x-1/2 text-[11px] leading-4 font-mono whitespace-nowrap px-2 py-0.5 rounded bg-black/60 text-white backdrop-blur-sm shadow-sm">
+                        <div
+                          className={`
+                          pointer-events-none absolute -bottom-7 left-1/2 -translate-x-1/2 
+                          text-[11px] leading-4 font-mono whitespace-nowrap px-2 py-1 rounded-md
+                          ${isSelected ? 'bg-primary text-primary-foreground shadow-lg' : 'bg-card/95 text-foreground border border-border/50'}
+                          backdrop-blur-sm
+                        `}
+                        >
                           {child.label}
                         </div>
                       )}
