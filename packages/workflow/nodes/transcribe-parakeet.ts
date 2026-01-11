@@ -165,8 +165,7 @@ async function runParakeet(args: string[], onProgress?: (progress: number, messa
 
 // 根据配置计算动态输出端口
 function getDynamicOutputs(config?: NodeConfig): PortSchema[] {
-  const outputs: PortSchema[] = [{ key: 'segments', label: '分段 JSON', type: 'object' }];
-
+  const outputs: PortSchema[] = [];
   const outputFormats: string[] = Array.isArray(config?.outputFormats) ? config.outputFormats : ['txt', 'srt', 'vtt', 'json'];
   const formatMap: Record<string, { key: string; label: string; type: ValueType }> = {
     txt: { key: 'txt', label: 'TXT 文件', type: 'file' },
@@ -178,9 +177,6 @@ function getDynamicOutputs(config?: NodeConfig): PortSchema[] {
   for (const format of outputFormats) {
     const formatDef = formatMap[format];
     if (formatDef) {
-      if (formatDef.key === 'txt') {
-        outputs.push({ key: 'text', label: '全文文本', type: 'string' });
-      }
       outputs.push({ key: formatDef.key, label: formatDef.label, type: formatDef.type });
     }
   }
