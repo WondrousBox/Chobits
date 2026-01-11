@@ -1,15 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TbFileDescription, TbList } from 'react-icons/tb';
+import { TbList } from 'react-icons/tb';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { BroadcastChannelManager, CHANNEL_NAMES, type MediaSyncMessage } from '@/utils/broadcastChannels';
 
-import { ImagePlayer, MediaPlayer, ResourceSubtitlePlayer, SubtitlePlayer, TextPlayer } from './components/Players';
+import { ImagePlayer, MediaPlayer, ResourceSubtitlePlayer, TextPlayer } from './components/Players';
 import type { MediaPlayerRef } from './components/Players/MediaPlayer/MediaPlayer';
-import ResourceFileList from './components/ResourceFileList';
+import ResourceTabs from './components/ResourceTabs';
 import type { ResourceItem } from './types';
 import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from './utils/resourceProtocol';
 import { isSubtitleFile } from './utils/subtitleUtils';
@@ -30,7 +29,7 @@ const ResourcePreviewWindow: React.FC = () => {
   const [data, setData] = useState<ResourceItem | null>(null);
   const [subtitleList, setSubtitleList] = useState<ResourceItem[]>([]);
   const [activeSubtitle, setActiveSubtitle] = useState<ResourceItem | null>(null);
-  const [isPlaylistExpanded, setIsPlaylistExpanded] = useState(false);
+  const [isTabsExpanded, setIsTabsExpanded] = useState(true);
   const [currentTime, setCurrentTime] = useState(0); // 当前播放时间（秒）
   const [pendingStartTime, setPendingStartTime] = useState<number | null>(null); // 待跳转的起始时间
   const mediaPlayerRef = useRef<MediaPlayerRef>(null); // 媒体播放器的 ref
@@ -92,6 +91,11 @@ const ResourcePreviewWindow: React.FC = () => {
     return () => clearTimeout(timer);
   }, [pendingStartTime]);
 
+  // 切换 Tab 面板展开/收起
+  const toggleTabsExpanded = useCallback(() => {
+    setIsTabsExpanded((prev) => !prev);
+  }, []);
+
   // 处理资源切换
   const handleResourceChange = useCallback(async (resource: ResourceItem) => {
     // 获取完整资源信息
@@ -111,11 +115,6 @@ const ResourcePreviewWindow: React.FC = () => {
     } else {
       setData(resource);
     }
-  }, []);
-
-  // 切换文件列表展开/收起
-  const togglePlaylistExpanded = useCallback(() => {
-    setIsPlaylistExpanded((prev) => !prev);
   }, []);
 
   // 当当前资源为视频时，加载其子资源中的字幕文件
@@ -271,7 +270,7 @@ const ResourcePreviewWindow: React.FC = () => {
       source: 'window',
       resourceId: data.id
     });
-  }, [data?.id]);
+  }, [data]);
 
   if (!data) {
     return <div className="w-full h-full flex items-center justify-center bg-background text-muted-foreground text-sm">等待资源数据...</div>;
@@ -279,53 +278,6 @@ const ResourcePreviewWindow: React.FC = () => {
 
   const title = data.title || data.filePath || data.url || data.id;
   const fileSrc = data.filePath ? makeResSrc(data.filePath) : data.url;
-
-  const hasSubtitlePanel = isVideoFile(data.filePath) && subtitleList.length > 0 && !!activeSubtitle;
-
-  // 渲染字幕侧边栏内容（当当前资源为视频且存在子字幕资源时）
-  const renderSubtitlePanel = (): React.ReactNode => {
-    if (!hasSubtitlePanel || !activeSubtitle) return null;
-    return (
-      <div className="h-full flex flex-col overflow-hidden bg-background border-l">
-        <div className="px-3 py-2 border-b text-xs font-medium text-muted-foreground flex items-center justify-between gap-2">
-          <span>字幕 ({subtitleList.length})</span>
-          {subtitleList.length > 0 && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="ghost" className="h-7 px-2 text-xs flex items-center gap-1">
-                  <TbFileDescription className="w-3.5 h-3.5" />
-                  <span className="truncate max-w-[7rem]">{activeSubtitle.title || activeSubtitle.filePath || '字幕列表'}</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-[10rem]">
-                {subtitleList.map((item) => {
-                  const itemTitle = item.title || item.filePath || item.url || item.id;
-                  const isActive = item.id === activeSubtitle.id;
-                  return (
-                    <DropdownMenuItem key={item.id} onClick={() => setActiveSubtitle(item)} className={`text-xs ${isActive ? 'font-semibold' : ''}`}>
-                      {itemTitle}
-                    </DropdownMenuItem>
-                  );
-                })}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
-        <div className="flex-1 min-h-0">
-          <ResourceSubtitlePlayer
-            resource={activeSubtitle}
-            currentTime={currentTime}
-            onSeek={(time) => {
-              // 跳转到指定时间
-              if (mediaPlayerRef.current) {
-                mediaPlayerRef.current.seekTo(time);
-              }
-            }}
-          />
-        </div>
-      </div>
-    );
-  };
 
   // 渲染主要内容
   const renderMainContent = (): React.ReactNode => (
@@ -358,7 +310,7 @@ const ResourcePreviewWindow: React.FC = () => {
       <DragAbleTitle
         title={<div className="text-xs font-medium truncate">{title}</div>}
         actions={
-          <Button size="icon" className="w-8 h-8" variant="ghost" onClick={togglePlaylistExpanded} title={isPlaylistExpanded ? '收起文件列表' : '展开文件列表'}>
+          <Button size="icon" className="w-8 h-8" variant="ghost" onClick={toggleTabsExpanded} title={isTabsExpanded ? '收起标签' : '展开标签'}>
             <TbList />
           </Button>
         }
@@ -367,20 +319,22 @@ const ResourcePreviewWindow: React.FC = () => {
       <div className="h-full overflow-hidden" style={{ height: 'calc(100% - 36px)' }}>
         {data && (
           <ResizablePanelGroup direction="horizontal" className="h-full">
-            <ResizablePanel defaultSize={60}>{renderMainContent()}</ResizablePanel>
-            {hasSubtitlePanel && (
+            <ResizablePanel defaultSize={isTabsExpanded ? 60 : 100}>{renderMainContent()}</ResizablePanel>
+            {isTabsExpanded && (
               <>
                 <ResizableHandle className="hover:bg-primary" withHandle />
-                <ResizablePanel defaultSize={40} minSize={15}>
-                  {renderSubtitlePanel()}
-                </ResizablePanel>
-              </>
-            )}
-            {isPlaylistExpanded && (
-              <>
-                <ResizableHandle className="hover:bg-primary" withHandle />
-                <ResizablePanel defaultSize={30} minSize={15}>
-                  <ResourceFileList currentResource={data} onResourceChange={handleResourceChange} onClose={togglePlaylistExpanded} />
+                <ResizablePanel defaultSize={40} minSize={20}>
+                  <div className="h-full flex flex-col overflow-hidden bg-background border-l">
+                    <ResourceTabs
+                      resource={data}
+                      currentTime={currentTime}
+                      mediaPlayerRef={mediaPlayerRef}
+                      subtitleList={subtitleList}
+                      activeSubtitle={activeSubtitle}
+                      setActiveSubtitle={setActiveSubtitle}
+                      onResourceChange={handleResourceChange}
+                    />
+                  </div>
                 </ResizablePanel>
               </>
             )}

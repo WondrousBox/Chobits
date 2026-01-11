@@ -68,6 +68,8 @@ class TabRegistryImpl implements ITabRegistry {
     return this.tabOrder.map((id) => this.tabs.get(id)).filter((tab): tab is TabComponent => tab !== undefined && this.enabledTabs.has(tab.id));
   }
 
+  private readonly STORAGE_KEY = 'resource-tab-order';
+
   /**
    * 设置 tab 顺序
    */
@@ -76,6 +78,41 @@ class TabRegistryImpl implements ITabRegistry {
     const validIds = orderedIds.filter((id) => this.tabs.has(id));
     const missingIds = this.tabOrder.filter((id) => !orderedIds.includes(id) && this.tabs.has(id));
     this.tabOrder = [...validIds, ...missingIds];
+
+    // 持久化到 localStorage
+    this.saveOrder();
+
+    // 触发 reorder 事件通知 UI 更新
+    this.emit({ type: 'reorder', tabId: '' });
+  }
+
+  /**
+   * 保存顺序到 localStorage
+   */
+  private saveOrder(): void {
+    try {
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.tabOrder));
+    } catch {
+      // 忽略存储失败
+    }
+  }
+
+  /**
+   * 从 localStorage 加载顺序
+   */
+  loadOrder(): void {
+    try {
+      const saved = localStorage.getItem(this.STORAGE_KEY);
+      if (saved) {
+        const savedOrder = JSON.parse(saved) as string[];
+        // 合并保存的顺序和当前注册的 tab
+        const validIds = savedOrder.filter((id) => this.tabs.has(id));
+        const newIds = this.tabOrder.filter((id) => !savedOrder.includes(id));
+        this.tabOrder = [...validIds, ...newIds];
+      }
+    } catch {
+      // 忽略加载失败
+    }
   }
 
   /**
