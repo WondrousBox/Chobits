@@ -48,10 +48,29 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
   const translatingRef = useRef(false);
   const translationAbortRef = useRef(false);
 
+  // 翻译结果里的高级词汇（去重）
+  const [advancedWords, setAdvancedWords] = useState<string[]>([]);
+
+  // 词汇解释状态
+  const [vocabularyEnabled, setVocabularyEnabled] = useState(false);
+  const [explainedWords, setExplainedWords] = useState<Set<string>>(new Set());
+  const [isExplainingVocabulary, setIsExplainingVocabulary] = useState(false);
+  const vocabularyAbortRef = useRef(false);
+  const explainingRef = useRef(false);
+
+  // AI消息气泡数据结构
+  interface AIMessage {
+    id: string;
+    type: 'vocabulary' | 'summarize' | 'highlights';
+    content: string;
+    word?: string; // 仅用于词汇解释
+    timestamp: number;
+    isStreaming?: boolean;
+  }
+  const [messages, setMessages] = useState<AIMessage[]>([]);
+
   // 功能状态
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
-  const [result, setResult] = useState('');
-  const [resultType, setResultType] = useState<string>('');
 
   // 获取所有文本
   const allText = segments.map((s) => s.text).join(' ');
@@ -170,49 +189,50 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
     }
   }, [selectedProviderId, providers]);
 
-  // 翻译单个segment
-  const translateSegment = useCallback(
-    async (text: string): Promise<string> => {
-      const languageNames: Record<string, string> = {
-        en: '英语',
-        zh: '中文',
-        ja: '日语',
-        ko: '韩语',
-        de: '德语',
-        es: '西班牙语',
-        ru: '俄语',
-        fr: '法语'
-      };
+  /**
+   * 解析翻译结果里的 <word>...</word>：
+   * - 从展示文本里移除
+   * - 提取单词/短语并去重收集
+   */
+  const parseTranslationResult = useCallback((raw: string): { displayText: string; words: string[] } => {
+    if (!raw) return { displayText: '', words: [] };
 
-      const targetLangName = languageNames[targetLanguage] || targetLanguage;
-      const prompt = `请将以下文本翻译成${targetLangName}，只返回翻译结果，不要添加任何解释或说明：\n\n${text}`;
+    const words: string[] = [];
+    const wordTagRe = /<word>([\s\S]*?)<\/word>/gi;
 
-      return new Promise((resolve, reject) => {
-        let result = '';
-        window.YUA.ai
-          .chatStreamEphemeral(
-            {
-              messages: [{ role: 'user', content: prompt }],
-              providerId: selectedProviderId,
-              stream: true
-            },
-            (ev: any) => {
-              if (ev.type === 'delta' && ev.data?.text) {
-                result += ev.data.text;
-              } else if (ev.type === 'message_completed' && ev.data?.message?.content) {
-                result = ev.data.message.content.trim();
-              } else if (ev.type === 'done') {
-                resolve(result);
-              } else if (ev.type === 'error') {
-                reject(new Error(ev.data?.message || '翻译失败'));
-              }
-            }
-          )
-          .catch(reject);
-      });
-    },
-    [selectedProviderId, targetLanguage]
-  );
+    // 收集 words
+    let match: RegExpExecArray | null;
+    while ((match = wordTagRe.exec(raw)) !== null) {
+      const content = (match[1] || '').trim();
+      if (!content) continue;
+
+      // 允许模型返回多个词：用常见分隔符拆一下
+      const pieces = content
+        .split(/[\n,，、;/；]/g)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      for (const p of pieces) {
+        if (!words.includes(p)) words.push(p);
+      }
+    }
+
+    // 移除 <word>...</word>
+    const displayText = raw.replace(wordTagRe, '').trim();
+    return { displayText, words };
+  }, []);
+
+  // 将本次新增的 words 合并进 advancedWords（去重）
+  const appendAdvancedWords = useCallback((words: string[]) => {
+    if (!words || words.length === 0) return;
+    setAdvancedWords((prev) => {
+      const set = new Set(prev);
+      for (const w of words) {
+        const normalized = w.trim();
+        if (normalized) set.add(normalized);
+      }
+      return Array.from(set);
+    });
+  }, []);
 
   // 顺序翻译所有未翻译的segments
   const translateAllSegments = useCallback(async () => {
@@ -231,10 +251,71 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
         if (segment.translation) continue;
 
         try {
-          const translation = await translateSegment(segment.text);
-          if (!translationAbortRef.current && onTranslationUpdate) {
-            onTranslationUpdate(i, translation);
-          }
+          // 为了做“打字效果”，这里直接在本方法里流式解析和推送
+          await new Promise<void>((resolve, reject) => {
+            let rawResult = '';
+            let lastPushed = '';
+
+            const languageNames: Record<string, string> = {
+              en: '英语',
+              zh: '中文',
+              ja: '日语',
+              ko: '韩语',
+              de: '德语',
+              es: '西班牙语',
+              ru: '俄语',
+              fr: '法语'
+            };
+            const targetLangName = languageNames[targetLanguage] || targetLanguage;
+            const prompt = `你是一个专业的语言翻译助手，你在翻译完成之后会检查原文有没有高级的词汇，如果有,将高难度的词汇找出来，用<word></word>标签包裹。如：\n翻译内容\n<word></word>\n\n请将以下文本翻译成${targetLangName}，只返回翻译结果和一个高级的英文单词原文，没有高级单词就不要返回<word></word>，不要添加任何解释或说明：\n\n${segment.text}`;
+
+            window.YUA.ai
+              .chatStreamEphemeral(
+                {
+                  messages: [{ role: 'user', content: prompt }],
+                  providerId: selectedProviderId,
+                  stream: true
+                },
+                (ev: any) => {
+                  if (translationAbortRef.current) {
+                    resolve();
+                    return;
+                  }
+
+                  if (ev.type === 'delta' && ev.data?.text) {
+                    rawResult += ev.data.text;
+                    const parsed = parseTranslationResult(rawResult);
+                    const display = parsed.displayText;
+
+                    // 避免过度 setState：只有变化了才推
+                    if (onTranslationUpdate && display !== lastPushed) {
+                      lastPushed = display;
+                      onTranslationUpdate(i, display);
+                    }
+                  } else if (ev.type === 'message_completed' && ev.data?.message?.content) {
+                    rawResult = ev.data.message.content.trim();
+                    const parsed = parseTranslationResult(rawResult);
+                    appendAdvancedWords(parsed.words);
+
+                    if (onTranslationUpdate) {
+                      lastPushed = parsed.displayText;
+                      onTranslationUpdate(i, parsed.displayText);
+                    }
+                  } else if (ev.type === 'done') {
+                    const parsed = parseTranslationResult(rawResult);
+                    appendAdvancedWords(parsed.words);
+
+                    if (onTranslationUpdate && parsed.displayText !== lastPushed) {
+                      onTranslationUpdate(i, parsed.displayText);
+                    }
+                    resolve();
+                  } else if (ev.type === 'error') {
+                    reject(new Error(ev.data?.message || '翻译失败'));
+                  }
+                }
+              )
+              .catch(reject);
+          });
         } catch (error) {
           console.error(`翻译第 ${i + 1} 条失败:`, error);
         }
@@ -243,7 +324,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
       translatingRef.current = false;
       setIsTranslating(false);
     }
-  }, [segments, providerConfigured, translateSegment, onTranslationUpdate]);
+  }, [segments, providerConfigured, onTranslationUpdate, selectedProviderId, targetLanguage, parseTranslationResult, appendAdvancedWords]);
 
   // 监听segments变化，继续翻译新增的
   useEffect(() => {
@@ -286,8 +367,19 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
   const handleSummarize = async (): Promise<void> => {
     if (!allText || !providerConfigured) return;
     setIsProcessing('summarize');
-    setResult('');
-    setResultType('summarize');
+
+    const messageId = `summarize-${Date.now()}`;
+    // 创建消息气泡
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: messageId,
+        type: 'summarize',
+        content: '',
+        timestamp: Date.now(),
+        isStreaming: true
+      }
+    ]);
 
     try {
       const prompt = `请对以下语音识别内容进行简洁的总结，突出主要内容和关键信息：\n\n${allText}`;
@@ -302,62 +394,145 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
         (ev: any) => {
           if (ev.type === 'delta' && ev.data?.text) {
             currentResult += ev.data.text;
-            setResult(currentResult);
+            // 更新消息内容
+            setMessages((prev) => prev.map((msg) => (msg.id === messageId ? { ...msg, content: currentResult } : msg)));
           } else if (ev.type === 'message_completed' && ev.data?.message?.content) {
-            setResult(ev.data.message.content.trim());
-          } else if (ev.type === 'done' || ev.type === 'error') {
+            currentResult = ev.data.message.content.trim();
+            setMessages((prev) => prev.map((msg) => (msg.id === messageId ? { ...msg, content: currentResult, isStreaming: false } : msg)));
+          } else if (ev.type === 'done') {
+            setMessages((prev) => prev.map((msg) => (msg.id === messageId ? { ...msg, isStreaming: false } : msg)));
+            setIsProcessing(null);
+          } else if (ev.type === 'error') {
+            setMessages((prev) => prev.map((msg) => (msg.id === messageId ? { ...msg, content: '总结失败，请重试', isStreaming: false } : msg)));
             setIsProcessing(null);
           }
         }
       );
     } catch (error) {
       console.error('总结失败:', error);
-      setResult('总结失败，请重试');
+      setMessages((prev) => prev.map((msg) => (msg.id === messageId ? { ...msg, content: '总结失败，请重试', isStreaming: false } : msg)));
       setIsProcessing(null);
     }
   };
 
-  // AI操作：提取单词表
-  const handleExtractVocabulary = async (): Promise<void> => {
-    if (!allText || !providerConfigured) return;
-    setIsProcessing('vocabulary');
-    setResult('');
-    setResultType('vocabulary');
+  // AI操作：逐个获取高级词汇的解释（自动解释新增词汇）
+  const explainNewWords = useCallback(async () => {
+    if (explainingRef.current || !vocabularyEnabled || !providerConfigured) return;
+
+    // 找出未解释的词汇
+    const wordsToExplain = advancedWords.filter((word) => !explainedWords.has(word));
+    if (wordsToExplain.length === 0) return;
+
+    explainingRef.current = true;
+    setIsExplainingVocabulary(true);
 
     try {
-      const prompt = `请从以下语音识别内容中提取重要的词汇和专业术语，以列表形式展示，每个词汇附带简短解释：\n\n${allText}`;
+      for (const word of wordsToExplain) {
+        if (vocabularyAbortRef.current) break;
 
-      let currentResult = '';
-      await window.YUA.ai.chatStreamEphemeral(
-        {
-          messages: [{ role: 'user', content: prompt }],
-          providerId: selectedProviderId,
-          stream: true
-        },
-        (ev: any) => {
-          if (ev.type === 'delta' && ev.data?.text) {
-            currentResult += ev.data.text;
-            setResult(currentResult);
-          } else if (ev.type === 'message_completed' && ev.data?.message?.content) {
-            setResult(ev.data.message.content.trim());
-          } else if (ev.type === 'done' || ev.type === 'error') {
-            setIsProcessing(null);
+        const messageId = `vocabulary-${word}-${Date.now()}`;
+        // 为每个词汇创建独立的消息气泡
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: messageId,
+            type: 'vocabulary',
+            content: '',
+            word: word,
+            timestamp: Date.now(),
+            isStreaming: true
           }
-        }
-      );
+        ]);
+
+        const prompt = `请简短解释这个词汇的含义（返回音标，可能存在翻译，使用示例）：${word}`;
+
+        await new Promise<void>((resolve, reject) => {
+          let wordExplanation = '';
+
+          window.YUA.ai
+            .chatStreamEphemeral(
+              {
+                messages: [{ role: 'user', content: prompt }],
+                providerId: selectedProviderId,
+                stream: true
+              },
+              (ev: any) => {
+                if (vocabularyAbortRef.current) {
+                  resolve();
+                  return;
+                }
+
+                if (ev.type === 'delta' && ev.data?.text) {
+                  wordExplanation += ev.data.text;
+                  // 流式更新消息内容
+                  setMessages((prev) => prev.map((msg) => (msg.id === messageId ? { ...msg, content: wordExplanation } : msg)));
+                } else if (ev.type === 'message_completed' && ev.data?.message?.content) {
+                  wordExplanation = ev.data.message.content.trim();
+                  setMessages((prev) => prev.map((msg) => (msg.id === messageId ? { ...msg, content: wordExplanation, isStreaming: false } : msg)));
+                } else if (ev.type === 'done') {
+                  // 完成一个词汇，标记为已解释
+                  setExplainedWords((prev) => new Set(prev).add(word));
+                  setMessages((prev) => prev.map((msg) => (msg.id === messageId ? { ...msg, isStreaming: false } : msg)));
+                  resolve();
+                } else if (ev.type === 'error') {
+                  setMessages((prev) => prev.map((msg) => (msg.id === messageId ? { ...msg, content: '获取词汇解释失败', isStreaming: false } : msg)));
+                  reject(new Error(ev.data?.message || '获取词汇解释失败'));
+                }
+              }
+            )
+            .catch(reject);
+        });
+      }
     } catch (error) {
-      console.error('提取词汇失败:', error);
-      setResult('提取词汇失败，请重试');
-      setIsProcessing(null);
+      console.error('获取词汇解释失败:', error);
+    } finally {
+      explainingRef.current = false;
+      setIsExplainingVocabulary(false);
     }
-  };
+  }, [advancedWords, explainedWords, vocabularyEnabled, providerConfigured, selectedProviderId]);
+
+  // 监听 advancedWords 变化，自动解释新增词汇
+  useEffect(() => {
+    if (vocabularyEnabled && providerConfigured && !explainingRef.current) {
+      const hasNewWords = advancedWords.some((word) => !explainedWords.has(word));
+      if (hasNewWords) {
+        explainNewWords();
+      }
+    }
+  }, [advancedWords, vocabularyEnabled, providerConfigured, explainedWords, explainNewWords]);
+
+  // 点击词汇按钮
+  const handleExtractVocabulary = useCallback(() => {
+    if (vocabularyEnabled) {
+      // 已开启，点击关闭
+      setVocabularyEnabled(false);
+      vocabularyAbortRef.current = true;
+    } else {
+      // 未开启，开启
+      setVocabularyEnabled(true);
+      vocabularyAbortRef.current = false;
+      // 开始解释
+      explainNewWords();
+    }
+  }, [vocabularyEnabled, explainNewWords]);
 
   // AI操作：高光内容
   const handleHighlights = async (): Promise<void> => {
     if (!allText || !providerConfigured) return;
     setIsProcessing('highlights');
-    setResult('');
-    setResultType('highlights');
+
+    const messageId = `highlights-${Date.now()}`;
+    // 创建消息气泡
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: messageId,
+        type: 'highlights',
+        content: '',
+        timestamp: Date.now(),
+        isStreaming: true
+      }
+    ]);
 
     try {
       const prompt = `请从以下语音识别内容中提取最重要、最精彩或最值得关注的内容片段，并简要说明为什么这些内容值得关注：\n\n${allText}`;
@@ -372,32 +547,83 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
         (ev: any) => {
           if (ev.type === 'delta' && ev.data?.text) {
             currentResult += ev.data.text;
-            setResult(currentResult);
+            setMessages((prev) => prev.map((msg) => (msg.id === messageId ? { ...msg, content: currentResult } : msg)));
           } else if (ev.type === 'message_completed' && ev.data?.message?.content) {
-            setResult(ev.data.message.content.trim());
-          } else if (ev.type === 'done' || ev.type === 'error') {
+            currentResult = ev.data.message.content.trim();
+            setMessages((prev) => prev.map((msg) => (msg.id === messageId ? { ...msg, content: currentResult, isStreaming: false } : msg)));
+          } else if (ev.type === 'done') {
+            setMessages((prev) => prev.map((msg) => (msg.id === messageId ? { ...msg, isStreaming: false } : msg)));
+            setIsProcessing(null);
+          } else if (ev.type === 'error') {
+            setMessages((prev) => prev.map((msg) => (msg.id === messageId ? { ...msg, content: '提取高光内容失败，请重试', isStreaming: false } : msg)));
             setIsProcessing(null);
           }
         }
       );
     } catch (error) {
       console.error('提取高光内容失败:', error);
-      setResult('提取高光内容失败，请重试');
+      setMessages((prev) => prev.map((msg) => (msg.id === messageId ? { ...msg, content: '提取高光内容失败，请重试', isStreaming: false } : msg)));
       setIsProcessing(null);
     }
   };
 
-  // 获取结果标题
-  const getResultTitle = (): string => {
-    switch (resultType) {
+  // 获取消息类型标题
+  const getMessageTypeLabel = (type: 'vocabulary' | 'summarize' | 'highlights'): string => {
+    switch (type) {
       case 'summarize':
         return '内容总结';
       case 'vocabulary':
-        return '词汇表';
+        return '词汇解释';
       case 'highlights':
         return '高光内容';
       default:
         return '结果';
+    }
+  };
+
+  // 获取消息类型的颜色样式
+  const getMessageColorClass = (
+    type: 'vocabulary' | 'summarize' | 'highlights'
+  ): {
+    header: string;
+    icon: string;
+    bubble: string;
+    bubbleText: string;
+  } => {
+    switch (type) {
+      case 'vocabulary':
+        return {
+          // 紫色主题 - 词汇解释
+          header: 'text-purple-600 dark:text-purple-400',
+          icon: 'text-purple-500 dark:text-purple-400',
+          bubble:
+            'border-l-purple-500 border-purple-200 bg-gradient-to-br from-purple-50 to-purple-100/50 dark:border-l-purple-500 dark:border-purple-800/40 dark:from-purple-950/40 dark:to-purple-900/20 shadow-sm',
+          bubbleText: 'text-purple-900 dark:text-purple-50'
+        };
+      case 'summarize':
+        return {
+          // 蓝色主题 - 总结
+          header: 'text-blue-600 dark:text-blue-400',
+          icon: 'text-blue-500 dark:text-blue-400',
+          bubble: 'border-l-blue-500 border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100/50 dark:border-l-blue-500 dark:border-blue-800/40 dark:from-blue-950/40 dark:to-blue-900/20 shadow-sm',
+          bubbleText: 'text-blue-900 dark:text-blue-50'
+        };
+      case 'highlights':
+        return {
+          // 橙色主题 - 高光
+          header: 'text-orange-600 dark:text-orange-400',
+          icon: 'text-orange-500 dark:text-orange-400',
+          bubble:
+            'border-l-orange-500 border-orange-200 bg-gradient-to-br from-orange-50 to-orange-100/50 dark:border-l-orange-500 dark:border-orange-800/40 dark:from-orange-950/40 dark:to-orange-900/20 shadow-sm',
+          bubbleText: 'text-orange-900 dark:text-orange-50'
+        };
+      default:
+        return {
+          header: 'text-foreground',
+          icon: 'text-foreground',
+          bubble: 'border-border bg-muted/50',
+          bubbleText: 'text-foreground'
+        };
     }
   };
 
@@ -472,39 +698,100 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
         )}
       </div>
 
-      {/* 内容区域：结果展示 */}
+      {/* 内容区域：AI消息气泡列表 */}
       <ScrollArea className="flex-1">
-        <div className="p-3">
-          {result ? (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs font-medium">{getResultTitle()}</Label>
-                <div className="flex items-center gap-1">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-6 text-xs px-2"
-                    onClick={() => {
-                      navigator.clipboard.writeText(result);
-                    }}
-                  >
-                    复制
-                  </Button>
-                  <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => setResult('')}>
-                    <TbX className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </div>
-              <div className={`p-3 rounded-lg border text-sm whitespace-pre-wrap ${isTransparent ? 'border-border/50 bg-background/50' : 'bg-muted/50'}`}>{result}</div>
-            </div>
-          ) : (
+        <div className="p-3 space-y-3">
+          {messages.length === 0 ? (
             <div className="flex items-center justify-center h-32 text-xs text-muted-foreground">{allText ? '点击下方按钮使用 AI 功能' : '等待语音识别内容...'}</div>
+          ) : (
+            <>
+              {/* 清空所有消息按钮 */}
+              <div className="flex justify-end">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 text-xs px-2"
+                  onClick={() => {
+                    setMessages([]);
+                  }}
+                >
+                  清空所有
+                </Button>
+              </div>
+              {messages.map((message) => {
+                const colorClass = getMessageColorClass(message.type);
+                return (
+                  <div key={message.id} className="space-y-2">
+                    {/* 消息头部 */}
+                    <div className="flex items-center justify-between">
+                      <Label className={`text-xs font-medium flex items-center gap-1 ${colorClass.header}`}>
+                        {message.type === 'vocabulary' && <TbVocabulary className={`h-3.5 w-3.5 ${colorClass.icon}`} />}
+                        {message.type === 'summarize' && <TbSparkles className={`h-3.5 w-3.5 ${colorClass.icon}`} />}
+                        {message.type === 'highlights' && <TbListDetails className={`h-3.5 w-3.5 ${colorClass.icon}`} />}
+                        <span>
+                          {getMessageTypeLabel(message.type)}
+                          {message.word && `: ${message.word}`}
+                        </span>
+                      </Label>
+                      <div className="flex items-center gap-1">
+                        {message.content && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 text-xs px-2"
+                            onClick={() => {
+                              navigator.clipboard.writeText(message.content);
+                            }}
+                          >
+                            复制
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 w-6 p-0"
+                          onClick={() => {
+                            setMessages((prev) => prev.filter((m) => m.id !== message.id));
+                          }}
+                        >
+                          <TbX className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                    {/* 消息内容气泡 */}
+                    <div className={`p-3 pl-4 rounded-lg border-l-4 text-sm whitespace-pre-wrap ${colorClass.bubble} ${colorClass.bubbleText}`}>
+                      {message.isStreaming && !message.content ? (
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <TbLoader2 className="h-4 w-4 animate-spin" />
+                          <span>生成中...</span>
+                        </div>
+                      ) : (
+                        message.content
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </>
           )}
         </div>
       </ScrollArea>
 
       {/* 底部：功能按钮 */}
       <div className={`px-3 py-2 border-t space-y-2 ${isTransparent ? 'border-border/50' : ''}`}>
+        {/* 高级词汇（从翻译结果 <word>...</word> 提取，去重） */}
+        {advancedWords.length > 0 && (
+          <div className="flex items-start justify-between gap-2 p-2 rounded-lg border bg-muted/30">
+            <div className="min-w-0">
+              <div className="text-xs font-medium">高级词汇</div>
+              <div className="text-xs text-muted-foreground break-words">{advancedWords.join('、')}</div>
+            </div>
+            <Button size="sm" variant="ghost" className="h-6 text-xs px-2" onClick={() => setAdvancedWords([])}>
+              清空
+            </Button>
+          </div>
+        )}
+
         {/* 翻译语言选择（仅在选择时显示） */}
         {showLanguageSelect && (
           <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
@@ -554,11 +841,25 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
           {/* 词汇按钮 */}
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button size="icon" variant="outline" className="h-8 w-8" onClick={handleExtractVocabulary} disabled={!providerConfigured || !allText || isProcessing !== null}>
-                {isProcessing === 'vocabulary' ? <TbLoader2 className="h-4 w-4 animate-spin" /> : <TbVocabulary className="h-4 w-4" />}
+              <Button
+                size="icon"
+                variant={vocabularyEnabled ? 'default' : 'outline'}
+                className="h-8 w-8"
+                onClick={handleExtractVocabulary}
+                disabled={!providerConfigured || (isProcessing !== null && !vocabularyEnabled)}
+              >
+                {isExplainingVocabulary ? <TbLoader2 className="h-4 w-4 animate-spin" /> : <TbVocabulary className="h-4 w-4" />}
               </Button>
             </TooltipTrigger>
-            <TooltipContent>词汇</TooltipContent>
+            <TooltipContent>
+              {vocabularyEnabled
+                ? isExplainingVocabulary
+                  ? `解释词汇中 ${explainedWords.size}/${advancedWords.length}`
+                  : `已解释 ${explainedWords.size}/${advancedWords.length}`
+                : advancedWords.length > 0
+                  ? '词汇解释'
+                  : '暂无高级词汇'}
+            </TooltipContent>
           </Tooltip>
 
           {/* 高光按钮 */}
