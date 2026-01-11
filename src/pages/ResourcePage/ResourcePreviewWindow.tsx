@@ -319,7 +319,31 @@ const ResourcePreviewWindow: React.FC = () => {
       <div className="h-full overflow-hidden" style={{ height: 'calc(100% - 36px)' }}>
         {data && (
           <ResizablePanelGroup direction="horizontal" className="h-full">
-            <ResizablePanel defaultSize={isTabsExpanded ? 60 : 100}>{renderMainContent()}</ResizablePanel>
+            {/* 左侧：垂直布局（播放器 + 底部 ResourceTabs） */}
+            <ResizablePanel defaultSize={isTabsExpanded ? 60 : 100}>
+              <ResizablePanelGroup direction="vertical" className="h-full">
+                {/* 上方：播放器 */}
+                <ResizablePanel defaultSize={60} minSize={30}>
+                  {renderMainContent()}
+                </ResizablePanel>
+                {/* 下方：ResourceTabs 底部面板 */}
+                <ResizableHandle className="hover:bg-primary" withHandle />
+                <ResizablePanel defaultSize={40} minSize={20}>
+                  <div className="h-full flex flex-col overflow-hidden bg-background border-t">
+                    <ResourceTabs
+                      resource={data}
+                      currentTime={currentTime}
+                      mediaPlayerRef={mediaPlayerRef}
+                      subtitleList={subtitleList}
+                      activeSubtitle={activeSubtitle}
+                      setActiveSubtitle={setActiveSubtitle}
+                      onResourceChange={handleResourceChange}
+                    />
+                  </div>
+                </ResizablePanel>
+              </ResizablePanelGroup>
+            </ResizablePanel>
+            {/* 右侧：ResourceTabs 侧边栏 */}
             {isTabsExpanded && (
               <>
                 <ResizableHandle className="hover:bg-primary" withHandle />
