@@ -285,6 +285,8 @@ type ExternalResourceSettings = {
 
 const SETTINGS_DIR = path.join(app.getPath('userData'), 'data');
 const SETTINGS_FILE = path.join(SETTINGS_DIR, 'external-resource-settings.json');
+// yt-dlp 配置文件路径（标准格式）
+const YTDLP_CONFIG_FILE = path.join(SETTINGS_DIR, 'yt-dlp-config');
 
 function ensureSettingsDir() {
   if (!fs.existsSync(SETTINGS_DIR)) {
@@ -304,6 +306,7 @@ function readSettings(): ExternalResourceSettings {
     ejsJsRuntime: 'auto'
   };
 
+  // 如果配置文件不存在，创建默认配置
   if (!fs.existsSync(SETTINGS_FILE)) {
     writeSettings(defaultSettings);
     return defaultSettings;
@@ -312,17 +315,84 @@ function readSettings(): ExternalResourceSettings {
   try {
     const content = fs.readFileSync(SETTINGS_FILE, 'utf8');
     const settings = JSON.parse(content);
-    return { ...defaultSettings, ...settings };
+    const mergedSettings = { ...defaultSettings, ...settings };
+
+    // 如果 yt-dlp 配置文件不存在，从 JSON 设置生成
+    if (!fs.existsSync(YTDLP_CONFIG_FILE)) {
+      writeYtDlpConfig(mergedSettings);
+    }
+
+    return mergedSettings;
   } catch (error) {
     console.warn('[VideoDownloader] Failed to read settings, using defaults:', error);
     return defaultSettings;
   }
 }
 
+/**
+ * 将设置转换为 yt-dlp 配置文件格式
+ * 参考：https://github.com/yt-dlp/yt-dlp?tab=readme-ov-file#configuration
+ *
+ * 注意：Cookie 配置不在配置文件中，因为需要动态处理浏览器回退逻辑
+ */
+function generateYtDlpConfig(settings: ExternalResourceSettings): string {
+  const lines: string[] = [];
+
+  // 添加文件头注释
+  lines.push('# yt-dlp configuration file');
+  lines.push('# Generated automatically by Chobits');
+  lines.push('# This file is managed by the application settings');
+  lines.push('# Manual edits may be overwritten');
+  lines.push('');
+
+  // EJS 远程组件配置
+  if (settings.ejsRemoteComponents && settings.ejsRemoteComponents !== 'none') {
+    lines.push('# EJS remote components');
+    lines.push(`--remote-components ejs:${settings.ejsRemoteComponents}`);
+    lines.push('');
+  }
+
+  // EJS JavaScript 运行时配置
+  if (settings.ejsJsRuntime && settings.ejsJsRuntime !== 'auto') {
+    lines.push('# EJS JavaScript runtime');
+    lines.push(`--js-runtimes ${settings.ejsJsRuntime}`);
+    lines.push('');
+  }
+
+  // 下载质量模式
+  if (settings.externalResourceMode === '2') {
+    lines.push('# Download quality: limit to 480p');
+    lines.push('-f bv*[height<=480]+ba/b[height<=480] / wv*+ba/w');
+    lines.push('');
+  }
+
+  // 其他常用配置
+  lines.push('# Prefer free formats');
+  lines.push('--prefer-free-formats');
+
+  return lines.join('\n');
+}
+
+/**
+ * 写入 yt-dlp 配置文件
+ */
+function writeYtDlpConfig(settings: ExternalResourceSettings): void {
+  ensureSettingsDir();
+  try {
+    const configContent = generateYtDlpConfig(settings);
+    fs.writeFileSync(YTDLP_CONFIG_FILE, configContent, 'utf8');
+    console.log('[VideoDownloader] yt-dlp config file written:', YTDLP_CONFIG_FILE);
+  } catch (error) {
+    console.warn('[VideoDownloader] Failed to write yt-dlp config:', error);
+  }
+}
+
 function writeSettings(settings: ExternalResourceSettings) {
   ensureSettingsDir();
   try {
+    // 同时写入 JSON 文件（用于 UI 读取）和 yt-dlp 配置文件
     fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf8');
+    writeYtDlpConfig(settings);
   } catch (error) {
     console.warn('[VideoDownloader] Failed to write settings:', error);
   }
@@ -622,26 +692,23 @@ export class VideoDownloader implements Downloader {
     // 保存thumbnailUrl供后续使用
     const videoThumbnailUrl = thumbnailUrl;
 
-    let settings;
-    try {
-      settings = getSetting();
-    } catch (error) {
-      console.warn('[VideoDownloader] Failed to get settings:', error);
-      settings = {};
-    }
-
     console.log('[VideoDownloader] ffmpegPath: ', this.ffmpegPath);
     console.log('[VideoDownloader] --> tempPath: ' + downloadPath);
     console.log('[VideoDownloader] --> destPath: ' + destPath);
 
     const args = [cleanDownloadUrl(url), ...quality, '-o', downloadPath, '--ffmpeg-location', this.ffmpegPath];
 
-    if (settings?.externalResourceMode === '2') {
-      args.push('-f', 'bv*[height<=480]+ba/b[height<=480] / wv*+ba/w');
+    // 使用 yt-dlp 配置文件（如果存在）
+    if (fs.existsSync(YTDLP_CONFIG_FILE)) {
+      args.push('--config-location', YTDLP_CONFIG_FILE);
+      console.log('[VideoDownloader] Using yt-dlp config file:', YTDLP_CONFIG_FILE);
+    } else {
+      // 如果配置文件不存在，使用代码中的配置作为后备
+      this.applyEjsConfig(args);
     }
 
-    // 应用 EJS 配置（必须在其他配置之前）
-    this.applyEjsConfig(args);
+    // 注意：配置文件中的选项会被自动应用，但命令行参数会覆盖配置文件
+    // Cookie 和代理等动态配置仍然需要在参数中添加
     this.applyCookies(this.getAgent(args));
 
     console.log('[VideoDownloader] --> args: ', args);
@@ -884,12 +951,20 @@ export async function getVideoInfo(url: string, timeoutMs: number = 30000): Prom
   const args = [cleanDownloadUrl(url), '--prefer-free-formats', '--dump-json', '--no-playlist'];
   const downloader = new VideoDownloader();
 
-  // 应用 EJS 配置、cookies 和代理设置
-  try {
+  // 使用 yt-dlp 配置文件（如果存在）
+  if (fs.existsSync(YTDLP_CONFIG_FILE)) {
+    args.push('--config-location', YTDLP_CONFIG_FILE);
+  } else {
+    // 如果配置文件不存在，使用代码中的配置作为后备
     downloader['applyEjsConfig'](args);
+  }
+
+  // 应用动态配置（cookies 和代理）
+  // 注意：Cookie 需要动态处理浏览器回退，所以仍然在代码中处理
+  try {
     downloader['applyCookies'](downloader['getAgent'](args));
   } catch (error) {
-    console.warn('[VideoDownloader] Failed to apply EJS/cookies/proxy:', error);
+    console.warn('[VideoDownloader] Failed to apply cookies/proxy:', error);
   }
 
   const controller = new AbortController();
@@ -946,5 +1021,5 @@ export async function getThumbnail(url: string): Promise<string> {
 // 创建全局下载管理器实例
 export const downloadManager = new DownloadManager();
 
-// 导出设置管理函数供 IPC 使用
-export { getSetting, setSetting };
+// 导出设置管理函数和配置文件路径供 IPC 使用
+export { getSetting, setSetting, YTDLP_CONFIG_FILE };
