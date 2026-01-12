@@ -32,6 +32,16 @@ const downloaderIpcRenderer = {
   // 获取 yt-dlp 配置文件路径
   getConfigPath: () => ipcRenderer.invoke('video-downloader:get-config-path'),
 
+  // 订阅管理
+  getSubscriptions: () => ipcRenderer.invoke('video-downloader:get-subscriptions'),
+  addSubscription: (data: { channelIdOrUrl: string; channelName?: string; autoDownload?: boolean }) => ipcRenderer.invoke('video-downloader:add-subscription', data),
+  updateSubscription: (id: string, updates: any) => ipcRenderer.invoke('video-downloader:update-subscription', id, updates),
+  deleteSubscription: (id: string) => ipcRenderer.invoke('video-downloader:delete-subscription', id),
+  checkSubscription: (id: string) => ipcRenderer.invoke('video-downloader:check-subscription', id),
+  checkAllSubscriptions: () => ipcRenderer.invoke('video-downloader:check-all-subscriptions'),
+  startPeriodicCheck: (intervalMinutes?: number) => ipcRenderer.invoke('video-downloader:start-periodic-check', intervalMinutes),
+  stopPeriodicCheck: () => ipcRenderer.invoke('video-downloader:stop-periodic-check'),
+
   onTaskProgress: (callback: (task: any) => void) => {
     ipcRenderer.on('video-downloader:task-progress', (_, task) => callback(task));
   },
