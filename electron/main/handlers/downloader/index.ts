@@ -275,7 +275,6 @@ function getHttpProxy(): any {
 
 // 外部资源设置存储
 type ExternalResourceSettings = {
-  externalResourceEnabled: boolean;
   externalResourceMode: string;
   externalResourceCookies: boolean;
   preferredBrowser: string;
@@ -287,9 +286,9 @@ type ExternalResourceSettings = {
 const SETTINGS_DIR = path.join(app.getPath('userData'), 'data');
 const SETTINGS_FILE = path.join(SETTINGS_DIR, 'external-resource-settings.json');
 // yt-dlp 配置文件路径（标准格式）
-const YTDLP_CONFIG_FILE = path.join(SETTINGS_DIR, 'yt-dlp-config');
+const YTDLP_CONFIG_FILE = path.join(SETTINGS_DIR, 'yt-dlp.conf');
 
-function ensureSettingsDir() {
+function ensureSettingsDir(): void {
   if (!fs.existsSync(SETTINGS_DIR)) {
     fs.mkdirSync(SETTINGS_DIR, { recursive: true });
   }
@@ -298,7 +297,6 @@ function ensureSettingsDir() {
 function readSettings(): ExternalResourceSettings {
   ensureSettingsDir();
   const defaultSettings: ExternalResourceSettings = {
-    externalResourceEnabled: true,
     externalResourceMode: '1',
     externalResourceCookies: false,
     preferredBrowser: 'chrome',
@@ -388,7 +386,7 @@ function writeYtDlpConfig(settings: ExternalResourceSettings): void {
   }
 }
 
-function writeSettings(settings: ExternalResourceSettings) {
+function writeSettings(settings: ExternalResourceSettings): void {
   ensureSettingsDir();
   try {
     // 同时写入 JSON 文件（用于 UI 读取）和 yt-dlp 配置文件
@@ -399,14 +397,9 @@ function writeSettings(settings: ExternalResourceSettings) {
   }
 }
 
-function getSetting(key?: string): any {
+function getSetting(key?: string): ExternalResourceSettings | any {
   const settings = readSettings();
-
-  if (key) {
-    return settings[key as keyof ExternalResourceSettings];
-  }
-
-  return settings;
+  return key ? settings[key as keyof ExternalResourceSettings] : settings;
 }
 
 function setSetting(key: keyof ExternalResourceSettings, value: any): void {

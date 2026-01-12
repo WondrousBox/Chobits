@@ -38,14 +38,6 @@ export function initDownloadHandlers(win: BrowserWindow): void {
   // 开始下载视频
   ipcMain.handle('video-downloader:download', async (event, options) => {
     try {
-      const enabled = getSetting('externalResourceEnabled');
-      if (enabled === false) {
-        return {
-          success: false,
-          error: '下载资料扩展已禁用'
-        };
-      }
-
       // 如果没有提供videoInfo，先获取视频信息
       if (!options.videoInfo) {
         try {
