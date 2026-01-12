@@ -2,7 +2,7 @@ import { windowManager } from '@aim-packages/window-manager';
 import { BrowserWindow, ipcMain, screen } from 'electron';
 
 import { getMainWindow } from '../../index';
-import { downloadManager, getSetting, getThumbnail, getVideoInfo, setSetting, YTDLP_CONFIG_FILE } from '.';
+import { downloadManager, getSetting, getThumbnail, getVideoInfo, setSetting, SubscriptionManager, subscriptionManager, YTDLP_CONFIG_FILE } from '.';
 
 export function initDownloadHandlers(win: BrowserWindow): void {
   console.log('[VideoDownload] Initializing video download handlers');
@@ -270,6 +270,222 @@ export function initDownloadHandlers(win: BrowserWindow): void {
         success: false,
         error: error instanceof Error ? error.message : String(error)
       };
+    }
+  });
+
+  // 订阅管理相关 handlers
+  // 获取所有订阅
+  ipcMain.handle('video-downloader:get-subscriptions', async () => {
+    try {
+      const subscriptions = subscriptionManager.getAllSubscriptions();
+      return { success: true, data: subscriptions };
+    } catch (error) {
+      console.error('[VideoDownload] Failed to get subscriptions:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+
+  // 添加订阅
+  ipcMain.handle('video-downloader:add-subscription', async (event, data: { channelIdOrUrl: string; channelName?: string; autoDownload?: boolean }) => {
+    try {
+      const channelInfo = SubscriptionManager.extractChannelId(data.channelIdOrUrl);
+      if (!channelInfo) {
+        return {
+          success: false,
+          error: '无效的频道 ID 或 URL'
+        };
+      }
+
+      // 尝试从 RSS feed 获取频道名称
+      const channelName = data.channelName || channelInfo.channelId;
+      // 注意：频道名称可以从 RSS feed 中获取，但需要解析完整的 XML
+      // 这里简化处理，使用用户提供的名称或频道 ID
+
+      const subscription = subscriptionManager.addSubscription({
+        channelId: channelInfo.channelId,
+        channelName,
+        rssUrl: channelInfo.rssUrl,
+        enabled: true,
+        autoDownload: data.autoDownload !== false
+      });
+
+      return { success: true, data: subscription };
+    } catch (error) {
+      console.error('[VideoDownload] Failed to add subscription:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+
+  // 更新订阅
+  ipcMain.handle('video-downloader:update-subscription', async (event, id: string, updates: any) => {
+    try {
+      const subscription = subscriptionManager.updateSubscription(id, updates);
+      if (!subscription) {
+        return {
+          success: false,
+          error: '订阅不存在'
+        };
+      }
+      return { success: true, data: subscription };
+    } catch (error) {
+      console.error('[VideoDownload] Failed to update subscription:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+
+  // 删除订阅
+  ipcMain.handle('video-downloader:delete-subscription', async (event, id: string) => {
+    try {
+      const success = subscriptionManager.deleteSubscription(id);
+      return { success, data: { id } };
+    } catch (error) {
+      console.error('[VideoDownload] Failed to delete subscription:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+
+  // 检查订阅（手动触发）
+  ipcMain.handle('video-downloader:check-subscription', async (event, id: string) => {
+    try {
+      const subscription = subscriptionManager.getSubscription(id);
+      if (!subscription) {
+        return {
+          success: false,
+          error: '订阅不存在'
+        };
+      }
+
+      await subscriptionManager.checkSubscription(subscription, (sub, videoId, videoUrl) => {
+        // 自动下载新视频
+        if (sub.autoDownload) {
+          downloadManager
+            .addTask({
+              url: videoUrl,
+              videoInfo: undefined // 将在下载时获取
+            })
+            .then((taskId) => {
+              console.log(`[VideoDownload] Auto-downloading video from subscription ${sub.channelName}: ${taskId}`);
+              subscriptionManager.markVideoDownloaded(sub.channelId, videoId);
+            })
+            .catch((error) => {
+              console.error(`[VideoDownload] Failed to auto-download video:`, error);
+            });
+        }
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error('[VideoDownload] Failed to check subscription:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+
+  // 检查所有订阅
+  ipcMain.handle('video-downloader:check-all-subscriptions', async () => {
+    try {
+      await subscriptionManager.checkAllSubscriptions((sub, videoId, videoUrl) => {
+        // 自动下载新视频
+        if (sub.autoDownload) {
+          downloadManager
+            .addTask({
+              url: videoUrl,
+              videoInfo: undefined
+            })
+            .then((taskId) => {
+              console.log(`[VideoDownload] Auto-downloading video from subscription ${sub.channelName}: ${taskId}`);
+              subscriptionManager.markVideoDownloaded(sub.channelId, videoId);
+            })
+            .catch((error) => {
+              console.error(`[VideoDownload] Failed to auto-download video:`, error);
+            });
+        }
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error('[VideoDownload] Failed to check all subscriptions:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+
+  // 启动定期检查
+  ipcMain.handle('video-downloader:start-periodic-check', async (event, intervalMinutes: number = 60) => {
+    try {
+      subscriptionManager.startPeriodicCheck(intervalMinutes, (sub, videoId, videoUrl) => {
+        // 自动下载新视频
+        if (sub.autoDownload) {
+          downloadManager
+            .addTask({
+              url: videoUrl,
+              videoInfo: undefined
+            })
+            .then((taskId) => {
+              console.log(`[VideoDownload] Auto-downloading video from subscription ${sub.channelName}: ${taskId}`);
+              subscriptionManager.markVideoDownloaded(sub.channelId, videoId);
+            })
+            .catch((error) => {
+              console.error(`[VideoDownload] Failed to auto-download video:`, error);
+            });
+        }
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error('[VideoDownload] Failed to start periodic check:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+
+  // 停止定期检查
+  ipcMain.handle('video-downloader:stop-periodic-check', async () => {
+    try {
+      subscriptionManager.stopPeriodicCheck();
+      return { success: true };
+    } catch (error) {
+      console.error('[VideoDownload] Failed to stop periodic check:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+
+  // 启动时自动开始定期检查
+  subscriptionManager.startPeriodicCheck(60, (sub, videoId, videoUrl) => {
+    if (sub.autoDownload) {
+      downloadManager
+        .addTask({
+          url: videoUrl,
+          videoInfo: undefined
+        })
+        .then((taskId) => {
+          console.log(`[VideoDownload] Auto-downloading video from subscription ${sub.channelName}: ${taskId}`);
+          subscriptionManager.markVideoDownloaded(sub.channelId, videoId);
+        })
+        .catch((error) => {
+          console.error(`[VideoDownload] Failed to auto-download video:`, error);
+        });
     }
   });
 
