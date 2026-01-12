@@ -278,6 +278,9 @@ type ExternalResourceSettings = {
   externalResourceMode: string;
   externalResourceCookies: boolean;
   preferredBrowser: string;
+  // EJS 配置
+  ejsRemoteComponents?: 'github' | 'npm' | 'none'; // EJS 远程组件来源，none 表示使用内置
+  ejsJsRuntime?: 'deno' | 'node' | 'bun' | 'quickjs' | 'auto'; // JavaScript 运行时，auto 表示自动检测
 };
 
 const SETTINGS_DIR = path.join(app.getPath('userData'), 'data');
@@ -295,7 +298,10 @@ function readSettings(): ExternalResourceSettings {
     externalResourceEnabled: true,
     externalResourceMode: '1',
     externalResourceCookies: false,
-    preferredBrowser: 'chrome'
+    preferredBrowser: 'chrome',
+    // EJS 默认配置：使用 GitHub 远程组件以确保最新版本，自动检测 JS 运行时
+    ejsRemoteComponents: 'github',
+    ejsJsRuntime: 'auto'
   };
 
   if (!fs.existsSync(SETTINGS_FILE)) {
@@ -634,6 +640,8 @@ export class VideoDownloader implements Downloader {
       args.push('-f', 'bv*[height<=480]+ba/b[height<=480] / wv*+ba/w');
     }
 
+    // 应用 EJS 配置（必须在其他配置之前）
+    this.applyEjsConfig(args);
     this.applyCookies(this.getAgent(args));
 
     console.log('[VideoDownloader] --> args: ', args);
@@ -779,6 +787,35 @@ ${destPath}`);
     this.controller?.abort();
   }
 
+  /**
+   * 应用 EJS 配置到 yt-dlp 参数
+   * 根据设置添加 --remote-components 和 --js-runtimes 参数
+   */
+  private applyEjsConfig(args: string[]): string[] {
+    try {
+      const settings = getSetting();
+      const remoteComponents = settings.ejsRemoteComponents || 'github';
+      const jsRuntime = settings.ejsJsRuntime || 'auto';
+
+      // 添加远程组件配置（如果启用）
+      if (remoteComponents !== 'none') {
+        args.push('--remote-components', `ejs:${remoteComponents}`);
+        console.log(`[VideoDownloader] EJS remote components: ${remoteComponents}`);
+      }
+
+      // 添加 JavaScript 运行时配置（如果不是 auto）
+      if (jsRuntime !== 'auto') {
+        args.push('--js-runtimes', jsRuntime);
+        console.log(`[VideoDownloader] EJS JS runtime: ${jsRuntime}`);
+      }
+      // auto 模式：不添加参数，让 yt-dlp 自动检测（默认使用 deno）
+    } catch (error) {
+      console.warn('[VideoDownloader] Failed to apply EJS config:', error);
+    }
+
+    return args;
+  }
+
   private applyCookies(args: string[]): string[] {
     try {
       const useCookies = getSetting('externalResourceCookies');
@@ -847,11 +884,12 @@ export async function getVideoInfo(url: string, timeoutMs: number = 30000): Prom
   const args = [cleanDownloadUrl(url), '--prefer-free-formats', '--dump-json', '--no-playlist'];
   const downloader = new VideoDownloader();
 
-  // 应用cookies和代理设置
+  // 应用 EJS 配置、cookies 和代理设置
   try {
+    downloader['applyEjsConfig'](args);
     downloader['applyCookies'](downloader['getAgent'](args));
   } catch (error) {
-    console.warn('[VideoDownloader] Failed to apply cookies/proxy:', error);
+    console.warn('[VideoDownloader] Failed to apply EJS/cookies/proxy:', error);
   }
 
   const controller = new AbortController();

@@ -63,7 +63,7 @@ function App(): JSX.Element {
                           id: 'extensions',
                           label: '机能扩展',
                           icon: TbSparkles,
-                          description: '自由移动、日常关心、下载资料扩展',
+                          description: '自由移动、日常关心',
                           component: <ExtensionSettings />
                         }
                       ]}
