@@ -15,6 +15,7 @@ import { binPathLog } from '../../logger';
 import { getResourcePath } from '../../utils/resources-path';
 import { generateThumbnailForResource } from '../../utils/thumbnail';
 import { ensureDailyFolder } from '../resource';
+import { getCurrentBinaryPath } from '../ytdlp/updater';
 
 // 默认文件夹配置
 const DEFAULT_FOLDERS = {
@@ -568,7 +569,8 @@ export class VideoDownloader implements Downloader {
 
   constructor() {
     this.ffmpegPath = getResourcePath('ffmpeg')!;
-    this.ytdlPath = getResourcePath('yt-dlp')!;
+    // 使用 updater 中的函数获取正确的 yt-dlp 路径
+    this.ytdlPath = getCurrentBinaryPath();
 
     binPathLog(this.ffmpegPath, 'ffmpeg');
     binPathLog(this.ytdlPath, 'yt-dlp');
