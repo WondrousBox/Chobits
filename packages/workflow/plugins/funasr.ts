@@ -35,23 +35,23 @@ export const FunASRPlugin: Plugin = {
     // 但我们可以检查是否有任何ASR模型可用
     const pluginId = 'plugin:funasr';
     const modelsDir = ctx.pluginResourceManager.getPluginResourceDir(pluginId, 'model');
-    
+
     if (modelsDir && fs.existsSync(modelsDir)) {
       // 检查是否有 ASR 模型
       const files = fs.readdirSync(modelsDir);
-      const hasAsrModel = files.some(f => f.includes('asr') || f.includes('ASR'));
-      
+      const hasAsrModel = files.some((f) => f.includes('asr') || f.includes('ASR'));
+
       if (!hasAsrModel) {
         missingModels.push({
           pluginId,
-          modelName: 'ASR Model',
+          modelName: 'funasr-models',
           displayName: 'ASR 模型'
         });
       }
     } else {
       missingModels.push({
         pluginId,
-        modelName: 'ASR Model',
+        modelName: 'funasr-models',
         displayName: 'ASR 模型'
       });
     }
@@ -59,4 +59,3 @@ export const FunASRPlugin: Plugin = {
     return missingModels;
   }
 };
-

@@ -113,11 +113,7 @@ async function transcodeAudio(filePath: string, outputDir: string): Promise<stri
 }
 
 // 运行 FunASR CLI
-async function runFunASR(
-  args: string[],
-  onProgress?: (progress: number, message: string) => void,
-  totalDuration?: number | null
-): Promise<{ success: boolean }> {
+async function runFunASR(args: string[], onProgress?: (progress: number, message: string) => void, totalDuration?: number | null): Promise<{ success: boolean }> {
   const { pluginResourceManager } = await import('../../plugins');
   const binaryName = platform() === 'win32' ? 'funasr.exe' : 'funasr';
   const cliPath = pluginResourceManager.getEnginePath('plugin:funasr', binaryName);
@@ -195,8 +191,6 @@ function getDynamicOutputs(config?: NodeConfig): PortSchema[] {
 
   return outputs;
 }
-
-
 
 export const TranscribeFunASRNode: NodeHandler = {
   spec: {
@@ -315,24 +309,15 @@ export const TranscribeFunASRNode: NodeHandler = {
     // 查找各个模型的路径
     // const modelPaths = findModelPaths(modelsDir);
     const models = getModels({ modelsDir });
-    const asrModel = models.find(m => m.type === 'asr');
+    const asrModel = models.find((m) => m.type === 'asr');
     // FunASR CLI 参数
-    const args: string[] = [
-      '--device', 'mps',
-      '--model', asrModel?.path,
-      '--input', finalSrc,
-      '--output-dir', outDir,
-      '--ffmpeg-path', ffmpegPath,
-      '--output-filename', base,
-      '--sentence-timestamp'
-    ];
+    const args: string[] = ['--device', 'mps', '--model', asrModel?.path, '--input', finalSrc, '--output-dir', outDir, '--ffmpeg-path', ffmpegPath, '--output-filename', base, '--sentence-timestamp'];
 
-    
     console.log('[funasr] 模型列表:', models);
 
     // VAD模型 - 使用 --vad-model 参数
     if (config?.useVad) {
-      const vadModel = models.find(m => m.type === 'vad');
+      const vadModel = models.find((m) => m.type === 'vad');
       if (vadModel && fs.existsSync(vadModel.path)) {
         args.push('--vad-model', vadModel.path);
       }
@@ -340,7 +325,7 @@ export const TranscribeFunASRNode: NodeHandler = {
 
     // PUNC模型 - 使用 --punc-model 参数
     if (config?.usePunc) {
-      const puncModel = models.find(m => m.type === 'punc');
+      const puncModel = models.find((m) => m.type === 'punc');
       if (puncModel && fs.existsSync(puncModel.path)) {
         args.push('--punc-model', puncModel.path);
       }
@@ -348,7 +333,7 @@ export const TranscribeFunASRNode: NodeHandler = {
 
     // SPK模型 - 使用 --spk-model 参数
     if (config?.useSpk) {
-      const spkModel = models.find(m => m.type === 'spk');
+      const spkModel = models.find((m) => m.type === 'spk');
       if (spkModel && fs.existsSync(spkModel.path)) {
         args.push('--spk-model', spkModel.path);
       }
@@ -424,7 +409,7 @@ export const TranscribeFunASRNode: NodeHandler = {
     // 生成 JSON 文件
     if (outputFormats.includes('json')) {
       const jsonContent = {
-        transcription: segments.map(seg => ({
+        transcription: segments.map((seg) => ({
           timestamps: seg.timestamps,
           text: seg.text
         }))
@@ -470,14 +455,14 @@ export const TranscribeFunASRNode: NodeHandler = {
 };
 
 /**
-     * 获取模型列表
-     * FunASR需要手动配置模型路径，这里返回用户配置的模型信息
-     */
-function getModels({ modelsDir }: { modelsDir?: string } = {}): {name: string, type: string, path: string}[] {
+ * 获取模型列表
+ * FunASR需要手动配置模型路径，这里返回用户配置的模型信息
+ */
+function getModels({ modelsDir }: { modelsDir?: string } = {}): { name: string; type: string; path: string }[] {
   // 如果没有提供modelsDir，使用默认路径
   const targetModelsDir = modelsDir;
 
-  const models: {name: string, type: string, path: string}[] = [];
+  const models: { name: string; type: string; path: string }[] = [];
 
   if (!fs.existsSync(targetModelsDir)) {
     console.error(`❌ 模型目录不存在: ${targetModelsDir}`);
@@ -526,7 +511,7 @@ function getModels({ modelsDir }: { modelsDir?: string } = {}): {name: string, t
         models.push({
           name: entry.name,
           type,
-          path: modelPath,
+          path: modelPath
         });
       } else {
         console.log(`⏭️ 跳过文件: ${entry.name}`);
@@ -534,7 +519,10 @@ function getModels({ modelsDir }: { modelsDir?: string } = {}): {name: string, t
     }
 
     console.log(`📊 总共识别到 ${models.length} 个模型`);
-    console.log('模型列表:', models.map(m => `${m.name} (${m.type})`));
+    console.log(
+      '模型列表:',
+      models.map((m) => `${m.name} (${m.type})`)
+    );
   } catch (error) {
     console.error('❌ 获取模型列表失败:', error);
   }
@@ -611,7 +599,7 @@ function parseSRTFile(filePath: string): TranscriptSegment[] {
         i++; // 跳到文本行
 
         // 收集文本内容（可能多行）
-        let textLines: string[] = [];
+        const textLines: string[] = [];
         while (i < lines.length && lines[i].trim() !== '' && !/^\d+$/.test(lines[i].trim())) {
           textLines.push(lines[i].trim());
           i++;
