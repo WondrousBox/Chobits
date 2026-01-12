@@ -359,9 +359,36 @@ function generateYtDlpConfig(settings: ExternalResourceSettings): string {
   }
 
   // 下载质量模式
-  if (settings.externalResourceMode === '2') {
-    lines.push('# Download quality: limit to 480p');
-    lines.push('-f bv*[height<=480]+ba/b[height<=480] / wv*+ba/w');
+  // 根据 externalResourceMode 设置不同的格式选择器
+  // 参考: https://github.com/yt-dlp/yt-dlp#format-selection
+  const formatSelectors: Record<string, { comment: string; format: string }> = {
+    best: {
+      comment: 'Download quality: best (default)',
+      format: 'bestvideo+bestaudio/best'
+    },
+    '1080p': {
+      comment: 'Download quality: limit to 1080p',
+      format: 'bv*[height<=1080]+ba/b[height<=1080]'
+    },
+    '720p': {
+      comment: 'Download quality: limit to 720p',
+      format: 'bv*[height<=720]+ba/b[height<=720]'
+    },
+    '480p': {
+      comment: 'Download quality: limit to 480p',
+      format: 'bv*[height<=480]+ba/b[height<=480] / wv*+ba/w'
+    },
+    audio: {
+      comment: 'Download quality: audio only',
+      format: 'bestaudio/best'
+    }
+  };
+
+  const qualityMode = settings.externalResourceMode;
+  if (qualityMode && qualityMode !== '1' && formatSelectors[qualityMode]) {
+    const selector = formatSelectors[qualityMode];
+    lines.push(`# ${selector.comment}`);
+    lines.push(`-f "${selector.format}"`);
     lines.push('');
   }
 
