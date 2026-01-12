@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { app, BrowserWindow, ipcMain } from 'electron';
 
+import pkg from '../../../package.json';
 import { getDB } from '../db';
 import { WorkspacesRepo } from '../db/repositories';
 
@@ -38,12 +39,12 @@ async function writeJson(file: string, data: any) {
 
 export function initStatusHandlers(_win: BrowserWindow) {
   ipcMain.handle('status:getRole', async () => {
-    const role = await readJson<RoleProfile>(ROLE_FILE, { name: 'Chobits', mood: 'idle', level: 1, favor: 50 });
+    const role = await readJson<RoleProfile>(ROLE_FILE, { name: pkg.name, mood: 'idle', level: 1, favor: 50 });
     return { ok: true, role };
   });
 
   ipcMain.handle('status:updateRole', async (_e, payload: { patch: Partial<RoleProfile> }) => {
-    const current = await readJson<RoleProfile>(ROLE_FILE, { name: 'Chobits', mood: 'idle', level: 1, favor: 50 });
+    const current = await readJson<RoleProfile>(ROLE_FILE, { name: pkg.name, mood: 'idle', level: 1, favor: 50 });
     const next = { ...current, ...payload?.patch };
     await writeJson(ROLE_FILE, next);
     return { ok: true, role: next };

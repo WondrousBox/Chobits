@@ -7,6 +7,7 @@ import { windowManager } from '@aim-packages/window-manager';
 import dayjs from 'dayjs';
 import { BrowserWindow, desktopCapturer, dialog, ipcMain, screen, shell, systemPreferences } from 'electron';
 
+import pkg from '../../package.json';
 import { eventManager } from '../../packages/event';
 import { AppEvent } from '../../packages/event/events';
 import { FoldersRepo, ResourcesRepo, WorkspacesRepo } from './db/repositories';
@@ -56,7 +57,7 @@ export class ScreenshotManager {
           .showMessageBox({
             type: 'warning',
             title: 'Screen Recording Permission Denied',
-            message: 'Chobits needs screen recording permission to take screenshots.',
+            message: `${pkg.name} needs screen recording permission to take screenshots.`,
             detail: 'Please enable it in System Settings > Privacy & Security > Screen Recording.',
             buttons: ['Open Settings', 'Cancel'],
             defaultId: 0
@@ -99,7 +100,7 @@ export class ScreenshotManager {
             type: 'warning',
             title: 'Screen Recording Failed',
             message: 'Failed to capture screen. Please check permissions.',
-            detail: 'Please ensure Chobits has Screen Recording permission in System Settings.',
+            detail: `Please ensure ${pkg.name} has Screen Recording permission in System Settings.`,
             buttons: ['Open Settings', 'Cancel'],
             defaultId: 0
           })

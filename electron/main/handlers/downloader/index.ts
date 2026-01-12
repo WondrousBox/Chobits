@@ -9,6 +9,7 @@ import { app, BrowserWindow } from 'electron';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 
+import pkg from '../../../../package.json';
 import ytdlpStatic from '../../../../packages/common/libs/ytdlp-static';
 import { ResourcesRepo, WorkspacesRepo } from '../../db/repositories';
 import { binPathLog } from '../../logger';
@@ -340,7 +341,7 @@ function generateYtDlpConfig(settings: ExternalResourceSettings): string {
 
   // 添加文件头注释
   lines.push('# yt-dlp configuration file');
-  lines.push('# Generated automatically by Chobits');
+  lines.push('# Generated automatically by ' + pkg.name + '');
   lines.push('# This file is managed by the application settings');
   lines.push('# Manual edits may be overwritten');
   lines.push('');

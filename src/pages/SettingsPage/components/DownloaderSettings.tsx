@@ -139,6 +139,23 @@ const DownloaderSettings: React.FC = () => {
     }
   }, []);
 
+  // 打开配置文件路径
+  const openConfigPath = useCallback(async () => {
+    try {
+      const result = await window.YUA.videoDownloader.getConfigPath();
+      if (result.success && result.data) {
+        const revealResult = await window.YUA.file['file:reveal'](result.data.configPath);
+        if (!revealResult.ok) {
+          toast.error('打开配置文件路径失败', { description: revealResult.error });
+        }
+      } else {
+        toast.error('获取配置文件路径失败', { description: result.error });
+      }
+    } catch (error: any) {
+      toast.error('打开配置文件路径失败', { description: error?.message || String(error) });
+    }
+  }, []);
+
   // 监听下载进度
   useEffect(() => {
     const unsubscribe = window.YUA.ytdlp.onDownloadProgress((p: DownloadProgress) => {
@@ -318,6 +335,18 @@ const DownloaderSettings: React.FC = () => {
           <Button variant="ghost" size="sm" onClick={resetToBuiltin} disabled={downloading} className="h-8">
             <TbRotate className="h-4 w-4 mr-1.5" />
             重置
+          </Button>
+        }
+      />
+
+      {/* 打开配置文件路径 */}
+      <SettingItem
+        title="打开配置文件路径"
+        description="在文件管理器中打开 yt-dlp 配置文件所在的位置"
+        action={
+          <Button variant="ghost" size="sm" onClick={openConfigPath} className="h-8">
+            <TbFolderOpen className="h-4 w-4 mr-1.5" />
+            打开
           </Button>
         }
       />

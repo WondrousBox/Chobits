@@ -29,6 +29,9 @@ const downloaderIpcRenderer = {
   // 设置外部资源设置
   setExternalResourceSettings: (settings: any) => ipcRenderer.invoke('video-downloader:set-external-resource-settings', settings),
 
+  // 获取 yt-dlp 配置文件路径
+  getConfigPath: () => ipcRenderer.invoke('video-downloader:get-config-path'),
+
   onTaskProgress: (callback: (task: any) => void) => {
     ipcRenderer.on('video-downloader:task-progress', (_, task) => callback(task));
   },
