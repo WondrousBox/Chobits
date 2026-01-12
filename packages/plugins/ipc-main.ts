@@ -1,7 +1,7 @@
 import { windowManager } from '@aim-packages/window-manager';
 import { BrowserWindow, ipcMain, net, screen } from 'electron';
 
-import { createBestDownloader } from '../downloader/create';
+import { createDownloader } from '../downloader';
 import type { ProxyAgent } from '../downloader/types';
 import { DownloadProgress, PluginResource, pluginResourceManager } from '.';
 import { PluginConfigStore } from './plugin-config-store';
@@ -35,7 +35,7 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
   if (options?.onProgress) {
     onProgressFn = options.onProgress;
   }
-  pluginResourceManager.setDownloader(createBestDownloader(win));
+  pluginResourceManager.setDownloader(createDownloader());
 
   // 监听下载进度事件
   pluginResourceManager.on('progress', (info: DownloadProgress) => {

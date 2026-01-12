@@ -265,16 +265,14 @@ export class PluginResourceManager extends EventEmitter {
     // 确保目标目录存在
     fs.mkdirSync(installDir, { recursive: true });
 
-    // 统一处理：所有文件都先下载到目标位置，带.download后缀
-    let downloadFile: string;
-    let finalFile: string; // hash验证后去掉.download后缀的文件路径
+    // 确定最终文件路径（下载器会自动添加 .download 后缀并在完成后重命名）
+    let finalFile: string;
 
     if (archiveType === 'none') {
-      // 非压缩包：下载到目标位置，使用.download后缀
-      downloadFile = `${task.resource.installPath!}.download`;
+      // 非压缩包：直接下载到目标位置
       finalFile = task.resource.installPath!;
     } else {
-      // 压缩包：下载到目标目录，使用.download后缀
+      // 压缩包：下载到目标目录
       // 从URL中提取文件名，如果无法提取则使用资源名称
       let urlFileName: string;
       try {
@@ -292,7 +290,6 @@ export class PluginResourceManager extends EventEmitter {
         return fileName.replace(/[<>:"/\\|?*]/g, '_');
       };
       const sanitizedUrlFileName = sanitizeFileName(urlFileName);
-      downloadFile = path.join(installDir, `${sanitizedUrlFileName}.download`);
       finalFile = path.join(installDir, sanitizedUrlFileName);
     }
 
@@ -321,9 +318,9 @@ export class PluginResourceManager extends EventEmitter {
 
       // 如果需要下载，执行下载流程
       if (!skipDownload) {
-        console.log('[PluginDL] start download', { id: task.resource.id, url, downloadFile });
-        // 下载文件（带.download后缀）
-        await this.downloader.download(url!, downloadFile, {
+        console.log('[PluginDL] start download', { id: task.resource.id, url, finalFile });
+        // 下载文件（下载器会自动添加 .download 后缀，并在下载完成后进行 hash 验证和重命名）
+        await this.downloader.download(url!, finalFile, {
           onProgress: (p) => {
             this.emitProgress(task.resource.id, {
               status: 'downloading',
@@ -335,31 +332,9 @@ export class PluginResourceManager extends EventEmitter {
             });
           },
           signal: task.controller?.signal,
-          proxyAgent: task.proxyAgent
+          proxyAgent: task.proxyAgent,
+          sha256: task.resource.sha256 // 如果提供了 sha256，下载器会自动验证
         });
-
-        // 第一步：检查hash（如果提供了）
-        if (task.resource.sha256) {
-          task.resource.status = 'verifying';
-          this.emitProgress(task.resource.id, { status: 'verifying' });
-          console.log('[PluginDL] verifying', { id: task.resource.id, downloadFile });
-
-          // 使用公共方法计算文件hash
-          const digest = await calculateFileHash(downloadFile);
-          if (digest !== task.resource.sha256) {
-            console.error('[PluginDL] checksum mismatch', { id: task.resource.id, expect: task.resource.sha256, got: digest });
-            // hash不符，立即删除文件，不能保留
-            if (fs.existsSync(downloadFile)) {
-              fs.unlinkSync(downloadFile);
-            }
-            throw new Error('CHECKSUM_MISMATCH');
-          }
-          console.log('[PluginDL] checksum verified', { id: task.resource.id });
-        }
-
-        // 第二步：hash匹配后，去掉.download后缀
-        console.log('[PluginDL] finalizing', { id: task.resource.id, from: downloadFile, to: finalFile });
-        fs.renameSync(downloadFile, finalFile);
       }
 
       // 第三步：根据类型处理
@@ -419,10 +394,11 @@ export class PluginResourceManager extends EventEmitter {
         this.emitProgress(task.resource.id, { status: 'failed', error: task.resource.lastError });
       }
       // 清理下载文件（如果存在）
-      // 可能还在.download状态，也可能已经重命名为finalFile
-      if (fs.existsSync(downloadFile)) {
+      // 可能还在.download状态（下载失败或 hash 验证失败），也可能已经重命名为最终文件（但后续处理失败）
+      const tempFile = `${finalFile}.download`;
+      if (fs.existsSync(tempFile)) {
         try {
-          fs.unlinkSync(downloadFile);
+          fs.unlinkSync(tempFile);
         } catch {
           // 忽略删除错误
         }
