@@ -37,7 +37,6 @@ interface DownloadProgress {
 }
 
 interface ExternalResourceSettings {
-  externalResourceEnabled: boolean;
   externalResourceMode: string;
   externalResourceCookies: boolean;
   preferredBrowser: string;
@@ -46,7 +45,6 @@ interface ExternalResourceSettings {
 }
 
 const defaultExternalSettings: ExternalResourceSettings = {
-  externalResourceEnabled: true,
   externalResourceMode: '1',
   externalResourceCookies: false,
   preferredBrowser: 'chrome',
@@ -351,114 +349,89 @@ const DownloaderSettings: React.FC = () => {
         }
       />
 
-      {/* 启用下载资料扩展 */}
-      <SettingItem
-        title="启用下载资料扩展"
-        description="启用后可以从外部网站下载视频、音频等资源"
-        action={
-          <Switch
-            checked={externalSettings.externalResourceEnabled !== false}
-            onCheckedChange={(checked: boolean) => updateExternalSettings({ externalResourceEnabled: checked })}
-            disabled={loadingSettings}
-          />
-        }
-      />
-
       {/* 使用浏览器 Cookie */}
-      {externalSettings.externalResourceEnabled !== false && (
-        <SettingItem
-          title="使用浏览器 Cookie"
-          description="启用后将读取浏览器 Cookie，用于访问需要登录的资源"
-          action={
-            <Switch
-              checked={externalSettings.externalResourceCookies}
-              onCheckedChange={(checked: boolean) => updateExternalSettings({ externalResourceCookies: checked })}
-              disabled={loadingSettings}
-            />
-          }
-        >
-          {/* 首选浏览器选择 */}
-          {externalSettings.externalResourceCookies && (
-            <div className="mt-3 space-y-2">
-              <label className="text-xs font-medium text-foreground">首选浏览器</label>
-              <Select value={externalSettings.preferredBrowser} onValueChange={(v) => updateExternalSettings({ preferredBrowser: v })} disabled={loadingSettings}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="选择浏览器" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="chrome">Chrome</SelectItem>
-                  <SelectItem value="firefox">Firefox</SelectItem>
-                  <SelectItem value="edge">Edge</SelectItem>
-                  <SelectItem value="safari">Safari</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">若首选浏览器不可用，将自动回退到其他浏览器。</p>
-            </div>
-          )}
-        </SettingItem>
-      )}
+      <SettingItem
+        title="使用浏览器 Cookie"
+        description="启用后将读取浏览器 Cookie，用于访问需要登录的资源"
+        action={
+          <Switch checked={externalSettings.externalResourceCookies} onCheckedChange={(checked: boolean) => updateExternalSettings({ externalResourceCookies: checked })} disabled={loadingSettings} />
+        }
+      >
+        {/* 首选浏览器选择 */}
+        {externalSettings.externalResourceCookies && (
+          <div className="mt-3 space-y-2">
+            <label className="text-xs font-medium text-foreground">首选浏览器</label>
+            <Select value={externalSettings.preferredBrowser} onValueChange={(v) => updateExternalSettings({ preferredBrowser: v })} disabled={loadingSettings}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="选择浏览器" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="chrome">Chrome</SelectItem>
+                <SelectItem value="firefox">Firefox</SelectItem>
+                <SelectItem value="edge">Edge</SelectItem>
+                <SelectItem value="safari">Safari</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">若首选浏览器不可用，将自动回退到其他浏览器。</p>
+          </div>
+        )}
+      </SettingItem>
 
       {/* 下载质量模式 */}
-      {externalSettings.externalResourceEnabled !== false && (
-        <SettingItem title="下载质量模式" description="针对视频数据设置默认下载质量，避免占用过多空间或带宽" action={null}>
-          <div className="mt-3">
-            <Tabs value={externalSettings.externalResourceMode} onValueChange={(v) => updateExternalSettings({ externalResourceMode: v })}>
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="1">高质量</TabsTrigger>
-                <TabsTrigger value="2">限制质量（480p 以下）</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-        </SettingItem>
-      )}
+      <SettingItem title="下载质量模式" description="针对视频数据设置默认下载质量，避免占用过多空间或带宽" action={null}>
+        <div className="mt-3">
+          <Tabs value={externalSettings.externalResourceMode} onValueChange={(v) => updateExternalSettings({ externalResourceMode: v })}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="1">高质量</TabsTrigger>
+              <TabsTrigger value="2">限制质量（480p 以下）</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+      </SettingItem>
 
       {/* EJS 远程组件配置 */}
-      {externalSettings.externalResourceEnabled !== false && (
-        <SettingItem title="EJS 远程组件" description="配置 EJS 脚本的获取方式，用于解密 YouTube 视频" action={null}>
-          <div className="mt-3">
-            <Select
-              value={externalSettings.ejsRemoteComponents || 'github'}
-              onValueChange={(v: 'github' | 'npm' | 'none') => updateExternalSettings({ ejsRemoteComponents: v })}
-              disabled={loadingSettings}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="github">GitHub（推荐）</SelectItem>
-                <SelectItem value="npm">npm（需要 deno/bun）</SelectItem>
-                <SelectItem value="none">使用内置版本</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground mt-2">GitHub：自动从 GitHub 下载最新 EJS 脚本。npm：从 npm 下载（需要 deno 或 bun 运行时）。内置：使用 PyInstaller 打包的版本。</p>
-          </div>
-        </SettingItem>
-      )}
+      <SettingItem title="EJS 远程组件" description="配置 EJS 脚本的获取方式，用于解密 YouTube 视频" action={null}>
+        <div className="mt-3">
+          <Select
+            value={externalSettings.ejsRemoteComponents || 'github'}
+            onValueChange={(v: 'github' | 'npm' | 'none') => updateExternalSettings({ ejsRemoteComponents: v })}
+            disabled={loadingSettings}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="github">GitHub（推荐）</SelectItem>
+              <SelectItem value="npm">npm（需要 deno/bun）</SelectItem>
+              <SelectItem value="none">使用内置版本</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground mt-2">GitHub：自动从 GitHub 下载最新 EJS 脚本。npm：从 npm 下载（需要 deno 或 bun 运行时）。内置：使用 PyInstaller 打包的版本。</p>
+        </div>
+      </SettingItem>
 
       {/* EJS JS 运行时配置 */}
-      {externalSettings.externalResourceEnabled !== false && (
-        <SettingItem title="EJS JavaScript 运行时" description="选择用于运行 EJS 脚本的 JavaScript 运行时" action={null}>
-          <div className="mt-3">
-            <Select
-              value={externalSettings.ejsJsRuntime || 'auto'}
-              onValueChange={(v: 'deno' | 'node' | 'bun' | 'quickjs' | 'auto') => updateExternalSettings({ ejsJsRuntime: v })}
-              disabled={loadingSettings}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="auto">自动检测（推荐）</SelectItem>
-                <SelectItem value="deno">Deno</SelectItem>
-                <SelectItem value="node">Node.js</SelectItem>
-                <SelectItem value="bun">Bun</SelectItem>
-                <SelectItem value="quickjs">QuickJS</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground mt-2">自动检测会优先使用 deno（推荐），如果未安装则回退到其他可用的运行时。</p>
-          </div>
-        </SettingItem>
-      )}
+      <SettingItem title="EJS JavaScript 运行时" description="选择用于运行 EJS 脚本的 JavaScript 运行时" action={null}>
+        <div className="mt-3">
+          <Select
+            value={externalSettings.ejsJsRuntime || 'auto'}
+            onValueChange={(v: 'deno' | 'node' | 'bun' | 'quickjs' | 'auto') => updateExternalSettings({ ejsJsRuntime: v })}
+            disabled={loadingSettings}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="auto">自动检测（推荐）</SelectItem>
+              <SelectItem value="deno">Deno</SelectItem>
+              <SelectItem value="node">Node.js</SelectItem>
+              <SelectItem value="bun">Bun</SelectItem>
+              <SelectItem value="quickjs">QuickJS</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground mt-2">自动检测会优先使用 deno（推荐），如果未安装则回退到其他可用的运行时。</p>
+        </div>
+      </SettingItem>
     </SettingGroup>
   );
 };
