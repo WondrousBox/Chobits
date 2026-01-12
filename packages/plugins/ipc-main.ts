@@ -1,8 +1,8 @@
+import type { ProxyAgent } from '@aim-packages/downloader';
+import { createDownloader } from '@aim-packages/downloader';
 import { windowManager } from '@aim-packages/window-manager';
 import { BrowserWindow, ipcMain, net, screen } from 'electron';
 
-import { createDownloader } from '../downloader';
-import type { ProxyAgent } from '../downloader/types';
 import { DownloadProgress, PluginResource, pluginResourceManager } from '.';
 import { PluginConfigStore } from './plugin-config-store';
 import { getPluginForCurrentPlatform, loadPluginDefinitions } from './plugin-loader';
