@@ -18,6 +18,7 @@ import { systemIpcRenderer } from '../main/handlers/system/ipc-renderer';
 import { themeIpcRenderer } from '../main/handlers/theme/ipc-renderer';
 import { trashIpcRenderer } from '../main/handlers/trash/ipc-renderer';
 import { workspaceIpcRenderer } from '../main/handlers/workspace/ipc-renderer';
+import { ytdlpIpcRenderer } from '../main/handlers/ytdlp/ipc-renderer';
 import { arch, isLinux, isMac, isMacIntel, isWindows, platform } from '../main/utils/os';
 import { shortcutsBridge } from './apis/shortcuts';
 import { spriteBridge } from './apis/sprite';
@@ -80,6 +81,7 @@ contextBridge.exposeInMainWorld('YUA', {
   theme: themeIpcRenderer,
   sherpa: sherpaIpcRenderer,
   preferences: preferencesIpcRenderer,
+  ytdlp: ytdlpIpcRenderer,
   events: {
     on: (callback: (payload: AppEventPayload) => void) => {
       const subscription = (_event: any, payload: AppEventPayload): void => callback(payload);

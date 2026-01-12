@@ -27,6 +27,7 @@ import { initThemeHandlers } from './theme/ipc-main';
 import { initTrashHandlers } from './trash/ipc-main';
 import { initWindowHandlers } from './window';
 import { initWorkspaceHandlers } from './workspace/ipc-main';
+import { initYtDlpHandlers } from './ytdlp/ipc-main';
 
 export function initHandlers(win: BrowserWindow): void {
   console.log(process.versions);
@@ -82,4 +83,5 @@ export function initHandlers(win: BrowserWindow): void {
   initProxyHandlers(win);
   initThemeHandlers();
   initScreenshotHandlers();
+  initYtDlpHandlers(win);
 }

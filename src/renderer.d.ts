@@ -13,6 +13,7 @@ import type { SystemIpcType } from '../electron/main/handlers/system/ipc-rendere
 import type { ThemeIpcType } from '../electron/main/handlers/theme/ipc-renderer';
 import type { TrashIpcType } from '../electron/main/handlers/trash/ipc-renderer';
 import type { WorkspaceIpcType } from '../electron/main/handlers/workspace/ipc-renderer';
+import type { YtDlpIpcRendererType } from '../electron/main/handlers/ytdlp/ipc-renderer';
 import type { PluginResourceIpcType } from '../electron/main/plugins/ipc-renderer';
 import type { ShortcutsBridgeType } from '../electron/preload/apis/shortcuts';
 import type { SpriteBridgeType } from '../electron/preload/apis/sprite';
@@ -58,6 +59,7 @@ declare global {
       theme: ThemeIpcType;
       sherpa: SherpaIpcRendererType;
       preferences: PreferencesIpcType;
+      ytdlp: YtDlpIpcRendererType;
       ai: AIApi;
       events: {
         on: (callback: (payload: AppEventPayload) => void) => () => void;
