@@ -1,9 +1,41 @@
+import { existsSync, mkdirSync, renameSync, unlinkSync } from 'node:fs';
+import type { Agent as HttpAgent } from 'node:http';
+import type { Agent as HttpsAgent } from 'node:https';
 import path from 'node:path';
 
+import * as crypto from 'crypto';
+import fs from 'fs';
 // https://github.com/hgouveia/node-downloader-helper
 import { DownloaderHelper } from 'node-downloader-helper';
 
-import type { Downloader, DownloadOptions, DownloadProgress } from './types';
+export function calculateFileHash(filePath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash('sha256');
+    const input = fs.createReadStream(filePath);
+
+    input.on('error', reject);
+    hash.on('readable', () => {
+      const data = hash.read();
+      if (data) {
+        resolve(data.toString('hex'));
+      }
+    });
+
+    input.pipe(hash);
+  });
+}
+import type {
+  Downloader,
+  DownloaderProgressStats,
+  DownloadInfo,
+  DownloadOptions,
+  DownloadProgress,
+  HttpRequestOptionsForDownloader,
+  HttpsRequestOptionsForDownloader,
+  ProxyInfo,
+  RetryOptions
+} from './types';
+import { DownloadCancelledError, DownloadTimeoutError, HashMismatchError } from './types';
 
 /**
  * 基于 node-downloader-helper 的下载器
@@ -12,58 +44,143 @@ import type { Downloader, DownloadOptions, DownloadProgress } from './types';
  */
 const DEFAULT_STALL_TIMEOUT_MS = 60_000;
 const STALL_TIMER_INTERVAL_MS = 5_000;
+const DEFAULT_MAX_RETRIES = 3;
+const DEFAULT_RETRY_DELAY_MS = 2_000;
+const PROGRESS_THROTTLE_MS = 100; // 进度回调节流间隔（毫秒）
+
+/**
+ * 验证 URL 格式
+ */
+function validateUrl(url: string): void {
+  try {
+    const urlObj = new URL(url);
+    if (!['http:', 'https:'].includes(urlObj.protocol)) {
+      throw new Error('URL must use http or https protocol');
+    }
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new Error(`Invalid URL format: ${url}`);
+    }
+    throw error;
+  }
+}
+
+/**
+ * 验证并确保目标目录存在
+ */
+function ensureDestinationDir(destinationPath: string): void {
+  const dir = path.dirname(destinationPath);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+}
+
+/**
+ * 获取代理信息（用于日志记录）
+ */
+function getProxyInfo(proxyAgent: HttpAgent | HttpsAgent): ProxyInfo {
+  const proxyInfo: ProxyInfo = { type: proxyAgent.constructor.name };
+  try {
+    // 检查 proxyAgent 是否有 proxy 属性
+    const agentWithProxy = proxyAgent as HttpAgent & {
+      proxy?: string | { href?: string; host?: string; port?: number };
+    };
+    if ('proxy' in agentWithProxy && agentWithProxy.proxy) {
+      const proxy = agentWithProxy.proxy;
+      if (typeof proxy === 'string') {
+        proxyInfo.url = proxy;
+      } else if (proxy && typeof proxy === 'object') {
+        if (proxy.href) {
+          proxyInfo.url = proxy.href;
+        } else if (proxy.host && proxy.port) {
+          proxyInfo.host = proxy.host;
+          proxyInfo.port = proxy.port;
+        }
+      }
+    }
+  } catch {
+    // 忽略获取代理信息的错误
+  }
+  return proxyInfo;
+}
+
+/**
+ * 创建请求选项（包含代理配置）
+ */
+function createRequestOptions(proxyAgent?: HttpAgent | HttpsAgent): {
+  httpRequestOptions: HttpRequestOptionsForDownloader;
+  httpsRequestOptions: HttpsRequestOptionsForDownloader;
+} {
+  const httpRequestOptions: HttpRequestOptionsForDownloader = {};
+  const httpsRequestOptions: HttpsRequestOptionsForDownloader = {};
+
+  if (proxyAgent) {
+    httpRequestOptions.agent = proxyAgent as HttpAgent;
+    httpsRequestOptions.agent = proxyAgent as HttpsAgent;
+  }
+
+  return { httpRequestOptions, httpsRequestOptions };
+}
+
+/**
+ * 创建节流函数（专门用于进度回调）
+ */
+function createThrottledProgressCallback(callback: (progress: DownloadProgress) => void, delay: number): (progress: DownloadProgress) => void {
+  let lastCall = 0;
+  return (progress: DownloadProgress) => {
+    const now = Date.now();
+    if (now - lastCall >= delay) {
+      lastCall = now;
+      callback(progress);
+    }
+  };
+}
 
 export class NodeDownloaderHelper implements Downloader {
   async download(url: string, destinationPath: string, options?: DownloadOptions): Promise<string> {
+    // 输入验证
+    validateUrl(url);
+    ensureDestinationDir(destinationPath);
+
     const dir = path.dirname(destinationPath);
     const filename = path.basename(destinationPath);
     const stallTimeoutEnv = Number(process.env.DOWNLOAD_STALL_TIMEOUT_MS);
     const stallTimeoutMs = Number.isFinite(stallTimeoutEnv) && stallTimeoutEnv > 0 ? stallTimeoutEnv : DEFAULT_STALL_TIMEOUT_MS;
-    const { onProgress, signal, proxyAgent } = options ?? {};
+    const { onProgress, signal, proxyAgent, retry, sha256 } = options ?? {};
+
+    // 自动添加 .download 后缀作为临时文件名
+    const tempFilename = `${filename}.download`;
+    const tempPath = path.join(dir, tempFilename);
+    const finalPath = destinationPath;
 
     console.log('[DL-NDH] download initiated', {
       url,
-      destinationPath,
+      destinationPath: finalPath,
+      tempPath,
       dir,
-      filename
+      filename,
+      tempFilename,
+      sha256: sha256 ? 'provided' : 'not provided'
     });
 
     // 获取代理配置
-    console.log('[DL-NDH] proxyAgent', proxyAgent);
-
-    const httpRequestOptions: any = {};
-    const httpsRequestOptions: any = {};
-
     if (proxyAgent) {
-      // 尝试获取代理详细信息
-      const proxyInfo: any = { type: proxyAgent.constructor.name };
-      try {
-        if ('proxy' in proxyAgent && proxyAgent.proxy) {
-          const proxy = (proxyAgent as any).proxy;
-          if (typeof proxy === 'string') {
-            proxyInfo.url = proxy;
-          } else if (proxy.href) {
-            proxyInfo.url = proxy.href;
-          } else if (proxy.host && proxy.port) {
-            proxyInfo.host = proxy.host;
-            proxyInfo.port = proxy.port;
-          }
-        }
-      } catch (_e) {
-        console.log('[DL-NDH] error getting proxy info', _e);
-        // 忽略获取代理信息的错误
-      }
+      const proxyInfo = getProxyInfo(proxyAgent);
       console.log('[DL-NDH] using proxy', {
         ...proxyInfo,
         url
       });
-
-      // 设置代理 agent
-      httpRequestOptions.agent = proxyAgent;
-      httpsRequestOptions.agent = proxyAgent;
     } else {
       console.log('[DL-NDH] no proxy configured', { url });
     }
+
+    const { httpRequestOptions, httpsRequestOptions } = createRequestOptions(proxyAgent);
+
+    // 配置重试选项
+    const retryConfig = {
+      maxRetries: retry?.maxRetries ?? DEFAULT_MAX_RETRIES,
+      delay: retry?.delay ?? DEFAULT_RETRY_DELAY_MS
+    };
 
     return new Promise<string>((resolve, reject) => {
       let isAborted = false;
@@ -71,6 +188,16 @@ export class NodeDownloaderHelper implements Downloader {
       let stallTimer: NodeJS.Timeout | null = null;
       let lastProgressAt = Date.now();
       let timeoutTriggered = false;
+
+      /**
+       * 清理所有资源
+       */
+      const cleanup = (): void => {
+        clearStallTimer();
+        if (signal) {
+          signal.removeEventListener('abort', abortHandler);
+        }
+      };
 
       const clearStallTimer = (): void => {
         if (stallTimer) {
@@ -92,14 +219,13 @@ export class NodeDownloaderHelper implements Downloader {
                 filename,
                 stallTimeoutMs
               });
-              if (signal) {
-                signal.removeEventListener('abort', abortHandler);
-              }
+              cleanup();
               if (dl) {
-                dl.stop().catch(() => { });
+                dl.stop().catch(() => {
+                  //
+                });
               }
-              clearStallTimer();
-              reject(new Error('DownloadTimeout'));
+              reject(new DownloadTimeoutError());
             }
           },
           Math.min(stallTimeoutMs, STALL_TIMER_INTERVAL_MS)
@@ -110,51 +236,52 @@ export class NodeDownloaderHelper implements Downloader {
       const abortHandler = (): void => {
         isAborted = true;
         console.log('[DL-NDH] download cancelled', { url });
+        cleanup();
         if (dl) {
           dl.stop().catch(() => {
             //
           });
         }
-        reject(new Error('DownloadCancelled'));
+        reject(new DownloadCancelledError());
       };
 
       if (signal) {
         if (signal.aborted) {
-          reject(new Error('DownloadCancelled'));
+          reject(new DownloadCancelledError());
           return;
         }
         signal.addEventListener('abort', abortHandler, { once: true });
       }
 
-      // 创建下载器实例
+      // 创建下载器实例，使用临时文件名（带 .download 后缀）
       dl = new DownloaderHelper(url, dir, {
-        fileName: filename,
+        fileName: tempFilename,
         resumeIfFileExists: true, // 支持断点续传
         removeOnStop: false, // 停止时不删除文件
         removeOnFail: false, // 失败时不删除文件
         httpRequestOptions,
         httpsRequestOptions,
-        retry: {
-          maxRetries: 3, // 最大重试次数
-          delay: 2000 // 重试延迟（毫秒）
-        }
+        retry: retryConfig
       });
 
       // 监听下载开始
       dl.on('start', () => {
-        console.log('[DL-NDH] download started', { url, filename });
+        console.log('[DL-NDH] download started', { url, filename: tempFilename });
         lastProgressAt = Date.now();
         setupStallTimer();
       });
 
+      // 创建节流的进度回调
+      const throttledProgress = onProgress ? createThrottledProgressCallback(onProgress, PROGRESS_THROTTLE_MS) : undefined;
+
       // 监听下载进度
-      dl.on('progress', (stats: any) => {
+      dl.on('progress', (stats: DownloaderProgressStats) => {
         if (isAborted) return;
         lastProgressAt = Date.now();
 
         // stats 可能包含: { progress, speed, downloaded, total, eta }
         // speed 是字节/秒（B/s）
-        const downloaded = stats.downloaded || 0;
+        const downloaded = stats.downloaded ?? 0;
         const total = stats.total;
         const speedBps = stats.speed; // 字节/秒
         const etaSeconds = stats.eta; // 秒
@@ -170,38 +297,71 @@ export class NodeDownloaderHelper implements Downloader {
           percentage: percentage
         };
 
-        if (onProgress) {
-          onProgress(progress);
+        if (throttledProgress) {
+          throttledProgress(progress);
         }
-
-        // console.log('[DL-NDH] progress', stats.progress ? stats.progress.toFixed(2) + '%' : undefined);
       });
 
       // 监听下载完成
-      dl.on('end', (downloadInfo: any) => {
+      dl.on('end', async (downloadInfo?: DownloadInfo) => {
         if (isAborted) return;
 
-        const finalPath = path.join(dir, filename);
+        const downloadedFilePath = downloadInfo?.filePath || tempPath;
         console.log('[DL-NDH] download completed', {
           url,
-          destinationPath: finalPath,
-          filePath: downloadInfo?.filePath,
+          downloadedFilePath,
+          finalPath,
           fileSize: downloadInfo?.fileSize
         });
 
-        // 清理取消监听
-        if (signal) {
-          signal.removeEventListener('abort', abortHandler);
-        }
-        clearStallTimer();
+        try {
+          // 如果提供了 sha256，进行 hash 验证
+          if (sha256) {
+            console.log('[DL-NDH] verifying hash', { url, downloadedFilePath });
+            const digest = await calculateFileHash(downloadedFilePath);
+            if (digest !== sha256) {
+              console.error('[DL-NDH] hash mismatch', {
+                url,
+                expected: sha256,
+                actual: digest
+              });
+              // hash 不匹配，删除文件
+              if (existsSync(downloadedFilePath)) {
+                unlinkSync(downloadedFilePath);
+              }
+              cleanup();
+              reject(new HashMismatchError('Hash mismatch', sha256, digest));
+              return;
+            }
+            console.log('[DL-NDH] hash verified', { url });
+          }
 
-        resolve(finalPath);
+          // hash 验证通过（或未提供 hash），重命名文件去掉 .download 后缀
+          if (existsSync(downloadedFilePath)) {
+            renameSync(downloadedFilePath, finalPath);
+            console.log('[DL-NDH] file renamed', { from: downloadedFilePath, to: finalPath });
+          }
+
+          cleanup();
+          resolve(finalPath);
+        } catch (error) {
+          // 如果 hash 验证或重命名失败，清理文件
+          if (existsSync(downloadedFilePath)) {
+            try {
+              unlinkSync(downloadedFilePath);
+            } catch {
+              // 忽略删除错误
+            }
+          }
+          cleanup();
+          reject(error);
+        }
       });
 
       // 监听下载错误
       dl.on('error', (error) => {
         if (isAborted) return;
-        clearStallTimer();
+        cleanup();
 
         console.error('[DL-NDH] download error', {
           url,
@@ -209,24 +369,19 @@ export class NodeDownloaderHelper implements Downloader {
           stack: error instanceof Error ? error.stack : undefined
         });
 
-        // 清理取消监听
-        if (signal) {
-          signal.removeEventListener('abort', abortHandler);
-        }
-
         reject(error);
       });
 
       dl.on('timeout', () => {
-        console.warn('[DL-NDH] underlying socket timeout detected', { url, filename });
+        console.warn('[DL-NDH] underlying socket timeout detected', { url, filename: tempFilename });
       });
 
       // 监听重试
-      dl.on('retry', (attempt: number, retryOptions: any) => {
+      dl.on('retry', (attempt: number, retryOptions?: RetryOptions) => {
         console.warn('[DL-NDH] retrying download', {
           url,
           attempt,
-          maxRetries: retryOptions?.maxRetries || 3
+          maxRetries: retryOptions?.maxRetries ?? 3
         });
       });
 
@@ -243,7 +398,7 @@ export class NodeDownloaderHelper implements Downloader {
       // 监听停止
       dl.on('stop', () => {
         console.log('[DL-NDH] download stopped', { url });
-        clearStallTimer();
+        cleanup();
       });
 
       // 开始下载
@@ -256,12 +411,7 @@ export class NodeDownloaderHelper implements Downloader {
           stack: error instanceof Error ? error.stack : undefined
         });
 
-        // 清理取消监听
-        if (signal) {
-          signal.removeEventListener('abort', abortHandler);
-        }
-        clearStallTimer();
-
+        cleanup();
         reject(error);
       });
     });
