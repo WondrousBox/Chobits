@@ -1,6 +1,8 @@
-export const SERVICE = 'chobits-ai';
+import pkg from '../../../package.json';
 
-export const DOWNLOAD_FOLDER_NAME = 'ChobitsDownloads';
+export const SERVICE = `${pkg.name.toLowerCase()}-ai`;
+
+export const DOWNLOAD_FOLDER_NAME = `${pkg.name}Downloads`;
 
 // Instance-level secrets (stored with different service id to avoid clash)
-export const SERVICE_INST = 'chobits-ai-instance';
+export const SERVICE_INST = `${pkg.name.toLowerCase()}-ai-instance`;

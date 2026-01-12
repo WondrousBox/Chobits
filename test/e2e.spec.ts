@@ -4,6 +4,8 @@ import type { BrowserWindow } from 'electron';
 import { _electron as electron, type ElectronApplication, type JSHandle, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 
+import pkg from '../package.json';
+
 const root = path.join(__dirname, '..');
 let electronApp: ElectronApplication;
 let page: Page;
@@ -35,7 +37,7 @@ if (process.platform === 'linux') {
   describe('[electron-vite-react] e2e tests', async () => {
     test('startup', async () => {
       const title = await page.title();
-      expect(title).eq('Chobits');
+      expect(title).eq(pkg.name);
     });
   });
 }

@@ -2,7 +2,7 @@ import { windowManager } from '@aim-packages/window-manager';
 import { BrowserWindow, ipcMain, screen } from 'electron';
 
 import { getMainWindow } from '../../index';
-import { downloadManager, getSetting, getThumbnail, getVideoInfo, setSetting } from '.';
+import { downloadManager, getSetting, getThumbnail, getVideoInfo, setSetting, YTDLP_CONFIG_FILE } from '.';
 
 export function initDownloadHandlers(win: BrowserWindow): void {
   console.log('[VideoDownload] Initializing video download handlers');
@@ -261,6 +261,19 @@ export function initDownloadHandlers(win: BrowserWindow): void {
       return { success: true };
     } catch (error) {
       console.error('[VideoDownload] Failed to set external resource settings:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+
+  // 获取 yt-dlp 配置文件路径
+  ipcMain.handle('video-downloader:get-config-path', async () => {
+    try {
+      return { success: true, data: { configPath: YTDLP_CONFIG_FILE } };
+    } catch (error) {
+      console.error('[VideoDownload] Failed to get config path:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error)
