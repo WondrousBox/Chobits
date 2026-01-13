@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { SidebarProvider } from '@/components/ui/sidebar';
 import SettingsPage, { SettingsCategory } from '@/pages/SettingsPage/SettingsPage';
 
+import AppsPage from './AppsPage';
 import { UIFolder } from './components/FolderSidebar';
 import RenameFolderDialog from './components/layout/RenameFolderDialog';
 import ResourceContent from './components/layout/ResourceContent';
@@ -22,6 +23,7 @@ import { useResourceUpload } from './hooks/useResourceUpload';
 import { useViewMode } from './hooks/useViewMode';
 import { useWorkflowProgress } from './hooks/useWorkflowProgress';
 import RecycleBinPage from './RecycleBinPage';
+import ResourcePreviewWindow from './ResourcePreviewWindow';
 import { SelectedResourceFileType, SortField, SortOrder } from './types';
 import { typeOptions } from './utils/constants';
 import { mergeVideoWithSubtitles } from './utils/subtitleUtils';
@@ -392,7 +394,9 @@ const ResourcePage: React.FC = () => {
         <Routes>
           <Route path="tasks" element={<TaskList workspaceId={wsFilter} />} />
           <Route path="workflows" element={<WorkflowPage />} />
+          <Route path="apps" element={<AppsPage />} />
           <Route path="recycle" element={<RecycleBinPage hideTitleBar />} />
+          <Route path="preview/:resourceId" element={<ResourcePreviewWindow />} />
           <Route
             path="*"
             element={

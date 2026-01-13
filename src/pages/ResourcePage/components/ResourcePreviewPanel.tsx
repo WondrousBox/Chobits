@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TbExternalLink, TbX } from 'react-icons/tb';
+import { useNavigate } from 'react-router-dom';
+import { TbExternalLink, TbMaximize, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { BroadcastChannelManager, CHANNEL_NAMES, type MediaSyncMessage } from '@/utils/broadcastChannels';
@@ -27,6 +28,7 @@ interface ResourcePreviewPanelProps {
  * 在主界面右侧滑出显示资源预览，支持视频、音频、图片、文本、字幕等类型
  */
 const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, resourceList, onClose, onResourceChange }) => {
+  const navigate = useNavigate();
   const [data, setData] = useState<ResourceItem>(resource);
   const [subtitleList, setSubtitleList] = useState<ResourceItem[]>([]);
   const [activeSubtitle, setActiveSubtitle] = useState<ResourceItem | null>(null);
@@ -166,6 +168,28 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
       <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30 shrink-0">
         <div className="text-xs font-medium truncate flex-1 mr-2">{title}</div>
         <div className="flex items-center gap-1">
+          <Button
+            size="icon"
+            className="w-7 h-7"
+            variant="ghost"
+            onClick={() => {
+              // 获取当前播放时间并暂停视频
+              let startTime: number | undefined;
+              if ((isVideo || isAudio) && mediaPlayerRef.current) {
+                startTime = mediaPlayerRef.current.getCurrentTime();
+                mediaPlayerRef.current.pause();
+              }
+              // 通过路由跳转到大屏预览模式
+              const searchParams = new URLSearchParams();
+              if (startTime && startTime > 0) {
+                searchParams.set('startTime', startTime.toString());
+              }
+              navigate(`/resources/preview/${data.id}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`);
+            }}
+            title="展开大屏模式"
+          >
+            <TbMaximize className="w-4 h-4" />
+          </Button>
           <Button
             size="icon"
             className="w-7 h-7"
