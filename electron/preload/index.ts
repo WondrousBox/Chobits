@@ -14,6 +14,7 @@ import { folderIpcRenderer } from '../main/handlers/folder/ipc-renderer';
 import { preferencesIpcRenderer } from '../main/handlers/preferences/ipc-renderer';
 import { proxyIpcRenderer } from '../main/handlers/proxy/ipc-renderer';
 import { resourceIpcRenderer } from '../main/handlers/resource/ipc-renderer';
+import { createRssApi } from '../main/handlers/rss/ipc-renderer';
 import { systemIpcRenderer } from '../main/handlers/system/ipc-renderer';
 import { themeIpcRenderer } from '../main/handlers/theme/ipc-renderer';
 import { trashIpcRenderer } from '../main/handlers/trash/ipc-renderer';
@@ -82,6 +83,7 @@ contextBridge.exposeInMainWorld('YUA', {
   sherpa: sherpaIpcRenderer,
   preferences: preferencesIpcRenderer,
   ytdlp: ytdlpIpcRenderer,
+  rss: createRssApi(ipcRenderer),
   events: {
     on: (callback: (payload: AppEventPayload) => void) => {
       const subscription = (_event: any, payload: AppEventPayload): void => callback(payload);

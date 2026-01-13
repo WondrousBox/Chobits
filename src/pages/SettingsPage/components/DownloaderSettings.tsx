@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 
 import { SettingGroup, SettingItem } from './SettingComponents';
-import YouTubeSubscriptions from './YouTubeSubscriptions';
 
 interface ReleaseInfo {
   tag_name: string;
@@ -462,9 +461,6 @@ const DownloaderSettings: React.FC = () => {
           </SettingItem>
         </>
       )}
-
-      {/* YouTube 频道订阅 */}
-      <YouTubeSubscriptions />
     </SettingGroup>
   );
 };

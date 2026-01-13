@@ -9,6 +9,7 @@ import type { FolderIpcType } from '../electron/main/handlers/folder/ipc-rendere
 import type { PreferencesIpcType } from '../electron/main/handlers/preferences/ipc-renderer';
 import type { ProxyIpcType } from '../electron/main/handlers/proxy/ipc-renderer';
 import type { ResourceIpcType } from '../electron/main/handlers/resource/ipc-renderer';
+import type { RssApi } from '../electron/main/handlers/rss/ipc-renderer';
 import type { SystemIpcType } from '../electron/main/handlers/system/ipc-renderer';
 import type { ThemeIpcType } from '../electron/main/handlers/theme/ipc-renderer';
 import type { TrashIpcType } from '../electron/main/handlers/trash/ipc-renderer';
@@ -60,6 +61,7 @@ declare global {
       sherpa: SherpaIpcRendererType;
       preferences: PreferencesIpcType;
       ytdlp: YtDlpIpcRendererType;
+      rss: RssApi;
       ai: AIApi;
       events: {
         on: (callback: (payload: AppEventPayload) => void) => () => void;

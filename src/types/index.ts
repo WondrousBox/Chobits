@@ -8,3 +8,6 @@ export interface ErrorType {
   message: string;
   error: Error;
 }
+
+// RSS 相关类型
+export * from './rss';

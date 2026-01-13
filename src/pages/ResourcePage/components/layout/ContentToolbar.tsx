@@ -1,5 +1,5 @@
-import React from 'react';
-import { TbFilter, TbGrid3X3, TbLayoutGrid, TbList, TbRefresh, TbRobot, TbSearch, TbStack2 } from 'react-icons/tb';
+import React, { useState } from 'react';
+import { TbFilter, TbGrid3X3, TbLayoutGrid, TbList, TbRefresh, TbRobot, TbRss, TbSearch, TbStack2 } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 
 import { SortField, SortOrder, ViewMode } from '../../types';
 import { ALL_TAG_VALUE } from '../../utils/constants';
+import AddRssDialog from '../AddRssDialog';
 import { AutomationRulesDialog } from '../automation/AutomationRulesDialog';
 
 interface ContentToolbarProps {
@@ -67,7 +68,8 @@ const ContentToolbar: React.FC<ContentToolbarProps> = ({
   showCollapseSuggestion,
   setShowCollapseSuggestion
 }) => {
-  const [showAutomationRules, setShowAutomationRules] = React.useState(false);
+  const [showAutomationRules, setShowAutomationRules] = useState(false);
+  const [showAddRss, setShowAddRss] = useState(false);
 
   return (
     <div className="flex items-center justify-between px-3 py-2 border-b bg-background">
@@ -162,6 +164,17 @@ const ContentToolbar: React.FC<ContentToolbarProps> = ({
             </div>
           </PopoverContent>
         </Popover>
+
+        {/* 添加订阅按钮 */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button size="icon" className="w-8 h-8 shrink-0" variant="ghost" onClick={() => setShowAddRss(true)}>
+              <TbRss />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>添加订阅</TooltipContent>
+        </Tooltip>
+        <AddRssDialog open={showAddRss} onOpenChange={setShowAddRss} workspaceId={wsFilter} folderId={folderFilter} onSuccess={load} />
 
         {/* 刷新按钮 */}
         <Tooltip>

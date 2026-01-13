@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TbFolderFilled, TbFolderOpen, TbFolderPlus, TbLine, TbPencil, TbTrash } from 'react-icons/tb';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,7 @@ import { ResourceItem } from '../types';
 import { ResourceItemWithSubtitles } from '../utils/subtitleUtils';
 import type { UIFolder } from './FolderSidebar';
 import ResourceGalleryItem from './ResourceGalleryItem';
+import RssSubscriptionCard from './RssSubscriptionCard';
 // Inline folder tile for grid view to avoid cross-file resolution issues
 const GridFolderTile: React.FC<{
   folder: UIFolder;
@@ -231,6 +233,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
   onPreview,
   totalCount = 0
 }) => {
+  const navigate = useNavigate();
   const taskStatuses = useResourceTaskStatus();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -548,89 +551,107 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
             onKeyDown={handleKeyDown}
             onContextMenu={handleContextMenu}
           >
-          {/* 先渲染子文件夹 */}
-          {(folders || []).map((f) => (
-            <GridFolderTile
-              key={`folder-${f.id}`}
-              folder={f}
-              count={counts?.[f.id]}
-              onOpen={() => onOpenFolder?.(f.id)}
-              onDropResources={(ids: string[]) => onDropResourcesToFolder?.(f.id, ids)}
-              onMoveFolder={(id, newPid) => onMoveFolder?.(id, newPid)}
-              parentMap={parentMap}
-              draggingFolderId={draggingFolderId}
-              setDraggingFolderId={setDraggingFolderId}
-              onRename={() => onRenameFolder?.(f.id)}
-              onDelete={() => onDeleteFolder?.(f.id)}
-              onOpenLocation={() => onOpenFolderLocation?.(f.id)}
-            />
-          ))}
+            {/* 先渲染子文件夹 */}
+            {(folders || []).map((f) => (
+              <GridFolderTile
+                key={`folder-${f.id}`}
+                folder={f}
+                count={counts?.[f.id]}
+                onOpen={() => onOpenFolder?.(f.id)}
+                onDropResources={(ids: string[]) => onDropResourcesToFolder?.(f.id, ids)}
+                onMoveFolder={(id, newPid) => onMoveFolder?.(id, newPid)}
+                parentMap={parentMap}
+                draggingFolderId={draggingFolderId}
+                setDraggingFolderId={setDraggingFolderId}
+                onRename={() => onRenameFolder?.(f.id)}
+                onDelete={() => onDeleteFolder?.(f.id)}
+                onOpenLocation={() => onOpenFolderLocation?.(f.id)}
+              />
+            ))}
 
-          {/* 再渲染资源项 */}
-          {mergedItems.map((item, idx) => {
-            const isSelected = selected.has(item.id);
-            const isNew = highlightedIds?.has(item.id);
-            return (
-              <div key={item.id} className="aspect-video w-full">
-                <ResourceGalleryItem
-                  item={item}
-                  selected={isSelected}
-                  isNew={!!isNew}
-                  innerRef={updateItemRef(item.id)}
-                  onClick={(e) => handleItemClick(e, item.id, idx)}
-                  onToggleFavorite={onToggleFavorite}
-                  onToggleVisibility={onToggleVisibility}
-                  taskStatus={taskStatuses[item.id]}
-                  onPreview={() => {
-                    const current = mergedItems[idx];
-                    if (!current) return;
-                    // 使用父组件传入的 onPreview 回调（侧边面板预览）
-                    if (onPreview) {
-                      onPreview(current);
-                    } else {
-                      // 如果没有传入回调，则使用独立窗口预览（后备方案）
-                      window.YUA.window['window:open'](
-                        'resourcePreview',
-                        {
-                          current,
-                          list: mergedItems,
-                          index: idx
-                        },
-                        {
-                          sameDisplayAsSender: true
-                        }
-                      );
-                    }
-                  }}
-                  draggable
-                  onDragStart={(e: React.DragEvent) => {
-                    // 如果当前 item 已在多选中，则拖拽这些被选中的；否则仅拖该项
-                    const ids = selected.has(item.id) && selected.size > 0 ? Array.from(selected) : [item.id];
-                    try {
-                      e.dataTransfer.setData('application/x-resource-ids', JSON.stringify(ids));
-                      e.dataTransfer.effectAllowed = 'move';
-                      e.dataTransfer.dropEffect = 'move';
-                    } catch {
-                      /* ignore */
-                    }
-                  }}
-                  fillContainer
-                />
-              </div>
-            );
-          })}
+            {/* 再渲染资源项 */}
+            {mergedItems.map((item, idx) => {
+              const isSelected = selected.has(item.id);
+              const isNew = highlightedIds?.has(item.id);
 
-          {isDragging && selectionRect && (
-            <div
-              className="absolute pointer-events-none border-2 border-primary/60 bg-primary/10 rounded"
-              style={{
-                left: selectionRect.left,
-                top: selectionRect.top,
-                width: selectionRect.right - selectionRect.left,
-                height: selectionRect.bottom - selectionRect.top
-              }}
-            />
-          )}
+              // RSS 类型资源使用专门的卡片
+              if (item.type === 'rss') {
+                return (
+                  <div key={item.id} className="aspect-video w-full">
+                    <RssSubscriptionCard
+                      item={item}
+                      selected={isSelected}
+                      innerRef={updateItemRef(item.id)}
+                      onClick={(e) => handleItemClick(e, item.id, idx)}
+                      onToggleFavorite={onToggleFavorite}
+                      onDelete={onDelete}
+                      onOpenFeed={() => navigate(`/resources/rss/${item.id}`)}
+                    />
+                  </div>
+                );
+              }
+
+              return (
+                <div key={item.id} className="aspect-video w-full">
+                  <ResourceGalleryItem
+                    item={item}
+                    selected={isSelected}
+                    isNew={!!isNew}
+                    innerRef={updateItemRef(item.id)}
+                    onClick={(e) => handleItemClick(e, item.id, idx)}
+                    onToggleFavorite={onToggleFavorite}
+                    onToggleVisibility={onToggleVisibility}
+                    taskStatus={taskStatuses[item.id]}
+                    onPreview={() => {
+                      const current = mergedItems[idx];
+                      if (!current) return;
+                      // 使用父组件传入的 onPreview 回调（侧边面板预览）
+                      if (onPreview) {
+                        onPreview(current);
+                      } else {
+                        // 如果没有传入回调，则使用独立窗口预览（后备方案）
+                        window.YUA.window['window:open'](
+                          'resourcePreview',
+                          {
+                            current,
+                            list: mergedItems,
+                            index: idx
+                          },
+                          {
+                            sameDisplayAsSender: true
+                          }
+                        );
+                      }
+                    }}
+                    draggable
+                    onDragStart={(e: React.DragEvent) => {
+                      // 如果当前 item 已在多选中，则拖拽这些被选中的；否则仅拖该项
+                      const ids = selected.has(item.id) && selected.size > 0 ? Array.from(selected) : [item.id];
+                      try {
+                        e.dataTransfer.setData('application/x-resource-ids', JSON.stringify(ids));
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.dropEffect = 'move';
+                      } catch {
+                        /* ignore */
+                      }
+                    }}
+                    fillContainer
+                  />
+                </div>
+              );
+            })}
+
+            {isDragging && selectionRect && (
+              <div
+                className="absolute pointer-events-none border-2 border-primary/60 bg-primary/10 rounded"
+                style={{
+                  left: selectionRect.left,
+                  top: selectionRect.top,
+                  width: selectionRect.right - selectionRect.left,
+                  height: selectionRect.bottom - selectionRect.top
+                }}
+              />
+            )}
           </div>
 
           {/* 底部统计信息 */}
