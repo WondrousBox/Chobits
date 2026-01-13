@@ -2,8 +2,8 @@ import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
 import http from 'node:http';
 import https from 'node:https';
-import { resolve } from 'node:path';
 import path from 'node:path';
+import { resolve } from 'node:path';
 
 import { app, BrowserWindow } from 'electron';
 import { HttpsProxyAgent } from 'https-proxy-agent';
@@ -15,8 +15,10 @@ import { ResourcesRepo, WorkspacesRepo } from '../../db/repositories';
 import { binPathLog } from '../../logger';
 import { getResourcePath } from '../../utils/resources-path';
 import { generateThumbnailForResource } from '../../utils/thumbnail';
+import { getHttpProxy as getSystemHttpProxy } from '../proxy/proxy';
 import { ensureDailyFolder } from '../resource';
 import { getCurrentBinaryPath } from '../ytdlp/updater';
+import { subscriptionManager, type YouTubeSubscription } from './subscription-manager';
 
 // 默认文件夹配置
 const DEFAULT_FOLDERS = {
@@ -99,7 +101,7 @@ async function downloadImageFromUrl(url: string, filename: string, folder: strin
         });
 
         fileStream.on('error', (err) => {
-          fs.unlink(thumbnailPath, () => {}); // 删除部分下载的文件
+          fs.unlink(thumbnailPath, () => { }); // 删除部分下载的文件
           reject(err);
         });
       });
@@ -268,9 +270,9 @@ function getFileNameWithoutExtension(filePath: string): string {
   return path.basename(filePath, path.extname(filePath));
 }
 
-function getHttpProxy(): any {
-  // 简化实现，返回null表示无代理
-  return null;
+function getHttpProxy(): HttpsProxyAgent<string> | SocksProxyAgent | undefined {
+  // 使用系统的代理功能
+  return getSystemHttpProxy();
 }
 
 // 外部资源设置存储
@@ -287,8 +289,6 @@ const SETTINGS_DIR = path.join(app.getPath('userData'), 'data');
 const SETTINGS_FILE = path.join(SETTINGS_DIR, 'external-resource-settings.json');
 // yt-dlp 配置文件路径（标准格式）
 const YTDLP_CONFIG_FILE = path.join(SETTINGS_DIR, 'yt-dlp.conf');
-// 订阅数据文件路径
-const SUBSCRIPTIONS_FILE = path.join(SETTINGS_DIR, 'youtube-subscriptions.json');
 
 function ensureSettingsDir(): void {
   if (!fs.existsSync(SETTINGS_DIR)) {
@@ -1044,349 +1044,6 @@ export async function getThumbnail(url: string): Promise<string> {
 // 创建全局下载管理器实例
 export const downloadManager = new DownloadManager();
 
-// YouTube 订阅相关类型和接口
-export interface YouTubeSubscription {
-  id: string; // 订阅 ID
-  channelId: string; // YouTube 频道 ID
-  channelName: string; // 频道名称
-  rssUrl: string; // RSS feed URL
-  enabled: boolean; // 是否启用
-  autoDownload: boolean; // 是否自动下载
-  lastChecked?: number; // 最后检查时间（时间戳）
-  lastVideoId?: string; // 最后下载的视频 ID
-  createdAt: number; // 创建时间
-  updatedAt: number; // 更新时间
-}
-
-interface SubscriptionData {
-  subscriptions: YouTubeSubscription[];
-  downloadedVideos: Record<string, string[]>; // channelId -> videoId[]
-}
-
-// 订阅管理器
-class SubscriptionManager {
-  private data: SubscriptionData = {
-    subscriptions: [],
-    downloadedVideos: {}
-  };
-  private checkInterval?: NodeJS.Timeout;
-
-  constructor() {
-    this.loadData();
-  }
-
-  // 加载订阅数据
-  private loadData(): void {
-    ensureSettingsDir();
-    try {
-      if (fs.existsSync(SUBSCRIPTIONS_FILE)) {
-        const content = fs.readFileSync(SUBSCRIPTIONS_FILE, 'utf8');
-        this.data = { ...this.data, ...JSON.parse(content) };
-      }
-    } catch (error) {
-      console.warn('[SubscriptionManager] Failed to load subscriptions:', error);
-    }
-  }
-
-  // 保存订阅数据
-  private saveData(): void {
-    ensureSettingsDir();
-    try {
-      fs.writeFileSync(SUBSCRIPTIONS_FILE, JSON.stringify(this.data, null, 2), 'utf8');
-    } catch (error) {
-      console.error('[SubscriptionManager] Failed to save subscriptions:', error);
-    }
-  }
-
-  // 获取所有订阅
-  getAllSubscriptions(): YouTubeSubscription[] {
-    return [...this.data.subscriptions];
-  }
-
-  // 根据 ID 获取订阅
-  getSubscription(id: string): YouTubeSubscription | undefined {
-    return this.data.subscriptions.find((s) => s.id === id);
-  }
-
-  // 添加订阅
-  addSubscription(subscription: Omit<YouTubeSubscription, 'id' | 'createdAt' | 'updatedAt'>): YouTubeSubscription {
-    const newSubscription: YouTubeSubscription = {
-      ...subscription,
-      id: generateUUID(),
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    };
-    this.data.subscriptions.push(newSubscription);
-    this.saveData();
-    return newSubscription;
-  }
-
-  // 更新订阅
-  updateSubscription(id: string, updates: Partial<YouTubeSubscription>): YouTubeSubscription | null {
-    const index = this.data.subscriptions.findIndex((s) => s.id === id);
-    if (index === -1) return null;
-
-    this.data.subscriptions[index] = {
-      ...this.data.subscriptions[index],
-      ...updates,
-      updatedAt: Date.now()
-    };
-    this.saveData();
-    return this.data.subscriptions[index];
-  }
-
-  // 删除订阅
-  deleteSubscription(id: string): boolean {
-    const index = this.data.subscriptions.findIndex((s) => s.id === id);
-    if (index === -1) return false;
-
-    const subscription = this.data.subscriptions[index];
-    this.data.subscriptions.splice(index, 1);
-    // 删除该频道的下载记录
-    delete this.data.downloadedVideos[subscription.channelId];
-    this.saveData();
-    return true;
-  }
-
-  // 标记视频已下载
-  markVideoDownloaded(channelId: string, videoId: string): void {
-    if (!this.data.downloadedVideos[channelId]) {
-      this.data.downloadedVideos[channelId] = [];
-    }
-    if (!this.data.downloadedVideos[channelId].includes(videoId)) {
-      this.data.downloadedVideos[channelId].push(videoId);
-      this.saveData();
-    }
-  }
-
-  // 检查视频是否已下载
-  isVideoDownloaded(channelId: string, videoId: string): boolean {
-    return this.data.downloadedVideos[channelId]?.includes(videoId) || false;
-  }
-
-  // 获取频道的已下载视频列表
-  getDownloadedVideos(channelId: string): string[] {
-    return this.data.downloadedVideos[channelId] || [];
-  }
-
-  // 开始定期检查订阅
-  startPeriodicCheck(intervalMinutes: number = 60, onNewVideo?: (subscription: YouTubeSubscription, videoId: string, videoUrl: string) => void): void {
-    if (this.checkInterval) {
-      clearInterval(this.checkInterval);
-    }
-
-    this.checkInterval = setInterval(
-      async () => {
-        await this.checkAllSubscriptions(onNewVideo);
-      },
-      intervalMinutes * 60 * 1000
-    );
-
-    // 立即执行一次检查
-    this.checkAllSubscriptions(onNewVideo).catch((error) => {
-      console.error('[SubscriptionManager] Error in initial subscription check:', error);
-    });
-  }
-
-  // 停止定期检查
-  stopPeriodicCheck(): void {
-    if (this.checkInterval) {
-      clearInterval(this.checkInterval);
-      this.checkInterval = undefined;
-    }
-  }
-
-  // 检查所有启用的订阅
-  async checkAllSubscriptions(onNewVideo?: (subscription: YouTubeSubscription, videoId: string, videoUrl: string) => void): Promise<void> {
-    const enabledSubscriptions = this.data.subscriptions.filter((s) => s.enabled);
-    console.log(`[SubscriptionManager] Checking ${enabledSubscriptions.length} subscriptions...`);
-
-    for (const subscription of enabledSubscriptions) {
-      try {
-        await this.checkSubscription(subscription, onNewVideo);
-      } catch (error) {
-        console.error(`[SubscriptionManager] Error checking subscription ${subscription.id}:`, error);
-      }
-    }
-  }
-
-  // 检查单个订阅
-  async checkSubscription(subscription: YouTubeSubscription, onNewVideo?: (subscription: YouTubeSubscription, videoId: string, videoUrl: string) => void): Promise<void> {
-    try {
-      const videos = await this.fetchRSSFeed(subscription.rssUrl);
-      if (videos.length === 0) return;
-
-      // 获取最新的视频
-      const latestVideo = videos[0];
-      const videoId = this.extractVideoId(latestVideo.link);
-
-      // 如果这是第一个检查，只更新最后检查时间和最后视频 ID，不下载
-      if (!subscription.lastVideoId) {
-        this.updateSubscription(subscription.id, {
-          lastChecked: Date.now(),
-          lastVideoId: videoId
-        });
-        return;
-      }
-
-      // 检查是否有新视频
-      if (videoId !== subscription.lastVideoId && !this.isVideoDownloaded(subscription.channelId, videoId)) {
-        console.log(`[SubscriptionManager] New video found for ${subscription.channelName}: ${latestVideo.title}`);
-
-        // 更新订阅信息
-        this.updateSubscription(subscription.id, {
-          lastChecked: Date.now(),
-          lastVideoId: videoId
-        });
-
-        // 如果启用了自动下载，触发下载
-        if (subscription.autoDownload && onNewVideo) {
-          onNewVideo(subscription, videoId, latestVideo.link);
-        }
-      }
-    } catch (error) {
-      console.error(`[SubscriptionManager] Error checking subscription ${subscription.channelName}:`, error);
-    }
-  }
-
-  // 从 RSS URL 获取视频列表
-  private async fetchRSSFeed(rssUrl: string): Promise<Array<{ title: string; link: string; published: string }>> {
-    return new Promise((resolve, reject) => {
-      const client = rssUrl.startsWith('https:') ? https : http;
-
-      client
-        .get(rssUrl, (res) => {
-          if (res.statusCode !== 200) {
-            reject(new Error(`HTTP ${res.statusCode}: ${res.statusMessage}`));
-            return;
-          }
-
-          let data = '';
-          res.on('data', (chunk) => {
-            data += chunk;
-          });
-
-          res.on('end', () => {
-            try {
-              const videos = this.parseRSSFeed(data);
-              resolve(videos);
-            } catch (error) {
-              reject(error);
-            }
-          });
-        })
-        .on('error', reject);
-    });
-  }
-
-  // 解析 RSS feed XML
-  private parseRSSFeed(xml: string): Array<{ title: string; link: string; published: string }> {
-    const videos: Array<{ title: string; link: string; published: string }> = [];
-
-    // 简单的 XML 解析（使用正则表达式）
-    // 匹配 <entry> 标签
-    const entryRegex = /<entry>([\s\S]*?)<\/entry>/g;
-    let match;
-
-    while ((match = entryRegex.exec(xml)) !== null) {
-      const entry = match[1];
-
-      // 提取标题
-      const titleMatch = entry.match(/<title[^>]*>([\s\S]*?)<\/title>/);
-      const title = titleMatch ? titleMatch[1].trim() : '';
-
-      // 提取链接
-      const linkMatch = entry.match(/<link[^>]*href=["']([^"']+)["']/);
-      const link = linkMatch ? linkMatch[1] : '';
-
-      // 提取发布时间
-      const publishedMatch = entry.match(/<published[^>]*>([\s\S]*?)<\/published>/);
-      const published = publishedMatch ? publishedMatch[1].trim() : '';
-
-      if (title && link) {
-        videos.push({ title, link, published });
-      }
-    }
-
-    return videos;
-  }
-
-  // 从 YouTube URL 提取视频 ID
-  private extractVideoId(url: string): string {
-    // 支持多种 YouTube URL 格式
-    const patterns = [/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/, /\/watch\?v=([a-zA-Z0-9_-]{11})/];
-
-    for (const pattern of patterns) {
-      const match = url.match(pattern);
-      if (match) {
-        return match[1];
-      }
-    }
-
-    // 如果无法提取，返回 URL 的哈希值作为 ID
-    return url.split('/').pop() || url;
-  }
-
-  // 从频道 ID 生成 RSS URL
-  static generateRSSUrl(channelId: string): string {
-    // 移除可能的 @ 符号和 URL 前缀
-    const cleanId = channelId.replace(/^@/, '').replace(/^https?:\/\/(www\.)?youtube\.com\/(channel|c|user|@)\//, '');
-    return `https://www.youtube.com/feeds/videos.xml?channel_id=${cleanId}`;
-  }
-
-  // 从频道 URL 或 ID 提取频道 ID
-  static extractChannelId(input: string): { channelId: string; rssUrl: string } | null {
-    // 支持多种格式：
-    // - 频道 ID: UCxxxxx
-    // - 频道 URL: https://www.youtube.com/channel/UCxxxxx
-    // - 自定义 URL: https://www.youtube.com/@channelname
-    // - @channelname
-
-    let channelId = input.trim();
-
-    // 如果是完整的 URL
-    if (channelId.startsWith('http')) {
-      const urlMatch = channelId.match(/youtube\.com\/(channel|c|user|@)\/([^/?]+)/);
-      if (urlMatch) {
-        const type = urlMatch[1];
-        const id = urlMatch[2];
-
-        if (type === 'channel') {
-          return {
-            channelId: id,
-            rssUrl: `https://www.youtube.com/feeds/videos.xml?channel_id=${id}`
-          };
-        } else if (type === '@' || type === 'c' || type === 'user') {
-          // 对于自定义 URL，需要先获取频道 ID（这里简化处理，直接使用 RSS）
-          // 注意：YouTube RSS 需要频道 ID，对于 @username 需要先转换
-          // 这里我们假设用户输入的是频道 ID
-          return {
-            channelId: id,
-            rssUrl: `https://www.youtube.com/feeds/videos.xml?channel_id=${id}`
-          };
-        }
-      }
-    }
-
-    // 如果是 @username 格式
-    if (channelId.startsWith('@')) {
-      channelId = channelId.substring(1);
-    }
-
-    // 假设是频道 ID
-    if (channelId.length > 0) {
-      return {
-        channelId,
-        rssUrl: `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`
-      };
-    }
-
-    return null;
-  }
-}
-
-// 创建全局订阅管理器实例
-const subscriptionManager = new SubscriptionManager();
-
 // 导出设置管理函数和配置文件路径供 IPC 使用
-export { getSetting, setSetting, SubscriptionManager, subscriptionManager, YTDLP_CONFIG_FILE };
+export { getSetting, setSetting, subscriptionManager, YTDLP_CONFIG_FILE };
+export type { YouTubeSubscription };

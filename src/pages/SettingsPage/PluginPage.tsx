@@ -1,11 +1,42 @@
-import { isSystemPresetPlugin, PluginDefinition } from '@packages/plugins/types';
+import { isSystemPresetPlugin, PluginCategory, PluginDefinition } from '@packages/plugins/types';
 import { AnimatePresence, motion } from 'framer-motion';
-import React, { useEffect, useState } from 'react';
-import { TbBox, TbChevronDown, TbChevronRight, TbLoader, TbSettings, TbWifi } from 'react-icons/tb';
+import React, { useEffect, useMemo, useState } from 'react';
+import { TbBox, TbChevronDown, TbChevronRight, TbFilter, TbLoader, TbSettings, TbWifi, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+// 分类配置：中文名称和显示顺序
+const CATEGORY_CONFIG: { value: PluginCategory; label: string }[] = [
+  { value: 'core', label: '核心引擎' },
+  { value: 'asr', label: '语音识别' },
+  { value: 'tts', label: '语音合成' },
+  { value: 'stt', label: '语音转文字' },
+  { value: 'vad', label: '语音检测' },
+  { value: 'voice-clone', label: '声音克隆' },
+  { value: 'llm', label: '大语言模型' },
+  { value: 'nlp', label: '自然语言处理' },
+  { value: 'translation', label: '翻译' },
+  { value: 'punctuation', label: '标点恢复' },
+  { value: 'embedding', label: '文本嵌入' },
+  { value: 'image-gen', label: '图像生成' },
+  { value: 'image-edit', label: '图像编辑' },
+  { value: 'ocr', label: '文字识别' },
+  { value: 'image-recognition', label: '图像识别' },
+  { value: 'face', label: '人脸识别' },
+  { value: 'image-super-res', label: '图像超分' },
+  { value: 'video-gen', label: '视频生成' },
+  { value: 'video-edit', label: '视频编辑' },
+  { value: 'video-analysis', label: '视频分析' },
+  { value: 'multimodal', label: '多模态' },
+  { value: 'agent', label: 'AI代理' },
+  { value: 'code', label: '代码生成' },
+  { value: 'music', label: '音乐生成' },
+  { value: 'three-d', label: '3D生成' },
+  { value: 'other', label: '其他' }
+];
 
 import { NetworkCheckDialog } from './components/NetworkCheckDialog';
 import { PluginListItem } from './components/PluginListItem';
@@ -23,6 +54,19 @@ const PluginPage: React.FC<PluginPageProps> = () => {
   const [expandedPlugins, setExpandedPlugins] = useState<Set<string>>(new Set());
   const [showNetworkDialog, setShowNetworkDialog] = useState(false);
   const [showFolderSettings, setShowFolderSettings] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<PluginCategory | null>(null);
+
+  // 获取当前可用的分类列表（只显示有插件的分类）
+  const availableCategories = useMemo(() => {
+    const categories = new Set<PluginCategory>();
+    supported.forEach((plugin) => {
+      if (plugin.category) {
+        const cats = Array.isArray(plugin.category) ? plugin.category : [plugin.category];
+        cats.forEach((c) => categories.add(c));
+      }
+    });
+    return CATEGORY_CONFIG.filter((c) => categories.has(c.value));
+  }, [supported]);
 
   useEffect(() => {
     let mounted = true;
@@ -137,8 +181,10 @@ const PluginPage: React.FC<PluginPageProps> = () => {
     }
   };
 
-  // 根据当前标签页筛选要显示的资源列表
+  // 根据当前标签页和分类筛选要显示的资源列表
   const getDisplayResources = (): PluginDefinition[] => {
+    let resources: PluginDefinition[] = [];
+
     if (tabValue === 'installed') {
       // 已安装标签页：筛选已安装的资源，转换为 PluginDefinition 格式
       const installedResources = installed
@@ -169,11 +215,22 @@ const PluginPage: React.FC<PluginPageProps> = () => {
         }
       });
 
-      return installedResources;
+      resources = installedResources;
     } else {
       // 可用插件标签页：返回所有支持的资源（状态会通过 installedResource prop 传递）
-      return supported;
+      resources = supported;
     }
+
+    // 应用分类筛选
+    if (selectedCategory) {
+      resources = resources.filter((r) => {
+        if (!r.category) return false;
+        const cats = Array.isArray(r.category) ? r.category : [r.category];
+        return cats.includes(selectedCategory);
+      });
+    }
+
+    return resources;
   };
 
   // 按插件分组资源
@@ -268,6 +325,41 @@ const PluginPage: React.FC<PluginPageProps> = () => {
             </TabsTrigger>
           </TabsList>
         </Tabs>
+
+        {/* 分类筛选 */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button size="sm" variant={selectedCategory ? 'default' : 'outline'} className="h-8 text-xs">
+              <TbFilter className="h-4 w-4 mr-1" />
+              {selectedCategory ? CATEGORY_CONFIG.find((c) => c.value === selectedCategory)?.label : '分类'}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-56 p-2" align="end">
+            <div className="flex flex-wrap gap-1.5">
+              {availableCategories.map((category) => (
+                <button
+                  key={category.value}
+                  onClick={() => setSelectedCategory(selectedCategory === category.value ? null : category.value)}
+                  className={`text-xs px-2 py-1 rounded-md transition-colors ${
+                    selectedCategory === category.value
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {category.label}
+                </button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        {/* 清除筛选 */}
+        {selectedCategory && (
+          <Button size="sm" variant="ghost" className="h-8 text-xs px-2" onClick={() => setSelectedCategory(null)} title="清除筛选">
+            <TbX className="h-4 w-4" />
+          </Button>
+        )}
+
         <Dialog open={showFolderSettings} onOpenChange={setShowFolderSettings}>
           <DialogTrigger asChild>
             <Button size="sm" variant="outline" className="h-8 text-xs" title="设置下载文件夹">

@@ -41,6 +41,46 @@ const getPackageSize = (resource: PluginDefinition): number | undefined => {
   return match?.sizeBytes;
 };
 
+// 分类代码到中文名称的映射
+const getCategoryName = (category?: string): string => {
+  const categoryMap: Record<string, string> = {
+    // 核心基础
+    core: '核心引擎',
+    // 语音相关
+    asr: '语音识别',
+    tts: '语音合成',
+    stt: '语音转文字',
+    vad: '语音检测',
+    'voice-clone': '声音克隆',
+    // 文本/语言相关
+    llm: '大语言模型',
+    nlp: '自然语言处理',
+    translation: '翻译',
+    punctuation: '标点恢复',
+    embedding: '文本嵌入',
+    // 图像相关
+    'image-gen': '图像生成',
+    'image-edit': '图像编辑',
+    ocr: '文字识别',
+    'image-recognition': '图像识别',
+    face: '人脸识别',
+    'image-super-res': '图像超分',
+    // 视频相关
+    'video-gen': '视频生成',
+    'video-edit': '视频编辑',
+    'video-analysis': '视频分析',
+    // 多模态
+    multimodal: '多模态',
+    // 其他
+    agent: 'AI代理',
+    code: '代码生成',
+    music: '音乐生成',
+    'three-d': '3D生成',
+    other: '其他'
+  };
+  return category ? categoryMap[category] || category : '';
+};
+
 // 语言代码到中文名称的映射
 const getLanguageName = (code: string): string => {
   const languageMap: Record<string, string> = {
@@ -155,10 +195,20 @@ export const PluginListItem: React.FC<PluginListItemProps> = ({ resource, instal
   const content = (
     <>
       <div className="flex flex-col gap-1 flex-1">
-        <div className="text-sm font-medium flex items-center gap-2">
+        <div className="text-sm font-medium flex items-center gap-2 flex-wrap">
           <span className="text-[10px] rounded bg-muted px-1 py-0.5">{resource.type === 'engine' ? '引擎' : '模型'}</span>
           <span>{resource.displayName || resource.name}</span>
           <span className="text-[10px] rounded bg-muted px-1 py-0.5">v{resource.version}</span>
+          {resource.category &&
+            (Array.isArray(resource.category) ? (
+              resource.category.map((cat) => (
+                <span key={cat} className="text-[10px] rounded px-1.5 py-0.5 bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300">
+                  {getCategoryName(cat)}
+                </span>
+              ))
+            ) : (
+              <span className="text-[10px] rounded px-1.5 py-0.5 bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300">{getCategoryName(resource.category)}</span>
+            ))}
           {displaySize !== undefined && typeof displaySize === 'number' && displaySize >= 0 && (
             <span className="text-[10px] rounded bg-muted px-1 py-0.5 text-muted-foreground">{prettyBytes(displaySize || 0)}</span>
           )}

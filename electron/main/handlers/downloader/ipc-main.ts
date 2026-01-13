@@ -2,7 +2,8 @@ import { windowManager } from '@aim-packages/window-manager';
 import { BrowserWindow, ipcMain, screen } from 'electron';
 
 import { getMainWindow } from '../../index';
-import { downloadManager, getSetting, getThumbnail, getVideoInfo, setSetting, SubscriptionManager, subscriptionManager, YTDLP_CONFIG_FILE } from '.';
+import { downloadManager, getSetting, getThumbnail, getVideoInfo, setSetting, subscriptionManager, YTDLP_CONFIG_FILE } from '.';
+import { SubscriptionManager } from './subscription-manager';
 
 export function initDownloadHandlers(win: BrowserWindow): void {
   console.log('[VideoDownload] Initializing video download handlers');
@@ -291,7 +292,7 @@ export function initDownloadHandlers(win: BrowserWindow): void {
   // 添加订阅
   ipcMain.handle('video-downloader:add-subscription', async (event, data: { channelIdOrUrl: string; channelName?: string; autoDownload?: boolean }) => {
     try {
-      const channelInfo = SubscriptionManager.extractChannelId(data.channelIdOrUrl);
+      const channelInfo = await SubscriptionManager.extractChannelId(data.channelIdOrUrl);
       if (!channelInfo) {
         return {
           success: false,
