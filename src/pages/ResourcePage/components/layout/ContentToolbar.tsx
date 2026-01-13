@@ -1,5 +1,5 @@
 import React from 'react';
-import { TbFilter, TbGrid3X3, TbList, TbRefresh, TbRobot, TbSearch, TbStack2 } from 'react-icons/tb';
+import { TbFilter, TbGrid3X3, TbLayoutGrid, TbList, TbRefresh, TbRobot, TbSearch, TbStack2 } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -106,12 +106,7 @@ const ContentToolbar: React.FC<ContentToolbarProps> = ({
         {/* 搜索框 */}
         <div className="relative">
           <TbSearch className="absolute left-2 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-          <Input
-            placeholder="搜索..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-8 h-8 w-48"
-          />
+          <Input placeholder="搜索..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-8 h-8 w-48" />
         </div>
 
         {/* 视图切换 */}
@@ -123,6 +118,9 @@ const ContentToolbar: React.FC<ContentToolbarProps> = ({
             <TabsTrigger value="list" className="h-7 px-2">
               <TbList className="w-4 h-4" />
             </TabsTrigger>
+            <TabsTrigger value="free" className="h-7 px-2">
+              <TbLayoutGrid className="w-4 h-4" />
+            </TabsTrigger>
           </TabsList>
         </Tabs>
 
@@ -132,12 +130,7 @@ const ContentToolbar: React.FC<ContentToolbarProps> = ({
             <div className="relative">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    className="w-8 h-8 shrink-0"
-                    variant={isCollapseMode ? 'default' : 'ghost'}
-                    onClick={() => setIsCollapseMode(!isCollapseMode)}
-                  >
+                  <Button size="icon" className="w-8 h-8 shrink-0" variant={isCollapseMode ? 'default' : 'ghost'} onClick={() => setIsCollapseMode(!isCollapseMode)}>
                     <TbStack2 />
                   </Button>
                 </TooltipTrigger>
@@ -154,9 +147,7 @@ const ContentToolbar: React.FC<ContentToolbarProps> = ({
           <PopoverContent side="bottom" align="end" className="w-64 p-3" onOpenAutoFocus={(e) => e.preventDefault()}>
             <div className="space-y-2">
               <h4 className="font-medium leading-none">发现视频字幕</h4>
-              <p className="text-sm text-muted-foreground">
-                检测到存在同名的视频和字幕文件，是否开启"收起同名资源"模式？
-              </p>
+              <p className="text-sm text-muted-foreground">检测到存在同名的视频和字幕文件，是否开启"收起同名资源"模式？</p>
               <div className="flex justify-end gap-2 pt-2">
                 <Button
                   size="sm"
@@ -193,23 +184,13 @@ const ContentToolbar: React.FC<ContentToolbarProps> = ({
         {/* 自动化规则 */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              size="icon"
-              className="w-8 h-8 shrink-0"
-              variant="ghost"
-              onClick={() => setShowAutomationRules(true)}
-            >
+            <Button size="icon" className="w-8 h-8 shrink-0" variant="ghost" onClick={() => setShowAutomationRules(true)}>
               <TbRobot />
             </Button>
           </TooltipTrigger>
           <TooltipContent>自动化规则</TooltipContent>
         </Tooltip>
-        <AutomationRulesDialog
-          open={showAutomationRules}
-          onOpenChange={setShowAutomationRules}
-          currentWorkspaceId={wsFilter}
-          currentFolderId={folderFilter}
-        />
+        <AutomationRulesDialog open={showAutomationRules} onOpenChange={setShowAutomationRules} currentWorkspaceId={wsFilter} currentFolderId={folderFilter} />
 
         {/* 综合筛选弹出层 */}
         <Popover>
