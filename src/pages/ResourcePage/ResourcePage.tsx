@@ -24,6 +24,7 @@ import { useViewMode } from './hooks/useViewMode';
 import { useWorkflowProgress } from './hooks/useWorkflowProgress';
 import RecycleBinPage from './RecycleBinPage';
 import ResourcePreviewWindow from './ResourcePreviewWindow';
+import RssFeedPage from './RssFeedPage';
 import { SelectedResourceFileType, SortField, SortOrder } from './types';
 import { typeOptions } from './utils/constants';
 import { mergeVideoWithSubtitles } from './utils/subtitleUtils';
@@ -397,6 +398,7 @@ const ResourcePage: React.FC = () => {
           <Route path="apps" element={<AppsPage />} />
           <Route path="recycle" element={<RecycleBinPage hideTitleBar />} />
           <Route path="preview/:resourceId" element={<ResourcePreviewWindow />} />
+          <Route path="rss/:resourceId" element={<RssFeedPage />} />
           <Route
             path="*"
             element={

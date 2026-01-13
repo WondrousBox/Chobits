@@ -19,6 +19,7 @@ import { initPreferencesHandlers } from './preferences/ipc-main';
 import { initProxyHandlers } from './proxy/ipc-main';
 import { getHttpProxy } from './proxy/proxy';
 import { initResourceHandlers } from './resource/ipc-main';
+import { initRssHandlers } from './rss/ipc-main';
 import { initShortcutsHandlers } from './shortcuts';
 import { initSpriteHandlers } from './sprite';
 import { initStatusHandlers } from './status';
@@ -36,6 +37,7 @@ export function initHandlers(win: BrowserWindow): void {
   initFFmpegHandlers(win);
   initVectorHandlers(win);
   initResourceHandlers();
+  initRssHandlers();
   initAutomationHandlers();
   initFolderHandlers?.();
   initTrashHandlers();

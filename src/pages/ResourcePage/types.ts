@@ -1,4 +1,4 @@
-export type ResourceTypes = 'image' | 'video' | 'audio' | 'text' | 'file' | 'subtitle' | 'document' | 'link' | 'other';
+export type ResourceTypes = 'image' | 'video' | 'audio' | 'text' | 'file' | 'subtitle' | 'document' | 'link' | 'rss' | 'other';
 
 export type SelectedResourceFileType = {
   _id?: string;
@@ -13,7 +13,7 @@ export type SelectedResourceFileType = {
 
 export interface ResourceItem {
   id: string;
-  type: 'image' | 'video' | 'audio' | 'text' | 'link' | 'file' | 'document' | 'other';
+  type: 'image' | 'video' | 'audio' | 'text' | 'link' | 'file' | 'document' | 'rss' | 'other';
   title?: string;
   description?: string;
 
