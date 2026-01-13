@@ -1,7 +1,7 @@
 import { debounce } from 'lodash-es';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { TbBolt, TbChevronLeft, TbPlayerPlay, TbSparkles, TbTrash, TbX } from 'react-icons/tb';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
-import { TbChevronLeft, TbPlayerPlay, TbSparkles, TbTrash, TbBolt, TbX } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import Dropzone from '@/components/common/Dropzone';
@@ -148,7 +148,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
       .then((defs: any[]) => {
         setWorkflows(defs || []);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // 预览面板状态
@@ -256,7 +256,6 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
       window.clearTimeout(timeoutId);
     });
     highlightTimeoutsRef.current.clear();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [folderFilter, wsFilter, viewMode, typeFilterKey, searchQuery, tagFilter, isCollapseMode]);
 
   useEffect(() => {
@@ -514,11 +513,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
         {/* 右侧：功能按钮 */}
         <div className="pointer-events-auto flex items-center gap-1" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           {/* AI 助手按钮 */}
-          <button
-            className={`p-1.5 rounded transition-colors ${aiChatOpen ? 'bg-muted text-primary' : 'hover:bg-muted'}`}
-            onClick={() => setAiChatOpen((prev) => !prev)}
-            title="AI 助手"
-          >
+          <button className={`p-1.5 rounded transition-colors ${aiChatOpen ? 'bg-muted text-primary' : 'hover:bg-muted'}`} onClick={() => setAiChatOpen((prev) => !prev)} title="AI 助手">
             <TbSparkles className="w-4 h-4" />
           </button>
           {/* 自动化任务按钮 */}
@@ -569,13 +564,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
 
               {/* 多选操作栏（悬浮在底部） */}
               {showSelectionBar && (
-                <SelectionActionBar
-                  selectedItems={selectedItems}
-                  setSelectedItems={setSelectedItems}
-                  handleDeleteMany={handleDeleteMany}
-                  filtered={mergedItems}
-                  workflows={workflows}
-                />
+                <SelectionActionBar selectedItems={selectedItems} setSelectedItems={setSelectedItems} handleDeleteMany={handleDeleteMany} filtered={mergedItems} workflows={workflows} />
               )}
 
               {/* 资源列表 + 预览面板 */}
@@ -624,13 +613,7 @@ interface SelectionActionBarProps {
   workflows: any[];
 }
 
-const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
-  selectedItems,
-  setSelectedItems,
-  handleDeleteMany,
-  filtered,
-  workflows
-}) => {
+const SelectionActionBar: React.FC<SelectionActionBarProps> = ({ selectedItems, setSelectedItems, handleDeleteMany, filtered, workflows }) => {
   // 获取选中的资源列表
   const selectedResources = useMemo(() => {
     return filtered.filter((item) => selectedItems.has(item.id));
@@ -708,7 +691,7 @@ const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
             thumbnailPath: item.thumbnailPath,
             workspaceId: item.workspaceId
           },
-          onSuccess: () => {}
+          onSuccess: () => { }
         });
       }
       toast.success(`已开始对 ${selectedResources.length} 个资源执行工作流: ${wf.name}`);
@@ -736,11 +719,7 @@ const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
             <div className="w-px h-4 bg-primary-foreground/30" />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground"
-                >
+                <Button variant="ghost" size="sm" className="h-7 px-2 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground">
                   <TbPlayerPlay className="w-4 h-4 mr-1" />
                   执行任务
                 </Button>
@@ -755,12 +734,7 @@ const SelectionActionBar: React.FC<SelectionActionBarProps> = ({
             </DropdownMenu>
           </>
         )}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground"
-          onClick={() => setSelectedItems(new Set())}
-        >
+        <Button variant="ghost" size="icon" className="h-7 w-7 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground" onClick={() => setSelectedItems(new Set())}>
           <TbX className="w-4 h-4" />
         </Button>
       </div>
