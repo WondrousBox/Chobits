@@ -550,8 +550,8 @@ export function initRssHandlers(): void {
       const now = Date.now();
       const fetchInterval = (metadata.fetchInterval || 60) * 60 * 1000; // 默认 60 分钟
       if (!forceRefresh && metadata.lastFetchedAt && now - metadata.lastFetchedAt < fetchInterval) {
-        // 如果在刷新间隔内，返回缓存数据
-        const cachedRows = await RssFeedItemsRepo.listByResourceId(resourceId, 100, 0);
+        // 如果在刷新间隔内，返回缓存数据（包含所有历史数据）
+        const cachedRows = await RssFeedItemsRepo.listByResourceId(resourceId, 1000, 0);
         if (cachedRows.length > 0) {
           const items = cachedRows.map(dbRowToFeedItem);
           const feed: RssFeed = {
@@ -624,7 +624,18 @@ export function initRssHandlers(): void {
         updatedAt: now
       } as any);
 
-      return { success: true, data: feed, cached: false };
+      // 从数据库读取所有条目（包括历史数据），而不是只返回 RSS 中的数据
+      const allCachedRows = await RssFeedItemsRepo.listByResourceId(resourceId, 1000, 0);
+      const allItems = allCachedRows.map(dbRowToFeedItem);
+
+      // 重新构建完整的 feed 数据
+      const completeFeed: RssFeed = {
+        ...feed,
+        items: allItems,
+        totalItems: allItems.length
+      };
+
+      return { success: true, data: completeFeed, cached: false };
     } catch (error: any) {
       console.error('[rss:fetchFeed] 获取失败:', error);
 
@@ -650,9 +661,9 @@ export function initRssHandlers(): void {
         // ignore error logging failure
       }
 
-      // 如果网络获取失败，尝试返回缓存数据
+      // 如果网络获取失败，尝试返回缓存数据（包含所有历史数据）
       try {
-        const cachedRows = await RssFeedItemsRepo.listByResourceId(params.resourceId, 100, 0);
+        const cachedRows = await RssFeedItemsRepo.listByResourceId(params.resourceId, 1000, 0);
         if (cachedRows.length > 0) {
           const items = cachedRows.map(dbRowToFeedItem);
           const resource = await ResourcesRepo.getById(params.resourceId);
@@ -758,13 +769,26 @@ export function initRssHandlers(): void {
   });
 
   /**
-   * 删除 RSS 资源
+   * 删除 RSS 资源（取消订阅）
+   * 同时删除关联的所有 feed 记录
    */
-  ipcMain.handle('rss:delete', async (_event, params: { id: string }) => {
+  ipcMain.handle('rss:delete', async (_event, params: { id: string; hardDelete?: boolean }) => {
     try {
-      const { id } = params;
-      const updated = await ResourcesRepo.update(id, { deletedAt: Date.now() } as any);
-      return { success: true, data: updated };
+      const { id, hardDelete = false } = params;
+
+      // 先删除关联的所有 feed 记录
+      const deletedFeedCount = await RssFeedItemsRepo.deleteByResourceId(id);
+      console.log(`[rss:delete] 已删除 ${deletedFeedCount} 条关联的 feed 记录`);
+
+      if (hardDelete) {
+        // 硬删除：直接从数据库删除资源
+        await ResourcesRepo.deleteById(id);
+        return { success: true, data: { id, deletedFeedCount } };
+      } else {
+        // 软删除：标记 deletedAt
+        const updated = await ResourcesRepo.update(id, { deletedAt: Date.now() } as any);
+        return { success: true, data: { ...updated, deletedFeedCount } };
+      }
     } catch (error: any) {
       console.error('[rss:delete] 删除失败:', error);
       return { success: false, error: error?.message || '删除失败' };
@@ -835,4 +859,140 @@ export function initRssHandlers(): void {
       return { success: false, error: error?.message || '检查失败' };
     }
   });
+
+  /**
+   * 获取 YouTube 频道的历史视频列表
+   * 使用 yt-dlp 绕过 RSS 只返回 15 个视频的限制
+   * 支持分页加载和存储到数据库
+   */
+  ipcMain.handle(
+    'rss:fetchYouTubeHistory',
+    async (
+      _event,
+      params: {
+        resourceId: string;
+        limit?: number;
+        offset?: number;
+        detailed?: boolean;
+      }
+    ) => {
+      try {
+        const { resourceId, limit = 50, offset = 0, detailed = false } = params;
+
+        // 获取资源信息
+        const resource = await ResourcesRepo.getById(resourceId);
+        if (!resource) {
+          throw new Error('资源不存在');
+        }
+
+        // 解析 metadata
+        let metadata: RssMetadata;
+        try {
+          metadata = JSON.parse((resource as any).metadata || '{}');
+        } catch {
+          metadata = {};
+        }
+
+        if (metadata.sourceType !== 'youtube') {
+          throw new Error('仅支持 YouTube 订阅');
+        }
+
+        const channelUrl = metadata.channelUrl || metadata.channelId;
+        if (!channelUrl) {
+          throw new Error('无法获取频道信息');
+        }
+
+        // 获取 YouTube 处理器
+        const handler = rssSourceRegistry.getHandler('youtube');
+        if (!handler) {
+          throw new Error('YouTube 处理器未注册');
+        }
+
+        // 使用类型断言来访问 YouTubeHandler 特有的方法
+        const youtubeHandler = handler as any;
+
+        // 计算实际的 playlist-end 参数（offset + limit）
+        const playlistEnd = offset + limit;
+
+        let items: RssFeedItem[];
+        if (detailed) {
+          items = await youtubeHandler.fetchChannelVideosDetailed(channelUrl, playlistEnd);
+          // 如果有 offset，只取后面的部分
+          if (offset > 0) {
+            items = items.slice(offset);
+          }
+        } else {
+          // 使用 yt-dlp 的 playlist-start 和 playlist-end 参数
+          items = await youtubeHandler.fetchChannelHistory(channelUrl, {
+            limit: playlistEnd,
+            playlistStart: offset + 1 // yt-dlp 的 playlist-start 是 1-based
+          });
+        }
+
+        if (items.length === 0) {
+          return {
+            success: true,
+            data: {
+              items: [],
+              hasMore: false,
+              nextOffset: offset,
+              totalLoaded: metadata.historyLoadedCount || 0
+            }
+          };
+        }
+
+        // 将获取到的视频存入数据库
+        const dbItems: NewRssFeedItem[] = items.map((item) => ({
+          rssResourceId: resourceId,
+          itemId: item.id,
+          title: item.title,
+          description: item.description,
+          link: item.link,
+          publishedAt: item.publishedAt,
+          updatedAt: item.updatedAt,
+          author: item.author,
+          thumbnail: item.thumbnail,
+          durationMs: item.durationMs,
+          viewCount: item.viewCount,
+          likeCount: item.likeCount,
+          commentCount: item.commentCount,
+          mediaType: item.mediaType,
+          categories: item.categories?.length ? JSON.stringify(item.categories) : undefined,
+          downloaded: false,
+          downloadStatus: undefined
+        }));
+
+        await RssFeedItemsRepo.bulkUpsert(dbItems);
+
+        // 更新 metadata 中的分页位置
+        const newLoadedCount = offset + items.length;
+        const oldestItem = items.reduce((oldest, item) => (item.publishedAt < oldest.publishedAt ? item : oldest), items[0]);
+
+        const updatedMetadata: RssMetadata = {
+          ...metadata,
+          historyLoadedCount: Math.max(metadata.historyLoadedCount || 0, newLoadedCount),
+          oldestHistoryPublishedAt: metadata.oldestHistoryPublishedAt ? Math.min(metadata.oldestHistoryPublishedAt, oldestItem.publishedAt) : oldestItem.publishedAt
+        };
+
+        await ResourcesRepo.update(resourceId, {
+          metadata: JSON.stringify(updatedMetadata),
+          updatedAt: Date.now()
+        } as any);
+
+        // 返回结果
+        return {
+          success: true,
+          data: {
+            items,
+            hasMore: items.length >= limit,
+            nextOffset: offset + items.length,
+            totalLoaded: newLoadedCount
+          }
+        };
+      } catch (error: any) {
+        console.error('[rss:fetchYouTubeHistory] 获取历史失败:', error);
+        return { success: false, error: error?.message || '获取 YouTube 频道历史视频失败' };
+      }
+    }
+  );
 }

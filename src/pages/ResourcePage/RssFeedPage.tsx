@@ -1,6 +1,6 @@
 import type { RssFeed, RssFeedItem, RssMetadata } from 'electron/main/handlers/rss/types';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { TbArrowLeft, TbCheck, TbClock, TbDownload, TbExternalLink, TbEye, TbLoader2, TbPlayerPlay, TbRefresh, TbRss, TbSearch, TbSettings, TbUsers } from 'react-icons/tb';
+import { TbArrowLeft, TbCheck, TbClock, TbDownload, TbExternalLink, TbEye, TbHistory, TbLoader2, TbPlayerPlay, TbRefresh, TbRss, TbSearch, TbSettings, TbUsers } from 'react-icons/tb';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -37,6 +37,9 @@ const RssFeedPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [downloadingItems, setDownloadingItems] = useState<Set<string>>(new Set());
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyOffset, setHistoryOffset] = useState(0);
+  const [hasMoreHistory, setHasMoreHistory] = useState(true);
 
   // 解析 metadata
   const metadata: RssMetadata = useMemo(() => {
@@ -112,6 +115,50 @@ const RssFeedPage: React.FC = () => {
     toast.success('刷新成功');
   }, [loadFeed]);
 
+  // 加载历史视频（仅 YouTube）
+  // 获取到的数据会自动存入数据库，下次进入页面时会从缓存加载
+  const handleLoadHistory = useCallback(
+    async (limit: number = 50) => {
+      if (!resourceId || metadata.sourceType !== 'youtube') return;
+
+      if (!hasMoreHistory) {
+        toast.info('没有更多历史视频了');
+        return;
+      }
+
+      setLoadingHistory(true);
+      try {
+        const result = await window.YUA.rss.fetchYouTubeHistory({
+          resourceId,
+          limit,
+          offset: historyOffset
+        });
+
+        if (result.success && result.data) {
+          const { items, hasMore, nextOffset, totalLoaded } = result.data;
+
+          if (items.length > 0) {
+            // 数据已自动存入数据库，重新加载 feed 以获取最新数据
+            await loadFeed(false);
+            setHistoryOffset(nextOffset);
+            setHasMoreHistory(hasMore);
+            toast.success(`已加载 ${items.length} 个历史视频，共 ${totalLoaded} 条`);
+          } else {
+            setHasMoreHistory(false);
+            toast.info('没有更多历史视频了');
+          }
+        } else {
+          toast.error('加载失败', { description: result.error });
+        }
+      } catch (error: any) {
+        toast.error('加载历史失败', { description: error?.message });
+      } finally {
+        setLoadingHistory(false);
+      }
+    },
+    [resourceId, metadata.sourceType, historyOffset, hasMoreHistory, loadFeed]
+  );
+
   // 下载单个条目
   const handleDownloadItem = useCallback(
     async (item: RssFeedItem) => {
@@ -178,13 +225,17 @@ const RssFeedPage: React.FC = () => {
     }
   }, [resourceId, settingsForm, loadResource]);
 
-  // 过滤内容
+  // 过滤内容（feed?.items 现在包含 RSS + 已加载的历史数据）
   const filteredItems = useMemo(() => {
-    if (!feed?.items) return [];
-    if (!searchQuery.trim()) return feed.items;
+    const items = feed?.items || [];
+    if (items.length === 0) return [];
+    if (!searchQuery.trim()) return items;
     const query = searchQuery.toLowerCase();
-    return feed.items.filter((item) => item.title.toLowerCase().includes(query) || item.description?.toLowerCase().includes(query) || item.author?.toLowerCase().includes(query));
+    return items.filter((item) => item.title.toLowerCase().includes(query) || item.description?.toLowerCase().includes(query) || item.author?.toLowerCase().includes(query));
   }, [feed?.items, searchQuery]);
+
+  // 是否为 YouTube 订阅
+  const isYouTube = metadata.sourceType === 'youtube';
 
   // 格式化时间
   const formatTime = useCallback((timestamp?: number): string => {
@@ -241,6 +292,13 @@ const RssFeedPage: React.FC = () => {
     loadFeed();
   }, [loadResource, loadFeed]);
 
+  // 当 metadata 变化时，同步历史分页位置
+  useEffect(() => {
+    if (metadata.historyLoadedCount) {
+      setHistoryOffset(metadata.historyLoadedCount);
+    }
+  }, [metadata.historyLoadedCount]);
+
   return (
     <div className="h-full w-full flex flex-col bg-background">
       {/* 顶部导航栏 */}
@@ -270,7 +328,7 @@ const RssFeedPage: React.FC = () => {
               {feed?.totalItems && (
                 <span className="flex items-center gap-1">
                   <TbRss className="w-3 h-3" />
-                  {feed.totalItems} 条
+                  {feed.totalItems} 条{metadata.historyLoadedCount ? ` (含历史)` : ''}
                 </span>
               )}
             </div>
@@ -287,6 +345,17 @@ const RssFeedPage: React.FC = () => {
             </TooltipTrigger>
             <TooltipContent>刷新</TooltipContent>
           </Tooltip>
+
+          {isYouTube && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon" className="w-8 h-8" onClick={() => handleLoadHistory(100)} disabled={loadingHistory}>
+                  {loadingHistory ? <TbLoader2 className="w-4 h-4 animate-spin" /> : <TbHistory className="w-4 h-4" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>加载历史视频</TooltipContent>
+            </Tooltip>
+          )}
 
           <Tooltip>
             <TooltipTrigger asChild>
@@ -342,6 +411,30 @@ const RssFeedPage: React.FC = () => {
                 formatNumber={formatNumber}
               />
             ))}
+
+            {/* 加载历史按钮（仅 YouTube） */}
+            {isYouTube && !searchQuery && (
+              <div className="flex flex-col items-center gap-2 py-4">
+                {hasMoreHistory ? (
+                  <Button variant="outline" size="sm" onClick={() => handleLoadHistory(50)} disabled={loadingHistory} className="gap-2">
+                    {loadingHistory ? (
+                      <>
+                        <TbLoader2 className="w-4 h-4 animate-spin" />
+                        加载中...
+                      </>
+                    ) : (
+                      <>
+                        <TbHistory className="w-4 h-4" />
+                        加载更多历史视频
+                      </>
+                    )}
+                  </Button>
+                ) : (
+                  <p className="text-xs text-muted-foreground">已加载全部历史视频</p>
+                )}
+                {historyOffset > 0 && <p className="text-xs text-muted-foreground">已加载 {historyOffset} 条历史记录</p>}
+              </div>
+            )}
           </div>
         )}
       </ScrollArea>
