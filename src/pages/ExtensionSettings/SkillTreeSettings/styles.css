@@ -1,0 +1,199 @@
+/* 技能树样式 */
+
+/* 节点发光动画 */
+@keyframes skillNodeGlow {
+  0%, 100% {
+    filter: drop-shadow(0 0 8px var(--glow-color)) drop-shadow(0 0 16px var(--glow-color));
+  }
+  50% {
+    filter: drop-shadow(0 0 16px var(--glow-color)) drop-shadow(0 0 32px var(--glow-color));
+  }
+}
+
+/* 节点脉冲动画 */
+@keyframes skillNodePulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+/* 核心节点特殊动画 */
+@keyframes coreRotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* 能量线流动动画 */
+@keyframes energyFlow {
+  0% {
+    stroke-dashoffset: 100;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* 粒子浮动动画 */
+@keyframes particleFloat {
+  0%, 100% {
+    transform: translateY(0) translateX(0);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translateY(-20px) translateX(10px);
+    opacity: 1;
+  }
+}
+
+/* 解锁爆发动画 */
+@keyframes unlockBurst {
+  0% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+/* 光环扩散动画 */
+@keyframes haloExpand {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+/* 六边形边框动画 */
+@keyframes hexBorderShimmer {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -200;
+  }
+}
+
+/* 星光闪烁动画 */
+@keyframes starTwinkle {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+/* 技能树容器 */
+.skill-tree-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(ellipse at center, rgba(15, 23, 42, 0.95) 0%, rgba(2, 6, 23, 0.98) 100%);
+  overflow: hidden;
+}
+
+/* 节点样式 */
+.skill-node {
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.skill-node.active {
+  animation: skillNodeGlow 2s ease-in-out infinite, skillNodePulse 3s ease-in-out infinite;
+}
+
+.skill-node.unlocked:hover {
+  transform: scale(1.1);
+}
+
+.skill-node.locked {
+  opacity: 0.4;
+  filter: grayscale(0.8);
+}
+
+/* 核心节点特殊样式 */
+.skill-node-core {
+  animation: coreRotate 20s linear infinite;
+}
+
+.skill-node-core-inner {
+  animation: coreRotate 20s linear infinite reverse;
+}
+
+/* 能量连接线 */
+.energy-line {
+  stroke-dasharray: 8 4;
+  animation: energyFlow 2s linear infinite;
+}
+
+.energy-line.active {
+  stroke-width: 3;
+  filter: drop-shadow(0 0 4px var(--line-color));
+}
+
+.energy-line.inactive {
+  stroke-dasharray: 4 8;
+  opacity: 0.3;
+}
+
+/* 详情面板 */
+.skill-detail-panel {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.9) 100%);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  backdrop-filter: blur(12px);
+  box-shadow: 
+    0 0 40px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* 六边形节点 */
+.hexagon-node {
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+}
+
+/* 圆环装饰 */
+.orbit-ring {
+  animation: coreRotate 30s linear infinite;
+}
+
+.orbit-ring-reverse {
+  animation: coreRotate 25s linear infinite reverse;
+}
+
+/* 悬停光晕 */
+.hover-halo {
+  animation: haloExpand 1s ease-out forwards;
+}
+
+/* 激活时的粒子效果容器 */
+.particle-burst {
+  pointer-events: none;
+}
+
+.particle-burst span {
+  position: absolute;
+  display: block;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  animation: unlockBurst 0.6s ease-out forwards;
+}
