@@ -55,6 +55,10 @@ export interface RssMetadata {
   lastError?: string;
   /** 上次同步错误时间 */
   lastErrorAt?: number;
+  /** 已加载的历史视频数量（用于分页继续加载） */
+  historyLoadedCount?: number;
+  /** 最早的历史视频发布时间（用于判断加载范围） */
+  oldestHistoryPublishedAt?: number;
 }
 
 /**

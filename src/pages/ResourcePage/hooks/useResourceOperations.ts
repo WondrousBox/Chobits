@@ -13,7 +13,16 @@ export const useResourceOperations = (
   const handleDelete = useCallback(
     async (id: string): Promise<void> => {
       try {
-        await window.YUA.resource.deleteResource({ id });
+        // 查找资源，检查是否是 RSS 类型
+        const item = list.find((i) => i.id === id);
+
+        if (item?.type === 'rss') {
+          // RSS 资源使用专用删除方法，同时删除关联的 feed 记录
+          await window.YUA.rss.delete({ id, hardDelete: true });
+        } else {
+          await window.YUA.resource.deleteResource({ id });
+        }
+
         setList((prev) => prev.filter((i) => i.id !== id));
 
         // 如果当前在收藏模式下，且删除后没有收藏内容了，自动切换到非收藏模式
@@ -33,7 +42,29 @@ export const useResourceOperations = (
   const handleDeleteMany = useCallback(
     async (ids: string[]): Promise<void> => {
       try {
-        await window.YUA.resource.deleteResources({ ids });
+        // 分离 RSS 资源和普通资源
+        const rssIds: string[] = [];
+        const normalIds: string[] = [];
+
+        ids.forEach((id) => {
+          const item = list.find((i) => i.id === id);
+          if (item?.type === 'rss') {
+            rssIds.push(id);
+          } else {
+            normalIds.push(id);
+          }
+        });
+
+        // 删除普通资源
+        if (normalIds.length > 0) {
+          await window.YUA.resource.deleteResources({ ids: normalIds });
+        }
+
+        // 逐个删除 RSS 资源（同时删除关联的 feed 记录）
+        for (const id of rssIds) {
+          await window.YUA.rss.delete({ id, hardDelete: true });
+        }
+
         setList((prev) => prev.filter((i) => !ids.includes(i.id)));
         setSelectedItems(new Set());
 

@@ -1,7 +1,9 @@
 import http from 'node:http';
 import https from 'node:https';
 
+import ytdlpStatic from '../../../../../packages/common/libs/ytdlp-static';
 import { getHttpProxy as getSystemHttpProxy } from '../../proxy/proxy';
+import { getCurrentBinaryPath } from '../../ytdlp/updater';
 import type { ChannelInfo, RssSourceHandler } from '../rss-source-handler';
 import type { RssFeed, RssFeedItem, RssMetadata, RssSourceType } from '../types';
 
@@ -258,5 +260,157 @@ export class YouTubeHandler implements RssSourceHandler {
     }
 
     return url.split('/').pop() || url;
+  }
+
+  /**
+   * 使用 yt-dlp 获取频道的历史视频列表
+   * 这个方法可以绕过 YouTube RSS 只返回 15 个视频的限制
+   *
+   * @param channelUrl 频道 URL 或频道 ID
+   * @param options.limit 最大获取数量（默认 50），作为 playlist-end
+   * @param options.playlistStart 从第几个视频开始（1-based，用于分页）
+   * @param options.dateAfter 只获取该日期之后的视频 (YYYYMMDD 格式)
+   * @param options.dateBefore 只获取该日期之前的视频 (YYYYMMDD 格式)
+   * @returns 视频列表
+   */
+  async fetchChannelHistory(
+    channelUrl: string,
+    options?: {
+      limit?: number;
+      playlistStart?: number;
+      dateAfter?: string;
+      dateBefore?: string;
+    }
+  ): Promise<RssFeedItem[]> {
+    const limit = options?.limit ?? 50;
+    const playlistStart = options?.playlistStart ?? 1;
+
+    // 确保 yt-dlp 使用正确的路径
+    const ytdlpPath = getCurrentBinaryPath();
+    ytdlpStatic.setBinaryPath(ytdlpPath);
+
+    // 构建频道视频页面 URL
+    let targetUrl = channelUrl;
+    if (channelUrl.startsWith('UC') && channelUrl.length === 24) {
+      targetUrl = `https://www.youtube.com/channel/${channelUrl}/videos`;
+    } else if (channelUrl.startsWith('@')) {
+      targetUrl = `https://www.youtube.com/${channelUrl}/videos`;
+    } else if (channelUrl.includes('youtube.com') && !channelUrl.includes('/videos')) {
+      targetUrl = channelUrl.replace(/\/?$/, '/videos');
+    }
+
+    const args: string[] = [
+      targetUrl,
+      '--flat-playlist', // 只获取播放列表信息，不下载
+      '--dump-json',
+      '--playlist-start',
+      String(playlistStart),
+      '--playlist-end',
+      String(limit)
+    ];
+
+    // 添加日期过滤
+    if (options?.dateAfter) {
+      args.push('--dateafter', options.dateAfter);
+    }
+    if (options?.dateBefore) {
+      args.push('--datebefore', options.dateBefore);
+    }
+
+    try {
+      const output = await ytdlpStatic.execPromise(args);
+      const items: RssFeedItem[] = [];
+
+      // yt-dlp 在 flat-playlist 模式下每行输出一个 JSON 对象
+      const lines = output.trim().split('\n').filter(Boolean);
+
+      for (const line of lines) {
+        try {
+          const video = JSON.parse(line);
+
+          const item: RssFeedItem = {
+            id: video.id,
+            title: video.title || 'Untitled',
+            link: `https://www.youtube.com/watch?v=${video.id}`,
+            publishedAt: video.timestamp ? video.timestamp * 1000 : Date.now(),
+            thumbnail: video.thumbnail || `https://i.ytimg.com/vi/${video.id}/hqdefault.jpg`,
+            mediaType: 'video',
+            durationMs: video.duration ? video.duration * 1000 : undefined,
+            viewCount: video.view_count
+          };
+
+          items.push(item);
+        } catch (parseError) {
+          console.warn('[YouTubeHandler] Failed to parse video entry:', parseError);
+        }
+      }
+
+      return items;
+    } catch (error) {
+      console.error('[YouTubeHandler] Failed to fetch channel history:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 使用 yt-dlp 获取频道的完整视频列表（包含详细信息）
+   * 注意：这个方法较慢，因为需要获取每个视频的详细信息
+   *
+   * @param channelUrl 频道 URL 或频道 ID
+   * @param limit 最大获取数量（默认 50）
+   */
+  async fetchChannelVideosDetailed(channelUrl: string, limit: number = 50): Promise<RssFeedItem[]> {
+    // 确保 yt-dlp 使用正确的路径
+    const ytdlpPath = getCurrentBinaryPath();
+    ytdlpStatic.setBinaryPath(ytdlpPath);
+
+    // 构建频道视频页面 URL
+    let targetUrl = channelUrl;
+    if (channelUrl.startsWith('UC') && channelUrl.length === 24) {
+      targetUrl = `https://www.youtube.com/channel/${channelUrl}/videos`;
+    } else if (channelUrl.startsWith('@')) {
+      targetUrl = `https://www.youtube.com/${channelUrl}/videos`;
+    } else if (channelUrl.includes('youtube.com') && !channelUrl.includes('/videos')) {
+      targetUrl = channelUrl.replace(/\/?$/, '/videos');
+    }
+
+    try {
+      const playlistInfo = await ytdlpStatic.getPlaylistInfo([targetUrl, '--playlist-end', String(limit)]);
+
+      if (!playlistInfo?.entries) {
+        return [];
+      }
+
+      const items: RssFeedItem[] = playlistInfo.entries.map((video: any) => ({
+        id: video.id,
+        title: video.title || 'Untitled',
+        description: video.description,
+        link: `https://www.youtube.com/watch?v=${video.id}`,
+        publishedAt: video.timestamp ? video.timestamp * 1000 : video.upload_date ? this.parseYtdlpDate(video.upload_date) : Date.now(),
+        thumbnail: video.thumbnail || `https://i.ytimg.com/vi/${video.id}/hqdefault.jpg`,
+        author: video.uploader || video.channel,
+        mediaType: 'video' as const,
+        durationMs: video.duration ? video.duration * 1000 : undefined,
+        viewCount: video.view_count
+      }));
+
+      return items;
+    } catch (error) {
+      console.error('[YouTubeHandler] Failed to fetch channel videos (detailed):', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 解析 yt-dlp 的日期格式 (YYYYMMDD)
+   */
+  private parseYtdlpDate(dateStr: string): number {
+    if (!dateStr || dateStr.length !== 8) {
+      return Date.now();
+    }
+    const year = dateStr.slice(0, 4);
+    const month = dateStr.slice(4, 6);
+    const day = dateStr.slice(6, 8);
+    return new Date(`${year}-${month}-${day}`).getTime();
   }
 }

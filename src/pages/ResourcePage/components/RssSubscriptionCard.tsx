@@ -1,4 +1,5 @@
 import { clsx } from 'clsx';
+import type { RssMetadata } from 'electron/main/handlers/rss/types';
 import React, { useCallback, useMemo, useState } from 'react';
 import { TbCheck, TbClock, TbDownload, TbExternalLink, TbHeart, TbLoader2, TbRefresh, TbRss, TbSettings, TbTrash, TbUsers } from 'react-icons/tb';
 import { toast } from 'sonner';
@@ -8,7 +9,6 @@ import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import type { RssMetadata } from 'electron/main/handlers/rss/types';
 
 import { ResourceItem } from '../types';
 import { makeResSrc } from '../utils/resourceProtocol';
@@ -223,12 +223,7 @@ const RssSubscriptionCard: React.FC<RssSubscriptionCardProps> = ({ item, selecte
             {(metadata.channelUrl || item.url) && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="w-8 h-8 bg-black/30 hover:bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={handleOpenExternal}
-                  >
+                  <Button size="icon" variant="ghost" className="w-8 h-8 bg-black/30 hover:bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity" onClick={handleOpenExternal}>
                     <TbExternalLink className="w-4 h-4" />
                   </Button>
                 </TooltipTrigger>
@@ -251,6 +246,16 @@ const RssSubscriptionCard: React.FC<RssSubscriptionCardProps> = ({ item, selecte
               <TooltipContent>{item.favorite === 1 ? '取消收藏' : '添加收藏'}</TooltipContent>
             </Tooltip>
 
+            <Button
+              className="text-destructive"
+              onClick={(e) => {
+                e.preventDefault();
+                onDelete?.(item.id);
+              }}
+            >
+              <TbTrash className="w-4 h-4 mr-2" />
+              删除订阅
+            </Button>
             {/* 更多操作 */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -263,13 +268,24 @@ const RssSubscriptionCard: React.FC<RssSubscriptionCardProps> = ({ item, selecte
                   <TbSettings className="w-4 h-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => onOpenSettings?.(item)}>
+              <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    onOpenSettings?.(item);
+                  }}
+                >
                   <TbSettings className="w-4 h-4 mr-2" />
                   订阅设置
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-destructive" onClick={() => onDelete?.(item.id)}>
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    onDelete?.(item.id);
+                  }}
+                >
                   <TbTrash className="w-4 h-4 mr-2" />
                   删除订阅
                 </DropdownMenuItem>
