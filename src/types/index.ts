@@ -10,4 +10,4 @@ export interface ErrorType {
 }
 
 // RSS 相关类型
-export * from './rss';
+export * from '../../electron/main/handlers/rss/types';

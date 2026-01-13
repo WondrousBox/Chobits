@@ -3,194 +3,15 @@ import https from 'node:https';
 
 import { ipcMain } from 'electron';
 
-import type { CreateRssResourceParams, DownloadRssItemParams, FetchRssFeedParams, RssFeed, RssFeedItem, RssMetadata, RssSourceType, UpdateRssResourceParams } from '../../../../src/types/rss';
 import { ResourcesRepo, WorkspacesRepo } from '../../db/repositories';
 import { getHttpProxy as getSystemHttpProxy } from '../proxy/proxy';
-
-/**
- * 从 YouTube 频道 URL 或 ID 提取频道信息
- */
-async function extractYouTubeChannelInfo(input: string): Promise<{
-  channelId: string;
-  feedUrl: string;
-  channelUrl: string;
-  title?: string;
-  description?: string;
-  thumbnail?: string;
-  subscriberCount?: number;
-} | null> {
-  const channelIdInput = input.trim();
-
-  // 如果是完整的 URL
-  if (channelIdInput.startsWith('http')) {
-    const urlMatch = channelIdInput.match(/youtube\.com\/(channel|c|user|@)\/([^/?]+)/);
-    if (urlMatch) {
-      const type = urlMatch[1];
-      const id = urlMatch[2];
-
-      if (type === 'channel') {
-        // 直接是频道 ID
-        return {
-          channelId: id,
-          feedUrl: `https://www.youtube.com/feeds/videos.xml?channel_id=${id}`,
-          channelUrl: `https://www.youtube.com/channel/${id}`
-        };
-      } else {
-        // 需要从页面中提取
-        return await fetchYouTubeChannelFromPage(channelIdInput);
-      }
-    }
-  }
-
-  // 如果是 @username 格式
-  if (channelIdInput.startsWith('@')) {
-    const channelUrl = `https://www.youtube.com/${channelIdInput}`;
-    return await fetchYouTubeChannelFromPage(channelUrl);
-  }
-
-  // 假设是频道 ID（以 UC 开头）
-  if (channelIdInput.startsWith('UC') && channelIdInput.length === 24) {
-    return {
-      channelId: channelIdInput,
-      feedUrl: `https://www.youtube.com/feeds/videos.xml?channel_id=${channelIdInput}`,
-      channelUrl: `https://www.youtube.com/channel/${channelIdInput}`
-    };
-  }
-
-  // 尝试作为频道 ID
-  return {
-    channelId: channelIdInput,
-    feedUrl: `https://www.youtube.com/feeds/videos.xml?channel_id=${channelIdInput}`,
-    channelUrl: `https://www.youtube.com/channel/${channelIdInput}`
-  };
-}
-
-/**
- * 从 YouTube 频道页面提取信息
- */
-async function fetchYouTubeChannelFromPage(channelUrl: string): Promise<{
-  channelId: string;
-  feedUrl: string;
-  channelUrl: string;
-  title?: string;
-  description?: string;
-  thumbnail?: string;
-  subscriberCount?: number;
-} | null> {
-  return new Promise((resolve, reject) => {
-    const client = channelUrl.startsWith('https:') ? https : http;
-    const agent = getSystemHttpProxy();
-
-    const options: https.RequestOptions | http.RequestOptions = {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8'
-      }
-    };
-
-    if (agent) {
-      options.agent = agent as any;
-    }
-
-    const req = client.get(channelUrl, options, (res) => {
-      if (res.statusCode !== 200) {
-        reject(new Error(`HTTP ${res.statusCode}: ${res.statusMessage}`));
-        return;
-      }
-
-      let data = '';
-      res.on('data', (chunk) => {
-        data += chunk;
-        if (data.length > 10 * 1024 * 1024) {
-          res.destroy();
-          reject(new Error('Response too large'));
-        }
-      });
-
-      res.on('end', () => {
-        try {
-          // 尝试从 rssUrl 中提取
-          const rssUrlMatch = data.match(/"rssUrl"\s*:\s*"([^"]+)"/);
-          let channelId: string | undefined;
-          let feedUrl: string | undefined;
-
-          if (rssUrlMatch && rssUrlMatch[1]) {
-            feedUrl = rssUrlMatch[1];
-            const channelIdMatch = feedUrl.match(/channel_id=([^&]+)/);
-            if (channelIdMatch) {
-              channelId = channelIdMatch[1];
-            }
-          }
-
-          // 尝试从 browseId 中提取
-          if (!channelId) {
-            const browseIdPatterns = [/"browseId"\s*:\s*"([^"]+)"/, /"browse_id"\s*:\s*"([^"]+)"/];
-
-            for (const pattern of browseIdPatterns) {
-              const match = data.match(pattern);
-              if (match && match[1] && match[1].startsWith('UC') && match[1].length === 24) {
-                channelId = match[1];
-                feedUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
-                break;
-              }
-            }
-          }
-
-          if (!channelId || !feedUrl) {
-            reject(new Error('无法从页面中提取频道 ID'));
-            return;
-          }
-
-          // 提取频道标题
-          const titleMatch = data.match(/<title>([^<]+)<\/title>/);
-          const title = titleMatch ? titleMatch[1].replace(/ - YouTube$/, '').trim() : undefined;
-
-          // 提取频道头像
-          const thumbnailMatch = data.match(/"avatar"\s*:\s*\{\s*"thumbnails"\s*:\s*\[\s*\{\s*"url"\s*:\s*"([^"]+)"/);
-          const thumbnail = thumbnailMatch ? thumbnailMatch[1] : undefined;
-
-          // 提取订阅者数量
-          const subscriberMatch = data.match(/"subscriberCountText"\s*:\s*\{\s*"simpleText"\s*:\s*"([^"]+)"/);
-          let subscriberCount: number | undefined;
-          if (subscriberMatch) {
-            const countStr = subscriberMatch[1];
-            const numMatch = countStr.match(/([\d.]+)\s*(万|亿|K|M|B)?/i);
-            if (numMatch) {
-              let num = parseFloat(numMatch[1]);
-              const unit = numMatch[2]?.toLowerCase();
-              if (unit === '万' || unit === 'k') num *= 10000;
-              else if (unit === '亿' || unit === 'm') num *= 100000000;
-              else if (unit === 'b') num *= 1000000000;
-              subscriberCount = Math.round(num);
-            }
-          }
-
-          resolve({
-            channelId,
-            feedUrl,
-            channelUrl,
-            title,
-            thumbnail,
-            subscriberCount
-          });
-        } catch (error) {
-          reject(error instanceof Error ? error : new Error(String(error)));
-        }
-      });
-    });
-
-    req.on('error', reject);
-    req.setTimeout(30000, () => {
-      req.destroy();
-      reject(new Error('请求超时'));
-    });
-  });
-}
+import { rssSourceRegistry } from './rss-source-registry';
+import type { CreateRssResourceParams, DownloadRssItemParams, FetchRssFeedParams, RssFeed, RssFeedItem, RssMetadata, RssSourceType, UpdateRssResourceParams } from './types';
 
 /**
  * 解析 RSS/Atom Feed
  */
-async function parseRssFeed(feedUrl: string): Promise<RssFeed> {
+async function parseRssFeed(feedUrl: string, sourceType?: RssSourceType): Promise<RssFeed> {
   return new Promise((resolve, reject) => {
     const client = feedUrl.startsWith('https:') ? https : http;
     const agent = getSystemHttpProxy();
@@ -218,7 +39,7 @@ async function parseRssFeed(feedUrl: string): Promise<RssFeed> {
 
       res.on('end', () => {
         try {
-          const feed = parseXmlFeed(data, feedUrl);
+          const feed = parseXmlFeed(data, feedUrl, sourceType);
           resolve(feed);
         } catch (error) {
           reject(error);
@@ -237,8 +58,9 @@ async function parseRssFeed(feedUrl: string): Promise<RssFeed> {
 /**
  * 解析 XML Feed（支持 RSS 2.0 和 Atom）
  */
-function parseXmlFeed(xml: string, feedUrl: string): RssFeed {
+function parseXmlFeed(xml: string, feedUrl: string, sourceType?: RssSourceType): RssFeed {
   const items: RssFeedItem[] = [];
+  const handler = sourceType ? rssSourceRegistry.getHandler(sourceType) : null;
 
   // 检测是 Atom 还是 RSS
   const isAtom = xml.includes('<feed') && xml.includes('xmlns="http://www.w3.org/2005/Atom"');
@@ -263,14 +85,6 @@ function parseXmlFeed(xml: string, feedUrl: string): RssFeed {
       const updatedMatch = entry.match(/<updated[^>]*>([\s\S]*?)<\/updated>/);
       const updated = updatedMatch ? new Date(updatedMatch[1].trim()).getTime() : undefined;
 
-      // YouTube 特定：提取视频 ID
-      const videoIdMatch = entry.match(/<yt:videoId>([\s\S]*?)<\/yt:videoId>/);
-      const videoId = videoIdMatch ? videoIdMatch[1].trim() : extractVideoIdFromUrl(link);
-
-      // 提取缩略图
-      const thumbnailMatch = entry.match(/<media:thumbnail[^>]*url=["']([^"']+)["']/);
-      const thumbnail = thumbnailMatch ? thumbnailMatch[1] : videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : undefined;
-
       // 提取描述
       const descMatch = entry.match(/<media:description[^>]*>([\s\S]*?)<\/media:description>/);
       const description = descMatch ? decodeXmlEntities(descMatch[1].trim()) : undefined;
@@ -279,22 +93,35 @@ function parseXmlFeed(xml: string, feedUrl: string): RssFeed {
       const authorMatch = entry.match(/<author>\s*<name[^>]*>([\s\S]*?)<\/name>/);
       const author = authorMatch ? decodeXmlEntities(authorMatch[1].trim()) : undefined;
 
-      // 提取观看次数
-      const viewsMatch = entry.match(/<media:statistics[^>]*views=["'](\d+)["']/);
-      const viewCount = viewsMatch ? parseInt(viewsMatch[1], 10) : undefined;
-
-      items.push({
-        id: videoId || link,
+      // 基础条目
+      let item: RssFeedItem = {
+        id: link,
         title,
         description,
         link,
         publishedAt: published,
         updatedAt: updated,
         author,
-        thumbnail,
-        viewCount,
-        mediaType: 'video'
-      });
+        mediaType: 'article'
+      };
+
+      // 使用处理器增强条目（如果可用）
+      if (handler?.enhanceFeedItem) {
+        item = handler.enhanceFeedItem(item, entry);
+      } else {
+        // 默认处理：提取缩略图和观看次数
+        const thumbnailMatch = entry.match(/<media:thumbnail[^>]*url=["']([^"']+)["']/);
+        if (thumbnailMatch) {
+          item.thumbnail = thumbnailMatch[1];
+        }
+
+        const viewsMatch = entry.match(/<media:statistics[^>]*views=["'](\d+)["']/);
+        if (viewsMatch) {
+          item.viewCount = parseInt(viewsMatch[1], 10);
+        }
+      }
+
+      items.push(item);
     }
 
     // 提取 feed 元信息
@@ -304,13 +131,20 @@ function parseXmlFeed(xml: string, feedUrl: string): RssFeed {
     const feedAuthorMatch = xml.match(/<feed[^>]*>[\s\S]*?<author>\s*<name[^>]*>([\s\S]*?)<\/name>/);
     const feedAuthor = feedAuthorMatch ? decodeXmlEntities(feedAuthorMatch[1].trim()) : undefined;
 
-    return {
+    let feed: RssFeed = {
       title: feedTitle,
       author: feedAuthor,
       feedUrl,
       items,
       totalItems: items.length
     };
+
+    // 使用处理器增强 Feed（如果可用）
+    if (handler?.enhanceFeed) {
+      feed = handler.enhanceFeed(feed, xml);
+    }
+
+    return feed;
   } else {
     // 解析 RSS 2.0 feed
     const itemRegex = /<item>([\s\S]*?)<\/item>/g;
@@ -424,28 +258,15 @@ function decodeXmlEntities(str: string): string {
 }
 
 /**
- * 从 URL 中提取视频 ID
- */
-function extractVideoIdFromUrl(url: string): string {
-  const patterns = [/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/, /\/watch\?v=([a-zA-Z0-9_-]{11})/];
-
-  for (const pattern of patterns) {
-    const match = url.match(pattern);
-    if (match) {
-      return match[1];
-    }
-  }
-
-  return url.split('/').pop() || url;
-}
-
-/**
  * 检测 RSS 来源类型
  */
 function detectSourceType(url: string): RssSourceType {
-  if (url.includes('youtube.com') || url.includes('youtu.be')) {
-    return 'youtube';
+  const handler = rssSourceRegistry.detectHandler(url);
+  if (handler) {
+    return handler.sourceType;
   }
+
+  // 回退到基于 URL 的检测
   if (url.includes('bilibili.com')) {
     return 'bilibili';
   }
@@ -465,36 +286,31 @@ export function initRssHandlers(): void {
    */
   ipcMain.handle('rss:create', async (_event, params: CreateRssResourceParams) => {
     try {
-      const { sourceType, channelIdOrUrl, title, autoDownload, downloadQuality, folderId, workspaceId } = params;
+      const { channelIdOrUrl, title, autoDownload, downloadQuality, folderId, workspaceId } = params;
 
       let metadata: RssMetadata;
       let resourceTitle = title;
       let resourceDescription: string | undefined;
       let thumbnailUrl: string | undefined;
 
-      if (sourceType === 'youtube') {
-        const channelInfo = await extractYouTubeChannelInfo(channelIdOrUrl);
-        if (!channelInfo) {
-          return { success: false, error: '无法解析 YouTube 频道信息' };
-        }
+      // 尝试使用处理器提取频道信息
+      const result = await rssSourceRegistry.extractChannelInfo(channelIdOrUrl);
 
-        metadata = {
-          sourceType: 'youtube',
-          feedUrl: channelInfo.feedUrl,
-          channelId: channelInfo.channelId,
-          channelUrl: channelInfo.channelUrl,
-          autoDownload: autoDownload ?? false,
-          downloadQuality: downloadQuality ?? '1080p',
-          downloadFolderId: folderId,
-          enabled: true,
-          subscriberCount: channelInfo.subscriberCount,
-          avatarUrl: channelInfo.thumbnail
-        };
+      if (result) {
+        // 使用处理器提取的信息
+        const { handler, channelInfo } = result;
 
-        resourceTitle = title || channelInfo.title || channelInfo.channelId;
+        metadata = handler.createMetadata(channelInfo, {
+          autoDownload,
+          downloadQuality,
+          downloadFolderId: folderId
+        });
+
+        resourceTitle = title || channelInfo.title || channelInfo.channelId || '未命名订阅';
+        resourceDescription = channelInfo.description;
         thumbnailUrl = channelInfo.thumbnail;
       } else {
-        // 通用 RSS
+        // 通用 RSS（没有匹配的处理器）
         const detectedType = detectSourceType(channelIdOrUrl);
 
         metadata = {
@@ -508,7 +324,7 @@ export function initRssHandlers(): void {
 
         // 尝试获取 feed 信息
         try {
-          const feed = await parseRssFeed(channelIdOrUrl);
+          const feed = await parseRssFeed(channelIdOrUrl, detectedType);
           resourceTitle = title || feed.title || '未命名订阅';
           resourceDescription = feed.description;
           thumbnailUrl = feed.image;
@@ -537,7 +353,7 @@ export function initRssHandlers(): void {
         description: resourceDescription,
         url: metadata.channelUrl || metadata.feedUrl,
         domain: metadata.feedUrl ? new URL(metadata.feedUrl).hostname : undefined,
-        sourceName: metadata.sourceType === 'youtube' ? 'YouTube' : metadata.sourceType,
+        sourceName: metadata.sourceType === 'youtube' ? 'YouTube' : metadata.sourceType || 'RSS',
         previewUrl: thumbnailUrl,
         metadata: JSON.stringify(metadata),
         workspaceId: wsId,
@@ -627,7 +443,7 @@ export function initRssHandlers(): void {
       }
 
       // 获取 feed
-      const feed = await parseRssFeed(metadata.feedUrl);
+      const feed = await parseRssFeed(metadata.feedUrl, metadata.sourceType);
 
       // 检查已下载的资源
       const downloadedResources = await ResourcesRepo.listChildren(resourceId, 1000, 0);
@@ -819,7 +635,7 @@ export function initRssHandlers(): void {
             continue;
           }
 
-          const feed = await parseRssFeed(metadata.feedUrl);
+          const feed = await parseRssFeed(metadata.feedUrl, metadata.sourceType);
           const hasUpdate = feed.items.length > 0 && feed.items[0].id !== metadata.latestItemId;
 
           let newItems = 0;

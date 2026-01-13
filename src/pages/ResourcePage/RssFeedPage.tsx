@@ -1,3 +1,4 @@
+import type { RssFeed, RssFeedItem, RssMetadata } from 'electron/main/handlers/rss/types';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { TbArrowLeft, TbCheck, TbClock, TbDownload, TbExternalLink, TbEye, TbLoader2, TbPlayerPlay, TbRefresh, TbRss, TbSearch, TbSettings, TbUsers } from 'react-icons/tb';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -11,7 +12,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import type { RssFeed, RssFeedItem, RssMetadata } from '@/types/rss';
 
 import { makeResSrc } from './utils/resourceProtocol';
 
@@ -242,7 +242,7 @@ const RssFeedPage: React.FC = () => {
   }, [loadResource, loadFeed]);
 
   return (
-    <div className="h-full flex flex-col bg-background">
+    <div className="h-full w-full flex flex-col bg-background">
       {/* 顶部导航栏 */}
       <div className="flex items-center gap-3 px-4 py-3 border-b bg-card/50 backdrop-blur-sm">
         <Button variant="ghost" size="icon" className="w-8 h-8" onClick={() => navigate(-1)}>

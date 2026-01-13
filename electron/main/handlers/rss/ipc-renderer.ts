@@ -1,4 +1,4 @@
-import type { CreateRssResourceParams, DownloadRssItemParams, FetchRssFeedParams, RssFeed, UpdateRssResourceParams } from '../../../../src/types/rss';
+import type { CreateRssResourceParams, DownloadRssItemParams, FetchRssFeedParams, RssFeed, UpdateRssResourceParams } from './types';
 import type { ResourceRow } from '../../db/schema';
 
 export interface RssApi {
