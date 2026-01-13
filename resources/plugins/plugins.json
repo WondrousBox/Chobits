@@ -1,5 +1,19 @@
 [
   {
+    "id": "ffmpeg",
+    "pluginId": "plugin:ffmpeg",
+    "type": "engine",
+    "name": "ffmpeg",
+    "displayName": "FFmpeg",
+    "description": "音视频处理工具，用于格式转换、音频提取等操作（软件内置）",
+    "version": "7.0",
+    "binaryName": "ffmpeg",
+    "archiveType": "none",
+    "category": ["core", "video-edit"],
+    "languages": [],
+    "platforms": []
+  },
+  {
     "id": "whisper-cli",
     "pluginId": "plugin:whisper",
     "type": "engine",
@@ -9,7 +23,7 @@
     "version": "1.8.2",
     "binaryName": "whisper",
     "archiveType": "zip",
-    "category": "asr",
+    "category": ["asr", "translation"],
     "languages": ["multi"],
     "platforms": [
       {
@@ -266,11 +280,11 @@
     "type": "engine",
     "name": "sherpa-onnx",
     "displayName": "Sherpa ONNX",
-    "description": "Sherpa ONNX 引擎，用于语音识别",
+    "description": "Sherpa ONNX 引擎，支持语音识别、语音合成、标点恢复等多种能力",
     "version": "1.0.0",
     "binaryName": "",
     "archiveType": "none",
-    "category": "asr",
+    "category": ["asr", "tts", "punctuation"],
     "platforms": [],
     "models": [
       {
@@ -667,11 +681,11 @@
     "type": "engine",
     "name": "funasr",
     "displayName": "FunASR CLI",
-    "description": "FunASR 命令行工具，用于语音识别和转录",
+    "description": "FunASR 命令行工具，支持语音识别、语音检测和标点恢复",
     "version": "1.0.0",
     "binaryName": "funasr",
     "archiveType": "zip",
-    "category": "asr",
+    "category": ["asr", "vad", "punctuation"],
     "languages": [
       "multi"
     ],
@@ -694,7 +708,7 @@
         "description": "FunASR 模型包（包含 ASR、VAD、PUNC、SPK 模型）",
         "version": "1.0.0",
         "archiveType": "zip",
-        "category": "asr",
+        "category": ["asr", "vad", "punctuation"],
         "languages": [
           "multi"
         ],

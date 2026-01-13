@@ -2,13 +2,38 @@
  * 插件或模型的类别
  */
 export type PluginCategory =
+  // 核心基础
+  | 'core' // 核心引擎（必要的基础组件，如 FFmpeg）
+  // 语音相关
   | 'asr' // 自动语音识别 (Automatic Speech Recognition)
   | 'tts' // 文本转语音 (Text-to-Speech)
   | 'stt' // 语音转文本 (Speech-to-Text)
-  | 'punctuation' // 标点符号恢复
-  | 'translation' // 翻译
-  | 'nlp' // 自然语言处理
   | 'vad' // 语音活动检测 (Voice Activity Detection)
+  | 'voice-clone' // 声音克隆
+  // 文本/语言相关
+  | 'llm' // 大语言模型 (Large Language Model)
+  | 'nlp' // 自然语言处理
+  | 'translation' // 翻译
+  | 'punctuation' // 标点符号恢复
+  | 'embedding' // 文本嵌入/向量化
+  // 图像相关
+  | 'image-gen' // 图像生成 (Text-to-Image)
+  | 'image-edit' // 图像编辑
+  | 'ocr' // 光学字符识别
+  | 'image-recognition' // 图像识别/分类
+  | 'face' // 人脸检测/识别
+  | 'image-super-res' // 图像超分辨率
+  // 视频相关
+  | 'video-gen' // 视频生成
+  | 'video-edit' // 视频编辑
+  | 'video-analysis' // 视频分析
+  // 多模态
+  | 'multimodal' // 多模态模型
+  // 其他
+  | 'agent' // AI 代理
+  | 'code' // 代码生成/补全
+  | 'music' // 音乐生成
+  | 'three-d' // 3D 模型生成
   | 'other'; // 其他类别
 
 export type PluginDefinition = {
@@ -21,7 +46,10 @@ export type PluginDefinition = {
   version: string;
   binaryName?: string;
   archiveType?: 'zip' | 'tar.gz' | 'tar.bz2' | 'tar' | 'none';
-  category?: PluginCategory;
+  /**
+   * 插件分类，支持单个分类或多个分类（表示插件具有多种能力）
+   */
+  category?: PluginCategory | PluginCategory[];
   /**
    * 支持的语言列表
    * 使用 ISO 639-1 语言代码（如 'zh', 'en', 'ja' 等）
