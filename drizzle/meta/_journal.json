@@ -57,6 +57,13 @@
       "when": 1766749321429,
       "tag": "0007_pale_celestials",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1768324917677,
+      "tag": "0008_safe_silver_samurai",
+      "breakpoints": true
     }
   ]
 }

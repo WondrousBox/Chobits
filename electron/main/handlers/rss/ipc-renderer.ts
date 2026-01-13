@@ -1,5 +1,5 @@
-import type { CreateRssResourceParams, DownloadRssItemParams, FetchRssFeedParams, RssFeed, UpdateRssResourceParams } from './types';
 import type { ResourceRow } from '../../db/schema';
+import type { CreateRssResourceParams, DownloadRssItemParams, FetchRssFeedParams, GetCachedFeedParams, RssFeedResponse, UpdateRssResourceParams } from './types';
 
 export interface RssApi {
   /**
@@ -13,9 +13,16 @@ export interface RssApi {
   update: (params: UpdateRssResourceParams) => Promise<{ success: boolean; data?: ResourceRow; error?: string }>;
 
   /**
-   * 获取 RSS Feed 内容
+   * 获取缓存的 RSS Feed 内容（从数据库读取，快速返回）
+   * 推荐在进入界面时首先调用此方法快速展示缓存数据
    */
-  fetchFeed: (params: FetchRssFeedParams) => Promise<{ success: boolean; data?: RssFeed; error?: string }>;
+  getCachedFeed: (params: GetCachedFeedParams) => Promise<RssFeedResponse>;
+
+  /**
+   * 获取 RSS Feed 内容（从网络获取最新数据并更新缓存）
+   * 推荐在 getCachedFeed 之后异步调用此方法获取最新数据
+   */
+  fetchFeed: (params: FetchRssFeedParams) => Promise<RssFeedResponse>;
 
   /**
    * 下载 RSS 条目
@@ -60,6 +67,7 @@ export function createRssApi(ipcRenderer: Electron.IpcRenderer): RssApi {
   return {
     create: (params) => ipcRenderer.invoke('rss:create', params),
     update: (params) => ipcRenderer.invoke('rss:update', params),
+    getCachedFeed: (params) => ipcRenderer.invoke('rss:getCachedFeed', params),
     fetchFeed: (params) => ipcRenderer.invoke('rss:fetchFeed', params),
     downloadItem: (params) => ipcRenderer.invoke('rss:downloadItem', params),
     list: (params) => ipcRenderer.invoke('rss:list', params),

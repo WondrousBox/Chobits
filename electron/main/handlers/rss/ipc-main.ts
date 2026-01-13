@@ -3,7 +3,8 @@ import https from 'node:https';
 
 import { ipcMain } from 'electron';
 
-import { ResourcesRepo, WorkspacesRepo } from '../../db/repositories';
+import { ResourcesRepo, RssFeedItemsRepo, WorkspacesRepo } from '../../db/repositories';
+import type { NewRssFeedItem, RssFeedItemRow } from '../../db/schema';
 import { getHttpProxy as getSystemHttpProxy } from '../proxy/proxy';
 import { rssSourceRegistry } from './rss-source-registry';
 import type { CreateRssResourceParams, DownloadRssItemParams, FetchRssFeedParams, RssFeed, RssFeedItem, RssMetadata, RssSourceType, UpdateRssResourceParams } from './types';
@@ -258,6 +259,67 @@ function decodeXmlEntities(str: string): string {
 }
 
 /**
+ * 将 RssFeedItem 转换为数据库行格式
+ */
+function feedItemToDbRow(rssResourceId: string, item: RssFeedItem): NewRssFeedItem {
+  return {
+    rssResourceId,
+    itemId: item.id,
+    title: item.title,
+    description: item.description,
+    link: item.link,
+    publishedAt: item.publishedAt,
+    updatedAt: item.updatedAt,
+    author: item.author,
+    thumbnail: item.thumbnail,
+    durationMs: item.durationMs,
+    viewCount: item.viewCount,
+    likeCount: item.likeCount,
+    commentCount: item.commentCount,
+    mediaType: item.mediaType,
+    mediaUrl: item.mediaUrl,
+    mediaFormat: item.mediaFormat,
+    sizeBytes: item.sizeBytes,
+    categories: item.categories ? JSON.stringify(item.categories) : undefined,
+    downloaded: item.downloaded ?? false,
+    localResourceId: item.localResourceId,
+    downloadStatus: item.downloadStatus,
+    downloadProgress: item.downloadProgress,
+    metadata: item.metadata ? JSON.stringify(item.metadata) : undefined
+  };
+}
+
+/**
+ * 将数据库行转换为 RssFeedItem
+ */
+function dbRowToFeedItem(row: RssFeedItemRow): RssFeedItem {
+  return {
+    id: row.itemId,
+    title: row.title,
+    description: row.description ?? undefined,
+    link: row.link,
+    publishedAt: row.publishedAt,
+    updatedAt: row.updatedAt ?? undefined,
+    author: row.author ?? undefined,
+    thumbnail: row.thumbnail ?? undefined,
+    durationMs: row.durationMs ?? undefined,
+    viewCount: row.viewCount ?? undefined,
+    likeCount: row.likeCount ?? undefined,
+    commentCount: row.commentCount ?? undefined,
+    mediaType: row.mediaType as RssFeedItem['mediaType'],
+    mediaUrl: row.mediaUrl ?? undefined,
+    mediaFormat: row.mediaFormat ?? undefined,
+    sizeBytes: row.sizeBytes ?? undefined,
+    categories: row.categories ? JSON.parse(row.categories) : undefined,
+    downloaded: row.downloaded ?? false,
+    localResourceId: row.localResourceId ?? undefined,
+    downloadStatus: row.downloadStatus as RssFeedItem['downloadStatus'],
+    downloadProgress: row.downloadProgress ?? undefined,
+    metadata: row.metadata ? JSON.parse(row.metadata) : undefined
+  };
+}
+
+/**
  * 检测 RSS 来源类型
  */
 function detectSourceType(url: string): RssSourceType {
@@ -414,7 +476,56 @@ export function initRssHandlers(): void {
   });
 
   /**
-   * 获取 RSS Feed 内容
+   * 获取缓存的 RSS Feed 内容（从数据库读取）
+   * 用于快速展示已缓存的条目，无需等待网络请求
+   */
+  ipcMain.handle('rss:getCachedFeed', async (_event, params: { resourceId: string; limit?: number; offset?: number }) => {
+    try {
+      const { resourceId, limit = 100, offset = 0 } = params;
+      const resource = await ResourcesRepo.getById(resourceId);
+      if (!resource || (resource as any).type !== 'rss') {
+        return { success: false, error: '资源不存在或不是 RSS 类型' };
+      }
+
+      let metadata: RssMetadata;
+      try {
+        metadata = JSON.parse((resource as any).metadata || '{}');
+      } catch {
+        return { success: false, error: '无法解析资源元数据' };
+      }
+
+      // 从数据库获取缓存的条目
+      const cachedRows = await RssFeedItemsRepo.listByResourceId(resourceId, limit, offset);
+      const totalItems = await RssFeedItemsRepo.countByResourceId(resourceId);
+
+      // 转换为 RssFeedItem 格式
+      const items = cachedRows.map(dbRowToFeedItem);
+
+      const feed: RssFeed = {
+        title: (resource as any).title || '',
+        description: (resource as any).description,
+        feedUrl: metadata.feedUrl || '',
+        image: (resource as any).previewUrl,
+        author: (resource as any).authorName,
+        items,
+        totalItems,
+        hasMore: offset + items.length < totalItems
+      };
+
+      return {
+        success: true,
+        data: feed,
+        cached: true,
+        lastFetchedAt: metadata.lastFetchedAt
+      };
+    } catch (error: any) {
+      console.error('[rss:getCachedFeed] 获取缓存失败:', error);
+      return { success: false, error: error?.message || '获取缓存失败' };
+    }
+  });
+
+  /**
+   * 获取 RSS Feed 内容（从网络获取最新数据并更新缓存）
    */
   ipcMain.handle('rss:fetchFeed', async (_event, params: FetchRssFeedParams) => {
     try {
@@ -439,7 +550,21 @@ export function initRssHandlers(): void {
       const now = Date.now();
       const fetchInterval = (metadata.fetchInterval || 60) * 60 * 1000; // 默认 60 分钟
       if (!forceRefresh && metadata.lastFetchedAt && now - metadata.lastFetchedAt < fetchInterval) {
-        // 返回缓存的数据（这里简化处理，实际可能需要缓存机制）
+        // 如果在刷新间隔内，返回缓存数据
+        const cachedRows = await RssFeedItemsRepo.listByResourceId(resourceId, 100, 0);
+        if (cachedRows.length > 0) {
+          const items = cachedRows.map(dbRowToFeedItem);
+          const feed: RssFeed = {
+            title: (resource as any).title || '',
+            description: (resource as any).description,
+            feedUrl: metadata.feedUrl,
+            image: (resource as any).previewUrl,
+            author: (resource as any).authorName,
+            items,
+            totalItems: items.length
+          };
+          return { success: true, data: feed, cached: true };
+        }
       }
 
       // 获取 feed
@@ -447,32 +572,38 @@ export function initRssHandlers(): void {
 
       // 检查已下载的资源
       const downloadedResources = await ResourcesRepo.listChildren(resourceId, 1000, 0);
-      const downloadedIds = new Set(
-        downloadedResources
-          .map((r: any) => {
-            try {
-              const m = JSON.parse(r.metadata || '{}');
-              return m.itemId;
-            } catch {
-              return null;
-            }
-          })
-          .filter(Boolean)
-      );
+      const downloadedMap = new Map<string, string>();
+      const downloadedIds = new Set<string>();
+
+      downloadedResources.forEach((r: any) => {
+        try {
+          const m = JSON.parse(r.metadata || '{}');
+          if (m.itemId) {
+            downloadedIds.add(m.itemId);
+            downloadedMap.set(m.itemId, r.id);
+          }
+        } catch {
+          // ignore parse error
+        }
+      });
 
       // 标记已下载状态
       feed.items = feed.items.map((item) => ({
         ...item,
         downloaded: downloadedIds.has(item.id),
-        localResourceId: downloadedResources.find((r: any) => {
-          try {
-            const m = JSON.parse(r.metadata || '{}');
-            return m.itemId === item.id;
-          } catch {
-            return false;
-          }
-        })?.id
+        localResourceId: downloadedMap.get(item.id)
       }));
+
+      // 将条目保存到数据库缓存
+      if (feed.items.length > 0) {
+        const dbRows = feed.items.map((item) => feedItemToDbRow(resourceId, item));
+        await RssFeedItemsRepo.bulkUpsert(dbRows);
+
+        // 批量更新已下载状态
+        if (downloadedIds.size > 0) {
+          await RssFeedItemsRepo.batchUpdateDownloadStatus(resourceId, Array.from(downloadedIds), downloadedMap);
+        }
+      }
 
       // 更新资源元数据
       const updatedMetadata: RssMetadata = {
@@ -493,7 +624,7 @@ export function initRssHandlers(): void {
         updatedAt: now
       } as any);
 
-      return { success: true, data: feed };
+      return { success: true, data: feed, cached: false };
     } catch (error: any) {
       console.error('[rss:fetchFeed] 获取失败:', error);
 
@@ -517,6 +648,38 @@ export function initRssHandlers(): void {
         }
       } catch {
         // ignore error logging failure
+      }
+
+      // 如果网络获取失败，尝试返回缓存数据
+      try {
+        const cachedRows = await RssFeedItemsRepo.listByResourceId(params.resourceId, 100, 0);
+        if (cachedRows.length > 0) {
+          const items = cachedRows.map(dbRowToFeedItem);
+          const resource = await ResourcesRepo.getById(params.resourceId);
+          let metadata: RssMetadata = {};
+          try {
+            metadata = JSON.parse((resource as any)?.metadata || '{}');
+          } catch {
+            // ignore
+          }
+          const feed: RssFeed = {
+            title: (resource as any)?.title || '',
+            description: (resource as any)?.description,
+            feedUrl: metadata.feedUrl || '',
+            image: (resource as any)?.previewUrl,
+            author: (resource as any)?.authorName,
+            items,
+            totalItems: items.length
+          };
+          return {
+            success: true,
+            data: feed,
+            cached: true,
+            error: error?.message || '网络获取失败，返回缓存数据'
+          };
+        }
+      } catch {
+        // ignore cache fallback error
       }
 
       return { success: false, error: error?.message || '获取失败' };
