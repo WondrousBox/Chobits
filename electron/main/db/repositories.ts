@@ -24,9 +24,12 @@ import {
   type NewDocument,
   type NewFolder,
   type NewRecycleBin,
+  type NewRssFeedItem,
   type NewWorkspace,
   recycle_bin,
   type RecycleBinRow,
+  rss_feed_items,
+  type RssFeedItemRow,
   type WorkspaceRow,
   workspaces
 } from './schema';
@@ -1470,5 +1473,162 @@ export const AutomationRulesRepo = {
       if (!config) return false;
       return config.event === eventType;
     });
+  }
+};
+
+/**
+ * RSS Feed 条目缓存表操作空间
+ * - 支持批量 upsert、按资源 ID 查询、增量更新、清理等
+ */
+export const RssFeedItemsRepo = {
+  /**
+   * 批量新增或更新条目（基于 rssResourceId + itemId 唯一约束）
+   * @param items 条目列表
+   */
+  async bulkUpsert(items: NewRssFeedItem[]): Promise<RssFeedItemRow[]> {
+    if (!items.length) return [];
+    const db = getOrm();
+    const rows = await db
+      .insert(rss_feed_items)
+      .values(items as any)
+      .onConflictDoUpdate({
+        target: [rss_feed_items.rssResourceId, rss_feed_items.itemId],
+        set: {
+          title: sql`excluded.title`,
+          description: sql`excluded.description`,
+          link: sql`excluded.link`,
+          publishedAt: sql`excluded.published_at`,
+          updatedAt: sql`excluded.updated_at`,
+          author: sql`excluded.author`,
+          thumbnail: sql`excluded.thumbnail`,
+          durationMs: sql`excluded.duration_ms`,
+          viewCount: sql`excluded.view_count`,
+          likeCount: sql`excluded.like_count`,
+          commentCount: sql`excluded.comment_count`,
+          mediaType: sql`excluded.media_type`,
+          mediaUrl: sql`excluded.media_url`,
+          mediaFormat: sql`excluded.media_format`,
+          sizeBytes: sql`excluded.size_bytes`,
+          categories: sql`excluded.categories`,
+          metadata: sql`excluded.metadata`
+        }
+      })
+      .returning()
+      .all();
+    return rows;
+  },
+
+  /**
+   * 按 RSS 资源 ID 获取缓存的条目列表（按发布时间倒序）
+   * @param rssResourceId RSS 资源 ID
+   * @param limit 限制数量
+   * @param offset 偏移量
+   */
+  async listByResourceId(rssResourceId: string, limit = 100, offset = 0): Promise<RssFeedItemRow[]> {
+    const db = getOrm();
+    return db
+      .select()
+      .from(rss_feed_items)
+      .where(and(eq(rss_feed_items.rssResourceId, rssResourceId), isNull(rss_feed_items.deletedAt)))
+      .orderBy(desc(rss_feed_items.publishedAt))
+      .limit(limit)
+      .offset(offset);
+  },
+
+  /**
+   * 统计某 RSS 资源下的条目数量
+   * @param rssResourceId RSS 资源 ID
+   */
+  async countByResourceId(rssResourceId: string): Promise<number> {
+    const db = getOrm();
+    const rows = await db
+      .select({ count: rss_feed_items.id })
+      .from(rss_feed_items)
+      .where(and(eq(rss_feed_items.rssResourceId, rssResourceId), isNull(rss_feed_items.deletedAt)));
+    return rows[0]?.count ?? 0;
+  },
+
+  /**
+   * 获取某 RSS 资源下最新的条目 ID
+   * @param rssResourceId RSS 资源 ID
+   */
+  async getLatestItemId(rssResourceId: string): Promise<string | null> {
+    const db = getOrm();
+    const rows = await db
+      .select({ itemId: rss_feed_items.itemId })
+      .from(rss_feed_items)
+      .where(and(eq(rss_feed_items.rssResourceId, rssResourceId), isNull(rss_feed_items.deletedAt)))
+      .orderBy(desc(rss_feed_items.publishedAt))
+      .limit(1);
+    return rows[0]?.itemId ?? null;
+  },
+
+  /**
+   * 更新条目的下载状态
+   * @param rssResourceId RSS 资源 ID
+   * @param itemId 条目 ID（来源平台的 ID）
+   * @param patch 更新字段
+   */
+  async updateDownloadStatus(
+    rssResourceId: string,
+    itemId: string,
+    patch: { downloaded?: boolean; localResourceId?: string | null; downloadStatus?: string; downloadProgress?: number }
+  ): Promise<RssFeedItemRow | undefined> {
+    const db = getOrm();
+    await db
+      .update(rss_feed_items)
+      .set(patch as any)
+      .where(and(eq(rss_feed_items.rssResourceId, rssResourceId), eq(rss_feed_items.itemId, itemId)))
+      .run();
+    const rows = await db
+      .select()
+      .from(rss_feed_items)
+      .where(and(eq(rss_feed_items.rssResourceId, rssResourceId), eq(rss_feed_items.itemId, itemId)))
+      .limit(1);
+    return rows[0];
+  },
+
+  /**
+   * 批量更新条目的下载状态（根据已下载的本地资源）
+   * @param rssResourceId RSS 资源 ID
+   * @param downloadedItemIds 已下载的条目 ID 列表
+   * @param localResourceMap 条目 ID 到本地资源 ID 的映射
+   */
+  async batchUpdateDownloadStatus(rssResourceId: string, downloadedItemIds: string[], localResourceMap: Map<string, string>): Promise<void> {
+    if (!downloadedItemIds.length) return;
+    const db = getOrm();
+    for (const itemId of downloadedItemIds) {
+      const localResourceId = localResourceMap.get(itemId);
+      await db
+        .update(rss_feed_items)
+        .set({ downloaded: true, localResourceId, downloadStatus: 'completed' } as any)
+        .where(and(eq(rss_feed_items.rssResourceId, rssResourceId), eq(rss_feed_items.itemId, itemId)))
+        .run();
+    }
+  },
+
+  /**
+   * 删除某 RSS 资源下的所有条目（物理删除）
+   * @param rssResourceId RSS 资源 ID
+   */
+  async deleteByResourceId(rssResourceId: string): Promise<number> {
+    const db = getOrm();
+    const res = await db.delete(rss_feed_items).where(eq(rss_feed_items.rssResourceId, rssResourceId)).run();
+    return (res as any).changes ?? 0;
+  },
+
+  /**
+   * 检查条目是否存在
+   * @param rssResourceId RSS 资源 ID
+   * @param itemId 条目 ID
+   */
+  async exists(rssResourceId: string, itemId: string): Promise<boolean> {
+    const db = getOrm();
+    const rows = await db
+      .select({ id: rss_feed_items.id })
+      .from(rss_feed_items)
+      .where(and(eq(rss_feed_items.rssResourceId, rssResourceId), eq(rss_feed_items.itemId, itemId)))
+      .limit(1);
+    return !!rows.length;
   }
 };

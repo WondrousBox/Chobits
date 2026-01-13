@@ -500,3 +500,82 @@ export type Workflow = InferSelectModel<typeof workflows>;
 export type NewWorkflow = InferInsertModel<typeof workflows>;
 export type WorkflowRun = InferSelectModel<typeof workflowRuns>;
 export type NewWorkflowRun = InferInsertModel<typeof workflowRuns>;
+
+/**
+ * rss_feed_items：RSS 订阅条目缓存表
+ * - 用于缓存 RSS Feed 的条目，避免每次进入界面都需要从网络获取
+ * - 支持增量更新，下次进入时先加载缓存，再异步获取最新数据
+ */
+export const rss_feed_items = sqliteTable(
+  'rss_feed_items',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    // 归属的 RSS 资源 ID（关联 resources 表中 type='rss' 的资源）
+    rssResourceId: text('rss_resource_id')
+      .references(() => resources.id, { onDelete: 'cascade', onUpdate: 'cascade' })
+      .notNull(),
+    // 条目在来源平台的唯一 ID
+    itemId: text('item_id').notNull(),
+    // 条目标题
+    title: text('title').notNull(),
+    // 条目描述/摘要
+    description: text('description'),
+    // 条目链接
+    link: text('link').notNull(),
+    // 发布时间（毫秒时间戳）
+    publishedAt: integer('published_at').notNull(),
+    // 更新时间（毫秒时间戳）
+    updatedAt: integer('updated_at'),
+    // 作者名称
+    author: text('author'),
+    // 缩略图 URL
+    thumbnail: text('thumbnail'),
+    // 时长（毫秒，音视频）
+    durationMs: integer('duration_ms'),
+    // 观看/播放次数
+    viewCount: integer('view_count'),
+    // 点赞数
+    likeCount: integer('like_count'),
+    // 评论数
+    commentCount: integer('comment_count'),
+    // 媒体类型
+    mediaType: text('media_type', { enum: ['video', 'audio', 'article', 'image', 'other'] }),
+    // 媒体 URL（直接播放/下载地址）
+    mediaUrl: text('media_url'),
+    // 媒体格式
+    mediaFormat: text('media_format'),
+    // 文件大小（字节）
+    sizeBytes: integer('size_bytes'),
+    // 分类/标签（JSON 数组字符串）
+    categories: text('categories'),
+    // 是否已下载
+    downloaded: integer('downloaded', { mode: 'boolean' }).default(false),
+    // 对应的本地资源 ID（如果已下载）
+    localResourceId: text('local_resource_id').references(() => resources.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+    // 下载状态
+    downloadStatus: text('download_status', { enum: ['pending', 'downloading', 'completed', 'error'] }),
+    // 下载进度（0-100）
+    downloadProgress: integer('download_progress'),
+    // 额外元数据（JSON字符串）
+    metadata: text('metadata'),
+    // 创建时间（入库时间）
+    createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`),
+    // 软删除时间
+    deletedAt: integer('deleted_at')
+  },
+  (t) => ({
+    // 按 RSS 资源筛选
+    idxRssFeedItemsResource: index('idx_rss_feed_items_resource').on(t.rssResourceId),
+    // 按发布时间排序
+    idxRssFeedItemsPublished: index('idx_rss_feed_items_published').on(t.publishedAt),
+    // 唯一约束：同一 RSS 资源下，条目 ID 唯一
+    uqRssFeedItemsResourceItem: uniqueIndex('uq_rss_feed_items_resource_item').on(t.rssResourceId, t.itemId),
+    // 按下载状态筛选
+    idxRssFeedItemsDownloaded: index('idx_rss_feed_items_downloaded').on(t.downloaded)
+  })
+);
+
+export type RssFeedItemRow = InferSelectModel<typeof rss_feed_items>;
+export type NewRssFeedItem = InferInsertModel<typeof rss_feed_items>;

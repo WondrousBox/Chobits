@@ -195,6 +195,34 @@ export interface FetchRssFeedParams {
 }
 
 /**
+ * 获取缓存 RSS Feed 的参数
+ */
+export interface GetCachedFeedParams {
+  /** 资源 ID */
+  resourceId: string;
+  /** 限制数量 */
+  limit?: number;
+  /** 偏移量 */
+  offset?: number;
+}
+
+/**
+ * RSS Feed 响应结果
+ */
+export interface RssFeedResponse {
+  /** 是否成功 */
+  success: boolean;
+  /** Feed 数据 */
+  data?: RssFeed;
+  /** 错误信息 */
+  error?: string;
+  /** 是否来自缓存 */
+  cached?: boolean;
+  /** 上次获取时间（毫秒时间戳） */
+  lastFetchedAt?: number;
+}
+
+/**
  * 下载 RSS 条目的参数
  */
 export interface DownloadRssItemParams {
