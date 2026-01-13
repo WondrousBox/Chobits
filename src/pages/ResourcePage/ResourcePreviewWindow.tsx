@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TbList } from 'react-icons/tb';
+import { TbArrowLeft, TbList } from 'react-icons/tb';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
@@ -26,6 +27,13 @@ function isIncomingPayload(payload: unknown): payload is IncomingPayload {
 }
 
 const ResourcePreviewWindow: React.FC = () => {
+  const params = useParams<{ resourceId?: string }>();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  // 判断是否为路由模式（通过检查是否有 resourceId 参数）
+  const isRouteMode = !!params.resourceId;
+
   const [data, setData] = useState<ResourceItem | null>(null);
   const [subtitleList, setSubtitleList] = useState<ResourceItem[]>([]);
   const [activeSubtitle, setActiveSubtitle] = useState<ResourceItem | null>(null);
@@ -148,12 +156,37 @@ const ResourcePreviewWindow: React.FC = () => {
     loadSubtitles();
   }, [data?.id, data?.type]);
 
-  // 用于跟踪是否已接收到数据（避免闭包陷阱）
-  const hasReceivedDataRef = useRef(false);
-
-  // 监听资源数据推送
+  // 路由模式：从路由参数加载资源
   useEffect(() => {
-    hasReceivedDataRef.current = false;
+    if (!isRouteMode || !params.resourceId) return;
+
+    const loadResourceFromRoute = async (): Promise<void> => {
+      try {
+        const resourceId = params.resourceId!;
+        const fullResource = await window.ipcRenderer.invoke('getResource', { id: resourceId });
+        if (fullResource) {
+          setData(fullResource);
+          // 从查询参数获取起始时间
+          const startTimeParam = searchParams.get('startTime');
+          const startTime = startTimeParam ? parseFloat(startTimeParam) : 0;
+          setCurrentTime(startTime);
+          if (startTime > 0) {
+            setPendingStartTime(startTime);
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to load resource from route:', error);
+      }
+    };
+
+    loadResourceFromRoute();
+  }, [isRouteMode, params.resourceId, searchParams]);
+
+  // 窗口模式：监听资源数据推送
+  useEffect(() => {
+    if (isRouteMode) return; // 路由模式下不监听窗口事件
+
+    const hasReceivedDataRef = { current: false };
 
     const handler = async (_e: Electron.IpcRendererEvent | null, payload: IncomingPayload | ResourceItem): Promise<void> => {
       // 标记已接收到数据
@@ -212,7 +245,7 @@ const ResourcePreviewWindow: React.FC = () => {
       window.ipcRenderer?.off('on:window:open:ready', handler);
       clearTimeout(timer);
     };
-  }, []);
+  }, [isRouteMode]);
 
   // 使用 ref 持有 channel 实例，确保 beforeunload 时可用
   const mediaSyncChannelRef = useRef<BroadcastChannel | null>(null);
@@ -239,8 +272,10 @@ const ResourcePreviewWindow: React.FC = () => {
     };
   }, [data?.id]);
 
-  // 窗口关闭时广播播放进度，以便右侧面板同步
+  // 窗口关闭时广播播放进度，以便右侧面板同步（仅窗口模式）
   useEffect(() => {
+    if (isRouteMode) return; // 路由模式下不处理 beforeunload
+
     const handleBeforeUnload = (): void => {
       if (data?.id && mediaPlayerRef.current) {
         const time = mediaPlayerRef.current.getCurrentTime();
@@ -259,7 +294,7 @@ const ResourcePreviewWindow: React.FC = () => {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [data?.id]);
+  }, [data?.id, isRouteMode]);
 
   // 弹窗播放时通知面板暂停
   const handlePlay = useCallback(() => {
@@ -307,14 +342,23 @@ const ResourcePreviewWindow: React.FC = () => {
   return (
     <div className="w-full h-full bg-background text-foreground overflow-hidden">
       {/* Header */}
-      <DragAbleTitle
-        title={<div className="text-xs font-medium truncate">{title}</div>}
-        actions={
-          <Button size="icon" className="w-8 h-8" variant="ghost" onClick={toggleTabsExpanded} title={isTabsExpanded ? '收起标签' : '展开标签'}>
-            <TbList />
+      {isRouteMode ? (
+        <div className="flex items-center w-full drag-region gap-2 h-9 px-2 box-border bg-background">
+          <Button variant="ghost" size="icon" className="h-8 w-8 no-drag" onClick={() => navigate(-1)}>
+            <TbArrowLeft />
           </Button>
-        }
-      />
+          {title}
+        </div>
+      ) : (
+        <DragAbleTitle
+          title={<div className="text-xs font-medium truncate">{title}</div>}
+          actions={
+            <Button size="icon" className="w-8 h-8" variant="ghost" onClick={toggleTabsExpanded} title={isTabsExpanded ? '收起标签' : '展开标签'}>
+              <TbList />
+            </Button>
+          }
+        />
+      )}
       {/* Content */}
       <div className="h-full overflow-hidden" style={{ height: 'calc(100% - 36px)' }}>
         {data && (

@@ -1,5 +1,5 @@
 import React from 'react';
-import { TbFilter, TbHeart, TbLine, TbSettings, TbTrash } from 'react-icons/tb';
+import { TbApps, TbFilter, TbHeart, TbLine, TbSettings, TbTrash } from 'react-icons/tb';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
@@ -58,6 +58,7 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
   const location = useLocation();
   const isTasksRoute = location.pathname.includes('/tasks');
   const isWorkflowsRoute = location.pathname.includes('/workflows');
+  const isAppsRoute = location.pathname.includes('/apps');
 
   return (
     <Sidebar collapsible="none" className="h-full w-80 bg-sidebar border-t">
@@ -125,6 +126,23 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
             >
               <TbLine />
               工作流
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem
+            key={'apps'}
+            onClick={() => {
+              navigate('/resources/apps', { replace: true });
+              setFavoriteFilter(false);
+              setFolderFilter('');
+              setTypeFilter([]);
+            }}
+          >
+            <SidebarMenuButton
+              variant={isAppsRoute ? 'outline' : 'default'}
+              className={`h-8 transition-colors ${isAppsRoute ? 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground' : ''}`}
+            >
+              <TbApps />
+              应用
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem

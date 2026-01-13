@@ -1,19 +1,11 @@
 import { spawn } from 'node:child_process';
-import * as fs from 'node:fs';
+import fs from 'node:fs';
 import { platform } from 'node:os';
-import * as path from 'node:path';
+import path from 'node:path';
 
-import * as ffmpeg from 'fluent-ffmpeg';
+import ffmpeg from 'fluent-ffmpeg';
 
 import { NodeConfig, NodeHandler, PortSchema, ValueType } from '../types';
-
-// FunASR 模型类型
-const MODEL_TYPES = {
-  ASR: 'asr',
-  VAD: 'vad',
-  PUNC: 'punc',
-  SPK: 'spk'
-};
 
 // 转录片段接口
 interface TranscriptSegment {
@@ -310,6 +302,14 @@ export const TranscribeFunASRNode: NodeHandler = {
     // const modelPaths = findModelPaths(modelsDir);
     const models = getModels({ modelsDir });
     const asrModel = models.find((m) => m.type === 'asr');
+    if (!asrModel?.path) {
+      throw new Error('ASR模型不存在');
+    }
+
+    if (!ffmpegPath) {
+      throw new Error('FFmpeg路径不存在');
+    }
+
     // FunASR CLI 参数
     const args: string[] = ['--device', 'mps', '--model', asrModel?.path, '--input', finalSrc, '--output-dir', outDir, '--ffmpeg-path', ffmpegPath, '--output-filename', base, '--sentence-timestamp'];
 
@@ -461,7 +461,9 @@ export const TranscribeFunASRNode: NodeHandler = {
 function getModels({ modelsDir }: { modelsDir?: string } = {}): { name: string; type: string; path: string }[] {
   // 如果没有提供modelsDir，使用默认路径
   const targetModelsDir = modelsDir;
-
+  if (!targetModelsDir) {
+    throw new Error('模型目录不存在');
+  }
   const models: { name: string; type: string; path: string }[] = [];
 
   if (!fs.existsSync(targetModelsDir)) {
