@@ -1,4 +1,4 @@
-import { TbSparkles } from 'react-icons/tb';
+import { TbBinaryTree, TbSparkles } from 'react-icons/tb';
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import DownloadFloating from '@/components/DownloadFloating';
@@ -7,6 +7,7 @@ import { useAIProviderConfig } from '@/hooks/useAIProviderConfig';
 import { useWorkspaceCheck } from '@/hooks/useWorkspaceCheck';
 import { ChatSelectionProvider } from '@/pages/ChatPage/context/ChatSelectionContext';
 import ExtensionSettings from '@/pages/ExtensionSettings/ExtensionSettings';
+import SkillTreeSettings from '@/pages/ExtensionSettings/SkillTreeSettings';
 import FileActionsMenu from '@/pages/FileActionsMenu/FileActionsMenu';
 import ResourcePreviewWindow from '@/pages/ResourcePage/ResourcePreviewWindow';
 import { ThemeProvider } from '@/pages/SettingsPage/providers/ThemeProvider';
@@ -65,6 +66,13 @@ function App(): JSX.Element {
                           icon: TbSparkles,
                           description: '自由移动、日常关心',
                           component: <ExtensionSettings />
+                        },
+                        {
+                          id: 'skill-tree',
+                          label: '技能天赋',
+                          icon: TbBinaryTree,
+                          description: '游戏化技能树设置',
+                          component: <SkillTreeSettings />
                         }
                       ]}
                     />
