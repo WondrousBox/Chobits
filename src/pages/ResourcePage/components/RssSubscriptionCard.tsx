@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import type { RssMetadata } from '@/types/rss';
+import type { RssMetadata } from 'electron/main/handlers/rss/types';
 
 import { ResourceItem } from '../types';
 import { makeResSrc } from '../utils/resourceProtocol';
