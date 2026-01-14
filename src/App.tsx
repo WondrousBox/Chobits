@@ -1,4 +1,4 @@
-import { TbBinaryTree, TbSparkles } from 'react-icons/tb';
+import { TbSparkles } from 'react-icons/tb';
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import DownloadFloating from '@/components/DownloadFloating';
@@ -66,13 +66,6 @@ function App(): JSX.Element {
                           icon: TbSparkles,
                           description: '自由移动、日常关心',
                           component: <ExtensionSettings />
-                        },
-                        {
-                          id: 'skill-tree',
-                          label: '技能天赋',
-                          icon: TbBinaryTree,
-                          description: '游戏化技能树设置',
-                          component: <SkillTreeSettings />
                         }
                       ]}
                     />
@@ -94,6 +87,7 @@ function App(): JSX.Element {
                 <Route path="/tagger" element={<TaggingPage />} />
                 <Route path="/resource-preview" element={<ResourcePreviewWindow />} />
                 <Route path="/download" element={<DownloadFloating />} />
+                <Route path="/skill-tree" element={<SkillTreeSettings />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
               <Toaster />

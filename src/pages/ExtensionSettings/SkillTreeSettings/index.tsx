@@ -20,6 +20,17 @@ const SkillTreeSettings: React.FC = () => {
   const [selectedSkill, setSelectedSkill] = useState<string | null>(null);
   const [skillStatuses, setSkillStatuses] = useState<Record<string, SkillStatus>>(initializeSkillStatuses);
 
+  // ESC 键退出功能
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        window.ipcRenderer.invoke('skillTree:close');
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, []);
+
   // 加载各个扩展的实际启用状态
   useEffect(() => {
     const loadStatuses = async (): Promise<void> => {
