@@ -33,8 +33,8 @@ const SkillNode: React.FC<SkillNodeProps> = ({ node, status, isSelected, onClick
         transform: 'translate(-50%, -50%)',
         zIndex: isSelected ? 30 : isHovered ? 20 : 10
       }}
-      initial={{ scale: 0, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
+      initial={{ scale: 0, opacity: 0, transform: 'translate(-50%, -50%)' }}
+      animate={{ scale: 1, opacity: 1, transform: 'translate(-50%, -50%)' }}
       transition={{ delay: 0.1, duration: 0.4, type: 'spring' }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -56,10 +56,11 @@ const SkillNode: React.FC<SkillNodeProps> = ({ node, status, isSelected, onClick
               transform: 'translate(-50%, -50%)',
               background: `radial-gradient(circle, ${colors.glowColor} 0%, transparent 70%)`
             }}
-            initial={{ scale: 0.8, opacity: 0 }}
+            initial={{ scale: 0.8, opacity: 0, transform: 'translate(-50%, -50%)' }}
             animate={{
               scale: [1, 1.3, 1],
-              opacity: [0.5, 0.2, 0.5]
+              opacity: [0.5, 0.2, 0.5],
+              transform: 'translate(-50%, -50%)'
             }}
             transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
           />
@@ -79,8 +80,8 @@ const SkillNode: React.FC<SkillNodeProps> = ({ node, status, isSelected, onClick
               transform: 'translate(-50%, -50%)',
               background: `radial-gradient(circle, ${colors.glowColor} 0%, transparent 70%)`
             }}
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1.1, opacity: 0.4 }}
+            initial={{ scale: 0.9, opacity: 0, transform: 'translate(-50%, -50%)' }}
+            animate={{ scale: 1.1, opacity: 0.4, transform: 'translate(-50%, -50%)' }}
             exit={{ scale: 1.2, opacity: 0 }}
             transition={{ duration: 0.2 }}
           />
@@ -167,9 +168,9 @@ const SkillNode: React.FC<SkillNodeProps> = ({ node, status, isSelected, onClick
       {/* 节点名称 */}
       <motion.div
         className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap text-center pointer-events-none"
-        style={{ top: nodeSize + 6 }}
-        initial={{ opacity: 0, y: -5 }}
-        animate={{ opacity: 1, y: 0 }}
+        style={{ top: nodeSize + 6, transform: 'translateX(-50%)' }}
+        initial={{ opacity: 0, y: -5, transform: 'translateX(-50%)' }}
+        animate={{ opacity: 1, y: 0, transform: 'translateX(-50%)' }}
         transition={{ delay: 0.2 }}
       >
         <span
