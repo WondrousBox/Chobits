@@ -48,6 +48,13 @@ export interface SkillNode {
   prerequisites: string[]; // 前置技能 IDs
   settingsKey?: string; // 映射到实际设置组件的 key
   unlockCondition?: string; // 解锁条件描述
+  requiredShortcut?: {
+    ctrl?: boolean;
+    shift?: boolean;
+    alt?: boolean;
+    meta?: boolean;
+    key: string; // 主键，如 'A', 'Enter' 等
+  }; // 激活技能所需的快捷键
 }
 
 export interface SkillBranch {
@@ -144,7 +151,12 @@ export const skillTreeNodes: SkillNode[] = [
     tier: 'beginner',
     column: 0,
     row: 2,
-    prerequisites: []
+    prerequisites: [],
+    requiredShortcut: {
+      ctrl: true,
+      shift: true,
+      key: 'A'
+    }
   },
   // 初级 第2列 - 语音识别
   {
@@ -405,7 +417,7 @@ export const getNodeColors = (branchId: string): SkillBranch => {
 };
 
 // 获取技能等级配置
-export const getTierConfig = (tier: SkillTier) => {
+export const getTierConfig = (tier: SkillTier): { label: string; color: string; order: number } => {
   return skillTierConfig[tier];
 };
 
