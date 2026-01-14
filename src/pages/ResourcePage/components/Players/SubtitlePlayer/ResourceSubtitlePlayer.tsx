@@ -6,6 +6,103 @@ import type { ResourceItem } from '../../../types';
 import { SubtitleTranslator } from '../SubtitleTranslator';
 import { SubtitlePlayer } from './SubtitlePlayer';
 
+/**
+ * 防抖状态 Hook - 用于高频更新的状态
+ */
+function useDebouncedState<T>(initialValue: T, delay: number = 100): [T, (value: T | ((prev: T) => T)) => void] {
+  const [state, setState] = useState<T>(initialValue);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const setDebouncedState = useCallback(
+    (value: T | ((prev: T) => T)) => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      timeoutRef.current = setTimeout(() => {
+        setState(value);
+      }, delay);
+    },
+    [delay]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  return [state, setDebouncedState];
+}
+
+/**
+ * 批量状态更新 Hook - 合并多次状态更新，减少渲染次数
+ */
+function useBatchedState<T>(initialValue: T): [T, (updater: (prev: T) => T) => void] {
+  const [state, setState] = useState<T>(initialValue);
+  const pendingRef = useRef<((prev: T) => T) | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const setBatchedState = useCallback((updater: (prev: T) => T) => {
+    pendingRef.current = updater;
+    if (!timeoutRef.current) {
+      timeoutRef.current = setTimeout(() => {
+        if (pendingRef.current) {
+          setState(pendingRef.current);
+          pendingRef.current = null;
+        }
+        timeoutRef.current = null;
+      }, 16);
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  return [state, setBatchedState];
+}
+
+/**
+ * 带累积的防抖状态 - 用于频繁追加更新的场景（如 typingTexts）
+ */
+function useAccumulatedDebouncedState<T>(initialValue: T, delay: number = 100): [T, (updater: (prev: T) => T) => void] {
+  const [state, setState] = useState<T>(initialValue);
+  const pendingRef = useRef<((prev: T) => T) | null>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const setAccumulatedState = useCallback(
+    (updater: (prev: T) => T) => {
+      pendingRef.current = updater;
+      if (!timeoutRef.current) {
+        timeoutRef.current = setTimeout(() => {
+          if (pendingRef.current) {
+            setState(pendingRef.current);
+            pendingRef.current = null;
+          }
+          timeoutRef.current = null;
+        }, delay);
+      }
+    },
+    [delay]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  return [state, setAccumulatedState];
+}
+
 // 将 AimSegments 转换为 ISegment 格式
 // ISegment = [string, string, string, string | undefined]
 // 第一个是开始时间，第二个是结束时间，第三个是文本，第四个是可选的
@@ -37,12 +134,12 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
   }, [subtitleEntries]);
 
   // 翻译状态管理
-  const [translatingChunks, setTranslatingChunks] = useState<Set<number>>(new Set()); // 正在翻译的片段索引
-  const [translatedChunks, setTranslatedChunks] = useState<Set<number>>(new Set()); // 已翻译完成的片段索引（目前未在 UI 中使用，预留）
-  const [chunkSummaries, setChunkSummaries] = useState<Map<number, string>>(new Map()); // 片段索引 -> summary
-  const [typingTexts, setTypingTexts] = useState<AimSegments[]>([]); // 第二轨道字幕（与主轨道 segments 一一对应）
+  const [translatingChunks, setTranslatingChunks] = useBatchedState<Set<number>>(new Set()); // 正在翻译的片段索引（批量更新）
+  const [translatedChunks, setTranslatedChunks] = useBatchedState<Set<number>>(new Set()); // 已翻译完成的片段索引（批量更新）
+  const [chunkSummaries, setChunkSummaries] = useDebouncedState<Map<number, string>>(new Map(), 50); // 片段索引 -> summary（防抖）
+  const [typingTexts, setTypingTexts] = useDebouncedState<AimSegments[]>([], 50); // 第二轨道字幕（与主轨道 segments 一一对应，防抖）
   const [isTranslationComplete, setIsTranslationComplete] = useState(false);
-  const [summaries, setSummaries] = useState<{ prev?: string; current?: string }>({}); // 总结信息：上一段 & 当前段
+  const [summaries, setSummaries] = useDebouncedState<{ prev?: string; current?: string }>({}, 50); // 总结信息（防抖）
   const [translationProgress, setTranslationProgress] = useState(0); // 翻译进度 0-100
   const [isTranslating, setIsTranslating] = useState(false); // 是否正在翻译
   const activeTranslationRequestIdRef = useRef<string | null>(null);
@@ -86,6 +183,14 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
         }
       }, 1000),
     []
+  );
+
+  // 防抖保存函数包装器（适配 SubtitleTranslator 组件的接口）
+  const saveWrapper = useCallback(
+    (resourceId: string, segments: AimSegments[]) => {
+      debouncedSave(resourceId, segments, subtitleFormat);
+    },
+    [debouncedSave, subtitleFormat]
   );
 
   // 切换资源或卸载组件时，确保待保存的更改被立即保存
@@ -221,9 +326,9 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
                 }
               });
 
-              setTranslatedChunks(newTranslatedChunks);
-              setChunkSummaries(newChunkSummaries);
-              setTypingTexts(newTypingTexts);
+              setTranslatedChunks(() => newTranslatedChunks);
+              setChunkSummaries(() => newChunkSummaries);
+              setTypingTexts(() => newTypingTexts);
             }
           } catch (err) {
             console.error('Failed to restore translated segments:', err);
@@ -248,9 +353,9 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
       if (markComplete) {
         setIsTranslationComplete(true);
       }
-      setTranslatingChunks(new Set());
+      setTranslatingChunks(() => new Set());
       // 保留打字效果，不清除
-      setSummaries({});
+      setSummaries(() => ({}));
       setIsTranslating(false);
       setTranslationProgress(0);
       activeTranslationRequestIdRef.current = null;
@@ -451,11 +556,11 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     setSubtitleEntries(updatedSegments);
     // 重置翻译状态
     setIsTranslationComplete(false);
-    setTranslatedChunks(new Set());
-    setChunkSummaries(new Map());
-    setTypingTexts([]);
-    setTranslatingChunks(new Set());
-    setSummaries({});
+    setTranslatedChunks(() => new Set());
+    setChunkSummaries(() => new Map());
+    setTypingTexts(() => []);
+    setTranslatingChunks(() => new Set());
+    setSummaries(() => ({}));
     setIsTranslating(false);
     setTranslationProgress(0);
     activeTranslationRequestIdRef.current = null;
@@ -487,7 +592,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
         onTranslateComplete={handleTranslateComplete}
         resourceId={resource.id}
         isLoading={isLoading}
-        debouncedSave={debouncedSave}
+        debouncedSave={saveWrapper}
         isTranslating={isTranslating}
         translationProgress={translationProgress}
         onStopTranslation={handleStopTranslation}

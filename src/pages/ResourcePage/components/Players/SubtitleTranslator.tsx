@@ -1,9 +1,8 @@
-/* eslint-disable react-hooks/set-state-in-effect */
 import { AimSegments } from '@aim-packages/subtitle';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { TbLanguage, TbPlayerStop } from 'react-icons/tb';
 
-import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
+import { ProviderModelSelect, ProviderModelSelectRef } from '@/components/common/ProviderModelSelect';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
@@ -120,8 +119,20 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({
   // AI 翻译相关状态
   const [selectedProviderId, setSelectedProviderId] = useState<string>(savedPreferences?.selectedProviderId || '');
   const [selectedModel, setSelectedModel] = useState<string>(savedPreferences?.selectedModel || '');
-  const [providers, setProviders] = useState<any[]>([]);
   const [providerConfigured, setProviderConfigured] = useState<boolean>(false);
+
+  // ProviderModelSelect ref
+  const providerSelectRef = useRef<ProviderModelSelectRef>(null);
+
+  // 当 provider 配置状态变化时的回调
+  const handleProviderConfigChange = useCallback((id: string, configured: boolean) => {
+    setProviderConfigured(configured);
+  }, []);
+
+  // 打开配置窗口的回调
+  const handleOpenConfig = useCallback(async (providerId: string, fields: string[]) => {
+    await window.YUA.window['window:open']('aiProviderConfig' as any, { providerId, fields }, { sameDisplayAsSender: true });
+  }, []);
 
   // 普通翻译相关状态
   const [selectedService, setSelectedService] = useState<TranslationService>(savedPreferences?.selectedService || 'google');
@@ -169,122 +180,6 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({
       if (item.service) setSelectedService(item.service);
     }
   }, []);
-
-  // 加载 AI Providers
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const provs = await window.YUA.ai.getProviders();
-        if (!mounted) return;
-        setProviders(provs || []);
-      } catch (error) {
-        console.error('加载 AI Providers 失败:', error);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  // 检测Provider配置状态
-  const checkProviderConfig = useCallback(
-    async (providerId: string): Promise<boolean> => {
-      if (!providerId) {
-        setProviderConfigured(false);
-        return false;
-      }
-
-      try {
-        const provider = providers.find((p) => p.id === providerId);
-        if (!provider) {
-          setProviderConfigured(false);
-          return false;
-        }
-
-        // 获取provider的schema，检查required字段
-        const schema = provider.schema;
-        const requiredFields = schema?.fields?.filter((f: any) => f.required) || [];
-
-        if (requiredFields.length === 0) {
-          // 如果没有required字段，认为已配置
-          setProviderConfigured(true);
-          return true;
-        }
-
-        // 获取已配置的secrets
-        const secrets = await window.YUA.ai.getProviderSecrets(providerId).catch(() => ({}));
-
-        // 检查所有required字段是否都有值
-        const allConfigured = requiredFields.every((f: any) => {
-          const value = secrets[f.key];
-          return value && (typeof value === 'string' ? value.trim().length > 0 : true);
-        });
-
-        setProviderConfigured(allConfigured);
-        return allConfigured;
-      } catch (error) {
-        console.error('检测Provider配置失败:', error);
-        setProviderConfigured(false);
-        return false;
-      }
-    },
-    [providers]
-  );
-
-  // 打开配置窗口
-  const handleOpenProviderConfig = useCallback(async () => {
-    if (!selectedProviderId) return;
-
-    try {
-      const provider = providers.find((p) => p.id === selectedProviderId);
-      if (!provider) return;
-
-      const schema = provider.schema;
-      const requiredFields = schema?.fields?.filter((f: any) => f.required) || [];
-      const fields = requiredFields.map((f: any) => f.key);
-
-      await window.YUA.window['window:open']('aiProviderConfig' as any, { providerId: selectedProviderId, fields }, { sameDisplayAsSender: true });
-    } catch (error) {
-      console.error('打开配置窗口失败:', error);
-    }
-  }, [selectedProviderId, providers]);
-
-  // 当选择provider或providers变化时，检测配置
-  useEffect(() => {
-    if (translationMode === 'ai' && selectedProviderId && providers.length > 0) {
-      checkProviderConfig(selectedProviderId);
-    } else {
-      setProviderConfigured(false);
-    }
-  }, [selectedProviderId, translationMode, providers, checkProviderConfig]);
-
-  // 监听配置窗口关闭事件，重新检测配置
-  useEffect(() => {
-    let intervalId: NodeJS.Timeout | null = null;
-
-    // 如果选择了provider且未配置，定期检测配置状态（用于检测配置窗口关闭后的状态）
-    if (translationMode === 'ai' && selectedProviderId && !providerConfigured) {
-      intervalId = setInterval(() => {
-        checkProviderConfig(selectedProviderId);
-      }, 2000); // 每2秒检测一次
-    }
-
-    // 监听窗口focus事件，当窗口重新获得焦点时检测配置
-    const handleFocus = (): void => {
-      if (translationMode === 'ai' && selectedProviderId) {
-        checkProviderConfig(selectedProviderId);
-      }
-    };
-
-    window.addEventListener('focus', handleFocus);
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
-    };
-  }, [translationMode, selectedProviderId, providerConfigured, checkProviderConfig]);
 
   // 处理服务商和模型的选择
   const handleProviderModelChange = useCallback((providerId: string, modelId: string) => {
@@ -357,9 +252,9 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({
     }
 
     // 检查API配置
-    const isConfigured = await checkProviderConfig(selectedProviderId);
+    const isConfigured = await providerSelectRef.current?.checkConfig(selectedProviderId);
     if (!isConfigured) {
-      handleOpenProviderConfig();
+      providerSelectRef.current?.openConfig(selectedProviderId);
       return;
     }
 
@@ -385,7 +280,7 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({
       targetLang: targetLanguage,
       force: false
     });
-  }, [selectedProviderId, selectedModel, targetLanguage, subtitleEntries, checkProviderConfig, handleOpenProviderConfig, executeAITranslation]);
+  }, [selectedProviderId, selectedModel, targetLanguage, subtitleEntries, executeAITranslation]);
 
   // 强制开始翻译
   const handleForceStart = useCallback(() => {
@@ -502,6 +397,7 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">翻译模型</Label>
                   <ProviderModelSelect
+                    ref={providerSelectRef}
                     providerId={selectedProviderId}
                     modelId={selectedModel}
                     onChange={handleProviderModelChange}
@@ -512,11 +408,13 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({
                     autoLoadFirst={true}
                     modelTypes={['chat']}
                     showModelDetails
+                    onProviderConfigChange={handleProviderConfigChange}
+                    onOpenConfig={handleOpenConfig}
                   />
                   {selectedProviderId && !providerConfigured && (
                     <div className="flex items-center justify-between p-2 text-xs bg-yellow-50 border border-yellow-200 rounded-md">
                       <span className="text-yellow-800">API 配置未完成</span>
-                      <Button size="sm" variant="outline" className="h-6 text-xs" onClick={handleOpenProviderConfig}>
+                      <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => providerSelectRef.current?.openConfig()}>
                         去配置
                       </Button>
                     </div>

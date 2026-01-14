@@ -27,14 +27,14 @@ export class OpenAIProvider implements ProviderAdapter {
     };
     return loadProviderSchema(this.id, fallback);
   }
-  setSecrets(secrets: ProviderSecrets) {
+  setSecrets(secrets: ProviderSecrets): void {
     this.secrets = { ...this.secrets, ...(secrets as any) };
   }
   getSecrets(): ProviderSecrets {
     return this.secrets;
   }
 
-  private client(override?: Partial<OpenAISecrets>) {
+  private client(override?: Partial<OpenAISecrets>): OpenAI {
     const cfg: any = {};
     const s = { ...this.secrets, ...(override || {}) };
     if (s.apiKey) cfg.apiKey = s.apiKey;
@@ -75,7 +75,7 @@ export class OpenAIProvider implements ProviderAdapter {
     return { vectors, dim, model, providerId: this.id };
   }
 
-  async listModels(opts?: { secrets?: Partial<OpenAISecrets> }) {
+  async listModels(opts?: { secrets?: Partial<OpenAISecrets> }): Promise<Array<{ id: string }>> {
     // Prefer curated JSON if present; otherwise, try live API; finally fallback
     const curated = await loadProviderModelsFromBank(this.id);
     if (curated.length) return curated;
@@ -85,7 +85,9 @@ export class OpenAIProvider implements ProviderAdapter {
       const data = Array.isArray(res?.data) ? res.data : [];
       const items = data.map((m: any) => ({ id: m.id }));
       if (items.length) return items;
-    } catch { }
+    } catch (error) {
+      console.error(error);
+    }
     return [];
   }
 }

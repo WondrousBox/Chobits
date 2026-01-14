@@ -26,18 +26,20 @@ export class GeminiProvider implements ProviderAdapter {
     };
     return loadProviderSchema(this.id, fallback);
   }
-  setSecrets(secrets: ProviderSecrets) {
+  setSecrets(secrets: ProviderSecrets): void {
     this.secrets = { ...this.secrets, ...(secrets as any) };
   }
   getSecrets(): ProviderSecrets {
     return this.secrets;
   }
 
-  private modelInstance(model?: string) {
-    if (!this.secrets.apiKey) throw new Error('Gemini API key not set');
+  private modelInstance(model?: string): any {
+    if (!this.secrets.apiKey) {
+      throw new Error('Gemini API key not set');
+    }
     const genAI = new GoogleGenerativeAI(this.secrets.apiKey);
     const m = model || this.secrets.model || 'gemini-1.5-flash';
-    return genAI.getGenerativeModel({ model: m });
+    return genAI.getGenerativeModel({ model: m }) as any;
   }
 
   async chat(req: ChatRequest, onStream?: (event: StreamEvent) => void, signal?: AbortSignal): Promise<ChatResponse> {
@@ -65,7 +67,7 @@ export class GeminiProvider implements ProviderAdapter {
     throw new Error('Gemini embeddings not implemented');
   }
 
-  async listModels() {
+  async listModels(): Promise<Array<{ id: string }>> {
     const curated = await loadProviderModelsFromBank(this.id);
     if (curated.length) return curated;
     return [];

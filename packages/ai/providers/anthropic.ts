@@ -27,14 +27,14 @@ export class AnthropicProvider implements ProviderAdapter {
     };
     return loadProviderSchema(this.id, fallback);
   }
-  setSecrets(secrets: ProviderSecrets) {
+  setSecrets(secrets: ProviderSecrets): void {
     this.secrets = { ...this.secrets, ...(secrets as any) };
   }
   getSecrets(): ProviderSecrets {
     return this.secrets;
   }
 
-  private client() {
+  private client(): Anthropic {
     const cfg: any = {};
     if (this.secrets.apiKey) cfg.apiKey = this.secrets.apiKey;
     if (this.secrets.baseUrl) cfg.baseURL = this.secrets.baseUrl;
@@ -72,7 +72,7 @@ export class AnthropicProvider implements ProviderAdapter {
     throw new Error('Anthropic embeddings not supported via API');
   }
 
-  async listModels() {
+  async listModels(): Promise<Array<{ id: string }>> {
     const curated = await loadProviderModelsFromBank(this.id);
     if (curated.length) return curated;
     return [];
