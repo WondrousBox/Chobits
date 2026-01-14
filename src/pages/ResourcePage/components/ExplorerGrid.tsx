@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbFolderFilled, TbFolderOpen, TbFolderPlus, TbLine, TbPencil, TbTrash } from 'react-icons/tb';
+import { TbFolderFilled, TbFolderOpen, TbFolderPlus, TbLine, TbPencil, TbRefresh, TbSettings, TbTrash } from 'react-icons/tb';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -201,6 +201,10 @@ export interface ExplorerGridProps {
   onPreview?: (item: ResourceItem) => void;
   /** 所有资源的总数（用于统计显示） */
   totalCount?: number;
+  /** RSS 订阅设置回调 */
+  onOpenRssSettings?: (item: ResourceItem) => void;
+  /** RSS 刷新订阅回调 */
+  onRefreshRss?: (id: string) => void;
 }
 
 type Point = { x: number; y: number };
@@ -231,7 +235,9 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
   onMoveFolder,
   onFolderCreated,
   onPreview,
-  totalCount = 0
+  totalCount = 0,
+  onOpenRssSettings,
+  onRefreshRss
 }) => {
   const navigate = useNavigate();
   const taskStatuses = useResourceTaskStatus();
@@ -584,7 +590,6 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
                       innerRef={updateItemRef(item.id)}
                       onClick={(e) => handleItemClick(e, item.id, idx)}
                       onToggleFavorite={onToggleFavorite}
-                      onDelete={onDelete}
                       onOpenFeed={() => navigate(`/resources/rss/${item.id}`)}
                     />
                   </div>
@@ -677,6 +682,41 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
                   }}
                 >
                   {(window as any).YUA?.isWindows ? '在资源管理器中显示' : '在 Finder 中显示'}
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+              </>
+            )}
+
+            {/* RSS 订阅专属选项 */}
+            {firstSelectedItem?.type === 'rss' && (
+              <>
+                <ContextMenuItem
+                  onSelect={async () => {
+                    if (!firstSelected || !firstSelectedItem) return;
+                    try {
+                      const result = await window.YUA.rss.fetchFeed({ resourceId: firstSelected, forceRefresh: true });
+                      if (result.success) {
+                        toast.success('刷新成功', { description: `获取到 ${result.data?.items.length || 0} 条内容` });
+                        onRefreshRss?.(firstSelected);
+                      } else {
+                        toast.error('刷新失败', { description: result.error });
+                      }
+                    } catch (error: any) {
+                      toast.error('刷新失败', { description: error?.message });
+                    }
+                  }}
+                >
+                  <TbRefresh className="mr-2 w-4 h-4" />
+                  刷新订阅
+                </ContextMenuItem>
+                <ContextMenuItem
+                  onSelect={() => {
+                    if (!firstSelectedItem) return;
+                    onOpenRssSettings?.(firstSelectedItem);
+                  }}
+                >
+                  <TbSettings className="mr-2 w-4 h-4" />
+                  订阅设置
                 </ContextMenuItem>
                 <ContextMenuSeparator />
               </>

@@ -1,13 +1,10 @@
 import { clsx } from 'clsx';
 import type { RssMetadata } from 'electron/main/handlers/rss/types';
-import React, { useCallback, useMemo, useState } from 'react';
-import { TbCheck, TbClock, TbDownload, TbExternalLink, TbHeart, TbLoader2, TbRefresh, TbRss, TbSettings, TbTrash, TbUsers } from 'react-icons/tb';
-import { toast } from 'sonner';
+import React, { useCallback, useMemo } from 'react';
+import { TbClock, TbDownload, TbExternalLink, TbHeart, TbRss, TbUsers } from 'react-icons/tb';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 import { ResourceItem } from '../types';
@@ -18,15 +15,11 @@ interface RssSubscriptionCardProps {
   selected: boolean;
   onClick: (e: React.MouseEvent, item: ResourceItem) => void;
   onToggleFavorite?: (id: string) => void;
-  onDelete?: (id: string) => void;
-  onRefresh?: (id: string) => void;
   onOpenFeed?: (item: ResourceItem) => void;
-  onOpenSettings?: (item: ResourceItem) => void;
   innerRef?: (el: HTMLDivElement | null) => void;
 }
 
-const RssSubscriptionCard: React.FC<RssSubscriptionCardProps> = ({ item, selected, onClick, onToggleFavorite, onDelete, onRefresh, onOpenFeed, onOpenSettings, innerRef }) => {
-  const [refreshing, setRefreshing] = useState(false);
+const RssSubscriptionCard: React.FC<RssSubscriptionCardProps> = ({ item, selected, onClick, onToggleFavorite, onOpenFeed, innerRef }) => {
 
   // 解析 metadata
   const metadata: RssMetadata = useMemo(() => {
@@ -91,28 +84,6 @@ const RssSubscriptionCard: React.FC<RssSubscriptionCardProps> = ({ item, selecte
         return 'RSS';
     }
   }, [metadata.sourceType]);
-
-  // 刷新订阅
-  const handleRefresh = useCallback(
-    async (e: React.MouseEvent) => {
-      e.stopPropagation();
-      setRefreshing(true);
-      try {
-        const result = await window.YUA.rss.fetchFeed({ resourceId: item.id, forceRefresh: true });
-        if (result.success) {
-          toast.success('刷新成功', { description: `获取到 ${result.data?.items.length || 0} 条内容` });
-          onRefresh?.(item.id);
-        } else {
-          toast.error('刷新失败', { description: result.error });
-        }
-      } catch (error: any) {
-        toast.error('刷新失败', { description: error?.message });
-      } finally {
-        setRefreshing(false);
-      }
-    },
-    [item.id, onRefresh]
-  );
 
   // 打开 Feed 列表
   const handleOpenFeed = useCallback(
@@ -203,22 +174,6 @@ const RssSubscriptionCard: React.FC<RssSubscriptionCardProps> = ({ item, selecte
           </div>
 
           <div className="flex items-center gap-1">
-            {/* 刷新按钮 */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="w-8 h-8 bg-black/30 hover:bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={handleRefresh}
-                  disabled={refreshing}
-                >
-                  {refreshing ? <TbLoader2 className="w-4 h-4 animate-spin" /> : <TbRefresh className="w-4 h-4" />}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>刷新订阅</TooltipContent>
-            </Tooltip>
-
             {/* 外部链接 */}
             {(metadata.channelUrl || item.url) && (
               <Tooltip>
@@ -245,52 +200,6 @@ const RssSubscriptionCard: React.FC<RssSubscriptionCardProps> = ({ item, selecte
               </TooltipTrigger>
               <TooltipContent>{item.favorite === 1 ? '取消收藏' : '添加收藏'}</TooltipContent>
             </Tooltip>
-
-            <Button
-              className="text-destructive"
-              onClick={(e) => {
-                e.preventDefault();
-                onDelete?.(item.id);
-              }}
-            >
-              <TbTrash className="w-4 h-4 mr-2" />
-              删除订阅
-            </Button>
-            {/* 更多操作 */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="w-8 h-8 bg-black/30 hover:bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <TbSettings className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                <DropdownMenuItem
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    onOpenSettings?.(item);
-                  }}
-                >
-                  <TbSettings className="w-4 h-4 mr-2" />
-                  订阅设置
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="text-destructive"
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    onDelete?.(item.id);
-                  }}
-                >
-                  <TbTrash className="w-4 h-4 mr-2" />
-                  删除订阅
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
         </div>
 
