@@ -109,22 +109,21 @@ const SkillNode: React.FC<SkillNodeProps> = ({ node, status, isSelected, onClick
         style={{
           width: nodeSize,
           height: nodeSize,
-          background: isUnlocked
-            ? `linear-gradient(135deg, ${colors.gradientFrom} 0%, ${colors.gradientTo} 100%)`
-            : 'linear-gradient(135deg, #374151 0%, #1f2937 100%)',
+          background: isUnlocked ? `linear-gradient(135deg, ${colors.gradientFrom} 0%, ${colors.gradientTo} 100%)` : 'linear-gradient(135deg, #374151 0%, #1f2937 100%)',
           border: `3px solid ${isUnlocked ? colors.color : '#4b5563'}`,
-          boxShadow: isUnlocked
-            ? `0 0 20px ${colors.glowColor}, inset 0 2px 4px rgba(255,255,255,0.1)`
-            : 'inset 0 2px 4px rgba(0,0,0,0.3)',
+          boxShadow: isUnlocked ? `0 0 20px ${colors.glowColor}, inset 0 2px 4px rgba(255,255,255,0.1)` : 'inset 0 2px 4px rgba(0,0,0,0.3)',
           opacity: isUnlocked ? 1 : 0.6
         }}
         animate={
           isActive
-            ? { scale: [1, 1.05, 1], boxShadow: [
+            ? {
+              scale: [1, 1.05, 1],
+              boxShadow: [
                 `0 0 20px ${colors.glowColor}, inset 0 2px 4px rgba(255,255,255,0.1)`,
                 `0 0 35px ${colors.glowColor}, inset 0 2px 4px rgba(255,255,255,0.2)`,
                 `0 0 20px ${colors.glowColor}, inset 0 2px 4px rgba(255,255,255,0.1)`
-              ]}
+              ]
+            }
             : {}
         }
         transition={isActive ? { duration: 2, repeat: Infinity, ease: 'easeInOut' } : {}}
@@ -159,11 +158,7 @@ const SkillNode: React.FC<SkillNodeProps> = ({ node, status, isSelected, onClick
 
         {/* 锁定遮罩 */}
         {!isUnlocked && (
-          <motion.div
-            className="absolute inset-0 rounded-full flex items-center justify-center bg-black/40"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-          >
+          <motion.div className="absolute inset-0 rounded-full flex items-center justify-center bg-black/40" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <TbLock className="w-5 h-5 text-gray-400" />
           </motion.div>
         )}
