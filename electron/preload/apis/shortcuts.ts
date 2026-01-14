@@ -1,8 +1,14 @@
 import { ipcRenderer } from 'electron';
+
 import type { IPCParams } from '../type';
 
 export type PlatformKey = 'darwin' | 'win32' | 'linux';
 export type ShortcutsConfig = Record<string, string | string[] | Partial<Record<PlatformKey, string | string[]>>>;
+
+// 快捷键功能的启用状态配置
+export type ShortcutEnabledConfig = {
+  screenshot: boolean;
+};
 
 export type ShortcutAction = {
   id: string;
@@ -17,9 +23,18 @@ export type ShortcutsBridgeParams = {
   'shortcuts:getSchema': IPCParams<[void], { ok: boolean; data?: ShortcutAction[]; error?: string }>;
   'shortcuts:validate': IPCParams<[Partial<ShortcutsConfig>], { ok: boolean; data?: { ok: boolean; details: Record<string, { accel: string; ok: boolean; error?: string }[]> }; error?: string }>;
   'shortcuts:setConfig': IPCParams<[Partial<ShortcutsConfig>], { ok: boolean; data?: ShortcutsConfig; error?: string }>;
+  'shortcuts:getEnabledConfig': IPCParams<[void], { ok: boolean; data?: ShortcutEnabledConfig; error?: string }>;
+  'shortcuts:setEnabledConfig': IPCParams<[Partial<ShortcutEnabledConfig>], { ok: boolean; data?: ShortcutEnabledConfig; error?: string }>;
 };
 
-const methods: Array<keyof ShortcutsBridgeParams> = ['shortcuts:getConfig', 'shortcuts:getSchema', 'shortcuts:validate', 'shortcuts:setConfig'];
+const methods: Array<keyof ShortcutsBridgeParams> = [
+  'shortcuts:getConfig',
+  'shortcuts:getSchema',
+  'shortcuts:validate',
+  'shortcuts:setConfig',
+  'shortcuts:getEnabledConfig',
+  'shortcuts:setEnabledConfig'
+];
 
 export type ShortcutsBridgeType = { [K in keyof ShortcutsBridgeParams]: (...args: ShortcutsBridgeParams[K]['request']) => Promise<ShortcutsBridgeParams[K]['response']> };
 
