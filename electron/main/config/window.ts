@@ -8,7 +8,6 @@ declare module '@aim-packages/window-manager' {
     settings: void;
     workspaceWizard: void;
     resources: void;
-    recycle: void;
     assistant: void;
     pluginManager: void;
     chat: void;
@@ -21,6 +20,7 @@ declare module '@aim-packages/window-manager' {
     asr: void;
     ttsConfig: void;
     tts: void;
+    skillTree: void;
   }
 }
 
@@ -476,6 +476,25 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
       resizable: true,
       alwaysOnTop: true,
       skipTaskbar: true,
+      backgroundColor: '#00000000',
+      webPreferences: { nodeIntegration: true, contextIsolation: true }
+    }
+  },
+  skillTree: {
+    routeHash: 'skill-tree',
+    showOnReady: false,
+    openDevTools: false,
+    trueFullscreen: true,
+    options: {
+      frame: false,
+      transparent: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      resizable: false,
+      movable: false,
+      hasShadow: false,
+      enableLargerThanScreen: true,
+      show: false,
       backgroundColor: '#00000000',
       webPreferences: { nodeIntegration: true, contextIsolation: true }
     }

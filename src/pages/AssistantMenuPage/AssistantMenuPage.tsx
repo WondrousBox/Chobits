@@ -73,6 +73,13 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         shortcut: 'r',
         action: () => window.YUA.window['window:open']('resources')
       },
+      {
+        id: 'skill-tree',
+        label: '技能树',
+        icon: '🌳',
+        shortcut: 'k',
+        action: () => window.ipcRenderer.invoke('skillTree:open')
+      },
       // {
       //   id: 'recycle',
       //   label: '回收站',
