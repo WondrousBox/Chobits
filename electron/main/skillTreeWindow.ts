@@ -49,14 +49,13 @@ export class SkillTreeManager {
       }
     });
 
-    const pageUrl = process.env.VITE_DEV_SERVER_URL
-      ? `${process.env.VITE_DEV_SERVER_URL}#/skill-tree`
-      : `file://${path.join(__dirname, '../../dist/index.html')}#/skill-tree`;
+    const pageUrl = process.env.VITE_DEV_SERVER_URL ? `${process.env.VITE_DEV_SERVER_URL}#/skill-tree` : `file://${path.join(__dirname, '../../dist/index.html')}#/skill-tree`;
 
     this.window.loadURL(pageUrl).then(() => {
       this.window?.show();
       this.window?.setAlwaysOnTop(true, 'screen-saver');
       this.window?.focus();
+      this.window?.webContents.openDevTools({ mode: 'detach' });
     });
 
     this.window.on('closed', () => {
