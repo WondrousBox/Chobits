@@ -67,9 +67,9 @@ const SkillNode: React.FC<SkillNodeProps> = ({ node, status, isSelected, onClick
         )}
       </AnimatePresence>
 
-      {/* 悬停光晕 */}
+      {/* 悬停光晕 - 仅激活状态显示 */}
       <AnimatePresence>
-        {isHovered && isUnlocked && (
+        {isHovered && isActive && (
           <motion.div
             className="absolute rounded-full"
             style={{
@@ -110,9 +110,9 @@ const SkillNode: React.FC<SkillNodeProps> = ({ node, status, isSelected, onClick
         style={{
           width: nodeSize,
           height: nodeSize,
-          background: isUnlocked ? `linear-gradient(135deg, ${colors.gradientFrom} 0%, ${colors.gradientTo} 100%)` : 'linear-gradient(135deg, #374151 0%, #1f2937 100%)',
-          border: `3px solid ${isUnlocked ? colors.color : '#4b5563'}`,
-          boxShadow: isUnlocked ? `0 0 20px ${colors.glowColor}, inset 0 2px 4px rgba(255,255,255,0.1)` : 'inset 0 2px 4px rgba(0,0,0,0.3)',
+          background: isActive ? `linear-gradient(135deg, ${colors.gradientFrom} 0%, ${colors.gradientTo} 100%)` : 'linear-gradient(135deg, #374151 0%, #1f2937 100%)',
+          border: `3px solid ${isActive ? colors.color : '#4b5563'}`,
+          boxShadow: isActive ? `0 0 20px ${colors.glowColor}, inset 0 2px 4px rgba(255,255,255,0.1)` : 'inset 0 2px 4px rgba(0,0,0,0.3)',
           opacity: isUnlocked ? 1 : 0.6
         }}
         animate={
@@ -132,7 +132,7 @@ const SkillNode: React.FC<SkillNodeProps> = ({ node, status, isSelected, onClick
         whileTap={isUnlocked ? { scale: 0.95 } : {}}
       >
         {/* 内圈装饰 */}
-        {isUnlocked && (
+        {isActive && (
           <motion.div
             className="absolute rounded-full"
             style={{
@@ -140,18 +140,18 @@ const SkillNode: React.FC<SkillNodeProps> = ({ node, status, isSelected, onClick
               height: nodeSize - 12,
               border: `1px solid ${colors.color}40`
             }}
-            animate={isActive ? { opacity: [0.3, 0.6, 0.3] } : {}}
+            animate={{ opacity: [0.3, 0.6, 0.3] }}
             transition={{ duration: 1.5, repeat: Infinity }}
           />
         )}
 
-        {/* 图标 */}
+        {/* 图标 - 只有图标保持高亮 */}
         <div
           style={{
             width: iconSize,
             height: iconSize,
-            color: isUnlocked ? '#fff' : '#6b7280',
-            filter: isActive ? `drop-shadow(0 0 6px ${colors.color})` : undefined
+            color: isActive ? '#ffffff' : (isUnlocked ? colors.color : '#6b7280'),
+            filter: isActive ? `drop-shadow(0 0 8px ${colors.color}) drop-shadow(0 2px 4px rgba(0,0,0,0.5))` : (isUnlocked ? `drop-shadow(0 0 4px ${colors.color})` : undefined)
           }}
         >
           <Icon className="w-full h-full" />
@@ -176,9 +176,9 @@ const SkillNode: React.FC<SkillNodeProps> = ({ node, status, isSelected, onClick
         <span
           className="text-xs font-medium px-2 py-0.5 rounded backdrop-blur-sm"
           style={{
-            color: isUnlocked ? colors.color : '#6b7280',
+            color: isActive ? colors.color : (isUnlocked ? '#94a3b8' : '#6b7280'),
             backgroundColor: 'rgba(15, 23, 42, 0.85)',
-            textShadow: isUnlocked ? `0 0 8px ${colors.glowColor}` : undefined
+            textShadow: isActive ? `0 0 8px ${colors.glowColor}` : undefined
           }}
         >
           {node.name}
