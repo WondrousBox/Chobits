@@ -1,11 +1,10 @@
 import { clsx } from 'clsx';
 import type { RssMetadata } from 'electron/main/handlers/rss/types';
 import React, { useCallback, useMemo } from 'react';
-import { TbClock, TbDownload, TbExternalLink, TbHeart, TbRss, TbUsers } from 'react-icons/tb';
+import { TbClock, TbDownload, TbHeart, TbRss, TbUsers } from 'react-icons/tb';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 import { ResourceItem } from '../types';
 import { makeResSrc } from '../utils/resourceProtocol';
@@ -103,18 +102,6 @@ const RssSubscriptionCard: React.FC<RssSubscriptionCardProps> = ({ item, selecte
     [item.id, onToggleFavorite]
   );
 
-  // 打开外部链接
-  const handleOpenExternal = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      const url = metadata.channelUrl || item.url;
-      if (url) {
-        window.open(url, '_blank');
-      }
-    },
-    [metadata.channelUrl, item.url]
-  );
-
   return (
     <div
       ref={innerRef}
@@ -162,44 +149,22 @@ const RssSubscriptionCard: React.FC<RssSubscriptionCardProps> = ({ item, selecte
 
             {/* 自动下载标识 */}
             {metadata.autoDownload && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Badge variant="secondary" className="bg-green-500/80 text-white text-[10px] px-1.5 py-0.5">
-                    <TbDownload className="w-3 h-3" />
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent>已启用自动下载</TooltipContent>
-              </Tooltip>
+              <Badge variant="secondary" className="bg-green-500/80 text-white text-[10px] px-1.5 py-0.5">
+                <TbDownload className="w-3 h-3" />
+              </Badge>
             )}
           </div>
 
           <div className="flex items-center gap-1">
-            {/* 外部链接 */}
-            {(metadata.channelUrl || item.url) && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button size="icon" variant="ghost" className="w-8 h-8 bg-black/30 hover:bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity" onClick={handleOpenExternal}>
-                    <TbExternalLink className="w-4 h-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>打开原始页面</TooltipContent>
-              </Tooltip>
-            )}
-
             {/* 收藏按钮 */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className={clsx('w-8 h-8 transition-all', item.favorite === 1 ? 'bg-red-500/80 text-white' : 'bg-black/30 hover:bg-black/50 text-white opacity-0 group-hover:opacity-100')}
-                  onClick={handleFavoriteClick}
-                >
-                  <TbHeart className={clsx('w-4 h-4', item.favorite === 1 && 'fill-current')} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{item.favorite === 1 ? '取消收藏' : '添加收藏'}</TooltipContent>
-            </Tooltip>
+            <Button
+              size="icon"
+              variant="ghost"
+              className={clsx('w-8 h-8 transition-all', item.favorite === 1 ? 'bg-red-500/80 text-white' : 'bg-black/30 hover:bg-black/50 text-white opacity-0 group-hover:opacity-100')}
+              onClick={handleFavoriteClick}
+            >
+              <TbHeart className={clsx('w-4 h-4', item.favorite === 1 && 'fill-current')} />
+            </Button>
           </div>
         </div>
 

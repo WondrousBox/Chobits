@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbFolderFilled, TbFolderOpen, TbFolderPlus, TbLine, TbPencil, TbRefresh, TbSettings, TbTrash } from 'react-icons/tb';
+import { TbFolderFilled, TbFolderOpen, TbFolderPlus, TbLine, TbPencil, TbRefresh, TbSettings, TbTrash, TbExternalLink } from 'react-icons/tb';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -708,6 +708,20 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
                 >
                   <TbRefresh className="mr-2 w-4 h-4" />
                   刷新订阅
+                </ContextMenuItem>
+                <ContextMenuItem
+                  onSelect={() => {
+                    if (!firstSelectedItem) return;
+                    // 解析 metadata 获取 channelUrl
+                    const metadata = firstSelectedItem.metadata ? JSON.parse(firstSelectedItem.metadata) : {};
+                    const url = metadata.channelUrl || firstSelectedItem.url;
+                    if (url) {
+                      window.open(url, '_blank');
+                    }
+                  }}
+                >
+                  <TbExternalLink className="mr-2 w-4 h-4" />
+                  打开原始页面
                 </ContextMenuItem>
                 <ContextMenuItem
                   onSelect={() => {
