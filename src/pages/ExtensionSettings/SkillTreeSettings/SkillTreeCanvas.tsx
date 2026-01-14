@@ -15,7 +15,9 @@ interface SkillTreeCanvasProps {
 const TIER_ORDER: SkillTier[] = ['beginner', 'intermediate', 'advanced', 'professional', 'master'];
 const COLUMN_WIDTH = 250; // 每小列宽度
 const ROW_HEIGHT = 130; // 每行高度
-const START_X = 220; // 起始X位置（给精灵核心留空间）
+const CORE_X = 100; // 精灵核心X位置
+const BRANCH_POINT_X = 180; // 分支点X位置（核心和第一级技能之间，缩短直线部分）
+const START_X = 500; // 起始X位置（第一级技能的位置，增加距离）
 const START_Y = 100; // 起始Y位置
 const TIER_GAP = 60; // 等级之间的额外间距
 
@@ -171,7 +173,7 @@ const SkillTreeCanvas: React.FC<SkillTreeCanvasProps> = ({ skillStatuses, select
         }}
       >
         {/* 等级列标题 */}
-        <div className="absolute top-0 left-0 right-0 flex" style={{ paddingLeft: START_X - 40 }}>
+        <div className="absolute top-0 left-0 right-0 flex" style={{ paddingLeft: START_X - 60 }}>
           {TIER_ORDER.map((tier, index) => {
             const config = skillTierConfig[tier];
             // 每个等级标题居中于该等级的所有列
@@ -209,7 +211,7 @@ const SkillTreeCanvas: React.FC<SkillTreeCanvasProps> = ({ skillStatuses, select
         <motion.div
           className="absolute flex flex-col items-center skill-node-interactive"
           style={{
-            left: 40,
+            left: CORE_X - 40,
             top: canvasHeight / 2 - 60
           }}
           initial={{ scale: 0, opacity: 0 }}
@@ -263,50 +265,124 @@ const SkillTreeCanvas: React.FC<SkillTreeCanvasProps> = ({ skillStatuses, select
             </filter>
           </defs>
 
-          {/* 核心到初级技能的放射线 */}
-          {skillTreeNodes
-            .filter((n) => n.tier === 'beginner')
-            .map((node, index) => {
-              const targetPos = nodePositions[node.id];
-              if (!targetPos) return null;
+          {/* 获取所有第一级技能（beginner tier，无前置技能） */}
+          {(() => {
+            const beginnerNodes = skillTreeNodes.filter((n) => n.tier === 'beginner' && n.prerequisites.length === 0);
+            const coreY = canvasHeight / 2 - 20;
+            const branchY = coreY; // 分支点Y位置（与核心同高）
 
-              const coreX = 100;
-              const coreY = canvasHeight / 2 - 20;
-              const colors = getNodeColors(node.branch);
+            // 检查是否有任何第一级技能已激活（只有 active 才显示高光）
+            const hasActiveBeginner = beginnerNodes.some((node) => {
               const status = skillStatuses[node.id] || 'locked';
-              const isActive = status === 'active' || status === 'unlocked';
+              return status === 'active';
+            });
 
-              return (
-                <g key={`core-${node.id}`}>
+            return (
+              <>
+                {/* 从核心到分支点的主线（水平线） */}
+                <g>
                   {/* 发光底线 */}
-                  {isActive && (
-                    <motion.path
-                      d={`M ${coreX} ${coreY} Q ${(coreX + targetPos.x - 40) / 2} ${(coreY + targetPos.y) / 2} ${targetPos.x - 40} ${targetPos.y}`}
-                      stroke={colors.color}
+                  {hasActiveBeginner && (
+                    <motion.line
+                      x1={CORE_X + 40}
+                      y1={coreY}
+                      x2={BRANCH_POINT_X}
+                      y2={branchY}
+                      stroke="#fbbf24"
                       strokeWidth="6"
-                      fill="none"
                       opacity={0.3}
                       filter="url(#line-glow-canvas)"
                       initial={{ pathLength: 0 }}
                       animate={{ pathLength: 1 }}
-                      transition={{ duration: 1, delay: index * 0.1 }}
+                      transition={{ duration: 1 }}
                     />
                   )}
                   {/* 主线 */}
-                  <motion.path
-                    d={`M ${coreX} ${coreY} Q ${(coreX + targetPos.x - 40) / 2} ${(coreY + targetPos.y) / 2} ${targetPos.x - 40} ${targetPos.y}`}
-                    stroke={isActive ? colors.color : '#374151'}
-                    strokeWidth={isActive ? 3 : 2}
-                    fill="none"
-                    opacity={isActive ? 0.8 : 0.3}
-                    strokeDasharray={isActive ? '0' : '8 8'}
+                  <motion.line
+                    x1={CORE_X + 40}
+                    y1={coreY}
+                    x2={BRANCH_POINT_X}
+                    y2={branchY}
+                    stroke={hasActiveBeginner ? '#fbbf24' : '#374151'}
+                    strokeWidth={hasActiveBeginner ? 3 : 2}
+                    opacity={hasActiveBeginner ? 0.8 : 0.3}
+                    strokeDasharray={hasActiveBeginner ? '0' : '8 8'}
                     initial={{ pathLength: 0 }}
                     animate={{ pathLength: 1 }}
-                    transition={{ duration: 0.8, delay: index * 0.1 }}
+                    transition={{ duration: 0.8 }}
                   />
                 </g>
-              );
-            })}
+
+                {/* 从分支点到各个第一级技能的贝塞尔曲线 */}
+                {beginnerNodes.map((node, index) => {
+                  const targetPos = nodePositions[node.id];
+                  if (!targetPos) return null;
+
+                  const colors = getNodeColors(node.branch);
+                  const status = skillStatuses[node.id] || 'locked';
+                  // 只有真正激活（active）的技能才显示高光和流动粒子
+                  const isActive = status === 'active';
+
+                  // 计算距离和方向
+                  const dx = targetPos.x - 40 - BRANCH_POINT_X;
+                  const dy = targetPos.y - branchY;
+
+                  // S曲线控制点计算 - 开始水平 → 弯曲 → 末端水平
+                  // 第一个控制点：从分支点水平延伸，Y保持与分支点相同
+                  // X方向：向右延伸约60px，保持水平
+                  // Y方向：与分支点相同，确保开始部分水平
+                  const cp1X = BRANCH_POINT_X + 60;
+                  const cp1Y = branchY; // 与分支点Y相同，确保开始水平
+
+                  // 第二个控制点：在目标点左侧，Y等于目标Y，确保末端水平指向
+                  // X方向：距离目标X约60px，让末端有足够长度水平指向
+                  // Y方向：等于目标Y，确保曲线末端水平
+                  const cp2X = targetPos.x - 40 - 60;
+                  const cp2Y = targetPos.y; // 与目标Y相同，确保末端水平
+
+                  // 使用平滑的S曲线路径
+                  const pathData = `M ${BRANCH_POINT_X} ${branchY} C ${cp1X} ${cp1Y}, ${cp2X} ${cp2Y}, ${targetPos.x - 40} ${targetPos.y}`;
+
+                  return (
+                    <g key={`branch-${node.id}`}>
+                      {/* 发光底线 - 只有激活时显示 */}
+                      {isActive && (
+                        <motion.path
+                          d={pathData}
+                          stroke={colors.color}
+                          strokeWidth="6"
+                          fill="none"
+                          opacity={0.3}
+                          filter="url(#line-glow-canvas)"
+                          initial={{ pathLength: 0 }}
+                          animate={{ pathLength: 1 }}
+                          transition={{ duration: 1, delay: 0.5 + index * 0.1 }}
+                        />
+                      )}
+                      {/* 贝塞尔曲线主线 */}
+                      <motion.path
+                        d={pathData}
+                        stroke={isActive ? colors.color : '#374151'}
+                        strokeWidth={isActive ? 3 : 2}
+                        fill="none"
+                        opacity={isActive ? 0.8 : 0.3}
+                        strokeDasharray={isActive ? '0' : '8 8'}
+                        initial={{ pathLength: 0 }}
+                        animate={{ pathLength: 1 }}
+                        transition={{ duration: 0.8, delay: 0.3 + index * 0.1 }}
+                      />
+                      {/* 流动粒子 - 只有激活时显示 */}
+                      {isActive && (
+                        <motion.circle r="4" fill={colors.color} filter="url(#line-glow-canvas)">
+                          <animateMotion dur="2s" repeatCount="indefinite" path={pathData} />
+                        </motion.circle>
+                      )}
+                    </g>
+                  );
+                })}
+              </>
+            );
+          })()}
 
           {/* 技能间的连接线 */}
           {connections.map((line) => {

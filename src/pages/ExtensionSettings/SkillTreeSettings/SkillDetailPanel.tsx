@@ -11,6 +11,7 @@ import MovementSettings from '../MovementSettings';
 import RecorderSettings from '../RecorderSettings';
 import SpriteSettings from '../SpriteSettings';
 import ShortcutKeyDisplay from './ShortcutKeyDisplay';
+import SkillActivationAnimation from './SkillActivationAnimation';
 import { canUnlockSkill, getNodeColors, getTierConfig, SkillStatus, skillTreeNodes } from './skillTreeData';
 
 interface SkillDetailPanelProps {
@@ -24,6 +25,8 @@ const SkillDetailPanel: React.FC<SkillDetailPanelProps> = ({ selectedSkillId, sk
   const selectedNode = skillTreeNodes.find((n) => n.id === selectedSkillId);
   const [shortcutVerified, setShortcutVerified] = useState(false);
   const [showActivationAnimation, setShowActivationAnimation] = useState(false);
+  const prevStatusRef = React.useRef<SkillStatus>('locked');
+  const prevSkillIdRef = React.useRef<string | null>(null);
 
   if (!selectedNode) {
     return null;
@@ -49,12 +52,38 @@ const SkillDetailPanel: React.FC<SkillDetailPanelProps> = ({ selectedSkillId, sk
   React.useEffect(() => {
     if (isActive) {
       setShortcutVerified(true);
-    } else if (selectedSkillId !== selectedNode.id) {
-      // 切换技能时重置验证状态和动画
+    }
+  }, [isActive]);
+
+  // 切换技能时重置状态
+  React.useEffect(() => {
+    // 如果切换了技能，重置相关状态
+    if (prevSkillIdRef.current !== null && prevSkillIdRef.current !== selectedSkillId) {
       setShortcutVerified(false);
       setShowActivationAnimation(false);
+      // 重置 prevStatusRef 为当前技能的状态
+      prevStatusRef.current = status;
     }
-  }, [isActive, selectedSkillId, selectedNode.id]);
+    // 初始化或更新 prevStatusRef
+    if (prevSkillIdRef.current !== selectedSkillId) {
+      prevStatusRef.current = status;
+      prevSkillIdRef.current = selectedSkillId;
+    }
+  }, [selectedSkillId, status]);
+
+  // 监听技能状态变化，从非 active 变为 active 时显示动画
+  React.useEffect(() => {
+    const prevStatus = prevStatusRef.current;
+    // 如果从非激活状态变为激活状态，显示动画
+    // 确保不是首次加载（prevStatus 已设置且不是 'active'）
+    if (prevStatus && prevStatus !== 'active' && status === 'active') {
+      setShowActivationAnimation(true);
+    }
+    // 更新 prevStatusRef（只有在状态真正变化时）
+    if (prevStatusRef.current !== status) {
+      prevStatusRef.current = status;
+    }
+  }, [status]);
 
   // 处理快捷键验证
   const handleShortcutVerified = () => {
@@ -63,15 +92,13 @@ const SkillDetailPanel: React.FC<SkillDetailPanelProps> = ({ selectedSkillId, sk
 
   // 处理长按完成（用于截图技能）
   const handleLongPressComplete = () => {
-    setShowActivationAnimation(true);
-    // 触发技能开启
-    setTimeout(() => {
-      onToggleSkill(selectedNode.id, true);
-      // 动画结束后隐藏
-      setTimeout(() => {
-        setShowActivationAnimation(false);
-      }, 2000);
-    }, 500);
+    // 触发技能开启，动画会在状态变化时自动显示
+    onToggleSkill(selectedNode.id, true);
+  };
+
+  // 处理动画完成
+  const handleAnimationComplete = () => {
+    setShowActivationAnimation(false);
   };
 
   // 获取前置技能信息
@@ -280,6 +307,7 @@ const SkillDetailPanel: React.FC<SkillDetailPanelProps> = ({ selectedSkillId, sk
                 if (checked && hasRequiredShortcut && !shortcutVerified && !isActive) {
                   return;
                 }
+                // 如果是从关闭切换到开启，会触发动画（通过状态变化监听）
                 onToggleSkill(selectedNode.id, checked);
               }}
               disabled={(!canUnlock && !isActive) || (hasRequiredShortcut && !shortcutVerified && !isActive)}
@@ -332,105 +360,17 @@ const SkillDetailPanel: React.FC<SkillDetailPanelProps> = ({ selectedSkillId, sk
         />
 
         {/* 开启动画效果 */}
-        <AnimatePresence>
-          {showActivationAnimation && (
-            <motion.div
-              className="absolute inset-0 flex items-center justify-center pointer-events-none z-50"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-            >
-              {/* 背景光晕 */}
-              <motion.div
-                className="absolute inset-0"
-                style={{
-                  background: `radial-gradient(circle, ${colors.glowColor}40 0%, transparent 70%)`
-                }}
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: [0.8, 1.2, 1.5], opacity: [0, 0.6, 0] }}
-                transition={{ duration: 2, ease: 'easeOut' }}
-              />
-
-              {/* 中心图标动画 */}
-              <motion.div
-                className="relative flex items-center justify-center w-32 h-32"
-                initial={{ scale: 0, rotate: -180 }}
-                animate={{ scale: [0, 1.2, 1], rotate: [180, 0, 0] }}
-                transition={{ duration: 1, ease: 'easeOut' }}
-              >
-                <div
-                  className="absolute inset-0 rounded-full"
-                  style={{
-                    background: `linear-gradient(135deg, ${colors.gradientFrom}, ${colors.gradientTo})`,
-                    boxShadow: `0 0 60px ${colors.glowColor}, 0 0 100px ${colors.glowColor}`
-                  }}
-                />
-                <motion.div
-                  className="relative z-10"
-                  style={{
-                    width: 64,
-                    height: 64,
-                    color: '#ffffff',
-                    filter: `drop-shadow(0 0 20px rgba(255,255,255,0.8))`
-                  }}
-                  animate={{ scale: [1, 1.1, 1], rotate: [0, 10, -10, 0] }}
-                  transition={{ duration: 0.5, repeat: 2 }}
-                >
-                  <Icon className="w-full h-full" />
-                </motion.div>
-              </motion.div>
-
-              {/* 成功文字 */}
-              <motion.div
-                className="absolute bottom-32 left-0 right-0 text-center"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: [0, 1, 1, 0], y: [20, 0, 0, -20] }}
-                transition={{ duration: 2, times: [0, 0.2, 0.8, 1] }}
-              >
-                <div
-                  className="text-2xl font-bold"
-                  style={{
-                    color: colors.color,
-                    textShadow: `0 0 20px ${colors.glowColor}, 0 0 40px ${colors.glowColor}`
-                  }}
-                >
-                  技能激活成功！
-                </div>
-                <div className="text-sm text-slate-300 mt-2">截图功能已启用</div>
-              </motion.div>
-
-              {/* 粒子效果 */}
-              {[...Array(12)].map((_, i) => (
-                <motion.div
-                  key={i}
-                  className="absolute w-2 h-2 rounded-full"
-                  style={{
-                    backgroundColor: colors.color,
-                    boxShadow: `0 0 10px ${colors.glowColor}`
-                  }}
-                  initial={{
-                    x: '50%',
-                    y: '50%',
-                    scale: 0,
-                    opacity: 1
-                  }}
-                  animate={{
-                    x: `calc(50% + ${Math.cos((i * 360) / 12) * 100}px)`,
-                    y: `calc(50% + ${Math.sin((i * 360) / 12) * 100}px)`,
-                    scale: [0, 1, 0],
-                    opacity: [1, 1, 0]
-                  }}
-                  transition={{
-                    duration: 1.5,
-                    delay: 0.2,
-                    ease: 'easeOut'
-                  }}
-                />
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <SkillActivationAnimation
+          show={showActivationAnimation}
+          skillName={selectedNode.name}
+          skillDescription={selectedNode.description}
+          Icon={Icon}
+          color={colors.color}
+          glowColor={colors.glowColor}
+          gradientFrom={colors.gradientFrom}
+          gradientTo={colors.gradientTo}
+          onComplete={handleAnimationComplete}
+        />
       </motion.div>
     </AnimatePresence>
   );
