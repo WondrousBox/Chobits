@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import React from 'react';
+import React, { useState } from 'react';
 import { TbLock, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import DailyCareSettings from '../DailyCareSettings';
 import MovementSettings from '../MovementSettings';
 import RecorderSettings from '../RecorderSettings';
 import SpriteSettings from '../SpriteSettings';
+import ShortcutKeyDisplay from './ShortcutKeyDisplay';
 import { canUnlockSkill, getNodeColors, getTierConfig, SkillStatus, skillTreeNodes } from './skillTreeData';
 
 interface SkillDetailPanelProps {
@@ -21,6 +22,7 @@ interface SkillDetailPanelProps {
 
 const SkillDetailPanel: React.FC<SkillDetailPanelProps> = ({ selectedSkillId, skillStatuses, onClose, onToggleSkill }) => {
   const selectedNode = skillTreeNodes.find((n) => n.id === selectedSkillId);
+  const [shortcutVerified, setShortcutVerified] = useState(false);
 
   if (!selectedNode) {
     return null;
@@ -40,6 +42,22 @@ const SkillDetailPanel: React.FC<SkillDetailPanelProps> = ({ selectedSkillId, sk
   const isUnlocked = status === 'unlocked' || status === 'active';
   const canUnlock = canUnlockSkill(selectedNode.id, activeSkills);
   const Icon = selectedNode.icon;
+  const hasRequiredShortcut = !!selectedNode.requiredShortcut;
+
+  // 如果技能已激活，自动标记快捷键为已验证
+  React.useEffect(() => {
+    if (isActive) {
+      setShortcutVerified(true);
+    } else if (selectedSkillId !== selectedNode.id) {
+      // 切换技能时重置验证状态
+      setShortcutVerified(false);
+    }
+  }, [isActive, selectedSkillId, selectedNode.id]);
+
+  // 处理快捷键验证
+  const handleShortcutVerified = () => {
+    setShortcutVerified(true);
+  };
 
   // 获取前置技能信息
   const prerequisites = selectedNode.prerequisites.map((prereqId) => {
@@ -210,6 +228,13 @@ const SkillDetailPanel: React.FC<SkillDetailPanelProps> = ({ selectedSkillId, sk
             </div>
           )}
 
+          {/* 快捷键验证提示 */}
+          {hasRequiredShortcut && !isActive && (
+            <div className="mt-3 p-3 rounded-xl bg-slate-800/50 border border-slate-700/50">
+              <ShortcutKeyDisplay shortcut={selectedNode.requiredShortcut!} onVerified={handleShortcutVerified} color={colors.color} glowColor={colors.glowColor} />
+            </div>
+          )}
+
           {/* 技能开关 - 紧凑版 */}
           <div className="relative flex items-center justify-between mt-3 p-3 rounded-xl bg-slate-800/50 border border-slate-700/50">
             <div className="flex items-center gap-2">
@@ -220,13 +245,21 @@ const SkillDetailPanel: React.FC<SkillDetailPanelProps> = ({ selectedSkillId, sk
                   boxShadow: isActive ? `0 0 10px ${colors.color}` : 'none'
                 }}
               />
-              <span className="text-xs text-slate-300 font-medium">{isActive ? '技能已激活' : canUnlock ? '可以解锁' : '需要前置技能'}</span>
+              <span className="text-xs text-slate-300 font-medium">
+                {isActive ? '技能已激活' : hasRequiredShortcut && !shortcutVerified ? '请先验证快捷键' : canUnlock ? '可以解锁' : '需要前置技能'}
+              </span>
             </div>
 
             <Switch
               checked={isActive}
-              onCheckedChange={(checked) => onToggleSkill(selectedNode.id, checked)}
-              disabled={!canUnlock && !isActive}
+              onCheckedChange={(checked) => {
+                // 如果需要快捷键且未验证，阻止开启
+                if (checked && hasRequiredShortcut && !shortcutVerified && !isActive) {
+                  return;
+                }
+                onToggleSkill(selectedNode.id, checked);
+              }}
+              disabled={(!canUnlock && !isActive) || (hasRequiredShortcut && !shortcutVerified && !isActive)}
               className="data-[state=checked]:bg-primary"
               style={
                 isActive
