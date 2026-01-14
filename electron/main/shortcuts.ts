@@ -2,11 +2,12 @@ import { windowManager } from '@aim-packages/window-manager';
 import { BrowserWindow, globalShortcut } from 'electron';
 
 import { screenshotManager } from './screenshot';
-import { getShortcutSchema, loadShortcutsConfig, onShortcutsConfigChanged, resolveAcceleratorsForPlatform, type ShortcutsConfig } from './shortcut-store';
+import { getShortcutSchema, isShortcutEnabled, loadShortcutsConfig, onShortcutEnabledChanged, onShortcutsConfigChanged, resolveAcceleratorsForPlatform, type ShortcutsConfig } from './shortcut-store';
 
 // Keep track of what we registered so we can cleanly unregister later
 const registered: Set<string> = new Set();
 let unsubscribeChange: (() => void) | null = null;
+let unsubscribeEnabledChange: (() => void) | null = null;
 let lastGetMainWindow: GetMainWindow | null = null;
 
 export type GetMainWindow = () => BrowserWindow | null;
@@ -57,6 +58,11 @@ function applyRegistration(getMainWindow: GetMainWindow): void {
   };
 
   for (const act of getShortcutSchema()) {
+    // 检查该快捷键是否启用
+    if (!isShortcutEnabled(act.id)) {
+      console.log(`[shortcut] skipping ${act.id} (disabled)`);
+      continue;
+    }
     const list = resolved[act.id] || [];
     const handler = actions[act.id] || (() => { });
     list.forEach((accel) => {
@@ -78,6 +84,12 @@ export function registerGlobalShortcuts(getMainWindow: GetMainWindow): void {
   // React to future changes
   if (unsubscribeChange) unsubscribeChange();
   unsubscribeChange = onShortcutsConfigChanged(() => {
+    unregisterGlobalShortcuts();
+    applyRegistration(getMainWindow);
+  });
+  // React to enabled state changes
+  if (unsubscribeEnabledChange) unsubscribeEnabledChange();
+  unsubscribeEnabledChange = onShortcutEnabledChanged(() => {
     unregisterGlobalShortcuts();
     applyRegistration(getMainWindow);
   });

@@ -10,6 +10,11 @@ export type MultiAccel = string[] | Partial<Record<PlatformKey, string[]>>;
 export type ShortcutValue = SingleAccel | MultiAccel;
 export type ShortcutsConfig = Record<string, ShortcutValue>;
 
+// 快捷键功能的启用状态配置
+export type ShortcutEnabledConfig = {
+  screenshot: boolean;
+};
+
 export type ShortcutAction = {
   id: string;
   label: string;
@@ -48,10 +53,21 @@ export const SHORTCUT_SCHEMA: ShortcutAction[] = [
 
 const emitter = new EventEmitter();
 let cached: ShortcutsConfig | null = null;
+let cachedEnabled: ShortcutEnabledConfig | null = null;
+
+// 默认启用状态
+const DEFAULT_ENABLED: ShortcutEnabledConfig = {
+  screenshot: false // 默认关闭截图功能
+};
 
 function getFile(): string {
   const dir = app.getPath('userData');
   return path.join(dir, 'data', 'shortcuts.json');
+}
+
+function getEnabledFile(): string {
+  const dir = app.getPath('userData');
+  return path.join(dir, 'data', 'shortcuts-enabled.json');
 }
 
 function defaultConfigFromSchema(): ShortcutsConfig {
@@ -167,4 +183,74 @@ export function resolveAcceleratorsForPlatform(cfg: ShortcutsConfig, platform: P
     resolved[action.id] = accels.filter(Boolean);
   }
   return resolved;
+}
+
+// ===== 快捷键启用状态管理 =====
+
+export function loadShortcutEnabledConfig(): ShortcutEnabledConfig {
+  if (cachedEnabled) return cachedEnabled;
+  const file = getEnabledFile();
+  try {
+    if (fs.existsSync(file)) {
+      const txt = fs.readFileSync(file, 'utf8');
+      const parsed = JSON.parse(txt);
+      cachedEnabled = { ...DEFAULT_ENABLED, ...parsed };
+      return cachedEnabled;
+    }
+  } catch {
+    // fallthrough to defaults
+  }
+  cachedEnabled = { ...DEFAULT_ENABLED };
+  try {
+    const dir = path.dirname(file);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(file, JSON.stringify(cachedEnabled, null, 2), 'utf8');
+  } catch {
+    // ignore
+  }
+  return cachedEnabled;
+}
+
+export function saveShortcutEnabledConfig(partial: Partial<ShortcutEnabledConfig>): ShortcutEnabledConfig {
+  const curr = loadShortcutEnabledConfig();
+  const next: ShortcutEnabledConfig = { ...curr, ...partial };
+  cachedEnabled = next;
+  try {
+    const file = getEnabledFile();
+    const dir = path.dirname(file);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(file, JSON.stringify(next, null, 2), 'utf8');
+  } catch {
+    // ignore
+  }
+  emitter.emit('enabled-changed', next);
+  return next;
+}
+
+export function onShortcutEnabledChanged(cb: (cfg: ShortcutEnabledConfig) => void): () => void {
+  emitter.on('enabled-changed', cb);
+  return () => emitter.off('enabled-changed', cb);
+}
+
+export function isShortcutEnabled(actionId: string): boolean {
+  const cfg = loadShortcutEnabledConfig();
+  // 只有在 enabled config 中明确配置的才需要检查
+  if (actionId in cfg) {
+    return (cfg as any)[actionId] === true;
+  }
+  // 其他快捷键默认启用
+  return true;
+}
+
+export function notifyShortcutEnabledUpdatedTo(win?: BrowserWindow | null): void {
+  try {
+    const cfg = loadShortcutEnabledConfig();
+    win?.webContents?.send('shortcuts-enabled-updated', cfg);
+  } catch {
+    // ignore
+  }
 }
