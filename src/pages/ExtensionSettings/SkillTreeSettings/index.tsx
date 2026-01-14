@@ -54,6 +54,15 @@ const SkillTreeSettings: React.FC = () => {
           // Recorder 可能未初始化
         }
 
+        // 加载截图功能状态
+        let screenshotEnabled = false;
+        try {
+          const enabledConfig = await window.YUA.shortcuts['shortcuts:getEnabledConfig']();
+          screenshotEnabled = enabledConfig?.ok && enabledConfig.data?.screenshot === true;
+        } catch {
+          // 截图功能可能未初始化
+        }
+
         setSkillStatuses((prev) => ({
           ...prev,
           // 映射到新的技能 ID
@@ -61,6 +70,7 @@ const SkillTreeSettings: React.FC = () => {
           dailyCare: dailyCareEnabled ? 'active' : 'unlocked',
           microphone: recorderEnabled ? 'active' : 'unlocked',
           systemAudio: recorderEnabled ? 'active' : 'unlocked',
+          screenshot: screenshotEnabled ? 'active' : 'unlocked',
           spriteManage: 'unlocked', // Sprite 管理始终解锁
           aiChat: 'unlocked' // AI 对话始终解锁
         }));
@@ -79,10 +89,20 @@ const SkillTreeSettings: React.FC = () => {
       }));
     };
 
+    // 监听截图功能启用状态变化
+    const handleScreenshotEnabledChange = (_: unknown, data: { screenshot: boolean }): void => {
+      setSkillStatuses((prev) => ({
+        ...prev,
+        screenshot: data.screenshot ? 'active' : 'unlocked'
+      }));
+    };
+
     window.ipcRenderer?.on('auto-walk-enabled-changed', handleAutoWalkChange);
+    window.ipcRenderer?.on('shortcuts-enabled-updated', handleScreenshotEnabledChange);
 
     return () => {
       window.ipcRenderer?.off('auto-walk-enabled-changed', handleAutoWalkChange as never);
+      window.ipcRenderer?.off('shortcuts-enabled-updated', handleScreenshotEnabledChange as never);
     };
   }, []);
 
@@ -121,7 +141,10 @@ const SkillTreeSettings: React.FC = () => {
           // Sprite 管理不需要开关
           break;
         default:
-          // 对于没有 settingsKey 的技能，只更新本地状态
+          // 对于没有 settingsKey 的技能，检查是否是截图技能
+          if (skillId === 'screenshot') {
+            await window.YUA.shortcuts['shortcuts:setEnabledConfig']({ screenshot: enabled });
+          }
           break;
       }
 

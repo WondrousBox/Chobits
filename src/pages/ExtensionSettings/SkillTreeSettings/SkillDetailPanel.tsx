@@ -23,6 +23,7 @@ interface SkillDetailPanelProps {
 const SkillDetailPanel: React.FC<SkillDetailPanelProps> = ({ selectedSkillId, skillStatuses, onClose, onToggleSkill }) => {
   const selectedNode = skillTreeNodes.find((n) => n.id === selectedSkillId);
   const [shortcutVerified, setShortcutVerified] = useState(false);
+  const [showActivationAnimation, setShowActivationAnimation] = useState(false);
 
   if (!selectedNode) {
     return null;
@@ -49,14 +50,28 @@ const SkillDetailPanel: React.FC<SkillDetailPanelProps> = ({ selectedSkillId, sk
     if (isActive) {
       setShortcutVerified(true);
     } else if (selectedSkillId !== selectedNode.id) {
-      // 切换技能时重置验证状态
+      // 切换技能时重置验证状态和动画
       setShortcutVerified(false);
+      setShowActivationAnimation(false);
     }
   }, [isActive, selectedSkillId, selectedNode.id]);
 
   // 处理快捷键验证
   const handleShortcutVerified = () => {
     setShortcutVerified(true);
+  };
+
+  // 处理长按完成（用于截图技能）
+  const handleLongPressComplete = () => {
+    setShowActivationAnimation(true);
+    // 触发技能开启
+    setTimeout(() => {
+      onToggleSkill(selectedNode.id, true);
+      // 动画结束后隐藏
+      setTimeout(() => {
+        setShowActivationAnimation(false);
+      }, 2000);
+    }, 500);
   };
 
   // 获取前置技能信息
@@ -231,7 +246,15 @@ const SkillDetailPanel: React.FC<SkillDetailPanelProps> = ({ selectedSkillId, sk
           {/* 快捷键验证提示 */}
           {hasRequiredShortcut && !isActive && (
             <div className="mt-3 p-3 rounded-xl bg-slate-800/50 border border-slate-700/50">
-              <ShortcutKeyDisplay shortcut={selectedNode.requiredShortcut!} onVerified={handleShortcutVerified} color={colors.color} glowColor={colors.glowColor} />
+              <ShortcutKeyDisplay
+                shortcut={selectedNode.requiredShortcut!}
+                onVerified={handleShortcutVerified}
+                color={colors.color}
+                glowColor={colors.glowColor}
+                requireLongPress={selectedNode.id === 'screenshot'}
+                longPressDuration={2000}
+                onLongPressComplete={handleLongPressComplete}
+              />
             </div>
           )}
 
@@ -307,6 +330,107 @@ const SkillDetailPanel: React.FC<SkillDetailPanelProps> = ({ selectedSkillId, sk
             background: `linear-gradient(90deg, transparent, ${colors.color}40, transparent)`
           }}
         />
+
+        {/* 开启动画效果 */}
+        <AnimatePresence>
+          {showActivationAnimation && (
+            <motion.div
+              className="absolute inset-0 flex items-center justify-center pointer-events-none z-50"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              {/* 背景光晕 */}
+              <motion.div
+                className="absolute inset-0"
+                style={{
+                  background: `radial-gradient(circle, ${colors.glowColor}40 0%, transparent 70%)`
+                }}
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: [0.8, 1.2, 1.5], opacity: [0, 0.6, 0] }}
+                transition={{ duration: 2, ease: 'easeOut' }}
+              />
+
+              {/* 中心图标动画 */}
+              <motion.div
+                className="relative flex items-center justify-center w-32 h-32"
+                initial={{ scale: 0, rotate: -180 }}
+                animate={{ scale: [0, 1.2, 1], rotate: [180, 0, 0] }}
+                transition={{ duration: 1, ease: 'easeOut' }}
+              >
+                <div
+                  className="absolute inset-0 rounded-full"
+                  style={{
+                    background: `linear-gradient(135deg, ${colors.gradientFrom}, ${colors.gradientTo})`,
+                    boxShadow: `0 0 60px ${colors.glowColor}, 0 0 100px ${colors.glowColor}`
+                  }}
+                />
+                <motion.div
+                  className="relative z-10"
+                  style={{
+                    width: 64,
+                    height: 64,
+                    color: '#ffffff',
+                    filter: `drop-shadow(0 0 20px rgba(255,255,255,0.8))`
+                  }}
+                  animate={{ scale: [1, 1.1, 1], rotate: [0, 10, -10, 0] }}
+                  transition={{ duration: 0.5, repeat: 2 }}
+                >
+                  <Icon className="w-full h-full" />
+                </motion.div>
+              </motion.div>
+
+              {/* 成功文字 */}
+              <motion.div
+                className="absolute bottom-32 left-0 right-0 text-center"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: [0, 1, 1, 0], y: [20, 0, 0, -20] }}
+                transition={{ duration: 2, times: [0, 0.2, 0.8, 1] }}
+              >
+                <div
+                  className="text-2xl font-bold"
+                  style={{
+                    color: colors.color,
+                    textShadow: `0 0 20px ${colors.glowColor}, 0 0 40px ${colors.glowColor}`
+                  }}
+                >
+                  技能激活成功！
+                </div>
+                <div className="text-sm text-slate-300 mt-2">截图功能已启用</div>
+              </motion.div>
+
+              {/* 粒子效果 */}
+              {[...Array(12)].map((_, i) => (
+                <motion.div
+                  key={i}
+                  className="absolute w-2 h-2 rounded-full"
+                  style={{
+                    backgroundColor: colors.color,
+                    boxShadow: `0 0 10px ${colors.glowColor}`
+                  }}
+                  initial={{
+                    x: '50%',
+                    y: '50%',
+                    scale: 0,
+                    opacity: 1
+                  }}
+                  animate={{
+                    x: `calc(50% + ${Math.cos((i * 360) / 12) * 100}px)`,
+                    y: `calc(50% + ${Math.sin((i * 360) / 12) * 100}px)`,
+                    scale: [0, 1, 0],
+                    opacity: [1, 1, 0]
+                  }}
+                  transition={{
+                    duration: 1.5,
+                    delay: 0.2,
+                    ease: 'easeOut'
+                  }}
+                />
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
     </AnimatePresence>
   );
