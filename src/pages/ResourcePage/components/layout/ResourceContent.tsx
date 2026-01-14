@@ -79,6 +79,9 @@ interface ResourceContentProps {
   setShowCollapseSuggestion: (show: boolean) => void;
   // 面包屑导航
   currentFolderPath: UIFolder[];
+  // RSS 相关
+  onOpenRssSettings?: (item: ResourceItem) => void;
+  onRefreshRss?: () => void;
 }
 
 const ResourceContent: React.FC<ResourceContentProps> = ({
@@ -132,7 +135,10 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
   showCollapseSuggestion,
   setShowCollapseSuggestion,
   // 面包屑导航
-  currentFolderPath
+  currentFolderPath,
+  // RSS 相关
+  onOpenRssSettings,
+  onRefreshRss
 }) => {
   // 预览模式配置: 'window' 表示弹窗，'panel' 表示右侧面板
   const [previewMode, setPreviewMode] = useState<'window' | 'panel'>('window');
@@ -386,6 +392,8 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
           onToggleFavorite={handleToggleFavorite}
           onToggleVisibility={handleToggleVisibility}
           onPreview={previewMode === 'window' ? undefined : handlePreview}
+          onOpenRssSettings={onOpenRssSettings}
+          onRefreshRss={onRefreshRss}
         />
       ) : viewMode === 'list' ? (
         <ExplorerList

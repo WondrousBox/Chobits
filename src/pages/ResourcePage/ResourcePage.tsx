@@ -8,6 +8,7 @@ import { SidebarProvider } from '@/components/ui/sidebar';
 import SettingsPage, { SettingsCategory } from '@/pages/SettingsPage/SettingsPage';
 
 import AppsPage from './AppsPage';
+import EditRssSettingsDialog from './components/EditRssSettingsDialog';
 import { UIFolder } from './components/FolderSidebar';
 import RenameFolderDialog from './components/layout/RenameFolderDialog';
 import ResourceContent from './components/layout/ResourceContent';
@@ -52,6 +53,10 @@ const ResourcePage: React.FC = () => {
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   // 设置对话框状态：null 表示关闭，字符串表示打开并指定默认分类
   const [settingsModalCategory, setSettingsModalCategory] = useState<SettingsCategory | null>(null);
+
+  // RSS 设置对话框状态
+  const [rssSettingsOpen, setRssSettingsOpen] = useState(false);
+  const [rssSettingsItem, setRssSettingsItem] = useState<ResourceItem | null>(null);
 
   // 使用自定义 hooks
   const { list, setList, tags, folders, foldersLoading, load, loadTags, loadFolders } = useResourceData(wsFilter, tagFilter);
@@ -98,6 +103,17 @@ const ResourcePage: React.FC = () => {
 
   const { renameOpen, setRenameOpen, renameName, setRenameName, handleMoveFolder, handleOpenFolderLocation, handleRenameFolder, handleDeleteFolder, handleMoveResourcesToFolder, handleRenameConfirm } =
     useFolderOperations(folders, wsFilter, folderFilter, setFolderFilter, list, load, loadFolders);
+
+  // RSS 订阅设置处理
+  const handleOpenRssSettings = useCallback((item: ResourceItem) => {
+    setRssSettingsItem(item);
+    setRssSettingsOpen(true);
+  }, []);
+
+  // RSS 刷新后重新加载数据
+  const handleRefreshRss = useCallback(async () => {
+    await load();
+  }, [load]);
 
   // localStorage key for current folder
   const getCurrentFolderKey = useCallback(() => {
@@ -454,6 +470,9 @@ const ResourcePage: React.FC = () => {
                 setShowCollapseSuggestion={setShowCollapseSuggestion}
                 // 面包屑导航
                 currentFolderPath={currentFolderPath}
+                // RSS 相关
+                onOpenRssSettings={handleOpenRssSettings}
+                onRefreshRss={handleRefreshRss}
               />
             }
           />
@@ -461,6 +480,8 @@ const ResourcePage: React.FC = () => {
       </SidebarProvider>
 
       <RenameFolderDialog renameOpen={renameOpen} setRenameOpen={setRenameOpen} renameName={renameName} setRenameName={setRenameName} handleRenameConfirm={handleRenameConfirm} />
+
+      <EditRssSettingsDialog open={rssSettingsOpen} onOpenChange={setRssSettingsOpen} item={rssSettingsItem} onSuccess={load} />
 
       <Dialog open={settingsModalCategory !== null} onOpenChange={(open) => !open && setSettingsModalCategory(null)}>
         <DialogHeader className="hidden">
