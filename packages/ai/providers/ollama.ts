@@ -24,14 +24,14 @@ export class OllamaProvider implements ProviderAdapter {
     };
     return loadProviderSchema(this.id, fallback);
   }
-  setSecrets(secrets: ProviderSecrets) {
+  setSecrets(secrets: ProviderSecrets): void {
     this.secrets = { ...this.secrets, ...(secrets as any) };
   }
   getSecrets(): ProviderSecrets {
     return this.secrets;
   }
 
-  private url(path: string) {
+  private url(path: string): string {
     return `${this.secrets.baseUrl || 'http://127.0.0.1:11434'}${path}`;
   }
 
@@ -61,7 +61,9 @@ export class OllamaProvider implements ProviderAdapter {
               full += delta;
               onStream({ type: 'delta', data: { text: delta } });
             }
-          } catch { }
+          } catch (error) {
+            console.error(error);
+          }
         }
       }
       onStream({ type: 'message_completed', data: { message: { role: 'assistant', content: full, createdAt: Date.now() } } });
@@ -91,7 +93,7 @@ export class OllamaProvider implements ProviderAdapter {
     return { vectors, dim, model, providerId: this.id };
   }
 
-  async listModels() {
+  async listModels(): Promise<Array<{ id: string }>> {
     try {
       const r = await fetch(this.url('/api/tags'));
       const data: any = await r.json();

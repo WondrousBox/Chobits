@@ -32,14 +32,14 @@ export class OpenAICompatibleProvider implements ProviderAdapter {
     };
     return loadProviderSchema(this.id, fallback);
   }
-  setSecrets(secrets: ProviderSecrets) {
+  setSecrets(secrets: ProviderSecrets): void {
     this.secrets = { ...this.defaults, ...(this.secrets || {}), ...(secrets as any) };
   }
   getSecrets(): ProviderSecrets {
     return this.secrets;
   }
 
-  protected client(override?: { apiKey?: string; baseUrl?: string }) {
+  protected client(override?: { apiKey?: string; baseUrl?: string }): OpenAI {
     const cfg: any = {};
     const s = { ...this.secrets, ...(override || {}) };
     if (s.apiKey) cfg.apiKey = s.apiKey;
@@ -85,7 +85,7 @@ export class OpenAICompatibleProvider implements ProviderAdapter {
     return { vectors, dim, model, providerId: this.id };
   }
 
-  async listModels(opts?: { secrets?: { apiKey?: string; baseUrl?: string; model?: string } }) {
+  async listModels(opts?: { secrets?: { apiKey?: string; baseUrl?: string; model?: string } }): Promise<Array<{ id: string }>> {
     const curated = await loadProviderModelsFromBank(this.id);
     console.log(curated, this.id);
 
