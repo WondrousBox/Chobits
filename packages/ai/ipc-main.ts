@@ -258,10 +258,8 @@ export function initAIHandlers(win: BrowserWindow): void {
 
   // 获取所有活跃的翻译任务
   ipcMain.handle('ai:getTranslationTasks', async () => {
-    const tasks = TranslationService.getAllActiveTranslations();
-    // 移除 controller 对象，因为它不能被序列化
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    return tasks.map(({ controller, ...rest }) => rest);
+    // The service already excludes internal properties (controller, translator)
+    return TranslationService.getAllActiveTranslations();
   });
 
   // 获取指定任务已翻译的片段

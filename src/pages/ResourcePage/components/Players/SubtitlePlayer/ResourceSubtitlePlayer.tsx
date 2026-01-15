@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import type { ResourceItem } from '../../../types';
 import { SubtitleTranslator } from '../SubtitleTranslator';
-import { SubtitlePlayer } from './SubtitlePlayer';
+import { type ChunkSummaryInfo, SubtitlePlayer } from './SubtitlePlayer';
 
 /**
  * 防抖状态 Hook - 用于高频更新的状态
@@ -68,41 +68,6 @@ function useBatchedState<T>(initialValue: T): [T, (updater: (prev: T) => T) => v
   return [state, setBatchedState];
 }
 
-/**
- * 带累积的防抖状态 - 用于频繁追加更新的场景（如 typingTexts）
- */
-function useAccumulatedDebouncedState<T>(initialValue: T, delay: number = 100): [T, (updater: (prev: T) => T) => void] {
-  const [state, setState] = useState<T>(initialValue);
-  const pendingRef = useRef<((prev: T) => T) | null>(null);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  const setAccumulatedState = useCallback(
-    (updater: (prev: T) => T) => {
-      pendingRef.current = updater;
-      if (!timeoutRef.current) {
-        timeoutRef.current = setTimeout(() => {
-          if (pendingRef.current) {
-            setState(pendingRef.current);
-            pendingRef.current = null;
-          }
-          timeoutRef.current = null;
-        }, delay);
-      }
-    },
-    [delay]
-  );
-
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, []);
-
-  return [state, setAccumulatedState];
-}
-
 // 将 AimSegments 转换为 ISegment 格式
 // ISegment = [string, string, string, string | undefined]
 // 第一个是开始时间，第二个是结束时间，第三个是文本，第四个是可选的
@@ -139,11 +104,16 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
   const [chunkSummaries, setChunkSummaries] = useDebouncedState<Map<number, string>>(new Map(), 50); // 片段索引 -> summary（防抖）
   const [typingTexts, setTypingTexts] = useDebouncedState<AimSegments[]>([], 50); // 第二轨道字幕（与主轨道 segments 一一对应，防抖）
   const [isTranslationComplete, setIsTranslationComplete] = useState(false);
-  const [summaries, setSummaries] = useDebouncedState<{ prev?: string; current?: string }>({}, 50); // 总结信息（防抖）
+  // 多 chunk summary 信息：Map<chunkIndex, ChunkSummaryInfo>
+  const [chunkSummaryInfoMap, setChunkSummaryInfoMap] = useDebouncedState<Map<number, ChunkSummaryInfo>>(new Map(), 50);
   const [translationProgress, setTranslationProgress] = useState(0); // 翻译进度 0-100
   const [isTranslating, setIsTranslating] = useState(false); // 是否正在翻译
+  const [totalSegments, setTotalSegments] = useState(0); // 总片段数（用于计算进度）
   const activeTranslationRequestIdRef = useRef<string | null>(null);
   const subtitleEntriesRef = useRef<AimSegments[]>([]);
+  const totalSegmentsRef = useRef(0); // 总片段数 ref（避免闭包问题）
+  // 追踪正在翻译的 chunk 范围：Map<chunkIndex, {startIndex, endIndex}>
+  const translatingChunkRangesRef = useRef<Map<number, { startIndex: number; endIndex: number }>>(new Map());
 
   // 防抖保存函数（业务逻辑，负责写回资源）
   const debouncedSave = useMemo(
@@ -321,8 +291,31 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
                   for (let i = item.startIndex; i <= item.endIndex; i++) {
                     newChunkSummaries.set(i, item.summary);
                   }
-                  // 设置当前正在翻译的总结为最后一个找到的总结
-                  setSummaries((prev) => ({ ...prev, current: item.summary }));
+                  // 恢复 chunk summary info（假设 chunkIndex 未知，使用 startIndex 作为 key）
+                  setChunkSummaryInfoMap((prev) => {
+                    const next = new Map(prev);
+                    // 查找是否已有该范围的 chunk
+                    let foundChunkIndex = -1;
+                    for (const [chunkIdx, info] of next) {
+                      if (info.startIndex === item.startIndex && info.endIndex === item.endIndex) {
+                        foundChunkIndex = chunkIdx;
+                        break;
+                      }
+                    }
+                    if (foundChunkIndex >= 0) {
+                      next.set(foundChunkIndex, { ...next.get(foundChunkIndex)!, summary: item.summary });
+                    } else {
+                      // 创建新的 chunk info
+                      const newChunkIndex = next.size;
+                      next.set(newChunkIndex, {
+                        chunkIndex: newChunkIndex,
+                        summary: item.summary,
+                        startIndex: item.startIndex,
+                        endIndex: item.endIndex
+                      });
+                    }
+                    return next;
+                  });
                 }
               });
 
@@ -355,56 +348,90 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
       }
       setTranslatingChunks(() => new Set());
       // 保留打字效果，不清除
-      setSummaries(() => ({}));
+      setChunkSummaryInfoMap(() => new Map());
       setIsTranslating(false);
       setTranslationProgress(0);
       activeTranslationRequestIdRef.current = null;
+    };
+
+    // 辅助函数：根据已翻译完成的条数计算进度
+    const calculateProgress = (completedCount: number, total: number): number => {
+      if (total <= 0) return 0;
+      return Math.min(100, Math.round((completedCount / total) * 100));
+    };
+
+    // 辅助函数：合并所有正在翻译的 chunk 范围到 translatingChunks
+    const updateTranslatingChunksFromRanges = () => {
+      const ranges = translatingChunkRangesRef.current;
+      setTranslatingChunks(() => {
+        const next = new Set<number>();
+        for (const range of ranges.values()) {
+          for (let i = range.startIndex; i <= range.endIndex; i++) {
+            next.add(i);
+          }
+        }
+        return next;
+      });
     };
 
     const handleTranslationEvent = (event: { type: string; data?: any }) => {
       if (event.type === 'connected') {
         setIsTranslating(true);
         setTranslationProgress(0);
+        // 初始化总片段数
+        const total = subtitleEntriesRef.current.length;
+        setTotalSegments(total);
+        totalSegmentsRef.current = total;
+        // 清空 chunk 范围追踪
+        translatingChunkRangesRef.current.clear();
       } else if (event.type === 'progress' && event.data) {
-        // 更新进度
-        if (event.data.percentage !== undefined) {
-          setTranslationProgress(event.data.percentage);
-        }
-
-        // 如果有上一段的总结，单独记录为 summaries.prev，供 UI 展示
-        if (event.data.prevSummary) {
-          setSummaries((prev) => ({ ...prev, prev: event.data.prevSummary }));
-        }
-
-        // 检测是否开始翻译某个片段
-        const message = event.data.message || '';
-        if (message.includes('正在翻译片段')) {
-          // 如果提供了 startIndex 和 endIndex，标记为正在翻译
-          if (event.data.startIndex !== undefined && event.data.endIndex !== undefined) {
-            // 只高亮当前正在翻译的片段范围，清除旧的高亮
-            setTranslatingChunks(() => {
-              const next = new Set<number>();
-              for (let i = event.data.startIndex; i <= event.data.endIndex; i++) {
-                next.add(i);
-              }
-              return next;
-            });
-          }
-        }
+        // 不再从 percentage 更新进度，改为基于已完成条数
+        // 如果有上一段的总结，更新对应 chunk 的 prevSummary
+        // 注意：progress 事件通常在 chunk-start 之后，此时 chunk 已注册
       } else if (event.type === 'chunk-start' && event.data) {
-        // 分块开始时，如果有上一段总结，也同步记录
-        if (event.data.prevSummary) {
-          setSummaries((prev) => ({ ...prev, prev: event.data.prevSummary }));
+        // 分块开始时，记录 chunk 范围并创建 chunk summary info
+        const { chunkIndex, startIndex, endIndex, prevSummary } = event.data;
+        if (startIndex !== undefined && endIndex !== undefined) {
+          translatingChunkRangesRef.current.set(chunkIndex, { startIndex, endIndex });
+          updateTranslatingChunksFromRanges();
+          // 创建新的 chunk summary info（初始时 summary 为空，等待 summary 事件更新）
+          setChunkSummaryInfoMap((prev) => {
+            const next = new Map(prev);
+            next.set(chunkIndex, {
+              chunkIndex,
+              summary: '', // 初始为空，等待 summary 事件
+              startIndex,
+              endIndex,
+              prevSummary: prevSummary || undefined
+            });
+            return next;
+          });
         }
       } else if (event.type === 'summary' && event.data) {
-        // 保存总结信息，根据 startIndex 和 endIndex 将 summary 应用到所有相关片段
-        const { summary, startIndex, endIndex } = event.data;
+        // 保存总结信息，更新对应 chunk 的 summary
+        const { chunkIndex, summary, startIndex, endIndex } = event.data;
         if (summary && startIndex !== undefined && endIndex !== undefined) {
-          // 更新当前总结（显示最新的总结）
-          setSummaries((prev) => ({ ...prev, current: summary }));
+          // 更新 chunkSummaryInfoMap 中对应 chunk 的 summary
+          setChunkSummaryInfoMap((prev) => {
+            const next = new Map(prev);
+            // 根据 chunkIndex 或 startIndex/endIndex 查找对应的 chunk
+            if (chunkIndex !== undefined && next.has(chunkIndex)) {
+              const existing = next.get(chunkIndex)!;
+              next.set(chunkIndex, { ...existing, summary });
+            } else {
+              // 根据 startIndex/endIndex 查找
+              for (const [idx, info] of next) {
+                if (info.startIndex === startIndex && info.endIndex === endIndex) {
+                  next.set(idx, { ...info, summary });
+                  break;
+                }
+              }
+            }
+            return next;
+          });
+          // 同时更新 chunkSummaries（用于其他地方可能的引用）
           setChunkSummaries((prev) => {
             const next = new Map(prev);
-            // 将 summary 应用到该 chunk 范围内的所有片段
             for (let i = startIndex; i <= endIndex; i++) {
               next.set(i, summary);
             }
@@ -414,13 +441,28 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
       } else if (event.type === 'parsed' && event.data) {
         // 解析完成的数据，更新翻译状态（不修改原始字幕片段）
         const data = Array.isArray(event.data) ? event.data : [event.data];
+        // 追踪每个 chunk 的完成情况
+        const completedSegmentsByChunk = new Map<number, Set<number>>();
         data.forEach((item: any) => {
           if (item.index !== undefined && item.text !== undefined) {
             const segmentIndex = item.index;
+            // 查找该 segment 属于哪个 chunk
+            for (const [chunkIndex, range] of translatingChunkRangesRef.current.entries()) {
+              if (segmentIndex >= range.startIndex && segmentIndex <= range.endIndex) {
+                if (!completedSegmentsByChunk.has(chunkIndex)) {
+                  completedSegmentsByChunk.set(chunkIndex, new Set());
+                }
+                completedSegmentsByChunk.get(chunkIndex)!.add(segmentIndex);
+                break;
+              }
+            }
             // 标记为已翻译
             setTranslatedChunks((prev) => {
               const next = new Set(prev);
               next.add(segmentIndex);
+              // 基于已完成条数更新进度
+              const total = totalSegmentsRef.current || subtitleEntriesRef.current.length;
+              setTranslationProgress(calculateProgress(next.size, total));
               return next;
             });
             // 更新打字效果
@@ -447,8 +489,17 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
             });
             // 如果提供了 startIndex 和 endIndex，更新 summary
             if (item.summary && item.startIndex !== undefined && item.endIndex !== undefined) {
-              // 更新当前总结（显示最新的总结）
-              setSummaries((prev) => ({ ...prev, current: item.summary }));
+              // 更新 chunkSummaryInfoMap
+              setChunkSummaryInfoMap((prev) => {
+                const next = new Map(prev);
+                for (const [idx, info] of next) {
+                  if (info.startIndex === item.startIndex && info.endIndex === item.endIndex) {
+                    next.set(idx, { ...info, summary: item.summary });
+                    break;
+                  }
+                }
+                return next;
+              });
               setChunkSummaries((prev) => {
                 const next = new Map(prev);
                 for (let i = item.startIndex; i <= item.endIndex; i++) {
@@ -459,8 +510,43 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
             }
           }
         });
+        // 检查是否有 chunk 完成（该 chunk 范围内所有 segment 都已翻译）
+        // 注意：这里不能仅依赖当前批次的数据，需要检查 translatedChunks 状态
+        // 由于状态更新是异步的，我们延迟检查
+        setTimeout(() => {
+          const completedChunkIndices: number[] = [];
+          for (const [chunkIndex, range] of translatingChunkRangesRef.current.entries()) {
+            // 检查该 chunk 范围内所有 segment 是否都在 data 中出现过
+            let allCompleted = true;
+            for (let i = range.startIndex; i <= range.endIndex; i++) {
+              const found = data.some((item: any) => item.index === i);
+              if (!found) {
+                // 该 segment 可能在之前的事件中已完成，但我们无法精确判断
+                // 保守起见，不删除
+                allCompleted = false;
+                break;
+              }
+            }
+            if (allCompleted) {
+              translatingChunkRangesRef.current.delete(chunkIndex);
+              completedChunkIndices.push(chunkIndex);
+            }
+          }
+          // 更新 translatingChunks
+          updateTranslatingChunksFromRanges();
+          // 从 chunkSummaryInfoMap 中移除已完成的 chunk
+          if (completedChunkIndices.length > 0) {
+            setChunkSummaryInfoMap((prev) => {
+              const next = new Map(prev);
+              for (const idx of completedChunkIndices) {
+                next.delete(idx);
+              }
+              return next;
+            });
+          }
+        }, 0);
       } else if (event.type === 'parseProgress' && event.data) {
-        // 实时翻译进度，显示打字效果
+        // 实时翻译进度，显示打字效果（不更新 translatingChunks，因为已在 chunk-start 中处理）
         const data = Array.isArray(event.data) ? event.data : [event.data];
         data.forEach((item: any) => {
           if (item.index !== undefined && item.text !== undefined) {
@@ -490,39 +576,40 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
               }
               return next;
             });
-            // 如果这是新 chunk 的开始，标记为正在翻译
-            if (item.startIndex !== undefined && item.endIndex !== undefined) {
-              // 同样这里也只保留当前 chunk 的翻译范围
-              setTranslatingChunks(() => {
-                const next = new Set<number>();
-                for (let i = item.startIndex; i <= item.endIndex; i++) {
-                  next.add(i);
+            // 更新 summary（如果有）
+            if (item.summary && item.startIndex !== undefined && item.endIndex !== undefined) {
+              // 更新 chunkSummaryInfoMap
+              setChunkSummaryInfoMap((prev) => {
+                const next = new Map(prev);
+                for (const [idx, info] of next) {
+                  if (info.startIndex === item.startIndex && info.endIndex === item.endIndex) {
+                    next.set(idx, { ...info, summary: item.summary });
+                    break;
+                  }
                 }
                 return next;
               });
-              // 更新 summary
-              if (item.summary) {
-                // 更新当前总结（显示最新的总结）
-                setSummaries((prev) => ({ ...prev, current: item.summary }));
-                setChunkSummaries((prev) => {
-                  const next = new Map(prev);
-                  for (let i = item.startIndex; i <= item.endIndex; i++) {
-                    next.set(i, item.summary);
-                  }
-                  return next;
-                });
-              }
+              setChunkSummaries((prev) => {
+                const next = new Map(prev);
+                for (let i = item.startIndex; i <= item.endIndex; i++) {
+                  next.set(i, item.summary);
+                }
+                return next;
+              });
             }
           }
         });
       } else if (event.type === 'completed' && event.data?.translations) {
-        // 翻译完成，清除所有翻译中状态
+        // 翻译完成，清除所有翻译中状态和 chunk 范围追踪
+        translatingChunkRangesRef.current.clear();
         clearTranslationState(true);
       } else if (event.type === 'done') {
-        // 翻译完成，清除所有翻译中状态
+        // 翻译完成，清除所有翻译中状态和 chunk 范围追踪
+        translatingChunkRangesRef.current.clear();
         clearTranslationState(true);
       } else if (event.type === 'error') {
-        // 翻译出错，清除翻译中状态
+        // 翻译出错，清除翻译中状态和 chunk 范围追踪
+        translatingChunkRangesRef.current.clear();
         clearTranslationState(false);
       }
     };
@@ -560,7 +647,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     setChunkSummaries(() => new Map());
     setTypingTexts(() => []);
     setTranslatingChunks(() => new Set());
-    setSummaries(() => ({}));
+    setChunkSummaryInfoMap(() => new Map());
     setIsTranslating(false);
     setTranslationProgress(0);
     activeTranslationRequestIdRef.current = null;
@@ -582,6 +669,11 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     activeTranslationRequestIdRef.current = requestId;
     setIsTranslating(true);
     setTranslationProgress(0);
+    const total = subtitleEntriesRef.current.length;
+    setTotalSegments(total);
+    totalSegmentsRef.current = total;
+    // 清空 chunk 范围追踪
+    translatingChunkRangesRef.current.clear();
   }, []);
 
   return (
@@ -613,8 +705,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
         onSegmentsChange={handleSegmentsChange}
         disabledIndices={translatingChunks}
         highlightIndices={translatingChunks}
-        summaries={summaries}
-        autoScrollToSummary={true}
+        summaries={chunkSummaryInfoMap}
       />
     </div>
   );

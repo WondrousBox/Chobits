@@ -3,7 +3,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
-import { SubtitlePlayer } from '../Players';
+import { ResourceSubtitlePlayer } from '../Players';
 import { useResourceTabContext } from './ResourceTabContext';
 
 /**
@@ -46,7 +46,7 @@ const SubtitleTab: React.FC = () => {
       {/* 字幕播放器 */}
       <div className="flex-1 min-h-0">
         {activeSubtitle && (
-          <SubtitlePlayer
+          <ResourceSubtitlePlayer
             resource={activeSubtitle}
             currentTime={currentTime}
             onSeek={(time) => {
