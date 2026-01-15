@@ -176,7 +176,7 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({ tracks, currentT
   return (
     <div className="flex h-full w-full flex-col text-muted-foreground">
       <ScrollArea className="h-full w-full">
-        <div className="box-border h-full w-full select-text overflow-auto rounded border px-4 py-3 leading-relaxed shadow-inner">
+        <div className="box-border h-full w-full select-text overflow-auto px-4 py-3 leading-relaxed">
           {mainTrack.map((entry, idx) => {
             const disabled = !!disabledSet?.has(idx);
             const highlight = !!highlightSet?.has(idx);
