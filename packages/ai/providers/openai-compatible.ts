@@ -49,7 +49,7 @@ export class OpenAICompatibleProvider implements ProviderAdapter {
 
   async chat(req: ChatRequest, onStream?: (event: StreamEvent) => void, signal?: AbortSignal): Promise<ChatResponse> {
     const override = (req.extras as any)?.secrets as any;
-    console.log(override, req);
+    console.log(req?.messages);
 
     const client = this.client(override);
     const model = (req.extras?.model as string) || override?.model || this.secrets.model || this.defaults.model || 'gpt-3.5-turbo';
@@ -65,13 +65,13 @@ export class OpenAICompatibleProvider implements ProviderAdapter {
         }
       }
       onStream({ type: 'message_completed', data: { message: { role: 'assistant', content: finalText, createdAt: Date.now() } } });
+      console.log(finalText);
+
       return { message: { role: 'assistant', content: finalText, createdAt: Date.now() }, providerId: this.id };
     }
     const resp = await client.chat.completions.create({ model, messages, temperature: req.temperature, max_tokens: req.maxTokens as any }, { signal });
 
     const text = resp?.choices?.[0]?.message?.content || '';
-
-    console.log(text);
 
     return { message: { role: 'assistant', content: text, createdAt: Date.now() }, providerId: this.id };
   }

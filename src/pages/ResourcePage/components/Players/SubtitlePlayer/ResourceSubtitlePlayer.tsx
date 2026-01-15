@@ -7,60 +7,113 @@ import { SubtitleTranslator } from '../SubtitleTranslator';
 import { type ChunkSummaryInfo, SubtitlePlayer } from './SubtitlePlayer';
 
 /**
- * 防抖状态 Hook - 用于高频更新的状态
+ * 节流状态 Hook - 用于高频更新的状态，但不丢失数据
+ * 与防抖不同，节流会累积所有更新，然后在延迟后一次性应用
  */
-function useDebouncedState<T>(initialValue: T, delay: number = 100): [T, (value: T | ((prev: T) => T)) => void] {
+function useThrottledState<T>(initialValue: T, delay: number = 100): [T, (updater: (prev: T) => T) => void] {
   const [state, setState] = useState<T>(initialValue);
+  const pendingUpdatersRef = useRef<Array<(prev: T) => T>>([]);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const latestStateRef = useRef<T>(initialValue);
 
-  const setDebouncedState = useCallback(
-    (value: T | ((prev: T) => T)) => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+  // 保持 latestStateRef 同步
+  useEffect(() => {
+    latestStateRef.current = state;
+  }, [state]);
+
+  const setThrottledState = useCallback(
+    (updater: (prev: T) => T) => {
+      // 累积更新器
+      pendingUpdatersRef.current.push(updater);
+
+      if (!timeoutRef.current) {
+        timeoutRef.current = setTimeout(() => {
+          // 应用所有累积的更新
+          if (pendingUpdatersRef.current.length > 0) {
+            let currentValue = latestStateRef.current;
+            for (const fn of pendingUpdatersRef.current) {
+              currentValue = fn(currentValue);
+            }
+            pendingUpdatersRef.current = [];
+            setState(currentValue);
+            latestStateRef.current = currentValue;
+          }
+          timeoutRef.current = null;
+        }, delay);
       }
-      timeoutRef.current = setTimeout(() => {
-        setState(value);
-      }, delay);
     },
     [delay]
   );
 
   useEffect(() => {
     return () => {
+      // 组件卸载时，立即应用所有待处理的更新
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
+        if (pendingUpdatersRef.current.length > 0) {
+          let currentValue = latestStateRef.current;
+          for (const fn of pendingUpdatersRef.current) {
+            currentValue = fn(currentValue);
+          }
+          pendingUpdatersRef.current = [];
+          setState(currentValue);
+        }
       }
     };
   }, []);
 
-  return [state, setDebouncedState];
+  return [state, setThrottledState];
 }
 
 /**
- * 批量状态更新 Hook - 合并多次状态更新，减少渲染次数
+ * 批量状态更新 Hook - 合并多次状态更新，不丢失数据
+ * 累积所有 updater 函数，然后在下一个帧一次性应用
  */
 function useBatchedState<T>(initialValue: T): [T, (updater: (prev: T) => T) => void] {
   const [state, setState] = useState<T>(initialValue);
-  const pendingRef = useRef<((prev: T) => T) | null>(null);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingUpdatersRef = useRef<Array<(prev: T) => T>>([]);
+  const rafRef = useRef<number | null>(null);
+  const latestStateRef = useRef<T>(initialValue);
+
+  // 保持 latestStateRef 同步
+  useEffect(() => {
+    latestStateRef.current = state;
+  }, [state]);
 
   const setBatchedState = useCallback((updater: (prev: T) => T) => {
-    pendingRef.current = updater;
-    if (!timeoutRef.current) {
-      timeoutRef.current = setTimeout(() => {
-        if (pendingRef.current) {
-          setState(pendingRef.current);
-          pendingRef.current = null;
+    // 累积更新器
+    pendingUpdatersRef.current.push(updater);
+
+    if (rafRef.current === null) {
+      rafRef.current = requestAnimationFrame(() => {
+        // 应用所有累积的更新
+        if (pendingUpdatersRef.current.length > 0) {
+          let currentValue = latestStateRef.current;
+          for (const fn of pendingUpdatersRef.current) {
+            currentValue = fn(currentValue);
+          }
+          pendingUpdatersRef.current = [];
+          setState(currentValue);
+          latestStateRef.current = currentValue;
         }
-        timeoutRef.current = null;
-      }, 16);
+        rafRef.current = null;
+      });
     }
   }, []);
 
   useEffect(() => {
     return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+      // 组件卸载时，立即应用所有待处理的更新
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        if (pendingUpdatersRef.current.length > 0) {
+          let currentValue = latestStateRef.current;
+          for (const fn of pendingUpdatersRef.current) {
+            currentValue = fn(currentValue);
+          }
+          pendingUpdatersRef.current = [];
+          setState(currentValue);
+        }
       }
     };
   }, []);
@@ -101,11 +154,11 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
   // 翻译状态管理
   const [translatingChunks, setTranslatingChunks] = useBatchedState<Set<number>>(new Set()); // 正在翻译的片段索引（批量更新）
   const [translatedChunks, setTranslatedChunks] = useBatchedState<Set<number>>(new Set()); // 已翻译完成的片段索引（批量更新）
-  const [chunkSummaries, setChunkSummaries] = useDebouncedState<Map<number, string>>(new Map(), 50); // 片段索引 -> summary（防抖）
-  const [typingTexts, setTypingTexts] = useDebouncedState<AimSegments[]>([], 50); // 第二轨道字幕（与主轨道 segments 一一对应，防抖）
+  const [chunkSummaries, setChunkSummaries] = useThrottledState<Map<number, string>>(new Map(), 50); // 片段索引 -> summary（节流）
+  const [typingTexts, setTypingTexts] = useThrottledState<AimSegments[]>([], 50); // 第二轨道字幕（与主轨道 segments 一一对应，节流）
   const [isTranslationComplete, setIsTranslationComplete] = useState(false);
   // 多 chunk summary 信息：Map<chunkIndex, ChunkSummaryInfo>
-  const [chunkSummaryInfoMap, setChunkSummaryInfoMap] = useDebouncedState<Map<number, ChunkSummaryInfo>>(new Map(), 50);
+  const [chunkSummaryInfoMap, setChunkSummaryInfoMap] = useThrottledState<Map<number, ChunkSummaryInfo>>(new Map(), 50);
   const [translationProgress, setTranslationProgress] = useState(0); // 翻译进度 0-100
   const [isTranslating, setIsTranslating] = useState(false); // 是否正在翻译
   const [totalSegments, setTotalSegments] = useState(0); // 总片段数（用于计算进度）
