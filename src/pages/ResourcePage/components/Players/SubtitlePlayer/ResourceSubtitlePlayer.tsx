@@ -6,7 +6,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ResourceItem } from '../../../types';
 import { SubtitleTranslator } from '../SubtitleTranslator';
 import { SubtitlePlayer } from './SubtitlePlayer';
-import { type ChunkCompleteData, useSubtitleTranslation } from './useSubtitleTranslation';
+import { useSubtitleTranslation } from './useSubtitleTranslation';
 
 // 将 AimSegments 转换为 ISegment 格式
 // ISegment = [string, string, string, string | undefined]
@@ -24,9 +24,9 @@ interface ResourceSubtitlePlayerProps {
 }
 
 /**
- * 带资源读取/保存和翻译能力的字幕播放器容器
- * - 负责与主进程交互、AI 翻译等业务逻辑
- * - 将主轨与第二轨道（翻译）作为数据传给通用的 SubtitlePlayer，仅负责展示
+ * 带资源读取和翻译能力的字幕播放器容器
+ * - 翻译结果由主进程自动保存，渲染进程只负责展示
+ * - 用户手动编辑字幕时，通过渲染进程保存
  */
 export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ resource, currentTime = 0, onSeek }) => {
   const [subtitleEntries, setSubtitleEntries] = useState<AimSegments[]>([]);
@@ -39,35 +39,27 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     subtitleEntriesRef.current = subtitleEntries;
   }, [subtitleEntries]);
 
-  // 防抖保存函数（业务逻辑，负责写回资源）
-  // segments1: 原文（主轨道），segments2: 翻译结果（第二轨道，可选）
+  // 防抖保存函数（用于用户手动编辑字幕时保存）
   const debouncedSave = useMemo(
     () =>
-      debounce(async (resourceId: string, segments1: AimSegments[], format: SubtitleFormat, segments2?: AimSegments[]) => {
+      debounce(async (resourceId: string, segments: AimSegments[], format: SubtitleFormat) => {
         if (!resourceId) return;
 
         try {
           // 过滤掉已删除的片段
-          const validSegments1 = segments1.filter((seg) => !seg.delete);
+          const validSegments = segments.filter((seg) => !seg.delete);
           // 转换为 ISegment 格式
-          const iSegments1 = validSegments1.map(convertToISegment);
-
-          // 如果有翻译结果，也转换为 ISegment 格式
-          let iSegments2: Array<[string, string, string, string | undefined]> | undefined;
-          if (segments2 && segments2.length > 0) {
-            const validSegments2 = segments2.filter((seg) => !seg.delete);
-            iSegments2 = validSegments2.map(convertToISegment);
-          }
+          const iSegments = validSegments.map(convertToISegment);
 
           // 根据格式选择不同的输出方法
           let content: string;
           if (format === 'vtt' && 'outputVtt' in tools && typeof tools.outputVtt === 'function') {
-            content = tools.outputVtt({ segments1: iSegments1, segments2: iSegments2 });
+            content = tools.outputVtt({ segments1: iSegments });
           } else if (format === 'ass' && 'outputAss' in tools && typeof tools.outputAss === 'function') {
-            content = tools.outputAss({ segments1: iSegments1, segments2: iSegments2 });
+            content = tools.outputAss({ segments1: iSegments });
           } else {
             // 默认使用 SRT 格式输出
-            content = tools.outputSrt({ segments1: iSegments1, segments2: iSegments2 });
+            content = tools.outputSrt({ segments1: iSegments });
           }
 
           // 通过资源更新接口保存，主进程会处理文件写入
@@ -87,85 +79,11 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     []
   );
 
-  // 保持 typingTexts 的引用，用于在回调中访问最新的翻译结果
-  const typingTextsRef = useRef<AimSegments[]>([]);
-
-  // 处理 chunk 完成时的保存逻辑
-  const handleChunkComplete = useCallback(
-    (data: ChunkCompleteData) => {
-      if (!resource.id || isLoading) return;
-
-      // 使用 ref 获取最新的原文（主轨道）
-      const currentEntries = subtitleEntriesRef.current || [];
-
-      // 获取最新的翻译结果（第二轨道）
-      const currentTypingTexts = typingTextsRef.current || [];
-
-      // 更新翻译结果中对应的片段
-      const updatedTypingTexts = [...currentTypingTexts];
-      // 确保数组长度足够
-      while (updatedTypingTexts.length <= data.endIndex) {
-        const baseSegment = currentEntries[updatedTypingTexts.length] || currentEntries[currentEntries.length - 1];
-        if (baseSegment) {
-          updatedTypingTexts.push({ ...baseSegment, text: '' });
-        } else {
-          updatedTypingTexts.push({ st: '00:00:00,000', et: '00:00:00,000', text: '' });
-        }
-      }
-
-      // 更新翻译结果
-      data.segments.forEach((item) => {
-        if (updatedTypingTexts[item.index]) {
-          const baseSegment = currentEntries[item.index];
-          if (baseSegment) {
-            updatedTypingTexts[item.index] = { ...baseSegment, text: item.text };
-          } else {
-            updatedTypingTexts[item.index] = { ...updatedTypingTexts[item.index], text: item.text };
-          }
-        }
-      });
-
-      // 保存：segments1 是原文，segments2 是翻译结果
-      debouncedSave(resource.id, currentEntries, subtitleFormat, updatedTypingTexts);
-    },
-    [resource.id, isLoading, debouncedSave, subtitleFormat]
-  );
-
-  // 处理翻译完成时的保存逻辑（通过监听状态变化）
-  // 注意：chunk-complete 时已经保存了，这里主要是作为兜底
-  const handleTranslationComplete = useCallback(() => {
-    // 翻译完成时，所有 chunk 应该都已经通过 chunk-complete 保存过了
-    // 这里可以做一些清理工作，或者最终确认保存
-  }, []);
-
-  // 使用翻译 Hook
-  const { translatingChunks, typingTexts, chunkSummaryInfoMap, translationProgress, isTranslating, isTranslationComplete, startTranslation, stopTranslation, resetTranslation } =
-    useSubtitleTranslation({
-      resourceId: resource.id,
-      subtitleEntriesRef,
-      onChunkComplete: handleChunkComplete,
-      onTranslationComplete: handleTranslationComplete
-    });
-
-  // 保持 typingTexts 的引用始终是最新的
-  useEffect(() => {
-    typingTextsRef.current = typingTexts;
-  }, [typingTexts]);
-
-  // 监听翻译完成状态，确保最终保存（兜底逻辑）
-  // 使用 ref 追踪上一次的状态，避免重复保存
-  const prevTranslationCompleteRef = useRef(false);
-  useEffect(() => {
-    // 只在状态从 false 变为 true 时触发一次
-    if (isTranslationComplete && !prevTranslationCompleteRef.current && typingTexts.length > 0 && !isLoading && resource.id) {
-      // 获取最新的原文（主轨道）
-      const currentEntries = subtitleEntriesRef.current || [];
-
-      // 保存：segments1 是原文，segments2 是翻译结果
-      debouncedSave(resource.id, currentEntries, subtitleFormat, typingTexts);
-    }
-    prevTranslationCompleteRef.current = isTranslationComplete;
-  }, [isTranslationComplete, typingTexts.length, isLoading, resource.id, debouncedSave, subtitleFormat]);
+  // 使用翻译 Hook（翻译结果由主进程自动保存）
+  const { translatingChunks, typingTexts, chunkSummaryInfoMap, translationProgress, isTranslating, startTranslation, stopTranslation } = useSubtitleTranslation({
+    resourceId: resource.id,
+    subtitleEntriesRef
+  });
 
   // 切换资源或卸载组件时，确保待保存的更改被立即保存
   useEffect(() => {
@@ -223,15 +141,12 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     setSubtitleEntries([]);
   }, [resource, debouncedSave]);
 
-  // 通用组件的变更回调：同步到本地 state 并触发保存
-  // 注意：这里只保存原文，因为这是用户手动编辑主轨道
+  // 用户手动编辑字幕时的回调：同步到本地 state 并触发保存
   const handleSegmentsChange = useCallback(
     (updated: AimSegments[]): void => {
       setSubtitleEntries(updated);
       if (resource.id && !isLoading) {
-        // 保存时，如果有翻译结果，也一并保存
-        const currentTypingTexts = typingTextsRef.current || [];
-        debouncedSave(resource.id, updated, subtitleFormat, currentTypingTexts.length > 0 ? currentTypingTexts : undefined);
+        debouncedSave(resource.id, updated, subtitleFormat);
       }
     },
     [resource.id, debouncedSave, isLoading, subtitleFormat]
