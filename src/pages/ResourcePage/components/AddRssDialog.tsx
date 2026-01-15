@@ -1,3 +1,4 @@
+import type { RssSourceType } from '@main/handlers/rss/types';
 import React, { useCallback, useState } from 'react';
 import { TbBrandYoutube, TbLoader2, TbRss } from 'react-icons/tb';
 import { toast } from 'sonner';
@@ -9,7 +10,6 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { RssSourceType } from 'electron/main/handlers/rss/types';
 
 interface AddRssDialogProps {
   open: boolean;
