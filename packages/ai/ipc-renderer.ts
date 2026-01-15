@@ -21,6 +21,25 @@ export const aiBridge = {
   async clearProviderSecrets(providerId: string) {
     return ipcRenderer.invoke('ai:clearProviderSecrets', { providerId });
   },
+  // Multiple API Keys Management
+  async getProviderApiKeys(providerId: string, key: string) {
+    return ipcRenderer.invoke('ai:getProviderApiKeys', { providerId, key });
+  },
+  async setProviderApiKeys(providerId: string, key: string, keys: Array<{ name: string; value: string; isDefault?: boolean }>) {
+    return ipcRenderer.invoke('ai:setProviderApiKeys', { providerId, key, keys });
+  },
+  async addProviderApiKey(providerId: string, key: string, apiKey: { name: string; value: string }) {
+    return ipcRenderer.invoke('ai:addProviderApiKey', { providerId, key, apiKey });
+  },
+  async updateProviderApiKey(providerId: string, key: string, apiKeyName: string, updates: Partial<{ name: string; value: string; isDefault: boolean }>) {
+    return ipcRenderer.invoke('ai:updateProviderApiKey', { providerId, key, apiKeyName, updates });
+  },
+  async removeProviderApiKey(providerId: string, key: string, apiKeyName: string) {
+    return ipcRenderer.invoke('ai:removeProviderApiKey', { providerId, key, apiKeyName });
+  },
+  async setDefaultProviderApiKey(providerId: string, key: string, apiKeyName: string) {
+    return ipcRenderer.invoke('ai:setDefaultProviderApiKey', { providerId, key, apiKeyName });
+  },
   async clearAllSecrets() {
     return ipcRenderer.invoke('ai:clearAllSecrets');
   },

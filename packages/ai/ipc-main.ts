@@ -16,7 +16,18 @@ import { OpenAIProvider } from './providers/openai';
 import { QwenProvider } from './providers/qwen';
 import { ZhipuProvider } from './providers/zhipu';
 import { getProvider, listAgents, listProviders, registerAgent, registerProvider } from './registry';
-import { clearAllSecrets, clearProviderSecrets as clearSecretsStore, getAllSecrets, setProviderSecrets as setSecretsStore } from './settings-store';
+import {
+  addApiKey,
+  clearAllSecrets,
+  clearProviderSecrets as clearSecretsStore,
+  getAllSecrets,
+  getApiKeys,
+  removeApiKey,
+  setApiKeys,
+  setDefaultApiKey,
+  setProviderSecrets as setSecretsStore,
+  updateApiKey
+} from './settings-store';
 import { getAllInstanceSecrets as getAllInstSecrets, setInstanceSecrets as setInstSecrets } from './settings-store';
 import { TaggingService } from './tagging-service';
 import { TranslationService } from './translation-service';
@@ -87,6 +98,36 @@ export function initAIHandlers(win: BrowserWindow): void {
     // If the provider caches secrets, it might need a reload or re-fetch.
     // For now, we assume the provider fetches secrets when needed or we can set empty secrets.
     if (p?.setSecrets) await Promise.resolve(p.setSecrets({}));
+    return { ok: true };
+  });
+
+  // Multiple API Keys Management
+  ipcMain.handle('ai:getProviderApiKeys', async (_e, payload: { providerId: string; key: string }) => {
+    return await getApiKeys(payload.providerId, payload.key);
+  });
+
+  ipcMain.handle('ai:setProviderApiKeys', async (_e, payload: { providerId: string; key: string; keys: Array<{ name: string; value: string; isDefault?: boolean }> }) => {
+    await setApiKeys(payload.providerId, payload.key, payload.keys);
+    return { ok: true };
+  });
+
+  ipcMain.handle('ai:addProviderApiKey', async (_e, payload: { providerId: string; key: string; apiKey: { name: string; value: string } }) => {
+    await addApiKey(payload.providerId, payload.key, payload.apiKey);
+    return { ok: true };
+  });
+
+  ipcMain.handle('ai:updateProviderApiKey', async (_e, payload: { providerId: string; key: string; apiKeyName: string; updates: Partial<{ name: string; value: string; isDefault: boolean }> }) => {
+    await updateApiKey(payload.providerId, payload.key, payload.apiKeyName, payload.updates);
+    return { ok: true };
+  });
+
+  ipcMain.handle('ai:removeProviderApiKey', async (_e, payload: { providerId: string; key: string; apiKeyName: string }) => {
+    await removeApiKey(payload.providerId, payload.key, payload.apiKeyName);
+    return { ok: true };
+  });
+
+  ipcMain.handle('ai:setDefaultProviderApiKey', async (_e, payload: { providerId: string; key: string; apiKeyName: string }) => {
+    await setDefaultApiKey(payload.providerId, payload.key, payload.apiKeyName);
     return { ok: true };
   });
 

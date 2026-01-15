@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { TbBox } from 'react-icons/tb';
+import { TbBox, TbKey, TbSettings } from 'react-icons/tb';
 import { z } from 'zod';
 
 import TintableSvg from '@/components/common/TintableSvg';
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 
 import InstanceFormDialog, { InstanceFormValues } from './InstanceFormDialog';
+import ProviderApiKeyManager from './ProviderApiKeyManager';
 
 type ProviderRow = {
   id: string;
@@ -33,6 +34,10 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
   const [editing, setEditing] = useState<Instance | null>(null);
+
+  // API Key Manager state
+  const [apiKeyManagerOpen, setApiKeyManagerOpen] = useState(false);
+  const [selectedFieldKey, setSelectedFieldKey] = useState<string | null>(null);
 
   const selectedProvider = useMemo(() => providers.find((p) => p.id === selectedProviderId) || null, [providers, selectedProviderId]);
   const currentLang = navigator.language?.toLowerCase?.() || 'en';
@@ -259,6 +264,43 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
         <div className="h-full flex-1 px-2 overflow-y-auto">
           {selectedProvider ? (
             <div className="space-y-3">
+              {/* API Key Management Section */}
+              {(selectedProvider.schema?.fields || []).filter((f) => f.type === 'password').length > 0 && (
+                <div className="border rounded-lg p-3 bg-muted/30">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <TbKey className="w-4 h-4" />
+                      <span className="font-medium text-sm">API Keys 管理</span>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {(selectedProvider.schema?.fields || [])
+                      .filter((f) => f.type === 'password')
+                      .map((f) => {
+                        const locale = pickLocale(selectedProvider.schema?.locales);
+                        const label = locale?.fields?.[f.key] || f.label;
+                        return (
+                          <div key={f.key} className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">{label}</span>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => {
+                                setSelectedFieldKey(f.key);
+                                setApiKeyManagerOpen(true);
+                              }}
+                            >
+                              <TbSettings className="w-3 h-3 mr-1" />
+                              管理
+                            </Button>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+
               {instances.length > 0 ? (
                 <>
                   <div className="flex items-center justify-between">
@@ -376,6 +418,18 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
             if (modalMode === 'create') return onCreateInstance(vals);
             if (modalMode === 'edit' && editing) return onSaveInstance(editing, vals);
           }}
+        />
+      )}
+
+      {/* Provider API Key Manager */}
+      {selectedProvider && selectedFieldKey && (
+        <ProviderApiKeyManager
+          open={apiKeyManagerOpen}
+          providerId={selectedProvider.id}
+          providerLabel={selectedProvider.label}
+          fieldKey={selectedFieldKey}
+          fieldLabel={pickLocale(selectedProvider.schema?.locales)?.fields?.[selectedFieldKey] || selectedProvider.schema?.fields?.find((f) => f.key === selectedFieldKey)?.label || selectedFieldKey}
+          onClose={() => setApiKeyManagerOpen(false)}
         />
       )}
     </>
