@@ -258,6 +258,60 @@ export const aiBridge = {
   },
   async getTranslatedSegments(requestId: string) {
     return ipcRenderer.invoke('ai:getTranslatedSegments', { requestId });
+  },
+
+  // ==================== 翻译术语管理 ====================
+
+  // 分类管理
+  async listGlossaryCategories() {
+    return ipcRenderer.invoke('ai:listGlossaryCategories');
+  },
+  async createGlossaryCategory(payload: { name: string; description?: string }) {
+    return ipcRenderer.invoke('ai:createGlossaryCategory', payload);
+  },
+  async updateGlossaryCategory(id: string, patch: { name?: string; description?: string }) {
+    return ipcRenderer.invoke('ai:updateGlossaryCategory', { id, patch });
+  },
+  async deleteGlossaryCategory(id: string) {
+    return ipcRenderer.invoke('ai:deleteGlossaryCategory', { id });
+  },
+
+  // 术语表管理
+  async listGlossaries(categoryId?: string) {
+    return ipcRenderer.invoke('ai:listGlossaries', { categoryId });
+  },
+  async getGlossary(id: string) {
+    return ipcRenderer.invoke('ai:getGlossary', { id });
+  },
+  async createGlossary(payload: {
+    categoryId: string;
+    name: string;
+    description?: string;
+    entries: Array<{ source: string; target: string; note?: string }>;
+    sourceFile?: string;
+    sourceFormat?: string;
+  }) {
+    return ipcRenderer.invoke('ai:createGlossary', payload);
+  },
+  async updateGlossary(id: string, patch: { categoryId?: string; name?: string; description?: string; entries?: Array<{ source: string; target: string; note?: string }> }) {
+    return ipcRenderer.invoke('ai:updateGlossary', { id, patch });
+  },
+  async deleteGlossary(id: string) {
+    return ipcRenderer.invoke('ai:deleteGlossary', { id });
+  },
+  async addGlossaryEntries(glossaryId: string, entries: Array<{ source: string; target: string; note?: string }>) {
+    return ipcRenderer.invoke('ai:addGlossaryEntries', { glossaryId, entries });
+  },
+  async removeGlossaryEntry(glossaryId: string, source: string) {
+    return ipcRenderer.invoke('ai:removeGlossaryEntry', { glossaryId, source });
+  },
+
+  // 导入解析
+  async parseGlossaryContent(content: string, fileName?: string) {
+    return ipcRenderer.invoke('ai:parseGlossaryContent', { content, fileName });
+  },
+  async mergeGlossaries(ids: string[]) {
+    return ipcRenderer.invoke('ai:mergeGlossaries', { ids });
   }
 };
 

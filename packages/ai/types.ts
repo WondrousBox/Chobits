@@ -175,4 +175,18 @@ export type AIApi = {
   renameConversation(id: string, title: string): Promise<{ ok: boolean; row?: any }>;
   deleteConversation(id: string): Promise<{ ok: boolean }>;
   restoreConversation(id: string): Promise<{ ok: boolean }>;
+  // Glossary management
+  listGlossaryCategories(): Promise<Array<{ id: string; name: string; description?: string; createdAt: number; updatedAt: number }>>;
+  createGlossaryCategory(payload: { name: string; description?: string }): Promise<{ id: string; name: string; description?: string; createdAt: number; updatedAt: number }>;
+  updateGlossaryCategory(id: string, patch: { name?: string; description?: string }): Promise<{ id: string; name: string; description?: string; createdAt: number; updatedAt: number } | undefined>;
+  deleteGlossaryCategory(id: string): Promise<{ ok: boolean }>;
+  listGlossaries(categoryId?: string): Promise<Array<{ id: string; categoryId: string; name: string; description?: string; entries: Array<{ source: string; target: string; note?: string }>; sourceFile?: string; sourceFormat?: string; createdAt: number; updatedAt: number }>>;
+  getGlossary(id: string): Promise<{ id: string; categoryId: string; name: string; description?: string; entries: Array<{ source: string; target: string; note?: string }>; sourceFile?: string; sourceFormat?: string; createdAt: number; updatedAt: number } | undefined>;
+  createGlossary(payload: { categoryId: string; name: string; description?: string; entries: Array<{ source: string; target: string; note?: string }>; sourceFile?: string; sourceFormat?: string }): Promise<{ id: string; categoryId: string; name: string; description?: string; entries: Array<{ source: string; target: string; note?: string }>; sourceFile?: string; sourceFormat?: string; createdAt: number; updatedAt: number }>;
+  updateGlossary(id: string, patch: { categoryId?: string; name?: string; description?: string; entries?: Array<{ source: string; target: string; note?: string }> }): Promise<{ id: string; categoryId: string; name: string; description?: string; entries: Array<{ source: string; target: string; note?: string }>; sourceFile?: string; sourceFormat?: string; createdAt: number; updatedAt: number } | undefined>;
+  deleteGlossary(id: string): Promise<{ ok: boolean }>;
+  addGlossaryEntries(glossaryId: string, entries: Array<{ source: string; target: string; note?: string }>): Promise<{ id: string; categoryId: string; name: string; description?: string; entries: Array<{ source: string; target: string; note?: string }>; sourceFile?: string; sourceFormat?: string; createdAt: number; updatedAt: number } | undefined>;
+  removeGlossaryEntry(glossaryId: string, source: string): Promise<{ id: string; categoryId: string; name: string; description?: string; entries: Array<{ source: string; target: string; note?: string }>; sourceFile?: string; sourceFormat?: string; createdAt: number; updatedAt: number } | undefined>;
+  parseGlossaryContent(content: string, fileName?: string): Promise<{ success: boolean; entries: Array<{ source: string; target: string; note?: string }>; format: string; error?: string; suggestedName?: string }>;
+  mergeGlossaries(ids: string[]): Promise<Array<{ source: string; target: string; note?: string }>>;
 };
