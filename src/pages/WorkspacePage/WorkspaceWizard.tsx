@@ -1,4 +1,4 @@
-import type { Workspace } from 'electron/main/handlers/workspace/ipc-renderer';
+import type { Workspace } from '@main/handlers/workspace/ipc-renderer';
 import { AnimatePresence, motion } from 'framer-motion';
 import React, { useEffect, useState } from 'react';
 import { TbArrowLeft, TbArrowRight, TbFolderOpen } from 'react-icons/tb';

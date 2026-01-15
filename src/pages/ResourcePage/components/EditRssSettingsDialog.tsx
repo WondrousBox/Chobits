@@ -1,5 +1,5 @@
+import type { RssMetadata } from '@main/handlers/rss/types';
 import { clsx } from 'clsx';
-import type { RssMetadata } from 'electron/main/handlers/rss/types';
 import React, { useCallback, useEffect, useState } from 'react';
 import { TbLoader2, TbRss, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';

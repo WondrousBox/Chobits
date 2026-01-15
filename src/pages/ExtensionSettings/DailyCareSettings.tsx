@@ -1,5 +1,5 @@
+import type { CustomReminderInput, DailyCareRoutineSnapshot, DailyCareSnapshot } from '@main/daily/types';
 import dayjs from 'dayjs';
-import { CustomReminderInput, DailyCareRoutineSnapshot, DailyCareSnapshot } from 'electron/main/daily/types';
 import { AnimatePresence, motion } from 'framer-motion';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { TbCalendarEvent, TbChevronDown, TbHeartbeat, TbRefresh, TbTrash, TbWand } from 'react-icons/tb';

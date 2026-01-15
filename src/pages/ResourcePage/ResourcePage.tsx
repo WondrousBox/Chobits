@@ -26,7 +26,7 @@ import { useWorkflowProgress } from './hooks/useWorkflowProgress';
 import RecycleBinPage from './RecycleBinPage';
 import ResourcePreviewWindow from './ResourcePreviewWindow';
 import RssFeedPage from './RssFeedPage';
-import { SelectedResourceFileType, SortField, SortOrder } from './types';
+import { ResourceItem, SelectedResourceFileType, SortField, SortOrder } from './types';
 import { typeOptions } from './utils/constants';
 import { mergeVideoWithSubtitles } from './utils/subtitleUtils';
 import WorkflowPage from './WorkflowPage';

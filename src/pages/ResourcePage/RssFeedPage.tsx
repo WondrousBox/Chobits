@@ -1,4 +1,4 @@
-import type { RssFeed, RssFeedItem, RssMetadata } from 'electron/main/handlers/rss/types';
+import type { RssFeed, RssFeedItem, RssMetadata } from '@main/handlers/rss/types';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { TbArrowLeft, TbCheck, TbClock, TbDownload, TbExternalLink, TbEye, TbHistory, TbLoader2, TbPlayerPlay, TbRefresh, TbRss, TbSearch, TbSettings, TbUsers } from 'react-icons/tb';
 import { useNavigate, useParams } from 'react-router-dom';

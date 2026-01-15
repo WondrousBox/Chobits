@@ -22,6 +22,9 @@
       ],
       "@packages/*": [
         "packages/*"
+      ],
+      "@main/*": [
+        "electron/main/*"
       ]
     },
   },

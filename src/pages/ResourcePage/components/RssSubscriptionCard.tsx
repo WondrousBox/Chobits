@@ -1,5 +1,5 @@
+import type { RssMetadata } from '@main/handlers/rss/types';
 import { clsx } from 'clsx';
-import type { RssMetadata } from 'electron/main/handlers/rss/types';
 import React, { useCallback, useMemo } from 'react';
 import { TbClock, TbDownload, TbHeart, TbRss, TbUsers } from 'react-icons/tb';
 
@@ -19,7 +19,6 @@ interface RssSubscriptionCardProps {
 }
 
 const RssSubscriptionCard: React.FC<RssSubscriptionCardProps> = ({ item, selected, onClick, onToggleFavorite, onOpenFeed, innerRef }) => {
-
   // 解析 metadata
   const metadata: RssMetadata = useMemo(() => {
     try {
