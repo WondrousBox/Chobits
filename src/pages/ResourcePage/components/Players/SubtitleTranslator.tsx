@@ -37,10 +37,7 @@ const languageOptions = Object.entries(languageNames).map(([code, name]) => ({
 
 interface SubtitleTranslatorProps {
   subtitleEntries: AimSegments[];
-  onTranslateComplete: (updatedSegments: AimSegments[]) => void;
   resourceId: string;
-  isLoading: boolean;
-  debouncedSave: (resourceId: string, segments: AimSegments[]) => void;
   isTranslating?: boolean;
   translationProgress?: number;
   onStopTranslation?: () => void;
@@ -116,17 +113,7 @@ const savePreferences = (preferences: {
   }
 };
 
-export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({
-  subtitleEntries,
-  onTranslateComplete,
-  resourceId,
-  isLoading,
-  debouncedSave,
-  isTranslating = false,
-  translationProgress = 0,
-  onStopTranslation,
-  onTranslationStart
-}) => {
+export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitleEntries, resourceId, isTranslating = false, translationProgress = 0, onStopTranslation, onTranslationStart }) => {
   // 从 localStorage 加载保存的偏好设置
   const savedPreferences = loadPreferences();
 
@@ -166,7 +153,7 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({
 
   // 加载术语表数据
   useEffect(() => {
-    const loadGlossaries = async () => {
+    const loadGlossaries = async (): Promise<void> => {
       try {
         const [cats, items] = await Promise.all([window.YUA.ai.listGlossaryCategories(), window.YUA.ai.listGlossaries()]);
         setGlossaryCategories(cats || []);
@@ -378,53 +365,6 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({
     [applyHistory, executeAITranslation]
   );
 
-  // 普通翻译功能
-  const handleNormalTranslate = useCallback(async () => {
-    if (!selectedService || !targetLanguage || subtitleEntries.length === 0) {
-      return;
-    }
-
-    // 过滤掉已删除的片段
-    const validSegments = subtitleEntries.filter((seg) => !seg.delete);
-    if (validSegments.length === 0) {
-      return;
-    }
-
-    setIsTranslationPopoverOpen(false);
-    // setIsTranslating(true); // 暂时不支持普通翻译的进度显示，或者也需要父组件支持
-
-    try {
-      // 模拟翻译过程
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // 这里应该调用实际的翻译服务 API
-      // 例如：await window.YUA.translation.translate({ service: selectedService, text: ..., targetLanguage: ... })
-
-      // 临时占位：直接使用原文（实际应该调用翻译 API）
-      const updated = [...subtitleEntries];
-
-      // 记录到历史
-      addToHistory({
-        mode: 'normal',
-        service: selectedService,
-        targetLanguage
-      });
-
-      // 通知父组件更新
-      onTranslateComplete(updated);
-
-      // 触发保存
-      if (resourceId && !isLoading) {
-        debouncedSave(resourceId, updated);
-      }
-
-      // setIsTranslating(false);
-    } catch (error) {
-      console.error('翻译失败:', error);
-      // setIsTranslating(false);
-    }
-  }, [selectedService, targetLanguage, subtitleEntries, resourceId, isLoading, debouncedSave, onTranslateComplete]);
-
   return (
     <div className="flex items-center justify-end gap-2 px-3 py-1">
       {isTranslating ? (
@@ -552,17 +492,11 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({
                                       <Tooltip>
                                         <TooltipTrigger asChild>
                                           <div
-                                            className={`flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer hover:bg-muted/50 ${
-                                              selectedGlossaryIds.includes(g.id) ? 'bg-accent text-accent-foreground' : ''
-                                            }`}
+                                            className={`flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer hover:bg-muted/50 ${selectedGlossaryIds.includes(g.id) ? 'bg-accent text-accent-foreground' : ''
+                                              }`}
                                             onClick={() => toggleGlossarySelection(g.id)}
                                           >
-                                            <input
-                                              type="checkbox"
-                                              checked={selectedGlossaryIds.includes(g.id)}
-                                              onChange={() => toggleGlossarySelection(g.id)}
-                                              className="h-3.5 w-3.5"
-                                            />
+                                            <input type="checkbox" checked={selectedGlossaryIds.includes(g.id)} onChange={() => toggleGlossarySelection(g.id)} className="h-3.5 w-3.5" />
                                             <div className="flex-1 min-w-0">
                                               <div className="text-sm truncate">{g.name}</div>
                                               <div className="text-xs text-muted-foreground">{g.entries.length} 个术语</div>
@@ -642,7 +576,7 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({
                   </Select>
                 </div>
 
-                <Button size="sm" className="w-full" onClick={handleNormalTranslate} disabled={!selectedService || !targetLanguage || isTranslating || subtitleEntries.length === 0}>
+                <Button size="sm" className="w-full" disabled={!selectedService || !targetLanguage || isTranslating || subtitleEntries.length === 0}>
                   开始翻译
                 </Button>
               </TabsContent>
