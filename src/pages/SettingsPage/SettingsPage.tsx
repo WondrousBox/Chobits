@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import React, { useEffect, useState } from 'react';
-import { TbAdjustments, TbBrain, TbCpu, TbFolderOpen, TbKeyboard, TbMessage2, TbNetwork, TbPlug } from 'react-icons/tb';
+import { TbAdjustments, TbBook, TbBrain, TbCpu, TbFolderOpen, TbKeyboard, TbMessage2, TbNetwork, TbPlug } from 'react-icons/tb';
 
 import { Separator } from '@/components/ui/separator';
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '@/components/ui/sidebar';
@@ -8,16 +8,17 @@ import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu
 import DragAbleTitle from '../../components/common/DragAbleTitle';
 import EmbeddingJobsPanel from '../../components/EmbeddingJobs';
 import AiSettings from './components/AiSettings';
-import { SettingGroup } from './components/SettingComponents';
+import GlossarySettings from './components/GlossarySettings';
 import PreferencesSettings from './components/PreferencesSettings';
 import PromptSetting from './components/PromptSetting';
 import ProxySettings from './components/ProxySettings';
+import { SettingGroup } from './components/SettingComponents';
 import ShortcutsSettings from './components/ShortcutsSettings';
 import VectorManagement from './components/VectorManagement';
 import Workspace from './components/Workspace';
 import PluginPage from './PluginPage';
 
-export type DefaultSettingsCategory = 'preferences' | 'workspace' | 'ai' | 'prompt' | 'plugins' | 'shortcuts' | 'embedding' | 'proxy';
+export type DefaultSettingsCategory = 'preferences' | 'workspace' | 'ai' | 'prompt' | 'glossary' | 'plugins' | 'shortcuts' | 'embedding' | 'proxy';
 
 export type SettingsCategory = DefaultSettingsCategory | (string & {});
 
@@ -54,6 +55,12 @@ const defaultCategories: SettingsCategoryDef[] = [
     label: '提示词管理',
     icon: TbCpu,
     description: '提示词管理与设置'
+  },
+  {
+    id: 'glossary',
+    label: '翻译术语',
+    icon: TbBook,
+    description: '翻译术语表管理'
   },
   {
     id: 'plugins',
@@ -105,7 +112,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = []
     if (defaultCategory) {
       setActiveCategory(defaultCategory);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [defaultCategory]);
 
   useEffect(() => {
@@ -152,6 +158,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = []
         return <AiSettings initialProviderId={initialAiProviderId || undefined} />;
       case 'prompt':
         return <PromptSetting />;
+      case 'glossary':
+        return <GlossarySettings />;
       case 'shortcuts':
         return <ShortcutsSettings />;
       case 'proxy':

@@ -6,6 +6,7 @@ import { BasicAgent } from './agents/basic';
 import { RAGAgent } from './agents/rag';
 import { TaggerAgent } from './agents/tagger';
 import { ChatService } from './chat-service';
+import { GlossaryStore } from './glossary-store';
 import { InstancesStore } from './instances-store';
 import { PromptsStore } from './prompts-store';
 import { AnthropicProvider } from './providers/anthropic';
@@ -267,6 +268,31 @@ export function initAIHandlers(win: BrowserWindow): void {
   ipcMain.handle('ai:getTranslatedSegments', async (_e, payload: { requestId: string }) => {
     return TranslationService.getTranslatedSegments(payload.requestId);
   });
+
+  // ==================== 翻译术语管理 ====================
+
+  // 分类管理
+  ipcMain.handle('ai:listGlossaryCategories', async () => GlossaryStore.listCategories());
+  ipcMain.handle('ai:createGlossaryCategory', async (_e, payload: { name: string; description?: string }) => GlossaryStore.createCategory(payload));
+  ipcMain.handle('ai:updateGlossaryCategory', async (_e, payload: { id: string; patch: { name?: string; description?: string } }) => GlossaryStore.updateCategory(payload.id, payload.patch));
+  ipcMain.handle('ai:deleteGlossaryCategory', async (_e, payload: { id: string }) => ({ ok: GlossaryStore.deleteCategory(payload.id) }));
+
+  // 术语表管理
+  ipcMain.handle('ai:listGlossaries', async (_e, payload?: { categoryId?: string }) => GlossaryStore.listGlossaries(payload?.categoryId));
+  ipcMain.handle('ai:getGlossary', async (_e, payload: { id: string }) => GlossaryStore.getGlossary(payload.id));
+  ipcMain.handle('ai:createGlossary', async (_e, payload: { categoryId: string; name: string; description?: string; entries: any[]; sourceFile?: string; sourceFormat?: string }) =>
+    GlossaryStore.createGlossary(payload)
+  );
+  ipcMain.handle('ai:updateGlossary', async (_e, payload: { id: string; patch: { categoryId?: string; name?: string; description?: string; entries?: any[] } }) =>
+    GlossaryStore.updateGlossary(payload.id, payload.patch)
+  );
+  ipcMain.handle('ai:deleteGlossary', async (_e, payload: { id: string }) => ({ ok: GlossaryStore.deleteGlossary(payload.id) }));
+  ipcMain.handle('ai:addGlossaryEntries', async (_e, payload: { glossaryId: string; entries: any[] }) => GlossaryStore.addEntries(payload.glossaryId, payload.entries));
+  ipcMain.handle('ai:removeGlossaryEntry', async (_e, payload: { glossaryId: string; source: string }) => GlossaryStore.removeEntry(payload.glossaryId, payload.source));
+
+  // 导入解析
+  ipcMain.handle('ai:parseGlossaryContent', async (_e, payload: { content: string; fileName?: string }) => GlossaryStore.parseContent(payload.content, payload.fileName));
+  ipcMain.handle('ai:mergeGlossaries', async (_e, payload: { ids: string[] }) => GlossaryStore.mergeGlossaries(payload.ids));
 
   // 字幕翻译：在主进程中处理，向所有窗口发送消息
   ipcMain.handle(

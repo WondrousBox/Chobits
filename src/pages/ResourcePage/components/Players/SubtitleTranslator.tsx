@@ -1,14 +1,16 @@
 import { AimSegments } from '@aim-packages/subtitle';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TbLanguage, TbPlayerStop } from 'react-icons/tb';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { TbBook, TbLanguage, TbPlayerStop } from 'react-icons/tb';
 
 import { ProviderModelSelect, ProviderModelSelectRef } from '@/components/common/ProviderModelSelect';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 // 语言代码到中文名称的映射
 const languageNames: Record<string, string> = {
@@ -64,6 +66,21 @@ interface TranslationHistoryItem {
   timestamp: number;
 }
 
+// 术语表类型
+interface GlossaryCategory {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+interface GlossaryItem {
+  id: string;
+  categoryId: string;
+  name: string;
+  description?: string;
+  entries: Array<{ source: string; target: string; note?: string }>;
+}
+
 // localStorage 键名
 const STORAGE_KEY = 'subtitle-translator-preferences';
 
@@ -87,6 +104,7 @@ const savePreferences = (preferences: {
   selectedModel?: string;
   selectedService?: TranslationService;
   targetLanguage?: string;
+  selectedGlossaryIds?: string[];
   history?: TranslationHistoryItem[];
 }): void => {
   try {
@@ -140,6 +158,51 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({
   // 共用状态
   const [targetLanguage, setTargetLanguage] = useState<string>(savedPreferences?.targetLanguage || 'en');
 
+  // 术语表相关状态
+  const [glossaryCategories, setGlossaryCategories] = useState<GlossaryCategory[]>([]);
+  const [glossaryItems, setGlossaryItems] = useState<GlossaryItem[]>([]);
+  const [selectedGlossaryIds, setSelectedGlossaryIds] = useState<string[]>(savedPreferences?.selectedGlossaryIds || []);
+  const [glossaryPopoverOpen, setGlossaryPopoverOpen] = useState(false);
+
+  // 加载术语表数据
+  useEffect(() => {
+    const loadGlossaries = async () => {
+      try {
+        const [cats, items] = await Promise.all([window.YUA.ai.listGlossaryCategories(), window.YUA.ai.listGlossaries()]);
+        setGlossaryCategories(cats || []);
+        setGlossaryItems(items || []);
+      } catch (error) {
+        console.error('加载术语表失败:', error);
+      }
+    };
+    void loadGlossaries();
+  }, []);
+
+  // 合并选中的术语表条目
+  const mergedGlossaryEntries = useMemo(() => {
+    if (selectedGlossaryIds.length === 0) return [];
+    const entries: Array<{ source: string; target: string; note?: string }> = [];
+    const seen = new Set<string>();
+    for (const id of selectedGlossaryIds) {
+      const glossary = glossaryItems.find((g) => g.id === id);
+      if (glossary) {
+        for (const entry of glossary.entries) {
+          const key = entry.source.toLowerCase();
+          if (!seen.has(key)) {
+            seen.add(key);
+            entries.push(entry);
+          }
+        }
+      }
+    }
+    return entries;
+  }, [selectedGlossaryIds, glossaryItems]);
+
+  // 切换术语表选择
+  const toggleGlossarySelection = useCallback((id: string) => {
+    setSelectedGlossaryIds((prev) => (prev.includes(id) ? prev.filter((gid) => gid !== id) : [...prev, id]));
+  }, []);
+
   // 保存偏好设置到 localStorage
   useEffect(() => {
     savePreferences({
@@ -148,9 +211,10 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({
       selectedModel,
       selectedService,
       targetLanguage,
+      selectedGlossaryIds,
       history
     });
-  }, [translationMode, selectedProviderId, selectedModel, selectedService, targetLanguage, history]);
+  }, [translationMode, selectedProviderId, selectedModel, selectedService, targetLanguage, selectedGlossaryIds, history]);
 
   // 添加到历史记录
   const addToHistory = useCallback((item: Omit<TranslationHistoryItem, 'timestamp'>) => {
@@ -224,18 +288,8 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({
           metadata: {
             resourceId
           },
-          // for test, remove later
           options: {
-            glossary: {
-              'Where Winds Meet': '《燕云十六声》',
-              RPGs: 'RPG',
-              MMO: 'MMO',
-              'NPC interaction': 'NPC互动',
-              'sword heroes': '剑侠',
-              'role-playing experience': '角色扮演体验',
-              generic: '同质化的',
-              customization: '自定义/定制化'
-            }
+            glossary: mergedGlossaryEntries.length > 0 ? mergedGlossaryEntries : undefined
           }
         });
 
@@ -255,7 +309,7 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({
         console.error('翻译失败:', error);
       }
     },
-    [subtitleEntries, addToHistory, onTranslationStart]
+    [subtitleEntries, addToHistory, onTranslationStart, mergedGlossaryEntries, resourceId]
   );
 
   // AI 翻译功能入口
@@ -448,6 +502,102 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+
+                {/* 术语表选择 */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium">翻译术语</Label>
+                    {selectedGlossaryIds.length > 0 && <span className="text-xs text-muted-foreground">已选 {selectedGlossaryIds.length} 个</span>}
+                  </div>
+                  <Popover open={glossaryPopoverOpen} onOpenChange={setGlossaryPopoverOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-between h-9 font-normal">
+                        <span className="flex items-center gap-2">
+                          <TbBook className="h-4 w-4" />
+                          {selectedGlossaryIds.length > 0 ? (
+                            <span className="truncate">
+                              {glossaryItems
+                                .filter((g) => selectedGlossaryIds.includes(g.id))
+                                .map((g) => g.name)
+                                .join(', ')}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">选择术语表（可选）</span>
+                          )}
+                        </span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className="w-72 p-0">
+                      <div className="p-2 border-b">
+                        <div className="text-sm font-medium">选择术语表</div>
+                        <div className="text-xs text-muted-foreground">选中的术语将用于指导翻译</div>
+                      </div>
+                      <ScrollArea className="h-[200px]">
+                        {glossaryItems.length === 0 ? (
+                          <div className="p-4 text-center text-sm text-muted-foreground">
+                            <p>暂无术语表</p>
+                            <p className="text-xs mt-1">去设置中添加</p>
+                          </div>
+                        ) : (
+                          <div className="p-1">
+                            {glossaryCategories.map((cat) => {
+                              const catItems = glossaryItems.filter((g) => g.categoryId === cat.id);
+                              if (catItems.length === 0) return null;
+                              return (
+                                <div key={cat.id} className="mb-2">
+                                  <div className="px-2 py-1 text-xs font-medium text-muted-foreground">{cat.name}</div>
+                                  {catItems.map((g) => (
+                                    <TooltipProvider key={g.id}>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <div
+                                            className={`flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer hover:bg-muted/50 ${
+                                              selectedGlossaryIds.includes(g.id) ? 'bg-accent text-accent-foreground' : ''
+                                            }`}
+                                            onClick={() => toggleGlossarySelection(g.id)}
+                                          >
+                                            <input
+                                              type="checkbox"
+                                              checked={selectedGlossaryIds.includes(g.id)}
+                                              onChange={() => toggleGlossarySelection(g.id)}
+                                              className="h-3.5 w-3.5"
+                                            />
+                                            <div className="flex-1 min-w-0">
+                                              <div className="text-sm truncate">{g.name}</div>
+                                              <div className="text-xs text-muted-foreground">{g.entries.length} 个术语</div>
+                                            </div>
+                                          </div>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="right" className="max-w-xs">
+                                          <div className="text-xs">
+                                            {g.entries.slice(0, 5).map((e, i) => (
+                                              <div key={i}>
+                                                {e.source} → {e.target}
+                                              </div>
+                                            ))}
+                                            {g.entries.length > 5 && <div className="text-muted-foreground">...还有 {g.entries.length - 5} 个</div>}
+                                          </div>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  ))}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </ScrollArea>
+                      {selectedGlossaryIds.length > 0 && (
+                        <div className="p-2 border-t">
+                          <Button size="sm" variant="ghost" className="w-full h-7 text-xs" onClick={() => setSelectedGlossaryIds([])}>
+                            清除选择
+                          </Button>
+                        </div>
+                      )}
+                    </PopoverContent>
+                  </Popover>
+                  {mergedGlossaryEntries.length > 0 && <div className="text-xs text-muted-foreground">共 {mergedGlossaryEntries.length} 个术语将用于翻译</div>}
                 </div>
 
                 <Button
