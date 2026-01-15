@@ -263,6 +263,34 @@ const SkillTreeCanvas: React.FC<SkillTreeCanvasProps> = ({ skillStatuses, select
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
+            {/* 为每个分支创建从主线颜色到分支颜色的渐变 */}
+            {(() => {
+              const beginnerNodes = skillTreeNodes.filter((n) => n.tier === 'beginner' && n.prerequisites.length === 0);
+              const coreY = canvasHeight / 2 - 20;
+              const branchY = coreY;
+
+              return beginnerNodes.map((node) => {
+                const targetPos = nodePositions[node.id];
+                if (!targetPos) return null;
+
+                const colors = getNodeColors(node.branch);
+                const gradientId = `gradient-${node.branch}`;
+                const glowGradientId = `glow-gradient-${node.branch}`;
+
+                return (
+                  <React.Fragment key={gradientId}>
+                    <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#fbbf24" />
+                      <stop offset="100%" stopColor={colors.color} />
+                    </linearGradient>
+                    <linearGradient id={glowGradientId} x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#fbbf24" stopOpacity="0.3" />
+                      <stop offset="100%" stopColor={colors.color} stopOpacity="0.3" />
+                    </linearGradient>
+                  </React.Fragment>
+                );
+              });
+            })()}
           </defs>
 
           {/* 获取所有第一级技能（beginner tier，无前置技能） */}
@@ -343,26 +371,28 @@ const SkillTreeCanvas: React.FC<SkillTreeCanvasProps> = ({ skillStatuses, select
                   // 使用平滑的S曲线路径
                   const pathData = `M ${BRANCH_POINT_X} ${branchY} C ${cp1X} ${cp1Y}, ${cp2X} ${cp2Y}, ${targetPos.x - 40} ${targetPos.y}`;
 
+                  const gradientId = `gradient-${node.branch}`;
+                  const glowGradientId = `glow-gradient-${node.branch}`;
+
                   return (
                     <g key={`branch-${node.id}`}>
                       {/* 发光底线 - 只有激活时显示 */}
                       {isActive && (
                         <motion.path
                           d={pathData}
-                          stroke={colors.color}
+                          stroke={`url(#${glowGradientId})`}
                           strokeWidth="6"
                           fill="none"
-                          opacity={0.3}
                           filter="url(#line-glow-canvas)"
                           initial={{ pathLength: 0 }}
                           animate={{ pathLength: 1 }}
                           transition={{ duration: 1, delay: 0.5 + index * 0.1 }}
                         />
                       )}
-                      {/* 贝塞尔曲线主线 */}
+                      {/* 贝塞尔曲线主线 - 使用渐变色从主线颜色到分支颜色 */}
                       <motion.path
                         d={pathData}
-                        stroke={isActive ? colors.color : '#374151'}
+                        stroke={isActive ? `url(#${gradientId})` : '#374151'}
                         strokeWidth={isActive ? 3 : 2}
                         fill="none"
                         opacity={isActive ? 0.8 : 0.3}
