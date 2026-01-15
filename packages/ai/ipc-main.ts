@@ -250,9 +250,10 @@ export function initAIHandlers(win: BrowserWindow): void {
     return row ? { ok: true } : { ok: false };
   });
 
-  // 获取服务商翻译状态
-  ipcMain.handle('ai:getProviderTranslationStatus', async (_e, payload: { providerId: string }) => {
-    const activeRequests = TranslationService.getProviderActiveRequests(payload.providerId);
+  // 获取任务标签的翻译状态
+  ipcMain.handle('ai:getProviderTranslationStatus', async (_e, payload: { providerId: string; model?: string }) => {
+    const taskLabel = payload.model ? `${payload.providerId}/${payload.model}` : payload.providerId;
+    const activeRequests = TranslationService.getActiveRequestsByLabel(taskLabel);
     return { busy: activeRequests.length > 0, activeRequests };
   });
 
@@ -290,8 +291,75 @@ export function initAIHandlers(win: BrowserWindow): void {
         };
       }
     ) => {
+      const { providerId, model, segments, targetLanguage, languageNames, force, metadata, options } = payload;
       const requestId = randomUUID();
       const eventsChannel = `subtitle:translate:${requestId}`;
+      const taskLabel = `${providerId}/${model}`;
+
+      // 检查服务商是否繁忙
+      const activeRequests = TranslationService.getActiveRequestsByLabel(taskLabel);
+      if (activeRequests.length > 0 && !force) {
+        // const error = new Error(`BUSY:${activeRequests.join(',')}`);
+        // // emit({ type: 'error', data: { message: error.message, code: 'BUSY' } });
+        // BrowserWindow.getAllWindows().forEach((w) => {
+        //   if (!w.isDestroyed()) {
+        //     try {
+        //       w.webContents.send('renderer-message', {
+        //         type: 'subtitle:translate',
+        //         data: { requestId, ...{ type: 'error', data: { message: error.message, code: 'BUSY' } } }
+        //       });
+        //     } catch (error) {
+        //       console.error('发送翻译消息失败:', error);
+        //     }
+        //   }
+        // });
+        // throw error;
+        // 返回繁忙状态，让前端决定是否强制启动
+        return {
+          requestId,
+          eventsChannel,
+          busy: true,
+          activeRequests
+        };
+      }
+
+      // 获取 provider 并验证
+      const provider = getProvider(providerId);
+      if (!provider || !provider.chat) {
+        throw new Error(`Provider ${providerId} not found or does not support chat`);
+      }
+
+      // 加载 secrets
+      const schema = provider.getConfigSchema?.();
+      const keys = (schema?.fields || []).map((f) => f.key);
+      const secrets = await getAllSecrets(providerId, keys);
+      if (Object.keys(secrets).length > 0 && provider.setSecrets) {
+        await Promise.resolve(provider.setSecrets(secrets));
+      }
+
+      // 构造 chatFn
+      const chatFn = async (prompt: string, onEvent: (event: any) => void, abortSignal?: AbortSignal): Promise<void> => {
+        await provider.chat?.(
+          {
+            messages: [{ role: 'user', content: prompt }],
+            providerId,
+            extras: { model, secrets },
+            stream: true,
+            abortId: `${requestId}-${Date.now()}`
+          },
+          (event: any) => {
+            // 转换事件格式为统一的 ChatStreamEvent
+            if (event?.type === 'delta' && event.data?.text) {
+              onEvent({ type: 'delta', data: { text: event.data.text } });
+            } else if (event?.type === 'message_completed') {
+              onEvent({ type: 'message_completed' });
+            } else if (event?.type === 'error') {
+              onEvent({ type: 'error', data: { message: event.data?.message } });
+            }
+          },
+          abortSignal
+        );
+      };
 
       // 向所有窗口发送消息的函数
       const emit = (event: { type: string; data?: any }): void => {
@@ -310,25 +378,27 @@ export function initAIHandlers(win: BrowserWindow): void {
       };
 
       // 异步处理翻译
-      TranslationService.translateSubtitles({ ...payload, requestId }, emit)
-        .catch((err: any) => {
-          console.error('翻译失败:', err);
-          const resourceId = payload.metadata?.resourceId;
-          // 如果是手动取消，可能不需要发送 error 事件，或者发送特定的 cancel 事件
-          if (err.message === 'Aborted') {
-            emit({ type: 'done', data: { resourceId } }); // 或者发送一个 cancelled 事件
-          } else {
-            emit({ type: 'error', data: { message: err?.message || '翻译失败', resourceId } });
-          }
-        })
-        .then(() => {
-          // 成功完成也发送 done
-          // 注意：translateSubtitles 如果成功返回，说明翻译完成
-          // 但是 translateSubtitles 是 void，且如果出错会抛出
-          // 所以这里应该是 .then() 处理成功情况
-          // 但是 translateSubtitles 内部没有 emit('done')?
-          // 让我们检查 TranslationService.ts
-        });
+      TranslationService.translateSubtitles(
+        {
+          requestId,
+          chatFn,
+          taskLabel,
+          segments,
+          targetLanguage,
+          languageNames,
+          metadata,
+          options
+        },
+        emit
+      ).catch((err: any) => {
+        console.error('翻译失败:', err);
+        const resourceId = metadata?.resourceId;
+        if (err.message === 'Aborted') {
+          emit({ type: 'done', data: { resourceId } });
+        } else {
+          emit({ type: 'error', data: { message: err?.message || '翻译失败', resourceId } });
+        }
+      });
 
       return { requestId, eventsChannel };
     }
