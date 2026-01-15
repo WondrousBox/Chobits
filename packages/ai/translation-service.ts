@@ -1,8 +1,5 @@
 import { type AimSegments, parser, utils } from '@aim-packages/subtitle';
 
-import { getProvider } from './registry';
-import { getAllSecrets } from './settings-store';
-
 // 在这边实现一个翻译函数，目的是用AI来翻译用户传过来的大批量的文本片段，片段的类型已经定义在 AimSegments ，我的思路就是先将这些片段分组，拿到符合长度限制的各个分组之后，再进行翻译。
 // 所以涉及到几个问题：
 // 1. 要解决不同分组的顺序执行
@@ -175,10 +172,7 @@ export interface GlossaryEntry {
  * - 对象形式: Record<string, string> (source -> target 映射)
  * - 带说明的对象: Record<string, { target: string; note?: string }>
  */
-export type GlossaryInput =
-  | GlossaryEntry[]
-  | Record<string, string>
-  | Record<string, { target: string; note?: string }>;
+export type GlossaryInput = GlossaryEntry[] | Record<string, string> | Record<string, { target: string; note?: string }>;
 
 /**
  * 翻译配置选项
@@ -206,13 +200,42 @@ export interface TranslationOptions {
   glossary?: GlossaryInput;
 }
 
+/**
+ * 流式聊天事件类型
+ */
+export interface ChatStreamEvent {
+  type: 'delta' | 'message_completed' | 'error';
+  data?: {
+    text?: string;
+    message?: string;
+  };
+}
+
+/**
+ * 流式聊天回调函数类型
+ */
+export type ChatStreamCallback = (event: ChatStreamEvent) => void;
+
+/**
+ * 聊天函数类型
+ * 调用者需要传入一个符合此类型的函数来执行实际的 AI 调用
+ */
+export type ChatFunction = (
+  /** 提示词内容 */
+  prompt: string,
+  /** 流式事件回调 */
+  onEvent: ChatStreamCallback,
+  /** 中止信号 */
+  abortSignal?: AbortSignal
+) => Promise<void>;
+
 export interface TranslationRequest {
   /** 请求 ID（必填，用于跟踪和取消任务） */
   requestId: string;
-  /** AI 服务商 ID */
-  providerId: string;
-  /** 模型名称 */
-  model: string;
+  /** 聊天函数（必填，用于执行实际的 AI 调用） */
+  chatFn: ChatFunction;
+  /** 任务标签（可选，用于显示和任务管理，如 'openai/gpt-4'） */
+  taskLabel?: string;
   /** 待翻译的片段数组 */
   segments: AimSegments[];
   /** 目标语言编码（如 'zh-CN', 'en', 'ja'） */
@@ -221,8 +244,6 @@ export interface TranslationRequest {
   languageNames?: Record<string, string>;
   /** 源语言编码（可选，用于指定原文语言） */
   sourceLanguage?: string;
-  /** 强制启动（即使服务商繁忙） */
-  force?: boolean;
   /** 元数据（可选，用于传递额外信息如 resourceId） */
   metadata?: Record<string, any>;
   /** 翻译配置选项 */
@@ -326,8 +347,8 @@ function formatGlossaryForPrompt(matched: GlossaryEntry[]): string {
 
 interface ActiveTranslation {
   requestId: string;
-  providerId: string;
-  model: string;
+  /** 任务标签（用于显示和任务管理） */
+  taskLabel: string;
   startTime: number;
   controller: AbortController;
   metadata?: Record<string, any>;
@@ -357,14 +378,14 @@ export const TranslationService = {
   },
 
   /**
-   * 获取服务商当前的活跃请求
-   * @param providerId 服务商 ID
+   * 根据任务标签获取活跃请求
+   * @param taskLabel 任务标签（如 'openai/gpt-4'）
    * @returns 活跃请求 ID 列表
    */
-  getProviderActiveRequests(providerId: string): string[] {
+  getActiveRequestsByLabel(taskLabel: string): string[] {
     const requests: string[] = [];
     for (const task of activeTranslations.values()) {
-      if (task.providerId === providerId) {
+      if (task.taskLabel === taskLabel) {
         requests.push(task.requestId);
       }
     }
@@ -390,14 +411,13 @@ export const TranslationService = {
   /**
    * 获取指定任务的信息
    * @param requestId 请求 ID
-   * @returns 任务信息（包含服务商、模型、开始时间等）
+   * @returns 任务信息（包含任务标签、开始时间等）
    */
-  getTaskInfo(requestId: string): { providerId: string; model: string; startTime: number; metadata?: Record<string, any> } | null {
+  getTaskInfo(requestId: string): { taskLabel: string; startTime: number; metadata?: Record<string, any> } | null {
     const task = activeTranslations.get(requestId);
     if (!task) return null;
     return {
-      providerId: task.providerId,
-      model: task.model,
+      taskLabel: task.taskLabel,
       startTime: task.startTime,
       metadata: task.metadata
     };
@@ -419,7 +439,7 @@ export const TranslationService = {
    * @returns 翻译完成后的片段数组
    */
   async translateSubtitles(request: TranslationRequest, emit: TranslationEmitter, externalSignal?: AbortSignal): Promise<AimSegments[]> {
-    const { requestId, providerId, model, segments, targetLanguage, languageNames = {}, force, metadata, options = {} } = request;
+    const { requestId, chatFn, taskLabel = 'translation', segments, targetLanguage, languageNames = {}, metadata, options = {} } = request;
 
     // 解构配置选项，使用默认值
     const { maxConcurrency = 3, chunkSize = 1000, maxRetries = 2, promptTemplate, generateSummary = true, glossary } = options;
@@ -427,20 +447,11 @@ export const TranslationService = {
     // 规范化术语表（如果提供）
     const normalizedGlossary = glossary ? normalizeGlossary(glossary) : [];
 
-    // 检查服务商是否繁忙
-    const activeRequests = this.getProviderActiveRequests(providerId);
-    if (activeRequests.length > 0 && !force) {
-      const error = new Error(`BUSY:${activeRequests.join(',')}`);
-      emit({ type: 'error', data: { message: error.message, code: 'BUSY' } });
-      throw error;
-    }
-
     // 创建并注册 AbortController
     const controller = new AbortController();
     activeTranslations.set(requestId, {
       requestId,
-      providerId,
-      model,
+      taskLabel,
       startTime: Date.now(),
       controller,
       metadata,
@@ -462,21 +473,6 @@ export const TranslationService = {
       emit({ type: 'connected' });
       emit({ type: 'progress', data: { message: '准备翻译...', percentage: 0 } });
 
-      const provider = getProvider(providerId);
-      if (!provider || !provider.chat) {
-        const error = new Error(`Provider ${providerId} not found or does not support chat`);
-        emit({ type: 'error', data: { message: error.message, code: 'PROVIDER_NOT_FOUND' } });
-        throw error;
-      }
-
-      // 确保 secrets 已加载
-      const schema = provider.getConfigSchema?.();
-      const keys = (schema?.fields || []).map((f) => f.key);
-      const secrets = await getAllSecrets(providerId, keys);
-      if (Object.keys(secrets).length > 0 && provider.setSecrets) {
-        await Promise.resolve(provider.setSecrets(secrets));
-      }
-
       const targetLangName = languageNames[targetLanguage] || targetLanguage;
       const abortSignal = signal; // 使用统一管理的 signal
 
@@ -490,7 +486,7 @@ export const TranslationService = {
         let rejected = false;
 
         return new Promise<T[]>((resolve, reject) => {
-          const maybeStartNext = () => {
+          const maybeStartNext = (): void => {
             if (rejected) return;
 
             if (abortSignal?.aborted) {
@@ -568,7 +564,7 @@ Now translate the following into **{targetLanguage}** and only show me the trans
       const displayInfo = {
         type: 'translation',
         label: 'AI 翻译中...',
-        subLabel: `${providerId} · ${model}`,
+        subLabel: taskLabel,
         icon: 'translation',
         resourceId: metadata?.resourceId
       };
@@ -590,7 +586,7 @@ Now translate the following into **{targetLanguage}** and only show me the trans
       // 为「某个分块的 summary 已准备好」建立等待/通知机制
       const summaryWaiters = new Map<number, Array<() => void>>();
 
-      const notifySummaryReady = (index: number) => {
+      const notifySummaryReady = (index: number): void => {
         const waiters = summaryWaiters.get(index);
         if (waiters && waiters.length > 0) {
           waiters.forEach((fn) => fn());
@@ -840,16 +836,10 @@ Now translate the following into **{targetLanguage}** and only show me the trans
         };
 
         try {
-          // 调用 provider 的 chat 方法进行流式翻译
-          await provider?.chat?.(
-            {
-              messages: [{ role: 'user', content: prompt }],
-              providerId,
-              extras: { model, secrets },
-              stream: true,
-              abortId: `${requestId}-chunk-${chunkIndex}`
-            },
-            (event: any) => {
+          // 调用传入的 chatFn 进行流式翻译
+          await chatFn(
+            prompt,
+            (event) => {
               if (event?.type === 'delta' && event.data?.text) {
                 const deltaText = event.data.text;
                 // 处理 summary 标签
