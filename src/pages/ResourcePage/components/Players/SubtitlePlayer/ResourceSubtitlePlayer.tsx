@@ -563,41 +563,8 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
             }
           }
         });
-        // 检查是否有 chunk 完成（该 chunk 范围内所有 segment 都已翻译）
-        // 注意：这里不能仅依赖当前批次的数据，需要检查 translatedChunks 状态
-        // 由于状态更新是异步的，我们延迟检查
-        setTimeout(() => {
-          const completedChunkIndices: number[] = [];
-          for (const [chunkIndex, range] of translatingChunkRangesRef.current.entries()) {
-            // 检查该 chunk 范围内所有 segment 是否都在 data 中出现过
-            let allCompleted = true;
-            for (let i = range.startIndex; i <= range.endIndex; i++) {
-              const found = data.some((item: any) => item.index === i);
-              if (!found) {
-                // 该 segment 可能在之前的事件中已完成，但我们无法精确判断
-                // 保守起见，不删除
-                allCompleted = false;
-                break;
-              }
-            }
-            if (allCompleted) {
-              translatingChunkRangesRef.current.delete(chunkIndex);
-              completedChunkIndices.push(chunkIndex);
-            }
-          }
-          // 更新 translatingChunks
-          updateTranslatingChunksFromRanges();
-          // 从 chunkSummaryInfoMap 中移除已完成的 chunk
-          if (completedChunkIndices.length > 0) {
-            setChunkSummaryInfoMap((prev) => {
-              const next = new Map(prev);
-              for (const idx of completedChunkIndices) {
-                next.delete(idx);
-              }
-              return next;
-            });
-          }
-        }, 0);
+        // 注意：chunk 完成的状态更新现在由 chunk-complete 事件处理
+        // 这里不再需要检测 chunk 完成
       } else if (event.type === 'parseProgress' && event.data) {
         // 实时翻译进度，显示打字效果（不更新 translatingChunks，因为已在 chunk-start 中处理）
         const data = Array.isArray(event.data) ? event.data : [event.data];
@@ -651,6 +618,61 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
               });
             }
           }
+        });
+      } else if (event.type === 'chunk-complete' && event.data) {
+        // chunk 翻译完成，最终确认该 chunk 的所有片段
+        const { chunkIndex, startIndex, endIndex, segments } = event.data;
+
+        // 1. 使用完整的 segments 数据更新 typingTexts，确保数据不丢失
+        if (segments && Array.isArray(segments)) {
+          setTypingTexts((prev) => {
+            const currentEntries = subtitleEntriesRef.current;
+            const next = [...prev];
+            // 确保数组长度足够
+            while (next.length <= endIndex) {
+              const baseSegment = currentEntries[next.length] || currentEntries[currentEntries.length - 1];
+              if (baseSegment) {
+                next.push({ ...baseSegment, text: '' });
+              } else {
+                next.push({ st: '00:00:00,000', et: '00:00:00,000', text: '' });
+              }
+            }
+            // 更新该 chunk 范围内的所有片段
+            segments.forEach((item: any) => {
+              if (item.index !== undefined && item.text !== undefined) {
+                const baseSegment = currentEntries[item.index];
+                if (baseSegment) {
+                  next[item.index] = { ...baseSegment, text: item.text };
+                } else if (next[item.index]) {
+                  next[item.index] = { ...next[item.index], text: item.text };
+                }
+              }
+            });
+            return next;
+          });
+
+          // 标记该 chunk 范围内的所有索引为已翻译
+          setTranslatedChunks((prev) => {
+            const next = new Set(prev);
+            for (let i = startIndex; i <= endIndex; i++) {
+              next.add(i);
+            }
+            // 更新进度
+            const total = totalSegmentsRef.current || subtitleEntriesRef.current.length;
+            setTranslationProgress(calculateProgress(next.size, total));
+            return next;
+          });
+        }
+
+        // 2. 从 translatingChunkRanges 中移除该 chunk
+        translatingChunkRangesRef.current.delete(chunkIndex);
+        updateTranslatingChunksFromRanges();
+
+        // 3. 从 chunkSummaryInfoMap 中移除该 chunk（取消高亮和 summary 显示）
+        setChunkSummaryInfoMap((prev) => {
+          const next = new Map(prev);
+          next.delete(chunkIndex);
+          return next;
         });
       } else if (event.type === 'completed' && event.data?.translations) {
         // 翻译完成，清除所有翻译中状态和 chunk 范围追踪

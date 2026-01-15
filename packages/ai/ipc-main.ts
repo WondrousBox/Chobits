@@ -280,6 +280,14 @@ export function initAIHandlers(win: BrowserWindow): void {
         languageNames: Record<string, string>;
         force?: boolean;
         metadata?: Record<string, any>;
+        options?: {
+          maxConcurrency?: number;
+          chunkSize?: number;
+          maxRetries?: number;
+          promptTemplate?: string;
+          generateSummary?: boolean;
+          glossary?: any;
+        };
       }
     ) => {
       const requestId = randomUUID();

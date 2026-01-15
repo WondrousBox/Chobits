@@ -223,6 +223,19 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({
           force,
           metadata: {
             resourceId
+          },
+          // for test, remove later
+          options: {
+            glossary: {
+              'Where Winds Meet': '《燕云十六声》',
+              RPGs: 'RPG',
+              MMO: 'MMO',
+              'NPC interaction': 'NPC互动',
+              'sword heroes': '剑侠',
+              'role-playing experience': '角色扮演体验',
+              generic: '同质化的',
+              customization: '自定义/定制化'
+            }
           }
         });
 
