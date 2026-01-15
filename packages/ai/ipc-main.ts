@@ -1,7 +1,10 @@
+import { type AimSegments, parser, tools } from '@aim-packages/subtitle';
 import { randomUUID } from 'crypto';
 import { BrowserWindow, ipcMain } from 'electron';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
-import { ChatRepo } from '../common/db';
+import { ChatRepo, ResourcesRepo } from '../common/db';
 import { BasicAgent } from './agents/basic';
 import { RAGAgent } from './agents/rag';
 import { TaggerAgent } from './agents/tagger';
@@ -32,6 +35,103 @@ import {
 import { getAllInstanceSecrets as getAllInstSecrets, setInstanceSecrets as setInstSecrets } from './settings-store';
 import { TaggingService } from './tagging-service';
 import { TranslationService } from './translation-service';
+
+// 将 AimSegments 转换为 ISegment 格式
+type ISegment = [string, string, string, string | undefined];
+function convertToISegment(segment: AimSegments): ISegment {
+  return [segment.st, segment.et, segment.text, undefined];
+}
+
+// 检测字幕格式
+type SubtitleFormat = 'srt' | 'vtt' | 'ass';
+function detectSubtitleFormat(filePath: string): SubtitleFormat {
+  const lower = filePath.toLowerCase();
+  if (lower.endsWith('.vtt')) return 'vtt';
+  if (lower.endsWith('.ass') || lower.endsWith('.ssa')) return 'ass';
+  return 'srt';
+}
+
+/**
+ * 保存翻译后的字幕到文件
+ * @param resourceId 资源 ID
+ * @param originalSegments 原文字幕片段（可能不完整，用于索引匹配）
+ * @param translatedSegments 翻译后的字幕片段
+ */
+async function saveTranslatedSubtitle(resourceId: string, originalSegments: AimSegments[], translatedSegments: Array<{ index: number; text: string }>): Promise<void> {
+  if (!resourceId) return;
+
+  try {
+    // 获取资源信息
+    const resource = await ResourcesRepo.getById(resourceId);
+    if (!resource || !resource.filePath) {
+      console.warn('[translation-save] 资源不存在或没有文件路径:', resourceId);
+      return;
+    }
+
+    const filePath = resource.filePath;
+    const lower = filePath.toLowerCase();
+
+    // 检查是否是字幕文件
+    const isSubtitleFile = lower.endsWith('.srt') || lower.endsWith('.vtt') || lower.endsWith('.ass') || lower.endsWith('.ssa');
+    if (!isSubtitleFile) {
+      console.warn('[translation-save] 不是字幕文件:', filePath);
+      return;
+    }
+
+    // 从文件重新读取原始字幕，确保获取完整的时间戳信息
+    const fileContent = await fs.readFile(filePath, 'utf8');
+    const parsedResult = await parser.parseSubtitle(fileContent);
+    const originalSegmentsFromFile = parsedResult?.segments || [];
+
+    // 检测格式
+    const format = detectSubtitleFormat(filePath);
+
+    // 构建翻译后的完整字幕数组（segments2）
+    // 使用从文件读取的原始字幕，确保时间戳完整
+    const segments2: AimSegments[] = originalSegmentsFromFile.map((seg, index) => {
+      const translated = translatedSegments.find((t) => t.index === index);
+      return {
+        ...seg,
+        text: translated?.text || ''
+      };
+    });
+
+    // 转换为 ISegment 格式
+    const iSegments1 = originalSegmentsFromFile.filter((seg) => !seg.delete).map(convertToISegment);
+    const iSegments2 = segments2.filter((seg) => !seg.delete).map(convertToISegment);
+
+    // 根据格式选择不同的输出方法
+    let content: string;
+    if (format === 'vtt' && 'outputVtt' in tools && typeof tools.outputVtt === 'function') {
+      content = tools.outputVtt({ segments1: iSegments1, segments2: iSegments2 });
+    } else if (format === 'ass' && 'outputAss' in tools && typeof tools.outputAss === 'function') {
+      content = tools.outputAss({ segments1: iSegments1, segments2: iSegments2 });
+    } else {
+      // 默认使用 SRT 格式输出
+      content = tools.outputSrt({ segments1: iSegments1, segments2: iSegments2 });
+    }
+
+    // 确保目录存在
+    const dir = path.dirname(filePath);
+    await fs.mkdir(dir, { recursive: true });
+
+    // 写入文件
+    await fs.writeFile(filePath, content, 'utf8');
+    console.log(`[translation-save] 字幕已保存 (${format}):`, filePath);
+
+    // 更新资源的文件大小
+    try {
+      const buf = Buffer.from(content, 'utf8');
+      await ResourcesRepo.update(resourceId, { sizeBytes: buf.byteLength });
+    } catch {
+      // 忽略更新失败
+    }
+
+    console.log(`[translation-save] 字幕已保存 (${format}):`, filePath);
+  } catch (error) {
+    console.error('[translation-save] 保存字幕失败:', error);
+  }
+}
 
 export function initAIHandlers(win: BrowserWindow): void {
   // Bootstrapping built-in provider(s) and agent(s)
@@ -387,8 +487,38 @@ export function initAIHandlers(win: BrowserWindow): void {
         );
       };
 
-      // 向所有窗口发送消息的函数
+      // 累积翻译结果，用于保存
+      const accumulatedTranslations: Array<{ index: number; text: string }> = [];
+
+      // 向所有窗口发送消息的函数，同时处理保存逻辑
       const emit = (event: { type: string; data?: any }): void => {
+        // 在 chunk-complete 时保存字幕
+        if (event.type === 'chunk-complete' && event.data?.segments && metadata?.resourceId) {
+          // 累积翻译结果
+          const chunkSegments = event.data.segments as Array<{ index: number; text: string }>;
+          chunkSegments.forEach((seg) => {
+            const existing = accumulatedTranslations.findIndex((t) => t.index === seg.index);
+            if (existing >= 0) {
+              accumulatedTranslations[existing] = seg;
+            } else {
+              accumulatedTranslations.push(seg);
+            }
+          });
+
+          // 保存翻译结果
+          saveTranslatedSubtitle(metadata.resourceId, segments, accumulatedTranslations).catch((err) => {
+            console.error('[translation-save] chunk-complete 保存失败:', err);
+          });
+        }
+
+        // 在翻译完成时最终保存
+        if ((event.type === 'completed' || event.type === 'done') && metadata?.resourceId && accumulatedTranslations.length > 0) {
+          saveTranslatedSubtitle(metadata.resourceId, segments, accumulatedTranslations).catch((err) => {
+            console.error('[translation-save] completed 保存失败:', err);
+          });
+        }
+
+        // 发送消息到渲染进程
         BrowserWindow.getAllWindows().forEach((w) => {
           if (!w.isDestroyed()) {
             try {
