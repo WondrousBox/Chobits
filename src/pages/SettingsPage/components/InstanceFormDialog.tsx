@@ -1,11 +1,14 @@
 import { DialogDescription } from '@radix-ui/react-dialog';
 import { useEffect, useState } from 'react';
+import { TbPlus, TbStarFilled } from 'react-icons/tb';
 
 import TintableSvg from '@/components/common/TintableSvg';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+import ApiKeyManager from './ApiKeyManager';
 
 // Lightweight local types to avoid cross-file coupling
 export type ProviderRow = {
@@ -19,6 +22,7 @@ export type ProviderRow = {
 };
 export type ModelOpt = { id: string; label?: string; type?: string; context?: number; pricing?: any; tags?: string[]; description?: string; free?: boolean };
 export type Template = { id: string; name: string; type: 'system' | 'user'; content: string };
+export type ApiKeyItem = { name: string; value: string; isDefault?: boolean };
 
 export type InstanceFormValues = {
   name: string;
@@ -41,10 +45,13 @@ export function InstanceFormDialog(props: {
   const { open, title, provider, models, initialValues, errors, onClose, onSubmit } = props;
   const [values, setValues] = useState<InstanceFormValues>(initialValues);
   const [templates, setTemplates] = useState<Template[]>([]);
+  const [apiKeyManagerOpen, setApiKeyManagerOpen] = useState(false);
+  const [selectedFieldKey, setSelectedFieldKey] = useState<string | null>(null);
+  const [apiKeysCache, setApiKeysCache] = useState<Record<string, ApiKeyItem[]>>({});
 
   // Initialize form values when dialog is opened via onOpenChange to avoid lint warning on setState in effect
 
-  // Fetch prompt templates internally when dialog opens
+  // Fetch prompt templates and API keys when dialog opens
   useEffect(() => {
     if (!open) return;
     (async () => {
@@ -54,8 +61,29 @@ export function InstanceFormDialog(props: {
       } catch {
         setTemplates([]);
       }
+
+      // Load API keys for password fields
+      const passwordFields = (provider.schema?.fields || []).filter((f) => f.type === 'password');
+      const cache: Record<string, ApiKeyItem[]> = {};
+      for (const field of passwordFields) {
+        try {
+          const keys = await window.YUA.ai.getProviderApiKeys(provider.id, field.key);
+          cache[field.key] = keys || [];
+
+          // If no API key is selected and there's a default key, auto-select it
+          if (!values.secrets?.[field.key] && keys && keys.length > 0) {
+            const defaultKey = keys.find((k) => k.isDefault) || keys[0];
+            if (defaultKey) {
+              setValues((v) => ({ ...v, secrets: { ...(v.secrets || {}), [field.key]: defaultKey.value } }));
+            }
+          }
+        } catch {
+          cache[field.key] = [];
+        }
+      }
+      setApiKeysCache(cache);
     })();
-  }, [open]);
+  }, [open, provider.id]);
 
   const currentLang = (typeof navigator !== 'undefined' ? navigator.language?.toLowerCase?.() : 'en') || 'en';
   const pickLocale = (locales?: Record<string, { label?: string; fields?: Record<string, string> }>): { label?: string; fields?: Record<string, string> } | undefined => {
@@ -142,119 +170,204 @@ export function InstanceFormDialog(props: {
   const selectedModel = models.find((m) => m.id === (values.model || ''));
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(o) => {
-        if (!o) {
-          onClose();
-        } else {
-          setValues(initialValues);
-        }
-      }}
-    >
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            {provider.schema?.icon && <TintableSvg src={provider.schema?.icon || ''} alt={provider.label} className="w-10 h-10" />}
-            <span>{title || pickLocale(provider.schema?.locales)?.label || provider.label}</span>
-          </DialogTitle>
-          <DialogDescription className="h-0"></DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 md:grid-cols-2">
-          <label className="grid gap-1">
-            <span className="text-sm text-muted-foreground">名称</span>
-            <Input value={values.name} onChange={(e) => setValues((v) => ({ ...v, name: e.target.value }))} />
-            {!!errors?.name && <span className="text-xs text-red-600">{errors.name}</span>}
-          </label>
-          {(provider.schema?.fields || []).map((f) => {
-            const label = locale?.fields?.[f.key] || f.label;
-            return (
-              <label key={f.key} className="grid gap-1">
-                <span className="text-sm text-muted-foreground">{label}</span>
-                <Input
-                  type={f.type === 'password' ? 'password' : 'text'}
-                  value={values.secrets?.[f.key] || ''}
-                  onChange={(e) => setValues((v) => ({ ...v, secrets: { ...(v.secrets || {}), [f.key]: e.target.value } }))}
-                />
-                {!!errors?.[f.key] && <span className="text-xs text-red-600">{errors[f.key]}</span>}
-              </label>
-            );
-          })}
-          <label className="grid gap-1">
-            <span className="text-sm text-muted-foreground">模型</span>
-            <Select value={values.model || ''} onValueChange={(val) => setValues((v) => ({ ...v, model: val }))}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="选择模型" />
-              </SelectTrigger>
-              <SelectContent>
-                {filteredSortedModels.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    <div className="flex items-center gap-2">
-                      <span>{m.label || m.id}</span>
-                      {isFree(m) && <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 border border-green-200">免费</span>}
-                      {m.type && <span className={`text-[10px] px-1.5 py-0.5 rounded border ${typeColorClasses(m.type)}`}>{typeDisplay(m.type)}</span>}
-                      {renderContextPill(m)}
+    <>
+      <Dialog
+        open={open}
+        onOpenChange={(o) => {
+          if (!o) {
+            onClose();
+          } else {
+            setValues(initialValues);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {provider.schema?.icon && <TintableSvg src={provider.schema?.icon || ''} alt={provider.label} className="w-10 h-10" />}
+              <span>{title || pickLocale(provider.schema?.locales)?.label || provider.label}</span>
+            </DialogTitle>
+            <DialogDescription className="h-0"></DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="grid gap-1">
+              <span className="text-sm text-muted-foreground">名称</span>
+              <Input value={values.name} onChange={(e) => setValues((v) => ({ ...v, name: e.target.value }))} />
+              {!!errors?.name && <span className="text-xs text-red-600">{errors.name}</span>}
+            </label>
+            {(provider.schema?.fields || []).map((f) => {
+              const label = locale?.fields?.[f.key] || f.label;
+              const apiKeyOptions = apiKeysCache[f.key] || [];
+
+              if (f.type === 'password') {
+                // Render API Key selector for password fields
+                return (
+                  <label key={f.key} className="grid gap-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">{label}</span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 px-2 text-xs"
+                        onClick={() => {
+                          setSelectedFieldKey(f.key);
+                          setApiKeyManagerOpen(true);
+                        }}
+                      >
+                        <TbPlus className="w-3 h-3 mr-1" />
+                        新增
+                      </Button>
                     </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {!!selectedModel && (
-              <div className="mt-1 text-xs text-muted-foreground flex flex-wrap items-center gap-2">
-                {isFree(selectedModel) && <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 border border-green-200">免费</span>}
-                {selectedModel.type && <span className={`text-[10px] px-1.5 py-0.5 rounded border ${typeColorClasses(selectedModel.type)}`}>{typeDisplay(selectedModel.type)}</span>}
-                {renderContextPill(selectedModel)}
-                {selectedModel.description && <span className="truncate max-w-full">{selectedModel.description}</span>}
-                {Array.isArray(selectedModel.tags) && selectedModel.tags.length > 0 && (
-                  <span className="flex items-center gap-1 flex-wrap">
-                    {selectedModel.tags.slice(0, 6).map((t) => (
-                      <span key={t} className="text-[10px] px-1 py-0.5 rounded border border-gray-200 text-gray-600 bg-gray-50">
-                        {t}
-                      </span>
-                    ))}
-                  </span>
-                )}
-              </div>
-            )}
-          </label>
+                    <Select
+                      value={values.secrets?.[f.key] || ''}
+                      onValueChange={(val) => setValues((v) => ({ ...v, secrets: { ...(v.secrets || {}), [f.key]: val } }))}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder={apiKeyOptions.length > 0 ? "选择 API Key" : "请先添加 API Key"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {apiKeyOptions.length === 0 ? (
+                          <div className="px-2 py-1.5 text-sm text-muted-foreground text-center">
+                            暂无 API Key，请点击上方"新增"按钮
+                          </div>
+                        ) : (
+                          apiKeyOptions.map((key) => (
+                            <SelectItem key={key.name} value={key.value}>
+                              <div className="flex items-center gap-2">
+                                <span>{key.name}</span>
+                                {key.isDefault && (
+                                  <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200">
+                                    <TbStarFilled className="w-3 h-3" />
+                                    默认
+                                  </span>
+                                )}
+                              </div>
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {!!errors?.[f.key] && <span className="text-xs text-red-600">{errors[f.key]}</span>}
+                  </label>
+                );
+              }
 
-          <label className="grid gap-1">
-            <span className="text-sm text-muted-foreground">系统提示词</span>
-            <Select
-              value={templates.find((t) => t.type === 'system' && t.content === (values.systemPrompt || ''))?.id || ''}
-              onValueChange={(val) => {
-                const t = templates.find((x) => x.id === val);
-                if (t) setValues((v) => ({ ...v, systemPrompt: t.content }));
-              }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder={templates.length ? '选择模板' : '暂无模板，请先创建提示词模板'} />
-              </SelectTrigger>
-              <SelectContent>
-                {templates.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>
-                    {t.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </label>
-        </div>
+              // Render regular input for non-password fields
+              return (
+                <label key={f.key} className="grid gap-1">
+                  <span className="text-sm text-muted-foreground">{label}</span>
+                  <Input
+                    type="text"
+                    value={values.secrets?.[f.key] || ''}
+                    onChange={(e) => setValues((v) => ({ ...v, secrets: { ...(v.secrets || {}), [f.key]: e.target.value } }))}
+                  />
+                  {!!errors?.[f.key] && <span className="text-xs text-red-600">{errors[f.key]}</span>}
+                </label>
+              );
+            })}
+            <label className="grid gap-1">
+              <span className="text-sm text-muted-foreground">模型</span>
+              <Select value={values.model || ''} onValueChange={(val) => setValues((v) => ({ ...v, model: val }))}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="选择模型" />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredSortedModels.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      <div className="flex items-center gap-2">
+                        <span>{m.label || m.id}</span>
+                        {isFree(m) && <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 border border-green-200">免费</span>}
+                        {m.type && <span className={`text-[10px] px-1.5 py-0.5 rounded border ${typeColorClasses(m.type)}`}>{typeDisplay(m.type)}</span>}
+                        {renderContextPill(m)}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!!selectedModel && (
+                <div className="mt-1 text-xs text-muted-foreground flex flex-wrap items-center gap-2">
+                  {isFree(selectedModel) && <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 border border-green-200">免费</span>}
+                  {selectedModel.type && <span className={`text-[10px] px-1.5 py-0.5 rounded border ${typeColorClasses(selectedModel.type)}`}>{typeDisplay(selectedModel.type)}</span>}
+                  {renderContextPill(selectedModel)}
+                  {selectedModel.description && <span className="truncate max-w-full">{selectedModel.description}</span>}
+                  {Array.isArray(selectedModel.tags) && selectedModel.tags.length > 0 && (
+                    <span className="flex items-center gap-1 flex-wrap">
+                      {selectedModel.tags.slice(0, 6).map((t) => (
+                        <span key={t} className="text-[10px] px-1 py-0.5 rounded border border-gray-200 text-gray-600 bg-gray-50">
+                          {t}
+                        </span>
+                      ))}
+                    </span>
+                  )}
+                </div>
+              )}
+            </label>
 
-        <div className="grid gap-1">{!!values.systemPrompt && <pre className="rounded border p-2 bg-muted/30 min-h-[60px] whitespace-pre-wrap text-xs">{values.systemPrompt}</pre>}</div>
-
-        <DialogFooter>
-          <div className="flex w-full justify-end gap-2">
-            <Button variant={'outline'} onClick={onClose}>
-              取消
-            </Button>
-            <Button variant={'default'} onClick={() => onSubmit(values)}>
-              保存
-            </Button>
+            <label className="grid gap-1">
+              <span className="text-sm text-muted-foreground">系统提示词</span>
+              <Select
+                value={templates.find((t) => t.type === 'system' && t.content === (values.systemPrompt || ''))?.id || ''}
+                onValueChange={(val) => {
+                  const t = templates.find((x) => x.id === val);
+                  if (t) setValues((v) => ({ ...v, systemPrompt: t.content }));
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={templates.length ? '选择模板' : '暂无模板，请先创建提示词模板'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {templates.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
           </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+
+          <div className="grid gap-1">{!!values.systemPrompt && <pre className="rounded border p-2 bg-muted/30 min-h-[60px] whitespace-pre-wrap text-xs">{values.systemPrompt}</pre>}</div>
+
+          <DialogFooter>
+            <div className="flex w-full justify-end gap-2">
+              <Button variant={'outline'} onClick={onClose}>
+                取消
+              </Button>
+              <Button variant={'default'} onClick={() => onSubmit(values)}>
+                保存
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* API Key Manager */}
+      {selectedFieldKey && (
+        <ApiKeyManager
+          open={apiKeyManagerOpen}
+          providerId={provider.id}
+          providerLabel={provider.label}
+          fieldKey={selectedFieldKey}
+          fieldLabel={locale?.fields?.[selectedFieldKey] || provider.schema?.fields?.find((f) => f.key === selectedFieldKey)?.label || selectedFieldKey}
+          onClose={async () => {
+            // Reload the API keys and update the form value with the default key
+            const keys = await window.YUA.ai.getProviderApiKeys(provider.id, selectedFieldKey);
+            const defaultKey = keys.find((k) => k.isDefault) || keys[0];
+
+            // Update cache
+            setApiKeysCache((prev) => ({ ...prev, [selectedFieldKey]: keys || [] }));
+
+            // Update form value
+            if (defaultKey) {
+              setValues((v) => ({ ...v, secrets: { ...(v.secrets || {}), [selectedFieldKey]: defaultKey.value } }));
+            }
+
+            setApiKeyManagerOpen(false);
+          }}
+        />
+      )}
+    </>
   );
 }
 
