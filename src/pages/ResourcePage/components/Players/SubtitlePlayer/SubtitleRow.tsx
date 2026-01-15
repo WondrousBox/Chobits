@@ -39,26 +39,6 @@ const getClassName = (isDelete?: boolean, isActive?: boolean): Array<string> => 
   ];
 };
 
-// 将 SRT 时间字符串转换为秒数
-// 支持格式: "00:00:10,500" 或 "00:00:10.500"
-function timeStringToSeconds(timeStr: string): number {
-  if (!timeStr) return 0;
-
-  // 替换逗号为点，统一格式
-  const normalized = timeStr.replace(',', '.');
-
-  // 匹配格式: HH:MM:SS.mmm
-  const match = normalized.match(/(\d{2}):(\d{2}):(\d{2})\.(\d{3})/);
-  if (!match) return 0;
-
-  const hours = parseInt(match[1], 10);
-  const minutes = parseInt(match[2], 10);
-  const seconds = parseInt(match[3], 10);
-  const milliseconds = parseInt(match[4], 10);
-
-  return hours * 3600 + minutes * 60 + seconds + milliseconds / 1000;
-}
-
 export const SubtitleRow: React.FC<SubtitleRowProps> = ({ index, segment, isActive = false, rowRef, onTextChange, onMergePrev, onTimeClick, disabled = false, highlight = false }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editingText, setEditingText] = useState(segment.text);
@@ -73,7 +53,7 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({ index, segment, isActi
   // 处理时间戳点击
   const handleTimeClick = useCallback(() => {
     if (onTimeClick) {
-      const time = timeStringToSeconds(segment.st);
+      const time = utils.convertToSeconds(segment.st);
       onTimeClick(time);
     }
   }, [onTimeClick, segment.st]);
