@@ -131,6 +131,25 @@ export type AIApi = {
     languageNames: Record<string, string>;
     force?: boolean;
     metadata?: Record<string, any>;
+    options?: {
+      /** 最大并发请求数 */
+      maxConcurrency?: number;
+      /** 每个分块的最大字符数 */
+      chunkSize?: number;
+      /** 失败后最大重试次数 */
+      maxRetries?: number;
+      /** 自定义提示词模板 */
+      promptTemplate?: string;
+      /** 是否生成 summary */
+      generateSummary?: boolean;
+      /** 术语表/热词词典
+       * 支持格式:
+       * - 数组: Array<{ source: string; target: string; note?: string }>
+       * - 对象: Record<string, string> (source -> target)
+       * - 带说明的对象: Record<string, { target: string; note?: string }>
+       */
+      glossary?: any;
+    };
   }): Promise<{ requestId: string }>;
   cancelTranslate(requestId: string): Promise<{ ok: boolean }>;
   getProviderTranslationStatus(providerId: string): Promise<{ busy: boolean; activeRequests: string[] }>;

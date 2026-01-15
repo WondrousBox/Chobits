@@ -49,6 +49,14 @@ export interface TranslationProgressData {
   endIndex?: number;
   /** 上一段的总结内容 */
   prevSummary?: string;
+  /** 任务展示信息（可选） */
+  displayInfo?: {
+    type?: string;
+    label?: string;
+    subLabel?: string;
+    icon?: string;
+    resourceId?: string;
+  };
 }
 
 /**
@@ -84,6 +92,24 @@ export interface TranslationSummaryData {
 }
 
 /**
+ * 分块翻译完成数据
+ */
+export interface TranslationChunkCompleteData {
+  /** 当前分块索引 */
+  chunkIndex: number;
+  /** 总分块数 */
+  totalChunks: number;
+  /** 当前分块的开始索引 */
+  startIndex: number;
+  /** 当前分块的结束索引 */
+  endIndex: number;
+  /** 该分块翻译后的所有片段 */
+  segments: AimSegments[];
+  /** 该分块的总结 */
+  summary?: string;
+}
+
+/**
  * 翻译完成数据
  */
 export interface TranslationCompletedData {
@@ -93,6 +119,26 @@ export interface TranslationCompletedData {
   originalTranslation: string;
   /** 解析后的所有片段 */
   segments: AimSegments[];
+  /** 任务展示信息（可选） */
+  displayInfo?: {
+    type?: string;
+    label?: string;
+    subLabel?: string;
+    icon?: string;
+    resourceId?: string;
+  };
+}
+
+/**
+ * 翻译错误数据
+ */
+export interface TranslationErrorData {
+  /** 错误消息 */
+  message: string;
+  /** 错误码 */
+  code?: string;
+  /** 当前分块索引（如果是分块翻译失败） */
+  chunkIndex?: number;
 }
 
 /**
@@ -105,22 +151,177 @@ export type TranslationEvent =
   | { type: 'parsed'; data: AimSegments[] } // 解析出新的片段
   | { type: 'parseProgress'; data: AimSegments[] } // 解析进度
   | { type: 'summary'; data: TranslationSummaryData } // 获得总结
+  | { type: 'chunk-complete'; data: TranslationChunkCompleteData } // 分块翻译完成
   | { type: 'completed'; data: TranslationCompletedData } // 翻译完成
+  | { type: 'error'; data: TranslationErrorData } // 翻译错误
   | { type: 'done' }; // 流程结束
 
+/**
+ * 术语表/热词条目
+ */
+export interface GlossaryEntry {
+  /** 源语言术语（用于匹配） */
+  source: string;
+  /** 目标语言翻译 */
+  target: string;
+  /** 可选说明/上下文 */
+  note?: string;
+}
+
+/**
+ * 术语表类型
+ * 支持多种输入格式：
+ * - 数组形式: GlossaryEntry[]
+ * - 对象形式: Record<string, string> (source -> target 映射)
+ * - 带说明的对象: Record<string, { target: string; note?: string }>
+ */
+export type GlossaryInput =
+  | GlossaryEntry[]
+  | Record<string, string>
+  | Record<string, { target: string; note?: string }>;
+
+/**
+ * 翻译配置选项
+ */
+export interface TranslationOptions {
+  /** 最大并发请求数，默认 3 */
+  maxConcurrency?: number;
+  /** 每个分块的最大字符数，默认 1000 */
+  chunkSize?: number;
+  /** 失败后最大重试次数，默认 2 */
+  maxRetries?: number;
+  /** 自定义提示词模板（可选）
+   * 支持的占位符：
+   * - {targetLanguage}: 目标语言
+   * - {content}: 待翻译内容
+   * - {context}: 上下文总结
+   * - {glossary}: 匹配到的术语表条目
+   */
+  promptTemplate?: string;
+  /** 是否要求生成 summary，默认 true */
+  generateSummary?: boolean;
+  /** 术语表/热词词典（可选）
+   * 系统会自动从待翻译文本中提取匹配的术语，并作为翻译指导
+   */
+  glossary?: GlossaryInput;
+}
+
 export interface TranslationRequest {
+  /** 请求 ID（必填，用于跟踪和取消任务） */
   requestId: string;
+  /** AI 服务商 ID */
   providerId: string;
+  /** 模型名称 */
   model: string;
+  /** 待翻译的片段数组 */
   segments: AimSegments[];
+  /** 目标语言编码（如 'zh-CN', 'en', 'ja'） */
   targetLanguage: string;
-  languageNames: Record<string, string>;
+  /** 语言编码到名称的映射（可选，用于提示词中显示可读名称） */
+  languageNames?: Record<string, string>;
+  /** 源语言编码（可选，用于指定原文语言） */
+  sourceLanguage?: string;
+  /** 强制启动（即使服务商繁忙） */
   force?: boolean;
+  /** 元数据（可选，用于传递额外信息如 resourceId） */
   metadata?: Record<string, any>;
+  /** 翻译配置选项 */
+  options?: TranslationOptions;
 }
 
 export interface TranslationEmitter {
   (event: TranslationEvent): void;
+}
+
+/**
+ * 将各种格式的术语表输入规范化为 GlossaryEntry 数组
+ */
+function normalizeGlossary(input: GlossaryInput): GlossaryEntry[] {
+  if (Array.isArray(input)) {
+    return input;
+  }
+
+  const entries: GlossaryEntry[] = [];
+  for (const [source, value] of Object.entries(input)) {
+    if (typeof value === 'string') {
+      entries.push({ source, target: value });
+    } else {
+      entries.push({ source, target: value.target, note: value.note });
+    }
+  }
+  return entries;
+}
+
+/**
+ * 从文本中提取匹配的术语表条目
+ * 使用高效的匹配算法：先按长度排序，避免短词匹配覆盖长词
+ * @param text 待匹配的文本
+ * @param glossary 规范化后的术语表
+ * @returns 匹配到的术语条目（去重）
+ */
+function extractMatchedGlossaryTerms(text: string, glossary: GlossaryEntry[]): GlossaryEntry[] {
+  if (!glossary.length) return [];
+
+  const matchedSet = new Set<string>();
+  const matched: GlossaryEntry[] = [];
+
+  // 转换为小写进行匹配（保留原始条目）
+  const lowerText = text.toLowerCase();
+
+  // 按 source 长度降序排列，优先匹配长词
+  const sortedGlossary = [...glossary].sort((a, b) => b.source.length - a.source.length);
+
+  for (const entry of sortedGlossary) {
+    const lowerSource = entry.source.toLowerCase();
+
+    // 检查是否已经匹配过相同的 source
+    if (matchedSet.has(lowerSource)) continue;
+
+    // 使用单词边界匹配（对于英文等空格分隔的语言更精确）
+    // 对于中文等连续文字，直接使用 includes
+    const hasWordBoundary = /^[a-zA-Z]/.test(entry.source);
+
+    let isMatched = false;
+    if (hasWordBoundary) {
+      // 英文单词：使用正则进行单词边界匹配
+      const wordPattern = new RegExp(`\\b${escapeRegExp(lowerSource)}\\b`, 'i');
+      isMatched = wordPattern.test(text);
+    } else {
+      // 非英文（如中文、日文）：直接匹配
+      isMatched = lowerText.includes(lowerSource);
+    }
+
+    if (isMatched) {
+      matchedSet.add(lowerSource);
+      matched.push(entry);
+    }
+  }
+
+  return matched;
+}
+
+/**
+ * 转义正则表达式特殊字符
+ */
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * 格式化匹配的术语为提示词文本
+ */
+function formatGlossaryForPrompt(matched: GlossaryEntry[]): string {
+  if (!matched.length) return '';
+
+  const lines = matched.map((entry) => {
+    let line = `- "${entry.source}" → "${entry.target}"`;
+    if (entry.note) {
+      line += ` (${entry.note})`;
+    }
+    return line;
+  });
+
+  return `\nGlossary/Terminology guidance (please follow these translations for the specific terms):\n${lines.join('\n')}\n`;
 }
 
 interface ActiveTranslation {
@@ -187,18 +388,51 @@ export const TranslationService = {
   },
 
   /**
-   * 翻译字幕
+   * 获取指定任务的信息
+   * @param requestId 请求 ID
+   * @returns 任务信息（包含服务商、模型、开始时间等）
+   */
+  getTaskInfo(requestId: string): { providerId: string; model: string; startTime: number; metadata?: Record<string, any> } | null {
+    const task = activeTranslations.get(requestId);
+    if (!task) return null;
+    return {
+      providerId: task.providerId,
+      model: task.model,
+      startTime: task.startTime,
+      metadata: task.metadata
+    };
+  },
+
+  /**
+   * 检查是否有正在进行的翻译任务
+   * @returns 是否有活跃任务
+   */
+  hasActiveTranslations(): boolean {
+    return activeTranslations.size > 0;
+  },
+
+  /**
+   * 翻译字幕片段
    * @param request 翻译请求
    * @param emit 事件发送函数
    * @param externalSignal 外部取消信号（可选）
+   * @returns 翻译完成后的片段数组
    */
-  async translateSubtitles(request: TranslationRequest, emit: TranslationEmitter, externalSignal?: AbortSignal): Promise<void> {
-    const { requestId, providerId, model, segments, targetLanguage, languageNames, force, metadata } = request;
+  async translateSubtitles(request: TranslationRequest, emit: TranslationEmitter, externalSignal?: AbortSignal): Promise<AimSegments[]> {
+    const { requestId, providerId, model, segments, targetLanguage, languageNames = {}, force, metadata, options = {} } = request;
+
+    // 解构配置选项，使用默认值
+    const { maxConcurrency = 3, chunkSize = 1000, maxRetries = 2, promptTemplate, generateSummary = true, glossary } = options;
+
+    // 规范化术语表（如果提供）
+    const normalizedGlossary = glossary ? normalizeGlossary(glossary) : [];
 
     // 检查服务商是否繁忙
     const activeRequests = this.getProviderActiveRequests(providerId);
     if (activeRequests.length > 0 && !force) {
-      throw new Error(`BUSY:${activeRequests.join(',')}`);
+      const error = new Error(`BUSY:${activeRequests.join(',')}`);
+      emit({ type: 'error', data: { message: error.message, code: 'BUSY' } });
+      throw error;
     }
 
     // 创建并注册 AbortController
@@ -230,7 +464,9 @@ export const TranslationService = {
 
       const provider = getProvider(providerId);
       if (!provider || !provider.chat) {
-        throw new Error(`Provider ${providerId} not found or does not support chat`);
+        const error = new Error(`Provider ${providerId} not found or does not support chat`);
+        emit({ type: 'error', data: { message: error.message, code: 'PROVIDER_NOT_FOUND' } });
+        throw error;
       }
 
       // 确保 secrets 已加载
@@ -242,7 +478,6 @@ export const TranslationService = {
       }
 
       const targetLangName = languageNames[targetLanguage] || targetLanguage;
-      // const ctrl = signal ? undefined : new AbortController(); // 已废弃，使用统一的 signal
       const abortSignal = signal; // 使用统一管理的 signal
 
       // 并发执行 Promise 的辅助函数（带最大并发控制）
@@ -296,8 +531,8 @@ export const TranslationService = {
         });
       };
 
-      // 默认的翻译提示词
-      const defaultSegmentPrompt = `You are a professional translator. You will always maintain the structural integrity of the '[]' positions within the sentences. The text following the '[]' must not be omitted.
+      // 默认的翻译提示词（带 summary）
+      const defaultPromptWithSummary = `You are a professional translator. You will always maintain the structural integrity of the '[]' positions within the sentences. The text following the '[]' must not be omitted.
 I will provide you with text in this format and "[number]" means the starting for each line:
 [number]text
 [number]text
@@ -310,9 +545,24 @@ Make sure the following:
 - the summary is guiding the following translated text, should be concise and to the point, no need to be too detailed
 - the summary should be placed at the beginning of the translated text in <> mark
 - the translated text is in the format of [number]translated text
-{context}
+{glossary}{context}
 Now translate the following into **{targetLanguage}** and only show me the translated content:
 {content}`;
+
+      // 默认的翻译提示词（不带 summary）
+      const defaultPromptWithoutSummary = `You are a professional translator. You will always maintain the structural integrity of the '[]' positions within the sentences. The text following the '[]' must not be omitted.
+I will provide you with text in this format and "[number]" means the starting for each line:
+[number]text
+[number]text
+You must keep all "[number]", Force break **translated text** reasonably to follow after "[number]". Follow the same structure:
+[number]translated text
+[number]translated text
+{glossary}{context}
+Now translate the following into **{targetLanguage}** and only show me the translated content:
+{content}`;
+
+      // 选择提示词模板
+      const segmentPrompt = promptTemplate || (generateSummary ? defaultPromptWithSummary : defaultPromptWithoutSummary);
 
       // 任务展示信息
       const displayInfo = {
@@ -324,7 +574,7 @@ Now translate the following into **{targetLanguage}** and only show me the trans
       };
 
       // 分块处理字幕
-      const chunks = utils.chunkSegmentStringsWithIndex(segments, 1000);
+      const chunks = utils.chunkSegmentStringsWithIndex(segments, chunkSize);
       emit({
         type: 'progress',
         data: { message: `准备翻译 ${chunks.indexStringResult.length} 个字幕片段...`, percentage: 0, displayInfo }
@@ -360,7 +610,7 @@ Now translate the following into **{targetLanguage}** and only show me the trans
         });
       };
 
-      const MAX_RETRIES = 2;
+      const MAX_RETRIES = maxRetries;
 
       // 单个分块的翻译逻辑：
       // 1. 等待上一分块 summary 完成
@@ -391,7 +641,8 @@ Now translate the following into **{targetLanguage}** and only show me the trans
         const { startIndex, endIndex } = extractIndexRange(chunk);
 
         // 等待上一分块的 summary 完成后再启动当前分块（chunkIndex 为 0 则无需等待）
-        if (chunkIndex > 0) {
+        // 如果不需要生成 summary，则无需等待
+        if (chunkIndex > 0 && generateSummary) {
           await waitForSummary(chunkIndex - 1);
         }
 
@@ -428,9 +679,14 @@ Now translate the following into **{targetLanguage}** and only show me the trans
           }
         });
 
-        let prompt = defaultSegmentPrompt.replace(/{targetLanguage}/g, targetLangName).replace(/{content}/g, chunk);
+        let prompt = segmentPrompt.replace(/{targetLanguage}/g, targetLangName).replace(/{content}/g, chunk);
 
-        if (prevSummary) {
+        // 从当前分块文本中提取匹配的术语
+        const matchedTerms = normalizedGlossary.length > 0 ? extractMatchedGlossaryTerms(chunk, normalizedGlossary) : [];
+        const glossaryPromptText = formatGlossaryForPrompt(matchedTerms);
+        prompt = prompt.replace('{glossary}', glossaryPromptText);
+
+        if (prevSummary && generateSummary) {
           prompt = prompt.replace('{context}', `\nContext from previous part:\n${prevSummary}\n`);
         } else {
           prompt = prompt.replace('{context}', '');
@@ -643,6 +899,19 @@ Now translate the following into **{targetLanguage}** and only show me the trans
           task.translatedSegments = [...allParsedSegments];
         }
 
+        // 发送 chunk-complete 事件，包含该 chunk 的所有翻译结果
+        emit({
+          type: 'chunk-complete',
+          data: {
+            chunkIndex,
+            totalChunks,
+            startIndex,
+            endIndex,
+            segments: currentChunkSegments,
+            summary: summaryContent || undefined
+          }
+        });
+
         if (!currentTranslation) {
           throw new Error('翻译结果为空');
         }
@@ -650,13 +919,10 @@ Now translate the following into **{targetLanguage}** and only show me the trans
         return currentTranslation;
       };
 
-      // 带并发的分块翻译调度：
-      // - 最多同时 3 个请求
-      // - 每个分块在「上一分块 summary 完成」后即可启动
-      // - 失败自动重试两次
+      // 带并发的分块翻译调度
       emit({ type: 'progress', data: { message: '正在连接AI服务...', percentage: 0 } });
       const allTranslations = await runWithConcurrency<string>(totalChunks, (index) => translateChunk(index), {
-        maxConcurrency: 3,
+        maxConcurrency,
         abortSignal
       });
 
@@ -673,6 +939,16 @@ Now translate the following into **{targetLanguage}** and only show me the trans
       });
 
       emit({ type: 'done' });
+
+      // 返回翻译完成的片段
+      return allParsedSegments;
+    } catch (error) {
+      // 发送错误事件
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage !== 'Aborted') {
+        emit({ type: 'error', data: { message: errorMessage } });
+      }
+      throw error;
     } finally {
       // 清理 controller
       activeTranslations.delete(requestId);
