@@ -1,12 +1,12 @@
+import { closestCenter, DndContext, DragEndEvent, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import React, { useEffect, useState } from 'react';
-import { TbApps, TbPin, TbPinFilled } from 'react-icons/tb';
+import { TbApps, TbGripVertical, TbPlus } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Switch } from '@/components/ui/switch';
 
 import type { TabType } from '../ResourceTabs';
 import { tabPanelManager } from './TabPanelManager';
@@ -20,26 +20,109 @@ interface TabSettingsProps {
   allowedTabIds: (TabType | string)[];
 }
 
+/** 可排序的列表项组件 */
+interface SortableItemProps {
+  tab: TabComponent;
+  isPinned: boolean;
+  isPinnedByOther: boolean;
+  onToggle: () => void;
+}
+
+/** 渲染 Tab 图标 */
+const renderTabIcon = (icon: TabComponent['icon'], className: string): React.ReactNode => {
+  if (!icon) return null;
+
+  // React 组件
+  if (typeof icon === 'function') {
+    const IconComponent = icon;
+    return <IconComponent className={className} />;
+  }
+
+  // SVG 字符串
+  if (typeof icon === 'string' && icon.trim().startsWith('<svg')) {
+    return <span className={className} dangerouslySetInnerHTML={{ __html: icon }} />;
+  }
+
+  // URL 字符串
+  if (typeof icon === 'string') {
+    return <img src={icon} alt="" className={className} />;
+  }
+
+  return null;
+};
+
+const SortableItem: React.FC<SortableItemProps> = ({ tab, isPinned, isPinnedByOther, onToggle }) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: tab.id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="group flex items-center gap-2 px-2 py-2 hover:bg-accent/50 transition-colors first:rounded-t-md last:rounded-b-md"
+    >
+      {/* 图标/拖拽手柄区域 */}
+      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground shrink-0 relative w-4 h-4">
+        {/* 默认显示 tab icon */}
+        <span className="absolute inset-0 flex items-center justify-center group-hover:opacity-0 transition-opacity">
+          {tab.icon ? renderTabIcon(tab.icon, 'w-4 h-4') : <TbGripVertical className="w-4 h-4" />}
+        </span>
+        {/* hover 时显示拖拽 icon */}
+        <span className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <TbGripVertical className="w-4 h-4" />
+        </span>
+      </div>
+
+      {/* 内容区域 */}
+      <div
+        className="flex items-center justify-between flex-1 min-w-0 cursor-pointer"
+        onClick={() => !isPinnedByOther && onToggle()}
+      >
+        <span className={`text-[13px] font-medium truncate ${isPinnedByOther ? 'text-muted-foreground' : 'text-foreground'}`}>
+          {tab.name}
+        </span>
+
+        <Switch
+          checked={isPinned}
+          disabled={isPinnedByOther}
+          onCheckedChange={onToggle}
+          onClick={(e) => e.stopPropagation()}
+          className="shrink-0 ml-2 h-4 w-7 [&>span]:h-3 [&>span]:w-3 [&>span]:data-[state=checked]:translate-x-3"
+        />
+      </div>
+    </div>
+  );
+};
+
 /**
  * Tab 设置面板
  * 允许用户启用/禁用不同的 tab 组件（类似浏览器扩展管理）
- * 不同面板的 tab 设置互斥，一个 tab 只能被一个面板 pin
+ * 支持拖拽排序
  */
 export const TabSettings: React.FC<TabSettingsProps> = ({ panelId, allowedTabIds }) => {
   const [popoverOpen, setPopoverOpen] = useState(false);
-  const [allAppsDialogOpen, setAllAppsDialogOpen] = useState(false);
   const [tabs, setTabs] = useState<TabComponent[]>([]);
-  const [allTabs, setAllTabs] = useState<TabComponent[]>([]);
   const [pinnedStates, setPinnedStates] = useState<Record<string, boolean>>({});
   const [tabOwners, setTabOwners] = useState<Record<string, string | null>>({});
+
+  // 拖拽传感器
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
 
   // 更新 tab 状态
   const updateTabStates = (): void => {
     const allRegisteredTabs = tabRegistry.getAll();
-    setAllTabs(allRegisteredTabs);
 
-    // 只显示当前资源类型允许的 tab（用于 popover）
-    const filteredTabs = allRegisteredTabs.filter((tab) => allowedTabIds.includes(tab.id));
+    // 本地扩展：只显示当前资源类型允许的 tab
+    // 远程扩展：始终显示所有远程扩展
+    const filteredTabs = allRegisteredTabs.filter((tab) => tab.isDynamic || allowedTabIds.includes(tab.id));
     setTabs(filteredTabs);
 
     // 更新 pin 状态和所有者
@@ -75,111 +158,89 @@ export const TabSettings: React.FC<TabSettingsProps> = ({ panelId, allowedTabIds
     };
   }, [panelId, allowedTabIds]);
 
-  const handlePinToggle = (tabId: string, e: React.MouseEvent): void => {
-    e.stopPropagation();
-    tabPanelManager.toggleTab(panelId, tabId);
-  };
-
   // 将 tab 分为本地和远程
   const localTabs = tabs.filter((tab) => !tab.isDynamic);
   const remoteTabs = tabs.filter((tab) => tab.isDynamic);
 
-  const allLocalTabs = allTabs.filter((tab) => !tab.isDynamic);
-  const allRemoteTabs = allTabs.filter((tab) => tab.isDynamic);
+  // 处理拖拽结束
+  const handleDragEnd = (event: DragEndEvent, items: TabComponent[], isRemote: boolean): void => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
 
-  // 渲染组件列表项
-  const renderTabItem = (tab: TabComponent, showType: boolean = false): React.ReactNode => {
-    const isPinned = pinnedStates[tab.id] ?? false;
-    const owner = tabOwners[tab.id];
-    const isPinnedByOther = owner !== null && owner !== panelId;
+    const oldIndex = items.findIndex((item) => item.id === active.id);
+    const newIndex = items.findIndex((item) => item.id === over.id);
 
+    if (oldIndex !== -1 && newIndex !== -1) {
+      const newItems = arrayMove(items, oldIndex, newIndex);
+      // 更新顺序到 registry
+      const newOrder = [
+        ...(isRemote ? localTabs : newItems).map((t) => t.id),
+        ...(isRemote ? newItems : remoteTabs).map((t) => t.id)
+      ];
+      tabRegistry.setOrder(newOrder);
+    }
+  };
+
+  // 处理添加更多扩展
+  const handleAddMore = (): void => {
+    setPopoverOpen(false);
+    // TODO: 打开扩展市场
+    console.log('打开更多扩展');
+  };
+
+  // 渲染可排序的设置组
+  const renderSortableGroup = (title: string, items: TabComponent[], isRemote: boolean): React.ReactNode => {
     return (
-      <div key={tab.id} className="flex items-center justify-between p-2 rounded hover:bg-muted/50 group">
-        <div className="flex items-center space-x-2 flex-1 min-w-0">
-          <span className={`text-sm truncate ${isPinnedByOther ? 'text-muted-foreground' : ''}`}>{tab.name}</span>
-          {showType && <span className="text-xs text-muted-foreground shrink-0">{tab.isDynamic ? '远程' : '本地'}</span>}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between px-1">
+          <span className="text-xs font-medium text-muted-foreground">{title}</span>
         </div>
-
-        <Button size="icon" variant="ghost" className="w-6 h-6 shrink-0" onClick={(e) => handlePinToggle(tab.id, e)}>
-          {isPinned ? <TbPinFilled className="w-4 h-4 text-primary" /> : isPinnedByOther ? <TbPin className="w-4 h-4 text-amber-500" /> : <TbPin className="w-4 h-4 text-muted-foreground" />}
-        </Button>
+        <div className="bg-card border border-border rounded-md divide-y divide-border/50 relative overflow-hidden">
+          {items.length > 0 && (
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => handleDragEnd(e, items, isRemote)}>
+              <SortableContext items={items.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+                <>
+                  {items.map((tab) => (
+                    <SortableItem
+                      key={tab.id}
+                      tab={tab}
+                      isPinned={pinnedStates[tab.id] ?? false}
+                      isPinnedByOther={tabOwners[tab.id] !== null && tabOwners[tab.id] !== panelId}
+                      onToggle={() => tabPanelManager.toggleTab(panelId, tab.id)}
+                    />
+                  ))}
+                </>
+              </SortableContext>
+            </DndContext>
+          )}
+          {/* 三方应用列表末尾的添加按钮 */}
+          {isRemote && (
+            <button
+              className="flex items-center gap-1.5 px-2 py-1.5 w-full text-left hover:bg-accent/50 transition-colors text-muted-foreground hover:text-foreground"
+              onClick={handleAddMore}
+            >
+              <TbPlus className="w-3.5 h-3.5" />
+              <span className="text-xs">添加更多</span>
+            </button>
+          )}
+        </div>
       </div>
     );
   };
 
   return (
-    <>
-      <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-        <PopoverTrigger asChild>
-          <Button size="icon" variant="ghost" className="w-8 h-8" title="Tab 组件">
-            <TbApps className="w-4 h-4" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent align="end" className="w-64 p-0" side="bottom">
-          <ScrollArea className="max-h-[400px]">
-            <div className="p-2">
-              {/* 本地组件 */}
-              {localTabs.length > 0 && <div className="space-y-1">{localTabs.map((tab) => renderTabItem(tab))}</div>}
-
-              {/* 远程组件 */}
-              {remoteTabs.length > 0 && (
-                <>
-                  {localTabs.length > 0 && <Separator className="my-2" />}
-                  <div className="space-y-1">{remoteTabs.map((tab) => renderTabItem(tab))}</div>
-                </>
-              )}
-
-              {tabs.length === 0 && <div className="text-center text-sm text-muted-foreground py-4">暂无可用的 Tab 组件</div>}
-            </div>
-          </ScrollArea>
-          <Separator />
-          <div className="p-2">
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-sm"
-              onClick={() => {
-                setPopoverOpen(false);
-                setAllAppsDialogOpen(true);
-              }}
-            >
-              查看所有扩展
-            </Button>
-          </div>
-        </PopoverContent>
-      </Popover>
-
-      {/* 查看所有扩展对话框 */}
-      <Dialog open={allAppsDialogOpen} onOpenChange={setAllAppsDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>所有 Tab 组件 (面板: {panelId})</DialogTitle>
-          </DialogHeader>
-          <ScrollArea className="max-h-[60vh] pr-4">
-            <div className="space-y-4">
-              {/* 本地组件 */}
-              {allLocalTabs.length > 0 && (
-                <div>
-                  <div className="text-sm font-medium mb-2">本地组件</div>
-                  <div className="space-y-1">{allLocalTabs.map((tab) => renderTabItem(tab, true))}</div>
-                </div>
-              )}
-
-              {/* 远程组件 */}
-              {allRemoteTabs.length > 0 && (
-                <>
-                  {allLocalTabs.length > 0 && <Separator className="my-4" />}
-                  <div>
-                    <div className="text-sm font-medium mb-2">远程组件</div>
-                    <div className="space-y-1">{allRemoteTabs.map((tab) => renderTabItem(tab, true))}</div>
-                  </div>
-                </>
-              )}
-
-              {allTabs.length === 0 && <div className="text-center text-sm text-muted-foreground py-8">暂无可用的 Tab 组件</div>}
-            </div>
-          </ScrollArea>
-        </DialogContent>
-      </Dialog>
-    </>
+    <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+      <PopoverTrigger asChild>
+        <Button size="icon" variant="ghost" className="w-8 h-8" title="扩展管理">
+          <TbApps className="w-4 h-4" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-64 p-2 overflow-hidden shadow-none" side="bottom">
+        <div className="space-y-3 max-h-[360px] overflow-y-auto overflow-x-hidden">
+          {renderSortableGroup('本地扩展', localTabs, false)}
+          {renderSortableGroup('三方应用', remoteTabs, true)}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 };

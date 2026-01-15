@@ -19,6 +19,8 @@ export interface TabComponent {
   id: TabType;
   /** 组件名称 */
   name: string;
+  /** 组件描述（可选） */
+  description?: string;
   /** React 组件 */
   component: React.ComponentType;
   /** Tab 图标（可选） */
