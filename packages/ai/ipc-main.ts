@@ -5,6 +5,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 
 import { ChatRepo, ResourcesRepo } from '../common/db';
+import { sendAppBusyEnd, sendAppBusyProgress, sendAppBusyStart } from '../event';
 import { BasicAgent } from './agents/basic';
 import { RAGAgent } from './agents/rag';
 import { TaggerAgent } from './agents/tagger';
@@ -402,7 +403,8 @@ export function initAIHandlers(win: BrowserWindow): void {
       payload: {
         providerId: string;
         model: string;
-        segments: any[];
+        segments?: any[];
+        resourceId?: string;
         targetLanguage: string;
         languageNames: Record<string, string>;
         force?: boolean;
@@ -417,10 +419,47 @@ export function initAIHandlers(win: BrowserWindow): void {
         };
       }
     ) => {
-      const { providerId, model, segments, targetLanguage, languageNames, force, metadata, options } = payload;
+      const { providerId, model, segments, resourceId, targetLanguage, languageNames, force, metadata, options } = payload;
       const requestId = randomUUID();
       const eventsChannel = `subtitle:translate:${requestId}`;
       const taskLabel = `${providerId}/${model}`;
+
+      let actualSegments = segments;
+
+      if (!actualSegments && resourceId) {
+        try {
+          const resource = await ResourcesRepo.getById(resourceId);
+          if (!resource || !resource.filePath) {
+            throw new Error(`Resource ${resourceId} not found or has no file path`);
+          }
+
+          const lower = resource.filePath.toLowerCase();
+          const isSubtitleFile = lower.endsWith('.srt') || lower.endsWith('.vtt') || lower.endsWith('.ass') || lower.endsWith('.ssa');
+          if (!isSubtitleFile) {
+            throw new Error(`Resource ${resourceId} is not a subtitle file`);
+          }
+
+          const fileContent = await fs.readFile(resource.filePath, 'utf8');
+          const parsedResult = await parser.parseSubtitle(fileContent);
+          actualSegments = (parsedResult?.segments || []).map((seg, idx) => ({
+            text: seg.text,
+            index: idx
+          }));
+
+          if (actualSegments.length === 0) {
+            throw new Error(`No segments found in subtitle file: ${resource.filePath}`);
+          }
+
+          console.log(`[translate] Loaded ${actualSegments.length} segments from resource ${resourceId}`);
+        } catch (error) {
+          console.error('[translate] Failed to load segments from resource:', error);
+          throw error;
+        }
+      }
+
+      if (!actualSegments || actualSegments.length === 0) {
+        throw new Error('No segments provided and unable to load segments from resourceId');
+      }
 
       // 检查服务商是否繁忙
       const activeRequests = TranslationService.getActiveRequestsByLabel(taskLabel);
@@ -489,9 +528,29 @@ export function initAIHandlers(win: BrowserWindow): void {
 
       // 累积翻译结果，用于保存
       const accumulatedTranslations: Array<{ index: number; text: string }> = [];
+      let busyStarted = false;
 
       // 向所有窗口发送消息的函数，同时处理保存逻辑
       const emit = (event: { type: string; data?: any }): void => {
+        // 处理进度事件，发送给精灵
+        if (event.type === 'progress' && event.data) {
+          const { percentage, message } = event.data;
+          if (percentage !== undefined) {
+            sendAppBusyProgress(percentage, message || '正在翻译...');
+          }
+
+          // 在第一个进度事件时发送开始信号
+          if (!busyStarted) {
+            sendAppBusyStart(0, '开始翻译字幕...');
+            busyStarted = true;
+          }
+        }
+
+        // 在翻译完成时结束繁忙状态
+        if (event.type === 'completed' || event.type === 'done' || event.type === 'error') {
+          sendAppBusyEnd();
+        }
+
         // 在 chunk-complete 时保存字幕
         if (event.type === 'chunk-complete' && event.data?.segments && metadata?.resourceId) {
           // 累积翻译结果
@@ -506,14 +565,14 @@ export function initAIHandlers(win: BrowserWindow): void {
           });
 
           // 保存翻译结果
-          saveTranslatedSubtitle(metadata.resourceId, segments, accumulatedTranslations).catch((err) => {
+          saveTranslatedSubtitle(metadata.resourceId, actualSegments, accumulatedTranslations).catch((err) => {
             console.error('[translation-save] chunk-complete 保存失败:', err);
           });
         }
 
         // 在翻译完成时最终保存
         if ((event.type === 'completed' || event.type === 'done') && metadata?.resourceId && accumulatedTranslations.length > 0) {
-          saveTranslatedSubtitle(metadata.resourceId, segments, accumulatedTranslations).catch((err) => {
+          saveTranslatedSubtitle(metadata.resourceId, actualSegments, accumulatedTranslations).catch((err) => {
             console.error('[translation-save] completed 保存失败:', err);
           });
         }
@@ -539,7 +598,7 @@ export function initAIHandlers(win: BrowserWindow): void {
           requestId,
           chatFn,
           taskLabel,
-          segments,
+          segments: actualSegments,
           targetLanguage,
           languageNames,
           metadata,
