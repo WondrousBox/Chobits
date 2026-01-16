@@ -3,6 +3,7 @@ import * as fscb from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
+import { utils } from '@aim-packages/subtitle';
 import dayjs from 'dayjs';
 import { BrowserWindow } from 'electron';
 
@@ -10,7 +11,6 @@ import { eventManager } from '../../../../packages/event';
 import { AppEvent } from '../../../../packages/event/events';
 import { FoldersRepo, ResourcesRepo, WorkspacesRepo } from '../../db/repositories';
 import { detectBasicType, generateThumbnailForResource } from '../../utils/thumbnail';
-import { chunkText } from '../embedding/chunker';
 import { embeddingQueue } from '../embedding/queue';
 import type { Resource } from './ipc-renderer';
 
@@ -195,7 +195,7 @@ export async function addResource(r: { resource: Resource }): Promise<{ success:
     const text = res.contentText || res.description || res.title;
     if (typeof text === 'string' && text.trim().length > 0 && row) {
       try {
-        const chunks = chunkText(text);
+        const chunks = utils.chunkText(text);
         const items = chunks.map((c) => ({
           id: `${row.id}#${c.index}`,
           content: c.content,

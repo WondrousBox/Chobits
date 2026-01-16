@@ -1,12 +1,12 @@
+import { utils } from '@aim-packages/subtitle';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
-import ServiceInstanceSelect from '@/pages/ChatPage/components/ServiceInstanceSelect';
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
-import { chunkText, smartChunks } from '@/lib/textChunker';
+import ServiceInstanceSelect from '@/pages/ChatPage/components/ServiceInstanceSelect';
 
 type ProgressMeta = { phase: 'start' | 'progress'; total: number; startIndex?: number; index?: number; segmentTags?: string[]; aggTop?: string[] };
 
@@ -32,7 +32,7 @@ const TaggingPage: React.FC = () => {
   const canStart = useMemo(() => confirmed && segments.length > 0 && !running && !!providerId && !!instanceId, [confirmed, segments, running, providerId, instanceId]);
 
   const doSegment = () => {
-    const segs = useSmart ? smartChunks(input, maxChars, overlap) : chunkText(input, maxChars, overlap);
+    const segs = useSmart ? utils.smartChunks(input, maxChars, overlap) : utils.chunkText(input, maxChars, overlap);
     setSegments(segs);
     setConfirmed(false);
     setFinalTags(null);

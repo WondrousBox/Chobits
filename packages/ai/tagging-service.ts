@@ -1,6 +1,6 @@
+import { utils } from '@aim-packages/subtitle';
 import { BrowserWindow, ipcMain } from 'electron';
 
-import { chunkText } from '../../electron/main/handlers/embedding/chunker';
 import { TaggerAgent } from './agents/tagger';
 import { InstancesStore } from './instances-store';
 import { getProvider } from './registry';
@@ -92,7 +92,7 @@ export const TaggingService = {
     // Chunk long text for better tagging
     let segments = [textStr];
     try {
-      const chunks = chunkText(textStr);
+      const chunks = utils.chunkText(textStr);
       if (Array.isArray(chunks) && chunks.length) segments = chunks.map((c) => c.content);
     } catch {
       // ignore chunking errors
