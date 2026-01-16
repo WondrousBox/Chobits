@@ -50,7 +50,7 @@
   "devDependencies": {
     "@aim-packages/downloader": "^0.1.0",
     "@aim-packages/file-utils": "^0.0.9",
-    "@aim-packages/subtitle": "^0.3.2",
+    "@aim-packages/subtitle": "^0.4.0",
     "@aim-packages/window-manager": "^0.1.1",
     "@anthropic-ai/sdk": "^0.67.0",
     "@dnd-kit/core": "^6.3.1",
