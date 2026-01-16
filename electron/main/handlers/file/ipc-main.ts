@@ -109,7 +109,7 @@ export function initFileHandlers(_win: Electron.BrowserWindow): void {
 
   // 读取文件内容（用于文本类资源预览）
   ipcMain.handle('file:readContent', async (_e, filePath: string, maxBytes?: number) => {
-    console.log(filePath);
+    console.log('file:readContent from ', filePath);
 
     if (!filePath) return { success: false, error: 'EMPTY_PATH' };
 

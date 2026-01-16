@@ -17,7 +17,7 @@ type ActionItem = {
 function extOf(name?: string): string {
   return (name?.split('.').pop() || '').toLowerCase();
 }
-function guessKind(file: FileInfo): 'doc' | 'audio' | 'video' | 'image' | 'pdf' | 'other' {
+function guessKind(file: FileInfo): 'doc' | 'audio' | 'video' | 'image' | 'pdf' | 'subtitle' | 'other' {
   const ext = extOf(file.name);
   const mime = (file.mime || '').toLowerCase();
   if (/docx?/.test(ext) || /word/.test(mime)) return 'doc';
@@ -25,6 +25,7 @@ function guessKind(file: FileInfo): 'doc' | 'audio' | 'video' | 'image' | 'pdf' 
   if (/(mp4|mov|mkv|webm|avi)$/i.test(ext) || /^video\//.test(mime)) return 'video';
   if (/(png|jpg|jpeg|webp|gif|bmp|tiff)$/i.test(ext) || /^image\//.test(mime)) return 'image';
   if (ext === 'pdf' || /pdf/.test(mime)) return 'pdf';
+  if (/^(srt|vtt|ass)$/i.test(ext)) return 'subtitle';
   return 'other';
 }
 
@@ -154,6 +155,105 @@ const FileActionsMenu: React.FC = () => {
         }
       });
 
+    const openSubtitlePreview = (): Promise<void> =>
+      closeAfter(async () => {
+        if (!primary?.id) return;
+        try {
+          await window.YUA.window['window:open']('resourcePreview', {
+            current: primary
+          });
+        } catch (err) {
+          console.warn('[FileActionsMenu] open resourcePreview error', err);
+        }
+      });
+
+    const translateSubtitle = (): Promise<void> =>
+      closeAfter(async () => {
+        if (!primary?.id) return;
+        try {
+          const STORAGE_KEY = 'subtitle-translator-preferences';
+          const loadPreferences = (): Record<string, any> | null => {
+            try {
+              const stored = localStorage.getItem(STORAGE_KEY);
+              if (stored) {
+                return JSON.parse(stored);
+              }
+            } catch (error) {
+              console.error('读取翻译偏好设置失败:', error);
+            }
+            return null;
+          };
+
+          const preferences = loadPreferences();
+          const providerId = preferences?.selectedProviderId || '';
+          const model = preferences?.selectedModel || '';
+          const targetLanguage = preferences?.targetLanguage || 'en';
+          const translationMode = preferences?.translationMode || 'ai';
+
+          if (translationMode !== 'ai' || !providerId || !model) {
+            console.warn('[FileActionsMenu] AI translation not configured, opening preview instead');
+            await window.YUA.window['window:open']('resourcePreview', {
+              current: primary
+            });
+            return;
+          }
+
+          await window.YUA.ai.translate({
+            providerId,
+            model,
+            resourceId: primary.id,
+            targetLanguage,
+            languageNames: {
+              en: '英语',
+              zh: '中文',
+              ja: '日语',
+              ko: '韩语',
+              de: '德语',
+              es: '西班牙语',
+              ru: '俄语',
+              fr: '法语',
+              pt: '葡萄牙语',
+              it: '意大利语',
+              ar: '阿拉伯语',
+              hi: '印地语',
+              vi: '越南语',
+              th: '泰语'
+            },
+            metadata: {
+              resourceId: primary.id
+            }
+          });
+        } catch (err) {
+          console.warn('[FileActionsMenu] translate subtitle error', err);
+        }
+      });
+
+    const readSubtitle = (): Promise<void> =>
+      closeAfter(async () => {
+        if (!primary?.id) return;
+        try {
+          await window.YUA.window['window:open']('resourcePreview', {
+            current: primary,
+            action: 'read'
+          });
+        } catch (err) {
+          console.warn('[FileActionsMenu] read subtitle error', err);
+        }
+      });
+
+    const summarizeSubtitle = (): Promise<void> =>
+      closeAfter(async () => {
+        if (!primary?.id) return;
+        try {
+          await window.YUA.window['window:open']('resourcePreview', {
+            current: primary,
+            action: 'summarize'
+          });
+        } catch (err) {
+          console.warn('[FileActionsMenu] summarize subtitle error', err);
+        }
+      });
+
     if (kind === 'doc') {
       list.push({ id: 'doc-sum', label: '总结文档', icon: '📝', run: summarizeDoc });
       list.push({ id: 'doc-cards', label: '生成阅读卡片', icon: '🗂️', run: makeCards });
@@ -173,11 +273,17 @@ const FileActionsMenu: React.FC = () => {
     } else if (kind === 'pdf') {
       list.push({ id: 'pdf-parse', label: '解析/总结 PDF', icon: '📄', run: parsePdf });
       // already added
+    } else if (kind === 'subtitle') {
+      list.push({ id: 'subtitle-view', label: '查看字幕', icon: '📺', run: openSubtitlePreview });
+      list.push({ id: 'subtitle-translate', label: '翻译字幕', icon: '🌐', run: translateSubtitle });
+      list.push({ id: 'subtitle-read', label: '读给我听', icon: '🔊', run: readSubtitle });
+      list.push({ id: 'subtitle-summarize', label: '总结字幕', icon: '📝', run: summarizeSubtitle });
+      // already added
     } else {
       // generic: already added
     }
     return list;
-  }, [kind, primary?.filePath]);
+  }, [kind, primary]);
 
   // Build radial menu items from available actions
   const radialItems: RadialMenuItem[] = useMemo(() => {

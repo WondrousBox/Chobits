@@ -79,7 +79,7 @@ export interface ProviderAdapter {
   // Embeddings
   embed?(req: EmbeddingRequest): Promise<EmbeddingResponse>;
   // Models: return id + optional metadata; UI will use label if provided
-  listModels?(opts?: { secrets?: ProviderSecrets }): Promise<Array<{ id: string; label?: string;[k: string]: any }>>;
+  listModels?(opts?: { secrets?: ProviderSecrets }): Promise<Array<{ id: string; label?: string; [k: string]: any }>>;
   // ASR
   transcribe?(file: File | Blob | Buffer, options?: { model?: string; language?: string; prompt?: string }): Promise<{ text: string }>;
 }
@@ -104,7 +104,7 @@ export type StartStreamPayload = { requestId: string; eventsChannel: string } & 
 export type AIApi = {
   getProviders(): Promise<any[]>;
   getAgents(): Promise<any[]>;
-  listModels(providerId: string, instanceId?: string): Promise<Array<{ id: string; label?: string;[k: string]: any }>>;
+  listModels(providerId: string, instanceId?: string): Promise<Array<{ id: string; label?: string; [k: string]: any }>>;
   getProviderSecrets(providerId: string): Promise<Record<string, string>>;
   setProviderSecrets(providerId: string, secrets: Record<string, string>): Promise<{ ok: boolean }>;
   clearProviderSecrets(providerId: string): Promise<{ ok: boolean }>;
@@ -126,7 +126,8 @@ export type AIApi = {
   translate(payload: {
     providerId: string;
     model: string;
-    segments: Array<{ text: string; index: number }>;
+    segments?: Array<{ text: string; index: number }>;
+    resourceId?: string;
     targetLanguage: string;
     languageNames: Record<string, string>;
     force?: boolean;
@@ -180,13 +181,110 @@ export type AIApi = {
   createGlossaryCategory(payload: { name: string; description?: string }): Promise<{ id: string; name: string; description?: string; createdAt: number; updatedAt: number }>;
   updateGlossaryCategory(id: string, patch: { name?: string; description?: string }): Promise<{ id: string; name: string; description?: string; createdAt: number; updatedAt: number } | undefined>;
   deleteGlossaryCategory(id: string): Promise<{ ok: boolean }>;
-  listGlossaries(categoryId?: string): Promise<Array<{ id: string; categoryId: string; name: string; description?: string; entries: Array<{ source: string; target: string; note?: string }>; sourceFile?: string; sourceFormat?: string; createdAt: number; updatedAt: number }>>;
-  getGlossary(id: string): Promise<{ id: string; categoryId: string; name: string; description?: string; entries: Array<{ source: string; target: string; note?: string }>; sourceFile?: string; sourceFormat?: string; createdAt: number; updatedAt: number } | undefined>;
-  createGlossary(payload: { categoryId: string; name: string; description?: string; entries: Array<{ source: string; target: string; note?: string }>; sourceFile?: string; sourceFormat?: string }): Promise<{ id: string; categoryId: string; name: string; description?: string; entries: Array<{ source: string; target: string; note?: string }>; sourceFile?: string; sourceFormat?: string; createdAt: number; updatedAt: number }>;
-  updateGlossary(id: string, patch: { categoryId?: string; name?: string; description?: string; entries?: Array<{ source: string; target: string; note?: string }> }): Promise<{ id: string; categoryId: string; name: string; description?: string; entries: Array<{ source: string; target: string; note?: string }>; sourceFile?: string; sourceFormat?: string; createdAt: number; updatedAt: number } | undefined>;
+  listGlossaries(
+    categoryId?: string
+  ): Promise<
+    Array<{
+      id: string;
+      categoryId: string;
+      name: string;
+      description?: string;
+      entries: Array<{ source: string; target: string; note?: string }>;
+      sourceFile?: string;
+      sourceFormat?: string;
+      createdAt: number;
+      updatedAt: number;
+    }>
+  >;
+  getGlossary(
+    id: string
+  ): Promise<
+    | {
+        id: string;
+        categoryId: string;
+        name: string;
+        description?: string;
+        entries: Array<{ source: string; target: string; note?: string }>;
+        sourceFile?: string;
+        sourceFormat?: string;
+        createdAt: number;
+        updatedAt: number;
+      }
+    | undefined
+  >;
+  createGlossary(payload: {
+    categoryId: string;
+    name: string;
+    description?: string;
+    entries: Array<{ source: string; target: string; note?: string }>;
+    sourceFile?: string;
+    sourceFormat?: string;
+  }): Promise<{
+    id: string;
+    categoryId: string;
+    name: string;
+    description?: string;
+    entries: Array<{ source: string; target: string; note?: string }>;
+    sourceFile?: string;
+    sourceFormat?: string;
+    createdAt: number;
+    updatedAt: number;
+  }>;
+  updateGlossary(
+    id: string,
+    patch: { categoryId?: string; name?: string; description?: string; entries?: Array<{ source: string; target: string; note?: string }> }
+  ): Promise<
+    | {
+        id: string;
+        categoryId: string;
+        name: string;
+        description?: string;
+        entries: Array<{ source: string; target: string; note?: string }>;
+        sourceFile?: string;
+        sourceFormat?: string;
+        createdAt: number;
+        updatedAt: number;
+      }
+    | undefined
+  >;
   deleteGlossary(id: string): Promise<{ ok: boolean }>;
-  addGlossaryEntries(glossaryId: string, entries: Array<{ source: string; target: string; note?: string }>): Promise<{ id: string; categoryId: string; name: string; description?: string; entries: Array<{ source: string; target: string; note?: string }>; sourceFile?: string; sourceFormat?: string; createdAt: number; updatedAt: number } | undefined>;
-  removeGlossaryEntry(glossaryId: string, source: string): Promise<{ id: string; categoryId: string; name: string; description?: string; entries: Array<{ source: string; target: string; note?: string }>; sourceFile?: string; sourceFormat?: string; createdAt: number; updatedAt: number } | undefined>;
-  parseGlossaryContent(content: string, fileName?: string): Promise<{ success: boolean; entries: Array<{ source: string; target: string; note?: string }>; format: string; error?: string; suggestedName?: string }>;
+  addGlossaryEntries(
+    glossaryId: string,
+    entries: Array<{ source: string; target: string; note?: string }>
+  ): Promise<
+    | {
+        id: string;
+        categoryId: string;
+        name: string;
+        description?: string;
+        entries: Array<{ source: string; target: string; note?: string }>;
+        sourceFile?: string;
+        sourceFormat?: string;
+        createdAt: number;
+        updatedAt: number;
+      }
+    | undefined
+  >;
+  removeGlossaryEntry(
+    glossaryId: string,
+    source: string
+  ): Promise<
+    | {
+        id: string;
+        categoryId: string;
+        name: string;
+        description?: string;
+        entries: Array<{ source: string; target: string; note?: string }>;
+        sourceFile?: string;
+        sourceFormat?: string;
+        createdAt: number;
+        updatedAt: number;
+      }
+    | undefined
+  >;
+  parseGlossaryContent(
+    content: string,
+    fileName?: string
+  ): Promise<{ success: boolean; entries: Array<{ source: string; target: string; note?: string }>; format: string; error?: string; suggestedName?: string }>;
   mergeGlossaries(ids: string[]): Promise<Array<{ source: string; target: string; note?: string }>>;
 };

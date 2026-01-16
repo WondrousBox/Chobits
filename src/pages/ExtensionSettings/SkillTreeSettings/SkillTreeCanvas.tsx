@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import ParticleBackground from './ParticleBackground';
 import SkillNode from './SkillNode';
@@ -15,9 +15,9 @@ interface SkillTreeCanvasProps {
 const TIER_ORDER: SkillTier[] = ['beginner', 'intermediate', 'advanced', 'professional', 'master'];
 const COLUMN_WIDTH = 250; // 每小列宽度
 const ROW_HEIGHT = 130; // 每行高度
-const CORE_X = 100; // 精灵核心X位置
-const BRANCH_POINT_X = 180; // 分支点X位置（核心和第一级技能之间，缩短直线部分）
-const START_X = 500; // 起始X位置（第一级技能的位置，增加距离）
+const CORE_X = 400; // 精灵核心X位置（调整到画面中间）
+const BRANCH_POINT_X = 500; // 分支点X位置（核心和第一级技能之间）
+const START_X = 700; // 起始X位置（第一级技能的位置）
 const START_Y = 100; // 起始Y位置
 const TIER_GAP = 60; // 等级之间的额外间距
 
@@ -31,6 +31,16 @@ const SkillTreeCanvas: React.FC<SkillTreeCanvasProps> = ({ skillStatuses, select
   const [isDragging, setIsDragging] = useState(false);
   const [startPos, setStartPos] = useState({ x: 0, y: 0 });
   const [scrollPos, setScrollPos] = useState({ x: 0, y: 0 });
+
+  // 初始化：设置精灵核心居中
+  useEffect(() => {
+    if (containerRef.current) {
+      const containerWidth = containerRef.current.clientWidth;
+      // 使精灵核心居中：容器宽度的一半减去核心X位置再减去核心半径
+      const centerScrollLeft = CORE_X - containerWidth / 2 + 50; // 50是核心半径的一半
+      containerRef.current.scrollLeft = centerScrollLeft;
+    }
+  }, []);
 
   // 鼠标拖拽开始
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -172,35 +182,43 @@ const SkillTreeCanvas: React.FC<SkillTreeCanvasProps> = ({ skillStatuses, select
           minHeight: canvasHeight
         }}
       >
-        {/* 等级列标题 */}
-        <div className="absolute top-0 left-0 right-0 flex" style={{ paddingLeft: START_X - 60 }}>
+        {/* 等级背景区块 */}
+        <div className="absolute top-0 left-0 bottom-0 flex" style={{ paddingLeft: START_X - 60, height: canvasHeight, zIndex: 0 }}>
           {TIER_ORDER.map((tier, index) => {
             const config = skillTierConfig[tier];
-            // 每个等级标题居中于该等级的所有列
+            // 每个等级的宽度
             const tierWidth = MAX_COLUMNS_PER_TIER * COLUMN_WIDTH;
             return (
               <motion.div
                 key={tier}
-                className="flex flex-col items-center justify-center"
+                className="flex flex-col"
                 style={{
                   width: tierWidth,
                   marginRight: TIER_GAP,
-                  paddingTop: 20
+                  height: '100%',
+                  backgroundColor: `${config.color}08`,
+                  borderLeft: `1px solid ${config.color}15`,
+                  borderRight: `1px solid ${config.color}15`,
+                  borderTop: `1px solid ${config.color}10`,
+                  borderBottom: `1px solid ${config.color}10`
                 }}
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
                 transition={{ delay: index * 0.1 }}
               >
-                <div
-                  className="px-4 py-2 rounded-full text-sm font-bold"
-                  style={{
-                    backgroundColor: `${config.color}20`,
-                    color: config.color,
-                    border: `2px solid ${config.color}40`,
-                    textShadow: `0 0 10px ${config.color}60`
-                  }}
-                >
-                  {config.label}技能
+                {/* 等级标题 */}
+                <div className="flex items-center justify-center" style={{ paddingTop: 20, paddingBottom: 10 }}>
+                  <div
+                    className="px-4 py-2 rounded-full text-sm font-bold"
+                    style={{
+                      backgroundColor: `${config.color}20`,
+                      color: config.color,
+                      border: `2px solid ${config.color}40`,
+                      textShadow: `0 0 10px ${config.color}60`
+                    }}
+                  >
+                    {config.label}技能
+                  </div>
                 </div>
               </motion.div>
             );
@@ -254,7 +272,7 @@ const SkillTreeCanvas: React.FC<SkillTreeCanvasProps> = ({ skillStatuses, select
         </motion.div>
 
         {/* 从核心到初级技能的连接线 */}
-        <svg className="absolute inset-0 pointer-events-none" style={{ width: canvasWidth, height: canvasHeight }}>
+        <svg className="absolute inset-0 pointer-events-none" style={{ width: canvasWidth, height: canvasHeight, zIndex: 1 }}>
           <defs>
             <filter id="line-glow-canvas" x="-50%" y="-50%" width="200%" height="200%">
               <feGaussianBlur stdDeviation="3" result="coloredBlur" />
