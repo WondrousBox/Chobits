@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 
+// 使用新的 Mastra AI 模块
 import { aiBridge } from '../../packages/ai/ipc-renderer';
 import { APP_EVENT_CHANNEL, AppEventPayload } from '../../packages/event/events';
 import { pluginResourceIpcRenderer } from '../../packages/plugins/ipc-renderer';

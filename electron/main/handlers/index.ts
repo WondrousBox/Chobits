@@ -57,7 +57,7 @@ export function initHandlers(win: BrowserWindow): void {
   initRecorderHandlers();
   initSherpaHandlers();
   initShortcutsHandlers(win);
-  initPreferencesHandlers(win);
+  initPreferencesHandlers();
   initPluginResourceHandlers(win, {
     getHttpProxy,
     getPluginDefinitionsPath: () => getResourcePath('plugins')!,

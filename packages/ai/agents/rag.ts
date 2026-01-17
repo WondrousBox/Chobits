@@ -1,5 +1,6 @@
 import { searchVectors } from '../../common/db';
-import { AgentContext, AgentDefinition, ChatRequest, ChatResponse } from '../types';
+import type { AgentContext, AgentDefinition, ChatMessage, ChatRequest, ChatResponse } from '../types';
+import { runAgentRuntimeChat } from './agent-runtime-bridge';
 
 const DEFAULT_DIM = 384; // align with your local default; providers may vary
 
@@ -27,10 +28,9 @@ export const RAGAgent: AgentDefinition = {
       //
     }
     // 2) Synthesize
-    const sys = { role: 'system' as const, content: '你是一个严谨的助手。优先使用“检索上下文”信息回答。如果上下文缺失，请明确说明。' };
-    const ctxMsg = context ? { role: 'system' as const, content: `检索上下文：\n${context}` } : null;
+    const sys: ChatMessage = { role: 'system', content: '你是一个严谨的助手。优先使用“检索上下文”信息回答。如果上下文缺失，请明确说明。' };
+    const ctxMsg: ChatMessage | null = context ? { role: 'system', content: `检索上下文：\n${context}` } : null;
     const messages = [sys, ...(ctxMsg ? [ctxMsg] : []), ...req.messages];
-    const resp = await provider.chat({ ...req, messages }, ctx.emit, signal);
-    return { ...resp, agentId: 'rag' };
+    return runAgentRuntimeChat(ctx, req, messages, { agentId: 'rag', signal });
   }
 };

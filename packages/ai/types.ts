@@ -24,9 +24,12 @@ export type ChatRequest = {
   maxTokens?: number;
   abortId?: string; // used to cancel via IPC
   extras?: Record<string, any>; // agent/provider specific
+  requestId?: string; // for streaming identification
+  persist?: boolean; // whether to persist conversation/messages (default true)
 };
 
 export type StreamEvent =
+  | { type: 'connected' }
   | { type: 'delta'; data: { text?: string; toolCall?: any } }
   | { type: 'message_completed'; data: { message: ChatMessage } }
   | { type: 'tool_call'; data: { name: string; args: any; callId: string } }
@@ -55,7 +58,7 @@ export type ProviderConfig = {
   enabled: boolean;
   // Optional icon path; can be absolute, a res:// URL, or a resource-relative path resolved by renderer
   icon?: string;
-  // Optional i18n locales: e.g., { en: { label: 'OpenAI', fields: { apiKey: 'API Key' } }, zh: { label: '开放AI' } }
+  // Optional i18n locales: e.g., { en: { label: 'OpenAI', fields: { apiKey: 'API Key' } }, zh: { label: '开放AI', fields: { apiKey: 'API 密钥' } }
   locales?: Record<string, { label?: string; fields?: Record<string, string> }>;
   fields: Array<{
     key: string;
@@ -79,7 +82,7 @@ export interface ProviderAdapter {
   // Embeddings
   embed?(req: EmbeddingRequest): Promise<EmbeddingResponse>;
   // Models: return id + optional metadata; UI will use label if provided
-  listModels?(opts?: { secrets?: ProviderSecrets }): Promise<Array<{ id: string; label?: string; [k: string]: any }>>;
+  listModels?(opts?: { secrets?: ProviderSecrets }): Promise<Array<{ id: string; label?: string;[k: string]: any }>>;
   // ASR
   transcribe?(file: File | Blob | Buffer, options?: { model?: string; language?: string; prompt?: string }): Promise<{ text: string }>;
 }
@@ -104,7 +107,7 @@ export type StartStreamPayload = { requestId: string; eventsChannel: string } & 
 export type AIApi = {
   getProviders(): Promise<any[]>;
   getAgents(): Promise<any[]>;
-  listModels(providerId: string, instanceId?: string): Promise<Array<{ id: string; label?: string; [k: string]: any }>>;
+  listModels(providerId: string, instanceId?: string): Promise<Array<{ id: string; label?: string;[k: string]: any }>>;
   getProviderSecrets(providerId: string): Promise<Record<string, string>>;
   setProviderSecrets(providerId: string, secrets: Record<string, string>): Promise<{ ok: boolean }>;
   clearProviderSecrets(providerId: string): Promise<{ ok: boolean }>;
@@ -112,15 +115,13 @@ export type AIApi = {
   getProviderApiKeys(providerId: string, key: string): Promise<Array<{ name: string; value: string; isDefault?: boolean }>>;
   setProviderApiKeys(providerId: string, key: string, keys: Array<{ name: string; value: string; isDefault?: boolean }>): Promise<{ ok: boolean }>;
   addProviderApiKey(providerId: string, key: string, apiKey: { name: string; value: string }): Promise<{ ok: boolean }>;
-  updateProviderApiKey(providerId: string, key: string, apiKeyName: string, updates: Partial<{ name: string; value: string; isDefault: boolean }>): Promise<{ ok: boolean }>;
+  updateProviderApiKey(providerId: string, key: string, apiKeyName: string, updates: Partial<{ name: string; value: string; isDefault?: boolean }>): Promise<{ ok: boolean }>;
   removeProviderApiKey(providerId: string, key: string, apiKeyName: string): Promise<{ ok: boolean }>;
   setDefaultProviderApiKey(providerId: string, key: string, apiKeyName: string): Promise<{ ok: boolean }>;
   clearAllSecrets(): Promise<{ ok: boolean }>;
   chat(payload: any): Promise<{ message: { role: string; content: string } }>;
   // Stateless chat (no history persistence)
   chatEphemeral(payload: ChatRequest): Promise<{ message: { role: string; content: string } }>;
-  // Stateless streaming chat (no history persistence)
-  chatStreamEphemeral(payload: any, onEvent: (ev: { type: string; data?: any }) => void): Promise<{ requestId: string; dispose: () => void; cancel: () => Promise<any> }>;
   chatStream(payload: ChatRequest, onEvent: (ev: { type: string; data?: any }) => void): Promise<{ requestId: string; dispose: () => void; cancel: () => Promise<any> }>;
   // Subtitle translation: handled in main process, sends messages to all windows
   translate(payload: {
@@ -181,9 +182,7 @@ export type AIApi = {
   createGlossaryCategory(payload: { name: string; description?: string }): Promise<{ id: string; name: string; description?: string; createdAt: number; updatedAt: number }>;
   updateGlossaryCategory(id: string, patch: { name?: string; description?: string }): Promise<{ id: string; name: string; description?: string; createdAt: number; updatedAt: number } | undefined>;
   deleteGlossaryCategory(id: string): Promise<{ ok: boolean }>;
-  listGlossaries(
-    categoryId?: string
-  ): Promise<
+  listGlossaries(categoryId?: string): Promise<
     Array<{
       id: string;
       categoryId: string;
@@ -196,20 +195,18 @@ export type AIApi = {
       updatedAt: number;
     }>
   >;
-  getGlossary(
-    id: string
-  ): Promise<
+  getGlossary(id: string): Promise<
     | {
-        id: string;
-        categoryId: string;
-        name: string;
-        description?: string;
-        entries: Array<{ source: string; target: string; note?: string }>;
-        sourceFile?: string;
-        sourceFormat?: string;
-        createdAt: number;
-        updatedAt: number;
-      }
+      id: string;
+      categoryId: string;
+      name: string;
+      description?: string;
+      entries: Array<{ source: string; target: string; note?: string }>;
+      sourceFile?: string;
+      sourceFormat?: string;
+      createdAt: number;
+      updatedAt: number;
+    }
     | undefined
   >;
   createGlossary(payload: {
@@ -235,16 +232,16 @@ export type AIApi = {
     patch: { categoryId?: string; name?: string; description?: string; entries?: Array<{ source: string; target: string; note?: string }> }
   ): Promise<
     | {
-        id: string;
-        categoryId: string;
-        name: string;
-        description?: string;
-        entries: Array<{ source: string; target: string; note?: string }>;
-        sourceFile?: string;
-        sourceFormat?: string;
-        createdAt: number;
-        updatedAt: number;
-      }
+      id: string;
+      categoryId: string;
+      name: string;
+      description?: string;
+      entries: Array<{ source: string; target: string; note?: string }>;
+      sourceFile?: string;
+      sourceFormat?: string;
+      createdAt: number;
+      updatedAt: number;
+    }
     | undefined
   >;
   deleteGlossary(id: string): Promise<{ ok: boolean }>;
@@ -253,16 +250,16 @@ export type AIApi = {
     entries: Array<{ source: string; target: string; note?: string }>
   ): Promise<
     | {
-        id: string;
-        categoryId: string;
-        name: string;
-        description?: string;
-        entries: Array<{ source: string; target: string; note?: string }>;
-        sourceFile?: string;
-        sourceFormat?: string;
-        createdAt: number;
-        updatedAt: number;
-      }
+      id: string;
+      categoryId: string;
+      name: string;
+      description?: string;
+      entries: Array<{ source: string; target: string; note?: string }>;
+      sourceFile?: string;
+      sourceFormat?: string;
+      createdAt: number;
+      updatedAt: number;
+    }
     | undefined
   >;
   removeGlossaryEntry(
@@ -270,16 +267,16 @@ export type AIApi = {
     source: string
   ): Promise<
     | {
-        id: string;
-        categoryId: string;
-        name: string;
-        description?: string;
-        entries: Array<{ source: string; target: string; note?: string }>;
-        sourceFile?: string;
-        sourceFormat?: string;
-        createdAt: number;
-        updatedAt: number;
-      }
+      id: string;
+      categoryId: string;
+      name: string;
+      description?: string;
+      entries: Array<{ source: string; target: string; note?: string }>;
+      sourceFile?: string;
+      sourceFormat?: string;
+      createdAt: number;
+      updatedAt: number;
+    }
     | undefined
   >;
   parseGlossaryContent(
@@ -287,4 +284,26 @@ export type AIApi = {
     fileName?: string
   ): Promise<{ success: boolean; entries: Array<{ source: string; target: string; note?: string }>; format: string; error?: string; suggestedName?: string }>;
   mergeGlossaries(ids: string[]): Promise<Array<{ source: string; target: string; note?: string }>>;
+
+  // ==================== 总结相关 ====================
+
+  summarize(payload: {
+    providerId: string;
+    model: string;
+    content?: string;
+    segments?: any[];
+    resourceId?: string;
+    targetLanguage: string;
+    languageNames: Record<string, string>;
+    options?: {
+      maxChars?: number;
+      extractKeyPoints?: boolean;
+      extractTimeline?: boolean;
+      keywordCount?: number;
+      promptTemplate?: string;
+    };
+    metadata?: Record<string, any>;
+  }): Promise<{ requestId: string }>;
+  cancelSummary(requestId: string): Promise<{ ok: boolean }>;
+  getSummaryTasks(): Promise<Array<{ requestId: string; providerId: string; model: string; startTime: number; metadata?: Record<string, any> }>>;
 };

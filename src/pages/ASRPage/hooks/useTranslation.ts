@@ -55,11 +55,12 @@ export const useTranslation = ({ enableTranslation, targetLanguage, providerId }
 
         let currentTranslation = '';
 
-        const stream = await window.YUA.ai.chatStreamEphemeral(
+        const stream = await window.YUA.ai.chatStream(
           {
             messages: [{ role: 'user', content: prompt }],
             providerId,
-            stream: true
+            stream: true,
+            persist: false
           },
           (ev: any) => {
             if (ev.type === 'connected') {

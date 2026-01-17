@@ -171,15 +171,17 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
 
   return (
     <div className="flex h-full w-full flex-col text-muted-foreground">
-      {/* 翻译按钮和配置（业务组件） */}
-      <SubtitleTranslator
-        subtitleEntries={subtitleEntries}
-        resourceId={resource.id}
-        isTranslating={isTranslating}
-        translationProgress={translationProgress}
-        onStopTranslation={stopTranslation}
-        onTranslationStart={handleTranslationStart}
-      />
+      <div className="flex items-center justify-end gap-2 border-b border-border/50 pb-2">
+        {/* 翻译按钮和配置（业务组件） */}
+        <SubtitleTranslator
+          subtitleEntries={subtitleEntries}
+          resourceId={resource.id}
+          isTranslating={isTranslating}
+          translationProgress={translationProgress}
+          onStopTranslation={stopTranslation}
+          onTranslationStart={handleTranslationStart}
+        />
+      </div>
 
       {/* 通用字幕展示组件：支持多轨道（主轨 + 附加轨道） */}
       <SubtitlePlayer

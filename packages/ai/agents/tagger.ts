@@ -1,4 +1,5 @@
-import { AgentContext, AgentDefinition, ChatRequest, ChatResponse } from '../types';
+import type { AgentContext, AgentDefinition, ChatMessage, ChatRequest, ChatResponse } from '../types';
+import { runAgentRuntimeChat } from './agent-runtime-bridge';
 
 // Basic tag cleanup/normalization
 function normalize(tag: string): string {
@@ -46,8 +47,8 @@ function parseTagsFromText(txt: string): string[] {
 async function tagOneSegment(ctx: AgentContext, req: ChatRequest, seg: string, maxPerSeg = 5, signal?: AbortSignal): Promise<string[]> {
   const provider = ctx.getProvider(req.providerId);
   if (!provider?.chat) return [];
-  const sys = {
-    role: 'system' as const,
+  const sys: ChatMessage = {
+    role: 'system',
     content: [
       '你是一个资深文本归纳与主题提取助手。',
       '目标：从给定文本中提炼出主题/话题标签，尽量短小、泛化，避免冗长描述，控制在一个单词或者短语内。',
@@ -55,9 +56,9 @@ async function tagOneSegment(ctx: AgentContext, req: ChatRequest, seg: string, m
       '仅返回 JSON 数组，例如：["标签1","标签2"...]；不要包含解释性文字。'
     ].join('\n')
   };
-  const user = { role: 'user' as const, content: `文本：\n${seg}` };
+  const user: ChatMessage = { role: 'user', content: `文本：\n${seg}` };
   try {
-    const resp = await provider.chat({ ...req, messages: [sys, user], stream: false }, ctx.emit, signal);
+    const resp = await runAgentRuntimeChat(ctx, { ...req, stream: false }, [sys, user], { agentId: 'tagger', signal });
 
     console.log(resp);
 

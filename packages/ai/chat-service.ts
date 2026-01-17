@@ -1,10 +1,14 @@
 import { randomUUID } from 'node:crypto';
 
+import { Agent } from '@mastra/core/agent';
 import { BrowserWindow, ipcMain, WebContents } from 'electron';
 
 import { ChatRepo } from '../common/db';
+import { getAgent } from './agents';
 import { InstancesStore } from './instances-store';
-import { getAgent, getProvider } from './registry';
+import { createModel } from './models/index';
+import { getProvider } from './registry';
+import { getAllSecrets, getFirstApiKey } from './settings-store';
 import { getAllInstanceSecrets } from './settings-store';
 import { AgentDefinition, ChatRequest, ChatResponse, EmbeddingResponse, StreamEvent } from './types';
 
@@ -26,8 +30,7 @@ export class ChatService {
 
   registerIpc(): void {
     ipcMain.handle('ai:chat', async (e, req: ChatRequest) => this.chat(BrowserWindow.fromWebContents(e.sender) || this.defaultWin, req));
-    ipcMain.handle('ai:chatStream', async (e, req: ChatRequest & { requestId?: string }) => this.chatStream(e.sender, req));
-    ipcMain.handle('ai:chatStreamEphemeral', async (e, req: ChatRequest & { requestId?: string }) => this.chatStreamEphemeral(e.sender, req));
+    ipcMain.handle('ai:chatStream', async (e, req: ChatRequest) => this.chatStream(e.sender, req));
     ipcMain.handle('ai:cancel', async (_e, payload: { requestId: string }) => this.cancel(payload.requestId));
     ipcMain.handle('ai:embed', async (_e, payload: { texts: string[]; providerId?: string; model?: string; normalize?: boolean }) => this.embed(payload));
     // Stateless chat (no history persistence)
@@ -109,160 +112,136 @@ export class ChatService {
     return { ...resp, metadata: { ...(resp.metadata || {}) } } as any;
   }
 
-  // Streaming Ephemeral chat: stream events without persisting any history
-  private async chatStreamEphemeral(sender: WebContents, req: ChatRequest & { requestId?: string }): Promise<{ requestId: string; eventsChannel: string }> {
-    const requestId = req.abortId || req['requestId'] || safeUuid();
-    const eventsChannel = `ai:stream:${requestId}`;
-    const ctrl = new AbortController();
-    this.controllers.set(requestId, ctrl);
-
-    let emittedCompleted = false;
-    const emit = (event: StreamEvent): void => {
-      if (event?.type === 'message_completed') {
-        emittedCompleted = true;
-      }
-      (sender || this.defaultWin?.webContents)?.send(eventsChannel, event);
-    };
-
-    setTimeout(async () => {
-      try {
-        console.log('req', req);
-        const resolvedReq = await this.withInstance(req);
-        const ctx = { window: BrowserWindow.fromWebContents(sender) || this.defaultWin, emit, getProvider: (id?: string) => getProvider(id) };
-        // Notify renderer that channel is ready
-        emit({ type: 'connected' } as any);
-
-        let finalResp: ChatResponse | undefined;
-        const agent: AgentDefinition | undefined = getAgent(resolvedReq.agentId);
-        if (agent) {
-          finalResp = await agent.handleChat(ctx, { ...resolvedReq, stream: true, abortId: requestId }, ctrl.signal);
-        } else {
-          const prov = getProvider(resolvedReq.providerId);
-          if (!prov?.chat) throw new Error('No provider available');
-          // 如果没有通过 instance 加载 secrets，从存储中加载 provider 的 secrets
-          if (!resolvedReq.extras?.secrets && resolvedReq.providerId) {
-            try {
-              const { getAllSecrets } = await import('./settings-store');
-              const schema = prov.getConfigSchema?.();
-              const keys = (schema?.fields || []).map((f) => f.key);
-              const secrets = await getAllSecrets(resolvedReq.providerId, keys);
-              if (Object.keys(secrets).length > 0) {
-                // 设置 provider 的 secrets
-                if (prov.setSecrets) {
-                  await Promise.resolve(prov.setSecrets(secrets));
-                }
-                // 同时设置到 req.extras.secrets 作为 override
-                if (!resolvedReq.extras) resolvedReq.extras = {};
-                resolvedReq.extras.secrets = secrets;
-              }
-            } catch (err) {
-              console.error('Failed to load provider secrets:', err);
-            }
-          }
-
-          finalResp = await prov.chat({ ...resolvedReq, stream: true, abortId: requestId }, emit, ctrl.signal);
-        }
-        if (!emittedCompleted && finalResp?.message) {
-          emit({ type: 'message_completed', data: { message: finalResp.message } } as any);
-        }
-        emit({ type: 'done' });
-      } catch (err: any) {
-        emit({ type: 'error', data: { message: err?.message || 'chat error' } });
-      } finally {
-        this.controllers.delete(requestId);
-      }
-    }, 0);
-
-    return { requestId, eventsChannel };
-  }
-
-  private async chatStream(sender: WebContents, req: ChatRequest & { requestId?: string }): Promise<{ requestId: string; eventsChannel: string }> {
+  private async chatStream(sender: WebContents, req: ChatRequest): Promise<{ requestId: string; eventsChannel: string }> {
     // Prepare identifiers and controller
     const requestId = req.abortId || req['requestId'] || safeUuid();
     const eventsChannel = `ai:stream:${requestId}`;
     const ctrl = new AbortController();
     this.controllers.set(requestId, ctrl);
 
-    // Define emitter and context upfront
-    let emittedDelta = false;
-    let emittedCompleted = false;
+    console.log(`
+=========================================================
+Starting chat stream
+${JSON.stringify(req, null, 2)}
+=========================================================
+`);
+
     const emit = (event: StreamEvent): void => {
-      try {
-        if (event?.type === 'delta' && (event as any).data?.text) emittedDelta = true;
-        if (event?.type === 'message_completed') emittedCompleted = true;
-        (sender || this.defaultWin?.webContents)?.send(eventsChannel, event);
-      } catch {
-        //
-      }
+      (sender || this.defaultWin?.webContents)?.send(eventsChannel, event);
     };
 
     // Start the actual streaming on next tick to avoid missing early events
     setTimeout(async () => {
       try {
-        const resolvedReq = await this.withInstance(req);
+        const resolved = await this.withInstance(req);
+        const agent = await this.getConfiguredAgent(resolved);
+
+        emit({ type: 'connected' });
+
+        if (!agent) {
+          emit({ type: 'error', data: { message: 'Agent 不可用' } });
+          emit({ type: 'done' });
+          return;
+        }
+        console.log(resolved);
+
+        const shouldPersist = resolved.persist !== false;
+
+        // ==============================================数据库处理
         // Ensure conversation and persist the last user message once per request
-        const conv = await ChatRepo.ensureConversation({
-          id: resolvedReq.conversationId,
-          agentId: resolvedReq.agentId,
-          providerId: resolvedReq.providerId,
-          providerInstanceId: (resolvedReq as any).providerInstanceId
-        });
-        const last = (resolvedReq.messages || [])
+        const lastUserMessage = (resolved.messages || [])
           .slice()
           .reverse()
           .find((m) => m.role === 'user');
-        if (last) {
+        const conv = shouldPersist
+          ? await ChatRepo.ensureConversation({
+            id: resolved.conversationId,
+            agentId: resolved.agentId,
+            providerId: resolved.providerId,
+            providerInstanceId: (resolved as any).providerInstanceId
+          })
+          : undefined;
+        if (shouldPersist && lastUserMessage && conv) {
           try {
             await ChatRepo.addMessage(conv.id, {
               role: 'user',
-              content: last.content,
-              name: last.name,
-              toolCallId: last.toolCallId,
-              metadata: last.metadata ? (JSON.stringify(last.metadata) as any) : null,
-              createdAt: last.createdAt || Date.now()
+              content: lastUserMessage.content,
+              name: lastUserMessage.name,
+              toolCallId: lastUserMessage.toolCallId,
+              metadata: lastUserMessage.metadata ? (JSON.stringify(lastUserMessage.metadata) as any) : null,
+              createdAt: lastUserMessage.createdAt || Date.now()
             } as any);
           } catch {
             //
           }
         }
-        const ctx = { window: BrowserWindow.fromWebContents(sender) || this.defaultWin, emit, getProvider: (id?: string) => getProvider(id) };
-        // Notify renderer that channel is ready (after the renderer has had a chance to attach listener)
-        emit({ type: 'connected' } as any);
-        emit({ type: 'metadata', data: { conversationId: conv.id } });
+        // ================================================================
+        // ==============================================数据库处理结束
+        // ================================================================
 
-        let finalResp: ChatResponse | undefined;
-        const agent: AgentDefinition | undefined = getAgent(resolvedReq.agentId);
-        if (agent) {
-          finalResp = await agent.handleChat(ctx, { ...resolvedReq, stream: true, abortId: requestId }, ctrl.signal);
-        } else {
-          const prov = getProvider(resolvedReq.providerId);
-          if (!prov?.chat) throw new Error('No provider available');
-          finalResp = await prov.chat({ ...resolvedReq, stream: true, abortId: requestId }, emit, ctrl.signal);
+        if (conv) {
+          emit({ type: 'metadata', data: { conversationId: conv.id } });
         }
-        if (!emittedCompleted && finalResp?.message) {
-          emit({ type: 'message_completed', data: { message: finalResp.message } } as any);
+
+        // 流式调用（使用字符串输入）
+        const stream = await agent.stream(lastUserMessage?.content || '', {
+          maxSteps: 10,
+          abortSignal: ctrl.signal
+        });
+
+        let fullText = '';
+
+        for await (const chunk of stream.textStream) {
+          if (ctrl.signal.aborted) break;
+
+          fullText += chunk;
+          emit({ type: 'delta', data: { text: chunk } });
         }
-        // Always send conversationId metadata at end as well (idempotent for renderer)
-        emit({ type: 'metadata', data: { conversationId: conv.id } });
-        // Persist assistant message at the end (regardless of who emitted deltas)
-        try {
-          const msg = finalResp?.message;
-          if (msg) {
-            await ChatRepo.addMessage(conv.id, {
-              role: 'assistant',
-              content: msg.content || '',
-              name: msg.name,
-              toolCallId: msg.toolCallId,
-              metadata: msg.metadata ? (JSON.stringify(msg.metadata) as any) : null,
-              createdAt: msg.createdAt || Date.now()
-            } as any);
+
+        const finalResp: ChatResponse = {
+          message: {
+            role: 'assistant',
+            content: fullText,
+            createdAt: Date.now()
+          },
+          providerId: req.providerId,
+          agentId: resolved?.agentId
+          // usage
+        };
+        emit({
+          type: 'message_completed',
+          data: finalResp
+        });
+        if (conv) {
+          // Always send conversationId metadata at end as well (idempotent for renderer)
+          emit({ type: 'metadata', data: { conversationId: conv.id } });
+          // Persist assistant message at the end (regardless of who emitted deltas)
+          try {
+            const msg = finalResp?.message;
+            if (msg) {
+              await ChatRepo.addMessage(conv.id, {
+                role: 'assistant',
+                content: msg.content || '',
+                name: msg.name,
+                toolCallId: msg.toolCallId,
+                metadata: msg.metadata ? (JSON.stringify(msg.metadata) as any) : null,
+                createdAt: msg.createdAt || Date.now()
+              } as any);
+            }
+          } catch {
+            //
           }
-        } catch {
-          //
         }
         emit({ type: 'done' });
-      } catch (err: any) {
-        emit({ type: 'error', data: { message: err?.message || 'chat error' } });
+      } catch (error: any) {
+        console.error('Stream 错误:', error);
+        emit({
+          type: 'error',
+          data: {
+            message: error instanceof Error ? error.message : String(error)
+          }
+        });
+        emit({ type: 'done' });
       } finally {
         this.controllers.delete(requestId);
       }
@@ -273,16 +252,59 @@ export class ChatService {
   }
 
   private cancel(requestId: string): { ok: boolean } {
-    const c = this.controllers.get(requestId);
-    if (c) c.abort();
-    this.controllers.delete(requestId);
-    return { ok: true };
+    const ctrl = this.controllers.get(requestId);
+    if (ctrl) {
+      ctrl.abort();
+      this.controllers.delete(requestId);
+      return { ok: true };
+    }
+    return { ok: false };
   }
 
   private async embed(payload: { texts: string[]; providerId?: string; model?: string; normalize?: boolean }): Promise<EmbeddingResponse> {
     const prov = getProvider(payload.providerId);
     if (!prov?.embed) throw new Error('Provider has no embeddings');
     return prov.embed(payload);
+  }
+
+  /**
+   * 获取配置好的 Agent
+   */
+  private async getConfiguredAgent(req: ChatRequest): Promise<Agent | undefined> {
+    const agentId = req.agentId || 'assistant';
+    const agent = getAgent(agentId);
+    if (!agent) return undefined;
+
+    // 获取 provider 配置
+    const providerId = req.providerId || 'openai';
+    const providerConfig = this.getProviderConfig(providerId);
+    if (!providerConfig) return agent;
+
+    // 获取 secrets
+    const keys = providerConfig.fields.map((f) => f.key);
+    const secrets = await getAllSecrets(providerId, keys);
+    const apiKey = getFirstApiKey(secrets.apiKey);
+
+    if (!apiKey && providerConfig.fields.some((f) => f.key === 'apiKey' && f.required)) {
+      console.warn(`Provider ${providerId} 未配置 API Key`);
+      return agent;
+    }
+
+    // 创建模型实例并配置 Agent
+    try {
+      const modelConfig = {
+        apiKey: apiKey || '',
+        baseUrl: secrets.baseUrl as string,
+        model: (req.extras?.model as string) || providerConfig.defaultModel
+      };
+      const model = createModel(providerId, modelConfig);
+
+      agent.model = model;
+      return agent;
+    } catch (error) {
+      console.error('创建模型失败:', error);
+      return agent;
+    }
   }
 
   private async withInstance(req: ChatRequest): Promise<ChatRequest> {
@@ -306,5 +328,13 @@ export class ChatService {
     const messages = [...(req.messages || [])];
     if (inst.systemPrompt) messages.unshift({ role: 'system', content: inst.systemPrompt });
     return { ...req, providerId: inst.providerId, messages, extras };
+  }
+
+  getProviderConfig(providerId: string): any {
+    const prov = getProvider(providerId);
+
+    console.log(prov?.getConfigSchema?.());
+
+    return prov?.getConfigSchema?.();
   }
 }
