@@ -34,6 +34,7 @@ import {
   updateApiKey
 } from './settings-store';
 import { getAllInstanceSecrets as getAllInstSecrets, setInstanceSecrets as setInstSecrets } from './settings-store';
+import { SummaryService } from './summary-service';
 import { TaggingService } from './tagging-service';
 import { TranslationService } from './translation-service';
 
@@ -612,6 +613,190 @@ export function initAIHandlers(win: BrowserWindow): void {
           emit({ type: 'done', data: { resourceId } });
         } else {
           emit({ type: 'error', data: { message: err?.message || '翻译失败', resourceId } });
+        }
+      });
+
+      return { requestId, eventsChannel };
+    }
+  );
+
+  // ==================== 总结相关 ====================
+
+  // 取消总结任务
+  ipcMain.handle('ai:cancelSummary', async (_e, payload: { requestId: string }) => {
+    const success = SummaryService.cancelSummary(payload.requestId);
+    if (success) {
+      return { success: true };
+    }
+    return { success: false, message: 'Task not found' };
+  });
+
+  // 获取所有活跃的总结任务
+  ipcMain.handle('ai:getSummaryTasks', async () => {
+    return SummaryService.getAllActiveSummaries();
+  });
+
+  // 字幕/文本总结
+  ipcMain.handle(
+    'ai:summarize',
+    async (
+      _e,
+      payload: {
+        providerId: string;
+        model: string;
+        content?: string;
+        segments?: any[];
+        resourceId?: string;
+        targetLanguage: string;
+        languageNames: Record<string, string>;
+        options?: {
+          maxChars?: number;
+          extractKeyPoints?: boolean;
+          extractTimeline?: boolean;
+          keywordCount?: number;
+          promptTemplate?: string;
+        };
+        metadata?: Record<string, any>;
+      }
+    ) => {
+      const { providerId, model, content, segments, resourceId, targetLanguage, languageNames, options, metadata = {} } = payload;
+      const requestId = randomUUID();
+      const eventsChannel = `summary:${requestId}`;
+      const taskLabel = `${providerId}/${model}`;
+
+      let actualContent: string | any[] = content as string | any[];
+
+      // 如果没有直接提供 content，尝试从 resourceId 读取
+      if (!actualContent && resourceId) {
+        try {
+          const resource = await ResourcesRepo.getById(resourceId);
+          if (!resource || !resource.filePath) {
+            throw new Error(`Resource ${resourceId} not found or has no file path`);
+          }
+
+          const lower = resource.filePath.toLowerCase();
+          const isSubtitleFile = lower.endsWith('.srt') || lower.endsWith('.vtt') || lower.endsWith('.ass') || lower.endsWith('.ssa');
+
+          if (isSubtitleFile) {
+            // 读取字幕文件
+            const fileContent = await fs.readFile(resource.filePath, 'utf8');
+            const parsedResult = await parser.parseSubtitle(fileContent);
+            actualContent = parsedResult?.segments || [];
+          } else {
+            // 读取普通文本文件
+            actualContent = await fs.readFile(resource.filePath, 'utf8');
+          }
+
+          if (!actualContent || (Array.isArray(actualContent) && actualContent.length === 0) || (typeof actualContent === 'string' && actualContent.length === 0)) {
+            throw new Error(`No content found in file: ${resource.filePath}`);
+          }
+
+          console.log(`[summarize] Loaded content from resource ${resourceId}`);
+        } catch (error) {
+          console.error('[summarize] Failed to load content from resource:', error);
+          throw error;
+        }
+      }
+
+      // 如果提供了 segments，使用 segments
+      if (!actualContent && segments) {
+        actualContent = segments;
+      }
+
+      if (!actualContent) {
+        throw new Error('No content provided and unable to load content from resourceId');
+      }
+
+      // 获取 provider 并验证
+      const provider = getProvider(providerId);
+      if (!provider || !provider.chat) {
+        throw new Error(`Provider ${providerId} not found or does not support chat`);
+      }
+
+      // 加载 secrets
+      const schema = provider.getConfigSchema?.();
+      const keys = (schema?.fields || []).map((f) => f.key);
+      const secrets = await getAllSecrets(providerId, keys);
+      if (Object.keys(secrets).length > 0 && provider.setSecrets) {
+        await Promise.resolve(provider.setSecrets(secrets));
+      }
+
+      // 构造 chatFn
+      const chatFn = async (prompt: string, onEvent: (event: any) => void, abortSignal?: AbortSignal): Promise<void> => {
+        await provider.chat?.(
+          {
+            messages: [{ role: 'user', content: prompt }],
+            providerId,
+            extras: { model, secrets },
+            stream: true,
+            abortId: `${requestId}-${Date.now()}`
+          },
+          (event: any) => {
+            if (event?.type === 'delta' && event.data?.text) {
+              onEvent({ type: 'delta', data: { text: event.data.text } });
+            } else if (event?.type === 'message_completed') {
+              onEvent({ type: 'message_completed' });
+            } else if (event?.type === 'error') {
+              onEvent({ type: 'error', data: { message: event.data?.message } });
+            }
+          },
+          abortSignal
+        );
+      };
+
+      let busyStarted = false;
+
+      // 向所有窗口发送消息的函数
+      const emit = (event: { type: string; data?: any }): void => {
+        // 处理进度事件，发送给精灵
+        if (event.type === 'progress' && event.data) {
+          const { percentage, message } = event.data;
+          if (percentage !== undefined) {
+            sendAppBusyProgress(percentage, message || '正在总结...');
+          }
+
+          if (!busyStarted) {
+            sendAppBusyStart(0, '开始总结内容...');
+            busyStarted = true;
+          }
+        }
+
+        // 在总结完成时结束繁忙状态
+        if (event.type === 'completed' || event.type === 'done' || event.type === 'error') {
+          sendAppBusyEnd();
+        }
+
+        // 发送消息到渲染进程
+        BrowserWindow.getAllWindows().forEach((w) => {
+          if (!w.isDestroyed()) {
+            try {
+              w.webContents.send('renderer-message', {
+                type: 'summary',
+                data: { requestId, ...event }
+              });
+            } catch (error) {
+              console.error('发送总结消息失败:', error);
+            }
+          }
+        });
+      };
+
+      // 异步处理总结
+      SummaryService.summarize(emit, {
+        requestId,
+        chatFn,
+        taskLabel,
+        content: actualContent,
+        targetLanguage,
+        languageNames,
+        metadata,
+        options
+      }).catch((err: any) => {
+        console.error('总结失败:', err);
+        if (err.message === 'Aborted') {
+          emit({ type: 'done' });
+        } else {
+          emit({ type: 'error', data: { message: err?.message || '总结失败' } });
         }
       });
 

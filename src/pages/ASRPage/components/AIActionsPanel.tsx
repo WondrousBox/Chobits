@@ -270,11 +270,12 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
             const prompt = `你是一个专业的语言翻译助手，你在翻译完成之后会检查原文有没有高级的词汇，如果有,将高难度的词汇找出来，用<word></word>标签包裹。如：\n翻译内容\n<word></word>\n\n请将以下文本翻译成${targetLangName}，只返回翻译结果和一个高级的英文单词原文，没有高级单词就不要返回<word></word>，不要添加任何解释或说明：\n\n${segment.text}`;
 
             window.YUA.ai
-              .chatStreamEphemeral(
+              .chatStream(
                 {
                   messages: [{ role: 'user', content: prompt }],
                   providerId: selectedProviderId,
-                  stream: true
+                  stream: true,
+                  persist: false
                 },
                 (ev: any) => {
                   if (translationAbortRef.current) {
@@ -385,11 +386,12 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
       const prompt = `请对以下语音识别内容进行简洁的总结，突出主要内容和关键信息：\n\n${allText}`;
 
       let currentResult = '';
-      await window.YUA.ai.chatStreamEphemeral(
+      await window.YUA.ai.chatStream(
         {
           messages: [{ role: 'user', content: prompt }],
           providerId: selectedProviderId,
-          stream: true
+          stream: true,
+          persist: false
         },
         (ev: any) => {
           if (ev.type === 'delta' && ev.data?.text) {
@@ -450,11 +452,12 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
           let wordExplanation = '';
 
           window.YUA.ai
-            .chatStreamEphemeral(
+            .chatStream(
               {
                 messages: [{ role: 'user', content: prompt }],
                 providerId: selectedProviderId,
-                stream: true
+                stream: true,
+                persist: false
               },
               (ev: any) => {
                 if (vocabularyAbortRef.current) {
@@ -538,11 +541,12 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
       const prompt = `请从以下语音识别内容中提取最重要、最精彩或最值得关注的内容片段，并简要说明为什么这些内容值得关注：\n\n${allText}`;
 
       let currentResult = '';
-      await window.YUA.ai.chatStreamEphemeral(
+      await window.YUA.ai.chatStream(
         {
           messages: [{ role: 'user', content: prompt }],
           providerId: selectedProviderId,
-          stream: true
+          stream: true,
+          persist: false
         },
         (ev: any) => {
           if (ev.type === 'delta' && ev.data?.text) {

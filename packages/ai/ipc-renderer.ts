@@ -99,56 +99,6 @@ export const aiBridge = {
       cancel: () => ipcRenderer.invoke('ai:cancel', { requestId: res.requestId })
     };
 
-    // auto cleanup on end-like events
-    const autoCleanup = (ev: any): void => {
-      if (ev?.type === 'done' || ev?.type === 'error') {
-        cleanup();
-        api.off(autoCleanup as any);
-      }
-    };
-    listeners.add(autoCleanup as any);
-
-    return api;
-  },
-  async chatStreamEphemeral(payload: any, onEvent?: StreamCallback) {
-    const res = await ipcRenderer.invoke('ai:chatStreamEphemeral', payload);
-    const channel: string = res.eventsChannel;
-    const listeners = new Set<StreamCallback>();
-    const handler = (_event: any, ev: any): void => {
-      listeners.forEach((cb) => {
-        try {
-          cb(ev);
-        } catch {
-          //
-        }
-      });
-    };
-    ipcRenderer.on(channel, handler);
-
-    if (onEvent) listeners.add(onEvent);
-
-    const cleanup = (): void => {
-      try {
-        ipcRenderer.off(channel, handler);
-      } catch {
-        //
-      }
-      listeners.clear();
-    };
-
-    const api = {
-      requestId: res.requestId as string,
-      on(cb: StreamCallback) {
-        listeners.add(cb);
-        return () => listeners.delete(cb);
-      },
-      off(cb: StreamCallback) {
-        listeners.delete(cb);
-      },
-      dispose: cleanup,
-      cancel: () => ipcRenderer.invoke('ai:cancel', { requestId: res.requestId })
-    };
-
     const autoCleanup = (ev: any): void => {
       if (ev?.type === 'done' || ev?.type === 'error') {
         cleanup();
@@ -312,6 +262,40 @@ export const aiBridge = {
   },
   async mergeGlossaries(ids: string[]) {
     return ipcRenderer.invoke('ai:mergeGlossaries', { ids });
+  },
+
+  // ==================== 总结相关 ====================
+
+  // 总结内容
+  async summarize(payload: {
+    providerId: string;
+    model: string;
+    content?: string;
+    segments?: any[];
+    resourceId?: string;
+    targetLanguage: string;
+    languageNames: Record<string, string>;
+    options?: {
+      maxChars?: number;
+      extractKeyPoints?: boolean;
+      extractTimeline?: boolean;
+      keywordCount?: number;
+      promptTemplate?: string;
+    };
+    metadata?: Record<string, any>;
+  }) {
+    const res = await ipcRenderer.invoke('ai:summarize', payload);
+    return { requestId: res.requestId as string };
+  },
+
+  // 取消总结任务
+  async cancelSummary(requestId: string) {
+    return ipcRenderer.invoke('ai:cancelSummary', { requestId });
+  },
+
+  // 获取所有活跃的总结任务
+  async getSummaryTasks() {
+    return ipcRenderer.invoke('ai:getSummaryTasks');
   }
 };
 

@@ -137,7 +137,6 @@ Renderer（示例约定，实际路径视实现为准）：
   - `chat(payload)`
   - `chatEphemeral(payload)`
   - `chatStream(payload, onEvent)`
-  - `chatStreamEphemeral(payload, onEvent)`
   - `embed({ texts, providerId?, model?, normalize? })`
 - 实例（Instance）管理：
   - `listInstances(providerId?)`
@@ -168,8 +167,6 @@ Renderer → Preload → Main：
   - 有会话持久化：会根据 `conversationId` 在 `ChatRepo` 中 `ensureConversation`，并写入最后一条 user 消息和 assistant 回复。
 - **`ai:chatEphemeral`** `(ChatRequest)` → `ChatResponse`
   - 无会话持久化：仍会合并实例配置，但不写入 `ChatRepo`。
-- **`ai:chatStreamEphemeral`** `(ChatRequest & { requestId? })` → `{ requestId, eventsChannel }`
-  - 流式、无持久化：仅推送 delta/message_completed/done/error 等事件，不写入历史。
 - **`ai:chatStream`** `(ChatRequest & { requestId? })` → `{ requestId, eventsChannel }`
   - 流式、有持久化：在首条 user 消息后写入历史，结束时写入 assistant 最终消息，并通过 metadata 附带 `conversationId`。
 - **`ai:cancel`** `({ requestId })` → `{ ok: true }`
@@ -233,7 +230,7 @@ Renderer → Preload → Main：
 ## 5. 流式对话设计
 
 - ChatService 使用 `AbortController` 管理取消，请求 id 统一使用 `abortId` 或内部生成的 `requestId`。
-- `ai:chatStream` / `ai:chatStreamEphemeral`：
+- `ai:chatStream`：
   - 主进程立即返回 `{ requestId, eventsChannel }`，让渲染进程先订阅事件通道。
   - 随后以异步任务方式启动实际的对话处理。
 - Provider/Agent 在生成时通过回调 `emit({ type: 'delta', data: { text } })` 推送 token 片段：
