@@ -109,186 +109,146 @@
     }
   },
   {
-    "id": "sample:transcribe",
-    "name": "提取字幕 (Whisper)",
-    "description": "调用 Whisper 将语音转换为文字",
-    "icon": "<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><path fill='none' stroke='currentColor' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M4 8V6a2 2 0 0 1 2-2h2M4 16v2a2 2 0 0 0 2 2h2m8-16h2a2 2 0 0 1 2 2v2m-4 12h2a2 2 0 0 0 2-2v-2M8 12h8M8 9h6m-6 6h4'/></svg>",
-    "nodes": [
-      {
-        "id": "start",
-        "type": "core/start",
-        "x": 0,
-        "y": 286.5,
-        "config": {
-          "inputMode": "resource",
-          "resourceKinds": [
-            "audio",
-            "video"
-          ]
-        }
-      },
-      {
-        "id": "whisper",
-        "type": "media/transcribe-whisper",
-        "x": 392,
-        "y": 231.5,
-        "config": {
-          "model": "",
-          "language": "",
-          "outputFormats": [
-            "srt",
-            "txt",
-            "json"
-          ],
-          "jsonFull": true
-        }
-      },
-      {
-        "id": "end",
-        "type": "core/end",
-        "x": 1176,
-        "y": 374,
-        "config": {}
-      },
-      {
-        "id": "resource/update-798N",
-        "type": "resource/update",
-        "x": 784,
-        "y": 0,
-        "config": {}
-      },
-      {
-        "id": "resource/create-kfIN",
-        "type": "resource/create",
-        "x": 784,
-        "y": 306,
-        "config": {}
-      },
-      {
-        "id": "resource/create-W6MJ",
-        "type": "resource/create",
-        "x": 784,
-        "y": 612,
-        "config": {}
+  "id": "sample:transcribe",
+  "name": "提取字幕 (Whisper)",
+  "description": "调用 Whisper 将语音转换为文字",
+  "icon": "<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><path fill='none' stroke='currentColor' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M4 8V6a2 2 0 0 1 2-2h2M4 16v2a2 2 0 0 0 2 2h2m8-16h2a2 2 0 0 1 2 2v2m-4 12h2a2 2 0 0 0 2-2v-2M8 12h8M8 9h6m-6 6h4'/></svg>",
+  "nodes": [
+    {
+      "id": "start",
+      "type": "core/start",
+      "x": 0,
+      "y": 141.5,
+      "config": {
+        "inputMode": "resource",
+        "resourceKinds": [
+          "audio",
+          "video"
+        ]
       }
-    ],
-    "edges": [
-      {
-        "id": "e-MNiAAQ",
-        "from": {
-          "nodeId": "start",
-          "port": "path"
-        },
-        "to": {
-          "nodeId": "whisper",
-          "port": "media"
-        }
-      },
-      {
-        "id": "e-Z7kvuZ",
-        "from": {
-          "nodeId": "start",
-          "port": "resourceId"
-        },
-        "to": {
-          "nodeId": "resource/update-798N",
-          "port": "resourceId"
-        }
-      },
-      {
-        "id": "e-cs1As7",
-        "from": {
-          "nodeId": "resource/update-798N",
-          "port": "resourceId"
-        },
-        "to": {
-          "nodeId": "end",
-          "port": "result"
-        }
-      },
-      {
-        "id": "e-m-cAbx",
-        "from": {
-          "nodeId": "resource/create-kfIN",
-          "port": "resourceId"
-        },
-        "to": {
-          "nodeId": "end",
-          "port": "result"
-        }
-      },
-      {
-        "id": "e-_Lfxd6",
-        "from": {
-          "nodeId": "whisper",
-          "port": "srt"
-        },
-        "to": {
-          "nodeId": "resource/create-kfIN",
-          "port": "file"
-        }
-      },
-      {
-        "id": "e-V_Tp2z",
-        "from": {
-          "nodeId": "whisper",
-          "port": "text"
-        },
-        "to": {
-          "nodeId": "resource/update-798N",
-          "port": "contentText"
-        }
-      },
-      {
-        "id": "e-tbIe4W",
-        "from": {
-          "nodeId": "start",
-          "port": "resourceId"
-        },
-        "to": {
-          "nodeId": "resource/create-kfIN",
-          "port": "parentResourceId"
-        }
-      },
-      {
-        "id": "e-yUR8rK",
-        "from": {
-          "nodeId": "whisper",
-          "port": "json"
-        },
-        "to": {
-          "nodeId": "resource/create-W6MJ",
-          "port": "file"
-        }
-      },
-      {
-        "id": "e-qdsjlk",
-        "from": {
-          "nodeId": "start",
-          "port": "resourceId"
-        },
-        "to": {
-          "nodeId": "resource/create-W6MJ",
-          "port": "parentResourceId"
-        }
-      },
-      {
-        "id": "e-whXbt4",
-        "from": {
-          "nodeId": "resource/create-W6MJ",
-          "port": "resource"
-        },
-        "to": {
-          "nodeId": "end",
-          "port": "result"
-        }
+    },
+    {
+      "id": "whisper",
+      "type": "media/transcribe-whisper",
+      "x": 392,
+      "y": 199,
+      "config": {
+        "model": "",
+        "language": "",
+        "outputFormats": [
+          "srt",
+          "txt",
+          "json"
+        ],
+        "jsonFull": true
       }
-    ],
-    "options": {
-      "concurrency": 1,
-      "errorStrategy": "fail-fast"
+    },
+    {
+      "id": "end",
+      "type": "core/end",
+      "x": 1176,
+      "y": 237,
+      "config": {}
+    },
+    {
+      "id": "resource/update-798N",
+      "type": "resource/update",
+      "x": 784,
+      "y": 0,
+      "config": {}
+    },
+    {
+      "id": "resource/create-kfIN",
+      "type": "resource/create",
+      "x": 784,
+      "y": 322,
+      "config": {}
     }
-  },
+  ],
+  "edges": [
+    {
+      "id": "e-MNiAAQ",
+      "from": {
+        "nodeId": "start",
+        "port": "path"
+      },
+      "to": {
+        "nodeId": "whisper",
+        "port": "media"
+      }
+    },
+    {
+      "id": "e-Z7kvuZ",
+      "from": {
+        "nodeId": "start",
+        "port": "resourceId"
+      },
+      "to": {
+        "nodeId": "resource/update-798N",
+        "port": "resourceId"
+      }
+    },
+    {
+      "id": "e-cs1As7",
+      "from": {
+        "nodeId": "resource/update-798N",
+        "port": "resourceId"
+      },
+      "to": {
+        "nodeId": "end",
+        "port": "result"
+      }
+    },
+    {
+      "id": "e-m-cAbx",
+      "from": {
+        "nodeId": "resource/create-kfIN",
+        "port": "resourceId"
+      },
+      "to": {
+        "nodeId": "end",
+        "port": "result"
+      }
+    },
+    {
+      "id": "e-_Lfxd6",
+      "from": {
+        "nodeId": "whisper",
+        "port": "srt"
+      },
+      "to": {
+        "nodeId": "resource/create-kfIN",
+        "port": "file"
+      }
+    },
+    {
+      "id": "e-V_Tp2z",
+      "from": {
+        "nodeId": "whisper",
+        "port": "text"
+      },
+      "to": {
+        "nodeId": "resource/update-798N",
+        "port": "contentText"
+      }
+    },
+    {
+      "id": "e-tbIe4W",
+      "from": {
+        "nodeId": "start",
+        "port": "resourceId"
+      },
+      "to": {
+        "nodeId": "resource/create-kfIN",
+        "port": "parentResourceId"
+      }
+    }
+  ],
+  "options": {
+    "concurrency": 1,
+    "errorStrategy": "fail-fast"
+  }
+},
   {
     "id": "sample:transcode",
     "name": "提取音频 (MP3)",

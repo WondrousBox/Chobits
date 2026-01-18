@@ -10,7 +10,9 @@ import { createModel } from './models/index';
 import { getProvider } from './registry';
 import { getAllSecrets, getFirstApiKey } from './settings-store';
 import { getAllInstanceSecrets } from './settings-store';
-import { AgentDefinition, ChatRequest, ChatResponse, EmbeddingResponse, StreamEvent } from './types';
+import { summaryToolContext } from './tools/summary-tool-context';
+import { translationToolContext } from './tools/translation-tool-context';
+import { AgentDefinition, ChatMessage, ChatRequest, ChatResponse, EmbeddingResponse, StreamEvent } from './types';
 
 // local UUID fallback if uuid not present
 function safeUuid(): string {
@@ -183,56 +185,118 @@ ${JSON.stringify(req, null, 2)}
           emit({ type: 'metadata', data: { conversationId: conv.id } });
         }
 
-        // 流式调用（使用字符串输入）
-        const stream = await agent.stream(lastUserMessage?.content || '', {
-          maxSteps: 10,
-          abortSignal: ctrl.signal
-        });
-
-        let fullText = '';
-
-        for await (const chunk of stream.textStream) {
-          if (ctrl.signal.aborted) break;
-
-          fullText += chunk;
-          emit({ type: 'delta', data: { text: chunk } });
-        }
-
-        const finalResp: ChatResponse = {
-          message: {
-            role: 'assistant',
-            content: fullText,
-            createdAt: Date.now()
-          },
-          providerId: req.providerId,
-          agentId: resolved?.agentId
-          // usage
-        };
-        emit({
-          type: 'message_completed',
-          data: finalResp
-        });
-        if (conv) {
-          // Always send conversationId metadata at end as well (idempotent for renderer)
-          emit({ type: 'metadata', data: { conversationId: conv.id } });
-          // Persist assistant message at the end (regardless of who emitted deltas)
+        let contextMessages: ChatMessage[] | undefined = (resolved.messages || []).length ? resolved.messages : undefined;
+        if (!contextMessages && shouldPersist && conv?.id) {
           try {
-            const msg = finalResp?.message;
-            if (msg) {
-              await ChatRepo.addMessage(conv.id, {
-                role: 'assistant',
-                content: msg.content || '',
-                name: msg.name,
-                toolCallId: msg.toolCallId,
-                metadata: msg.metadata ? (JSON.stringify(msg.metadata) as any) : null,
-                createdAt: msg.createdAt || Date.now()
-              } as any);
+            const rows = await ChatRepo.listMessages(conv.id, 2000, 0);
+            if (rows?.length) {
+              contextMessages = rows.map((row) => {
+                let metadata: Record<string, any> | undefined;
+                if (row.metadata) {
+                  try {
+                    metadata = JSON.parse(row.metadata as any);
+                  } catch {
+                    metadata = undefined;
+                  }
+                }
+                return {
+                  role: row.role as ChatMessage['role'],
+                  content: row.content,
+                  name: row.name ?? undefined,
+                  toolCallId: row.toolCallId ?? undefined,
+                  metadata,
+                  createdAt: row.createdAt ?? undefined
+                };
+              });
             }
           } catch {
-            //
+            // ignore db read errors
           }
         }
-        emit({ type: 'done' });
+
+        const recentMessages = contextMessages?.length
+          ? (() => {
+            const systemMessages = contextMessages.filter((m) => m.role === 'system');
+            const dialogMessages = contextMessages.filter((m) => m.role !== 'system');
+            const recentDialog = dialogMessages.slice(-6);
+            return [...systemMessages, ...recentDialog];
+          })()
+          : undefined;
+
+        // 设置翻译工具执行上下文
+        translationToolContext.setContext({
+          chatFn: translationToolContext.createChatFn(agent),
+          emit: translationToolContext.createEmitFn(requestId, 'translation'),
+          requestId,
+          taskLabel: `${resolved.providerId}/${agent.model || 'default'}`
+        });
+
+        // 设置总结工具执行上下文
+        summaryToolContext.setContext({
+          chatFn: summaryToolContext.createChatFn(agent),
+          emit: summaryToolContext.createEmitFn(requestId, 'summary'),
+          requestId,
+          taskLabel: `${resolved.providerId}/${agent.model || 'default'}`
+        });
+
+        try {
+          // 流式调用（使用字符串输入）
+          const streamInput = recentMessages?.length ? recentMessages : lastUserMessage?.content || '';
+          const stream = await agent.stream(streamInput as any, {
+            maxSteps: 10,
+            abortSignal: ctrl.signal
+          });
+
+          let fullText = '';
+
+          for await (const chunk of stream.textStream) {
+            if (ctrl.signal.aborted) break;
+
+            fullText += chunk;
+            emit({ type: 'delta', data: { text: chunk } });
+          }
+
+          const finalResp: ChatResponse = {
+            message: {
+              role: 'assistant',
+              content: fullText,
+              createdAt: Date.now()
+            },
+            providerId: req.providerId,
+            agentId: resolved?.agentId
+            // usage
+          };
+          emit({
+            type: 'message_completed',
+            data: finalResp
+          });
+          if (conv) {
+            // Always send conversationId metadata at end as well (idempotent for renderer)
+            emit({ type: 'metadata', data: { conversationId: conv.id } });
+            // Persist assistant message at the end (regardless of who emitted deltas)
+            try {
+              const msg = finalResp?.message;
+              if (msg) {
+                await ChatRepo.addMessage(conv.id, {
+                  role: 'assistant',
+                  content: msg.content || '',
+                  name: msg.name,
+                  toolCallId: msg.toolCallId,
+                  metadata: msg.metadata ? (JSON.stringify(msg.metadata) as any) : null,
+                  createdAt: msg.createdAt || Date.now()
+                } as any);
+              }
+            } catch {
+              //
+            }
+          }
+          emit({ type: 'done' });
+        } finally {
+          // 清理翻译工具上下文
+          translationToolContext.clearContext();
+          // 清理总结工具上下文
+          summaryToolContext.clearContext();
+        }
       } catch (error: any) {
         console.error('Stream 错误:', error);
         emit({
@@ -281,11 +345,12 @@ ${JSON.stringify(req, null, 2)}
     if (!providerConfig) return agent;
 
     // 获取 secrets
-    const keys = providerConfig.fields.map((f) => f.key);
+    const fields = providerConfig.fields as Array<{ key: string; required?: boolean }>;
+    const keys = fields.map((f) => f.key);
     const secrets = await getAllSecrets(providerId, keys);
     const apiKey = getFirstApiKey(secrets.apiKey);
 
-    if (!apiKey && providerConfig.fields.some((f) => f.key === 'apiKey' && f.required)) {
+    if (!apiKey && fields.some((f) => f.key === 'apiKey' && f.required)) {
       console.warn(`Provider ${providerId} 未配置 API Key`);
       return agent;
     }

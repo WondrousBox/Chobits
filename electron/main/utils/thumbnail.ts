@@ -27,6 +27,7 @@ async function getSharp(): Promise<SharpModule | null> {
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.tiff', '.svg']);
 const VIDEO_EXT = new Set(['.mp4', '.mov', '.mkv', '.webm', '.avi']);
 const AUDIO_EXT = new Set(['.mp3', '.wav', '.flac', '.aac', '.m4a', '.ogg']);
+const SUBTITLE_EXT = new Set(['.srt', '.vtt', '.ass', '.ssa']);
 const TEXT_FILE_EXT = new Set([
   '.txt',
   '.md',
@@ -73,6 +74,7 @@ export function detectBasicType(filePath: string): { type: string; mimeType: str
   if (AUDIO_EXT.has(ext)) type = 'audio';
   if (TEXT_FILE_EXT.has(ext)) type = 'file';
   if (DOC_EXT.has(ext)) type = 'document';
+  if (SUBTITLE_EXT.has(ext)) type = 'subtitle';
   return { type, mimeType };
 }
 
