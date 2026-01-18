@@ -6,12 +6,14 @@ import * as path from 'path';
 
 import { ChatRepo, ResourcesRepo } from '../common/db';
 import { sendAppBusyEnd, sendAppBusyProgress, sendAppBusyStart } from '../event';
+import { getAgent } from './agents';
 import { BasicAgent } from './agents/basic';
 import { RAGAgent } from './agents/rag';
 import { TaggerAgent } from './agents/tagger';
 import { ChatService } from './chat-service';
 import { GlossaryStore } from './glossary-store';
 import { InstancesStore } from './instances-store';
+import { createModel } from './models/index';
 import { PromptsStore } from './prompts-store';
 import { AnthropicProvider } from './providers/anthropic';
 import { DeepSeekProvider } from './providers/deepseek';
@@ -27,6 +29,7 @@ import {
   clearProviderSecrets as clearSecretsStore,
   getAllSecrets,
   getApiKeys,
+  getFirstApiKey,
   removeApiKey,
   setApiKeys,
   setDefaultApiKey,
@@ -489,42 +492,60 @@ export function initAIHandlers(win: BrowserWindow): void {
         };
       }
 
-      // 获取 provider 并验证
-      const provider = getProvider(providerId);
-      if (!provider || !provider.chat) {
-        throw new Error(`Provider ${providerId} not found or does not support chat`);
+      // 使用 ChatService 获取配置好的 Agent
+      const chatService = new ChatService();
+
+      // 获取 provider 配置
+      const providerConfig = chatService.getProviderConfig(providerId);
+      if (!providerConfig) {
+        throw new Error(`Provider ${providerId} not found`);
       }
 
-      // 加载 secrets
-      const schema = provider.getConfigSchema?.();
-      const keys = (schema?.fields || []).map((f) => f.key);
+      // 获取 secrets
+      const fields = providerConfig.fields as Array<{ key: string; required?: boolean }>;
+      const keys = fields.map((f: any) => f.key);
       const secrets = await getAllSecrets(providerId, keys);
-      if (Object.keys(secrets).length > 0 && provider.setSecrets) {
-        await Promise.resolve(provider.setSecrets(secrets));
+      const apiKey = getFirstApiKey(secrets.apiKey);
+
+      if (!apiKey && fields.some((f: any) => f.key === 'apiKey' && f.required)) {
+        throw new Error(`Provider ${providerId} 未配置 API Key`);
       }
 
-      // 构造 chatFn
+      // 创建模型实例
+      const modelConfig = {
+        apiKey: apiKey || '',
+        baseUrl: secrets.baseUrl as string,
+        model: model || providerConfig.defaultModel
+      };
+      const modelInstance = createModel(providerId, modelConfig);
+
+      // 获取 Agent 实例
+      const agentId = 'assistant'; // 使用默认的助手 Agent
+      const agent = getAgent(agentId);
+      if (!agent) {
+        throw new Error(`Agent ${agentId} not found`);
+      }
+
+      // 配置 Agent 使用当前模型
+      agent.model = modelInstance;
+
+      // 构造 chatFn，使用 mastra Agent 的流式能力
       const chatFn = async (prompt: string, onEvent: (event: any) => void, abortSignal?: AbortSignal): Promise<void> => {
-        await provider.chat?.(
-          {
-            messages: [{ role: 'user', content: prompt }],
-            providerId,
-            extras: { model, secrets },
-            stream: true,
-            abortId: `${requestId}-${Date.now()}`
-          },
-          (event: any) => {
-            // 转换事件格式为统一的 ChatStreamEvent
-            if (event?.type === 'delta' && event.data?.text) {
-              onEvent({ type: 'delta', data: { text: event.data.text } });
-            } else if (event?.type === 'message_completed') {
-              onEvent({ type: 'message_completed' });
-            } else if (event?.type === 'error') {
-              onEvent({ type: 'error', data: { message: event.data?.message } });
-            }
-          },
-          abortSignal
-        );
+        try {
+          const stream = await agent.stream(prompt, {
+            maxSteps: 10,
+            abortSignal
+          });
+
+          for await (const chunk of stream.textStream) {
+            if (abortSignal?.aborted) break;
+            onEvent({ type: 'delta', data: { text: chunk } });
+          }
+
+          onEvent({ type: 'message_completed' });
+        } catch (error: any) {
+          onEvent({ type: 'error', data: { message: error?.message || '翻译失败' } });
+        }
       };
 
       // 累积翻译结果，用于保存
@@ -707,41 +728,60 @@ export function initAIHandlers(win: BrowserWindow): void {
         throw new Error('No content provided and unable to load content from resourceId');
       }
 
-      // 获取 provider 并验证
-      const provider = getProvider(providerId);
-      if (!provider || !provider.chat) {
-        throw new Error(`Provider ${providerId} not found or does not support chat`);
+      // 使用 ChatService 获取配置好的 Agent
+      const chatService = new ChatService();
+
+      // 获取 provider 配置
+      const providerConfig = chatService.getProviderConfig(providerId);
+      if (!providerConfig) {
+        throw new Error(`Provider ${providerId} not found`);
       }
 
-      // 加载 secrets
-      const schema = provider.getConfigSchema?.();
-      const keys = (schema?.fields || []).map((f) => f.key);
+      // 获取 secrets
+      const fields = providerConfig.fields as Array<{ key: string; required?: boolean }>;
+      const keys = fields.map((f: any) => f.key);
       const secrets = await getAllSecrets(providerId, keys);
-      if (Object.keys(secrets).length > 0 && provider.setSecrets) {
-        await Promise.resolve(provider.setSecrets(secrets));
+      const apiKey = getFirstApiKey(secrets.apiKey);
+
+      if (!apiKey && fields.some((f: any) => f.key === 'apiKey' && f.required)) {
+        throw new Error(`Provider ${providerId} 未配置 API Key`);
       }
 
-      // 构造 chatFn
+      // 创建模型实例
+      const modelConfig = {
+        apiKey: apiKey || '',
+        baseUrl: secrets.baseUrl as string,
+        model: model || providerConfig.defaultModel
+      };
+      const modelInstance = createModel(providerId, modelConfig);
+
+      // 获取 Agent 实例
+      const agentId = 'assistant'; // 使用默认的助手 Agent
+      const agent = getAgent(agentId);
+      if (!agent) {
+        throw new Error(`Agent ${agentId} not found`);
+      }
+
+      // 配置 Agent 使用当前模型
+      agent.model = modelInstance;
+
+      // 构造 chatFn，使用 mastra Agent 的流式能力
       const chatFn = async (prompt: string, onEvent: (event: any) => void, abortSignal?: AbortSignal): Promise<void> => {
-        await provider.chat?.(
-          {
-            messages: [{ role: 'user', content: prompt }],
-            providerId,
-            extras: { model, secrets },
-            stream: true,
-            abortId: `${requestId}-${Date.now()}`
-          },
-          (event: any) => {
-            if (event?.type === 'delta' && event.data?.text) {
-              onEvent({ type: 'delta', data: { text: event.data.text } });
-            } else if (event?.type === 'message_completed') {
-              onEvent({ type: 'message_completed' });
-            } else if (event?.type === 'error') {
-              onEvent({ type: 'error', data: { message: event.data?.message } });
-            }
-          },
-          abortSignal
-        );
+        try {
+          const stream = await agent.stream(prompt, {
+            maxSteps: 10,
+            abortSignal
+          });
+
+          for await (const chunk of stream.textStream) {
+            if (abortSignal?.aborted) break;
+            onEvent({ type: 'delta', data: { text: chunk } });
+          }
+
+          onEvent({ type: 'message_completed' });
+        } catch (error: any) {
+          onEvent({ type: 'error', data: { message: error?.message || '总结失败' } });
+        }
       };
 
       let busyStarted = false;

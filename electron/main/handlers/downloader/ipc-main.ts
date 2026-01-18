@@ -3,6 +3,7 @@ import { BrowserWindow, ipcMain, screen } from 'electron';
 
 import { getMainWindow } from '../../index';
 import { downloadManager, getSetting, getThumbnail, getVideoInfo, setSetting, subscriptionManager, YTDLP_CONFIG_FILE } from '.';
+import { cookieManager } from './cookie-manager';
 import { SubscriptionManager } from './subscription-manager';
 
 export function initDownloadHandlers(win: BrowserWindow): void {
@@ -465,6 +466,79 @@ export function initDownloadHandlers(win: BrowserWindow): void {
       return { success: true };
     } catch (error) {
       console.error('[VideoDownload] Failed to stop periodic check:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+
+  // ===== YouTube Cookie 相关处理器 =====
+
+  // 打开 YouTube 登录窗口
+  ipcMain.handle('video-downloader:open-youtube-login', async () => {
+    try {
+      const cookies = await cookieManager.openLoginWindow(win);
+      return {
+        success: true,
+        data: {
+          cookieCount: cookies.length,
+          isLoggedIn: true
+        }
+      };
+    } catch (error) {
+      console.error('[VideoDownload] Failed to open login window:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+
+  // 获取 YouTube Cookie 状态
+  ipcMain.handle('video-downloader:get-cookie-status', async () => {
+    try {
+      return {
+        success: true,
+        data: {
+          isLoggedIn: cookieManager.isLoggedIn(),
+          cookieCount: cookieManager.getCookieCount(),
+          isValid: cookieManager.isValid()
+        }
+      };
+    } catch (error) {
+      console.error('[VideoDownload] Failed to get cookie status:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+
+  // 清除 YouTube Cookies
+  ipcMain.handle('video-downloader:clear-cookies', async () => {
+    try {
+      await cookieManager.clearCookies();
+      return { success: true };
+    } catch (error) {
+      console.error('[VideoDownload] Failed to clear cookies:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  });
+
+  // 导出 Cookies（用于调试）
+  ipcMain.handle('video-downloader:export-cookies', async (event, outputPath?: string) => {
+    try {
+      const filePath = await cookieManager.exportNetscapeCookies(outputPath);
+      return {
+        success: true,
+        data: { filePath }
+      };
+    } catch (error) {
+      console.error('[VideoDownload] Failed to export cookies:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error)

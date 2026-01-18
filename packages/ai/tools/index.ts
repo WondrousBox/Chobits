@@ -1,198 +1,154 @@
 /* eslint-disable @typescript-eslint/explicit-function-return-type */
 /**
- * Mastra 工具定义
+ * Mastra 工具集中管理
  *
- * 这里定义了所有可供 Agent 使用的工具
- * 使用 Mastra 的 createTool 函数创建工具
+ * 这里统一导出所有可供 Agent 使用的工具
+ * 每个工具都定义在独立的文件中
  */
 
-import { createTool } from '@mastra/core/tools';
-import { z } from 'zod';
-
 // ============================================================================
-// 天气工具
+// 导入所有工具
 // ============================================================================
 
-function mapWeatherCode(code: number | undefined): string {
-  switch (code) {
-    case 0:
-      return '晴朗';
-    case 1:
-    case 2:
-    case 3:
-      return '多云';
-    case 45:
-    case 48:
-      return '有雾';
-    case 51:
-    case 53:
-    case 55:
-      return '毛毛雨';
-    case 56:
-    case 57:
-      return '冻毛毛雨';
-    case 61:
-    case 63:
-    case 65:
-      return '小到大雨';
-    case 66:
-    case 67:
-      return '冻雨';
-    case 71:
-    case 73:
-    case 75:
-      return '小到大雪';
-    case 77:
-      return '雪粒';
-    case 80:
-    case 81:
-    case 82:
-      return '阵雨';
-    case 85:
-    case 86:
-      return '阵雪';
-    case 95:
-      return '雷暴';
-    case 96:
-    case 99:
-      return '强雷暴';
-    default:
-      return '未知天气';
-  }
-}
+// 通用工具
+export { calculatorTool } from './calculator-tool';
+export { timeTool } from './time-tool';
+export { weatherTool } from './weather-tool';
 
-export const weatherTool = createTool({
-  id: 'get-weather',
-  description: '查询指定城市的当前天气（基于 Open-Meteo）',
-  inputSchema: z.object({
-    city: z.string().describe('城市名称（中文或英文）'),
-    unit: z.enum(['celsius', 'fahrenheit']).optional().describe('温度单位（默认 celsius）')
-  }),
-  outputSchema: z.object({
-    city: z.string(),
-    temperature: z.number(),
-    unit: z.string(),
-    description: z.string(),
-    time: z.string().optional()
-  }),
-  execute: async ({ context }) => {
-    const { city, unit = 'celsius' } = context;
-    const cityTrim = city?.trim();
-    if (!cityTrim) throw new Error('城市名称不能为空');
+// AI 工具（需要绑定依赖）
+export { createReadSubtitleTool, readSubtitleTool } from './read-subtitle-tool';
+export { createResourceQueryTool, resourceQueryTool } from './resource-query-tool';
+export { createSummaryTool, summaryTool } from './summary-tool';
+export { createTranslationTool, translationTool } from './translation-tool';
 
-    const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityTrim)}&count=1&language=zh&format=json`;
-    const geoResp = await fetch(geoUrl);
-    if (!geoResp.ok) throw new Error(`地理编码失败: ${geoResp.status}`);
-    const geo = await geoResp.json();
-    const hit = geo?.results?.[0];
-    if (!hit) throw new Error(`未找到城市: ${cityTrim}`);
+// YouTube 工具
+export { createYoutubeDownloadTool, youtubeDownloadTool } from './youtube-download-tool';
+export { createYoutubeSubscribeTool, youtubeSubscribeTool } from './youtube-subscribe-tool';
 
-    const { latitude, longitude, name } = hit;
-    const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weathercode&temperature_unit=${unit}`;
-    const weatherResp = await fetch(weatherUrl);
-    if (!weatherResp.ok) throw new Error(`天气查询失败: ${weatherResp.status}`);
-    const weather = await weatherResp.json();
-    const temp = weather?.current?.temperature_2m;
-    const code = weather?.current?.weathercode;
-    const time = weather?.current?.time;
-
-    return {
-      city: name || cityTrim,
-      temperature: typeof temp === 'number' ? temp : Number(temp),
-      unit,
-      description: mapWeatherCode(code),
-      time
-    };
-  }
-});
+// 导入用于类型和工具列表
+import { calculatorTool } from './calculator-tool';
+import { readSubtitleTool } from './read-subtitle-tool';
+import { resourceQueryTool } from './resource-query-tool';
+import { summaryTool } from './summary-tool';
+import { timeTool } from './time-tool';
+import { translationTool } from './translation-tool';
+import { weatherTool } from './weather-tool';
+import { youtubeDownloadTool } from './youtube-download-tool';
+import { youtubeSubscribeTool } from './youtube-subscribe-tool';
 
 // ============================================================================
-// 时间工具
+// 工具集合
 // ============================================================================
 
-export const timeTool = createTool({
-  id: 'get-time',
-  description: '获取当前时间和日期',
-  inputSchema: z.object({
-    format: z.enum(['iso', 'unix', 'readable', 'date', 'time']).optional().describe('返回格式')
-  }),
-  outputSchema: z.object({
-    time: z.union([z.string(), z.number()])
-  }),
-  execute: async ({ context }) => {
-    const now = new Date();
-    const format = context?.format || 'readable';
-
-    switch (format) {
-      case 'iso':
-        return { time: now.toISOString() };
-      case 'unix':
-        return { time: Math.floor(now.getTime() / 1000) };
-      case 'date':
-        return { time: now.toLocaleDateString('zh-CN') };
-      case 'time':
-        return { time: now.toLocaleTimeString('zh-CN') };
-      case 'readable':
-      default:
-        return { time: now.toLocaleString('zh-CN') };
-    }
-  }
-});
-
-// ============================================================================
-// 计算器工具
-// ============================================================================
-
-export const calculatorTool = createTool({
-  id: 'calculator',
-  description: '执行数学计算',
-  inputSchema: z.object({
-    expression: z.string().describe('数学表达式，如 "2 + 3 * 4"')
-  }),
-  outputSchema: z.object({
-    result: z.number(),
-    expression: z.string()
-  }),
-  execute: async ({ context }) => {
-    const { expression } = context;
-    try {
-      // 安全的数学表达式计算（只允许数字和基本运算符）
-      const sanitized = expression.replace(/[^0-9+\-*/().%\s]/g, '');
-      if (sanitized !== expression.replace(/\s/g, '').replace(/\s/g, '') && sanitized.length !== expression.replace(/\s/g, '').length) {
-        throw new Error('表达式包含不允许的字符');
-      }
-
-      const result = Function(`"use strict"; return (${sanitized})`)();
-      if (typeof result !== 'number' || !isFinite(result)) {
-        throw new Error('计算结果无效');
-      }
-      return { result, expression };
-    } catch (error) {
-      throw new Error(`计算错误: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-});
-
-// ============================================================================
-// 导出所有工具
-// ============================================================================
-
+/**
+ * 所有工具的集合（Map 结构）
+ *
+ * 通用工具：
+ * - weatherTool: 查询城市天气
+ * - timeTool: 获取当前时间
+ * - calculatorTool: 数学计算
+ *
+ * AI 工具（需要绑定依赖）：
+ * - readSubtitleTool: 读取字幕文件内容
+ * - translationTool: 字幕翻译
+ * - summaryTool: 内容总结
+ * - resourceQueryTool: 资源智能查询
+ *
+ * YouTube 工具：
+ * - youtubeDownloadTool: 下载 YouTube 视频
+ * - youtubeSubscribeTool: 订阅 YouTube 频道
+ */
 export const allTools = {
+  // 通用工具
   weatherTool,
   timeTool,
-  calculatorTool
+  calculatorTool,
+
+  // AI 工具
+  readSubtitleTool,
+  translationTool,
+  summaryTool,
+  resourceQueryTool,
+
+  // YouTube 工具
+  youtubeDownloadTool,
+  youtubeSubscribeTool
 };
 
 /**
- * 获取工具列表（用于传给 Agent）
+ * 获取通用工具列表（无需 toolContext）
+ *
+ * 这些工具可以直接传给 Agent 使用
  */
-export function getTools() {
+export function getBasicTools() {
+  return {
+    weatherTool,
+    timeTool,
+    calculatorTool
+  };
+}
+
+/**
+ * 获取 AI 工具列表（需要 toolContext）
+ *
+ * 这些工具需要外部依赖，使用时需要通过 toolContext 传入
+ */
+export function getAITools() {
+  return {
+    translationTool,
+    summaryTool,
+    resourceQueryTool
+  };
+}
+
+/**
+ * 获取所有工具列表
+ *
+ * 注意：AI 工具需要在使用时通过 toolContext 传入依赖
+ */
+export function getAllTools() {
   return allTools;
 }
 
 /**
  * 根据名称获取工具
+ *
+ * @param name - 工具名称（如 'weatherTool', 'translationTool'）
+ * @returns 对应的工具实例，如果不存在则返回 undefined
  */
 export function getTool(name: string) {
   return (allTools as Record<string, any>)[name];
 }
+
+/**
+ * 根据工具 ID 获取工具
+ *
+ * @param id - 工具 ID（如 'get-weather', 'translate-subtitles'）
+ * @returns 对应的工具实例，如果不存在则返回 undefined
+ */
+export function getToolById(id: string) {
+  const toolMap: Record<string, any> = {
+    'get-weather': weatherTool,
+    'get-time': timeTool,
+    calculator: calculatorTool,
+    'translate-subtitles': translationTool,
+    'summarize-content': summaryTool,
+    'query-resources': resourceQueryTool,
+    'youtube-download': youtubeDownloadTool,
+    'youtube-subscribe': youtubeSubscribeTool
+  };
+  return toolMap[id];
+}
+
+/**
+ * 工具类型定义
+ */
+export type ToolName = keyof typeof allTools;
+
+/**
+ * 工具 ID 类型定义
+ */
+export type ToolId = 'get-weather' | 'get-time' | 'calculator' | 'translate-subtitles' | 'summarize-content' | 'query-resources';
+
+// 向后兼容（保留原有的导出名称）
+export const getTools = getAllTools;

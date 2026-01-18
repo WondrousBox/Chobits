@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import React, { useEffect, useState } from 'react';
-import { TbAdjustments, TbBook, TbBrain, TbCpu, TbFolderOpen, TbKeyboard, TbMessage2, TbNetwork, TbPlug } from 'react-icons/tb';
+import { TbAdjustments, TbBook, TbBrain, TbBrandYoutube, TbCpu, TbFolderOpen, TbKeyboard, TbMessage2, TbNetwork, TbPlug } from 'react-icons/tb';
 
 import { Separator } from '@/components/ui/separator';
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from '@/components/ui/sidebar';
@@ -16,9 +16,10 @@ import { SettingGroup } from './components/SettingComponents';
 import ShortcutsSettings from './components/ShortcutsSettings';
 import VectorManagement from './components/VectorManagement';
 import Workspace from './components/Workspace';
+import { YoutubeCookieSettings } from './components/YoutubeCookieSettings';
 import PluginPage from './PluginPage';
 
-export type DefaultSettingsCategory = 'preferences' | 'workspace' | 'ai' | 'prompt' | 'glossary' | 'plugins' | 'shortcuts' | 'embedding' | 'proxy';
+export type DefaultSettingsCategory = 'preferences' | 'workspace' | 'ai' | 'prompt' | 'glossary' | 'plugins' | 'shortcuts' | 'embedding' | 'proxy' | 'youtube';
 
 export type SettingsCategory = DefaultSettingsCategory | (string & {});
 
@@ -85,6 +86,12 @@ const defaultCategories: SettingsCategoryDef[] = [
     label: '代理设置',
     icon: TbNetwork,
     description: '配置网络代理以访问受限资源'
+  },
+  {
+    id: 'youtube',
+    label: 'YouTube',
+    icon: TbBrandYoutube,
+    description: 'YouTube 登录和下载设置'
   }
 ];
 
@@ -164,6 +171,12 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ extraCategories = []
         return <ShortcutsSettings />;
       case 'proxy':
         return <ProxySettings />;
+      case 'youtube':
+        return (
+          <div className="p-4">
+            <YoutubeCookieSettings />
+          </div>
+        );
       default:
         return <div></div>;
     }

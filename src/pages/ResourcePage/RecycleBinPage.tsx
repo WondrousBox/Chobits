@@ -41,11 +41,7 @@ const TypeBadge = ({ type }: { type: TrashItem['entityType'] }): React.ReactElem
     conversation: '对话',
     folder: '文件夹'
   };
-  return (
-    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground">
-      {labels[type] || type}
-    </span>
-  );
+  return <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground">{labels[type] || type}</span>;
 };
 
 // 格式化删除时间
@@ -76,20 +72,10 @@ interface TrashItemRowProps {
 
 const TrashItemRow: React.FC<TrashItemRowProps> = ({ item, isSelected, onToggleSelect }) => {
   return (
-    <div
-      className={`p-3 border rounded-lg transition-colors cursor-pointer ${
-        isSelected ? 'bg-primary/10 border-primary/30' : 'bg-card hover:bg-accent/50'
-      }`}
-      onClick={() => onToggleSelect(item.id)}
-    >
-      <div className="flex items-start gap-3">
+    <div className={`p-3 border rounded-lg transition-colors cursor-pointer ${isSelected ? 'bg-primary/10 border-primary/30' : 'bg-card hover:bg-accent/50'}`} onClick={() => onToggleSelect(item.id)}>
+      <div className="flex  items-center gap-3">
         {/* 复选框 */}
-        <Checkbox
-          checked={isSelected}
-          onCheckedChange={() => onToggleSelect(item.id)}
-          onClick={(e) => e.stopPropagation()}
-          className="mt-0.5"
-        />
+        <Checkbox checked={isSelected} onCheckedChange={() => onToggleSelect(item.id)} onClick={(e) => e.stopPropagation()} className="mt-0.5" />
 
         {/* 类型图标 */}
         <div className="flex-shrink-0 w-8 h-8 rounded bg-muted flex items-center justify-center">
@@ -97,7 +83,7 @@ const TrashItemRow: React.FC<TrashItemRowProps> = ({ item, isSelected, onToggleS
         </div>
 
         {/* 内容 */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 w-0 min-w-0">
           <div className="flex items-center gap-2">
             <span className="font-medium text-sm truncate">{item.title || item.entityId}</span>
             <TypeBadge type={item.entityType} />
@@ -247,9 +233,7 @@ const RecycleBinPage: React.FC<RecycleBinPageProps> = ({ hideTitleBar = false })
   const statsElement = (
     <div className="flex items-center gap-2">
       <Checkbox checked={isAllSelected} onCheckedChange={toggleSelectAll} />
-      <span className="text-xs text-muted-foreground">
-        {selectedCount > 0 ? `已选择 ${selectedCount} 项` : `共 ${filteredItems.length} 项`}
-      </span>
+      <span className="text-xs text-muted-foreground">{selectedCount > 0 ? `已选择 ${selectedCount} 项` : `共 ${filteredItems.length} 项`}</span>
     </div>
   );
 
@@ -263,14 +247,7 @@ const RecycleBinPage: React.FC<RecycleBinPageProps> = ({ hideTitleBar = false })
           <div>{filter ? '无匹配结果' : '回收站是空的'}</div>
         </div>
       )}
-      {!loading && filteredItems.map((item) => (
-        <TrashItemRow
-          key={item.id}
-          item={item}
-          isSelected={selected.has(item.id)}
-          onToggleSelect={handleToggleSelect}
-        />
-      ))}
+      {!loading && filteredItems.map((item) => <TrashItemRow key={item.id} item={item} isSelected={selected.has(item.id)} onToggleSelect={handleToggleSelect} />)}
     </div>
   );
 
@@ -310,9 +287,7 @@ const RecycleBinPage: React.FC<RecycleBinPageProps> = ({ hideTitleBar = false })
         />
 
         {/* 列表内容 */}
-        <ScrollArea className="flex-1 bg-muted">
-          {listContent}
-        </ScrollArea>
+        <ScrollArea className="flex-1 bg-muted">{listContent}</ScrollArea>
         {confirmDialog}
       </div>
     );
@@ -338,9 +313,7 @@ const RecycleBinPage: React.FC<RecycleBinPageProps> = ({ hideTitleBar = false })
       />
 
       {/* 列表内容 */}
-      <ScrollArea className="flex-1 bg-muted">
-        {listContent}
-      </ScrollArea>
+      <ScrollArea className="flex-1 bg-muted">{listContent}</ScrollArea>
       {confirmDialog}
     </div>
   );
