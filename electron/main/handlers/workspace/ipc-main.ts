@@ -218,4 +218,36 @@ export function initWorkspaceHandlers(): void {
     await WorkspacesRepo.update(ws.id, { sizeBytes: size as any, fileCount: files as any, lastScanAt: Date.now() as any });
     return { ok: true, sizeBytes: size, fileCount: files };
   });
+
+  ipcMain.handle('workspace:export', async (_e, payload: { id: string; destPath: string }) => {
+    const { exportWorkspace } = await import('./export');
+    return await exportWorkspace(payload.id, payload.destPath);
+  });
+
+  ipcMain.handle('workspace:import', async (_e, payload: { sourcePath: string; name: string; rootPath: string }) => {
+    const { importWorkspace } = await import('./export');
+    const result = await importWorkspace(payload.sourcePath, payload.name, payload.rootPath);
+
+    // 如果导入成功，触发事件并配置资源根目录
+    if (result.success && result.workspaceId) {
+      const ws = await WorkspacesRepo.getById(result.workspaceId);
+      if (ws) {
+        eventManager.emit(AppEvent.WORKSPACE_CREATED, ws);
+
+        // 配置资源根目录
+        const resDir = path.join(ws.rootPath, 'resources');
+        try {
+          if (!fs.existsSync(resDir)) {
+            fs.mkdirSync(resDir, { recursive: true });
+          }
+          addAllowedResourceRoot(resDir);
+          addWorkspaceResourceRoot(ws.id, resDir);
+        } catch {
+          //
+        }
+      }
+    }
+
+    return result;
+  });
 }

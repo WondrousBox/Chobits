@@ -29,6 +29,8 @@ export type WorkspaceIpcParams = {
   'workspace:delete': IpcParams<[{ id: string; hard?: boolean }], { deleted: number }>;
   'workspace:open': IpcParams<[{ id: string }], { ok: boolean }>;
   'workspace:scanStats': IpcParams<[{ id: string }], { ok: boolean; sizeBytes?: number; fileCount?: number }>;
+  'workspace:export': IpcParams<[{ id: string; destPath: string }], { success: boolean; error?: string }>;
+  'workspace:import': IpcParams<[{ sourcePath: string; name: string; rootPath: string }], { success: boolean; workspaceId?: string; error?: string }>;
 };
 
 const methods: Array<keyof WorkspaceIpcParams> = [
@@ -41,7 +43,9 @@ const methods: Array<keyof WorkspaceIpcParams> = [
   'workspace:update',
   'workspace:delete',
   'workspace:open',
-  'workspace:scanStats'
+  'workspace:scanStats',
+  'workspace:export',
+  'workspace:import'
 ];
 
 export type WorkspaceIpcType = {
