@@ -1,11 +1,13 @@
 import prettyBytes from 'pretty-bytes';
 import React, { useEffect, useMemo, useState } from 'react';
-import { TbCheck, TbDotsVertical, TbFolderOpen, TbPlus, TbRefresh, TbScanEye, TbTrash } from 'react-icons/tb';
+import { TbCheck, TbDotsVertical, TbFileExport, TbFileImport, TbFolderOpen, TbPlus, TbRefresh, TbScanEye, TbTrash } from 'react-icons/tb';
+import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { maskPath } from '@/lib/helpers';
 import { formatRelativeTime } from '@/lib/time';
 
@@ -20,6 +22,12 @@ const Workspace: React.FC = () => {
   const [deleting, setDeleting] = useState<{ id: string; name: string } | null>(null);
   const [confirmName, setConfirmName] = useState('');
   const [deletingBusy, setDeletingBusy] = useState(false);
+  const [exporting, setExporting] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importDialog, setImportDialog] = useState(false);
+  const [importName, setImportName] = useState('');
+  const [importSourcePath, setImportSourcePath] = useState(''); // 导出的目录
+  const [importDestPath, setImportDestPath] = useState(''); // 新工作空间的保存位置
 
   const load = async (): Promise<void> => {
     setLoading(true);
@@ -117,6 +125,112 @@ const Workspace: React.FC = () => {
     }
   };
 
+  const exportWorkspace = async (id: string): Promise<void> => {
+    try {
+      const ws = list.find((w) => w.id === id);
+      if (!ws) return;
+
+      // 让用户选择导出目录
+      const result = await window.YUA.file['file:pickDir']({ allowCreate: true });
+
+      if (result.canceled || !result.path) return;
+
+      setExporting(id);
+      toast.info('正在导出工作空间...');
+
+      const exportResult = await window.YUA.workspace['workspace:export']({ id, destPath: result.path });
+
+      if (exportResult.success) {
+        toast.success('工作空间导出成功！');
+      } else {
+        toast.error(exportResult.error || '导出失败');
+      }
+    } catch (error: any) {
+      toast.error(error?.message || '导出失败');
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const openImportDialog = (): void => {
+    setImportDialog(true);
+    setImportName('');
+    setImportSourcePath('');
+    setImportDestPath('');
+  };
+
+  const selectImportSource = async (): Promise<void> => {
+    try {
+      const result = await window.YUA.file['file:pickDir']({});
+
+      if (!result.canceled && result.path) {
+        setImportSourcePath(result.path);
+
+        // 自动生成目标路径建议（确保不会与源路径相同）
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
+        const suggested = `${result.path}-imported-${timestamp}`;
+        setImportDestPath(suggested);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  const selectImportDest = async (): Promise<void> => {
+    try {
+      const result = await window.YUA.file['file:pickDir']({ allowCreate: true });
+
+      if (!result.canceled && result.path) {
+        setImportDestPath(result.path);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  const confirmImport = async (): Promise<void> => {
+    if (!importName.trim() || !importSourcePath.trim() || !importDestPath.trim()) return;
+
+    // 验证：源路径和目标路径不能相同
+    if (importSourcePath === importDestPath) {
+      toast.error('源路径和目标路径不能相同！');
+      return;
+    }
+
+    setImporting(true);
+    toast.info('正在导入工作空间...');
+
+    try {
+      console.log('导入参数：', {
+        sourcePath: importSourcePath,
+        name: importName,
+        rootPath: importDestPath
+      });
+
+      const result = await window.YUA.workspace['workspace:import']({
+        sourcePath: importSourcePath,
+        name: importName,
+        rootPath: importDestPath
+      });
+
+      if (result.success) {
+        toast.success('工作空间导入成功！');
+        setImportDialog(false);
+        setImportName('');
+        setImportSourcePath('');
+        setImportDestPath('');
+        load();
+      } else {
+        toast.error(result.error || '导入失败');
+      }
+    } catch (error: any) {
+      toast.error(error?.message || '导入失败');
+      console.error('导入错误：', error);
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const filtered = useMemo(() => {
     const rows = list.slice().sort((a: any, b: any) => (b.isDefault || 0) - (a.isDefault || 0) || (a.name || '').localeCompare(b.name || ''));
     if (!search.trim()) return rows;
@@ -176,10 +290,76 @@ const Workspace: React.FC = () => {
         </DialogContent>
       </Dialog>
 
+      {/* 导入对话框 */}
+      <Dialog
+        open={importDialog}
+        onOpenChange={(open) => {
+          if (!open) {
+            setImportDialog(false);
+            setImportName('');
+            setImportSourcePath('');
+            setImportDestPath('');
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>导入工作空间</DialogTitle>
+            <DialogDescription>从导出的工作空间目录恢复数据</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="importName">工作空间名称</Label>
+              <Input id="importName" placeholder="输入工作空间名称" value={importName} onChange={(e) => setImportName(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="importSourcePath">导出的工作空间目录（源）</Label>
+              <div className="flex gap-2">
+                <Input id="importSourcePath" placeholder="选择工作空间导出目录" value={importSourcePath} readOnly onClick={selectImportSource} />
+                <Button variant="outline" onClick={selectImportSource}>
+                  选择
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="importDestPath">新工作空间保存位置（目标）</Label>
+              <div className="flex gap-2">
+                <Input id="importDestPath" placeholder="选择新工作空间的保存位置" value={importDestPath} readOnly onClick={selectImportDest} />
+                <Button variant="outline" onClick={selectImportDest}>
+                  选择
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">💡 提示：请选择一个新的目录，不要与现有工作空间目录冲突</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setImportDialog(false);
+                setImportName('');
+                setImportSourcePath('');
+                setImportDestPath('');
+              }}
+              disabled={importing}
+            >
+              取消
+            </Button>
+            <Button onClick={confirmImport} disabled={!importName.trim() || !importSourcePath.trim() || !importDestPath.trim() || importing}>
+              {importing ? '导入中...' : '导入'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* 工具栏 */}
       <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-border">
         <Input className="w-48 h-8" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="搜索名称或路径..." />
         <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={openImportDialog}>
+            <TbFileImport className="h-4 w-4 mr-1" />
+            导入
+          </Button>
           <Button size="sm" variant="outline" onClick={scanAll} disabled={filtered.length === 0 || scanningIds.size > 0}>
             <TbScanEye className="h-4 w-4 mr-1" />
             {scanningIds.size > 0 ? '扫描中...' : '全部扫描'}
@@ -202,9 +382,7 @@ const Workspace: React.FC = () => {
           <div className="text-xs font-medium text-muted-foreground px-2 py-1">工作空间列表</div>
           <div className="bg-card border border-border rounded-lg overflow-hidden divide-y divide-border">
             {filtered.length === 0 ? (
-              <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                {loading ? '加载中...' : list.length === 0 ? '尚未创建任何工作空间，点击右上角新建' : '未找到匹配的工作空间'}
-              </div>
+              <div className="px-4 py-8 text-center text-sm text-muted-foreground">{loading ? '加载中...' : list.length === 0 ? '尚未创建任何工作空间，点击右上角新建' : '未找到匹配的工作空间'}</div>
             ) : (
               filtered.map((ws) => (
                 <div key={ws.id} className="px-4 py-3 hover:bg-muted/30 transition-colors">
@@ -255,6 +433,11 @@ const Workspace: React.FC = () => {
                         <DropdownMenuItem disabled={scanningIds.has(ws.id)} onSelect={() => !scanningIds.has(ws.id) && scan(ws.id)}>
                           <TbScanEye className="h-4 w-4 mr-2" />
                           {scanningIds.has(ws.id) ? '扫描中...' : '扫描统计'}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem disabled={exporting === ws.id} onSelect={() => exportWorkspace(ws.id)}>
+                          <TbFileExport className="h-4 w-4 mr-2" />
+                          {exporting === ws.id ? '导出中...' : '导出工作空间'}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem className="text-destructive" onSelect={() => remove(ws.id)}>
