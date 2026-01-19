@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbChevronDown, TbLoader2, TbPlayerPlay, TbPlayerStop, TbVolume, TbX } from 'react-icons/tb';
+import { TbChevronDown, TbDownload, TbLoader2, TbPlayerPlay, TbPlayerStop, TbVolume, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -262,6 +262,68 @@ const TTSPage: React.FC = () => {
     setIsPlaying(false);
   }, []);
 
+  // 创建 WAV 文件
+  const createWavFile = useCallback((samples: Float32Array, sampleRate: number): ArrayBuffer => {
+    const buffer = new ArrayBuffer(44 + samples.length * 2);
+    const view = new DataView(buffer);
+
+    // WAV 文件头
+    const writeString = (offset: number, string: string): void => {
+      for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+      }
+    };
+
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + samples.length * 2, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true); // fmt chunk size
+    view.setUint16(20, 1, true); // PCM format
+    view.setUint16(22, 1, true); // mono
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true); // byte rate
+    view.setUint16(32, 2, true); // block align
+    view.setUint16(34, 16, true); // bits per sample
+    writeString(36, 'data');
+    view.setUint32(40, samples.length * 2, true);
+
+    // 写入音频数据（转换为 16-bit PCM）
+    const offset = 44;
+    for (let i = 0; i < samples.length; i++) {
+      const s = Math.max(-1, Math.min(1, samples[i]));
+      view.setInt16(offset + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    }
+
+    return buffer;
+  }, []);
+
+  // 下载音频
+  const handleDownload = useCallback(() => {
+    if (!audioData) return;
+
+    try {
+      // 创建 WAV 文件
+      const wavBuffer = createWavFile(audioData.samples, audioData.sampleRate);
+      const blob = new Blob([wavBuffer], { type: 'audio/wav' });
+      const url = URL.createObjectURL(blob);
+
+      // 创建下载链接
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tts-${currentSpeaker.name}-${Date.now()}.wav`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      // 释放 URL
+      setTimeout(() => URL.revokeObjectURL(url), 100);
+    } catch (err) {
+      console.error('[TTS] 下载失败:', err);
+      setError(err instanceof Error ? err.message : '下载失败');
+    }
+  }, [audioData, currentSpeaker, createWavFile]);
+
   // 关闭页面时释放资源
   const handleClose = useCallback(() => {
     handleStop();
@@ -422,9 +484,16 @@ const TTSPage: React.FC = () => {
                   )}
                 </Button>
                 {(audioData || isPlaying) && (
-                  <Button variant="outline" size="icon" onClick={handleStop} disabled={isGenerating || !isPlaying}>
-                    <TbPlayerStop />
-                  </Button>
+                  <>
+                    <Button variant="outline" size="icon" onClick={handleStop} disabled={isGenerating || !isPlaying} title="停止播放">
+                      <TbPlayerStop />
+                    </Button>
+                    {audioData && (
+                      <Button variant="outline" size="icon" onClick={handleDownload} disabled={isGenerating} title="下载音频">
+                        <TbDownload />
+                      </Button>
+                    )}
+                  </>
                 )}
               </div>
             )}
