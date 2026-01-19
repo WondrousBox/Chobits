@@ -64,24 +64,6 @@ const translationOutputSchema = z.object({
  *
  * @param boundTranslationService - 翻译服务实例（可选，如不传入则需要在 toolContext 中提供）
  * @param boundChatFn - Chat 函数（可选）
- *
- * 使用示例：
- * ```typescript
- * import { TranslationService } from '../translation-service';
- * import { ChatService } from '../chat-service';
- *
- * // 方式1：创建时绑定依赖（推荐）
- * const tool = createTranslationTool(TranslationService, ChatService.chatStream);
- *
- * // 方式2：使用默认工具，在 toolContext 中提供
- * const tool = translationTool;
- *
- * // 在 Agent 中使用
- * const agent = new Agent({
- *   name: 'translator',
- *   tools: { translation: tool },
- * });
- * ```
  */
 export const createTranslationTool = (boundTranslationService?: typeof TranslationServiceType): ReturnType<typeof createTool> =>
   createTool({
