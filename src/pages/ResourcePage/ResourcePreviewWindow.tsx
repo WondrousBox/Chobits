@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TbArrowLeft, TbList } from 'react-icons/tb';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
@@ -41,6 +41,19 @@ const ResourcePreviewWindow: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(0); // 当前播放时间（秒）
   const [pendingStartTime, setPendingStartTime] = useState<number | null>(null); // 待跳转的起始时间
   const mediaPlayerRef = useRef<MediaPlayerRef>(null); // 媒体播放器的 ref
+
+  // 计算底部面板是否应该收起（当没有可用的 tabs 时默认收起）
+  const shouldCollapseBottomPanel = useMemo(() => {
+    if (!data) return false;
+
+    // 判断底部面板的 defaultPinnedTabs ['subtitle', 'translate'] 是否有内容
+    const isVideo = isVideoFile(data.filePath);
+    const isAudio = isAudioFile(data.filePath);
+
+    // 只有视频有 subtitle，视频和音频都有 translate
+    // 如果都没有，则应该收起
+    return !isVideo && !isAudio;
+  }, [data]);
 
   // 处理视频加载完成，调整窗口大小
   const handleVideoLoaded = useCallback(async (videoElement: HTMLVideoElement) => {
@@ -367,12 +380,12 @@ const ResourcePreviewWindow: React.FC = () => {
             <ResizablePanel defaultSize={isTabsExpanded ? 60 : 100}>
               <ResizablePanelGroup direction="vertical" className="h-full">
                 {/* 上方：播放器 */}
-                <ResizablePanel defaultSize={60} minSize={30}>
+                <ResizablePanel defaultSize={shouldCollapseBottomPanel ? 100 : 60} minSize={30}>
                   {renderMainContent()}
                 </ResizablePanel>
                 {/* 下方：ResourceTabs 底部面板 */}
                 <ResizableHandle className="hover:bg-primary" withHandle />
-                <ResizablePanel defaultSize={40} minSize={20}>
+                <ResizablePanel defaultSize={shouldCollapseBottomPanel ? 0 : 40} minSize={0} collapsible={true}>
                   <div className="h-full flex flex-col overflow-hidden bg-background border-t">
                     <ResourceTabs
                       panelId="preview-window-bottom"
