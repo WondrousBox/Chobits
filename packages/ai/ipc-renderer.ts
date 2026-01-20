@@ -200,9 +200,6 @@ export const aiBridge = {
   async cancelTranslate(requestId: string) {
     return ipcRenderer.invoke('ai:cancelTranslate', { requestId });
   },
-  async getProviderTranslationStatus(providerId: string) {
-    return ipcRenderer.invoke('ai:getProviderTranslationStatus', { providerId });
-  },
   async getTranslationTasks() {
     return ipcRenderer.invoke('ai:getTranslationTasks');
   },

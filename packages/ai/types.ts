@@ -154,7 +154,6 @@ export type AIApi = {
     };
   }): Promise<{ requestId: string }>;
   cancelTranslate(requestId: string): Promise<{ ok: boolean }>;
-  getProviderTranslationStatus(providerId: string): Promise<{ busy: boolean; activeRequests: string[] }>;
   getTranslationTasks(): Promise<Array<{ requestId: string; providerId: string; model: string; startTime: number; metadata?: Record<string, any> }>>;
   getTranslatedSegments(requestId: string): Promise<any[]>;
   transcribe(payload: { providerId: string; file: Blob | Buffer; model?: string; language?: string; prompt?: string }): Promise<{ text: string }>;
