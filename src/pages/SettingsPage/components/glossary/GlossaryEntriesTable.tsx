@@ -1,7 +1,10 @@
-import { useCallback, useState } from 'react';
-import { TbCheck, TbPencil, TbTrash, TbX } from 'react-icons/tb';
+import { useCallback, useEffect, useState } from 'react';
+import { TbCheck, TbPencil, TbPlus, TbTrash, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface GlossaryEntry {
@@ -28,19 +31,53 @@ interface EditingCell {
 }
 
 interface GlossaryEntriesTableProps {
-  glossary: GlossaryItem | null;
-  onAddEntry: () => void;
-  onUpdateEntry: (oldSource: string, newEntry: GlossaryEntry) => Promise<void>;
-  onRemoveEntry: (source: string) => Promise<void>;
+  glossaryId: string | null;
+  glossaryName?: string;
+  onDataChange?: () => void; // 数据变化时的回调，用于刷新父组件
 }
 
 type EditState = {
   [key: string]: string; // entryIndex-field: value
 };
 
-export default function GlossaryEntriesTable({ glossary, onAddEntry, onUpdateEntry, onRemoveEntry }: GlossaryEntriesTableProps): JSX.Element {
+export default function GlossaryEntriesTable({ glossaryId, glossaryName, onDataChange }: GlossaryEntriesTableProps): JSX.Element {
+  // 术语表数据
+  const [glossary, setGlossary] = useState<GlossaryItem | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  // 编辑状态
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
   const [editValues, setEditValues] = useState<EditState>({});
+
+  // 添加术语对话框
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [newEntry, setNewEntry] = useState<GlossaryEntry>({ source: '', target: '', note: '' });
+
+  // 加载术语表数据
+  const loadGlossary = useCallback(async () => {
+    if (!glossaryId) {
+      setGlossary(null);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const data = await window.YUA.ai.listGlossaries();
+      const found = data.find((g) => g.id === glossaryId);
+      setGlossary(found || null);
+    } catch (error) {
+      console.error('Failed to load glossary:', error);
+      setGlossary(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [glossaryId]);
+
+  useEffect(() => {
+    loadGlossary();
+  }, [loadGlossary]);
+
+  // ==================== 单元格编辑 ====================
 
   const handleCellClick = useCallback(
     (entryIndex: number, field: 'source' | 'target' | 'note') => {
@@ -52,16 +89,13 @@ export default function GlossaryEntriesTable({ glossary, onAddEntry, onUpdateEnt
     [glossary]
   );
 
-  const handleEditChange = useCallback(
-    (entryIndex: number, field: 'source' | 'target' | 'note', value: string) => {
-      const key = `${entryIndex}-${field}`;
-      setEditValues({ ...editValues, [key]: value });
-    },
-    [editValues]
-  );
+  const handleEditChange = useCallback((entryIndex: number, field: 'source' | 'target' | 'note', value: string) => {
+    const key = `${entryIndex}-${field}`;
+    setEditValues((prev) => ({ ...prev, [key]: value }));
+  }, []);
 
   const handleEditConfirm = useCallback(async () => {
-    if (!editingCell || !glossary) return;
+    if (!editingCell || !glossary || !glossaryId) return;
 
     const { entryIndex, field } = editingCell;
     const entry = glossary.entries[entryIndex];
@@ -69,7 +103,6 @@ export default function GlossaryEntriesTable({ glossary, onAddEntry, onUpdateEnt
     const newValue = editValues[key];
 
     if (newValue === undefined || newValue.trim() === '') {
-      // 清空编辑状态
       setEditingCell(null);
       setEditValues({});
       return;
@@ -82,12 +115,17 @@ export default function GlossaryEntriesTable({ glossary, onAddEntry, onUpdateEnt
       note: field === 'note' ? newValue.trim() || undefined : entry.note
     };
 
-    await onUpdateEntry(entry.source, updatedEntry);
+    try {
+      await window.YUA.ai.updateGlossaryEntry(glossaryId, entry.source, updatedEntry);
+      await loadGlossary();
+      onDataChange?.();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '更新术语失败');
+    }
 
-    // 清空编辑状态
     setEditingCell(null);
     setEditValues({});
-  }, [editingCell, glossary, editValues, onUpdateEntry]);
+  }, [editingCell, glossary, glossaryId, editValues, loadGlossary, onDataChange]);
 
   const handleEditCancel = useCallback(() => {
     setEditingCell(null);
@@ -107,41 +145,91 @@ export default function GlossaryEntriesTable({ glossary, onAddEntry, onUpdateEnt
     [handleEditConfirm, handleEditCancel]
   );
 
-  const renderCell = (entryIndex: number, field: 'source' | 'target' | 'note', value: string | undefined): JSX.Element => {
-    const isEditing = editingCell?.entryIndex === entryIndex && editingCell?.field === field;
-    const key = `${entryIndex}-${field}`;
-    const editValue = editValues[key] || '';
+  // ==================== 删除条目 ====================
 
-    if (isEditing) {
+  const handleRemoveEntry = useCallback(
+    async (source: string) => {
+      if (!glossaryId) return;
+      if (!confirm(`删除术语「${source}」？`)) return;
+
+      try {
+        await window.YUA.ai.removeGlossaryEntry(glossaryId, source);
+        await loadGlossary();
+        onDataChange?.();
+      } catch (error) {
+        console.error('Failed to remove entry:', error);
+      }
+    },
+    [glossaryId, loadGlossary, onDataChange]
+  );
+
+  // ==================== 添加条目 ====================
+
+  const openAddDialog = useCallback(() => {
+    setNewEntry({ source: '', target: '', note: '' });
+    setAddDialogOpen(true);
+  }, []);
+
+  const submitNewEntry = useCallback(async () => {
+    if (!glossaryId || !newEntry.source.trim() || !newEntry.target.trim()) return;
+
+    try {
+      await window.YUA.ai.addGlossaryEntries(glossaryId, [
+        {
+          source: newEntry.source.trim(),
+          target: newEntry.target.trim(),
+          note: newEntry.note?.trim() || undefined
+        }
+      ]);
+      setAddDialogOpen(false);
+      await loadGlossary();
+      onDataChange?.();
+    } catch (error) {
+      console.error('Failed to add entry:', error);
+    }
+  }, [glossaryId, newEntry, loadGlossary, onDataChange]);
+
+  // ==================== 渲染 ====================
+
+  const renderCell = useCallback(
+    (entryIndex: number, field: 'source' | 'target' | 'note', value: string | undefined): JSX.Element => {
+      const isEditing = editingCell?.entryIndex === entryIndex && editingCell?.field === field;
+      const key = `${entryIndex}-${field}`;
+      const editValue = editValues[key] || '';
+
+      if (isEditing) {
+        return (
+          <TableCell className={field === 'note' ? '' : 'font-medium'}>
+            <input
+              type="text"
+              className="w-full bg-background border border-primary rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+              value={editValue}
+              onChange={(e) => handleEditChange(entryIndex, field, e.target.value)}
+              onKeyDown={handleKeyDown}
+              autoFocus
+              onBlur={handleEditConfirm}
+            />
+          </TableCell>
+        );
+      }
+
       return (
-        <TableCell className={field === 'note' ? '' : 'font-medium'}>
-          <input
-            type="text"
-            className="w-full bg-background border border-primary rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-            value={editValue}
-            onChange={(e) => handleEditChange(entryIndex, field, e.target.value)}
-            onKeyDown={handleKeyDown}
-            autoFocus
-            onBlur={handleEditConfirm}
-          />
+        <TableCell
+          className={field === 'note' ? 'text-muted-foreground cursor-pointer hover:bg-muted/50 transition-colors' : 'font-medium cursor-pointer hover:bg-muted/50 transition-colors'}
+          onClick={() => handleCellClick(entryIndex, field)}
+        >
+          <div className="flex items-center justify-between group">
+            <span>{value || '-'}</span>
+            <TbPencil className="h-3 w-3 opacity-0 group-hover:opacity-50" />
+          </div>
         </TableCell>
       );
-    }
+    },
+    [editingCell, editValues, handleEditChange, handleKeyDown, handleEditConfirm, handleCellClick]
+  );
 
-    return (
-      <TableCell
-        className={field === 'note' ? 'text-muted-foreground cursor-pointer hover:bg-muted/50 transition-colors' : 'font-medium cursor-pointer hover:bg-muted/50 transition-colors'}
-        onClick={() => handleCellClick(entryIndex, field)}
-      >
-        <div className="flex items-center justify-between group">
-          <span>{value || '-'}</span>
-          <TbPencil className="h-3 w-3 opacity-0 group-hover:opacity-50" />
-        </div>
-      </TableCell>
-    );
-  };
-
-  if (!glossary) {
+  // 空状态：没有选择术语表
+  if (!glossaryId) {
     return (
       <div className="text-center py-12 text-muted-foreground">
         <p className="mb-2">请从左侧选择一个术语表</p>
@@ -150,11 +238,25 @@ export default function GlossaryEntriesTable({ glossary, onAddEntry, onUpdateEnt
     );
   }
 
-  if (glossary.entries.length === 0) {
+  // 加载状态
+  if (loading) {
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        <p>加载中...</p>
+      </div>
+    );
+  }
+
+  // 空状态：没有术语
+  if (!glossary || glossary.entries.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
         <p className="mb-2">暂无术语</p>
-        <p className="text-xs">点击「添加术语」或拖拽文件导入</p>
+        <p className="text-xs mb-4">点击「添加术语」或拖拽文件导入</p>
+        <Button size="sm" onClick={openAddDialog}>
+          <TbPlus className="h-4 w-4 mr-1" />
+          添加术语
+        </Button>
       </div>
     );
   }
@@ -177,7 +279,7 @@ export default function GlossaryEntriesTable({ glossary, onAddEntry, onUpdateEnt
               {renderCell(idx, 'target', entry.target)}
               {renderCell(idx, 'note', entry.note)}
               <TableCell>
-                <Button size="icon" variant="ghost" className="w-6 h-6 text-destructive hover:text-destructive" onClick={() => onRemoveEntry(entry.source)}>
+                <Button size="icon" variant="ghost" className="w-6 h-6 text-destructive hover:text-destructive" onClick={() => handleRemoveEntry(entry.source)}>
                   <TbTrash className="h-3.5 w-3.5" />
                 </Button>
               </TableCell>
@@ -202,6 +304,37 @@ export default function GlossaryEntriesTable({ glossary, onAddEntry, onUpdateEnt
           </div>
         </div>
       )}
+
+      {/* 添加术语对话框 */}
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>添加术语</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>源词（原文）</Label>
+              <Input value={newEntry.source} onChange={(e) => setNewEntry({ ...newEntry, source: e.target.value })} placeholder="如：Avengers" />
+            </div>
+            <div className="space-y-2">
+              <Label>目标词（译文）</Label>
+              <Input value={newEntry.target} onChange={(e) => setNewEntry({ ...newEntry, target: e.target.value })} placeholder="如：复仇者联盟" />
+            </div>
+            <div className="space-y-2">
+              <Label>备注（可选）</Label>
+              <Input value={newEntry.note || ''} onChange={(e) => setNewEntry({ ...newEntry, note: e.target.value })} placeholder="如：漫威超级英雄团队" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddDialogOpen(false)}>
+              取消
+            </Button>
+            <Button onClick={submitNewEntry} disabled={!newEntry.source.trim() || !newEntry.target.trim()}>
+              添加
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
