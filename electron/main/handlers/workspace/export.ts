@@ -76,12 +76,14 @@ export async function exportWorkspace(workspaceId: string, destPath: string): Pr
     const conversationIds = conversationRows.map((c: any) => c.id);
     const chatMessageRows = conversationIds.length ? await db.select().from(chat_messages).where(inArray(chat_messages.conversationId, conversationIds)) : [];
 
+    const { rootPath, ...rest } = workspace;
+
     // 3. 构建导出数据
     const exportData: WorkspaceExportData = {
       version: '1.0.0',
       exportedAt: Date.now(),
       originalWorkspaceId: workspace.id, // 保存原始ID用于识别
-      workspace,
+      workspace: rest,
       folders: folderRows,
       resources: resourceRows,
       documents: documentRows,
@@ -95,18 +97,37 @@ export async function exportWorkspace(workspaceId: string, destPath: string): Pr
     };
 
     // 4. 创建导出目录
-    await fsp.mkdir(destPath, { recursive: true });
+    // 如果目标路径已存在并且不是空的文件夹，为避免污染用户数据，创建一个 export 子文件夹
+    let finalDestPath = destPath;
+    if (fs.existsSync(destPath)) {
+      const stat = fs.statSync(destPath);
+      if (!stat.isDirectory()) {
+        // 如果路径存在但不是目录，创建一个带后缀的导出目录
+        const candidate = `${destPath}-export-${Date.now()}`;
+        finalDestPath = candidate;
+      } else {
+        // 是目录，检查是否为空
+        const entries = await fsp.readdir(destPath);
+        if (entries.length > 0) {
+          // 目录非空，使用 export 子目录，若已存在则加上时间戳以避免冲突
+          let candidate = path.join(destPath, 'export');
+          if (fs.existsSync(candidate)) {
+            candidate = path.join(destPath, `export-${Date.now()}`);
+          }
+          finalDestPath = candidate;
+        }
+      }
+    }
+
+    await fsp.mkdir(finalDestPath, { recursive: true });
 
     // 5. 写入数据库数据
-    const dataJsonPath = path.join(destPath, 'workspace-data.json');
+    const dataJsonPath = path.join(finalDestPath, 'workspace-data.json');
     await fsp.writeFile(dataJsonPath, JSON.stringify(exportData, null, 2), 'utf-8');
 
     // 6. 复制工作空间文件夹
-    const workspaceRoot = workspace.rootPath;
-    if (fs.existsSync(workspaceRoot)) {
-      const filesDir = path.join(destPath, 'files');
-      await fsp.mkdir(filesDir, { recursive: true });
-      await copyDirectory(workspaceRoot, filesDir);
+    if (fs.existsSync(rootPath)) {
+      await copyDirectory(rootPath, finalDestPath);
     }
 
     return { success: true };
@@ -134,6 +155,9 @@ export async function importWorkspace(sourcePath: string, newWorkspaceName: stri
 
     const dataContent = await fsp.readFile(dataJsonPath, 'utf-8');
     const exportData: WorkspaceExportData = JSON.parse(dataContent);
+
+    // 修改导出数据中的根路径为新的路径
+    exportData.workspace.rootPath = sourcePath;
 
     // 2. 检查目标路径是否已被使用
     const existingByPath = await db.select().from(workspaces).where(eq(workspaces.rootPath, newWorkspaceRoot)).limit(1);
@@ -163,13 +187,13 @@ export async function importWorkspace(sourcePath: string, newWorkspaceName: stri
       // 创建工作空间
       await tx.insert(workspaces).values({
         id: newWorkspaceId,
-        name: newWorkspaceName,
-        rootPath: newWorkspaceRoot,
+        name: exportData.workspace.name,
+        rootPath: exportData.workspace.rootPath,
         description: exportData.workspace.description,
         isDefault: 0, // 导入的工作空间默认不设为默认
         status: 'active',
         metadata: exportData.workspace.metadata,
-        createdAt: Date.now(),
+        createdAt: exportData.workspace.createdAt,
         updatedAt: Date.now()
       } as any);
 
@@ -182,7 +206,6 @@ export async function importWorkspace(sourcePath: string, newWorkspaceName: stri
       for (const folder of exportData.folders) {
         const newId = idMappings.folders.get(folder.id)!;
         const newParentId = folder.parentId ? idMappings.folders.get(folder.parentId) : null;
-
         await tx.insert(folders).values({
           id: newId,
           name: folder.name,
@@ -191,10 +214,38 @@ export async function importWorkspace(sourcePath: string, newWorkspaceName: stri
           workspaceId: newWorkspaceId,
           metadata: folder.metadata,
           rank: folder.rank,
-          createdAt: Date.now(),
+          createdAt: folder.createdAt,
           updatedAt: Date.now()
         } as any);
+        // 文件夹都放在导入路径 sourcePath 的 resources/folders 目录下，都是以 ID 命名的，
+        // 因此在插入新的文件夹 ID 的时候，要把旧的文件夹 ID 名称改成新的 ID 名称。
+        // 如果目标目录已存在则把旧目录内容合并到目标目录并删除旧目录；如果旧目录不存在则忽略。
+        try {
+          const foldersDir = path.join(sourcePath, 'resources', 'folders');
+          const oldFolderPath = path.join(foldersDir, folder.id);
+          const newFolderPath = path.join(foldersDir, newId);
+
+          console.log(oldFolderPath, '->', newFolderPath);
+
+          if (fs.existsSync(oldFolderPath)) {
+            // 目标不存在时直接改名，存在时合并内容
+            if (!fs.existsSync(newFolderPath)) {
+              await fsp.mkdir(path.dirname(newFolderPath), { recursive: true });
+              await fsp.rename(oldFolderPath, newFolderPath);
+            } else {
+              // 合并旧目录到新目录，然后删除旧目录
+              await copyDirectory(oldFolderPath, newFolderPath);
+              // 使用 rm 删除旧目录（force + recursive）
+              await fsp.rm(oldFolderPath, { recursive: true, force: true } as any);
+            }
+          }
+        } catch (err: any) {
+          // 不要让文件系统操作阻止数据库事务完成，记录警告后继续
+          console.warn(`Failed to rename/merge folder directory for ${folder.id} -> ${newId}:`, err?.message || err);
+        }
       }
+      console.log(exportData.workspace);
+      return { success: true, workspaceId: newWorkspaceId };
 
       // 5. 导入资源
       for (const resource of exportData.resources) {
@@ -210,7 +261,7 @@ export async function importWorkspace(sourcePath: string, newWorkspaceName: stri
           workspaceId: newWorkspaceId,
           folderId: newFolderId,
           parentResourceId: newParentResourceId,
-          createdAt: Date.now(),
+          createdAt: resource.createdAt,
           updatedAt: Date.now()
         } as any);
       }
