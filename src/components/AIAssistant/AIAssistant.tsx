@@ -20,6 +20,8 @@ import { Renderer } from './renderers';
 import PaddingDebugOverlay from './ui/PaddingDebugOverlay';
 import StatusIndicator from './ui/StatusIndicator';
 
+const showBlock = true; // 开发时显示
+
 /** 内部组件：包含实际逻辑 */
 const AIAssistantInner: React.FC = () => {
   const { padding: paddingState, screenSize, messageState, setAssistantState } = useAssistant();
@@ -232,6 +234,7 @@ const AIAssistantInner: React.FC = () => {
       }}
       className={`fixed select-none z-[9999] transition-transform duration-300 ease-in-out pointer-events-auto
         ${isDragReady ? 'cursor-grabbing opacity-80' : 'cursor-grab'}
+        ${showBlock ? 'opacity-10' : ''}
       `}
       onMouseDown={dragBind.onMouseDown}
       onMouseEnter={handleMouseEnter}
@@ -262,7 +265,7 @@ const AIAssistantInner: React.FC = () => {
           </div>
         }
       >
-        {window.YUA.isDev && (
+        {window.YUA.isDev && showBlock && (
           <div
             style={{
               left: paddingState,

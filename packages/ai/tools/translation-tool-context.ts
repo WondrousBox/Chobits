@@ -8,7 +8,7 @@
 import type { Agent } from '@mastra/core/agent';
 import { BrowserWindow } from 'electron';
 
-import { TranslationService } from '../translation-service';
+import { TranslationService } from '../services/translation-service';
 
 /**
  * 聊天函数类型

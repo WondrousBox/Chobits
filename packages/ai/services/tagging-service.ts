@@ -1,11 +1,11 @@
 import { utils } from '@aim-packages/subtitle';
 import { BrowserWindow, ipcMain } from 'electron';
 
-import { TaggerAgent } from './agents/tagger';
-import { InstancesStore } from './instances-store';
-import { getProvider } from './registry';
-import { isFreeProvider, loadSelectionStrategy, scoreCandidate } from './selection-strategy';
-import { getAllInstanceSecrets } from './settings-store';
+import { TaggerAgent } from '../agents/tagger';
+import { InstancesStore } from '../instances-store';
+import { getProvider } from '../registry';
+import { isFreeProvider, loadSelectionStrategy, scoreCandidate } from '../selection-strategy';
+import { getAllInstanceSecrets } from '../settings-store';
 
 export type BestInstance = {
   providerId: string;

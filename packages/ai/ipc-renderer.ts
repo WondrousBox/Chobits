@@ -255,6 +255,9 @@ export const aiBridge = {
   async removeGlossaryEntry(glossaryId: string, source: string) {
     return ipcRenderer.invoke('ai:removeGlossaryEntry', { glossaryId, source });
   },
+  async updateGlossaryEntry(glossaryId: string, oldSource: string, newEntry: { source: string; target: string; note?: string }) {
+    return ipcRenderer.invoke('ai:updateGlossaryEntry', { glossaryId, oldSource, newEntry });
+  },
 
   // 导入解析
   async parseGlossaryContent(content: string, fileName?: string) {

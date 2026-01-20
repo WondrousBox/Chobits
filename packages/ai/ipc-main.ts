@@ -23,6 +23,9 @@ import { OpenAIProvider } from './providers/openai';
 import { QwenProvider } from './providers/qwen';
 import { ZhipuProvider } from './providers/zhipu';
 import { getProvider, listAgents, listProviders, registerAgent, registerProvider } from './registry';
+import { SummaryService } from './services/summary-service';
+import { TaggingService } from './services/tagging-service';
+import { TranslationService } from './services/translation-service';
 import {
   addApiKey,
   clearAllSecrets,
@@ -37,9 +40,6 @@ import {
   updateApiKey
 } from './settings-store';
 import { getAllInstanceSecrets as getAllInstSecrets, setInstanceSecrets as setInstSecrets } from './settings-store';
-import { SummaryService } from './summary-service';
-import { TaggingService } from './tagging-service';
-import { TranslationService } from './translation-service';
 
 // 将 AimSegments 转换为 ISegment 格式
 type ISegment = [string, string, string, string | undefined];
@@ -394,6 +394,9 @@ export function initAIHandlers(win: BrowserWindow): void {
   ipcMain.handle('ai:deleteGlossary', async (_e, payload: { id: string }) => ({ ok: GlossaryStore.deleteGlossary(payload.id) }));
   ipcMain.handle('ai:addGlossaryEntries', async (_e, payload: { glossaryId: string; entries: any[] }) => GlossaryStore.addEntries(payload.glossaryId, payload.entries));
   ipcMain.handle('ai:removeGlossaryEntry', async (_e, payload: { glossaryId: string; source: string }) => GlossaryStore.removeEntry(payload.glossaryId, payload.source));
+  ipcMain.handle('ai:updateGlossaryEntry', async (_e, payload: { glossaryId: string; oldSource: string; newEntry: any }) =>
+    GlossaryStore.updateEntry(payload.glossaryId, payload.oldSource, payload.newEntry)
+  );
 
   // 导入解析
   ipcMain.handle('ai:parseGlossaryContent', async (_e, payload: { content: string; fileName?: string }) => GlossaryStore.parseContent(payload.content, payload.fileName));

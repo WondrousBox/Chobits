@@ -7,7 +7,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 
-import type { SummaryService as SummaryServiceType } from '../summary-service';
+import type { SummaryService as SummaryServiceType } from '../services/summary-service';
 import { summaryToolContext } from './summary-tool-context';
 
 /**

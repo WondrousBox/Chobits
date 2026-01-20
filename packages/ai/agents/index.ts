@@ -7,7 +7,7 @@
 import { Agent } from '@mastra/core/agent';
 
 import { ResourcesRepo } from '../../common/db';
-import { SummaryService } from '../summary-service';
+import { SummaryService } from '../services/summary-service';
 import { calculatorTool, timeTool, weatherTool } from '../tools';
 import { createReadSubtitleTool } from '../tools/read-subtitle-tool';
 import { createResourceQueryTool } from '../tools/resource-query-tool';
@@ -15,7 +15,7 @@ import { createSummaryTool } from '../tools/summary-tool';
 import { createTranslationTool } from '../tools/translation-tool';
 import { youtubeDownloadTool } from '../tools/youtube-download-tool';
 import { youtubeSubscribeTool } from '../tools/youtube-subscribe-tool';
-import { TranslationService } from '../translation-service';
+import { TranslationService } from '../services/translation-service';
 
 // ============================================================================
 // 创建绑定了依赖的工具

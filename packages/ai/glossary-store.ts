@@ -390,6 +390,37 @@ export const GlossaryStore = {
     return glossary;
   },
 
+  /**
+   * 更新术语表中的条目
+   * @param glossaryId 术语表 ID
+   * @param oldSource 原始源词（用于定位条目）
+   * @param newEntry 新的条目数据
+   */
+  updateEntry(glossaryId: string, oldSource: string, newEntry: GlossaryEntry): GlossaryItem | undefined {
+    const d = read();
+    const idx = d.glossaries.findIndex((g) => g.id === glossaryId);
+    if (idx < 0) return undefined;
+    const glossary = d.glossaries[idx];
+
+    // 查找并更新条目
+    const entryIdx = glossary.entries.findIndex((e) => e.source === oldSource);
+    if (entryIdx < 0) return undefined;
+
+    // 检查新的源词是否与其他条目冲突（除了当前条目）
+    if (newEntry.source !== oldSource) {
+      const exists = glossary.entries.some((e, i) => i !== entryIdx && e.source.toLowerCase() === newEntry.source.toLowerCase());
+      if (exists) {
+        throw new Error(`源词 "${newEntry.source}" 已存在`);
+      }
+    }
+
+    glossary.entries[entryIdx] = newEntry;
+    glossary.updatedAt = Date.now();
+    d.glossaries[idx] = glossary;
+    write(d);
+    return glossary;
+  },
+
   // ==================== 导入解析 ====================
 
   /**
