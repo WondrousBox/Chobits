@@ -78,6 +78,25 @@ export async function exportWorkspace(workspaceId: string, destPath: string): Pr
 
     const { rootPath, ...rest } = workspace;
 
+    const workspaceRoot = path.resolve(rootPath);
+    const toRelativeIfInWorkspace = (targetPath?: string | null): string | null | undefined => {
+      if (!targetPath || !path.isAbsolute(targetPath)) {
+        return targetPath;
+      }
+      const resolvedTarget = path.resolve(targetPath);
+      const relative = path.relative(workspaceRoot, resolvedTarget);
+      if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
+        return targetPath;
+      }
+      return relative;
+    };
+
+    const normalizedResourceRows = resourceRows.map((resource: any) => ({
+      ...resource,
+      filePath: toRelativeIfInWorkspace(resource.filePath),
+      thumbnailPath: toRelativeIfInWorkspace(resource.thumbnailPath)
+    }));
+
     // 3. 构建导出数据
     const exportData: WorkspaceExportData = {
       version: '1.0.0',
@@ -85,7 +104,7 @@ export async function exportWorkspace(workspaceId: string, destPath: string): Pr
       originalWorkspaceId: workspace.id, // 保存原始ID用于识别
       workspace: rest,
       folders: folderRows,
-      resources: resourceRows,
+      resources: normalizedResourceRows,
       documents: documentRows,
       resourceTags: resourceTagRows,
       conversations: conversationRows,
@@ -244,8 +263,28 @@ export async function importWorkspace(sourcePath: string, newWorkspaceName: stri
           console.warn(`Failed to rename/merge folder directory for ${folder.id} -> ${newId}:`, err?.message || err);
         }
       }
-      console.log(exportData.workspace);
-      return { success: true, workspaceId: newWorkspaceId };
+
+      const resolveResourcePath = (resourcePath?: string | null): string | null | undefined => {
+        if (!resourcePath) {
+          return resourcePath;
+        }
+
+        if (path.isAbsolute(resourcePath)) {
+          return resourcePath;
+        }
+
+        const normalized = path.normalize(resourcePath);
+        const parts = normalized.split(path.sep);
+        if (parts.length >= 3 && parts[0] === 'resources' && parts[1] === 'folders') {
+          const oldFolderId = parts[2];
+          const newFolderId = idMappings.folders.get(oldFolderId);
+          if (newFolderId) {
+            parts[2] = newFolderId;
+          }
+        }
+
+        return path.resolve(sourcePath, parts.join(path.sep));
+      };
 
       // 5. 导入资源
       for (const resource of exportData.resources) {
@@ -261,10 +300,14 @@ export async function importWorkspace(sourcePath: string, newWorkspaceName: stri
           workspaceId: newWorkspaceId,
           folderId: newFolderId,
           parentResourceId: newParentResourceId,
+          filePath: resolveResourcePath(resource.filePath),
+          thumbnailPath: resolveResourcePath(resource.thumbnailPath),
           createdAt: resource.createdAt,
           updatedAt: Date.now()
         } as any);
       }
+      console.log(exportData.workspace);
+      return { success: true, workspaceId: newWorkspaceId };
 
       // 6. 导入文档
       for (const document of exportData.documents) {
