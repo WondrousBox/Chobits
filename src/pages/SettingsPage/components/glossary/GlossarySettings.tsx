@@ -63,9 +63,6 @@ export default function GlossarySettings(): JSX.Element {
   const [importTargetCategory, setImportTargetCategory] = useState('');
   const [importTargetName, setImportTargetName] = useState('');
 
-  const [entryDialogOpen, setEntryDialogOpen] = useState(false);
-  const [entryForm, setEntryForm] = useState<GlossaryEntry>({ source: '', target: '', note: '' });
-
   // 拖拽相关
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -167,43 +164,6 @@ export default function GlossarySettings(): JSX.Element {
     await window.YUA.ai.deleteGlossary(id);
     if (selectedGlossaryId === id) setSelectedGlossaryId(null);
     await loadGlossaries();
-  };
-
-  // ==================== 条目管理 ====================
-
-  const openAddEntry = () => {
-    setEntryForm({ source: '', target: '', note: '' });
-    setEntryDialogOpen(true);
-  };
-
-  const submitEntry = async () => {
-    if (!selectedGlossaryId || !entryForm.source.trim() || !entryForm.target.trim()) return;
-    await window.YUA.ai.addGlossaryEntries(selectedGlossaryId, [
-      {
-        source: entryForm.source.trim(),
-        target: entryForm.target.trim(),
-        note: entryForm.note?.trim() || undefined
-      }
-    ]);
-    setEntryDialogOpen(false);
-    await loadGlossaries();
-  };
-
-  const removeEntry = async (source: string) => {
-    if (!selectedGlossaryId) return;
-    if (!confirm(`删除术语「${source}」？`)) return;
-    await window.YUA.ai.removeGlossaryEntry(selectedGlossaryId, source);
-    await loadGlossaries();
-  };
-
-  const updateEntry = async (oldSource: string, newEntry: GlossaryEntry) => {
-    if (!selectedGlossaryId) return;
-    try {
-      await window.YUA.ai.updateGlossaryEntry(selectedGlossaryId, oldSource, newEntry);
-      await loadGlossaries();
-    } catch (error) {
-      alert(error instanceof Error ? error.message : '更新术语失败');
-    }
   };
 
   // ==================== 导入功能 ====================
@@ -392,36 +352,11 @@ export default function GlossarySettings(): JSX.Element {
 
       {/* 右侧：术语条目列表 */}
       <div className="flex-1 flex flex-col min-w-0">
-        <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+        <div className="px-4 py-3 border-b border-border">
           <div className="text-sm font-medium text-foreground">{selectedGlossary ? selectedGlossary.name : '请选择术语表'}</div>
-          {selectedGlossary && (
-            <Button size="sm" onClick={openAddEntry}>
-              <TbPlus className="h-4 w-4 mr-1" />
-              添加术语
-            </Button>
-          )}
         </div>
         <div className="flex-1 overflow-auto p-4">
-          {selectedGlossary ? (
-            <GlossaryEntriesTable glossary={selectedGlossary} onAddEntry={openAddEntry} onUpdateEntry={updateEntry} onRemoveEntry={removeEntry} />
-          ) : (
-            <div className="text-center py-12 text-muted-foreground">
-              <p className="mb-2">请从左侧选择一个术语表</p>
-              <p className="text-xs mb-4">或创建新的术语表</p>
-              {glossaries.length === 0 && (
-                <div className="flex items-center justify-center gap-2">
-                  <Button size="sm" onClick={openCreateGlossary}>
-                    <TbPlus />
-                    新建术语表
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={openImportDialog}>
-                    <TbFileImport />
-                    导入术语
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
+          <GlossaryEntriesTable glossaryId={selectedGlossaryId} glossaryName={selectedGlossary?.name} onDataChange={loadGlossaries} />
         </div>
       </div>
 
@@ -464,35 +399,6 @@ export default function GlossarySettings(): JSX.Element {
               取消
             </Button>
             <Button onClick={submitGlossary}>保存</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* 添加术语对话框 */}
-      <Dialog open={entryDialogOpen} onOpenChange={setEntryDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>添加术语</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>源词（原文）</Label>
-              <Input value={entryForm.source} onChange={(e) => setEntryForm({ ...entryForm, source: e.target.value })} placeholder="如：Avengers" />
-            </div>
-            <div className="space-y-2">
-              <Label>目标词（译文）</Label>
-              <Input value={entryForm.target} onChange={(e) => setEntryForm({ ...entryForm, target: e.target.value })} placeholder="如：复仇者联盟" />
-            </div>
-            <div className="space-y-2">
-              <Label>备注（可选）</Label>
-              <Input value={entryForm.note || ''} onChange={(e) => setEntryForm({ ...entryForm, note: e.target.value })} placeholder="如：漫威超级英雄团队" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEntryDialogOpen(false)}>
-              取消
-            </Button>
-            <Button onClick={submitEntry}>添加</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
