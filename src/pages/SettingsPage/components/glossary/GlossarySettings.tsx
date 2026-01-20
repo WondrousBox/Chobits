@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbEdit, TbFileImport, TbFolderPlus, TbPlus, TbTrash, TbUpload } from 'react-icons/tb';
+import { TbEdit, TbFileImport, TbPlus, TbTrash, TbUpload } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -10,19 +10,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 
+import GlossaryCategoryList, { GlossaryCategory } from './GlossaryCategoryList';
+
 // 数据类型定义
 interface GlossaryEntry {
   source: string;
   target: string;
   note?: string;
-}
-
-interface GlossaryCategory {
-  id: string;
-  name: string;
-  description?: string;
-  createdAt: number;
-  updatedAt: number;
 }
 
 interface GlossaryItem {
@@ -56,11 +50,6 @@ export default function GlossarySettings(): JSX.Element {
   const [search, setSearch] = useState('');
 
   // 对话框状态
-  const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
-  const [categoryDialogMode, setCategoryDialogMode] = useState<'create' | 'edit'>('create');
-  const [categoryForm, setCategoryForm] = useState({ name: '', description: '' });
-  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
-
   const [glossaryDialogOpen, setGlossaryDialogOpen] = useState(false);
   const [glossaryDialogMode, setGlossaryDialogMode] = useState<'create' | 'edit'>('create');
   const [glossaryForm, setGlossaryForm] = useState({ name: '', description: '', categoryId: '' });
@@ -116,47 +105,6 @@ export default function GlossarySettings(): JSX.Element {
 
   // 当前选中的术语表
   const selectedGlossary = useMemo(() => glossaries.find((g) => g.id === selectedGlossaryId) || null, [glossaries, selectedGlossaryId]);
-
-  // ==================== 分类管理 ====================
-
-  const openCreateCategory = () => {
-    setCategoryDialogMode('create');
-    setCategoryForm({ name: '', description: '' });
-    setEditingCategoryId(null);
-    setCategoryDialogOpen(true);
-  };
-
-  const openEditCategory = (cat: GlossaryCategory) => {
-    setCategoryDialogMode('edit');
-    setCategoryForm({ name: cat.name, description: cat.description || '' });
-    setEditingCategoryId(cat.id);
-    setCategoryDialogOpen(true);
-  };
-
-  const submitCategory = async () => {
-    if (!categoryForm.name.trim()) return;
-    if (categoryDialogMode === 'create') {
-      await window.YUA.ai.createGlossaryCategory({ name: categoryForm.name, description: categoryForm.description || undefined });
-    } else if (editingCategoryId) {
-      await window.YUA.ai.updateGlossaryCategory(editingCategoryId, { name: categoryForm.name, description: categoryForm.description || undefined });
-    }
-    setCategoryDialogOpen(false);
-    await loadCategories();
-  };
-
-  const deleteCategory = async (id: string) => {
-    const cat = categories.find((c) => c.id === id);
-    if (!cat) return;
-    if (['general', 'technical', 'names'].includes(id)) {
-      alert('默认分类不能删除');
-      return;
-    }
-    if (!confirm(`删除分类「${cat.name}」及其下所有术语表？`)) return;
-    await window.YUA.ai.deleteGlossaryCategory(id);
-    if (selectedCategoryId === id) setSelectedCategoryId(null);
-    await loadCategories();
-    await loadGlossaries();
-  };
 
   // ==================== 术语表管理 ====================
 
@@ -333,43 +281,8 @@ export default function GlossarySettings(): JSX.Element {
 
       {/* 左侧：分类和术语表列表 */}
       <div className="w-[260px] flex flex-col border-r border-border">
-        {/* 分类选择 */}
-        <div className="p-3 border-b border-border">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-xs font-medium text-muted-foreground flex-1">分类</span>
-            <Button size="icon" variant="ghost" className="w-6 h-6" onClick={openCreateCategory} title="新建分类">
-              <TbFolderPlus className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-          <Select value={selectedCategoryId || ''} onValueChange={(v) => setSelectedCategoryId(v || null)}>
-            <SelectTrigger className="h-8">
-              <SelectValue placeholder="全部分类" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">全部分类</SelectItem>
-              {categories.map((cat) => (
-                <SelectItem key={cat.id} value={cat.id}>
-                  <div className="flex items-center justify-between w-full">
-                    <span>{cat.name}</span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {/* 编辑/删除分类按钮 */}
-          {selectedCategoryId && selectedCategoryId !== '__all__' && (
-            <div className="flex items-center gap-1 mt-2">
-              <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => openEditCategory(categories.find((c) => c.id === selectedCategoryId)!)}>
-                <TbEdit className="h-3 w-3 mr-1" />
-                编辑
-              </Button>
-              <Button size="sm" variant="ghost" className="h-6 text-xs text-destructive hover:text-destructive" onClick={() => deleteCategory(selectedCategoryId)}>
-                <TbTrash className="h-3 w-3 mr-1" />
-                删除
-              </Button>
-            </div>
-          )}
-        </div>
+        {/* 分类选择组件 */}
+        <GlossaryCategoryList value={selectedCategoryId} onChange={setSelectedCategoryId} />
 
         {/* 工具栏 */}
         <div className="p-3 flex items-center gap-2">
@@ -392,7 +305,10 @@ export default function GlossarySettings(): JSX.Element {
                 {filteredGlossaries.map((g) => (
                   <div
                     key={g.id}
-                    className={'group flex items-center justify-between px-3 py-2 cursor-pointer transition-colors rounded-md ' + (g.id === selectedGlossaryId ? 'bg-accent text-accent-foreground' : 'hover:bg-muted/50')}
+                    className={
+                      'group flex items-center justify-between px-3 py-2 cursor-pointer transition-colors rounded-md ' +
+                      (g.id === selectedGlossaryId ? 'bg-accent text-accent-foreground' : 'hover:bg-muted/50')
+                    }
                     onClick={() => setSelectedGlossaryId(g.id)}
                   >
                     <div className="flex-1 min-w-0">
@@ -478,7 +394,19 @@ export default function GlossarySettings(): JSX.Element {
           ) : (
             <div className="text-center py-12 text-muted-foreground">
               <p className="mb-2">请从左侧选择一个术语表</p>
-              <p className="text-xs">或创建新的术语表</p>
+              <p className="text-xs mb-4">或创建新的术语表</p>
+              {glossaries.length === 0 && (
+                <div className="flex items-center justify-center gap-2">
+                  <Button size="sm" onClick={openCreateGlossary}>
+                    <TbPlus className="h-4 w-4 mr-1" />
+                    新建术语表
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={openImportDialog}>
+                    <TbFileImport className="h-4 w-4 mr-1" />
+                    导入术语
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -486,31 +414,6 @@ export default function GlossarySettings(): JSX.Element {
 
       {/* 隐藏的文件输入 */}
       <input ref={fileInputRef} type="file" className="hidden" accept=".json,.csv,.tsv,.txt" onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])} />
-
-      {/* 新建/编辑分类对话框 */}
-      <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{categoryDialogMode === 'create' ? '新建分类' : '编辑分类'}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>分类名称</Label>
-              <Input value={categoryForm.name} onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })} placeholder="如：影视术语" />
-            </div>
-            <div className="space-y-2">
-              <Label>描述（可选）</Label>
-              <Input value={categoryForm.description} onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })} placeholder="分类描述" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCategoryDialogOpen(false)}>
-              取消
-            </Button>
-            <Button onClick={submitCategory}>保存</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* 新建/编辑术语表对话框 */}
       <Dialog open={glossaryDialogOpen} onOpenChange={setGlossaryDialogOpen}>
@@ -610,7 +513,12 @@ export default function GlossarySettings(): JSX.Element {
 
             {/* 粘贴区域 */}
             <div className="space-y-2">
-              <Textarea className="h-32 font-mono text-xs" placeholder='粘贴术语内容，如：{"word": "翻译"} 或 word,翻译 或 word = 翻译' value={importContent} onChange={(e) => setImportContent(e.target.value)} />
+              <Textarea
+                className="h-32 font-mono text-xs"
+                placeholder='粘贴术语内容，如：{"word": "翻译"} 或 word,翻译 或 word = 翻译'
+                value={importContent}
+                onChange={(e) => setImportContent(e.target.value)}
+              />
               <Button size="sm" variant="outline" onClick={handlePaste}>
                 解析内容
               </Button>
@@ -622,7 +530,7 @@ export default function GlossarySettings(): JSX.Element {
                 {importPreview.success ? (
                   <>
                     <div className="flex items-center gap-2 text-sm text-green-600">
-                      <span>✓ 识别到 {importPreview.entries.length} 个术语</span>
+                      <span>识别到 {importPreview.entries.length} 个术语</span>
                       <span className="text-xs text-muted-foreground">（格式：{importPreview.format}）</span>
                     </div>
                     {/* 预览前几条 */}
@@ -663,7 +571,7 @@ export default function GlossarySettings(): JSX.Element {
                     </div>
                   </>
                 ) : (
-                  <div className="text-sm text-red-500">✗ {importPreview.error}</div>
+                  <div className="text-sm text-red-500">{importPreview.error}</div>
                 )}
               </div>
             )}
