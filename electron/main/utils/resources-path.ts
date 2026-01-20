@@ -35,8 +35,7 @@ export function getResourcePath(binName: 'ffmpeg' | 'recorder' | 'sherpa' | 'ffp
     case 'workflows':
       return getRealPath(`../workflows/preset.json`, `./resources/workflows/preset.json`);
     case 'logs':
-      // Always place logs outside of app.asar. Using userData ensures a writable location across OSes.
-      return path.join(app.getPath('userData'), 'logs');
+      return app.getPath('logs');
     case 'recorder':
       return getRealPath(
         `../recorder/${os.platform()}/${os.arch()}/${os.platform() === 'darwin' ? 'recorder' : 'recorder.exe'}`,
