@@ -1,3 +1,4 @@
+import { debounce } from 'lodash';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TbEdit, TbFileImport, TbPlus, TbTrash, TbUpload } from 'react-icons/tb';
 
@@ -7,10 +8,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 
 import GlossaryCategoryList, { GlossaryCategory } from './GlossaryCategoryList';
+import GlossaryEntriesTable from './GlossaryEntriesTable';
 
 // 数据类型定义
 interface GlossaryEntry {
@@ -106,6 +107,22 @@ export default function GlossarySettings(): JSX.Element {
   // 当前选中的术语表
   const selectedGlossary = useMemo(() => glossaries.find((g) => g.id === selectedGlossaryId) || null, [glossaries, selectedGlossaryId]);
 
+  // ==================== 分类切换处理 ====================
+
+  const handleCategoryChange = (categoryId: string | null) => {
+    setSelectedCategoryId(categoryId);
+
+    // 检查当前选中的术语表是否在新分类的列表中
+    if (selectedGlossaryId) {
+      const isInNewCategory = categoryId ? glossaries.some((g) => g.id === selectedGlossaryId && g.categoryId === categoryId) : false;
+
+      // 如果当前选中的术语表不在新分类中，则清空选中状态
+      if (!isInNewCategory) {
+        setSelectedGlossaryId(null);
+      }
+    }
+  };
+
   // ==================== 术语表管理 ====================
 
   const openCreateGlossary = () => {
@@ -179,13 +196,44 @@ export default function GlossarySettings(): JSX.Element {
     await loadGlossaries();
   };
 
+  const updateEntry = async (oldSource: string, newEntry: GlossaryEntry) => {
+    if (!selectedGlossaryId) return;
+    try {
+      await window.YUA.ai.updateGlossaryEntry(selectedGlossaryId, oldSource, newEntry);
+      await loadGlossaries();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '更新术语失败');
+    }
+  };
+
   // ==================== 导入功能 ====================
+
+  // 使用 ref 存储防抖函数，避免重复创建
+  const debouncedParseRef = useRef<ReturnType<typeof debounce> | null>(null);
 
   const parseImportContent = async (content: string, fileName?: string) => {
     const result = await window.YUA.ai.parseGlossaryContent(content, fileName);
     setImportPreview(result);
     if (result.suggestedName) {
       setImportTargetName(result.suggestedName);
+    }
+  };
+
+  // 创建防抖解析函数，500ms 延迟
+  useEffect(() => {
+    debouncedParseRef.current = debounce((content: string, fileName?: string) => {
+      parseImportContent(content, fileName);
+    }, 500);
+
+    return () => {
+      debouncedParseRef.current?.cancel();
+    };
+  }, []);
+
+  const handleImportContentChange = (content: string) => {
+    setImportContent(content);
+    if (debouncedParseRef.current) {
+      debouncedParseRef.current(content, importFileName);
     }
   };
 
@@ -213,11 +261,6 @@ export default function GlossarySettings(): JSX.Element {
       await handleFileSelect(file);
       setImportDialogOpen(true);
     }
-  };
-
-  const handlePaste = async () => {
-    if (!importContent.trim()) return;
-    await parseImportContent(importContent);
   };
 
   const submitImport = async () => {
@@ -282,7 +325,7 @@ export default function GlossarySettings(): JSX.Element {
       {/* 左侧：分类和术语表列表 */}
       <div className="w-[260px] flex flex-col border-r border-border">
         {/* 分类选择组件 */}
-        <GlossaryCategoryList value={selectedCategoryId} onChange={setSelectedCategoryId} />
+        <GlossaryCategoryList value={selectedCategoryId} onChange={handleCategoryChange} />
 
         {/* 工具栏 */}
         <div className="p-3 flex items-center gap-2">
@@ -360,37 +403,7 @@ export default function GlossarySettings(): JSX.Element {
         </div>
         <div className="flex-1 overflow-auto p-4">
           {selectedGlossary ? (
-            selectedGlossary.entries.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <p className="mb-2">暂无术语</p>
-                <p className="text-xs">点击「添加术语」或拖拽文件导入</p>
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[200px]">源词</TableHead>
-                    <TableHead className="w-[200px]">目标词</TableHead>
-                    <TableHead>备注</TableHead>
-                    <TableHead className="w-[60px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {selectedGlossary.entries.map((entry, idx) => (
-                    <TableRow key={idx}>
-                      <TableCell className="font-medium">{entry.source}</TableCell>
-                      <TableCell>{entry.target}</TableCell>
-                      <TableCell className="text-muted-foreground">{entry.note || '-'}</TableCell>
-                      <TableCell>
-                        <Button size="icon" variant="ghost" className="w-6 h-6 text-destructive hover:text-destructive" onClick={() => removeEntry(entry.source)}>
-                          <TbTrash className="h-3.5 w-3.5" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )
+            <GlossaryEntriesTable glossary={selectedGlossary} onAddEntry={openAddEntry} onUpdateEntry={updateEntry} onRemoveEntry={removeEntry} />
           ) : (
             <div className="text-center py-12 text-muted-foreground">
               <p className="mb-2">请从左侧选择一个术语表</p>
@@ -398,11 +411,11 @@ export default function GlossarySettings(): JSX.Element {
               {glossaries.length === 0 && (
                 <div className="flex items-center justify-center gap-2">
                   <Button size="sm" onClick={openCreateGlossary}>
-                    <TbPlus className="h-4 w-4 mr-1" />
+                    <TbPlus />
                     新建术语表
                   </Button>
                   <Button size="sm" variant="outline" onClick={openImportDialog}>
-                    <TbFileImport className="h-4 w-4 mr-1" />
+                    <TbFileImport />
                     导入术语
                   </Button>
                 </div>
@@ -514,14 +527,11 @@ export default function GlossarySettings(): JSX.Element {
             {/* 粘贴区域 */}
             <div className="space-y-2">
               <Textarea
-                className="h-32 font-mono text-xs"
+                className="h-32 font-mono text-xs box-border resize-none"
                 placeholder='粘贴术语内容，如：{"word": "翻译"} 或 word,翻译 或 word = 翻译'
                 value={importContent}
-                onChange={(e) => setImportContent(e.target.value)}
+                onChange={(e) => handleImportContentChange(e.target.value)}
               />
-              <Button size="sm" variant="outline" onClick={handlePaste}>
-                解析内容
-              </Button>
             </div>
 
             {/* 解析结果预览 */}

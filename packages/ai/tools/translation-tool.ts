@@ -8,7 +8,7 @@ import { type AimSegments } from '@aim-packages/subtitle';
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 
-import type { TranslationService as TranslationServiceType } from '../translation-service';
+import type { TranslationService as TranslationServiceType } from '../services/translation-service';
 import { getTranslationServiceParams, translationToolContext } from './translation-tool-context';
 
 /**

@@ -279,6 +279,24 @@ export type AIApi = {
     }
     | undefined
   >;
+  updateGlossaryEntry(
+    glossaryId: string,
+    oldSource: string,
+    newEntry: { source: string; target: string; note?: string }
+  ): Promise<
+    | {
+      id: string;
+      categoryId: string;
+      name: string;
+      description?: string;
+      entries: Array<{ source: string; target: string; note?: string }>;
+      sourceFile?: string;
+      sourceFormat?: string;
+      createdAt: number;
+      updatedAt: number;
+    }
+    | undefined
+  >;
   parseGlossaryContent(
     content: string,
     fileName?: string
