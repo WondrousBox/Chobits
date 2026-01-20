@@ -9,7 +9,27 @@ import { SettingGroup, SettingItem, SettingPath } from './SettingComponents';
 function FolderSetting(): JSX.Element {
   const [pluginsDir, setPluginsDir] = useState<string>('');
   const [downloadDir, setDownloadDir] = useState<string>('');
+  const [logsDir, setLogsDir] = useState<string>('');
+  const [dataDir, setDataDir] = useState<string>('');
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await window.YUA.system['database:getPath']();
+        if (!mounted) return;
+        if (res.ok && res.dir) {
+          setDataDir(res.dir);
+        }
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -39,6 +59,24 @@ function FolderSetting(): JSX.Element {
         if (!mounted) return;
         if (res.ok && res.path) {
           setDownloadDir(res.path);
+        }
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await window.YUA.system['logs:getPath']();
+        if (!mounted) return;
+        if (res.ok && res.dir) {
+          setLogsDir(res.dir);
         }
       } catch {
         // ignore
@@ -96,9 +134,9 @@ function FolderSetting(): JSX.Element {
         description="应用数据存储位置"
         action={
           <div className="flex items-center gap-2">
-            <SettingPath path="data/" />
+            <SettingPath path={maskPath(dataDir)} placeholder="data/" />
             <Button size="sm" variant="outline" onClick={openDatabaseLocation}>
-              <TbFolderOpen className="h-4 w-4 mr-1" />
+              <TbFolderOpen />
               打开
             </Button>
           </div>
@@ -109,9 +147,9 @@ function FolderSetting(): JSX.Element {
         description="应用日志文件位置"
         action={
           <div className="flex items-center gap-2">
-            <SettingPath path="logs/" />
+            <SettingPath path={maskPath(logsDir)} placeholder="logs/" />
             <Button size="sm" variant="outline" onClick={openLogsLocation}>
-              <TbFolderOpen className="h-4 w-4 mr-1" />
+              <TbFolderOpen />
               打开
             </Button>
           </div>
@@ -125,7 +163,7 @@ function FolderSetting(): JSX.Element {
             <SettingPath path={maskPath(downloadDir)} placeholder="未设置" />
             {downloadDir && (
               <Button size="sm" variant="outline" onClick={openDownloadLocation}>
-                <TbFolderOpen className="h-4 w-4 mr-1" />
+                <TbFolderOpen />
                 打开
               </Button>
             )}
@@ -146,7 +184,7 @@ function FolderSetting(): JSX.Element {
               </Button>
               {pluginsDir && (
                 <Button size="sm" variant="outline" onClick={openPluginsLocation}>
-                  <TbFolderOpen className="h-4 w-4 mr-1" />
+                  <TbFolderOpen />
                   打开
                 </Button>
               )}
