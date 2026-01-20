@@ -22,6 +22,7 @@ export interface GlossaryCategory {
   description?: string; // 分类描述
   createdAt: number;
   updatedAt: number;
+  isPreset?: boolean; // 是否为预设分类
 }
 
 /**
@@ -60,12 +61,21 @@ export interface ParseResult {
 
 const FILE = path.join(app.getPath('userData'), 'data', 'ai-glossaries.json');
 
-// 默认分类
+// 默认分类（预设分类）
 const DEFAULT_CATEGORIES: GlossaryCategory[] = [
-  { id: 'general', name: '通用术语', description: '通用翻译术语', createdAt: 0, updatedAt: 0 },
-  { id: 'technical', name: '技术术语', description: '编程、软件相关术语', createdAt: 0, updatedAt: 0 },
-  { id: 'names', name: '人名地名', description: '人名、地名、机构名等专有名词', createdAt: 0, updatedAt: 0 }
+  { id: 'general', name: '通用', description: '通用翻译术语', createdAt: 0, updatedAt: 0, isPreset: true },
+  { id: 'technical', name: '技术', description: '编程、软件相关术语', createdAt: 0, updatedAt: 0, isPreset: true },
+  { id: 'names', name: '人名地名', description: '人名、地名、机构名等专有名词', createdAt: 0, updatedAt: 0, isPreset: true },
+  { id: 'game', name: '游戏', description: '游戏行业专业术语', createdAt: 0, updatedAt: 0, isPreset: true },
+  { id: 'medical', name: '医学', description: '医学、医药相关专业术语', createdAt: 0, updatedAt: 0, isPreset: true },
+  { id: 'sports', name: '体育', description: '各类体育运动相关术语', createdAt: 0, updatedAt: 0, isPreset: true },
+  { id: 'finance', name: '金融', description: '金融、投资、经济相关术语', createdAt: 0, updatedAt: 0, isPreset: true },
+  { id: 'legal', name: '法律', description: '法律、法规相关术语', createdAt: 0, updatedAt: 0, isPreset: true },
+  { id: 'science', name: '科学', description: '科学、研究相关术语', createdAt: 0, updatedAt: 0, isPreset: true }
 ];
+
+// 预设分类 ID 集合
+const PRESET_CATEGORY_IDS = new Set(DEFAULT_CATEGORIES.map((c) => c.id));
 
 function read(): StoreShape {
   try {
@@ -216,7 +226,12 @@ export const GlossaryStore = {
    * 列出所有分类
    */
   listCategories(): GlossaryCategory[] {
-    return read().categories;
+    const categories = read().categories;
+    // 确保预设分类标记了 isPreset
+    return categories.map((c) => ({
+      ...c,
+      isPreset: c.isPreset ?? PRESET_CATEGORY_IDS.has(c.id)
+    }));
   },
 
   /**
@@ -261,11 +276,12 @@ export const GlossaryStore = {
    * 删除分类（同时删除该分类下的所有术语表）
    */
   deleteCategory(id: string): boolean {
-    // 不允许删除默认分类
-    if (['general', 'technical', 'names'].includes(id)) {
+    const d = read();
+    const category = d.categories.find((c) => c.id === id);
+    // 不允许删除预设分类
+    if (category?.isPreset) {
       return false;
     }
-    const d = read();
     const before = d.categories.length;
     d.categories = d.categories.filter((c) => c.id !== id);
     // 同时删除该分类下的术语表

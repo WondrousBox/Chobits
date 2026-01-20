@@ -8,7 +8,7 @@ import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarMenu
 import DragAbleTitle from '../../components/common/DragAbleTitle';
 import EmbeddingJobsPanel from '../../components/EmbeddingJobs';
 import AiSettings from './components/AiSettings';
-import GlossarySettings from './components/GlossarySettings';
+import GlossarySettings from './components/glossary/GlossarySettings';
 import PreferencesSettings from './components/PreferencesSettings';
 import PromptSetting from './components/PromptSetting';
 import ProxySettings from './components/ProxySettings';
