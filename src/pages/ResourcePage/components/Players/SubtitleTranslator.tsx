@@ -238,13 +238,6 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
     setSelectedModel(modelId);
   }, []);
 
-  // 繁忙提示对话框状态
-  const [busyDialogState, setBusyDialogState] = useState<{
-    open: boolean;
-    providerId: string;
-    activeCount: number;
-  }>({ open: false, providerId: '', activeCount: 0 });
-
   // 执行 AI 翻译的核心逻辑
   const executeAITranslation = useCallback(
     async (params: { providerId: string; model: string; targetLang: string; force: boolean }) => {
@@ -255,7 +248,6 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
       if (validSegments.length === 0) return;
 
       setIsTranslationPopoverOpen(false);
-      setBusyDialogState((prev) => ({ ...prev, open: false }));
 
       try {
         // 准备翻译数据
@@ -312,22 +304,7 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
       return;
     }
 
-    // 检查服务商状态
-    try {
-      const status = await window.YUA.ai.getProviderTranslationStatus(selectedProviderId);
-      if (status.busy) {
-        setBusyDialogState({
-          open: true,
-          providerId: selectedProviderId,
-          activeCount: status.activeRequests.length
-        });
-        return;
-      }
-    } catch (error) {
-      console.error('检查服务商状态失败:', error);
-    }
-
-    // 如果不繁忙，直接开始
+    // 直接开始翻译
     await executeAITranslation({
       providerId: selectedProviderId,
       model: selectedModel,
@@ -335,35 +312,6 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
       force: false
     });
   }, [selectedProviderId, selectedModel, targetLanguage, subtitleEntries, executeAITranslation]);
-
-  // 强制开始翻译
-  const handleForceStart = useCallback(() => {
-    executeAITranslation({
-      providerId: selectedProviderId,
-      model: selectedModel,
-      targetLang: targetLanguage,
-      force: true
-    });
-  }, [selectedProviderId, selectedModel, targetLanguage, executeAITranslation]);
-
-  // 切换到历史记录中的其他服务商并尝试开始
-  const handleSwitchAndStart = useCallback(
-    (item: TranslationHistoryItem) => {
-      if (item.mode !== 'ai' || !item.providerId || !item.model) return;
-
-      // 更新当前选择
-      applyHistory(item);
-
-      // 直接开始翻译
-      executeAITranslation({
-        providerId: item.providerId,
-        model: item.model,
-        targetLang: item.targetLanguage,
-        force: false
-      });
-    },
-    [applyHistory, executeAITranslation]
-  );
 
   return (
     <div className="flex items-center justify-end gap-2 px-3 py-1">
@@ -384,11 +332,13 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
             {history.length > 0 && (
               <div className="mb-4 space-y-2 border-b pb-4">
                 <Label className="text-xs font-medium text-muted-foreground">最近使用</Label>
-                <div className="flex flex-wrap gap-2">
-                  {history.map((item, index) => (
-                    <Button key={index} variant="outline" size="sm" className="h-auto py-1 px-2 text-xs flex flex-col items-start gap-0.5" onClick={() => applyHistory(item)}>
-                      <span className="font-medium">{item.mode === 'ai' ? `${item.providerId} · ${item.model}` : translationServices.find((s) => s.value === item.service)?.label}</span>
-                      <span className="text-[10px] text-muted-foreground">→ {languageNames[item.targetLanguage] || item.targetLanguage}</span>
+                <div className="flex flex-wrap gap-1">
+                  {history.slice(0, 2).map((item, index) => (
+                    <Button key={index} variant="outline" size="sm" className="text-xs flex flex-col items-start gap-0.5 w-full" onClick={() => applyHistory(item)}>
+                      <span className="font-medium">
+                        {item.mode === 'ai' ? `${item.providerId} · ${item.model}` : translationServices.find((s) => s.value === item.service)?.label} →{' '}
+                        {languageNames[item.targetLanguage] || item.targetLanguage}
+                      </span>
                     </Button>
                   ))}
                 </div>
@@ -584,43 +534,6 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
           </PopoverContent>
         </Popover>
       )}
-
-      {/* 繁忙提示对话框 */}
-      <Dialog open={busyDialogState.open} onOpenChange={(open) => setBusyDialogState((prev) => ({ ...prev, open }))}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>服务商繁忙</DialogTitle>
-            <DialogDescription>当前有 {busyDialogState.activeCount} 个正在进行的翻译任务。</DialogDescription>
-          </DialogHeader>
-
-          {/* 最近使用的其他服务商 */}
-          {history.filter((h) => h.mode === 'ai' && h.providerId !== busyDialogState.providerId).length > 0 && (
-            <div className="py-2">
-              <Label className="text-xs font-medium text-muted-foreground mb-2 block">切换到最近使用的其他配置：</Label>
-              <div className="flex flex-wrap gap-2">
-                {history
-                  .filter((h) => h.mode === 'ai' && h.providerId !== busyDialogState.providerId)
-                  .slice(0, 3)
-                  .map((item, index) => (
-                    <Button key={index} variant="outline" size="sm" className="h-auto py-1 px-2 text-xs flex flex-col items-start gap-0.5" onClick={() => handleSwitchAndStart(item)}>
-                      <span className="font-medium">{`${item.providerId} · ${item.model}`}</span>
-                      <span className="text-[10px] text-muted-foreground">→ {languageNames[item.targetLanguage] || item.targetLanguage}</span>
-                    </Button>
-                  ))}
-              </div>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setBusyDialogState((prev) => ({ ...prev, open: false }))}>
-              取消
-            </Button>
-            <Button variant="destructive" onClick={handleForceStart}>
-              强制开始
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

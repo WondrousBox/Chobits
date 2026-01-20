@@ -5,15 +5,13 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 
 import { ChatRepo, ResourcesRepo } from '../common/db';
-import { sendAppBusyEnd, sendAppBusyProgress, sendAppBusyStart } from '../event';
-import { getAgent } from './agents';
 import { BasicAgent } from './agents/basic';
 import { RAGAgent } from './agents/rag';
 import { TaggerAgent } from './agents/tagger';
 import { ChatService } from './chat-service';
 import { GlossaryStore } from './glossary-store';
 import { InstancesStore } from './instances-store';
-import { createModel } from './models/index';
+import { createChatFunction, createEventEmitter, loadContentFromResource, loadSegmentsFromResource, setupModelAndAgent } from './ipc-handler-helpers';
 import { PromptsStore } from './prompts-store';
 import { AnthropicProvider } from './providers/anthropic';
 import { DeepSeekProvider } from './providers/deepseek';
@@ -356,13 +354,6 @@ export function initAIHandlers(win: BrowserWindow): void {
     return row ? { ok: true } : { ok: false };
   });
 
-  // 获取任务标签的翻译状态
-  ipcMain.handle('ai:getProviderTranslationStatus', async (_e, payload: { providerId: string; model?: string }) => {
-    const taskLabel = payload.model ? `${payload.providerId}/${payload.model}` : payload.providerId;
-    const activeRequests = TranslationService.getActiveRequestsByLabel(taskLabel);
-    return { busy: activeRequests.length > 0, activeRequests };
-  });
-
   // 获取所有活跃的翻译任务
   ipcMain.handle('ai:getTranslationTasks', async () => {
     // The service already excludes internal properties (controller, translator)
@@ -431,33 +422,11 @@ export function initAIHandlers(win: BrowserWindow): void {
       const eventsChannel = `subtitle:translate:${requestId}`;
       const taskLabel = `${providerId}/${model}`;
 
+      // 步骤1: 读取文件，加载字幕片段
       let actualSegments = segments;
-
       if (!actualSegments && resourceId) {
         try {
-          const resource = await ResourcesRepo.getById(resourceId);
-          if (!resource || !resource.filePath) {
-            throw new Error(`Resource ${resourceId} not found or has no file path`);
-          }
-
-          const lower = resource.filePath.toLowerCase();
-          const isSubtitleFile = lower.endsWith('.srt') || lower.endsWith('.vtt') || lower.endsWith('.ass') || lower.endsWith('.ssa');
-          if (!isSubtitleFile) {
-            throw new Error(`Resource ${resourceId} is not a subtitle file`);
-          }
-
-          const fileContent = await fs.readFile(resource.filePath, 'utf8');
-          const parsedResult = await parser.parseSubtitle(fileContent);
-          actualSegments = (parsedResult?.segments || []).map((seg, idx) => ({
-            text: seg.text,
-            index: idx
-          }));
-
-          if (actualSegments.length === 0) {
-            throw new Error(`No segments found in subtitle file: ${resource.filePath}`);
-          }
-
-          console.log(`[translate] Loaded ${actualSegments.length} segments from resource ${resourceId}`);
+          actualSegments = await loadSegmentsFromResource(resourceId);
         } catch (error) {
           console.error('[translate] Failed to load segments from resource:', error);
           throw error;
@@ -468,156 +437,45 @@ export function initAIHandlers(win: BrowserWindow): void {
         throw new Error('No segments provided and unable to load segments from resourceId');
       }
 
-      // 检查服务商是否繁忙
-      const activeRequests = TranslationService.getActiveRequestsByLabel(taskLabel);
-      if (activeRequests.length > 0 && !force) {
-        // const error = new Error(`BUSY:${activeRequests.join(',')}`);
-        // // emit({ type: 'error', data: { message: error.message, code: 'BUSY' } });
-        // BrowserWindow.getAllWindows().forEach((w) => {
-        //   if (!w.isDestroyed()) {
-        //     try {
-        //       w.webContents.send('renderer-message', {
-        //         type: 'subtitle:translate',
-        //         data: { requestId, ...{ type: 'error', data: { message: error.message, code: 'BUSY' } } }
-        //       });
-        //     } catch (error) {
-        //       console.error('发送翻译消息失败:', error);
-        //     }
-        //   }
-        // });
-        // throw error;
-        // 返回繁忙状态，让前端决定是否强制启动
-        return {
-          requestId,
-          eventsChannel,
-          busy: true,
-          activeRequests
-        };
-      }
+      // 步骤2: 设置模型和Agent
+      const { agent } = await setupModelAndAgent(providerId, model, 'assistant');
 
-      // 使用 ChatService 获取配置好的 Agent
-      const chatService = new ChatService();
+      // 步骤3: 创建聊天函数
+      const chatFn = createChatFunction(agent);
 
-      // 获取 provider 配置
-      const providerConfig = chatService.getProviderConfig(providerId);
-      if (!providerConfig) {
-        throw new Error(`Provider ${providerId} not found`);
-      }
-
-      // 获取 secrets
-      const fields = providerConfig.fields as Array<{ key: string; required?: boolean }>;
-      const keys = fields.map((f: any) => f.key);
-      const secrets = await getAllSecrets(providerId, keys);
-      const apiKey = getFirstApiKey(secrets.apiKey);
-
-      if (!apiKey && fields.some((f: any) => f.key === 'apiKey' && f.required)) {
-        throw new Error(`Provider ${providerId} 未配置 API Key`);
-      }
-
-      // 创建模型实例
-      const modelConfig = {
-        apiKey: apiKey || '',
-        baseUrl: secrets.baseUrl as string,
-        model: model || providerConfig.defaultModel
-      };
-      const modelInstance = createModel(providerId, modelConfig);
-
-      // 获取 Agent 实例
-      const agentId = 'assistant'; // 使用默认的助手 Agent
-      const agent = getAgent(agentId);
-      if (!agent) {
-        throw new Error(`Agent ${agentId} not found`);
-      }
-
-      // 配置 Agent 使用当前模型
-      agent.model = modelInstance;
-
-      // 构造 chatFn，使用 mastra Agent 的流式能力
-      const chatFn = async (prompt: string, onEvent: (event: any) => void, abortSignal?: AbortSignal): Promise<void> => {
-        try {
-          const stream = await agent.stream(prompt, {
-            maxSteps: 10,
-            abortSignal
-          });
-
-          for await (const chunk of stream.textStream) {
-            if (abortSignal?.aborted) break;
-            onEvent({ type: 'delta', data: { text: chunk } });
-          }
-
-          onEvent({ type: 'message_completed' });
-        } catch (error: any) {
-          onEvent({ type: 'error', data: { message: error?.message || '翻译失败' } });
-        }
-      };
-
-      // 累积翻译结果，用于保存
+      // 步骤4: 创建事件发射器，处理翻译回调
       const accumulatedTranslations: Array<{ index: number; text: string }> = [];
-      let busyStarted = false;
 
-      // 向所有窗口发送消息的函数，同时处理保存逻辑
-      const emit = (event: { type: string; data?: any }): void => {
-        // 处理进度事件，发送给精灵
-        if (event.type === 'progress' && event.data) {
-          const { percentage, message } = event.data;
-          if (percentage !== undefined) {
-            sendAppBusyProgress(percentage, message || '正在翻译...');
+      const emit = createEventEmitter({
+        requestId,
+        eventType: 'subtitle:translate',
+        busyMessage: '开始翻译字幕...',
+        progressMessage: '正在翻译...',
+        onChunkComplete: async (data) => {
+          if (data?.segments && metadata?.resourceId) {
+            // 累积翻译结果
+            const chunkSegments = data.segments as Array<{ index: number; text: string }>;
+            chunkSegments.forEach((seg) => {
+              const existing = accumulatedTranslations.findIndex((t) => t.index === seg.index);
+              if (existing >= 0) {
+                accumulatedTranslations[existing] = seg;
+              } else {
+                accumulatedTranslations.push(seg);
+              }
+            });
+
+            // 保存翻译结果
+            await saveTranslatedSubtitle(metadata.resourceId, actualSegments, accumulatedTranslations);
           }
-
-          // 在第一个进度事件时发送开始信号
-          if (!busyStarted) {
-            sendAppBusyStart(0, '开始翻译字幕...');
-            busyStarted = true;
+        },
+        onCompleted: async () => {
+          if (metadata?.resourceId && accumulatedTranslations.length > 0) {
+            await saveTranslatedSubtitle(metadata.resourceId, actualSegments, accumulatedTranslations);
           }
         }
+      });
 
-        // 在翻译完成时结束繁忙状态
-        if (event.type === 'completed' || event.type === 'done' || event.type === 'error') {
-          sendAppBusyEnd();
-        }
-
-        // 在 chunk-complete 时保存字幕
-        if (event.type === 'chunk-complete' && event.data?.segments && metadata?.resourceId) {
-          // 累积翻译结果
-          const chunkSegments = event.data.segments as Array<{ index: number; text: string }>;
-          chunkSegments.forEach((seg) => {
-            const existing = accumulatedTranslations.findIndex((t) => t.index === seg.index);
-            if (existing >= 0) {
-              accumulatedTranslations[existing] = seg;
-            } else {
-              accumulatedTranslations.push(seg);
-            }
-          });
-
-          // 保存翻译结果
-          saveTranslatedSubtitle(metadata.resourceId, actualSegments, accumulatedTranslations).catch((err) => {
-            console.error('[translation-save] chunk-complete 保存失败:', err);
-          });
-        }
-
-        // 在翻译完成时最终保存
-        if ((event.type === 'completed' || event.type === 'done') && metadata?.resourceId && accumulatedTranslations.length > 0) {
-          saveTranslatedSubtitle(metadata.resourceId, actualSegments, accumulatedTranslations).catch((err) => {
-            console.error('[translation-save] completed 保存失败:', err);
-          });
-        }
-
-        // 发送消息到渲染进程
-        BrowserWindow.getAllWindows().forEach((w) => {
-          if (!w.isDestroyed()) {
-            try {
-              w.webContents.send('renderer-message', {
-                type: 'subtitle:translate',
-                data: { requestId, ...event }
-              });
-            } catch (error) {
-              console.error('发送翻译消息失败:', error);
-            }
-          }
-        });
-      };
-
-      // 异步处理翻译
+      // 步骤5: 异步处理翻译
       TranslationService.translateSubtitles(
         {
           requestId,
@@ -688,34 +546,12 @@ export function initAIHandlers(win: BrowserWindow): void {
       const eventsChannel = `summary:${requestId}`;
       const taskLabel = `${providerId}/${model}`;
 
+      // 步骤1: 读取内容
       let actualContent: string | any[] = content as string | any[];
 
-      // 如果没有直接提供 content，尝试从 resourceId 读取
       if (!actualContent && resourceId) {
         try {
-          const resource = await ResourcesRepo.getById(resourceId);
-          if (!resource || !resource.filePath) {
-            throw new Error(`Resource ${resourceId} not found or has no file path`);
-          }
-
-          const lower = resource.filePath.toLowerCase();
-          const isSubtitleFile = lower.endsWith('.srt') || lower.endsWith('.vtt') || lower.endsWith('.ass') || lower.endsWith('.ssa');
-
-          if (isSubtitleFile) {
-            // 读取字幕文件
-            const fileContent = await fs.readFile(resource.filePath, 'utf8');
-            const parsedResult = await parser.parseSubtitle(fileContent);
-            actualContent = parsedResult?.segments || [];
-          } else {
-            // 读取普通文本文件
-            actualContent = await fs.readFile(resource.filePath, 'utf8');
-          }
-
-          if (!actualContent || (Array.isArray(actualContent) && actualContent.length === 0) || (typeof actualContent === 'string' && actualContent.length === 0)) {
-            throw new Error(`No content found in file: ${resource.filePath}`);
-          }
-
-          console.log(`[summarize] Loaded content from resource ${resourceId}`);
+          actualContent = await loadContentFromResource(resourceId);
         } catch (error) {
           console.error('[summarize] Failed to load content from resource:', error);
           throw error;
@@ -731,100 +567,21 @@ export function initAIHandlers(win: BrowserWindow): void {
         throw new Error('No content provided and unable to load content from resourceId');
       }
 
-      // 使用 ChatService 获取配置好的 Agent
-      const chatService = new ChatService();
+      // 步骤2: 设置模型和Agent
+      const { agent } = await setupModelAndAgent(providerId, model, 'assistant');
 
-      // 获取 provider 配置
-      const providerConfig = chatService.getProviderConfig(providerId);
-      if (!providerConfig) {
-        throw new Error(`Provider ${providerId} not found`);
-      }
+      // 步骤3: 创建聊天函数
+      const chatFn = createChatFunction(agent);
 
-      // 获取 secrets
-      const fields = providerConfig.fields as Array<{ key: string; required?: boolean }>;
-      const keys = fields.map((f: any) => f.key);
-      const secrets = await getAllSecrets(providerId, keys);
-      const apiKey = getFirstApiKey(secrets.apiKey);
+      // 步骤4: 创建事件发射器
+      const emit = createEventEmitter({
+        requestId,
+        eventType: 'summary',
+        busyMessage: '开始总结内容...',
+        progressMessage: '正在总结...'
+      });
 
-      if (!apiKey && fields.some((f: any) => f.key === 'apiKey' && f.required)) {
-        throw new Error(`Provider ${providerId} 未配置 API Key`);
-      }
-
-      // 创建模型实例
-      const modelConfig = {
-        apiKey: apiKey || '',
-        baseUrl: secrets.baseUrl as string,
-        model: model || providerConfig.defaultModel
-      };
-      const modelInstance = createModel(providerId, modelConfig);
-
-      // 获取 Agent 实例
-      const agentId = 'assistant'; // 使用默认的助手 Agent
-      const agent = getAgent(agentId);
-      if (!agent) {
-        throw new Error(`Agent ${agentId} not found`);
-      }
-
-      // 配置 Agent 使用当前模型
-      agent.model = modelInstance;
-
-      // 构造 chatFn，使用 mastra Agent 的流式能力
-      const chatFn = async (prompt: string, onEvent: (event: any) => void, abortSignal?: AbortSignal): Promise<void> => {
-        try {
-          const stream = await agent.stream(prompt, {
-            maxSteps: 10,
-            abortSignal
-          });
-
-          for await (const chunk of stream.textStream) {
-            if (abortSignal?.aborted) break;
-            onEvent({ type: 'delta', data: { text: chunk } });
-          }
-
-          onEvent({ type: 'message_completed' });
-        } catch (error: any) {
-          onEvent({ type: 'error', data: { message: error?.message || '总结失败' } });
-        }
-      };
-
-      let busyStarted = false;
-
-      // 向所有窗口发送消息的函数
-      const emit = (event: { type: string; data?: any }): void => {
-        // 处理进度事件，发送给精灵
-        if (event.type === 'progress' && event.data) {
-          const { percentage, message } = event.data;
-          if (percentage !== undefined) {
-            sendAppBusyProgress(percentage, message || '正在总结...');
-          }
-
-          if (!busyStarted) {
-            sendAppBusyStart(0, '开始总结内容...');
-            busyStarted = true;
-          }
-        }
-
-        // 在总结完成时结束繁忙状态
-        if (event.type === 'completed' || event.type === 'done' || event.type === 'error') {
-          sendAppBusyEnd();
-        }
-
-        // 发送消息到渲染进程
-        BrowserWindow.getAllWindows().forEach((w) => {
-          if (!w.isDestroyed()) {
-            try {
-              w.webContents.send('renderer-message', {
-                type: 'summary',
-                data: { requestId, ...event }
-              });
-            } catch (error) {
-              console.error('发送总结消息失败:', error);
-            }
-          }
-        });
-      };
-
-      // 异步处理总结
+      // 步骤5: 异步处理总结
       SummaryService.summarize(emit, {
         requestId,
         chatFn,
