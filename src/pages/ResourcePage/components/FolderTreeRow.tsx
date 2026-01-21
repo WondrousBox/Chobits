@@ -244,7 +244,8 @@ const FolderTreeRow = ({
       onClick={() => {
         if (isEditing) return;
         onSelect(node.id);
-        if (hasChildren) onToggleExpand(node.id);
+        // 点击行：只在收起时自动展开，避免已展开文件夹在切换选中时出现“先收起再展开”的闪动
+        if (hasChildren && !expanded) onToggleExpand(node.id);
       }}
       style={{ paddingLeft: 8 + depth * 12 }}
       draggable={!isEditing}

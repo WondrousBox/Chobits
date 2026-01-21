@@ -240,8 +240,8 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
 
   // 执行 AI 翻译的核心逻辑
   const executeAITranslation = useCallback(
-    async (params: { providerId: string; model: string; targetLang: string; force: boolean }) => {
-      const { providerId, model, targetLang, force } = params;
+    async (params: { providerId: string; model: string; targetLang: string }) => {
+      const { providerId, model, targetLang } = params;
 
       // 过滤掉已删除的片段
       const validSegments = subtitleEntries.filter((seg) => !seg.delete);
@@ -263,7 +263,6 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
           segments: segmentsData,
           targetLanguage: targetLang,
           languageNames,
-          force,
           metadata: {
             resourceId
           },
@@ -308,8 +307,7 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
     await executeAITranslation({
       providerId: selectedProviderId,
       model: selectedModel,
-      targetLang: targetLanguage,
-      force: false
+      targetLang: targetLanguage
     });
   }, [selectedProviderId, selectedModel, targetLanguage, subtitleEntries, executeAITranslation]);
 

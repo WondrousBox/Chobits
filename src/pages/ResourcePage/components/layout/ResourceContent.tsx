@@ -1,6 +1,6 @@
 import { debounce } from 'lodash-es';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbBolt, TbChevronLeft, TbPlayerPlay, TbSparkles, TbTrash, TbX } from 'react-icons/tb';
+import { TbBolt, TbChevronLeft, TbHome, TbPlayerPlay, TbSparkles, TbTrash, TbX } from 'react-icons/tb';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 import { toast } from 'sonner';
 
@@ -474,9 +474,11 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
         {/* 左侧：面包屑导航 */}
         <div className="pointer-events-auto flex items-center" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           {/* 回退按钮 - 只在有上级目录时显示 */}
-          {folderFilter && (
-            <button
-              className="mr-1 p-0.5 rounded hover:bg-muted transition-colors"
+          {
+            <Button
+              variant={'ghost'}
+              size={'icon'}
+              className="w-8 h-8"
               onClick={() => {
                 // 返回上一级：如果有多级路径，返回倒数第二个；否则返回根目录
                 const parentId = currentFolderPath.length > 1 ? currentFolderPath[currentFolderPath.length - 2].id : '';
@@ -486,9 +488,9 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
                 setTypeFilter([]);
               }}
             >
-              <TbChevronLeft className="w-4 h-4" />
-            </button>
-          )}
+              {folderFilter ? <TbChevronLeft /> : <TbHome />}
+            </Button>
+          }
           <span
             className={`cursor-pointer hover:underline ${folderFilter ? 'text-muted-foreground' : 'text-foreground font-medium'}`}
             onClick={() => {
@@ -502,7 +504,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
           </span>
           {currentFolderPath.map((f) => (
             <React.Fragment key={f.id}>
-              <span className="mx-1 text-muted-foreground">/</span>
+              <span className="mx-2 text-muted-foreground">/</span>
               <span
                 className="cursor-pointer hover:underline text-foreground font-medium"
                 onClick={() => {
@@ -521,18 +523,18 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
         {/* 右侧：功能按钮 */}
         <div className="pointer-events-auto flex items-center gap-1" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           {/* AI 助手按钮 */}
-          <button className={`p-1.5 rounded transition-colors ${aiChatOpen ? 'bg-muted text-primary' : 'hover:bg-muted'}`} onClick={() => setAiChatOpen((prev) => !prev)} title="AI 助手">
+          {/* <button className={`p-1.5 rounded transition-colors ${aiChatOpen ? 'bg-muted text-primary' : 'hover:bg-muted'}`} onClick={() => setAiChatOpen((prev) => !prev)} title="AI 助手">
             <TbSparkles className="w-4 h-4" />
-          </button>
+          </button> */}
           {/* 自动化任务按钮 */}
-          <button
+          {/* <button
             className="p-1.5 rounded hover:bg-muted transition-colors"
             onClick={() => {
               toast.info('自动化任务功能即将上线');
             }}
           >
             <TbBolt className="w-4 h-4" />
-          </button>
+          </button> */}
         </div>
       </div>
 

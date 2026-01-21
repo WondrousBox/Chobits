@@ -1,4 +1,4 @@
-import { writeFile } from '@aim-packages/file-utils';
+import { readFile, writeFile } from '@aim-packages/file-utils';
 import { type AimSegments, parser, tools } from '@aim-packages/subtitle';
 import { randomUUID } from 'crypto';
 import { BrowserWindow, ipcMain } from 'electron';
@@ -40,6 +40,42 @@ import {
 } from './settings-store';
 import { getAllInstanceSecrets as getAllInstSecrets, setInstanceSecrets as setInstSecrets } from './settings-store';
 
+/**
+ * 保存翻译结果（JSON）到正在翻译的字幕文件同目录
+ * - 不再覆盖/合并原字幕文件
+ * - 输出文件名: <原文件名>.translated.<lang>.<timestamp>.json（支持多次翻译历史记录）
+ */
+type TranslatedSubtitleJsonV1 = {
+  version: 1;
+  resourceId?: string;
+  providerId?: string;
+  model?: string;
+  targetLanguage?: string;
+  startedAt: number; // 翻译任务开始时间戳
+  updatedAt: number; // 最后更新时间戳
+  translatedSegments: Array<{ index: number; text: string }>;
+};
+
+function isSubtitleFilePath(filePath: string): boolean {
+  const lower = (filePath || '').toLowerCase();
+  return lower.endsWith('.srt') || lower.endsWith('.vtt') || lower.endsWith('.ass') || lower.endsWith('.ssa');
+}
+
+function safeSuffixPart(input: string | undefined): string {
+  const raw = String(input || '')
+    .trim()
+    .toLowerCase();
+  if (!raw) return '';
+  return raw.replace(/[^a-z0-9_-]+/g, '').slice(0, 32);
+}
+
+function buildTranslatedJsonPath(sourceSubtitlePath: string, targetLanguage: string | undefined, startTimestamp: number): string {
+  const dir = path.dirname(sourceSubtitlePath);
+  const base = path.basename(sourceSubtitlePath); // keep original extension (e.g. movie.srt)
+  const lang = safeSuffixPart(targetLanguage);
+  const suffix = lang ? `.translated.${lang}.${startTimestamp}.json` : `.translated.${startTimestamp}.json`;
+  return path.join(dir, `${base}${suffix}`);
+}
 // 将 AimSegments 转换为 ISegment 格式
 type ISegment = [string, string, string, string | undefined];
 function convertToISegment(segment: AimSegments): ISegment {
@@ -58,10 +94,9 @@ function detectSubtitleFormat(filePath: string): SubtitleFormat {
 /**
  * 保存翻译后的字幕到文件
  * @param resourceId 资源 ID
- * @param originalSegments 原文字幕片段（可能不完整，用于索引匹配）
  * @param translatedSegments 翻译后的字幕片段
  */
-async function saveTranslatedSubtitle(resourceId: string, originalSegments: AimSegments[], translatedSegments: Array<{ index: number; text: string }>): Promise<void> {
+async function saveTranslatedSubtitle(resourceId: string, translatedSegments: Array<{ index: number; text: string }>): Promise<void> {
   if (!resourceId) return;
 
   try {
@@ -81,18 +116,22 @@ async function saveTranslatedSubtitle(resourceId: string, originalSegments: AimS
       console.warn('[translation-save] 不是字幕文件:', filePath);
       return;
     }
-
-    // 从文件重新读取原始字幕，确保获取完整的时间戳信息
-    const fileContent = await fs.readFile(filePath, 'utf8');
+    // 从文件重新读取原始字幕，确保时间戳完整
+    const fileContent = await readFile(filePath, 'utf8');
     const parsedResult = await parser.parseSubtitle(fileContent);
-    const originalSegmentsFromFile = parsedResult?.segments || [];
+    const originalSegments = parsedResult?.segments || [];
+
+    if (originalSegments.length === 0) {
+      console.warn('[translation-save] 无法从文件读取原始字幕:', filePath);
+      return;
+    }
 
     // 检测格式
     const format = detectSubtitleFormat(filePath);
 
     // 构建翻译后的完整字幕数组（segments2）
     // 使用从文件读取的原始字幕，确保时间戳完整
-    const segments2: AimSegments[] = originalSegmentsFromFile.map((seg, index) => {
+    const segments2: AimSegments[] = originalSegments.map((seg, index) => {
       const translated = translatedSegments.find((t) => t.index === index);
       return {
         ...seg,
@@ -101,7 +140,7 @@ async function saveTranslatedSubtitle(resourceId: string, originalSegments: AimS
     });
 
     // 转换为 ISegment 格式
-    const iSegments1 = originalSegmentsFromFile.filter((seg) => !seg.delete).map(convertToISegment);
+    const iSegments1 = originalSegments.filter((seg) => !seg.delete).map(convertToISegment);
     const iSegments2 = segments2.filter((seg) => !seg.delete).map(convertToISegment);
 
     // 根据格式选择不同的输出方法
@@ -133,6 +172,54 @@ async function saveTranslatedSubtitle(resourceId: string, originalSegments: AimS
     console.log(`[translation-save] 字幕已保存 (${format}):`, filePath);
   } catch (error) {
     console.error('[translation-save] 保存字幕失败:', error);
+  }
+}
+
+async function saveTranslatedSubtitleJson(opts: {
+  resourceId: string;
+  sourceFilePath?: string;
+  translatedSegments: Array<{ index: number; text: string }>;
+  providerId?: string;
+  model?: string;
+  targetLanguage?: string;
+  startTimestamp: number; // 翻译任务开始时间戳
+}): Promise<void> {
+  try {
+    const sourceFilePath = opts.sourceFilePath;
+    if (!sourceFilePath) {
+      console.warn('[translation-save] 无法确定正在翻译的字幕文件路径:', { resourceId: opts.resourceId });
+      return;
+    }
+    if (!isSubtitleFilePath(sourceFilePath)) {
+      console.warn('[translation-save] 不是字幕文件:', sourceFilePath);
+      return;
+    }
+
+    const outPath = buildTranslatedJsonPath(sourceFilePath, opts.targetLanguage, opts.startTimestamp);
+    const sorted = [...(opts.translatedSegments || [])].sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+
+    const payload: TranslatedSubtitleJsonV1 = {
+      version: 1,
+      resourceId: opts.resourceId,
+      providerId: opts.providerId,
+      model: opts.model,
+      targetLanguage: opts.targetLanguage,
+      startedAt: opts.startTimestamp,
+      updatedAt: Date.now(),
+      translatedSegments: sorted
+    };
+
+    // 确保目录存在
+    const dir = path.dirname(outPath);
+    await fs.mkdir(dir, { recursive: true });
+
+    // 写入文件
+    const content = JSON.stringify(payload, null, 2);
+    await writeFile(outPath, content);
+
+    console.log('[translation-save] 翻译 JSON 已保存:', outPath);
+  } catch (error) {
+    console.error('[translation-save] 保存翻译 JSON 失败:', error);
   }
 }
 
@@ -401,11 +488,10 @@ export function initAIHandlers(win: BrowserWindow): void {
       payload: {
         providerId: string;
         model: string;
-        segments?: any[];
+        segments?: Array<AimSegments | { text: string; index: number }>;
         resourceId?: string;
         targetLanguage: string;
         languageNames: Record<string, string>;
-        force?: boolean;
         metadata?: Record<string, any>;
         options?: {
           maxConcurrency?: number;
@@ -417,16 +503,22 @@ export function initAIHandlers(win: BrowserWindow): void {
         };
       }
     ) => {
-      const { providerId, model, segments, resourceId, targetLanguage, languageNames, force, metadata, options } = payload;
+      const { providerId, model, segments, resourceId, targetLanguage, languageNames, metadata, options } = payload;
       const requestId = randomUUID();
       const eventsChannel = `subtitle:translate:${requestId}`;
       const taskLabel = `${providerId}/${model}`;
+      const startTimestamp = Date.now(); // 记录翻译任务开始时间戳
 
       // 步骤1: 读取文件，加载字幕片段
-      let actualSegments = segments;
-      if (!actualSegments && resourceId) {
+      let actualSegments: Array<AimSegments | { text: string; index: number }> | undefined = segments;
+      const effectiveResourceId: string | undefined = resourceId || metadata?.resourceId;
+      let sourceSubtitleFilePath: string | undefined;
+
+      if (!actualSegments && effectiveResourceId) {
         try {
-          actualSegments = await loadSegmentsFromResource(resourceId);
+          const loaded = await loadSegmentsFromResource(effectiveResourceId);
+          actualSegments = loaded.segments;
+          sourceSubtitleFilePath = loaded.filePath;
         } catch (error) {
           console.error('[translate] Failed to load segments from resource:', error);
           throw error;
@@ -435,6 +527,16 @@ export function initAIHandlers(win: BrowserWindow): void {
 
       if (!actualSegments || actualSegments.length === 0) {
         throw new Error('No segments provided and unable to load segments from resourceId');
+      }
+
+      // 如果传入了 segments 但仍然有资源 ID，则提前解析一次字幕文件路径（用于保存 JSON），避免每个 chunk 都查库
+      if (!sourceSubtitleFilePath && effectiveResourceId) {
+        try {
+          const resource = await ResourcesRepo.getById(effectiveResourceId);
+          sourceSubtitleFilePath = resource?.filePath || undefined;
+        } catch {
+          sourceSubtitleFilePath = undefined;
+        }
       }
 
       // 步骤2: 设置模型和Agent
@@ -452,7 +554,10 @@ export function initAIHandlers(win: BrowserWindow): void {
         busyMessage: '开始翻译字幕...',
         progressMessage: '正在翻译...',
         onChunkComplete: async (data) => {
-          if (data?.segments && metadata?.resourceId) {
+          // 没有资源 ID 则不需要保存翻译文件
+          if (!effectiveResourceId) return;
+
+          if (data?.segments) {
             // 累积翻译结果
             const chunkSegments = data.segments as Array<{ index: number; text: string }>;
             chunkSegments.forEach((seg) => {
@@ -464,11 +569,24 @@ export function initAIHandlers(win: BrowserWindow): void {
               }
             });
 
-            // 保存翻译结果
-            await saveTranslatedSubtitle(metadata.resourceId, actualSegments, accumulatedTranslations);
+            // 保存翻译结果（JSON）
+            await saveTranslatedSubtitleJson({
+              resourceId: effectiveResourceId,
+              sourceFilePath: sourceSubtitleFilePath,
+              translatedSegments: accumulatedTranslations,
+              providerId,
+              model,
+              targetLanguage,
+              startTimestamp
+            });
           }
         },
-        onCompleted: async () => { }
+        onCompleted: async () => {
+          // 翻译完成时，将最终翻译结果合并保存到原字幕文件
+          if (effectiveResourceId && accumulatedTranslations.length > 0) {
+            await saveTranslatedSubtitle(effectiveResourceId, accumulatedTranslations);
+          }
+        }
       });
 
       // 步骤5: 异步处理翻译
@@ -477,7 +595,8 @@ export function initAIHandlers(win: BrowserWindow): void {
           requestId,
           chatFn,
           taskLabel,
-          segments: actualSegments,
+          // translate service currently accepts AimSegments[]; we also allow renderer to pass a minimal {text,index} shape
+          segments: actualSegments as any,
           targetLanguage,
           languageNames,
           metadata,

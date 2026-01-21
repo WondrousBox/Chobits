@@ -131,7 +131,6 @@ export type AIApi = {
     resourceId?: string;
     targetLanguage: string;
     languageNames: Record<string, string>;
-    force?: boolean;
     metadata?: Record<string, any>;
     options?: {
       /** 最大并发请求数 */
