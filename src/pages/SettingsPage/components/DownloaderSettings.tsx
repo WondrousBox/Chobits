@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 
 import { SettingGroup, SettingItem } from './SettingComponents';
+import { YoutubeCookieSettings } from './YoutubeCookieSettings';
 
 interface ReleaseInfo {
   tag_name: string;
@@ -459,6 +460,11 @@ const DownloaderSettings: React.FC = () => {
               <p className="text-xs text-muted-foreground mt-2">自动检测会优先使用 deno（推荐），如果未安装则回退到其他可用的运行时。</p>
             </div>
           </SettingItem>
+
+          {/* YouTube 登录设置 */}
+          <div className="pt-2">
+            <YoutubeCookieSettings />
+          </div>
         </>
       )}
     </SettingGroup>

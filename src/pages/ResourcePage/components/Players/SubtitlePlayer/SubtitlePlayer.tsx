@@ -109,9 +109,7 @@ const SummaryCard: React.FC<{
               <div className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }} />
               <div className="w-1.5 h-1.5 bg-pink-400 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }} />
             </div>
-            <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
-              {chunkLabel || '正在翻译中'}
-            </span>
+            <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider">{chunkLabel || '正在翻译中'}</span>
           </div>
           <div className="text-xs text-foreground/90 dark:text-foreground/80 italic border-l-2 border-blue-400/60 dark:border-blue-500/60 pl-3 py-1 leading-relaxed">
             <span>{currentSummary}</span>
@@ -253,61 +251,59 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({ tracks, currentT
   }, [activeIndex]);
 
   return (
-    <div className="flex h-full w-full flex-col text-muted-foreground">
-      <ScrollArea className="h-full w-full">
-        <div className="box-border h-full w-full select-text overflow-auto px-4 py-3 leading-relaxed">
-          {mainTrack.map((entry, idx) => {
-            const disabled = !!disabledSet?.has(idx);
-            const highlight = !!highlightSet?.has(idx);
-            // 检查是否需要在当前索引前显示 summary 卡片
-            const summaryInfo = summaryDisplayMap.get(idx);
+    <ScrollArea className="h-full w-full text-muted-foreground">
+      <div className="box-border h-full w-full select-text overflow-auto px-4 py-3 leading-relaxed">
+        {mainTrack.map((entry, idx) => {
+          const disabled = !!disabledSet?.has(idx);
+          const highlight = !!highlightSet?.has(idx);
+          // 检查是否需要在当前索引前显示 summary 卡片
+          const summaryInfo = summaryDisplayMap.get(idx);
 
-            return (
-              <React.Fragment key={idx}>
-                {summaryInfo && (
-                  <SummaryCard
-                    prevSummary={summaryInfo.prevSummary}
-                    currentSummary={summaryInfo.summary}
-                    chunkLabel={summaryDisplayMap.size > 1 ? `分块 ${summaryInfo.chunkIndex + 1} 翻译中` : '正在翻译中'}
-                  />
-                )}
-                {/* 主轨道 */}
-                <SubtitleRow
-                  index={idx}
-                  segment={entry}
-                  isActive={idx === activeIndex}
-                  rowRef={idx === activeIndex ? activeRowRef : undefined}
-                  onTextChange={handleTextChange}
-                  onMergePrev={handleMergePrev}
-                  onMergeNext={handleMergeNext}
-                  onTimeClick={onSeek}
-                  disabled={disabled}
-                  highlight={highlight}
+          return (
+            <React.Fragment key={idx}>
+              {summaryInfo && (
+                <SummaryCard
+                  prevSummary={summaryInfo.prevSummary}
+                  currentSummary={summaryInfo.summary}
+                  chunkLabel={summaryDisplayMap.size > 1 ? `分块 ${summaryInfo.chunkIndex + 1} 翻译中` : '正在翻译中'}
                 />
-                {/* 附加轨道 */}
-                {additionalTracks.map((track, trackIndex) => {
-                  const trackSegment = track[idx];
-                  if (!trackSegment || !trackSegment.text) return null;
-                  return (
-                    <SubtitleRow
-                      key={`track-${trackIndex}-${idx}`}
-                      index={idx}
-                      segment={trackSegment}
-                      isActive={false}
-                      disabled={disabled}
-                      highlight={highlight}
-                      onTextChange={handleTextChange}
-                      onMergePrev={handleMergePrev}
-                      onMergeNext={handleMergeNext}
-                      onTimeClick={onSeek}
-                    />
-                  );
-                })}
-              </React.Fragment>
-            );
-          })}
-        </div>
-      </ScrollArea>
-    </div>
+              )}
+              {/* 主轨道 */}
+              <SubtitleRow
+                index={idx}
+                segment={entry}
+                isActive={idx === activeIndex}
+                rowRef={idx === activeIndex ? activeRowRef : undefined}
+                onTextChange={handleTextChange}
+                onMergePrev={handleMergePrev}
+                onMergeNext={handleMergeNext}
+                onTimeClick={onSeek}
+                disabled={disabled}
+                highlight={highlight}
+              />
+              {/* 附加轨道 */}
+              {additionalTracks.map((track, trackIndex) => {
+                const trackSegment = track[idx];
+                if (!trackSegment || !trackSegment.text) return null;
+                return (
+                  <SubtitleRow
+                    key={`track-${trackIndex}-${idx}`}
+                    index={idx}
+                    segment={trackSegment}
+                    isActive={false}
+                    disabled={disabled}
+                    highlight={highlight}
+                    onTextChange={handleTextChange}
+                    onMergePrev={handleMergePrev}
+                    onMergeNext={handleMergeNext}
+                    onTimeClick={onSeek}
+                  />
+                );
+              })}
+            </React.Fragment>
+          );
+        })}
+      </div>
+    </ScrollArea>
   );
 };

@@ -1,5 +1,6 @@
 import { AlertCircle, CheckCircle2, Cookie, LogIn, LogOut, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { TbBrandYoutube } from 'react-icons/tb';
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -17,7 +18,7 @@ export function YoutubeCookieSettings(): JSX.Element {
       setStatus(cookieStatus);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load cookie status');
+      setError(err instanceof Error ? err.message : '加载 Cookie 状态失败');
     }
   };
 
@@ -32,7 +33,7 @@ export function YoutubeCookieSettings(): JSX.Element {
       await openYoutubeLogin();
       await loadStatus();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to login');
+      setError(err instanceof Error ? err.message : '登录失败');
     } finally {
       setLoading(false);
     }
@@ -45,7 +46,7 @@ export function YoutubeCookieSettings(): JSX.Element {
       await clearYoutubeCookies();
       await loadStatus();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to logout');
+      setError(err instanceof Error ? err.message : '退出登录失败');
     } finally {
       setLoading(false);
     }
@@ -56,23 +57,23 @@ export function YoutubeCookieSettings(): JSX.Element {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Cookie className="h-5 w-5" />
-          YouTube Authentication
+          YouTube 登录
         </CardTitle>
-        <CardDescription>Login to YouTube to download private and age-restricted videos</CardDescription>
+        <CardDescription>登录 YouTube 以下载私密和年龄限制视频</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Status Display */}
+        {/* 状态显示 */}
         {status && (
           <div className="flex items-center gap-2 rounded-lg border p-3">
             {status.isLoggedIn ? <CheckCircle2 className="h-5 w-5 text-green-500" /> : <XCircle className="h-5 w-5 text-gray-400" />}
             <div className="flex-1">
-              <p className="text-sm font-medium">{status.isLoggedIn ? 'Logged In' : 'Not Logged In'}</p>
-              {status.isLoggedIn && <p className="text-xs text-muted-foreground">{status.cookieCount} cookies stored</p>}
+              <p className="text-sm font-medium">{status.isLoggedIn ? '已登录' : '未登录'}</p>
+              {status.isLoggedIn && <p className="text-xs text-muted-foreground">{status.cookieCount} 个 Cookie 已存储</p>}
             </div>
           </div>
         )}
 
-        {/* Error Alert */}
+        {/* 错误提示 */}
         {error && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
@@ -80,43 +81,43 @@ export function YoutubeCookieSettings(): JSX.Element {
           </Alert>
         )}
 
-        {/* Info Alert */}
+        {/* 信息提示 */}
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            Login with your YouTube account to access:
+            使用您的 YouTube 账户登录以访问：
             <ul className="mt-2 list-inside list-disc space-y-1 text-sm">
-              <li>Private videos</li>
-              <li>Age-restricted content</li>
-              <li>Member-only content</li>
-              <li>Better download reliability</li>
+              <li>私密视频</li>
+              <li>年龄限制内容</li>
+              <li>会员专属内容</li>
+              <li>更好的下载稳定性</li>
             </ul>
           </AlertDescription>
         </Alert>
 
-        {/* Action Buttons */}
+        {/* 操作按钮 */}
         <div className="flex gap-2">
           {status?.isLoggedIn ? (
             <Button variant="outline" onClick={handleLogout} disabled={loading} className="flex items-center gap-2">
-              <LogOut className="h-4 w-4" />
-              {loading ? 'Logging out...' : 'Logout'}
+              <LogOut />
+              {loading ? '正在退出...' : '退出登录'}
             </Button>
           ) : (
             <Button onClick={handleLogin} disabled={loading} className="flex items-center gap-2">
-              <LogIn className="h-4 w-4" />
-              {loading ? 'Opening login...' : 'Login with YouTube'}
+              <TbBrandYoutube />
+              {loading ? '正在打开登录...' : '使用 YouTube 登录'}
             </Button>
           )}
         </div>
 
-        {/* How it works */}
+        {/* 工作原理 */}
         <div className="rounded-lg bg-muted p-3 text-sm">
-          <p className="font-medium">How it works:</p>
+          <p className="font-medium">工作原理：</p>
           <ol className="mt-2 list-inside list-decimal space-y-1 text-muted-foreground">
-            <li>Click &ldquo;Login with YouTube&rdquo; to open a secure login window</li>
-            <li>Sign in with your Google account</li>
-            <li>Your cookies will be securely stored locally</li>
-            <li>Downloads will automatically use your authentication</li>
+            <li>点击"使用 YouTube 登录"打开安全登录窗口</li>
+            <li>使用您的 Google 账户登录</li>
+            <li>您的 Cookie 将安全地存储在本地</li>
+            <li>下载将自动使用您的身份验证</li>
           </ol>
         </div>
       </CardContent>
