@@ -21,8 +21,10 @@ const Workspace: React.FC = () => {
   const [deleting, setDeleting] = useState<{ id: string; name: string } | null>(null);
   const [confirmName, setConfirmName] = useState('');
   const [deletingBusy, setDeletingBusy] = useState(false);
+  const [keepWorkspaceFolder, setKeepWorkspaceFolder] = useState(true);
   const [exporting, setExporting] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  const deletingWorkspace = useMemo(() => list.find((w) => w.id === deleting?.id), [list, deleting?.id]);
 
   const load = async (): Promise<void> => {
     setLoading(true);
@@ -102,6 +104,7 @@ const Workspace: React.FC = () => {
     const ws = list.find((w) => w.id === id);
     setDeleting({ id, name: ws?.name || '未命名' });
     setConfirmName('');
+    setKeepWorkspaceFolder(true);
   };
 
   const confirmDelete = async (): Promise<void> => {
@@ -109,11 +112,12 @@ const Workspace: React.FC = () => {
     if (confirmName.trim() !== (deleting.name || '').trim()) return;
     setDeletingBusy(true);
     try {
-      const result = await window.YUA.workspace['workspace:delete']({ id: deleting.id });
+      const result = await window.YUA.workspace['workspace:delete']({ id: deleting.id, keepFolder: keepWorkspaceFolder });
       if (result.success) {
         toast.success('工作空间已删除');
         setDeleting(null);
         setConfirmName('');
+        setKeepWorkspaceFolder(true);
         load();
       } else {
         toast.error(result.error || '删除失败');
@@ -198,15 +202,54 @@ const Workspace: React.FC = () => {
             setDeleting(null);
             setConfirmName('');
             setDeletingBusy(false);
+            setKeepWorkspaceFolder(true);
           }
         }}
       >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>删除工作空间</DialogTitle>
-            <DialogDescription>此操作将永久删除工作空间的所有数据（包括资源、对话、工作流等）和文件夹，且不可撤销。请在下方输入工作空间名称以确认删除。</DialogDescription>
+            <DialogDescription>此操作将永久删除工作空间的所有数据（包括资源、对话、工作流等）且不可撤销。请在下方输入工作空间名称以确认删除。</DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
+            <div className="p-2 bg-muted rounded-md">
+              <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                <input type="checkbox" checked={keepWorkspaceFolder} onChange={(e) => setKeepWorkspaceFolder(e.target.checked)} className="h-4 w-4" />
+                只删除数据，保留文件夹
+              </label>
+
+              <div className="rounded-md border border-border bg-muted/30 px-3 py-2">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs text-muted-foreground">
+                    <div className="mt-1 text-sm text-foreground truncate" title={deletingWorkspace?.rootPath || ''}>
+                      {deletingWorkspace?.rootPath ? maskPath(deletingWorkspace.rootPath) : '-'}
+                    </div>
+                    {deletingWorkspace?.lastScanAt && (
+                      <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                        <span>{deletingWorkspace.fileCount ?? '-'} 个文件</span>
+                        <span>{prettyBytes(deletingWorkspace.sizeBytes || 0)}</span>
+                        <span>扫描于 {formatRelativeTime(deletingWorkspace.lastScanAt)}</span>
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    title="查看文件夹位置"
+                    size={'sm'}
+                    variant={'outline'}
+                    onClick={() => {
+                      if (deleting?.id) {
+                        openFolder(deleting.id);
+                      }
+                    }}
+                  >
+                    <TbFolderOpen />
+                    查看
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="h-4"></div>
             <div className="text-sm">需要输入的名称：</div>
             <div className="text-sm font-mono bg-accent/40 text-accent-foreground px-2 py-1 rounded select-text">{deleting?.name}</div>
             <Input

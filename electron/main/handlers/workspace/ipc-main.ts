@@ -166,8 +166,8 @@ export function initWorkspaceHandlers(): void {
     return { data };
   });
 
-  ipcMain.handle('workspace:delete', async (_e, payload: { id: string }) => {
-    const result = await deleteWorkspaceCompletely(payload.id);
+  ipcMain.handle('workspace:delete', async (_e, payload: { id: string; keepFolder?: boolean }) => {
+    const result = await deleteWorkspaceCompletely(payload.id, { keepFolder: payload.keepFolder });
 
     if (result.success) {
       eventManager.emit(AppEvent.WORKSPACE_DELETED, { id: payload.id });
