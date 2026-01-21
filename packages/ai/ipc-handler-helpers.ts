@@ -12,7 +12,7 @@ import { getAllSecrets, getFirstApiKey } from './settings-store';
 /**
  * 从资源ID加载字幕片段
  */
-export async function loadSegmentsFromResource(resourceId: string): Promise<Array<{ text: string; index: number }>> {
+export async function loadSegmentsFromResource(resourceId: string): Promise<{ filePath: string; segments: Array<{ text: string; index: number }> }> {
   const resource = await ResourcesRepo.getById(resourceId);
   if (!resource || !resource.filePath) {
     throw new Error(`Resource ${resourceId} not found or has no file path`);
@@ -36,7 +36,7 @@ export async function loadSegmentsFromResource(resourceId: string): Promise<Arra
   }
 
   console.log(`[loadSegments] Loaded ${segments.length} segments from resource ${resourceId}`);
-  return segments;
+  return { filePath: resource.filePath, segments };
 }
 
 /**

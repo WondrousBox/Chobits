@@ -172,7 +172,6 @@ export const aiBridge = {
     segments: Array<{ text: string; index: number }>;
     targetLanguage: string;
     languageNames: Record<string, string>;
-    force?: boolean;
     metadata?: Record<string, any>;
     options?: {
       /** 最大并发请求数 */

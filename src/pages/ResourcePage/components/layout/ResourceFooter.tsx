@@ -47,7 +47,7 @@ const ResourceFooter: React.FC<ResourceFooterProps> = ({
       .then((defs: any[]) => {
         setWorkflows(defs || []);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // 获取选中的资源列表
@@ -127,7 +127,7 @@ const ResourceFooter: React.FC<ResourceFooterProps> = ({
             thumbnailPath: item.thumbnailPath,
             workspaceId: item.workspaceId
           },
-          onSuccess: () => {}
+          onSuccess: () => { }
         });
       }
       toast.success(`已开始对 ${selectedResources.length} 个资源执行工作流: ${wf.name}`);
@@ -171,9 +171,7 @@ const ResourceFooter: React.FC<ResourceFooterProps> = ({
       {showSelectionBar && (
         <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-50">
           <div className="flex items-center gap-3 px-4 py-2 bg-primary text-primary-foreground rounded-lg shadow-lg">
-            <span className="text-sm font-medium whitespace-nowrap">
-              已选择 {selectedItems.size} 个项目
-            </span>
+            <span className="text-sm font-medium whitespace-nowrap">已选择 {selectedItems.size} 个项目</span>
             <div className="w-px h-4 bg-primary-foreground/30" />
             <Button
               variant="ghost"
@@ -190,11 +188,7 @@ const ResourceFooter: React.FC<ResourceFooterProps> = ({
                 <div className="w-px h-4 bg-primary-foreground/30" />
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-2 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground"
-                    >
+                    <Button variant="ghost" size="sm" className="h-7 px-2 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground">
                       <TbPlayerPlay className="w-4 h-4 mr-1" />
                       执行任务
                     </Button>
@@ -209,12 +203,7 @@ const ResourceFooter: React.FC<ResourceFooterProps> = ({
                 </DropdownMenu>
               </>
             )}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground"
-              onClick={() => setSelectedItems(new Set())}
-            >
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground" onClick={() => setSelectedItems(new Set())}>
               <TbX className="w-4 h-4" />
             </Button>
           </div>
