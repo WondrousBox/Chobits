@@ -713,6 +713,7 @@ export const ResourcesRepo = {
     if ((filter as any).status) wheres.push(eq(resources.status, (filter as any).status));
     if ((filter as any).visibility) wheres.push(eq(resources.visibility, (filter as any).visibility));
     if ((filter as any).tags) wheres.push(like(resources.tags, `%${(filter as any).tags}%`));
+    if ((filter as any).workspaceId) wheres.push(eq(resources.workspaceId, (filter as any).workspaceId));
     if ((filter as any).folderId !== undefined) {
       if ((filter as any).folderId === null) {
         wheres.push(isNull(resources.folderId));
@@ -739,6 +740,7 @@ export const ResourcesRepo = {
     if ((filter as any).type) wheres.push(eq(resources.type, (filter as any).type));
     if ((filter as any).status) wheres.push(eq(resources.status, (filter as any).status));
     if ((filter as any).visibility) wheres.push(eq(resources.visibility, (filter as any).visibility));
+    if ((filter as any).workspaceId) wheres.push(eq(resources.workspaceId, (filter as any).workspaceId));
     if ((filter as any).folderId !== undefined) {
       if ((filter as any).folderId === null) {
         wheres.push(isNull(resources.folderId));
