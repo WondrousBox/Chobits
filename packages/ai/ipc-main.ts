@@ -1,3 +1,4 @@
+import { writeFile } from '@aim-packages/file-utils';
 import { type AimSegments, parser, tools } from '@aim-packages/subtitle';
 import { randomUUID } from 'crypto';
 import { BrowserWindow, ipcMain } from 'electron';
@@ -119,8 +120,7 @@ async function saveTranslatedSubtitle(resourceId: string, originalSegments: AimS
     await fs.mkdir(dir, { recursive: true });
 
     // 写入文件
-    await fs.writeFile(filePath, content, 'utf8');
-    console.log(`[translation-save] 字幕已保存 (${format}):`, filePath);
+    await writeFile(filePath, content);
 
     // 更新资源的文件大小
     try {
@@ -468,11 +468,7 @@ export function initAIHandlers(win: BrowserWindow): void {
             await saveTranslatedSubtitle(metadata.resourceId, actualSegments, accumulatedTranslations);
           }
         },
-        onCompleted: async () => {
-          if (metadata?.resourceId && accumulatedTranslations.length > 0) {
-            await saveTranslatedSubtitle(metadata.resourceId, actualSegments, accumulatedTranslations);
-          }
-        }
+        onCompleted: async () => { }
       });
 
       // 步骤5: 异步处理翻译
