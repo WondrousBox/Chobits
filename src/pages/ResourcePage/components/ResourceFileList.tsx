@@ -30,8 +30,8 @@ const ResourceFileList: React.FC<ResourceFileListProps> = ({ currentResource, on
 
       setLoading(true);
       try {
-        // 获取所有资源，然后在前端按 folderId 筛选
-        const allResources: ResourceItem[] = await window.YUA.resource['resource:list']();
+        // 如果当前资源有 workspaceId，只查询该工作空间的资源，提高性能
+        const allResources: ResourceItem[] = await window.YUA.resource['resource:list'](currentResource.workspaceId ? { workspaceId: currentResource.workspaceId } : undefined);
         let filteredResources: ResourceItem[] = [];
 
         if (currentResource.folderId) {

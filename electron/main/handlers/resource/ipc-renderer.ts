@@ -42,7 +42,7 @@ export type Resource = {
 
 export type ResourceIpcParams = {
   'resource:add': IpcParams<[{ resource: PartialByKey<Resource, 'id' | 'type'> }], { success: true; data: Resource }>;
-  'resource:list': IpcParams<[void], Resource[]>;
+  'resource:list': IpcParams<[{ workspaceId?: string; deletedAt?: number }?], Resource[]>;
   /** 按父资源 ID 查询子资源列表 */
   'resource:listChildren': IpcParams<[{ parentResourceId: string; limit?: number; offset?: number }], Resource[]>;
   getResource: IpcParams<[{ id: string }], Resource | undefined>;

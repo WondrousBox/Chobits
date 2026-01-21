@@ -73,9 +73,13 @@ export function initResourceHandlers(): void {
   ipcMain.handle('resource:add', async (_event, payload: { resource: Resource }) => {
     return addResource(payload);
   });
-  ipcMain.handle('resource:list', async () => {
+  ipcMain.handle('resource:list', async (_event, payload?: { workspaceId?: string; deletedAt?: number }) => {
     // Hide soft-deleted items by default
-    return await ResourcesRepo.list({ deletedAt: 0 } as any);
+    const filter: any = { deletedAt: payload?.deletedAt ?? 0 };
+    if (payload?.workspaceId) {
+      filter.workspaceId = payload.workspaceId;
+    }
+    return await ResourcesRepo.list(filter);
   });
   ipcMain.handle('resource:listChildren', async (_event, payload: { parentResourceId: string; limit?: number; offset?: number }) => {
     const { parentResourceId, limit = 100, offset = 0 } = payload || ({} as any);
@@ -734,7 +738,7 @@ export function initResourceHandlers(): void {
       if (stream) {
         try {
           stream.writeStream.destroy();
-          await fs.unlink(stream.filePath).catch(() => { });
+          await fs.unlink(stream.filePath).catch(() => {});
         } catch {
           /* ignore */
         }
@@ -986,7 +990,7 @@ async function runImportTask(win: BrowserWindow, filePaths: string[], workspaceI
                 await ResourcesRepo.update(row.id, { thumbnailPath: thumbPath } as any);
               }
             })
-            .catch(() => { });
+            .catch(() => {});
         }
       } catch (e) {
         console.error('Import file failed', task.path, e);

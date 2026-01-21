@@ -1,9 +1,22 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { type UIFolder } from '../components/FolderSidebar';
 import { ResourceItem } from '../types';
 
-export const useResourceData = (wsFilter?: string, tagFilter?: string) => {
+export const useResourceData = (
+  wsFilter?: string,
+  tagFilter?: string
+): {
+  list: ResourceItem[];
+  setList: React.Dispatch<React.SetStateAction<ResourceItem[]>>;
+  tags: Array<{ tag: string; count: number }>;
+  folders: UIFolder[];
+  setFolders: React.Dispatch<React.SetStateAction<UIFolder[]>>;
+  foldersLoading: boolean;
+  load: () => Promise<void>;
+  loadTags: (workspaceId?: string) => Promise<void>;
+  loadFolders: (workspaceId?: string) => Promise<void>;
+} => {
   const [list, setList] = useState<ResourceItem[]>([]);
   const [tags, setTags] = useState<Array<{ tag: string; count: number }>>([]);
   const [folders, setFolders] = useState<UIFolder[]>([]);
@@ -16,8 +29,10 @@ export const useResourceData = (wsFilter?: string, tagFilter?: string) => {
       if (tagFilter) {
         rows = await window.YUA.resource['listResourcesByTag']({ tag: tagFilter, workspaceId: wsFilter || undefined, includeDeleted: false, limit: 1000, offset: 0 });
       } else {
-        rows = await window.YUA.resource['resource:list']();
+        // 如果已选定工作空间，只查询该工作空间的资源
+        rows = await window.YUA.resource['resource:list'](wsFilter ? { workspaceId: wsFilter } : undefined);
       }
+      console.log('load resources', rows);
       setList(rows || []);
     } catch (e) {
       console.warn('load resources failed', e);
