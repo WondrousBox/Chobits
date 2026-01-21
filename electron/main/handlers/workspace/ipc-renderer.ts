@@ -26,11 +26,11 @@ export type WorkspaceIpcParams = {
   'workspace:getDefault': IpcParams<[void], Workspace | undefined>;
   'workspace:setDefault': IpcParams<[{ id: string }], { success: true }>;
   'workspace:update': IpcParams<[{ id: string; patch: Partial<Workspace> }], { updated: number }>;
-  'workspace:delete': IpcParams<[{ id: string; hard?: boolean }], { deleted: number }>;
+  'workspace:delete': IpcParams<[{ id: string }], { success: boolean; deleted: number; error?: string }>;
   'workspace:open': IpcParams<[{ id: string }], { ok: boolean }>;
   'workspace:scanStats': IpcParams<[{ id: string }], { ok: boolean; sizeBytes?: number; fileCount?: number }>;
   'workspace:export': IpcParams<[{ id: string; destPath: string }], { success: boolean; error?: string }>;
-  'workspace:import': IpcParams<[{ sourcePath: string; name: string; rootPath: string }], { success: boolean; workspaceId?: string; error?: string }>;
+  'workspace:import': IpcParams<[{ sourcePath: string }], { success: boolean; workspaceId?: string; error?: string }>;
 };
 
 const methods: Array<keyof WorkspaceIpcParams> = [

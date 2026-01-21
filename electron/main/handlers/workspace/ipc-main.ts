@@ -10,6 +10,7 @@ import { DefaultWorkspaceName } from '../../config';
 import { WorkspacesRepo } from '../../db/repositories';
 import { addAllowedResourceRoot, addWorkspaceResourceRoot } from '../../resource-protocol';
 import type { PartialByKey } from '../types';
+import { deleteWorkspaceCompletely, exportWorkspace, importWorkspace } from './export';
 import type { Workspace } from './ipc-renderer';
 
 function ensureDirSync(p: string): void {
@@ -165,20 +166,15 @@ export function initWorkspaceHandlers(): void {
     return { data };
   });
 
-  ipcMain.handle('workspace:delete', async (_e, payload: { id: string; hard?: boolean }) => {
-    if (payload.hard) {
-      const deleted = await WorkspacesRepo.deleteByIds([payload.id]);
-      if (deleted > 0) {
-        eventManager.emit(AppEvent.WORKSPACE_DELETED, { id: payload.id });
-      }
-      return { deleted };
-    } else {
-      const rows = await WorkspacesRepo.softDelete([payload.id]);
-      if (rows.length > 0) {
-        eventManager.emit(AppEvent.WORKSPACE_UPDATED, rows[0]);
-      }
-      return { deleted: rows.length, data: rows[0] };
+  ipcMain.handle('workspace:delete', async (_e, payload: { id: string }) => {
+    const result = await deleteWorkspaceCompletely(payload.id);
+
+    if (result.success) {
+      eventManager.emit(AppEvent.WORKSPACE_DELETED, { id: payload.id });
+      return { success: true, deleted: 1 };
     }
+
+    return { success: false, deleted: 0, error: result.error };
   });
 
   ipcMain.handle('workspace:open', async (_e, payload: { id: string }) => {
@@ -220,13 +216,11 @@ export function initWorkspaceHandlers(): void {
   });
 
   ipcMain.handle('workspace:export', async (_e, payload: { id: string; destPath: string }) => {
-    const { exportWorkspace } = await import('./export');
     return await exportWorkspace(payload.id, payload.destPath);
   });
 
-  ipcMain.handle('workspace:import', async (_e, payload: { sourcePath: string; name: string; rootPath: string }) => {
-    const { importWorkspace } = await import('./export');
-    const result = await importWorkspace(payload.sourcePath, payload.name, payload.rootPath);
+  ipcMain.handle('workspace:import', async (_e, payload: { sourcePath: string }) => {
+    const result = await importWorkspace(payload.sourcePath);
 
     // 如果导入成功，触发事件并配置资源根目录
     if (result.success && result.workspaceId) {

@@ -28,15 +28,6 @@ export interface WorkspaceExportData {
   rssFeedItems: any[];
 }
 
-export type ImportStrategy = 'new' | 'restore' | 'overwrite';
-
-export interface ImportOptions {
-  sourcePath: string;
-  name: string;
-  rootPath: string;
-  strategy: ImportStrategy; // 导入策略
-}
-
 /**
  * 导出工作空间到目录
  * @param workspaceId 工作空间ID
@@ -125,9 +116,12 @@ export async function exportWorkspace(workspaceId: string, destPath: string): Pr
         const candidate = `${destPath}-export-${Date.now()}`;
         finalDestPath = candidate;
       } else {
-        // 是目录，检查是否为空
+        // 是目录，检查是否为空（忽略隐藏文件与常见系统文件）
         const entries = await fsp.readdir(destPath);
-        if (entries.length > 0) {
+        const ignoredNames = new Set(['.DS_Store', 'Thumbs.db']);
+        const meaningful = entries.filter((name) => !name.startsWith('.') && !ignoredNames.has(name));
+
+        if (meaningful.length > 0) {
           // 目录非空，使用 export 子目录，若已存在则加上时间戳以避免冲突
           let candidate = path.join(destPath, 'export');
           if (fs.existsSync(candidate)) {
@@ -158,11 +152,9 @@ export async function exportWorkspace(workspaceId: string, destPath: string): Pr
 /**
  * 导入工作空间
  * @param sourcePath 导出的工作空间目录路径
- * @param newWorkspaceName 新工作空间名称
- * @param newWorkspaceRoot 新工作空间根目录
  * @returns 导入结果
  */
-export async function importWorkspace(sourcePath: string, newWorkspaceName: string, newWorkspaceRoot: string): Promise<{ success: boolean; workspaceId?: string; error?: string }> {
+export async function importWorkspace(sourcePath: string): Promise<{ success: boolean; workspaceId?: string; error?: string }> {
   const db = getOrm();
 
   try {
@@ -175,11 +167,11 @@ export async function importWorkspace(sourcePath: string, newWorkspaceName: stri
     const dataContent = await fsp.readFile(dataJsonPath, 'utf-8');
     const exportData: WorkspaceExportData = JSON.parse(dataContent);
 
-    // 修改导出数据中的根路径为新的路径
+    // 使用导出目录作为工作空间根路径
     exportData.workspace.rootPath = sourcePath;
 
     // 2. 检查目标路径是否已被使用
-    const existingByPath = await db.select().from(workspaces).where(eq(workspaces.rootPath, newWorkspaceRoot)).limit(1);
+    const existingByPath = await db.select().from(workspaces).where(eq(workspaces.rootPath, sourcePath)).limit(1);
     if (existingByPath.length > 0) {
       return {
         success: false,
@@ -197,24 +189,26 @@ export async function importWorkspace(sourcePath: string, newWorkspaceName: stri
       workflows: new Map<string, string>()
     };
 
-    // 4. 导入工作空间（在事务中执行）
-    return await (db as any).transaction(async (tx: any) => {
-      // 生成新的工作空间ID
-      const newWorkspaceId = randomUUID();
-      idMappings.workspaceId = newWorkspaceId;
+    // 4. 导入工作空间（在事务中执行，注意 better-sqlite 不支持 Promise）
+    let transactionResult: { success: boolean; workspaceId?: string } = { success: false };
+    const newWorkspaceId = randomUUID();
+    idMappings.workspaceId = newWorkspaceId;
 
+    db.transaction((tx: any) => {
       // 创建工作空间
-      await tx.insert(workspaces).values({
-        id: newWorkspaceId,
-        name: exportData.workspace.name,
-        rootPath: exportData.workspace.rootPath,
-        description: exportData.workspace.description,
-        isDefault: 0, // 导入的工作空间默认不设为默认
-        status: 'active',
-        metadata: exportData.workspace.metadata,
-        createdAt: exportData.workspace.createdAt,
-        updatedAt: Date.now()
-      } as any);
+      tx.insert(workspaces)
+        .values({
+          id: newWorkspaceId,
+          name: exportData.workspace.name,
+          rootPath: exportData.workspace.rootPath,
+          description: exportData.workspace.description,
+          isDefault: 0, // 导入的工作空间默认不设为默认
+          status: 'active',
+          metadata: exportData.workspace.metadata,
+          createdAt: exportData.workspace.createdAt,
+          updatedAt: Date.now()
+        })
+        .run?.();
 
       // 4. 导入文件夹（需要处理父子关系）
       for (const folder of exportData.folders) {
@@ -225,43 +219,19 @@ export async function importWorkspace(sourcePath: string, newWorkspaceName: stri
       for (const folder of exportData.folders) {
         const newId = idMappings.folders.get(folder.id)!;
         const newParentId = folder.parentId ? idMappings.folders.get(folder.parentId) : null;
-        await tx.insert(folders).values({
-          id: newId,
-          name: folder.name,
-          description: folder.description,
-          parentId: newParentId,
-          workspaceId: newWorkspaceId,
-          metadata: folder.metadata,
-          rank: folder.rank,
-          createdAt: folder.createdAt,
-          updatedAt: Date.now()
-        } as any);
-        // 文件夹都放在导入路径 sourcePath 的 resources/folders 目录下，都是以 ID 命名的，
-        // 因此在插入新的文件夹 ID 的时候，要把旧的文件夹 ID 名称改成新的 ID 名称。
-        // 如果目标目录已存在则把旧目录内容合并到目标目录并删除旧目录；如果旧目录不存在则忽略。
-        try {
-          const foldersDir = path.join(sourcePath, 'resources', 'folders');
-          const oldFolderPath = path.join(foldersDir, folder.id);
-          const newFolderPath = path.join(foldersDir, newId);
-
-          console.log(oldFolderPath, '->', newFolderPath);
-
-          if (fs.existsSync(oldFolderPath)) {
-            // 目标不存在时直接改名，存在时合并内容
-            if (!fs.existsSync(newFolderPath)) {
-              await fsp.mkdir(path.dirname(newFolderPath), { recursive: true });
-              await fsp.rename(oldFolderPath, newFolderPath);
-            } else {
-              // 合并旧目录到新目录，然后删除旧目录
-              await copyDirectory(oldFolderPath, newFolderPath);
-              // 使用 rm 删除旧目录（force + recursive）
-              await fsp.rm(oldFolderPath, { recursive: true, force: true } as any);
-            }
-          }
-        } catch (err: any) {
-          // 不要让文件系统操作阻止数据库事务完成，记录警告后继续
-          console.warn(`Failed to rename/merge folder directory for ${folder.id} -> ${newId}:`, err?.message || err);
-        }
+        tx.insert(folders)
+          .values({
+            id: newId,
+            name: folder.name,
+            description: folder.description,
+            parentId: newParentId,
+            workspaceId: newWorkspaceId,
+            metadata: folder.metadata,
+            rank: folder.rank,
+            createdAt: folder.createdAt,
+            updatedAt: Date.now()
+          })
+          .run?.();
       }
 
       const resolveResourcePath = (resourcePath?: string | null): string | null | undefined => {
@@ -294,21 +264,20 @@ export async function importWorkspace(sourcePath: string, newWorkspaceName: stri
         const newFolderId = resource.folderId ? idMappings.folders.get(resource.folderId) : null;
         const newParentResourceId = resource.parentResourceId ? idMappings.resources.get(resource.parentResourceId) : null;
 
-        await tx.insert(resources).values({
-          ...resource,
-          id: newId,
-          workspaceId: newWorkspaceId,
-          folderId: newFolderId,
-          parentResourceId: newParentResourceId,
-          filePath: resolveResourcePath(resource.filePath),
-          thumbnailPath: resolveResourcePath(resource.thumbnailPath),
-          createdAt: resource.createdAt,
-          updatedAt: Date.now()
-        } as any);
+        tx.insert(resources)
+          .values({
+            ...resource,
+            id: newId,
+            workspaceId: newWorkspaceId,
+            folderId: newFolderId,
+            parentResourceId: newParentResourceId,
+            filePath: resolveResourcePath(resource.filePath),
+            thumbnailPath: resolveResourcePath(resource.thumbnailPath),
+            createdAt: resource.createdAt,
+            updatedAt: Date.now()
+          })
+          .run?.();
       }
-      console.log(exportData.workspace);
-      return { success: true, workspaceId: newWorkspaceId };
-
       // 6. 导入文档
       for (const document of exportData.documents) {
         const newId = randomUUID();
@@ -317,28 +286,32 @@ export async function importWorkspace(sourcePath: string, newWorkspaceName: stri
         const newSourceId = document.sourceId ? idMappings.resources.get(document.sourceId) : null;
         const newParentId = document.parentId ? idMappings.documents.get(document.parentId) : null;
 
-        await tx.insert(documents).values({
-          ...document,
-          id: newId,
-          workspaceId: newWorkspaceId,
-          sourceId: newSourceId,
-          parentId: newParentId,
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        } as any);
+        tx.insert(documents)
+          .values({
+            ...document,
+            id: newId,
+            workspaceId: newWorkspaceId,
+            sourceId: newSourceId,
+            parentId: newParentId,
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          })
+          .run?.();
       }
 
       // 7. 导入资源标签
       for (const tag of exportData.resourceTags) {
         const newResourceId = idMappings.resources.get(tag.resourceId);
         if (newResourceId) {
-          await tx.insert(resource_tags).values({
-            id: randomUUID(),
-            resourceId: newResourceId,
-            workspaceId: newWorkspaceId,
-            tag: tag.tag,
-            createdAt: Date.now()
-          } as any);
+          tx.insert(resource_tags)
+            .values({
+              id: randomUUID(),
+              resourceId: newResourceId,
+              workspaceId: newWorkspaceId,
+              tag: tag.tag,
+              createdAt: Date.now()
+            })
+            .run?.();
         }
       }
 
@@ -347,26 +320,30 @@ export async function importWorkspace(sourcePath: string, newWorkspaceName: stri
         const newId = randomUUID();
         idMappings.conversations.set(conversation.id, newId);
 
-        await tx.insert(conversations).values({
-          ...conversation,
-          id: newId,
-          workspaceId: newWorkspaceId,
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        } as any);
+        tx.insert(conversations)
+          .values({
+            ...conversation,
+            id: newId,
+            workspaceId: newWorkspaceId,
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          })
+          .run?.();
       }
 
       // 9. 导入对话消息
       for (const message of exportData.chatMessages) {
         const newConversationId = idMappings.conversations.get(message.conversationId);
         if (newConversationId) {
-          await tx.insert(chat_messages).values({
-            ...message,
-            id: randomUUID(),
-            conversationId: newConversationId,
-            createdAt: Date.now(),
-            updatedAt: Date.now()
-          } as any);
+          tx.insert(chat_messages)
+            .values({
+              ...message,
+              id: randomUUID(),
+              conversationId: newConversationId,
+              createdAt: Date.now(),
+              updatedAt: Date.now()
+            })
+            .run?.();
         }
       }
 
@@ -375,36 +352,42 @@ export async function importWorkspace(sourcePath: string, newWorkspaceName: stri
         const newId = randomUUID();
         idMappings.workflows.set(workflow.id, newId);
 
-        await tx.insert(workflows).values({
-          ...workflow,
-          id: newId,
-          workspaceId: newWorkspaceId,
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        } as any);
+        tx.insert(workflows)
+          .values({
+            ...workflow,
+            id: newId,
+            workspaceId: newWorkspaceId,
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          })
+          .run?.();
       }
 
       // 11. 导入工作流运行记录
       for (const run of exportData.workflowRuns) {
         const newWorkflowId = idMappings.workflows.get(run.workflowId);
         if (newWorkflowId) {
-          await tx.insert(workflowRuns).values({
-            ...run,
-            id: randomUUID(),
-            workflowId: newWorkflowId
-          } as any);
+          tx.insert(workflowRuns)
+            .values({
+              ...run,
+              id: randomUUID(),
+              workflowId: newWorkflowId
+            })
+            .run?.();
         }
       }
 
       // 12. 导入自动化规则
       for (const rule of exportData.automationRules) {
-        await tx.insert(automation_rules).values({
-          ...rule,
-          id: randomUUID(),
-          workspaceId: newWorkspaceId,
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        } as any);
+        tx.insert(automation_rules)
+          .values({
+            ...rule,
+            id: randomUUID(),
+            workspaceId: newWorkspaceId,
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          })
+          .run?.();
       }
 
       // 13. 导入RSS订阅条目
@@ -413,25 +396,55 @@ export async function importWorkspace(sourcePath: string, newWorkspaceName: stri
         const newLocalResourceId = item.localResourceId ? idMappings.resources.get(item.localResourceId) : null;
 
         if (newRssResourceId) {
-          await tx.insert(rss_feed_items).values({
-            ...item,
-            id: randomUUID(),
-            rssResourceId: newRssResourceId,
-            localResourceId: newLocalResourceId,
-            createdAt: Date.now()
-          } as any);
+          tx.insert(rss_feed_items)
+            .values({
+              ...item,
+              id: randomUUID(),
+              rssResourceId: newRssResourceId,
+              localResourceId: newLocalResourceId,
+              createdAt: Date.now()
+            })
+            .run?.();
         }
       }
 
-      // 14. 复制文件
-      const filesDir = path.join(sourcePath, 'files');
-      if (fs.existsSync(filesDir)) {
-        await fsp.mkdir(newWorkspaceRoot, { recursive: true });
-        await copyDirectory(filesDir, newWorkspaceRoot);
-      }
-
-      return { success: true, workspaceId: newWorkspaceId };
+      transactionResult = { success: true, workspaceId: newWorkspaceId };
     });
+
+    // 文件夹都放在导入路径 sourcePath 的 resources/folders 目录下，都是以 ID 命名的，
+    // 因此在插入新的文件夹 ID 的时候，要把旧的文件夹 ID 名称改成新的 ID 名称。
+    // 如果目标目录已存在则把旧目录内容合并到目标目录并删除旧目录；如果旧目录不存在则忽略。
+    // 文件夹重命名与合并（不在事务内执行）
+    for (const folder of exportData.folders) {
+      const newId = idMappings.folders.get(folder.id)!;
+      try {
+        const foldersDir = path.join(sourcePath, 'resources', 'folders');
+        const oldFolderPath = path.join(foldersDir, folder.id);
+        const newFolderPath = path.join(foldersDir, newId);
+
+        if (fs.existsSync(oldFolderPath)) {
+          if (!fs.existsSync(newFolderPath)) {
+            await fsp.mkdir(path.dirname(newFolderPath), { recursive: true });
+            await fsp.rename(oldFolderPath, newFolderPath);
+          } else {
+            await copyDirectory(oldFolderPath, newFolderPath);
+            await fsp.rm(oldFolderPath, { recursive: true, force: true });
+          }
+        }
+      } catch (err: any) {
+        console.warn(`Failed to rename/merge folder directory for ${folder.id} -> ${newId}:`, err?.message || err);
+      }
+    }
+
+    if (transactionResult.success) {
+      try {
+        await fsp.rm(dataJsonPath, { force: true });
+      } catch {
+        // ignore cleanup errors
+      }
+    }
+
+    return transactionResult;
   } catch (error: any) {
     return { success: false, error: error?.message || '导入失败' };
   }
@@ -453,5 +466,100 @@ async function copyDirectory(src: string, dest: string): Promise<void> {
     } else if (entry.isFile()) {
       await fsp.copyFile(srcPath, destPath);
     }
+  }
+}
+
+/**
+ * 完整删除工作空间，包括所有关联数据和文件
+ * @param workspaceId 工作空间ID
+ * @returns 删除结果
+ */
+export async function deleteWorkspaceCompletely(workspaceId: string): Promise<{ success: boolean; error?: string }> {
+  const db = getOrm();
+
+  try {
+    // 1. 获取工作空间信息
+    const [workspace] = await db.select().from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1);
+    if (!workspace) {
+      return { success: false, error: '工作空间不存在' };
+    }
+
+    const rootPath = workspace.rootPath;
+
+    try {
+      // 2. 在事务中删除所有数据库记录（同步执行）
+      db.transaction((tx: any) => {
+        const conversationRows = tx.select({ id: conversations.id }).from(conversations).where(eq(conversations.workspaceId, workspaceId)).all?.() ?? [];
+        const conversationIds = conversationRows.map((c: any) => c.id);
+
+        const workflowRows = tx.select({ id: workflows.id }).from(workflows).where(eq(workflows.workspaceId, workspaceId)).all?.() ?? [];
+        const workflowIds = workflowRows.map((w: any) => w.id);
+
+        const resourceRows = tx.select({ id: resources.id }).from(resources).where(eq(resources.workspaceId, workspaceId)).all?.() ?? [];
+        const resourceIds = resourceRows.map((r: any) => r.id);
+
+        if (conversationIds.length > 0) {
+          tx.delete(chat_messages).where(inArray(chat_messages.conversationId, conversationIds)).run?.();
+        }
+
+        tx.delete(conversations).where(eq(conversations.workspaceId, workspaceId)).run?.();
+
+        if (workflowIds.length > 0) {
+          tx.delete(workflowRuns).where(inArray(workflowRuns.workflowId, workflowIds)).run?.();
+        }
+
+        tx.delete(workflows).where(eq(workflows.workspaceId, workspaceId)).run?.();
+
+        if (resourceIds.length > 0) {
+          tx.delete(rss_feed_items).where(inArray(rss_feed_items.rssResourceId, resourceIds)).run?.();
+        }
+
+        tx.delete(automation_rules).where(eq(automation_rules.workspaceId, workspaceId)).run?.();
+        tx.delete(resource_tags).where(eq(resource_tags.workspaceId, workspaceId)).run?.();
+        tx.delete(documents).where(eq(documents.workspaceId, workspaceId)).run?.();
+        tx.delete(resources).where(eq(resources.workspaceId, workspaceId)).run?.();
+        tx.delete(folders).where(eq(folders.workspaceId, workspaceId)).run?.();
+        tx.delete(workspaces).where(eq(workspaces.id, workspaceId)).run?.();
+      });
+    } catch (error: any) {
+      console.log(error);
+
+      return { success: false, error: error?.message || '删除失败' };
+    }
+    console.log(rootPath);
+
+    // 3. 安全删除工作空间文件夹
+    if (rootPath && fs.existsSync(rootPath)) {
+      try {
+        const stat = await fsp.stat(rootPath);
+        if (stat.isDirectory()) {
+          const rootParsed = path.parse(rootPath);
+          if (rootPath === rootParsed.root) {
+            console.warn(`Refuse to delete root directory: ${rootPath}`);
+          } else {
+            const entries = await fsp.readdir(rootPath, { withFileTypes: true });
+            const ignoredNames = new Set(['.DS_Store', 'Thumbs.db']);
+            const meaningful = entries.filter((ent) => !ent.name.startsWith('.') && !ignoredNames.has(ent.name));
+            const onlyResources = meaningful.length > 0 && meaningful.every((ent) => ent.name === 'resources');
+            const resourcesPath = path.join(rootPath, 'resources');
+
+            if (onlyResources) {
+              console.log(rootPath);
+              await fsp.rm(rootPath, { recursive: true, force: true });
+            } else if (fs.existsSync(resourcesPath)) {
+              console.log(resourcesPath);
+              await fsp.rm(resourcesPath, { recursive: true, force: true });
+            }
+          }
+        }
+      } catch (error: any) {
+        console.warn(`Failed to safely delete workspace folder: ${rootPath}`, error);
+        // 文件系统删除失败不影响整体结果，因为数据库记录已经删除
+      }
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error?.message || '删除失败' };
   }
 }
