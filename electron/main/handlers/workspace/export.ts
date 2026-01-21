@@ -474,7 +474,7 @@ async function copyDirectory(src: string, dest: string): Promise<void> {
  * @param workspaceId 工作空间ID
  * @returns 删除结果
  */
-export async function deleteWorkspaceCompletely(workspaceId: string): Promise<{ success: boolean; error?: string }> {
+export async function deleteWorkspaceCompletely(workspaceId: string, options?: { keepFolder?: boolean }): Promise<{ success: boolean; error?: string }> {
   const db = getOrm();
 
   try {
@@ -529,7 +529,7 @@ export async function deleteWorkspaceCompletely(workspaceId: string): Promise<{ 
     console.log(rootPath);
 
     // 3. 安全删除工作空间文件夹
-    if (rootPath && fs.existsSync(rootPath)) {
+    if (!options?.keepFolder && rootPath && fs.existsSync(rootPath)) {
       try {
         const stat = await fsp.stat(rootPath);
         if (stat.isDirectory()) {
