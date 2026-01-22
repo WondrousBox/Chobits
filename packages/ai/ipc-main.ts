@@ -7,7 +7,7 @@ import { TaggerAgent } from './agents/tagger';
 import { ChatService } from './chat-service';
 import { GlossaryStore } from './glossary-store';
 import { InstancesStore } from './instances-store';
-import { executeSubtitleTranslation, executeSummarize, loadAllTranslationHistory, loadTranslatedSubtitles, SummarizePayload, TranslatePayload } from './ipc-handler-helpers';
+import { executeSubtitleTranslation, executeSummarize, loadAllTranslationHistory, loadResourceSummary, loadTranslatedSubtitles, SummarizePayload, TranslatePayload } from './ipc-handler-helpers';
 import { PromptsStore } from './prompts-store';
 import { AnthropicProvider } from './providers/anthropic';
 import { DeepSeekProvider } from './providers/deepseek';
@@ -326,5 +326,10 @@ export function initAIHandlers(win: BrowserWindow): void {
   // 字幕/文本总结
   ipcMain.handle('ai:summarize', async (_e, payload: SummarizePayload) => {
     return executeSummarize(payload);
+  });
+
+  // 获取资源的总结数据
+  ipcMain.handle('ai:getResourceSummary', async (_e, payload: { resourceId: string }) => {
+    return loadResourceSummary(payload.resourceId);
   });
 }
