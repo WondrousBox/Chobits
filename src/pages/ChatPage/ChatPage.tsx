@@ -5,6 +5,8 @@ import { toast } from 'sonner';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { formatDateTime, formatRelativeTime } from '@/lib/time';
 
 import ChatInputBar from './components/ChatInputBar';
@@ -25,6 +27,9 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
   const [conversations, setConversations] = useState<any[]>([]);
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [loadingConvs, setLoadingConvs] = useState(false);
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [renamingConvId, setRenamingConvId] = useState<string | null>(null);
+  const [newTitle, setNewTitle] = useState('');
 
   const currentConversation = useMemo(() => conversations.find((c) => c.id === conversationId) || null, [conversations, conversationId]);
 
@@ -65,12 +70,19 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
     setMessages([]);
   };
 
-  // Rename a conversation (prompt)
-  const renameConversation = async (id: string): Promise<void> => {
+  // Open rename dialog
+  const openRenameDialog = (id: string): void => {
     const current = conversations.find((c) => c.id === id);
-    const title = prompt('重命名对话', current?.title || '');
-    if (title == null) return;
-    await window.YUA.ai.renameConversation(id, title.trim() || '未命名会话');
+    setRenamingConvId(id);
+    setNewTitle(current?.title || '');
+    setRenameDialogOpen(true);
+  };
+
+  // Apply rename
+  const applyRename = async (): Promise<void> => {
+    if (!renamingConvId) return;
+    await window.YUA.ai.renameConversation(renamingConvId, newTitle.trim() || '未命名会话');
+    setRenameDialogOpen(false);
     await loadConversations();
   };
 
@@ -240,7 +252,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
                       title="重命名"
                       onClick={(e) => {
                         e.stopPropagation();
-                        renameConversation(c.id);
+                        openRenameDialog(c.id);
                       }}
                     >
                       <TbEdit className="w-4 h-4" />
@@ -305,6 +317,29 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
           )}
         </div>
       </div>
+
+      {/* 重命名对话框 */}
+      <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>重命名对话</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') applyRename();
+            }}
+            autoFocus
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameDialogOpen(false)}>
+              取消
+            </Button>
+            <Button onClick={applyRename}>确定</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
