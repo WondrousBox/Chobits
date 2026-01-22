@@ -145,7 +145,7 @@ ${JSON.stringify(req, null, 2)}
           emit({ type: 'done' });
           return;
         }
-        console.log(resolved);
+        console.log('resolved chat request:', resolved);
 
         const shouldPersist = resolved.persist !== false;
 
@@ -155,14 +155,15 @@ ${JSON.stringify(req, null, 2)}
           .slice()
           .reverse()
           .find((m) => m.role === 'user');
-        const conv = shouldPersist
-          ? await ChatRepo.ensureConversation({
+        let conv = undefined;
+        if (shouldPersist) {
+          conv = await ChatRepo.ensureConversation({
             id: resolved.conversationId,
             agentId: resolved.agentId,
             providerId: resolved.providerId,
             providerInstanceId: (resolved as any).providerInstanceId
-          })
-          : undefined;
+          });
+        }
         if (shouldPersist && lastUserMessage && conv) {
           try {
             await ChatRepo.addMessage(conv.id, {
@@ -214,21 +215,26 @@ ${JSON.stringify(req, null, 2)}
           }
         }
 
-        const recentMessages = contextMessages?.length
-          ? (() => {
-            const systemMessages = contextMessages.filter((m) => m.role === 'system');
-            const dialogMessages = contextMessages.filter((m) => m.role !== 'system');
-            const recentDialog = dialogMessages.slice(-6);
-            return [...systemMessages, ...recentDialog];
-          })()
-          : undefined;
+        let recentMessages;
+
+        if (contextMessages?.length) {
+          const systemMessages = contextMessages.filter((m) => m.role === 'system');
+          const dialogMessages = contextMessages.filter((m) => m.role !== 'system');
+          const recentDialog = dialogMessages.slice(-6);
+          recentMessages = [...systemMessages, ...recentDialog];
+        }
+
+        // 获取模型名称
+        const modelName = (resolved.extras?.model as string) || 'default';
 
         // 设置翻译工具执行上下文
         translationToolContext.setContext({
           chatFn: translationToolContext.createChatFn(agent),
           emit: translationToolContext.createEmitFn(requestId, 'translation'),
           requestId,
-          taskLabel: `${resolved.providerId}/${agent.model || 'default'}`
+          taskLabel: `${resolved.providerId}/${modelName}`,
+          providerId: resolved.providerId,
+          model: modelName
         });
 
         // 设置总结工具执行上下文
@@ -236,7 +242,9 @@ ${JSON.stringify(req, null, 2)}
           chatFn: summaryToolContext.createChatFn(agent),
           emit: summaryToolContext.createEmitFn(requestId, 'summary'),
           requestId,
-          taskLabel: `${resolved.providerId}/${agent.model || 'default'}`
+          taskLabel: `${resolved.providerId}/${modelName}`,
+          providerId: resolved.providerId,
+          model: modelName
         });
 
         try {
@@ -397,9 +405,6 @@ ${JSON.stringify(req, null, 2)}
 
   getProviderConfig(providerId: string): any {
     const prov = getProvider(providerId);
-
-    console.log(prov?.getConfigSchema?.());
-
     return prov?.getConfigSchema?.();
   }
 }

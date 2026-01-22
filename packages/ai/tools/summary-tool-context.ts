@@ -13,6 +13,8 @@
 import { Agent } from '@mastra/core/agent';
 import { BrowserWindow } from 'electron';
 
+import { SummarizePayload } from '../ipc-handler-helpers';
+
 /**
  * Chat 函数类型
  * 用于执行实际的 AI 总结请求
@@ -38,6 +40,10 @@ export interface SummaryToolExecutionContext {
   requestId: string;
   /** 任务标签 */
   taskLabel?: string;
+  /** 模型提供商 ID */
+  providerId: string;
+  /** 模型名称 */
+  model: string;
 }
 
 /**
@@ -139,15 +145,16 @@ class SummaryToolContextManager {
 
 /**
  * 获取 SummaryService 所需的参数
- * 辅助函数，用于构建 SummaryService.summarize() 的参数
+ * 辅助函数，用于构建 executeSummarize 的参数
  *
  * @param params - 输入参数
- * @returns SummaryService 参数对象
+ * @returns SummarizePayload 参数对象
  */
 export function getSummaryServiceParams(params: {
   content: string | any[];
   targetLanguage: string;
   languageNames?: Record<string, string>;
+  resourceId?: string;
   options?: {
     maxChars?: number;
     extractKeyPoints?: boolean;
@@ -155,27 +162,22 @@ export function getSummaryServiceParams(params: {
     keywordCount?: number;
     promptTemplate?: string;
   };
-}): {
-  content: string | any[];
-  targetLanguage: string;
-  languageNames: Record<string, string>;
-  metadata: Record<string, any>;
-  options: {
-    maxChars?: number;
-    extractKeyPoints?: boolean;
-    extractTimeline?: boolean;
-    keywordCount?: number;
-    promptTemplate?: string;
-  };
-} {
-  const { content, targetLanguage, languageNames = {}, options = {} } = params;
+}): SummarizePayload | null {
+  const ctx = summaryToolContext.getContext();
+  if (!ctx) {
+    console.warn('[SummaryToolContext] No context available');
+    return null;
+  }
 
   return {
-    content,
-    targetLanguage,
-    languageNames,
-    metadata: {},
-    options
+    providerId: ctx.providerId,
+    model: ctx.model,
+    content: typeof params.content === 'string' ? params.content : undefined,
+    segments: Array.isArray(params.content) ? params.content : undefined,
+    resourceId: params.resourceId,
+    targetLanguage: params.targetLanguage,
+    languageNames: params.languageNames || {},
+    options: params.options
   };
 }
 

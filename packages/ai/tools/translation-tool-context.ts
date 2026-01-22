@@ -8,7 +8,7 @@
 import type { Agent } from '@mastra/core/agent';
 import { BrowserWindow } from 'electron';
 
-import { TranslationService } from '../services/translation-service';
+import { TranslatePayload } from '../ipc-handler-helpers';
 
 /**
  * 聊天函数类型
@@ -32,6 +32,10 @@ export interface TranslationToolExecutionContext {
   requestId: string;
   /** 任务标签 */
   taskLabel?: string;
+  /** 模型提供商 ID */
+  providerId: string;
+  /** 模型名称 */
+  model: string;
 }
 
 /**
@@ -135,7 +139,7 @@ export function getTranslationServiceParams(additionalParams: {
   languageNames?: Record<string, string>;
   metadata?: Record<string, any>;
   options?: any;
-}): Parameters<typeof TranslationService.translateSubtitles>[0] | null {
+}): TranslatePayload | null {
   const ctx = translationToolContext.getContext();
   if (!ctx) {
     console.warn('[TranslationToolContext] No context available');
@@ -143,9 +147,12 @@ export function getTranslationServiceParams(additionalParams: {
   }
 
   return {
-    requestId: ctx.requestId,
-    chatFn: ctx.chatFn,
-    taskLabel: ctx.taskLabel || 'translation',
-    ...additionalParams
+    providerId: ctx.providerId,
+    model: ctx.model,
+    segments: additionalParams.segments,
+    targetLanguage: additionalParams.targetLanguage,
+    languageNames: additionalParams.languageNames || {},
+    metadata: additionalParams.metadata,
+    options: additionalParams.options
   };
 }

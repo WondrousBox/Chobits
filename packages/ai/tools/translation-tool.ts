@@ -4,7 +4,6 @@
  * 将翻译服务封装成 Mastra Tool，通过上下文注入外部依赖
  */
 
-import { type AimSegments } from '@aim-packages/subtitle';
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 
@@ -32,30 +31,40 @@ export interface TranslationToolContext {
 
 /**
  * 翻译工具输入参数
+ *
+ * 支持两种输入方式：
+ * - 提供 `segments`（从读取字幕工具获取）
+ * - 或者提供 `resourceId`（工具会自行加载字幕片段）
  */
-const translationInputSchema = z.object({
-  segments: z.array(z.any()).describe('待翻译的字幕片段数组'),
-  targetLanguage: z.string().describe('目标语言编码（如 zh-CN, en, ja）'),
-  sourceLanguage: z.string().optional().describe('源语言编码（可选）'),
-  languageNames: z.record(z.string(), z.string()).optional().describe('语言编码到名称的映射'),
-  options: z
-    .object({
-      maxConcurrency: z.number().optional().describe('最大并发数，默认 3'),
-      chunkSize: z.number().optional().describe('每个分块的最大字符数，默认 1000'),
-      maxRetries: z.number().optional().describe('失败后最大重试次数，默认 2'),
-      generateSummary: z.boolean().optional().describe('是否生成总结，默认 true'),
-      glossary: z.any().optional().describe('术语表/热词词典')
-    })
-    .optional()
-    .describe('翻译配置选项')
-});
+const translationInputSchema = z
+  .object({
+    segments: z.array(z.any()).optional().describe('待翻译的字幕片段数组（可选）'),
+    resourceId: z.string().optional().describe('字幕资源 ID（可选，无 segments 时将自动加载）'),
+    targetLanguage: z.string().describe('目标语言编码（如 zh-CN, en, ja）'),
+    sourceLanguage: z.string().optional().describe('源语言编码（可选）'),
+    languageNames: z.record(z.string(), z.string()).optional().describe('语言编码到名称的映射'),
+    options: z
+      .object({
+        maxConcurrency: z.number().optional().describe('最大并发数，默认 3'),
+        chunkSize: z.number().optional().describe('每个分块的最大字符数，默认 1000'),
+        maxRetries: z.number().optional().describe('失败后最大重试次数，默认 2'),
+        generateSummary: z.boolean().optional().describe('是否生成总结，默认 true'),
+        glossary: z.any().optional().describe('术语表/热词词典')
+      })
+      .optional()
+      .describe('翻译配置选项')
+  })
+  .refine((data) => !!data.segments?.length || !!data.resourceId, {
+    message: 'segments 或 resourceId 至少提供一个',
+    path: ['segments']
+  });
 
 /**
  * 翻译工具输出参数
  */
 const translationOutputSchema = z.object({
   success: z.boolean().describe('是否成功'),
-  segments: z.array(z.any()).optional().describe('翻译后的片段数组'),
+  message: z.string().optional().describe('提示信息'),
   error: z.string().optional().describe('错误信息（如果失败）')
 });
 
@@ -73,7 +82,7 @@ export const createTranslationTool = (boundTranslationService?: typeof Translati
     outputSchema: translationOutputSchema,
 
     execute: async ({ context }) => {
-      const { segments, targetLanguage, sourceLanguage, languageNames = {}, options = {} } = context;
+      const { segments, resourceId, targetLanguage, sourceLanguage, languageNames = {}, options = {} } = context;
 
       // 尝试从上下文管理器获取执行上下文
       const executionContext = translationToolContext.getContext();
@@ -86,15 +95,6 @@ export const createTranslationTool = (boundTranslationService?: typeof Translati
         };
       }
 
-      // 使用上下文中的依赖
-      const translationService = boundTranslationService;
-      if (!translationService) {
-        return {
-          success: false,
-          error: 'TranslationService 未配置'
-        };
-      }
-
       try {
         // 构建翻译参数
         const params = getTranslationServiceParams({
@@ -102,7 +102,8 @@ export const createTranslationTool = (boundTranslationService?: typeof Translati
           targetLanguage,
           sourceLanguage,
           languageNames,
-          options
+          options,
+          metadata: resourceId ? { resourceId } : undefined
         });
 
         if (!params) {
@@ -112,29 +113,22 @@ export const createTranslationTool = (boundTranslationService?: typeof Translati
           };
         }
 
-        // 收集翻译结果
-        let translatedSegments: AimSegments[] = [];
-        const originalEmit = executionContext.emit;
+        // 导入并调用 executeSubtitleTranslation
+        const { executeSubtitleTranslation } = await import('../ipc-handler-helpers');
 
-        // 包装 emit 函数以捕获翻译结果
-        const wrappedEmit = (event: any): void => {
-          if (event.type === 'completed' && event.data?.segments) {
-            translatedSegments = event.data.segments;
-          }
-          originalEmit(event);
-        };
-
-        // 调用翻译服务
-        const result = await translationService.translateSubtitles(params, wrappedEmit, undefined);
+        // 调用翻译任务（不等待结果）
+        executeSubtitleTranslation(params).catch((error) => {
+          console.error('[translation-tool] 翻译任务启动失败:', error);
+        });
 
         return {
           success: true,
-          segments: result || translatedSegments
+          message: '翻译任务已启动，正在后台处理中...'
         };
       } catch (error: any) {
         return {
           success: false,
-          error: error?.message || '翻译失败'
+          error: error?.message || '启动翻译任务失败'
         };
       }
     }

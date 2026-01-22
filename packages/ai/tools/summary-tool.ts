@@ -34,6 +34,7 @@ const summaryInputSchema = z.object({
  */
 const summaryOutputSchema = z.object({
   success: z.boolean().describe('是否成功'),
+  message: z.string().optional().describe('提示信息'),
   summary: z.string().optional().describe('总结内容'),
   keyPoints: z.array(z.string()).optional().describe('关键点列表'),
   timeline: z.array(z.any()).optional().describe('时间线事件'),
@@ -93,45 +94,35 @@ export const createSummaryTool = (boundSummaryService?: typeof SummaryServiceTyp
         };
       }
 
-      // 使用上下文中的依赖
-      const summaryService = boundSummaryService;
-      if (!summaryService) {
-        return {
-          success: false,
-          error: 'SummaryService 未配置'
-        };
-      }
-
       try {
-        // 调用总结服务（异步执行，不等待完成）
-        summaryService
-          .summarize(executionContext.emit, {
-            requestId: executionContext.requestId,
-            chatFn: executionContext.chatFn,
-            taskLabel: executionContext.taskLabel,
-            content,
-            targetLanguage,
-            languageNames,
-            metadata: {},
-            options
-          })
-          .catch((error: any) => {
-            console.error('[summary-tool] 总结服务执行失败:', error);
-          });
+        // 构建总结参数
+        const payload = {
+          providerId: executionContext.providerId,
+          model: executionContext.model,
+          content: typeof content === 'string' ? content : undefined,
+          segments: Array.isArray(content) ? content : undefined,
+          targetLanguage,
+          languageNames,
+          options
+        };
+
+        // 导入并调用 executeSummarize
+        const { executeSummarize } = await import('../ipc-handler-helpers');
+
+        // 调用总结任务（不等待结果）
+        executeSummarize(payload).catch((error) => {
+          console.error('[summary-tool] 总结任务启动失败:', error);
+        });
 
         // 立即返回，告诉 Agent 总结已开始
-        // 实际的总结结果会通过 emit 事件发送到 UI
         return {
           success: true,
-          summary: '总结任务已启动，正在后台处理。结果将在完成后自动显示。',
-          keyPoints: [],
-          timeline: [],
-          keywords: []
+          message: '总结任务已启动，正在后台处理中...'
         };
       } catch (error: any) {
         return {
           success: false,
-          error: error?.message || '总结失败'
+          error: error?.message || '启动总结任务失败'
         };
       }
     }

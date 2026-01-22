@@ -274,7 +274,7 @@ export default function ChatPage(): JSX.Element {
           <div className="flex flex-col gap-2">
             {messages.map((m, i) => (
               <div key={i} className={m.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
-                <div className={'max-w-[80%] rounded-2xl px-3 py-2 whitespace-pre-wrap break-words ' + (m.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground')}>
+                <div className={'max-w-[80%] rounded-2xl px-3 py-2 break-words ' + (m.role === 'user' ? 'bg-primary text-primary-foreground whitespace-pre-wrap' : 'bg-muted text-foreground')}>
                   {m.role === 'assistant' ? (
                     <MarkdownMessage content={m.content || ''} />
                   ) : (

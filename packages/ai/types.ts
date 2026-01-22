@@ -16,8 +16,8 @@ export type ChatMessage = {
 export type ChatRequest = {
   conversationId?: string;
   messages: ChatMessage[];
-  agentId?: string; // which agent to use
-  providerId?: string; // which provider adapter to use
+  agentId: string; // which agent to use
+  providerId: string; // which provider adapter to use
   providerInstanceId?: string; // which provider instance to use
   stream?: boolean;
   temperature?: number;
