@@ -10,7 +10,11 @@ import { formatDateTime, formatRelativeTime } from '@/lib/time';
 import ChatInputBar from './components/ChatInputBar';
 import MarkdownMessage from './components/MarkdownMessage';
 
-export default function ChatPage(): JSX.Element {
+interface ChatPageProps {
+  hideTitleBar?: boolean;
+}
+
+export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.Element {
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string; createdAt?: number }>>([]);
   const [loading, setLoading] = useState(false);
   // Provider/instance/agent are managed inside ChatInputBar now
@@ -184,15 +188,24 @@ export default function ChatPage(): JSX.Element {
 
   return (
     <div className="w-full h-full bg-background text-foreground overflow-hidden flex flex-col">
-      {/* 顶部可拖拽导航栏 */}
-      <DragAbleTitle
-        title={
-          <div className="flex items-center gap-2 w-full">
-            <span>🗨️</span>
-            <div className="text-left truncate flex-1">{currentConversation?.title || '未命名会话'}</div>
-          </div>
-        }
-      />
+      {/* 顶部可拖拽导航栏 - 根据 hideTitleBar 控制显示 */}
+      {!hideTitleBar && (
+        <DragAbleTitle
+          title={
+            <div className="flex items-center gap-2 w-full">
+              <span>🗨️</span>
+              <div className="text-left truncate flex-1">{currentConversation?.title || '未命名会话'}</div>
+            </div>
+          }
+        />
+      )}
+
+      {/* 嵌入模式下的简洁标题 */}
+      {hideTitleBar && (
+        <div className="px-4 py-3 border-b border-border shrink-0">
+          <h1 className="text-lg font-semibold text-foreground">💬 AI 对话</h1>
+        </div>
+      )}
 
       {/* 主体：左侧历史列表 + 右侧聊天区 */}
       <div

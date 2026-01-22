@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SidebarProvider } from '@/components/ui/sidebar';
+import ChatPage from '@/pages/ChatPage/ChatPage';
 import SettingsPage, { SettingsCategory } from '@/pages/SettingsPage/SettingsPage';
 
 import AppsPage from './AppsPage';
@@ -412,6 +413,7 @@ const ResourcePage: React.FC = () => {
           <Route path="tasks" element={<TaskList workspaceId={wsFilter} />} />
           <Route path="workflows" element={<WorkflowPage />} />
           <Route path="apps" element={<AppsPage />} />
+          <Route path="chat" element={<ChatPage hideTitleBar />} />
           <Route path="recycle" element={<RecycleBinPage hideTitleBar />} />
           <Route path="preview/:resourceId" element={<ResourcePreviewWindow />} />
           <Route path="rss/:resourceId" element={<RssFeedPage />} />
