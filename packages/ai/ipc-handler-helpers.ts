@@ -45,6 +45,49 @@ export async function loadSegmentsFromResource(resourceId: string): Promise<{ fi
 }
 
 /**
+ * 加载资源的关联翻译数据
+ * @param resourceId 资源 ID
+ * @returns 翻译资源列表（JSON 格式）
+ */
+export async function loadTranslatedSubtitles(
+  resourceId: string
+): Promise<Array<{ id: string; language?: string; title?: string; filePath?: string; segments?: Array<{ index: number; text: string }> }>> {
+  try {
+    const children = await ResourcesRepo.listChildren(resourceId);
+    const translations = children.filter((child) => child.type === 'translation');
+
+    // 读取每个翻译 JSON 文件的内容
+    const results = await Promise.all(
+      translations.map(async (t) => {
+        let segments: Array<{ index: number; text: string }> | undefined;
+        if (t.filePath) {
+          try {
+            const content = await readFile(t.filePath, 'utf8');
+            const json = JSON.parse(content) as TranslatedSubtitleJsonV1;
+            segments = json.translatedSegments;
+          } catch (error) {
+            console.error('[loadTranslatedSubtitles] 读取翻译文件失败:', t.filePath, error);
+          }
+        }
+
+        return {
+          id: t.id,
+          language: t.language,
+          title: t.title,
+          filePath: t.filePath,
+          segments
+        };
+      })
+    );
+
+    return results;
+  } catch (error) {
+    console.error('[loadTranslatedSubtitles] 加载翻译数据失败:', error);
+    return [];
+  }
+}
+
+/**
  * 从资源ID加载文本内容
  */
 export async function loadContentFromResource(resourceId: string): Promise<string | AimSegments[]> {
@@ -257,8 +300,9 @@ export function createEventEmitter(config: EmitterConfig): (event: { type: strin
 
 /**
  * 保存翻译结果（JSON）到正在翻译的字幕文件同目录
- * - 不再覆盖/合并原字幕文件
+ * - 用于增量保存翻译进度
  * - 输出文件名: <原文件名>.translated.<lang>.<timestamp>.json（支持多次翻译历史记录）
+ * - 翻译完成后会创建新的资源记录和字幕文件
  */
 type TranslatedSubtitleJsonV1 = {
   version: 1;
@@ -307,86 +351,76 @@ function detectSubtitleFormat(filePath: string): SubtitleFormat {
 }
 
 /**
- * 保存翻译后的字幕到文件
- * @param resourceId 资源 ID
- * @param translatedSegments 翻译后的字幕片段
+ * 创建或更新翻译资源（仅 JSON 格式）
+ * @param translationJsonPath 翻译 JSON 文件路径
+ * @param sourceResourceId 源资源 ID
+ * @param targetLanguage 目标语言
+ * @param providerId AI 提供商 ID
+ * @param model AI 模型名称
+ * @param startTimestamp 翻译开始时间戳
  */
-async function saveTranslatedSubtitle(resourceId: string, translatedSegments: Array<{ index: number; text: string }>): Promise<void> {
-  if (!resourceId) return;
+async function createOrUpdateTranslationResource(opts: {
+  translationJsonPath: string;
+  sourceResourceId: string;
+  targetLanguage?: string;
+  providerId?: string;
+  model?: string;
+  startTimestamp: number;
+}): Promise<void> {
+  const { translationJsonPath, sourceResourceId, targetLanguage, providerId, model, startTimestamp } = opts;
 
   try {
-    // 获取资源信息
-    const resource = await ResourcesRepo.getById(resourceId);
-    if (!resource || !resource.filePath) {
-      console.warn('[translation-save] 资源不存在或没有文件路径:', resourceId);
+    // 获取源资源信息
+    const sourceResource = await ResourcesRepo.getById(sourceResourceId);
+    if (!sourceResource) {
+      console.warn('[translation-resource] 源资源不存在:', sourceResourceId);
       return;
     }
 
-    const filePath = resource.filePath;
-    const lower = filePath.toLowerCase();
+    // 读取 JSON 文件获取文件大小
+    const jsonStat = await fs.stat(translationJsonPath);
+    const translatedTitle = sourceResource.title ? `${sourceResource.title} - ${targetLanguage || '翻译'}` : `翻译数据 - ${targetLanguage || ''}`;
 
-    // 检查是否是字幕文件
-    const isSubtitleFile = lower.endsWith('.srt') || lower.endsWith('.vtt') || lower.endsWith('.ass') || lower.endsWith('.ssa');
-    if (!isSubtitleFile) {
-      console.warn('[translation-save] 不是字幕文件:', filePath);
-      return;
-    }
-    // 从文件重新读取原始字幕，确保时间戳完整
-    const fileContent = await readFile(filePath, 'utf8');
-    const parsedResult = await parser.parseSubtitle(fileContent);
-    const originalSegments = parsedResult?.segments || [];
+    // 创建或更新资源记录（使用 JSON 文件路径作为唯一标识）
+    // 通过 metadata 中存储 translationJsonPath 来查找是否已存在
+    const existingChildren = await ResourcesRepo.listChildren(sourceResourceId);
+    const existingTranslation = existingChildren.find(
+      (child) => child.type === 'translation' && child.filePath === translationJsonPath
+    );
 
-    if (originalSegments.length === 0) {
-      console.warn('[translation-save] 无法从文件读取原始字幕:', filePath);
-      return;
-    }
+    const resourceData = {
+      type: 'translation' as const,
+      parentResourceId: sourceResourceId, // 关联源资源
+      workspaceId: sourceResource.workspaceId,
+      folderId: sourceResource.folderId,
+      title: translatedTitle,
+      description: `翻译自: ${sourceResource.title || sourceResource.description || '原字幕'}`,
+      filePath: translationJsonPath,
+      language: targetLanguage,
+      mimeType: 'application/json',
+      sizeBytes: jsonStat.size,
+      status: 'ready' as const,
+      metadata: JSON.stringify({
+        translationSource: sourceResourceId,
+        providerId,
+        model,
+        targetLanguage,
+        translatedAt: Date.now(),
+        startTimestamp
+      })
+    };
 
-    // 检测格式
-    const format = detectSubtitleFormat(filePath);
-
-    // 构建翻译后的完整字幕数组（segments2）
-    // 使用从文件读取的原始字幕，确保时间戳完整
-    const segments2: AimSegments[] = originalSegments.map((seg, index) => {
-      const translated = translatedSegments.find((t) => t.index === index);
-      return {
-        ...seg,
-        text: translated?.text || ''
-      };
-    });
-
-    // 转换为 ISegment 格式
-    const iSegments1 = originalSegments.filter((seg) => !seg.delete).map(convertToISegment);
-    const iSegments2 = segments2.filter((seg) => !seg.delete).map(convertToISegment);
-
-    // 根据格式选择不同的输出方法
-    let content: string;
-    if (format === 'vtt' && 'outputVtt' in tools && typeof tools.outputVtt === 'function') {
-      content = tools.outputVtt({ segments1: iSegments1, segments2: iSegments2 });
-    } else if (format === 'ass' && 'outputAss' in tools && typeof tools.outputAss === 'function') {
-      content = tools.outputAss({ segments1: iSegments1, segments2: iSegments2 });
+    if (existingTranslation) {
+      // 更新现有资源
+      await ResourcesRepo.update(existingTranslation.id, resourceData as any);
+      console.log(`[translation-resource] 翻译资源已更新:`, existingTranslation.id);
     } else {
-      // 默认使用 SRT 格式输出
-      content = tools.outputSrt({ segments1: iSegments1, segments2: iSegments2 });
+      // 创建新资源
+      const newResource = await ResourcesRepo.upsert(resourceData as any);
+      console.log(`[translation-resource] 翻译资源已创建:`, newResource?.id);
     }
-
-    // 确保目录存在
-    const dir = path.dirname(filePath);
-    await fs.mkdir(dir, { recursive: true });
-
-    // 写入文件
-    await writeFile(filePath, content);
-
-    // 更新资源的文件大小
-    try {
-      const buf = Buffer.from(content, 'utf8');
-      await ResourcesRepo.update(resourceId, { sizeBytes: buf.byteLength });
-    } catch {
-      // 忽略更新失败
-    }
-
-    console.log(`[translation-save] 字幕已保存 (${format}):`, filePath);
   } catch (error) {
-    console.error('[translation-save] 保存字幕失败:', error);
+    console.error('[translation-resource] 创建/更新翻译资源失败:', error);
   }
 }
 
@@ -398,16 +432,16 @@ async function saveTranslatedSubtitleJson(opts: {
   model?: string;
   targetLanguage?: string;
   startTimestamp: number; // 翻译任务开始时间戳
-}): Promise<void> {
+}): Promise<string | undefined> {
   try {
     const sourceFilePath = opts.sourceFilePath;
     if (!sourceFilePath) {
       console.warn('[translation-save] 无法确定正在翻译的字幕文件路径:', { resourceId: opts.resourceId });
-      return;
+      return undefined;
     }
     if (!isSubtitleFilePath(sourceFilePath)) {
       console.warn('[translation-save] 不是字幕文件:', sourceFilePath);
-      return;
+      return undefined;
     }
 
     const outPath = buildTranslatedJsonPath(sourceFilePath, opts.targetLanguage, opts.startTimestamp);
@@ -433,8 +467,10 @@ async function saveTranslatedSubtitleJson(opts: {
     await writeFile(outPath, content);
 
     console.log('[translation-save] 翻译 JSON 已保存:', outPath);
+    return outPath;
   } catch (error) {
     console.error('[translation-save] 保存翻译 JSON 失败:', error);
+    return undefined;
   }
 }
 
@@ -488,6 +524,7 @@ export async function executeSubtitleTranslation(payload: TranslatePayload): Pro
 
   // 步骤4: 创建事件发射器，处理翻译回调
   const accumulatedTranslations: Array<{ index: number; text: string }> = [];
+  let translationJsonPath: string | undefined;
 
   const emit = createEventEmitter({
     requestId,
@@ -510,8 +547,8 @@ export async function executeSubtitleTranslation(payload: TranslatePayload): Pro
           }
         });
 
-        // 保存翻译结果（JSON）
-        await saveTranslatedSubtitleJson({
+        // 保存翻译结果（JSON）并获取文件路径
+        const jsonPath = await saveTranslatedSubtitleJson({
           resourceId: effectiveResourceId,
           sourceFilePath: sourceSubtitleFilePath,
           translatedSegments: accumulatedTranslations,
@@ -520,14 +557,36 @@ export async function executeSubtitleTranslation(payload: TranslatePayload): Pro
           targetLanguage,
           startTimestamp
         });
+
+        // 记录 JSON 文件路径，用于创建资源
+        if (jsonPath) {
+          translationJsonPath = jsonPath;
+
+          // 每次保存 JSON 后，创建或更新资源记录
+          await createOrUpdateTranslationResource({
+            translationJsonPath: jsonPath,
+            sourceResourceId: effectiveResourceId,
+            targetLanguage,
+            providerId,
+            model,
+            startTimestamp
+          });
+        }
       }
     },
     onCompleted: async () => {
-      console.log('翻译完成，保存字幕文件：', effectiveResourceId, accumulatedTranslations.length);
+      console.log('翻译完成，翻译资源已保存：', effectiveResourceId, accumulatedTranslations.length);
 
-      // 翻译完成时，将最终翻译结果合并保存到原字幕文件
-      if (effectiveResourceId && accumulatedTranslations.length > 0) {
-        await saveTranslatedSubtitle(effectiveResourceId, accumulatedTranslations);
+      // 翻译完成时，确保资源记录已创建（通常在 onChunkComplete 中已经创建了）
+      if (effectiveResourceId && translationJsonPath) {
+        await createOrUpdateTranslationResource({
+          translationJsonPath,
+          sourceResourceId: effectiveResourceId,
+          targetLanguage,
+          providerId,
+          model,
+          startTimestamp
+        });
       }
     }
   });
