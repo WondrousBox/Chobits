@@ -22,8 +22,6 @@ import { toToolDefinition } from './tool';
  * const toolProvider = new RegistryToolProvider();
  *
  * // 注册工具
- * toolProvider.register(timeTool);
- * toolProvider.register(calculatorTool);
  *
  * // 列出工具
  * const tools = toolProvider.list();

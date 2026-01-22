@@ -17,15 +17,11 @@
  * import {
  *   DefaultAgentRuntime,
  *   RegistryToolProvider,
- *   OpenAIAdapter,
- *   GetTimeTool,
- *   CalculatorTool
+ *   OpenAIAdapter
  * } from '@packages/ai-agent';
  *
  * // 1. 创建工具提供者
  * const tools = new RegistryToolProvider();
- * tools.register(GetTimeTool);
- * tools.register(CalculatorTool);
  *
  * // 2. 创建 LLM 适配器
  * const llm = new OpenAIAdapter({
@@ -76,7 +72,7 @@ export { executionLoop } from './runtime/execution-loop';
 // 工具导出
 // ============================================================================
 
-export { BuiltinTools, CalculatorTool, GetTimeTool, JsonTool, RandomTool, StringTool } from './tools/builtin-tools';
+export { BuiltinTools, JsonTool, RandomTool, StringTool } from './tools/builtin-tools';
 export { RegistryToolProvider } from './tools/registry-tool-provider';
 export { createSchemaValidator, validateSchema } from './tools/schema-validator';
 export type { Tool, ToolBuilderOptions } from './tools/tool';

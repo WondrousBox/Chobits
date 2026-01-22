@@ -9,7 +9,7 @@ import { Agent } from '@mastra/core/agent';
 import { ResourcesRepo } from '../../common/db';
 import { SummaryService } from '../services/summary-service';
 import { TranslationService } from '../services/translation-service';
-import { calculatorTool, timeTool, weatherTool } from '../tools';
+import { weatherTool } from '../tools';
 import { createReadSubtitleTool } from '../tools/read-subtitle-tool';
 import { createResourceQueryTool } from '../tools/resource-query-tool';
 import { createSummaryTool } from '../tools/summary-tool';
@@ -36,8 +36,6 @@ const boundSummaryTool = createSummaryTool(SummaryService);
 // 所有可用工具（包括绑定版本）
 const allBoundTools = {
   weatherTool,
-  timeTool,
-  calculatorTool,
   resourceQueryTool: boundResourceQueryTool,
   readSubtitleTool: boundReadSubtitleTool,
   translationTool: boundTranslationTool,
