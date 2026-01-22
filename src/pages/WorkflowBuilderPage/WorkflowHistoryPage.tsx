@@ -103,16 +103,10 @@ const WorkflowHistoryPage: React.FC = () => {
       </div>
 
       {/* AI/自动化按钮 - 绝对定位到标题栏右侧 */}
-      <div
-        className="absolute top-0 right-3 h-9 flex items-center gap-1 z-10 pointer-events-auto"
-        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-      >
+      <div className="absolute top-0 right-3 h-9 flex items-center gap-1 z-10 pointer-events-auto" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <Tooltip>
           <TooltipTrigger asChild>
-            <button
-              className={`p-1.5 rounded transition-colors ${aiChatOpen ? 'bg-muted text-primary' : 'hover:bg-muted'}`}
-              onClick={() => setAiChatOpen((prev) => !prev)}
-            >
+            <button className={`p-1.5 rounded transition-colors ${aiChatOpen ? 'bg-muted text-primary' : 'hover:bg-muted'}`} onClick={() => setAiChatOpen((prev) => !prev)}>
               <TbSparkles className="w-4 h-4" />
             </button>
           </TooltipTrigger>
