@@ -19,7 +19,6 @@
 
 import { Agent } from '@mastra/core';
 import {
-    calculatorTool,
     getAllTools,
     getAITools,
     getBasicTools,
@@ -27,7 +26,6 @@ import {
     getToolById,
     resourceQueryTool,
     summaryTool,
-    timeTool,
     translationTool,
     weatherTool
 } from '../tools';
@@ -57,19 +55,7 @@ export async function example1_BasicToolUsage() {
     const weather = await weatherTool.execute({
         context: { city: '北京', unit: 'celsius' }
     });
-    console.log(`天气: ${weather.city} ${weather.temperature}°C ${weather.description}`);
-
-    // 2. 时间查询
-    const time = await timeTool.execute({
-        context: { format: 'readable' }
-    });
-    console.log(`时间: ${time.time}`);
-
-    // 3. 计算器
-    const calc = await calculatorTool.execute({
-        context: { expression: '(10 + 5) * 2' }
-    });
-    console.log(`计算: ${calc.expression} = ${calc.result}\n`);
+    console.log(`天气: ${weather.city} ${weather.temperature}°C ${weather.description}\n`);
 }
 
 // ============================================================================
@@ -82,7 +68,7 @@ export async function example2_AgentWithBasicTools() {
     // 创建 Agent，传入所有基础工具
     const agent = new Agent({
         name: 'helper',
-        instructions: '你是一个有用的助手，可以查询天气、时间和进行计算',
+        instructions: '你是一个有用的助手，可以查询天气',
         model: {
             provider: 'OPEN_AI',
             name: 'gpt-4',
@@ -91,8 +77,8 @@ export async function example2_AgentWithBasicTools() {
         tools: getBasicTools()
     });
 
-    // Agent 会自动理解用户意图并选择合适的工具
-    const queries = ['北京今天天气怎么样？', '现在几点了？', '帮我算一下 25 * 4'];
+    // Agent 会自动理解用户意图并选择合適的工具
+    const queries = ['北京今天天气怎么样？'];
 
     for (const query of queries) {
         console.log(`用户: ${query}`);
@@ -276,15 +262,6 @@ export async function example6_DynamicToolSelection() {
         console.log('通过名称获取:', result);
     }
 
-    // 根据 ID 获取工具
-    const calculator = getToolById('calculator');
-    if (calculator) {
-        const result = await calculator.execute({
-            context: { expression: '100 / 5' }
-        });
-        console.log('通过 ID 获取:', result);
-    }
-
     // 获取所有工具
     const allTools = getAllTools();
     console.log('所有工具:', Object.keys(allTools));
@@ -313,16 +290,6 @@ export async function example7_ErrorHandling() {
         console.log(result);
     } catch (error) {
         console.error('天气查询失败:', error instanceof Error ? error.message : error);
-    }
-
-    try {
-        // 无效的数学表达式
-        const result = await calculatorTool.execute({
-            context: { expression: '2 + abc' }
-        });
-        console.log(result);
-    } catch (error) {
-        console.error('计算失败:', error instanceof Error ? error.message : error);
     }
 
     // 资源查询的错误处理（通过返回值）

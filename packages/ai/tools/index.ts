@@ -11,8 +11,6 @@
 // ============================================================================
 
 // 通用工具
-export { calculatorTool } from './calculator-tool';
-export { timeTool } from './time-tool';
 export { weatherTool } from './weather-tool';
 
 // AI 工具（需要绑定依赖）
@@ -26,11 +24,9 @@ export { createYoutubeDownloadTool, youtubeDownloadTool } from './youtube-downlo
 export { createYoutubeSubscribeTool, youtubeSubscribeTool } from './youtube-subscribe-tool';
 
 // 导入用于类型和工具列表
-import { calculatorTool } from './calculator-tool';
 import { readSubtitleTool } from './read-subtitle-tool';
 import { resourceQueryTool } from './resource-query-tool';
 import { summaryTool } from './summary-tool';
-import { timeTool } from './time-tool';
 import { translationTool } from './translation-tool';
 import { weatherTool } from './weather-tool';
 import { youtubeDownloadTool } from './youtube-download-tool';
@@ -45,8 +41,6 @@ import { youtubeSubscribeTool } from './youtube-subscribe-tool';
  *
  * 通用工具：
  * - weatherTool: 查询城市天气
- * - timeTool: 获取当前时间
- * - calculatorTool: 数学计算
  *
  * AI 工具（需要绑定依赖）：
  * - readSubtitleTool: 读取字幕文件内容
@@ -61,8 +55,6 @@ import { youtubeSubscribeTool } from './youtube-subscribe-tool';
 export const allTools = {
   // 通用工具
   weatherTool,
-  timeTool,
-  calculatorTool,
 
   // AI 工具
   readSubtitleTool,
@@ -82,9 +74,7 @@ export const allTools = {
  */
 export function getBasicTools() {
   return {
-    weatherTool,
-    timeTool,
-    calculatorTool
+    weatherTool
   };
 }
 
@@ -129,8 +119,6 @@ export function getTool(name: string) {
 export function getToolById(id: string) {
   const toolMap: Record<string, any> = {
     'get-weather': weatherTool,
-    'get-time': timeTool,
-    calculator: calculatorTool,
     'translate-subtitles': translationTool,
     'summarize-content': summaryTool,
     'query-resources': resourceQueryTool,
@@ -148,7 +136,7 @@ export type ToolName = keyof typeof allTools;
 /**
  * 工具 ID 类型定义
  */
-export type ToolId = 'get-weather' | 'get-time' | 'calculator' | 'translate-subtitles' | 'summarize-content' | 'query-resources';
+export type ToolId = 'get-weather' | 'translate-subtitles' | 'summarize-content' | 'query-resources';
 
 // 向后兼容（保留原有的导出名称）
 export const getTools = getAllTools;
