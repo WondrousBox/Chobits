@@ -8,6 +8,7 @@ import { Agent } from '@mastra/core/agent';
 
 import { ResourcesRepo } from '../../common/db';
 import { SummaryService } from '../services/summary-service';
+import { TranslationService } from '../services/translation-service';
 import { calculatorTool, timeTool, weatherTool } from '../tools';
 import { createReadSubtitleTool } from '../tools/read-subtitle-tool';
 import { createResourceQueryTool } from '../tools/resource-query-tool';
@@ -15,7 +16,6 @@ import { createSummaryTool } from '../tools/summary-tool';
 import { createTranslationTool } from '../tools/translation-tool';
 import { youtubeDownloadTool } from '../tools/youtube-download-tool';
 import { youtubeSubscribeTool } from '../tools/youtube-subscribe-tool';
-import { TranslationService } from '../services/translation-service';
 
 // ============================================================================
 // 创建绑定了依赖的工具
@@ -45,6 +45,17 @@ const allBoundTools = {
   youtubeDownloadTool,
   youtubeSubscribeTool
 };
+
+// ============================================================================
+// 基础助手 Agent
+// ============================================================================
+
+export const chatAgent = new Agent({
+  name: 'chat',
+  instructions: ``,
+  model: 'openai/gpt-4',
+  tools: {}
+});
 
 // ============================================================================
 // 基础助手 Agent
@@ -189,6 +200,7 @@ export const translatorAgent = new Agent({
 // ============================================================================
 
 export const agents = {
+  chat: chatAgent,
   assistant: assistantAgent,
   rag: ragAgent,
   tagger: taggerAgent,
