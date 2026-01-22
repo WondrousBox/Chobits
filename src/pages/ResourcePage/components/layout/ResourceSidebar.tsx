@@ -1,5 +1,5 @@
 import React from 'react';
-import { TbApps, TbFilter, TbHeart, TbLine, TbSettings, TbTrash } from 'react-icons/tb';
+import { TbApps, TbFilter, TbHeart, TbLine, TbMessage2, TbSettings, TbTrash } from 'react-icons/tb';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
@@ -59,6 +59,7 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
   const isTasksRoute = location.pathname.includes('/tasks');
   const isWorkflowsRoute = location.pathname.includes('/workflows');
   const isAppsRoute = location.pathname.includes('/apps');
+  const isChatRoute = location.pathname.includes('/chat');
 
   return (
     <Sidebar collapsible="none" className="h-full w-80 bg-sidebar border-t">
@@ -143,6 +144,23 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
             >
               <TbApps />
               应用
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem
+            key={'chat'}
+            onClick={() => {
+              navigate('/resources/chat', { replace: true });
+              setFavoriteFilter(false);
+              setFolderFilter('');
+              setTypeFilter([]);
+            }}
+          >
+            <SidebarMenuButton
+              variant={isChatRoute ? 'outline' : 'default'}
+              className={`h-8 transition-colors ${isChatRoute ? 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground' : ''}`}
+            >
+              <TbMessage2 />
+              对话
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem
