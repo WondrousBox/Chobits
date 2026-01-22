@@ -17,8 +17,8 @@ interface UseResourceFilterParams {
 export const useResourceFilter = ({ list, wsFilter, tagFilter, folderFilter, typeFilter, favoriteFilter, searchQuery, sortField, sortOrder }: UseResourceFilterParams) => {
   const filtered = useMemo(() => {
     if (!wsFilter) return [] as any[];
-    // 过滤掉 translation 类型的资源（不在文件夹中显示）
-    let filtered = list.filter((r: any) => r.workspaceId === wsFilter && r.type !== 'translation');
+    // 过滤掉 translation 和 summary 类型的资源（不在文件夹中显示）
+    let filtered = list.filter((r: any) => r.workspaceId === wsFilter && r.type !== 'translation' && r.type !== 'summary');
 
     // 标签过滤（当后端按标签查询时，这里也保持二次防御）
     if (tagFilter) {

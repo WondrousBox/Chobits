@@ -272,6 +272,9 @@ export const aiBridge = {
   // ==================== 总结相关 ====================
 
   // 总结内容
+  async getResourceSummary(resourceId: string) {
+    return ipcRenderer.invoke('ai:getResourceSummary', { resourceId });
+  },
   async summarize(payload: {
     providerId: string;
     model: string;

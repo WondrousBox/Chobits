@@ -100,6 +100,141 @@ export async function loadTranslatedSubtitles(
 }
 
 /**
+ * 创建或更新总结资源（只保留一个总结文件）
+ * @param sourceResourceId 源资源 ID
+ * @param summaryData 总结数据
+ * @param targetLanguage 目标语言
+ * @param providerId AI 提供商 ID
+ * @param model AI 模型名称
+ * @param startTimestamp 总结开始时间戳
+ */
+async function createOrUpdateSummaryResource(opts: {
+  sourceResourceId: string;
+  summaryData: any;
+  targetLanguage?: string;
+  providerId?: string;
+  model?: string;
+  startTimestamp: number;
+}): Promise<void> {
+  const { sourceResourceId, summaryData, targetLanguage, providerId, model, startTimestamp } = opts;
+
+  try {
+    // 获取源资源信息
+    const sourceResource = await ResourcesRepo.getById(sourceResourceId);
+    if (!sourceResource) {
+      console.warn('[summary-resource] 源资源不存在:', sourceResourceId);
+      return;
+    }
+
+    // 查找是否已存在总结资源
+    const existingChildren = await ResourcesRepo.listChildren(sourceResourceId);
+    const existingSummary = existingChildren.find((child) => child.type === 'summary');
+
+    // 构建总结 JSON 文件路径
+    let summaryFilePath: string;
+
+    if (existingSummary && existingSummary.filePath) {
+      // 使用现有文件路径
+      summaryFilePath = existingSummary.filePath;
+    } else {
+      // 创建新文件路径
+      const sourceFilePath = sourceResource.filePath || `resource_${sourceResourceId}`;
+      const dir = path.dirname(sourceFilePath);
+      const baseName = path.basename(sourceFilePath);
+      summaryFilePath = path.join(dir, `${baseName}.summary.json`);
+    }
+
+    // 准备总结数据
+    const summaryPayload = {
+      version: 1,
+      resourceId: sourceResourceId,
+      providerId,
+      model,
+      targetLanguage,
+      startedAt: startTimestamp,
+      updatedAt: Date.now(),
+      ...summaryData
+    };
+
+    // 确保目录存在
+    const dir = path.dirname(summaryFilePath);
+    await fs.mkdir(dir, { recursive: true });
+
+    // 写入 JSON 文件
+    const content = JSON.stringify(summaryPayload, null, 2);
+    await writeFile(summaryFilePath, content);
+    console.log('[summary-resource] 总结 JSON 已保存:', summaryFilePath);
+
+    // 获取文件大小
+    const jsonStat = await fs.stat(summaryFilePath);
+    const summaryTitle = sourceResource.title ? `${sourceResource.title} - 总结` : '总结数据';
+
+    const resourceData = {
+      type: 'summary' as const,
+      parentResourceId: sourceResourceId,
+      workspaceId: sourceResource.workspaceId,
+      folderId: sourceResource.folderId,
+      title: summaryTitle,
+      description: `总结自: ${sourceResource.title || sourceResource.description || '原资源'}`,
+      filePath: summaryFilePath,
+      language: targetLanguage,
+      mimeType: 'application/json',
+      sizeBytes: jsonStat.size,
+      status: 'ready' as const,
+      metadata: JSON.stringify({
+        summarySource: sourceResourceId,
+        providerId,
+        model,
+        targetLanguage,
+        summarizedAt: Date.now(),
+        startTimestamp
+      })
+    };
+
+    if (existingSummary) {
+      // 更新现有资源
+      await ResourcesRepo.update(existingSummary.id, resourceData as any);
+      console.log(`[summary-resource] 总结资源已更新:`, existingSummary.id);
+    } else {
+      // 创建新资源
+      const newResource = await ResourcesRepo.upsert(resourceData as any);
+      console.log(`[summary-resource] 总结资源已创建:`, newResource?.id);
+    }
+  } catch (error) {
+    console.error('[summary-resource] 创建/更新总结资源失败:', error);
+  }
+}
+
+/**
+ * 加载资源的总结数据
+ * @param resourceId 资源 ID
+ * @returns 总结数据
+ */
+export async function loadResourceSummary(resourceId: string): Promise<any | null> {
+  try {
+    const children = await ResourcesRepo.listChildren(resourceId);
+    const summaryResource = children.find((child) => child.type === 'summary');
+
+    if (!summaryResource || !summaryResource.filePath) {
+      return null;
+    }
+
+    // 读取 JSON 文件内容
+    const content = await readFile(summaryResource.filePath, 'utf8');
+    const summaryData = JSON.parse(content);
+
+    return {
+      id: summaryResource.id,
+      filePath: summaryResource.filePath,
+      ...summaryData
+    };
+  } catch (error) {
+    console.error('[loadResourceSummary] 加载总结数据失败:', error);
+    return null;
+  }
+}
+
+/**
  * 加载资源的所有翻译历史记录（不做筛选）
  * @param resourceId 资源 ID
  * @returns 所有翻译资源列表（包括同语言的多个版本）
@@ -717,11 +852,29 @@ export async function executeSummarize(payload: SummarizePayload): Promise<{ req
   const chatFn = createChatFunction(agent);
 
   // 步骤4: 创建事件发射器
+  const startTimestamp = Date.now();
+  const effectiveResourceId = resourceId || metadata?.resourceId;
+
   const emit = createEventEmitter({
     requestId,
     eventType: 'summary',
     busyMessage: '开始总结内容...',
-    progressMessage: '正在总结...'
+    progressMessage: '正在总结...',
+    onCompleted: async (data) => {
+      console.log('总结完成，保存总结资源：', effectiveResourceId);
+
+      // 总结完成时，创建或更新总结资源
+      if (effectiveResourceId && data) {
+        await createOrUpdateSummaryResource({
+          sourceResourceId: effectiveResourceId,
+          summaryData: data,
+          targetLanguage,
+          providerId,
+          model,
+          startTimestamp
+        });
+      }
+    }
   });
 
   // 步骤5: 异步处理总结

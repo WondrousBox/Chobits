@@ -307,6 +307,7 @@ export type AIApi = {
 
   // ==================== 总结相关 ====================
 
+  getResourceSummary(resourceId: string): Promise<any | null>;
   summarize(payload: {
     providerId: string;
     model: string;
