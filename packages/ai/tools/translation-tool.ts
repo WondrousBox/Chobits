@@ -7,6 +7,7 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 
+import { executeSubtitleTranslation } from '../ipc-handler-helpers';
 import type { TranslationService as TranslationServiceType } from '../services/translation-service';
 import { getTranslationServiceParams, translationToolContext } from './translation-tool-context';
 
@@ -36,28 +37,22 @@ export interface TranslationToolContext {
  * - 提供 `segments`（从读取字幕工具获取）
  * - 或者提供 `resourceId`（工具会自行加载字幕片段）
  */
-const translationInputSchema = z
-  .object({
-    segments: z.array(z.any()).optional().describe('待翻译的字幕片段数组（可选）'),
-    resourceId: z.string().optional().describe('字幕资源 ID（可选，无 segments 时将自动加载）'),
-    targetLanguage: z.string().describe('目标语言编码（如 zh-CN, en, ja）'),
-    sourceLanguage: z.string().optional().describe('源语言编码（可选）'),
-    languageNames: z.record(z.string(), z.string()).optional().describe('语言编码到名称的映射'),
-    options: z
-      .object({
-        maxConcurrency: z.number().optional().describe('最大并发数，默认 3'),
-        chunkSize: z.number().optional().describe('每个分块的最大字符数，默认 1000'),
-        maxRetries: z.number().optional().describe('失败后最大重试次数，默认 2'),
-        generateSummary: z.boolean().optional().describe('是否生成总结，默认 true'),
-        glossary: z.any().optional().describe('术语表/热词词典')
-      })
-      .optional()
-      .describe('翻译配置选项')
-  })
-  .refine((data) => !!data.segments?.length || !!data.resourceId, {
-    message: 'segments 或 resourceId 至少提供一个',
-    path: ['segments']
-  });
+const translationInputSchema = z.object({
+  resourceId: z.string().describe('字幕资源的 ID，用于保存翻译结果'),
+  targetLanguage: z.string().describe('目标语言编码（如 zh-CN, en, ja）'),
+  sourceLanguage: z.string().optional().describe('源语言编码（可选）'),
+  languageNames: z.record(z.string(), z.string()).optional().describe('语言编码到名称的映射'),
+  options: z
+    .object({
+      maxConcurrency: z.number().optional().describe('最大并发数，默认 3'),
+      chunkSize: z.number().optional().describe('每个分块的最大字符数，默认 1000'),
+      maxRetries: z.number().optional().describe('失败后最大重试次数，默认 2'),
+      generateSummary: z.boolean().optional().describe('是否生成总结，默认 true'),
+      glossary: z.any().optional().describe('术语表/热词词典')
+    })
+    .optional()
+    .describe('翻译配置选项')
+});
 
 /**
  * 翻译工具输出参数
@@ -77,12 +72,12 @@ const translationOutputSchema = z.object({
 export const createTranslationTool = (boundTranslationService?: typeof TranslationServiceType): ReturnType<typeof createTool> =>
   createTool({
     id: 'translate-subtitle',
-    description: '翻译字幕片段。支持分块翻译、并发处理、自动重试等功能。',
+    description: '翻译字幕文件。自动加载字幕内容并翻译到指定语言。',
     inputSchema: translationInputSchema,
     outputSchema: translationOutputSchema,
 
     execute: async ({ context }) => {
-      const { segments, resourceId, targetLanguage, sourceLanguage, languageNames = {}, options = {} } = context;
+      const { resourceId, targetLanguage, sourceLanguage, languageNames = {}, options = {} } = context;
 
       // 尝试从上下文管理器获取执行上下文
       const executionContext = translationToolContext.getContext();
@@ -98,12 +93,12 @@ export const createTranslationTool = (boundTranslationService?: typeof Translati
       try {
         // 构建翻译参数
         const params = getTranslationServiceParams({
-          segments,
+          resourceId,
           targetLanguage,
           sourceLanguage,
           languageNames,
           options,
-          metadata: resourceId ? { resourceId } : undefined
+          metadata: { resourceId }
         });
 
         if (!params) {
@@ -112,9 +107,6 @@ export const createTranslationTool = (boundTranslationService?: typeof Translati
             error: '无法获取翻译参数'
           };
         }
-
-        // 导入并调用 executeSubtitleTranslation
-        const { executeSubtitleTranslation } = await import('../ipc-handler-helpers');
 
         // 调用翻译任务（不等待结果）
         executeSubtitleTranslation(params).catch((error) => {

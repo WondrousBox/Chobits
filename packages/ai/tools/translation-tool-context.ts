@@ -133,7 +133,8 @@ export const translationToolContext = new TranslationToolContextManager();
  * 便捷函数：获取当前上下文中的 TranslationService 调用所需的参数
  */
 export function getTranslationServiceParams(additionalParams: {
-  segments: any[];
+  segments?: any[];
+  resourceId?: string;
   targetLanguage: string;
   sourceLanguage?: string;
   languageNames?: Record<string, string>;
@@ -150,6 +151,7 @@ export function getTranslationServiceParams(additionalParams: {
     providerId: ctx.providerId,
     model: ctx.model,
     segments: additionalParams.segments,
+    resourceId: additionalParams.resourceId,
     targetLanguage: additionalParams.targetLanguage,
     languageNames: additionalParams.languageNames || {},
     metadata: additionalParams.metadata,

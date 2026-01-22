@@ -523,6 +523,8 @@ export async function executeSubtitleTranslation(payload: TranslatePayload): Pro
       }
     },
     onCompleted: async () => {
+      console.log('翻译完成，保存字幕文件：', effectiveResourceId, accumulatedTranslations.length);
+
       // 翻译完成时，将最终翻译结果合并保存到原字幕文件
       if (effectiveResourceId && accumulatedTranslations.length > 0) {
         await saveTranslatedSubtitle(effectiveResourceId, accumulatedTranslations);
