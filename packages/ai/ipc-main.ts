@@ -7,7 +7,7 @@ import { TaggerAgent } from './agents/tagger';
 import { ChatService } from './chat-service';
 import { GlossaryStore } from './glossary-store';
 import { InstancesStore } from './instances-store';
-import { executeSubtitleTranslation, executeSummarize, SummarizePayload, TranslatePayload } from './ipc-handler-helpers';
+import { executeSubtitleTranslation, executeSummarize, loadAllTranslationHistory, loadTranslatedSubtitles, SummarizePayload, TranslatePayload } from './ipc-handler-helpers';
 import { PromptsStore } from './prompts-store';
 import { AnthropicProvider } from './providers/anthropic';
 import { DeepSeekProvider } from './providers/deepseek';
@@ -295,6 +295,16 @@ export function initAIHandlers(win: BrowserWindow): void {
   // 字幕翻译：在主进程中处理，向所有窗口发送消息
   ipcMain.handle('ai:translate', async (_e, payload: TranslatePayload) => {
     return executeSubtitleTranslation(payload);
+  });
+
+  // 获取资源的翻译历史（每种语言最新的一个）
+  ipcMain.handle('ai:getResourceTranslations', async (_e, payload: { resourceId: string }) => {
+    return loadTranslatedSubtitles(payload.resourceId);
+  });
+
+  // 获取资源的所有翻译历史（包括同语言的多个版本）
+  ipcMain.handle('ai:getAllTranslationHistory', async (_e, payload: { resourceId: string }) => {
+    return loadAllTranslationHistory(payload.resourceId);
   });
 
   // ==================== 总结相关 ====================

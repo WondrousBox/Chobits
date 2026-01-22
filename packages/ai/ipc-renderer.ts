@@ -202,6 +202,12 @@ export const aiBridge = {
   async getTranslationTasks() {
     return ipcRenderer.invoke('ai:getTranslationTasks');
   },
+  async getResourceTranslations(resourceId: string) {
+    return ipcRenderer.invoke('ai:getResourceTranslations', { resourceId });
+  },
+  async getAllTranslationHistory(resourceId: string) {
+    return ipcRenderer.invoke('ai:getAllTranslationHistory', { resourceId });
+  },
   async getTranslatedSegments(requestId: string) {
     return ipcRenderer.invoke('ai:getTranslatedSegments', { requestId });
   },
