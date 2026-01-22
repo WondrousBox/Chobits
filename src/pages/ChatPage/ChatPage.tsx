@@ -200,23 +200,11 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
         />
       )}
 
-      {/* 嵌入模式下的简洁标题 */}
-      {hideTitleBar && (
-        <div className="px-4 py-3 border-b border-border shrink-0">
-          <h1 className="text-lg font-semibold text-foreground">💬 AI 对话</h1>
-        </div>
-      )}
-
       {/* 主体：左侧历史列表 + 右侧聊天区 */}
-      <div
-        className="flex-1 min-h-0 flex"
-        onWheel={() => {
-          /* 保留滚动 */
-        }}
-      >
+      <div className="flex-1 min-h-0 flex overflow-hidden">
         {/* 左侧：历史会话 */}
         <div className="w-64 border-r shrink-0 flex flex-col bg-muted">
-          <div className="p-2 flex items-center gap-1">
+          <div className="p-2 flex items-center gap-1 shrink-0">
             <Button size="icon" variant="outline" className="w-8 h-8 rounded-full" onClick={loadConversations} title="刷新列表">
               <TbRefresh />
             </Button>
@@ -225,10 +213,10 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
               新对话
             </Button>
           </div>
-          <div className="px-2 pb-2 text-xs text-muted-foreground flex items-center justify-between">
+          <div className="px-2 pb-2 text-xs text-muted-foreground flex items-center justify-between shrink-0">
             <span>最近会话</span>
           </div>
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1 overflow-auto min-h-0">
             {loadingConvs && <div className="p-2 text-xs text-muted-foreground">加载中…</div>}
             {!loadingConvs && conversations.length === 0 && <div className="p-2 text-xs text-muted-foreground">暂无会话，点击“新对话”开始</div>}
             <div className="flex flex-col">
@@ -276,7 +264,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
         </div>
 
         {/* 右侧：聊天窗口 */}
-        <div className="flex-1 min-w-0 overflow-auto p-2">
+        <div className="flex-1 min-w-0 flex flex-col overflow-hidden relative">
           {!messages ||
             (messages.length === 0 && (
               <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
@@ -284,28 +272,37 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
                 <ChatInputBar loading={loading} onStart={start} onStop={stop} />
               </div>
             ))}
-          <div className="flex flex-col gap-2">
-            {messages.map((m, i) => (
-              <div key={i} className={m.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
-                <div className={'max-w-[80%] rounded-2xl px-3 py-2 break-words ' + (m.role === 'user' ? 'bg-primary text-primary-foreground whitespace-pre-wrap' : 'bg-muted text-foreground')}>
-                  {m.role === 'assistant' ? (
-                    <MarkdownMessage content={m.content || ''} />
-                  ) : (
-                    m.content ||
-                    (loading && i === messages.length - 1 ? (
-                      <span className="inline-flex items-center gap-2 text-muted-foreground">
-                        <TbLoader2 className="h-4 w-4 animate-spin" /> 正在思考...
-                      </span>
-                    ) : (
-                      ''
-                    ))
-                  )}
+          {messages.length > 0 && (
+            <>
+              <div className="flex-1 overflow-auto p-2 min-h-0">
+                <div className="flex flex-col gap-2">
+                  {messages.map((m, i) => (
+                    <div key={i} className={m.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
+                      <div className={'max-w-[80%] rounded-2xl px-3 py-2 break-words ' + (m.role === 'user' ? 'bg-primary text-primary-foreground whitespace-pre-wrap' : 'bg-muted text-foreground')}>
+                        {m.role === 'assistant' ? (
+                          <MarkdownMessage content={m.content || ''} />
+                        ) : (
+                          m.content ||
+                          (loading && i === messages.length - 1 ? (
+                            <span className="inline-flex items-center gap-2 text-muted-foreground">
+                              <TbLoader2 className="h-4 w-4 animate-spin" /> 正在思考...
+                            </span>
+                          ) : (
+                            ''
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  <div ref={listEndRef} />
                 </div>
+                <div className="h-96"></div>
               </div>
-            ))}
-            <div ref={listEndRef} />
-          </div>
-          {messages.length > 0 && <ChatInputBar loading={loading} onStart={start} onStop={stop} />}
+              <div className="absolute bottom-0 left-0 right-0 flex justify-center">
+                <ChatInputBar loading={loading} onStart={start} onStop={stop} />
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
