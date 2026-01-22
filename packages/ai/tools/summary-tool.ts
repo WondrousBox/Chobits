@@ -14,7 +14,11 @@ import { summaryToolContext } from './summary-tool-context';
  * 总结工具输入参数
  */
 const summaryInputSchema = z.object({
-  content: z.union([z.string(), z.array(z.any())]).describe('待总结的内容（文本或字幕片段数组）'),
+  content: z
+    .union([z.string(), z.array(z.any())])
+    .optional()
+    .describe('待总结的内容（文本或字幕片段数组，可选）'),
+  resourceId: z.string().optional().describe('资源 ID（可选，无 content 时将自动加载）'),
   targetLanguage: z.string().describe('目标语言编码（如 zh-CN, en）'),
   languageNames: z.record(z.string(), z.string()).optional().describe('语言编码到名称的映射'),
   options: z
@@ -81,7 +85,7 @@ export const createSummaryTool = (boundSummaryService?: typeof SummaryServiceTyp
     outputSchema: summaryOutputSchema,
 
     execute: async ({ context }) => {
-      const { content, targetLanguage, languageNames = {}, options = {} } = context;
+      const { content, resourceId, targetLanguage, languageNames = {}, options = {} } = context;
 
       // 尝试从上下文管理器获取执行上下文
       const executionContext = summaryToolContext.getContext();
@@ -101,6 +105,7 @@ export const createSummaryTool = (boundSummaryService?: typeof SummaryServiceTyp
           model: executionContext.model,
           content: typeof content === 'string' ? content : undefined,
           segments: Array.isArray(content) ? content : undefined,
+          resourceId,
           targetLanguage,
           languageNames,
           options
