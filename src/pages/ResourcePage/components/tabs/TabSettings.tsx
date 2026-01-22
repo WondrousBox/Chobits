@@ -61,11 +61,7 @@ const SortableItem: React.FC<SortableItemProps> = ({ tab, isPinned, isPinnedByOt
   };
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className="group flex items-center gap-2 px-2 py-2 hover:bg-accent/50 transition-colors first:rounded-t-md last:rounded-b-md"
-    >
+    <div ref={setNodeRef} style={style} className="group flex items-center gap-2 px-2 py-2 hover:bg-accent/50 transition-colors first:rounded-t-md last:rounded-b-md">
       {/* 图标/拖拽手柄区域 */}
       <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground shrink-0 relative w-4 h-4">
         {/* 默认显示 tab icon */}
@@ -79,17 +75,11 @@ const SortableItem: React.FC<SortableItemProps> = ({ tab, isPinned, isPinnedByOt
       </div>
 
       {/* 内容区域 */}
-      <div
-        className="flex items-center justify-between flex-1 min-w-0 cursor-pointer"
-        onClick={() => !isPinnedByOther && onToggle()}
-      >
-        <span className={`text-[13px] font-medium truncate ${isPinnedByOther ? 'text-muted-foreground' : 'text-foreground'}`}>
-          {tab.name}
-        </span>
+      <div className="flex items-center justify-between flex-1 min-w-0 cursor-pointer" onClick={() => !isPinnedByOther && onToggle()}>
+        <span className={`text-[13px] font-medium truncate ${isPinnedByOther ? 'text-muted-foreground' : 'text-foreground'}`}>{tab.name}</span>
 
         <Switch
           checked={isPinned}
-          disabled={isPinnedByOther}
           onCheckedChange={onToggle}
           onClick={(e) => e.stopPropagation()}
           className="shrink-0 ml-2 h-4 w-7 [&>span]:h-3 [&>span]:w-3 [&>span]:data-[state=checked]:translate-x-3"
@@ -111,10 +101,7 @@ export const TabSettings: React.FC<TabSettingsProps> = ({ panelId, allowedTabIds
   const [tabOwners, setTabOwners] = useState<Record<string, string | null>>({});
 
   // 拖拽传感器
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  );
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
 
   // 更新 tab 状态
   const updateTabStates = (): void => {
@@ -173,10 +160,7 @@ export const TabSettings: React.FC<TabSettingsProps> = ({ panelId, allowedTabIds
     if (oldIndex !== -1 && newIndex !== -1) {
       const newItems = arrayMove(items, oldIndex, newIndex);
       // 更新顺序到 registry
-      const newOrder = [
-        ...(isRemote ? localTabs : newItems).map((t) => t.id),
-        ...(isRemote ? newItems : remoteTabs).map((t) => t.id)
-      ];
+      const newOrder = [...(isRemote ? localTabs : newItems).map((t) => t.id), ...(isRemote ? newItems : remoteTabs).map((t) => t.id)];
       tabRegistry.setOrder(newOrder);
     }
   };
@@ -215,10 +199,7 @@ export const TabSettings: React.FC<TabSettingsProps> = ({ panelId, allowedTabIds
           )}
           {/* 三方应用列表末尾的添加按钮 */}
           {isRemote && (
-            <button
-              className="flex items-center gap-1.5 px-2 py-1.5 w-full text-left hover:bg-accent/50 transition-colors text-muted-foreground hover:text-foreground"
-              onClick={handleAddMore}
-            >
+            <button className="flex items-center gap-1.5 px-2 py-1.5 w-full text-left hover:bg-accent/50 transition-colors text-muted-foreground hover:text-foreground" onClick={handleAddMore}>
               <TbPlus className="w-3.5 h-3.5" />
               <span className="text-xs">添加更多</span>
             </button>

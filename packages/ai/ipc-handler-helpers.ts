@@ -45,9 +45,9 @@ export async function loadSegmentsFromResource(resourceId: string): Promise<{ fi
 }
 
 /**
- * 加载资源的关联翻译数据
+ * 加载资源的关联翻译数据（每种语言只返回最新的一个）
  * @param resourceId 资源 ID
- * @returns 翻译资源列表（JSON 格式）
+ * @returns 翻译资源列表（JSON 格式），每种语言只包含最新的翻译
  */
 export async function loadTranslatedSubtitles(
   resourceId: string
@@ -56,9 +56,21 @@ export async function loadTranslatedSubtitles(
     const children = await ResourcesRepo.listChildren(resourceId);
     const translations = children.filter((child) => child.type === 'translation');
 
-    // 读取每个翻译 JSON 文件的内容
+    // 按语言分组，每组只保留最新的（根据 updatedAt）
+    const latestByLanguage = new Map<string, any>();
+
+    for (const t of translations) {
+      const lang = t.language || 'unknown';
+      const existing = latestByLanguage.get(lang);
+
+      if (!existing || (t.updatedAt || 0) > (existing.updatedAt || 0)) {
+        latestByLanguage.set(lang, t);
+      }
+    }
+
+    // 读取每个最新翻译的 JSON 文件内容
     const results = await Promise.all(
-      translations.map(async (t) => {
+      Array.from(latestByLanguage.values()).map(async (t) => {
         let segments: Array<{ index: number; text: string }> | undefined;
         if (t.filePath) {
           try {
@@ -83,6 +95,54 @@ export async function loadTranslatedSubtitles(
     return results;
   } catch (error) {
     console.error('[loadTranslatedSubtitles] 加载翻译数据失败:', error);
+    return [];
+  }
+}
+
+/**
+ * 加载资源的所有翻译历史记录（不做筛选）
+ * @param resourceId 资源 ID
+ * @returns 所有翻译资源列表（包括同语言的多个版本）
+ */
+export async function loadAllTranslationHistory(
+  resourceId: string
+): Promise<Array<{ id: string; language?: string; title?: string; filePath?: string; segments?: Array<{ index: number; text: string }>; createdAt?: number; updatedAt?: number }>> {
+  try {
+    const children = await ResourcesRepo.listChildren(resourceId);
+    const translations = children.filter((child) => child.type === 'translation');
+
+    // 按 updatedAt 倒序排序（最新的在前）
+    translations.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+
+    // 读取每个翻译的 JSON 文件内容
+    const results = await Promise.all(
+      translations.map(async (t) => {
+        let segments: Array<{ index: number; text: string }> | undefined;
+        if (t.filePath) {
+          try {
+            const content = await readFile(t.filePath, 'utf8');
+            const json = JSON.parse(content) as TranslatedSubtitleJsonV1;
+            segments = json.translatedSegments;
+          } catch (error) {
+            console.error('[loadAllTranslationHistory] 读取翻译文件失败:', t.filePath, error);
+          }
+        }
+
+        return {
+          id: t.id,
+          language: t.language,
+          title: t.title,
+          filePath: t.filePath,
+          segments,
+          createdAt: t.createdAt,
+          updatedAt: t.updatedAt
+        };
+      })
+    );
+
+    return results;
+  } catch (error) {
+    console.error('[loadAllTranslationHistory] 加载翻译历史失败:', error);
     return [];
   }
 }
@@ -352,6 +412,7 @@ function detectSubtitleFormat(filePath: string): SubtitleFormat {
 
 /**
  * 创建或更新翻译资源（仅 JSON 格式）
+ * 保留所有翻译历史记录，查看时只展示每种语言最新的一个
  * @param translationJsonPath 翻译 JSON 文件路径
  * @param sourceResourceId 源资源 ID
  * @param targetLanguage 目标语言
@@ -381,12 +442,11 @@ async function createOrUpdateTranslationResource(opts: {
     const jsonStat = await fs.stat(translationJsonPath);
     const translatedTitle = sourceResource.title ? `${sourceResource.title} - ${targetLanguage || '翻译'}` : `翻译数据 - ${targetLanguage || ''}`;
 
-    // 创建或更新资源记录（使用 JSON 文件路径作为唯一标识）
-    // 通过 metadata 中存储 translationJsonPath 来查找是否已存在
+    // 获取所有子资源
     const existingChildren = await ResourcesRepo.listChildren(sourceResourceId);
-    const existingTranslation = existingChildren.find(
-      (child) => child.type === 'translation' && child.filePath === translationJsonPath
-    );
+
+    // 查找当前 JSON 文件对应的资源
+    const existingTranslation = existingChildren.find((child) => child.type === 'translation' && child.filePath === translationJsonPath);
 
     const resourceData = {
       type: 'translation' as const,
@@ -415,7 +475,7 @@ async function createOrUpdateTranslationResource(opts: {
       await ResourcesRepo.update(existingTranslation.id, resourceData as any);
       console.log(`[translation-resource] 翻译资源已更新:`, existingTranslation.id);
     } else {
-      // 创建新资源
+      // 创建新资源（保留历史记录，不删除旧的）
       const newResource = await ResourcesRepo.upsert(resourceData as any);
       console.log(`[translation-resource] 翻译资源已创建:`, newResource?.id);
     }

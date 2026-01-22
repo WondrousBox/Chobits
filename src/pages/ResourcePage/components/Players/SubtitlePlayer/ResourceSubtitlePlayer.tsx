@@ -30,6 +30,7 @@ interface ResourceSubtitlePlayerProps {
  */
 export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ resource, currentTime = 0, onSeek }) => {
   const [subtitleEntries, setSubtitleEntries] = useState<AimSegments[]>([]);
+  const [translationTracks, setTranslationTracks] = useState<AimSegments[][]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [subtitleFormat, setSubtitleFormat] = useState<SubtitleFormat>('srt');
 
@@ -100,6 +101,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
       setTimeout(() => {
         setIsLoading(false);
         setSubtitleEntries([]);
+        setTranslationTracks([]);
       }, 0);
       return;
     }
@@ -119,17 +121,47 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
 
               const segments: AimSegments[] = res?.segments || [];
               setSubtitleEntries(segments);
+
+              // 加载关联的翻译资源
+              if (data.id) {
+                try {
+                  const translations = await window.YUA.ai.getResourceTranslations(data.id);
+                  const translationTracksData: AimSegments[][] = [];
+
+                  for (const trans of translations) {
+                    if (trans.segments && trans.segments.length > 0) {
+                      // 将翻译片段转换为 AimSegments 格式
+                      const translationSegments: AimSegments[] = segments.map((seg, index) => {
+                        const translatedText = trans.segments?.find((t) => t.index === index);
+                        return {
+                          ...seg,
+                          text: translatedText?.text || ''
+                        };
+                      });
+                      translationTracksData.push(translationSegments);
+                    }
+                  }
+
+                  setTranslationTracks(translationTracksData);
+                } catch (error) {
+                  console.error('[SubtitlePlayer] 加载翻译资源失败:', error);
+                  setTranslationTracks([]);
+                }
+              }
             } catch (error) {
               console.error(`[SubtitlePlayer] 解析${format.toUpperCase()}文件失败:`, error);
               setSubtitleEntries([]);
+              setTranslationTracks([]);
             }
           } else {
             setSubtitleEntries([]);
+            setTranslationTracks([]);
           }
         })
         .catch((error) => {
           console.error('[SubtitlePlayer] 读取文件失败:', error);
           setSubtitleEntries([]);
+          setTranslationTracks([]);
         })
         .finally(() => {
           setIsLoading(false);
@@ -139,6 +171,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
 
     setIsLoading(false);
     setSubtitleEntries([]);
+    setTranslationTracks([]);
   }, [resource, debouncedSave]);
 
   // 用户手动编辑字幕时的回调：同步到本地 state 并触发保存
@@ -163,11 +196,19 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
   // 构建轨道数据
   const tracks = useMemo(() => {
     const tracksArray: AimSegments[][] = [subtitleEntries];
+    
+    // 添加已保存的翻译轨道
+    if (translationTracks.length > 0) {
+      tracksArray.push(...translationTracks);
+    }
+    
+    // 添加正在翻译的临时文本轨道
     if (typingTexts.length > 0) {
       tracksArray.push(typingTexts);
     }
+    
     return tracksArray;
-  }, [subtitleEntries, typingTexts]);
+  }, [subtitleEntries, translationTracks, typingTexts]);
 
   return (
     <div className="flex h-full w-full flex-col text-muted-foreground">
