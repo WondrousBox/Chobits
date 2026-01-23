@@ -3,6 +3,7 @@
  */
 export { default as ContentTab } from './ContentTab';
 export { default as ListTab } from './ListTab';
+export { default as NotesTab } from './NotesTab';
 export { registerDefaultTabs, registerDynamicTab, registerTabFromUrl } from './registerTabs';
 export type { ResourceTabContextValue } from './ResourceTabContext';
 export { ResourceTabContextProvider, useResourceTabContext } from './ResourceTabContext';

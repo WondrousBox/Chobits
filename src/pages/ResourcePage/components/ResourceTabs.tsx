@@ -1,7 +1,7 @@
 import { closestCenter, DndContext, type DragEndEvent, DragOverlay, type DragStartEvent, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, horizontalListSortingStrategy, SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { TbFileText, TbFileTextAi, TbLanguage, TbList, TbSparkles } from 'react-icons/tb';
+import { TbFileText, TbFileTextAi, TbLanguage, TbList, TbNotebook, TbSparkles } from 'react-icons/tb';
 
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 
@@ -17,7 +17,7 @@ import type { TabIcon } from './tabs/types';
 
 // 功能标签类型
 // 基础类型 + 动态扩展类型（支持远程组件注册的新 tab）
-export type TabType = 'content' | 'subtitle' | 'translate' | 'summary' | 'list' | (string & {});
+export type TabType = 'content' | 'subtitle' | 'translate' | 'summary' | 'notes' | 'list' | (string & {});
 
 export interface TabConfig {
   id: TabType;
@@ -31,6 +31,7 @@ const TAB_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   translate: TbLanguage,
   subtitle: TbFileText,
   summary: TbSparkles,
+  notes: TbNotebook,
   list: TbList
 };
 
@@ -81,15 +82,15 @@ const ResourceTabs: React.FC<ResourceTabsProps> = ({ panelId, resource, currentT
   // 根据资源类型获取允许的 tab ID 列表
   const allowedTabIds = useMemo((): TabType[] => {
     if (isVideo) {
-      return ['subtitle', 'translate', 'summary', 'list'];
+      return ['subtitle', 'translate', 'summary', 'notes', 'list'];
     } else if (isAudio) {
-      return ['translate', 'summary', 'list'];
+      return ['translate', 'summary', 'notes', 'list'];
     } else if (isImage) {
-      return ['summary', 'list'];
+      return ['summary', 'notes', 'list'];
     } else if (isSubtitle) {
-      return ['content', 'translate', 'summary', 'list'];
+      return ['content', 'translate', 'summary', 'notes', 'list'];
     } else {
-      return ['content', 'translate', 'summary', 'list'];
+      return ['content', 'translate', 'summary', 'notes', 'list'];
     }
   }, [isVideo, isAudio, isImage, isSubtitle]);
 
