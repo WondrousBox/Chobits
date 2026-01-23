@@ -1,0 +1,242 @@
+// @import "highlight.js/scss/github";
+
+.ProseMirror {
+  > * + * {
+    margin-top: 0.75em;
+  }
+
+  p {
+    margin-top: 0.75rem;
+    margin-bottom: 0;
+    font-size: 1em;
+    font-weight: 400;
+    line-height: 1.714;
+    word-break: break-all;
+  }
+
+  pre {
+    padding: 0.75rem 1rem;
+    border-radius: 0 0 0.5rem 0.5rem;
+
+    code {
+      color: inherit;
+      padding: 0;
+      background: none;
+      font-size: 0.8rem;
+    }
+  }
+
+  ul {
+    list-style-type: disc;
+  }
+
+  ul,
+  ol {
+    padding-left: 18px;
+    p {
+      margin: 0;
+    }
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    line-height: 1.1;
+    word-break: break-all;
+  }
+  h1 {
+    font-size: 28px;
+  }
+  h2 {
+    font-size: 24px;
+  }
+  h3 {
+    font-size: 20px;
+  }
+  h4 {
+    font-size: 18px;
+  }
+  h5 {
+    font-size: 16px;
+  }
+  h6 {
+    font-size: 14px;
+  }
+
+  img {
+    height: auto;
+    max-width: 100%;
+    width: 100%;
+
+    &.ProseMirror-selectednode {
+      outline: 2px solid #68cef8;
+    }
+  }
+}
+
+#editorContainer {
+  padding: 0 16px;
+  outline: none;
+  .ProseMirror {
+    outline: none;
+  }
+}
+
+/* Placeholder (at the top) */
+/*.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #ced4da;
+  pointer-events: none;
+  height: 0;
+}*/
+
+/* Placeholder (on every new line) */
+.ProseMirror .is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #ced4da;
+  pointer-events: none;
+  height: 0;
+}
+
+.Tiptap {
+  height: calc(100% - 44px);
+}
+
+.ProseMirror {
+  ol,
+  ul {
+    padding-left: 18px;
+  }
+
+  ol p,
+  ul p {
+    margin: 0;
+  }
+
+  li > ol,
+  li > ul,
+  ol > ol,
+  ul > ul {
+    margin-top: 0;
+  }
+
+  ul {
+    list-style-type: disc;
+  }
+
+  ol,
+  ol ol ol ol,
+  ol ol ol ol ol ol ol,
+  ol ol ol ol ol ol ol ol ol ol {
+    list-style-type: decimal;
+  }
+
+  ol ol,
+  ol ol ol ol ol,
+  ol ol ol ol ol ol ol ol,
+  ol ol ol ol ol ol ol ol ol ol ol {
+    list-style-type: lower-alpha;
+  }
+
+  ol ol ol,
+  ol ol ol ol ol ol,
+  ol ol ol ol ol ol ol ol ol,
+  ol ol ol ol ol ol ol ol ol ol ol ol {
+    list-style-type: lower-roman;
+  }
+
+  ul[data-type='taskList'] {
+    padding: 0;
+    list-style: none;
+  }
+
+  ul[data-type='taskList'] li {
+    position: relative;
+    display: flex;
+    align-items: center;
+    padding-left: 16px;
+    cursor: pointer;
+
+    > label {
+      position: absolute;
+      top: 6px;
+      left: 0;
+      display: block;
+      width: 16px;
+      height: 16px;
+      background-color: var(--color-bg-content);
+      border: 1px solid var(--color-line);
+      border-radius: 2px;
+
+      > input {
+        display: none;
+      }
+
+      &:after {
+        position: absolute;
+        top: -0.357143px;
+        left: 4.071429px;
+        width: 6.714286px;
+        height: 12.142857px;
+        border: 2px solid var(--color-text-in-brand);
+        content: ' ';
+        opacity: 0;
+        transform: rotate(45deg) scale(0);
+        border-top: 0;
+        border-left: 0;
+        transition:
+          all 0.1s cubic-bezier(0.71, -0.46, 0.88, 0.6),
+          opacity 0.1s;
+      }
+    }
+
+    > div {
+      flex: 1 1 auto;
+      padding-left: 0.5rem;
+    }
+
+    &[data-checked='true'] {
+      color: var(--color-text-description);
+
+      > label {
+        background-color: var(--color-brand-color);
+
+        &:after {
+          opacity: 1;
+          transform: rotate(45deg) scale(1);
+        }
+      }
+
+      > div p {
+        text-decoration: line-through;
+      }
+    }
+  }
+
+  .is-locked {
+    position: relative;
+    pointer-events: none !important;
+    cursor: not-allowed;
+
+    &:after {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1000;
+      display: flex;
+      font-weight: 700;
+      color: #333;
+      pointer-events: none;
+      background-color: rgba(179, 212, 255, 0.75);
+      content: attr(data-name);
+      align-items: center;
+      justify-content: center;
+      inset: 0;
+    }
+  }
+}

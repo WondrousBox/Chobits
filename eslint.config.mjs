@@ -1,10 +1,10 @@
-import { defineConfig } from 'eslint/config'
-import tseslint from '@electron-toolkit/eslint-config-ts'
-import eslintConfigPrettier from '@electron-toolkit/eslint-config-prettier'
-import eslintPluginReact from 'eslint-plugin-react'
-import eslintPluginReactHooks from 'eslint-plugin-react-hooks'
-import eslintPluginReactRefresh from 'eslint-plugin-react-refresh'
-import simpleImportSort from 'eslint-plugin-simple-import-sort'
+import eslintConfigPrettier from '@electron-toolkit/eslint-config-prettier';
+import tseslint from '@electron-toolkit/eslint-config-ts';
+import { defineConfig } from 'eslint/config';
+import eslintPluginReact from 'eslint-plugin-react';
+import eslintPluginReactHooks from 'eslint-plugin-react-hooks';
+import eslintPluginReactRefresh from 'eslint-plugin-react-refresh';
+import simpleImportSort from 'eslint-plugin-simple-import-sort';
 
 export default defineConfig(
   { ignores: ['**/node_modules', '**/dist', '**/out'] },
@@ -38,8 +38,9 @@ export default defineConfig(
     },
     rules: {
       'simple-import-sort/imports': 'error',
-      'simple-import-sort/exports': 'error'
+      'simple-import-sort/exports': 'error',
+      '@typescript-eslint/ban-ts-comment': 'off'
     }
   },
   eslintConfigPrettier
-)
+);
