@@ -1,8 +1,9 @@
 import React from 'react';
-import { TbArticle, TbBrain, TbFileExport, TbLanguage, TbList, TbMessage, TbSparkles, TbSubtask } from 'react-icons/tb';
+import { TbArticle, TbBrain, TbFileExport, TbLanguage, TbList, TbMessage, TbNotebook, TbSparkles, TbSubtask } from 'react-icons/tb';
 
 import ContentTab from './ContentTab';
 import ListTab from './ListTab';
+import NotesTab from './NotesTab';
 import SubtitleTab from './SubtitleTab';
 import SummaryTab from './SummaryTab';
 import { tabRegistry } from './TabRegistry';
@@ -43,6 +44,13 @@ export function registerDefaultTabs(): void {
       description: '自动生成内容摘要',
       icon: TbSubtask,
       component: SummaryTab
+    },
+    {
+      id: 'notes',
+      name: '笔记',
+      description: '记录资源相关的笔记',
+      icon: TbNotebook,
+      component: NotesTab
     },
     {
       id: 'list',
