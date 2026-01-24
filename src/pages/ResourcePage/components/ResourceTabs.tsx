@@ -17,7 +17,7 @@ import type { TabIcon } from './tabs/types';
 
 // 功能标签类型
 // 基础类型 + 动态扩展类型（支持远程组件注册的新 tab）
-export type TabType = 'content' | 'subtitle' | 'translate' | 'summary' | 'notes' | 'list' | (string & {});
+export type TabType = 'content' | 'subtitle' | 'translate' | 'summary' | 'mindmap' | 'notes' | 'list' | (string & {});
 
 export interface TabConfig {
   id: TabType;
@@ -82,15 +82,15 @@ const ResourceTabs: React.FC<ResourceTabsProps> = ({ panelId, resource, currentT
   // 根据资源类型获取允许的 tab ID 列表
   const allowedTabIds = useMemo((): TabType[] => {
     if (isVideo) {
-      return ['subtitle', 'translate', 'summary', 'notes', 'list'];
+      return ['subtitle', 'translate', 'summary', 'mindmap', 'notes', 'list'];
     } else if (isAudio) {
-      return ['translate', 'summary', 'notes', 'list'];
+      return ['translate', 'summary', 'mindmap', 'notes', 'list'];
     } else if (isImage) {
       return ['summary', 'notes', 'list'];
     } else if (isSubtitle) {
-      return ['content', 'translate', 'summary', 'notes', 'list'];
+      return ['content', 'translate', 'summary', 'mindmap', 'notes', 'list'];
     } else {
-      return ['content', 'translate', 'summary', 'notes', 'list'];
+      return ['content', 'translate', 'summary', 'mindmap', 'notes', 'list'];
     }
   }, [isVideo, isAudio, isImage, isSubtitle]);
 

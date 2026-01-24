@@ -4,7 +4,7 @@ import type { IpcParams, PartialByKey } from '../types';
 
 export type Resource = {
   id: string;
-  type: 'image' | 'video' | 'audio' | 'text' | 'link' | 'file' | 'document' | 'translation' | 'summary' | 'other';
+  type: 'image' | 'video' | 'audio' | 'text' | 'link' | 'file' | 'document' | 'translation' | 'summary' | 'mindmap' | 'other';
   workspaceId?: string;
   folderId?: string;
   parentResourceId?: string; // 父资源ID（用于记录资源来源关系）

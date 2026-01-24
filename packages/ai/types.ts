@@ -327,4 +327,19 @@ export type AIApi = {
   }): Promise<{ requestId: string }>;
   cancelSummary(requestId: string): Promise<{ ok: boolean }>;
   getSummaryTasks(): Promise<Array<{ requestId: string; providerId: string; model: string; startTime: number; metadata?: Record<string, any> }>>;
+
+  // ==================== 脑图相关 ====================
+
+  generateMindmap(payload: {
+    providerId: string;
+    model: string;
+    content?: string;
+    segments?: any[];
+    resourceId?: string;
+    targetLanguage: string;
+    languageNames?: Record<string, string>;
+    options?: any;
+    metadata?: any;
+  }): Promise<{ requestId: string }>;
+  cancelMindmap(requestId: string): Promise<{ ok: boolean }>;
 };

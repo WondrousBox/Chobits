@@ -304,6 +304,29 @@ export const aiBridge = {
   // 获取所有活跃的总结任务
   async getSummaryTasks() {
     return ipcRenderer.invoke('ai:getSummaryTasks');
+  },
+
+  // ==================== 脑图相关 ====================
+
+  async getResourceMindmap(resourceId: string) {
+    return ipcRenderer.invoke('ai:getResourceMindmap', { resourceId });
+  },
+  async generateMindmap(payload: {
+    providerId: string;
+    model: string;
+    content?: string;
+    segments?: any[];
+    resourceId?: string;
+    targetLanguage: string;
+    languageNames?: Record<string, string>;
+    options?: any;
+    metadata?: any;
+  }) {
+    const res = await ipcRenderer.invoke('ai:generateMindmap', payload);
+    return { requestId: res.requestId as string };
+  },
+  async cancelMindmap(requestId: string) {
+    return ipcRenderer.invoke('ai:cancelMindmap', { requestId });
   }
 };
 

@@ -7,7 +7,18 @@ import { TaggerAgent } from './agents/tagger';
 import { ChatService } from './chat-service';
 import { GlossaryStore } from './glossary-store';
 import { InstancesStore } from './instances-store';
-import { executeSubtitleTranslation, executeSummarize, loadAllTranslationHistory, loadResourceSummary, loadTranslatedSubtitles, SummarizePayload, TranslatePayload } from './ipc-handler-helpers';
+import {
+  cancelMindmap,
+  executeMindmap,
+  executeSubtitleTranslation,
+  executeSummarize,
+  loadAllTranslationHistory,
+  loadResourceMindmap,
+  loadResourceSummary,
+  loadTranslatedSubtitles,
+  SummarizePayload,
+  TranslatePayload
+} from './ipc-handler-helpers';
 import { PromptsStore } from './prompts-store';
 import { AnthropicProvider } from './providers/anthropic';
 import { DeepSeekProvider } from './providers/deepseek';
@@ -331,5 +342,20 @@ export function initAIHandlers(win: BrowserWindow): void {
   // 获取资源的总结数据
   ipcMain.handle('ai:getResourceSummary', async (_e, payload: { resourceId: string }) => {
     return loadResourceSummary(payload.resourceId);
+  });
+
+  // 获取资源的脑图数据
+  ipcMain.handle('ai:getResourceMindmap', async (_e, payload: { resourceId: string }) => {
+    return loadResourceMindmap(payload.resourceId);
+  });
+
+  // 脑图生成
+  ipcMain.handle('ai:generateMindmap', async (_e, payload: any) => {
+    return executeMindmap(payload);
+  });
+
+  // 取消脑图生成
+  ipcMain.handle('ai:cancelMindmap', async (_e, payload: { requestId: string }) => {
+    return cancelMindmap(payload.requestId);
   });
 }

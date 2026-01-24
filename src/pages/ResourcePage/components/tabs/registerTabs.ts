@@ -1,8 +1,9 @@
 import React from 'react';
-import { TbArticle, TbBrain, TbFileExport, TbLanguage, TbList, TbMessage, TbNotebook, TbSparkles, TbSubtask } from 'react-icons/tb';
+import { TbArticle, TbBrain, TbFileExport, TbLanguage, TbList, TbMessage, TbNotebook, TbSitemap, TbSparkles, TbSubtask } from 'react-icons/tb';
 
 import ContentTab from './ContentTab';
 import ListTab from './ListTab';
+import MindmapTab from './MindmapTab';
 import NotesTab from './NotesTab';
 import SubtitleTab from './SubtitleTab';
 import SummaryTab from './SummaryTab';
@@ -46,6 +47,13 @@ export function registerDefaultTabs(): void {
       component: SummaryTab
     },
     {
+      id: 'mindmap',
+      name: '脑图',
+      description: '生成思维导图可视化',
+      icon: TbSitemap,
+      component: MindmapTab
+    },
+    {
       id: 'notes',
       name: '笔记',
       description: '记录资源相关的笔记',
@@ -82,14 +90,6 @@ function registerDemoRemoteTabs(): void {
       name: 'AI 分析',
       description: '使用 AI 深度分析内容结构和语义',
       icon: TbSparkles,
-      component: PlaceholderComponent,
-      isDynamic: true
-    },
-    {
-      id: 'mind-map' as any,
-      name: '思维导图',
-      description: '自动生成内容的思维导图',
-      icon: TbBrain,
       component: PlaceholderComponent,
       isDynamic: true
     },

@@ -48,6 +48,8 @@
     "sqlite-vec": "0.1.7-alpha.2"
   },
   "devDependencies": {
+    "markmap-lib": "^0.18.12",
+    "markmap-view": "^0.18.12",
     "@ai-sdk/anthropic": "^3.0.15",
     "@ai-sdk/google": "^3.0.10",
     "@ai-sdk/openai": "^3.0.12",
