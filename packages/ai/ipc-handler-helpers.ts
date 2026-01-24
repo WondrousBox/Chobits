@@ -10,6 +10,7 @@ import { sendAppBusyEnd, sendAppBusyProgress, sendAppBusyStart } from '../event'
 import { getAgent } from './agents';
 import { ChatService } from './chat-service';
 import { createModel } from './models/index';
+import { MindmapService } from './services/mindmap-service';
 import { SummaryService } from './services/summary-service';
 import { TranslationService } from './services/translation-service';
 import { getAllSecrets, getFirstApiKey } from './settings-store';
@@ -230,6 +231,135 @@ export async function loadResourceSummary(resourceId: string): Promise<any | nul
     };
   } catch (error) {
     console.error('[loadResourceSummary] 加载总结数据失败:', error);
+    return null;
+  }
+}
+
+/**
+ * 创建或更新脑图资源
+ * @param opts 脑图资源选项
+ */
+async function createOrUpdateMindmapResource(opts: {
+  sourceResourceId: string;
+  markdown: string;
+  targetLanguage?: string;
+  providerId?: string;
+  model?: string;
+  startTimestamp: number;
+}): Promise<void> {
+  const { sourceResourceId, markdown, targetLanguage, providerId, model, startTimestamp } = opts;
+
+  try {
+    // 获取源资源信息
+    const sourceResource = await ResourcesRepo.getById(sourceResourceId);
+    if (!sourceResource) {
+      console.error('[mindmap-resource] 源资源不存在:', sourceResourceId);
+      return;
+    }
+
+    // 查找现有的脑图资源（只保留一个脑图资源）
+    const children = await ResourcesRepo.listChildren(sourceResourceId);
+    const existingMindmap = children.find((child) => child.type === 'mindmap');
+
+    let mindmapFilePath: string;
+
+    if (existingMindmap && existingMindmap.filePath) {
+      // 使用现有文件路径
+      mindmapFilePath = existingMindmap.filePath;
+    } else {
+      // 创建新文件路径
+      const sourceFilePath = sourceResource.filePath || `resource_${sourceResourceId}`;
+      const dir = path.dirname(sourceFilePath);
+      const baseName = path.basename(sourceFilePath);
+      mindmapFilePath = path.join(dir, `${baseName}.mindmap.json`);
+    }
+
+    // 准备脑图数据
+    const mindmapPayload = {
+      version: 1,
+      resourceId: sourceResourceId,
+      providerId,
+      model,
+      targetLanguage,
+      startedAt: startTimestamp,
+      updatedAt: Date.now(),
+      markdown
+    };
+
+    // 确保目录存在
+    const dir = path.dirname(mindmapFilePath);
+    await fs.mkdir(dir, { recursive: true });
+
+    // 写入 JSON 文件
+    const content = JSON.stringify(mindmapPayload, null, 2);
+    await writeFile(mindmapFilePath, content);
+    console.log('[mindmap-resource] 脑图 JSON 已保存:', mindmapFilePath);
+
+    // 获取文件大小
+    const jsonStat = await fs.stat(mindmapFilePath);
+    const mindmapTitle = sourceResource.title ? `${sourceResource.title} - 脑图` : '脑图数据';
+
+    const resourceData = {
+      type: 'mindmap' as const,
+      parentResourceId: sourceResourceId,
+      workspaceId: sourceResource.workspaceId,
+      folderId: sourceResource.folderId,
+      title: mindmapTitle,
+      description: `脑图自: ${sourceResource.title || sourceResource.description || '原资源'}`,
+      filePath: mindmapFilePath,
+      language: targetLanguage,
+      mimeType: 'application/json',
+      sizeBytes: jsonStat.size,
+      status: 'ready' as const,
+      metadata: JSON.stringify({
+        mindmapSource: sourceResourceId,
+        providerId,
+        model,
+        targetLanguage,
+        generatedAt: Date.now(),
+        startTimestamp
+      })
+    };
+
+    if (existingMindmap) {
+      // 更新现有资源
+      await ResourcesRepo.update(existingMindmap.id, resourceData as any);
+      console.log(`[mindmap-resource] 脑图资源已更新:`, existingMindmap.id);
+    } else {
+      // 创建新资源
+      const newResource = await ResourcesRepo.upsert(resourceData as any);
+      console.log(`[mindmap-resource] 脑图资源已创建:`, newResource?.id);
+    }
+  } catch (error) {
+    console.error('[mindmap-resource] 创建/更新脑图资源失败:', error);
+  }
+}
+
+/**
+ * 加载资源的脑图数据
+ * @param resourceId 资源 ID
+ * @returns 脑图数据
+ */
+export async function loadResourceMindmap(resourceId: string): Promise<any | null> {
+  try {
+    const children = await ResourcesRepo.listChildren(resourceId);
+    const mindmapResource = children.find((child) => child.type === 'mindmap');
+
+    if (!mindmapResource || !mindmapResource.filePath) {
+      return null;
+    }
+
+    // 读取 JSON 文件内容
+    const content = await readFile(mindmapResource.filePath, 'utf8');
+    const mindmapData = JSON.parse(content);
+
+    return {
+      id: mindmapResource.id,
+      filePath: mindmapResource.filePath,
+      ...mindmapData
+    };
+  } catch (error) {
+    console.error('[loadResourceMindmap] 加载脑图失败:', error);
     return null;
   }
 }
@@ -897,4 +1027,109 @@ export async function executeSummarize(payload: SummarizePayload): Promise<{ req
   });
 
   return { requestId, eventsChannel };
+}
+
+/**
+ * 执行脑图生成任务
+ * @param payload 脑图生成参数
+ * @returns 返回 requestId 和 eventsChannel
+ */
+export async function executeMindmap(payload: {
+  providerId: string;
+  model: string;
+  content?: string;
+  segments?: any[];
+  resourceId?: string;
+  targetLanguage: string;
+  languageNames?: Record<string, string>;
+  options?: any;
+  metadata?: any;
+}): Promise<{ requestId: string; eventsChannel: string }> {
+  const { providerId, model, content, segments, resourceId, targetLanguage, languageNames, options, metadata = {} } = payload;
+  const requestId = randomUUID();
+  const eventsChannel = `mindmap:${requestId}`;
+  const taskLabel = `${providerId}/${model}`;
+  const startTimestamp = Date.now(); // 记录开始时间戳
+
+  // 步骤1: 读取内容
+  let actualContent: string | any[] = content as string | any[];
+  const effectiveResourceId: string | undefined = resourceId || metadata?.resourceId;
+
+  if (!actualContent && resourceId) {
+    try {
+      const loaded = await loadSegmentsFromResource(resourceId);
+      actualContent = loaded.segments;
+    } catch (error) {
+      console.error('[mindmap] Failed to load content from resource:', error);
+      throw error;
+    }
+  }
+
+  // 如果提供了 segments，使用 segments
+  if (!actualContent && segments) {
+    actualContent = segments;
+  }
+
+  if (!actualContent) {
+    throw new Error('No content provided and unable to load content from resourceId');
+  }
+
+  // 步骤2: 设置模型和Agent
+  const { agent } = await setupModelAndAgent(providerId, model, 'chat');
+
+  // 步骤3: 创建聊天函数
+  const chatFn = createChatFunction(agent);
+
+  // 步骤4: 创建事件发射器
+  const emit = createEventEmitter({
+    requestId,
+    eventType: 'mindmap',
+    busyMessage: '开始生成脑图...',
+    progressMessage: '正在生成脑图...',
+    onCompleted: async (data) => {
+      console.log('脑图生成完成，保存脑图资源：', effectiveResourceId);
+
+      // 脑图完成时，创建或更新脑图资源
+      if (effectiveResourceId && data && data.markdown) {
+        await createOrUpdateMindmapResource({
+          sourceResourceId: effectiveResourceId,
+          markdown: data.markdown,
+          targetLanguage,
+          providerId,
+          model,
+          startTimestamp
+        });
+      }
+    }
+  });
+
+  // 步骤5: 异步处理脑图生成
+  MindmapService.generateMindmap(emit as any, {
+    requestId,
+    chatFn: chatFn as any,
+    taskLabel,
+    content: actualContent,
+    targetLanguage,
+    languageNames,
+    metadata,
+    options
+  }).catch((err: any) => {
+    console.error('生成脑图失败:', err);
+    if (err.message === 'Aborted') {
+      emit({ type: 'done' });
+    } else {
+      emit({ type: 'error', data: { message: err?.message || '生成脑图失败' } });
+    }
+  });
+
+  return { requestId, eventsChannel };
+}
+
+/**
+ * 取消脑图生成任务
+ * @param requestId 请求 ID
+ * @returns 是否成功取消
+ */
+export function cancelMindmap(requestId: string): boolean {
+  return MindmapService.cancelMindmap(requestId);
 }
