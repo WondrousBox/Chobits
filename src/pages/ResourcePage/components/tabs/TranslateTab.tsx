@@ -54,17 +54,20 @@ const getLanguageLabel = (code?: string): string => {
  * 用于显示资源的所有翻译历史记录
  */
 const TranslateTab: React.FC = () => {
-  const { resource } = useResourceTabContext();
+  const { resource, activeSubtitle } = useResourceTabContext();
   const [translations, setTranslations] = useState<TranslationRecord[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // 优先使用 activeSubtitle，如果没有则使用 resource
+  const targetResource = activeSubtitle || resource;
+
   // 加载所有翻译历史（不筛选）
   const loadTranslations = async () => {
-    if (!resource?.id) return;
+    if (!targetResource?.id) return;
 
     setLoading(true);
     try {
-      const result = await window.YUA.ai.getAllTranslationHistory(resource.id);
+      const result = await window.YUA.ai.getAllTranslationHistory(targetResource.id);
       setTranslations(result || []);
     } catch (error) {
       console.error('加载翻译历史失败:', error);
@@ -75,7 +78,7 @@ const TranslateTab: React.FC = () => {
 
   useEffect(() => {
     loadTranslations();
-  }, [resource?.id]);
+  }, [targetResource?.id]);
 
   if (loading) {
     return <div className="h-full flex items-center justify-center text-muted-foreground text-sm">加载翻译数据中...</div>;
