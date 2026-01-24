@@ -569,8 +569,27 @@ export const ResourcesRepo = {
     if (!ids.length) return 0;
     const db = getOrm();
 
+    // 0) 查找所有子资源（translation 和 summary 类型）并递归删除
+    const childResIds: string[] = [];
+    for (const parentId of ids) {
+      try {
+        const children = await this.listChildren(parentId, 1000, 0);
+        for (const child of children as any[]) {
+          // 只处理 translation 和 summary 类型的子资源
+          if (child.type === 'translation' || child.type === 'summary') {
+            childResIds.push(child.id);
+          }
+        }
+      } catch (e) {
+        console.warn('[deleteByIds] 查找子资源失败:', e);
+      }
+    }
+
+    // 合并所有要删除的资源 ID（父资源 + 子资源）
+    const allIdsToDelete = [...ids, ...childResIds];
+
     // 1) 预取将要删除的资源行，收集文件/缩略图路径
-    const toDeleteRows = await db.select().from(resources).where(inArray(resources.id, ids));
+    const toDeleteRows = await db.select().from(resources).where(inArray(resources.id, allIdsToDelete));
     const filePaths: string[] = [];
     const thumbPaths: string[] = [];
     for (const r of toDeleteRows as any[]) {
@@ -582,7 +601,7 @@ export const ResourcesRepo = {
     // 2) 删除与该资源相关的向量/文档（按文档ID前缀 `${resId}#` 约定生成）
     //    这里通过 LIKE 查询找出所有块文档的 ID，再调用 deleteVectors 做 vec_docs + documents 清理
     const docIds: string[] = [];
-    for (const rid of ids) {
+    for (const rid of allIdsToDelete) {
       const rows = await db
         .select({ id: documents.id })
         .from(documents)
@@ -600,9 +619,9 @@ export const ResourcesRepo = {
     // 3) 删除资源表与回收站索引（事务内）
     let changes = 0;
     (db as any).transaction((tx: any) => {
-      const res = tx.delete(resources).where(inArray(resources.id, ids)).run?.();
+      const res = tx.delete(resources).where(inArray(resources.id, allIdsToDelete)).run?.();
       changes = (res as any)?.changes ?? 0;
-      tx.delete(recycle_bin).where(inArray(recycle_bin.entityId, ids)).run?.();
+      tx.delete(recycle_bin).where(inArray(recycle_bin.entityId, allIdsToDelete)).run?.();
     });
 
     // 4) 尝试删除磁盘上的实际文件与缩略图（容错，不影响主流程）
@@ -616,6 +635,7 @@ export const ResourcesRepo = {
     };
     await Promise.all([...filePaths.map(tryUnlink), ...thumbPaths.map(tryUnlink)]);
 
+    console.log(`[deleteByIds] 已删除 ${changes} 个资源（包含 ${childResIds.length} 个子资源）`);
     return changes;
   },
   /** 单条物理删除资源（便捷封装） */

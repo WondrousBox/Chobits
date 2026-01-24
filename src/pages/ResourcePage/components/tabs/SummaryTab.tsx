@@ -243,7 +243,22 @@ const SummaryTab: React.FC = () => {
     return <div className="h-full flex items-center justify-center text-muted-foreground text-sm">加载总结数据中...</div>;
   }
 
+  // 检查是否是视频资源且没有字幕
+  const isVideo = resource?.type === 'video';
+  const hasNoSubtitle = isVideo && !activeSubtitle;
+
   if (!summaryResult && !isSummarizing) {
+    // 如果是视频但没有字幕，显示提示
+    if (hasNoSubtitle) {
+      return (
+        <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-sm gap-4">
+          <TbBrain className="w-12 h-12 opacity-50" />
+          <p>无法开始总结</p>
+          <p className="text-xs">此视频暂无字幕文件，请先提取视频字幕</p>
+        </div>
+      );
+    }
+
     return (
       <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-sm gap-4">
         <TbBrain className="w-12 h-12 opacity-50" />
@@ -337,7 +352,7 @@ const SummaryTab: React.FC = () => {
               </Button>
               <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
                 <PopoverTrigger asChild>
-                  <Button size="icon" className="w-8 h-8" variant="ghost">
+                  <Button size="icon" className="w-8 h-8" variant="ghost" disabled={hasNoSubtitle} title={hasNoSubtitle ? '请先提取视频字幕' : undefined}>
                     <TbBrain />
                   </Button>
                 </PopoverTrigger>
