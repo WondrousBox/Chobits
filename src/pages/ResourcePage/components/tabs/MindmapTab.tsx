@@ -1,6 +1,7 @@
+import { throttle } from 'lodash';
 import { Transformer } from 'markmap-lib';
 import { Markmap } from 'markmap-view';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TbBrain, TbPlayerStop, TbRefresh, TbSitemap } from 'react-icons/tb';
 
 import { ProviderModelSelect, ProviderModelSelectRef } from '@/components/common/ProviderModelSelect';
@@ -103,6 +104,27 @@ const MindmapTab: React.FC = () => {
     loadMindmap();
   }, [loadMindmap]);
 
+  // 使用 lodash throttle 创建节流的 setMarkdown 函数
+  // 每 300ms 最多执行一次，保证流式生成过程中能看到渲染进度
+  const throttledSetMarkdown = useMemo(
+    () =>
+      throttle(
+        (newMarkdown: string) => {
+          setMarkdown(newMarkdown);
+        },
+        300,
+        { leading: true, trailing: true }
+      ),
+    []
+  );
+
+  // 清理 throttle
+  useEffect(() => {
+    return () => {
+      throttledSetMarkdown.cancel();
+    };
+  }, [throttledSetMarkdown]);
+
   // 监听脑图事件
   useEffect(() => {
     const handler = (_: any, payload: any): void => {
@@ -120,11 +142,14 @@ const MindmapTab: React.FC = () => {
               setProgress(data.percentage);
             }
             if (data.rawContent) {
-              setMarkdown(data.rawContent);
+              // 使用 lodash 节流函数，每 300ms 最多渲染一次
+              throttledSetMarkdown(data.rawContent);
             }
           }
 
           if (type === 'completed' && data) {
+            // 完成时取消节流并立即渲染最终结果
+            throttledSetMarkdown.cancel();
             setMarkdown(data.markdown || '');
             setProgress(100);
             setIsGenerating(false);
@@ -152,7 +177,7 @@ const MindmapTab: React.FC = () => {
     return () => {
       window.ipcRenderer?.off('renderer-message', handler as any);
     };
-  }, []);
+  }, [throttledSetMarkdown, loadMindmap]);
 
   // 渲染 markmap
   useEffect(() => {
