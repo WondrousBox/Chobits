@@ -94,22 +94,27 @@ const SummaryTab: React.FC = () => {
 
   const providerSelectRef = useRef<ProviderModelSelectRef>(null);
 
+  // 优先使用 activeSubtitle，如果没有则使用 resource
+  const targetResource = activeSubtitle || resource;
+
   // 加载已保存的总结
   const loadSummary = useCallback(async () => {
-    if (!resource?.id) return;
+    if (!targetResource?.id) return;
 
     setLoading(true);
     try {
-      const summary = await window.YUA.ai.getResourceSummary(resource.id);
+      const summary = await window.YUA.ai.getResourceSummary(targetResource.id);
       if (summary) {
         setSummaryResult(summary);
+      } else {
+        setSummaryResult(null);
       }
     } catch (error) {
       console.error('加载总结失败:', error);
     } finally {
       setLoading(false);
     }
-  }, [resource?.id]);
+  }, [targetResource?.id]);
 
   useEffect(() => {
     loadSummary();
@@ -197,15 +202,14 @@ const SummaryTab: React.FC = () => {
     setIsSummarizing(true);
 
     try {
-      const subtitleResource = activeSubtitle || resource;
       const { requestId } = await window.YUA.ai.summarize({
         providerId: selectedProviderId,
         model: selectedModel,
-        resourceId: subtitleResource.id,
+        resourceId: targetResource.id,
         targetLanguage,
         languageNames,
         metadata: {
-          resourceId: subtitleResource.id
+          resourceId: targetResource.id
         }
       });
 
@@ -215,7 +219,7 @@ const SummaryTab: React.FC = () => {
       setIsSummarizing(false);
       setSummaryProgress(0);
     }
-  }, [selectedProviderId, selectedModel, targetLanguage, resource, activeSubtitle]);
+  }, [selectedProviderId, selectedModel, targetLanguage, targetResource]);
 
   const handleStopSummary = useCallback(async () => {
     if (currentRequestId) {
