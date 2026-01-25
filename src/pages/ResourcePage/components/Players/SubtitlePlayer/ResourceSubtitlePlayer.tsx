@@ -2,6 +2,10 @@
 import { AimSegments, parser, tools } from '@aim-packages/subtitle';
 import { debounce } from 'lodash-es';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { TbList, TbTimeline } from 'react-icons/tb';
+
+import { aimTracksToTimelineTracks, indicesToIds, parseSegmentId, SubtitleTimeline, TimelineSegment } from '@/components/SubtitleTimeline';
+import { Button } from '@/components/ui/button';
 
 import type { ResourceItem } from '../../../types';
 import { SubtitleTranslator } from '../SubtitleTranslator';
@@ -33,6 +37,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
   const [translationTracks, setTranslationTracks] = useState<AimSegments[][]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [subtitleFormat, setSubtitleFormat] = useState<SubtitleFormat>('srt');
+  const [viewMode, setViewMode] = useState<'list' | 'timeline'>('list'); // 视图模式：列表或时间轴
 
   // 保持 subtitleEntries 的引用始终是最新的
   const subtitleEntriesRef = useRef<AimSegments[]>([]);
@@ -210,10 +215,115 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     return tracksArray;
   }, [subtitleEntries, translationTracks, typingTexts]);
 
+  // 时间轴视图数据
+  const timelineTracks = useMemo(() => {
+    const labels = ['原文'];
+    if (translationTracks.length > 0) {
+      labels.push(...translationTracks.map((_, idx) => `译文 ${idx + 1}`));
+    }
+    if (typingTexts.length > 0) {
+      labels.push('翻译中');
+    }
+    return aimTracksToTimelineTracks(tracks, labels);
+  }, [tracks, translationTracks, typingTexts]);
+
+  // 时间轴高亮的片段 ID
+  const timelineHighlightIds = useMemo(() => {
+    return indicesToIds(translatingChunks, 0); // 主轨道的翻译中片段
+  }, [translatingChunks]);
+
+  // 处理时间轴文本编辑
+  const handleTimelineTextChange = useCallback(
+    (segment: TimelineSegment, trackId: string, newText: string) => {
+      // 只处理主轨道（track-0）的编辑
+      if (trackId !== 'track-0') return;
+
+      const parsed = parseSegmentId(segment.id);
+      if (!parsed) return;
+
+      const { segmentIndex } = parsed;
+      const updated = subtitleEntries.map((item, i) => {
+        if (i === segmentIndex) {
+          return { ...item, text: newText };
+        }
+        return item;
+      });
+
+      setSubtitleEntries(updated);
+      if (resource.id && !isLoading) {
+        debouncedSave(resource.id, updated, subtitleFormat);
+      }
+    },
+    [subtitleEntries, resource.id, isLoading, debouncedSave, subtitleFormat]
+  );
+
+  // 处理时间轴时间变更（拖拽移动或调整边缘）
+  const handleTimelineTimeChange = useCallback(
+    (segment: TimelineSegment, trackId: string, newStartTime: number, newEndTime: number) => {
+      // 只处理主轨道（track-0）的编辑
+      if (trackId !== 'track-0') return;
+
+      const parsed = parseSegmentId(segment.id);
+      if (!parsed) return;
+
+      const { segmentIndex } = parsed;
+
+      // 格式化时间为字幕格式 (HH:MM:SS,mmm)
+      const formatTime = (seconds: number): string => {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = Math.floor(seconds % 60);
+        const ms = Math.round((seconds % 1) * 1000);
+        return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')},${ms.toString().padStart(3, '0')}`;
+      };
+
+      const updated = subtitleEntries.map((item, i) => {
+        if (i === segmentIndex) {
+          return {
+            ...item,
+            st: formatTime(newStartTime),
+            et: formatTime(newEndTime)
+          };
+        }
+        return item;
+      });
+
+      setSubtitleEntries(updated);
+      if (resource.id && !isLoading) {
+        debouncedSave(resource.id, updated, subtitleFormat);
+      }
+    },
+    [subtitleEntries, resource.id, isLoading, debouncedSave, subtitleFormat]
+  );
+
   return (
     <div className="flex h-full w-full flex-col text-muted-foreground">
-      <div className="flex items-center justify-end gap-2 border-b border-border/50 pb-2">
-        {/* 翻译按钮和配置（业务组件） */}
+      <div className="flex items-center justify-between gap-2 border-b border-border/50 pb-2">
+        {/* 左侧：视图切换按钮 */}
+        <div className="flex items-center gap-1">
+          <Button
+            variant={viewMode === 'list' ? 'default' : 'ghost'}
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setViewMode('list')}
+            title="列表视图"
+          >
+            <TbList className="w-4 h-4" />
+            <span className="text-xs">列表</span>
+          </Button>
+          <Button
+            variant={viewMode === 'timeline' ? 'default' : 'ghost'}
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setViewMode('timeline')}
+            title="时间轴视图"
+          >
+            <TbTimeline className="w-4 h-4" />
+            <span className="text-xs">时间轴</span>
+          </Button>
+        </div>
+
+        {/* 右侧：翻译按钮和配置 */}
         <SubtitleTranslator
           subtitleEntries={subtitleEntries}
           resourceId={resource.id}
@@ -224,16 +334,34 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
         />
       </div>
 
-      {/* 通用字幕展示组件：支持多轨道（主轨 + 附加轨道） */}
-      <SubtitlePlayer
-        tracks={tracks}
-        currentTime={currentTime}
-        onSeek={onSeek}
-        onSegmentsChange={handleSegmentsChange}
-        disabledIndices={translatingChunks}
-        highlightIndices={translatingChunks}
-        summaries={chunkSummaryInfoMap}
-      />
+      {/* 内容区域：根据视图模式切换 */}
+      {viewMode === 'list' ? (
+        // 列表视图
+        <SubtitlePlayer
+          tracks={tracks}
+          currentTime={currentTime}
+          onSeek={onSeek}
+          onSegmentsChange={handleSegmentsChange}
+          disabledIndices={translatingChunks}
+          highlightIndices={translatingChunks}
+          summaries={chunkSummaryInfoMap}
+        />
+      ) : (
+        // 时间轴视图
+        <div className="flex-1 overflow-hidden pt-2">
+          <SubtitleTimeline
+            tracks={timelineTracks}
+            currentTime={currentTime}
+            onSeek={onSeek}
+            onSegmentTextChange={handleTimelineTextChange}
+            onSegmentTimeChange={handleTimelineTimeChange}
+            highlightIds={timelineHighlightIds}
+            disabled={isTranslating}
+            showRuler
+            showTrackLabels
+          />
+        </div>
+      )}
     </div>
   );
 };
