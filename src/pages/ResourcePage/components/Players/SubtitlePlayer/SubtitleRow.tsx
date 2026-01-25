@@ -188,7 +188,7 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({ index, segment, isActi
         <div className="flex-1 relative z-10">
           {/* 原始文本 */}
           <div className={clsx(getClassName(segment.delete, isActive), disabled && 'pointer-events-none cursor-not-allowed opacity-80')} style={{ whiteSpace: 'pre-wrap' }} onClick={handleTextClick}>
-            {segment.text || '\u200b'}
+            {segment.text?.trim() || '\u200b'}
           </div>
         </div>
       )}
