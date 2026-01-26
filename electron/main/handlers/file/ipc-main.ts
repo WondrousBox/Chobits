@@ -108,7 +108,7 @@ export function initFileHandlers(_win: Electron.BrowserWindow): void {
   });
 
   // 读取文件内容（用于文本类资源预览）
-  ipcMain.handle('file:readContent', async (_e, filePath: string, maxBytes?: number) => {
+  ipcMain.handle('file:readContent', async (_e, filePath: string) => {
     console.log('file:readContent from ', filePath);
 
     if (!filePath) return { success: false, error: 'EMPTY_PATH' };
@@ -120,30 +120,14 @@ export function initFileHandlers(_win: Electron.BrowserWindow): void {
         return { success: false, error: 'NOT_A_FILE' };
       }
 
-      // 检查文件大小，如果超过限制则截取
-      const maxSize = maxBytes || 20000; // 默认限制 20KB
-      if (stats.size > maxSize) {
-        // 读取文件的前 maxSize 字节
-        const buffer = Buffer.alloc(maxSize);
-        const fd = await fs.open(filePath, 'r');
-        await fd.read(buffer, 0, maxSize, 0);
-        await fd.close();
-        return {
-          success: true,
-          content: buffer.toString('utf8'),
-          truncated: true,
-          originalSize: stats.size
-        };
-      } else {
-        // 读取完整文件
-        const content = await fs.readFile(filePath, 'utf8');
-        return {
-          success: true,
-          content,
-          truncated: false,
-          originalSize: stats.size
-        };
-      }
+      // 读取完整文件，不限制大小
+      const content = await fs.readFile(filePath, 'utf8');
+      return {
+        success: true,
+        content,
+        truncated: false,
+        originalSize: stats.size
+      };
     } catch (e: any) {
       return { success: false, error: String(e?.message || e) };
     }

@@ -22,7 +22,7 @@ const FullWidthTextResource: React.FC<FullWidthTextResourceProps> = ({ item, onP
       }
       if (item.filePath) {
         try {
-          const result = await (window as any).YUA?.file['file:readContent'](item.filePath, 50000);
+          const result = await (window as any).YUA?.file['file:readContent'](item.filePath);
           if (result?.success && result.content) {
             setContent(result.content);
           }

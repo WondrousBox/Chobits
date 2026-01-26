@@ -212,24 +212,6 @@ export const TranscribeFunASRNode: NodeHandler = {
         ]
       },
       {
-        key: 'useVad',
-        label: '使用VAD模型',
-        type: 'boolean',
-        required: false,
-        default: false,
-        description: '启用语音活动检测（VAD）模型，提高识别准确度',
-        group: 'advanced'
-      },
-      {
-        key: 'usePunc',
-        label: '使用PUNC模型',
-        type: 'boolean',
-        required: false,
-        default: false,
-        description: '启用标点模型，自动添加标点符号',
-        group: 'advanced'
-      },
-      {
         key: 'useSpk',
         label: '使用SPK模型',
         type: 'boolean',
@@ -310,25 +292,31 @@ export const TranscribeFunASRNode: NodeHandler = {
       throw new Error('FFmpeg路径不存在');
     }
 
+    // 根据平台自动选择设备：Windows用CUDA，macOS用MPS
+    const device = platform() === 'win32' ? 'cuda' : 'mps';
+    console.log(`[funasr] 检测到平台: ${platform()}, 使用设备: ${device}`);
+
     // FunASR CLI 参数
-    const args: string[] = ['--device', 'mps', '--model', asrModel?.path, '--input', finalSrc, '--output-dir', outDir, '--ffmpeg-path', ffmpegPath, '--output-filename', base, '--sentence-timestamp'];
+    const args: string[] = ['--device', device, '--model', asrModel?.path, '--input', finalSrc, '--output-dir', outDir, '--ffmpeg-path', ffmpegPath, '--output-filename', base, '--sentence-timestamp'];
 
     console.log('[funasr] 模型列表:', models);
 
-    // VAD模型 - 使用 --vad-model 参数
-    if (config?.useVad) {
-      const vadModel = models.find((m) => m.type === 'vad');
-      if (vadModel && fs.existsSync(vadModel.path)) {
-        args.push('--vad-model', vadModel.path);
-      }
+    // VAD模型 - 默认开启，使用 --vad-model 参数
+    const vadModel = models.find((m) => m.type === 'vad');
+    if (vadModel && fs.existsSync(vadModel.path)) {
+      args.push('--vad-model', vadModel.path);
+      console.log('[funasr] 已启用VAD模型:', vadModel.path);
+    } else {
+      console.log('[funasr] ⚠️ VAD模型未找到，跳过');
     }
 
-    // PUNC模型 - 使用 --punc-model 参数
-    if (config?.usePunc) {
-      const puncModel = models.find((m) => m.type === 'punc');
-      if (puncModel && fs.existsSync(puncModel.path)) {
-        args.push('--punc-model', puncModel.path);
-      }
+    // PUNC模型 - 默认开启，使用 --punc-model 参数
+    const puncModel = models.find((m) => m.type === 'punc');
+    if (puncModel && fs.existsSync(puncModel.path)) {
+      args.push('--punc-model', puncModel.path);
+      console.log('[funasr] 已启用PUNC模型:', puncModel.path);
+    } else {
+      console.log('[funasr] ⚠️ PUNC模型未找到，跳过');
     }
 
     // SPK模型 - 使用 --spk-model 参数
