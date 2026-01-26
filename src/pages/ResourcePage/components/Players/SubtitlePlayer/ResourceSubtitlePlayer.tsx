@@ -5,11 +5,11 @@ import { TbCrosshair, TbList, TbTimeline } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { aimTracksToTimelineTracks, indicesToIds, parseSegmentId, SubtitleTimeline, TimelineSegment } from '@/pages/ResourcePage/components/Players/SubtitleTimeline';
 
 import type { ResourceItem } from '../../../types';
-import { SubtitleTranslator } from '../SubtitleTranslator';
-import { SubtitlePlayer } from './SubtitlePlayer';
+import { SubtitlePlayer } from './SubtitleListPlayer/SubtitlePlayer';
+import { aimTracksToTimelineTracks, indicesToIds, parseSegmentId, SubtitleTimeline, TimelineSegment } from './SubtitleTimeline';
+import { SubtitleTranslator } from './SubtitleTranslator';
 import { useSubtitleTranslation } from './useSubtitleTranslation';
 
 // 将 AimSegments 转换为 ISegment 格式
