@@ -92,11 +92,96 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     []
   );
 
+  // 用于清空临时翻译轨道的 ref（因为 clearTypingTexts 在 hook 调用后才可用）
+  const clearTypingTextsRef = useRef<(() => void) | null>(null);
+
+  // 用于递归调用的 ref
+  const loadTranslationTracksRef = useRef<((retryCount?: number, expectedMinTracks?: number) => Promise<void>) | null>(null);
+
+  // 加载翻译轨道的函数（可在翻译完成后重新调用）
+  // 添加重试机制，因为主进程保存翻译数据是异步的，可能在 completed 事件发送后才完成
+  const loadTranslationTracks = useCallback(
+    async (retryCount = 0, expectedMinTracks?: number) => {
+      if (!resource.id) return;
+      const maxRetries = 5;
+      const retryDelay = 500; // 500ms 重试间隔
+
+      try {
+        const translations = await window.YUA.ai.getResourceTranslations(resource.id);
+        const translationTracksData: AimSegments[][] = [];
+        const currentEntries = subtitleEntriesRef.current || [];
+
+        for (const trans of translations) {
+          if (trans.segments && trans.segments.length > 0) {
+            // 将翻译片段转换为 AimSegments 格式
+            const translationSegments: AimSegments[] = currentEntries.map((seg, index) => {
+              const translatedText = trans.segments?.find((t) => t.index === index);
+              return {
+                ...seg,
+                text: translatedText?.text || ''
+              };
+            });
+            translationTracksData.push(translationSegments);
+          }
+        }
+
+        // 如果有期望的最小轨道数，检查是否满足
+        // 这用于处理翻译刚完成但数据库还没保存完的情况
+        if (expectedMinTracks !== undefined && translationTracksData.length < expectedMinTracks && retryCount < maxRetries) {
+          console.log(`[SubtitlePlayer] 翻译轨道数量不足 (${translationTracksData.length} < ${expectedMinTracks})，${retryDelay}ms 后重试 (${retryCount + 1}/${maxRetries})`);
+          setTimeout(() => {
+            loadTranslationTracksRef.current?.(retryCount + 1, expectedMinTracks);
+          }, retryDelay);
+          return;
+        }
+
+        setTranslationTracks(translationTracksData);
+        console.log(`[SubtitlePlayer] 翻译轨道加载完成，共 ${translationTracksData.length} 个轨道`);
+
+        // 新轨道加载成功后，清空临时翻译轨道（typingTexts）
+        // 这样可以避免重复显示已保存的翻译
+        if (expectedMinTracks !== undefined && translationTracksData.length >= expectedMinTracks) {
+          clearTypingTextsRef.current?.();
+        }
+      } catch (error) {
+        console.error('[SubtitlePlayer] 加载翻译资源失败:', error);
+        // 出错时也尝试重试
+        if (retryCount < maxRetries) {
+          setTimeout(() => {
+            loadTranslationTracksRef.current?.(retryCount + 1, expectedMinTracks);
+          }, retryDelay);
+        }
+      }
+    },
+    [resource.id, subtitleEntriesRef]
+  );
+
+  // 更新递归调用的 ref
+  useEffect(() => {
+    loadTranslationTracksRef.current = loadTranslationTracks;
+  }, [loadTranslationTracks]);
+
+  // 翻译完成后的回调：期望轨道数比当前多 1
+  const handleTranslationComplete = useCallback(() => {
+    const expectedTracks = translationTracks.length + 1;
+    // 延迟一小段时间再开始加载，给主进程保存数据的时间
+    setTimeout(() => {
+      loadTranslationTracks(0, expectedTracks);
+    }, 300);
+  }, [loadTranslationTracks, translationTracks.length]);
+
   // 使用翻译 Hook（翻译结果由主进程自动保存）
-  const { translatingChunks, typingTexts, chunkSummaryInfoMap, translationProgress, isTranslating, startTranslation, stopTranslation } = useSubtitleTranslation({
+  const { translatingChunks, typingTexts, chunkSummaryInfoMap, translationProgress, isTranslating, startTranslation, stopTranslation, clearTypingTexts } = useSubtitleTranslation({
     resourceId: resource.id,
-    subtitleEntriesRef
+    subtitleEntriesRef,
+    // 翻译完成后重新加载翻译轨道
+    onTranslationComplete: handleTranslationComplete
   });
+
+  // 更新 clearTypingTexts ref
+  useEffect(() => {
+    clearTypingTextsRef.current = clearTypingTexts;
+  }, [clearTypingTexts]);
 
   // 切换资源或卸载组件时，确保待保存的更改被立即保存
   useEffect(() => {
