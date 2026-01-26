@@ -72,13 +72,10 @@ export const TextPlayer: React.FC<TextPlayerProps> = ({ resource }) => {
         const lower = data.filePath.toLowerCase();
         if (/(\.txt|\.md|\.log|\.json|\.csv|\.ts|\.js|\.tsx|\.jsx|\.py|\.go|\.rs|\.java|\.c|\.cpp|\.yml|\.yaml|\.toml|\.ini)$/i.test(lower)) {
           setLoadingText(true);
-          window.YUA.file['file:readContent'](data.filePath, 20000)
+          window.YUA.file['file:readContent'](data.filePath)
             .then((result: any) => {
               if (result.success) {
-                let content = result.content || '';
-                if (result.truncated) {
-                  content += `\n\n...（文件已截取，原始大小: ${Math.round(result.originalSize / 1024)}KB）`;
-                }
+                const content = result.content || '';
                 setTextContent(content);
               } else {
                 setTextContent('（无法加载文本内容）');

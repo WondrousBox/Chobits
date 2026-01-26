@@ -29,7 +29,7 @@ export type FileIpcParams = {
   'file:openPath': IpcParams<[string], { ok: boolean; error?: string }>;
   'file:reveal': IpcParams<[string], { ok: boolean; error?: string }>;
   'file:readContent': IpcParams<
-    [string, number?],
+    [string],
     {
       success: boolean;
       content?: string;

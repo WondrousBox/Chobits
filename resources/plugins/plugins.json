@@ -701,8 +701,8 @@
         "platform": "win32",
         "arch": "x64",
         "sourceUrl": "https://github.com/YuQian2015/memo-build/releases/download/v1.0.0/funASR-win32-x64-1.0.0.zip",
-        "sizeBytes": 1398138336,
-        "sha256": "b9f0aa9c813327e59ce392cc02d5a49103e8ac66b18df583535ee73aff24cccf"
+        "sizeBytes": 1393630090,
+        "sha256": "25f0db0ac0d34e7df7a40d76f42bb901e377ddf720568f8dd91cb2b8037e39b6"
       }
     ],
     "models": [
