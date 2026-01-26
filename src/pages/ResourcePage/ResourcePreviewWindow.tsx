@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbArrowLeft, TbList } from 'react-icons/tb';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { TbArrowLeft, TbLayoutBottombar, TbLayoutBottombarFilled, TbLayoutSidebarRight, TbLayoutSidebarRightFilled } from 'react-icons/tb';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
@@ -38,22 +38,12 @@ const ResourcePreviewWindow: React.FC = () => {
   const [subtitleList, setSubtitleList] = useState<ResourceItem[]>([]);
   const [activeSubtitle, setActiveSubtitle] = useState<ResourceItem | null>(null);
   const [isTabsExpanded, setIsTabsExpanded] = useState(true);
+  const [isBottomExpanded, setIsBottomExpanded] = useState(true);
   const [currentTime, setCurrentTime] = useState(0); // 当前播放时间（秒）
   const [pendingStartTime, setPendingStartTime] = useState<number | null>(null); // 待跳转的起始时间
   const mediaPlayerRef = useRef<MediaPlayerRef>(null); // 媒体播放器的 ref
 
-  // 计算底部面板是否应该收起（当没有可用的 tabs 时默认收起）
-  const shouldCollapseBottomPanel = useMemo(() => {
-    if (!data) return false;
-
-    // 判断底部面板的 defaultPinnedTabs ['subtitle', 'translate'] 是否有内容
-    const isVideo = isVideoFile(data.filePath);
-    const isAudio = isAudioFile(data.filePath);
-
-    // 只有视频有 subtitle，视频和音频都有 translate
-    // 如果都没有，则应该收起
-    return !isVideo && !isAudio;
-  }, [data]);
+  // 已移除 shouldCollapseBottomPanel 相关逻辑，统一展示底部面板
 
   // 处理视频加载完成，调整窗口大小
   const handleVideoLoaded = useCallback(async (videoElement: HTMLVideoElement) => {
@@ -115,6 +105,11 @@ const ResourcePreviewWindow: React.FC = () => {
   // 切换 Tab 面板展开/收起
   const toggleTabsExpanded = useCallback(() => {
     setIsTabsExpanded((prev) => !prev);
+  }, []);
+
+  // 切换底部面板展开/收起
+  const toggleBottomExpanded = useCallback(() => {
+    setIsBottomExpanded((prev) => !prev);
   }, []);
 
   // 处理资源切换
@@ -366,9 +361,14 @@ const ResourcePreviewWindow: React.FC = () => {
         <DragAbleTitle
           title={<div className="text-xs font-medium truncate">{title}</div>}
           actions={
-            <Button size="icon" className="w-8 h-8" variant="ghost" onClick={toggleTabsExpanded} title={isTabsExpanded ? '收起标签' : '展开标签'}>
-              <TbList />
-            </Button>
+            <>
+              <Button size="icon" className="w-8 h-8" variant="ghost" onClick={toggleBottomExpanded} title={isBottomExpanded ? '收起底栏' : '展开底栏'}>
+                {isBottomExpanded ? <TbLayoutBottombarFilled /> : <TbLayoutBottombar />}
+              </Button>
+              <Button size="icon" className="w-8 h-8" variant="ghost" onClick={toggleTabsExpanded} title={isTabsExpanded ? '收起标签' : '展开标签'}>
+                {isTabsExpanded ? <TbLayoutSidebarRightFilled /> : <TbLayoutSidebarRight />}
+              </Button>
+            </>
           }
         />
       )}
@@ -380,26 +380,30 @@ const ResourcePreviewWindow: React.FC = () => {
             <ResizablePanel defaultSize={isTabsExpanded ? 60 : 100}>
               <ResizablePanelGroup direction="vertical" className="h-full">
                 {/* 上方：播放器 */}
-                <ResizablePanel defaultSize={shouldCollapseBottomPanel ? 100 : 60} minSize={30}>
+                <ResizablePanel defaultSize={isBottomExpanded ? 60 : 100} minSize={30}>
                   {renderMainContent()}
                 </ResizablePanel>
                 {/* 下方：ResourceTabs 底部面板 */}
-                <ResizableHandle className="hover:bg-primary" withHandle />
-                <ResizablePanel defaultSize={shouldCollapseBottomPanel ? 0 : 40} minSize={0} collapsible={true}>
-                  <div className="h-full flex flex-col overflow-hidden bg-background border-t">
-                    <ResourceTabs
-                      panelId="preview-window-bottom"
-                      resource={data}
-                      currentTime={currentTime}
-                      mediaPlayerRef={mediaPlayerRef}
-                      subtitleList={subtitleList}
-                      activeSubtitle={activeSubtitle}
-                      setActiveSubtitle={setActiveSubtitle}
-                      onResourceChange={handleResourceChange}
-                      defaultPinnedTabs={['subtitle', 'translate']}
-                    />
-                  </div>
-                </ResizablePanel>
+                {isBottomExpanded && (
+                  <>
+                    <ResizableHandle className="hover:bg-primary" withHandle />
+                    <ResizablePanel defaultSize={40} minSize={0} collapsible={true}>
+                      <div className="h-full flex flex-col overflow-hidden bg-background border-t">
+                        <ResourceTabs
+                          panelId="preview-window-bottom"
+                          resource={data}
+                          currentTime={currentTime}
+                          mediaPlayerRef={mediaPlayerRef}
+                          subtitleList={subtitleList}
+                          activeSubtitle={activeSubtitle}
+                          setActiveSubtitle={setActiveSubtitle}
+                          onResourceChange={handleResourceChange}
+                          defaultPinnedTabs={['subtitle', 'translate']}
+                        />
+                      </div>
+                    </ResizablePanel>
+                  </>
+                )}
               </ResizablePanelGroup>
             </ResizablePanel>
             {/* 右侧：ResourceTabs 侧边栏 */}

@@ -310,227 +310,223 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
     });
   }, [selectedProviderId, selectedModel, targetLanguage, subtitleEntries, executeAITranslation]);
 
-  return (
-    <div className="flex items-center justify-end gap-2 px-3 py-1">
-      {isTranslating ? (
-        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onStopTranslation}>
-          <TbPlayerStop className="animate-pulse" />
-          停止翻译<span className="font-mono">({translationProgress}%)</span>
+  return isTranslating ? (
+    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onStopTranslation}>
+      <TbPlayerStop className="animate-pulse" />
+      停止翻译<span className="font-mono">({translationProgress}%)</span>
+    </Button>
+  ) : (
+    <Popover open={isTranslationPopoverOpen} onOpenChange={setIsTranslationPopoverOpen}>
+      <PopoverTrigger asChild>
+        <Button size="sm" variant="ghost" className="h-7 text-xs">
+          <TbLanguage />
+          翻译
         </Button>
-      ) : (
-        <Popover open={isTranslationPopoverOpen} onOpenChange={setIsTranslationPopoverOpen}>
-          <PopoverTrigger asChild>
-            <Button size="sm" variant="outline" className="h-7 text-xs">
-              <TbLanguage />
-              翻译
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="end" className="w-80">
-            {history.length > 0 && (
-              <div className="mb-4 space-y-2 border-b pb-4">
-                <Label className="text-xs font-medium text-muted-foreground">最近使用</Label>
-                <div className="flex flex-wrap gap-1">
-                  {history.slice(0, 2).map((item, index) => (
-                    <Button key={index} variant="outline" size="sm" className="text-xs flex flex-col items-start gap-0.5 w-full" onClick={() => applyHistory(item)}>
-                      <span className="font-medium">
-                        {item.mode === 'ai' ? `${item.providerId} · ${item.model}` : translationServices.find((s) => s.value === item.service)?.label} →{' '}
-                        {languageNames[item.targetLanguage] || item.targetLanguage}
-                      </span>
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            )}
-            <Tabs value={translationMode} onValueChange={(value) => setTranslationMode(value as 'ai' | 'normal')} className="w-full">
-              <TabsList className="grid w-full grid-cols-2 mb-4">
-                <TabsTrigger value="ai">AI 翻译</TabsTrigger>
-                <TabsTrigger value="normal">普通翻译</TabsTrigger>
-              </TabsList>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-80">
+        {history.length > 0 && (
+          <div className="mb-4 space-y-2 border-b pb-4">
+            <Label className="text-xs font-medium text-muted-foreground">最近使用</Label>
+            <div className="flex flex-wrap gap-1">
+              {history.slice(0, 2).map((item, index) => (
+                <Button key={index} variant="outline" size="sm" className="text-xs flex flex-col items-start gap-0.5 w-full" onClick={() => applyHistory(item)}>
+                  <span className="font-medium">
+                    {item.mode === 'ai' ? `${item.providerId} · ${item.model}` : translationServices.find((s) => s.value === item.service)?.label} →{' '}
+                    {languageNames[item.targetLanguage] || item.targetLanguage}
+                  </span>
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+        <Tabs value={translationMode} onValueChange={(value) => setTranslationMode(value as 'ai' | 'normal')} className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-4">
+            <TabsTrigger value="ai">AI 翻译</TabsTrigger>
+            <TabsTrigger value="normal">普通翻译</TabsTrigger>
+          </TabsList>
 
-              <TabsContent value="ai" className="space-y-4 mt-0">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">翻译模型</Label>
-                  <ProviderModelSelect
-                    ref={providerSelectRef}
-                    providerId={selectedProviderId}
-                    modelId={selectedModel}
-                    onChange={handleProviderModelChange}
-                    placeholder="选择模型"
-                    buttonVariant="outline"
-                    buttonSize="default"
-                    className="w-full justify-between"
-                    autoLoadFirst={true}
-                    modelTypes={['chat']}
-                    showModelDetails
-                    onProviderConfigChange={handleProviderConfigChange}
-                    onOpenConfig={handleOpenConfig}
-                  />
-                  {selectedProviderId && !providerConfigured && (
-                    <div className="flex items-center justify-between p-2 text-xs bg-yellow-50 border border-yellow-200 rounded-md">
-                      <span className="text-yellow-800">API 配置未完成</span>
-                      <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => providerSelectRef.current?.openConfig()}>
-                        去配置
+          <TabsContent value="ai" className="space-y-4 mt-0">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">翻译模型</Label>
+              <ProviderModelSelect
+                ref={providerSelectRef}
+                providerId={selectedProviderId}
+                modelId={selectedModel}
+                onChange={handleProviderModelChange}
+                placeholder="选择模型"
+                buttonVariant="outline"
+                buttonSize="default"
+                className="w-full justify-between"
+                autoLoadFirst={true}
+                modelTypes={['chat']}
+                showModelDetails
+                onProviderConfigChange={handleProviderConfigChange}
+                onOpenConfig={handleOpenConfig}
+              />
+              {selectedProviderId && !providerConfigured && (
+                <div className="flex items-center justify-between p-2 text-xs bg-yellow-50 border border-yellow-200 rounded-md">
+                  <span className="text-yellow-800">API 配置未完成</span>
+                  <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => providerSelectRef.current?.openConfig()}>
+                    去配置
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">目标语言</Label>
+              <Select value={targetLanguage} onValueChange={setTargetLanguage}>
+                <SelectTrigger>
+                  <SelectValue placeholder="选择目标语言" />
+                </SelectTrigger>
+                <SelectContent>
+                  {languageOptions.map((lang) => (
+                    <SelectItem key={lang.value} value={lang.value}>
+                      {lang.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* 术语表选择 */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">翻译术语</Label>
+                {selectedGlossaryIds.length > 0 && <span className="text-xs text-muted-foreground">已选 {selectedGlossaryIds.length} 个</span>}
+              </div>
+              <Popover open={glossaryPopoverOpen} onOpenChange={setGlossaryPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between h-9 font-normal">
+                    <span className="flex items-center gap-2">
+                      <TbBook className="h-4 w-4" />
+                      {selectedGlossaryIds.length > 0 ? (
+                        <span className="truncate">
+                          {glossaryItems
+                            .filter((g) => selectedGlossaryIds.includes(g.id))
+                            .map((g) => g.name)
+                            .join(', ')}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">选择术语表（可选）</span>
+                      )}
+                    </span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-72 p-0">
+                  <div className="p-2 border-b">
+                    <div className="text-sm font-medium">选择术语表</div>
+                    <div className="text-xs text-muted-foreground">选中的术语将用于指导翻译</div>
+                  </div>
+                  <ScrollArea className="h-[200px]">
+                    {glossaryItems.length === 0 ? (
+                      <div className="p-4 text-center text-sm text-muted-foreground">
+                        <p>暂无术语表</p>
+                        <p className="text-xs mt-1">去设置中添加</p>
+                      </div>
+                    ) : (
+                      <div className="p-1">
+                        {glossaryCategories.map((cat) => {
+                          const catItems = glossaryItems.filter((g) => g.categoryId === cat.id);
+                          if (catItems.length === 0) return null;
+                          return (
+                            <div key={cat.id} className="mb-2">
+                              <div className="px-2 py-1 text-xs font-medium text-muted-foreground">{cat.name}</div>
+                              {catItems.map((g) => (
+                                <TooltipProvider key={g.id}>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div
+                                        className={`flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer hover:bg-muted/50 ${selectedGlossaryIds.includes(g.id) ? 'bg-accent text-accent-foreground' : ''
+                                          }`}
+                                        onClick={() => toggleGlossarySelection(g.id)}
+                                      >
+                                        <input type="checkbox" checked={selectedGlossaryIds.includes(g.id)} onChange={() => toggleGlossarySelection(g.id)} className="h-3.5 w-3.5" />
+                                        <div className="flex-1 min-w-0">
+                                          <div className="text-sm truncate">{g.name}</div>
+                                          <div className="text-xs text-muted-foreground">{g.entries.length} 个术语</div>
+                                        </div>
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="right" className="max-w-xs">
+                                      <div className="text-xs">
+                                        {g.entries.slice(0, 5).map((e, i) => (
+                                          <div key={i}>
+                                            {e.source} → {e.target}
+                                          </div>
+                                        ))}
+                                        {g.entries.length > 5 && <div className="text-muted-foreground">...还有 {g.entries.length - 5} 个</div>}
+                                      </div>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              ))}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </ScrollArea>
+                  {selectedGlossaryIds.length > 0 && (
+                    <div className="p-2 border-t">
+                      <Button size="sm" variant="ghost" className="w-full h-7 text-xs" onClick={() => setSelectedGlossaryIds([])}>
+                        清除选择
                       </Button>
                     </div>
                   )}
-                </div>
+                </PopoverContent>
+              </Popover>
+              {mergedGlossaryEntries.length > 0 && <div className="text-xs text-muted-foreground">共 {mergedGlossaryEntries.length} 个术语将用于翻译</div>}
+            </div>
 
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">目标语言</Label>
-                  <Select value={targetLanguage} onValueChange={setTargetLanguage}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="选择目标语言" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {languageOptions.map((lang) => (
-                        <SelectItem key={lang.value} value={lang.value}>
-                          {lang.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+            <Button
+              className="w-full"
+              onClick={handleAITranslate}
+              disabled={!selectedProviderId || !selectedModel || !targetLanguage || isTranslating || subtitleEntries.length === 0 || !providerConfigured}
+            >
+              开始翻译
+            </Button>
+          </TabsContent>
 
-                {/* 术语表选择 */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium">翻译术语</Label>
-                    {selectedGlossaryIds.length > 0 && <span className="text-xs text-muted-foreground">已选 {selectedGlossaryIds.length} 个</span>}
-                  </div>
-                  <Popover open={glossaryPopoverOpen} onOpenChange={setGlossaryPopoverOpen}>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full justify-between h-9 font-normal">
-                        <span className="flex items-center gap-2">
-                          <TbBook className="h-4 w-4" />
-                          {selectedGlossaryIds.length > 0 ? (
-                            <span className="truncate">
-                              {glossaryItems
-                                .filter((g) => selectedGlossaryIds.includes(g.id))
-                                .map((g) => g.name)
-                                .join(', ')}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">选择术语表（可选）</span>
-                          )}
-                        </span>
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent align="start" className="w-72 p-0">
-                      <div className="p-2 border-b">
-                        <div className="text-sm font-medium">选择术语表</div>
-                        <div className="text-xs text-muted-foreground">选中的术语将用于指导翻译</div>
-                      </div>
-                      <ScrollArea className="h-[200px]">
-                        {glossaryItems.length === 0 ? (
-                          <div className="p-4 text-center text-sm text-muted-foreground">
-                            <p>暂无术语表</p>
-                            <p className="text-xs mt-1">去设置中添加</p>
-                          </div>
-                        ) : (
-                          <div className="p-1">
-                            {glossaryCategories.map((cat) => {
-                              const catItems = glossaryItems.filter((g) => g.categoryId === cat.id);
-                              if (catItems.length === 0) return null;
-                              return (
-                                <div key={cat.id} className="mb-2">
-                                  <div className="px-2 py-1 text-xs font-medium text-muted-foreground">{cat.name}</div>
-                                  {catItems.map((g) => (
-                                    <TooltipProvider key={g.id}>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <div
-                                            className={`flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer hover:bg-muted/50 ${selectedGlossaryIds.includes(g.id) ? 'bg-accent text-accent-foreground' : ''
-                                              }`}
-                                            onClick={() => toggleGlossarySelection(g.id)}
-                                          >
-                                            <input type="checkbox" checked={selectedGlossaryIds.includes(g.id)} onChange={() => toggleGlossarySelection(g.id)} className="h-3.5 w-3.5" />
-                                            <div className="flex-1 min-w-0">
-                                              <div className="text-sm truncate">{g.name}</div>
-                                              <div className="text-xs text-muted-foreground">{g.entries.length} 个术语</div>
-                                            </div>
-                                          </div>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="right" className="max-w-xs">
-                                          <div className="text-xs">
-                                            {g.entries.slice(0, 5).map((e, i) => (
-                                              <div key={i}>
-                                                {e.source} → {e.target}
-                                              </div>
-                                            ))}
-                                            {g.entries.length > 5 && <div className="text-muted-foreground">...还有 {g.entries.length - 5} 个</div>}
-                                          </div>
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    </TooltipProvider>
-                                  ))}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </ScrollArea>
-                      {selectedGlossaryIds.length > 0 && (
-                        <div className="p-2 border-t">
-                          <Button size="sm" variant="ghost" className="w-full h-7 text-xs" onClick={() => setSelectedGlossaryIds([])}>
-                            清除选择
-                          </Button>
-                        </div>
-                      )}
-                    </PopoverContent>
-                  </Popover>
-                  {mergedGlossaryEntries.length > 0 && <div className="text-xs text-muted-foreground">共 {mergedGlossaryEntries.length} 个术语将用于翻译</div>}
-                </div>
+          <TabsContent value="normal" className="space-y-4 mt-0">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">翻译服务</Label>
+              <Select value={selectedService} onValueChange={(value) => setSelectedService(value as TranslationService)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="选择翻译服务" />
+                </SelectTrigger>
+                <SelectContent>
+                  {translationServices.map((service) => (
+                    <SelectItem key={service.value} value={service.value}>
+                      {service.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-                <Button
-                  className="w-full"
-                  onClick={handleAITranslate}
-                  disabled={!selectedProviderId || !selectedModel || !targetLanguage || isTranslating || subtitleEntries.length === 0 || !providerConfigured}
-                >
-                  开始翻译
-                </Button>
-              </TabsContent>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">目标语言</Label>
+              <Select value={targetLanguage} onValueChange={setTargetLanguage}>
+                <SelectTrigger>
+                  <SelectValue placeholder="选择目标语言" />
+                </SelectTrigger>
+                <SelectContent>
+                  {languageOptions.map((lang) => (
+                    <SelectItem key={lang.value} value={lang.value}>
+                      {lang.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-              <TabsContent value="normal" className="space-y-4 mt-0">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">翻译服务</Label>
-                  <Select value={selectedService} onValueChange={(value) => setSelectedService(value as TranslationService)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="选择翻译服务" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {translationServices.map((service) => (
-                        <SelectItem key={service.value} value={service.value}>
-                          {service.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">目标语言</Label>
-                  <Select value={targetLanguage} onValueChange={setTargetLanguage}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="选择目标语言" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {languageOptions.map((lang) => (
-                        <SelectItem key={lang.value} value={lang.value}>
-                          {lang.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <Button size="sm" className="w-full" disabled={!selectedService || !targetLanguage || isTranslating || subtitleEntries.length === 0}>
-                  开始翻译
-                </Button>
-              </TabsContent>
-            </Tabs>
-          </PopoverContent>
-        </Popover>
-      )}
-    </div>
+            <Button size="sm" className="w-full" disabled={!selectedService || !targetLanguage || isTranslating || subtitleEntries.length === 0}>
+              开始翻译
+            </Button>
+          </TabsContent>
+        </Tabs>
+      </PopoverContent>
+    </Popover>
   );
 };

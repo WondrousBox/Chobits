@@ -4,8 +4,8 @@ import { debounce } from 'lodash-es';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TbList, TbTimeline } from 'react-icons/tb';
 
-import { aimTracksToTimelineTracks, indicesToIds, parseSegmentId, SubtitleTimeline, TimelineSegment } from '@/components/SubtitleTimeline';
 import { Button } from '@/components/ui/button';
+import { aimTracksToTimelineTracks, indicesToIds, parseSegmentId, SubtitleTimeline, TimelineSegment } from '@/pages/ResourcePage/components/Players/SubtitleTimeline';
 
 import type { ResourceItem } from '../../../types';
 import { SubtitleTranslator } from '../SubtitleTranslator';
@@ -201,17 +201,17 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
   // 构建轨道数据
   const tracks = useMemo(() => {
     const tracksArray: AimSegments[][] = [subtitleEntries];
-    
+
     // 添加已保存的翻译轨道
     if (translationTracks.length > 0) {
       tracksArray.push(...translationTracks);
     }
-    
+
     // 添加正在翻译的临时文本轨道
     if (typingTexts.length > 0) {
       tracksArray.push(typingTexts);
     }
-    
+
     return tracksArray;
   }, [subtitleEntries, translationTracks, typingTexts]);
 
@@ -298,27 +298,15 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
 
   return (
     <div className="flex h-full w-full flex-col text-muted-foreground">
-      <div className="flex items-center justify-between gap-2 border-b border-border/50 pb-2">
+      <div className="flex items-center justify-between gap-2 border-b border-border/50 py-1 px-2">
         {/* 左侧：视图切换按钮 */}
         <div className="flex items-center gap-1">
-          <Button
-            variant={viewMode === 'list' ? 'default' : 'ghost'}
-            size="sm"
-            className="gap-1.5"
-            onClick={() => setViewMode('list')}
-            title="列表视图"
-          >
-            <TbList className="w-4 h-4" />
+          <Button className="h-7" variant={viewMode === 'list' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('list')} title="列表视图">
+            <TbList />
             <span className="text-xs">列表</span>
           </Button>
-          <Button
-            variant={viewMode === 'timeline' ? 'default' : 'ghost'}
-            size="sm"
-            className="gap-1.5"
-            onClick={() => setViewMode('timeline')}
-            title="时间轴视图"
-          >
-            <TbTimeline className="w-4 h-4" />
+          <Button className="h-7" variant={viewMode === 'timeline' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('timeline')} title="时间轴视图">
+            <TbTimeline />
             <span className="text-xs">时间轴</span>
           </Button>
         </div>
@@ -348,19 +336,17 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
         />
       ) : (
         // 时间轴视图
-        <div className="flex-1 overflow-hidden pt-2">
-          <SubtitleTimeline
-            tracks={timelineTracks}
-            currentTime={currentTime}
-            onSeek={onSeek}
-            onSegmentTextChange={handleTimelineTextChange}
-            onSegmentTimeChange={handleTimelineTimeChange}
-            highlightIds={timelineHighlightIds}
-            disabled={isTranslating}
-            showRuler
-            showTrackLabels
-          />
-        </div>
+        <SubtitleTimeline
+          tracks={timelineTracks}
+          currentTime={currentTime}
+          onSeek={onSeek}
+          onSegmentTextChange={handleTimelineTextChange}
+          onSegmentTimeChange={handleTimelineTimeChange}
+          highlightIds={timelineHighlightIds}
+          disabled={isTranslating}
+          showRuler
+          showTrackLabels
+        />
       )}
     </div>
   );

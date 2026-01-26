@@ -275,11 +275,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
         )}
 
         {/* 右侧时间轴内容区域（可滚动） */}
-        <div
-          ref={scrollContainerRef}
-          className={clsx('flex-1 overflow-x-auto overflow-y-hidden', isDragging && 'cursor-grabbing')}
-          {...handlers}
-        >
+        <div ref={scrollContainerRef} className={clsx('flex-1 overflow-x-auto overflow-y-hidden', isDragging && 'cursor-grabbing')} {...handlers}>
           {/* 内容容器（设置总宽度） */}
           <div style={{ width: totalWidth, minWidth: '100%' }}>
             {/* 时间刻度尺 */}
