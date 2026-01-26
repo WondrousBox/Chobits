@@ -1,10 +1,18 @@
 import { useEffect, useState } from 'react';
-import { TbFolderOpen } from 'react-icons/tb';
+import { TbFolderOpen, TbLoader } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 import { maskPath } from '@/lib/helpers';
 
 import { SettingGroup, SettingItem, SettingPath } from './SettingComponents';
+
+interface MoveProgress {
+  current: number;
+  total: number;
+  currentFile: string;
+  percentage: number;
+}
 
 function FolderSetting(): JSX.Element {
   const [pluginsDir, setPluginsDir] = useState<string>('');
@@ -12,6 +20,8 @@ function FolderSetting(): JSX.Element {
   const [logsDir, setLogsDir] = useState<string>('');
   const [dataDir, setDataDir] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [moving, setMoving] = useState(false);
+  const [moveProgress, setMoveProgress] = useState<MoveProgress | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -87,6 +97,19 @@ function FolderSetting(): JSX.Element {
     };
   }, []);
 
+  // 监听移动进度事件
+  useEffect(() => {
+    const handleMoveProgress = (_event: any, progress: MoveProgress): void => {
+      setMoveProgress(progress);
+    };
+
+    window.ipcRenderer.on('plugin-resource:move-progress', handleMoveProgress);
+
+    return () => {
+      window.ipcRenderer.off('plugin-resource:move-progress', handleMoveProgress);
+    };
+  }, []);
+
   const openDatabaseLocation = async (): Promise<void> => {
     window.YUA.system['database:openLocation']();
   };
@@ -99,13 +122,28 @@ function FolderSetting(): JSX.Element {
     try {
       const r = await window.YUA.file['file:pickDir']({ allowCreate: true, defaultPath: pluginsDir });
       if (!r.canceled && r.path) {
-        const res = await window.YUA.pluginResource['plugin-resource:setPluginsDir']({ dir: r.path });
-        if (res.ok) {
-          setPluginsDir(r.path);
+        setMoving(true);
+        setMoveProgress(null);
+        try {
+          const res = await window.YUA.pluginResource['plugin-resource:setPluginsDir']({ dir: r.path });
+          if (res.ok) {
+            setPluginsDir(r.path);
+          } else {
+            // 显示错误信息
+            console.error('设置插件目录失败:', res.error);
+          }
+        } finally {
+          // 延迟清除进度，让用户看到完成状态
+          setTimeout(() => {
+            setMoving(false);
+            setMoveProgress(null);
+          }, 500);
         }
       }
-    } catch {
-      // ignore
+    } catch (error) {
+      setMoving(false);
+      setMoveProgress(null);
+      console.error('选择插件目录失败:', error);
     }
   };
 
@@ -177,16 +215,38 @@ function FolderSetting(): JSX.Element {
           loading ? (
             <span className="text-xs text-muted-foreground">加载中...</span>
           ) : (
-            <div className="flex items-center gap-2">
-              <SettingPath path={maskPath(pluginsDir)} placeholder="未设置" />
-              <Button size="sm" variant="outline" onClick={pickPluginsDir}>
-                选择
-              </Button>
-              {pluginsDir && (
-                <Button size="sm" variant="outline" onClick={openPluginsLocation}>
-                  <TbFolderOpen />
-                  打开
+            <div className="flex flex-col gap-2 w-full">
+              <div className="flex items-center gap-2">
+                <SettingPath path={maskPath(pluginsDir)} placeholder="未设置" />
+                <Button size="sm" variant="outline" onClick={pickPluginsDir} disabled={moving}>
+                  {moving ? (
+                    <>
+                      <TbLoader className="h-4 w-4 mr-1 animate-spin" />
+                      移动中
+                    </>
+                  ) : (
+                    '选择'
+                  )}
                 </Button>
+                {pluginsDir && !moving && (
+                  <Button size="sm" variant="outline" onClick={openPluginsLocation}>
+                    <TbFolderOpen />
+                    打开
+                  </Button>
+                )}
+              </div>
+              {moving && moveProgress && (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">
+                      {moveProgress.percentage >= 100 ? '移动完成' : moveProgress.currentFile ? `正在移动: ${moveProgress.currentFile}` : '正在移动文件...'}
+                    </span>
+                    <span className="text-muted-foreground font-mono">
+                      {moveProgress.current}/{moveProgress.total} ({moveProgress.percentage}%)
+                    </span>
+                  </div>
+                  <Progress value={moveProgress.percentage} className="h-2" />
+                </div>
               )}
             </div>
           )

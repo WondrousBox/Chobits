@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
 import type { ProxyAgent } from '@aim-packages/downloader';
 import { createDownloader } from '@aim-packages/downloader';
 import { windowManager } from '@aim-packages/window-manager';
@@ -338,9 +341,62 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
   });
 
   // 设置插件目录
-  ipcMain.handle('plugin-resource:setPluginsDir', async (_e, payload: { dir: string }) => {
-    pluginResourceManager.setPluginsDir(payload.dir);
-    return { ok: true };
+  ipcMain.handle('plugin-resource:setPluginsDir', async (event, payload: { dir: string }) => {
+    const oldDir = pluginResourceManager.getPluginsDir();
+    const newDir = payload.dir;
+
+    // 如果旧目录存在且与新目录不同，需要移动文件
+    if (oldDir && fs.existsSync(oldDir) && path.resolve(oldDir) !== path.resolve(newDir)) {
+      try {
+        // 发送进度事件到渲染进程
+        const sendProgress = (progress: { current: number; total: number; currentFile: string; percentage: number }): void => {
+          BrowserWindow.getAllWindows().forEach((w) => {
+            if (!w.isDestroyed()) {
+              try {
+                w.webContents.send('plugin-resource:move-progress', {
+                  current: progress.current,
+                  total: progress.total,
+                  currentFile: progress.currentFile,
+                  percentage: progress.percentage
+                });
+              } catch (error) {
+                console.error('[pluginResource] 发送移动进度失败:', error);
+              }
+            }
+          });
+        };
+
+        // 执行移动操作
+        await pluginResourceManager.movePluginsDir(oldDir, newDir, sendProgress);
+
+        // 发送完成事件
+        BrowserWindow.getAllWindows().forEach((w) => {
+          if (!w.isDestroyed()) {
+            try {
+              w.webContents.send('plugin-resource:move-progress', {
+                current: 100,
+                total: 100,
+                currentFile: '',
+                percentage: 100
+              });
+            } catch (error) {
+              console.error('[pluginResource] 发送移动完成事件失败:', error);
+            }
+          }
+        });
+
+        // 移动完成后，更新配置
+        pluginResourceManager.setPluginsDir(newDir);
+        return { ok: true };
+      } catch (error: any) {
+        console.error('[pluginResource] 移动插件目录失败:', error);
+        return { ok: false, error: error.message || String(error) };
+      }
+    } else {
+      // 直接设置新目录
+      pluginResourceManager.setPluginsDir(newDir);
+      return { ok: true };
+    }
   });
 
   // 获取并发数
