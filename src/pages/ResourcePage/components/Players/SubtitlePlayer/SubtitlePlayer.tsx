@@ -39,10 +39,16 @@ export interface SubtitlePlayerProps {
   tracks: AimSegments[][];
   /** 当前播放时间（秒），用于自动滚动和高亮 */
   currentTime?: number;
+  /** 是否跟随当前时间自动滚动到可见区域 */
+  followCurrentTime?: boolean;
   /** 点击时间戳时的跳转回调 */
   onSeek?: (time: number) => void;
   /** 当某一行文本变更后回调，返回新的 segments 数组（外层负责持久化等业务） */
   onSegmentsChange?: (segments: AimSegments[]) => void;
+  /** 外部处理：往前合并当前片段（与时间轴统一），主轨使用 trackId: 'track-0' */
+  onMergePrev?: (payload: { trackId: string; segmentIndex: number }) => void;
+  /** 外部处理：往后合并当前片段，主轨使用 trackId: 'track-0' */
+  onMergeNext?: (payload: { trackId: string; segmentIndex: number }) => void;
   /** 需要禁用交互的行索引集合（例如翻译中的片段） */
   disabledIndices?: Set<number> | number[];
   /** 需要高亮显示的行索引集合（例如当前翻译中的片段） */
@@ -127,11 +133,22 @@ const SummaryCard: React.FC<{
 );
 
 // 仅负责渲染和交互的字幕组件
-export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({ tracks, currentTime = 0, onSeek, onSegmentsChange, disabledIndices, highlightIndices, summaries }) => {
+export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
+  tracks,
+  currentTime = 0,
+  followCurrentTime = false,
+  onSeek,
+  onSegmentsChange,
+  onMergePrev,
+  onMergeNext,
+  disabledIndices,
+  highlightIndices,
+  summaries
+}) => {
   const activeRowRef = useRef<HTMLDivElement>(null);
 
   // 第一个轨道作为主轨道（添加空值保护）
-  const mainTrack = tracks?.[0] || [];
+  const mainTrack = useMemo(() => tracks?.[0] || [], [tracks]);
   // 其他轨道作为附加轨道
   const additionalTracks = tracks?.slice(1) || [];
 
@@ -154,20 +171,17 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({ tracks, currentT
 
   const handleMergePrev = useCallback(
     (index: number): void => {
-      if (!onSegmentsChange || index <= 0) return;
-      const merged = utils.mergeAimSegmentRange(mainTrack, index - 1, index);
-      onSegmentsChange(merged);
+      // 仅通过外部回调处理合并
+      onMergePrev?.({ trackId: 'track-0', segmentIndex: index });
     },
-    [mainTrack, onSegmentsChange]
+    [onMergePrev]
   );
 
   const handleMergeNext = useCallback(
     (index: number): void => {
-      if (!onSegmentsChange) return;
-      const merged = utils.mergeAimSegmentRange(mainTrack, index, index + 1);
-      onSegmentsChange(merged);
+      onMergeNext?.({ trackId: 'track-0', segmentIndex: index });
     },
-    [mainTrack, onSegmentsChange]
+    [onMergeNext]
   );
 
   // 根据当前时间找到对应的字幕索引（基于主轨道）
@@ -220,6 +234,7 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({ tracks, currentT
 
   // 当高亮字幕改变时，自动滚动到该位置
   useEffect(() => {
+    if (!followCurrentTime) return;
     if (activeIndex >= 0 && activeRowRef.current) {
       const rowElement = activeRowRef.current;
       // 查找 ScrollArea 的 viewport（从行元素向上查找）
@@ -248,7 +263,7 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({ tracks, currentT
         });
       }
     }
-  }, [activeIndex]);
+  }, [activeIndex, followCurrentTime]);
 
   return (
     <ScrollArea className="h-full w-full text-muted-foreground">

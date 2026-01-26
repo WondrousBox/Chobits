@@ -1,5 +1,8 @@
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { TbArrowMerge } from 'react-icons/tb';
+
+import { Button } from '@/components/ui/button';
 
 import { DEFAULT_CONFIG, TimelineSegment } from '../types';
 
@@ -9,6 +12,8 @@ interface TimelineSegmentBlockProps {
   trackColor?: string;
   trackHeight: number;
   pixelsPerSecond: number;
+  /** 该片段在轨道中的索引 */
+  segmentIndex?: number;
   /** 是否为当前播放的片段 */
   isActive?: boolean;
   /** 是否高亮 */
@@ -29,6 +34,8 @@ interface TimelineSegmentBlockProps {
   onDragStart?: (segment: TimelineSegment, trackId: string) => void;
   /** 拖拽结束 */
   onDragEnd?: (segment: TimelineSegment, trackId: string) => void;
+  /** 往前合并（统一回调签名） */
+  onMergePrev?: (payload: { trackId: string; segmentIndex: number }) => void;
 }
 
 type DragMode = 'none' | 'move' | 'resize-left' | 'resize-right';
@@ -52,12 +59,14 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
   isHighlighted = false,
   isSelected = false,
   disabled = false,
+  segmentIndex,
   onClick,
   onDoubleClick,
   onTextChange,
   onTimeChange,
   onDragStart,
-  onDragEnd
+  onDragEnd,
+  onMergePrev
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(segment.text);
@@ -72,6 +81,31 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
   const left = segment.startTime * pixelsPerSecond;
   const segmentWidth = Math.max(DEFAULT_CONFIG.SEGMENT_MIN_WIDTH, (segment.endTime - segment.startTime) * pixelsPerSecond);
 
+  // 背景色透明度：非激活时降低不透明度，激活时恢复更实
+  const toAlpha = useCallback((color: string | undefined, alpha: number): string => {
+    if (!color) return `hsl(var(--primary) / ${alpha})`;
+
+    // Handle hsl(...) → hsla(...)
+    const hslMatch = color.match(/^hsl\(([^)]+)\)$/i);
+    if (hslMatch) {
+      const inner = hslMatch[1];
+      const withoutAlpha = inner.split('/')[0].trim();
+      return `hsla(${withoutAlpha}, ${alpha})`;
+    }
+
+    // Handle hsla(...) by replacing alpha
+    const hslaMatch = color.match(/^hsla\(([^)]+)\)$/i);
+    if (hslaMatch) {
+      const parts = hslaMatch[1].split(',').map((p) => p.trim());
+      if (parts.length >= 3) {
+        return `hsla(${parts[0]}, ${parts[1]}, ${parts[2]}, ${alpha})`;
+      }
+    }
+
+    return color;
+  }, []);
+  const backgroundColor = toAlpha(trackColor, isActive ? 0.9 : 0.35);
+
   // 边缘拖拽区域宽度
   const EDGE_WIDTH = 6;
 
@@ -82,13 +116,6 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
       inputRef.current.select();
     }
   }, [isEditing]);
-
-  // 当 segment.text 变化时更新编辑文本
-  useEffect(() => {
-    if (!isEditing) {
-      setEditText(segment.text);
-    }
-  }, [segment.text, isEditing]);
 
   // 处理双击进入编辑
   const handleDoubleClick = useCallback(
@@ -128,19 +155,16 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
   );
 
   // 判断鼠标是否在边缘
-  const getEdgeFromPosition = useCallback(
-    (clientX: number): DragMode => {
-      if (!blockRef.current) return 'move';
+  const getEdgeFromPosition = useCallback((clientX: number): DragMode => {
+    if (!blockRef.current) return 'move';
 
-      const rect = blockRef.current.getBoundingClientRect();
-      const relativeX = clientX - rect.left;
+    const rect = blockRef.current.getBoundingClientRect();
+    const relativeX = clientX - rect.left;
 
-      if (relativeX <= EDGE_WIDTH) return 'resize-left';
-      if (relativeX >= rect.width - EDGE_WIDTH) return 'resize-right';
-      return 'move';
-    },
-    []
-  );
+    if (relativeX <= EDGE_WIDTH) return 'resize-left';
+    if (relativeX >= rect.width - EDGE_WIDTH) return 'resize-right';
+    return 'move';
+  }, []);
 
   // 处理鼠标按下
   const handleMouseDown = useCallback(
@@ -165,7 +189,7 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
   useEffect(() => {
     if (dragMode === 'none') return;
 
-    const handleMouseMove = (e: MouseEvent) => {
+    const handleMouseMove = (e: MouseEvent): void => {
       const deltaX = e.clientX - dragStartX;
       const deltaTime = deltaX / pixelsPerSecond;
 
@@ -194,7 +218,7 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
       onTimeChange?.(segment, trackId, newStartTime, newEndTime);
     };
 
-    const handleMouseUp = () => {
+    const handleMouseUp = (): void => {
       setDragMode('none');
       onDragEnd?.(segment, trackId);
     };
@@ -246,7 +270,7 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
       ref={blockRef}
       data-segment={segment.id}
       className={clsx(
-        'absolute flex items-center transition-shadow duration-100 overflow-visible',
+        'group absolute flex items-center transition-shadow duration-100 overflow-visible',
         'border border-transparent hover:border-foreground/20',
         isDeleted && 'opacity-40',
         isActive && 'ring-2 ring-primary ring-offset-1 ring-offset-background',
@@ -260,7 +284,7 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
         width: segmentWidth,
         top: DEFAULT_CONFIG.TRACK_GAP / 2,
         height: trackHeight,
-        backgroundColor: trackColor ?? 'hsl(var(--primary) / 0.2)',
+        backgroundColor,
         borderRadius: DEFAULT_CONFIG.SEGMENT_BORDER_RADIUS,
         cursor: isEditing ? 'text' : dragMode !== 'none' ? 'grabbing' : 'grab'
       }}
@@ -275,34 +299,39 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
       }}
       title={isEditing ? undefined : segment.text}
     >
+      {/* 往前合并按钮（悬浮显示，仅当不是第一个片段时） */}
+      {!disabled && !isEditing && (segmentIndex ?? 0) > 0 && (
+        <div className="absolute left-0 top-0 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-30">
+          <Button
+            size="icon"
+            variant="outline"
+            className="w-6 h-6 rounded-full p-0 bg-background shadow-sm hover:bg-accent"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (typeof segmentIndex === 'number') {
+                onMergePrev?.({ trackId, segmentIndex });
+              }
+            }}
+            title="合并到上一条"
+          >
+            <TbArrowMerge className="-rotate-90" />
+          </Button>
+        </div>
+      )}
+
       {/* 左边缘拖拽区域指示器 */}
-      <div
-        className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l opacity-0 hover:opacity-100 bg-foreground/20 transition-opacity"
-        style={{ cursor: 'ew-resize' }}
-      />
+      <div className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l opacity-0 hover:opacity-100 bg-foreground/20 transition-opacity" style={{ cursor: 'ew-resize' }} />
 
       {/* 右边缘拖拽区域指示器 */}
-      <div
-        className="absolute right-0 top-0 bottom-0 w-1.5 rounded-r opacity-0 hover:opacity-100 bg-foreground/20 transition-opacity"
-        style={{ cursor: 'ew-resize' }}
-      />
+      <div className="absolute right-0 top-0 bottom-0 w-1.5 rounded-r opacity-0 hover:opacity-100 bg-foreground/20 transition-opacity" style={{ cursor: 'ew-resize' }} />
 
       {/* 内容区域 */}
       {isEditing ? (
         // 编辑模式：显示完整文字，可编辑
-        <div
-          className="absolute inset-0 z-30"
-          style={{ left: -1, right: -1, top: -1, bottom: -1 }}
-          onClick={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-        >
+        <div className="absolute inset-0 z-30" style={{ left: -1, right: -1, top: -1, bottom: -1 }} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
           <textarea
             ref={inputRef}
-            className={clsx(
-              'w-full h-full px-1.5 py-0.5 text-xs leading-tight resize-none',
-              'bg-background border-2 border-primary rounded outline-none',
-              'text-foreground'
-            )}
+            className={clsx('w-full h-full px-1.5 py-0.5 text-xs leading-tight resize-none', 'bg-background border-2 border-primary rounded outline-none', 'text-foreground')}
             style={{
               minWidth: Math.max(segmentWidth, 150),
               minHeight: trackHeight + 20

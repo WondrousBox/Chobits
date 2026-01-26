@@ -79,6 +79,8 @@ export interface TimelineCallbacks {
   onSegmentTextChange?: (segment: TimelineSegment, trackId: string, newText: string) => void;
   /** 片段时间变更（拖拽移动或调整边缘） */
   onSegmentTimeChange?: (segment: TimelineSegment, trackId: string, newStartTime: number, newEndTime: number) => void;
+  /** 往前合并（统一回调签名） */
+  onMergePrev?: (payload: { trackId: string; segmentIndex: number }) => void;
   /** 选中状态变化 */
   onSelectionChange?: (selection: SelectionState) => void;
   /** 时间跳转（点击时间轴空白处） */
@@ -97,6 +99,8 @@ export interface SubtitleTimelineProps extends TimelineCallbacks {
   duration?: number;
   /** 当前播放时间（秒） */
   currentTime?: number;
+  /** 是否跟随当前时间自动调整可见区域 */
+  followCurrentTime?: boolean;
   /** 初始视口状态 */
   initialViewport?: Partial<ViewportState>;
   /** 是否显示时间刻度 */

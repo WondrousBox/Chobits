@@ -27,6 +27,8 @@ interface TimelineTrackViewProps {
   onSegmentTextChange?: (segment: TimelineSegment, trackId: string, newText: string) => void;
   /** 片段时间变更 */
   onSegmentTimeChange?: (segment: TimelineSegment, trackId: string, newStartTime: number, newEndTime: number) => void;
+  /** 往前合并（统一回调签名） */
+  onMergePrev?: (payload: { trackId: string; segmentIndex: number }) => void;
   /** 禁用交互 */
   disabled?: boolean;
   className?: string;
@@ -53,6 +55,7 @@ export const TimelineTrackView: React.FC<TimelineTrackViewProps> = ({
   onSegmentDoubleClick,
   onSegmentTextChange,
   onSegmentTimeChange,
+  onMergePrev,
   disabled = false,
   className
 }) => {
@@ -142,7 +145,7 @@ export const TimelineTrackView: React.FC<TimelineTrackViewProps> = ({
       <div className="absolute inset-0 bg-background" />
 
       {/* 片段渲染 */}
-      {visibleSegments.map(({ segment }) => (
+      {visibleSegments.map(({ segment, index }) => (
         <TimelineSegmentBlock
           key={segment.id}
           segment={segment}
@@ -150,6 +153,7 @@ export const TimelineTrackView: React.FC<TimelineTrackViewProps> = ({
           trackColor={track.color}
           trackHeight={height}
           pixelsPerSecond={pixelsPerSecond}
+          segmentIndex={index}
           isActive={segment.id === activeSegmentId}
           isHighlighted={highlightIds?.has(segment.id)}
           isSelected={selectedIds?.has(segment.id)}
@@ -158,6 +162,7 @@ export const TimelineTrackView: React.FC<TimelineTrackViewProps> = ({
           onDoubleClick={onSegmentDoubleClick}
           onTextChange={onSegmentTextChange}
           onTimeChange={onSegmentTimeChange}
+          onMergePrev={onMergePrev}
         />
       ))}
 

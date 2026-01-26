@@ -311,14 +311,14 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
   }, [selectedProviderId, selectedModel, targetLanguage, subtitleEntries, executeAITranslation]);
 
   return isTranslating ? (
-    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onStopTranslation}>
+    <Button size="sm" variant="outline" onClick={onStopTranslation}>
       <TbPlayerStop className="animate-pulse" />
       停止翻译<span className="font-mono">({translationProgress}%)</span>
     </Button>
   ) : (
     <Popover open={isTranslationPopoverOpen} onOpenChange={setIsTranslationPopoverOpen}>
       <PopoverTrigger asChild>
-        <Button size="sm" variant="ghost" className="h-7 text-xs">
+        <Button size="sm" variant="ghost">
           <TbLanguage />
           翻译
         </Button>

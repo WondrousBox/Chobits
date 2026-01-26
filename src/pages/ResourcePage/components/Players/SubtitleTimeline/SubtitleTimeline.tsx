@@ -22,6 +22,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   tracks,
   duration: propDuration,
   currentTime,
+  followCurrentTime = false,
   initialViewport,
   showRuler = true,
   showTrackLabels = true,
@@ -35,6 +36,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   onSegmentDoubleClick,
   onSegmentTextChange,
   onSegmentTimeChange,
+  onMergePrev,
   onSeek,
   onViewportChange
 }) => {
@@ -208,7 +210,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
 
   // 当前时间改变时，检查是否需要滚动到可见区域
   useEffect(() => {
-    if (currentTime === undefined) return;
+    if (!followCurrentTime || currentTime === undefined) return;
 
     // 如果当前时间在可视区域外，自动滚动
     const currentX = currentTime * pixelsPerSecond;
@@ -219,7 +221,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
     if (currentX < viewStart || currentX > viewEnd) {
       scrollToTime(currentTime);
     }
-  }, [currentTime, pixelsPerSecond, scrollLeft, timelineContentWidth, scrollToTime]);
+  }, [currentTime, followCurrentTime, pixelsPerSecond, scrollLeft, timelineContentWidth, scrollToTime]);
 
   // 缩放控制按钮
   const handleZoomIn = useCallback(() => {
@@ -305,6 +307,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                   width={totalWidth}
                   currentTime={currentTime}
                   highlightIds={highlightIds}
+                  onMergePrev={onMergePrev}
                   onSegmentClick={handleSegmentClick}
                   onSegmentDoubleClick={handleSegmentDoubleClick}
                   onSegmentTextChange={onSegmentTextChange}
