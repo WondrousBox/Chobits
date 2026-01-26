@@ -1,10 +1,10 @@
-/* eslint-disable react-hooks/set-state-in-effect */
-import { AimSegments, parser, tools } from '@aim-packages/subtitle';
+import { AimSegments, parser, tools, utils } from '@aim-packages/subtitle';
 import { debounce } from 'lodash-es';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbList, TbTimeline } from 'react-icons/tb';
+import { TbCrosshair, TbList, TbTimeline } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { aimTracksToTimelineTracks, indicesToIds, parseSegmentId, SubtitleTimeline, TimelineSegment } from '@/pages/ResourcePage/components/Players/SubtitleTimeline';
 
 import type { ResourceItem } from '../../../types';
@@ -25,6 +25,7 @@ interface ResourceSubtitlePlayerProps {
   resource: ResourceItem;
   currentTime?: number; // 当前播放时间（秒）
   onSeek?: (time: number) => void; // 跳转到指定时间的回调
+  followCurrentTime?: boolean; // 是否跟随时间自动滚动
 }
 
 /**
@@ -32,12 +33,18 @@ interface ResourceSubtitlePlayerProps {
  * - 翻译结果由主进程自动保存，渲染进程只负责展示
  * - 用户手动编辑字幕时，通过渲染进程保存
  */
-export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ resource, currentTime = 0, onSeek }) => {
+export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ resource, currentTime = 0, onSeek, followCurrentTime = false }) => {
   const [subtitleEntries, setSubtitleEntries] = useState<AimSegments[]>([]);
   const [translationTracks, setTranslationTracks] = useState<AimSegments[][]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [subtitleFormat, setSubtitleFormat] = useState<SubtitleFormat>('srt');
   const [viewMode, setViewMode] = useState<'list' | 'timeline'>('list'); // 视图模式：列表或时间轴
+  const [followTime, setFollowTime] = useState<boolean>(followCurrentTime);
+
+  // 外部值变化时同步本地开关
+  useEffect(() => {
+    setFollowTime(followCurrentTime);
+  }, [followCurrentTime]);
 
   // 保持 subtitleEntries 的引用始终是最新的
   const subtitleEntriesRef = useRef<AimSegments[]>([]);
@@ -224,7 +231,8 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     if (typingTexts.length > 0) {
       labels.push('翻译中');
     }
-    return aimTracksToTimelineTracks(tracks, labels);
+    // 类型适配：时间轴工具内部定义的 AimSegments 结构与外部包的类型略有差异，运行时兼容，这里进行类型断言
+    return aimTracksToTimelineTracks(tracks as any, labels);
   }, [tracks, translationTracks, typingTexts]);
 
   // 时间轴高亮的片段 ID
@@ -296,30 +304,67 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     [subtitleEntries, resource.id, isLoading, debouncedSave, subtitleFormat]
   );
 
+  // 统一：往前合并（仅主轨道 track-0）
+  const handleMergePrev = useCallback(
+    ({ trackId, segmentIndex }: { trackId: string; segmentIndex: number }) => {
+      if (trackId !== 'track-0' || segmentIndex <= 0) return;
+      const merged = utils.mergeAimSegmentRange(subtitleEntries, segmentIndex - 1, segmentIndex);
+      setSubtitleEntries(merged);
+      if (resource.id && !isLoading) {
+        debouncedSave(resource.id, merged, subtitleFormat);
+      }
+    },
+    [subtitleEntries, resource.id, isLoading, debouncedSave, subtitleFormat]
+  );
+
+  // 统一：往后合并（仅主轨道 track-0）
+  const handleMergeNext = useCallback(
+    ({ trackId, segmentIndex }: { trackId: string; segmentIndex: number }) => {
+      if (trackId !== 'track-0') return;
+      if (segmentIndex < 0 || segmentIndex >= subtitleEntries.length - 1) return;
+
+      const merged = utils.mergeAimSegmentRange(subtitleEntries, segmentIndex, segmentIndex + 1);
+      setSubtitleEntries(merged);
+      if (resource.id && !isLoading) {
+        debouncedSave(resource.id, merged, subtitleFormat);
+      }
+    },
+    [subtitleEntries, resource.id, isLoading, debouncedSave, subtitleFormat]
+  );
+
   return (
     <div className="flex h-full w-full flex-col text-muted-foreground">
-      <div className="flex items-center justify-between gap-2 border-b border-border/50 py-1 px-2">
+      <div className="flex items-center justify-between gap-2 border-b border-border/50 px-2">
         {/* 左侧：视图切换按钮 */}
         <div className="flex items-center gap-1">
-          <Button className="h-7" variant={viewMode === 'list' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('list')} title="列表视图">
+          <Button variant={viewMode === 'list' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('list')} title="列表视图">
             <TbList />
             <span className="text-xs">列表</span>
           </Button>
-          <Button className="h-7" variant={viewMode === 'timeline' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('timeline')} title="时间轴视图">
+          <Button variant={viewMode === 'timeline' ? 'default' : 'ghost'} size="sm" onClick={() => setViewMode('timeline')} title="时间轴视图">
             <TbTimeline />
             <span className="text-xs">时间轴</span>
           </Button>
         </div>
-
         {/* 右侧：翻译按钮和配置 */}
-        <SubtitleTranslator
-          subtitleEntries={subtitleEntries}
-          resourceId={resource.id}
-          isTranslating={isTranslating}
-          translationProgress={translationProgress}
-          onStopTranslation={stopTranslation}
-          onTranslationStart={handleTranslationStart}
-        />
+        <div className="flex items-center">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button className="h-8 w-8 p-0" variant={followTime ? 'default' : 'ghost'} size="sm" onClick={() => setFollowTime((prev) => !prev)}>
+                <TbCrosshair />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">跟随滚动</TooltipContent>
+          </Tooltip>
+          <SubtitleTranslator
+            subtitleEntries={subtitleEntries}
+            resourceId={resource.id}
+            isTranslating={isTranslating}
+            translationProgress={translationProgress}
+            onStopTranslation={stopTranslation}
+            onTranslationStart={handleTranslationStart}
+          />
+        </div>
       </div>
 
       {/* 内容区域：根据视图模式切换 */}
@@ -328,6 +373,9 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
         <SubtitlePlayer
           tracks={tracks}
           currentTime={currentTime}
+          followCurrentTime={followTime}
+          onMergePrev={handleMergePrev}
+          onMergeNext={handleMergeNext}
           onSeek={onSeek}
           onSegmentsChange={handleSegmentsChange}
           disabledIndices={translatingChunks}
@@ -339,9 +387,11 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
         <SubtitleTimeline
           tracks={timelineTracks}
           currentTime={currentTime}
+          followCurrentTime={followTime}
           onSeek={onSeek}
           onSegmentTextChange={handleTimelineTextChange}
           onSegmentTimeChange={handleTimelineTimeChange}
+          onMergePrev={handleMergePrev}
           highlightIds={timelineHighlightIds}
           disabled={isTranslating}
           showRuler
