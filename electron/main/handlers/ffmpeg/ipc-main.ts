@@ -1,5 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import fs from 'node:fs';
+import crypto from 'node:crypto';
 
 import type { BrowserWindow } from 'electron';
 import { ipcMain } from 'electron';
@@ -205,6 +207,145 @@ export function initFFmpegHandlers(win: BrowserWindow): void {
             console.error('[AI抠图] 图片处理错误:', error);
             reject(error);
           });
+      });
+    }
+  );
+
+  /**
+   * 从音频/视频文件中提取波形数据
+   * 返回指定数量的采样点（峰值数据），用于高性能渲染
+   * 支持缓存：计算后的波形数据会保存到文件，下次直接读取
+   * @param arg.inputPath - 输入文件路径（音频或视频）
+   * @param arg.samplesCount - 需要的采样点数量（默认 1000）
+   */
+  ipcMain.handle(
+    'extractWaveform',
+    async (
+      _evt,
+      arg: {
+        inputPath: string;
+        samplesCount?: number;
+      }
+    ) => {
+      const input = arg.inputPath;
+      const samplesCount = arg.samplesCount || 1000;
+
+      if (!input) throw new Error('inputPath 必须指定');
+
+      // 生成缓存文件路径
+      const inputDir = path.dirname(input);
+      const inputBasename = path.basename(input);
+      const inputExt = path.extname(input);
+      const inputNameWithoutExt = inputBasename.slice(0, -inputExt.length);
+
+      // 使用文件名和采样数量生成缓存标识
+      const cacheKey = crypto.createHash('md5').update(`${inputBasename}-${samplesCount}`).digest('hex');
+      const cacheFileName = `.${inputNameWithoutExt}.waveform-${cacheKey}.json`;
+      const cachePath = path.join(inputDir, cacheFileName);
+
+      // 检查缓存是否存在且有效
+      try {
+        if (fs.existsSync(cachePath)) {
+          const cacheData = JSON.parse(fs.readFileSync(cachePath, 'utf-8'));
+
+          // 验证缓存数据的有效性
+          if (
+            cacheData.peaks &&
+            Array.isArray(cacheData.peaks) &&
+            typeof cacheData.duration === 'number' &&
+            cacheData.samplesCount === samplesCount
+          ) {
+            console.log('[ffmpeg] 使用缓存的波形数据:', cachePath);
+            return { peaks: cacheData.peaks, duration: cacheData.duration };
+          }
+        }
+      } catch (err) {
+        console.warn('[ffmpeg] 读取波形缓存失败，将重新计算:', err);
+      }
+
+      // 缓存不存在或无效，重新计算
+      return await new Promise<{ peaks: number[]; duration: number }>((resolve, reject) => {
+        try {
+          // 首先获取音频时长
+          ffmpeg.ffprobe(input, (err, metadata) => {
+            if (err) {
+              console.error('[ffmpeg] ffprobe error:', err);
+              reject(err);
+              return;
+            }
+
+            const duration = metadata.format.duration || 0;
+            console.log('[ffmpeg] Audio duration:', duration);
+
+            // 使用 ffmpeg 提取音频波形数据
+            // 输出格式：每个采样点的峰值（-1 到 1 的浮点数）
+            const buffers: Buffer[] = [];
+
+            const cmd = ffmpeg(input)
+              .audioChannels(1) // 转为单声道
+              .audioFrequency(8000) // 降采样到 8kHz，减少数据量
+              .format('f32le') // 32位浮点 PCM，小端序
+              .noVideo()
+              .on('start', (commandLine: string) => {
+                console.log('[ffmpeg] waveform extraction start:', commandLine);
+              })
+              .on('error', (error: any) => {
+                console.error('[ffmpeg] waveform extraction error:', error);
+                reject(error);
+              })
+              .on('end', () => {
+                console.log('[ffmpeg] waveform extraction end');
+
+                // 合并所有 buffer
+                const fullBuffer = Buffer.concat(buffers);
+                const floatArray = new Float32Array(fullBuffer.buffer, fullBuffer.byteOffset, fullBuffer.length / 4);
+
+                // 将原始采样降采样到指定数量的峰值
+                const peaks: number[] = [];
+                const samplesPerPeak = Math.max(1, Math.floor(floatArray.length / samplesCount));
+
+                for (let i = 0; i < samplesCount; i++) {
+                  const start = i * samplesPerPeak;
+                  const end = Math.min(start + samplesPerPeak, floatArray.length);
+
+                  let maxVal = 0;
+                  for (let j = start; j < end; j++) {
+                    const absVal = Math.abs(floatArray[j]);
+                    if (absVal > maxVal) maxVal = absVal;
+                  }
+
+                  peaks.push(maxVal);
+                }
+
+                const result = { peaks, duration };
+
+                // 保存到缓存文件
+                try {
+                  const cacheData = {
+                    peaks,
+                    duration,
+                    samplesCount,
+                    createdAt: Date.now(),
+                    version: 1
+                  };
+                  fs.writeFileSync(cachePath, JSON.stringify(cacheData), 'utf-8');
+                  console.log('[ffmpeg] 波形数据已缓存到:', cachePath);
+                } catch (cacheErr) {
+                  console.warn('[ffmpeg] 保存波形缓存失败:', cacheErr);
+                  // 缓存保存失败不影响返回结果
+                }
+
+                resolve(result);
+              });
+
+            const stream = cmd.pipe() as any;
+            stream.on('data', (chunk: Buffer) => {
+              buffers.push(chunk);
+            });
+          });
+        } catch (e) {
+          reject(e);
+        }
       });
     }
   );

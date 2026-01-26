@@ -11,7 +11,10 @@ import { useResourceTabContext } from './ResourceTabContext';
  * 用于显示视频资源的字幕内容
  */
 const SubtitleTab: React.FC = () => {
-  const { subtitleList, activeSubtitle, setActiveSubtitle, currentTime, mediaPlayerRef } = useResourceTabContext();
+  const { resource, subtitleList, activeSubtitle, setActiveSubtitle, currentTime, mediaPlayerRef } = useResourceTabContext();
+
+  // 获取音频/视频文件路径（用于波形显示）
+  const audioPath = resource?.filePath;
 
   if (subtitleList.length === 0) {
     return <div className="h-full flex items-center justify-center text-muted-foreground text-sm">暂无字幕</div>;
@@ -54,6 +57,7 @@ const SubtitleTab: React.FC = () => {
                 mediaPlayerRef.current.seekTo(time);
               }
             }}
+            audioPath={audioPath}
           />
         )}
       </div>

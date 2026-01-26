@@ -119,6 +119,10 @@ export interface SubtitleTimelineProps extends TimelineCallbacks {
   highlightIds?: Set<string> | string[];
   /** 自定义类名 */
   className?: string;
+  /** 音频文件路径（用于显示波形轨道） */
+  audioPath?: string;
+  /** 是否显示波形轨道 */
+  showWaveform?: boolean;
 }
 
 /**
@@ -134,9 +138,9 @@ export const DEFAULT_CONFIG = {
   /** 轨道标签宽度 */
   TRACK_LABEL_WIDTH: 80,
   /** 默认每秒像素数 */
-  DEFAULT_PIXELS_PER_SECOND: 50,
+  DEFAULT_PIXELS_PER_SECOND: 200,
   /** 最小每秒像素数 */
-  MIN_PIXELS_PER_SECOND: 5,
+  MIN_PIXELS_PER_SECOND: 20,
   /** 最大每秒像素数 */
   MAX_PIXELS_PER_SECOND: 500,
   /** 片段最小宽度（像素） */

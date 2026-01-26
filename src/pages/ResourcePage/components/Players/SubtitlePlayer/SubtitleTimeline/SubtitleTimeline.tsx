@@ -1,10 +1,11 @@
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbMinus, TbPlus, TbViewportWide } from 'react-icons/tb';
+import { TbMinus, TbPlus } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
+import { Slider } from '@/components/ui/slider';
 
-import { TimelineTrackView, TimeRuler, TrackLabel } from './components';
+import { SeekBar, TimelineTrackView, TimeRuler, TrackLabel, WaveformTrack } from './components';
 import { useTimelineInteraction } from './hooks';
 import { DEFAULT_CONFIG, SubtitleTimelineProps, TRACK_COLORS, ViewportState } from './types';
 
@@ -32,6 +33,8 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   disabled = false,
   highlightIds: propHighlightIds,
   className,
+  audioPath,
+  showWaveform = true,
   onSegmentClick,
   onSegmentDoubleClick,
   onSegmentTextChange,
@@ -45,8 +48,11 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   const [containerWidth, setContainerWidth] = useState(800);
   const [scrollLeft, setScrollLeft] = useState(0);
 
+  // 记录初始的 pixelsPerSecond 作为滑块的最小值（使用普通常量而不是 ref）
+  const initialPixelsPerSecondValue = initialViewport?.pixelsPerSecond ?? DEFAULT_CONFIG.DEFAULT_PIXELS_PER_SECOND;
+
   // 缩放级别（每秒像素数）
-  const [pixelsPerSecond, setPixelsPerSecond] = useState(initialViewport?.pixelsPerSecond ?? DEFAULT_CONFIG.DEFAULT_PIXELS_PER_SECOND);
+  const [pixelsPerSecond, setPixelsPerSecond] = useState(initialPixelsPerSecondValue);
 
   // 转换高亮 ID 为 Set
   const highlightIds = useMemo(() => {
@@ -150,6 +156,15 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
     [scrollLeft, timelineContentWidth, pixelsPerSecond, minPixelsPerSecond, maxPixelsPerSecond]
   );
 
+  // 计算"适配全部"时的 pixelsPerSecond（作为滑块的最大值）
+  const fitAllPixelsPerSecond = useMemo(() => {
+    return Math.max(minPixelsPerSecond, Math.min(maxPixelsPerSecond, timelineContentWidth / duration));
+  }, [duration, timelineContentWidth, minPixelsPerSecond, maxPixelsPerSecond]);
+
+  // 滑块的范围：从初始值到适配全部值
+  const sliderMin = Math.min(initialPixelsPerSecondValue, fitAllPixelsPerSecond);
+  const sliderMax = Math.max(initialPixelsPerSecondValue, fitAllPixelsPerSecond);
+
   // 平移处理（用于拖拽）
   const handlePan = useCallback((deltaPixels: number) => {
     const scrollContainer = scrollContainerRef.current;
@@ -158,16 +173,36 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
     scrollContainer.scrollLeft += deltaPixels;
   }, []);
 
-  // 适配全部
+  // 通过滑块调整缩放
+  const handleSliderChange = useCallback(
+    (value: number[]) => {
+      const newPps = value[0];
+      setPixelsPerSecond(newPps);
+
+      // 保持当前视口中心点位置不变
+      const scrollContainer = scrollContainerRef.current;
+      if (scrollContainer) {
+        const centerTime = (scrollLeft + timelineContentWidth / 2) / pixelsPerSecond;
+        const newScrollLeft = centerTime * newPps - timelineContentWidth / 2;
+
+        requestAnimationFrame(() => {
+          scrollContainer.scrollLeft = Math.max(0, newScrollLeft);
+        });
+      }
+    },
+    [scrollLeft, timelineContentWidth, pixelsPerSecond]
+  );
+
+  // 适配全部（保留此函数以便将来可能需要的快捷方式）
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const fitAll = useCallback(() => {
-    const newPps = Math.max(minPixelsPerSecond, Math.min(maxPixelsPerSecond, timelineContentWidth / duration));
-    setPixelsPerSecond(newPps);
+    setPixelsPerSecond(fitAllPixelsPerSecond);
 
     const scrollContainer = scrollContainerRef.current;
     if (scrollContainer) {
       scrollContainer.scrollLeft = 0;
     }
-  }, [duration, timelineContentWidth, minPixelsPerSecond, maxPixelsPerSecond]);
+  }, [fitAllPixelsPerSecond]);
 
   // 交互管理
   const { isDragging, handlers, handleSegmentClick, handleSegmentDoubleClick } = useTimelineInteraction({
@@ -241,23 +276,62 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
     <div ref={containerRef} className={clsx('flex flex-col bg-background border rounded-lg overflow-hidden select-none h-full', className)}>
       {/* 工具栏 */}
       <div className="flex items-center justify-between px-2 py-1 border-b bg-muted/30 shrink-0">
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" className="w-8 h-8 p-0" onClick={handleZoomOut} title="缩小">
+        <div className="flex items-center gap-2 flex-1">
+          <Button variant="ghost" size="sm" className="w-8 h-8 p-0 shrink-0" onClick={handleZoomOut} title="缩小">
             <TbMinus className="w-4 h-4" />
           </Button>
-          <span className="text-xs text-muted-foreground min-w-[60px] text-center">{pixelsPerSecond.toFixed(0)} px/s</span>
-          <Button variant="ghost" size="sm" className="w-8 h-8 p-0" onClick={handleZoomIn} title="放大">
+
+          {/* 缩放滑块 */}
+          <div className="flex items-center gap-2 flex-1 max-w-[200px]">
+            <Slider value={[pixelsPerSecond]} onValueChange={handleSliderChange} min={sliderMin} max={sliderMax} step={10} className="flex-1" title={`缩放级别: ${pixelsPerSecond.toFixed(0)} px/s`} />
+          </div>
+
+          <Button variant="ghost" size="sm" className="w-8 h-8 p-0 shrink-0" onClick={handleZoomIn} title="放大">
             <TbPlus className="w-4 h-4" />
-          </Button>
-          <Button variant="ghost" size="sm" className="w-8 h-8 p-0" onClick={fitAll} title="适配全部">
-            <TbViewportWide className="w-4 h-4" />
           </Button>
         </div>
 
-        <div className="text-xs text-muted-foreground">
-          {tracks.length} 轨道 · {tracks.reduce((sum, t) => sum + t.segments.length, 0)} 片段
+        <div className="flex items-center gap-3">
+          <div className="text-xs text-muted-foreground">
+            {tracks.length} 轨道 · {tracks.reduce((sum, t) => sum + t.segments.length, 0)} 片段
+          </div>
+          <div className="text-xs font-mono text-foreground">
+            {(() => {
+              const formatTime = (seconds: number) => {
+                const h = Math.floor(seconds / 3600);
+                const m = Math.floor((seconds % 3600) / 60);
+                const s = Math.floor(seconds % 60);
+                if (h > 0) {
+                  return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+                }
+                return `${m}:${s.toString().padStart(2, '0')}`;
+              };
+              const current = currentTime !== undefined ? formatTime(currentTime) : '--:--';
+              const total = formatTime(duration);
+              return `${current} / ${total}`;
+            })()}
+          </div>
         </div>
       </div>
+
+      {/* SeekBar - 播放进度条和字幕片段概览 */}
+      <SeekBar duration={duration} currentTime={currentTime} segments={tracksWithColors[0]?.segments || []} onSeek={onSeek} />
+
+      {/* 波形轨道（固定在顶部，不随字幕轨道垂直滚动） */}
+      {showWaveform && audioPath && (
+        <WaveformTrack
+          audioPath={audioPath}
+          totalWidth={totalWidth}
+          duration={duration}
+          pixelsPerSecond={pixelsPerSecond}
+          viewport={viewport}
+          currentTime={currentTime}
+          trackLabelWidth={trackLabelWidth}
+          showTrackLabel={showTrackLabels}
+          scrollLeft={scrollLeft}
+          onSeek={onSeek}
+        />
+      )}
 
       {/* 主内容区域 */}
       <div className="flex flex-1 overflow-hidden min-h-0">

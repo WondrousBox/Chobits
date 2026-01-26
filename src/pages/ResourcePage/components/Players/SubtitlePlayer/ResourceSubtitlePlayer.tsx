@@ -26,6 +26,7 @@ interface ResourceSubtitlePlayerProps {
   currentTime?: number; // 当前播放时间（秒）
   onSeek?: (time: number) => void; // 跳转到指定时间的回调
   followCurrentTime?: boolean; // 是否跟随时间自动滚动
+  audioPath?: string; // 音频文件路径（用于波形显示）
 }
 
 /**
@@ -33,7 +34,7 @@ interface ResourceSubtitlePlayerProps {
  * - 翻译结果由主进程自动保存，渲染进程只负责展示
  * - 用户手动编辑字幕时，通过渲染进程保存
  */
-export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ resource, currentTime = 0, onSeek, followCurrentTime = false }) => {
+export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ resource, currentTime = 0, onSeek, followCurrentTime = false, audioPath }) => {
   const [subtitleEntries, setSubtitleEntries] = useState<AimSegments[]>([]);
   const [translationTracks, setTranslationTracks] = useState<AimSegments[][]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -481,6 +482,8 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
           disabled={isTranslating}
           showRuler
           showTrackLabels
+          audioPath={audioPath}
+          showWaveform={!!audioPath}
         />
       )}
     </div>
