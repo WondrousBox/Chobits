@@ -136,6 +136,90 @@ export class PluginResourceManager extends EventEmitter {
   }
 
   /**
+   * 移动插件目录（复制旧目录内容到新目录）
+   * @param oldDir 旧目录路径
+   * @param newDir 新目录路径
+   * @param onProgress 进度回调函数
+   */
+  async movePluginsDir(oldDir: string, newDir: string, onProgress?: (progress: { current: number; total: number; currentFile: string; percentage: number }) => void): Promise<void> {
+    // 如果旧目录不存在或与新目录相同，直接返回
+    if (!fs.existsSync(oldDir) || path.resolve(oldDir) === path.resolve(newDir)) {
+      return;
+    }
+
+    // 确保新目录存在
+    fs.mkdirSync(newDir, { recursive: true });
+    console.log('[PluginDL] movePluginsDir', { oldDir, newDir });
+
+    // 获取所有文件和目录
+    const getAllFiles = (dirPath: string): { files: string[]; dirs: string[] } => {
+      const files: string[] = [];
+      const dirs: string[] = [];
+
+      const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(dirPath, entry.name);
+        if (entry.isDirectory()) {
+          dirs.push(fullPath);
+          const sub = getAllFiles(fullPath);
+          files.push(...sub.files);
+          dirs.push(...sub.dirs);
+        } else if (entry.isFile()) {
+          files.push(fullPath);
+        }
+      }
+
+      return { files, dirs };
+    };
+
+    const { files, dirs } = getAllFiles(oldDir);
+    const total = files.length + dirs.length;
+    let current = 0;
+
+    // 先创建所有目录
+    for (const dirPath of dirs) {
+      const relativePath = path.relative(oldDir, dirPath);
+      const newDirPath = path.join(newDir, relativePath);
+      fs.mkdirSync(newDirPath, { recursive: true });
+
+      current++;
+      if (onProgress) {
+        onProgress({
+          current,
+          total,
+          currentFile: relativePath,
+          percentage: Math.round((current / total) * 100)
+        });
+      }
+    }
+
+    // 然后复制所有文件
+    for (const filePath of files) {
+      const relativePath = path.relative(oldDir, filePath);
+      const newFilePath = path.join(newDir, relativePath);
+      const newFileDir = path.dirname(newFilePath);
+
+      // 确保目标目录存在
+      fs.mkdirSync(newFileDir, { recursive: true });
+
+      // 复制文件
+      await fs.promises.copyFile(filePath, newFilePath);
+
+      current++;
+      if (onProgress) {
+        console.log('[PluginDL] movePluginsDir progress', Math.round((current / total) * 100));
+
+        onProgress({
+          current,
+          total,
+          currentFile: relativePath,
+          percentage: Math.round((current / total) * 100)
+        });
+      }
+    }
+  }
+
+  /**
    * 获取Engine工具的完整路径
    */
   getEnginePath(pluginId: string, binaryName: string): string {

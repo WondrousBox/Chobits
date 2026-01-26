@@ -133,12 +133,12 @@ const ResourcePreviewWindow: React.FC = () => {
     }
   }, []);
 
-  // 当当前资源为视频时，加载其子资源中的字幕文件
+  // 当当前资源为视频或音频时，加载其子资源中的字幕文件
   // 注意：完整资源信息已在 handleResourceChange 和初始化 handler 中获取，无需重复获取
   // 注意：currentTime 的重置已在 handleResourceChange 和初始化 handler 中处理，此处不应重复
   useEffect(() => {
     const loadSubtitles = async (): Promise<void> => {
-      if (!data?.id || data.type !== 'video') {
+      if (!data?.id || (data.type !== 'video' && data.type !== 'audio')) {
         setSubtitleList([]);
         setActiveSubtitle(null);
         return;

@@ -81,10 +81,8 @@ const ResourceTabs: React.FC<ResourceTabsProps> = ({ panelId, resource, currentT
 
   // 根据资源类型获取允许的 tab ID 列表
   const allowedTabIds = useMemo((): TabType[] => {
-    if (isVideo) {
+    if (isVideo || isAudio) {
       return ['subtitle', 'translate', 'summary', 'mindmap', 'notes', 'list'];
-    } else if (isAudio) {
-      return ['translate', 'summary', 'mindmap', 'notes', 'list'];
     } else if (isImage) {
       return ['summary', 'notes', 'list'];
     } else if (isSubtitle) {

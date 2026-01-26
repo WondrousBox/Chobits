@@ -56,10 +56,10 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
     [onResourceChange]
   );
 
-  // 当当前资源为视频时，加载其子资源中的字幕文件
+  // 当当前资源为视频或音频时，加载其子资源中的字幕文件
   useEffect(() => {
     const loadSubtitles = async (): Promise<void> => {
-      if (!data?.id || data.type !== 'video') {
+      if (!data?.id || (data.type !== 'video' && data.type !== 'audio')) {
         setSubtitleList([]);
         setActiveSubtitle(null);
         return;
