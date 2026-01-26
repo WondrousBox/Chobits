@@ -1,7 +1,7 @@
 import { AimSegments } from '@aim-packages/subtitle';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { ChunkSummaryInfo } from './SubtitlePlayer';
+import { ChunkSummaryInfo } from './SubtitleListPlayer/SubtitlePlayer';
 
 /**
  * 节流状态 Hook - 用于高频更新的状态，但不丢失数据
