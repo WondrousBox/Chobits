@@ -295,6 +295,7 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
                 onTimeClick={onSeek}
                 disabled={disabled}
                 highlight={highlight}
+                isMainTrack={true}
               />
               {/* 附加轨道 */}
               {additionalTracks.map((track, trackIndex) => {
@@ -312,6 +313,7 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
                     onMergePrev={handleMergePrev}
                     onMergeNext={handleMergeNext}
                     onTimeClick={onSeek}
+                    isMainTrack={false}
                   />
                 );
               })}

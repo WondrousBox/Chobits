@@ -27,6 +27,7 @@ interface SubtitleRowProps {
   onTimeClick?: (time: number) => void; // 点击时间戳的回调，传递时间（秒）
   disabled?: boolean; // 是否禁用编辑
   highlight?: boolean; // 是否高亮显示（用于标识新变更的内容，引起用户注意）
+  isMainTrack?: boolean; // 是否是主轨道（用于控制时间显示）
 }
 
 const textareaStyle = 'resize-none block p-2 flex-1 outline-none box-border bg-background text-foreground border-none text-base';
@@ -39,7 +40,7 @@ const getClassName = (isDelete?: boolean, isActive?: boolean): Array<string> => 
   ];
 };
 
-export const SubtitleRow: React.FC<SubtitleRowProps> = ({ index, segment, isActive = false, rowRef, onTextChange, onMergePrev, onTimeClick, disabled = false, highlight = false }) => {
+export const SubtitleRow: React.FC<SubtitleRowProps> = ({ index, segment, isActive = false, rowRef, onTextChange, onMergePrev, onTimeClick, disabled = false, highlight = false, isMainTrack = true }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editingText, setEditingText] = useState(segment.text);
   const [hasChanged, setHasChanged] = useState(false);
@@ -158,12 +159,14 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({ index, segment, isActi
       )}
       <div
         className={clsx(
-          'select-none pt-3 cursor-pointer text-xs w-12 text-center relative transition-colors duration-200 z-10',
-          isActive ? 'text-primary font-medium' : 'text-muted-foreground hover:text-primary',
-          onTimeClick && 'hover:underline'
+          'select-none pt-3 text-xs w-12 text-center relative transition-colors duration-200 z-10',
+          isMainTrack && 'cursor-pointer',
+          isMainTrack && (isActive ? 'text-primary font-medium' : 'text-muted-foreground hover:text-primary'),
+          isMainTrack && onTimeClick && 'hover:underline',
+          !isMainTrack && 'opacity-0 pointer-events-none'
         )}
-        onClick={handleTimeClick}
-        title={onTimeClick ? '点击跳转到此时间' : undefined}
+        onClick={isMainTrack ? handleTimeClick : undefined}
+        title={isMainTrack && onTimeClick ? '点击跳转到此时间' : undefined}
       >
         <span className="text-xs absolute left-1/2 -translate-x-1/2 -top-1  group-hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity duration-300">#{index + 1}</span>
         {utils.cleanTimeDisplay(segment.st)}

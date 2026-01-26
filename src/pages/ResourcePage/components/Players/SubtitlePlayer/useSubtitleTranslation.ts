@@ -179,6 +179,8 @@ export interface UseSubtitleTranslationReturn {
   stopTranslation: () => Promise<void>;
   /** 重置翻译状态 */
   resetTranslation: () => void;
+  /** 清空临时翻译轨道（在新轨道加载成功后调用） */
+  clearTypingTexts: () => void;
   /** 当前活跃的翻译请求 ID */
   activeRequestId: string | null;
 }
@@ -234,6 +236,9 @@ export function useSubtitleTranslation({ resourceId, subtitleEntriesRef, onTrans
       }
       setTranslatingChunks(() => new Set());
       setChunkSummaryInfoMap(() => new Map());
+      // 注意：翻译完成时不要清空 typingTexts，保持翻译结果显示
+      // 直到 ResourceSubtitlePlayer 从数据库加载新的翻译轨道后再清空
+      // typingTexts 会在 startTranslation 开始新翻译时被清空
       setIsTranslating(false);
       setTranslationProgress(0);
       activeTranslationRequestIdRef.current = null;
@@ -261,12 +266,17 @@ export function useSubtitleTranslation({ resourceId, subtitleEntriesRef, onTrans
       activeTranslationRequestIdRef.current = requestId;
       setIsTranslating(true);
       setTranslationProgress(0);
+      // 重置翻译相关状态，确保新翻译在新轨道上展示
+      setTypingTexts(() => []);
+      setTranslatingChunks(() => new Set());
+      setTranslatedChunks(() => new Set());
+      setChunkSummaryInfoMap(() => new Map());
       const total = subtitleEntriesRef.current?.length || 0;
       setTotalSegments(total);
       totalSegmentsRef.current = total;
       translatingChunkRangesRef.current.clear();
     },
-    [subtitleEntriesRef]
+    [subtitleEntriesRef, setTypingTexts, setTranslatingChunks, setTranslatedChunks, setChunkSummaryInfoMap]
   );
 
   // 停止翻译
@@ -615,6 +625,11 @@ export function useSubtitleTranslation({ resourceId, subtitleEntriesRef, onTrans
     };
   }, [handleTranslationEvent]);
 
+  // 清空临时翻译轨道（在新轨道加载成功后调用）
+  const clearTypingTexts = useCallback(() => {
+    setTypingTexts(() => []);
+  }, [setTypingTexts]);
+
   return {
     translatingChunks,
     translatedChunks,
@@ -626,6 +641,7 @@ export function useSubtitleTranslation({ resourceId, subtitleEntriesRef, onTrans
     startTranslation,
     stopTranslation,
     resetTranslation,
+    clearTypingTexts,
     activeRequestId: activeTranslationRequestIdRef.current
   };
 }
