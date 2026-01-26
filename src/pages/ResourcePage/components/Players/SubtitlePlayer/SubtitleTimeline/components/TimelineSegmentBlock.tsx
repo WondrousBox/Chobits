@@ -73,6 +73,7 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
   const [dragMode, setDragMode] = useState<DragMode>('none');
   const [dragStartX, setDragStartX] = useState(0);
   const [originalTimes, setOriginalTimes] = useState({ start: 0, end: 0 });
+  const [dragHoverTime, setDragHoverTime] = useState<{ time: number; x: number; y: number } | null>(null);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const blockRef = useRef<HTMLDivElement>(null);
@@ -215,11 +216,16 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
           break;
       }
 
+      // 更新悬浮时间提示
+      const displayTime = dragMode === 'resize-left' ? newStartTime : newEndTime;
+      setDragHoverTime({ time: displayTime, x: e.clientX, y: e.clientY });
+
       onTimeChange?.(segment, trackId, newStartTime, newEndTime);
     };
 
     const handleMouseUp = (): void => {
       setDragMode('none');
+      setDragHoverTime(null);
       onDragEnd?.(segment, trackId);
     };
 
@@ -266,86 +272,112 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
   const isDeleted = segment.deleted;
 
   return (
-    <div
-      ref={blockRef}
-      data-segment={segment.id}
-      className={clsx(
-        'group absolute flex items-center transition-shadow duration-100 overflow-visible',
-        'border border-transparent hover:border-foreground/20',
-        isDeleted && 'opacity-40',
-        isActive && 'ring-2 ring-primary ring-offset-1 ring-offset-background',
-        isHighlighted && !isActive && 'ring-1 ring-primary/50',
-        isSelected && 'ring-2 ring-blue-500',
-        disabled && 'pointer-events-none opacity-60',
-        dragMode !== 'none' && 'opacity-80 shadow-lg z-20'
-      )}
-      style={{
-        left,
-        width: segmentWidth,
-        top: DEFAULT_CONFIG.TRACK_GAP / 2,
-        height: trackHeight,
-        backgroundColor,
-        borderRadius: DEFAULT_CONFIG.SEGMENT_BORDER_RADIUS,
-        cursor: isEditing ? 'text' : dragMode !== 'none' ? 'grabbing' : 'grab'
-      }}
-      onClick={handleClick}
-      onDoubleClick={handleDoubleClick}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={() => {
-        if (blockRef.current && dragMode === 'none') {
-          blockRef.current.style.cursor = 'grab';
-        }
-      }}
-      title={isEditing ? undefined : segment.text}
-    >
-      {/* 往前合并按钮（悬浮显示，仅当不是第一个片段时） */}
-      {!disabled && !isEditing && (segmentIndex ?? 0) > 0 && (
-        <div className="absolute left-0 top-0 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-30">
-          <Button
-            size="icon"
-            variant="outline"
-            className="w-6 h-6 rounded-full p-0 bg-background shadow-sm hover:bg-accent"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (typeof segmentIndex === 'number') {
-                onMergePrev?.({ trackId, segmentIndex });
+    <>
+      <div
+        ref={blockRef}
+        data-segment={segment.id}
+        className={clsx(
+          'group absolute flex items-center transition-shadow duration-100 overflow-visible',
+          'border border-transparent hover:border-foreground/20',
+          isDeleted && 'opacity-40',
+          isActive && 'ring-2 ring-primary ring-offset-1 ring-offset-background',
+          isHighlighted && !isActive && 'ring-1 ring-primary/50',
+          isSelected && 'ring-2 ring-blue-500',
+          disabled && 'pointer-events-none opacity-60',
+          dragMode !== 'none' && 'opacity-80 shadow-lg z-20'
+        )}
+        style={{
+          left,
+          width: segmentWidth,
+          top: DEFAULT_CONFIG.TRACK_GAP / 2,
+          height: trackHeight,
+          backgroundColor,
+          borderRadius: DEFAULT_CONFIG.SEGMENT_BORDER_RADIUS,
+          cursor: isEditing ? 'text' : dragMode !== 'none' ? 'grabbing' : 'grab'
+        }}
+        onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={() => {
+          if (blockRef.current && dragMode === 'none') {
+            blockRef.current.style.cursor = 'grab';
+          }
+        }}
+        title={isEditing ? undefined : segment.text}
+      >
+        {/* 往前合并按钮（悬浮显示，仅当不是第一个片段时） */}
+        {!disabled && !isEditing && (segmentIndex ?? 0) > 0 && (
+          <div className="absolute left-0 top-0 -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-30">
+            <Button
+              size="icon"
+              variant="outline"
+              className="w-6 h-6 rounded-full p-0 bg-background shadow-sm hover:bg-accent"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (typeof segmentIndex === 'number') {
+                  onMergePrev?.({ trackId, segmentIndex });
+                }
+              }}
+              title="合并到上一条"
+            >
+              <TbArrowMerge className="-rotate-90" />
+            </Button>
+          </div>
+        )}
+
+        {/* 左边缘拖拽区域指示器 */}
+        <div className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l opacity-0 hover:opacity-100 bg-foreground/20 transition-opacity" style={{ cursor: 'ew-resize' }} />
+
+        {/* 右边缘拖拽区域指示器 */}
+        <div className="absolute right-0 top-0 bottom-0 w-1.5 rounded-r opacity-0 hover:opacity-100 bg-foreground/20 transition-opacity" style={{ cursor: 'ew-resize' }} />
+
+        {/* 内容区域 */}
+        {isEditing ? (
+          // 编辑模式：显示完整文字，可编辑
+          <div className="absolute inset-0 z-30" style={{ left: -1, right: -1, top: -1, bottom: -1 }} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+            <textarea
+              ref={inputRef}
+              className={clsx('w-full h-full px-1.5 py-0.5 text-xs leading-tight resize-none', 'bg-background border-2 border-primary rounded outline-none', 'text-foreground')}
+              style={{
+                minWidth: Math.max(segmentWidth, 150),
+                minHeight: trackHeight + 20
+              }}
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              onBlur={handleBlur}
+              onKeyDown={handleKeyDown}
+            />
+          </div>
+        ) : (
+          // 普通模式：省略显示
+          <span className={clsx('text-xs text-foreground truncate leading-tight px-1.5', isDeleted && 'line-through')}>{segment.text?.trim()}</span>
+        )}
+      </div>
+
+      {/* 拖拽时的悬浮时间提示 */}
+      {dragHoverTime && (
+        <div
+          className="fixed z-50 pointer-events-none"
+          style={{
+            left: `${dragHoverTime.x + 10}px`,
+            top: `${dragHoverTime.y - 30}px`
+          }}
+        >
+          <div className="bg-primary text-primary-foreground px-2 py-1 rounded shadow-lg text-xs font-mono whitespace-nowrap">
+            {(() => {
+              const t = dragHoverTime.time;
+              const h = Math.floor(t / 3600);
+              const m = Math.floor((t % 3600) / 60);
+              const s = (t % 60).toFixed(2);
+              if (h > 0) {
+                return `${h}:${m.toString().padStart(2, '0')}:${s.padStart(5, '0')}`;
               }
-            }}
-            title="合并到上一条"
-          >
-            <TbArrowMerge className="-rotate-90" />
-          </Button>
+              return `${m}:${s.padStart(5, '0')}`;
+            })()}
+          </div>
         </div>
       )}
-
-      {/* 左边缘拖拽区域指示器 */}
-      <div className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l opacity-0 hover:opacity-100 bg-foreground/20 transition-opacity" style={{ cursor: 'ew-resize' }} />
-
-      {/* 右边缘拖拽区域指示器 */}
-      <div className="absolute right-0 top-0 bottom-0 w-1.5 rounded-r opacity-0 hover:opacity-100 bg-foreground/20 transition-opacity" style={{ cursor: 'ew-resize' }} />
-
-      {/* 内容区域 */}
-      {isEditing ? (
-        // 编辑模式：显示完整文字，可编辑
-        <div className="absolute inset-0 z-30" style={{ left: -1, right: -1, top: -1, bottom: -1 }} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
-          <textarea
-            ref={inputRef}
-            className={clsx('w-full h-full px-1.5 py-0.5 text-xs leading-tight resize-none', 'bg-background border-2 border-primary rounded outline-none', 'text-foreground')}
-            style={{
-              minWidth: Math.max(segmentWidth, 150),
-              minHeight: trackHeight + 20
-            }}
-            value={editText}
-            onChange={(e) => setEditText(e.target.value)}
-            onBlur={handleBlur}
-            onKeyDown={handleKeyDown}
-          />
-        </div>
-      ) : (
-        // 普通模式：省略显示
-        <span className={clsx('text-xs text-foreground truncate leading-tight px-1.5', isDeleted && 'line-through')}>{segment.text?.trim()}</span>
-      )}
-    </div>
+    </>
   );
 };

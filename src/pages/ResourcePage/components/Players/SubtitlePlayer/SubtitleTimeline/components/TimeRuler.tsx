@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 
 import { DEFAULT_CONFIG } from '../types';
 
@@ -137,20 +137,38 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
     return (currentTime - startTime) * pixelsPerSecond;
   }, [currentTime, startTime, endTime, pixelsPerSecond]);
 
-  // 处理点击
-  const handleClick = (e: React.MouseEvent) => {
-    if (!onClick) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const time = startTime + x / pixelsPerSecond;
-    onClick(Math.max(0, Math.min(endTime, time)));
+  // 跟踪鼠标按下位置，用于区分点击和拖拽
+  const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
+
+  // 处理鼠标按下
+  const handleMouseDown = (e: React.MouseEvent) => {
+    mouseDownPosRef.current = { x: e.clientX, y: e.clientY };
+  };
+
+  // 处理鼠标抬起（只有在移动距离小时才算点击）
+  const handleMouseUp = (e: React.MouseEvent) => {
+    if (!onClick || !mouseDownPosRef.current) return;
+
+    const dx = Math.abs(e.clientX - mouseDownPosRef.current.x);
+    const dy = Math.abs(e.clientY - mouseDownPosRef.current.y);
+
+    // 只有移动距离小于 3 像素才算点击
+    if (dx < 3 && dy < 3) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const time = startTime + x / pixelsPerSecond;
+      onClick(Math.max(0, Math.min(endTime, time)));
+    }
+
+    mouseDownPosRef.current = null;
   };
 
   return (
     <div
       className={clsx('relative select-none cursor-pointer bg-muted/50 border-b border-border shrink-0', className)}
       style={{ height: DEFAULT_CONFIG.RULER_HEIGHT, width }}
-      onClick={handleClick}
+      onMouseDown={handleMouseDown}
+      onMouseUp={handleMouseUp}
     >
       {/* 次刻度线 */}
       {ticks.minorTicks.map(({ time, x }) => (
@@ -176,8 +194,8 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
 
       {/* 当前时间指示器 */}
       {currentTimeX !== null && (
-        <div className="absolute top-0 bottom-0 w-0.5 bg-primary z-10" style={{ left: currentTimeX }}>
-          <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[5px] border-r-[5px] border-t-[6px] border-l-transparent border-r-transparent border-t-primary" />
+        <div className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10" style={{ left: currentTimeX }}>
+          <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[5px] border-r-[5px] border-t-[6px] border-l-transparent border-r-transparent border-t-red-500" />
         </div>
       )}
     </div>

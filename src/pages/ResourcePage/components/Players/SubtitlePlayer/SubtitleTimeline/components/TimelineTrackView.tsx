@@ -168,7 +168,7 @@ export const TimelineTrackView: React.FC<TimelineTrackViewProps> = ({
 
       {/* 当前时间指示线 */}
       {currentTime !== undefined && currentTime >= 0 && currentTime <= totalDuration && (
-        <div className="absolute top-0 bottom-0 w-0.5 bg-primary z-10 pointer-events-none" style={{ left: timeToPixel(currentTime) }} />
+        <div className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none" style={{ left: timeToPixel(currentTime) }} />
       )}
     </div>
   );

@@ -15,9 +15,18 @@ type FFmpegIpcParams = {
     ],
     string
   >;
+  extractWaveform: IpcParams<
+    [
+      {
+        inputPath: string;
+        samplesCount?: number;
+      }
+    ],
+    { peaks: number[]; duration: number }
+  >;
 };
 
-const methods: Array<keyof FFmpegIpcParams> = ['playSprite', 'convertMovToWebmWithAlpha', 'removeBackgroundFromImage'];
+const methods: Array<keyof FFmpegIpcParams> = ['playSprite', 'convertMovToWebmWithAlpha', 'removeBackgroundFromImage', 'extractWaveform'];
 
 export type FFmpegIpcType = { [K in keyof FFmpegIpcParams]: (...args: FFmpegIpcParams[K]['request']) => Promise<FFmpegIpcParams[K]['response']> };
 
