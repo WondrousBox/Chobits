@@ -5,6 +5,7 @@ import { TbLoader2, TbPlayerPause, TbPlayerPlay } from 'react-icons/tb';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 import { DEFAULT_CONFIG, ViewportState } from '../types';
+import { detectOverlappingIndices, TimeRange } from '../utils';
 
 /**
  * TTS音频项状态
@@ -57,8 +58,23 @@ interface TTSAudioTrackProps {
  * TTS音频轨道组件
  * 在时间轴上显示TTS合成的音频片段
  */
-export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({ items, viewport, pixelsPerSecond, width, onPlayAudio, onStopAudio, playingIndex }) => {
+export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({ items, viewport, pixelsPerSecond, currentTime, width, onPlayAudio, onStopAudio, playingIndex }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // 检测重叠的音频项（基于音频实际时长，而不是字幕时间戳）
+  const overlappingIndices = useMemo(() => {
+    const ranges: TimeRange[] = items.map((item) => {
+      // 使用音频实际时长来计算结束时间
+      // 优先使用 trimmedDuration（去静音后的时长），其次使用 duration，最后回退到字幕时间戳
+      const audioDuration = item.trimmedDuration ?? item.duration ?? item.endTime - item.startTime;
+      return {
+        startTime: item.startTime,
+        endTime: item.startTime + audioDuration,
+        index: item.index
+      };
+    });
+    return detectOverlappingIndices(ranges);
+  }, [items]);
 
   // 过滤出在视口范围内的项目（带缓冲区）
   const visibleItems = useMemo(() => {
@@ -80,8 +96,13 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({ items, viewport, p
     [pixelsPerSecond]
   );
 
-  // 获取状态颜色
-  const getStatusColor = (status: TTSAudioItem['status']) => {
+  // 获取状态颜色（考虑重叠状态）
+  const getStatusColor = (status: TTSAudioItem['status'], isOverlapping: boolean) => {
+    // 如果存在重叠，使用异常颜色
+    if (isOverlapping) {
+      return 'bg-orange-500/50 border-orange-600 border-2';
+    }
+
     switch (status) {
       case 'completed':
         return 'bg-green-500/20 border-green-500/50 hover:bg-green-500/30';
@@ -122,6 +143,12 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({ items, viewport, p
     return `${mins}m${secs.toFixed(0)}s`;
   };
 
+  // 计算当前时间指示线位置
+  const currentTimeX = useMemo(() => {
+    if (currentTime === undefined || currentTime < 0) return null;
+    return currentTime * pixelsPerSecond;
+  }, [currentTime, pixelsPerSecond]);
+
   if (items.length === 0) {
     return null;
   }
@@ -133,12 +160,13 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({ items, viewport, p
         {visibleItems.map((item) => {
           const { left, width: itemWidth } = getItemStyle(item);
           const isPlaying = playingIndex === item.index;
+          const isOverlapping = overlappingIndices.has(item.index);
 
           return (
             <Tooltip key={item.index}>
               <TooltipTrigger asChild>
                 <div
-                  className={clsx('absolute top-1 bottom-1 rounded border transition-all cursor-pointer', getStatusColor(item.status), isPlaying && 'ring-2 ring-primary')}
+                  className={clsx('absolute top-1 bottom-1 rounded border transition-all cursor-pointer', getStatusColor(item.status, isOverlapping), isPlaying && 'ring-2 ring-primary')}
                   style={{
                     left,
                     width: itemWidth,
@@ -166,6 +194,7 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({ items, viewport, p
               <TooltipContent side="top" className="max-w-xs">
                 <div className="text-xs space-y-1">
                   <div className="font-medium">片段 #{item.index + 1}</div>
+                  {isOverlapping && <div className="text-orange-600 font-medium">⚠️ 与其他片段时间重叠</div>}
                   {item.status === 'completed' && (
                     <>
                       <div>
@@ -183,6 +212,9 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({ items, viewport, p
             </Tooltip>
           );
         })}
+
+        {/* 当前时间指示线 */}
+        {currentTimeX !== null && <div className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none" style={{ left: currentTimeX }} />}
       </div>
     </div>
   );

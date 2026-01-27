@@ -2,6 +2,7 @@ import clsx from 'clsx';
 import React, { useMemo } from 'react';
 
 import { DEFAULT_CONFIG, TimelineSegment, TimelineTrack, ViewportState } from '../types';
+import { detectOverlappingSegments } from '../utils';
 import { TimelineSegmentBlock } from './TimelineSegmentBlock';
 
 interface TimelineTrackViewProps {
@@ -130,6 +131,11 @@ export const TimelineTrackView: React.FC<TimelineTrackViewProps> = ({
     return null;
   }, [track.segments, currentTime]);
 
+  // 检测重叠的片段
+  const overlappingSegmentIds = useMemo(() => {
+    return detectOverlappingSegments(track.segments);
+  }, [track.segments]);
+
   // 时间转像素（相对于轨道起点）
   const timeToPixel = (time: number): number => {
     return time * pixelsPerSecond;
@@ -157,6 +163,7 @@ export const TimelineTrackView: React.FC<TimelineTrackViewProps> = ({
           isActive={segment.id === activeSegmentId}
           isHighlighted={highlightIds?.has(segment.id)}
           isSelected={selectedIds?.has(segment.id)}
+          isOverlapping={overlappingSegmentIds.has(segment.id)}
           disabled={disabled || track.locked}
           onClick={onSegmentClick}
           onDoubleClick={onSegmentDoubleClick}
