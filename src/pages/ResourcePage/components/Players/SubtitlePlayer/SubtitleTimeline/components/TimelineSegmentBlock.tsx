@@ -277,7 +277,7 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
         ref={blockRef}
         data-segment={segment.id}
         className={clsx(
-          'group absolute flex items-center transition-shadow duration-100 overflow-visible',
+          'group absolute flex items-center transition-shadow duration-100 overflow-visible [container-type:inline-size]',
           'border border-transparent hover:border-foreground/20',
           isDeleted && 'opacity-40',
           isActive && 'ring-2 ring-primary ring-offset-1 ring-offset-background',
@@ -352,6 +352,17 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
         ) : (
           // 普通模式：省略显示
           <span className={clsx('text-xs text-foreground truncate leading-tight px-1.5', isDeleted && 'line-through')}>{segment.text?.trim()}</span>
+        )}
+
+        {/* 右下角显示持续时长（秒） */}
+        {!isEditing && (
+          <div className="absolute right-1 bottom-0.5 pointer-events-none select-none text-[10px] leading-none text-foreground/70 bg-background/70 rounded px-1 py-0.5 max-w-[calc(100%-4px)] truncate whitespace-nowrap [@container(max-width:48px)]:hidden">
+            {(() => {
+              const dur = Math.max(0, segment.endTime - segment.startTime);
+              const precision = dur >= 10 ? 1 : 2;
+              return `${dur.toFixed(precision)}s`;
+            })()}
+          </div>
         )}
       </div>
 

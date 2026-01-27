@@ -47,6 +47,8 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(800);
   const [scrollLeft, setScrollLeft] = useState(0);
+  // 本地 mock 播放时间（用于没有音视频时的“假 seek”）
+  const [mockCurrentTime, setMockCurrentTime] = useState(0);
 
   // 记录初始的 pixelsPerSecond 作为滑块的最小值（使用普通常量而不是 ref）
   const initialPixelsPerSecondValue = initialViewport?.pixelsPerSecond ?? DEFAULT_CONFIG.DEFAULT_PIXELS_PER_SECOND;
@@ -116,6 +118,22 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
     [pixelsPerSecond]
   );
 
+  // 统一的 seek 处理：如果外部提供 onSeek 则调用，否则更新本地 mock 时间
+  const handleSeekUnified = useCallback(
+    (time: number) => {
+      const clamped = Math.max(0, Math.min(duration, time));
+      if (onSeek) {
+        onSeek(clamped);
+      } else {
+        setMockCurrentTime(clamped);
+      }
+    },
+    [onSeek, duration]
+  );
+
+  // 生效的当前时间：优先外部的 currentTime，否则使用 mockCurrentTime
+  const effectiveCurrentTime = currentTime ?? mockCurrentTime;
+
   // 滚动到指定时间
   const scrollToTime = useCallback(
     (time: number) => {
@@ -156,15 +174,6 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
     [scrollLeft, timelineContentWidth, pixelsPerSecond, minPixelsPerSecond, maxPixelsPerSecond]
   );
 
-  // 计算"适配全部"时的 pixelsPerSecond（作为滑块的最大值）
-  const fitAllPixelsPerSecond = useMemo(() => {
-    return Math.max(minPixelsPerSecond, Math.min(maxPixelsPerSecond, timelineContentWidth / duration));
-  }, [duration, timelineContentWidth, minPixelsPerSecond, maxPixelsPerSecond]);
-
-  // 滑块的范围：从初始值到适配全部值
-  const sliderMin = Math.min(initialPixelsPerSecondValue, fitAllPixelsPerSecond);
-  const sliderMax = Math.max(initialPixelsPerSecondValue, fitAllPixelsPerSecond);
-
   // 平移处理（用于拖拽）
   const handlePan = useCallback((deltaPixels: number) => {
     const scrollContainer = scrollContainerRef.current;
@@ -193,24 +202,13 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
     [scrollLeft, timelineContentWidth, pixelsPerSecond]
   );
 
-  // 适配全部（保留此函数以便将来可能需要的快捷方式）
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const fitAll = useCallback(() => {
-    setPixelsPerSecond(fitAllPixelsPerSecond);
-
-    const scrollContainer = scrollContainerRef.current;
-    if (scrollContainer) {
-      scrollContainer.scrollLeft = 0;
-    }
-  }, [fitAllPixelsPerSecond]);
-
   // 交互管理
   const { isDragging, handlers, handleSegmentClick, handleSegmentDoubleClick } = useTimelineInteraction({
     disabled,
     onZoom: handleZoom,
     onPan: handlePan,
     pixelToTime, // 像素直接转时间（包含滚动偏移的计算在 hook 内部处理）
-    onSeek,
+    onSeek: handleSeekUnified,
     onSegmentClick,
     onSegmentDoubleClick
   });
@@ -235,7 +233,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
     const scrollContainer = scrollContainerRef.current;
     if (!scrollContainer) return;
 
-    const handleScroll = () => {
+    const handleScroll = (): void => {
       setScrollLeft(scrollContainer.scrollLeft);
     };
 
@@ -245,18 +243,18 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
 
   // 当前时间改变时，检查是否需要滚动到可见区域
   useEffect(() => {
-    if (!followCurrentTime || currentTime === undefined) return;
+    if (!followCurrentTime || effectiveCurrentTime === undefined) return;
 
     // 如果当前时间在可视区域外，自动滚动
-    const currentX = currentTime * pixelsPerSecond;
+    const currentX = effectiveCurrentTime * pixelsPerSecond;
     const viewStart = scrollLeft;
     const viewEnd = scrollLeft + timelineContentWidth;
 
     // 只有当时间指示器完全不在视野内时才自动滚动
     if (currentX < viewStart || currentX > viewEnd) {
-      scrollToTime(currentTime);
+      scrollToTime(effectiveCurrentTime);
     }
-  }, [currentTime, followCurrentTime, pixelsPerSecond, scrollLeft, timelineContentWidth, scrollToTime]);
+  }, [effectiveCurrentTime, followCurrentTime, pixelsPerSecond, scrollLeft, timelineContentWidth, scrollToTime]);
 
   // 缩放控制按钮
   const handleZoomIn = useCallback(() => {
@@ -283,7 +281,15 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
 
           {/* 缩放滑块 */}
           <div className="flex items-center gap-2 flex-1 max-w-[200px]">
-            <Slider value={[pixelsPerSecond]} onValueChange={handleSliderChange} min={sliderMin} max={sliderMax} step={10} className="flex-1" title={`缩放级别: ${pixelsPerSecond.toFixed(0)} px/s`} />
+            <Slider
+              value={[pixelsPerSecond]}
+              onValueChange={handleSliderChange}
+              min={DEFAULT_CONFIG.MIN_PIXELS_PER_SECOND}
+              max={DEFAULT_CONFIG.MAX_PIXELS_PER_SECOND}
+              step={10}
+              className="flex-1"
+              title={`缩放级别: ${pixelsPerSecond.toFixed(0)} px/s`}
+            />
           </div>
 
           <Button variant="ghost" size="sm" className="w-8 h-8 p-0 shrink-0" onClick={handleZoomIn} title="放大">
@@ -297,7 +303,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
           </div>
           <div className="text-xs font-mono text-foreground">
             {(() => {
-              const formatTime = (seconds: number) => {
+              const formatTime = (seconds: number): string => {
                 const h = Math.floor(seconds / 3600);
                 const m = Math.floor((seconds % 3600) / 60);
                 const s = Math.floor(seconds % 60);
@@ -306,7 +312,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                 }
                 return `${m}:${s.toString().padStart(2, '0')}`;
               };
-              const current = currentTime !== undefined ? formatTime(currentTime) : '--:--';
+              const current = effectiveCurrentTime !== undefined ? formatTime(effectiveCurrentTime) : '--:--';
               const total = formatTime(duration);
               return `${current} / ${total}`;
             })()}
@@ -315,7 +321,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
       </div>
 
       {/* SeekBar - 播放进度条和字幕片段概览 */}
-      <SeekBar duration={duration} currentTime={currentTime} segments={tracksWithColors[0]?.segments || []} onSeek={onSeek} />
+      <SeekBar duration={duration} currentTime={effectiveCurrentTime} segments={tracksWithColors[0]?.segments || []} onSeek={handleSeekUnified} />
 
       {/* 波形轨道（固定在顶部，不随字幕轨道垂直滚动） */}
       {showWaveform && audioPath && (
@@ -325,11 +331,11 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
           duration={duration}
           pixelsPerSecond={pixelsPerSecond}
           viewport={viewport}
-          currentTime={currentTime}
+          currentTime={effectiveCurrentTime}
           trackLabelWidth={trackLabelWidth}
           showTrackLabel={showTrackLabels}
           scrollLeft={scrollLeft}
-          onSeek={onSeek}
+          onSeek={handleSeekUnified}
         />
       )}
 
@@ -361,8 +367,8 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                 endTime={duration}
                 pixelsPerSecond={pixelsPerSecond}
                 width={totalWidth}
-                currentTime={currentTime}
-                onClick={onSeek}
+                currentTime={effectiveCurrentTime}
+                onClick={handleSeekUnified}
                 viewportStart={viewport.startTime}
                 viewportEnd={viewport.endTime}
               />
@@ -379,7 +385,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                   totalDuration={duration}
                   pixelsPerSecond={pixelsPerSecond}
                   width={totalWidth}
-                  currentTime={currentTime}
+                  currentTime={effectiveCurrentTime}
                   highlightIds={highlightIds}
                   onMergePrev={onMergePrev}
                   onSegmentClick={handleSegmentClick}

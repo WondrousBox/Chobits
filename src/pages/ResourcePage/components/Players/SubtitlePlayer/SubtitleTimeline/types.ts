@@ -138,7 +138,7 @@ export const DEFAULT_CONFIG = {
   /** 轨道标签宽度 */
   TRACK_LABEL_WIDTH: 80,
   /** 默认每秒像素数 */
-  DEFAULT_PIXELS_PER_SECOND: 200,
+  DEFAULT_PIXELS_PER_SECOND: 100,
   /** 最小每秒像素数 */
   MIN_PIXELS_PER_SECOND: 20,
   /** 最大每秒像素数 */
