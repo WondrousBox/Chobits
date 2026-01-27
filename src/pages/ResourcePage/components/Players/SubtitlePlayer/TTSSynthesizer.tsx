@@ -12,6 +12,8 @@ import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
+import type { TTSSynthesisConfig } from './useTTSSynthesis';
+
 // TTS语音配置
 interface VoiceOption {
   value: string;
@@ -83,6 +85,12 @@ interface TTSSynthesizerProps {
   synthesisProgress?: number;
   onStopSynthesis?: () => void;
   onSynthesisStart?: (requestId: string) => void;
+  /**
+   * 外部提供的合成入口（推荐）
+   * - 由上层通过 useTTSSynthesis 等 Hook 执行真正的合成与事件监听
+   * - 如果提供了该回调，本组件将不再直接调用 window.YUA.tts.synthesizeBatch
+   */
+  onSynthesize?: (config: TTSSynthesisConfig) => Promise<string>;
 }
 
 // localStorage 键名
@@ -112,7 +120,7 @@ const savePreferences = (preferences: { selectedVoice?: string; rate?: number; p
   }
 };
 
-export const TTSSynthesizer: React.FC<TTSSynthesizerProps> = ({ subtitleEntries, resourceId, isSynthesizing = false, synthesisProgress = 0, onStopSynthesis, onSynthesisStart }) => {
+export const TTSSynthesizer: React.FC<TTSSynthesizerProps> = ({ subtitleEntries, resourceId, isSynthesizing = false, synthesisProgress = 0, onStopSynthesis, onSynthesisStart, onSynthesize }) => {
   // 从 localStorage 加载保存的偏好设置
   const savedPreferences = loadPreferences();
 
@@ -162,32 +170,45 @@ export const TTSSynthesizer: React.FC<TTSSynthesizerProps> = ({ subtitleEntries,
     setIsPopoverOpen(false);
 
     try {
-      // 准备合成数据
-      const items = validSegments.map((seg, idx) => ({
-        index: idx,
-        text: seg.text
-      }));
+      const config: TTSSynthesisConfig = {
+        voiceName: selectedVoice,
+        rate,
+        pitch,
+        autoTrimSilence
+      };
 
-      // 调用主进程的TTS合成功能
-      const result = await window.YUA.tts.synthesizeBatch({
-        resourceId,
-        items,
-        config: {
-          voiceName: selectedVoice,
-          rate,
-          pitch
-        },
-        skipTrimSilence: !autoTrimSilence
-      });
+      if (onSynthesize) {
+        // 使用外部提供的合成逻辑（推荐）
+        const requestId = await onSynthesize(config);
+        if (onSynthesisStart && requestId) {
+          onSynthesisStart(requestId);
+        }
+      } else {
+        // 兼容旧逻辑：直接调用主进程 TTS
+        const items = validSegments.map((seg, idx) => ({
+          index: idx,
+          text: seg.text
+        }));
 
-      // 通知父组件合成开始
-      if (onSynthesisStart && result.requestId) {
-        onSynthesisStart(result.requestId);
+        const result = await window.YUA.tts.synthesizeBatch({
+          resourceId,
+          items,
+          config: {
+            voiceName: selectedVoice,
+            rate,
+            pitch
+          },
+          skipTrimSilence: !autoTrimSilence
+        });
+
+        if (onSynthesisStart && result.requestId) {
+          onSynthesisStart(result.requestId);
+        }
       }
     } catch (error) {
       console.error('TTS合成失败:', error);
     }
-  }, [subtitleEntries, resourceId, selectedVoice, rate, pitch, autoTrimSilence, onSynthesisStart]);
+  }, [subtitleEntries, resourceId, selectedVoice, rate, pitch, autoTrimSilence, onSynthesize, onSynthesisStart]);
 
   // 如果正在合成，显示进度和停止按钮
   if (isSynthesizing) {

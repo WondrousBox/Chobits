@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import type { ResourceItem } from '../../../types';
 import { SubtitlePlayer } from './SubtitleListPlayer/SubtitlePlayer';
 import { aimTracksToTimelineTracks, indicesToIds, parseSegmentId, SubtitleTimeline, TimelineSegment } from './SubtitleTimeline';
+import type { TTSAudioItem as TimelineTTSAudioItem } from './SubtitleTimeline/types';
 import { SubtitleTranslator } from './SubtitleTranslator';
 import { TTSSynthesizer } from './TTSSynthesizer';
 import { useSubtitleTranslation } from './useSubtitleTranslation';
@@ -187,21 +188,59 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     subtitleEntriesRef
   });
 
+  // 当前正在播放的 TTS 索引 & 播放实例
+  const [playingTTSIndex, setPlayingTTSIndex] = useState<number | null>(null);
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
+
   // 处理TTS合成开始
   const handleTTSSynthesisStart = useCallback((taskId: string) => {
     console.log('[SubtitlePlayer] TTS合成开始, taskId:', taskId);
   }, []);
 
-  // 播放TTS音频
-  const handlePlayTTS = useCallback((index: number, audioPath: string) => {
-    console.log('[SubtitlePlayer] 播放TTS音频, index:', index, 'path:', audioPath);
-    // TODO: 实现音频播放功能
-    // 可以通过创建Audio对象播放，或者调用主进程的音频播放服务
-    const audio = new Audio(`resource://${audioPath}`);
-    audio.play().catch((error) => {
-      console.error('[SubtitlePlayer] 播放TTS音频失败:', error);
-    });
+  // 停止当前 TTS 播放
+  const handleStopTTS = useCallback(() => {
+    if (ttsAudioRef.current) {
+      ttsAudioRef.current.pause();
+      ttsAudioRef.current.currentTime = 0;
+      ttsAudioRef.current = null;
+    }
+    setPlayingTTSIndex(null);
   }, []);
+
+  // 播放 / 切换 TTS 音频（列表和时间轴共用）
+  const handlePlayTTS = useCallback(
+    (index: number, audioPath: string) => {
+      console.log('[SubtitlePlayer] 播放TTS音频, index:', index, 'path:', audioPath);
+
+      // 如果点击的是正在播放的同一条，则当作停止
+      if (playingTTSIndex === index) {
+        handleStopTTS();
+        return;
+      }
+
+      // 停掉之前的
+      if (ttsAudioRef.current) {
+        ttsAudioRef.current.pause();
+        ttsAudioRef.current = null;
+      }
+
+      const audio = new Audio(`resource://${audioPath}`);
+      ttsAudioRef.current = audio;
+      setPlayingTTSIndex(index);
+
+      audio.onended = () => {
+        setPlayingTTSIndex(null);
+        ttsAudioRef.current = null;
+      };
+
+      audio.play().catch((error) => {
+        console.error('[SubtitlePlayer] 播放TTS音频失败:', error);
+        setPlayingTTSIndex(null);
+        ttsAudioRef.current = null;
+      });
+    },
+    [handleStopTTS, playingTTSIndex]
+  );
 
   // 将synthesizedItems转换为SubtitlePlayer需要的格式
   const ttsItemsMap = useMemo(() => {
@@ -217,6 +256,35 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     });
     return map;
   }, [synthesizedItems]);
+
+  // 时间轴用的 TTS 轨道数据
+  const ttsTimelineItems = useMemo<TimelineTTSAudioItem[]>(() => {
+    if (subtitleEntries.length === 0 || synthesizedItems.size === 0) return [];
+
+    const items: TimelineTTSAudioItem[] = [];
+    synthesizedItems.forEach((item, index) => {
+      const seg = subtitleEntries[index];
+      if (!seg) return;
+
+      const startTime = utils.convertToSeconds(seg.st);
+      const endTime = utils.convertToSeconds(seg.et);
+
+      items.push({
+        index,
+        status: item.status,
+        audioPath: item.audioPath,
+        duration: item.duration,
+        trimmedDuration: item.trimmedDuration,
+        error: item.error,
+        startTime,
+        endTime
+      });
+    });
+
+    // 按起始时间排序，保证时间轴顺序自然
+    items.sort((a, b) => a.startTime - b.startTime);
+    return items;
+  }, [subtitleEntries, synthesizedItems]);
 
   // 更新 clearTypingTexts ref
   useEffect(() => {
@@ -496,6 +564,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
             synthesisProgress={synthesisProgress}
             onStopSynthesis={stopSynthesis}
             onSynthesisStart={handleTTSSynthesisStart}
+            onSynthesize={(config) => startSynthesis(config)}
           />
         </div>
       </div>
@@ -534,6 +603,11 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
           showTrackLabels
           audioPath={audioPath}
           showWaveform={!!audioPath}
+          ttsItems={ttsTimelineItems}
+          showTTSTrack={ttsTimelineItems.length > 0 || isSynthesizing}
+          onPlayTTSAudio={handlePlayTTS}
+          onStopTTSAudio={handleStopTTS}
+          playingTTSIndex={playingTTSIndex ?? undefined}
         />
       )}
     </div>
