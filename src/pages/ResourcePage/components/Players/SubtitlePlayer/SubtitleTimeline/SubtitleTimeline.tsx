@@ -5,7 +5,7 @@ import { TbMinus, TbPlus } from 'react-icons/tb';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 
-import { SeekBar, TimelineTrackView, TimeRuler, TrackLabel, WaveformTrack } from './components';
+import { SeekBar, TimelineTrackView, TimeRuler, TrackLabel, TTSAudioTrack, WaveformTrack } from './components';
 import { useTimelineInteraction } from './hooks';
 import { DEFAULT_CONFIG, SubtitleTimelineProps, TRACK_COLORS, ViewportState } from './types';
 
@@ -35,6 +35,11 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   className,
   audioPath,
   showWaveform = true,
+  ttsItems,
+  showTTSTrack = true,
+  onPlayTTSAudio,
+  onStopTTSAudio,
+  playingTTSIndex,
   onSegmentClick,
   onSegmentDoubleClick,
   onSegmentTextChange,
@@ -337,6 +342,27 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
           scrollLeft={scrollLeft}
           onSeek={handleSeekUnified}
         />
+      )}
+
+      {/* TTS音频轨道 */}
+      {showTTSTrack && ttsItems && ttsItems.length > 0 && (
+        <div className="shrink-0 overflow-hidden" style={{ marginLeft: showTrackLabels ? 0 : 0 }}>
+          <div className="overflow-x-auto overflow-y-hidden" style={{ marginLeft: scrollContainerRef.current ? -scrollLeft : 0 }}>
+            <TTSAudioTrack
+              items={ttsItems}
+              viewport={viewport}
+              totalDuration={duration}
+              pixelsPerSecond={pixelsPerSecond}
+              width={totalWidth}
+              currentTime={effectiveCurrentTime}
+              trackLabelWidth={trackLabelWidth}
+              showTrackLabel={showTrackLabels}
+              onPlayAudio={onPlayTTSAudio}
+              onStopAudio={onStopTTSAudio}
+              playingIndex={playingTTSIndex}
+            />
+          </div>
+        </div>
       )}
 
       {/* 主内容区域 */}

@@ -90,6 +90,28 @@ export interface TimelineCallbacks {
 }
 
 /**
+ * TTS音频项（用于时间轴显示）
+ */
+export interface TTSAudioItem {
+  /** 字幕索引 */
+  index: number;
+  /** 合成状态 */
+  status: 'pending' | 'synthesizing' | 'completed' | 'error';
+  /** 音频文件路径 */
+  audioPath?: string;
+  /** 原始时长（秒） */
+  duration?: number;
+  /** 去静音后时长（秒） */
+  trimmedDuration?: number;
+  /** 错误信息 */
+  error?: string;
+  /** 对应的开始时间（秒）- 来自字幕 */
+  startTime: number;
+  /** 对应的结束时间（秒）- 来自字幕 */
+  endTime: number;
+}
+
+/**
  * 时间轴主组件 Props
  */
 export interface SubtitleTimelineProps extends TimelineCallbacks {
@@ -123,6 +145,16 @@ export interface SubtitleTimelineProps extends TimelineCallbacks {
   audioPath?: string;
   /** 是否显示波形轨道 */
   showWaveform?: boolean;
+  /** TTS音频项列表 */
+  ttsItems?: TTSAudioItem[];
+  /** 是否显示TTS轨道 */
+  showTTSTrack?: boolean;
+  /** 播放TTS音频回调 */
+  onPlayTTSAudio?: (index: number, audioPath: string) => void;
+  /** 停止TTS播放回调 */
+  onStopTTSAudio?: () => void;
+  /** 当前正在播放的TTS索引 */
+  playingTTSIndex?: number;
 }
 
 /**

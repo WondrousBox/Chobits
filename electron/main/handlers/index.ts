@@ -6,6 +6,7 @@ import type { DownloadProgress } from '../../../packages/plugins';
 import { initPluginResourceHandlers } from '../../../packages/plugins/ipc-main';
 import { initRecorderHandlers } from '../../../packages/recorder/ipc-main';
 import { initSherpaHandlers } from '../../../packages/sherpa/ipc-main';
+import { initTTSHandlers } from '../../../packages/tts/ipc-main';
 import { initDailyCare } from '../daily';
 import { initScreenshotHandlers } from '../screenshot';
 import { initSkillTreeHandlers } from '../skillTreeWindow';
@@ -56,6 +57,7 @@ export function initHandlers(win: BrowserWindow): void {
   initAIHandlers(win);
   initRecorderHandlers();
   initSherpaHandlers();
+  initTTSHandlers(win);
   initShortcutsHandlers(win);
   initPreferencesHandlers();
   initPluginResourceHandlers(win, {

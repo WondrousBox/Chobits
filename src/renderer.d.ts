@@ -24,6 +24,7 @@ import type { AIApi } from '../packages/ai/types';
 import type { AppEventPayload } from '../packages/event/events';
 import type { RecorderIpcRendererType } from '../packages/recorder/ipc-renderer';
 import type { SherpaIpcRendererType } from '../packages/sherpa/ipc-renderer';
+import type { TTSIpcRenderer } from '../packages/tts/ipc-renderer';
 
 declare global {
   interface Window {
@@ -63,6 +64,7 @@ declare global {
       ytdlp: YtDlpIpcRendererType;
       rss: RssApi;
       ai: AIApi;
+      tts: TTSIpcRenderer;
       events: {
         on: (callback: (payload: AppEventPayload) => void) => () => void;
       };
