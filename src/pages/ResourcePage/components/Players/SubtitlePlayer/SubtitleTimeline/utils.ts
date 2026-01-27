@@ -124,3 +124,78 @@ export function calculateDuration(tracks: TimelineTrack[]): number {
   }
   return maxEnd;
 }
+
+/**
+ * 检测时间范围对象（用于重叠检测）
+ */
+export interface TimeRange {
+  startTime: number;
+  endTime: number;
+  index: number;
+}
+
+/**
+ * 检测两个时间范围是否重叠
+ */
+export function isOverlapping(a: TimeRange, b: TimeRange): boolean {
+  // 如果 a 的结束时间 <= b 的开始时间，或 b 的结束时间 <= a 的开始时间，则不重叠
+  // 否则重叠
+  return !(a.endTime <= b.startTime || b.endTime <= a.startTime);
+}
+
+/**
+ * 检测轨道内所有重叠的时间范围对
+ * 返回一个 Set，包含所有参与重叠的索引
+ */
+export function detectOverlappingIndices(ranges: TimeRange[]): Set<number> {
+  const overlappingIndices = new Set<number>();
+
+  // 按开始时间排序
+  const sortedRanges = [...ranges].sort((a, b) => a.startTime - b.startTime);
+
+  // 检测所有可能的重叠对
+  for (let i = 0; i < sortedRanges.length - 1; i++) {
+    const current = sortedRanges[i];
+
+    // 检查当前范围与后续所有可能重叠的范围
+    for (let j = i + 1; j < sortedRanges.length; j++) {
+      const next = sortedRanges[j];
+
+      // 如果 next 的开始时间已经大于等于 current 的结束时间，后面的都不会重叠了
+      if (next.startTime >= current.endTime) {
+        break;
+      }
+
+      // 检测重叠
+      if (isOverlapping(current, next)) {
+        overlappingIndices.add(current.index);
+        overlappingIndices.add(next.index);
+      }
+    }
+  }
+
+  return overlappingIndices;
+}
+
+/**
+ * 从 TimelineSegment 数组中检测重叠的片段
+ */
+export function detectOverlappingSegments(segments: TimelineSegment[]): Set<string> {
+  const ranges: TimeRange[] = segments.map((seg, index) => ({
+    startTime: seg.startTime,
+    endTime: seg.endTime,
+    index
+  }));
+
+  const overlappingIndices = detectOverlappingIndices(ranges);
+
+  // 将索引转换为片段 ID
+  const overlappingIds = new Set<string>();
+  overlappingIndices.forEach((index) => {
+    if (index < segments.length) {
+      overlappingIds.add(segments[index].id);
+    }
+  });
+
+  return overlappingIds;
+}

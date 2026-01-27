@@ -20,6 +20,8 @@ interface TimelineSegmentBlockProps {
   isHighlighted?: boolean;
   /** 是否选中 */
   isSelected?: boolean;
+  /** 是否与其他片段重叠（时间冲突） */
+  isOverlapping?: boolean;
   /** 是否禁用交互 */
   disabled?: boolean;
   /** 点击回调 */
@@ -58,6 +60,7 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
   isActive = false,
   isHighlighted = false,
   isSelected = false,
+  isOverlapping = false,
   disabled = false,
   segmentIndex,
   onClick,
@@ -105,7 +108,11 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
 
     return color;
   }, []);
-  const backgroundColor = toAlpha(trackColor, isActive ? 0.9 : 0.35);
+
+  // 如果存在重叠，使用异常颜色（橙红色）
+  const backgroundColor = isOverlapping
+    ? 'hsla(15, 85%, 55%, 0.5)' // 橙红色，半透明
+    : toAlpha(trackColor, isActive ? 0.9 : 0.35);
 
   // 边缘拖拽区域宽度
   const EDGE_WIDTH = 6;
@@ -280,6 +287,7 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
           'group absolute flex items-center transition-shadow duration-100 overflow-visible [container-type:inline-size]',
           'border border-transparent hover:border-foreground/20',
           isDeleted && 'opacity-40',
+          isOverlapping && 'border-orange-600 border-2',
           isActive && 'ring-2 ring-primary ring-offset-1 ring-offset-background',
           isHighlighted && !isActive && 'ring-1 ring-primary/50',
           isSelected && 'ring-2 ring-blue-500',
