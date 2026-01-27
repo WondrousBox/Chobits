@@ -301,6 +301,15 @@ export const WaveformTrack: React.FC<WaveformTrackProps> = ({
             <span className="text-xs text-muted-foreground">暂无波形数据</span>
           </div>
         )}
+
+        {/* 音频结束截止线 */}
+        {duration > 0 && (
+          <div
+            className="absolute top-0 bottom-0 w-0.5 bg-orange-500 z-10 pointer-events-none"
+            style={{ left: duration * pixelsPerSecond - scrollLeft }}
+            title={`音频结束: ${duration.toFixed(2)}s`}
+          />
+        )}
       </div>
     </div>
   );

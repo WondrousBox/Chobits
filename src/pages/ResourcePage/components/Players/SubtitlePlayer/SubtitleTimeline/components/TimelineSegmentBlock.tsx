@@ -14,6 +14,8 @@ interface TimelineSegmentBlockProps {
   pixelsPerSecond: number;
   /** 该片段在轨道中的索引 */
   segmentIndex?: number;
+  /** 最大时长限制（秒）- 片段不能超出此时间 */
+  maxDuration?: number;
   /** 是否为当前播放的片段 */
   isActive?: boolean;
   /** 是否高亮 */
@@ -57,6 +59,7 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
   trackColor,
   trackHeight,
   pixelsPerSecond,
+  maxDuration,
   isActive = false,
   isHighlighted = false,
   isSelected = false,
@@ -204,12 +207,18 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
       let newStartTime = originalTimes.start;
       let newEndTime = originalTimes.end;
       const minDuration = 0.1; // 最小时长 0.1 秒
+      const segmentDuration = originalTimes.end - originalTimes.start;
 
       switch (dragMode) {
         case 'move':
           // 整体移动
           newStartTime = Math.max(0, originalTimes.start + deltaTime);
-          newEndTime = newStartTime + (originalTimes.end - originalTimes.start);
+          newEndTime = newStartTime + segmentDuration;
+          // 限制不超出最大时长
+          if (maxDuration !== undefined && newEndTime > maxDuration) {
+            newEndTime = maxDuration;
+            newStartTime = maxDuration - segmentDuration;
+          }
           break;
 
         case 'resize-left':
@@ -220,6 +229,10 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
         case 'resize-right':
           // 调整右边缘（改变结束时间）
           newEndTime = Math.max(originalTimes.start + minDuration, originalTimes.end + deltaTime);
+          // 限制不超出最大时长
+          if (maxDuration !== undefined && newEndTime > maxDuration) {
+            newEndTime = maxDuration;
+          }
           break;
       }
 
@@ -243,7 +256,7 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [dragMode, dragStartX, pixelsPerSecond, originalTimes, segment, trackId, onTimeChange, onDragEnd]);
+  }, [dragMode, dragStartX, pixelsPerSecond, originalTimes, segment, trackId, onTimeChange, onDragEnd, maxDuration]);
 
   // 更新鼠标样式
   const handleMouseMove = useCallback(

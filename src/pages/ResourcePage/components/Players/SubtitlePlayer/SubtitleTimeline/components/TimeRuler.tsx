@@ -198,6 +198,11 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
           <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[5px] border-r-[5px] border-t-[6px] border-l-transparent border-r-transparent border-t-red-500" />
         </div>
       )}
+
+      {/* 音频结束截止线 */}
+      <div className="absolute top-0 bottom-0 w-0.5 bg-orange-500 z-10" style={{ left: (endTime - startTime) * pixelsPerSecond }} title={`音频结束: ${endTime.toFixed(2)}s`}>
+        <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[5px] border-r-[5px] border-t-[6px] border-l-transparent border-r-transparent border-t-orange-500" />
+      </div>
     </div>
   );
 };

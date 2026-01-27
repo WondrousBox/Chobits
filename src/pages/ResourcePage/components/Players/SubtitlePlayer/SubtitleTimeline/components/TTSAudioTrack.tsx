@@ -58,7 +58,7 @@ interface TTSAudioTrackProps {
  * TTS音频轨道组件
  * 在时间轴上显示TTS合成的音频片段
  */
-export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({ items, viewport, pixelsPerSecond, currentTime, width, onPlayAudio, onStopAudio, playingIndex }) => {
+export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({ items, viewport, pixelsPerSecond, totalDuration, currentTime, width, onPlayAudio, onStopAudio, playingIndex }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   // 检测重叠的音频项（基于音频实际时长，而不是字幕时间戳）
@@ -215,6 +215,9 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({ items, viewport, p
 
         {/* 当前时间指示线 */}
         {currentTimeX !== null && <div className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none" style={{ left: currentTimeX }} />}
+
+        {/* 音频结束截止线 */}
+        <div className="absolute top-0 bottom-0 w-0.5 bg-orange-500 z-10 pointer-events-none" style={{ left: totalDuration * pixelsPerSecond }} title={`音频结束: ${totalDuration.toFixed(2)}s`} />
       </div>
     </div>
   );
