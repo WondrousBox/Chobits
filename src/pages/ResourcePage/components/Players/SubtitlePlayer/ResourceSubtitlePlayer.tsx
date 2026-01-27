@@ -183,10 +183,45 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
   });
 
   // 使用TTS合成 Hook
-  const { synthesizingIndices, synthesizedItems, synthesisProgress, isSynthesizing, startSynthesis, stopSynthesis, formatDuration } = useTTSSynthesis({
+  const { synthesizingIndices, synthesizedItems, synthesisProgress, isSynthesizing, startSynthesis, stopSynthesis, formatDuration, loadTTSHistory } = useTTSSynthesis({
     resourceId: resource.id,
     subtitleEntriesRef
   });
+
+  // 加载已保存的TTS历史（只在时间轴模式下需要）
+  useEffect(() => {
+    if (viewMode !== 'timeline' || subtitleEntries.length === 0 || !resource.id) {
+      return;
+    }
+
+    // 从 localStorage 读取TTS配置
+    const loadTTSPreferences = (): { voiceName?: string; rate?: number; pitch?: number } | null => {
+      try {
+        const stored = localStorage.getItem('tts-synthesizer-preferences');
+        if (stored) {
+          const prefs = JSON.parse(stored);
+          return {
+            voiceName: prefs.selectedVoice,
+            rate: prefs.rate,
+            pitch: prefs.pitch
+          };
+        }
+      } catch (error) {
+        console.error('读取TTS配置失败:', error);
+      }
+      return null;
+    };
+
+    const prefs = loadTTSPreferences();
+    if (prefs?.voiceName) {
+      // 加载TTS历史
+      loadTTSHistory({
+        voiceName: prefs.voiceName,
+        rate: prefs.rate,
+        pitch: prefs.pitch
+      });
+    }
+  }, [viewMode, subtitleEntries.length, resource.id, loadTTSHistory]);
 
   // 当前正在播放的 TTS 索引 & 播放实例
   const [playingTTSIndex, setPlayingTTSIndex] = useState<number | null>(null);
@@ -259,12 +294,18 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
 
   // 时间轴用的 TTS 轨道数据
   const ttsTimelineItems = useMemo<TimelineTTSAudioItem[]>(() => {
-    if (subtitleEntries.length === 0 || synthesizedItems.size === 0) return [];
+    if (subtitleEntries.length === 0 || synthesizedItems.size === 0) {
+      console.log(`[ResourceSubtitlePlayer] ttsTimelineItems 为空 - subtitleEntries: ${subtitleEntries.length}, synthesizedItems: ${synthesizedItems.size}`);
+      return [];
+    }
 
     const items: TimelineTTSAudioItem[] = [];
     synthesizedItems.forEach((item, index) => {
       const seg = subtitleEntries[index];
-      if (!seg) return;
+      if (!seg) {
+        console.warn(`[ResourceSubtitlePlayer] 找不到索引 ${index} 的字幕条目`);
+        return;
+      }
 
       const startTime = utils.convertToSeconds(seg.st);
       const endTime = utils.convertToSeconds(seg.et);
@@ -283,6 +324,16 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
 
     // 按起始时间排序，保证时间轴顺序自然
     items.sort((a, b) => a.startTime - b.startTime);
+    console.log(
+      `[ResourceSubtitlePlayer] ttsTimelineItems 更新 - ${items.length} 个项目, 状态分布:`,
+      items.reduce(
+        (acc, item) => {
+          acc[item.status] = (acc[item.status] || 0) + 1;
+          return acc;
+        },
+        {} as Record<string, number>
+      )
+    );
     return items;
   }, [subtitleEntries, synthesizedItems]);
 
@@ -590,25 +641,25 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
       ) : (
         // 时间轴视图
         <SubtitleTimeline
-          tracks={timelineTracks}
-          currentTime={currentTime}
-          followCurrentTime={followTime}
-          onSeek={onSeek}
-          onSegmentTextChange={handleTimelineTextChange}
-          onSegmentTimeChange={handleTimelineTimeChange}
-          onMergePrev={handleMergePrev}
-          highlightIds={timelineHighlightIds}
-          disabled={isTranslating}
-          showRuler
-          showTrackLabels
-          audioPath={audioPath}
-          showWaveform={!!audioPath}
-          ttsItems={ttsTimelineItems}
-          showTTSTrack={ttsTimelineItems.length > 0 || isSynthesizing}
-          onPlayTTSAudio={handlePlayTTS}
-          onStopTTSAudio={handleStopTTS}
-          playingTTSIndex={playingTTSIndex ?? undefined}
-        />
+            tracks={timelineTracks}
+            currentTime={currentTime}
+            followCurrentTime={followTime}
+            onSeek={onSeek}
+            onSegmentTextChange={handleTimelineTextChange}
+            onSegmentTimeChange={handleTimelineTimeChange}
+            onMergePrev={handleMergePrev}
+            highlightIds={timelineHighlightIds}
+            disabled={isTranslating}
+            showRuler
+            showTrackLabels
+            audioPath={audioPath}
+            showWaveform={!!audioPath}
+            ttsItems={ttsTimelineItems}
+            showTTSTrack={ttsTimelineItems.length > 0 || isSynthesizing}
+            onPlayTTSAudio={handlePlayTTS}
+            onStopTTSAudio={handleStopTTS}
+            playingTTSIndex={playingTTSIndex ?? undefined}
+          />
       )}
     </div>
   );

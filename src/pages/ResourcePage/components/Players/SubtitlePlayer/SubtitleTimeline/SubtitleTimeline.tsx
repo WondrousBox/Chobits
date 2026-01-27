@@ -107,14 +107,6 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
     onViewportChange?.(viewport);
   }, [viewport, onViewportChange]);
 
-  // 时间转像素
-  const timeToPixel = useCallback(
-    (time: number): number => {
-      return time * pixelsPerSecond;
-    },
-    [pixelsPerSecond]
-  );
-
   // 像素转时间
   const pixelToTime = useCallback(
     (pixel: number): number => {
@@ -270,11 +262,6 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
     handleZoom(1 / DEFAULT_CONFIG.ZOOM_STEP);
   }, [handleZoom]);
 
-  // 计算可见轨道的总高度
-  const tracksHeight = useMemo(() => {
-    return tracksWithColors.filter((t) => !t.hidden).reduce((sum, t) => sum + (t.height ?? DEFAULT_CONFIG.TRACK_HEIGHT) + DEFAULT_CONFIG.TRACK_GAP, 0);
-  }, [tracksWithColors]);
-
   return (
     <div ref={containerRef} className={clsx('flex flex-col bg-background border rounded-lg overflow-hidden select-none h-full', className)}>
       {/* 工具栏 */}
@@ -344,27 +331,6 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
         />
       )}
 
-      {/* TTS音频轨道 */}
-      {showTTSTrack && ttsItems && ttsItems.length > 0 && (
-        <div className="shrink-0 overflow-hidden" style={{ marginLeft: showTrackLabels ? 0 : 0 }}>
-          <div className="overflow-x-auto overflow-y-hidden" style={{ marginLeft: scrollContainerRef.current ? -scrollLeft : 0 }}>
-            <TTSAudioTrack
-              items={ttsItems}
-              viewport={viewport}
-              totalDuration={duration}
-              pixelsPerSecond={pixelsPerSecond}
-              width={totalWidth}
-              currentTime={effectiveCurrentTime}
-              trackLabelWidth={trackLabelWidth}
-              showTrackLabel={showTrackLabels}
-              onPlayAudio={onPlayTTSAudio}
-              onStopAudio={onStopTTSAudio}
-              playingIndex={playingTTSIndex}
-            />
-          </div>
-        </div>
-      )}
-
       {/* 主内容区域 */}
       <div className="flex flex-1 overflow-hidden min-h-0">
         {/* 左侧轨道标签（固定） */}
@@ -379,6 +345,13 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
               .map((track, index) => (
                 <TrackLabel key={track.id} track={track} index={index} />
               ))}
+
+            {/* TTS轨道标签 */}
+            {showTTSTrack && ttsItems && ttsItems.length > 0 && (
+              <div className="flex items-center justify-center shrink-0 border-b bg-muted/20 text-xs text-muted-foreground" style={{ height: DEFAULT_CONFIG.TRACK_HEIGHT }}>
+                <span className="truncate px-1">TTS</span>
+              </div>
+            )}
           </div>
         )}
 
@@ -421,6 +394,23 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                   disabled={disabled || track.locked}
                 />
               ))}
+
+            {/* TTS音频轨道（在字幕轨道下方，作为可滚动内容的一部分） */}
+            {showTTSTrack && ttsItems && ttsItems.length > 0 && (
+              <TTSAudioTrack
+                items={ttsItems}
+                viewport={viewport}
+                totalDuration={duration}
+                pixelsPerSecond={pixelsPerSecond}
+                width={totalWidth}
+                currentTime={effectiveCurrentTime}
+                trackLabelWidth={0}
+                showTrackLabel={false}
+                onPlayAudio={onPlayTTSAudio}
+                onStopAudio={onStopTTSAudio}
+                playingIndex={playingTTSIndex}
+              />
+            )}
           </div>
         </div>
       </div>

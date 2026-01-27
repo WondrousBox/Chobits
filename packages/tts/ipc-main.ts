@@ -4,11 +4,25 @@
  * 负责处理批量TTS合成的IPC调用
  */
 
+import { createHash } from 'crypto';
 import { app, BrowserWindow, ipcMain, IpcMainInvokeEvent } from 'electron';
 import * as path from 'path';
 
 import { ResourcesRepo, WorkspacesRepo } from '../../electron/main/db/repositories';
 import { type BatchTTSConfig, type BatchTTSEvent, type BatchTTSResult, BatchTTSService, type TTSItem } from './batch-tts-service';
+
+/**
+ * 生成配置的MD5前缀（与 batch-tts-service.ts 一致）
+ */
+function generateConfigPrefix(config: { type?: string; voiceName: string; rate?: number; pitch?: number }): string {
+  const configStr = JSON.stringify({
+    type: config.type || 'Edge',
+    voiceName: config.voiceName,
+    rate: config.rate,
+    pitch: config.pitch
+  });
+  return createHash('md5').update(configStr).digest('hex').substring(0, 8);
+}
 
 // TTS 事件通道
 const TTS_EVENT_CHANNEL = 'tts:event';
@@ -150,11 +164,22 @@ export function initTTSHandlers(win: BrowserWindow): void {
 
   /**
    * 加载资源的TTS历史记录
+   * 支持两种参数格式：
+   * 1. { resourceId, configPrefix } - 直接提供 configPrefix
+   * 2. { resourceId, config } - 提供配置对象，自动计算 configPrefix
    */
-  ipcMain.handle('tts:loadHistory', async (_event: IpcMainInvokeEvent, params: { resourceId: string; configPrefix: string }): Promise<any> => {
-    const { resourceId, configPrefix } = params;
+  ipcMain.handle('tts:loadHistory', async (_event: IpcMainInvokeEvent, params: { resourceId: string; configPrefix?: string; config?: BatchTTSConfig }): Promise<any> => {
+    const { resourceId, configPrefix, config } = params;
     const outputDir = await getTTSOutputDir(resourceId);
-    return BatchTTSService.loadHistory(outputDir, configPrefix);
+
+    // 如果提供了 config，计算 configPrefix
+    const actualConfigPrefix = configPrefix || (config ? generateConfigPrefix(config) : undefined);
+
+    if (!actualConfigPrefix) {
+      throw new Error('必须提供 configPrefix 或 config 参数');
+    }
+
+    return BatchTTSService.loadHistory(outputDir, actualConfigPrefix);
   });
 
   console.log('[TTS] IPC处理器已初始化');

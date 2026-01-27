@@ -1,8 +1,7 @@
 import clsx from 'clsx';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { TbLoader2, TbPlayerPause, TbPlayerPlay, TbVolume } from 'react-icons/tb';
+import React, { useCallback, useMemo, useRef } from 'react';
+import { TbLoader2, TbPlayerPause, TbPlayerPlay } from 'react-icons/tb';
 
-import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 import { DEFAULT_CONFIG, ViewportState } from '../types';
@@ -58,21 +57,8 @@ interface TTSAudioTrackProps {
  * TTS音频轨道组件
  * 在时间轴上显示TTS合成的音频片段
  */
-export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
-  items,
-  viewport,
-  totalDuration,
-  pixelsPerSecond,
-  width,
-  currentTime,
-  trackLabelWidth = DEFAULT_CONFIG.TRACK_LABEL_WIDTH,
-  showTrackLabel = true,
-  onPlayAudio,
-  onStopAudio,
-  playingIndex
-}) => {
+export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({ items, viewport, pixelsPerSecond, width, onPlayAudio, onStopAudio, playingIndex }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
   // 过滤出在视口范围内的项目（带缓冲区）
   const visibleItems = useMemo(() => {
@@ -141,78 +127,62 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
   }
 
   return (
-    <div className="flex" style={{ height: DEFAULT_CONFIG.TRACK_HEIGHT }}>
-      {/* 轨道标签 */}
-      {showTrackLabel && (
-        <div className="flex items-center justify-center shrink-0 border-r border-b bg-muted/20 text-xs text-muted-foreground" style={{ width: trackLabelWidth, height: DEFAULT_CONFIG.TRACK_HEIGHT }}>
-          <TbVolume className="h-3 w-3 mr-1" />
-          TTS
-        </div>
-      )}
+    <div className="relative border-b bg-muted/5" style={{ height: DEFAULT_CONFIG.TRACK_HEIGHT }}>
+      {/* 轨道内容容器（设置总宽度） */}
+      <div ref={containerRef} className="relative h-full" style={{ width }}>
+        {visibleItems.map((item) => {
+          const { left, width: itemWidth } = getItemStyle(item);
+          const isPlaying = playingIndex === item.index;
 
-      {/* 轨道内容 */}
-      <div ref={containerRef} className="relative flex-1 border-b bg-muted/5" style={{ height: DEFAULT_CONFIG.TRACK_HEIGHT }}>
-        {/* 总宽度容器 */}
-        <div className="relative h-full" style={{ width }}>
-          {visibleItems.map((item) => {
-            const { left, width: itemWidth } = getItemStyle(item);
-            const isPlaying = playingIndex === item.index;
-            const isHovered = hoveredIndex === item.index;
-
-            return (
-              <TooltipProvider key={item.index}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div
-                      className={clsx('absolute top-1 bottom-1 rounded border transition-all cursor-pointer', getStatusColor(item.status), isPlaying && 'ring-2 ring-primary')}
-                      style={{
-                        left,
-                        width: itemWidth,
-                        minWidth: DEFAULT_CONFIG.SEGMENT_MIN_WIDTH
-                      }}
-                      onMouseEnter={() => setHoveredIndex(item.index)}
-                      onMouseLeave={() => setHoveredIndex(null)}
-                      onClick={(e) => handlePlayClick(e, item)}
-                    >
-                      {/* 内容 */}
-                      <div className="flex items-center justify-center h-full px-1 overflow-hidden">
-                        {item.status === 'synthesizing' ? (
-                          <TbLoader2 className="h-3 w-3 animate-spin text-blue-500" />
-                        ) : item.status === 'completed' ? (
-                          <div className="flex items-center gap-0.5">
-                            {isPlaying ? <TbPlayerPause className="h-3 w-3 text-green-600" /> : <TbPlayerPlay className="h-3 w-3 text-green-600" />}
-                            {itemWidth > 40 && item.trimmedDuration && <span className="text-[10px] text-green-600">{formatDuration(item.trimmedDuration)}</span>}
-                          </div>
-                        ) : item.status === 'error' ? (
-                          <span className="text-[10px] text-red-500">!</span>
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground">#{item.index + 1}</span>
-                        )}
+          return (
+            <Tooltip key={item.index}>
+              <TooltipTrigger asChild>
+                <div
+                  className={clsx('absolute top-1 bottom-1 rounded border transition-all cursor-pointer', getStatusColor(item.status), isPlaying && 'ring-2 ring-primary')}
+                  style={{
+                    left,
+                    width: itemWidth,
+                    minWidth: DEFAULT_CONFIG.SEGMENT_MIN_WIDTH
+                  }}
+                  onClick={(e) => handlePlayClick(e, item)}
+                >
+                  {/* 内容 */}
+                  <div className="flex items-center justify-center h-full px-1 overflow-hidden">
+                    {item.status === 'synthesizing' ? (
+                      <TbLoader2 className="h-3 w-3 animate-spin text-blue-500" />
+                    ) : item.status === 'completed' ? (
+                      <div className="flex items-center gap-0.5">
+                        {isPlaying ? <TbPlayerPause className="h-3 w-3 text-green-600" /> : <TbPlayerPlay className="h-3 w-3 text-green-600" />}
+                        {itemWidth > 40 && item.trimmedDuration && <span className="text-[10px] text-green-600">{formatDuration(item.trimmedDuration)}</span>}
                       </div>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-xs">
-                    <div className="text-xs space-y-1">
-                      <div className="font-medium">片段 #{item.index + 1}</div>
-                      {item.status === 'completed' && (
-                        <>
-                          <div>
-                            时长: {item.duration ? formatDuration(item.duration) : '--'}
-                            {item.trimmedDuration && item.trimmedDuration !== item.duration && <span className="text-muted-foreground"> → {formatDuration(item.trimmedDuration)} (去静音)</span>}
-                          </div>
-                          <div className="text-muted-foreground">点击{isPlaying ? '停止' : '播放'}</div>
-                        </>
-                      )}
-                      {item.status === 'synthesizing' && <div className="text-blue-500">正在合成...</div>}
-                      {item.status === 'pending' && <div className="text-muted-foreground">等待合成</div>}
-                      {item.status === 'error' && <div className="text-red-500">{item.error || '合成失败'}</div>}
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            );
-          })}
-        </div>
+                    ) : item.status === 'error' ? (
+                      <span className="text-[10px] text-red-500">!</span>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground">#{item.index + 1}</span>
+                    )}
+                  </div>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs">
+                <div className="text-xs space-y-1">
+                  <div className="font-medium">片段 #{item.index + 1}</div>
+                  {item.status === 'completed' && (
+                    <>
+                      <div>
+                        时长: {item.duration ? formatDuration(item.duration) : '--'}
+                        {item.trimmedDuration && item.trimmedDuration !== item.duration && <span className="text-muted-foreground"> → {formatDuration(item.trimmedDuration)} (去静音)</span>}
+                      </div>
+                      <div className="text-muted-foreground">点击{isPlaying ? '停止' : '播放'}</div>
+                    </>
+                  )}
+                  {item.status === 'synthesizing' && <div className="text-blue-500">正在合成...</div>}
+                  {item.status === 'pending' && <div className="text-muted-foreground">等待合成</div>}
+                  {item.status === 'error' && <div className="text-red-500">{item.error || '合成失败'}</div>}
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          );
+        })}
       </div>
     </div>
   );

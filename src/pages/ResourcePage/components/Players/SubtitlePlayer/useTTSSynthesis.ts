@@ -13,6 +13,21 @@ interface TTSEventData {
 }
 
 /**
+ * TTS历史记录数据结构（与 batch-tts-service.ts 一致）
+ */
+interface BatchTTSHistory {
+  requestId: string;
+  configPrefix: string;
+  createdAt: number;
+  updatedAt: number;
+  audioMap: Record<string, string>;
+  durationMap: Record<string, number>;
+  trimmedAudioMap: Record<string, string>;
+  trimmedDurationMap: Record<string, number>;
+  orderList: string[];
+}
+
+/**
  * TTS合成项的状态
  */
 export interface TTSSynthesisItem {
@@ -74,12 +89,16 @@ export interface UseTTSSynthesisReturn {
   isSynthesizing: boolean;
   /** 合成是否已完成 */
   isSynthesisComplete: boolean;
+  /** 是否正在加载历史记录 */
+  isLoadingHistory: boolean;
   /** 开始合成 */
   startSynthesis: (config: TTSSynthesisConfig, selectedIndices?: number[]) => Promise<string>;
   /** 停止合成 */
   stopSynthesis: () => Promise<void>;
   /** 重置合成状态 */
   resetSynthesis: () => void;
+  /** 加载TTS历史记录 */
+  loadTTSHistory: (config: TTSSynthesisConfig) => Promise<void>;
   /** 当前活跃的任务 ID */
   activeTaskId: string | null;
   /** 获取指定索引的合成结果 */
@@ -99,12 +118,23 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
   const [synthesisProgress, setSynthesisProgress] = useState(0);
   const [isSynthesizing, setIsSynthesizing] = useState(false);
   const [isSynthesisComplete, setIsSynthesisComplete] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
 
   // Refs（用于内部追踪）
   const activeTaskIdRef = useRef<string | null>(null);
   const totalItemsRef = useRef(0);
   const completedCountRef = useRef(0);
+  
+  // 使用 ref 保存回调函数，避免 useEffect 重新运行
+  const onSynthesisCompleteRef = useRef(onSynthesisComplete);
+  const onItemCompleteRef = useRef(onItemComplete);
+  
+  // 更新 ref
+  useEffect(() => {
+    onSynthesisCompleteRef.current = onSynthesisComplete;
+    onItemCompleteRef.current = onItemComplete;
+  }, [onSynthesisComplete, onItemComplete]);
 
   // 格式化时长
   const formatDuration = useCallback((seconds: number): string => {
@@ -136,6 +166,78 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
     totalItemsRef.current = 0;
     completedCountRef.current = 0;
   }, []);
+
+  // 加载TTS历史记录
+  const loadTTSHistory = useCallback(
+    async (config: TTSSynthesisConfig): Promise<void> => {
+      const currentEntries = subtitleEntriesRef.current || [];
+      if (currentEntries.length === 0 || !resourceId) {
+        console.log('[useTTSSynthesis] 没有字幕条目或资源ID，跳过加载历史');
+        return;
+      }
+
+      setIsLoadingHistory(true);
+      try {
+        console.log(`[useTTSSynthesis] 加载TTS历史 - resourceId: ${resourceId}`);
+
+        // 通过主进程加载历史，主进程会自动计算 configPrefix
+        const history: BatchTTSHistory | null = await window.YUA.tts.loadHistory({
+          resourceId,
+          config: {
+            type: 'Edge',
+            voiceName: config.voiceName,
+            rate: config.rate ?? 20,
+            pitch: config.pitch ?? 0
+          }
+        });
+
+        if (!history) {
+          console.log('[useTTSSynthesis] 没有找到TTS历史记录');
+          return;
+        }
+
+        console.log(`[useTTSSynthesis] 找到历史记录 - 音频数量: ${Object.keys(history.audioMap).length}`);
+
+        // 将历史记录转换为 synthesizedItems
+        // 由于我们不能在渲染进程计算 MD5，我们需要使用 orderList 来匹配
+        // orderList 的顺序就是合成时的索引顺序
+        const loadedItems = new Map<number, TTSSynthesisItem>();
+
+        // 如果 orderList 存在且长度匹配，直接使用顺序匹配
+        if (history.orderList && history.orderList.length > 0) {
+          history.orderList.forEach((md5, index) => {
+            if (index < currentEntries.length) {
+              const audioPath = history.trimmedAudioMap[md5] || history.audioMap[md5];
+              const duration = history.durationMap[md5];
+              const trimmedDuration = history.trimmedDurationMap[md5];
+
+              if (audioPath) {
+                loadedItems.set(index, {
+                  index,
+                  status: 'completed',
+                  audioPath,
+                  duration: duration ? duration / 1000 : undefined, // 转换为秒
+                  trimmedDuration: trimmedDuration ? trimmedDuration / 1000 : undefined, // 转换为秒
+                  text: currentEntries[index]?.text || ''
+                });
+              }
+            }
+          });
+        }
+
+        if (loadedItems.size > 0) {
+          console.log(`[useTTSSynthesis] 加载了 ${loadedItems.size} 个已合成的TTS项目`);
+          setSynthesizedItems(loadedItems);
+          setIsSynthesisComplete(true);
+        }
+      } catch (error) {
+        console.error('[useTTSSynthesis] 加载TTS历史失败:', error);
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    },
+    [resourceId, subtitleEntriesRef]
+  );
 
   // 停止合成
   const stopSynthesis = useCallback(async () => {
@@ -187,6 +289,7 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
         });
         initialSynthesizing.add(item.index);
       }
+      console.log(`[useTTSSynthesis] 初始化 ${initialItems.size} 个TTS项目为 pending 状态`);
       setSynthesizedItems(initialItems);
       setSynthesizingIndices(initialSynthesizing);
 
@@ -204,6 +307,8 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
 
       activeTaskIdRef.current = result.requestId;
       setActiveTaskId(result.requestId);
+      console.log(`[useTTSSynthesis] TTS任务已启动 - requestId: ${result.requestId}`);
+      console.log(`[useTTSSynthesis] activeTaskIdRef.current 已设置为: ${activeTaskIdRef.current}`);
       return result.requestId;
     },
     [resourceId, subtitleEntriesRef, resetSynthesis]
@@ -211,11 +316,18 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
 
   // 监听TTS事件
   useEffect(() => {
+    console.log('[useTTSSynthesis] 设置TTS事件监听器');
+
     const unsubscribe = window.YUA.tts.onEvent((event: TTSEventData) => {
+      console.log(`[useTTSSynthesis] 收到TTS事件 - type: ${event.type}, requestId: ${event.requestId}`);
+
       // 检查是否是当前任务的事件
       if (event.requestId !== activeTaskIdRef.current) {
+        console.log(`[useTTSSynthesis] 事件被过滤 - requestId不匹配`);
         return;
       }
+      
+      console.log(`[useTTSSynthesis] 处理事件 - type: ${event.type}`);
 
       switch (event.type) {
         case 'progress': {
@@ -227,16 +339,19 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
 
             // 更新单项状态为正在合成
             if (currentIndex !== undefined) {
+              console.log(`[useTTSSynthesis] 进度事件 - 索引 ${currentIndex}, 进度 ${percentage}%`);
               setSynthesizedItems((prev) => {
                 const next = new Map(prev);
                 const existing = next.get(currentIndex);
-                if (existing) {
+                if (existing && existing.status !== 'synthesizing') {
+                  console.log(`[useTTSSynthesis] 更新索引 ${currentIndex} 状态为 synthesizing`);
                   next.set(currentIndex, {
                     ...existing,
                     status: 'synthesizing'
                   });
+                  return next;
                 }
-                return next;
+                return prev; // 如果没有变化，返回原对象避免不必要的渲染
               });
             }
           }
@@ -256,29 +371,27 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
               text: string;
             }>;
 
+            console.log(`[useTTSSynthesis] 收到 complete 事件，包含 ${results.length} 个结果`);
+
             setSynthesizedItems((prev) => {
               const next = new Map(prev);
               for (const result of results) {
-                next.set(result.index, {
+                // 后端返回的 duration 是毫秒，需要转换为秒
+                const item: TTSSynthesisItem = {
                   index: result.index,
                   status: result.success ? 'completed' : 'error',
                   audioPath: result.audioPath,
-                  duration: result.duration,
-                  trimmedDuration: result.trimmedDuration,
+                  duration: result.duration ? result.duration / 1000 : undefined,
+                  trimmedDuration: result.trimmedDuration ? result.trimmedDuration / 1000 : undefined,
                   error: result.error,
                   text: result.text
-                });
+                };
+
+                next.set(result.index, item);
+                console.log(`[useTTSSynthesis] 更新索引 ${result.index}: ${result.success ? 'completed' : 'error'}, 音频路径: ${result.audioPath}`);
 
                 // 触发单项完成回调
-                onItemComplete?.({
-                  index: result.index,
-                  status: result.success ? 'completed' : 'error',
-                  audioPath: result.audioPath,
-                  duration: result.duration,
-                  trimmedDuration: result.trimmedDuration,
-                  error: result.error,
-                  text: result.text
-                });
+                onItemCompleteRef.current?.(item);
               }
               return next;
             });
@@ -293,7 +406,7 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
           setSynthesisProgress(100);
           setActiveTaskId(null);
           activeTaskIdRef.current = null;
-          onSynthesisComplete?.();
+          onSynthesisCompleteRef.current?.();
           break;
         }
 
@@ -307,10 +420,13 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
       }
     });
 
+    console.log('[useTTSSynthesis] 事件监听器设置完成');
+
     return () => {
+      console.log('[useTTSSynthesis] 清理事件监听器');
       unsubscribe();
     };
-  }, [onSynthesisComplete, onItemComplete]);
+  }, []); // 空依赖数组，只在组件挂载时设置一次
 
   // 组件卸载时取消任务
   useEffect(() => {
@@ -327,9 +443,11 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
     synthesisProgress,
     isSynthesizing,
     isSynthesisComplete,
+    isLoadingHistory,
     startSynthesis,
     stopSynthesis,
     resetSynthesis,
+    loadTTSHistory,
     activeTaskId,
     getSynthesizedItem,
     formatDuration

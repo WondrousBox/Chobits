@@ -127,8 +127,11 @@ export interface TTSIpcRenderer {
 
   /**
    * 加载TTS历史记录
+   * @param params.resourceId - 资源ID
+   * @param params.configPrefix - 配置前缀（可选，如果提供了 config 则自动计算）
+   * @param params.config - TTS配置对象（可选，用于自动计算 configPrefix）
    */
-  loadHistory: (params: { resourceId: string; configPrefix: string }) => Promise<any>;
+  loadHistory: (params: { resourceId: string; configPrefix?: string; config?: BatchSynthesisConfig }) => Promise<any>;
 
   /**
    * 监听TTS事件
@@ -151,7 +154,7 @@ export function createTTSIpcRenderer(ipcRenderer: IpcRenderer): TTSIpcRenderer {
 
     hasActiveTasks: () => ipcRenderer.invoke('tts:hasActiveTasks'),
 
-    loadHistory: (params: { resourceId: string; configPrefix: string }) => ipcRenderer.invoke('tts:loadHistory', params),
+    loadHistory: (params: { resourceId: string; configPrefix?: string; config?: BatchSynthesisConfig }) => ipcRenderer.invoke('tts:loadHistory', params),
 
     onEvent: (callback: (event: TTSEventData) => void) => {
       const handler = (_event: any, data: TTSEventData): void => {
