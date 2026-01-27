@@ -31,6 +31,22 @@ export interface LegacySummaries {
 }
 
 /**
+ * TTS合成结果项
+ */
+export interface TTSSynthesizedItem {
+  /** 音频文件路径 */
+  audioPath?: string;
+  /** 音频时长（秒） */
+  duration?: number;
+  /** 去除静音后的时长（秒） */
+  trimmedDuration?: number;
+  /** 合成状态 */
+  status: 'pending' | 'synthesizing' | 'completed' | 'error';
+  /** 错误信息 */
+  error?: string;
+}
+
+/**
  * 纯展示型字幕播放器（不包含资源读取、保存、翻译等业务逻辑）
  */
 export interface SubtitlePlayerProps {
@@ -58,6 +74,12 @@ export interface SubtitlePlayerProps {
    * - LegacySummaries: 旧格式，向后兼容
    */
   summaries?: Map<number, ChunkSummaryInfo> | LegacySummaries;
+  /** TTS合成结果 Map（索引 -> 合成项） */
+  ttsItems?: Map<number, TTSSynthesizedItem>;
+  /** 正在合成TTS的索引集合 */
+  ttsSynthesizingIndices?: Set<number>;
+  /** 播放TTS音频的回调 */
+  onPlayTTS?: (index: number, audioPath: string) => void;
 }
 
 const toIndexSet = (value?: Set<number> | number[]): Set<number> | undefined => {
@@ -142,7 +164,10 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
   onMergeNext,
   disabledIndices,
   highlightIndices,
-  summaries
+  summaries,
+  ttsItems,
+  ttsSynthesizingIndices,
+  onPlayTTS
 }) => {
   const activeRowRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -154,6 +179,7 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
 
   const disabledSet = toIndexSet(disabledIndices);
   const highlightSet = toIndexSet(highlightIndices);
+  const ttsSynthesizingSet = toIndexSet(ttsSynthesizingIndices);
 
   // 虚拟滚动配置
   const virtualizer = useVirtualizer({
@@ -315,6 +341,9 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
                 disabled={disabled}
                 highlight={highlight}
                 isMainTrack={true}
+                ttsItem={ttsItems?.get(idx)}
+                ttsSynthesizing={!!ttsSynthesizingSet?.has(idx)}
+                onPlayTTS={onPlayTTS}
               />
               {/* 附加轨道 */}
               {additionalTracks.map((track, trackIndex) => {
@@ -329,9 +358,6 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
                     disabled={disabled}
                     highlight={highlight}
                     onTextChange={handleTextChange}
-                    onMergePrev={handleMergePrev}
-                    onMergeNext={handleMergeNext}
-                    onTimeClick={onSeek}
                     isMainTrack={false}
                   />
                 );

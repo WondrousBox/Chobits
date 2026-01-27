@@ -10,7 +10,9 @@ import type { ResourceItem } from '../../../types';
 import { SubtitlePlayer } from './SubtitleListPlayer/SubtitlePlayer';
 import { aimTracksToTimelineTracks, indicesToIds, parseSegmentId, SubtitleTimeline, TimelineSegment } from './SubtitleTimeline';
 import { SubtitleTranslator } from './SubtitleTranslator';
+import { TTSSynthesizer } from './TTSSynthesizer';
 import { useSubtitleTranslation } from './useSubtitleTranslation';
+import { TTSSynthesisItem, useTTSSynthesis } from './useTTSSynthesis';
 
 // 将 AimSegments 转换为 ISegment 格式
 // ISegment = [string, string, string, string | undefined]
@@ -178,6 +180,43 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     // 翻译完成后重新加载翻译轨道
     onTranslationComplete: handleTranslationComplete
   });
+
+  // 使用TTS合成 Hook
+  const { synthesizingIndices, synthesizedItems, synthesisProgress, isSynthesizing, startSynthesis, stopSynthesis, formatDuration } = useTTSSynthesis({
+    resourceId: resource.id,
+    subtitleEntriesRef
+  });
+
+  // 处理TTS合成开始
+  const handleTTSSynthesisStart = useCallback((taskId: string) => {
+    console.log('[SubtitlePlayer] TTS合成开始, taskId:', taskId);
+  }, []);
+
+  // 播放TTS音频
+  const handlePlayTTS = useCallback((index: number, audioPath: string) => {
+    console.log('[SubtitlePlayer] 播放TTS音频, index:', index, 'path:', audioPath);
+    // TODO: 实现音频播放功能
+    // 可以通过创建Audio对象播放，或者调用主进程的音频播放服务
+    const audio = new Audio(`resource://${audioPath}`);
+    audio.play().catch((error) => {
+      console.error('[SubtitlePlayer] 播放TTS音频失败:', error);
+    });
+  }, []);
+
+  // 将synthesizedItems转换为SubtitlePlayer需要的格式
+  const ttsItemsMap = useMemo(() => {
+    const map = new Map<number, { audioPath?: string; duration?: number; trimmedDuration?: number; status: 'pending' | 'synthesizing' | 'completed' | 'error'; error?: string }>();
+    synthesizedItems.forEach((item, index) => {
+      map.set(index, {
+        audioPath: item.audioPath,
+        duration: item.duration,
+        trimmedDuration: item.trimmedDuration,
+        status: item.status,
+        error: item.error
+      });
+    });
+    return map;
+  }, [synthesizedItems]);
 
   // 更新 clearTypingTexts ref
   useEffect(() => {
@@ -450,6 +489,14 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
             onStopTranslation={stopTranslation}
             onTranslationStart={handleTranslationStart}
           />
+          <TTSSynthesizer
+            subtitleEntries={subtitleEntries}
+            resourceId={resource.id}
+            isSynthesizing={isSynthesizing}
+            synthesisProgress={synthesisProgress}
+            onStopSynthesis={stopSynthesis}
+            onSynthesisStart={handleTTSSynthesisStart}
+          />
         </div>
       </div>
 
@@ -467,6 +514,9 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
           disabledIndices={translatingChunks}
           highlightIndices={translatingChunks}
           summaries={chunkSummaryInfoMap}
+          ttsItems={ttsItemsMap}
+          ttsSynthesizingIndices={synthesizingIndices}
+          onPlayTTS={handlePlayTTS}
         />
       ) : (
         // 时间轴视图

@@ -6,6 +6,7 @@ import { APP_EVENT_CHANNEL, AppEventPayload } from '../../packages/event/events'
 import { pluginResourceIpcRenderer } from '../../packages/plugins/ipc-renderer';
 import { recorderIpcRenderer } from '../../packages/recorder/ipc-renderer';
 import { sherpaIpcRenderer } from '../../packages/sherpa/ipc-renderer';
+import { createTTSIpcRenderer } from '../../packages/tts/ipc-renderer';
 import { dailyCareBridge } from '../main/daily/ipc-renderer';
 import downloaderIpcRenderer from '../main/handlers/downloader/ipc-renderer';
 import { vectorIpcRenderer } from '../main/handlers/embedding/ipc-renderer';
@@ -85,6 +86,7 @@ contextBridge.exposeInMainWorld('YUA', {
   preferences: preferencesIpcRenderer,
   ytdlp: ytdlpIpcRenderer,
   rss: createRssApi(ipcRenderer),
+  tts: createTTSIpcRenderer(ipcRenderer),
   events: {
     on: (callback: (payload: AppEventPayload) => void) => {
       const subscription = (_event: any, payload: AppEventPayload): void => callback(payload);
