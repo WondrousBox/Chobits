@@ -145,8 +145,10 @@ export interface SubtitleTimelineProps extends TimelineCallbacks {
   audioPath?: string;
   /** 是否显示波形轨道 */
   showWaveform?: boolean;
-  /** TTS音频项列表 */
-  ttsItems?: TTSAudioItem[];
+  /** 按轨道分组的 TTS 音频项：trackId -> TTSAudioItem[] */
+  ttsItemsByTrack?: Map<string, TTSAudioItem[]>;
+  /** TTS 轨道显示标签：trackId -> 显示名（如「原文」「中文」） */
+  ttsTrackLabels?: Map<string, string>;
   /** 是否显示TTS轨道 */
   showTTSTrack?: boolean;
   /** 播放TTS音频回调 */

@@ -27,8 +27,11 @@ function generateConfigPrefix(config: { type?: string; voiceName: string; rate?:
 // TTS 事件通道
 const TTS_EVENT_CHANNEL = 'tts:event';
 
-// 获取TTS输出目录
-async function getTTSOutputDir(resourceId: string): Promise<string> {
+/** 轨道标识：main 为主轨道，其他为语言代码如 zh-CN、en */
+export type TTSTrackId = 'main' | string;
+
+// 获取TTS输出目录（按轨道分目录：main/ 或 <languageCode>/）
+async function getTTSOutputDir(resourceId: string, trackId: TTSTrackId = 'main'): Promise<string> {
   try {
     // 从数据库获取资源信息
     const resource = await ResourcesRepo.getById(resourceId);
@@ -36,7 +39,7 @@ async function getTTSOutputDir(resourceId: string): Promise<string> {
     if (!resource) {
       console.warn(`[TTS] 资源不存在: ${resourceId}, 使用默认缓存目录`);
       const userDataPath = app.getPath('userData');
-      return path.join(userDataPath, 'tts-cache', resourceId);
+      return path.join(userDataPath, 'tts-cache', resourceId, trackId);
     }
 
     // 获取工作空间信息
@@ -51,23 +54,24 @@ async function getTTSOutputDir(resourceId: string): Promise<string> {
     if (!workspace || !workspace.rootPath) {
       console.warn(`[TTS] 工作空间根路径不存在,使用默认缓存目录`);
       const userDataPath = app.getPath('userData');
-      return path.join(userDataPath, 'tts-cache', resourceId);
+      return path.join(userDataPath, 'tts-cache', resourceId, trackId);
     }
 
-    // 构建TTS目录: <workspaceRoot>/resources/tts/<resourceId>
-    let ttsDir: string;
+    // 构建TTS目录: <workspaceRoot>/resources/tts/<resourceId>/<trackId>
+    let baseTtsDir: string;
     if (resource.folderId) {
-      ttsDir = path.join(workspace.rootPath, 'resources', 'folders', resource.folderId, 'tts', resourceId);
+      baseTtsDir = path.join(workspace.rootPath, 'resources', 'folders', resource.folderId, 'tts', resourceId);
     } else {
-      ttsDir = path.join(workspace.rootPath, 'resources', 'tts', resourceId);
+      baseTtsDir = path.join(workspace.rootPath, 'resources', 'tts', resourceId);
     }
+    const ttsDir = path.join(baseTtsDir, trackId);
 
     console.log(`[TTS] TTS输出目录: ${ttsDir}`);
     return ttsDir;
   } catch (error) {
     console.error('[TTS] 获取TTS输出目录失败:', error);
     const userDataPath = app.getPath('userData');
-    return path.join(userDataPath, 'tts-cache', resourceId);
+    return path.join(userDataPath, 'tts-cache', resourceId, trackId);
   }
 }
 
@@ -77,6 +81,10 @@ async function getTTSOutputDir(resourceId: string): Promise<string> {
 export interface BatchTTSSynthesizeParams {
   /** 资源ID（用于确定输出目录和缓存） */
   resourceId: string;
+  /** 轨道标识：main 为主轨道，其他为语言代码如 zh-CN、en */
+  trackId?: TTSTrackId;
+  /** 语言代码（翻译轨道时可选，用于显示；存储路径已由 trackId 决定） */
+  languageCode?: string;
   /** 请求ID（可选，如果不提供会自动生成） */
   requestId?: string;
   /** 要合成的字幕项 */
@@ -116,15 +124,15 @@ export function initTTSHandlers(): void {
    * 合成进度和结果通过事件通道推送给渲染进程
    */
   ipcMain.handle('tts:synthesizeBatch', async (_event: IpcMainInvokeEvent, params: BatchTTSSynthesizeParams): Promise<BatchTTSSynthesizeResponse> => {
-    const { resourceId, requestId, items, config, maxConcurrency = 5, skipTrimSilence = false } = params;
+    const { resourceId, trackId = 'main', requestId, items, config, maxConcurrency = 5, skipTrimSilence = false } = params;
 
-    const actualRequestId = requestId || `tts-${resourceId}-${Date.now()}`;
+    const actualRequestId = requestId || `tts-${resourceId}-${trackId}-${Date.now()}`;
     const eventsChannel = TTS_EVENT_CHANNEL;
-    const outputDir = await getTTSOutputDir(resourceId);
+    const outputDir = await getTTSOutputDir(resourceId, trackId);
 
     console.log(`
 =========[TTS] 开始批量合成=========================================================
-requestId: ${actualRequestId}, 共 ${items.length} 项
+requestId: ${actualRequestId}, trackId: ${trackId}, 共 ${items.length} 项
 resourceId: ${resourceId}
 输出目录: ${outputDir}
 配置: ${JSON.stringify(config, null, 2)}
@@ -202,13 +210,11 @@ resourceId: ${resourceId}
 
   /**
    * 加载资源的TTS历史记录
-   * 支持两种参数格式：
-   * 1. { resourceId, configPrefix } - 直接提供 configPrefix
-   * 2. { resourceId, config } - 提供配置对象，自动计算 configPrefix
+   * 支持参数：resourceId, trackId（可选，默认 main）, configPrefix 或 config
    */
-  ipcMain.handle('tts:loadHistory', async (_event: IpcMainInvokeEvent, params: { resourceId: string; configPrefix?: string; config?: BatchTTSConfig }): Promise<any> => {
-    const { resourceId, configPrefix, config } = params;
-    const outputDir = await getTTSOutputDir(resourceId);
+  ipcMain.handle('tts:loadHistory', async (_event: IpcMainInvokeEvent, params: { resourceId: string; trackId?: TTSTrackId; configPrefix?: string; config?: BatchTTSConfig }): Promise<any> => {
+    const { resourceId, trackId = 'main', configPrefix, config } = params;
+    const outputDir = await getTTSOutputDir(resourceId, trackId);
 
     // 如果提供了 config，计算 configPrefix
     const actualConfigPrefix = configPrefix || (config ? generateConfigPrefix(config) : undefined);

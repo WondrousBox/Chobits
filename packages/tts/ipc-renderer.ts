@@ -89,12 +89,19 @@ export interface BatchSynthesisConfig {
   pitch?: number;
 }
 
+/** 轨道标识：main 为主轨道，其他为语言代码如 zh-CN、en */
+export type TTSTrackId = 'main' | string;
+
 /**
  * 批量TTS合成参数
  */
 export interface SynthesizeBatchParams {
   /** 资源ID */
   resourceId: string;
+  /** 轨道标识：main 为主轨道，其他为语言代码如 zh-CN、en */
+  trackId?: TTSTrackId;
+  /** 语言代码（翻译轨道时可选） */
+  languageCode?: string;
   /** 请求ID（可选） */
   requestId?: string;
   /** 要合成的项目 */
@@ -140,10 +147,16 @@ export interface TTSIpcRenderer {
   /**
    * 加载TTS历史记录
    * @param params.resourceId - 资源ID
+   * @param params.trackId - 轨道标识（可选，默认 main）
    * @param params.configPrefix - 配置前缀（可选，如果提供了 config 则自动计算）
    * @param params.config - TTS配置对象（可选，用于自动计算 configPrefix）
    */
-  loadHistory: (params: { resourceId: string; configPrefix?: string; config?: BatchSynthesisConfig }) => Promise<any>;
+  loadHistory: (params: {
+    resourceId: string;
+    trackId?: TTSTrackId;
+    configPrefix?: string;
+    config?: BatchSynthesisConfig;
+  }) => Promise<any>;
 
   /**
    * 监听TTS事件
@@ -166,7 +179,12 @@ export function createTTSIpcRenderer(ipcRenderer: IpcRenderer): TTSIpcRenderer {
 
     hasActiveTasks: () => ipcRenderer.invoke('tts:hasActiveTasks'),
 
-    loadHistory: (params: { resourceId: string; configPrefix?: string; config?: BatchSynthesisConfig }) => ipcRenderer.invoke('tts:loadHistory', params),
+    loadHistory: (params: {
+      resourceId: string;
+      trackId?: TTSTrackId;
+      configPrefix?: string;
+      config?: BatchSynthesisConfig;
+    }) => ipcRenderer.invoke('tts:loadHistory', params),
 
     onEvent: (callback: (event: TTSEventData) => void) => {
       const handler = (_event: any, data: TTSEventData): void => {

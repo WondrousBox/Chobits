@@ -11,9 +11,10 @@ import { SubtitlePlayer } from './SubtitleListPlayer/SubtitlePlayer';
 import { aimTracksToTimelineTracks, indicesToIds, parseSegmentId, SubtitleTimeline, TimelineSegment } from './SubtitleTimeline';
 import type { TTSAudioItem as TimelineTTSAudioItem } from './SubtitleTimeline/types';
 import { SubtitleTranslator } from './SubtitleTranslator';
+import type { TTSTrackOption } from './TTSSynthesizer';
 import { TTSSynthesizer } from './TTSSynthesizer';
 import { useSubtitleTranslation } from './useSubtitleTranslation';
-import { TTSSynthesisItem, useTTSSynthesis } from './useTTSSynthesis';
+import { useTTSSynthesis } from './useTTSSynthesis';
 
 // 将 AimSegments 转换为 ISegment 格式
 // ISegment = [string, string, string, string | undefined]
@@ -40,6 +41,8 @@ interface ResourceSubtitlePlayerProps {
 export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ resource, currentTime = 0, onSeek, followCurrentTime = false, audioPath }) => {
   const [subtitleEntries, setSubtitleEntries] = useState<AimSegments[]>([]);
   const [translationTracks, setTranslationTracks] = useState<AimSegments[][]>([]);
+  /** 各翻译轨道的语言与显示名（与 translationTracks 顺序一致） */
+  const [translationTrackMeta, setTranslationTrackMeta] = useState<{ languageCode: string; label: string }[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [subtitleFormat, setSubtitleFormat] = useState<SubtitleFormat>('srt');
   const [viewMode, setViewMode] = useState<'list' | 'timeline'>('list'); // 视图模式：列表或时间轴
@@ -113,11 +116,12 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
       try {
         const translations = await window.YUA.ai.getResourceTranslations(resource.id);
         const translationTracksData: AimSegments[][] = [];
+        const meta: { languageCode: string; label: string }[] = [];
         const currentEntries = subtitleEntriesRef.current || [];
 
-        for (const trans of translations) {
+        for (let i = 0; i < translations.length; i++) {
+          const trans = translations[i];
           if (trans.segments && trans.segments.length > 0) {
-            // 将翻译片段转换为 AimSegments 格式
             const translationSegments: AimSegments[] = currentEntries.map((seg, index) => {
               const translatedText = trans.segments?.find((t) => t.index === index);
               return {
@@ -126,11 +130,14 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
               };
             });
             translationTracksData.push(translationSegments);
+            meta.push({
+              languageCode: trans.language ?? `trans-${i}`,
+              label: trans.title ?? trans.language ?? `译文 ${i + 1}`
+            });
           }
         }
 
         // 如果有期望的最小轨道数，检查是否满足
-        // 这用于处理翻译刚完成但数据库还没保存完的情况
         if (expectedMinTracks !== undefined && translationTracksData.length < expectedMinTracks && retryCount < maxRetries) {
           console.log(`[SubtitlePlayer] 翻译轨道数量不足 (${translationTracksData.length} < ${expectedMinTracks})，${retryDelay}ms 后重试 (${retryCount + 1}/${maxRetries})`);
           setTimeout(() => {
@@ -140,6 +147,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
         }
 
         setTranslationTracks(translationTracksData);
+        setTranslationTrackMeta(meta);
         console.log(`[SubtitlePlayer] 翻译轨道加载完成，共 ${translationTracksData.length} 个轨道`);
 
         // 新轨道加载成功后，清空临时翻译轨道（typingTexts）
@@ -182,19 +190,27 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     onTranslationComplete: handleTranslationComplete
   });
 
-  // 使用TTS合成 Hook
-  const { synthesizingIndices, synthesizedItems, synthesisProgress, isSynthesizing, startSynthesis, stopSynthesis, formatDuration, loadTTSHistory } = useTTSSynthesis({
+  // 使用TTS合成 Hook（多轨道）
+  const {
+    synthesizingIndices,
+    synthesizedItemsByTrack,
+    synthesisProgress,
+    isSynthesizing,
+    activeTrackId,
+    startSynthesis,
+    stopSynthesis,
+    loadTTSHistory
+  } = useTTSSynthesis({
     resourceId: resource.id,
     subtitleEntriesRef
   });
 
-  // 加载已保存的TTS历史（只在时间轴模式下需要）
+  // 加载已保存的TTS历史（时间轴模式下为 main + 各翻译轨道加载）
   useEffect(() => {
     if (viewMode !== 'timeline' || subtitleEntries.length === 0 || !resource.id) {
       return;
     }
 
-    // 从 localStorage 读取TTS配置
     const loadTTSPreferences = (): { voiceName?: string; rate?: number; pitch?: number } | null => {
       try {
         const stored = localStorage.getItem('tts-synthesizer-preferences');
@@ -213,15 +229,19 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     };
 
     const prefs = loadTTSPreferences();
-    if (prefs?.voiceName) {
-      // 加载TTS历史
-      loadTTSHistory({
-        voiceName: prefs.voiceName,
-        rate: prefs.rate,
-        pitch: prefs.pitch
-      });
-    }
-  }, [viewMode, subtitleEntries.length, resource.id, loadTTSHistory]);
+    if (!prefs?.voiceName) return;
+
+    const config = {
+      voiceName: prefs.voiceName,
+      rate: prefs.rate,
+      pitch: prefs.pitch
+    };
+
+    void loadTTSHistory(config, 'main');
+    translationTrackMeta.forEach((t) => {
+      void loadTTSHistory(config, t.languageCode);
+    });
+  }, [viewMode, subtitleEntries.length, resource.id, loadTTSHistory, translationTrackMeta]);
 
   // 当前正在播放的 TTS 索引 & 播放实例
   const [playingTTSIndex, setPlayingTTSIndex] = useState<number | null>(null);
@@ -277,65 +297,52 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     [handleStopTTS, playingTTSIndex]
   );
 
-  // 将synthesizedItems转换为SubtitlePlayer需要的格式
-  const ttsItemsMap = useMemo(() => {
-    const map = new Map<number, { audioPath?: string; duration?: number; trimmedDuration?: number; status: 'pending' | 'synthesizing' | 'completed' | 'error'; error?: string }>();
-    synthesizedItems.forEach((item, index) => {
-      map.set(index, {
-        audioPath: item.audioPath,
-        duration: item.duration,
-        trimmedDuration: item.trimmedDuration,
-        status: item.status,
-        error: item.error
-      });
+  // 列表用：轨道 ID 列表（主轨 + 各翻译轨）
+  const trackIds = useMemo(() => ['main', ...translationTrackMeta.map((t) => t.languageCode)], [translationTrackMeta]);
+
+  // TTS 合成选项（原文 + 各翻译轨）供 TTSSynthesizer 选择
+  const ttsTrackOptions = useMemo<TTSTrackOption[]>(() => {
+    const opts: TTSTrackOption[] = [{ trackId: 'main', label: '原文' }];
+    translationTrackMeta.forEach((t) => {
+      opts.push({ trackId: t.languageCode, label: t.label, languageCode: t.languageCode });
     });
-    return map;
-  }, [synthesizedItems]);
+    return opts;
+  }, [translationTrackMeta]);
 
-  // 时间轴用的 TTS 轨道数据
-  const ttsTimelineItems = useMemo<TimelineTTSAudioItem[]>(() => {
-    if (subtitleEntries.length === 0 || synthesizedItems.size === 0) {
-      console.log(`[ResourceSubtitlePlayer] ttsTimelineItems 为空 - subtitleEntries: ${subtitleEntries.length}, synthesizedItems: ${synthesizedItems.size}`);
-      return [];
-    }
+  // 各轨道对应的字幕片段（索引 0=原文，1..n=翻译轨）
+  const ttsTracksSegments = useMemo(() => [subtitleEntries, ...translationTracks], [subtitleEntries, translationTracks]);
 
-    const items: TimelineTTSAudioItem[] = [];
-    synthesizedItems.forEach((item, index) => {
-      const seg = subtitleEntries[index];
-      if (!seg) {
-        console.warn(`[ResourceSubtitlePlayer] 找不到索引 ${index} 的字幕条目`);
-        return;
-      }
+  // 时间轴用：按轨道分组的 TTS 项 + 轨道标签
+  const { ttsItemsByTrackForTimeline, ttsTrackLabelsForTimeline } = useMemo(() => {
+    const byTrack = new Map<string, TimelineTTSAudioItem[]>();
+    const labels = new Map<string, string>();
+    if (subtitleEntries.length === 0) return { ttsItemsByTrackForTimeline: byTrack, ttsTrackLabelsForTimeline: labels };
 
-      const startTime = utils.convertToSeconds(seg.st);
-      const endTime = utils.convertToSeconds(seg.et);
-
-      items.push({
-        index,
-        status: item.status,
-        audioPath: item.audioPath,
-        duration: item.duration,
-        trimmedDuration: item.trimmedDuration,
-        error: item.error,
-        startTime,
-        endTime
+    const trackIdsList = ['main', ...translationTrackMeta.map((t) => t.languageCode)];
+    trackIdsList.forEach((tid) => {
+      const map = synthesizedItemsByTrack.get(tid);
+      if (!map || map.size === 0) return;
+      const items: TimelineTTSAudioItem[] = [];
+      map.forEach((item, index) => {
+        const seg = subtitleEntries[index];
+        if (!seg) return;
+        items.push({
+          index,
+          status: item.status,
+          audioPath: item.audioPath,
+          duration: item.duration,
+          trimmedDuration: item.trimmedDuration,
+          error: item.error,
+          startTime: utils.convertToSeconds(seg.st),
+          endTime: utils.convertToSeconds(seg.et)
+        });
       });
+      items.sort((a, b) => a.startTime - b.startTime);
+      byTrack.set(tid, items);
+      labels.set(tid, tid === 'main' ? '原文' : translationTrackMeta.find((t) => t.languageCode === tid)?.label ?? tid);
     });
-
-    // 按起始时间排序，保证时间轴顺序自然
-    items.sort((a, b) => a.startTime - b.startTime);
-    console.log(
-      `[ResourceSubtitlePlayer] ttsTimelineItems 更新 - ${items.length} 个项目, 状态分布:`,
-      items.reduce(
-        (acc, item) => {
-          acc[item.status] = (acc[item.status] || 0) + 1;
-          return acc;
-        },
-        {} as Record<string, number>
-      )
-    );
-    return items;
-  }, [subtitleEntries, synthesizedItems]);
+    return { ttsItemsByTrackForTimeline: byTrack, ttsTrackLabelsForTimeline: labels };
+  }, [subtitleEntries, synthesizedItemsByTrack, translationTrackMeta]);
 
   // 更新 clearTypingTexts ref
   useEffect(() => {
@@ -358,6 +365,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
         setIsLoading(false);
         setSubtitleEntries([]);
         setTranslationTracks([]);
+        setTranslationTrackMeta([]);
       }, 0);
       return;
     }
@@ -383,10 +391,11 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
                 try {
                   const translations = await window.YUA.ai.getResourceTranslations(data.id);
                   const translationTracksData: AimSegments[][] = [];
+                  const meta: { languageCode: string; label: string }[] = [];
 
-                  for (const trans of translations) {
+                  for (let i = 0; i < translations.length; i++) {
+                    const trans = translations[i];
                     if (trans.segments && trans.segments.length > 0) {
-                      // 将翻译片段转换为 AimSegments 格式
                       const translationSegments: AimSegments[] = segments.map((seg, index) => {
                         const translatedText = trans.segments?.find((t) => t.index === index);
                         return {
@@ -395,13 +404,19 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
                         };
                       });
                       translationTracksData.push(translationSegments);
+                      meta.push({
+                        languageCode: trans.language ?? `trans-${i}`,
+                        label: trans.title ?? trans.language ?? `译文 ${i + 1}`
+                      });
                     }
                   }
 
                   setTranslationTracks(translationTracksData);
+                  setTranslationTrackMeta(meta);
                 } catch (error) {
                   console.error('[SubtitlePlayer] 加载翻译资源失败:', error);
                   setTranslationTracks([]);
+                  setTranslationTrackMeta([]);
                 }
               }
             } catch (error) {
@@ -412,12 +427,14 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
           } else {
             setSubtitleEntries([]);
             setTranslationTracks([]);
+            setTranslationTrackMeta([]);
           }
         })
         .catch((error) => {
           console.error('[SubtitlePlayer] 读取文件失败:', error);
           setSubtitleEntries([]);
           setTranslationTracks([]);
+          setTranslationTrackMeta([]);
         })
         .finally(() => {
           setIsLoading(false);
@@ -428,6 +445,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     setIsLoading(false);
     setSubtitleEntries([]);
     setTranslationTracks([]);
+    setTranslationTrackMeta([]);
   }, [resource, debouncedSave]);
 
   // 用户手动编辑字幕时的回调：同步到本地 state 并触发保存
@@ -611,11 +629,13 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
           <TTSSynthesizer
             subtitleEntries={subtitleEntries}
             resourceId={resource.id}
+            trackOptions={ttsTrackOptions}
+            tracksSegments={ttsTracksSegments}
             isSynthesizing={isSynthesizing}
             synthesisProgress={synthesisProgress}
             onStopSynthesis={stopSynthesis}
             onSynthesisStart={handleTTSSynthesisStart}
-            onSynthesize={(config) => startSynthesis(config)}
+            onSynthesize={(config, options) => startSynthesis(config, options)}
           />
         </div>
       </div>
@@ -634,32 +654,35 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
           disabledIndices={translatingChunks}
           highlightIndices={translatingChunks}
           summaries={chunkSummaryInfoMap}
-          ttsItems={ttsItemsMap}
+          ttsItemsByTrack={synthesizedItemsByTrack}
+          trackIds={trackIds}
+          activeTTSTrackId={activeTrackId}
           ttsSynthesizingIndices={synthesizingIndices}
           onPlayTTS={handlePlayTTS}
         />
       ) : (
         // 时间轴视图
         <SubtitleTimeline
-            tracks={timelineTracks}
-            currentTime={currentTime}
-            followCurrentTime={followTime}
-            onSeek={onSeek}
-            onSegmentTextChange={handleTimelineTextChange}
-            onSegmentTimeChange={handleTimelineTimeChange}
-            onMergePrev={handleMergePrev}
-            highlightIds={timelineHighlightIds}
-            disabled={isTranslating}
-            showRuler
-            showTrackLabels
-            audioPath={audioPath}
-            showWaveform={!!audioPath}
-            ttsItems={ttsTimelineItems}
-            showTTSTrack={ttsTimelineItems.length > 0 || isSynthesizing}
-            onPlayTTSAudio={handlePlayTTS}
-            onStopTTSAudio={handleStopTTS}
-            playingTTSIndex={playingTTSIndex ?? undefined}
-          />
+          tracks={timelineTracks}
+          currentTime={currentTime}
+          followCurrentTime={followTime}
+          onSeek={onSeek}
+          onSegmentTextChange={handleTimelineTextChange}
+          onSegmentTimeChange={handleTimelineTimeChange}
+          onMergePrev={handleMergePrev}
+          highlightIds={timelineHighlightIds}
+          disabled={isTranslating}
+          showRuler
+          showTrackLabels
+          audioPath={audioPath}
+          showWaveform={!!audioPath}
+          ttsItemsByTrack={ttsItemsByTrackForTimeline}
+          ttsTrackLabels={ttsTrackLabelsForTimeline}
+          showTTSTrack={ttsItemsByTrackForTimeline.size > 0 || isSynthesizing}
+          onPlayTTSAudio={handlePlayTTS}
+          onStopTTSAudio={handleStopTTS}
+          playingTTSIndex={playingTTSIndex ?? undefined}
+        />
       )}
     </div>
   );

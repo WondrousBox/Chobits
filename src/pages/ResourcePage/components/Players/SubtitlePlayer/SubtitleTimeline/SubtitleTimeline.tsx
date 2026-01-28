@@ -35,7 +35,8 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   className,
   audioPath,
   showWaveform = true,
-  ttsItems,
+  ttsItemsByTrack,
+  ttsTrackLabels,
   showTTSTrack = true,
   onPlayTTSAudio,
   onStopTTSAudio,
@@ -346,12 +347,21 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                 <TrackLabel key={track.id} track={track} index={index} />
               ))}
 
-            {/* TTS轨道标签 */}
-            {showTTSTrack && ttsItems && ttsItems.length > 0 && (
-              <div className="flex items-center justify-center shrink-0 border-b bg-muted/20 text-xs text-muted-foreground" style={{ height: DEFAULT_CONFIG.TRACK_HEIGHT }}>
-                <span className="truncate px-1">TTS</span>
-              </div>
-            )}
+            {/* 多 TTS 轨道标签 */}
+            {showTTSTrack &&
+              ttsItemsByTrack &&
+              ttsItemsByTrack.size > 0 &&
+              Array.from(ttsItemsByTrack.entries())
+                .filter(([, items]) => items.length > 0)
+                .map(([trackId]) => (
+                  <div
+                    key={trackId}
+                    className="flex items-center justify-center shrink-0 border-b bg-muted/20 text-xs text-muted-foreground"
+                    style={{ height: DEFAULT_CONFIG.TRACK_HEIGHT }}
+                  >
+                    <span className="truncate px-1">{ttsTrackLabels?.get(trackId) ?? (trackId === 'main' ? 'TTS 原文' : `TTS ${trackId}`)}</span>
+                  </div>
+                ))}
           </div>
         )}
 
@@ -395,22 +405,28 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                 />
               ))}
 
-            {/* TTS音频轨道（在字幕轨道下方，作为可滚动内容的一部分） */}
-            {showTTSTrack && ttsItems && ttsItems.length > 0 && (
-              <TTSAudioTrack
-                items={ttsItems}
-                viewport={viewport}
-                totalDuration={duration}
-                pixelsPerSecond={pixelsPerSecond}
-                width={totalWidth}
-                currentTime={effectiveCurrentTime}
-                trackLabelWidth={0}
-                showTrackLabel={false}
-                onPlayAudio={onPlayTTSAudio}
-                onStopAudio={onStopTTSAudio}
-                playingIndex={playingTTSIndex}
-              />
-            )}
+            {/* 多 TTS 音频轨道 */}
+            {showTTSTrack &&
+              ttsItemsByTrack &&
+              ttsItemsByTrack.size > 0 &&
+              Array.from(ttsItemsByTrack.entries())
+                .filter(([, items]) => items.length > 0)
+                .map(([trackId, items]) => (
+                  <TTSAudioTrack
+                    key={trackId}
+                    items={items}
+                    viewport={viewport}
+                    totalDuration={duration}
+                    pixelsPerSecond={pixelsPerSecond}
+                    width={totalWidth}
+                    currentTime={effectiveCurrentTime}
+                    trackLabelWidth={0}
+                    showTrackLabel={false}
+                    onPlayAudio={onPlayTTSAudio}
+                    onStopAudio={onStopTTSAudio}
+                    playingIndex={playingTTSIndex}
+                  />
+                ))}
           </div>
         </div>
       </div>

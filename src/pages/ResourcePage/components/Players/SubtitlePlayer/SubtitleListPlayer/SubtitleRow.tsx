@@ -215,8 +215,8 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({
           </div>
         </div>
       )}
-      {/* TTS状态指示器 */}
-      {isMainTrack && (ttsItem || ttsSynthesizing) && (
+      {/* TTS状态指示器（每个轨道行都可显示） */}
+      {(ttsItem || ttsSynthesizing) && (
         <div className="flex items-center gap-1 pr-2 relative z-10">
           {ttsSynthesizing ? (
             // 正在合成
