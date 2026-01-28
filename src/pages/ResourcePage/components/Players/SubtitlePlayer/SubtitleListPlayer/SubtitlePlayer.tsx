@@ -74,9 +74,13 @@ export interface SubtitlePlayerProps {
    * - LegacySummaries: 旧格式，向后兼容
    */
   summaries?: Map<number, ChunkSummaryInfo> | LegacySummaries;
-  /** TTS合成结果 Map（索引 -> 合成项） */
-  ttsItems?: Map<number, TTSSynthesizedItem>;
-  /** 正在合成TTS的索引集合 */
+  /** 按轨道分组的 TTS 合成结果：trackId -> index -> 合成项 */
+  ttsItemsByTrack?: Map<string, Map<number, TTSSynthesizedItem>>;
+  /** 轨道 ID 列表，与 tracks 顺序一致：主轨为 'main'，翻译轨为语言代码 */
+  trackIds?: string[];
+  /** 当前正在合成任务对应的轨道 ID（用于显示 synthesizing 状态） */
+  activeTTSTrackId?: string | null;
+  /** 正在合成TTS的索引集合（当前任务） */
   ttsSynthesizingIndices?: Set<number>;
   /** 播放TTS音频的回调 */
   onPlayTTS?: (index: number, audioPath: string) => void;
@@ -165,7 +169,9 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
   disabledIndices,
   highlightIndices,
   summaries,
-  ttsItems,
+  ttsItemsByTrack,
+  trackIds = ['main'],
+  activeTTSTrackId = null,
   ttsSynthesizingIndices,
   onPlayTTS
 }) => {
@@ -341,13 +347,14 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
                 disabled={disabled}
                 highlight={highlight}
                 isMainTrack={true}
-                ttsItem={ttsItems?.get(idx)}
-                ttsSynthesizing={!!ttsSynthesizingSet?.has(idx)}
+                ttsItem={ttsItemsByTrack?.get(trackIds[0])?.get(idx)}
+                ttsSynthesizing={activeTTSTrackId === trackIds[0] && !!ttsSynthesizingSet?.has(idx)}
                 onPlayTTS={onPlayTTS}
               />
               {/* 附加轨道 */}
               {additionalTracks.map((track, trackIndex) => {
                 const trackSegment = track[idx];
+                const trackId = trackIds[trackIndex + 1] ?? `track-${trackIndex + 1}`;
                 if (!trackSegment || !trackSegment.text) return null;
                 return (
                   <SubtitleRow
@@ -359,6 +366,9 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
                     highlight={highlight}
                     onTextChange={handleTextChange}
                     isMainTrack={false}
+                    ttsItem={ttsItemsByTrack?.get(trackId)?.get(idx)}
+                    ttsSynthesizing={activeTTSTrackId === trackId && !!ttsSynthesizingSet?.has(idx)}
+                    onPlayTTS={onPlayTTS}
                   />
                 );
               })}

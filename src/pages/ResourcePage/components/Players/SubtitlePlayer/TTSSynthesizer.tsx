@@ -1,4 +1,5 @@
 import { AimSegments } from '@aim-packages/subtitle';
+import type { TTSTrackId } from '@packages/tts/ipc-renderer';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { TbMicrophone, TbPlayerStop, TbVolume } from 'react-icons/tb';
 
@@ -13,6 +14,13 @@ import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 import type { TTSSynthesisConfig } from './useTTSSynthesis';
+
+/** 轨道选项：原文或某翻译语言 */
+export interface TTSTrackOption {
+  trackId: TTSTrackId;
+  label: string;
+  languageCode?: string;
+}
 
 // TTS语音配置
 interface VoiceOption {
@@ -81,16 +89,19 @@ const languageGroups: { label: string; languages: string[] }[] = [
 interface TTSSynthesizerProps {
   subtitleEntries: AimSegments[];
   resourceId: string;
+  /** 可选轨道列表：原文 + 各翻译语言，用于合成时选择用哪条轨道的内容 */
+  trackOptions?: TTSTrackOption[];
+  /** 各轨道对应的字幕片段（索引 0 为原文，1..n 与 trackOptions 中非 main 的轨道对应） */
+  tracksSegments?: AimSegments[][];
   isSynthesizing?: boolean;
   synthesisProgress?: number;
   onStopSynthesis?: () => void;
   onSynthesisStart?: (requestId: string) => void;
   /**
    * 外部提供的合成入口（推荐）
-   * - 由上层通过 useTTSSynthesis 等 Hook 执行真正的合成与事件监听
-   * - 如果提供了该回调，本组件将不再直接调用 window.YUA.tts.synthesizeBatch
+   * - 传入 config 与选中的 trackId / languageCode / 该轨道的 segments
    */
-  onSynthesize?: (config: TTSSynthesisConfig) => Promise<string>;
+  onSynthesize?: (config: TTSSynthesisConfig, options: { trackId: TTSTrackId; languageCode?: string; segments: AimSegments[] }) => Promise<string>;
 }
 
 // localStorage 键名
@@ -120,11 +131,36 @@ const savePreferences = (preferences: { selectedVoice?: string; rate?: number; p
   }
 };
 
-export const TTSSynthesizer: React.FC<TTSSynthesizerProps> = ({ subtitleEntries, resourceId, isSynthesizing = false, synthesisProgress = 0, onStopSynthesis, onSynthesisStart, onSynthesize }) => {
+export const TTSSynthesizer: React.FC<TTSSynthesizerProps> = ({
+  subtitleEntries,
+  resourceId,
+  trackOptions = [],
+  tracksSegments = [],
+  isSynthesizing = false,
+  synthesisProgress = 0,
+  onStopSynthesis,
+  onSynthesisStart,
+  onSynthesize
+}) => {
   // 从 localStorage 加载保存的偏好设置
   const savedPreferences = loadPreferences();
 
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+
+  // 合成时使用的语言轨道：原文(main) 或 某翻译语言(languageCode)
+  const effectiveTrackOptions = useMemo(() => {
+    if (trackOptions.length > 0) return trackOptions;
+    return [{ trackId: 'main' as TTSTrackId, label: '原文' }];
+  }, [trackOptions]);
+  const [selectedTrackId, setSelectedTrackId] = useState<TTSTrackId>(effectiveTrackOptions[0]?.trackId ?? 'main');
+
+  // 当 effectiveTrackOptions 变化时，若当前 selectedTrackId 不在选项中则重置
+  useEffect(() => {
+    const hasSelected = effectiveTrackOptions.some((o) => o.trackId === selectedTrackId);
+    if (!hasSelected && effectiveTrackOptions.length > 0) {
+      setSelectedTrackId(effectiveTrackOptions[0].trackId);
+    }
+  }, [effectiveTrackOptions, selectedTrackId]);
 
   // TTS配置状态 (Edge TTS使用百分比: rate默认20表示+20%, pitch默认0表示0%)
   const [selectedVoice, setSelectedVoice] = useState<string>(savedPreferences?.selectedVoice || 'zh-CN-XiaoxiaoNeural');
@@ -159,12 +195,19 @@ export const TTSSynthesizer: React.FC<TTSSynthesizerProps> = ({ subtitleEntries,
     });
   }, [selectedVoice, rate, pitch, autoTrimSilence]);
 
+  // 根据选中的轨道获取要合成的字幕片段
+  const segmentsForSelectedTrack = useMemo(() => {
+    if (selectedTrackId === 'main') {
+      return subtitleEntries;
+    }
+    const trackIndex = effectiveTrackOptions.findIndex((o) => o.trackId === selectedTrackId);
+    if (trackIndex < 0 || trackIndex >= tracksSegments.length) return subtitleEntries;
+    return tracksSegments[trackIndex] ?? subtitleEntries;
+  }, [selectedTrackId, effectiveTrackOptions, tracksSegments, subtitleEntries]);
+
   // 执行TTS合成
   const handleSynthesize = useCallback(async () => {
-    if (subtitleEntries.length === 0) return;
-
-    // 过滤掉已删除的片段
-    const validSegments = subtitleEntries.filter((seg) => !seg.delete);
+    const validSegments = segmentsForSelectedTrack.filter((seg) => !seg.delete);
     if (validSegments.length === 0) return;
 
     setIsPopoverOpen(false);
@@ -176,34 +219,30 @@ export const TTSSynthesizer: React.FC<TTSSynthesizerProps> = ({ subtitleEntries,
         pitch,
         autoTrimSilence
       };
-
-      //
+      const languageCode = selectedTrackId === 'main' ? undefined : (effectiveTrackOptions.find((o) => o.trackId === selectedTrackId)?.languageCode ?? selectedTrackId);
 
       if (onSynthesize) {
-        // 使用外部提供的合成逻辑（推荐）
-        const requestId = await onSynthesize(config);
+        const requestId = await onSynthesize(config, {
+          trackId: selectedTrackId,
+          languageCode,
+          segments: validSegments
+        });
         if (onSynthesisStart && requestId) {
           onSynthesisStart(requestId);
         }
       } else {
-        // 兼容旧逻辑：直接调用主进程 TTS
-        // 注意：synthesizeBatch 现在立即返回 requestId 和 eventsChannel，不等待合成完成
         const items = validSegments.map((seg, idx) => ({
           index: idx,
           text: seg.text
         }));
-
         const { requestId } = await window.YUA.tts.synthesizeBatch({
           resourceId,
+          trackId: selectedTrackId,
+          languageCode,
           items,
-          config: {
-            voiceName: selectedVoice,
-            rate,
-            pitch
-          },
+          config: { voiceName: selectedVoice, rate, pitch },
           skipTrimSilence: !autoTrimSilence
         });
-
         if (onSynthesisStart && requestId) {
           onSynthesisStart(requestId);
         }
@@ -211,7 +250,7 @@ export const TTSSynthesizer: React.FC<TTSSynthesizerProps> = ({ subtitleEntries,
     } catch (error) {
       console.error('TTS合成失败:', error);
     }
-  }, [subtitleEntries, resourceId, selectedVoice, rate, pitch, autoTrimSilence, onSynthesize, onSynthesisStart]);
+  }, [segmentsForSelectedTrack, resourceId, selectedTrackId, effectiveTrackOptions, selectedVoice, rate, pitch, autoTrimSilence, onSynthesize, onSynthesisStart]);
 
   // 如果正在合成，显示进度和停止按钮
   if (isSynthesizing) {
@@ -249,6 +288,25 @@ export const TTSSynthesizer: React.FC<TTSSynthesizerProps> = ({ subtitleEntries,
             <h4 className="font-medium text-sm">TTS语音合成</h4>
             <p className="text-xs text-muted-foreground">为字幕生成语音音频</p>
           </div>
+
+          {/* 语言轨道选择：用哪条轨道的内容去合成 */}
+          {effectiveTrackOptions.length > 1 && (
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">合成内容轨道</Label>
+              <Select value={selectedTrackId} onValueChange={(v) => setSelectedTrackId(v as TTSTrackId)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="选择轨道" />
+                </SelectTrigger>
+                <SelectContent>
+                  {effectiveTrackOptions.map((opt) => (
+                    <SelectItem key={opt.trackId} value={opt.trackId}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* 语音选择 */}
           <div className="space-y-2">
@@ -318,9 +376,9 @@ export const TTSSynthesizer: React.FC<TTSSynthesizerProps> = ({ subtitleEntries,
           </div>
 
           {/* 开始合成按钮 */}
-          <Button className="w-full" onClick={handleSynthesize} disabled={!selectedVoice || subtitleEntries.length === 0}>
+          <Button className="w-full" onClick={handleSynthesize} disabled={!selectedVoice || segmentsForSelectedTrack.filter((s) => !s.delete).length === 0}>
             <TbVolume className="h-4 w-4 mr-2" />
-            开始合成 ({subtitleEntries.filter((s) => !s.delete).length} 条)
+            开始合成 ({segmentsForSelectedTrack.filter((s) => !s.delete).length} 条)
           </Button>
         </div>
       </PopoverContent>
