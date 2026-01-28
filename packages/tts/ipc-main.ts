@@ -99,7 +99,7 @@ export interface BatchTTSSynthesizeParams {
 /**
  * 初始化TTS IPC处理器
  */
-export function initTTSHandlers(win: BrowserWindow): void {
+export function initTTSHandlers(): void {
   /**
    * 批量TTS合成
    */
@@ -109,14 +109,32 @@ export function initTTSHandlers(win: BrowserWindow): void {
     const actualRequestId = requestId || `tts-${resourceId}-${Date.now()}`;
     const outputDir = await getTTSOutputDir(resourceId);
 
-    console.log(`[TTS] 开始批量合成，requestId: ${actualRequestId}, 共 ${items.length} 项`);
+    console.log(`
+=========[TTS] 开始批量合成=========================================================
+requestId: ${actualRequestId}, 共 ${items.length} 项
+resourceId: ${resourceId}
+输出目录: ${outputDir}
+配置: ${JSON.stringify(config, null, 2)}
+最大并发数: ${maxConcurrency}
+跳过空白移除: ${skipTrimSilence}
+==================================================================================
+      `);
 
     // 事件发送函数
     const emit = (event: BatchTTSEvent): void => {
-      win.webContents.send(TTS_EVENT_CHANNEL, {
-        requestId: actualRequestId,
-        resourceId,
-        ...event
+      // 发送消息到渲染进程
+      BrowserWindow.getAllWindows().forEach((w) => {
+        if (!w.isDestroyed()) {
+          try {
+            w.webContents.send(TTS_EVENT_CHANNEL, {
+              requestId: actualRequestId,
+              resourceId,
+              ...event
+            });
+          } catch (error) {
+            console.error(`发送TTS消息失败:`, error);
+          }
+        }
       });
     };
 

@@ -57,7 +57,7 @@ export function initHandlers(win: BrowserWindow): void {
   initAIHandlers(win);
   initRecorderHandlers();
   initSherpaHandlers();
-  initTTSHandlers(win);
+  initTTSHandlers();
   initShortcutsHandlers(win);
   initPreferencesHandlers();
   initPluginResourceHandlers(win, {

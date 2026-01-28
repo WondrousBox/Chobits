@@ -615,15 +615,13 @@ export const BatchTTSService = {
         };
 
         try {
-          console.log(`[BatchTTS] [${itemIndex}] 处理文本: "${item.text.substring(0, 30)}${item.text.length > 30 ? '...' : ''}", md5: ${md5.substring(0, 8)}...`);
+          console.log(`[BatchTTS] [${itemIndex}] ${md5} 处理文本: "${item.text.substring(0, 30)}${item.text.length > 30 ? '...' : ''}"`);
 
           // 检查缓存
           const cachedAudioPath = history!.audioMap[md5];
           const hasCachedAudio = cachedAudioPath && (await fs.pathExists(cachedAudioPath));
           const cachedTrimmedPath = history!.trimmedAudioMap[md5];
           const hasCachedTrimmed = cachedTrimmedPath && (await fs.pathExists(cachedTrimmedPath));
-
-          console.log(`[BatchTTS] [${itemIndex}] 缓存状态 - audio: ${hasCachedAudio ? '命中' : '未命中'}, trimmed: ${hasCachedTrimmed ? '命中' : '未命中'}`);
 
           if (hasCachedAudio) {
             console.log(`[BatchTTS] [${itemIndex}] 使用缓存音频 - 时长: ${result.duration}ms`);
@@ -824,7 +822,7 @@ export const BatchTTSService = {
         maxConcurrency: 1,
         httpProxy
       },
-      () => {} // 不需要进度回调
+      () => { } // 不需要进度回调
     );
 
     return result.results[0];
