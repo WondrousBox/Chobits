@@ -125,11 +125,11 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
   const activeTaskIdRef = useRef<string | null>(null);
   const totalItemsRef = useRef(0);
   const completedCountRef = useRef(0);
-  
+
   // 使用 ref 保存回调函数，避免 useEffect 重新运行
   const onSynthesisCompleteRef = useRef(onSynthesisComplete);
   const onItemCompleteRef = useRef(onItemComplete);
-  
+
   // 更新 ref
   useEffect(() => {
     onSynthesisCompleteRef.current = onSynthesisComplete;
@@ -293,8 +293,8 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
       setSynthesizedItems(initialItems);
       setSynthesizingIndices(initialSynthesizing);
 
-      // 调用合成API
-      const result = await window.YUA.tts.synthesizeBatch({
+      // 调用合成API - 立即返回 requestId 和 eventsChannel，不等待合成完成
+      const { requestId: taskRequestId, eventsChannel } = await window.YUA.tts.synthesizeBatch({
         resourceId,
         items,
         config: {
@@ -305,11 +305,10 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
         skipTrimSilence: !(config.autoTrimSilence ?? true)
       });
 
-      activeTaskIdRef.current = result.requestId;
-      setActiveTaskId(result.requestId);
-      console.log(`[useTTSSynthesis] TTS任务已启动 - requestId: ${result.requestId}`);
-      console.log(`[useTTSSynthesis] activeTaskIdRef.current 已设置为: ${activeTaskIdRef.current}`);
-      return result.requestId;
+      activeTaskIdRef.current = taskRequestId;
+      setActiveTaskId(taskRequestId);
+      console.log(`[useTTSSynthesis] TTS任务已启动 requestId: ${taskRequestId}, eventsChannel: ${eventsChannel}`);
+      return taskRequestId;
     },
     [resourceId, subtitleEntriesRef, resetSynthesis]
   );
@@ -323,10 +322,10 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
 
       // 检查是否是当前任务的事件
       if (event.requestId !== activeTaskIdRef.current) {
-        console.log(`[useTTSSynthesis] 事件被过滤 - requestId不匹配`);
+        console.log(`[useTTSSynthesis] 事件被过滤 - requestId不匹配, ${event.requestId} !== ${activeTaskIdRef.current}`);
         return;
       }
-      
+
       console.log(`[useTTSSynthesis] 处理事件 - type: ${event.type}`);
 
       switch (event.type) {

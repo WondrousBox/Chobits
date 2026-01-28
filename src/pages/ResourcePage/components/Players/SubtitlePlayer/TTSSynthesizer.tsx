@@ -187,12 +187,13 @@ export const TTSSynthesizer: React.FC<TTSSynthesizerProps> = ({ subtitleEntries,
         }
       } else {
         // 兼容旧逻辑：直接调用主进程 TTS
+        // 注意：synthesizeBatch 现在立即返回 requestId 和 eventsChannel，不等待合成完成
         const items = validSegments.map((seg, idx) => ({
           index: idx,
           text: seg.text
         }));
 
-        const result = await window.YUA.tts.synthesizeBatch({
+        const { requestId } = await window.YUA.tts.synthesizeBatch({
           resourceId,
           items,
           config: {
@@ -203,8 +204,8 @@ export const TTSSynthesizer: React.FC<TTSSynthesizerProps> = ({ subtitleEntries,
           skipTrimSilence: !autoTrimSilence
         });
 
-        if (onSynthesisStart && result.requestId) {
-          onSynthesisStart(result.requestId);
+        if (onSynthesisStart && requestId) {
+          onSynthesisStart(requestId);
         }
       }
     } catch (error) {
