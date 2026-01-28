@@ -8,6 +8,16 @@ import type { IpcRenderer } from 'electron';
 
 import type { BatchTTSConfig, BatchTTSResult, TTSItemResult } from './batch-tts-service';
 
+/**
+ * 批量TTS合成返回结果（立即返回，不等待合成完成）
+ */
+export interface BatchTTSSynthesizeResponse {
+  /** 请求ID，用于跟踪任务和接收事件 */
+  requestId: string;
+  /** 事件通道名称 */
+  eventsChannel: string;
+}
+
 // TTS 事件通道
 const TTS_EVENT_CHANNEL = 'tts:event';
 
@@ -107,8 +117,10 @@ export interface SynthesizeBatchParams {
 export interface TTSIpcRenderer {
   /**
    * 批量合成TTS
+   * 立即返回 requestId 和 eventsChannel，不等待合成完成
+   * 合成进度和结果通过事件通道推送
    */
-  synthesizeBatch: (params: SynthesizeBatchParams) => Promise<BatchTTSResult>;
+  synthesizeBatch: (params: SynthesizeBatchParams) => Promise<BatchTTSSynthesizeResponse>;
 
   /**
    * 取消TTS任务

@@ -97,16 +97,29 @@ export interface BatchTTSSynthesizeParams {
 }
 
 /**
+ * 批量TTS合成返回结果（立即返回，不等待合成完成）
+ */
+export interface BatchTTSSynthesizeResponse {
+  /** 请求ID，用于跟踪任务和接收事件 */
+  requestId: string;
+  /** 事件通道名称 */
+  eventsChannel: string;
+}
+
+/**
  * 初始化TTS IPC处理器
  */
 export function initTTSHandlers(): void {
   /**
    * 批量TTS合成
+   * 立即返回 requestId 和 eventsChannel，不等待合成完成
+   * 合成进度和结果通过事件通道推送给渲染进程
    */
-  ipcMain.handle('tts:synthesizeBatch', async (_event: IpcMainInvokeEvent, params: BatchTTSSynthesizeParams): Promise<BatchTTSResult> => {
+  ipcMain.handle('tts:synthesizeBatch', async (_event: IpcMainInvokeEvent, params: BatchTTSSynthesizeParams): Promise<BatchTTSSynthesizeResponse> => {
     const { resourceId, requestId, items, config, maxConcurrency = 5, skipTrimSilence = false } = params;
 
     const actualRequestId = requestId || `tts-${resourceId}-${Date.now()}`;
+    const eventsChannel = TTS_EVENT_CHANNEL;
     const outputDir = await getTTSOutputDir(resourceId);
 
     console.log(`
@@ -126,7 +139,7 @@ resourceId: ${resourceId}
       BrowserWindow.getAllWindows().forEach((w) => {
         if (!w.isDestroyed()) {
           try {
-            w.webContents.send(TTS_EVENT_CHANNEL, {
+            w.webContents.send(eventsChannel, {
               requestId: actualRequestId,
               resourceId,
               ...event
@@ -138,24 +151,31 @@ resourceId: ${resourceId}
       });
     };
 
-    try {
-      const result = await BatchTTSService.synthesizeBatch(
-        {
-          requestId: actualRequestId,
-          items: items as TTSItem[],
-          config,
-          outputDir,
-          maxConcurrency,
-          skipTrimSilence
-        },
-        emit
-      );
-
-      return result;
-    } catch (error) {
+    // 异步执行合成，不等待完成
+    BatchTTSService.synthesizeBatch(
+      {
+        requestId: actualRequestId,
+        items: items as TTSItem[],
+        config,
+        outputDir,
+        maxConcurrency,
+        skipTrimSilence
+      },
+      emit
+    ).catch((error) => {
       console.error('[TTS] 批量合成失败:', error);
-      throw error;
-    }
+      if (error.message === 'Aborted') {
+        emit({ type: 'done' });
+      } else {
+        emit({
+          type: 'error',
+          data: { message: error?.message || '批量合成失败' }
+        });
+      }
+    });
+
+    // 立即返回 requestId 和 eventsChannel
+    return { requestId: actualRequestId, eventsChannel };
   });
 
   /**

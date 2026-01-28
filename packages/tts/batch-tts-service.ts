@@ -615,7 +615,7 @@ export const BatchTTSService = {
         };
 
         try {
-          console.log(`[BatchTTS] [${itemIndex}] ${md5} 处理文本: "${item.text.substring(0, 30)}${item.text.length > 30 ? '...' : ''}"`);
+          console.log(`[BatchTTS] [${itemIndex}] ${md5} "${item.text.substring(0, 30)}${item.text.length > 30 ? '...' : ''}"`);
 
           // 检查缓存
           const cachedAudioPath = history!.audioMap[md5];
@@ -624,7 +624,7 @@ export const BatchTTSService = {
           const hasCachedTrimmed = cachedTrimmedPath && (await fs.pathExists(cachedTrimmedPath));
 
           if (hasCachedAudio) {
-            console.log(`[BatchTTS] [${itemIndex}] 使用缓存音频 - 时长: ${result.duration}ms`);
+            // console.log(`[BatchTTS] [${itemIndex}] ${md5} 使用缓存音频 ========`);
             // 使用缓存
             result.fromCache = true;
             result.audioPath = cachedAudioPath;
@@ -648,13 +648,13 @@ export const BatchTTSService = {
             result.success = true;
             cacheHitCount++;
           } else {
-            console.log(`[BatchTTS] [${itemIndex}] 开始合成新音频 (重试次数: ${maxRetries})`);
+            // console.log(`[BatchTTS] [${itemIndex}] ${md5} 开始合成新音频 (重试次数: ${maxRetries})`);
             // 需要合成
             const emptyAudio = Buffer.from(silenceAudio, 'base64');
 
             // 空文本直接返回静音音频
             if (!item.text || !item.text.trim()) {
-              console.log(`[BatchTTS] [${itemIndex}] 空文本，使用静音音频`);
+              console.log(`[BatchTTS] [${itemIndex}] ${md5} 空文本，使用静音音频`);
               await fs.writeFile(audioPath, emptyAudio);
               result.audioPath = audioPath;
               result.duration = 0;
@@ -663,7 +663,7 @@ export const BatchTTSService = {
               result.success = true;
             } else {
               // 带重试的TTS合成
-              console.log(`[BatchTTS] [${itemIndex}] 调用TTS引擎 - voice: ${config.voiceName}, rate: ${config.rate}`);
+              // console.log(`[BatchTTS] [${itemIndex}] ${md5} 调用TTS引擎 - voice: ${config.voiceName}, rate: ${config.rate}`);
               const audioBuffer = await withRetry(
                 async () => {
                   const synthesizeResult = await tts.textToSpeech({
@@ -677,7 +677,7 @@ export const BatchTTSService = {
                   }
 
                   if (!Buffer.isBuffer(synthesizeResult) || synthesizeResult.length === 0) {
-                    console.warn(`[BatchTTS] 空音频，使用静音替代: "${item.text.substring(0, 20)}..."`);
+                    console.warn(`[BatchTTS] ${md5} 空音频，使用静音替代: "${item.text.substring(0, 20)}..."`);
                     return emptyAudio;
                   }
 
@@ -689,7 +689,7 @@ export const BatchTTSService = {
 
               // 保存音频文件
               await fs.writeFile(audioPath, audioBuffer);
-              console.log(`[BatchTTS] [${itemIndex}] 音频已保存 - size: ${audioBuffer.length} bytes`);
+              // console.log(`[BatchTTS] [${itemIndex}] ${md5} 音频已保存 - size: ${audioBuffer.length} bytes`);
               result.audioPath = audioPath;
               result.duration = await getAudioDuration(audioPath);
 
@@ -714,12 +714,12 @@ export const BatchTTSService = {
           }
 
           successCount++;
-          console.log(`[BatchTTS] [${itemIndex}] 处理完成 - 成功, 缓存: ${result.fromCache ? '是' : '否'}, 时长: ${result.duration}ms`);
+          // console.log(`[BatchTTS] [${itemIndex}] ${md5} 处理完成 ${result.duration}ms ✅️`);
         } catch (err) {
           result.success = false;
           result.error = err instanceof Error ? err.message : String(err);
           failedCount++;
-          console.error(`[BatchTTS] [${itemIndex}] 处理失败: ${result.error}`);
+          console.error(`[BatchTTS] [${itemIndex}] ${md5} 处理失败: ${result.error}`);
         }
 
         // 更新进度
