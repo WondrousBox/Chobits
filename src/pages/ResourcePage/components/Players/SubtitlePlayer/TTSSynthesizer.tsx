@@ -177,6 +177,8 @@ export const TTSSynthesizer: React.FC<TTSSynthesizerProps> = ({ subtitleEntries,
         autoTrimSilence
       };
 
+      //
+
       if (onSynthesize) {
         // 使用外部提供的合成逻辑（推荐）
         const requestId = await onSynthesize(config);
