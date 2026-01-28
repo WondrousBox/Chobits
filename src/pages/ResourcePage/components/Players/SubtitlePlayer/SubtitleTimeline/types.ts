@@ -159,6 +159,10 @@ export interface SubtitleTimelineProps extends TimelineCallbacks {
   onStopTTSAudio?: () => void;
   /** 当前正在播放的TTS索引 */
   playingTTSIndex?: number;
+  /** 删除字幕轨道回调（trackId 为 timeline track id，如 'track-1'） */
+  onDeleteSubtitleTrack?: (trackId: string) => void;
+  /** 删除TTS轨道回调（trackId 为 TTS trackId，如 'main', 'zh-CN'） */
+  onDeleteTTSTrack?: (trackId: string) => void;
 }
 
 /**

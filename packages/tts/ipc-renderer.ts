@@ -159,6 +159,11 @@ export interface TTSIpcRenderer {
   }) => Promise<any>;
 
   /**
+   * 删除指定轨道的TTS文件目录
+   */
+  deleteTrackFiles: (params: { resourceId: string; trackId: TTSTrackId }) => Promise<{ success: boolean }>;
+
+  /**
    * 监听TTS事件
    * @param callback 事件回调函数
    * @returns 取消监听的函数
@@ -185,6 +190,8 @@ export function createTTSIpcRenderer(ipcRenderer: IpcRenderer): TTSIpcRenderer {
       configPrefix?: string;
       config?: BatchSynthesisConfig;
     }) => ipcRenderer.invoke('tts:loadHistory', params),
+
+    deleteTrackFiles: (params: { resourceId: string; trackId: TTSTrackId }) => ipcRenderer.invoke('tts:deleteTrackFiles', params),
 
     onEvent: (callback: (event: TTSEventData) => void) => {
       const handler = (_event: any, data: TTSEventData): void => {

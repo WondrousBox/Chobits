@@ -41,8 +41,8 @@ interface ResourceSubtitlePlayerProps {
 export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ resource, currentTime = 0, onSeek, followCurrentTime = false, audioPath }) => {
   const [subtitleEntries, setSubtitleEntries] = useState<AimSegments[]>([]);
   const [translationTracks, setTranslationTracks] = useState<AimSegments[][]>([]);
-  /** 各翻译轨道的语言与显示名（与 translationTracks 顺序一致） */
-  const [translationTrackMeta, setTranslationTrackMeta] = useState<{ languageCode: string; label: string }[]>([]);
+  /** 各翻译轨道的语言、显示名和资源ID（与 translationTracks 顺序一致） */
+  const [translationTrackMeta, setTranslationTrackMeta] = useState<{ languageCode: string; label: string; resourceId: string }[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [subtitleFormat, setSubtitleFormat] = useState<SubtitleFormat>('srt');
   const [viewMode, setViewMode] = useState<'list' | 'timeline'>('list'); // 视图模式：列表或时间轴
@@ -116,7 +116,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
       try {
         const translations = await window.YUA.ai.getResourceTranslations(resource.id);
         const translationTracksData: AimSegments[][] = [];
-        const meta: { languageCode: string; label: string }[] = [];
+        const meta: { languageCode: string; label: string; resourceId: string }[] = [];
         const currentEntries = subtitleEntriesRef.current || [];
 
         for (let i = 0; i < translations.length; i++) {
@@ -132,7 +132,8 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
             translationTracksData.push(translationSegments);
             meta.push({
               languageCode: trans.language ?? `trans-${i}`,
-              label: trans.title ?? trans.language ?? `译文 ${i + 1}`
+              label: trans.title ?? trans.language ?? `译文 ${i + 1}`,
+              resourceId: trans.id ?? ''
             });
           }
         }
@@ -191,7 +192,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
   });
 
   // 使用TTS合成 Hook（多轨道）
-  const { synthesizingIndices, synthesizedItemsByTrack, synthesisProgress, isSynthesizing, activeTrackId, startSynthesis, stopSynthesis, loadTTSHistory } = useTTSSynthesis({
+  const { synthesizingIndices, synthesizedItemsByTrack, synthesisProgress, isSynthesizing, activeTrackId, startSynthesis, stopSynthesis, resetSynthesis, loadTTSHistory } = useTTSSynthesis({
     resourceId: resource.id,
     subtitleEntriesRef
   });
@@ -405,7 +406,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
                 try {
                   const translations = await window.YUA.ai.getResourceTranslations(data.id);
                   const translationTracksData: AimSegments[][] = [];
-                  const meta: { languageCode: string; label: string }[] = [];
+                  const meta: { languageCode: string; label: string; resourceId: string }[] = [];
 
                   for (let i = 0; i < translations.length; i++) {
                     const trans = translations[i];
@@ -420,7 +421,8 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
                       translationTracksData.push(translationSegments);
                       meta.push({
                         languageCode: trans.language ?? `trans-${i}`,
-                        label: trans.title ?? trans.language ?? `译文 ${i + 1}`
+                        label: trans.title ?? trans.language ?? `译文 ${i + 1}`,
+                        resourceId: trans.id
                       });
                     }
                   }
@@ -634,6 +636,66 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     [subtitleEntries, resource.id, isLoading, debouncedSave, subtitleFormat]
   );
 
+  // 删除字幕轨道（翻译轨道）
+  const handleDeleteSubtitleTrack = useCallback(
+    async (trackId: string) => {
+      // 解析轨道索引：track-1 -> 0, track-2 -> 1, ...
+      const trackIndexMatch = trackId.match(/^track-(\d+)$/);
+      if (!trackIndexMatch) return;
+      const trackIndex = parseInt(trackIndexMatch[1], 10);
+
+      // track-0 是主轨道，不允许删除
+      if (trackIndex === 0) return;
+
+      // track-1, track-2... 对应翻译轨道
+      const translationIndex = trackIndex - 1;
+      if (translationIndex < 0 || translationIndex >= translationTrackMeta.length) return;
+
+      const meta = translationTrackMeta[translationIndex];
+      if (!meta?.resourceId) {
+        console.warn(`[SubtitlePlayer] 无法删除轨道 ${trackId}：找不到资源ID`);
+        return;
+      }
+
+      try {
+        // 删除翻译资源
+        await window.YUA.resource.deleteResource({ id: meta.resourceId });
+        console.log(`[SubtitlePlayer] 已删除翻译轨道 ${trackId}，资源ID: ${meta.resourceId}`);
+
+        // 重新加载翻译轨道（会自动移除已删除的）
+        await loadTranslationTracks();
+      } catch (error) {
+        console.error(`[SubtitlePlayer] 删除翻译轨道失败:`, error);
+        alert('删除翻译轨道失败，请重试');
+      }
+    },
+    [translationTrackMeta, loadTranslationTracks]
+  );
+
+  // 删除TTS轨道
+  const handleDeleteTTSTrack = useCallback(
+    async (ttsTrackId: string) => {
+      try {
+        // 清除该轨道的TTS数据
+        resetSynthesis(ttsTrackId);
+
+        // 删除TTS文件目录
+        if (resource.id) {
+          const result = await window.YUA.tts.deleteTrackFiles({ resourceId: resource.id, trackId: ttsTrackId });
+          if (!result.success) {
+            console.warn(`[SubtitlePlayer] 删除TTS文件目录失败，但已清除内存数据`);
+          }
+        }
+
+        console.log(`[SubtitlePlayer] 已删除TTS轨道 ${ttsTrackId}`);
+      } catch (error) {
+        console.error(`[SubtitlePlayer] 删除TTS轨道失败:`, error);
+        alert('删除TTS轨道失败，请重试');
+      }
+    },
+    [resource.id, resetSynthesis]
+  );
+
   return (
     <div className="flex h-full w-full flex-col text-muted-foreground">
       <div className="flex items-center justify-between gap-2 border-b border-border/50 px-2">
@@ -723,6 +785,8 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
           onPlayTTSAudio={handlePlayTTS}
           onStopTTSAudio={handleStopTTS}
           playingTTSIndex={playingTTSIndex ?? undefined}
+          onDeleteSubtitleTrack={handleDeleteSubtitleTrack}
+          onDeleteTTSTrack={handleDeleteTTSTrack}
         />
       )}
     </div>

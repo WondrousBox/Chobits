@@ -1,13 +1,64 @@
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbMinus, TbPlus, TbVolume } from 'react-icons/tb';
+import { TbMinus, TbPlus, TbTrash, TbVolume } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { Slider } from '@/components/ui/slider';
 
 import { SeekBar, TimelineTrackView, TimeRuler, TrackLabel, TTSAudioTrack, WaveformTrack } from './components';
 import { useTimelineInteraction } from './hooks';
 import { DEFAULT_CONFIG, SubtitleTimelineProps, TRACK_COLORS, ViewportState } from './types';
+
+/**
+ * TTS轨道标签组件（带右键删除菜单）
+ */
+const TTSTrackLabel: React.FC<{
+  trackLabel: string;
+  trackColor: string;
+  ttsTrackId: string;
+  onDelete?: (ttsTrackId: string) => void;
+}> = ({ trackLabel, trackColor, ttsTrackId, onDelete }) => {
+  const content = (
+    <div
+      className="flex items-center gap-1.5 px-2 border-b border-border bg-muted/20 shrink-0 overflow-hidden"
+      style={{ height: DEFAULT_CONFIG.TRACK_HEIGHT + DEFAULT_CONFIG.TRACK_GAP }}
+    >
+      {/* 使用和字幕轨道相同的颜色指示器 */}
+      <div className="w-1.5 h-4 rounded-full shrink-0" style={{ backgroundColor: trackColor }} />
+      {/* 轨道名称 + TTS图标 */}
+      <div className="flex items-center gap-1 min-w-0 flex-1">
+        <span className="text-xs text-foreground/80 truncate" title={trackLabel}>
+          {trackLabel}
+        </span>
+        <TbVolume className="w-3 h-3 text-muted-foreground shrink-0" />
+      </div>
+    </div>
+  );
+
+  if (onDelete) {
+    return (
+      <ContextMenu>
+        <ContextMenuTrigger asChild>{content}</ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem
+            className="text-destructive focus:text-destructive"
+            onClick={() => {
+              if (confirm(`确定要删除TTS轨道「${trackLabel}」吗？此操作将删除该轨道的所有TTS音频文件。`)) {
+                onDelete(ttsTrackId);
+              }
+            }}
+          >
+            <TbTrash className="w-4 h-4 mr-2" />
+            删除TTS轨道
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+    );
+  }
+
+  return content;
+};
 
 /**
  * SubtitleTimeline - 高性能字幕时间轴组件
@@ -42,6 +93,8 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   onPlayTTSAudio,
   onStopTTSAudio,
   playingTTSIndex,
+  onDeleteSubtitleTrack,
+  onDeleteTTSTrack,
   onSegmentClick,
   onSegmentDoubleClick,
   onSegmentTextChange,
@@ -353,23 +406,20 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                 return (
                   <React.Fragment key={track.id}>
                     {/* 字幕轨道标签 */}
-                    <TrackLabel track={track} index={index} />
+                    <TrackLabel
+                      track={track}
+                      index={index}
+                      allowDelete={track.id !== 'track-0' && !!onDeleteSubtitleTrack}
+                      onDelete={onDeleteSubtitleTrack}
+                    />
                     {/* TTS轨道标签（如果有） */}
                     {hasTTSTrack && (
-                      <div
-                        className="flex items-center gap-1.5 px-2 border-b border-border bg-muted/20 shrink-0 overflow-hidden"
-                        style={{ height: DEFAULT_CONFIG.TRACK_HEIGHT + DEFAULT_CONFIG.TRACK_GAP }}
-                      >
-                        {/* 使用和字幕轨道相同的颜色指示器 */}
-                        <div className="w-1.5 h-4 rounded-full shrink-0" style={{ backgroundColor: track.color }} />
-                        {/* 轨道名称 + TTS图标 */}
-                        <div className="flex items-center gap-1 min-w-0 flex-1">
-                          <span className="text-xs text-foreground/80 truncate" title={track.label}>
-                            {track.label}
-                          </span>
-                          <TbVolume className="w-3 h-3 text-muted-foreground shrink-0" />
-                        </div>
-                      </div>
+                      <TTSTrackLabel
+                        trackLabel={track.label}
+                        trackColor={track.color}
+                        ttsTrackId={ttsTrackId}
+                        onDelete={onDeleteTTSTrack}
+                      />
                     )}
                   </React.Fragment>
                 );
