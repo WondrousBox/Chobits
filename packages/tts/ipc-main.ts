@@ -6,10 +6,11 @@
 
 import { createHash } from 'crypto';
 import { app, BrowserWindow, ipcMain, IpcMainInvokeEvent } from 'electron';
+import fs from 'fs-extra';
 import * as path from 'path';
 
 import { ResourcesRepo, WorkspacesRepo } from '../../electron/main/db/repositories';
-import { type BatchTTSConfig, type BatchTTSEvent, type BatchTTSResult, BatchTTSService, type TTSItem } from './batch-tts-service';
+import { type BatchTTSConfig, type BatchTTSEvent, BatchTTSService, type TTSItem } from './batch-tts-service';
 
 /**
  * 生成配置的MD5前缀（与 batch-tts-service.ts 一致）
@@ -224,6 +225,25 @@ resourceId: ${resourceId}
     }
 
     return BatchTTSService.loadHistory(outputDir, actualConfigPrefix);
+  });
+
+  /**
+   * 删除指定轨道的TTS文件目录
+   */
+  ipcMain.handle('tts:deleteTrackFiles', async (_event: IpcMainInvokeEvent, params: { resourceId: string; trackId: TTSTrackId }): Promise<{ success: boolean }> => {
+    const { resourceId, trackId } = params;
+
+    try {
+      const outputDir = await getTTSOutputDir(resourceId, trackId);
+      if (await fs.pathExists(outputDir)) {
+        await fs.remove(outputDir);
+        console.log(`[TTS] 已删除TTS轨道文件目录: ${outputDir}`);
+      }
+      return { success: true };
+    } catch (error) {
+      console.error(`[TTS] 删除TTS轨道文件失败:`, error);
+      return { success: false };
+    }
   });
 
   console.log('[TTS] IPC处理器已初始化');

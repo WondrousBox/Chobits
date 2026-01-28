@@ -1,6 +1,8 @@
 import clsx from 'clsx';
 import React from 'react';
-import { TbEye, TbEyeOff, TbLock, TbLockOpen } from 'react-icons/tb';
+import { TbEye, TbEyeOff, TbLock, TbLockOpen, TbTrash } from 'react-icons/tb';
+
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
 
 import { DEFAULT_CONFIG, TimelineTrack } from '../types';
 
@@ -9,16 +11,28 @@ interface TrackLabelProps {
   index: number;
   onToggleLock?: (trackId: string) => void;
   onToggleHidden?: (trackId: string) => void;
+  /** 是否允许删除（翻译轨道可删除，主轨道不可删除） */
+  allowDelete?: boolean;
+  /** 删除轨道回调 */
+  onDelete?: (trackId: string) => void;
   className?: string;
 }
 
 /**
  * 轨道标签组件
  */
-export const TrackLabel: React.FC<TrackLabelProps> = ({ track, index, onToggleLock, onToggleHidden, className }) => {
+export const TrackLabel: React.FC<TrackLabelProps> = ({
+  track,
+  index,
+  onToggleLock,
+  onToggleHidden,
+  allowDelete = false,
+  onDelete,
+  className
+}) => {
   const height = track.height ?? DEFAULT_CONFIG.TRACK_HEIGHT;
 
-  return (
+  const content = (
     <div
       className={clsx('flex items-center justify-between px-2 border-b border-border bg-muted/30 shrink-0 overflow-hidden', track.hidden && 'opacity-50', className)}
       style={{ height: height + DEFAULT_CONFIG.TRACK_GAP }}
@@ -56,4 +70,28 @@ export const TrackLabel: React.FC<TrackLabelProps> = ({ track, index, onToggleLo
       </div>
     </div>
   );
+
+  // 如果允许删除，包装在右键菜单中
+  if (allowDelete && onDelete) {
+    return (
+      <ContextMenu>
+        <ContextMenuTrigger asChild>{content}</ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem
+            className="text-destructive focus:text-destructive"
+            onClick={() => {
+              if (confirm(`确定要删除轨道「${track.label}」吗？此操作将删除该翻译资源。`)) {
+                onDelete(track.id);
+              }
+            }}
+          >
+            <TbTrash className="w-4 h-4 mr-2" />
+            删除轨道
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
+    );
+  }
+
+  return content;
 };
