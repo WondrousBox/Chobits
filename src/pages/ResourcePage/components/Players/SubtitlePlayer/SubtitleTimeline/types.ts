@@ -149,6 +149,8 @@ export interface SubtitleTimelineProps extends TimelineCallbacks {
   ttsItemsByTrack?: Map<string, TTSAudioItem[]>;
   /** TTS 轨道显示标签：trackId -> 显示名（如「原文」「中文」） */
   ttsTrackLabels?: Map<string, string>;
+  /** 字幕轨道到TTS轨道的映射：timeline track id (如 'track-0') -> TTS trackId (如 'main', 'zh-CN') */
+  subtitleToTTSTrackMap?: Map<string, string>;
   /** 是否显示TTS轨道 */
   showTTSTrack?: boolean;
   /** 播放TTS音频回调 */
