@@ -132,6 +132,9 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
   const [activeTrackId, setActiveTrackId] = useState<string | null>(null);
 
   // Refs（用于内部追踪）
+  // 使用 Map 追踪多个并发任务：requestId -> trackId
+  const taskTrackMapRef = useRef<Map<string, string>>(new Map());
+  // 当前活跃的任务 ID（用于 UI 显示，显示最新的任务）
   const activeTaskIdRef = useRef<string | null>(null);
   const activeTrackIdRef = useRef<string | null>(null);
   const totalItemsRef = useRef(0);
@@ -175,22 +178,34 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
 
   // 重置合成状态（不传 trackId 则重置全部）
   const resetSynthesis = useCallback((trackId?: string) => {
-    setSynthesizingIndices(new Set());
-    setSynthesisProgress(0);
-    setIsSynthesizing(false);
-    setActiveTaskId(null);
-    setActiveTrackId(null);
-    activeTaskIdRef.current = null;
-    activeTrackIdRef.current = null;
-    totalItemsRef.current = 0;
-    completedCountRef.current = 0;
     if (trackId !== undefined) {
+      // 只重置指定轨道
       setSynthesizedItemsByTrack((prev) => {
         const next = new Map(prev);
         next.delete(trackId);
         return next;
       });
+      // 如果重置的是当前活跃轨道，清空活跃状态
+      if (activeTrackIdRef.current === trackId) {
+        setIsSynthesizing(false);
+        setSynthesisProgress(0);
+        setActiveTaskId(null);
+        setActiveTrackId(null);
+        activeTaskIdRef.current = null;
+        activeTrackIdRef.current = null;
+      }
     } else {
+      // 重置全部
+      setSynthesizingIndices(new Set());
+      setSynthesisProgress(0);
+      setIsSynthesizing(false);
+      setActiveTaskId(null);
+      setActiveTrackId(null);
+      activeTaskIdRef.current = null;
+      activeTrackIdRef.current = null;
+      totalItemsRef.current = 0;
+      completedCountRef.current = 0;
+      taskTrackMapRef.current.clear();
       setSynthesizedItemsByTrack(new Map());
     }
   }, []);
@@ -264,11 +279,13 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
     [resourceId, subtitleEntriesRef]
   );
 
-  // 停止合成
+  // 停止合成（停止当前活跃的任务）
   const stopSynthesis = useCallback(async () => {
     if (activeTaskIdRef.current) {
       try {
         await window.YUA.tts.cancelTask(activeTaskIdRef.current);
+        // 从映射中移除
+        taskTrackMapRef.current.delete(activeTaskIdRef.current);
       } catch (error) {
         console.error('停止TTS合成失败:', error);
       }
@@ -308,34 +325,34 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
 
       if (indicesToSynthesize.length === 0) throw new Error('没有选择要合成的字幕');
 
-      resetSynthesis();
+      // 只重置当前轨道的状态，不清空其他轨道
+      setSynthesizedItemsByTrack((prev) => {
+        const next = new Map(prev);
+        // 为当前轨道初始化 pending 状态
+        const initialItems = new Map<number, TTSSynthesisItem>();
+        indicesToSynthesize.forEach((index) => {
+          initialItems.set(index, {
+            index,
+            status: 'pending',
+            text: segments[index]?.text ?? ''
+          });
+        });
+        next.set(trackId, initialItems);
+        return next;
+      });
+
+      // 更新当前活跃任务（用于 UI 显示）
       setIsSynthesizing(true);
       totalItemsRef.current = indicesToSynthesize.length;
       activeTrackIdRef.current = trackId;
       setActiveTrackId(trackId);
+      // 更新 synthesizingIndices（用于进度条显示）
+      setSynthesizingIndices(new Set(indicesToSynthesize));
 
       const items = indicesToSynthesize.map((index) => ({
         index,
         text: segments[index]?.text ?? ''
       }));
-
-      const initialItems = new Map<number, TTSSynthesisItem>();
-      const initialSynthesizing = new Set<number>();
-      for (const item of items) {
-        initialItems.set(item.index, {
-          index: item.index,
-          status: 'pending',
-          text: item.text
-        });
-        initialSynthesizing.add(item.index);
-      }
-      console.log(`[useTTSSynthesis] 初始化 ${initialItems.size} 个TTS项目 (track: ${trackId})`);
-      setSynthesizedItemsByTrack((prev) => {
-        const next = new Map(prev);
-        next.set(trackId, initialItems);
-        return next;
-      });
-      setSynthesizingIndices(initialSynthesizing);
 
       const { requestId: taskRequestId, eventsChannel } = await window.YUA.tts.synthesizeBatch({
         resourceId,
@@ -350,12 +367,14 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
         skipTrimSilence: !(config.autoTrimSilence ?? true)
       });
 
+      // 将 requestId 和 trackId 的映射关系存储起来
+      taskTrackMapRef.current.set(taskRequestId, trackId);
       activeTaskIdRef.current = taskRequestId;
       setActiveTaskId(taskRequestId);
       console.log(`[useTTSSynthesis] TTS任务已启动 requestId: ${taskRequestId}, trackId: ${trackId}, eventsChannel: ${eventsChannel}`);
       return taskRequestId;
     },
-    [resourceId, subtitleEntriesRef, resetSynthesis]
+    [resourceId, subtitleEntriesRef]
   );
 
   // 监听TTS事件
@@ -365,32 +384,33 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
     const unsubscribe = window.YUA.tts.onEvent((event: TTSEventData) => {
       console.log(`[useTTSSynthesis] 收到TTS事件 - type: ${event.type}, requestId: ${event.requestId}`);
 
-      // 检查是否是当前任务的事件
-      if (event.requestId !== activeTaskIdRef.current) {
-        console.log(`[useTTSSynthesis] 事件被过滤 - requestId不匹配, ${event.requestId} !== ${activeTaskIdRef.current}`);
+      // 根据 requestId 查找对应的 trackId
+      const trackId = taskTrackMapRef.current.get(event.requestId);
+      if (!trackId) {
+        console.log(`[useTTSSynthesis] 事件被过滤 - 找不到 requestId 对应的 trackId: ${event.requestId}`);
         return;
       }
 
-      console.log(`[useTTSSynthesis] 处理事件 - type: ${event.type}`);
-
-      const currentTrackId = activeTrackIdRef.current;
-      if (!currentTrackId) return;
+      console.log(`[useTTSSynthesis] 处理事件 - type: ${event.type}, trackId: ${trackId}`);
 
       switch (event.type) {
         case 'progress': {
           if (event.data) {
             const { currentIndex, percentage } = event.data;
-            setSynthesisProgress(percentage);
+            // 只更新当前活跃任务的进度（用于 UI 显示）
+            if (event.requestId === activeTaskIdRef.current) {
+              setSynthesisProgress(percentage);
+            }
             if (currentIndex !== undefined) {
               setSynthesizedItemsByTrack((prev) => {
-                const trackMap = prev.get(currentTrackId);
+                const trackMap = prev.get(trackId);
                 if (!trackMap) return prev;
                 const nextTrack = new Map(trackMap);
                 const existing = nextTrack.get(currentIndex);
                 if (existing && existing.status !== 'synthesizing') {
                   nextTrack.set(currentIndex, { ...existing, status: 'synthesizing' });
                   const next = new Map(prev);
-                  next.set(currentTrackId, nextTrack);
+                  next.set(trackId, nextTrack);
                   return next;
                 }
                 return prev;
@@ -412,7 +432,7 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
               text: string;
             }>;
             setSynthesizedItemsByTrack((prev) => {
-              const trackMap = prev.get(currentTrackId) ?? new Map();
+              const trackMap = prev.get(trackId) ?? new Map();
               const nextTrack = new Map(trackMap);
               for (const result of results) {
                 const item: TTSSynthesisItem = {
@@ -428,7 +448,7 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
                 onItemCompleteRef.current?.(item);
               }
               const next = new Map(prev);
-              next.set(currentTrackId, nextTrack);
+              next.set(trackId, nextTrack);
               return next;
             });
           }
@@ -436,24 +456,35 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
         }
 
         case 'done': {
-          setIsSynthesizing(false);
-          setSynthesizingIndices(new Set());
-          setSynthesisProgress(100);
-          setActiveTaskId(null);
-          setActiveTrackId(null);
-          activeTaskIdRef.current = null;
-          activeTrackIdRef.current = null;
-          onSynthesisCompleteRef.current?.();
+          // 从映射中移除已完成的任务
+          taskTrackMapRef.current.delete(event.requestId);
+
+          // 如果这是当前活跃的任务，更新 UI 状态
+          if (event.requestId === activeTaskIdRef.current) {
+            setIsSynthesizing(false);
+            setSynthesisProgress(100);
+            setActiveTaskId(null);
+            setActiveTrackId(null);
+            activeTaskIdRef.current = null;
+            activeTrackIdRef.current = null;
+            onSynthesisCompleteRef.current?.();
+          }
           break;
         }
 
         case 'error': {
           console.error('TTS合成错误:', event.data?.message);
-          setIsSynthesizing(false);
-          setActiveTaskId(null);
-          setActiveTrackId(null);
-          activeTaskIdRef.current = null;
-          activeTrackIdRef.current = null;
+          // 从映射中移除失败的任务
+          taskTrackMapRef.current.delete(event.requestId);
+
+          // 如果这是当前活跃的任务，更新 UI 状态
+          if (event.requestId === activeTaskIdRef.current) {
+            setIsSynthesizing(false);
+            setActiveTaskId(null);
+            setActiveTrackId(null);
+            activeTaskIdRef.current = null;
+            activeTrackIdRef.current = null;
+          }
           break;
         }
       }
@@ -467,12 +498,15 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
     };
   }, []); // 空依赖数组，只在组件挂载时设置一次
 
-  // 组件卸载时取消任务
+  // 组件卸载时取消所有任务
   useEffect(() => {
     return () => {
-      if (activeTaskIdRef.current) {
-        window.YUA.tts.cancelTask(activeTaskIdRef.current).catch(console.error);
+      // 取消所有正在进行的任务
+      const requestIds = Array.from(taskTrackMapRef.current.keys());
+      for (const requestId of requestIds) {
+        window.YUA.tts.cancelTask(requestId).catch(console.error);
       }
+      taskTrackMapRef.current.clear();
     };
   }, []);
 

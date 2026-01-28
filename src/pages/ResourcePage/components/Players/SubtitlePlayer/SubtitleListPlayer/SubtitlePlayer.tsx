@@ -348,7 +348,7 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
                 highlight={highlight}
                 isMainTrack={true}
                 ttsItem={ttsItemsByTrack?.get(trackIds[0])?.get(idx)}
-                ttsSynthesizing={activeTTSTrackId === trackIds[0] && !!ttsSynthesizingSet?.has(idx)}
+                ttsSynthesizing={ttsItemsByTrack?.get(trackIds[0])?.get(idx)?.status === 'synthesizing'}
                 onPlayTTS={onPlayTTS}
               />
               {/* 附加轨道 */}
@@ -367,7 +367,7 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
                     onTextChange={handleTextChange}
                     isMainTrack={false}
                     ttsItem={ttsItemsByTrack?.get(trackId)?.get(idx)}
-                    ttsSynthesizing={activeTTSTrackId === trackId && !!ttsSynthesizingSet?.has(idx)}
+                    ttsSynthesizing={ttsItemsByTrack?.get(trackId)?.get(idx)?.status === 'synthesizing'}
                     onPlayTTS={onPlayTTS}
                   />
                 );
