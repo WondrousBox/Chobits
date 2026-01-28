@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbMinus, TbPlus } from 'react-icons/tb';
+import { TbMinus, TbPlus, TbVolume } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -37,6 +37,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   showWaveform = true,
   ttsItemsByTrack,
   ttsTrackLabels,
+  subtitleToTTSTrackMap,
   showTTSTrack = true,
   onPlayTTSAudio,
   onStopTTSAudio,
@@ -340,28 +341,39 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
             {/* 标签区域顶部占位（对应时间刻度） */}
             {showRuler && <div className="border-b bg-muted/30 shrink-0" style={{ height: DEFAULT_CONFIG.RULER_HEIGHT }} />}
 
-            {/* 轨道标签列表 */}
+            {/* 轨道标签列表（每个字幕轨道后紧跟对应的TTS轨道标签） */}
             {tracksWithColors
               .filter((t) => !t.hidden)
-              .map((track, index) => (
-                <TrackLabel key={track.id} track={track} index={index} />
-              ))}
+              .map((track, index) => {
+                const ttsTrackId = subtitleToTTSTrackMap?.get(track.id);
+                const ttsItems = ttsTrackId ? ttsItemsByTrack?.get(ttsTrackId) : undefined;
+                // 如果有TTS项（包括正在合成的），或者正在合成这个轨道，则显示TTS轨道
+                const hasTTSTrack = showTTSTrack && ttsTrackId && (ttsItems?.length ?? 0) > 0;
 
-            {/* 多 TTS 轨道标签 */}
-            {showTTSTrack &&
-              ttsItemsByTrack &&
-              ttsItemsByTrack.size > 0 &&
-              Array.from(ttsItemsByTrack.entries())
-                .filter(([, items]) => items.length > 0)
-                .map(([trackId]) => (
-                  <div
-                    key={trackId}
-                    className="flex items-center justify-center shrink-0 border-b bg-muted/20 text-xs text-muted-foreground"
-                    style={{ height: DEFAULT_CONFIG.TRACK_HEIGHT }}
-                  >
-                    <span className="truncate px-1">{ttsTrackLabels?.get(trackId) ?? (trackId === 'main' ? 'TTS 原文' : `TTS ${trackId}`)}</span>
-                  </div>
-                ))}
+                return (
+                  <React.Fragment key={track.id}>
+                    {/* 字幕轨道标签 */}
+                    <TrackLabel track={track} index={index} />
+                    {/* TTS轨道标签（如果有） */}
+                    {hasTTSTrack && (
+                      <div
+                        className="flex items-center gap-1.5 px-2 border-b border-border bg-muted/20 shrink-0 overflow-hidden"
+                        style={{ height: DEFAULT_CONFIG.TRACK_HEIGHT + DEFAULT_CONFIG.TRACK_GAP }}
+                      >
+                        {/* 使用和字幕轨道相同的颜色指示器 */}
+                        <div className="w-1.5 h-4 rounded-full shrink-0" style={{ backgroundColor: track.color }} />
+                        {/* 轨道名称 + TTS图标 */}
+                        <div className="flex items-center gap-1 min-w-0 flex-1">
+                          <span className="text-xs text-foreground/80 truncate" title={track.label}>
+                            {track.label}
+                          </span>
+                          <TbVolume className="w-3 h-3 text-muted-foreground shrink-0" />
+                        </div>
+                      </div>
+                    )}
+                  </React.Fragment>
+                );
+              })}
           </div>
         )}
 
@@ -383,50 +395,53 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
               />
             )}
 
-            {/* 轨道内容 */}
+            {/* 轨道内容（每个字幕轨道后紧跟对应的TTS轨道） */}
             {tracksWithColors
               .filter((t) => !t.hidden)
-              .map((track) => (
-                <TimelineTrackView
-                  key={track.id}
-                  track={track}
-                  viewport={viewport}
-                  totalDuration={duration}
-                  pixelsPerSecond={pixelsPerSecond}
-                  width={totalWidth}
-                  currentTime={effectiveCurrentTime}
-                  highlightIds={highlightIds}
-                  onMergePrev={onMergePrev}
-                  onSegmentClick={handleSegmentClick}
-                  onSegmentDoubleClick={handleSegmentDoubleClick}
-                  onSegmentTextChange={onSegmentTextChange}
-                  onSegmentTimeChange={onSegmentTimeChange}
-                  disabled={disabled || track.locked}
-                />
-              ))}
+              .map((track) => {
+                const ttsTrackId = subtitleToTTSTrackMap?.get(track.id);
+                const ttsItems = ttsTrackId ? ttsItemsByTrack?.get(ttsTrackId) : undefined;
+                // 如果有TTS项（包括正在合成的），或者正在合成这个轨道，则显示TTS轨道
+                const hasTTSTrack = showTTSTrack && ttsTrackId && (ttsItems?.length ?? 0) > 0;
 
-            {/* 多 TTS 音频轨道 */}
-            {showTTSTrack &&
-              ttsItemsByTrack &&
-              ttsItemsByTrack.size > 0 &&
-              Array.from(ttsItemsByTrack.entries())
-                .filter(([, items]) => items.length > 0)
-                .map(([trackId, items]) => (
-                  <TTSAudioTrack
-                    key={trackId}
-                    items={items}
-                    viewport={viewport}
-                    totalDuration={duration}
-                    pixelsPerSecond={pixelsPerSecond}
-                    width={totalWidth}
-                    currentTime={effectiveCurrentTime}
-                    trackLabelWidth={0}
-                    showTrackLabel={false}
-                    onPlayAudio={onPlayTTSAudio}
-                    onStopAudio={onStopTTSAudio}
-                    playingIndex={playingTTSIndex}
-                  />
-                ))}
+                return (
+                  <React.Fragment key={track.id}>
+                    {/* 字幕轨道内容 */}
+                    <TimelineTrackView
+                      track={track}
+                      viewport={viewport}
+                      totalDuration={duration}
+                      pixelsPerSecond={pixelsPerSecond}
+                      width={totalWidth}
+                      currentTime={effectiveCurrentTime}
+                      highlightIds={highlightIds}
+                      onMergePrev={onMergePrev}
+                      onSegmentClick={handleSegmentClick}
+                      onSegmentDoubleClick={handleSegmentDoubleClick}
+                      onSegmentTextChange={onSegmentTextChange}
+                      onSegmentTimeChange={onSegmentTimeChange}
+                      disabled={disabled || track.locked}
+                    />
+                    {/* TTS轨道内容（如果有） */}
+                    {hasTTSTrack && (
+                      <TTSAudioTrack
+                        key={`tts-${ttsTrackId}`}
+                        items={ttsItems}
+                        viewport={viewport}
+                        totalDuration={duration}
+                        pixelsPerSecond={pixelsPerSecond}
+                        width={totalWidth}
+                        currentTime={effectiveCurrentTime}
+                        trackLabelWidth={0}
+                        showTrackLabel={false}
+                        onPlayAudio={onPlayTTSAudio}
+                        onStopAudio={onStopTTSAudio}
+                        playingIndex={playingTTSIndex}
+                      />
+                    )}
+                  </React.Fragment>
+                );
+              })}
           </div>
         </div>
       </div>

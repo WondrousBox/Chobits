@@ -191,16 +191,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
   });
 
   // 使用TTS合成 Hook（多轨道）
-  const {
-    synthesizingIndices,
-    synthesizedItemsByTrack,
-    synthesisProgress,
-    isSynthesizing,
-    activeTrackId,
-    startSynthesis,
-    stopSynthesis,
-    loadTTSHistory
-  } = useTTSSynthesis({
+  const { synthesizingIndices, synthesizedItemsByTrack, synthesisProgress, isSynthesizing, activeTrackId, startSynthesis, stopSynthesis, loadTTSHistory } = useTTSSynthesis({
     resourceId: resource.id,
     subtitleEntriesRef
   });
@@ -312,19 +303,42 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
   // 各轨道对应的字幕片段（索引 0=原文，1..n=翻译轨）
   const ttsTracksSegments = useMemo(() => [subtitleEntries, ...translationTracks], [subtitleEntries, translationTracks]);
 
-  // 时间轴用：按轨道分组的 TTS 项 + 轨道标签
-  const { ttsItemsByTrackForTimeline, ttsTrackLabelsForTimeline } = useMemo(() => {
+  // 时间轴用：按轨道分组的 TTS 项 + 轨道标签 + 字幕轨道到TTS轨道的映射
+  const { ttsItemsByTrackForTimeline, ttsTrackLabelsForTimeline, subtitleToTTSTrackMap } = useMemo(() => {
     const byTrack = new Map<string, TimelineTTSAudioItem[]>();
     const labels = new Map<string, string>();
-    if (subtitleEntries.length === 0) return { ttsItemsByTrackForTimeline: byTrack, ttsTrackLabelsForTimeline: labels };
+    const subtitleToTTS = new Map<string, string>(); // timeline track id -> TTS trackId
+
+    if (subtitleEntries.length === 0) {
+      return { ttsItemsByTrackForTimeline: byTrack, ttsTrackLabelsForTimeline: labels, subtitleToTTSTrackMap: subtitleToTTS };
+    }
+
+    // 构建映射：timeline track index -> TTS trackId
+    // track-0 (原文) -> 'main'
+    // track-1 (译文1) -> translationTrackMeta[0].languageCode
+    // track-2 (译文2) -> translationTrackMeta[1].languageCode
+    subtitleToTTS.set('track-0', 'main');
+    translationTrackMeta.forEach((meta, idx) => {
+      subtitleToTTS.set(`track-${idx + 1}`, meta.languageCode);
+    });
+
+    // 构建所有字幕轨道的数组（用于获取对应轨道的时间）
+    const allSubtitleTracks: AimSegments[][] = [subtitleEntries, ...translationTracks];
 
     const trackIdsList = ['main', ...translationTrackMeta.map((t) => t.languageCode)];
     trackIdsList.forEach((tid) => {
       const map = synthesizedItemsByTrack.get(tid);
       if (!map || map.size === 0) return;
+
+      // 找到对应的字幕轨道：main -> track-0 (index 0), 翻译轨道 -> track-1, track-2... (index 1, 2...)
+      const subtitleTrackIndex = tid === 'main' ? 0 : translationTrackMeta.findIndex((t) => t.languageCode === tid) + 1;
+      const subtitleTrack = allSubtitleTracks[subtitleTrackIndex];
+      if (!subtitleTrack) return;
+
       const items: TimelineTTSAudioItem[] = [];
       map.forEach((item, index) => {
-        const seg = subtitleEntries[index];
+        // 从对应的字幕轨道获取时间，而不是总是从主轨道获取
+        const seg = subtitleTrack[index];
         if (!seg) return;
         items.push({
           index,
@@ -339,10 +353,10 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
       });
       items.sort((a, b) => a.startTime - b.startTime);
       byTrack.set(tid, items);
-      labels.set(tid, tid === 'main' ? '原文' : translationTrackMeta.find((t) => t.languageCode === tid)?.label ?? tid);
+      labels.set(tid, tid === 'main' ? '原文' : (translationTrackMeta.find((t) => t.languageCode === tid)?.label ?? tid));
     });
-    return { ttsItemsByTrackForTimeline: byTrack, ttsTrackLabelsForTimeline: labels };
-  }, [subtitleEntries, synthesizedItemsByTrack, translationTrackMeta]);
+    return { ttsItemsByTrackForTimeline: byTrack, ttsTrackLabelsForTimeline: labels, subtitleToTTSTrackMap: subtitleToTTS };
+  }, [subtitleEntries, translationTracks, synthesizedItemsByTrack, translationTrackMeta]);
 
   // 更新 clearTypingTexts ref
   useEffect(() => {
@@ -530,9 +544,6 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
   // 处理时间轴时间变更（拖拽移动或调整边缘）
   const handleTimelineTimeChange = useCallback(
     (segment: TimelineSegment, trackId: string, newStartTime: number, newEndTime: number) => {
-      // 只处理主轨道（track-0）的编辑
-      if (trackId !== 'track-0') return;
-
       const parsed = parseSegmentId(segment.id);
       if (!parsed) return;
 
@@ -547,23 +558,52 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
         return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')},${ms.toString().padStart(3, '0')}`;
       };
 
-      const updated = subtitleEntries.map((item, i) => {
-        if (i === segmentIndex) {
-          return {
-            ...item,
-            st: formatTime(newStartTime),
-            et: formatTime(newEndTime)
-          };
-        }
-        return item;
-      });
+      // 解析轨道索引：track-0 -> 0, track-1 -> 1, ...
+      const trackIndexMatch = trackId.match(/^track-(\d+)$/);
+      if (!trackIndexMatch) return;
+      const trackIndex = parseInt(trackIndexMatch[1], 10);
 
-      setSubtitleEntries(updated);
-      if (resource.id && !isLoading) {
-        debouncedSave(resource.id, updated, subtitleFormat);
+      if (trackIndex === 0) {
+        // 主轨道（track-0）
+        const updated = subtitleEntries.map((item, i) => {
+          if (i === segmentIndex) {
+            return {
+              ...item,
+              st: formatTime(newStartTime),
+              et: formatTime(newEndTime)
+            };
+          }
+          return item;
+        });
+        setSubtitleEntries(updated);
+        if (resource.id && !isLoading) {
+          debouncedSave(resource.id, updated, subtitleFormat);
+        }
+      } else if (trackIndex > 0 && trackIndex <= translationTracks.length) {
+        // 翻译轨道（track-1, track-2, ...）
+        const translationIndex = trackIndex - 1;
+        const updatedTracks = translationTracks.map((track, idx) => {
+          if (idx === translationIndex) {
+            return track.map((item, i) => {
+              if (i === segmentIndex) {
+                return {
+                  ...item,
+                  st: formatTime(newStartTime),
+                  et: formatTime(newEndTime)
+                };
+              }
+              return item;
+            });
+          }
+          return track;
+        });
+        setTranslationTracks(updatedTracks);
+        // 注意：翻译轨道的时间变更不需要保存到文件，因为翻译文件的时间通常跟随主轨道
+        // 但如果需要保存，可以在这里添加保存逻辑
       }
+      // "翻译中"临时轨道（trackIndex > translationTracks.length）不需要处理，因为它是临时的
     },
-    [subtitleEntries, resource.id, isLoading, debouncedSave, subtitleFormat]
+    [subtitleEntries, translationTracks, resource.id, isLoading, debouncedSave, subtitleFormat]
   );
 
   // 统一：往前合并（仅主轨道 track-0）
@@ -678,6 +718,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
           showWaveform={!!audioPath}
           ttsItemsByTrack={ttsItemsByTrackForTimeline}
           ttsTrackLabels={ttsTrackLabelsForTimeline}
+          subtitleToTTSTrackMap={subtitleToTTSTrackMap}
           showTTSTrack={ttsItemsByTrackForTimeline.size > 0 || isSynthesizing}
           onPlayTTSAudio={handlePlayTTS}
           onStopTTSAudio={handleStopTTS}
