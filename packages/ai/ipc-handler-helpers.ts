@@ -783,6 +783,58 @@ async function saveTranslatedSubtitleJson(opts: {
 }
 
 /**
+ * 更新翻译 JSON 中指定片段（时间或文本）：用户拖拽时间轴或编辑文本后写回文件
+ * @param patch 只更新传入的字段，支持 st / et / text 的任意组合
+ */
+export async function updateTranslationSegment(opts: {
+  translationResourceId: string;
+  segmentIndex: number;
+  patch: { st?: string; et?: string; text?: string };
+}): Promise<{ success: boolean; message?: string }> {
+  try {
+    const resource = await ResourcesRepo.getById(opts.translationResourceId);
+    if (!resource || !resource.filePath) {
+      return { success: false, message: '翻译资源不存在或没有文件路径' };
+    }
+    const filePath = resource.filePath;
+    if (!filePath.toLowerCase().endsWith('.json')) {
+      return { success: false, message: '不是翻译 JSON 文件' };
+    }
+
+    const content = await readFile(filePath, 'utf8');
+    const payload = JSON.parse(content) as {
+      version?: number;
+      resourceId?: string;
+      providerId?: string;
+      model?: string;
+      targetLanguage?: string;
+      startedAt?: number;
+      updatedAt?: number;
+      translatedSegments: Array<{ index: number; text: string; st?: string; et?: string;[key: string]: unknown }>;
+    };
+    if (!Array.isArray(payload.translatedSegments)) {
+      return { success: false, message: 'translatedSegments 格式无效' };
+    }
+
+    const segment = payload.translatedSegments.find((s) => s.index === opts.segmentIndex);
+    if (!segment) {
+      return { success: false, message: `未找到 index=${opts.segmentIndex} 的片段` };
+    }
+    if (opts.patch.st !== undefined) segment.st = opts.patch.st;
+    if (opts.patch.et !== undefined) segment.et = opts.patch.et;
+    if (opts.patch.text !== undefined) segment.text = opts.patch.text;
+    payload.updatedAt = Date.now();
+
+    await writeFile(filePath, JSON.stringify(payload, null, 2));
+    return { success: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[updateTranslationSegment] 失败:', message);
+    return { success: false, message };
+  }
+}
+
+/**
  * 执行字幕翻译任务
  * @param payload 翻译参数
  * @returns 返回 requestId 和 eventsChannel

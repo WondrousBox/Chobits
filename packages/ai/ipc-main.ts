@@ -17,7 +17,8 @@ import {
   loadResourceSummary,
   loadTranslatedSubtitles,
   SummarizePayload,
-  TranslatePayload
+  TranslatePayload,
+  updateTranslationSegment
 } from './ipc-handler-helpers';
 import { PromptsStore } from './prompts-store';
 import { AnthropicProvider } from './providers/anthropic';
@@ -316,6 +317,11 @@ export function initAIHandlers(win: BrowserWindow): void {
   // 获取资源的所有翻译历史（包括同语言的多个版本）
   ipcMain.handle('ai:getAllTranslationHistory', async (_e, payload: { resourceId: string }) => {
     return loadAllTranslationHistory(payload.resourceId);
+  });
+
+  // 更新翻译 JSON 中某片段（时间或文本，时间轴拖拽/编辑后写回）
+  ipcMain.handle('ai:updateTranslationSegment', async (_e, payload: { translationResourceId: string; segmentIndex: number; patch: { st?: string; et?: string; text?: string } }) => {
+    return updateTranslationSegment(payload);
   });
 
   // ==================== 总结相关 ====================

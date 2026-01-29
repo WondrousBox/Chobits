@@ -99,6 +99,27 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     []
   );
 
+  // 翻译轨道写回 JSON：待提交的更新（key = translationResourceId-segmentIndex，合并同片段的时间/文本修改）
+  const pendingTranslationUpdatesRef = useRef<Map<string, { translationResourceId: string; segmentIndex: number; patch: { st?: string; et?: string; text?: string } }>>(new Map());
+  const debouncedFlushTranslationUpdates = useMemo(
+    () =>
+      debounce(() => {
+        const map = pendingTranslationUpdatesRef.current;
+        if (map.size === 0) return;
+        const entries = Array.from(map.entries());
+        map.clear();
+        entries.forEach(([, { translationResourceId, segmentIndex, patch }]) => {
+          window.YUA.ai
+            .updateTranslationSegment({ translationResourceId, segmentIndex, patch })
+            .then((res) => {
+              if (!res.success) console.warn('[SubtitlePlayer] 翻译片段写回 JSON 失败:', res.message);
+            })
+            .catch((err) => console.error('[SubtitlePlayer] 翻译片段写回失败:', err));
+        });
+      }, 1000),
+    []
+  );
+
   // 用于清空临时翻译轨道的 ref（因为 clearTypingTexts 在 hook 调用后才可用）
   const clearTypingTextsRef = useRef<(() => void) | null>(null);
 
@@ -382,12 +403,15 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     clearTypingTextsRef.current = clearTypingTexts;
   }, [clearTypingTexts]);
 
-  // 切换资源或卸载组件时，确保待保存的更改被立即保存
+  // 切换资源或卸载组件时，确保主轨道与翻译轨道待保存的更改被立即保存
   useEffect(() => {
     return () => {
       debouncedSave.flush();
+      debouncedFlushTranslationUpdates.flush();
+      debouncedFlushTranslationUpdates.cancel();
+      pendingTranslationUpdatesRef.current.clear();
     };
-  }, [resource.id, debouncedSave]);
+  }, [resource.id, debouncedSave, debouncedFlushTranslationUpdates]);
 
   // 加载字幕文件内容（支持 srt、vtt、ass 格式）
   useEffect(() => {
@@ -406,8 +430,10 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     // 通过主进程读取文件内容
     if (data.filePath) {
       setIsLoading(true);
-      // 取消之前的保存操作
+      // 取消之前的保存操作（主轨道 + 翻译轨道）
       debouncedSave.cancel();
+      pendingTranslationUpdatesRef.current.clear();
+      debouncedFlushTranslationUpdates.cancel();
       window.YUA.file['file:readContent'](data.filePath)
         .then(async (result: any) => {
           if (result.success) {
@@ -447,7 +473,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     setSubtitleEntries([]);
     setTranslationTracks([]);
     setTranslationTrackMeta([]);
-  }, [resource, debouncedSave]);
+  }, [resource, debouncedSave, debouncedFlushTranslationUpdates]);
 
   // 用户手动编辑字幕时的回调：同步到本地 state 并触发保存
   const handleSegmentsChange = useCallback(
@@ -503,29 +529,54 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     return indicesToIds(translatingChunks, 0); // 主轨道的翻译中片段
   }, [translatingChunks]);
 
-  // 处理时间轴文本编辑
+  // 处理时间轴文本编辑（主轨道写回字幕文件，翻译轨道写回翻译 JSON）
   const handleTimelineTextChange = useCallback(
     (segment: TimelineSegment, trackId: string, newText: string) => {
-      // 只处理主轨道（track-0）的编辑
-      if (trackId !== 'track-0') return;
-
       const parsed = parseSegmentId(segment.id);
       if (!parsed) return;
-
       const { segmentIndex } = parsed;
-      const updated = subtitleEntries.map((item, i) => {
-        if (i === segmentIndex) {
-          return { ...item, text: newText };
-        }
-        return item;
-      });
 
-      setSubtitleEntries(updated);
-      if (resource.id && !isLoading) {
-        debouncedSave(resource.id, updated, subtitleFormat);
+      const trackIndexMatch = trackId.match(/^track-(\d+)$/);
+      if (!trackIndexMatch) return;
+      const trackIndex = parseInt(trackIndexMatch[1], 10);
+
+      if (trackIndex === 0) {
+        // 主轨道（track-0）
+        const updated = subtitleEntries.map((item, i) => {
+          if (i === segmentIndex) return { ...item, text: newText };
+          return item;
+        });
+        setSubtitleEntries(updated);
+        if (resource.id && !isLoading) {
+          debouncedSave(resource.id, updated, subtitleFormat);
+        }
+      } else if (trackIndex > 0 && trackIndex <= translationTracks.length) {
+        // 翻译轨道：更新本地 state，防抖后写回翻译 JSON
+        const translationIndex = trackIndex - 1;
+        const meta = translationTrackMeta[translationIndex];
+        const updatedTracks = translationTracks.map((track, idx) => {
+          if (idx === translationIndex) {
+            return track.map((item, i) => {
+              if (i === segmentIndex) return { ...item, text: newText };
+              return item;
+            });
+          }
+          return track;
+        });
+        setTranslationTracks(updatedTracks);
+        if (meta?.resourceId) {
+          const key = `${meta.resourceId}-${segmentIndex}`;
+          const prev = pendingTranslationUpdatesRef.current.get(key);
+          pendingTranslationUpdatesRef.current.set(key, {
+            translationResourceId: meta.resourceId,
+            segmentIndex,
+            patch: { ...prev?.patch, text: newText }
+          });
+          debouncedFlushTranslationUpdates();
+        }
       }
     },
-    [subtitleEntries, resource.id, isLoading, debouncedSave, subtitleFormat]
+    [subtitleEntries, translationTracks, translationTrackMeta, resource.id, isLoading, debouncedSave, debouncedFlushTranslationUpdates, subtitleFormat]
   );
 
   // 处理时间轴时间变更（拖拽移动或调整边缘）
@@ -567,17 +618,16 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
           debouncedSave(resource.id, updated, subtitleFormat);
         }
       } else if (trackIndex > 0 && trackIndex <= translationTracks.length) {
-        // 翻译轨道（track-1, track-2, ...）
+        // 翻译轨道（track-1, track-2, ...）：更新本地 state，防抖后写回翻译 JSON
         const translationIndex = trackIndex - 1;
+        const meta = translationTrackMeta[translationIndex];
+        const newSt = formatTime(newStartTime);
+        const newEt = formatTime(newEndTime);
         const updatedTracks = translationTracks.map((track, idx) => {
           if (idx === translationIndex) {
             return track.map((item, i) => {
               if (i === segmentIndex) {
-                return {
-                  ...item,
-                  st: formatTime(newStartTime),
-                  et: formatTime(newEndTime)
-                };
+                return { ...item, st: newSt, et: newEt };
               }
               return item;
             });
@@ -585,12 +635,20 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
           return track;
         });
         setTranslationTracks(updatedTracks);
-        // 注意：翻译轨道的时间变更不需要保存到文件，因为翻译文件的时间通常跟随主轨道
-        // 但如果需要保存，可以在这里添加保存逻辑
+        if (meta?.resourceId) {
+          const key = `${meta.resourceId}-${segmentIndex}`;
+          const prev = pendingTranslationUpdatesRef.current.get(key);
+          pendingTranslationUpdatesRef.current.set(key, {
+            translationResourceId: meta.resourceId,
+            segmentIndex,
+            patch: { ...prev?.patch, st: newSt, et: newEt }
+          });
+          debouncedFlushTranslationUpdates();
+        }
       }
       // "翻译中"临时轨道（trackIndex > translationTracks.length）不需要处理，因为它是临时的
     },
-    [subtitleEntries, translationTracks, resource.id, isLoading, debouncedSave, subtitleFormat]
+    [subtitleEntries, translationTracks, translationTrackMeta, resource.id, isLoading, debouncedSave, debouncedFlushTranslationUpdates, subtitleFormat]
   );
 
   // 统一：往前合并（仅主轨道 track-0）
