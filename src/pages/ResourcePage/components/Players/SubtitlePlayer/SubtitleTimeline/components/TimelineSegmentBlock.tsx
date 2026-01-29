@@ -79,7 +79,7 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
   const [dragMode, setDragMode] = useState<DragMode>('none');
   const [dragStartX, setDragStartX] = useState(0);
   const [originalTimes, setOriginalTimes] = useState({ start: 0, end: 0 });
-  const [dragHoverTime, setDragHoverTime] = useState<{ time: number; x: number; y: number } | null>(null);
+  const [dragHoverTime, setDragHoverTime] = useState<{ startTime?: number; endTime?: number; x: number; y: number } | null>(null);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const blockRef = useRef<HTMLDivElement>(null);
@@ -236,9 +236,14 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
           break;
       }
 
-      // 更新悬浮时间提示
-      const displayTime = dragMode === 'resize-left' ? newStartTime : newEndTime;
-      setDragHoverTime({ time: displayTime, x: e.clientX, y: e.clientY });
+      // 更新悬浮时间提示：拖左侧只显示开始时间，拖右侧只显示结束时间，拖中间显示开始和结束
+      if (dragMode === 'move') {
+        setDragHoverTime({ startTime: newStartTime, endTime: newEndTime, x: e.clientX, y: e.clientY });
+      } else if (dragMode === 'resize-left') {
+        setDragHoverTime({ startTime: newStartTime, x: e.clientX, y: e.clientY });
+      } else {
+        setDragHoverTime({ endTime: newEndTime, x: e.clientX, y: e.clientY });
+      }
 
       onTimeChange?.(segment, trackId, newStartTime, newEndTime);
     };
@@ -397,14 +402,20 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
         >
           <div className="bg-primary text-primary-foreground px-2 py-1 rounded shadow-lg text-xs font-mono whitespace-nowrap">
             {(() => {
-              const t = dragHoverTime.time;
-              const h = Math.floor(t / 3600);
-              const m = Math.floor((t % 3600) / 60);
-              const s = (t % 60).toFixed(2);
-              if (h > 0) {
-                return `${h}:${m.toString().padStart(2, '0')}:${s.padStart(5, '0')}`;
+              const format = (t: number) => {
+                const h = Math.floor(t / 3600);
+                const m = Math.floor((t % 3600) / 60);
+                const s = (t % 60).toFixed(2);
+                if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.padStart(5, '0')}`;
+                return `${m}:${s.padStart(5, '0')}`;
+              };
+              const { startTime, endTime } = dragHoverTime;
+              if (startTime !== undefined && endTime !== undefined) {
+                return `${format(startTime)} — ${format(endTime)}`;
               }
-              return `${m}:${s.padStart(5, '0')}`;
+              if (startTime !== undefined) return format(startTime);
+              if (endTime !== undefined) return format(endTime);
+              return null;
             })()}
           </div>
         </div>
