@@ -104,6 +104,10 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
 
   // 用于递归调用的 ref
   const loadTranslationTracksRef = useRef<((retryCount?: number, expectedMinTracks?: number) => Promise<void>) | null>(null);
+  // 当前资源是否已做过一次「首次加载翻译轨道」（避免编辑字幕后重复拉取）
+  const hasLoadedTranslationsForResourceRef = useRef<string | null>(null);
+  // 当前 subtitleEntries 所属的资源 ID（文件加载完成时设置），用于区分「切换资源后尚未加载新字幕」与「当前资源的字幕已就绪」
+  const subtitleEntriesResourceIdRef = useRef<string | null>(null);
 
   // 加载翻译轨道的函数（可在翻译完成后重新调用）
   // 添加重试机制，因为主进程保存翻译数据是异步的，可能在 completed 事件发送后才完成
@@ -122,13 +126,18 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
         for (let i = 0; i < translations.length; i++) {
           const trans = translations[i];
           if (trans.segments && trans.segments.length > 0) {
-            const translationSegments: AimSegments[] = currentEntries.map((seg, index) => {
-              const translatedText = trans.segments?.find((t) => t.index === index);
-              return {
-                ...seg,
-                text: translatedText?.text || ''
-              };
-            });
+            // 译文轨道直接从 JSON 的 translatedSegments 构建，优先使用 JSON 中的 st/et
+            const rawSegments = trans.segments as Array<{ index: number; text: string; st?: string; et?: string }>;
+            const translationSegments: AimSegments[] = [...rawSegments]
+              .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+              .map((t) => {
+                const orig = currentEntries[t.index];
+                return {
+                  st: t.st ?? orig?.st ?? '00:00:00,000',
+                  et: t.et ?? orig?.et ?? '00:00:00,000',
+                  text: t.text ?? ''
+                };
+              });
             translationTracksData.push(translationSegments);
             meta.push({
               languageCode: trans.language ?? `trans-${i}`,
@@ -173,6 +182,15 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
   useEffect(() => {
     loadTranslationTracksRef.current = loadTranslationTracks;
   }, [loadTranslationTracks]);
+
+  // 首次进入或切换资源：字幕条目加载完成后拉取翻译轨道（统一走 loadTranslationTracks，有 log 且用 JSON st/et）
+  useEffect(() => {
+    if (!resource.id || subtitleEntries.length === 0) return;
+    if (subtitleEntriesResourceIdRef.current !== resource.id) return; // 当前条目属于当前资源才拉取
+    if (hasLoadedTranslationsForResourceRef.current === resource.id) return;
+    hasLoadedTranslationsForResourceRef.current = resource.id;
+    loadTranslationTracks(0);
+  }, [resource.id, subtitleEntries.length, loadTranslationTracks]);
 
   // 翻译完成后的回调：期望轨道数比当前多 1
   const handleTranslationComplete = useCallback(() => {
@@ -400,41 +418,8 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
 
               const segments: AimSegments[] = res?.segments || [];
               setSubtitleEntries(segments);
-
-              // 加载关联的翻译资源
-              if (data.id) {
-                try {
-                  const translations = await window.YUA.ai.getResourceTranslations(data.id);
-                  const translationTracksData: AimSegments[][] = [];
-                  const meta: { languageCode: string; label: string; resourceId: string }[] = [];
-
-                  for (let i = 0; i < translations.length; i++) {
-                    const trans = translations[i];
-                    if (trans.segments && trans.segments.length > 0) {
-                      const translationSegments: AimSegments[] = segments.map((seg, index) => {
-                        const translatedText = trans.segments?.find((t) => t.index === index);
-                        return {
-                          ...seg,
-                          text: translatedText?.text || ''
-                        };
-                      });
-                      translationTracksData.push(translationSegments);
-                      meta.push({
-                        languageCode: trans.language ?? `trans-${i}`,
-                        label: trans.title ?? trans.language ?? `译文 ${i + 1}`,
-                        resourceId: trans.id
-                      });
-                    }
-                  }
-
-                  setTranslationTracks(translationTracksData);
-                  setTranslationTrackMeta(meta);
-                } catch (error) {
-                  console.error('[SubtitlePlayer] 加载翻译资源失败:', error);
-                  setTranslationTracks([]);
-                  setTranslationTrackMeta([]);
-                }
-              }
+              if (data.id) subtitleEntriesResourceIdRef.current = data.id;
+              // 翻译轨道由下方的 useEffect 在字幕条目就绪后统一调用 loadTranslationTracks 拉取（有 log，且使用 JSON 中的 st/et）
             } catch (error) {
               console.error(`[SubtitlePlayer] 解析${format.toUpperCase()}文件失败:`, error);
               setSubtitleEntries([]);

@@ -180,11 +180,7 @@ export const TimelineTrackView: React.FC<TimelineTrackViewProps> = ({
       )}
 
       {/* 音频结束截止线 */}
-      <div
-        className="absolute top-0 bottom-0 w-0.5 bg-orange-500 z-10 pointer-events-none"
-        style={{ left: timeToPixel(totalDuration) }}
-        title={`音频结束: ${totalDuration.toFixed(2)}s`}
-      />
+      <div className="absolute top-0 bottom-0 w-0.5 bg-orange-500 z-10 pointer-events-none" style={{ left: timeToPixel(totalDuration) }} title={`音频结束: ${totalDuration.toFixed(2)}s`} />
     </div>
   );
 };

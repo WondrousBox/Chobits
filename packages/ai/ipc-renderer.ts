@@ -1,3 +1,4 @@
+import { AimSegments } from '@aim-packages/subtitle';
 import { ipcRenderer } from 'electron';
 
 export type StreamCallback = (event: { type: string; data?: any }) => void;
@@ -169,7 +170,7 @@ export const aiBridge = {
   async translate(payload: {
     providerId: string;
     model: string;
-    segments: Array<{ text: string; index: number }>;
+    segments: Array<AimSegments>;
     targetLanguage: string;
     languageNames: Record<string, string>;
     metadata?: Record<string, any>;

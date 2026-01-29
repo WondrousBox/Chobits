@@ -82,17 +82,7 @@ function getTickInterval(pixelsPerSecond: number): { major: number; minor: numbe
  *
  * 渲染整个时间范围的刻度，但使用虚拟化技术只渲染可见区域附近的刻度
  */
-export const TimeRuler: React.FC<TimeRulerProps> = ({
-  startTime,
-  endTime,
-  pixelsPerSecond,
-  width,
-  currentTime,
-  onClick,
-  viewportStart,
-  viewportEnd,
-  className
-}) => {
+export const TimeRuler: React.FC<TimeRulerProps> = ({ startTime, endTime, pixelsPerSecond, width, currentTime, onClick, viewportStart, viewportEnd, className }) => {
   // 计算刻度（带缓冲区的虚拟化）
   const ticks = useMemo(() => {
     const { major, minor } = getTickInterval(pixelsPerSecond);
@@ -141,12 +131,12 @@ export const TimeRuler: React.FC<TimeRulerProps> = ({
   const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
 
   // 处理鼠标按下
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const handleMouseDown = (e: React.MouseEvent): void => {
     mouseDownPosRef.current = { x: e.clientX, y: e.clientY };
   };
 
   // 处理鼠标抬起（只有在移动距离小时才算点击）
-  const handleMouseUp = (e: React.MouseEvent) => {
+  const handleMouseUp = (e: React.MouseEvent): void => {
     if (!onClick || !mouseDownPosRef.current) return;
 
     const dx = Math.abs(e.clientX - mouseDownPosRef.current.x);

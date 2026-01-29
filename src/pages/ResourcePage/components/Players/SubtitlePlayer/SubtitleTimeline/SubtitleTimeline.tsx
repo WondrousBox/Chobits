@@ -20,10 +20,7 @@ const TTSTrackLabel: React.FC<{
   onDelete?: (ttsTrackId: string) => void;
 }> = ({ trackLabel, trackColor, ttsTrackId, onDelete }) => {
   const content = (
-    <div
-      className="flex items-center gap-1.5 px-2 border-b border-border bg-muted/20 shrink-0 overflow-hidden"
-      style={{ height: DEFAULT_CONFIG.TRACK_HEIGHT + DEFAULT_CONFIG.TRACK_GAP }}
-    >
+    <div className="flex items-center gap-1.5 px-2 border-b border-border bg-muted/20 shrink-0 overflow-hidden" style={{ height: DEFAULT_CONFIG.TRACK_HEIGHT + DEFAULT_CONFIG.TRACK_GAP }}>
       {/* 使用和字幕轨道相同的颜色指示器 */}
       <div className="w-1.5 h-4 rounded-full shrink-0" style={{ backgroundColor: trackColor }} />
       {/* 轨道名称 + TTS图标 */}
@@ -407,20 +404,15 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                   <React.Fragment key={track.id}>
                     {/* 字幕轨道标签 */}
                     <TrackLabel
+                      onToggleLock={() => { }}
+                      onToggleHidden={() => { }}
                       track={track}
                       index={index}
                       allowDelete={track.id !== 'track-0' && !!onDeleteSubtitleTrack}
                       onDelete={onDeleteSubtitleTrack}
                     />
                     {/* TTS轨道标签（如果有） */}
-                    {hasTTSTrack && (
-                      <TTSTrackLabel
-                        trackLabel={track.label}
-                        trackColor={track.color}
-                        ttsTrackId={ttsTrackId}
-                        onDelete={onDeleteTTSTrack}
-                      />
-                    )}
+                    {hasTTSTrack && <TTSTrackLabel trackLabel={track.label} trackColor={track.color} ttsTrackId={ttsTrackId} onDelete={onDeleteTTSTrack} />}
                   </React.Fragment>
                 );
               })}

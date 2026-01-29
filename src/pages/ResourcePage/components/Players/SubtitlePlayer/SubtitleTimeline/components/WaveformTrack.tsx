@@ -304,11 +304,7 @@ export const WaveformTrack: React.FC<WaveformTrackProps> = ({
 
         {/* 音频结束截止线 */}
         {duration > 0 && (
-          <div
-            className="absolute top-0 bottom-0 w-0.5 bg-orange-500 z-10 pointer-events-none"
-            style={{ left: duration * pixelsPerSecond - scrollLeft }}
-            title={`音频结束: ${duration.toFixed(2)}s`}
-          />
+          <div className="absolute top-0 bottom-0 w-0.5 bg-orange-500 z-10 pointer-events-none" style={{ left: duration * pixelsPerSecond - scrollLeft }} title={`音频结束: ${duration.toFixed(2)}s`} />
         )}
       </div>
     </div>

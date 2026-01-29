@@ -18,7 +18,7 @@ import { getAllSecrets, getFirstApiKey } from './settings-store';
 /**
  * 从资源ID加载字幕片段
  */
-export async function loadSegmentsFromResource(resourceId: string): Promise<{ filePath: string; segments: Array<{ text: string; index: number }> }> {
+export async function loadSegmentsFromResource(resourceId: string): Promise<{ filePath: string; segments: AimSegments[] }> {
   const resource = await ResourcesRepo.getById(resourceId);
   if (!resource || !resource.filePath) {
     throw new Error(`Resource ${resourceId} not found or has no file path`);
@@ -32,10 +32,7 @@ export async function loadSegmentsFromResource(resourceId: string): Promise<{ fi
 
   const fileContent = await readFile(resource.filePath, 'utf8');
   const parsedResult = await parser.parseSubtitle(fileContent);
-  const segments = (parsedResult?.segments || []).map((seg, idx) => ({
-    text: seg.text,
-    index: idx
-  }));
+  const segments = parsedResult?.segments || [];
 
   if (segments.length === 0) {
     throw new Error(`No segments found in subtitle file: ${resource.filePath}`);
@@ -55,7 +52,8 @@ export async function loadTranslatedSubtitles(
 ): Promise<Array<{ id: string; language?: string; title?: string; filePath?: string; segments?: Array<{ index: number; text: string }> }>> {
   try {
     const children = await ResourcesRepo.listChildren(resourceId);
-    const translations = children.filter((child) => child.type === 'translation');
+    // 排除已移到回收站的翻译资源（deletedAt 不为空表示已删除）
+    const translations = children.filter((child) => child.type === 'translation' && (child as { deletedAt?: number | null }).deletedAt == null);
 
     // 按语言分组，每组只保留最新的（根据 updatedAt）
     const latestByLanguage = new Map<string, any>();
@@ -448,7 +446,7 @@ export async function loadContentFromResource(resourceId: string): Promise<strin
 export type TranslatePayload = {
   providerId: string;
   model: string;
-  segments?: Array<AimSegments | { text: string; index: number }>;
+  segments?: Array<AimSegments>;
   resourceId?: string;
   targetLanguage: string;
   languageNames: Record<string, string>;
@@ -660,21 +658,6 @@ function buildTranslatedJsonPath(sourceSubtitlePath: string, targetLanguage: str
   const suffix = lang ? `.translated.${lang}.${startTimestamp}.json` : `.translated.${startTimestamp}.json`;
   return path.join(dir, `${base}${suffix}`);
 }
-// 将 AimSegments 转换为 ISegment 格式
-type ISegment = [string, string, string, string | undefined];
-function convertToISegment(segment: AimSegments): ISegment {
-  return [segment.st, segment.et, segment.text, undefined];
-}
-
-// 检测字幕格式
-type SubtitleFormat = 'srt' | 'vtt' | 'ass';
-function detectSubtitleFormat(filePath: string): SubtitleFormat {
-  const lower = filePath.toLowerCase();
-  if (lower.endsWith('.vtt')) return 'vtt';
-  if (lower.endsWith('.ass') || lower.endsWith('.ssa')) return 'ass';
-  return 'srt';
-}
-
 /**
  * 创建或更新翻译资源（仅 JSON 格式）
  * 保留所有翻译历史记录，查看时只展示每种语言最新的一个
@@ -714,7 +697,7 @@ async function createOrUpdateTranslationResource(opts: {
     const existingTranslation = existingChildren.find((child) => child.type === 'translation' && child.filePath === translationJsonPath);
 
     const resourceData = {
-      type: 'translation' as const,
+      type: 'translation',
       parentResourceId: sourceResourceId, // 关联源资源
       workspaceId: sourceResource.workspaceId,
       folderId: sourceResource.folderId,
@@ -724,7 +707,7 @@ async function createOrUpdateTranslationResource(opts: {
       language: targetLanguage,
       mimeType: 'application/json',
       sizeBytes: jsonStat.size,
-      status: 'ready' as const,
+      status: 'ready',
       metadata: JSON.stringify({
         translationSource: sourceResourceId,
         providerId,
@@ -812,7 +795,7 @@ export async function executeSubtitleTranslation(payload: TranslatePayload): Pro
   const startTimestamp = Date.now(); // 记录翻译任务开始时间戳
 
   // 步骤1: 读取文件，加载字幕片段
-  let actualSegments: Array<AimSegments | { text: string; index: number }> | undefined = segments;
+  let actualSegments: Array<AimSegments> | undefined = segments;
   const effectiveResourceId: string | undefined = resourceId || metadata?.resourceId;
   let sourceSubtitleFilePath: string | undefined;
 
@@ -922,8 +905,7 @@ export async function executeSubtitleTranslation(payload: TranslatePayload): Pro
       requestId,
       chatFn,
       taskLabel,
-      // translate service currently accepts AimSegments[]; we also allow renderer to pass a minimal {text,index} shape
-      segments: actualSegments as any,
+      segments: actualSegments,
       targetLanguage,
       languageNames,
       metadata,

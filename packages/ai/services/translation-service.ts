@@ -703,13 +703,20 @@ Now translate the following into **{targetLanguage}** and only show me the trans
           onParse: (event) => {
             if (event.type === 'event' && event.event === 'message') {
               if (event.data) {
-                // 将 summaryContent、startIndex 和 endIndex 添加到 data 中
-                const dataWithMetadata = event.data.map((item: any) => ({
-                  ...item,
-                  summary: summaryContent,
-                  startIndex,
-                  endIndex
-                }));
+                // 将 summaryContent、startIndex、endIndex 以及原始字幕的时间（st/et）添加到 data 中
+                const dataWithMetadata = event.data.map((item: any) => {
+                  const originalSegment = segments[item.index];
+                  const st = (originalSegment as any)?.st;
+                  const et = (originalSegment as any)?.et;
+                  return {
+                    ...item,
+                    st,
+                    et,
+                    summary: summaryContent,
+                    startIndex,
+                    endIndex
+                  };
+                });
 
                 currentChunkSegments.push(...dataWithMetadata);
 
@@ -741,13 +748,20 @@ Now translate the following into **{targetLanguage}** and only show me the trans
           },
           onProgress: (event) => {
             if (event.data) {
-              // 将 summaryContent、startIndex 和 endIndex 添加到 data 中
-              const dataWithMetadata = event.data.map((item: any) => ({
-                ...item,
-                summary: summaryContent,
-                startIndex,
-                endIndex
-              }));
+              // 将 summaryContent、startIndex、endIndex 以及原始字幕的时间（st/et）添加到 data 中
+              const dataWithMetadata = event.data.map((item: any) => {
+                const originalSegment = segments[item.index];
+                const st = (originalSegment as any)?.st;
+                const et = (originalSegment as any)?.et;
+                return {
+                  ...item,
+                  st,
+                  et,
+                  summary: summaryContent,
+                  startIndex,
+                  endIndex
+                };
+              });
 
               emit({
                 type: 'parseProgress',

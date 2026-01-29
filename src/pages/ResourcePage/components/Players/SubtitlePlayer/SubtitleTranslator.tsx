@@ -249,19 +249,13 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
       setIsTranslationPopoverOpen(false);
 
       try {
-        // 准备翻译数据
-        const segmentsData = validSegments.map((seg, idx) => ({
-          text: seg.text,
-          index: idx
-        }));
-
         // 调用主进程的翻译功能
         const { requestId } = await window.YUA.ai.translate({
           providerId,
           model,
-          segments: segmentsData,
           targetLanguage: targetLang,
           languageNames,
+          resourceId,
           metadata: {
             resourceId
           },
