@@ -45,7 +45,17 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
   const [translationTrackMeta, setTranslationTrackMeta] = useState<{ languageCode: string; label: string; resourceId: string }[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [subtitleFormat, setSubtitleFormat] = useState<SubtitleFormat>('srt');
-  const [viewMode, setViewMode] = useState<'list' | 'timeline'>('list'); // 视图模式：列表或时间轴
+  const SUBTITLE_VIEW_MODE_KEY = 'chobits:subtitle-player:viewMode';
+  const [viewMode, setViewModeState] = useState<'list' | 'timeline'>(() => {
+    if (typeof window === 'undefined') return 'list';
+    const stored = localStorage.getItem(SUBTITLE_VIEW_MODE_KEY);
+    if (stored === 'list' || stored === 'timeline') return stored;
+    return 'list';
+  });
+  const setViewMode = useCallback((mode: 'list' | 'timeline') => {
+    setViewModeState(mode);
+    localStorage.setItem(SUBTITLE_VIEW_MODE_KEY, mode);
+  }, []);
   const [followTime, setFollowTime] = useState<boolean>(followCurrentTime);
 
   // 外部值变化时同步本地开关

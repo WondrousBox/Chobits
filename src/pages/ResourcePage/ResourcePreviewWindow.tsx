@@ -37,8 +37,22 @@ const ResourcePreviewWindow: React.FC = () => {
   const [data, setData] = useState<ResourceItem | null>(null);
   const [subtitleList, setSubtitleList] = useState<ResourceItem[]>([]);
   const [activeSubtitle, setActiveSubtitle] = useState<ResourceItem | null>(null);
-  const [isTabsExpanded, setIsTabsExpanded] = useState(true);
-  const [isBottomExpanded, setIsBottomExpanded] = useState(true);
+  const TABS_EXPANDED_KEY = 'chobits:resource-preview:tabsExpanded';
+  const BOTTOM_EXPANDED_KEY = 'chobits:resource-preview:bottomExpanded';
+  const [isTabsExpanded, setIsTabsExpandedState] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    const stored = localStorage.getItem(TABS_EXPANDED_KEY);
+    if (stored === 'true') return true;
+    if (stored === 'false') return false;
+    return true;
+  });
+  const [isBottomExpanded, setIsBottomExpandedState] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    const stored = localStorage.getItem(BOTTOM_EXPANDED_KEY);
+    if (stored === 'true') return true;
+    if (stored === 'false') return false;
+    return true;
+  });
   const [currentTime, setCurrentTime] = useState(0); // 当前播放时间（秒）
   const [pendingStartTime, setPendingStartTime] = useState<number | null>(null); // 待跳转的起始时间
   const mediaPlayerRef = useRef<MediaPlayerRef>(null); // 媒体播放器的 ref
@@ -104,12 +118,20 @@ const ResourcePreviewWindow: React.FC = () => {
 
   // 切换 Tab 面板展开/收起
   const toggleTabsExpanded = useCallback(() => {
-    setIsTabsExpanded((prev) => !prev);
+    setIsTabsExpandedState((prev) => {
+      const next = !prev;
+      localStorage.setItem(TABS_EXPANDED_KEY, String(next));
+      return next;
+    });
   }, []);
 
   // 切换底部面板展开/收起
   const toggleBottomExpanded = useCallback(() => {
-    setIsBottomExpanded((prev) => !prev);
+    setIsBottomExpandedState((prev) => {
+      const next = !prev;
+      localStorage.setItem(BOTTOM_EXPANDED_KEY, String(next));
+      return next;
+    });
   }, []);
 
   // 处理资源切换

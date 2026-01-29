@@ -2,7 +2,7 @@ import clsx from 'clsx';
 import React, { useCallback, useMemo, useRef } from 'react';
 import { TbLoader2, TbPlayerPause, TbPlayerPlay } from 'react-icons/tb';
 
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 import { DEFAULT_CONFIG, ViewportState } from '../types';
 import { detectOverlappingIndices, TimeRange } from '../utils';
@@ -214,7 +214,9 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({ items, viewport, p
         })}
 
         {/* 当前时间指示线 */}
-        {currentTimeX !== null && <div className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none" style={{ left: currentTimeX }} />}
+        {
+          // currentTimeX !== null && <div className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none" style={{ left: currentTimeX }} />
+        }
 
         {/* 音频结束截止线 */}
         <div className="absolute top-0 bottom-0 w-0.5 bg-orange-500 z-10 pointer-events-none" style={{ left: totalDuration * pixelsPerSecond }} title={`音频结束: ${totalDuration.toFixed(2)}s`} />
