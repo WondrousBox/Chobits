@@ -618,7 +618,7 @@
         "x": 392,
         "y": 231.5,
         "config": {
-          "model": "parakeet-v3",
+          "model": "parakeet-tdt-0.6b-v3-coreml",
           "outputFormats": [
             "srt",
             "txt",
