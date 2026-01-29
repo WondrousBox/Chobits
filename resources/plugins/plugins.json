@@ -9,7 +9,10 @@
     "version": "7.0",
     "binaryName": "ffmpeg",
     "archiveType": "none",
-    "category": ["core", "video-edit"],
+    "category": [
+      "core",
+      "video-edit"
+    ],
     "languages": [],
     "platforms": []
   },
@@ -23,8 +26,13 @@
     "version": "1.8.2",
     "binaryName": "whisper",
     "archiveType": "zip",
-    "category": ["asr", "translation"],
-    "languages": ["multi"],
+    "category": [
+      "asr",
+      "translation"
+    ],
+    "languages": [
+      "multi"
+    ],
     "platforms": [
       {
         "platform": "darwin",
@@ -52,7 +60,9 @@
         "version": "1.0.0",
         "archiveType": "none",
         "category": "asr",
-        "languages": ["multi"],
+        "languages": [
+          "multi"
+        ],
         "platforms": [
           {
             "platform": "all",
@@ -73,7 +83,9 @@
         "version": "1.0.0",
         "archiveType": "none",
         "category": "asr",
-        "languages": ["en"],
+        "languages": [
+          "en"
+        ],
         "platforms": [
           {
             "platform": "all",
@@ -94,7 +106,9 @@
         "version": "1.0.0",
         "archiveType": "none",
         "category": "asr",
-        "languages": ["multi"],
+        "languages": [
+          "multi"
+        ],
         "platforms": [
           {
             "platform": "all",
@@ -115,7 +129,9 @@
         "version": "1.0.0",
         "archiveType": "none",
         "category": "asr",
-        "languages": ["en"],
+        "languages": [
+          "en"
+        ],
         "platforms": [
           {
             "platform": "all",
@@ -136,7 +152,9 @@
         "version": "1.0.0",
         "archiveType": "none",
         "category": "asr",
-        "languages": ["multi"],
+        "languages": [
+          "multi"
+        ],
         "platforms": [
           {
             "platform": "all",
@@ -157,7 +175,9 @@
         "version": "1.0.0",
         "archiveType": "none",
         "category": "asr",
-        "languages": ["en"],
+        "languages": [
+          "en"
+        ],
         "platforms": [
           {
             "platform": "all",
@@ -178,7 +198,9 @@
         "version": "1.0.0",
         "archiveType": "none",
         "category": "asr",
-        "languages": ["multi"],
+        "languages": [
+          "multi"
+        ],
         "platforms": [
           {
             "platform": "all",
@@ -199,7 +221,9 @@
         "version": "1.0.0",
         "archiveType": "none",
         "category": "asr",
-        "languages": ["en"],
+        "languages": [
+          "en"
+        ],
         "platforms": [
           {
             "platform": "all",
@@ -220,7 +244,9 @@
         "version": "1.0.0",
         "archiveType": "none",
         "category": "asr",
-        "languages": ["multi"],
+        "languages": [
+          "multi"
+        ],
         "platforms": [
           {
             "platform": "all",
@@ -241,7 +267,9 @@
         "version": "1.0.0",
         "archiveType": "none",
         "category": "asr",
-        "languages": ["multi"],
+        "languages": [
+          "multi"
+        ],
         "platforms": [
           {
             "platform": "all",
@@ -262,7 +290,9 @@
         "version": "1.0.0",
         "archiveType": "none",
         "category": "asr",
-        "languages": ["multi"],
+        "languages": [
+          "multi"
+        ],
         "platforms": [
           {
             "platform": "all",
@@ -274,7 +304,8 @@
         ]
       }
     ]
-  },{
+  },
+  {
     "id": "sherpa-onnx",
     "pluginId": "plugin:sherpa-onnx",
     "type": "engine",
@@ -284,7 +315,11 @@
     "version": "1.0.0",
     "binaryName": "",
     "archiveType": "none",
-    "category": ["asr", "tts", "punctuation"],
+    "category": [
+      "asr",
+      "tts",
+      "punctuation"
+    ],
     "platforms": [],
     "models": [
       {
@@ -297,7 +332,13 @@
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "asr",
-        "languages": ["zh", "en", "ja", "ko", "yue"],
+        "languages": [
+          "zh",
+          "en",
+          "ja",
+          "ko",
+          "yue"
+        ],
         "platforms": [
           {
             "platform": "all",
@@ -318,7 +359,13 @@
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "asr",
-        "languages": ["zh", "en", "ja", "ko", "yue"],
+        "languages": [
+          "zh",
+          "en",
+          "ja",
+          "ko",
+          "yue"
+        ],
         "platforms": [
           {
             "platform": "all",
@@ -339,7 +386,10 @@
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "asr",
-        "languages": ["zh", "en"],
+        "languages": [
+          "zh",
+          "en"
+        ],
         "platforms": [
           {
             "platform": "all",
@@ -360,7 +410,10 @@
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "asr",
-        "languages": ["zh", "en"],
+        "languages": [
+          "zh",
+          "en"
+        ],
         "platforms": [
           {
             "platform": "all",
@@ -381,7 +434,9 @@
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "asr",
-        "languages": ["en"],
+        "languages": [
+          "en"
+        ],
         "platforms": [
           {
             "platform": "all",
@@ -402,7 +457,10 @@
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "asr",
-        "languages": ["zh", "hans"],
+        "languages": [
+          "zh",
+          "hans"
+        ],
         "platforms": [
           {
             "platform": "all",
@@ -423,7 +481,9 @@
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "asr",
-        "languages": ["en"],
+        "languages": [
+          "en"
+        ],
         "platforms": [
           {
             "platform": "all",
@@ -444,7 +504,9 @@
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "asr",
-        "languages": ["en"],
+        "languages": [
+          "en"
+        ],
         "platforms": [
           {
             "platform": "all",
@@ -465,7 +527,9 @@
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "asr",
-        "languages": ["zh"],
+        "languages": [
+          "zh"
+        ],
         "platforms": [
           {
             "platform": "all",
@@ -486,7 +550,9 @@
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "asr",
-        "languages": ["en"],
+        "languages": [
+          "en"
+        ],
         "platforms": [
           {
             "platform": "all",
@@ -507,7 +573,9 @@
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "tts",
-        "languages": ["multi"],
+        "languages": [
+          "multi"
+        ],
         "platforms": [
           {
             "platform": "all",
@@ -517,7 +585,8 @@
             "sha256": "c133d26353d776da730870dac7da07dbfc9a5e3bc80cc5e8e83ab6e823be7046"
           }
         ]
-      },{
+      },
+      {
         "id": "kokoro-int8-multi-lang-v1_0",
         "pluginId": "plugin:sherpa-onnx",
         "type": "model",
@@ -527,7 +596,9 @@
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "tts",
-        "languages": ["multi"],
+        "languages": [
+          "multi"
+        ],
         "platforms": [
           {
             "platform": "all",
@@ -548,7 +619,10 @@
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "punctuation",
-        "languages": ["zh", "en"],
+        "languages": [
+          "zh",
+          "en"
+        ],
         "platforms": [
           {
             "platform": "all",
@@ -569,7 +643,10 @@
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "punctuation",
-        "languages": ["zh", "en"],
+        "languages": [
+          "zh",
+          "en"
+        ],
         "platforms": [
           {
             "platform": "all",
@@ -590,7 +667,9 @@
         "version": "1.0.0",
         "archiveType": "tar.bz2",
         "category": "punctuation",
-        "languages": ["en"],
+        "languages": [
+          "en"
+        ],
         "platforms": [
           {
             "platform": "all",
@@ -628,10 +707,10 @@
     ],
     "models": [
       {
-        "id": "parakeet-v2",
+        "id": "parakeet-tdt-0.6b-v2-coreml",
         "pluginId": "plugin:parakeet",
         "type": "model",
-        "name": "parakeet-v2",
+        "name": "parakeet-tdt-0.6b-v2-coreml",
         "displayName": "Parakeet V2",
         "description": "只支持英语",
         "version": "1.0.0",
@@ -644,17 +723,17 @@
           {
             "platform": "darwin",
             "arch": "arm64",
-            "sourceUrl": "https://github.com/YuQian2015/memo-build/releases/download/v1.0.0/Parakeet-models-v2-darwin-arm64.zip",
+            "sourceUrl": "https://github.com/YuQian2015/memo-build/releases/download/v1.0.0/parakeet-tdt-0.6b-v2-coreml.zip",
             "sizeBytes": 450887680,
-            "sha256": "4a405541491e7d36b69653617dc3a40d652e09485886f4bea1686523ee3874f4"
+            "sha256": "fff345881f5ded0dd5b929181c39d794573638675ae06a471c3520b18ae4125b"
           }
         ]
       },
       {
-        "id": "parakeet-v3",
+        "id": "parakeet-tdt-0.6b-v3-coreml",
         "pluginId": "plugin:parakeet",
         "type": "model",
-        "name": "parakeet-v3",
+        "name": "parakeet-tdt-0.6b-v3-coreml",
         "displayName": "Parakeet V3",
         "description": "支持多语言",
         "version": "1.0.0",
@@ -667,9 +746,9 @@
           {
             "platform": "darwin",
             "arch": "arm64",
-            "sourceUrl": "https://github.com/YuQian2015/memo-build/releases/download/v1.0.0/Parakeet-models-v3-darwin-arm64.zip",
+            "sourceUrl": "https://github.com/YuQian2015/memo-build/releases/download/v1.0.0/parakeet-tdt-0.6b-v3-coreml.zip",
             "sizeBytes": 466616320,
-            "sha256": "342d68e28fdac557c6fdd17dd07ca27f3ead0c3930ad048ebf01fc136033eea2"
+            "sha256": "b992b4573ad13a30e39cfe70fa45335ac2b3112aeedf4d5e5235364260f4fffc"
           }
         ]
       }
@@ -685,7 +764,11 @@
     "version": "1.0.0",
     "binaryName": "funasr",
     "archiveType": "zip",
-    "category": ["asr", "vad", "punctuation"],
+    "category": [
+      "asr",
+      "vad",
+      "punctuation"
+    ],
     "languages": [
       "multi"
     ],
@@ -715,7 +798,11 @@
         "description": "FunASR 模型包（包含 ASR、VAD、PUNC、SPK 模型）",
         "version": "1.0.0",
         "archiveType": "zip",
-        "category": ["asr", "vad", "punctuation"],
+        "category": [
+          "asr",
+          "vad",
+          "punctuation"
+        ],
         "languages": [
           "multi"
         ],
@@ -739,4 +826,3 @@
     ]
   }
 ]
-

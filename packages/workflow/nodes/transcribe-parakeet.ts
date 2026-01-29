@@ -9,14 +9,14 @@ import { NodeConfig, NodeHandler, PortSchema, ValueType } from '../types';
 // Parakeet 模型定义
 const PARAKEET_MODELS = [
   {
-    id: 'parakeet-v2',
-    name: 'parakeet-v2',
+    id: 'parakeet-tdt-0.6b-v2-coreml',
+    name: 'parakeet-tdt-0.6b-v2-coreml',
     description: '只支持英语',
     supportLangs: 'English Only'
   },
   {
-    id: 'parakeet-v3',
-    name: 'Parakeet V3',
+    id: 'parakeet-tdt-0.6b-v3-coreml',
+    name: 'parakeet-tdt-0.6b-v3-coreml',
     description: '支持多语言',
     supportLangs: 'Multilingual'
   }
@@ -295,12 +295,13 @@ export const TranscribeParakeetNode: NodeHandler = {
     console.log('[parakeet] 使用模型目录:', modelDir);
 
     // Parakeet CLI 参数
-    const args: string[] = ['-m', modelDir, '-i', finalSrc, '--output-dir', outDir, '--output-filename', base, '--output-format', 'json'];
-
+    const args: string[] = ['--model', modelDir, '--input', finalSrc, '--output-dir', outDir, '--output-filename', base, '--output-format', 'txt, srt, json'];
     // 创建进度回调函数
     const onProgress = (progress: number, message: string): void => {
       emit('node:progress', { progress, message });
     };
+
+    console.log(args.join(' '));
 
     await runParakeet(args, onProgress, totalDuration);
 
