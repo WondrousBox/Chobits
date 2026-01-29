@@ -223,6 +223,8 @@ const TranslateTab: React.FC = () => {
 
       const segmentsData = segments.map((seg, idx) => ({
         text: seg.text,
+        st: seg.st,
+        et: seg.et,
         index: idx
       }));
 

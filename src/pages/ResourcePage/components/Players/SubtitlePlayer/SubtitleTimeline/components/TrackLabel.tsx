@@ -21,15 +21,7 @@ interface TrackLabelProps {
 /**
  * 轨道标签组件
  */
-export const TrackLabel: React.FC<TrackLabelProps> = ({
-  track,
-  index,
-  onToggleLock,
-  onToggleHidden,
-  allowDelete = false,
-  onDelete,
-  className
-}) => {
+export const TrackLabel: React.FC<TrackLabelProps> = ({ track, index, onToggleLock, onToggleHidden, allowDelete = false, onDelete, className }) => {
   const height = track.height ?? DEFAULT_CONFIG.TRACK_HEIGHT;
 
   const content = (

@@ -115,7 +115,7 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
   // 如果存在重叠，使用异常颜色（橙红色）
   const backgroundColor = isOverlapping
     ? 'hsla(15, 85%, 55%, 0.5)' // 橙红色，半透明
-    : toAlpha(trackColor, isActive ? 0.9 : 0.35);
+    : toAlpha(trackColor, isActive ? 1 : 0.35);
 
   // 边缘拖拽区域宽度
   const EDGE_WIDTH = 6;
@@ -301,7 +301,6 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
           'border border-transparent hover:border-foreground/20',
           isDeleted && 'opacity-40',
           isOverlapping && 'border-orange-600 border-2',
-          isActive && 'ring-2 ring-primary ring-offset-1 ring-offset-background',
           isHighlighted && !isActive && 'ring-1 ring-primary/50',
           isSelected && 'ring-2 ring-blue-500',
           disabled && 'pointer-events-none opacity-60',
