@@ -425,6 +425,10 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                   </React.Fragment>
                 );
               })}
+
+            <div className="flex items-center justify-center hover:bg-accent/50 cursor-pointer" style={{ height: 40 }}>
+              <TbPlus />
+            </div>
           </div>
         )}
 
