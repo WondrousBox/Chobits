@@ -402,7 +402,7 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
         >
           <div className="bg-primary text-primary-foreground px-2 py-1 rounded shadow-lg text-xs font-mono whitespace-nowrap">
             {(() => {
-              const format = (t: number) => {
+              const format = (t: number): string => {
                 const h = Math.floor(t / 3600);
                 const m = Math.floor((t % 3600) / 60);
                 const s = (t % 60).toFixed(2);

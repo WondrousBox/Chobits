@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbMinus, TbPlus, TbTrash, TbVolume } from 'react-icons/tb';
+import { TbMinus, TbPlus, TbTrash, TbVolume, TbWaveSine } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
@@ -57,6 +57,8 @@ const TTSTrackLabel: React.FC<{
   return content;
 };
 
+const audioWaveformHeight = 40;
+
 /**
  * SubtitleTimeline - 高性能字幕时间轴组件
  *
@@ -103,6 +105,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(800);
+  const [scrollContainerWidth, setScrollContainerWidth] = useState(384);
   const [scrollLeft, setScrollLeft] = useState(0);
   // 本地 mock 播放时间（用于没有音视频时的“假 seek”）
   const [mockCurrentTime, setMockCurrentTime] = useState(0);
@@ -277,6 +280,21 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
     return () => resizeObserver.disconnect();
   }, []);
 
+  // 监听滚动容器宽度（用于波形轨道等固定宽度区域）
+  useEffect(() => {
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setScrollContainerWidth(entry.contentRect.width);
+      }
+    });
+
+    resizeObserver.observe(scrollContainer);
+    return () => resizeObserver.disconnect();
+  }, []);
+
   // 监听滚动
   useEffect(() => {
     const scrollContainer = scrollContainerRef.current;
@@ -367,22 +385,6 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
       {/* SeekBar - 播放进度条和字幕片段概览 */}
       <SeekBar duration={duration} currentTime={effectiveCurrentTime} segments={tracksWithColors[0]?.segments || []} onSeek={handleSeekUnified} />
 
-      {/* 波形轨道（固定在顶部，不随字幕轨道垂直滚动） */}
-      {showWaveform && audioPath && (
-        <WaveformTrack
-          audioPath={audioPath}
-          totalWidth={totalWidth}
-          duration={duration}
-          pixelsPerSecond={pixelsPerSecond}
-          viewport={viewport}
-          currentTime={effectiveCurrentTime}
-          trackLabelWidth={trackLabelWidth}
-          showTrackLabel={showTrackLabels}
-          scrollLeft={scrollLeft}
-          onSeek={handleSeekUnified}
-        />
-      )}
-
       {/* 主内容区域 */}
       <div className="flex flex-1 overflow-hidden min-h-0">
         {/* 左侧轨道标签（固定） */}
@@ -390,6 +392,13 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
           <div className="flex flex-col shrink-0 border-r" style={{ width: trackLabelWidth }}>
             {/* 标签区域顶部占位（对应时间刻度） */}
             {showRuler && <div className="border-b bg-muted/30 shrink-0" style={{ height: DEFAULT_CONFIG.RULER_HEIGHT }} />}
+
+            {showTrackLabels && (
+              <div className="flex items-center gap-1 px-2 border-r bg-muted/30 shrink-0 box-border" style={{ width: trackLabelWidth, height: audioWaveformHeight }}>
+                <TbWaveSine className="w-4 h-4 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground truncate">波形</span>
+              </div>
+            )}
 
             {/* 轨道标签列表（每个字幕轨道后紧跟对应的TTS轨道标签） */}
             {tracksWithColors
@@ -420,7 +429,15 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
         )}
 
         {/* 右侧时间轴内容区域（可滚动） */}
-        <div ref={scrollContainerRef} className={clsx('flex-1 overflow-x-auto overflow-y-hidden', isDragging && 'cursor-grabbing')} {...handlers}>
+        <div
+          ref={scrollContainerRef}
+          className={clsx('flex-1 overflow-x-auto overflow-y-hidden', isDragging && 'cursor-grabbing')}
+          style={{
+            backgroundImage: 'radial-gradient(circle, hsl(var(--border)) 1px, transparent 1px)',
+            backgroundSize: '20px 20px'
+          }}
+          {...handlers}
+        >
           {/* 内容容器（设置总宽度） */}
           <div style={{ width: totalWidth, minWidth: '100%' }}>
             {/* 时间刻度尺 */}
@@ -435,6 +452,30 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                 viewportStart={viewport.startTime}
                 viewportEnd={viewport.endTime}
               />
+            )}
+
+            {/* 波形轨道（固定在顶部，不随字幕轨道垂直滚动） */}
+            {showWaveform && audioPath && (
+              <>
+                <div className="h-0 w-0">
+                  <div className="absolute" style={{ width: scrollContainerWidth }}>
+                    <WaveformTrack
+                      audioPath={audioPath}
+                      totalWidth={totalWidth}
+                      duration={duration}
+                      height={audioWaveformHeight}
+                      pixelsPerSecond={pixelsPerSecond}
+                      viewport={viewport}
+                      currentTime={effectiveCurrentTime}
+                      trackLabelWidth={trackLabelWidth}
+                      showTrackLabel={showTrackLabels}
+                      scrollLeft={scrollLeft}
+                      onSeek={handleSeekUnified}
+                    />
+                  </div>
+                </div>
+                <div className="w-full" style={{ height: audioWaveformHeight }}></div>
+              </>
             )}
 
             {/* 轨道内容（每个字幕轨道后紧跟对应的TTS轨道） */}

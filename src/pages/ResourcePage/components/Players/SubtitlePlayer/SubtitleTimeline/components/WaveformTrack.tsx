@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TbWaveSine } from 'react-icons/tb';
 
 import type { ViewportState } from '../types';
 
@@ -18,10 +17,6 @@ interface WaveformTrackProps {
   currentTime?: number;
   /** 波形高度 */
   height?: number;
-  /** 轨道标签宽度（用于固定标签） */
-  trackLabelWidth?: number;
-  /** 是否显示轨道标签 */
-  showTrackLabel?: boolean;
   /** 滚动位置 */
   scrollLeft: number;
   /** 点击跳转回调 */
@@ -56,8 +51,6 @@ export const WaveformTrack: React.FC<WaveformTrackProps> = ({
   viewport: _viewport,
   currentTime,
   height = 48,
-  trackLabelWidth = 120,
-  showTrackLabel = true,
   scrollLeft,
   onSeek,
   containerWidth = 800
@@ -272,14 +265,6 @@ export const WaveformTrack: React.FC<WaveformTrackProps> = ({
 
   return (
     <div className="flex border-b bg-muted/20">
-      {/* 固定的轨道标签 */}
-      {showTrackLabel && (
-        <div className="flex items-center gap-1 px-2 border-r bg-muted/30 shrink-0 box-border" style={{ width: trackLabelWidth }}>
-          <TbWaveSine className="w-4 h-4 text-muted-foreground" />
-          <span className="text-xs text-muted-foreground truncate">波形</span>
-        </div>
-      )}
-
       {/* 波形内容区域 - Canvas 固定大小，只绘制可见区域 */}
       <div ref={wrapperRef} className="flex-1 overflow-hidden relative" style={{ height }}>
         {isLoading && (
@@ -301,6 +286,13 @@ export const WaveformTrack: React.FC<WaveformTrackProps> = ({
             <span className="text-xs text-muted-foreground">暂无波形数据</span>
           </div>
         )}
+
+        {/* 当前时间指示线（与其它轨道一致的红线，坐标系：视口内 left = 时间对应像素 - scrollLeft） */}
+        {
+          // currentTime !== undefined && currentTime >= 0 && currentTime <= duration && (
+          //   <div className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none" style={{ left: currentTime * pixelsPerSecond - scrollLeft }} />
+          // )
+        }
 
         {/* 音频结束截止线 */}
         {duration > 0 && (
