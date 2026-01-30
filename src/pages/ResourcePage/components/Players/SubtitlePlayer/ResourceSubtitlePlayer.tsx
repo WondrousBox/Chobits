@@ -8,7 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 
 import type { ResourceItem } from '../../../types';
 import { SubtitlePlayer } from './SubtitleListPlayer/SubtitlePlayer';
-import { aimTracksToTimelineTracks, indicesToIds, parseSegmentId, SubtitleTimeline, TimelineSegment } from './SubtitleTimeline';
+import { aimTracksToTimelineTracks, formatSecondsToTime, indicesToIds, parseSegmentId, parseTimeToSeconds, SubtitleTimeline, TimelineSegment } from './SubtitleTimeline';
 import type { TTSAudioItem as TimelineTTSAudioItem } from './SubtitleTimeline/types';
 import { SubtitleTranslator } from './SubtitleTranslator';
 import type { TTSTrackOption } from './TTSSynthesizer';
@@ -689,6 +689,27 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     [subtitleEntries, resource.id, isLoading, debouncedSave, subtitleFormat]
   );
 
+  // 在轨道空白处新增字幕片段（仅主轨道 track-0）
+  const handleAddSegment = useCallback(
+    (trackId: string, startTime: number, endTime: number, text: string) => {
+      if (trackId !== 'track-0' || !resource.id || isLoading) return;
+      const st = formatSecondsToTime(startTime);
+      const et = formatSecondsToTime(endTime);
+      const newSeg: AimSegments = { st, et, text };
+      let insertIndex = subtitleEntries.length;
+      for (let i = 0; i < subtitleEntries.length; i++) {
+        if (parseTimeToSeconds(subtitleEntries[i].st) > startTime) {
+          insertIndex = i;
+          break;
+        }
+      }
+      const updated = [...subtitleEntries.slice(0, insertIndex), newSeg, ...subtitleEntries.slice(insertIndex)];
+      setSubtitleEntries(updated);
+      debouncedSave(resource.id, updated, subtitleFormat);
+    },
+    [subtitleEntries, resource.id, isLoading, debouncedSave, subtitleFormat]
+  );
+
   // 删除字幕轨道（翻译轨道）
   const handleDeleteSubtitleTrack = useCallback(
     async (trackId: string) => {
@@ -822,6 +843,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
           currentTime={currentTime}
           followCurrentTime={followTime}
           onSeek={onSeek}
+          onAddSegment={handleAddSegment}
           onSegmentTextChange={handleTimelineTextChange}
           onSegmentTimeChange={handleTimelineTimeChange}
           onMergePrev={handleMergePrev}

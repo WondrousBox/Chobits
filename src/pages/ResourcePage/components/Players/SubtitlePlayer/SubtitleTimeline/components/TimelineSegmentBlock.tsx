@@ -284,14 +284,20 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
     [disabled, isEditing, dragMode, getEdgeFromPosition]
   );
 
-  // 处理点击
+  // 处理点击：未选中时通知父组件高亮；已选中时再次单击进入编辑（与双击一致）
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
       if (disabled) return;
       e.stopPropagation();
+      if (isSelected) {
+        setIsEditing(true);
+        setEditText(segment.text);
+        onDoubleClick?.(segment, trackId, e);
+        return;
+      }
       onClick?.(segment, trackId, e);
     },
-    [disabled, segment, trackId, onClick]
+    [disabled, isSelected, segment, trackId, onClick, onDoubleClick]
   );
 
   const isDeleted = segment.deleted;

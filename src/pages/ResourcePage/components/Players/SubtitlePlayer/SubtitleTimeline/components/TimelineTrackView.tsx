@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import React, { useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { DEFAULT_CONFIG, TimelineSegment, TimelineTrack, ViewportState } from '../types';
 import { detectOverlappingSegments } from '../utils';
@@ -20,6 +20,18 @@ interface TimelineTrackViewProps {
   highlightIds?: Set<string>;
   /** 选中的片段 ID */
   selectedIds?: Set<string>;
+  /** 横向滚动偏移（用于空白处点击计算时间） */
+  scrollLeft?: number;
+  /** 待新增片段的输入框时间范围（仅主轨道等支持新增时使用） */
+  pendingNewSegment?: { startTime: number; endTime: number } | null;
+  /** 点击轨道空白处（非片段区域） */
+  onTrackEmptyClick?: (trackId: string, clickTime: number) => void;
+  /** 确认新增片段（输入框失焦且有内容时） */
+  onAddSegmentConfirm?: (trackId: string, startTime: number, endTime: number, text: string) => void;
+  /** 取消新增（输入框失焦且无内容时） */
+  onCancelNewSegment?: () => void;
+  /** 是否允许在空白处点击新增片段 */
+  allowAddSegment?: boolean;
   /** 片段点击 */
   onSegmentClick?: (segment: TimelineSegment, trackId: string, event: React.MouseEvent) => void;
   /** 片段双击 */
@@ -52,6 +64,12 @@ export const TimelineTrackView: React.FC<TimelineTrackViewProps> = ({
   currentTime,
   highlightIds,
   selectedIds,
+  scrollLeft = 0,
+  pendingNewSegment,
+  onTrackEmptyClick,
+  onAddSegmentConfirm,
+  onCancelNewSegment,
+  allowAddSegment = false,
   onSegmentClick,
   onSegmentDoubleClick,
   onSegmentTextChange,
@@ -61,6 +79,17 @@ export const TimelineTrackView: React.FC<TimelineTrackViewProps> = ({
   className
 }) => {
   const height = track.height ?? DEFAULT_CONFIG.TRACK_HEIGHT;
+  const trackRef = useRef<HTMLDivElement>(null);
+  const newSegmentInputRef = useRef<HTMLTextAreaElement>(null);
+  const [newSegmentInput, setNewSegmentInput] = useState('');
+
+  // 打开新增输入框时清空内容并聚焦
+  useEffect(() => {
+    if (pendingNewSegment) {
+      setNewSegmentInput('');
+      requestAnimationFrame(() => newSegmentInputRef.current?.focus());
+    }
+  }, [pendingNewSegment]);
 
   // 预计算片段的时间数组（用于二分查找）
   const { startTimes, endTimes } = useMemo(() => {
@@ -141,14 +170,80 @@ export const TimelineTrackView: React.FC<TimelineTrackViewProps> = ({
     return time * pixelsPerSecond;
   };
 
+  // 点击轨道空白处：计算点击时间并通知父组件（仅当点击在非片段区域时由背景 div 接收）
+  const handleTrackBackgroundClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (!allowAddSegment || !onTrackEmptyClick || disabled) return;
+      e.stopPropagation();
+      const el = trackRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const contentX = e.clientX - rect.left;
+      const clickTime = contentX / pixelsPerSecond;
+      if (clickTime >= 0 && clickTime <= totalDuration) {
+        onTrackEmptyClick(track.id, clickTime);
+      }
+    },
+    [allowAddSegment, onTrackEmptyClick, disabled, pixelsPerSecond, totalDuration, track.id]
+  );
+
+  // 新增片段输入框失焦：无内容则取消，有内容则确认新增
+  const handleNewSegmentBlur = useCallback(() => {
+    if (!pendingNewSegment) return;
+    const text = newSegmentInput.trim();
+    if (text === '') {
+      onCancelNewSegment?.();
+    } else {
+      onAddSegmentConfirm?.(track.id, pendingNewSegment.startTime, pendingNewSegment.endTime, text);
+    }
+    setNewSegmentInput('');
+  }, [pendingNewSegment, newSegmentInput, onCancelNewSegment, onAddSegmentConfirm, track.id]);
+
   if (track.hidden) {
     return null;
   }
 
   return (
-    <div className={clsx('relative border-b border-border', className)} style={{ height: height + DEFAULT_CONFIG.TRACK_GAP, width }}>
-      {/* 背景区域 */}
-      <div className="absolute inset-0 bg-background" />
+    <div ref={trackRef} className={clsx('relative border-b border-border', className)} style={{ height: height + DEFAULT_CONFIG.TRACK_GAP, width }}>
+      {/* 背景区域（点击空白处可新增片段） */}
+      <div className="absolute inset-0 bg-background" role="presentation" onClick={handleTrackBackgroundClick} />
+
+      {/* 待新增片段的输入框：样式与双击编辑一致（多行、边框、最小宽高） */}
+      {pendingNewSegment && (
+        <div
+          className="absolute z-20 overflow-hidden rounded"
+          style={{
+            left: timeToPixel(pendingNewSegment.startTime),
+            width: Math.max(150, timeToPixel(pendingNewSegment.endTime - pendingNewSegment.startTime)),
+            top: DEFAULT_CONFIG.TRACK_GAP / 2,
+            height: height + 20
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <textarea
+            ref={newSegmentInputRef}
+            className={clsx(
+              'w-full h-full min-w-[150px] px-1.5 py-0.5 text-xs leading-tight resize-none',
+              'bg-background border-2 border-primary rounded outline-none text-foreground box-border',
+              'placeholder:text-muted-foreground'
+            )}
+            style={{ minHeight: height + 20 }}
+            placeholder="输入内容，回车添加"
+            value={newSegmentInput}
+            onChange={(e) => setNewSegmentInput(e.target.value)}
+            onBlur={handleNewSegmentBlur}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                (e.target as HTMLTextAreaElement).blur();
+              } else if (e.key === 'Escape') {
+                setNewSegmentInput('');
+                onCancelNewSegment?.();
+              }
+            }}
+          />
+        </div>
+      )}
 
       {/* 片段渲染 */}
       {visibleSegments.map(({ segment, index }) => (
