@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TbArrowMerge } from 'react-icons/tb';
+import { TbArrowMerge, TbEdit, TbPencil, TbTrash } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 
@@ -40,9 +40,29 @@ interface TimelineSegmentBlockProps {
   onDragEnd?: (segment: TimelineSegment, trackId: string) => void;
   /** 往前合并（统一回调签名） */
   onMergePrev?: (payload: { trackId: string; segmentIndex: number }) => void;
+  /** 删除片段（选中时按钮或快捷键） */
+  onDeleteSegment?: (segment: TimelineSegment, trackId: string) => void;
 }
 
 type DragMode = 'none' | 'move' | 'resize-left' | 'resize-right';
+
+/** 校验字幕块编辑内容：非空、无影响展示的非法字符 */
+function validateSegmentText(text: string): { valid: boolean; message?: string } {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) {
+    return { valid: false, message: '内容不能为空' };
+  }
+  // 控制字符（除换行、制表符外）可能影响解析或展示
+  const hasControlChar = /[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(text);
+  if (hasControlChar) {
+    return { valid: false, message: '不能包含控制字符' };
+  }
+  // SRT 时间轴分隔符，出现在文本中可能破坏解析
+  if (trimmed.includes('-->')) {
+    return { valid: false, message: '不能包含 "-->"' };
+  }
+  return { valid: true };
+}
 
 /**
  * 时间轴片段块组件
@@ -72,10 +92,13 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
   onTimeChange,
   onDragStart,
   onDragEnd,
-  onMergePrev
+  onMergePrev,
+  onDeleteSegment
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(segment.text);
+  const [validationError, setValidationError] = useState(false);
+  const [validationMessage, setValidationMessage] = useState<string | null>(null);
   const [dragMode, setDragMode] = useState<DragMode>('none');
   const [dragStartX, setDragStartX] = useState(0);
   const [originalTimes, setOriginalTimes] = useState({ start: 0, end: 0 });
@@ -145,29 +168,51 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
     [disabled, segment, trackId, onDoubleClick]
   );
 
-  // 处理编辑完成
-  const handleBlur = useCallback(() => {
+  // 尝试提交编辑：校验通过则保存并退出，否则晃动提示错误
+  const tryCommitEdit = useCallback(() => {
     if (!isEditing) return;
-
+    const result = validateSegmentText(editText);
+    if (!result.valid) {
+      setValidationMessage(result.message ?? '内容无效');
+      setValidationError(true);
+      return;
+    }
+    setValidationError(false);
+    setValidationMessage(null);
     setIsEditing(false);
-    if (editText !== segment.text) {
-      onTextChange?.(segment, trackId, editText);
+    if (editText.trim() !== segment.text) {
+      onTextChange?.(segment, trackId, editText.trim());
     }
   }, [isEditing, editText, segment, trackId, onTextChange]);
+
+  // 处理编辑完成（失焦时）
+  const handleBlur = useCallback(() => {
+    if (!isEditing) return;
+    tryCommitEdit();
+  }, [isEditing, tryCommitEdit]);
 
   // 处理键盘事件
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        handleBlur();
+        tryCommitEdit();
       } else if (e.key === 'Escape') {
         setEditText(segment.text);
+        setValidationError(false);
+        setValidationMessage(null);
         setIsEditing(false);
       }
     },
-    [handleBlur, segment.text]
+    [tryCommitEdit, segment.text]
   );
+
+  // 校验失败后一段时间清除晃动状态，便于用户继续编辑
+  useEffect(() => {
+    if (!validationError) return;
+    const t = setTimeout(() => setValidationError(false), 500);
+    return () => clearTimeout(t);
+  }, [validationError]);
 
   // 判断鼠标是否在边缘
   const getEdgeFromPosition = useCallback((clientX: number): DragMode => {
@@ -327,7 +372,8 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
           isHighlighted && !isActive && 'ring-1 ring-primary/50',
           isSelected && 'ring-2 ring-blue-500',
           disabled && 'pointer-events-none opacity-60',
-          dragMode !== 'none' && 'opacity-80 shadow-lg z-20'
+          dragMode !== 'none' && 'opacity-80 shadow-lg z-20',
+          validationError && isEditing && 'ring-2 ring-destructive animate-pulse'
         )}
         style={{
           left,
@@ -375,13 +421,45 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
         {/* 右边缘拖拽区域指示器 */}
         <div className="absolute right-0 top-0 bottom-0 w-1.5 rounded-r opacity-0 hover:opacity-100 bg-foreground/20 transition-opacity" style={{ cursor: 'ew-resize' }} />
 
+        {/* 选中时右上角悬浮：编辑、删除 */}
+        {!disabled && !isEditing && isSelected && (
+          <div className="absolute right-0 top-0 -translate-y-1/2 flex items-center gap-0.5 z-30">
+            <Button
+              size="icon"
+              variant="outline"
+              className="w-8 h-8 rounded-full p-0 bg-background shadow-sm hover:bg-accent"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsEditing(true);
+                setEditText(segment.text);
+                onDoubleClick?.(segment, trackId, e);
+              }}
+              title="编辑"
+            >
+              <TbPencil />
+            </Button>
+            <Button
+              size="icon"
+              variant="outline"
+              className="w-8 h-8 rounded-full p-0 bg-background shadow-sm hover:bg-destructive hover:text-destructive-foreground"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDeleteSegment?.(segment, trackId);
+              }}
+              title="删除"
+            >
+              <TbTrash />
+            </Button>
+          </div>
+        )}
+
         {/* 内容区域 */}
         {isEditing ? (
-          // 编辑模式：显示完整文字，可编辑
+          // 编辑模式：显示完整文字，可编辑；右下角提示回车确定、esc取消
           <div className="absolute inset-0 z-30" style={{ left: -1, right: -1, top: -1, bottom: -1 }} onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
             <textarea
               ref={inputRef}
-              className={clsx('w-full h-full px-1.5 py-0.5 text-xs leading-tight resize-none', 'bg-background border-2 border-primary rounded outline-none', 'text-foreground')}
+              className={clsx('w-full h-full px-1.5 py-0.5 text-xs leading-tight resize-none box-border', 'bg-background border-2 border-primary rounded outline-none', 'text-foreground')}
               style={{
                 minWidth: Math.max(segmentWidth, 150),
                 minHeight: trackHeight + 20
@@ -391,6 +469,9 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
               onBlur={handleBlur}
               onKeyDown={handleKeyDown}
             />
+            <div className={clsx('absolute right-1 -bottom-2 pointer-events-none select-none text-[10px] leading-none', validationError ? 'text-destructive font-medium' : 'text-muted-foreground')}>
+              {validationError ? validationMessage : '回车确定，Esc 取消'}
+            </div>
           </div>
         ) : (
           // 普通模式：省略显示

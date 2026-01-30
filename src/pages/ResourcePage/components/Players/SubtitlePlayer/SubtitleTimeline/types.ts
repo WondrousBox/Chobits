@@ -83,6 +83,8 @@ export interface TimelineCallbacks {
   onMergePrev?: (payload: { trackId: string; segmentIndex: number }) => void;
   /** 在轨道空白处新增字幕片段（trackId, startTime, endTime, text） */
   onAddSegment?: (trackId: string, startTime: number, endTime: number, text: string) => void;
+  /** 删除选中的字幕片段（快捷键或按钮） */
+  onDeleteSegment?: (segment: TimelineSegment, trackId: string) => void;
   /** 选中状态变化 */
   onSelectionChange?: (selection: SelectionState) => void;
   /** 时间跳转（点击时间轴空白处） */

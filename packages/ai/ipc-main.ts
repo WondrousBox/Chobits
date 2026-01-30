@@ -10,6 +10,7 @@ import { InstancesStore } from './instances-store';
 import {
   cancelMindmap,
   executeMindmap,
+  deleteTranslationSegment,
   executeSubtitleTranslation,
   executeSummarize,
   insertTranslationSegment,
@@ -328,6 +329,10 @@ export function initAIHandlers(win: BrowserWindow): void {
   // 在翻译 JSON 中插入新片段（翻译轨道空白处新增字幕块后保存）
   ipcMain.handle('ai:insertTranslationSegment', async (_e, payload: { translationResourceId: string; insertIndex: number; segment: { st: string; et: string; text: string } }) => {
     return insertTranslationSegment(payload);
+  });
+
+  ipcMain.handle('ai:deleteTranslationSegment', async (_e, payload: { translationResourceId: string; segmentIndex: number }) => {
+    return deleteTranslationSegment(payload);
   });
 
   // ==================== 总结相关 ====================
