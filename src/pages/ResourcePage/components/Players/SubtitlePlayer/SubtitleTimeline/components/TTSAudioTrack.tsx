@@ -1,8 +1,10 @@
-import React, { useCallback, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { TTSAudioItem } from '../types';
 import { DEFAULT_CONFIG, ViewportState } from '../types';
 import { detectOverlappingIndices, TimeRange } from '../utils';
+import type { WaveformData } from '../utils/ttsWaveformLoader';
+import { getTTSBlockWaveform } from '../utils/ttsWaveformLoader';
 import { TTSAudioBlock } from './TTSAudioBlock';
 
 /** 从 types 导出，供外部使用 */
@@ -58,12 +60,14 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
   onDeleteSegment
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [waveformMap, setWaveformMap] = useState<Record<string, WaveformData>>({});
+
+  const trackHeight = DEFAULT_CONFIG.TRACK_HEIGHT + DEFAULT_CONFIG.TRACK_GAP;
 
   // 检测重叠的音频项（基于音频实际时长，而不是字幕时间戳）
   const overlappingIndices = useMemo(() => {
     const ranges: TimeRange[] = items.map((item) => {
-      // 使用音频实际时长来计算结束时间
-      // 优先使用 trimmedDuration（去静音后的时长），其次使用 duration，最后回退到字幕时间戳
       const audioDuration = item.trimmedDuration ?? item.duration ?? item.endTime - item.startTime;
       return {
         startTime: item.startTime,
@@ -76,11 +80,122 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
 
   // 过滤出在视口范围内的项目（带缓冲区）
   const visibleItems = useMemo(() => {
-    const buffer = 2; // 缓冲区（秒）
+    const buffer = 2;
     return items.filter((item) => {
       return item.endTime >= viewport.startTime - buffer && item.startTime <= viewport.endTime + buffer;
     });
   }, [items, viewport]);
+
+  // 为可见且已完成的块按需请求波形数据
+  useEffect(() => {
+    let cancelled = false;
+    const pathsToRequest = visibleItems.filter((item) => item.status === 'completed' && item.audioPath).map((item) => item.audioPath as string);
+
+    pathsToRequest.forEach((audioPath) => {
+      getTTSBlockWaveform(audioPath).then(
+        (data) => {
+          if (!cancelled) {
+            setWaveformMap((prev) => (prev[audioPath] ? prev : { ...prev, [audioPath]: data }));
+          }
+        },
+        () => {
+          // 忽略单条失败，不更新 state
+        }
+      );
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [visibleItems]);
+
+  // 单轨单 Canvas：根据 waveformMap 与可见块绘制所有波形
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || width <= 0 || trackHeight <= 0) return;
+
+    const ctx = canvas.getContext('2d', { willReadFrequently: false });
+    if (!ctx) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(trackHeight * dpr);
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${trackHeight}px`;
+    ctx.scale(dpr, dpr);
+
+    ctx.clearRect(0, 0, width, trackHeight);
+
+    const centerY = trackHeight / 2;
+    const maxAmplitude = (trackHeight / 2) * 0.9;
+    const BAR_WIDTH = 1;
+    const BAR_GAP = 1;
+    const BAR_STEP = BAR_WIDTH + BAR_GAP;
+
+    visibleItems.forEach((item) => {
+      if (item.status !== 'completed' || !item.audioPath) return;
+      const data = waveformMap[item.audioPath];
+      if (!data?.peaks?.length) return;
+
+      const { peaks } = data;
+      const duration = data.duration;
+      const blockLeft = item.startTime * pixelsPerSecond;
+      const blockDuration = item.trimmedDuration ?? item.duration ?? item.endTime - item.startTime;
+      const blockWidth = Math.max(blockDuration * pixelsPerSecond, DEFAULT_CONFIG.SEGMENT_MIN_WIDTH);
+
+      if (blockLeft + blockWidth <= 0 || blockLeft >= width) return;
+      const clipLeft = Math.max(0, blockLeft);
+      const clipRight = Math.min(width, blockLeft + blockWidth);
+      const drawWidth = clipRight - clipLeft;
+      if (drawWidth <= 0) return;
+
+      const totalBarsInBlock = Math.ceil(blockWidth / BAR_STEP);
+      const timePerBar = duration / Math.max(1, totalBarsInBlock);
+      const peakDuration = duration / peaks.length;
+
+      const localStart = clipLeft - blockLeft;
+      const startBarIndex = Math.max(0, Math.floor(localStart / BAR_STEP));
+      const endBarIndex = Math.min(totalBarsInBlock, Math.ceil((localStart + drawWidth) / BAR_STEP));
+      const barsToDraw = endBarIndex - startBarIndex;
+      if (barsToDraw <= 0) return;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(clipLeft, 0, drawWidth, trackHeight);
+      ctx.clip();
+
+      ctx.fillStyle = 'hsl(142, 70%, 45%)';
+      ctx.globalAlpha = 0.85;
+
+      for (let i = 0; i < barsToDraw; i++) {
+        const barIndex = startBarIndex + i;
+        const barStartTime = barIndex * timePerBar;
+        const barEndTime = barStartTime + timePerBar;
+        const startPeakIndex = Math.floor(barStartTime / peakDuration);
+        const endPeakIndex = Math.ceil(barEndTime / peakDuration);
+
+        let maxPeak = 0;
+        let sumPeak = 0;
+        let count = 0;
+        for (let j = Math.max(0, startPeakIndex); j <= Math.min(peaks.length - 1, endPeakIndex); j++) {
+          const v = peaks[j] ?? 0;
+          maxPeak = Math.max(maxPeak, v);
+          sumPeak += v;
+          count++;
+        }
+        const avgPeak = count > 0 ? sumPeak / count : 0;
+        const displayPeak = maxPeak * 0.7 + avgPeak * 0.3;
+
+        const x = clipLeft + i * BAR_STEP;
+        const barHeight = Math.max(1, displayPeak * maxAmplitude * 2);
+        const y = centerY - barHeight / 2;
+        ctx.fillRect(Math.round(x), Math.round(y), BAR_WIDTH, Math.max(1, Math.round(barHeight)));
+      }
+
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    });
+  }, [visibleItems, waveformMap, pixelsPerSecond, width, trackHeight]);
 
   // 处理点击块（选中）
   const handleBlockClick = useCallback(
@@ -126,22 +241,26 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
   }
 
   return (
-    <div className="relative border-border" style={{ height: DEFAULT_CONFIG.TRACK_HEIGHT + DEFAULT_CONFIG.TRACK_GAP, width }}>
+    <div className="relative border-border" style={{ height: trackHeight, width }}>
       {/* 轨道内容容器（设置总宽度） */}
       <div ref={containerRef} className="relative h-full" style={{ width }}>
-        {visibleItems.map((item) => (
-          <TTSAudioBlock
-            key={item.index}
-            item={item}
-            pixelsPerSecond={pixelsPerSecond}
-            isPlaying={playingIndex === item.index}
-            isOverlapping={overlappingIndices.has(item.index)}
-            isSelected={selectedIndex === item.index}
-            onBlockClick={handleBlockClick}
-            onPlayClick={handlePlayClick}
-            onDeleteClick={handleDeleteClick}
-          />
-        ))}
+        {/* 单轨单 Canvas：波形层（在块下方，半透明块背景可透出波形） */}
+        <canvas ref={canvasRef} className="absolute inset-0 z-0 pointer-events-none" style={{ left: 0, top: 0, width, height: trackHeight }} />
+        <div className="absolute inset-0 z-10">
+          {visibleItems.map((item) => (
+            <TTSAudioBlock
+              key={item.index}
+              item={item}
+              pixelsPerSecond={pixelsPerSecond}
+              isPlaying={playingIndex === item.index}
+              isOverlapping={overlappingIndices.has(item.index)}
+              isSelected={selectedIndex === item.index}
+              onBlockClick={handleBlockClick}
+              onPlayClick={handlePlayClick}
+              onDeleteClick={handleDeleteClick}
+            />
+          ))}
+        </div>
 
         {/* 当前时间指示线 */}
         {
