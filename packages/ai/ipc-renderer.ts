@@ -206,12 +206,11 @@ export const aiBridge = {
   async getResourceTranslations(resourceId: string) {
     return ipcRenderer.invoke('ai:getResourceTranslations', { resourceId });
   },
-  async updateTranslationSegment(payload: {
-    translationResourceId: string;
-    segmentIndex: number;
-    patch: { st?: string; et?: string; text?: string };
-  }) {
+  async updateTranslationSegment(payload: { translationResourceId: string; segmentIndex: number; patch: { st?: string; et?: string; text?: string } }) {
     return ipcRenderer.invoke('ai:updateTranslationSegment', payload);
+  },
+  async insertTranslationSegment(payload: { translationResourceId: string; insertIndex: number; segment: { st: string; et: string; text: string } }) {
+    return ipcRenderer.invoke('ai:insertTranslationSegment', payload);
   },
   async getAllTranslationHistory(resourceId: string) {
     return ipcRenderer.invoke('ai:getAllTranslationHistory', { resourceId });

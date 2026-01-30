@@ -835,6 +835,56 @@ export async function updateTranslationSegment(opts: {
 }
 
 /**
+ * 在翻译 JSON 中插入一个新片段（用于在翻译轨道空白处新增字幕块）
+ */
+export async function insertTranslationSegment(opts: {
+  translationResourceId: string;
+  insertIndex: number;
+  segment: { st: string; et: string; text: string };
+}): Promise<{ success: boolean; message?: string }> {
+  try {
+    const resource = await ResourcesRepo.getById(opts.translationResourceId);
+    if (!resource || !resource.filePath) {
+      return { success: false, message: '翻译资源不存在或没有文件路径' };
+    }
+    const filePath = resource.filePath;
+    if (!filePath.toLowerCase().endsWith('.json')) {
+      return { success: false, message: '不是翻译 JSON 文件' };
+    }
+
+    const content = await readFile(filePath, 'utf8');
+    const payload = JSON.parse(content) as {
+      version?: number;
+      resourceId?: string;
+      translatedSegments: Array<{ index: number; text: string; st?: string; et?: string;[key: string]: unknown }>;
+      updatedAt?: number;
+    };
+    if (!Array.isArray(payload.translatedSegments)) {
+      return { success: false, message: 'translatedSegments 格式无效' };
+    }
+
+    const insertIndex = Math.max(0, Math.min(opts.insertIndex, payload.translatedSegments.length));
+    for (const seg of payload.translatedSegments) {
+      if (seg.index >= insertIndex) (seg as { index: number }).index += 1;
+    }
+    payload.translatedSegments.splice(insertIndex, 0, {
+      index: insertIndex,
+      text: opts.segment.text,
+      st: opts.segment.st,
+      et: opts.segment.et
+    });
+    payload.updatedAt = Date.now();
+
+    await writeFile(filePath, JSON.stringify(payload, null, 2));
+    return { success: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[insertTranslationSegment] 失败:', message);
+    return { success: false, message };
+  }
+}
+
+/**
  * 执行字幕翻译任务
  * @param payload 翻译参数
  * @returns 返回 requestId 和 eventsChannel
