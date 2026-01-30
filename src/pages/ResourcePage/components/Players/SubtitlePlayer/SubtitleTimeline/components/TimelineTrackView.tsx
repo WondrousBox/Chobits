@@ -42,6 +42,8 @@ interface TimelineTrackViewProps {
   onSegmentTimeChange?: (segment: TimelineSegment, trackId: string, newStartTime: number, newEndTime: number) => void;
   /** 往前合并（统一回调签名） */
   onMergePrev?: (payload: { trackId: string; segmentIndex: number }) => void;
+  /** 删除选中片段 */
+  onDeleteSegment?: (segment: TimelineSegment, trackId: string) => void;
   /** 禁用交互 */
   disabled?: boolean;
   className?: string;
@@ -75,6 +77,7 @@ export const TimelineTrackView: React.FC<TimelineTrackViewProps> = ({
   onSegmentTextChange,
   onSegmentTimeChange,
   onMergePrev,
+  onDeleteSegment,
   disabled = false,
   className
 }) => {
@@ -266,6 +269,7 @@ export const TimelineTrackView: React.FC<TimelineTrackViewProps> = ({
           onTextChange={onSegmentTextChange}
           onTimeChange={onSegmentTimeChange}
           onMergePrev={onMergePrev}
+          onDeleteSegment={onDeleteSegment}
         />
       ))}
 

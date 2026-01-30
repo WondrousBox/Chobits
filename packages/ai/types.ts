@@ -158,6 +158,7 @@ export type AIApi = {
   getResourceTranslations(resourceId: string): Promise<Array<{ id: string; language?: string; title?: string; filePath?: string; segments?: Array<{ index: number; text: string }> }>>;
   updateTranslationSegment(payload: { translationResourceId: string; segmentIndex: number; patch: { st?: string; et?: string; text?: string } }): Promise<{ success: boolean; message?: string }>;
   insertTranslationSegment(payload: { translationResourceId: string; insertIndex: number; segment: { st: string; et: string; text: string } }): Promise<{ success: boolean; message?: string }>;
+  deleteTranslationSegment(payload: { translationResourceId: string; segmentIndex: number }): Promise<{ success: boolean; message?: string }>;
   getAllTranslationHistory(
     resourceId: string
   ): Promise<Array<{ id: string; language?: string; title?: string; filePath?: string; segments?: Array<{ index: number; text: string }>; createdAt?: number; updatedAt?: number }>>;

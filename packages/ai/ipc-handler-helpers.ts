@@ -885,6 +885,51 @@ export async function insertTranslationSegment(opts: {
 }
 
 /**
+ * 从翻译 JSON 中删除指定片段（用于快捷键或按钮删除选中块）
+ */
+export async function deleteTranslationSegment(opts: {
+  translationResourceId: string;
+  segmentIndex: number;
+}): Promise<{ success: boolean; message?: string }> {
+  try {
+    const resource = await ResourcesRepo.getById(opts.translationResourceId);
+    if (!resource || !resource.filePath) {
+      return { success: false, message: '翻译资源不存在或没有文件路径' };
+    }
+    const filePath = resource.filePath;
+    if (!filePath.toLowerCase().endsWith('.json')) {
+      return { success: false, message: '不是翻译 JSON 文件' };
+    }
+
+    const content = await readFile(filePath, 'utf8');
+    const payload = JSON.parse(content) as {
+      translatedSegments: Array<{ index: number; text: string; st?: string; et?: string;[key: string]: unknown }>;
+      updatedAt?: number;
+    };
+    if (!Array.isArray(payload.translatedSegments)) {
+      return { success: false, message: 'translatedSegments 格式无效' };
+    }
+
+    const idx = payload.translatedSegments.findIndex((s) => s.index === opts.segmentIndex);
+    if (idx < 0) {
+      return { success: false, message: `未找到 index=${opts.segmentIndex} 的片段` };
+    }
+    payload.translatedSegments.splice(idx, 1);
+    for (const seg of payload.translatedSegments) {
+      if (seg.index > opts.segmentIndex) (seg as { index: number }).index -= 1;
+    }
+    payload.updatedAt = Date.now();
+
+    await writeFile(filePath, JSON.stringify(payload, null, 2));
+    return { success: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[deleteTranslationSegment] 失败:', message);
+    return { success: false, message };
+  }
+}
+
+/**
  * 执行字幕翻译任务
  * @param payload 翻译参数
  * @returns 返回 requestId 和 eventsChannel

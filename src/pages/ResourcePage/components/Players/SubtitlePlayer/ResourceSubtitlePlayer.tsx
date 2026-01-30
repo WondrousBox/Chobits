@@ -743,6 +743,36 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     [subtitleEntries, translationTracks, translationTrackMeta, resource.id, isLoading, debouncedSave, subtitleFormat]
   );
 
+  // 删除选中的字幕块（快捷键 Delete/Backspace 或选中块上的删除按钮）
+  const handleDeleteSegment = useCallback(
+    (segment: TimelineSegment, trackId: string) => {
+      const parsed = parseSegmentId(segment.id);
+      if (!parsed || !resource.id || isLoading) return;
+      const { trackIndex, segmentIndex } = parsed;
+      if (trackIndex === 0) {
+        const updated = subtitleEntries.filter((_, i) => i !== segmentIndex);
+        setSubtitleEntries(updated);
+        debouncedSave(resource.id, updated, subtitleFormat);
+        return;
+      }
+      if (trackIndex > 0 && trackIndex <= translationTrackMeta.length) {
+        const meta = translationTrackMeta[trackIndex - 1];
+        if (!meta?.resourceId) return;
+        window.YUA.ai
+          .deleteTranslationSegment({ translationResourceId: meta.resourceId, segmentIndex })
+          .then((res) => {
+            if (!res.success) {
+              console.warn('[SubtitlePlayer] 翻译轨道删除片段失败:', res.message);
+              return;
+            }
+            setTranslationTracks((prev) => prev.map((t, idx) => (idx === trackIndex - 1 ? t.filter((_, i) => i !== segmentIndex) : t)));
+          })
+          .catch((err) => console.error('[SubtitlePlayer] 删除翻译片段失败:', err));
+      }
+    },
+    [subtitleEntries, translationTrackMeta, resource.id, isLoading, debouncedSave, subtitleFormat]
+  );
+
   // 删除字幕轨道（翻译轨道）
   const handleDeleteSubtitleTrack = useCallback(
     async (trackId: string) => {
@@ -877,6 +907,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
           followCurrentTime={followTime}
           onSeek={onSeek}
           onAddSegment={handleAddSegment}
+          onDeleteSegment={handleDeleteSegment}
           onSegmentTextChange={handleTimelineTextChange}
           onSegmentTimeChange={handleTimelineTimeChange}
           onMergePrev={handleMergePrev}

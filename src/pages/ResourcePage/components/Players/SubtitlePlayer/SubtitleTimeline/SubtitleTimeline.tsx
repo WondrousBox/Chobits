@@ -10,6 +10,7 @@ import { SeekBar, TimelineTrackView, TimeRuler, TrackLabel, TTSAudioTrack, Wavef
 import { useTimelineInteraction } from './hooks';
 import type { TimelineSegment } from './types';
 import { DEFAULT_CONFIG, SubtitleTimelineProps, TRACK_COLORS, ViewportState } from './types';
+import { parseSegmentId } from './utils';
 
 /**
  * TTS轨道标签组件（带右键删除菜单）
@@ -101,6 +102,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   onSegmentTimeChange,
   onMergePrev,
   onAddSegment,
+  onDeleteSegment,
   onSeek,
   onViewportChange
 }) => {
@@ -281,6 +283,27 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   });
 
   const selectedIds = useMemo(() => (selectedSegmentId ? new Set<string>([selectedSegmentId]) : new Set<string>()), [selectedSegmentId]);
+
+  // 快捷键：Delete / Backspace 删除选中的字幕块（不在输入框中时）
+  useEffect(() => {
+    if (!onDeleteSegment || !selectedSegmentId) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      const target = document.activeElement as HTMLElement | null;
+      if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') return;
+      const parsed = parseSegmentId(selectedSegmentId);
+      if (!parsed) return;
+      const { trackIndex, segmentIndex } = parsed;
+      const track = tracksWithColors[trackIndex];
+      if (!track || segmentIndex < 0 || segmentIndex >= track.segments.length) return;
+      const segment = track.segments[segmentIndex];
+      e.preventDefault();
+      onDeleteSegment(segment, track.id);
+      setSelectedSegmentId(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onDeleteSegment, selectedSegmentId, tracksWithColors]);
 
   // 监听容器尺寸变化
   useEffect(() => {
@@ -591,6 +614,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                       onSegmentDoubleClick={handleSegmentDoubleClick}
                       onSegmentTextChange={onSegmentTextChange}
                       onSegmentTimeChange={onSegmentTimeChange}
+                      onDeleteSegment={onDeleteSegment}
                       disabled={disabled || track.locked}
                     />
                     {/* TTS轨道内容（如果有） */}

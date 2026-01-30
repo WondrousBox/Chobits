@@ -212,6 +212,9 @@ export const aiBridge = {
   async insertTranslationSegment(payload: { translationResourceId: string; insertIndex: number; segment: { st: string; et: string; text: string } }) {
     return ipcRenderer.invoke('ai:insertTranslationSegment', payload);
   },
+  async deleteTranslationSegment(payload: { translationResourceId: string; segmentIndex: number }) {
+    return ipcRenderer.invoke('ai:deleteTranslationSegment', payload);
+  },
   async getAllTranslationHistory(resourceId: string) {
     return ipcRenderer.invoke('ai:getAllTranslationHistory', { resourceId });
   },
