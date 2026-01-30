@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TbArrowMerge, TbEdit, TbPencil, TbTrash } from 'react-icons/tb';
+import { TbArrowMerge, TbPencil, TbTrash } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 

@@ -105,6 +105,8 @@ export interface UseTTSSynthesisReturn {
   stopSynthesis: () => Promise<void>;
   /** 重置合成状态（可指定轨道或全部） */
   resetSynthesis: (trackId?: string) => void;
+  /** 删除指定轨道的单个合成项（仅从内存移除，不删文件） */
+  removeSynthesizedItem: (trackId: string, index: number) => void;
   /** 加载TTS历史记录（可指定轨道或加载多轨道） */
   loadTTSHistory: (config: TTSSynthesisConfig, trackId?: TTSTrackId) => Promise<void>;
   /** 当前活跃的任务 ID */
@@ -208,6 +210,19 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
       taskTrackMapRef.current.clear();
       setSynthesizedItemsByTrack(new Map());
     }
+  }, []);
+
+  // 删除指定轨道的单个合成项（仅从内存移除）
+  const removeSynthesizedItem = useCallback((trackId: string, index: number) => {
+    setSynthesizedItemsByTrack((prev) => {
+      const trackMap = prev.get(trackId);
+      if (!trackMap || !trackMap.has(index)) return prev;
+      const nextTrack = new Map(trackMap);
+      nextTrack.delete(index);
+      const next = new Map(prev);
+      next.set(trackId, nextTrack);
+      return next;
+    });
   }, []);
 
   // 加载TTS历史记录（可指定轨道，不传则加载 main）
@@ -520,6 +535,7 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
     startSynthesis,
     stopSynthesis,
     resetSynthesis,
+    removeSynthesizedItem,
     loadTTSHistory,
     activeTaskId,
     getSynthesizedItem,

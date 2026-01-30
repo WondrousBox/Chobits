@@ -1,63 +1,15 @@
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbMinus, TbPlus, TbTrash, TbVolume, TbWaveSine } from 'react-icons/tb';
+import { TbMinus, TbPlus, TbWaveSine } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { Slider } from '@/components/ui/slider';
 
-import { SeekBar, TimelineTrackView, TimeRuler, TrackLabel, TTSAudioTrack, WaveformTrack } from './components';
+import { SeekBar, TimelineTrackView, TimeRuler, TrackLabel, TTSAudioTrack, TTSTrackLabel, WaveformTrack } from './components';
 import { useTimelineInteraction } from './hooks';
 import type { TimelineSegment } from './types';
 import { DEFAULT_CONFIG, SubtitleTimelineProps, TRACK_COLORS, ViewportState } from './types';
 import { parseSegmentId } from './utils';
-
-/**
- * TTS轨道标签组件（带右键删除菜单）
- */
-const TTSTrackLabel: React.FC<{
-  trackLabel: string;
-  trackColor: string;
-  ttsTrackId: string;
-  onDelete?: (ttsTrackId: string) => void;
-}> = ({ trackLabel, trackColor, ttsTrackId, onDelete }) => {
-  const content = (
-    <div className="flex items-center gap-1.5 px-2 border-b border-border bg-muted/20 shrink-0 overflow-hidden" style={{ height: DEFAULT_CONFIG.TRACK_HEIGHT + DEFAULT_CONFIG.TRACK_GAP }}>
-      {/* 使用和字幕轨道相同的颜色指示器 */}
-      <div className="w-1.5 h-4 rounded-full shrink-0" style={{ backgroundColor: trackColor }} />
-      {/* 轨道名称 + TTS图标 */}
-      <div className="flex items-center gap-1 min-w-0 flex-1">
-        <span className="text-xs text-foreground/80 truncate" title={trackLabel}>
-          {trackLabel}
-        </span>
-        <TbVolume className="w-3 h-3 text-muted-foreground shrink-0" />
-      </div>
-    </div>
-  );
-
-  if (onDelete) {
-    return (
-      <ContextMenu>
-        <ContextMenuTrigger asChild>{content}</ContextMenuTrigger>
-        <ContextMenuContent>
-          <ContextMenuItem
-            className="text-destructive focus:text-destructive"
-            onClick={() => {
-              if (confirm(`确定要删除TTS轨道「${trackLabel}」吗？此操作将删除该轨道的所有TTS音频文件。`)) {
-                onDelete(ttsTrackId);
-              }
-            }}
-          >
-            <TbTrash className="w-4 h-4 mr-2" />
-            删除TTS轨道
-          </ContextMenuItem>
-        </ContextMenuContent>
-      </ContextMenu>
-    );
-  }
-
-  return content;
-};
 
 const audioWaveformHeight = 40;
 
@@ -96,6 +48,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   playingTTSIndex,
   onDeleteSubtitleTrack,
   onDeleteTTSTrack,
+  onDeleteTTSSegment,
   onSegmentClick,
   onSegmentDoubleClick,
   onSegmentTextChange,
@@ -115,6 +68,8 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   const [pendingNewSegment, setPendingNewSegment] = useState<{ trackId: string; startTime: number; endTime: number } | null>(null);
   /** 单击选中的片段 ID（再单击该块进入编辑） */
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
+  /** 单击选中的 TTS 块：{ trackId, index } */
+  const [selectedTTS, setSelectedTTS] = useState<{ trackId: string; index: number } | null>(null);
   // 本地 mock 播放时间（用于没有音视频时的“假 seek”）
   const [mockCurrentTime, setMockCurrentTime] = useState(0);
 
@@ -266,6 +221,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   const handleSegmentClickInternal = useCallback(
     (segment: TimelineSegment, trackId: string, event: React.MouseEvent) => {
       setSelectedSegmentId(segment.id);
+      setSelectedTTS(null); // 点击字幕块时取消 TTS 选中
       onSegmentClick?.(segment, trackId, event);
     },
     [onSegmentClick]
@@ -283,6 +239,22 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   });
 
   const selectedIds = useMemo(() => (selectedSegmentId ? new Set<string>([selectedSegmentId]) : new Set<string>()), [selectedSegmentId]);
+
+  // 点击时间轴空白处时清除字幕与 TTS 选中
+  const handlersWithClearSelection = useMemo(
+    () => ({
+      ...handlers,
+      onMouseDown: (e: React.MouseEvent) => {
+        const target = e.target as HTMLElement;
+        if (!target.closest('[data-segment]') && !target.closest('[data-tts-block]')) {
+          setSelectedSegmentId(null);
+          setSelectedTTS(null);
+        }
+        handlers.onMouseDown(e);
+      }
+    }),
+    [handlers]
+  );
 
   // 快捷键：Delete / Backspace 删除选中的字幕块（不在输入框中时）
   useEffect(() => {
@@ -540,7 +512,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
             backgroundImage: 'radial-gradient(circle, hsl(var(--border)) 1px, transparent 1px)',
             backgroundSize: '20px 20px'
           }}
-          {...handlers}
+          {...handlersWithClearSelection}
         >
           {/* 内容容器（设置总宽度） */}
           <div style={{ width: totalWidth, minWidth: '100%' }}>
@@ -629,6 +601,8 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                         currentTime={effectiveCurrentTime}
                         trackLabelWidth={0}
                         showTrackLabel={false}
+                        selectedIndex={selectedTTS?.trackId === ttsTrackId ? selectedTTS.index : null}
+                        onBlockSelect={(index) => setSelectedTTS({ trackId: ttsTrackId, index })}
                         onPlayAudio={onPlayTTSAudio}
                         onStopAudio={onStopTTSAudio}
                         playingIndex={playingTTSIndex}
