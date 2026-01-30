@@ -9,6 +9,7 @@ import { Slider } from '@/components/ui/slider';
 import { SeekBar, TimelineTrackView, TimeRuler, TrackLabel, TTSAudioTrack, WaveformTrack } from './components';
 import { useTimelineInteraction } from './hooks';
 import { DEFAULT_CONFIG, SubtitleTimelineProps, TRACK_COLORS, ViewportState } from './types';
+import type { TimelineSegment } from './types';
 
 /**
  * TTS轨道标签组件（带右键删除菜单）
@@ -99,6 +100,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   onSegmentTextChange,
   onSegmentTimeChange,
   onMergePrev,
+  onAddSegment,
   onSeek,
   onViewportChange
 }) => {
@@ -107,6 +109,10 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   const [containerWidth, setContainerWidth] = useState(800);
   const [scrollContainerWidth, setScrollContainerWidth] = useState(384);
   const [scrollLeft, setScrollLeft] = useState(0);
+  /** 在轨道空白处点击后待新增的输入框：时间范围；失焦无内容则取消，有内容则调用 onAddSegment */
+  const [pendingNewSegment, setPendingNewSegment] = useState<{ trackId: string; startTime: number; endTime: number } | null>(null);
+  /** 单击选中的片段 ID（再单击该块进入编辑） */
+  const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null);
   // 本地 mock 播放时间（用于没有音视频时的“假 seek”）
   const [mockCurrentTime, setMockCurrentTime] = useState(0);
 
@@ -254,6 +260,15 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
     [scrollLeft, timelineContentWidth, pixelsPerSecond]
   );
 
+  // 单击选中片段（再单击选中块进入编辑由 TimelineSegmentBlock 内部处理）
+  const handleSegmentClickInternal = useCallback(
+    (segment: TimelineSegment, trackId: string, event: React.MouseEvent) => {
+      setSelectedSegmentId(segment.id);
+      onSegmentClick?.(segment, trackId, event);
+    },
+    [onSegmentClick]
+  );
+
   // 交互管理
   const { isDragging, handlers, handleSegmentClick, handleSegmentDoubleClick } = useTimelineInteraction({
     disabled,
@@ -261,9 +276,14 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
     onPan: handlePan,
     pixelToTime, // 像素直接转时间（包含滚动偏移的计算在 hook 内部处理）
     onSeek: handleSeekUnified,
-    onSegmentClick,
+    onSegmentClick: handleSegmentClickInternal,
     onSegmentDoubleClick
   });
+
+  const selectedIds = useMemo(
+    () => (selectedSegmentId ? new Set<string>([selectedSegmentId]) : new Set<string>()),
+    [selectedSegmentId]
+  );
 
   // 监听容器尺寸变化
   useEffect(() => {
@@ -331,6 +351,66 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   const handleZoomOut = useCallback(() => {
     handleZoom(1 / DEFAULT_CONFIG.ZOOM_STEP);
   }, [handleZoom]);
+
+  // 轨道空白处点击：以点击时间为中心前后各 1.5 秒（共 3 秒）；空间不足则平移或缩短
+  const handleTrackEmptyClick = useCallback(
+    (trackId: string, clickTime: number) => {
+      if (!onAddSegment) return;
+      const track = tracksWithColors.find((t) => t.id === trackId);
+      if (!track) return;
+      const segs = track.segments;
+      const total = duration;
+      let gapStart = 0;
+      const applyGap = (gapEnd: number) => {
+        const gapDuration = gapEnd - gapStart;
+        if (gapDuration < 1) return;
+        let startTime: number;
+        let endTime: number;
+        if (gapDuration >= 3) {
+          const idealStart = clickTime - 1.5;
+          const idealEnd = clickTime + 1.5;
+          if (idealStart < gapStart) {
+            startTime = gapStart;
+            endTime = gapStart + 3;
+          } else if (idealEnd > gapEnd) {
+            endTime = gapEnd;
+            startTime = gapEnd - 3;
+          } else {
+            startTime = idealStart;
+            endTime = idealEnd;
+          }
+        } else {
+          startTime = gapStart;
+          endTime = gapEnd;
+        }
+        setSelectedSegmentId(null);
+        setPendingNewSegment({ trackId, startTime, endTime });
+      };
+      for (const seg of segs) {
+        if (clickTime < seg.startTime) {
+          applyGap(seg.startTime);
+          return;
+        }
+        gapStart = Math.max(gapStart, seg.endTime);
+      }
+      if (clickTime >= gapStart && clickTime < total) {
+        applyGap(total);
+      }
+    },
+    [onAddSegment, tracksWithColors, duration]
+  );
+
+  const handleAddSegmentConfirm = useCallback(
+    (trackId: string, startTime: number, endTime: number, text: string) => {
+      onAddSegment?.(trackId, startTime, endTime, text);
+      setPendingNewSegment(null);
+    },
+    [onAddSegment]
+  );
+
+  const handleCancelNewSegment = useCallback(() => {
+    setPendingNewSegment(null);
+  }, []);
 
   return (
     <div ref={containerRef} className={clsx('flex flex-col bg-background border rounded-lg overflow-hidden select-none h-full', className)}>
@@ -502,6 +582,17 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                       width={totalWidth}
                       currentTime={effectiveCurrentTime}
                       highlightIds={highlightIds}
+                      selectedIds={selectedIds}
+                      scrollLeft={scrollLeft}
+                      pendingNewSegment={
+                        pendingNewSegment?.trackId === track.id
+                          ? { startTime: pendingNewSegment.startTime, endTime: pendingNewSegment.endTime }
+                          : null
+                      }
+                      onTrackEmptyClick={handleTrackEmptyClick}
+                      onAddSegmentConfirm={handleAddSegmentConfirm}
+                      onCancelNewSegment={handleCancelNewSegment}
+                      allowAddSegment={!!onAddSegment}
                       onMergePrev={onMergePrev}
                       onSegmentClick={handleSegmentClick}
                       onSegmentDoubleClick={handleSegmentDoubleClick}

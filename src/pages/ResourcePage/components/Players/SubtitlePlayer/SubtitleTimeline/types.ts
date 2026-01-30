@@ -81,6 +81,8 @@ export interface TimelineCallbacks {
   onSegmentTimeChange?: (segment: TimelineSegment, trackId: string, newStartTime: number, newEndTime: number) => void;
   /** 往前合并（统一回调签名） */
   onMergePrev?: (payload: { trackId: string; segmentIndex: number }) => void;
+  /** 在轨道空白处新增字幕片段（trackId, startTime, endTime, text） */
+  onAddSegment?: (trackId: string, startTime: number, endTime: number, text: string) => void;
   /** 选中状态变化 */
   onSelectionChange?: (selection: SelectionState) => void;
   /** 时间跳转（点击时间轴空白处） */
