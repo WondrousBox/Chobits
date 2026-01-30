@@ -8,8 +8,8 @@ import { Slider } from '@/components/ui/slider';
 
 import { SeekBar, TimelineTrackView, TimeRuler, TrackLabel, TTSAudioTrack, WaveformTrack } from './components';
 import { useTimelineInteraction } from './hooks';
-import { DEFAULT_CONFIG, SubtitleTimelineProps, TRACK_COLORS, ViewportState } from './types';
 import type { TimelineSegment } from './types';
+import { DEFAULT_CONFIG, SubtitleTimelineProps, TRACK_COLORS, ViewportState } from './types';
 
 /**
  * TTS轨道标签组件（带右键删除菜单）
@@ -280,10 +280,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
     onSegmentDoubleClick
   });
 
-  const selectedIds = useMemo(
-    () => (selectedSegmentId ? new Set<string>([selectedSegmentId]) : new Set<string>()),
-    [selectedSegmentId]
-  );
+  const selectedIds = useMemo(() => (selectedSegmentId ? new Set<string>([selectedSegmentId]) : new Set<string>()), [selectedSegmentId]);
 
   // 监听容器尺寸变化
   useEffect(() => {
@@ -473,7 +470,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
             {/* 标签区域顶部占位（对应时间刻度） */}
             {showRuler && <div className="border-b bg-muted/30 shrink-0" style={{ height: DEFAULT_CONFIG.RULER_HEIGHT }} />}
 
-            {showTrackLabels && (
+            {showTrackLabels && showWaveform && audioPath && (
               <div className="flex items-center gap-1 px-2 border-r bg-muted/30 shrink-0 box-border" style={{ width: trackLabelWidth, height: audioWaveformHeight }}>
                 <TbWaveSine className="w-4 h-4 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground truncate">波形</span>
@@ -584,11 +581,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                       highlightIds={highlightIds}
                       selectedIds={selectedIds}
                       scrollLeft={scrollLeft}
-                      pendingNewSegment={
-                        pendingNewSegment?.trackId === track.id
-                          ? { startTime: pendingNewSegment.startTime, endTime: pendingNewSegment.endTime }
-                          : null
-                      }
+                      pendingNewSegment={pendingNewSegment?.trackId === track.id ? { startTime: pendingNewSegment.startTime, endTime: pendingNewSegment.endTime } : null}
                       onTrackEmptyClick={handleTrackEmptyClick}
                       onAddSegmentConfirm={handleAddSegmentConfirm}
                       onCancelNewSegment={handleCancelNewSegment}

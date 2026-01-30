@@ -12,6 +12,7 @@ import {
   executeMindmap,
   executeSubtitleTranslation,
   executeSummarize,
+  insertTranslationSegment,
   loadAllTranslationHistory,
   loadResourceMindmap,
   loadResourceSummary,
@@ -322,6 +323,11 @@ export function initAIHandlers(win: BrowserWindow): void {
   // 更新翻译 JSON 中某片段（时间或文本，时间轴拖拽/编辑后写回）
   ipcMain.handle('ai:updateTranslationSegment', async (_e, payload: { translationResourceId: string; segmentIndex: number; patch: { st?: string; et?: string; text?: string } }) => {
     return updateTranslationSegment(payload);
+  });
+
+  // 在翻译 JSON 中插入新片段（翻译轨道空白处新增字幕块后保存）
+  ipcMain.handle('ai:insertTranslationSegment', async (_e, payload: { translationResourceId: string; insertIndex: number; segment: { st: string; et: string; text: string } }) => {
+    return insertTranslationSegment(payload);
   });
 
   // ==================== 总结相关 ====================

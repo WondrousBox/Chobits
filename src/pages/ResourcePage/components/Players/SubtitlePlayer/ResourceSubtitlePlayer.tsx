@@ -689,25 +689,58 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     [subtitleEntries, resource.id, isLoading, debouncedSave, subtitleFormat]
   );
 
-  // 在轨道空白处新增字幕片段（仅主轨道 track-0）
+  // 在轨道空白处新增字幕片段：主轨道 track-0 写回字幕文件，翻译轨道写回翻译 JSON
   const handleAddSegment = useCallback(
-    (trackId: string, startTime: number, endTime: number, text: string) => {
-      if (trackId !== 'track-0' || !resource.id || isLoading) return;
+    async (trackId: string, startTime: number, endTime: number, text: string) => {
+      if (!resource.id || isLoading) return;
       const st = formatSecondsToTime(startTime);
       const et = formatSecondsToTime(endTime);
-      const newSeg: AimSegments = { st, et, text };
-      let insertIndex = subtitleEntries.length;
-      for (let i = 0; i < subtitleEntries.length; i++) {
-        if (parseTimeToSeconds(subtitleEntries[i].st) > startTime) {
-          insertIndex = i;
-          break;
+      const trackIndexMatch = trackId.match(/^track-(\d+)$/);
+      if (!trackIndexMatch) return;
+      const trackIndex = parseInt(trackIndexMatch[1], 10);
+
+      if (trackIndex === 0) {
+        const newSeg: AimSegments = { st, et, text };
+        let insertIndex = subtitleEntries.length;
+        for (let i = 0; i < subtitleEntries.length; i++) {
+          if (parseTimeToSeconds(subtitleEntries[i].st) > startTime) {
+            insertIndex = i;
+            break;
+          }
         }
+        const updated = [...subtitleEntries.slice(0, insertIndex), newSeg, ...subtitleEntries.slice(insertIndex)];
+        setSubtitleEntries(updated);
+        debouncedSave(resource.id, updated, subtitleFormat);
+        return;
       }
-      const updated = [...subtitleEntries.slice(0, insertIndex), newSeg, ...subtitleEntries.slice(insertIndex)];
-      setSubtitleEntries(updated);
-      debouncedSave(resource.id, updated, subtitleFormat);
+
+      if (trackIndex > 0 && trackIndex <= translationTracks.length) {
+        const translationIndex = trackIndex - 1;
+        const meta = translationTrackMeta[translationIndex];
+        if (!meta?.resourceId) return;
+        const trackSegments = translationTracks[translationIndex];
+        let insertIndex = trackSegments.length;
+        for (let i = 0; i < trackSegments.length; i++) {
+          if (parseTimeToSeconds(trackSegments[i].st) > startTime) {
+            insertIndex = i;
+            break;
+          }
+        }
+        const res = await window.YUA.ai.insertTranslationSegment({
+          translationResourceId: meta.resourceId,
+          insertIndex,
+          segment: { st, et, text }
+        });
+        if (!res.success) {
+          console.warn('[SubtitlePlayer] 翻译轨道新增片段失败:', res.message);
+          return;
+        }
+        const newSeg: AimSegments = { st, et, text };
+        const updatedTrack = [...trackSegments.slice(0, insertIndex), newSeg, ...trackSegments.slice(insertIndex)];
+        setTranslationTracks((prev) => prev.map((t, idx) => (idx === translationIndex ? updatedTrack : t)));
+      }
     },
-    [subtitleEntries, resource.id, isLoading, debouncedSave, subtitleFormat]
+    [subtitleEntries, translationTracks, translationTrackMeta, resource.id, isLoading, debouncedSave, subtitleFormat]
   );
 
   // 删除字幕轨道（翻译轨道）

@@ -83,6 +83,10 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const blockRef = useRef<HTMLDivElement>(null);
+  /** 刚结束拖拽（时间调整）后的 mouseup 会触发 click，此时不进入编辑 */
+  const didDragJustEndRef = useRef(false);
+  /** 本次按下后是否发生过拖拽（mousemove），用于区分单击与拖拽结束 */
+  const didMoveDuringDragRef = useRef(false);
 
   // 计算位置和尺寸
   const left = segment.startTime * pixelsPerSecond;
@@ -190,6 +194,7 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
       setDragMode(mode);
       setDragStartX(e.clientX);
       setOriginalTimes({ start: segment.startTime, end: segment.endTime });
+      didMoveDuringDragRef.current = false;
 
       onDragStart?.(segment, trackId);
     },
@@ -201,6 +206,7 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
     if (dragMode === 'none') return;
 
     const handleMouseMove = (e: MouseEvent): void => {
+      didMoveDuringDragRef.current = true; // 发生过位移，视为拖拽
       const deltaX = e.clientX - dragStartX;
       const deltaTime = deltaX / pixelsPerSecond;
 
@@ -249,6 +255,7 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
     };
 
     const handleMouseUp = (): void => {
+      if (didMoveDuringDragRef.current) didDragJustEndRef.current = true;
       setDragMode('none');
       setDragHoverTime(null);
       onDragEnd?.(segment, trackId);
@@ -284,11 +291,16 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
     [disabled, isEditing, dragMode, getEdgeFromPosition]
   );
 
-  // 处理点击：未选中时通知父组件高亮；已选中时再次单击进入编辑（与双击一致）
+  // 处理点击：未选中时通知父组件高亮；已选中时再次单击进入编辑（与双击一致）；刚结束拖拽后的 click 不进入编辑
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
       if (disabled) return;
       e.stopPropagation();
+      if (didDragJustEndRef.current) {
+        didDragJustEndRef.current = false;
+        onClick?.(segment, trackId, e);
+        return;
+      }
       if (isSelected) {
         setIsEditing(true);
         setEditText(segment.text);
