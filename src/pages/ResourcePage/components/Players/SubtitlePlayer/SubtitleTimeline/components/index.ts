@@ -5,4 +5,6 @@ export { TimeRuler } from './TimeRuler';
 export { TrackLabel } from './TrackLabel';
 export type { TTSAudioItem } from './TTSAudioTrack';
 export { TTSAudioTrack } from './TTSAudioTrack';
+export type { TTSTrackLabelProps } from './TTSTrackLabel';
+export { TTSTrackLabel } from './TTSTrackLabel';
 export { WaveformTrack } from './WaveformTrack';

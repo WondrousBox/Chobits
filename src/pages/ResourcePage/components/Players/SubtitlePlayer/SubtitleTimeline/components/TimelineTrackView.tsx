@@ -218,7 +218,7 @@ export const TimelineTrackView: React.FC<TimelineTrackViewProps> = ({
   }
 
   return (
-    <div ref={trackRef} className={clsx('relative border-b border-border', className)} style={{ height: height + DEFAULT_CONFIG.TRACK_GAP, width }}>
+    <div ref={trackRef} className={clsx('relative border-border', className)} style={{ height: height + DEFAULT_CONFIG.TRACK_GAP, width }}>
       {/* 背景区域（点击空白处可新增片段；mousedown 记录滚动位置以区分点击与拖拽滚动） */}
       <div className="absolute inset-0 bg-background" role="presentation" onMouseDown={handleTrackBackgroundMouseDown} onClick={handleTrackBackgroundClick} />
 

@@ -74,9 +74,9 @@ export function useTimelineInteraction({ disabled = false, onZoom, onPan, pixelT
       // 只响应左键或中键
       if (e.button !== 0 && e.button !== 1) return;
 
-      // 如果点击的是片段，不处理拖拽
+      // 如果点击的是片段或 TTS 块，不处理拖拽
       const target = e.target as HTMLElement;
-      if (target.closest('[data-segment]')) return;
+      if (target.closest('[data-segment]') || target.closest('[data-tts-block]')) return;
 
       setIsDragging(true);
       dragStartRef.current = { x: e.clientX, y: e.clientY };

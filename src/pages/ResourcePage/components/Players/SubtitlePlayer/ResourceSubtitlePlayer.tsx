@@ -241,10 +241,11 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
   });
 
   // 使用TTS合成 Hook（多轨道）
-  const { synthesizingIndices, synthesizedItemsByTrack, synthesisProgress, isSynthesizing, activeTrackId, startSynthesis, stopSynthesis, resetSynthesis, loadTTSHistory } = useTTSSynthesis({
-    resourceId: resource.id,
-    subtitleEntriesRef
-  });
+  const { synthesizingIndices, synthesizedItemsByTrack, synthesisProgress, isSynthesizing, activeTrackId, startSynthesis, stopSynthesis, resetSynthesis, removeSynthesizedItem, loadTTSHistory } =
+    useTTSSynthesis({
+      resourceId: resource.id,
+      subtitleEntriesRef
+    });
 
   // 加载已保存的TTS历史（时间轴模式下为 main + 各翻译轨道加载）
   useEffect(() => {
@@ -833,6 +834,14 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     [resource.id, resetSynthesis]
   );
 
+  // 删除单个TTS片段（仅从内存移除，不删文件）
+  const handleDeleteTTSSegment = useCallback(
+    (ttsTrackId: string, index: number) => {
+      removeSynthesizedItem(ttsTrackId, index);
+    },
+    [removeSynthesizedItem]
+  );
+
   return (
     <div className="flex h-full w-full flex-col text-muted-foreground">
       <div className="flex items-center justify-between gap-2 border-b border-border/50 px-2">
@@ -926,6 +935,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
           playingTTSIndex={playingTTSIndex ?? undefined}
           onDeleteSubtitleTrack={handleDeleteSubtitleTrack}
           onDeleteTTSTrack={handleDeleteTTSTrack}
+          onDeleteTTSSegment={handleDeleteTTSSegment}
         />
       )}
     </div>
