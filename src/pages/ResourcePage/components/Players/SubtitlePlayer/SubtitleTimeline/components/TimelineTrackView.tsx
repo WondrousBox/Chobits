@@ -85,6 +85,8 @@ export const TimelineTrackView: React.FC<TimelineTrackViewProps> = ({
   const trackRef = useRef<HTMLDivElement>(null);
   const newSegmentInputRef = useRef<HTMLTextAreaElement>(null);
   const [newSegmentInput, setNewSegmentInput] = useState('');
+  /** mousedown 时的横向滚动位置，用于区分「点击空白」与「拖拽滚动后松开」 */
+  const scrollLeftAtMouseDownRef = useRef<number | null>(null);
 
   // 打开新增输入框时清空内容并聚焦
   useEffect(() => {
@@ -173,11 +175,16 @@ export const TimelineTrackView: React.FC<TimelineTrackViewProps> = ({
     return time * pixelsPerSecond;
   };
 
-  // 点击轨道空白处：计算点击时间并通知父组件（仅当点击在非片段区域时由背景 div 接收）
+  // 点击轨道空白处：计算点击时间并通知父组件；若发生过横向滚动则视为拖拽滚动，不创建新块
   const handleTrackBackgroundClick = useCallback(
     (e: React.MouseEvent) => {
       if (!allowAddSegment || !onTrackEmptyClick || disabled) return;
       e.stopPropagation();
+      if (scrollLeftAtMouseDownRef.current !== null && Math.abs((scrollLeft ?? 0) - scrollLeftAtMouseDownRef.current) > 2) {
+        scrollLeftAtMouseDownRef.current = null;
+        return;
+      }
+      scrollLeftAtMouseDownRef.current = null;
       const el = trackRef.current;
       if (!el) return;
       const rect = el.getBoundingClientRect();
@@ -187,8 +194,12 @@ export const TimelineTrackView: React.FC<TimelineTrackViewProps> = ({
         onTrackEmptyClick(track.id, clickTime);
       }
     },
-    [allowAddSegment, onTrackEmptyClick, disabled, pixelsPerSecond, totalDuration, track.id]
+    [allowAddSegment, onTrackEmptyClick, disabled, pixelsPerSecond, totalDuration, track.id, scrollLeft]
   );
+
+  const handleTrackBackgroundMouseDown = useCallback(() => {
+    scrollLeftAtMouseDownRef.current = scrollLeft ?? 0;
+  }, [scrollLeft]);
 
   // 新增片段输入框失焦：无内容则取消，有内容则确认新增
   const handleNewSegmentBlur = useCallback(() => {
@@ -208,8 +219,8 @@ export const TimelineTrackView: React.FC<TimelineTrackViewProps> = ({
 
   return (
     <div ref={trackRef} className={clsx('relative border-b border-border', className)} style={{ height: height + DEFAULT_CONFIG.TRACK_GAP, width }}>
-      {/* 背景区域（点击空白处可新增片段） */}
-      <div className="absolute inset-0 bg-background" role="presentation" onClick={handleTrackBackgroundClick} />
+      {/* 背景区域（点击空白处可新增片段；mousedown 记录滚动位置以区分点击与拖拽滚动） */}
+      <div className="absolute inset-0 bg-background" role="presentation" onMouseDown={handleTrackBackgroundMouseDown} onClick={handleTrackBackgroundClick} />
 
       {/* 待新增片段的输入框：样式与双击编辑一致（多行、边框、最小宽高） */}
       {pendingNewSegment && (
