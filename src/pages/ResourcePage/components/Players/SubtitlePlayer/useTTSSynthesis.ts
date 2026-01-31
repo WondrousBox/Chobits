@@ -22,10 +22,9 @@ interface BatchTTSHistory {
   createdAt: number;
   updatedAt: number;
   audioMap: Record<string, string>;
-  durationMap: Record<string, number>;
   trimmedAudioMap: Record<string, string>;
-  trimmedDurationMap: Record<string, number>;
   orderList: string[];
+  segmentInfoMap: Record<string, { st?: number; et?: number; duration?: number; trimmedDuration?: number }>;
 }
 
 /**
@@ -261,8 +260,9 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
           history.orderList.forEach((md5, index) => {
             if (index < currentEntries.length) {
               const audioPath = history.trimmedAudioMap[md5] || history.audioMap[md5];
-              const duration = history.durationMap[md5];
-              const trimmedDuration = history.trimmedDurationMap[md5];
+              const info = history.segmentInfoMap?.[md5];
+              const duration = info?.duration;
+              const trimmedDuration = info?.trimmedDuration;
               if (audioPath) {
                 loadedItems.set(index, {
                   index,
@@ -364,10 +364,15 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
       // 更新 synthesizingIndices（用于进度条显示）
       setSynthesizingIndices(new Set(indicesToSynthesize));
 
-      const items = indicesToSynthesize.map((index) => ({
-        index,
-        text: segments[index]?.text ?? ''
-      }));
+      const items = indicesToSynthesize.map((index) => {
+        const seg = segments[index];
+        return {
+          index,
+          text: seg?.text ?? '',
+          st: seg.st,
+          et: seg.et
+        };
+      });
 
       const { requestId: taskRequestId, eventsChannel } = await window.YUA.tts.synthesizeBatch({
         resourceId,
@@ -441,6 +446,7 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
               index: number;
               success: boolean;
               audioPath?: string;
+              trimmedAudioPath?: string;
               duration?: number;
               trimmedDuration?: number;
               error?: string;
@@ -450,10 +456,11 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
               const trackMap = prev.get(trackId) ?? new Map();
               const nextTrack = new Map(trackMap);
               for (const result of results) {
+                // 首次合成完成：存去静音路径，与界面展示的 trimmedDuration 一致，播放/波形即用此路径
                 const item: TTSSynthesisItem = {
                   index: result.index,
                   status: result.success ? 'completed' : 'error',
-                  audioPath: result.audioPath,
+                  audioPath: result.trimmedAudioPath ?? result.audioPath,
                   duration: result.duration ? result.duration / 1000 : undefined,
                   trimmedDuration: result.trimmedDuration ? result.trimmedDuration / 1000 : undefined,
                   error: result.error,
