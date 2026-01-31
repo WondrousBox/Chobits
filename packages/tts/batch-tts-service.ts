@@ -150,6 +150,32 @@ export interface BatchTTSHistory {
   orderList: string[];
 }
 
+/** 将 history 中的音频路径转为相对 outputDir 的路径（用于写入 JSON，便于移动目录） */
+function historyPathsToRelative(history: BatchTTSHistory, outputDir: string): BatchTTSHistory {
+  const audioMap: Record<string, string> = {};
+  for (const [k, v] of Object.entries(history.audioMap)) {
+    audioMap[k] = path.relative(outputDir, v).split(path.sep).join('/');
+  }
+  const trimmedAudioMap: Record<string, string> = {};
+  for (const [k, v] of Object.entries(history.trimmedAudioMap)) {
+    trimmedAudioMap[k] = path.relative(outputDir, v).split(path.sep).join('/');
+  }
+  return { ...history, audioMap, trimmedAudioMap };
+}
+
+/** 将 history 中的相对路径解析为绝对路径（用于内存中使用；兼容旧 JSON 中的绝对路径） */
+function historyPathsToAbsolute(history: BatchTTSHistory, outputDir: string): BatchTTSHistory {
+  const audioMap: Record<string, string> = {};
+  for (const [k, v] of Object.entries(history.audioMap)) {
+    audioMap[k] = path.isAbsolute(v) ? v : path.join(outputDir, v);
+  }
+  const trimmedAudioMap: Record<string, string> = {};
+  for (const [k, v] of Object.entries(history.trimmedAudioMap)) {
+    trimmedAudioMap[k] = path.isAbsolute(v) ? v : path.join(outputDir, v);
+  }
+  return { ...history, audioMap, trimmedAudioMap };
+}
+
 /**
  * TTS进度事件
  */
@@ -493,8 +519,8 @@ export const BatchTTSService = {
     const historyPath = path.join(outputDir, `history-${configPrefix}.json`);
     try {
       if (await fs.pathExists(historyPath)) {
-        const data = await fs.readJson(historyPath);
-        return data as BatchTTSHistory;
+        const data = (await fs.readJson(historyPath)) as BatchTTSHistory;
+        return historyPathsToAbsolute(data, outputDir);
       }
     } catch (err) {
       console.error('[BatchTTS] 加载历史记录失败:', err);
@@ -508,7 +534,8 @@ export const BatchTTSService = {
   async saveHistory(outputDir: string, history: BatchTTSHistory): Promise<void> {
     const historyPath = path.join(outputDir, `history-${history.configPrefix}.json`);
     try {
-      await fs.writeJson(historyPath, history, { spaces: 2 });
+      const toWrite = historyPathsToRelative(history, outputDir);
+      await fs.writeJson(historyPath, toWrite, { spaces: 2 });
     } catch (err) {
       console.error('[BatchTTS] 保存历史记录失败:', err);
     }

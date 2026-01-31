@@ -182,7 +182,7 @@ export const DEFAULT_CONFIG = {
   /** 时间刻度高度 */
   RULER_HEIGHT: 28,
   /** 轨道标签宽度 */
-  TRACK_LABEL_WIDTH: 80,
+  TRACK_LABEL_WIDTH: 100,
   /** 默认每秒像素数 */
   DEFAULT_PIXELS_PER_SECOND: 100,
   /** 最小每秒像素数 */

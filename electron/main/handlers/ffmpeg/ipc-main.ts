@@ -280,16 +280,11 @@ export function initFFmpegHandlers(win: BrowserWindow): void {
               .audioFrequency(8000) // 降采样到 8kHz，减少数据量
               .format('f32le') // 32位浮点 PCM，小端序
               .noVideo()
-              .on('start', (commandLine: string) => {
-                console.log('[ffmpeg] waveform extraction start:', commandLine);
-              })
               .on('error', (error: any) => {
                 console.error('[ffmpeg] waveform extraction error:', error);
                 reject(error);
               })
               .on('end', () => {
-                console.log('[ffmpeg] waveform extraction end');
-
                 // 合并所有 buffer
                 const fullBuffer = Buffer.concat(buffers);
                 const floatArray = new Float32Array(fullBuffer.buffer, fullBuffer.byteOffset, fullBuffer.length / 4);
@@ -323,7 +318,6 @@ export function initFFmpegHandlers(win: BrowserWindow): void {
                     version: 1
                   };
                   fs.writeFileSync(cachePath, JSON.stringify(cacheData), 'utf-8');
-                  console.log('[ffmpeg] 波形数据已缓存到:', cachePath);
                 } catch (cacheErr) {
                   console.warn('[ffmpeg] 保存波形缓存失败:', cacheErr);
                   // 缓存保存失败不影响返回结果
