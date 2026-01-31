@@ -1,5 +1,6 @@
 import { AimSegments, utils as subtitleUtils } from '@aim-packages/subtitle';
 import type { TTSTrackId } from '@packages/tts/ipc-renderer';
+import { TTSPlayer } from '@packages/tts/tts-player';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { parseTimeToSeconds } from './SubtitleTimeline/utils';
@@ -77,6 +78,8 @@ export interface UseTTSSynthesisOptions {
   resourceId: string;
   /** 字幕条目数组的引用 */
   subtitleEntriesRef: React.RefObject<AimSegments[]>;
+  /** 将 TTS 音频路径解析为可播放的 URL（如 res://），用于创建 TTSPlayer */
+  resolveAudioUrl: (path: string) => string;
   /** 合成完成时的回调 */
   onSynthesisComplete?: () => void;
   /** 单项合成完成时的回调 */
@@ -124,6 +127,8 @@ export interface UseTTSSynthesisReturn {
   getSynthesizedItem: (trackId: string, index: number) => TTSSynthesisItem | undefined;
   /** 获取指定轨道的合成项 Map */
   getSynthesizedItemsByTrack: (trackId: string) => Map<number, TTSSynthesisItem>;
+  /** 获取指定轨道的 TTS 播放器（加载到该轨道时已创建） */
+  getTTSPlayer: (trackId: string) => TTSPlayer | undefined;
   /** 获取音频时长格式化字符串 */
   formatDuration: (seconds: number) => string;
 }
@@ -132,7 +137,7 @@ export interface UseTTSSynthesisReturn {
  * TTS合成逻辑 Hook
  * 负责管理TTS合成状态、监听合成事件、处理合成进度等
  */
-export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisComplete, onItemComplete }: UseTTSSynthesisOptions): UseTTSSynthesisReturn {
+export function useTTSSynthesis({ resourceId, subtitleEntriesRef, resolveAudioUrl, onSynthesisComplete, onItemComplete }: UseTTSSynthesisOptions): UseTTSSynthesisReturn {
   // 按轨道分组的合成状态：trackId -> index -> item
   const [synthesizedItemsByTrack, setSynthesizedItemsByTrack] = useState<Map<string, Map<number, TTSSynthesisItem>>>(() => new Map());
   const [synthesizingIndices, setSynthesizingIndices] = useState<Set<number>>(new Set());
@@ -156,6 +161,8 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
   const onItemCompleteRef = useRef(onItemComplete);
   /** 各轨道上次加载的 history configPrefix（用于 updateSegmentTimes） */
   const lastConfigPrefixByTrackRef = useRef<Map<string, string>>(new Map());
+  /** 各轨道的 TTS 播放器（在 loadTTSHistory 成功时创建） */
+  const ttsPlayersRef = useRef<Map<string, TTSPlayer>>(new Map());
 
   // 更新 ref
   useEffect(() => {
@@ -192,13 +199,16 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
   // 重置合成状态（不传 trackId 则重置全部）
   const resetSynthesis = useCallback((trackId?: string) => {
     if (trackId !== undefined) {
-      // 只重置指定轨道
+      const player = ttsPlayersRef.current.get(trackId);
+      if (player) {
+        player.destroy();
+        ttsPlayersRef.current.delete(trackId);
+      }
       setSynthesizedItemsByTrack((prev) => {
         const next = new Map(prev);
         next.delete(trackId);
         return next;
       });
-      // 如果重置的是当前活跃轨道，清空活跃状态
       if (activeTrackIdRef.current === trackId) {
         setIsSynthesizing(false);
         setSynthesisProgress(0);
@@ -208,7 +218,8 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
         activeTrackIdRef.current = null;
       }
     } else {
-      // 重置全部
+      ttsPlayersRef.current.forEach((p) => p.destroy());
+      ttsPlayersRef.current.clear();
       setSynthesizingIndices(new Set());
       setSynthesisProgress(0);
       setIsSynthesizing(false);
@@ -346,6 +357,29 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
             next.set(trackId, loadedItems);
             return next;
           });
+
+          // 为该轨道创建 TTS 播放器（与 TTSPlayerHistory 兼容：segmentInfoMap 的 st/et 转为 string）
+          const segmentInfoMap: Record<string, { st?: string; et?: string; duration?: number; trimmedDuration?: number }> = {};
+          for (const [md5, info] of Object.entries(history.segmentInfoMap ?? {})) {
+            const st = info?.st;
+            const et = info?.et;
+            segmentInfoMap[md5] = {
+              st: st != null ? String(st) : undefined,
+              et: et != null ? String(et) : undefined,
+              duration: info?.duration,
+              trimmedDuration: info?.trimmedDuration
+            };
+          }
+          const playerHistory = {
+            orderList: history.orderList,
+            segmentInfoMap,
+            trimmedAudioMap: history.trimmedAudioMap
+          };
+          const existing = ttsPlayersRef.current.get(trackId);
+          if (existing) existing.destroy();
+          const player = new TTSPlayer(playerHistory, { resolveAudioUrl });
+          player.play();
+          ttsPlayersRef.current.set(trackId, player);
         }
       } catch (error) {
         console.error('[useTTSSynthesis] 加载TTS历史失败:', error);
@@ -353,7 +387,7 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
         setIsLoadingHistory(false);
       }
     },
-    [resourceId, subtitleEntriesRef]
+    [resourceId, subtitleEntriesRef, resolveAudioUrl]
   );
 
   // 停止合成（停止当前活跃的任务）
@@ -616,6 +650,17 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
     };
   }, []);
 
+  const getTTSPlayer = useCallback((trackId: string): TTSPlayer | undefined => {
+    return ttsPlayersRef.current.get(trackId);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      ttsPlayersRef.current.forEach((p) => p.destroy());
+      ttsPlayersRef.current.clear();
+    };
+  }, []);
+
   return {
     synthesizingIndices,
     synthesizedItemsByTrack,
@@ -632,6 +677,7 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
     activeTaskId,
     getSynthesizedItem,
     getSynthesizedItemsByTrack,
+    getTTSPlayer,
     formatDuration
   };
 }
