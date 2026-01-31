@@ -91,9 +91,7 @@ export const TTSAudioBlock: React.FC<TTSAudioBlockProps> = ({ item, pixelsPerSec
             <TbLoader2 className="h-3 w-3 shrink-0 animate-spin text-blue-500" />
             <span className="text-[10px] text-blue-600 truncate [@container(max-width:56px)]:hidden">合成中</span>
           </div>
-        ) : item.status === 'completed' ? (
-          <div className="flex items-center gap-0.5">{isPlaying ? <TbPlayerPause className="h-3 w-3 text-green-600" /> : <TbPlayerPlay className="h-3 w-3 text-green-600" />}</div>
-        ) : item.status === 'error' ? (
+        ) : item.status === 'completed' ? null : item.status === 'error' ? (
           <span className="text-[10px] text-red-500">!</span>
         ) : (
           <span className={clsx('text-[10px]', pillClass)}>等待</span>
