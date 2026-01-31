@@ -54,6 +54,10 @@ export interface TTSItem {
   text: string;
   /** 排序索引（可选，用于保证顺序） */
   index?: number;
+  /** 字幕片段开始时间（秒）- 用于记录该音频对应的字幕位置 */
+  st?: string;
+  /** 字幕片段结束时间（秒） */
+  et?: string;
 }
 
 /**
@@ -127,6 +131,20 @@ export interface BatchTTSResult {
 }
 
 /**
+ * 单条音频的元信息（时长 + 字幕位置）
+ */
+export interface SegmentInfo {
+  /** 字幕片段开始时间（秒） */
+  st?: string;
+  /** 字幕片段结束时间（秒） */
+  et?: string;
+  /** 原始音频时长（毫秒） */
+  duration?: number;
+  /** 去静音后时长（毫秒） */
+  trimmedDuration?: number;
+}
+
+/**
  * 批量TTS历史记录
  */
 export interface BatchTTSHistory {
@@ -140,14 +158,12 @@ export interface BatchTTSHistory {
   updatedAt: number;
   /** 音频文件信息映射（md5 -> 文件路径） */
   audioMap: Record<string, string>;
-  /** 时长信息映射（md5 -> 时长毫秒） */
-  durationMap: Record<string, number>;
   /** 去除空白后的音频映射（md5 -> 文件路径） */
   trimmedAudioMap: Record<string, string>;
-  /** 去除空白后的时长映射（md5 -> 时长毫秒） */
-  trimmedDurationMap: Record<string, number>;
   /** 音频顺序列表（md5数组） */
   orderList: string[];
+  /** 各音频的元信息（md5 -> { st, et, duration, trimmedDuration }） */
+  segmentInfoMap: Record<string, SegmentInfo>;
 }
 
 /** 将 history 中的音频路径转为相对 outputDir 的路径（用于写入 JSON，便于移动目录） */
@@ -519,8 +535,31 @@ export const BatchTTSService = {
     const historyPath = path.join(outputDir, `history-${configPrefix}.json`);
     try {
       if (await fs.pathExists(historyPath)) {
-        const data = (await fs.readJson(historyPath)) as BatchTTSHistory;
-        return historyPathsToAbsolute(data, outputDir);
+        const data = (await fs.readJson(historyPath)) as Record<string, unknown>;
+        // 兼容旧格式：无 segmentInfoMap 时从 durationMap/trimmedDurationMap/segmentStartMap/segmentEndMap 合并
+        if (!data.segmentInfoMap && (data.durationMap || data.segmentStartMap)) {
+          const segmentInfoMap: Record<string, SegmentInfo> = {};
+          const durationMap = data.durationMap as Record<string, number> | undefined;
+          const trimmedDurationMap = data.trimmedDurationMap as Record<string, number> | undefined;
+          const segmentStartMap = data.segmentStartMap as Record<string, number> | undefined;
+          const segmentEndMap = data.segmentEndMap as Record<string, number> | undefined;
+          const allMd5 = new Set([
+            ...(durationMap ? Object.keys(durationMap) : []),
+            ...(trimmedDurationMap ? Object.keys(trimmedDurationMap) : []),
+            ...(segmentStartMap ? Object.keys(segmentStartMap) : []),
+            ...(segmentEndMap ? Object.keys(segmentEndMap) : [])
+          ]);
+          for (const md5 of allMd5) {
+            segmentInfoMap[md5] = {
+              duration: durationMap?.[md5],
+              trimmedDuration: trimmedDurationMap?.[md5],
+              st: segmentStartMap?.[md5],
+              et: segmentEndMap?.[md5]
+            };
+          }
+          data.segmentInfoMap = segmentInfoMap;
+        }
+        return historyPathsToAbsolute(data as BatchTTSHistory, outputDir);
       }
     } catch (err) {
       console.error('[BatchTTS] 加载历史记录失败:', err);
@@ -534,7 +573,17 @@ export const BatchTTSService = {
   async saveHistory(outputDir: string, history: BatchTTSHistory): Promise<void> {
     const historyPath = path.join(outputDir, `history-${history.configPrefix}.json`);
     try {
-      const toWrite = historyPathsToRelative(history, outputDir);
+      const base = historyPathsToRelative(history, outputDir);
+      const toWrite = {
+        requestId: base.requestId,
+        configPrefix: base.configPrefix,
+        createdAt: base.createdAt,
+        updatedAt: base.updatedAt,
+        audioMap: base.audioMap,
+        trimmedAudioMap: base.trimmedAudioMap,
+        orderList: base.orderList,
+        segmentInfoMap: history.segmentInfoMap
+      };
       await fs.writeJson(historyPath, toWrite, { spaces: 2 });
     } catch (err) {
       console.error('[BatchTTS] 保存历史记录失败:', err);
@@ -590,10 +639,9 @@ export const BatchTTSService = {
           createdAt: Date.now(),
           updatedAt: Date.now(),
           audioMap: {},
-          durationMap: {},
           trimmedAudioMap: {},
-          trimmedDurationMap: {},
-          orderList: []
+          orderList: [],
+          segmentInfoMap: {}
         };
       }
 
@@ -652,21 +700,22 @@ export const BatchTTSService = {
 
           if (hasCachedAudio) {
             // console.log(`[BatchTTS] [${itemIndex}] ${md5} 使用缓存音频 ========`);
-            // 使用缓存
+            const info = history!.segmentInfoMap[md5];
             result.fromCache = true;
             result.audioPath = cachedAudioPath;
-            result.duration = history!.durationMap[md5] || (await getAudioDuration(cachedAudioPath));
+            result.duration = info?.duration ?? (await getAudioDuration(cachedAudioPath));
 
             if (hasCachedTrimmed && !skipTrimSilence) {
               result.trimmedAudioPath = cachedTrimmedPath;
-              result.trimmedDuration = history!.trimmedDurationMap[md5] || (await getAudioDuration(cachedTrimmedPath));
+              result.trimmedDuration = info?.trimmedDuration ?? (await getAudioDuration(cachedTrimmedPath));
             } else if (!skipTrimSilence) {
               // 需要重新裁剪
               await trimAudioSilence(cachedAudioPath, trimmedPath);
               result.trimmedAudioPath = trimmedPath;
               result.trimmedDuration = await getAudioDuration(trimmedPath);
               history!.trimmedAudioMap[md5] = trimmedPath;
-              history!.trimmedDurationMap[md5] = result.trimmedDuration;
+              if (!history!.segmentInfoMap[md5]) history!.segmentInfoMap[md5] = {};
+              history!.segmentInfoMap[md5].trimmedDuration = result.trimmedDuration;
             } else {
               result.trimmedAudioPath = cachedAudioPath;
               result.trimmedDuration = result.duration;
@@ -722,7 +771,8 @@ export const BatchTTSService = {
 
               // 更新历史记录
               history!.audioMap[md5] = audioPath;
-              history!.durationMap[md5] = result.duration;
+              if (!history!.segmentInfoMap[md5]) history!.segmentInfoMap[md5] = {};
+              history!.segmentInfoMap[md5].duration = result.duration;
 
               // 移除空白
               if (!skipTrimSilence) {
@@ -730,7 +780,7 @@ export const BatchTTSService = {
                 result.trimmedAudioPath = trimmedPath;
                 result.trimmedDuration = await getAudioDuration(trimmedPath);
                 history!.trimmedAudioMap[md5] = trimmedPath;
-                history!.trimmedDurationMap[md5] = result.trimmedDuration;
+                history!.segmentInfoMap[md5].trimmedDuration = result.trimmedDuration;
               } else {
                 result.trimmedAudioPath = audioPath;
                 result.trimmedDuration = result.duration;
@@ -738,6 +788,16 @@ export const BatchTTSService = {
 
               result.success = true;
             }
+          }
+
+          // 合成成功时写入该条元信息（st/et/duration/trimmedDuration）
+          if (result.success) {
+            if (!history!.segmentInfoMap[md5]) history!.segmentInfoMap[md5] = {};
+            const seg = history!.segmentInfoMap[md5];
+            if (item.st != null) seg.st = item.st;
+            if (item.et != null) seg.et = item.et;
+            seg.duration = result.duration;
+            seg.trimmedDuration = result.trimmedDuration;
           }
 
           successCount++;

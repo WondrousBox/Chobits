@@ -22,6 +22,7 @@ export {
   type BatchTTSResult,
   BatchTTSService,
   configureFfmpegPath,
+  type SegmentInfo,
   type TTSItem,
   type TTSItemResult
 } from './batch-tts-service';
