@@ -3,7 +3,6 @@ import React, { useCallback } from 'react';
 import { TbLoader2, TbPlayerPause, TbPlayerPlay, TbTrash } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 import { DEFAULT_CONFIG, type TTSAudioItem } from '../types';
 
@@ -24,16 +23,6 @@ export interface TTSAudioBlockProps {
   onPlayClick?: (e: React.MouseEvent, item: TTSAudioItem) => void;
   /** 点击删除按钮回调 */
   onDeleteClick?: (e: React.MouseEvent, item: TTSAudioItem) => void;
-}
-
-/** 格式化时长显示 */
-function formatDuration(seconds: number): string {
-  if (seconds < 60) {
-    return `${seconds.toFixed(1)}s`;
-  }
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${mins}m${secs.toFixed(0)}s`;
 }
 
 /** 根据状态与重叠返回块样式类名 */
@@ -71,93 +60,96 @@ export const TTSAudioBlock: React.FC<TTSAudioBlockProps> = ({ item, pixelsPerSec
     [item, onBlockClick]
   );
 
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <div
-          data-tts-block
-          data-tts-index={item.index}
-          className={clsx(
-            'group absolute top-0 bottom-0 rounded border transition-all cursor-pointer overflow-visible',
-            getStatusColor(item.status, isOverlapping),
-            isPlaying && 'ring-2 ring-primary',
-            isSelected && 'ring-2 ring-blue-500'
-          )}
-          style={{
-            left,
-            width,
-            minWidth: DEFAULT_CONFIG.SEGMENT_MIN_WIDTH
-          }}
-          onClick={handleBlockClick}
-        >
-          <div className="flex items-center justify-center h-full px-1 overflow-hidden">
-            {item.status === 'synthesizing' ? (
-              <TbLoader2 className="h-3 w-3 animate-spin text-blue-500" />
-            ) : item.status === 'completed' ? (
-              <div className="flex items-center gap-0.5">
-                {isPlaying ? <TbPlayerPause className="h-3 w-3 text-green-600" /> : <TbPlayerPlay className="h-3 w-3 text-green-600" />}
-                {width > 40 && item.trimmedDuration != null && <span className="text-[10px] text-green-600">{formatDuration(item.trimmedDuration)}</span>}
-              </div>
-            ) : item.status === 'error' ? (
-              <span className="text-[10px] text-red-500">!</span>
-            ) : (
-              <span className="text-[10px] text-muted-foreground">#{item.index + 1}</span>
-            )}
-          </div>
+  const pillClass = 'pointer-events-none select-none text-[10px] leading-none text-foreground/70 bg-background/70 rounded px-1 py-0.5';
 
-          {/* 选中时右上角悬浮：播放、删除 */}
-          {isSelected && (
-            <div className="absolute right-0 top-0 -translate-y-1/2 flex items-center gap-0.5 z-30">
-              {item.status === 'completed' && item.audioPath && (
-                <Button
-                  size="icon"
-                  variant="outline"
-                  className="w-8 h-8 rounded-full p-0 bg-background shadow-sm hover:bg-accent"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onPlayClick?.(e, item);
-                  }}
-                  title={isPlaying ? '停止' : '播放'}
-                >
-                  {isPlaying ? <TbPlayerPause className="h-4 w-4" /> : <TbPlayerPlay className="h-4 w-4" />}
-                </Button>
-              )}
-              <Button
-                size="icon"
-                variant="outline"
-                className="w-8 h-8 rounded-full p-0 bg-background shadow-sm hover:bg-destructive hover:text-destructive-foreground"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDeleteClick?.(e, item);
-                }}
-                title="删除"
-              >
-                <TbTrash />
-              </Button>
-            </div>
-          )}
+  return (
+    <div
+      data-tts-block
+      data-tts-index={item.index}
+      className={clsx(
+        'group absolute top-0 bottom-0 rounded border transition-all cursor-pointer overflow-visible [container-type:inline-size]',
+        getStatusColor(item.status, isOverlapping),
+        isPlaying && 'ring-2 ring-primary',
+        isSelected && 'ring-2 ring-blue-500'
+      )}
+      style={{
+        left,
+        width,
+        minWidth: DEFAULT_CONFIG.SEGMENT_MIN_WIDTH
+      }}
+      onClick={handleBlockClick}
+    >
+      {/* 左上角：重叠警告 */}
+      {isOverlapping && <div className={clsx('absolute left-1 top-0.5 z-10 text-orange-600', pillClass)}>⚠️</div>}
+
+      {/* 左侧上下居中：片段序号 */}
+      <div className={clsx('absolute left-1 top-1/2 -translate-y-1/2', pillClass, '[@container(max-width:48px)]:hidden')}>#{item.index + 1}</div>
+
+      <div className="flex items-center justify-center h-full px-1 overflow-hidden">
+        {item.status === 'synthesizing' ? (
+          <div className="flex items-center gap-1">
+            <TbLoader2 className="h-3 w-3 shrink-0 animate-spin text-blue-500" />
+            <span className="text-[10px] text-blue-600 truncate [@container(max-width:56px)]:hidden">合成中</span>
+          </div>
+        ) : item.status === 'completed' ? (
+          <div className="flex items-center gap-0.5">{isPlaying ? <TbPlayerPause className="h-3 w-3 text-green-600" /> : <TbPlayerPlay className="h-3 w-3 text-green-600" />}</div>
+        ) : item.status === 'error' ? (
+          <span className="text-[10px] text-red-500">!</span>
+        ) : (
+          <span className={clsx('text-[10px]', pillClass)}>等待</span>
+        )}
+      </div>
+
+      {/* 右下角：持续时长（含去静音时标注） */}
+      {item.status === 'completed' && duration != null && (
+        <div className={clsx('absolute right-1 bottom-0.5 max-w-[calc(100%-4px)] truncate whitespace-nowrap [@container(max-width:48px)]:hidden', pillClass)}>
+          {(() => {
+            const dur = Math.max(0, duration);
+            const precision = dur >= 10 ? 1 : 2;
+            const hasTrimmed = item.trimmedDuration != null && item.duration != null && item.trimmedDuration !== item.duration;
+            return hasTrimmed ? `${dur.toFixed(precision)}s 去静音` : `${dur.toFixed(precision)}s`;
+          })()}
         </div>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-xs">
-        <div className="text-xs space-y-1">
-          <div className="font-medium">片段 #{item.index + 1}</div>
-          {isOverlapping && <div className="text-orange-600 font-medium">⚠️ 与其他片段时间重叠</div>}
-          {item.status === 'completed' && (
-            <>
-              <div>
-                时长: {item.duration != null ? formatDuration(item.duration) : '--'}
-                {item.trimmedDuration != null && item.duration != null && item.trimmedDuration !== item.duration && (
-                  <span className="text-muted-foreground"> → {formatDuration(item.trimmedDuration)} (去静音)</span>
-                )}
-              </div>
-              <div className="text-muted-foreground">选中后点击右上角{isPlaying ? '停止' : '播放'}</div>
-            </>
-          )}
-          {item.status === 'synthesizing' && <div className="text-blue-500">正在合成...</div>}
-          {item.status === 'pending' && <div className="text-muted-foreground">等待合成</div>}
-          {item.status === 'error' && <div className="text-red-500">{item.error ?? '合成失败'}</div>}
+      )}
+
+      {/* 左下角：错误信息 */}
+      {item.status === 'error' && (item.error ?? '合成失败') && (
+        <div className={clsx('absolute left-1 bottom-0.5 max-w-[calc(100%-4px)] truncate whitespace-nowrap text-red-600', pillClass)} title={item.error ?? '合成失败'}>
+          {item.error ?? '合成失败'}
         </div>
-      </TooltipContent>
-    </Tooltip>
+      )}
+
+      {/* 选中时右上角悬浮：播放、删除 */}
+      {isSelected && (
+        <div className="absolute right-0 top-0 -translate-y-1/2 flex items-center gap-0.5 z-30">
+          {item.status === 'completed' && item.audioPath && (
+            <Button
+              size="icon"
+              variant="outline"
+              className="w-8 h-8 rounded-full p-0 bg-background shadow-sm hover:bg-accent"
+              onClick={(e) => {
+                e.stopPropagation();
+                onPlayClick?.(e, item);
+              }}
+              title={isPlaying ? '停止' : '播放'}
+            >
+              {isPlaying ? <TbPlayerPause className="h-4 w-4" /> : <TbPlayerPlay className="h-4 w-4" />}
+            </Button>
+          )}
+          <Button
+            size="icon"
+            variant="outline"
+            className="w-8 h-8 rounded-full p-0 bg-background shadow-sm hover:bg-destructive hover:text-destructive-foreground"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDeleteClick?.(e, item);
+            }}
+            title="删除"
+          >
+            <TbTrash />
+          </Button>
+        </div>
+      )}
+    </div>
   );
 };
