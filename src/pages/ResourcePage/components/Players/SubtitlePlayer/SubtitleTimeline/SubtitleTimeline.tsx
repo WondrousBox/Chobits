@@ -49,6 +49,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   onDeleteSubtitleTrack,
   onDeleteTTSTrack,
   onDeleteTTSSegment,
+  onTTSTimeChange,
   onSegmentClick,
   onSegmentDoubleClick,
   onSegmentTextChange,
@@ -593,6 +594,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                     {hasTTSTrack && (
                       <TTSAudioTrack
                         key={`tts-${ttsTrackId}`}
+                        ttsTrackId={ttsTrackId}
                         items={ttsItems}
                         viewport={viewport}
                         totalDuration={duration}
@@ -606,6 +608,9 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                         onPlayAudio={onPlayTTSAudio}
                         onStopAudio={onStopTTSAudio}
                         playingIndex={playingTTSIndex}
+                        onTimeChange={(index, newStartTime, newEndTime) => onTTSTimeChange?.(ttsTrackId, index, newStartTime, newEndTime)}
+                        maxDuration={duration}
+                        onDeleteSegment={onDeleteTTSSegment ? (item) => onDeleteTTSSegment(ttsTrackId, item.index) : undefined}
                       />
                     )}
                   </React.Fragment>

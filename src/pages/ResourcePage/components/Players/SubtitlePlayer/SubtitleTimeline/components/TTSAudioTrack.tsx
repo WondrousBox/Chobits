@@ -11,6 +11,8 @@ import { TTSAudioBlock } from './TTSAudioBlock';
 export type { TTSAudioItem } from '../types';
 
 interface TTSAudioTrackProps {
+  /** TTS 轨道 ID（如 main、zh-CN） */
+  ttsTrackId?: string;
   /** TTS音频项列表 */
   items: TTSAudioItem[];
   /** 视口状态 */
@@ -39,6 +41,10 @@ interface TTSAudioTrackProps {
   onBlockSelect?: (index: number) => void;
   /** 删除TTS片段回调 */
   onDeleteSegment?: (item: TTSAudioItem) => void;
+  /** 块时间变更回调（拖拽移动或边缘调整后） */
+  onTimeChange?: (index: number, newStartTime: number, newEndTime: number) => void;
+  /** 最大时长（秒），用于拖拽边界 */
+  maxDuration?: number;
 }
 
 /**
@@ -57,7 +63,9 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
   onStopAudio,
   playingIndex,
   onBlockSelect,
-  onDeleteSegment
+  onDeleteSegment,
+  onTimeChange,
+  maxDuration
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -65,16 +73,13 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
 
   const trackHeight = DEFAULT_CONFIG.TRACK_HEIGHT + DEFAULT_CONFIG.TRACK_GAP;
 
-  // 检测重叠的音频项（基于音频实际时长，而不是字幕时间戳）
+  // 检测重叠的音频项（基于块的 startTime/endTime 时间槽）
   const overlappingIndices = useMemo(() => {
-    const ranges: TimeRange[] = items.map((item) => {
-      const audioDuration = item.trimmedDuration ?? item.duration ?? item.endTime - item.startTime;
-      return {
-        startTime: item.startTime,
-        endTime: item.startTime + audioDuration,
-        index: item.index
-      };
-    });
+    const ranges: TimeRange[] = items.map((item) => ({
+      startTime: item.startTime,
+      endTime: item.endTime,
+      index: item.index
+    }));
     return detectOverlappingIndices(ranges);
   }, [items]);
 
@@ -140,7 +145,7 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
       const { peaks } = data;
       const duration = data.duration;
       const blockLeft = item.startTime * pixelsPerSecond;
-      const blockDuration = item.trimmedDuration ?? item.duration ?? item.endTime - item.startTime;
+      const blockDuration = item.endTime - item.startTime;
       const blockWidth = Math.max(blockDuration * pixelsPerSecond, DEFAULT_CONFIG.SEGMENT_MIN_WIDTH);
 
       if (blockLeft + blockWidth <= 0 || blockLeft >= width) return;
@@ -252,12 +257,14 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
               key={item.index}
               item={item}
               pixelsPerSecond={pixelsPerSecond}
+              maxDuration={maxDuration}
               isPlaying={playingIndex === item.index}
               isOverlapping={overlappingIndices.has(item.index)}
               isSelected={selectedIndex === item.index}
               onBlockClick={handleBlockClick}
               onPlayClick={handlePlayClick}
               onDeleteClick={handleDeleteClick}
+              onTimeChange={item.md5 && onTimeChange ? (newStartTime, newEndTime) => onTimeChange(item.index, newStartTime, newEndTime) : undefined}
             />
           ))}
         </div>

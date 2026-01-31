@@ -228,6 +228,18 @@ resourceId: ${resourceId}
   });
 
   /**
+   * 更新单条 TTS 音频的字幕时间（st/et），写回 history 文件
+   */
+  ipcMain.handle(
+    'tts:updateSegmentTimes',
+    async (_event: IpcMainInvokeEvent, params: { resourceId: string; trackId: TTSTrackId; configPrefix: string; md5: string; st: number; et: number }): Promise<void> => {
+      const { resourceId, trackId, configPrefix, md5, st, et } = params;
+      const outputDir = await getTTSOutputDir(resourceId, trackId);
+      await BatchTTSService.updateSegmentTimes(outputDir, configPrefix, md5, st, et);
+    }
+  );
+
+  /**
    * 删除指定轨道的TTS文件目录
    */
   ipcMain.handle('tts:deleteTrackFiles', async (_event: IpcMainInvokeEvent, params: { resourceId: string; trackId: TTSTrackId }): Promise<{ success: boolean }> => {

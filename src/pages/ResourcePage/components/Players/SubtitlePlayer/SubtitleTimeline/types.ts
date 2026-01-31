@@ -109,10 +109,12 @@ export interface TTSAudioItem {
   trimmedDuration?: number;
   /** 错误信息 */
   error?: string;
-  /** 对应的开始时间（秒）- 来自字幕 */
+  /** 对应的开始时间（秒）- 来自 history 或字幕，可拖拽调整 */
   startTime: number;
-  /** 对应的结束时间（秒）- 来自字幕 */
+  /** 对应的结束时间（秒）- 来自 history 或字幕，可拖拽调整 */
   endTime: number;
+  /** 该条 content md5（用于更新 history 中的 st/et） */
+  md5?: string;
 }
 
 /**
@@ -169,6 +171,8 @@ export interface SubtitleTimelineProps extends TimelineCallbacks {
   onDeleteTTSTrack?: (trackId: string) => void;
   /** 删除单个TTS片段回调（trackId 为 TTS trackId，index 为片段索引） */
   onDeleteTTSSegment?: (trackId: string, index: number) => void;
+  /** TTS 块时间变更回调（拖拽移动或边缘调整后） */
+  onTTSTimeChange?: (trackId: string, index: number, newStartTime: number, newEndTime: number) => void;
 }
 
 /**

@@ -242,7 +242,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
   });
 
   // 使用TTS合成 Hook（多轨道）
-  const { synthesizingIndices, synthesizedItemsByTrack, synthesisProgress, isSynthesizing, activeTrackId, startSynthesis, stopSynthesis, resetSynthesis, removeSynthesizedItem, loadTTSHistory } =
+  const { synthesizingIndices, synthesizedItemsByTrack, synthesisProgress, isSynthesizing, activeTrackId, startSynthesis, stopSynthesis, resetSynthesis, removeSynthesizedItem, loadTTSHistory, updateTTSSegmentTimes } =
     useTTSSynthesis({
       resourceId: resource.id,
       subtitleEntriesRef
@@ -389,9 +389,11 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
 
       const items: TimelineTTSAudioItem[] = [];
       map.forEach((item, index) => {
-        // 从对应的字幕轨道获取时间，而不是总是从主轨道获取
         const seg = subtitleTrack[index];
         if (!seg) return;
+        // 优先使用 history 中的 startTime/endTime（可拖拽调整），否则用字幕轨道的 st/et
+        const startTime = item.startTime ?? utils.convertToSeconds(seg.st);
+        const endTime = item.endTime ?? utils.convertToSeconds(seg.et);
         items.push({
           index,
           status: item.status,
@@ -399,8 +401,9 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
           duration: item.duration,
           trimmedDuration: item.trimmedDuration,
           error: item.error,
-          startTime: utils.convertToSeconds(seg.st),
-          endTime: utils.convertToSeconds(seg.et)
+          startTime,
+          endTime,
+          md5: item.md5
         });
       });
       items.sort((a, b) => a.startTime - b.startTime);
@@ -843,6 +846,14 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     [removeSynthesizedItem]
   );
 
+  // TTS 块时间变更（拖拽移动或边缘调整后），写回 history 并更新本地状态
+  const handleTTSTimeChange = useCallback(
+    (ttsTrackId: string, index: number, newStartTime: number, newEndTime: number) => {
+      void updateTTSSegmentTimes(ttsTrackId, index, newStartTime, newEndTime);
+    },
+    [updateTTSSegmentTimes]
+  );
+
   return (
     <div className="flex h-full w-full flex-col text-muted-foreground">
       <div className="flex items-center justify-between gap-2 border-b border-border/50 px-2">
@@ -937,6 +948,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
           onDeleteSubtitleTrack={handleDeleteSubtitleTrack}
           onDeleteTTSTrack={handleDeleteTTSTrack}
           onDeleteTTSSegment={handleDeleteTTSSegment}
+          onTTSTimeChange={handleTTSTimeChange}
         />
       )}
     </div>
