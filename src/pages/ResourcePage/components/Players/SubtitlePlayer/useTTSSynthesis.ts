@@ -504,18 +504,27 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
 
         case 'complete': {
           if (event.data && event.data.results) {
-            const results = event.data.results as Array<{
-              index: number;
-              success: boolean;
-              audioPath?: string;
-              trimmedAudioPath?: string;
-              duration?: number;
-              trimmedDuration?: number;
-              error?: string;
-              text: string;
-              md5?: string;
-            }>;
-            const segmentInfoMap = (event.data as { history?: { segmentInfoMap?: Record<string, { st?: string; et?: string }> } }).history?.segmentInfoMap;
+            const data = event.data as {
+              results: Array<{
+                index: number;
+                success: boolean;
+                audioPath?: string;
+                trimmedAudioPath?: string;
+                duration?: number;
+                trimmedDuration?: number;
+                error?: string;
+                text: string;
+                md5?: string;
+              }>;
+              history?: { configPrefix: string; segmentInfoMap?: Record<string, { st?: string; et?: string }> };
+            };
+            const results = data.results;
+            const history = data.history;
+            // 首次合成完成时写入 configPrefix，便于后续删除/更新时间能正确写回 history 文件
+            if (history?.configPrefix) {
+              lastConfigPrefixByTrackRef.current.set(trackId, history.configPrefix);
+            }
+            const segmentInfoMap = history?.segmentInfoMap;
             const parseStEt = (v: number | string | undefined): number | undefined => {
               if (v == null) return undefined;
               if (typeof v === 'number') return v;
