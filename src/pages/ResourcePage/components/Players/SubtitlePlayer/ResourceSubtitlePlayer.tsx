@@ -253,10 +253,12 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     resetSynthesis,
     removeSynthesizedItem,
     loadTTSHistory,
-    updateTTSSegmentTimes
+    updateTTSSegmentTimes,
+    getTTSPlayer
   } = useTTSSynthesis({
     resourceId: resource.id,
-    subtitleEntriesRef
+    subtitleEntriesRef,
+    resolveAudioUrl: makeResSrc
   });
 
   // 加载已保存的TTS历史（时间轴模式下为 main + 各翻译轨道加载）
