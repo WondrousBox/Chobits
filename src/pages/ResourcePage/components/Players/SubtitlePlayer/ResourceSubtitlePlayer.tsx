@@ -242,11 +242,22 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
   });
 
   // 使用TTS合成 Hook（多轨道）
-  const { synthesizingIndices, synthesizedItemsByTrack, synthesisProgress, isSynthesizing, activeTrackId, startSynthesis, stopSynthesis, resetSynthesis, removeSynthesizedItem, loadTTSHistory, updateTTSSegmentTimes } =
-    useTTSSynthesis({
-      resourceId: resource.id,
-      subtitleEntriesRef
-    });
+  const {
+    synthesizingIndices,
+    synthesizedItemsByTrack,
+    synthesisProgress,
+    isSynthesizing,
+    activeTrackId,
+    startSynthesis,
+    stopSynthesis,
+    resetSynthesis,
+    removeSynthesizedItem,
+    loadTTSHistory,
+    updateTTSSegmentTimes
+  } = useTTSSynthesis({
+    resourceId: resource.id,
+    subtitleEntriesRef
+  });
 
   // 加载已保存的TTS历史（时间轴模式下为 main + 各翻译轨道加载）
   useEffect(() => {
@@ -838,12 +849,13 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     [resource.id, resetSynthesis]
   );
 
-  // 删除单个TTS片段（仅从内存移除，不删文件）
+  // 删除单个TTS片段（从内存移除，并从 history 的 orderList 等中移除该 ID）
   const handleDeleteTTSSegment = useCallback(
     (ttsTrackId: string, index: number) => {
-      removeSynthesizedItem(ttsTrackId, index);
+      const item = synthesizedItemsByTrack.get(ttsTrackId)?.get(index);
+      removeSynthesizedItem(ttsTrackId, index, item?.md5);
     },
-    [removeSynthesizedItem]
+    [removeSynthesizedItem, synthesizedItemsByTrack]
   );
 
   // TTS 块时间变更（拖拽移动或边缘调整后），写回 history 并更新本地状态

@@ -240,6 +240,15 @@ resourceId: ${resourceId}
   );
 
   /**
+   * 从 TTS 历史记录中移除指定音频（orderList 及各类 map）
+   */
+  ipcMain.handle('tts:removeSegmentFromHistory', async (_event: IpcMainInvokeEvent, params: { resourceId: string; trackId: TTSTrackId; configPrefix: string; md5: string }): Promise<void> => {
+    const { resourceId, trackId, configPrefix, md5 } = params;
+    const outputDir = await getTTSOutputDir(resourceId, trackId);
+    await BatchTTSService.removeSegmentFromHistory(outputDir, configPrefix, md5);
+  });
+
+  /**
    * 删除指定轨道的TTS文件目录
    */
   ipcMain.handle('tts:deleteTrackFiles', async (_event: IpcMainInvokeEvent, params: { resourceId: string; trackId: TTSTrackId }): Promise<{ success: boolean }> => {

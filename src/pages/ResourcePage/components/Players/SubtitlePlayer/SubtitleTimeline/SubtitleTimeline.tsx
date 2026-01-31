@@ -257,26 +257,36 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
     [handlers]
   );
 
-  // 快捷键：Delete / Backspace 删除选中的字幕块（不在输入框中时）
+  // 快捷键：Delete / Backspace 删除选中的字幕块或 TTS 块（不在输入框中时）
   useEffect(() => {
-    if (!onDeleteSegment || !selectedSegmentId) return;
+    const hasSubtitleTarget = onDeleteSegment && selectedSegmentId;
+    const hasTTSTarget = onDeleteTTSSegment && selectedTTS;
+    if (!hasSubtitleTarget && !hasTTSTarget) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Delete' && e.key !== 'Backspace') return;
       const target = document.activeElement as HTMLElement | null;
       if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') return;
-      const parsed = parseSegmentId(selectedSegmentId);
-      if (!parsed) return;
-      const { trackIndex, segmentIndex } = parsed;
-      const track = tracksWithColors[trackIndex];
-      if (!track || segmentIndex < 0 || segmentIndex >= track.segments.length) return;
-      const segment = track.segments[segmentIndex];
-      e.preventDefault();
-      onDeleteSegment(segment, track.id);
-      setSelectedSegmentId(null);
+      if (hasSubtitleTarget && selectedSegmentId) {
+        const parsed = parseSegmentId(selectedSegmentId);
+        if (!parsed) return;
+        const { trackIndex, segmentIndex } = parsed;
+        const track = tracksWithColors[trackIndex];
+        if (!track || segmentIndex < 0 || segmentIndex >= track.segments.length) return;
+        const segment = track.segments[segmentIndex];
+        e.preventDefault();
+        onDeleteSegment(segment, track.id);
+        setSelectedSegmentId(null);
+        return;
+      }
+      if (hasTTSTarget && selectedTTS) {
+        e.preventDefault();
+        onDeleteTTSSegment(selectedTTS.trackId, selectedTTS.index);
+        setSelectedTTS(null);
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onDeleteSegment, selectedSegmentId, tracksWithColors]);
+  }, [onDeleteSegment, selectedSegmentId, tracksWithColors, onDeleteTTSSegment, selectedTTS]);
 
   // 监听容器尺寸变化
   useEffect(() => {
@@ -604,7 +614,10 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                         trackLabelWidth={0}
                         showTrackLabel={false}
                         selectedIndex={selectedTTS?.trackId === ttsTrackId ? selectedTTS.index : null}
-                        onBlockSelect={(index) => setSelectedTTS({ trackId: ttsTrackId, index })}
+                        onBlockSelect={(index) => {
+                          setSelectedSegmentId(null);
+                          setSelectedTTS({ trackId: ttsTrackId, index });
+                        }}
                         onPlayAudio={onPlayTTSAudio}
                         onStopAudio={onStopTTSAudio}
                         playingIndex={playingTTSIndex}

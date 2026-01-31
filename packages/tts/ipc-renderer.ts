@@ -151,12 +151,7 @@ export interface TTSIpcRenderer {
    * @param params.configPrefix - 配置前缀（可选，如果提供了 config 则自动计算）
    * @param params.config - TTS配置对象（可选，用于自动计算 configPrefix）
    */
-  loadHistory: (params: {
-    resourceId: string;
-    trackId?: TTSTrackId;
-    configPrefix?: string;
-    config?: BatchSynthesisConfig;
-  }) => Promise<any>;
+  loadHistory: (params: { resourceId: string; trackId?: TTSTrackId; configPrefix?: string; config?: BatchSynthesisConfig }) => Promise<any>;
 
   /**
    * 删除指定轨道的TTS文件目录
@@ -184,23 +179,13 @@ export function createTTSIpcRenderer(ipcRenderer: IpcRenderer): TTSIpcRenderer {
 
     hasActiveTasks: () => ipcRenderer.invoke('tts:hasActiveTasks'),
 
-    loadHistory: (params: {
-      resourceId: string;
-      trackId?: TTSTrackId;
-      configPrefix?: string;
-      config?: BatchSynthesisConfig;
-    }) => ipcRenderer.invoke('tts:loadHistory', params),
+    loadHistory: (params: { resourceId: string; trackId?: TTSTrackId; configPrefix?: string; config?: BatchSynthesisConfig }) => ipcRenderer.invoke('tts:loadHistory', params),
 
     deleteTrackFiles: (params: { resourceId: string; trackId: TTSTrackId }) => ipcRenderer.invoke('tts:deleteTrackFiles', params),
 
-    updateSegmentTimes: (params: {
-      resourceId: string;
-      trackId: TTSTrackId;
-      configPrefix: string;
-      md5: string;
-      st: number;
-      et: number;
-    }) => ipcRenderer.invoke('tts:updateSegmentTimes', params),
+    updateSegmentTimes: (params: { resourceId: string; trackId: TTSTrackId; configPrefix: string; md5: string; st: number; et: number }) => ipcRenderer.invoke('tts:updateSegmentTimes', params),
+
+    removeSegmentFromHistory: (params: { resourceId: string; trackId: TTSTrackId; configPrefix: string; md5: string }) => ipcRenderer.invoke('tts:removeSegmentFromHistory', params),
 
     onEvent: (callback: (event: TTSEventData) => void) => {
       const handler = (_event: any, data: TTSEventData): void => {
