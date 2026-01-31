@@ -10,6 +10,7 @@
  * 6. 返回所有合成结果和历史记录
  */
 
+import { utils } from '@aim-packages/subtitle';
 import { createHash } from 'crypto';
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs-extra';
@@ -134,9 +135,9 @@ export interface BatchTTSResult {
  * 单条音频的元信息（时长 + 字幕位置）
  */
 export interface SegmentInfo {
-  /** 字幕片段开始时间（秒） */
+  /** 字幕片段开始时间（SRT 格式字符串，如 00:00:07,100） */
   st?: string;
-  /** 字幕片段结束时间（秒） */
+  /** 字幕片段结束时间（SRT 格式字符串） */
   et?: string;
   /** 原始音频时长（毫秒） */
   duration?: number;
@@ -550,11 +551,13 @@ export const BatchTTSService = {
             ...(segmentEndMap ? Object.keys(segmentEndMap) : [])
           ]);
           for (const md5 of allMd5) {
+            const stNum = segmentStartMap?.[md5];
+            const etNum = segmentEndMap?.[md5];
             segmentInfoMap[md5] = {
               duration: durationMap?.[md5],
               trimmedDuration: trimmedDurationMap?.[md5],
-              st: segmentStartMap?.[md5],
-              et: segmentEndMap?.[md5]
+              st: stNum != null ? utils.formatTime(stNum) : undefined,
+              et: etNum != null ? utils.formatTime(etNum) : undefined
             };
           }
           data.segmentInfoMap = segmentInfoMap;
@@ -565,6 +568,17 @@ export const BatchTTSService = {
       console.error('[BatchTTS] 加载历史记录失败:', err);
     }
     return null;
+  },
+
+  /**
+   * 更新单条音频的字幕时间（st/et），并写回 history 文件
+   */
+  async updateSegmentTimes(outputDir: string, configPrefix: string, md5: string, st: number, et: number): Promise<void> {
+    const history = await this.loadHistory(outputDir, configPrefix);
+    if (!history || !history.segmentInfoMap[md5]) return;
+    history.segmentInfoMap[md5] = { ...history.segmentInfoMap[md5], st: utils.formatTime(st), et: utils.formatTime(et) };
+    history.updatedAt = Date.now();
+    await this.saveHistory(outputDir, history);
   },
 
   /**
@@ -790,12 +804,14 @@ export const BatchTTSService = {
             }
           }
 
-          // 合成成功时写入该条元信息（st/et/duration/trimmedDuration）
+          // 合成成功时写入该条元信息（st/et 存 SRT 格式字符串，duration/trimmedDuration 存毫秒）
+          // item.st/et 可能为 SRT 字符串，需先解析为秒；et 由 st + 实际音频时长(trimmedDuration) 计算
           if (result.success) {
             if (!history!.segmentInfoMap[md5]) history!.segmentInfoMap[md5] = {};
             const seg = history!.segmentInfoMap[md5];
-            if (item.st != null) seg.st = item.st;
-            if (item.et != null) seg.et = item.et;
+            const stSeconds = utils.convertToSeconds(item.st);
+            seg.st = utils.formatTime(stSeconds);
+            seg.et = utils.formatTime(stSeconds + result.trimmedDuration / 1000);
             seg.duration = result.duration;
             seg.trimmedDuration = result.trimmedDuration;
           }

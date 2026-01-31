@@ -1,6 +1,8 @@
-import { AimSegments } from '@aim-packages/subtitle';
+import { AimSegments, utils as subtitleUtils } from '@aim-packages/subtitle';
 import type { TTSTrackId } from '@packages/tts/ipc-renderer';
 import { useCallback, useEffect, useRef, useState } from 'react';
+
+import { parseTimeToSeconds } from './SubtitleTimeline/utils';
 
 /**
  * TTS事件数据类型（内联定义避免路径问题）
@@ -45,6 +47,12 @@ export interface TTSSynthesisItem {
   error?: string;
   /** 原始文本 */
   text: string;
+  /** 该条对应的 content md5（用于更新 history 中的 st/et） */
+  md5?: string;
+  /** 字幕开始时间（秒）- 来自 history 或合成时传入，用于时间轴展示与拖拽 */
+  startTime?: number;
+  /** 字幕结束时间（秒） */
+  endTime?: number;
 }
 
 /**
@@ -108,6 +116,8 @@ export interface UseTTSSynthesisReturn {
   removeSynthesizedItem: (trackId: string, index: number) => void;
   /** 加载TTS历史记录（可指定轨道或加载多轨道） */
   loadTTSHistory: (config: TTSSynthesisConfig, trackId?: TTSTrackId) => Promise<void>;
+  /** 更新单条 TTS 的字幕时间（st/et），并写回 history */
+  updateTTSSegmentTimes: (trackId: string, index: number, newStartTime: number, newEndTime: number) => Promise<void>;
   /** 当前活跃的任务 ID */
   activeTaskId: string | null;
   /** 获取指定轨道、指定索引的合成结果 */
@@ -144,6 +154,8 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
   // 使用 ref 保存回调函数，避免 useEffect 重新运行
   const onSynthesisCompleteRef = useRef(onSynthesisComplete);
   const onItemCompleteRef = useRef(onItemComplete);
+  /** 各轨道上次加载的 history configPrefix（用于 updateSegmentTimes） */
+  const lastConfigPrefixByTrackRef = useRef<Map<string, string>>(new Map());
 
   // 更新 ref
   useEffect(() => {
@@ -211,6 +223,36 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
     }
   }, []);
 
+  const updateSegmentTimesPersistRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** 更新单条 TTS 的字幕时间（st/et）：立即更新本地状态，防抖后写回 history */
+  const updateTTSSegmentTimes = useCallback(
+    (trackId: string, index: number, newStartTime: number, newEndTime: number) => {
+      const item = synthesizedItemsByTrack.get(trackId)?.get(index);
+      const md5 = item?.md5;
+      const configPrefix = lastConfigPrefixByTrackRef.current.get(trackId);
+      if (!md5 || !configPrefix) return;
+
+      setSynthesizedItemsByTrack((prev) => {
+        const trackMap = prev.get(trackId);
+        if (!trackMap || !trackMap.has(index)) return prev;
+        const nextTrack = new Map(trackMap);
+        const cur = nextTrack.get(index)!;
+        nextTrack.set(index, { ...cur, startTime: newStartTime, endTime: newEndTime });
+        const next = new Map(prev);
+        next.set(trackId, nextTrack);
+        return next;
+      });
+
+      if (updateSegmentTimesPersistRef.current) clearTimeout(updateSegmentTimesPersistRef.current);
+      updateSegmentTimesPersistRef.current = setTimeout(() => {
+        updateSegmentTimesPersistRef.current = null;
+        void window.YUA.tts.updateSegmentTimes({ resourceId, trackId, configPrefix, md5, st: newStartTime, et: newEndTime });
+      }, 400);
+    },
+    [resourceId, synthesizedItemsByTrack]
+  );
+
   // 删除指定轨道的单个合成项（仅从内存移除）
   const removeSynthesizedItem = useCallback((trackId: string, index: number) => {
     setSynthesizedItemsByTrack((prev) => {
@@ -255,6 +297,14 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
 
         console.log(`[useTTSSynthesis] 找到历史记录 - 音频数量: ${Object.keys(history.audioMap).length}`);
 
+        lastConfigPrefixByTrackRef.current.set(trackId, history.configPrefix);
+
+        const parseStEt = (v: number | string | undefined): number | undefined => {
+          if (v == null) return undefined;
+          if (typeof v === 'number') return v;
+          return parseTimeToSeconds(String(v));
+        };
+
         const loadedItems = new Map<number, TTSSynthesisItem>();
         if (history.orderList && history.orderList.length > 0) {
           history.orderList.forEach((md5, index) => {
@@ -263,14 +313,19 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
               const info = history.segmentInfoMap?.[md5];
               const duration = info?.duration;
               const trimmedDuration = info?.trimmedDuration;
+              const startTime = parseStEt(info?.st);
+              const endTime = parseStEt(info?.et);
               if (audioPath) {
                 loadedItems.set(index, {
                   index,
                   status: 'completed',
                   audioPath,
-                  duration: duration ? duration / 1000 : undefined,
-                  trimmedDuration: trimmedDuration ? trimmedDuration / 1000 : undefined,
-                  text: currentEntries[index]?.text || ''
+                  duration: duration != null ? duration / 1000 : undefined,
+                  trimmedDuration: trimmedDuration != null ? trimmedDuration / 1000 : undefined,
+                  text: currentEntries[index]?.text || '',
+                  md5,
+                  startTime,
+                  endTime
                 });
               }
             }
@@ -451,12 +506,22 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
               trimmedDuration?: number;
               error?: string;
               text: string;
+              md5?: string;
             }>;
+            const segmentInfoMap = (event.data as { history?: { segmentInfoMap?: Record<string, { st?: string; et?: string }> } }).history?.segmentInfoMap;
+            const parseStEt = (v: number | string | undefined): number | undefined => {
+              if (v == null) return undefined;
+              if (typeof v === 'number') return v;
+              return parseTimeToSeconds(String(v));
+            };
             setSynthesizedItemsByTrack((prev) => {
               const trackMap = prev.get(trackId) ?? new Map();
               const nextTrack = new Map(trackMap);
               for (const result of results) {
-                // 首次合成完成：存去静音路径，与界面展示的 trimmedDuration 一致，播放/波形即用此路径
+                const info = result.md5 && segmentInfoMap?.[result.md5];
+                const startTime = parseStEt(info?.st);
+                const endTime = parseStEt(info?.et);
+                // 首次合成完成：存去静音路径、md5、st/et，与加载历史时一致，时间轴可实时更新
                 const item: TTSSynthesisItem = {
                   index: result.index,
                   status: result.success ? 'completed' : 'error',
@@ -464,7 +529,10 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
                   duration: result.duration ? result.duration / 1000 : undefined,
                   trimmedDuration: result.trimmedDuration ? result.trimmedDuration / 1000 : undefined,
                   error: result.error,
-                  text: result.text
+                  text: result.text,
+                  md5: result.md5,
+                  startTime,
+                  endTime
                 };
                 nextTrack.set(result.index, item);
                 onItemCompleteRef.current?.(item);
@@ -544,6 +612,7 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
     resetSynthesis,
     removeSynthesizedItem,
     loadTTSHistory,
+    updateTTSSegmentTimes,
     activeTaskId,
     getSynthesizedItem,
     getSynthesizedItemsByTrack,

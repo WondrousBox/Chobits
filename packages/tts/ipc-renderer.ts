@@ -193,6 +193,15 @@ export function createTTSIpcRenderer(ipcRenderer: IpcRenderer): TTSIpcRenderer {
 
     deleteTrackFiles: (params: { resourceId: string; trackId: TTSTrackId }) => ipcRenderer.invoke('tts:deleteTrackFiles', params),
 
+    updateSegmentTimes: (params: {
+      resourceId: string;
+      trackId: TTSTrackId;
+      configPrefix: string;
+      md5: string;
+      st: number;
+      et: number;
+    }) => ipcRenderer.invoke('tts:updateSegmentTimes', params),
+
     onEvent: (callback: (event: TTSEventData) => void) => {
       const handler = (_event: any, data: TTSEventData): void => {
         callback(data);
