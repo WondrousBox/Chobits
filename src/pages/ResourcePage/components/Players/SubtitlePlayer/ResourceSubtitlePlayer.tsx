@@ -5,6 +5,7 @@ import { TbCrosshair, TbList, TbTimeline } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 
 import type { ResourceItem } from '../../../types';
 import { SubtitlePlayer } from './SubtitleListPlayer/SubtitlePlayer';
@@ -321,7 +322,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
         ttsAudioRef.current = null;
       }
 
-      const audio = new Audio(`resource://${audioPath}`);
+      const audio = new Audio(makeResSrc(audioPath));
       ttsAudioRef.current = audio;
       setPlayingTTSIndex(index);
 

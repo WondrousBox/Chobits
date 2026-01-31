@@ -1,7 +1,7 @@
+import crypto from 'node:crypto';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import fs from 'node:fs';
-import crypto from 'node:crypto';
 
 import type { BrowserWindow } from 'electron';
 import { ipcMain } from 'electron';
@@ -249,13 +249,7 @@ export function initFFmpegHandlers(win: BrowserWindow): void {
           const cacheData = JSON.parse(fs.readFileSync(cachePath, 'utf-8'));
 
           // 验证缓存数据的有效性
-          if (
-            cacheData.peaks &&
-            Array.isArray(cacheData.peaks) &&
-            typeof cacheData.duration === 'number' &&
-            cacheData.samplesCount === samplesCount
-          ) {
-            console.log('[ffmpeg] 使用缓存的波形数据:', cachePath);
+          if (cacheData.peaks && Array.isArray(cacheData.peaks) && typeof cacheData.duration === 'number' && cacheData.samplesCount === samplesCount) {
             return { peaks: cacheData.peaks, duration: cacheData.duration };
           }
         }
