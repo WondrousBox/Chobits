@@ -198,7 +198,7 @@ export const TTSAudioBlock: React.FC<TTSAudioBlockProps> = ({
         data-tts-block
         data-tts-index={item.index}
         className={clsx(
-          'group absolute top-0 bottom-0 rounded border transition-all overflow-visible [container-type:inline-size]',
+          'group absolute top-0 bottom-0 rounded border overflow-visible [container-type:inline-size]',
           canDragResize && 'cursor-grab hover:border-foreground/20',
           !canDragResize && 'cursor-pointer',
           getStatusColor(item.status, isOverlapping),
@@ -293,10 +293,7 @@ export const TTSAudioBlock: React.FC<TTSAudioBlockProps> = ({
       </div>
 
       {dragHoverTime && (
-        <div
-          className="fixed z-50 pointer-events-none"
-          style={{ left: `${dragHoverTime.x + 10}px`, top: `${dragHoverTime.y - 30}px` }}
-        >
+        <div className="fixed z-50 pointer-events-none" style={{ left: `${dragHoverTime.x + 10}px`, top: `${dragHoverTime.y - 30}px` }}>
           <div className="bg-primary text-primary-foreground px-2 py-1 rounded shadow-lg text-xs font-mono whitespace-nowrap">
             {(() => {
               const format = (t: number): string => {

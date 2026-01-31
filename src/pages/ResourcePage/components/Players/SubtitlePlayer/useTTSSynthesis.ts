@@ -112,8 +112,8 @@ export interface UseTTSSynthesisReturn {
   stopSynthesis: () => Promise<void>;
   /** 重置合成状态（可指定轨道或全部） */
   resetSynthesis: (trackId?: string) => void;
-  /** 删除指定轨道的单个合成项（仅从内存移除，不删文件） */
-  removeSynthesizedItem: (trackId: string, index: number) => void;
+  /** 删除指定轨道的单个合成项（从内存移除；若传 md5 则同时从 history 的 orderList 等中移除） */
+  removeSynthesizedItem: (trackId: string, index: number, md5?: string) => void;
   /** 加载TTS历史记录（可指定轨道或加载多轨道） */
   loadTTSHistory: (config: TTSSynthesisConfig, trackId?: TTSTrackId) => Promise<void>;
   /** 更新单条 TTS 的字幕时间（st/et），并写回 history */
@@ -253,18 +253,25 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, onSynthesisCom
     [resourceId, synthesizedItemsByTrack]
   );
 
-  // 删除指定轨道的单个合成项（仅从内存移除）
-  const removeSynthesizedItem = useCallback((trackId: string, index: number) => {
-    setSynthesizedItemsByTrack((prev) => {
-      const trackMap = prev.get(trackId);
-      if (!trackMap || !trackMap.has(index)) return prev;
-      const nextTrack = new Map(trackMap);
-      nextTrack.delete(index);
-      const next = new Map(prev);
-      next.set(trackId, nextTrack);
-      return next;
-    });
-  }, []);
+  // 删除指定轨道的单个合成项；若传 md5 则同时从 history 的 orderList/audioMap/segmentInfoMap 中移除
+  const removeSynthesizedItem = useCallback(
+    (trackId: string, index: number, md5?: string) => {
+      const configPrefix = lastConfigPrefixByTrackRef.current.get(trackId);
+      if (md5 && configPrefix && resourceId) {
+        void window.YUA.tts.removeSegmentFromHistory({ resourceId, trackId, configPrefix, md5 });
+      }
+      setSynthesizedItemsByTrack((prev) => {
+        const trackMap = prev.get(trackId);
+        if (!trackMap || !trackMap.has(index)) return prev;
+        const nextTrack = new Map(trackMap);
+        nextTrack.delete(index);
+        const next = new Map(prev);
+        next.set(trackId, nextTrack);
+        return next;
+      });
+    },
+    [resourceId]
+  );
 
   // 加载TTS历史记录（可指定轨道，不传则加载 main）
   const loadTTSHistory = useCallback(

@@ -582,6 +582,20 @@ export const BatchTTSService = {
   },
 
   /**
+   * 从历史记录中移除指定音频（orderList、audioMap、trimmedAudioMap、segmentInfoMap）
+   */
+  async removeSegmentFromHistory(outputDir: string, configPrefix: string, md5: string): Promise<void> {
+    const history = await this.loadHistory(outputDir, configPrefix);
+    if (!history || !history.orderList.includes(md5)) return;
+    history.orderList = history.orderList.filter((id) => id !== md5);
+    delete history.audioMap[md5];
+    delete history.trimmedAudioMap[md5];
+    delete history.segmentInfoMap[md5];
+    history.updatedAt = Date.now();
+    await this.saveHistory(outputDir, history);
+  },
+
+  /**
    * 保存历史记录
    */
   async saveHistory(outputDir: string, history: BatchTTSHistory): Promise<void> {
