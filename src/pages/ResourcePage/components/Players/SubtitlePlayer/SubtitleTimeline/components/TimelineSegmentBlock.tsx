@@ -372,7 +372,8 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
           isHighlighted && !isActive && 'ring-1 ring-primary/50',
           isSelected && 'ring-2 ring-blue-500',
           disabled && 'pointer-events-none opacity-60',
-          dragMode !== 'none' && 'opacity-80 shadow-lg z-20',
+          (isSelected || dragMode !== 'none') && 'z-20',
+          dragMode !== 'none' && 'opacity-80 shadow-lg',
           validationError && isEditing && 'ring-2 ring-destructive animate-pulse'
         )}
         style={{

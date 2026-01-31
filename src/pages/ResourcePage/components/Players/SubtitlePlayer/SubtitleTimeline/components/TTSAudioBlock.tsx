@@ -81,6 +81,11 @@ export const TTSAudioBlock: React.FC<TTSAudioBlockProps> = ({
   const slotDuration = item.endTime - item.startTime;
   const width = Math.max(slotDuration * pixelsPerSecond, DEFAULT_CONFIG.SEGMENT_MIN_WIDTH);
   const audioDuration = item.trimmedDuration ?? item.duration ?? slotDuration;
+  // 块展示时长与音频时长不一致时，播放倍率 = 实际音频时长 / 块时长（>1 需加速，<1 需减速）
+  const playbackRate =
+    slotDuration > 0 && (item.trimmedDuration != null || item.duration != null)
+      ? (item.trimmedDuration ?? item.duration ?? 0) / slotDuration
+      : null;
 
   const getEdgeFromPosition = useCallback((clientX: number): DragMode => {
     if (!blockRef.current) return 'move';
@@ -204,7 +209,8 @@ export const TTSAudioBlock: React.FC<TTSAudioBlockProps> = ({
           getStatusColor(item.status, isOverlapping),
           isPlaying && 'ring-2 ring-primary',
           isSelected && 'ring-2 ring-blue-500',
-          dragMode !== 'none' && 'opacity-80 shadow-lg z-20'
+          (isSelected || dragMode !== 'none') && 'z-20',
+          dragMode !== 'none' && 'opacity-80 shadow-lg'
         )}
         style={{
           left,
@@ -246,10 +252,18 @@ export const TTSAudioBlock: React.FC<TTSAudioBlockProps> = ({
         {item.status === 'completed' && audioDuration != null && (
           <div className={clsx('absolute right-1 bottom-0.5 max-w-[calc(100%-4px)] truncate whitespace-nowrap [@container(max-width:48px)]:hidden', pillClass)}>
             {(() => {
-              const dur = Math.max(0, audioDuration);
-              const precision = dur >= 10 ? 1 : 2;
+              const actualDur = Math.max(0, audioDuration);
+              const slotDur = Math.max(0, slotDuration);
+              const precision = (t: number) => (t >= 10 ? 1 : 2);
               const hasTrimmed = item.trimmedDuration != null && item.duration != null && item.trimmedDuration !== item.duration;
-              return hasTrimmed ? `${dur.toFixed(precision)}s 去静音` : `${dur.toFixed(precision)}s`;
+              const showRate = playbackRate != null && Math.abs(playbackRate - 1) > 0.02;
+              if (showRate) {
+                const actualStr = hasTrimmed ? `${actualDur.toFixed(precision(actualDur))}s 去静音` : `${actualDur.toFixed(precision(actualDur))}s`;
+                const rateStr = ` · x${playbackRate >= 10 ? playbackRate.toFixed(0) : playbackRate.toFixed(1)}`;
+                return `${actualStr} → ${slotDur.toFixed(precision(slotDur))}s${rateStr}`;
+              }
+              const base = hasTrimmed ? `${actualDur.toFixed(precision(actualDur))}s 去静音` : `${actualDur.toFixed(precision(actualDur))}s`;
+              return base;
             })()}
           </div>
         )}
