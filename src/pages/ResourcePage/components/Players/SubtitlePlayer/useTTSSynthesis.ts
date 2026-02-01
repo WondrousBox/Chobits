@@ -131,6 +131,10 @@ export interface UseTTSSynthesisReturn {
   getTTSPlayer: (trackId: string) => TTSPlayer | undefined;
   /** 获取音频时长格式化字符串 */
   formatDuration: (seconds: number) => string;
+  /** 开始播放 TTS（不传 trackId 则播放 main 轨道） */
+  startTTSPlayback: (trackId?: string) => void;
+  /** 停止播放 TTS（不传 trackId 则停止所有轨道） */
+  stopTTSPlayback: (trackId?: string) => void;
 }
 
 /**
@@ -378,7 +382,6 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, resolveAudioUr
           const existing = ttsPlayersRef.current.get(trackId);
           if (existing) existing.destroy();
           const player = new TTSPlayer(playerHistory, { resolveAudioUrl });
-          player.play();
           ttsPlayersRef.current.set(trackId, player);
         }
       } catch (error) {
@@ -654,6 +657,29 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, resolveAudioUr
     return ttsPlayersRef.current.get(trackId);
   }, []);
 
+  // 开始播放 TTS（不传 trackId 则播放 main 轨道）
+  const startTTSPlayback = useCallback((trackId?: string) => {
+    const targetTrackId = trackId ?? 'main';
+    const player = ttsPlayersRef.current.get(targetTrackId);
+    if (player) {
+      player.play();
+    }
+  }, []);
+
+  // 停止播放 TTS（不传 trackId 则停止所有轨道）
+  const stopTTSPlayback = useCallback((trackId?: string) => {
+    if (trackId) {
+      const player = ttsPlayersRef.current.get(trackId);
+      if (player) {
+        player.pause();
+      }
+    } else {
+      ttsPlayersRef.current.forEach((player) => {
+        player.pause();
+      });
+    }
+  }, []);
+
   useEffect(() => {
     return () => {
       ttsPlayersRef.current.forEach((p) => p.destroy());
@@ -678,6 +704,8 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, resolveAudioUr
     getSynthesizedItem,
     getSynthesizedItemsByTrack,
     getTTSPlayer,
-    formatDuration
+    formatDuration,
+    startTTSPlayback,
+    stopTTSPlayback
   };
 }

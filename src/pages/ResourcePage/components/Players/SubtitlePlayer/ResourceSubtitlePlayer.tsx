@@ -32,6 +32,8 @@ interface ResourceSubtitlePlayerProps {
   onSeek?: (time: number) => void; // 跳转到指定时间的回调
   followCurrentTime?: boolean; // 是否跟随时间自动滚动
   audioPath?: string; // 音频文件路径（用于波形显示）
+  onMediaPlay?: () => void; // 媒体播放器播放事件回调
+  onMediaPause?: () => void; // 媒体播放器暂停事件回调
 }
 
 /**
@@ -39,7 +41,7 @@ interface ResourceSubtitlePlayerProps {
  * - 翻译结果由主进程自动保存，渲染进程只负责展示
  * - 用户手动编辑字幕时，通过渲染进程保存
  */
-export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ resource, currentTime = 0, onSeek, followCurrentTime = false, audioPath }) => {
+export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ resource, currentTime = 0, onSeek, followCurrentTime = false, audioPath, onMediaPlay, onMediaPause }) => {
   const [subtitleEntries, setSubtitleEntries] = useState<AimSegments[]>([]);
   const [translationTracks, setTranslationTracks] = useState<AimSegments[][]>([]);
   /** 各翻译轨道的语言、显示名和资源ID（与 translationTracks 顺序一致） */
@@ -254,7 +256,9 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
     removeSynthesizedItem,
     loadTTSHistory,
     updateTTSSegmentTimes,
-    getTTSPlayer
+    getTTSPlayer,
+    startTTSPlayback,
+    stopTTSPlayback
   } = useTTSSynthesis({
     resourceId: resource.id,
     subtitleEntriesRef,
@@ -355,6 +359,23 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({ 
 
   // 列表用：轨道 ID 列表（主轨 + 各翻译轨）
   const trackIds = useMemo(() => ['main', ...translationTrackMeta.map((t) => t.languageCode)], [translationTrackMeta]);
+
+  // 监听媒体播放器播放/暂停状态变化
+  useEffect(() => {
+    const handleMediaStateChange = (event: CustomEvent<{ isPlaying: boolean }>) => {
+      if (event.detail.isPlaying) {
+        startTTSPlayback('main');
+      } else {
+        stopTTSPlayback();
+      }
+    };
+
+    window.addEventListener('custom:media-state-change', handleMediaStateChange as EventListener);
+
+    return () => {
+      window.removeEventListener('custom:media-state-change', handleMediaStateChange as EventListener);
+    };
+  }, [startTTSPlayback, stopTTSPlayback]);
 
   // TTS 合成选项（原文 + 各翻译轨）供 TTSSynthesizer 选择
   const ttsTrackOptions = useMemo<TTSTrackOption[]>(() => {

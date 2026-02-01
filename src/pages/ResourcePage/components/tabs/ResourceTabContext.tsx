@@ -22,6 +22,10 @@ export interface ResourceTabContextValue {
   setActiveSubtitle: (subtitle: ResourceItem | null) => void;
   /** 资源切换回调 */
   onResourceChange?: (resource: ResourceItem) => void;
+  /** 媒体播放器播放事件回调 */
+  onMediaPlay?: () => void;
+  /** 媒体播放器暂停事件回调 */
+  onMediaPause?: () => void;
 }
 
 const ResourceTabContext = createContext<ResourceTabContextValue | null>(null);

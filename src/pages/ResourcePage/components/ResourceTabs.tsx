@@ -63,6 +63,10 @@ interface ResourceTabsProps {
   onResourceChange?: (resource: ResourceItem) => void;
   /** 默认启用的 tab 列表（仅在面板首次注册时生效） */
   defaultPinnedTabs?: string[];
+  /** 媒体播放器播放事件回调 */
+  onMediaPlay?: () => void;
+  /** 媒体播放器暂停事件回调 */
+  onMediaPause?: () => void;
 }
 
 /**
@@ -72,7 +76,19 @@ interface ResourceTabsProps {
  * @param panelId - 必须的面板ID，用于区分不同的 ResourceTabs 实例
  *                  同一个 tab 只能被一个面板 pin，实现多面板间的互斥
  */
-const ResourceTabs: React.FC<ResourceTabsProps> = ({ panelId, resource, currentTime, mediaPlayerRef, subtitleList, activeSubtitle, setActiveSubtitle, onResourceChange, defaultPinnedTabs }) => {
+const ResourceTabs: React.FC<ResourceTabsProps> = ({
+  panelId,
+  resource,
+  currentTime,
+  mediaPlayerRef,
+  subtitleList,
+  activeSubtitle,
+  setActiveSubtitle,
+  onResourceChange,
+  defaultPinnedTabs,
+  onMediaPlay,
+  onMediaPause
+}) => {
   // 判断资源类型
   const isVideo = isVideoFile(resource?.filePath);
   const isAudio = isAudioFile(resource?.filePath);
@@ -239,7 +255,9 @@ const ResourceTabs: React.FC<ResourceTabsProps> = ({ panelId, resource, currentT
     subtitleList,
     activeSubtitle,
     setActiveSubtitle,
-    onResourceChange
+    onResourceChange,
+    onMediaPlay,
+    onMediaPause
   };
 
   return (

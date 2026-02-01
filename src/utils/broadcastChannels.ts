@@ -20,6 +20,16 @@ export type MediaSyncMessage =
       type: 'playStarted';
       source: 'window' | 'panel';
       resourceId: string;
+    }
+  | {
+      type: 'pause';
+      source: 'window' | 'panel';
+      resourceId: string;
+    }
+  | {
+      type: 'stop';
+      source: 'window' | 'panel';
+      resourceId: string;
     };
 
 // 工作流事件消息类型
