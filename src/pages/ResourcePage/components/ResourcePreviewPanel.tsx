@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { TbExternalLink, TbMaximize, TbX } from 'react-icons/tb';
+import { useNavigate } from 'react-router-dom';
 
 import { Button } from '@/components/ui/button';
 import { BroadcastChannelManager, CHANNEL_NAMES, type MediaSyncMessage } from '@/utils/broadcastChannels';
@@ -119,6 +119,20 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
       source: 'panel',
       resourceId: data.id
     });
+    // 触发自定义事件，通知 ResourceSubtitlePlayer
+    window.dispatchEvent(new CustomEvent('custom:media-state-change', { detail: { isPlaying: true } }));
+  }, [data?.id]);
+
+  // 面板暂停时通知弹窗（可选）
+  const handlePause = useCallback(() => {
+    if (!data?.id) return;
+    BroadcastChannelManager.postMessage(CHANNEL_NAMES.MEDIA_SYNC, {
+      type: 'pause',
+      source: 'panel',
+      resourceId: data.id
+    });
+    // 触发自定义事件，通知 ResourceSubtitlePlayer
+    window.dispatchEvent(new CustomEvent('custom:media-state-change', { detail: { isPlaying: false } }));
   }, [data?.id]);
 
   if (!data) {
@@ -240,6 +254,8 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
           activeSubtitle={activeSubtitle}
           setActiveSubtitle={setActiveSubtitle}
           onResourceChange={handleResourceChange}
+          onMediaPlay={handlePlay}
+          onMediaPause={handlePause}
           defaultPinnedTabs={['content', 'subtitle', 'translate', 'summary', 'list']}
         />
       </div>

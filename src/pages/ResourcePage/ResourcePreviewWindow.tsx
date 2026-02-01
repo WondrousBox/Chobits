@@ -59,50 +59,6 @@ const ResourcePreviewWindow: React.FC = () => {
 
   // 已移除 shouldCollapseBottomPanel 相关逻辑，统一展示底部面板
 
-  // 处理视频加载完成，调整窗口大小
-  const handleVideoLoaded = useCallback(async (videoElement: HTMLVideoElement) => {
-    try {
-      const videoWidth = videoElement.videoWidth;
-      const videoHeight = videoElement.videoHeight;
-
-      if (videoWidth > 0 && videoHeight > 0) {
-        // 获取屏幕尺寸
-        const screenSize = await window.YUA.window['screen:size:get']();
-
-        // 计算视频宽高比
-        const aspectRatio = videoWidth / videoHeight;
-
-        // 设置控制栏高度（包括标题栏）
-        const controlHeight = 36 + 80; // 标题栏 + 控制栏
-        const availableHeight = screenSize.height - controlHeight;
-        const availableWidth = screenSize.width;
-
-        let windowWidth: number;
-        let windowHeight: number;
-
-        // 根据视频宽高比和屏幕尺寸计算最佳窗口大小
-        if (aspectRatio > availableWidth / availableHeight) {
-          // 视频更宽，以宽度为准
-          windowWidth = Math.min(videoWidth, availableWidth);
-          windowHeight = Math.floor(windowWidth / aspectRatio) + controlHeight;
-        } else {
-          // 视频更高，以高度为准
-          windowHeight = Math.min(videoHeight + controlHeight, availableHeight);
-          windowWidth = Math.floor((windowHeight - controlHeight) * aspectRatio);
-        }
-
-        // 确保窗口大小合理
-        windowWidth = Math.max(400, Math.min(windowWidth, availableWidth));
-        windowHeight = Math.max(300, Math.min(windowHeight, availableHeight));
-
-        // 调整窗口大小并居中
-        await window.YUA.window['window:size:set']('resourcePreview', windowWidth, windowHeight, true);
-      }
-    } catch (error) {
-      console.warn('调整视频窗口大小失败:', error);
-    }
-  }, []);
-
   // 处理 startTime 跳转（视频和音频都适用）
   useEffect(() => {
     if (pendingStartTime === null || pendingStartTime <= 0) {
@@ -328,6 +284,7 @@ const ResourcePreviewWindow: React.FC = () => {
 
   // 弹窗播放时通知面板暂停
   const handlePlay = useCallback(() => {
+    console.log('[ResourcePreviewWindow] onPlay', { resourceId: data?.id });
     if (!data?.id) return;
     // 使用管理器发送一次性消息
     BroadcastChannelManager.postMessage(CHANNEL_NAMES.MEDIA_SYNC, {
@@ -335,6 +292,33 @@ const ResourcePreviewWindow: React.FC = () => {
       source: 'window',
       resourceId: data.id
     });
+    // 触发自定义事件，通知 ResourceSubtitlePlayer
+    window.dispatchEvent(new CustomEvent('custom:media-state-change', { detail: { isPlaying: true } }));
+  }, [data]);
+
+  // 弹窗暂停时通知面板（可选）
+  const handlePause = useCallback(() => {
+    console.log('[ResourcePreviewWindow] onPause', { resourceId: data?.id });
+    if (!data?.id) return;
+    BroadcastChannelManager.postMessage(CHANNEL_NAMES.MEDIA_SYNC, {
+      type: 'pause',
+      source: 'window',
+      resourceId: data.id
+    });
+    // 触发自定义事件，通知 ResourceSubtitlePlayer
+    window.dispatchEvent(new CustomEvent('custom:media-state-change', { detail: { isPlaying: false } }));
+  }, [data]);
+
+  // 弹窗播放结束时通知面板
+  const handleStop = useCallback(() => {
+    console.log('[ResourcePreviewWindow] onStop', { resourceId: data?.id });
+    if (!data?.id) return;
+    BroadcastChannelManager.postMessage(CHANNEL_NAMES.MEDIA_SYNC, {
+      type: 'stop',
+      source: 'window',
+      resourceId: data.id
+    });
+    window.dispatchEvent(new CustomEvent('custom:media-state-change', { detail: { isPlaying: false } }));
   }, [data]);
 
   if (!data) {
@@ -348,21 +332,19 @@ const ResourcePreviewWindow: React.FC = () => {
   const renderMainContent = (): React.ReactNode => (
     <div className="h-full relative flex items-center justify-center overflow-hidden">
       {isImageFile(data.filePath) && fileSrc && <ImagePlayer src={fileSrc} title={title} className="w-full h-full rounded-md shadow" />}
-      {isVideoFile(data.filePath) && fileSrc && (
+      {(isVideoFile(data.filePath) || isAudioFile(data.filePath)) && fileSrc && (
         <MediaPlayer
           ref={mediaPlayerRef}
           src={fileSrc}
-          type="video"
+          type={isVideoFile(data.filePath) ? 'video' : 'audio'}
           title={title}
           autoPlay={true}
           className="w-full h-full"
-          onVideoLoaded={handleVideoLoaded}
           onTimeUpdate={setCurrentTime}
           onPlay={handlePlay}
+          onPause={handlePause}
+          onStop={handleStop}
         />
-      )}
-      {isAudioFile(data.filePath) && fileSrc && (
-        <MediaPlayer ref={mediaPlayerRef} src={fileSrc} type="audio" title={title} autoPlay={true} className="w-full max-w-xl" onTimeUpdate={setCurrentTime} onPlay={handlePlay} />
       )}
       {isSubtitleFile(data.filePath) && <ResourceSubtitlePlayer resource={data} />}
       {!isImageFile(data.filePath) && !isVideoFile(data.filePath) && !isAudioFile(data.filePath) && !isSubtitleFile(data.filePath) && <TextPlayer resource={data} />}
@@ -420,6 +402,8 @@ const ResourcePreviewWindow: React.FC = () => {
                           activeSubtitle={activeSubtitle}
                           setActiveSubtitle={setActiveSubtitle}
                           onResourceChange={handleResourceChange}
+                          onMediaPlay={handlePlay}
+                          onMediaPause={handlePause}
                           defaultPinnedTabs={['subtitle', 'translate']}
                         />
                       </div>
@@ -443,6 +427,8 @@ const ResourcePreviewWindow: React.FC = () => {
                       activeSubtitle={activeSubtitle}
                       setActiveSubtitle={setActiveSubtitle}
                       onResourceChange={handleResourceChange}
+                      onMediaPlay={handlePlay}
+                      onMediaPause={handlePause}
                       defaultPinnedTabs={['summary', 'list']}
                     />
                   </div>

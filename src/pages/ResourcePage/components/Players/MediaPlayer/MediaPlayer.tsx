@@ -9,9 +9,10 @@ interface MediaPlayerProps {
   title?: string;
   autoPlay?: boolean;
   className?: string;
-  onVideoLoaded?: (videoElement: HTMLVideoElement) => void;
   onTimeUpdate?: (currentTime: number) => void; // 播放时间更新回调
   onPlay?: () => void; // 开始播放回调
+  onPause?: () => void; // 暂停回调
+  onStop?: () => void; // 播放结束回调（ended）
 }
 
 export interface MediaPlayerRef {
@@ -20,7 +21,7 @@ export interface MediaPlayerRef {
   getCurrentTime: () => number; // 获取当前播放时间
 }
 
-export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(({ src, type, title, autoPlay = false, className = '', onVideoLoaded, onTimeUpdate, onPlay }, ref) => {
+export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(({ src, type, title, autoPlay = false, className = '', onTimeUpdate, onPlay, onPause, onStop }, ref) => {
   const mediaRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -30,13 +31,6 @@ export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(({ src, 
   const [playbackRate, setPlaybackRate] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
-
-  // 更新播放状态
-  const updatePlayState = useCallback(() => {
-    if (mediaRef.current) {
-      setIsPlaying(!mediaRef.current.paused);
-    }
-  }, []);
 
   // 更新时间信息
   const updateTime = useCallback(() => {
@@ -161,7 +155,7 @@ export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(({ src, 
           break;
       }
     },
-    [togglePlay, seekTo, currentTime, duration, type, toggleFullscreen, isFullscreen]
+    [togglePlay, seekTo, currentTime, duration, toggleFullscreen, isFullscreen]
   );
 
   // 监听媒体事件
@@ -173,27 +167,31 @@ export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(({ src, 
       setIsPlaying(true);
       onPlay?.();
     };
-    const handlePause = () => setIsPlaying(false);
-    const handleTimeUpdate = () => updateTime();
-    const handleLoadedMetadata = () => {
-      updateTime();
-      // 如果是视频，通知父组件视频已加载
-      if (type === 'video' && onVideoLoaded) {
-        onVideoLoaded(media as HTMLVideoElement);
-      }
+    const handlePause = (): void => {
+      setIsPlaying(false);
+      onPause?.();
     };
-    const handleVolumeChange = () => {
+    const handleEnded = (): void => {
+      setIsPlaying(false);
+      onStop?.();
+    };
+    const handleTimeUpdate = (): void => updateTime();
+    const handleLoadedMetadata = (): void => {
+      updateTime();
+    };
+    const handleVolumeChange = (): void => {
       if (media) setVolume(media.volume);
     };
-    const handleRateChange = () => {
+    const handleRateChange = (): void => {
       if (media) setPlaybackRate(media.playbackRate);
     };
-    const handleFullscreenChange = () => {
+    const handleFullscreenChange = (): void => {
       setIsFullscreen(!!document.fullscreenElement);
     };
 
     media.addEventListener('play', handlePlay);
     media.addEventListener('pause', handlePause);
+    media.addEventListener('ended', handleEnded);
     media.addEventListener('timeupdate', handleTimeUpdate);
     media.addEventListener('loadedmetadata', handleLoadedMetadata);
     media.addEventListener('volumechange', handleVolumeChange);
@@ -203,13 +201,14 @@ export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(({ src, 
     return () => {
       media.removeEventListener('play', handlePlay);
       media.removeEventListener('pause', handlePause);
+      media.removeEventListener('ended', handleEnded);
       media.removeEventListener('timeupdate', handleTimeUpdate);
       media.removeEventListener('loadedmetadata', handleLoadedMetadata);
       media.removeEventListener('volumechange', handleVolumeChange);
       media.removeEventListener('ratechange', handleRateChange);
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
     };
-  }, [updateTime, type, onVideoLoaded, onPlay]);
+  }, [updateTime, onPlay, onPause, onStop]);
 
   // 监听键盘事件
   useEffect(() => {
