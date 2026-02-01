@@ -237,15 +237,18 @@ const ResourceTabs: React.FC<ResourceTabsProps> = ({
   }, [availableTabs, activeTab]);
 
   // 渲染标签内容（从注册表动态获取组件）
-  const renderTabContent = useCallback((tabId: TabType): React.ReactNode => {
-    const tabComponent = tabRegistry.get(tabId);
-    if (!tabComponent) {
-      return <div className="h-full flex items-center justify-center text-muted-foreground text-sm">Tab 组件未找到: {tabId}</div>;
-    }
+  const renderTabContent = useCallback(
+    (tabId: TabType): React.ReactNode => {
+      const tabComponent = tabRegistry.get(tabId);
+      if (!tabComponent) {
+        return <div className="h-full flex items-center justify-center text-muted-foreground text-sm">Tab 组件未找到: {tabId}</div>;
+      }
 
-    const Component = tabComponent.component;
-    return <Component />;
-  }, []);
+      const Component = tabComponent.component;
+      return <Component mediaPlayerRef={mediaPlayerRef} />;
+    },
+    [mediaPlayerRef]
+  );
 
   // Context 值
   const contextValue = {

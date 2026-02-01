@@ -19,6 +19,7 @@ export interface MediaPlayerRef {
   seekTo: (time: number) => void; // 跳转到指定时间
   pause: () => void; // 暂停播放
   getCurrentTime: () => number; // 获取当前播放时间
+  isPlaying: () => boolean; // 是否正在播放
 }
 
 export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(({ src, type, title, autoPlay = false, className = '', onTimeUpdate, onPlay, onPause, onStop }, ref) => {
@@ -85,9 +86,10 @@ export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(({ src, 
     () => ({
       seekTo,
       pause,
-      getCurrentTime
+      getCurrentTime,
+      isPlaying: () => isPlaying
     }),
-    [seekTo, pause, getCurrentTime]
+    [seekTo, pause, getCurrentTime, isPlaying]
   );
 
   // 设置音量
