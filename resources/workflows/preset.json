@@ -128,48 +128,49 @@
         }
       },
       {
-        "id": "whisper",
-        "type": "media/transcribe-whisper",
-        "x": 392,
-        "y": 41,
-        "config": {
-          "model": "",
-          "language": "",
-          "outputFormats": [
-            "srt",
-            "txt",
-            "json"
-          ],
-          "jsonFull": true
-        }
-      },
-      {
         "id": "end",
         "type": "core/end",
         "x": 1176,
-        "y": 88.5,
+        "y": 95.5,
         "config": {}
       },
       {
         "id": "resource/create-kfIN",
         "type": "resource/create",
         "x": 784,
-        "y": 20.5,
+        "y": 19.5,
         "config": {}
+      },
+      {
+        "id": "media/transcribe-whisper-ipZ0",
+        "type": "media/transcribe-whisper",
+        "x": 392,
+        "y": 143,
+        "config": {
+          "model": "",
+          "language": "",
+          "threads": "",
+          "translate": false,
+          "printProgress": false,
+          "vad": false,
+          "noTimestamps": false,
+          "maxLen": 75,
+          "dtw": true,
+          "prompt": "",
+          "maxContent": -1,
+          "splitOnWord": false,
+          "entropyThold": 2.4,
+          "logprobThold": -1,
+          "noSpeechThold": 0.6,
+          "temperature": 0,
+          "temperatureInc": 0.2,
+          "useGpu": true,
+          "flashAttn": false,
+          "sns": false
+        }
       }
     ],
     "edges": [
-      {
-        "id": "e-MNiAAQ",
-        "from": {
-          "nodeId": "start",
-          "port": "path"
-        },
-        "to": {
-          "nodeId": "whisper",
-          "port": "media"
-        }
-      },
       {
         "id": "e-m-cAbx",
         "from": {
@@ -182,17 +183,6 @@
         }
       },
       {
-        "id": "e-_Lfxd6",
-        "from": {
-          "nodeId": "whisper",
-          "port": "srt"
-        },
-        "to": {
-          "nodeId": "resource/create-kfIN",
-          "port": "file"
-        }
-      },
-      {
         "id": "e-tbIe4W",
         "from": {
           "nodeId": "start",
@@ -201,6 +191,28 @@
         "to": {
           "nodeId": "resource/create-kfIN",
           "port": "parentResourceId"
+        }
+      },
+      {
+        "id": "e-btuBON",
+        "from": {
+          "nodeId": "start",
+          "port": "path"
+        },
+        "to": {
+          "nodeId": "media/transcribe-whisper-ipZ0",
+          "port": "media"
+        }
+      },
+      {
+        "id": "e-FBPHIf",
+        "from": {
+          "nodeId": "media/transcribe-whisper-ipZ0",
+          "port": "srt"
+        },
+        "to": {
+          "nodeId": "resource/create-kfIN",
+          "port": "file"
         }
       }
     ],
