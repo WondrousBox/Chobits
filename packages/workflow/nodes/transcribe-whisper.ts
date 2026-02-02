@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { writeFile, writeLocalJSON } from '@aim-packages/file-utils';
 import { filter, parser, tools, utils } from '@aim-packages/subtitle';
 import ffmpeg from 'fluent-ffmpeg';
 
@@ -671,11 +672,10 @@ export const TranscribeWhisperNode: NodeHandler = {
       { key: 'threads', label: '线程数', type: 'number', required: false, description: '使用的线程数', group: 'more' },
       { key: 'translate', label: '翻译模式', type: 'boolean', required: false, default: false, description: '是否翻译到英文', group: 'more' },
       { key: 'printProgress', label: '打印进度', type: 'boolean', required: false, default: false, group: 'more' },
-      { key: 'printColors', label: '打印颜色', type: 'boolean', required: false, default: false, group: 'more' },
       { key: 'vad', label: '语音活动检测', type: 'boolean', required: false, default: false, description: '通过VAD识别人说话部分' },
       { key: 'noTimestamps', label: '无时间戳', type: 'boolean', required: false, default: false, group: 'more' },
       { key: 'maxLen', label: '最大句长', type: 'number', required: false, default: 75, description: '分段时最大句长（字符数），0 表示不限制', group: 'advanced' },
-      { key: 'dtw', label: '启用 DTW', type: 'boolean', required: false, default: false, description: '启用动态时间规整（DTW）优化', group: 'more' },
+      { key: 'dtw', label: '启用 DTW', type: 'boolean', required: false, default: true, description: '启用动态时间规整（DTW）优化', group: 'advanced' },
       { key: 'prompt', label: '上下文提示', type: 'string', required: false, default: '', description: '提供上下文提示以改善转录质量', group: 'advanced' },
       { key: 'maxContent', label: '最大文本上下文', type: 'number', required: false, default: -1, description: '最大文本上下文token数（-1表示无限制）', group: 'advanced' },
       { key: 'splitOnWord', label: '单词边界分割', type: 'boolean', required: false, default: false, description: '在单词边界分割', group: 'advanced' },
@@ -763,14 +763,12 @@ export const TranscribeWhisperNode: NodeHandler = {
     }
 
     // 线程数 (-t)
-    if (config?.threads != null) args.push('-t', String(config.threads));
+    if (config?.threads != null && config.threads) args.push('-t', String(config.threads));
 
     // 翻译模式 (--translate)
     if (config?.translate) args.push('--translate');
 
     // 输出格式 (-otxt, -osrt, -ovtt, -oj/-ojf, -olrc, -owts)
-    // 输出格式固定为 SRT + 完整 JSON（-osrt, -ojf）
-    args.push('-osrt');
     // 直接使用完整 JSON 输出 -ojf
     args.push('-ojf');
 
@@ -803,7 +801,6 @@ export const TranscribeWhisperNode: NodeHandler = {
       }
     }
     if (config?.noTimestamps) args.push('--no-timestamps');
-    if (config?.maxLen != null && config.maxLen !== 0) args.push('--max-len', String(config.maxLen));
 
     // 上下文提示 (--prompt)
     if (config?.prompt && String(config.prompt).trim()) {
@@ -856,12 +853,12 @@ export const TranscribeWhisperNode: NodeHandler = {
     // SNS (-sns, --suppress-nst)
     if (config?.sns) args.push('--suppress-nst');
 
-    // DTW 参数 (--dtw)
+    // DTW 参数 (-dtw)
     // 如果启用 dtw，使用映射后的文件名作为 dtw 参数值
     if (config?.dtw) {
       const modelFileName = dtwMap[modelKey];
       if (modelFileName) {
-        args.push('--dtw', modelFileName);
+        args.push('-dtw', modelFileName);
       }
     }
 
@@ -903,11 +900,12 @@ export const TranscribeWhisperNode: NodeHandler = {
       fs.unlinkSync(srcJsonPath);
     }
 
-    // 收集输出
+    // 收集输出（先完成所有异步写入，再填充 out 并返回）
     const out: Record<string, any> = {};
 
-    if (fileExists(srtPath)) out.srt = srtPath;
-    if (fileExists(jsonPath)) {
+    await (async () => {
+      if (fileExists(srtPath)) out.srt = srtPath;
+      if (!fileExists(jsonPath)) return;
       try {
         let obj: any;
         try {
@@ -959,50 +957,56 @@ export const TranscribeWhisperNode: NodeHandler = {
 
           // 2. 转为 AIM 段落
           const s = await parser.whisperJsonToAimSegments(obj);
-          if (!Array.isArray(s)) return out;
+          if (!Array.isArray(s)) return;
 
           const segmentsPath = path.join(outDir, `${base}.segments.json`);
           let segmentsToWrite: any[] = s;
 
           // 3. 标点检测 + 关键词过滤 + 按句长分段（默认开启）
-          {
-            const detectedLanguage = obj?.result?.language ?? '';
-            const allText = s.map((item: any) => item.text ?? '').join('');
-            const punctuationResult = detectCJKHindiPunctuation(allText, detectedLanguage, 200);
+          const detectedLanguage = obj?.result?.language ?? '';
+          const allText = s.map((item: any) => item.text ?? '').join('');
+          const punctuationResult = detectCJKHindiPunctuation(allText, detectedLanguage, 200);
 
-            if (punctuationResult.hasPunctuation) {
-              const allChildren = s.map((item: any) => item.children ?? []).flat();
-              const sf = new filter.StreamFilter();
-              sf.reParse(defaultKeywords);
-              const sentenceLength = config?.maxLen != null && config.maxLen > 0 ? config.maxLen : 75;
-              const allParsedSegments: any[] = [];
+          if (punctuationResult.hasPunctuation) {
+            const allChildren = s.map((item: any) => item.children ?? []).flat();
+            const sf = new filter.StreamFilter();
+            sf.reParse(defaultKeywords);
+            const sentenceLength = config?.maxLen != null && config.maxLen > 0 ? config.maxLen : 75;
+            const allParsedSegments: any[] = [];
 
-              const segmentParser = parser.createSegmentStreamParser({
-                onParse: (event: any) => {
-                  if (event?.type === 'event' && event?.event === 'message' && event?.data) {
-                    event.data.forEach((segment: any) => {
-                      let processedText = sf.feedAll(segment.text ?? '').trim();
-                      processedText = postProcessKeywordReplace(processedText, defaultKeywords);
-                      segment.text = processedText;
-                    });
-                    allParsedSegments.push(...event.data.filter((seg: any) => !!seg.text));
-                  }
-                },
-                onEnd: () => { },
-                sentenceLength
-              });
-              segmentParser.feed(allChildren.length > 0 ? allChildren : []);
-              segmentParser.end();
-              segmentsToWrite = allParsedSegments.length > 0 ? allParsedSegments : s;
-            }
+            const segmentParser = parser.createSegmentStreamParser({
+              onParse: (event: any) => {
+                if (event?.type === 'event' && event?.event === 'message' && event?.data) {
+                  event.data.forEach((segment: any) => {
+                    let processedText = sf.feedAll(segment.text ?? '').trim();
+                    processedText = postProcessKeywordReplace(processedText, defaultKeywords);
+                    segment.text = processedText;
+                  });
+                  allParsedSegments.push(...event.data.filter((seg: any) => !!seg.text));
+                }
+              },
+              onEnd: () => {
+                //
+              },
+              sentenceLength
+            });
+            segmentParser.feed(allChildren.length > 0 ? allChildren : []);
+            segmentParser.end();
+            segmentsToWrite = allParsedSegments.length > 0 ? allParsedSegments : s;
           }
 
-          fs.writeFileSync(segmentsPath, JSON.stringify(segmentsToWrite, null, 2), 'utf8');
+          await writeLocalJSON(segmentsPath, segmentsToWrite);
+
+          // 从最终生成的 segments 生成 SRT，覆盖 Whisper 原始输出的 SRT，保证与 .segments.json 一致
+          const iSegments: [string, string, string, string | undefined][] = segmentsToWrite.map((seg: { st: string; et: string; text: string }) => [seg.st, seg.et, seg.text ?? '', undefined]);
+          const srtContent = tools.outputSrt({ segments1: iSegments });
+          await writeFile(srtPath, srtContent);
+          out.srt = srtPath;
         }
       } catch (err) {
         console.warn('[whisper] segments 后处理或写入失败:', err);
       }
-    }
+    })();
 
     return out;
   }
