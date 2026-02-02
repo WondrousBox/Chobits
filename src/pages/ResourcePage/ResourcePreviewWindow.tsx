@@ -66,7 +66,7 @@ const ResourcePreviewWindow: React.FC = () => {
     }
     // 延迟执行，确保媒体已加载
     const timer = setTimeout(() => {
-      mediaPlayerRef.current?.seekTo(pendingStartTime);
+      mediaPlayerRef?.current?.seekTo(pendingStartTime);
       setPendingStartTime(null);
     }, 150);
     return () => clearTimeout(timer);
@@ -245,7 +245,7 @@ const ResourcePreviewWindow: React.FC = () => {
       const { type } = event.data;
       // 互斥播放：面板开始播放时，弹窗暂停
       if (type === 'playStarted' && event.data.source === 'panel' && event.data.resourceId === data?.id) {
-        mediaPlayerRef.current?.pause();
+        mediaPlayerRef?.current?.pause();
       }
     };
 
@@ -263,8 +263,8 @@ const ResourcePreviewWindow: React.FC = () => {
     if (isRouteMode) return; // 路由模式下不处理 beforeunload
 
     const handleBeforeUnload = (): void => {
-      if (data?.id && mediaPlayerRef.current) {
-        const time = mediaPlayerRef.current.getCurrentTime();
+      if (data?.id && mediaPlayerRef?.current) {
+        const time = mediaPlayerRef?.current?.getCurrentTime();
         if (time > 0 && mediaSyncChannelRef.current) {
           // 使用已持有的 channel 实例发送消息，避免竞态条件
           mediaSyncChannelRef.current.postMessage({

@@ -53,7 +53,7 @@ const SubtitleTab: React.FC = () => {
             resource={activeSubtitle}
             currentTime={currentTime}
             mediaPlayerRef={mediaPlayerRef}
-            onSeek={mediaPlayerRef.current ? (time) => mediaPlayerRef.current!.seekTo(time) : undefined}
+            onSeek={mediaPlayerRef?.current ? (time) => mediaPlayerRef?.current?.seekTo(time) : undefined}
             audioPath={audioPath}
             onMediaPlay={onMediaPlay}
             onMediaPause={onMediaPause}
