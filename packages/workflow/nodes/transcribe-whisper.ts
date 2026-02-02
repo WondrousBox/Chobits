@@ -2,9 +2,10 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { filter, parser, tools, utils } from '@aim-packages/subtitle';
 import ffmpeg from 'fluent-ffmpeg';
 
-import { NodeConfig, NodeHandler, PortSchema, ValueType } from '../types';
+import { NodeHandler } from '../types';
 
 // 模型名称映射：文件名 -> 简化名称（用于 dtw 参数）
 const dtwMap: Record<string, string> = {
@@ -20,6 +21,275 @@ const dtwMap: Record<string, string> = {
   'ggml-large-v2.bin': 'large.v2',
   'ggml-large-v3.bin': 'large.v3'
 };
+
+// 这些内容在转录文本中会被替换为空字符串，避免出现在最终结果里
+const defaultKeywords: string[][] = [
+  ['请不吝点赞 订阅 转发 打赏支持明镜与点点栏目', ''],
+  ['請不吝點贊訂閱轉發打賞支持明鏡與點點欄目', ''],
+  ['明镜需要您的支持 欢迎订阅明镜', ''],
+  ['中文字幕由 Amara.org 社群提供', ''],
+  ['由 Amara.org 社群提供的字幕', ''],
+  ['中文字幕由Amara.org社区提供', ''],
+  ['小編字幕由Amara.org社區提供', ''],
+  ['字幕制作/时间轴:秋月', ''],
+  ['明镜与点点栏目', ''],
+  ['优优独播剧场——YoYo Television Series Exclusive', ''],
+  ['中文字幕志愿者申请', ''],
+  ['了解更多,請訂閱谷歌頻道、按讚、分享、留言 decky born 會開始平台 Seagull Quiz', ''],
+  ['字幕志愿者 杨栋梁', ''],
+  ['Amara.org', ''],
+  ['www.mooji.org', ''],
+  ['Ondertitels ingediend door de Amara.org gemeenschap', ''],
+  ['Ondertiteld door de Amara.org gemeenschap', ''],
+  ['Ondertiteling door de Amara.org gemeenscha', ''],
+  ['Untertitelung aufgrund der Amara.org-Communit', ''],
+  ['Untertitel im Auftrag des ZDF für funk, 2017', ''],
+  ['Untertitel von Stephanie Geiges', ''],
+  ['Untertitel der Amara.org-Community', ''],
+  ['Untertitel im Auftrag des ZDF, 2017', ''],
+  ['Untertitel im Auftrag des ZDF, 2020', ''],
+  ['Untertitel im Auftrag des ZDF, 2018', ''],
+  ['Untertitel im Auftrag des ZDF, 2021', ''],
+  ['Untertitelung im Auftrag des ZDF, 2021', ''],
+  ['Copyright WDR 2021', ''],
+  ['Copyright WDR 2020', ''],
+  ['Copyright WDR 2019', ''],
+  ['SWR 2021', ''],
+  ['SWR 2020', ''],
+  ['❤️ par SousTitreur.com', ''],
+  ['Sottotitoli creati dalla comunità Amara.org', ''],
+  ['Sottotitoli di Sottotitoli di Amara.org', ''],
+  ['Sottotitoli e revisione al canale di Amara.org', ''],
+  ['Sottotitoli e revisione a cura di Amara.org', ''],
+  ['Sottotitoli e revisione a cura di QTSS', ''],
+  ['Sottotitoli e revisione a cura di QTSS.', ''],
+  ['Sottotitoli a cura di QTSS', ''],
+  ['Subtítulos realizados por la comunidad de Amara.org', ''],
+  ['Subtitulado por la comunidad de Amara.org', ''],
+  ['Subtítulos por la comunidad de Amara.org', ''],
+  ['Subtítulos creados por la comunidad de Amara.org', ''],
+  ['Subtítulos en español de Amara.org', ''],
+  ['Subtítulos hechos por la comunidad de Amara.org', ''],
+  ['Subtitulos por la comunidad de Amara.or', ''],
+  ['Más información www.alimmenta.com', ''],
+  ['www.mooji.org', ''],
+  ['Subtítulos realizados por la comunidad de Amara.or', ''],
+  ['Legendas pela comunidade Amara.org', ''],
+  ['Legendas pela comunidade de Amara.org', ''],
+  ['Legendas pela comunidade do Amara.org', ''],
+  ['Legendas pela comunidade das Amara.org', ''],
+  ['Transcrição e Legendas pela comunidade de Amara.or', ''],
+  ['Sottotitoli creati dalla comunità Amara.org', ''],
+  ['Napisy wykonane przez społeczność Amara.org', ''],
+  ['Zdjęcia i napisy stworzone przez społeczność Amara.org', ''],
+  ['napisy stworzone przez społeczność Amara.org', ''],
+  ['Tłumaczenie i napisy stworzone przez społeczność Amara.org', ''],
+  ['Napisy stworzone przez społeczności Amara.org', ''],
+  ['Tłumaczenie stworzone przez społeczność Amara.org', ''],
+  ['Napisy robione przez społeczność Amara.or', ''],
+  ['www.multi-moto.eu', ''],
+  ['Редактор субтитров А.Синецкая Корректор А.Егоров', ''],
+  ['Yorumlarınızıza abone olmayı unutmayın.', ''],
+  ['Sottotitoli creati dalla comunità Amara.or', ''],
+  ['MING PAO CANADA | MING PAO TORONTO', ''],
+  ['拜拜!', ''],
+  ['(字幕製作:貝爾)', ''],
+  ['字幕製作:貝爾', ''],
+  ['會有coming soon', ''],
+  ['(字幕君:我愛你)', ''],
+  ['Transcribed by https://otter.ai', ''],
+  ['https://otter.ai', ''],
+  ['(字幕:J Chong)', ''],
+  ['字幕:J Chong', ''],
+  ['(字幕:貝爾)', '']
+];
+
+// 关键词后处理：补充 StreamFilter，确保短关键词也能被正确替换
+function postProcessKeywordReplace(text: string, keywords: string[][]): string {
+  if (!text || !keywords || keywords.length === 0) return text;
+
+  let result = text;
+  // 按关键词长度从长到短排序，避免短关键词先替换导致长关键词无法匹配
+  const sortedKeywords = [...keywords].sort((a, b) => (b[0]?.length || 0) - (a[0]?.length || 0));
+
+  for (const [keyword, replaceText] of sortedKeywords) {
+    if (keyword && keyword.length > 0) {
+      // 使用全局替换
+      result = result.split(keyword).join(replaceText ?? '');
+    }
+  }
+
+  return result;
+}
+
+/** 检测文本中是否包含中日韩印等标点符号（用于决定是否进行分段/关键词后处理） */
+function detectCJKHindiPunctuation(text: string, language?: string, maxSegmentLength?: number): { hasPunctuation: boolean; matches: string[]; languageName: string } {
+  const chinesePunctuation = ['。', '、', '，', '！', '？', '；', '…'];
+  const japanesePunctuation = ['。', '、', '，', '！', '？', '；', '…', '‥'];
+  const koreanPunctuation = ['。', '，', '！', '？', '；', '…'];
+  const hindiPunctuation = ['।', '॥', '，', '？', '！', '；', '…'];
+  const englishPunctuation = ['.', ',', '!', '?', ';', ':', '...'];
+
+  let targetPunctuation: string[] = [];
+  let languageName = '';
+
+  switch (language) {
+    case 'zh':
+    case 'zh_s':
+    case 'zh_t':
+      targetPunctuation = chinesePunctuation;
+      languageName = '中文';
+      break;
+    case 'ja':
+      targetPunctuation = japanesePunctuation;
+      languageName = '日文';
+      break;
+    case 'ko':
+      targetPunctuation = koreanPunctuation;
+      languageName = '韩文';
+      break;
+    case 'hi':
+      targetPunctuation = hindiPunctuation;
+      languageName = '印地语';
+      break;
+    case 'yue':
+      targetPunctuation = chinesePunctuation;
+      languageName = '粤语';
+      break;
+    default:
+      targetPunctuation = englishPunctuation;
+      languageName = language ? `未知(${language})` : '英文';
+      break;
+  }
+
+  const matches: string[] = [];
+  for (const char of text) {
+    if (targetPunctuation.includes(char) && !matches.includes(char)) matches.push(char);
+  }
+
+  if (maxSegmentLength != null && maxSegmentLength > 0) {
+    let currentSegmentLength = 0;
+    for (const char of text) {
+      if (targetPunctuation.includes(char)) currentSegmentLength = 0;
+      else {
+        currentSegmentLength++;
+        if (currentSegmentLength > maxSegmentLength) {
+          return { hasPunctuation: false, matches: [], languageName };
+        }
+      }
+    }
+  }
+
+  return { hasPunctuation: matches.length > 0, matches, languageName };
+}
+
+/** 检查文本是否符合需要合并的模式（小数/年份/版本号等） */
+function isValidMergePattern(text: string): boolean {
+  if (/^\s*\d+\.\d+\s*$/.test(text)) return true;
+  if (/^\s*\d{4}\s*$/.test(text)) {
+    const n = parseInt(text.trim(), 10);
+    if (n >= 1900 && n <= 2100) return true;
+  }
+  if (/^\s*v?\d+\.\d+(\.\d+)*\s*$/i.test(text)) return true;
+  if (/^\s*\d+\.\d+\.\d+\.\d+\s*$/.test(text)) return true;
+  if (/^\s*\d{1,2}\.\d{2}\s*$/.test(text) && parseInt(text.trim().split('.')[0], 10) <= 23) return true;
+  if (/^\s*[A-Za-z]+\.\d+\s*$/.test(text)) return true;
+  if (/^\s*\d+\.[A-Za-z]+\s*$/.test(text)) return true;
+  if (/^\s*[A-Za-z]+\.\d+\.[A-Za-z]+\s*$/.test(text)) return true;
+  if (/^\s*\d+\.\s*$/.test(text) || /^\s*\.\d+\s*$/.test(text)) return true;
+  if (/^\s*\d+\s*$/.test(text) || /^\s*[A-Za-z]+\s*$/.test(text)) return true;
+  return false;
+}
+
+function isPunctuationChar(text: string): boolean {
+  return /^[\s]*[,.!?;:()[\]{}"'`~@#$%^&*+=|\\/<>_]+[\s]*$/.test(text);
+}
+
+/** 合并特殊 token（小数/年份/版本号等），避免被错误拆分 */
+function mergeSpecialTokens(tokens: any[], text: string): any[] {
+  if (!tokens?.length) return tokens ?? [];
+  const hasDecimal = /\d+\.\d+/.test(text);
+  const hasYear = /\b(19|20)\d{2}\b/.test(text);
+  const hasVersion = /v?\d+\.\d+(\.\d+)*/i.test(text);
+  const hasIP = /\b\d+\.\d+\.\d+\.\d+\b/.test(text);
+  const hasTime = /\b\d{1,2}\.\d{2}\b/.test(text);
+  const hasLetterNumber = /[A-Za-z]+\.\d+|\d+\.[A-Za-z]+/.test(text);
+  if (!hasDecimal && !hasYear && !hasVersion && !hasIP && !hasTime && !hasLetterNumber) return tokens;
+
+  const mergedTokens: any[] = [];
+  let i = 0;
+
+  while (i < tokens.length) {
+    const currentToken = tokens[i];
+    if (currentToken.text && (currentToken.text.includes('.') || /^\s*\d+\s*$/.test(currentToken.text) || /^\s*[A-Za-z]+\s*$/.test(currentToken.text))) {
+      let mergedText = currentToken.text;
+      const mergedOffsets = { ...(currentToken.offsets || {}) };
+      const mergedTimestamps = { ...(currentToken.timestamps || {}) };
+      let startIndex = i;
+      let endIndex = i;
+
+      let j = i - 1;
+      while (j >= 0) {
+        const prevToken = tokens[j];
+        if (!prevToken?.text) break;
+        const testText = prevToken.text + mergedText;
+        if (isValidMergePattern(testText)) {
+          mergedText = testText;
+          mergedOffsets.from = prevToken.offsets?.from;
+          mergedTimestamps.from = prevToken.timestamps?.from;
+          startIndex = j;
+          j--;
+        } else break;
+      }
+      j = i + 1;
+      while (j < tokens.length) {
+        const nextToken = tokens[j];
+        if (!nextToken?.text) break;
+        const testText = mergedText + nextToken.text;
+        if (isValidMergePattern(testText)) {
+          mergedText = testText;
+          mergedOffsets.to = nextToken.offsets?.to;
+          mergedTimestamps.to = nextToken.timestamps?.to;
+          endIndex = j;
+          j++;
+        } else break;
+      }
+
+      if (startIndex !== endIndex || isValidMergePattern(mergedText)) {
+        let punctuationToken: any = null;
+        let punctuationIndex = -1;
+        if (endIndex + 1 < tokens.length) {
+          const nextToken = tokens[endIndex + 1];
+          if (nextToken?.text && isPunctuationChar(nextToken.text)) {
+            punctuationToken = nextToken;
+            punctuationIndex = endIndex + 1;
+          }
+        }
+        const mergedToken = {
+          ...currentToken,
+          text: mergedText,
+          offsets: mergedOffsets,
+          timestamps: mergedTimestamps
+        };
+        if (punctuationToken) {
+          mergedToken.text = mergedText + punctuationToken.text;
+          mergedToken.offsets.to = punctuationToken.offsets?.to;
+          mergedToken.timestamps.to = punctuationToken.timestamps?.to;
+          endIndex = punctuationIndex;
+        }
+        mergedTokens.push(mergedToken);
+        i = endIndex + 1;
+      } else {
+        mergedTokens.push(currentToken);
+        i++;
+      }
+    } else {
+      mergedTokens.push(currentToken);
+      i++;
+    }
+  }
+  return mergedTokens;
+}
 
 function fileExists(p: string): boolean {
   try {
@@ -223,34 +493,7 @@ async function runWhisper(args: string[], ctx: any, onProgress?: (progress: numb
   });
 }
 
-// 根据配置计算动态输出端口
-function getDynamicOutputs(config?: NodeConfig): PortSchema[] {
-  const outputs: PortSchema[] = [{ key: 'segments', label: '分段 JSON', type: 'object' }];
-
-  // 根据选择的输出格式添加对应的输出端口
-  const outputFormats: string[] = Array.isArray(config?.outputFormats) ? config.outputFormats : ['txt', 'srt', 'vtt', 'json'];
-  const formatMap: Record<string, { key: string; label: string; type: ValueType }> = {
-    txt: { key: 'txt', label: 'TXT 文件', type: 'file' },
-    srt: { key: 'srt', label: 'SRT 文件', type: 'file' },
-    vtt: { key: 'vtt', label: 'VTT 文件', type: 'file' },
-    json: { key: 'json', label: 'JSON 文件', type: 'file' },
-    lrc: { key: 'lrc', label: 'LRC 文件', type: 'file' },
-    words: { key: 'words', label: 'Words 文件', type: 'file' }
-  };
-
-  // 添加选择的格式对应的输出端口
-  for (const format of outputFormats) {
-    const formatDef = formatMap[format];
-    if (formatDef) {
-      if (formatDef.key === 'txt') {
-        outputs.push({ key: 'text', label: '全文文本', type: 'string' });
-      }
-      outputs.push({ key: formatDef.key, label: formatDef.label, type: formatDef.type });
-    }
-  }
-
-  return outputs;
-}
+// 输出端口固定为分段 JSON + SRT 文件 + JSON 文件
 
 export const TranscribeWhisperNode: NodeHandler = {
   spec: {
@@ -427,29 +670,11 @@ export const TranscribeWhisperNode: NodeHandler = {
       },
       { key: 'threads', label: '线程数', type: 'number', required: false, description: '使用的线程数', group: 'more' },
       { key: 'translate', label: '翻译模式', type: 'boolean', required: false, default: false, description: '是否翻译到英文', group: 'more' },
-      {
-        key: 'outputFormats',
-        label: '输出格式',
-        type: 'array',
-        required: false,
-        default: ['txt', 'srt', 'vtt', 'json'],
-        description: '输出格式列表',
-        inputType: 'select-multiple',
-        options: [
-          { value: 'txt', label: 'TXT - 纯文本文件' },
-          { value: 'srt', label: 'SRT - 字幕文件' },
-          { value: 'vtt', label: 'VTT - WebVTT 字幕文件' },
-          { value: 'json', label: 'JSON - JSON 格式文件' },
-          { value: 'lrc', label: 'LRC - 歌词文件' },
-          { value: 'words', label: 'Words - 卡拉OK视频脚本' }
-        ]
-      },
-      { key: 'jsonFull', label: '完整 JSON 格式', type: 'boolean', required: false, default: false, description: 'JSON 输出包含更多信息（使用 -ojf 而非 -oj）', group: 'more' },
       { key: 'printProgress', label: '打印进度', type: 'boolean', required: false, default: false, group: 'more' },
       { key: 'printColors', label: '打印颜色', type: 'boolean', required: false, default: false, group: 'more' },
       { key: 'vad', label: '语音活动检测', type: 'boolean', required: false, default: false, description: '通过VAD识别人说话部分' },
       { key: 'noTimestamps', label: '无时间戳', type: 'boolean', required: false, default: false, group: 'more' },
-      { key: 'maxLen', label: '最大长度', type: 'number', required: false, default: 0, description: '最大段落长度', group: 'advanced' },
+      { key: 'maxLen', label: '最大句长', type: 'number', required: false, default: 75, description: '分段时最大句长（字符数），0 表示不限制', group: 'advanced' },
       { key: 'dtw', label: '启用 DTW', type: 'boolean', required: false, default: false, description: '启用动态时间规整（DTW）优化', group: 'more' },
       { key: 'prompt', label: '上下文提示', type: 'string', required: false, default: '', description: '提供上下文提示以改善转录质量', group: 'advanced' },
       { key: 'maxContent', label: '最大文本上下文', type: 'number', required: false, default: -1, description: '最大文本上下文token数（-1表示无限制）', group: 'advanced' },
@@ -463,18 +688,9 @@ export const TranscribeWhisperNode: NodeHandler = {
       { key: 'flashAttn', label: 'Flash Attention', type: 'boolean', required: false, default: false, description: '启用Flash Attention', group: 'advanced' },
       { key: 'sns', label: '抑制非语音标记', type: 'boolean', required: false, default: false, description: '抑制非语音标记 (suppress non-speech tokens)', group: 'advanced' }
     ],
-    // 默认输出（当没有配置或配置为空时使用）
-    outputs: [
-      { key: 'text', label: '全文文本', type: 'string' },
-      { key: 'segments', label: '分段 JSON', type: 'object' },
-      { key: 'txt', label: 'TXT 文件', type: 'file' },
-      { key: 'srt', label: 'SRT 文件', type: 'file' },
-      { key: 'vtt', label: 'VTT 文件', type: 'file' },
-      { key: 'json', label: 'JSON 文件', type: 'file' }
-    ]
+    // 默认输出（固定端口）：仅暴露 SRT；segments 作为同目录下的映射文件存储（与 SRT 同名的 .segments.json）
+    outputs: [{ key: 'srt', label: 'SRT 文件', type: 'file' }]
   },
-  // 根据配置动态计算输出端口
-  getOutputs: getDynamicOutputs,
   async run({ input, config, ctx, emit }) {
     const src = String(input.media || '');
     if (!src) throw new Error('缺少媒体文件路径');
@@ -553,20 +769,10 @@ export const TranscribeWhisperNode: NodeHandler = {
     if (config?.translate) args.push('--translate');
 
     // 输出格式 (-otxt, -osrt, -ovtt, -oj/-ojf, -olrc, -owts)
-    const outputFormats = Array.isArray(config?.outputFormats) ? config.outputFormats : ['txt', 'srt', 'vtt', 'json'];
-    if (outputFormats.includes('txt')) args.push('-otxt');
-    if (outputFormats.includes('srt')) args.push('-osrt');
-    if (outputFormats.includes('vtt')) args.push('-ovtt');
-    if (outputFormats.includes('json')) {
-      // 根据 jsonFull 配置选择使用 -oj 或 -ojf
-      if (config?.jsonFull) {
-        args.push('-ojf');
-      } else {
-        args.push('-oj');
-      }
-    }
-    if (outputFormats.includes('lrc')) args.push('-olrc');
-    if (outputFormats.includes('words')) args.push('-owts');
+    // 输出格式固定为 SRT + 完整 JSON（-osrt, -ojf）
+    args.push('-osrt');
+    // 直接使用完整 JSON 输出 -ojf
+    args.push('-ojf');
 
     // 输出目录（whisper.cpp 会在输入文件同目录生成输出，需要指定输出目录时需要特殊处理）
     // 注意：whisper.cpp 默认在输入文件同目录输出，我们需要在运行后移动文件
@@ -681,82 +887,121 @@ export const TranscribeWhisperNode: NodeHandler = {
       return appended; // Default to appended if neither exists
     };
 
-    const srcTxtPath = getGeneratedPath('txt');
     const srcSrtPath = getGeneratedPath('srt');
-    const srcVttPath = getGeneratedPath('vtt');
     const srcJsonPath = getGeneratedPath('json');
-    const srcLrcPath = getGeneratedPath('lrc');
-    const srcWordsPath = getGeneratedPath('words');
 
     // 移动文件到输出目录
-    const txtPath = path.join(outDir, `${base}.txt`);
     const srtPath = path.join(outDir, `${base}.srt`);
-    const vttPath = path.join(outDir, `${base}.vtt`);
     const jsonPath = path.join(outDir, `${base}.json`);
-    const lrcPath = path.join(outDir, `${base}.lrc`);
-    const wordsPath = path.join(outDir, `${base}.words`);
 
-    if (fileExists(srcTxtPath)) {
-      fs.copyFileSync(srcTxtPath, txtPath);
-      fs.unlinkSync(srcTxtPath);
-    }
     if (fileExists(srcSrtPath)) {
       fs.copyFileSync(srcSrtPath, srtPath);
       fs.unlinkSync(srcSrtPath);
-    }
-    if (fileExists(srcVttPath)) {
-      fs.copyFileSync(srcVttPath, vttPath);
-      fs.unlinkSync(srcVttPath);
     }
     if (fileExists(srcJsonPath)) {
       fs.copyFileSync(srcJsonPath, jsonPath);
       fs.unlinkSync(srcJsonPath);
     }
-    if (fileExists(srcLrcPath)) {
-      fs.copyFileSync(srcLrcPath, lrcPath);
-      fs.unlinkSync(srcLrcPath);
-    }
-    if (fileExists(srcWordsPath)) {
-      fs.copyFileSync(srcWordsPath, wordsPath);
-      fs.unlinkSync(srcWordsPath);
-    }
 
     // 收集输出
     const out: Record<string, any> = {};
 
-    if (fileExists(txtPath)) {
-      try {
-        out.txt = txtPath;
-        out.text = fs.readFileSync(txtPath, 'utf8');
-      } catch {
-        // ignore read error, keep going
-      }
-    }
     if (fileExists(srtPath)) out.srt = srtPath;
-    if (fileExists(vttPath)) out.vtt = vttPath;
     if (fileExists(jsonPath)) {
-      out.json = jsonPath;
       try {
-        const obj = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
-        if (obj && typeof obj === 'object' && Array.isArray(obj.segments)) out.segments = obj.segments;
-      } catch {
-        // ignore parse error
-      }
-    }
-    if (fileExists(lrcPath)) out.lrc = lrcPath;
-    if (fileExists(wordsPath)) out.words = wordsPath;
+        let obj: any;
+        try {
+          const jsonBuffer = fs.readFileSync(jsonPath);
+          obj = await tools.fixWhisperJsonDecode(jsonBuffer);
+        } catch {
+          const raw = fs.readFileSync(jsonPath, 'utf8');
+          obj = JSON.parse(raw);
+        }
 
-    // 根据用户期望的输出格式过滤（如果设置了）
-    const expected: string[] = Array.isArray(config?.outputFormats) ? config!.outputFormats : [];
-    if (expected.length) {
-      // 仅保留用户请求的文件路径字段；text/segments 不过滤（便于链路使用）
-      const keepFiles = new Set(expected.map(String));
-      if (!keepFiles.has('txt')) delete out.txt;
-      if (!keepFiles.has('srt')) delete out.srt;
-      if (!keepFiles.has('vtt')) delete out.vtt;
-      if (!keepFiles.has('json')) delete out.json;
-      if (!keepFiles.has('lrc')) delete out.lrc;
-      if (!keepFiles.has('words')) delete out.words;
+        if (obj && typeof obj === 'object') {
+          // 1. 对完整 JSON 的 transcription 做 token 级预处理（合并特殊 token、过滤控制标记、重算时间轴）
+          if (obj.transcription && Array.isArray(obj.transcription)) {
+            obj.transcription.forEach((item: any) => {
+              const offsets = item.offsets ?? {};
+              if (item.tokens && item.tokens.length) {
+                item.tokens = mergeSpecialTokens(item.tokens, item.text ?? '');
+                const filteredTokens = item.tokens.filter((token: any) => {
+                  const t = token?.text ?? '';
+                  return !(t === '[_BEG_]' || t === '[_EOT_]' || /\[_TT_\d+\]/g.test(t));
+                });
+                if (filteredTokens.length > 0) {
+                  const durations = filteredTokens.map((tk: any) => Math.max(0, (tk?.offsets?.to ?? 0) - (tk?.offsets?.from ?? 0)));
+                  let cursor = offsets.from ?? 0;
+                  filteredTokens.forEach((token: any, idx: number) => {
+                    const d = durations[idx] ?? 0;
+                    const f = cursor;
+                    const t = f + d;
+                    if (token.offsets) {
+                      token.offsets.from = f;
+                      token.offsets.to = t;
+                    }
+                    if (token.timestamps) {
+                      token.timestamps.from = utils.formatTime(f / 1000);
+                      token.timestamps.to = utils.formatTime(t / 1000);
+                    }
+                    cursor = t;
+                  });
+                  if (cursor > (offsets.to ?? 0)) {
+                    item.offsets = item.offsets ?? {};
+                    item.offsets.to = cursor;
+                    if (item.timestamps) item.timestamps.to = utils.formatTime(cursor / 1000);
+                  }
+                }
+                item.tokens = filteredTokens;
+              }
+            });
+          }
+
+          // 2. 转为 AIM 段落
+          const s = await parser.whisperJsonToAimSegments(obj);
+          if (!Array.isArray(s)) return out;
+
+          const segmentsPath = path.join(outDir, `${base}.segments.json`);
+          let segmentsToWrite: any[] = s;
+
+          // 3. 标点检测 + 关键词过滤 + 按句长分段（默认开启）
+          {
+            const detectedLanguage = obj?.result?.language ?? '';
+            const allText = s.map((item: any) => item.text ?? '').join('');
+            const punctuationResult = detectCJKHindiPunctuation(allText, detectedLanguage, 200);
+
+            if (punctuationResult.hasPunctuation) {
+              const allChildren = s.map((item: any) => item.children ?? []).flat();
+              const sf = new filter.StreamFilter();
+              sf.reParse(defaultKeywords);
+              const sentenceLength = config?.maxLen != null && config.maxLen > 0 ? config.maxLen : 75;
+              const allParsedSegments: any[] = [];
+
+              const segmentParser = parser.createSegmentStreamParser({
+                onParse: (event: any) => {
+                  if (event?.type === 'event' && event?.event === 'message' && event?.data) {
+                    event.data.forEach((segment: any) => {
+                      let processedText = sf.feedAll(segment.text ?? '').trim();
+                      processedText = postProcessKeywordReplace(processedText, defaultKeywords);
+                      segment.text = processedText;
+                    });
+                    allParsedSegments.push(...event.data.filter((seg: any) => !!seg.text));
+                  }
+                },
+                onEnd: () => { },
+                sentenceLength
+              });
+              segmentParser.feed(allChildren.length > 0 ? allChildren : []);
+              segmentParser.end();
+              segmentsToWrite = allParsedSegments.length > 0 ? allParsedSegments : s;
+            }
+          }
+
+          fs.writeFileSync(segmentsPath, JSON.stringify(segmentsToWrite, null, 2), 'utf8');
+        }
+      } catch (err) {
+        console.warn('[whisper] segments 后处理或写入失败:', err);
+      }
     }
 
     return out;
