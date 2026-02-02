@@ -424,7 +424,7 @@ const RemoteTabComponent: React.FC = () => {
   // 使用 mediaPlayerRef 控制播放
   const handleSeek = useCallback((time: number) => {
     if (mediaPlayerRef?.current) {
-      mediaPlayerRef.current.seekTo(time);
+      mediaPlayerRef?.current?.seekTo(time);
     }
   }, [mediaPlayerRef]);
 

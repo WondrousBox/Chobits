@@ -385,7 +385,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
 
     // 首次挂载时检测：若播放器已在播放（如自动播放），事件可能已错过，需主动触发 TTS
     const checkInitialPlaying = () => {
-      if (mediaPlayerRef.current?.isPlaying()) {
+      if (mediaPlayerRef?.current?.isPlaying()) {
         startTTSPlayback('main');
       }
     };

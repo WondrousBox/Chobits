@@ -93,14 +93,14 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
       const { type } = event.data;
       // 播放进度同步（弹窗关闭时）
       if (type === 'playbackProgress' && event.data.resourceId === data?.id && event.data.currentTime > 0) {
-        if (mediaPlayerRef.current) {
-          mediaPlayerRef.current.seekTo(event.data.currentTime);
+        if (mediaPlayerRef?.current) {
+          mediaPlayerRef?.current.seekTo(event.data.currentTime);
         }
         setCurrentTime(event.data.currentTime);
       }
       // 互斥播放：弹窗开始播放时，面板暂停
       if (type === 'playStarted' && event.data.source === 'window' && event.data.resourceId === data?.id) {
-        mediaPlayerRef.current?.pause();
+        mediaPlayerRef?.current?.pause();
       }
     };
 
@@ -189,9 +189,9 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
             onClick={() => {
               // 获取当前播放时间并暂停视频
               let startTime: number | undefined;
-              if ((isVideo || isAudio) && mediaPlayerRef.current) {
-                startTime = mediaPlayerRef.current.getCurrentTime();
-                mediaPlayerRef.current.pause();
+              if ((isVideo || isAudio) && mediaPlayerRef?.current) {
+                startTime = mediaPlayerRef?.current?.getCurrentTime();
+                mediaPlayerRef?.current?.pause();
               }
               // 通过路由跳转到大屏预览模式
               const searchParams = new URLSearchParams();
@@ -211,9 +211,9 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
             onClick={() => {
               // 获取当前播放时间并暂停视频
               let startTime: number | undefined;
-              if ((isVideo || isAudio) && mediaPlayerRef.current) {
-                startTime = mediaPlayerRef.current.getCurrentTime();
-                mediaPlayerRef.current.pause();
+              if ((isVideo || isAudio) && mediaPlayerRef?.current) {
+                startTime = mediaPlayerRef?.current?.getCurrentTime();
+                mediaPlayerRef?.current?.pause();
               }
               // 使用独立窗口打开当前资源，传递播放进度
               window.YUA.window['window:open'](
