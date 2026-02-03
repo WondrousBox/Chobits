@@ -15,7 +15,7 @@ import { cn } from '@/lib/utils';
 
 import { EditorBubbleMenu } from '../Bubble';
 import DEFAULT_EDITOR_CONTENT from '../default-content';
-import { extensions as fullExtensions } from '../extensions';
+import { createFullExtensions, extensions as fullExtensions } from '../extensions';
 import { TiptapEditorProps as editorProps } from '../props';
 import type { UnifiedEditorProps } from './types';
 import { UnifiedToolbar } from './UnifiedToolbar';
@@ -107,6 +107,8 @@ export const UnifiedEditor = ({
   onTitleChange,
   onEditorReady,
   markdown = true,
+  useFullExtensions = false,
+  mentionItems,
   additionalExtensions = []
 }: UnifiedEditorProps): JSX.Element => {
   // 状态
@@ -142,7 +144,14 @@ export const UnifiedEditor = ({
   };
 
   // 选择扩展配置
-  const extensions = isFullMode ? [...fullExtensions, ...additionalExtensions] : [...createSimpleExtensions(placeholder), ...additionalExtensions];
+  // 如果启用 useFullExtensions，即使在简洁模式下也使用完整扩展（包括 slash 命令、mention 等）
+  // 如果提供了自定义 mentionItems，使用它们创建新的扩展配置
+  const extensions =
+    isFullMode || useFullExtensions
+      ? mentionItems
+        ? [...createFullExtensions(mentionItems), ...additionalExtensions]
+        : [...fullExtensions, ...additionalExtensions]
+      : [...createSimpleExtensions(placeholder), ...additionalExtensions];
 
   // 创建编辑器实例
   const editor = useEditor({

@@ -8,7 +8,7 @@
  */
 import { ReactNode } from 'react';
 
-import { UnifiedEditor } from '@/components/Editor';
+import { resourceMentionItems, UnifiedEditor } from '@/components/Editor';
 
 interface RichTextEditorProps {
   value: string;
@@ -33,6 +33,8 @@ export const RichTextEditor = ({ value, onChange, placeholder, className, toolba
       mode={editable ? 'simple' : 'readonly'}
       toolbarPosition="floating"
       markdown={true}
+      useFullExtensions={true}
+      mentionItems={resourceMentionItems}
     />
   );
 };
