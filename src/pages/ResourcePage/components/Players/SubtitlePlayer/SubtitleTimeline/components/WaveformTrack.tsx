@@ -85,15 +85,6 @@ export const WaveformTrack: React.FC<WaveformTrackProps> = ({
     return () => observer.disconnect();
   }, []);
 
-  // 计算合适的采样数量（根据当前缩放级别）
-  const getSamplesCount = useCallback((pps: number, dur: number): number => {
-    // 根据缩放级别计算采样数量
-    // 基础：保证有足够的采样点来展现波形细节
-    // 最少 5000 个采样点（低质量），最多 100000 个采样点（高质量）
-    const idealSamples = Math.ceil(dur * 200); // 平均每秒 200 个采样点
-    return Math.min(Math.max(5000, idealSamples), 100000);
-  }, []);
-
   // 加载波形数据
   const loadWaveform = useCallback(async () => {
     if (!audioPath) {
@@ -106,8 +97,13 @@ export const WaveformTrack: React.FC<WaveformTrackProps> = ({
 
     try {
       // 计算采样数量
-      const samplesCount = getSamplesCount(pixelsPerSecond, duration);
+      // 基础：保证有足够的采样点来展现波形细节
+      // 最少 5000 个采样点（低质量），最多 100000 个采样点（高质量）
+      // 平均每秒 200 个采样点
+      const samplesCount = Math.min(Math.max(5000, Math.ceil(duration * 200)), 100000);
       const cacheKey = `${audioPath}:${samplesCount}`;
+
+      console.log('samplesCount', samplesCount, 'duration', duration);
 
       // 检查缓存
       const cachedData = waveformCacheRef.current.get(cacheKey);
@@ -123,8 +119,6 @@ export const WaveformTrack: React.FC<WaveformTrackProps> = ({
         samplesCount
       });
 
-      console.log(result);
-
       // 缓存结果
       waveformCacheRef.current.set(cacheKey, result);
       setWaveformData(result);
@@ -134,7 +128,7 @@ export const WaveformTrack: React.FC<WaveformTrackProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [audioPath, pixelsPerSecond, duration, getSamplesCount]);
+  }, [audioPath, duration]);
 
   // 当音频路径变化或缩放级别变化时重新加载波形
   useEffect(() => {

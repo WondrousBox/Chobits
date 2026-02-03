@@ -59,6 +59,18 @@ export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(({ src, 
     }
   }, [onTimeUpdate, onDurationChange]);
 
+  // 播放时用 requestAnimationFrame 按帧同步当前时间，与刷新率对齐，时间轴更丝滑
+  useEffect(() => {
+    if (!isPlaying) return;
+    let rafId: number;
+    const loop = (): void => {
+      updateTime();
+      rafId = requestAnimationFrame(loop);
+    };
+    rafId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(rafId);
+  }, [isPlaying, updateTime]);
+
   // 播放/暂停
   const togglePlay = useCallback(async () => {
     if (!mediaRef.current) return;
@@ -197,9 +209,7 @@ export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(({ src, 
       onStop?.();
     };
     const handleTimeUpdate = (): void => updateTime();
-    const handleLoadedMetadata = (): void => {
-      updateTime();
-    };
+    const handleLoadedMetadata = (): void => updateTime();
     const handleVolumeChange = (): void => {
       if (media) setVolume(media.volume);
     };
