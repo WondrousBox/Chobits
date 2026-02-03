@@ -33,6 +33,7 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
   const [subtitleList, setSubtitleList] = useState<ResourceItem[]>([]);
   const [activeSubtitle, setActiveSubtitle] = useState<ResourceItem | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
+  const [mediaDuration, setMediaDuration] = useState(0);
   const mediaPlayerRef = useRef<MediaPlayerRef>(null);
 
   // 判断资源类型（提前定义，供多处使用）
@@ -44,6 +45,7 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
   useEffect(() => {
     setData(resource);
     setCurrentTime(0);
+    setMediaDuration(0);
   }, [resource]);
 
   // 处理资源切换（来自 ResourceFileList 的点击）
@@ -149,7 +151,7 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
     if (isVideo && fileSrc) {
       return (
         <div className="w-full aspect-video bg-black">
-          <MediaPlayer ref={mediaPlayerRef} src={fileSrc} type="video" title={title} autoPlay={false} className="w-full h-full" onTimeUpdate={setCurrentTime} onPlay={handlePlay} />
+          <MediaPlayer ref={mediaPlayerRef} src={fileSrc} type="video" title={title} autoPlay={false} className="w-full h-full" onTimeUpdate={setCurrentTime} onDurationChange={setMediaDuration} onPlay={handlePlay} />
         </div>
       );
     }
@@ -167,7 +169,7 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
     if (isAudio && fileSrc) {
       return (
         <div className="w-full p-4 bg-muted/30">
-          <MediaPlayer ref={mediaPlayerRef} src={fileSrc} type="audio" title={title} autoPlay={false} className="w-full" onTimeUpdate={setCurrentTime} onPlay={handlePlay} />
+          <MediaPlayer ref={mediaPlayerRef} src={fileSrc} type="audio" title={title} autoPlay={false} className="w-full" onTimeUpdate={setCurrentTime} onDurationChange={setMediaDuration} onPlay={handlePlay} />
         </div>
       );
     }
@@ -249,6 +251,7 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
           panelId="preview-panel-main"
           resource={data}
           currentTime={currentTime}
+          mediaDuration={mediaDuration > 0 ? mediaDuration : undefined}
           mediaPlayerRef={mediaPlayerRef}
           subtitleList={subtitleList}
           activeSubtitle={activeSubtitle}

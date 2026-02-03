@@ -10,6 +10,7 @@ interface MediaPlayerProps {
   autoPlay?: boolean;
   className?: string;
   onTimeUpdate?: (currentTime: number) => void; // 播放时间更新回调
+  onDurationChange?: (duration: number) => void; // 媒体总时长变化回调
   onPlay?: () => void; // 开始播放回调
   onPause?: () => void; // 暂停回调
   onStop?: () => void; // 播放结束回调（ended）
@@ -19,10 +20,11 @@ export interface MediaPlayerRef {
   seekTo: (time: number) => void; // 跳转到指定时间
   pause: () => void; // 暂停播放
   getCurrentTime: () => number; // 获取当前播放时间
+  getDuration: () => number; // 获取媒体总时长（秒）
   isPlaying: () => boolean; // 是否正在播放
 }
 
-export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(({ src, type, title, autoPlay = false, className = '', onTimeUpdate, onPlay, onPause, onStop }, ref) => {
+export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(({ src, type, title, autoPlay = false, className = '', onTimeUpdate, onDurationChange, onPlay, onPause, onStop }, ref) => {
   const mediaRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -32,19 +34,30 @@ export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(({ src, 
   const [playbackRate, setPlaybackRate] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
+  /** 上次已通知父组件的 duration，避免 timeupdate 时重复触发 onDurationChange */
+  const lastReportedDurationRef = useRef(0);
+
+  // 切换媒体时重置，以便新媒体的 duration 能再次上报
+  useEffect(() => {
+    lastReportedDurationRef.current = 0;
+  }, [src]);
 
   // 更新时间信息
   const updateTime = useCallback(() => {
     if (mediaRef.current) {
       const time = mediaRef.current.currentTime;
+      const dur = mediaRef.current.duration || 0;
       setCurrentTime(time);
-      setDuration(mediaRef.current.duration || 0);
-      // 通知父组件播放时间更新
+      setDuration(dur);
+      if (dur > 0 && dur !== lastReportedDurationRef.current) {
+        lastReportedDurationRef.current = dur;
+        onDurationChange?.(dur);
+      }
       if (onTimeUpdate) {
         onTimeUpdate(time);
       }
     }
-  }, [onTimeUpdate]);
+  }, [onTimeUpdate, onDurationChange]);
 
   // 播放/暂停
   const togglePlay = useCallback(async () => {
@@ -80,6 +93,11 @@ export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(({ src, 
     return mediaRef.current?.currentTime ?? 0;
   }, []);
 
+  // 获取媒体总时长
+  const getDuration = useCallback(() => {
+    return mediaRef.current?.duration ?? 0;
+  }, []);
+
   // 暴露方法给父组件
   useImperativeHandle(
     ref,
@@ -87,9 +105,10 @@ export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(({ src, 
       seekTo,
       pause,
       getCurrentTime,
+      getDuration,
       isPlaying: () => isPlaying
     }),
-    [seekTo, pause, getCurrentTime, isPlaying]
+    [seekTo, pause, getCurrentTime, getDuration, isPlaying]
   );
 
   // 设置音量

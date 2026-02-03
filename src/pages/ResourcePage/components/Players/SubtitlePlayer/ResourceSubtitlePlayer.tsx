@@ -31,6 +31,8 @@ interface ResourceSubtitlePlayerProps {
   resource: ResourceItem;
   mediaPlayerRef: React.RefObject<MediaPlayerRef>;
   currentTime?: number; // 当前播放时间（秒）
+  /** 媒体总时长（秒），有音视频播放器时传入，时间轴以此作为总时长而非字幕结尾时长 */
+  mediaDuration?: number;
   onSeek?: (time: number) => void; // 跳转到指定时间的回调
   followCurrentTime?: boolean; // 是否跟随时间自动滚动
   audioPath?: string; // 音频文件路径（用于波形显示）
@@ -47,6 +49,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
   resource,
   mediaPlayerRef,
   currentTime = 0,
+  mediaDuration,
   onSeek,
   followCurrentTime = false,
   audioPath,
@@ -980,6 +983,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
         // 时间轴视图
         <SubtitleTimeline
           tracks={timelineTracks}
+          duration={mediaDuration}
           currentTime={currentTime}
           followCurrentTime={followTime}
           onSeek={onSeek}
