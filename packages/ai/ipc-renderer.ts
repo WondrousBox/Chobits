@@ -337,6 +337,15 @@ export const aiBridge = {
   },
   async cancelMindmap(requestId: string) {
     return ipcRenderer.invoke('ai:cancelMindmap', { requestId });
+  },
+
+  // ==================== 笔记相关 ====================
+
+  async saveNote(payload: { resourceId: string; content: string; title?: string }) {
+    return ipcRenderer.invoke('ai:saveNote', payload);
+  },
+  async getResourceNote(resourceId: string) {
+    return ipcRenderer.invoke('ai:getResourceNote', { resourceId });
   }
 };
 
