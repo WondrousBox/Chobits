@@ -476,7 +476,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
             {/* 标签区域顶部占位（对应时间刻度） */}
             {showRuler && <div className="border-b bg-muted/30 shrink-0" style={{ height: DEFAULT_CONFIG.RULER_HEIGHT }} />}
 
-            {showTrackLabels && showWaveform && audioPath && (
+            {showTrackLabels && showWaveform && audioPath && propDuration !== undefined && propDuration > 0 && (
               <div className="flex items-center gap-1 px-2 border-r bg-muted/30 shrink-0 box-border" style={{ width: trackLabelWidth, height: audioWaveformHeight }}>
                 <TbWaveSine className="w-4 h-4 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground truncate">波形</span>
@@ -542,7 +542,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
             )}
 
             {/* 波形轨道（固定在顶部，不随字幕轨道垂直滚动） */}
-            {showWaveform && audioPath && (
+            {showWaveform && audioPath && propDuration !== undefined && propDuration > 0 && (
               <>
                 <div className="h-0 w-0">
                   <div className="absolute" style={{ width: scrollContainerWidth }}>
