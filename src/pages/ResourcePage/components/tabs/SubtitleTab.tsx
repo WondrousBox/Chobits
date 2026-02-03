@@ -11,7 +11,7 @@ import { useResourceTabContext } from './ResourceTabContext';
  * 用于显示视频资源的字幕内容
  */
 const SubtitleTab: React.FC = () => {
-  const { resource, subtitleList, activeSubtitle, setActiveSubtitle, currentTime, mediaPlayerRef, onMediaPlay, onMediaPause } = useResourceTabContext();
+  const { resource, subtitleList, activeSubtitle, setActiveSubtitle, currentTime, mediaDuration, mediaPlayerRef, onMediaPlay, onMediaPause } = useResourceTabContext();
 
   // 获取音频/视频文件路径（用于波形显示）
   const audioPath = resource?.filePath;
@@ -52,6 +52,7 @@ const SubtitleTab: React.FC = () => {
           <ResourceSubtitlePlayer
             resource={activeSubtitle}
             currentTime={currentTime}
+            mediaDuration={mediaDuration}
             mediaPlayerRef={mediaPlayerRef}
             onSeek={mediaPlayerRef?.current ? (time) => mediaPlayerRef?.current?.seekTo(time) : undefined}
             audioPath={audioPath}

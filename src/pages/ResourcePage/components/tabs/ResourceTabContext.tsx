@@ -12,6 +12,8 @@ export interface ResourceTabContextValue {
   resource: ResourceItem;
   /** 当前播放时间（用于字幕同步） */
   currentTime: number;
+  /** 媒体总时长（秒），有音视频播放器时由播放器上报，用于字幕时间轴总时长 */
+  mediaDuration?: number;
   /** 媒体播放器引用（用于字幕跳转） */
   mediaPlayerRef: React.RefObject<MediaPlayerRef>;
   /** 字幕列表（用于视频资源） */

@@ -13,7 +13,7 @@ import { useResourceTabContext } from './ResourceTabContext';
  * 用于显示文本类型资源的内容：字幕、JSON、TXT、PDF等
  */
 const ContentTab: React.FC = () => {
-  const { resource, mediaPlayerRef } = useResourceTabContext();
+  const { resource, mediaDuration, mediaPlayerRef } = useResourceTabContext();
 
   const isSubtitle = isSubtitleFile(resource?.filePath);
   const isPdf = isPdfFile(resource?.filePath);
@@ -30,7 +30,7 @@ const ContentTab: React.FC = () => {
   if (isSubtitle) {
     return (
       <div className="h-full overflow-auto">
-        <ResourceSubtitlePlayer resource={resource} mediaPlayerRef={mediaPlayerRef} />
+        <ResourceSubtitlePlayer resource={resource} mediaDuration={mediaDuration} mediaPlayerRef={mediaPlayerRef} />
       </div>
     );
   }

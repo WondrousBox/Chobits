@@ -54,6 +54,7 @@ const ResourcePreviewWindow: React.FC = () => {
     return true;
   });
   const [currentTime, setCurrentTime] = useState(0); // 当前播放时间（秒）
+  const [mediaDuration, setMediaDuration] = useState(0); // 媒体总时长（秒）
   const [pendingStartTime, setPendingStartTime] = useState<number | null>(null); // 待跳转的起始时间
   const mediaPlayerRef = useRef<MediaPlayerRef>(null); // 媒体播放器的 ref
 
@@ -99,6 +100,7 @@ const ResourcePreviewWindow: React.FC = () => {
         if (fullResource) {
           setData(fullResource);
           setCurrentTime(0); // 切换资源时重置播放时间
+          setMediaDuration(0);
         } else {
           setData(resource);
         }
@@ -341,6 +343,7 @@ const ResourcePreviewWindow: React.FC = () => {
           autoPlay={true}
           className="w-full h-full"
           onTimeUpdate={setCurrentTime}
+          onDurationChange={setMediaDuration}
           onPlay={handlePlay}
           onPause={handlePause}
           onStop={handleStop}
@@ -397,6 +400,7 @@ const ResourcePreviewWindow: React.FC = () => {
                           panelId="preview-window-bottom"
                           resource={data}
                           currentTime={currentTime}
+                          mediaDuration={mediaDuration > 0 ? mediaDuration : undefined}
                           mediaPlayerRef={mediaPlayerRef}
                           subtitleList={subtitleList}
                           activeSubtitle={activeSubtitle}
@@ -422,6 +426,7 @@ const ResourcePreviewWindow: React.FC = () => {
                       panelId="preview-window-sidebar"
                       resource={data}
                       currentTime={currentTime}
+                      mediaDuration={mediaDuration > 0 ? mediaDuration : undefined}
                       mediaPlayerRef={mediaPlayerRef}
                       subtitleList={subtitleList}
                       activeSubtitle={activeSubtitle}
