@@ -149,6 +149,19 @@ export const WaveformTrack: React.FC<WaveformTrackProps> = ({
       return;
     }
 
+    // 使用 FFmpeg 返回的实际音频时长来计算波形映射
+    // 这比使用外部传入的 duration 更准确，可以避免波形与音频的错位
+    const actualAudioDuration = waveformData.duration;
+
+    // 调试：检查时长是否一致
+    if (Math.abs(actualAudioDuration - duration) > 0.1) {
+      console.warn('[WaveformTrack] Duration mismatch:', {
+        propsDuration: duration,
+        ffmpegDuration: actualAudioDuration,
+        diff: actualAudioDuration - duration
+      });
+    }
+
     // Canvas 只需要覆盖可见区域宽度
     const dpr = window.devicePixelRatio || 1;
     const displayWidth = actualContainerWidth;
@@ -193,7 +206,8 @@ export const WaveformTrack: React.FC<WaveformTrackProps> = ({
       const barEndTime = barStartTime + timePerBar;
 
       // 计算对应的峰值索引范围
-      const peakDuration = duration / peaks.length;
+      // 使用 FFmpeg 返回的实际音频时长来计算，确保波形与音频精确对齐
+      const peakDuration = actualAudioDuration / peaks.length;
       const startPeakIndex = Math.floor(barStartTime / peakDuration);
       const endPeakIndex = Math.ceil(barEndTime / peakDuration);
 

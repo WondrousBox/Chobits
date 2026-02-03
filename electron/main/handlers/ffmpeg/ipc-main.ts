@@ -290,12 +290,18 @@ export function initFFmpegHandlers(win: BrowserWindow): void {
                 const floatArray = new Float32Array(fullBuffer.buffer, fullBuffer.byteOffset, fullBuffer.length / 4);
 
                 // 将原始采样降采样到指定数量的峰值
+                // 使用浮点数精确计算每个 peak 对应的采样范围，避免累积误差导致波形与音频不同步
                 const peaks: number[] = [];
-                const samplesPerPeak = Math.max(1, Math.floor(floatArray.length / samplesCount));
+                const totalSamples = floatArray.length;
 
-                for (let i = 0; i < samplesCount; i++) {
-                  const start = i * samplesPerPeak;
-                  const end = Math.min(start + samplesPerPeak, floatArray.length);
+                // 确保生成的 peaks 数量不超过实际采样数
+                const actualPeaksCount = Math.min(samplesCount, totalSamples);
+
+                for (let i = 0; i < actualPeaksCount; i++) {
+                  // 使用浮点数精确计算每个 peak 的起止位置
+                  // 这样可以确保所有采样都被均匀分配到各个 peak 中，不会丢失末尾数据
+                  const start = Math.floor((i * totalSamples) / actualPeaksCount);
+                  const end = Math.floor(((i + 1) * totalSamples) / actualPeaksCount);
 
                   let maxVal = 0;
                   for (let j = start; j < end; j++) {
