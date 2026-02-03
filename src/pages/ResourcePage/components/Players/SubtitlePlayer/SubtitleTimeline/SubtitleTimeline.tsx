@@ -150,17 +150,18 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   // 生效的当前时间：优先外部的 currentTime，否则使用 mockCurrentTime
   const effectiveCurrentTime = currentTime ?? mockCurrentTime;
 
-  // 滚动到指定时间
+  // 滚动到指定时间。instant 为 true 时无动画、瞬间到位，用于跟随当前时间，避免滞后
   const scrollToTime = useCallback(
-    (time: number) => {
+    (time: number, instant = false) => {
       const scrollContainer = scrollContainerRef.current;
       if (!scrollContainer) return;
 
-      const targetScrollLeft = time * pixelsPerSecond - timelineContentWidth / 2;
-      scrollContainer.scrollTo({
-        left: Math.max(0, targetScrollLeft),
-        behavior: 'smooth'
-      });
+      const targetScrollLeft = Math.max(0, time * pixelsPerSecond - timelineContentWidth / 2);
+      if (instant) {
+        scrollContainer.scrollLeft = targetScrollLeft;
+      } else {
+        scrollContainer.scrollTo({ left: targetScrollLeft, behavior: 'smooth' });
+      }
     },
     [pixelsPerSecond, timelineContentWidth]
   );
@@ -340,9 +341,9 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
     const viewStart = scrollLeft;
     const viewEnd = scrollLeft + timelineContentWidth;
 
-    // 只有当时间指示器完全不在视野内时才自动滚动
+    // 只有当时间指示器完全不在视野内时才自动滚动；用 instant 避免动画导致跟随滞后
     if (currentX < viewStart || currentX > viewEnd) {
-      scrollToTime(effectiveCurrentTime);
+      scrollToTime(effectiveCurrentTime, true);
     }
   }, [effectiveCurrentTime, followCurrentTime, pixelsPerSecond, scrollLeft, timelineContentWidth, scrollToTime]);
 
