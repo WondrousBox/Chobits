@@ -672,14 +672,32 @@ export class VideoDownloader implements Downloader {
     const sanitizedFilename = filename ? sanitizeFilename(filename) : undefined;
     const tempFile = sanitizedFilename ? changeFileName(sanitizedFilename, tempName) : tempName + '.mp4';
     const downloadPath = resolve(actualDestination, tempFile);
-    const destPath = resolve(actualDestination, sanitizedFilename || tempName + '.mp4');
+    const destPath = resolve(actualDestination, (sanitizedFilename || tempName) + '.mp4');
 
     // 保存thumbnailUrl供后续使用
     const videoThumbnailUrl = thumbnailUrl;
 
-    console.log('[VideoDownloader] ffmpegPath: ', this.ffmpegPath);
-    console.log('[VideoDownloader] --> tempPath: ' + downloadPath);
-    console.log('[VideoDownloader] --> destPath: ' + destPath);
+    console.log(`
+=============== VideoDownloader =============================
+--- options -------------------------------------------------
+url: ${url}
+filename: ${filename}
+destination: ${destination}
+thumbnailUrl: ${thumbnailUrl}
+
+--- paths ---------------------------------------------------
+ffmpegPath: ${this.ffmpegPath}
+yt-dlpPath: ${this.ytdlPath}
+workspaceResourcePath: ${workspaceResourcePath}
+sanitizedFilename: ${sanitizedFilename}
+actualDestination: ${actualDestination}
+tempFile: ${tempFile}
+
+--- output --------------------------------------------------
+downloadPath: ${downloadPath}
+destPath: ${destPath}
+=============================================================
+      `);
 
     const args = [cleanDownloadUrl(url), ...quality, '-o', downloadPath, '--ffmpeg-location', this.ffmpegPath];
 
@@ -769,19 +787,34 @@ export class VideoDownloader implements Downloader {
         if (isAborted) {
           return;
         }
-        console.log('[VideoDownloader] all done, code:', code);
+        console.log('[VideoDownloader] ✅️ all done, code:', code);
 
         if (mergeFile) {
-          console.log(`[VideoDownloader] rename merged file
+          if (!fs.existsSync(mergeFile)) {
+            console.log('[VideoDownloader] merged file not found, try to guess the path');
+            const parsedDest = path.parse(mergeFile);
+            const guessPath = path.join(path.parse(downloadPath).dir, parsedDest.name + parsedDest.ext);
+            console.log('guessPath:', guessPath);
+
+            if (fs.existsSync(guessPath)) {
+              mergeFile = guessPath;
+            }
+          }
+          console.log(`
+[VideoDownloader] rename merged file
 ${mergeFile}
 -->
-${destPath}`);
+${destPath}
+`);
+
           compareAndRenameFiles(mergeFile, destPath);
         } else {
-          console.log(`[VideoDownloader] rename file
+          console.log(`
+[VideoDownloader] rename file
 ${downloadPath}
 -->
-${destPath}`);
+${destPath}
+`);
           compareAndRenameFiles(downloadPath, destPath);
         }
 
