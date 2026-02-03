@@ -1,11 +1,11 @@
 import React from 'react';
 
-import { Tiptap } from '@/components/Editor';
+import { UnifiedEditor } from '@/components/Editor';
 
 const NotesTab: React.FC = () => {
   return (
     <div className="h-full w-full overflow-hidden">
-      <Tiptap />
+      <UnifiedEditor mode="full" showTitle showBubbleMenu showPlayerControls showMediaButtons />
     </div>
   );
 };
