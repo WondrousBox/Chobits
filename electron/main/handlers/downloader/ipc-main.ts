@@ -176,7 +176,6 @@ export function initDownloadHandlers(win: BrowserWindow): void {
         const mainWindow = getMainWindow();
         if (mainWindow) {
           mainWindow.setProgressBar(task.progress.percent / 100);
-          console.log('[VideoDownload] 下载进度:', task.progress.percent + '%');
         }
       } catch (error) {
         console.warn('[VideoDownload] 更新进度条失败:', error);
