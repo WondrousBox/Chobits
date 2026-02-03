@@ -31,6 +31,11 @@ import { Timestamp } from './timestamp';
 import CodeBlockComponent from './wrappers/CodeBlockComponent';
 import suggestion from './wrappers/suggestion';
 
+// 导出新的可配置的扩展创建函数和 mention 项类型
+export { createFullExtensions } from './createExtensions';
+export type { MentionItem } from './wrappers/mentionItems';
+export { defaultMentionItems, resourceMentionItems } from './wrappers/mentionItems';
+
 // const CustomDocument = Document.extend({
 //   content: 'heading block*',
 // })

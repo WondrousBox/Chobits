@@ -1,6 +1,8 @@
 import type { Editor, EditorEvents } from '@tiptap/react';
 import type { ReactNode } from 'react';
 
+import type { MentionItem } from '../extensions';
+
 /**
  * 编辑器模式
  * - full: 完整模式，包含标题输入、BubbleMenu、底部工具栏等
@@ -57,6 +59,10 @@ export interface UnifiedEditorProps {
   onEditorReady?: (editor: Editor) => void;
   /** 是否使用 Markdown 模式（输入输出为 Markdown） */
   markdown?: boolean;
+  /** 使用完整扩展（包括 slash 命令、mention、代码高亮等）*/
+  useFullExtensions?: boolean;
+  /** 自定义 Mention 项列表 */
+  mentionItems?: MentionItem[];
   /** 自定义 extensions */
   additionalExtensions?: any[];
 }

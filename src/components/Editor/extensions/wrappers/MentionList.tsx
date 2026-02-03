@@ -1,44 +1,52 @@
 import { SuggestionProps } from '@tiptap/suggestion';
-import { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
+import { forwardRef, useImperativeHandle, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+
+import type { MentionItem } from './mentionItems';
 
 export type MentionListHandle = {
   onKeyDown: (e: any) => void;
 };
 
-export const MentionList = forwardRef<MentionListHandle, SuggestionProps>((props: SuggestionProps, ref) => {
+export const MentionList = forwardRef<MentionListHandle, SuggestionProps>(function MentionList(props: SuggestionProps, ref) {
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  const selectItem = (index: number) => {
-    const item = props.items[index];
+  const selectItem = (index: number): void => {
+    const item = props.items[index] as MentionItem;
 
     if (item) {
-      if (item.value === 'screenshot') {
-        window.AIM.player.screenshot();
-        return props.editor.chain().focus().deleteRange(props.range).run();
+      // 如果有自定义处理函数，使用自定义处理
+      if (item.onSelect) {
+        item.onSelect(props.editor, props.range);
+      } else {
+        // 默认行为：插入 mention
+        props.command({ id: item.label });
       }
-      if (item.value === 'timestamp') {
-        window.AIM.player.getCurrentTime();
-        return props.editor.chain().focus().deleteRange(props.range).run();
-      }
-      props.command({ id: item.label });
     }
   };
 
-  const upHandler = () => {
+  const upHandler = (): void => {
     setSelectedIndex((selectedIndex + props.items.length - 1) % props.items.length);
   };
 
-  const downHandler = () => {
+  const downHandler = (): void => {
     setSelectedIndex((selectedIndex + 1) % props.items.length);
   };
 
-  const enterHandler = () => {
+  const enterHandler = (): void => {
     selectItem(selectedIndex);
   };
 
-  useEffect(() => setSelectedIndex(0), [props.items]);
+  // 当列表项改变时重置选中索引
+  // 使用前一个值比较，避免 useEffect 中直接调用 setState
+  const [prevItemsLength, setPrevItemsLength] = useState(props.items.length);
+  if (prevItemsLength !== props.items.length) {
+    setPrevItemsLength(props.items.length);
+    if (selectedIndex >= props.items.length) {
+      setSelectedIndex(0);
+    }
+  }
 
   useImperativeHandle(ref, () => ({
     onKeyDown: ({ event }) => {
