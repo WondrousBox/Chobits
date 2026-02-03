@@ -17,8 +17,21 @@ interface UseResourceFilterParams {
 export const useResourceFilter = ({ list, wsFilter, tagFilter, folderFilter, typeFilter, favoriteFilter, searchQuery, sortField, sortOrder }: UseResourceFilterParams) => {
   const filtered = useMemo(() => {
     if (!wsFilter) return [] as any[];
-    // 过滤掉 translation 和 summary 类型的资源（不在文件夹中显示）
-    let filtered = list.filter((r: any) => r.workspaceId === wsFilter && r.type !== 'translation' && r.type !== 'summary' && r.type !== 'mindmap');
+    // 过滤掉 translation、summary、mindmap 和笔记类型的资源（不在文件夹中显示）
+    let filtered = list.filter((r: any) => {
+      if (r.workspaceId !== wsFilter) return false;
+      if (r.type === 'translation' || r.type === 'summary' || r.type === 'mindmap') return false;
+      // 过滤掉笔记类型（type 为 other 且 metadata 中标记为笔记）
+      if (r.type === 'other' && r.metadata) {
+        try {
+          const meta = typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata;
+          if (meta.noteType === 'note') return false;
+        } catch (e) {
+          // 忽略 JSON 解析错误
+        }
+      }
+      return true;
+    });
 
     // 标签过滤（当后端按标签查询时，这里也保持二次防御）
     if (tagFilter) {

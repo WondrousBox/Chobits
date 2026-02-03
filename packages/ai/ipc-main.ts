@@ -9,15 +9,17 @@ import { GlossaryStore } from './glossary-store';
 import { InstancesStore } from './instances-store';
 import {
   cancelMindmap,
-  executeMindmap,
   deleteTranslationSegment,
+  executeMindmap,
   executeSubtitleTranslation,
   executeSummarize,
   insertTranslationSegment,
   loadAllTranslationHistory,
   loadResourceMindmap,
+  loadResourceNote,
   loadResourceSummary,
   loadTranslatedSubtitles,
+  saveResourceNote,
   SummarizePayload,
   TranslatePayload,
   updateTranslationSegment
@@ -374,5 +376,17 @@ export function initAIHandlers(win: BrowserWindow): void {
   // 取消脑图生成
   ipcMain.handle('ai:cancelMindmap', async (_e, payload: { requestId: string }) => {
     return cancelMindmap(payload.requestId);
+  });
+
+  // ==================== 笔记相关 ====================
+
+  // 保存笔记
+  ipcMain.handle('ai:saveNote', async (_e, payload: { resourceId: string; content: string; title?: string }) => {
+    return saveResourceNote(payload);
+  });
+
+  // 获取笔记
+  ipcMain.handle('ai:getResourceNote', async (_e, payload: { resourceId: string }) => {
+    return loadResourceNote(payload.resourceId);
   });
 }

@@ -1,11 +1,136 @@
-import React from 'react';
+import { EditorEvents } from '@tiptap/react';
+import { debounce } from 'lodash-es';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { UnifiedEditor } from '@/components/Editor';
 
+import { useResourceTabContext } from './ResourceTabContext';
+
 const NotesTab: React.FC = () => {
+  const { resource } = useResourceTabContext();
+  const [content, setContent] = useState<string>('');
+  const [title, setTitle] = useState<string>('');
+  const [loading, setLoading] = useState(true);
+  const [noteId, setNoteId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // 使用 ref 保存最新的 resourceId，避免闭包问题
+  const resourceIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    resourceIdRef.current = resource?.id || null;
+  }, [resource?.id]);
+
+  // 加载笔记内容
+  useEffect(() => {
+    const loadNote = async (): Promise<void> => {
+      if (!resource?.id) return;
+
+      setLoading(true);
+      try {
+        const noteData = await window.YUA.ai.getResourceNote(resource.id);
+        if (noteData) {
+          setContent(noteData.content || '');
+          setTitle(noteData.title || '');
+          setNoteId(noteData.id);
+        } else {
+          // 没有笔记，使用默认值
+          setContent('');
+          setTitle('');
+          setNoteId(null);
+        }
+      } catch (error) {
+        console.error('加载笔记失败:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadNote();
+  }, [resource?.id]);
+
+  // 实际的保存函数
+  const saveNote = useCallback(async (markdown: string, currentTitle: string) => {
+    const resourceId = resourceIdRef.current;
+    if (!resourceId) return;
+
+    setIsSaving(true);
+    try {
+      const result = await window.YUA.ai.saveNote({
+        resourceId,
+        content: markdown,
+        title: currentTitle || '笔记'
+      });
+
+      if (result.success && result.noteId) {
+        setNoteId(result.noteId);
+        console.log('✓ 笔记已自动保存');
+      } else {
+        console.error('保存笔记失败:', result.message);
+      }
+    } catch (error) {
+      console.error('保存笔记失败:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  }, []);
+
+  // 创建防抖保存函数（2秒防抖，避免频繁保存）
+  const debouncedSave = useMemo(
+    () =>
+      debounce(
+        (markdown: string, currentTitle: string) => {
+          saveNote(markdown, currentTitle);
+        },
+        2000,
+        { trailing: true, leading: false }
+      ),
+    [saveNote]
+  );
+
+  // 清理防抖函数
+  useEffect(() => {
+    return () => {
+      debouncedSave.cancel();
+    };
+  }, [debouncedSave]);
+
+  // 编辑器更新回调
+  const handleUpdate = useCallback(
+    (e: EditorEvents['update'], currentTitle: string) => {
+      const markdown = (e.editor.storage as any).markdown?.getMarkdown?.() || e.editor.getHTML();
+      debouncedSave(markdown, currentTitle);
+    },
+    [debouncedSave]
+  );
+
+  const handleTitleChange = useCallback((newTitle: string) => {
+    setTitle(newTitle);
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="h-full w-full flex items-center justify-center text-muted-foreground">
+        <span>加载笔记中...</span>
+      </div>
+    );
+  }
+
   return (
-    <div className="h-full w-full overflow-hidden">
-      <UnifiedEditor mode="full" showTitle showBubbleMenu showPlayerControls showMediaButtons />
+    <div className="h-full w-full overflow-hidden relative">
+      {isSaving && <div className="absolute top-2 right-2 z-50 text-xs text-muted-foreground bg-background/80 backdrop-blur-sm px-2 py-1 rounded-md border">保存中...</div>}
+      <UnifiedEditor
+        content={content}
+        title={title}
+        noteId={noteId || undefined}
+        mode="full"
+        showTitle
+        showBubbleMenu
+        showPlayerControls
+        showMediaButtons
+        onUpdate={handleUpdate}
+        onTitleChange={handleTitleChange}
+      />
     </div>
   );
 };

@@ -345,4 +345,22 @@ export type AIApi = {
     metadata?: any;
   }): Promise<{ requestId: string }>;
   cancelMindmap(requestId: string): Promise<{ ok: boolean }>;
+
+  // ==================== 笔记相关 ====================
+
+  /**
+   * 保存或更新笔记内容
+   * @param resourceId 源资源ID
+   * @param content 笔记内容（HTML或Markdown）
+   * @param title 笔记标题（可选）
+   * @returns 笔记资源ID
+   */
+  saveNote(payload: { resourceId: string; content: string; title?: string }): Promise<{ success: boolean; noteId?: string; message?: string }>;
+
+  /**
+   * 获取资源的笔记内容
+   * @param resourceId 源资源ID
+   * @returns 笔记数据
+   */
+  getResourceNote(resourceId: string): Promise<{ id: string; content: string; title?: string; filePath?: string; createdAt?: number; updatedAt?: number } | null>;
 };
