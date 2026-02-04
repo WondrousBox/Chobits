@@ -28,7 +28,6 @@ import RecycleBinPage from './RecycleBinPage';
 import ResourcePreviewWindow from './ResourcePreviewWindow';
 import RssFeedPage from './RssFeedPage';
 import { ResourceItem, SelectedResourceFileType, SortField, SortOrder } from './types';
-import { typeOptions } from './utils/constants';
 import { mergeVideoWithSubtitles } from './utils/subtitleUtils';
 import WorkflowPage from './WorkflowPage';
 
@@ -36,7 +35,6 @@ const ResourcePage: React.FC = () => {
   // 当前页面不再提供空间切换，始终使用"当前选中的默认空间"进行筛选
   const [wsFilter, setWsFilter] = useState<string | undefined>(undefined);
   const [tagFilter, setTagFilter] = useState<string>(''); // '' means all
-  const [typeFilter, setTypeFilter] = useState<string[]>([]); // empty means all types
   const [favoriteFilter, setFavoriteFilter] = useState<boolean>(false); // false means all, true means favorites only
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sortField, setSortField] = useState<SortField>('collectedAt');
@@ -86,7 +84,6 @@ const ResourcePage: React.FC = () => {
     wsFilter,
     tagFilter,
     folderFilter,
-    typeFilter,
     favoriteFilter,
     searchQuery,
     sortField,
@@ -166,16 +163,6 @@ const ResourcePage: React.FC = () => {
     },
     [getCurrentFolderKey]
   );
-
-  const visibleTypes = useMemo(() => {
-    if (!wsFilter) return new Set<string>();
-    const rows = list.filter((r: any) => r.workspaceId === wsFilter);
-    const set = new Set<string>();
-    for (const r of rows) {
-      if (r?.type) set.add(r.type);
-    }
-    return set;
-  }, [list, wsFilter]);
 
   const hasFavorites = useMemo(() => {
     if (!wsFilter) return false;
@@ -344,11 +331,10 @@ const ResourcePage: React.FC = () => {
   // 当前文件夹下的直接子文件夹
   const childFolders = useMemo(() => {
     if (favoriteFilter) return [] as UIFolder[];
-    if (typeFilter.length > 0) return [] as UIFolder[];
     if (!wsFilter) return [] as UIFolder[];
     const parent = (folderFilter || null) as string | null;
     return folders.filter((f) => f.workspaceId === wsFilter && (f.parentId || null) === parent);
-  }, [folders, wsFilter, folderFilter, favoriteFilter, typeFilter]);
+  }, [folders, wsFilter, folderFilter, favoriteFilter]);
 
   const allCount = useMemo(() => {
     if (!wsFilter) return 0;
@@ -392,8 +378,6 @@ const ResourcePage: React.FC = () => {
           favoriteFilter={favoriteFilter}
           setFavoriteFilter={setFavoriteFilter}
           setFolderFilter={setFolderFilter}
-          setTypeFilter={setTypeFilter}
-          typeFilter={typeFilter}
           folders={folders}
           foldersLoading={foldersLoading}
           folderFilter={folderFilter}
@@ -436,7 +420,6 @@ const ResourcePage: React.FC = () => {
                 setFolderFilter={setFolderFilter}
                 saveCurrentFolder={saveCurrentFolder}
                 setFavoriteFilter={setFavoriteFilter}
-                setTypeFilter={setTypeFilter}
                 handleMoveResourcesToFolder={handleMoveResourcesToFolder}
                 handleMoveFolder={handleMoveFolder}
                 handleRenameFolder={handleRenameFolder}
@@ -457,9 +440,6 @@ const ResourcePage: React.FC = () => {
                 searchQuery={searchQuery}
                 setSearchQuery={setSearchQuery}
                 handleViewModeChange={handleViewModeChange}
-                typeOptions={typeOptions}
-                visibleTypes={visibleTypes}
-                typeFilter={typeFilter}
                 tagFilter={tagFilter}
                 setTagFilter={setTagFilter}
                 tags={tags}

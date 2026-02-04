@@ -43,7 +43,6 @@ interface ResourceContentProps {
   setFolderFilter: (id: string) => void;
   saveCurrentFolder: (id: string) => void;
   setFavoriteFilter: (fav: boolean) => void;
-  setTypeFilter: (types: string[]) => void;
   handleMoveResourcesToFolder: any;
   handleMoveFolder: any;
   handleRenameFolder: any;
@@ -64,9 +63,6 @@ interface ResourceContentProps {
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   handleViewModeChange: (mode: ViewMode) => void;
-  typeOptions: any[];
-  visibleTypes: Set<string>;
-  typeFilter: string[];
   tagFilter: string;
   setTagFilter: (tag: string) => void;
   tags: any[];
@@ -100,7 +96,6 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
   setFolderFilter,
   saveCurrentFolder,
   setFavoriteFilter,
-  setTypeFilter,
   handleMoveResourcesToFolder,
   handleMoveFolder,
   handleRenameFolder,
@@ -121,9 +116,6 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
   searchQuery,
   setSearchQuery,
   handleViewModeChange,
-  typeOptions,
-  visibleTypes,
-  typeFilter,
   tagFilter,
   setTagFilter,
   tags,
@@ -250,9 +242,6 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
   const initializedRef = useRef(false);
   const highlightTimeoutsRef = useRef<Map<string, number>>(new Map());
 
-  // typeFilter 的稳定化字符串（避免数组引用变化导致不必要的重渲染）
-  const typeFilterKey = typeFilter.join(',');
-
   // 当工作区 / 文件夹 / 筛选条件切换时，重置高亮状态，避免误把视图切换当成「新资源」
   useEffect(() => {
     initializedRef.current = false;
@@ -262,7 +251,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
       window.clearTimeout(timeoutId);
     });
     highlightTimeoutsRef.current.clear();
-  }, [folderFilter, wsFilter, viewMode, typeFilterKey, searchQuery, tagFilter, isCollapseMode]);
+  }, [folderFilter, wsFilter, viewMode, searchQuery, tagFilter, isCollapseMode]);
 
   useEffect(() => {
     const currentIds = new Set<string>((mergedItems as any[]).map((item) => item.id));
@@ -376,7 +365,6 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
             setFolderFilter(id);
             saveCurrentFolder(id);
             setFavoriteFilter(false);
-            setTypeFilter([]);
           }}
           onDropResourcesToFolder={(fid, ids) => handleMoveResourcesToFolder(fid, ids)}
           onMoveFolder={handleMoveFolder}
@@ -410,7 +398,6 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
             setFolderFilter(id);
             saveCurrentFolder(id);
             setFavoriteFilter(false);
-            setTypeFilter([]);
           }}
           onDropResourcesToFolder={(fid, ids) => handleMoveResourcesToFolder(fid, ids)}
           onMoveFolder={handleMoveFolder}
@@ -485,7 +472,6 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
                 setFolderFilter(parentId);
                 saveCurrentFolder(parentId);
                 setFavoriteFilter(false);
-                setTypeFilter([]);
               }}
             >
               {folderFilter ? <TbChevronLeft /> : <TbHome />}
@@ -497,7 +483,6 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
               setFolderFilter('');
               saveCurrentFolder('');
               setFavoriteFilter(false);
-              setTypeFilter([]);
             }}
           >
             全部
@@ -511,7 +496,6 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
                   setFolderFilter(f.id);
                   saveCurrentFolder(f.id);
                   setFavoriteFilter(false);
-                  setTypeFilter([]);
                 }}
               >
                 {f.name}
@@ -551,13 +535,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
                 handleViewModeChange={handleViewModeChange}
                 load={load}
                 loadTags={loadTags}
-                typeOptions={typeOptions}
-                visibleTypes={visibleTypes}
-                typeFilter={typeFilter}
-                setTypeFilter={setTypeFilter}
-                setFavoriteFilter={setFavoriteFilter}
                 folderFilter={folderFilter}
-                setFolderFilter={setFolderFilter}
                 wsFilter={wsFilter}
                 tagFilter={tagFilter}
                 setTagFilter={setTagFilter}

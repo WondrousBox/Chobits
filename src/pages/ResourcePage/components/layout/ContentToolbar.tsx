@@ -20,13 +20,7 @@ interface ContentToolbarProps {
   handleViewModeChange: (mode: ViewMode) => void;
   load: () => void;
   loadTags: () => void;
-  typeOptions: any[];
-  visibleTypes: Set<string>;
-  typeFilter: string[];
-  setTypeFilter: (types: string[]) => void;
-  setFavoriteFilter: (fav: boolean) => void;
   folderFilter: string;
-  setFolderFilter: (folder: string) => void;
   wsFilter?: string;
   tagFilter: string;
   setTagFilter: (tag: string) => void;
@@ -48,13 +42,7 @@ const ContentToolbar: React.FC<ContentToolbarProps> = ({
   handleViewModeChange,
   load,
   loadTags,
-  typeOptions,
-  visibleTypes,
-  typeFilter,
-  setTypeFilter,
-  setFavoriteFilter,
   folderFilter,
-  setFolderFilter,
   wsFilter,
   tagFilter,
   setTagFilter,
@@ -73,35 +61,8 @@ const ContentToolbar: React.FC<ContentToolbarProps> = ({
 
   return (
     <div className="flex items-center justify-between px-3 py-2 border-b bg-background">
-      {/* 左侧：类型筛选 tabs */}
-      <div className="flex items-center gap-2">
-        <Tabs
-          value={typeFilter.length === 0 ? 'all' : typeFilter.length === 1 ? typeFilter[0] : 'multiple'}
-          onValueChange={(value) => {
-            if (value === 'all') {
-              setTypeFilter([]);
-              setFavoriteFilter(false);
-            } else if (value !== 'multiple') {
-              setTypeFilter([value]);
-              setFolderFilter('');
-              setFavoriteFilter(false);
-            }
-          }}
-        >
-          <TabsList className="h-8">
-            <TabsTrigger value="all" className="h-7 px-3 text-xs flex-none">
-              全部
-            </TabsTrigger>
-            {typeOptions
-              .filter(({ key }) => key !== '' && visibleTypes.has(key))
-              .map(({ key, label }) => (
-                <TabsTrigger key={key} value={key} className="h-7 px-3 text-xs flex-none">
-                  {label}
-                </TabsTrigger>
-              ))}
-          </TabsList>
-        </Tabs>
-      </div>
+      {/* 左侧：占位 */}
+      <div className="flex items-center gap-2"></div>
 
       {/* 右侧：搜索框 + 工具按钮 */}
       <div className="flex items-center gap-2">

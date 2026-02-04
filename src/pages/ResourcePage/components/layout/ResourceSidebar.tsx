@@ -14,8 +14,6 @@ interface ResourceSidebarProps {
   favoriteFilter: boolean;
   setFavoriteFilter: (fav: boolean) => void;
   setFolderFilter: (folder: string) => void;
-  setTypeFilter: (types: string[]) => void;
-  typeFilter: string[];
   folders: UIFolder[];
   foldersLoading?: boolean;
   folderFilter: string;
@@ -38,8 +36,6 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
   favoriteFilter,
   setFavoriteFilter,
   setFolderFilter,
-  setTypeFilter,
-  typeFilter,
   folders,
   foldersLoading,
   folderFilter,
@@ -76,13 +72,9 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
                   setFavoriteFilter(false);
                 } else {
                   // 如果当前不是收藏模式，点击后进入收藏模式
-                  // 如果当前选择的是"全部"类型，则取消类型筛选
                   setFavoriteFilter(true);
                   setFolderFilter(''); // 取消文件夹选中状态
                   navigate('/resources', { replace: true }); // 导航回主资源页面
-                  if (typeFilter.length === 0) {
-                    setTypeFilter([]);
-                  }
                 }
               }}
             >
@@ -101,7 +93,6 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
               navigate('/resources/tasks', { replace: true });
               setFavoriteFilter(false);
               setFolderFilter('');
-              setTypeFilter([]);
             }}
           >
             <SidebarMenuButton
@@ -118,7 +109,6 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
               navigate('/resources/workflows', { replace: true });
               setFavoriteFilter(false);
               setFolderFilter('');
-              setTypeFilter([]);
             }}
           >
             <SidebarMenuButton
@@ -135,7 +125,6 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
               navigate('/resources/apps', { replace: true });
               setFavoriteFilter(false);
               setFolderFilter('');
-              setTypeFilter([]);
             }}
           >
             <SidebarMenuButton
@@ -152,7 +141,6 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
               navigate('/resources/chat', { replace: true });
               setFavoriteFilter(false);
               setFolderFilter('');
-              setTypeFilter([]);
             }}
           >
             <SidebarMenuButton
@@ -187,7 +175,6 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
             setFolderFilter(folderId);
             saveCurrentFolder(folderId);
             setFavoriteFilter(false);
-            setTypeFilter([]);
             navigate('/resources', { replace: true }); // 导航回主资源页面
           }}
           counts={folderCounts}
