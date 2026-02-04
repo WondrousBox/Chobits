@@ -5,12 +5,10 @@ import type { MentionItem } from '../extensions';
 
 /**
  * 编辑器模式
- * - full: 完整模式，包含标题输入、BubbleMenu、底部工具栏等
- * - simple: 简洁模式，只显示基本工具栏
- * - mini: 迷你模式，只显示播放控制
- * - readonly: 只读模式，不可编辑
+ * - full: 可编辑
+ * - readonly: 只读
  */
-export type EditorMode = 'full' | 'simple' | 'mini' | 'readonly';
+export type EditorMode = 'full' | 'readonly';
 
 /**
  * 工具栏位置
@@ -53,8 +51,6 @@ export interface UnifiedEditorProps {
   onEditorReady?: (editor: Editor) => void;
   /** 是否使用 Markdown 模式（输入输出为 Markdown） */
   markdown?: boolean;
-  /** 使用完整扩展（包括 slash 命令、mention、代码高亮等）*/
-  useFullExtensions?: boolean;
   /** 自定义 Mention 项列表 */
   mentionItems?: MentionItem[];
   /** 自定义 extensions */

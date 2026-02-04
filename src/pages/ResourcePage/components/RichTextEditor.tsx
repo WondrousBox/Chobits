@@ -30,10 +30,9 @@ export const RichTextEditor = ({ value, onChange, placeholder, className, toolba
       toolbarRight={toolbarRight}
       editable={editable}
       style={style}
-      mode={editable ? 'simple' : 'readonly'}
+      mode={editable ? 'full' : 'readonly'}
       toolbarPosition="floating"
       markdown={true}
-      useFullExtensions={true}
       mentionItems={resourceMentionItems}
     />
   );
