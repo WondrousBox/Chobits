@@ -165,7 +165,7 @@ export const extensions = [
   }),
   TaskItem.configure({
     HTMLAttributes: {
-      class: 'flex items-start mb-4'
+      class: 'flex items-start mb-2'
     }
   }),
   Countdown,

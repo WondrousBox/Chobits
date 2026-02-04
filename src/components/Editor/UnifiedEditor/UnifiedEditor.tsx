@@ -222,13 +222,16 @@ export const UnifiedEditor = ({
     };
   }, []);
 
+  // 与简洁模式统一的编辑器内容样式（prose prose-sm 控制字号与排版）
+  const editorContentClassName = 'prose prose-sm dark:prose-invert max-w-none focus:outline-none min-h-[150px] p-4';
+
   // 完整模式渲染
   if (isFullMode) {
     return (
       <div className={clsx('Tiptap', className)} style={style}>
         <ScrollArea className="h-full relative mx-auto min-h-[500px] w-full md:w-[650px] bg-background text-foreground">
           {editor && actualShowBubbleMenu && <EditorBubbleMenu editor={editor} />}
-          <div id="editorContainer">
+          <div className={editorContentClassName}>
             <EditorContent editor={editor} />
           </div>
           <div onClick={handleClickBottom} className="h-96"></div>
@@ -261,7 +264,7 @@ export const UnifiedEditor = ({
         <UnifiedToolbar editor={editor} visible={true} toolbarRight={toolbarRight} showPlayerControls={actualShowPlayerControls} showMediaButtons={actualShowMediaButtons} className="rounded-t-lg" />
       )}
       <div className="flex-1 overflow-y-auto text-foreground">
-        <EditorContent editor={editor} className="prose prose-sm dark:prose-invert max-w-none focus:outline-none min-h-[150px] p-4" />
+        <EditorContent editor={editor} className={editorContentClassName} />
       </div>
       {actualToolbarPosition === 'bottom' && !isReadonly && (
         <UnifiedToolbar editor={editor} visible={true} toolbarRight={toolbarRight} showPlayerControls={actualShowPlayerControls} showMediaButtons={actualShowMediaButtons} className="rounded-b-lg" />
