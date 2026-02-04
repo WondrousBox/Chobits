@@ -1,5 +1,6 @@
 // @import "highlight.js/scss/github";
 
+/* 与 Tailwind prose-sm 一致的正文/标题字号，笔记 Tab 与空资源编辑器统一 */
 .ProseMirror {
   > * + * {
     margin-top: 0.75em;
@@ -8,10 +9,10 @@
   p {
     margin-top: 0.75rem;
     margin-bottom: 0;
-    font-size: 1em;
+    font-size: 0.875rem;
     font-weight: 400;
     line-height: 1.714;
-    word-break: break-all;
+    word-break: break-word;
   }
 
   pre {
@@ -44,26 +45,26 @@
   h4,
   h5,
   h6 {
-    line-height: 1.1;
-    word-break: break-all;
+    line-height: 1.25;
+    word-break: break-word;
   }
   h1 {
-    font-size: 28px;
+    font-size: 1.5em;
   }
   h2 {
-    font-size: 24px;
+    font-size: 1.375em;
   }
   h3 {
-    font-size: 20px;
+    font-size: 1.25em;
   }
   h4 {
-    font-size: 18px;
+    font-size: 1.125em;
   }
   h5 {
-    font-size: 16px;
+    font-size: 1em;
   }
   h6 {
-    font-size: 14px;
+    font-size: 0.875em;
   }
 
   img {
@@ -72,16 +73,8 @@
     width: 100%;
 
     &.ProseMirror-selectednode {
-      outline: 2px solid #68cef8;
+      outline: 2px solid hsl(var(--ring));
     }
-  }
-}
-
-#editorContainer {
-  padding: 0 16px;
-  outline: none;
-  .ProseMirror {
-    outline: none;
   }
 }
 
@@ -98,7 +91,7 @@
 .ProseMirror .is-empty::before {
   content: attr(data-placeholder);
   float: left;
-  color: #ced4da;
+  color: hsl(var(--muted-foreground) / 0.7);
   pointer-events: none;
   height: 0;
 }
@@ -169,8 +162,8 @@
       display: block;
       width: 16px;
       height: 16px;
-      background-color: var(--color-bg-content);
-      border: 1px solid var(--color-line);
+      background-color: hsl(var(--card));
+      border: 1px solid hsl(var(--border));
       border-radius: 2px;
 
       > input {
@@ -183,7 +176,7 @@
         left: 4.071429px;
         width: 6.714286px;
         height: 12.142857px;
-        border: 2px solid var(--color-text-in-brand);
+        border: 2px solid hsl(var(--primary-foreground));
         content: ' ';
         opacity: 0;
         transform: rotate(45deg) scale(0);
@@ -201,10 +194,10 @@
     }
 
     &[data-checked='true'] {
-      color: var(--color-text-description);
+      color: hsl(var(--muted-foreground));
 
       > label {
-        background-color: var(--color-brand-color);
+        background-color: hsl(var(--primary));
 
         &:after {
           opacity: 1;
@@ -230,9 +223,9 @@
       z-index: 1000;
       display: flex;
       font-weight: 700;
-      color: #333;
+      color: hsl(var(--foreground));
       pointer-events: none;
-      background-color: rgba(179, 212, 255, 0.75);
+      background-color: hsl(var(--muted) / 0.9);
       content: attr(data-name);
       align-items: center;
       justify-content: center;
