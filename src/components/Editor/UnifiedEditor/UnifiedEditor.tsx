@@ -1,13 +1,8 @@
 import '../index.scss';
 
-import Placeholder from '@tiptap/extension-placeholder';
-import type { AnyExtension } from '@tiptap/react';
 import { EditorContent, EditorEvents, useEditor } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import clsx from 'clsx';
 import { debounce, DebouncedFunc } from 'lodash-es';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Markdown } from 'tiptap-markdown';
 
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
@@ -18,19 +13,6 @@ import { createFullExtensions, extensions as fullExtensions } from '../extension
 import { TiptapEditorProps as editorProps } from '../props';
 import type { UnifiedEditorProps } from './types';
 import { UnifiedToolbar } from './UnifiedToolbar';
-
-// 简洁模式的基础扩展
-const createSimpleExtensions = (placeholder?: string): AnyExtension[] => [
-  StarterKit.configure({
-    heading: {
-      levels: [1, 2, 3]
-    }
-  }),
-  Placeholder.configure({
-    placeholder: placeholder || '输入内容...'
-  }),
-  Markdown
-];
 
 // 防抖保存函数类型
 type SaveFunction = DebouncedFunc<(value: EditorEvents['update']) => void>;
@@ -48,12 +30,12 @@ export const UnifiedEditor = ({
   content = '',
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   noteId,
-  mode = 'simple',
+  mode = 'full',
   editable = true,
   placeholder,
   className,
   style,
-  toolbarPosition,
+  toolbarPosition = 'bottom',
   toolbarRight,
   showBubbleMenu = false,
   showPlayerControls = false,
@@ -62,21 +44,17 @@ export const UnifiedEditor = ({
   onUpdate,
   onEditorReady,
   markdown = true,
-  useFullExtensions = false,
   mentionItems,
   additionalExtensions = []
 }: UnifiedEditorProps): JSX.Element => {
-  // 状态
   const [isFocused, setIsFocused] = useState(false);
   const hideToolbarTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 根据模式决定显示参数
-  const isFullMode = mode === 'full';
   const isReadonly = mode === 'readonly' || !editable;
-  const actualToolbarPosition = toolbarPosition ?? (isFullMode ? 'bottom' : 'floating');
-  const actualShowBubbleMenu = showBubbleMenu || isFullMode;
-  const actualShowPlayerControls = showPlayerControls || isFullMode;
-  const actualShowMediaButtons = showMediaButtons || isFullMode;
+  const isNoteLayout = toolbarPosition === 'bottom';
+  const actualShowBubbleMenu = showBubbleMenu || isNoteLayout;
+  const actualShowPlayerControls = showPlayerControls || isNoteLayout;
+  const actualShowMediaButtons = showMediaButtons || isNoteLayout;
 
   // 创建防抖保存函数
   const saveNoteRef = useRef<SaveFunction | null>(null);
@@ -95,28 +73,18 @@ export const UnifiedEditor = ({
     }
   };
 
-  // 选择扩展配置
-  // 如果启用 useFullExtensions，即使在简洁模式下也使用完整扩展（包括 slash 命令、mention 等）
-  // 如果提供了自定义 mentionItems，使用它们创建新的扩展配置
-  const extensions =
-    isFullMode || useFullExtensions
-      ? mentionItems
-        ? [...createFullExtensions(mentionItems), ...additionalExtensions]
-        : [...fullExtensions, ...additionalExtensions]
-      : [...createSimpleExtensions(placeholder), ...additionalExtensions];
+  // 统一使用完整扩展（slash、mention、代码块等）
+  const extensions = mentionItems ? [...createFullExtensions(mentionItems), ...additionalExtensions] : [...fullExtensions, ...additionalExtensions];
 
-  // 创建编辑器实例
+  const initialContent = content || (isNoteLayout ? DEFAULT_EDITOR_CONTENT : '');
+
   const editor = useEditor({
     extensions,
-    editorProps: isFullMode ? editorProps : undefined,
-    content: content || (isFullMode ? DEFAULT_EDITOR_CONTENT : ''),
+    editorProps,
+    content: initialContent,
     editable: !isReadonly,
     onUpdate: (e: EditorEvents['update']) => {
-      // 完整模式使用防抖保存
-      if (isFullMode && onUpdate) {
-        saveNoteRef.current?.(e);
-      }
-      // 简洁模式直接调用 onChange
+      if (onUpdate) saveNoteRef.current?.(e);
       if (onChange && markdown) {
         onChange((e.editor.storage as any).markdown?.getMarkdown?.() || e.editor.getHTML());
       } else if (onChange) {
@@ -151,19 +119,15 @@ export const UnifiedEditor = ({
     }
   }, [editor, isReadonly]);
 
-  // 同步外部内容变化（简洁模式）
+  // 同步外部 content（非笔记布局时，仅当编辑器为空时写入，避免光标跳动）
   useEffect(() => {
-    if (!isFullMode && editor && content) {
+    if (!isNoteLayout && editor && content) {
       const currentContent = markdown ? (editor.storage as any).markdown?.getMarkdown?.() || '' : editor.getHTML();
-
-      if (currentContent !== content) {
-        // 只有当编辑器为空时才设置内容，避免光标跳动
-        if (editor.isEmpty && content) {
-          editor.commands.setContent(content);
-        }
+      if (currentContent !== content && editor.isEmpty) {
+        editor.commands.setContent(content);
       }
     }
-  }, [content, editor, isFullMode, markdown]);
+  }, [content, editor, isNoteLayout, markdown]);
 
   // 处理截图数据（完整模式）- 保留以便将来使用
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -222,13 +186,12 @@ export const UnifiedEditor = ({
     };
   }, []);
 
-  // 与简洁模式统一的编辑器内容样式（prose prose-sm 控制字号与排版）
   const editorContentClassName = 'prose prose-sm dark:prose-invert max-w-none focus:outline-none min-h-[150px] p-4';
 
-  // 完整模式渲染
-  if (isFullMode) {
+  // 笔记页布局：底部固定工具栏 + ScrollArea
+  if (isNoteLayout) {
     return (
-      <div className={clsx('Tiptap', className)} style={style}>
+      <div className={className} style={style}>
         <ScrollArea className="h-full relative mx-auto min-h-[500px] w-full md:w-[650px] bg-background text-foreground">
           {editor && actualShowBubbleMenu && <EditorBubbleMenu editor={editor} />}
           <div className={editorContentClassName}>
@@ -245,8 +208,8 @@ export const UnifiedEditor = ({
     );
   }
 
-  // 简洁模式渲染
-  const showFloatingToolbar = actualToolbarPosition === 'floating' && !isReadonly && isFocused;
+  // 内嵌布局：浮动/顶部/底部工具栏 + flex 内容区
+  const showFloatingToolbar = toolbarPosition === 'floating' && !isReadonly && isFocused;
 
   return (
     <div className={cn('bg-background flex flex-col relative', className)} style={style}>
@@ -260,13 +223,13 @@ export const UnifiedEditor = ({
           className="absolute left-0 z-10 w-full box-border -top-12 border border-solid rounded-lg"
         />
       )}
-      {actualToolbarPosition === 'top' && !isReadonly && (
+      {toolbarPosition === 'top' && !isReadonly && (
         <UnifiedToolbar editor={editor} visible={true} toolbarRight={toolbarRight} showPlayerControls={actualShowPlayerControls} showMediaButtons={actualShowMediaButtons} className="rounded-t-lg" />
       )}
       <div className="flex-1 overflow-y-auto text-foreground">
         <EditorContent editor={editor} className={editorContentClassName} />
       </div>
-      {actualToolbarPosition === 'bottom' && !isReadonly && (
+      {toolbarPosition === 'bottom' && !isReadonly && (
         <UnifiedToolbar editor={editor} visible={true} toolbarRight={toolbarRight} showPlayerControls={actualShowPlayerControls} showMediaButtons={actualShowMediaButtons} className="rounded-b-lg" />
       )}
     </div>
