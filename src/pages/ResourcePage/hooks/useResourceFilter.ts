@@ -7,14 +7,13 @@ interface UseResourceFilterParams {
   wsFilter?: string;
   tagFilter: string;
   folderFilter: string;
-  typeFilter: string[];
   favoriteFilter: boolean;
   searchQuery: string;
   sortField: SortField;
   sortOrder: SortOrder;
 }
 
-export const useResourceFilter = ({ list, wsFilter, tagFilter, folderFilter, typeFilter, favoriteFilter, searchQuery, sortField, sortOrder }: UseResourceFilterParams) => {
+export const useResourceFilter = ({ list, wsFilter, tagFilter, folderFilter, favoriteFilter, searchQuery, sortField, sortOrder }: UseResourceFilterParams) => {
   const filtered = useMemo(() => {
     if (!wsFilter) return [] as any[];
     // 过滤掉 translation、summary、mindmap 和笔记类型的资源（不在文件夹中显示）
@@ -32,18 +31,13 @@ export const useResourceFilter = ({ list, wsFilter, tagFilter, folderFilter, typ
     }
 
     // 文件夹过滤：当选择具体文件夹时，仅展示该文件夹内资源；当选择"全部"时，仅展示未归属任何文件夹的顶层资源
-    // 如果开启了收藏筛选或类型筛选，则忽略文件夹限制，展示所有符合条件的资源
-    if (!favoriteFilter && (!typeFilter || typeFilter.length === 0)) {
+    // 如果开启了收藏筛选，则忽略文件夹限制，展示所有符合条件的资源
+    if (!favoriteFilter) {
       if (folderFilter) {
         filtered = filtered.filter((r: any) => (r as any).folderId === folderFilter);
       } else {
         filtered = filtered.filter((r: any) => !(r as any).folderId);
       }
-    }
-
-    // 类型过滤
-    if (typeFilter && typeFilter.length > 0) {
-      filtered = filtered.filter((r: any) => typeFilter.includes(r.type));
     }
 
     // 收藏过滤
@@ -88,7 +82,7 @@ export const useResourceFilter = ({ list, wsFilter, tagFilter, folderFilter, typ
     });
 
     return filtered;
-  }, [list, wsFilter, typeFilter, favoriteFilter, searchQuery, sortField, sortOrder, folderFilter, tagFilter]);
+  }, [list, wsFilter, favoriteFilter, searchQuery, sortField, sortOrder, folderFilter, tagFilter]);
 
   return { filtered };
 };
