@@ -11,7 +11,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/componen
 import { runWorkflow } from '@/lib/workflow-runner';
 import { BroadcastChannelManager, CHANNEL_NAMES, type PreferencesMessage } from '@/utils/broadcastChannels';
 
-import { ResourceItem, SortField, SortOrder, ViewMode } from '../../types';
+import { ResourceItem, ViewMode } from '../../types';
 import { mergeVideoWithSubtitles } from '../../utils/subtitleUtils';
 import AIChatSidebar from '../AIChatSidebar';
 import DefaultEmptyFolder from '../DefaultEmptyFolder';
@@ -20,7 +20,6 @@ import ExplorerGrid from '../ExplorerGrid';
 import ExplorerList from '../ExplorerList';
 import { UIFolder } from '../FolderSidebar';
 import ResourcePreviewPanel from '../ResourcePreviewPanel';
-import ContentToolbar from './ContentToolbar';
 
 interface ResourceContentProps {
   uploadProgress: any;
@@ -55,24 +54,9 @@ interface ResourceContentProps {
   handleItemClick: any;
   load: any;
   loadFolders: any;
-  loadTags: any;
   setSelectedItems: (items: Set<string>) => void;
   list: any[];
   isCollapseMode: boolean;
-  // ContentToolbar 相关 props
-  searchQuery: string;
-  setSearchQuery: (query: string) => void;
-  handleViewModeChange: (mode: ViewMode) => void;
-  tagFilter: string;
-  setTagFilter: (tag: string) => void;
-  tags: any[];
-  sortField: SortField;
-  setSortField: (field: SortField) => void;
-  sortOrder: SortOrder;
-  setSortOrder: (order: SortOrder) => void;
-  setIsCollapseMode: (mode: boolean) => void;
-  showCollapseSuggestion: boolean;
-  setShowCollapseSuggestion: (show: boolean) => void;
   // 面包屑导航
   currentFolderPath: UIFolder[];
   // RSS 相关
@@ -108,24 +92,9 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
   handleItemClick,
   load,
   loadFolders,
-  loadTags,
   setSelectedItems,
   list,
   isCollapseMode,
-  // ContentToolbar 相关 props
-  searchQuery,
-  setSearchQuery,
-  handleViewModeChange,
-  tagFilter,
-  setTagFilter,
-  tags,
-  sortField,
-  setSortField,
-  sortOrder,
-  setSortOrder,
-  setIsCollapseMode,
-  showCollapseSuggestion,
-  setShowCollapseSuggestion,
   // 面包屑导航
   currentFolderPath,
   // RSS 相关
@@ -242,7 +211,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
   const initializedRef = useRef(false);
   const highlightTimeoutsRef = useRef<Map<string, number>>(new Map());
 
-  // 当工作区 / 文件夹 / 筛选条件切换时，重置高亮状态，避免误把视图切换当成「新资源」
+  // 当工作区 / 文件夹 / 视图模式 / 折叠模式切换时，重置高亮状态，避免误把视图切换当成「新资源」
   useEffect(() => {
     initializedRef.current = false;
     previousIdsRef.current = new Set();
@@ -251,7 +220,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
       window.clearTimeout(timeoutId);
     });
     highlightTimeoutsRef.current.clear();
-  }, [folderFilter, wsFilter, viewMode, searchQuery, tagFilter, isCollapseMode]);
+  }, [folderFilter, wsFilter, viewMode, isCollapseMode]);
 
   useEffect(() => {
     const currentIds = new Set<string>((mergedItems as any[]).map((item) => item.id));
@@ -454,10 +423,7 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
   return (
     <div className="w-full h-full flex flex-col relative">
       {/* 面包屑导航 - 绝对定位到标题栏区域 */}
-      <div
-        className="absolute top-[-36px] left-0 right-0 h-9 flex items-center justify-between px-3 text-sm text-muted-foreground pointer-events-none"
-        style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
-      >
+      <div className="absolute top-[-36px] left-0 right-0 h-9 flex items-center justify-between px-3 text-sm text-muted-foreground pointer-events-none">
         {/* 左侧：面包屑导航 */}
         <div className="pointer-events-auto flex items-center" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           {/* 回退按钮 - 只在有上级目录时显示 */}
@@ -524,32 +490,9 @@ const ResourceContent: React.FC<ResourceContentProps> = ({
 
       <div className="flex-1 overflow-hidden border-t">
         <ResizablePanelGroup direction="horizontal" className="h-full">
-          {/* 主内容区（工具栏 + 资源列表 + 预览面板） */}
+          {/* 主内容区（资源列表 + 预览面板） */}
           <ResizablePanel defaultSize={aiChatOpen ? 70 : 100} minSize={40}>
             <div className="h-full flex flex-col relative">
-              {/* 工具栏 */}
-              <ContentToolbar
-                searchQuery={searchQuery}
-                setSearchQuery={setSearchQuery}
-                viewMode={viewMode}
-                handleViewModeChange={handleViewModeChange}
-                load={load}
-                loadTags={loadTags}
-                folderFilter={folderFilter}
-                wsFilter={wsFilter}
-                tagFilter={tagFilter}
-                setTagFilter={setTagFilter}
-                tags={tags}
-                sortField={sortField}
-                setSortField={setSortField}
-                sortOrder={sortOrder}
-                setSortOrder={setSortOrder}
-                isCollapseMode={isCollapseMode}
-                setIsCollapseMode={setIsCollapseMode}
-                showCollapseSuggestion={showCollapseSuggestion}
-                setShowCollapseSuggestion={setShowCollapseSuggestion}
-              />
-
               {/* 多选操作栏（悬浮在底部） */}
               {showSelectionBar && (
                 <SelectionActionBar selectedItems={selectedItems} setSelectedItems={setSelectedItems} handleDeleteMany={handleDeleteMany} filtered={mergedItems} workflows={workflows} />

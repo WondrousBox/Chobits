@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Route, Routes } from 'react-router-dom';
 import { toast } from 'sonner';
 
+import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import ChatPage from '@/pages/ChatPage/ChatPage';
@@ -11,6 +12,7 @@ import SettingsPage, { SettingsCategory } from '@/pages/SettingsPage/SettingsPag
 import AppsPage from './AppsPage';
 import EditRssSettingsDialog from './components/EditRssSettingsDialog';
 import { UIFolder } from './components/FolderSidebar';
+import ContentToolbar from './components/layout/ContentToolbar';
 import RenameFolderDialog from './components/layout/RenameFolderDialog';
 import ResourceContent from './components/layout/ResourceContent';
 import ResourceHeader from './components/layout/ResourceHeader';
@@ -368,7 +370,32 @@ const ResourcePage: React.FC = () => {
 
   return (
     <div className="h-full bg-background">
-      <ResourceHeader />
+      <DragAbleTitle
+        title={<span />}
+        actions={
+          <ContentToolbar
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            viewMode={viewMode}
+            handleViewModeChange={handleViewModeChange}
+            load={load}
+            loadTags={() => loadTags(wsFilter)}
+            folderFilter={folderFilter}
+            wsFilter={wsFilter}
+            tagFilter={tagFilter}
+            setTagFilter={setTagFilter}
+            tags={tags}
+            sortField={sortField}
+            setSortField={setSortField}
+            sortOrder={sortOrder}
+            setSortOrder={setSortOrder}
+            isCollapseMode={isCollapseMode}
+            setIsCollapseMode={setIsCollapseMode}
+            showCollapseSuggestion={showCollapseSuggestion}
+            setShowCollapseSuggestion={setShowCollapseSuggestion}
+          />
+        }
+      />
 
       <SidebarProvider style={{ height: 'calc(100% - 36px)', minHeight: 'unset' }}>
         <ResourceSidebar
@@ -432,24 +459,9 @@ const ResourcePage: React.FC = () => {
                 handleItemClick={handleItemClick}
                 load={load}
                 loadFolders={loadFolders}
-                loadTags={() => loadTags(wsFilter)}
                 setSelectedItems={setSelectedItems}
                 list={list}
                 isCollapseMode={isCollapseMode}
-                // ContentToolbar 相关 props
-                searchQuery={searchQuery}
-                setSearchQuery={setSearchQuery}
-                handleViewModeChange={handleViewModeChange}
-                tagFilter={tagFilter}
-                setTagFilter={setTagFilter}
-                tags={tags}
-                sortField={sortField}
-                setSortField={setSortField}
-                sortOrder={sortOrder}
-                setSortOrder={setSortOrder}
-                setIsCollapseMode={setIsCollapseMode}
-                showCollapseSuggestion={showCollapseSuggestion}
-                setShowCollapseSuggestion={setShowCollapseSuggestion}
                 // 面包屑导航
                 currentFolderPath={currentFolderPath}
                 // RSS 相关
