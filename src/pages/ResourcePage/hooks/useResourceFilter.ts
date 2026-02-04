@@ -21,15 +21,8 @@ export const useResourceFilter = ({ list, wsFilter, tagFilter, folderFilter, typ
     let filtered = list.filter((r: any) => {
       if (r.workspaceId !== wsFilter) return false;
       if (r.type === 'translation' || r.type === 'summary' || r.type === 'mindmap') return false;
-      // 过滤掉笔记类型（type 为 other 且 metadata 中标记为笔记）
-      if (r.type === 'other' && r.metadata) {
-        try {
-          const meta = typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata;
-          if (meta.noteType === 'note') return false;
-        } catch (e) {
-          // 忽略 JSON 解析错误
-        }
-      }
+      // 笔记资源现在使用独立类型 note，直接过滤掉
+      if (r.type === 'note') return false;
       return true;
     });
 

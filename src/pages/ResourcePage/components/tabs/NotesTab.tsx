@@ -9,7 +9,6 @@ import { useResourceTabContext } from './ResourceTabContext';
 const NotesTab: React.FC = () => {
   const { resource } = useResourceTabContext();
   const [content, setContent] = useState<string>('');
-  const [title, setTitle] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [noteId, setNoteId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -31,12 +30,10 @@ const NotesTab: React.FC = () => {
         const noteData = await window.YUA.ai.getResourceNote(resource.id);
         if (noteData) {
           setContent(noteData.content || '');
-          setTitle(noteData.title || '');
           setNoteId(noteData.id);
         } else {
           // 没有笔记，使用默认值
           setContent('');
-          setTitle('');
           setNoteId(null);
         }
       } catch (error) {
@@ -49,8 +46,8 @@ const NotesTab: React.FC = () => {
     loadNote();
   }, [resource?.id]);
 
-  // 实际的保存函数
-  const saveNote = useCallback(async (markdown: string, currentTitle: string) => {
+  // 实际的保存函数（不再使用标题）
+  const saveNote = useCallback(async (markdown: string) => {
     const resourceId = resourceIdRef.current;
     if (!resourceId) return;
 
@@ -59,7 +56,7 @@ const NotesTab: React.FC = () => {
       const result = await window.YUA.ai.saveNote({
         resourceId,
         content: markdown,
-        title: currentTitle || '笔记'
+        title: '笔记'
       });
 
       if (result.success && result.noteId) {
@@ -79,10 +76,10 @@ const NotesTab: React.FC = () => {
   const debouncedSave = useMemo(
     () =>
       debounce(
-        (markdown: string, currentTitle: string) => {
-          saveNote(markdown, currentTitle);
+        (markdown: string) => {
+          saveNote(markdown);
         },
-        2000,
+        500,
         { trailing: true, leading: false }
       ),
     [saveNote]
@@ -97,16 +94,12 @@ const NotesTab: React.FC = () => {
 
   // 编辑器更新回调
   const handleUpdate = useCallback(
-    (e: EditorEvents['update'], currentTitle: string) => {
+    (e: EditorEvents['update']) => {
       const markdown = (e.editor.storage as any).markdown?.getMarkdown?.() || e.editor.getHTML();
-      debouncedSave(markdown, currentTitle);
+      debouncedSave(markdown);
     },
     [debouncedSave]
   );
-
-  const handleTitleChange = useCallback((newTitle: string) => {
-    setTitle(newTitle);
-  }, []);
 
   if (loading) {
     return (
@@ -119,18 +112,7 @@ const NotesTab: React.FC = () => {
   return (
     <div className="h-full w-full overflow-hidden relative">
       {isSaving && <div className="absolute top-2 right-2 z-50 text-xs text-muted-foreground bg-background/80 backdrop-blur-sm px-2 py-1 rounded-md border">保存中...</div>}
-      <UnifiedEditor
-        content={content}
-        title={title}
-        noteId={noteId || undefined}
-        mode="full"
-        showTitle
-        showBubbleMenu
-        showPlayerControls
-        showMediaButtons
-        onUpdate={handleUpdate}
-        onTitleChange={handleTitleChange}
-      />
+      <UnifiedEditor content={content} noteId={noteId || undefined} mode="full" showBubbleMenu showPlayerControls showMediaButtons onUpdate={handleUpdate} />
     </div>
   );
 };
