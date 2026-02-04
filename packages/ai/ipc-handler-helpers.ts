@@ -1263,12 +1263,23 @@ export function cancelMindmap(requestId: string): boolean {
 // ==================== 笔记相关 ====================
 
 /**
+ * 根据 parentResourceId 查找已存在的笔记子资源
+ * 现在笔记资源使用独立类型：type === 'note'
+ */
+async function findExistingNoteResource(parentResourceId: string): Promise<{ id: string; filePath: string | null; createdAt: number | null } | null> {
+  const children = await ResourcesRepo.listChildren(parentResourceId);
+  const note = children.find((child) => child.type === 'note');
+  if (!note) return null;
+  return { id: note.id, filePath: note.filePath ?? null, createdAt: note.createdAt ?? null };
+}
+
+/**
  * 保存或更新笔记内容
  * @param opts 笔记数据
  * @returns 操作结果
  */
-export async function saveResourceNote(opts: { resourceId: string; content: string; title?: string }): Promise<{ success: boolean; noteId?: string; message?: string }> {
-  const { resourceId, content, title } = opts;
+export async function saveResourceNote(opts: { resourceId: string; content: string }): Promise<{ success: boolean; noteId?: string; message?: string }> {
+  const { resourceId, content } = opts;
 
   try {
     // 获取源资源信息
@@ -1277,13 +1288,12 @@ export async function saveResourceNote(opts: { resourceId: string; content: stri
       return { success: false, message: '源资源不存在' };
     }
 
-    // 查找现有的笔记资源（只保留一个笔记资源）
-    const children = await ResourcesRepo.listChildren(resourceId);
-    const existingNote = children.find((child) => child.type === 'other' && child.metadata && JSON.parse(child.metadata).noteType === 'note');
+    // 查找现有的笔记资源（listChildren 不包含 metadata，需用 getById 逐条判断）
+    const existingNote = await findExistingNoteResource(resourceId);
 
     let noteFilePath: string;
 
-    if (existingNote && existingNote.filePath) {
+    if (existingNote?.filePath) {
       // 使用现有文件路径
       noteFilePath = existingNote.filePath;
     } else {
@@ -1294,14 +1304,14 @@ export async function saveResourceNote(opts: { resourceId: string; content: stri
       noteFilePath = path.join(dir, `${baseName}.note.json`);
     }
 
-    // 准备笔记数据
+    // 准备笔记数据（更新时保留原 createdAt）
     const notePayload = {
       version: 1,
       resourceId,
       content,
-      title: title || '笔记',
+      title: `note_${resourceId}_${Date.now()}`,
       updatedAt: Date.now(),
-      createdAt: existingNote?.createdAt || Date.now()
+      createdAt: existingNote?.createdAt ?? Date.now()
     };
 
     // 确保目录存在
@@ -1311,14 +1321,13 @@ export async function saveResourceNote(opts: { resourceId: string; content: stri
     // 写入 JSON 文件
     const fileContent = JSON.stringify(notePayload, null, 2);
     await writeFile(noteFilePath, fileContent);
-    console.log('[save-note] 笔记已保存:', noteFilePath);
 
     // 获取文件大小
     const jsonStat = await fs.stat(noteFilePath);
-    const noteTitle = title || (sourceResource.title ? `${sourceResource.title} - 笔记` : '笔记');
+    const noteTitle = notePayload.title || (sourceResource.title ? `${sourceResource.title} - 笔记` : '笔记');
 
     const resourceData = {
-      type: 'other' as const,
+      type: 'note' as const,
       parentResourceId: resourceId,
       workspaceId: sourceResource.workspaceId,
       folderId: sourceResource.folderId,
@@ -1335,15 +1344,13 @@ export async function saveResourceNote(opts: { resourceId: string; content: stri
       })
     };
 
-    if (existingNote) {
+    if (existingNote?.id) {
       // 更新现有资源
       await ResourcesRepo.update(existingNote.id, resourceData as any);
-      console.log('[save-note] 笔记资源已更新:', existingNote.id);
       return { success: true, noteId: existingNote.id };
     } else {
       // 创建新资源
       const newResource = await ResourcesRepo.upsert(resourceData as any);
-      console.log('[save-note] 笔记资源已创建:', newResource?.id);
       return { success: true, noteId: newResource?.id };
     }
   } catch (error) {
@@ -1359,24 +1366,19 @@ export async function saveResourceNote(opts: { resourceId: string; content: stri
  */
 export async function loadResourceNote(resourceId: string): Promise<{ id: string; content: string; title?: string; filePath?: string; createdAt?: number; updatedAt?: number } | null> {
   try {
-    const children = await ResourcesRepo.listChildren(resourceId);
-    const noteResource = children.find((child) => child.type === 'other' && child.metadata && JSON.parse(child.metadata).noteType === 'note');
+    const existingNote = await findExistingNoteResource(resourceId);
+    if (!existingNote?.filePath) return null;
 
-    if (!noteResource || !noteResource.filePath) {
-      return null;
-    }
-
-    // 读取 JSON 文件内容
-    const content = await readFile(noteResource.filePath, 'utf8');
-    const noteData = JSON.parse(content);
+    const content = await readFile(existingNote.filePath, 'utf8');
+    const noteData = JSON.parse(content) as { content?: string; title?: string; createdAt?: number; updatedAt?: number };
 
     return {
-      id: noteResource.id,
-      filePath: noteResource.filePath,
-      content: noteData.content,
+      id: existingNote.id,
+      filePath: existingNote.filePath,
+      content: noteData.content ?? '',
       title: noteData.title,
-      createdAt: noteData.createdAt || noteResource.createdAt,
-      updatedAt: noteData.updatedAt || noteResource.updatedAt
+      createdAt: noteData.createdAt ?? existingNote.createdAt ?? undefined,
+      updatedAt: noteData.updatedAt
     };
   } catch (error) {
     console.error('[load-note] 加载笔记失败:', error);
