@@ -6,7 +6,7 @@ import { TbCode, TbH1, TbH2, TbH3, TbList, TbListNumbers, TbLollipop, TbMessage2
 // import { useCompletion } from "ai/react";
 import tippy from 'tippy.js';
 
-import { handleImageUpload } from '../props';
+import { defaultImageUploadHandler } from '../props';
 
 interface CommandItemProps {
   title: string;
@@ -41,18 +41,18 @@ const Command = Extension.create({
   }
 });
 
-const getSuggestionItems = ({ query }: { query: string }) => {
+const getSuggestionItems = ({ query }: { query: string }): CommandItemProps[] => {
   return [
     {
       title: 'AI续写',
       description: '使用 AI 来扩展你的想法。',
-      searchTerms: ['gpt'],
-      icon: <TbLollipop className="w-7" />
+      searchTerms: ['gpt', 'ai'],
+      icon: <TbLollipop />
     },
     {
       title: 'Send Feedback',
       description: 'Let us know how we can improve.',
-      icon: <TbMessage2 size={18} />,
+      icon: <TbMessage2 />,
       command: ({ editor, range }: CommandProps) => {
         editor.chain().focus().deleteRange(range).run();
         window.open('/feedback', '_blank');
@@ -62,7 +62,7 @@ const getSuggestionItems = ({ query }: { query: string }) => {
       title: '文本',
       description: '使用普通的文本开始输入。',
       searchTerms: ['p', 'paragraph'],
-      icon: <TbTextSize size={18} />,
+      icon: <TbTextSize />,
       command: ({ editor, range }: CommandProps) => {
         editor.chain().focus().deleteRange(range).toggleNode('paragraph', 'paragraph').run();
       }
@@ -71,7 +71,7 @@ const getSuggestionItems = ({ query }: { query: string }) => {
       title: '待办列表',
       description: '使用待办列表跟踪任务。',
       searchTerms: ['todo', 'task', 'list', 'check', 'checkbox'],
-      icon: <TbSquareCheck size={18} />,
+      icon: <TbSquareCheck />,
       command: ({ editor, range }: CommandProps) => {
         editor.chain().focus().deleteRange(range).toggleTaskList().run();
       }
@@ -79,8 +79,8 @@ const getSuggestionItems = ({ query }: { query: string }) => {
     {
       title: '标题一',
       description: '大标题',
-      searchTerms: ['title', 'big', 'large'],
-      icon: <TbH1 size={18} />,
+      searchTerms: ['title', 'big', 'large', 'h1'],
+      icon: <TbH1 />,
       command: ({ editor, range }: CommandProps) => {
         editor.chain().focus().deleteRange(range).setNode('heading', { level: 1 }).run();
       }
@@ -88,8 +88,8 @@ const getSuggestionItems = ({ query }: { query: string }) => {
     {
       title: '标题二',
       description: '中等标题',
-      searchTerms: ['subtitle', 'medium'],
-      icon: <TbH2 size={18} />,
+      searchTerms: ['subtitle', 'medium', 'h2'],
+      icon: <TbH2 />,
       command: ({ editor, range }: CommandProps) => {
         editor.chain().focus().deleteRange(range).setNode('heading', { level: 2 }).run();
       }
@@ -97,8 +97,8 @@ const getSuggestionItems = ({ query }: { query: string }) => {
     {
       title: '标题三',
       description: '小标题',
-      searchTerms: ['subtitle', 'small'],
-      icon: <TbH3 size={18} />,
+      searchTerms: ['subtitle', 'small', 'h3'],
+      icon: <TbH3 />,
       command: ({ editor, range }: CommandProps) => {
         editor.chain().focus().deleteRange(range).setNode('heading', { level: 3 }).run();
       }
@@ -106,8 +106,8 @@ const getSuggestionItems = ({ query }: { query: string }) => {
     {
       title: '无序列表',
       description: '创建带小点的无序列表。',
-      searchTerms: ['unordered', 'point'],
-      icon: <TbList size={18} />,
+      searchTerms: ['unordered', 'point', 'bullet'],
+      icon: <TbList />,
       command: ({ editor, range }: CommandProps) => {
         editor.chain().focus().deleteRange(range).toggleBulletList().run();
       }
@@ -115,8 +115,8 @@ const getSuggestionItems = ({ query }: { query: string }) => {
     {
       title: '有序列表',
       description: '创建带数字的有序列表。',
-      searchTerms: ['ordered'],
-      icon: <TbListNumbers size={18} />,
+      searchTerms: ['ordered', 'number'],
+      icon: <TbListNumbers />,
       command: ({ editor, range }: CommandProps) => {
         editor.chain().focus().deleteRange(range).toggleOrderedList().run();
       }
@@ -124,32 +124,32 @@ const getSuggestionItems = ({ query }: { query: string }) => {
     {
       title: '引用',
       description: '创建一个引用段落',
-      searchTerms: ['blockquote'],
-      icon: <TbQuote size={18} />,
+      searchTerms: ['blockquote', 'quote'],
+      icon: <TbQuote />,
       command: ({ editor, range }: CommandProps) => editor.chain().focus().deleteRange(range).toggleNode('paragraph', 'paragraph').toggleBlockquote().run()
     },
     {
       title: '代码',
       description: '插入代码片段',
-      searchTerms: ['codeblock'],
-      icon: <TbCode size={18} />,
+      searchTerms: ['codeblock', 'code'],
+      icon: <TbCode />,
       command: ({ editor, range }: CommandProps) => editor.chain().focus().deleteRange(range).toggleCodeBlock().run()
     },
     {
-      title: 'Image',
-      description: 'Upload an image from your computer.',
-      searchTerms: ['photo', 'picture', 'media'],
-      icon: <TbPhoto size={18} />,
+      title: '图片',
+      description: '从电脑上传图片',
+      searchTerms: ['photo', 'picture', 'media', 'image'],
+      icon: <TbPhoto />,
       command: ({ editor, range }: CommandProps) => {
         editor.chain().focus().deleteRange(range).run();
-        // upload image
+        // 创建文件选择器
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = 'image/*';
         input.onchange = async (event) => {
           if (input.files?.length) {
             const file = input.files[0];
-            return handleImageUpload(file, editor.view, event);
+            return defaultImageUploadHandler(file, editor.view, event);
           }
         };
         input.click();
