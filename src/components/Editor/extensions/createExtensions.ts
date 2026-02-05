@@ -28,7 +28,6 @@ import { Countdown } from './countdown';
 // lowlight.registerLanguage('js', js)
 // lowlight.registerLanguage('ts', ts)
 import { createSlashCommand } from './SlashCommand';
-import SlashCommand from './SlashCommand';
 import { Status } from './status';
 import { Timestamp } from './timestamp';
 import CodeBlockComponent from './wrappers/CodeBlockComponent';
@@ -57,10 +56,11 @@ export interface ExtensionOptions {
 export const createFullExtensions = (options?: ExtensionOptions): AnyExtension[] => {
   // 兼容旧的调用方式（直接传入 mentionItems 数组）
   const opts: ExtensionOptions = Array.isArray(options) ? { mentionItems: options } : options || {};
-  const { mentionItems, onAIComplete } = opts;
+  const { mentionItems } = opts;
 
   const suggestionConfig = createSuggestion(mentionItems);
-  const slashCommand = onAIComplete ? createSlashCommand(onAIComplete) : SlashCommand;
+  // 使用 createSlashCommand 创建扩展，AI 续写功能通过 setAICompleteHandler 动态设置
+  const slashCommand = createSlashCommand();
 
   return [
     // CustomDocument,

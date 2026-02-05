@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { TbChecks, TbFile, TbFolder, TbFolderPlus, TbShield } from 'react-icons/tb';
 import { toast } from 'sonner';
 
-import { useAICompletion } from '@/components/Editor';
+import { useEditorAIConfig } from '@/components/Editor';
 import { Button } from '@/components/ui/button';
 
 import { useFolderImport } from '../hooks/useFolderImport';
@@ -51,12 +51,15 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, hideEditor
 
   const [content, setContent] = useState('');
 
-  // 使用 DeepSeek 模型进行 AI 续写
-  const handleAIComplete = useAICompletion({
-    providerId: 'deepseek',
-    agentId: 'assistant',
-    temperature: 0.7,
-    maxTokens: 1000
+  // 使用 useEditorAIConfig 获取 AI 续写功能和配置组件
+  const { handleAIComplete, AIConfigComponent } = useEditorAIConfig({
+    defaultProviderId: 'deepseek',
+    persist: true,
+    aiOptions: {
+      agentId: 'assistant',
+      temperature: 0.7,
+      maxTokens: 1000
+    }
   });
 
   const doAfter = useCallback(async () => {
@@ -160,9 +163,12 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, hideEditor
           style={{ width: 'calc(100% - 300px)' }}
           onAIComplete={handleAIComplete}
           toolbarRight={
-            <Button size="sm" variant="outline" onClick={onSaveText} disabled={!content} className="gap-1">
-              <TbChecks className="h-4 w-4" /> 保存文本
-            </Button>
+            <div className="flex items-center gap-2">
+              {AIConfigComponent}
+              <Button size="sm" variant="outline" onClick={onSaveText} disabled={!content} className="gap-1">
+                <TbChecks className="h-4 w-4" /> 保存文本
+              </Button>
+            </div>
           }
         />
       )}

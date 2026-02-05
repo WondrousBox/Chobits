@@ -143,14 +143,24 @@ export interface UnifiedEditorProps {
  * 工具栏属性
  */
 export interface UnifiedToolbarProps {
+  /** 编辑器实例 */
   editor: Editor | null;
+  /** 是否可见 */
   visible?: boolean;
+  /** 样式类名 */
   className?: string;
+  /** 工具栏位置 */
   position?: ToolbarPosition;
-  toolbarRight?: ReactNode;
+  /** 工具栏右侧自定义内容 */
+  toolbarRight?: React.ReactNode;
+  /** 是否显示媒体操作按钮（截图、标记等） */
   showMediaButtons?: boolean;
+  /** 是否显示播放器控制 */
   showPlayerControls?: boolean;
+  /** 是否为迷你模式（只显示播放控制） */
   mini?: boolean;
-  /** 播放器控制接口 - 用于解耦业务逻辑 */
+  /** 播放器控制回调 */
   playerControls?: PlayerControls;
+  /** 取消隐藏工具栏的回调（用于浮动工具栏防止下拉菜单导致工具栏隐藏） */
+  onInteractionStart?: () => void;
 }

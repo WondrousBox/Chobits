@@ -3,6 +3,6 @@
 
 export type { ExtensionOptions } from './createExtensions';
 export { createFullExtensions } from './createExtensions';
-export { createSlashCommand } from './SlashCommand';
+export { createSlashCommand, getAICompleteHandler, setAICompleteHandler } from './SlashCommand';
 export type { MentionItem } from './wrappers/mentionItems';
 export { createVideoMentionItems, defaultMentionItems, resourceMentionItems } from './wrappers/mentionItems';

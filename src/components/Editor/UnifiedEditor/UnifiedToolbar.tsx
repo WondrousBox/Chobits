@@ -167,16 +167,22 @@ export const UnifiedToolbar: React.FC<UnifiedToolbarProps> = ({
   showMediaButtons = false,
   showPlayerControls = false,
   mini = false,
-  playerControls
+  playerControls,
+  onInteractionStart
 }) => {
   if (!editor || !visible) {
     return null;
   }
 
+  // 当用户与工具栏交互时，取消隐藏计时器
+  const handleMouseDown = (): void => {
+    onInteractionStart?.();
+  };
+
   // 迷你模式只显示播放控制
   if (mini) {
     return (
-      <div className={clsx('flex items-center w-full p-1 justify-center', className)}>
+      <div className={clsx('flex items-center w-full p-1 justify-center', className)} onMouseDown={handleMouseDown}>
         <PlayerControlsComponent controls={playerControls} />
       </div>
     );
@@ -185,7 +191,7 @@ export const UnifiedToolbar: React.FC<UnifiedToolbarProps> = ({
   // 底部工具栏模式（用于完整编辑器）
   if (position === 'bottom') {
     return (
-      <div className={clsx('flex items-center w-full p-1 justify-between', className)}>
+      <div className={clsx('flex items-center w-full p-1 justify-between', className)} onMouseDown={handleMouseDown}>
         {showMediaButtons && <MediaButtons controls={playerControls} />}
         <PlayerControlsComponent controls={playerControls} />
       </div>
@@ -194,7 +200,7 @@ export const UnifiedToolbar: React.FC<UnifiedToolbarProps> = ({
 
   // 顶部/浮动工具栏模式（用于简洁编辑器）
   return (
-    <div className={clsx('border-b p-1 flex flex-wrap gap-1 items-center justify-between bg-muted/30 transition-opacity', className)}>
+    <div className={clsx('border-b p-1 flex flex-wrap gap-1 items-center justify-between bg-muted/30 transition-opacity', className)} onMouseDown={handleMouseDown}>
       <div className="flex flex-wrap gap-1 items-center">
         <FormatButtons editor={editor} />
         {showPlayerControls && (

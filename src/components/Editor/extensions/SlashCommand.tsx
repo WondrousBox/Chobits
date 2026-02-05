@@ -22,21 +22,27 @@ interface CommandProps {
 }
 
 interface SlashCommandOptions {
-  onAIComplete?: AICompletionHandler;
   suggestion: Omit<SuggestionOptions, 'editor'>;
 }
+
+// Storage key for dynamic AI completion handler
+const AI_COMPLETE_STORAGE_KEY = 'aiComplete';
 
 const Command = Extension.create<SlashCommandOptions>({
   name: 'slash-command',
   addOptions() {
     return {
-      onAIComplete: undefined,
       suggestion: {
         char: '/',
         command: ({ editor, range, props }: { editor: Editor; range: Range; props: any }) => {
           props.command({ editor, range });
         }
       }
+    };
+  },
+  addStorage() {
+    return {
+      [AI_COMPLETE_STORAGE_KEY]: undefined as AICompletionHandler | undefined
     };
   },
   addProseMirrorPlugins() {
@@ -49,7 +55,10 @@ const Command = Extension.create<SlashCommandOptions>({
   }
 });
 
-const getSuggestionItems = ({ query, onAIComplete }: { query: string; onAIComplete?: AICompletionHandler }): CommandItemProps[] => {
+const getSuggestionItems = ({ query, editor }: { query: string; editor: Editor }): CommandItemProps[] => {
+  // 从 editor.storage 动态获取 onAIComplete
+  const onAIComplete = editor.storage['slash-command']?.[AI_COMPLETE_STORAGE_KEY] as AICompletionHandler | undefined;
+
   const baseItems: CommandItemProps[] = [
     {
       title: 'Send Feedback',
@@ -162,14 +171,14 @@ const getSuggestionItems = ({ query, onAIComplete }: { query: string; onAIComple
   // 只有传入 onAIComplete 时才显示 AI 续写菜单项
   const items: CommandItemProps[] = onAIComplete
     ? [
-      {
-        title: 'AI续写',
-        description: '使用 AI 来扩展你的想法。',
-        searchTerms: ['gpt', 'ai', 'complete', 'generate'],
-        icon: <TbLollipop />
-      },
-      ...baseItems
-    ]
+        {
+          title: 'AI续写',
+          description: '使用 AI 来扩展你的想法。',
+          searchTerms: ['gpt', 'ai', 'complete', 'generate'],
+          icon: <TbLollipop />
+        },
+        ...baseItems
+      ]
     : baseItems;
 
   return items.filter((item) => {
@@ -360,14 +369,18 @@ const CommandList = ({ items, command, editor, range, onAIComplete }: CommandLis
 
 /**
  * 创建带有 AI 续写功能的渲染器
+ * 从 editor.storage 动态获取 onAIComplete
  */
-const createRenderItems = (onAIComplete?: AICompletionHandler) => {
+const createRenderItems = () => {
   return () => {
     let component: ReactRenderer | null = null;
     let popup: any | null = null;
 
     return {
       onStart: (props: SuggestionProps<CommandItemProps>) => {
+        // 从 editor.storage 动态获取 onAIComplete
+        const onAIComplete = props.editor.storage['slash-command']?.[AI_COMPLETE_STORAGE_KEY] as AICompletionHandler | undefined;
+
         component = new ReactRenderer(CommandList, {
           props: {
             ...props,
@@ -388,6 +401,9 @@ const createRenderItems = (onAIComplete?: AICompletionHandler) => {
         });
       },
       onUpdate: (props: SuggestionProps<CommandItemProps>) => {
+        // 从 editor.storage 动态获取 onAIComplete
+        const onAIComplete = props.editor.storage['slash-command']?.[AI_COMPLETE_STORAGE_KEY] as AICompletionHandler | undefined;
+
         component?.updateProps({
           ...props,
           onAIComplete
@@ -418,20 +434,38 @@ const createRenderItems = (onAIComplete?: AICompletionHandler) => {
 
 /* eslint-disable react-refresh/only-export-components */
 /**
- * 创建带有 AI 续写功能的 SlashCommand 扩展
- * @param onAIComplete - 外部传入的 AI 续写处理函数
+ * 创建 SlashCommand 扩展
+ * AI 续写功能通过 editor.storage 动态控制
+ * 使用 setAICompleteHandler 来设置/更新 AI 处理函数
  */
-export const createSlashCommand = (onAIComplete?: AICompletionHandler): typeof Command => {
+export const createSlashCommand = (): typeof Command => {
   return Command.configure({
-    onAIComplete,
     suggestion: {
-      items: ({ query }: { query: string }) => getSuggestionItems({ query, onAIComplete }),
-      render: createRenderItems(onAIComplete)
+      items: ({ query, editor }: { query: string; editor: Editor }) => getSuggestionItems({ query, editor }),
+      render: createRenderItems()
     }
   });
 };
 
-// 默认导出（不带 AI 功能，向后兼容）
+/**
+ * 设置编辑器的 AI 续写处理函数
+ * @param editor - 编辑器实例
+ * @param handler - AI 续写处理函数，传入 undefined 则禁用 AI 续写
+ */
+export const setAICompleteHandler = (editor: Editor, handler: AICompletionHandler | undefined): void => {
+  if (editor.storage['slash-command']) {
+    editor.storage['slash-command'][AI_COMPLETE_STORAGE_KEY] = handler;
+  }
+};
+
+/**
+ * 获取编辑器当前的 AI 续写处理函数
+ */
+export const getAICompleteHandler = (editor: Editor): AICompletionHandler | undefined => {
+  return editor.storage['slash-command']?.[AI_COMPLETE_STORAGE_KEY];
+};
+
+// 默认导出
 const SlashCommand = createSlashCommand();
 
 export default SlashCommand;
