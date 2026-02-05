@@ -1,17 +1,19 @@
 import { Editor, Extension, Range } from '@tiptap/react';
 import { ReactRenderer } from '@tiptap/react';
-import Suggestion from '@tiptap/suggestion';
+import Suggestion, { SuggestionOptions, SuggestionProps } from '@tiptap/suggestion';
 import { ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { TbCode, TbH1, TbH2, TbH3, TbList, TbListNumbers, TbLollipop, TbMessage2, TbPhoto, TbQuote, TbSquareCheck, TbTextSize } from 'react-icons/tb';
-// import { useCompletion } from "ai/react";
+import { TbCode, TbH1, TbH2, TbH3, TbList, TbListNumbers, TbLoader, TbLollipop, TbMessage2, TbPhoto, TbQuote, TbSquareCheck, TbTextSize } from 'react-icons/tb';
 import tippy from 'tippy.js';
 
 import { defaultImageUploadHandler } from '../props';
+import type { AICompletionHandler } from '../UnifiedEditor/types';
 
 interface CommandItemProps {
   title: string;
   description: string;
   icon: ReactNode;
+  searchTerms?: string[];
+  command?: (props: CommandProps) => void;
 }
 
 interface CommandProps {
@@ -19,10 +21,16 @@ interface CommandProps {
   range: Range;
 }
 
-const Command = Extension.create({
+interface SlashCommandOptions {
+  onAIComplete?: AICompletionHandler;
+  suggestion: Omit<SuggestionOptions, 'editor'>;
+}
+
+const Command = Extension.create<SlashCommandOptions>({
   name: 'slash-command',
   addOptions() {
     return {
+      onAIComplete: undefined,
       suggestion: {
         char: '/',
         command: ({ editor, range, props }: { editor: Editor; range: Range; props: any }) => {
@@ -41,14 +49,8 @@ const Command = Extension.create({
   }
 });
 
-const getSuggestionItems = ({ query }: { query: string }): CommandItemProps[] => {
-  return [
-    {
-      title: 'AI续写',
-      description: '使用 AI 来扩展你的想法。',
-      searchTerms: ['gpt', 'ai'],
-      icon: <TbLollipop />
-    },
+const getSuggestionItems = ({ query, onAIComplete }: { query: string; onAIComplete?: AICompletionHandler }): CommandItemProps[] => {
+  const baseItems: CommandItemProps[] = [
     {
       title: 'Send Feedback',
       description: 'Let us know how we can improve.',
@@ -146,16 +148,31 @@ const getSuggestionItems = ({ query }: { query: string }): CommandItemProps[] =>
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = 'image/*';
-        input.onchange = async (event) => {
+        input.onchange = async () => {
           if (input.files?.length) {
             const file = input.files[0];
-            return defaultImageUploadHandler(file, editor.view, event);
+            return defaultImageUploadHandler(file);
           }
         };
         input.click();
       }
     }
-  ].filter((item) => {
+  ];
+
+  // 只有传入 onAIComplete 时才显示 AI 续写菜单项
+  const items: CommandItemProps[] = onAIComplete
+    ? [
+      {
+        title: 'AI续写',
+        description: '使用 AI 来扩展你的想法。',
+        searchTerms: ['gpt', 'ai', 'complete', 'generate'],
+        icon: <TbLollipop />
+      },
+      ...baseItems
+    ]
+    : baseItems;
+
+  return items.filter((item) => {
     if (typeof query === 'string' && query.length > 0) {
       const search = query.toLowerCase();
       return item.title.toLowerCase().includes(search) || item.description.toLowerCase().includes(search) || (item.searchTerms && item.searchTerms.some((term: string) => term.includes(search)));
@@ -164,7 +181,8 @@ const getSuggestionItems = ({ query }: { query: string }): CommandItemProps[] =>
   });
 };
 
-export const updateScrollView = (container: HTMLElement, item: HTMLElement) => {
+/* eslint-disable react-refresh/only-export-components */
+export const updateScrollView = (container: HTMLElement, item: HTMLElement): void => {
   const containerHeight = container.offsetHeight;
   const itemHeight = item ? item.offsetHeight : 0;
 
@@ -178,62 +196,115 @@ export const updateScrollView = (container: HTMLElement, item: HTMLElement) => {
   }
 };
 
-const CommandList = ({ items, command, editor, range }: { items: CommandItemProps[]; command: any; editor: any; range: any }) => {
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const complete = (text: string) => {
-    console.log(text);
-    console.log(range);
-  };
-  const isLoading = false;
+interface CommandListProps {
+  items: CommandItemProps[];
+  command: (item: CommandItemProps) => void;
+  editor: Editor;
+  range: Range;
+  onAIComplete?: AICompletionHandler;
+}
 
-  // const { complete, isLoading } = useCompletion({
-  //   id: "novel",
-  //   api: "/api/generate",
-  //   onResponse: (response) => {
-  //     if (response.status === 429) {
-  //       alert("你今天的请求已达到上限。");
-  //       return;
-  //     }
-  //     editor.chain().focus().deleteRange(range).run();
-  //   },
-  //   onFinish: (_prompt, completion) => {
-  //     // highlight the generated text
-  //     editor.commands.setTextSelection({
-  //       from: range.from,
-  //       to: range.from + completion.length,
-  //     });
-  //   },
-  //   onError: () => {
-  //     alert("出错了！");
-  //   },
-  // });
+const CommandList = ({ items, command, editor, range, onAIComplete }: CommandListProps): React.JSX.Element | null => {
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const cancelRef = useRef<(() => void) | null>(null);
+
+  // 清理函数
+  useEffect(() => {
+    return () => {
+      cancelRef.current?.();
+    };
+  }, []);
+
+  // 当 items 变化时重置选中索引（使用 setTimeout 避免 setState 警告）
+  const itemsLength = items.length;
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSelectedIndex(0);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [itemsLength]);
+
+  const handleAIComplete = useCallback((): void => {
+    if (!onAIComplete) {
+      console.warn('AI续写功能未配置，请传入 onAIComplete 处理函数');
+      return;
+    }
+
+    const text = editor.getText();
+    if (!text.trim()) {
+      console.warn('编辑器内容为空，无法进行AI续写');
+      return;
+    }
+
+    setIsLoading(true);
+
+    // 先删除 slash command
+    editor.chain().focus().deleteRange(range).run();
+
+    // 记录插入位置
+    const insertPos = range.from;
+    let insertedLength = 0;
+
+    const cancel = onAIComplete(
+      { text, editor, range },
+      {
+        onChunk: (chunk: string) => {
+          // 在当前位置插入新内容
+          editor
+            .chain()
+            .focus()
+            .insertContentAt(insertPos + insertedLength, chunk)
+            .run();
+          insertedLength += chunk.length;
+        },
+        onFinish: (completion: string) => {
+          setIsLoading(false);
+          // 高亮生成的文本
+          if (completion.length > 0) {
+            editor.commands.setTextSelection({
+              from: insertPos,
+              to: insertPos + completion.length
+            });
+          }
+        },
+        onError: (error: Error) => {
+          setIsLoading(false);
+          console.error('AI续写出错:', error);
+        }
+      }
+    );
+
+    if (cancel) {
+      cancelRef.current = cancel;
+    }
+  }, [editor, range, onAIComplete]);
 
   const selectItem = useCallback(
     (index: number) => {
       const item = items[index];
       if (item) {
         if (item.title === 'AI续写') {
-          const text = editor.getText();
-          complete(text);
+          handleAIComplete();
         } else {
           command(item);
         }
       }
     },
-    [complete, command, editor, items]
+    [handleAIComplete, command, items]
   );
 
   useEffect(() => {
     const navigationKeys = ['ArrowUp', 'ArrowDown', 'Enter'];
-    const onKeyDown = (e: KeyboardEvent) => {
+    const onKeyDown = (e: KeyboardEvent): boolean | void => {
       if (navigationKeys.includes(e.key)) {
         e.preventDefault();
         if (e.key === 'ArrowUp') {
-          setSelectedIndex((selectedIndex + items.length - 1) % items.length);
+          setSelectedIndex((prev) => (prev + items.length - 1) % items.length);
           return true;
         }
         if (e.key === 'ArrowDown') {
-          setSelectedIndex((selectedIndex + 1) % items.length);
+          setSelectedIndex((prev) => (prev + 1) % items.length);
           return true;
         }
         if (e.key === 'Enter') {
@@ -247,11 +318,7 @@ const CommandList = ({ items, command, editor, range }: { items: CommandItemProp
     return () => {
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [items, selectedIndex, setSelectedIndex, selectItem]);
-
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [items]);
+  }, [items, selectedIndex, selectItem]);
 
   const commandListContainer = useRef<HTMLDivElement>(null);
 
@@ -275,8 +342,11 @@ const CommandList = ({ items, command, editor, range }: { items: CommandItemProp
             className={`flex w-full items-center space-x-2 rounded-md px-2 py-1 text-left text-sm text-foreground hover:bg-accent ${index === selectedIndex ? 'bg-accent text-foreground' : ''}`}
             key={index}
             onClick={() => selectItem(index)}
+            disabled={isLoading && item.title === 'AI续写'}
           >
-            <div className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-background">{item.title === 'AI续写' && isLoading ? <div>加载动画</div> : item.icon}</div>
+            <div className="flex h-10 w-10 items-center justify-center rounded-md border border-border bg-background">
+              {item.title === 'AI续写' && isLoading ? <TbLoader className="animate-spin" /> : item.icon}
+            </div>
             <div>
               <p className="font-medium">{item.title}</p>
               <p className="text-xs text-muted-foreground">{item.description}</p>
@@ -288,58 +358,80 @@ const CommandList = ({ items, command, editor, range }: { items: CommandItemProp
   ) : null;
 };
 
-const renderItems = () => {
-  let component: ReactRenderer | null = null;
-  let popup: any | null = null;
+/**
+ * 创建带有 AI 续写功能的渲染器
+ */
+const createRenderItems = (onAIComplete?: AICompletionHandler) => {
+  return () => {
+    let component: ReactRenderer | null = null;
+    let popup: any | null = null;
 
-  return {
-    onStart: (props: { editor: Editor; clientRect: DOMRect }) => {
-      component = new ReactRenderer(CommandList, {
-        props,
-        editor: props.editor
-      });
-
-      // @ts-ignore
-      popup = tippy('body', {
-        getReferenceClientRect: props.clientRect,
-        appendTo: () => document.body,
-        content: component.element,
-        showOnCreate: true,
-        interactive: true,
-        trigger: 'manual',
-        placement: 'bottom-start'
-      });
-    },
-    onUpdate: (props: { editor: Editor; clientRect: DOMRect }) => {
-      component?.updateProps(props);
-
-      popup &&
-        popup[0].setProps({
-          getReferenceClientRect: props.clientRect
+    return {
+      onStart: (props: SuggestionProps<CommandItemProps>) => {
+        component = new ReactRenderer(CommandList, {
+          props: {
+            ...props,
+            onAIComplete
+          },
+          editor: props.editor
         });
-    },
-    onKeyDown: (props: { event: KeyboardEvent }) => {
-      if (props.event.key === 'Escape') {
-        popup?.[0].hide();
 
-        return true;
+        // @ts-ignore
+        popup = tippy('body', {
+          getReferenceClientRect: props.clientRect,
+          appendTo: () => document.body,
+          content: component.element,
+          showOnCreate: true,
+          interactive: true,
+          trigger: 'manual',
+          placement: 'bottom-start'
+        });
+      },
+      onUpdate: (props: SuggestionProps<CommandItemProps>) => {
+        component?.updateProps({
+          ...props,
+          onAIComplete
+        });
+
+        popup &&
+          popup[0].setProps({
+            getReferenceClientRect: props.clientRect
+          });
+      },
+      onKeyDown: (props: { event: KeyboardEvent }) => {
+        if (props.event.key === 'Escape') {
+          popup?.[0].hide();
+
+          return true;
+        }
+
+        // @ts-ignore
+        return component?.ref?.onKeyDown(props);
+      },
+      onExit: () => {
+        popup?.[0].destroy();
+        component?.destroy();
       }
-
-      // @ts-ignore
-      return component?.ref?.onKeyDown(props);
-    },
-    onExit: () => {
-      popup?.[0].destroy();
-      component?.destroy();
-    }
+    };
   };
 };
 
-const SlashCommand = Command.configure({
-  suggestion: {
-    items: getSuggestionItems,
-    render: renderItems
-  }
-});
+/* eslint-disable react-refresh/only-export-components */
+/**
+ * 创建带有 AI 续写功能的 SlashCommand 扩展
+ * @param onAIComplete - 外部传入的 AI 续写处理函数
+ */
+export const createSlashCommand = (onAIComplete?: AICompletionHandler): typeof Command => {
+  return Command.configure({
+    onAIComplete,
+    suggestion: {
+      items: ({ query }: { query: string }) => getSuggestionItems({ query, onAIComplete }),
+      render: createRenderItems(onAIComplete)
+    }
+  });
+};
+
+// 默认导出（不带 AI 功能，向后兼容）
+const SlashCommand = createSlashCommand();
 
 export default SlashCommand;

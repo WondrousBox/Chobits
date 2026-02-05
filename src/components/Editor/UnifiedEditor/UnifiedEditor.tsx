@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 
 import { EditorBubbleMenu } from '../Bubble';
 import DEFAULT_EDITOR_CONTENT from '../default-content';
-import { createFullExtensions, extensions as fullExtensions } from '../extensions';
+import { createFullExtensions } from '../extensions';
 import { TiptapEditorProps as editorProps } from '../props';
 import type { UnifiedEditorProps } from './types';
 import { UnifiedToolbar } from './UnifiedToolbar';
@@ -43,12 +43,16 @@ export const UnifiedEditor = ({
   markdown = true,
   mentionItems,
   additionalExtensions = [],
-  playerControls
+  playerControls,
+  onAIComplete
 }: UnifiedEditorProps): JSX.Element => {
   const [isFocused, setIsFocused] = useState(false);
   const hideToolbarTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isNoteLayout = toolbarPosition === 'bottom';
+
+  void noteId;
+  void placeholder;
 
   // 创建防抖保存函数
   const saveNoteRef = useRef<SaveFunction | null>(null);
@@ -68,7 +72,7 @@ export const UnifiedEditor = ({
   };
 
   // 统一使用完整扩展（slash、mention、代码块等）
-  const extensions = mentionItems ? [...createFullExtensions(mentionItems), ...additionalExtensions] : [...fullExtensions, ...additionalExtensions];
+  const extensions = [...createFullExtensions({ mentionItems, onAIComplete }), ...additionalExtensions];
 
   const initialContent = content || DEFAULT_EDITOR_CONTENT;
 
