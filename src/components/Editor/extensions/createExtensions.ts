@@ -21,11 +21,13 @@ import StarterKit from '@tiptap/starter-kit';
 // load all highlight.js languages
 import { lowlight } from 'lowlight';
 
+import type { AICompletionHandler } from '../UnifiedEditor/types';
 import { Countdown } from './countdown';
 // lowlight.registerLanguage('html', html)
 // lowlight.registerLanguage('css', css)
 // lowlight.registerLanguage('js', js)
 // lowlight.registerLanguage('ts', ts)
+import { createSlashCommand } from './SlashCommand';
 import SlashCommand from './SlashCommand';
 import { Status } from './status';
 import { Timestamp } from './timestamp';
@@ -38,12 +40,27 @@ import { createSuggestion } from './wrappers/suggestion';
 // })
 
 /**
+ * 扩展配置选项
+ */
+export interface ExtensionOptions {
+  /** 自定义 mention 项列表 */
+  mentionItems?: MentionItem[];
+  /** AI 续写处理函数 */
+  onAIComplete?: AICompletionHandler;
+}
+
+/**
  * 创建完整的编辑器扩展配置
- * @param mentionItems 自定义 mention 项列表
+ * @param options 扩展选项，包括 mentionItems 和 onAIComplete
  * @returns 扩展数组
  */
-export const createFullExtensions = (mentionItems?: MentionItem[]): AnyExtension[] => {
+export const createFullExtensions = (options?: ExtensionOptions): AnyExtension[] => {
+  // 兼容旧的调用方式（直接传入 mentionItems 数组）
+  const opts: ExtensionOptions = Array.isArray(options) ? { mentionItems: options } : options || {};
+  const { mentionItems, onAIComplete } = opts;
+
   const suggestionConfig = createSuggestion(mentionItems);
+  const slashCommand = onAIComplete ? createSlashCommand(onAIComplete) : SlashCommand;
 
   return [
     // CustomDocument,
@@ -53,7 +70,7 @@ export const createFullExtensions = (mentionItems?: MentionItem[]): AnyExtension
     TextStyle.configure({
       // types: [ListItem.name]
     }),
-    SlashCommand,
+    slashCommand,
     StarterKit.configure({
       // document: false,
       // bulletList: {
@@ -178,6 +195,3 @@ export const createFullExtensions = (mentionItems?: MentionItem[]): AnyExtension
     Timestamp
   ];
 };
-
-// 导出默认扩展配置（使用默认 mention 项）
-export const extensions = createFullExtensions();

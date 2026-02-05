@@ -1,4 +1,6 @@
 export type { MentionItem } from './extensions';
-export { createFullExtensions, defaultMentionItems, resourceMentionItems } from './extensions';
-export type { EditorMode, ToolbarPosition, UnifiedEditorProps, UnifiedToolbarProps } from './UnifiedEditor';
+export type { AICompletionOptions } from './hooks';
+/* eslint-disable react-refresh/only-export-components */
+export { createAICompletionHandler, useAICompletion } from './hooks';
+export type { AICompletionCallbacks, AICompletionContext, AICompletionHandler, ToolbarPosition, UnifiedEditorProps, UnifiedToolbarProps } from './UnifiedEditor';
 export { UnifiedEditor, UnifiedToolbar } from './UnifiedEditor';

@@ -1,4 +1,4 @@
-import type { Editor, EditorEvents } from '@tiptap/react';
+import type { Editor, EditorEvents, Range } from '@tiptap/react';
 import type { ReactNode } from 'react';
 
 import type { MentionItem } from '../extensions';
@@ -7,6 +7,68 @@ import type { MentionItem } from '../extensions';
  * 工具栏位置
  */
 export type ToolbarPosition = 'top' | 'bottom' | 'floating' | 'none';
+
+/**
+ * AI 续写上下文
+ */
+export interface AICompletionContext {
+  /** 当前编辑器的全文内容 */
+  text: string;
+  /** 编辑器实例 */
+  editor: Editor;
+  /** 当前光标范围（slash command 的位置） */
+  range: Range;
+}
+
+/**
+ * AI 续写回调函数
+ */
+export interface AICompletionCallbacks {
+  /** 收到流式响应时调用（每次收到新内容时追加） */
+  onChunk?: (chunk: string) => void;
+  /** 完成时调用，可选传入完整内容用于高亮 */
+  onFinish?: (completion: string) => void;
+  /** 出错时调用 */
+  onError?: (error: Error) => void;
+}
+
+/**
+ * AI 续写处理函数类型
+ * 外部实现此函数来提供 AI 续写能力
+ *
+ * @param context - AI 续写上下文，包含当前文本、编辑器实例和光标范围
+ * @param callbacks - 回调函数，用于处理流式响应、完成和错误
+ * @returns 返回一个函数用于取消正在进行的请求（可选）
+ *
+ * @example
+ * ```typescript
+ * const handleAIComplete: AICompletionHandler = (context, callbacks) => {
+ *   const controller = new AbortController();
+ *
+ *   fetch('/api/generate', {
+ *     method: 'POST',
+ *     body: JSON.stringify({ prompt: context.text }),
+ *     signal: controller.signal,
+ *   })
+ *     .then(response => response.body.getReader())
+ *     .then(async reader => {
+ *       let result = '';
+ *       while (true) {
+ *         const { done, value } = await reader.read();
+ *         if (done) break;
+ *         const chunk = new TextDecoder().decode(value);
+ *         result += chunk;
+ *         callbacks.onChunk?.(chunk);
+ *       }
+ *       callbacks.onFinish?.(result);
+ *     })
+ *     .catch(err => callbacks.onError?.(err));
+ *
+ *   return () => controller.abort();
+ * };
+ * ```
+ */
+export type AICompletionHandler = (context: AICompletionContext, callbacks: AICompletionCallbacks) => (() => void) | void;
 
 /**
  * 播放器控制接口 - 用于解耦业务逻辑
@@ -73,6 +135,8 @@ export interface UnifiedEditorProps {
   playerControls?: PlayerControls;
   /** 图片上传处理函数 */
   onImageUpload?: ImageUploadHandler;
+  /** AI 续写处理函数 */
+  onAIComplete?: AICompletionHandler;
 }
 
 /**

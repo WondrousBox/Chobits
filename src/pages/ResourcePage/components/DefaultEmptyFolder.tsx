@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { TbChecks, TbFile, TbFolder, TbFolderPlus, TbShield } from 'react-icons/tb';
 import { toast } from 'sonner';
 
+import { useAICompletion } from '@/components/Editor';
 import { Button } from '@/components/ui/button';
 
 import { useFolderImport } from '../hooks/useFolderImport';
@@ -49,6 +50,14 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, hideEditor
   }, []);
 
   const [content, setContent] = useState('');
+
+  // 使用 DeepSeek 模型进行 AI 续写
+  const handleAIComplete = useAICompletion({
+    providerId: 'deepseek',
+    agentId: 'assistant',
+    temperature: 0.7,
+    maxTokens: 1000
+  });
 
   const doAfter = useCallback(async () => {
     try {
@@ -149,6 +158,7 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, hideEditor
           placeholder="在此输入内容..."
           className="max-h-[calc(100vh-400px)] border min-w-[600px] border-solid rounded-lg box-border"
           style={{ width: 'calc(100% - 300px)' }}
+          onAIComplete={handleAIComplete}
           toolbarRight={
             <Button size="sm" variant="outline" onClick={onSaveText} disabled={!content} className="gap-1">
               <TbChecks className="h-4 w-4" /> 保存文本

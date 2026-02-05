@@ -8,7 +8,9 @@
  */
 import { ReactNode } from 'react';
 
-import { resourceMentionItems, UnifiedEditor } from '@/components/Editor';
+import type { AICompletionHandler } from '@/components/Editor';
+import { UnifiedEditor } from '@/components/Editor';
+import { resourceMentionItems } from '@/components/Editor/extensions';
 
 interface RichTextEditorProps {
   value: string;
@@ -18,9 +20,11 @@ interface RichTextEditorProps {
   toolbarRight?: ReactNode;
   readonly?: boolean;
   style?: React.CSSProperties;
+  /** AI 续写处理函数 */
+  onAIComplete?: AICompletionHandler;
 }
 
-export const RichTextEditor = ({ value, onChange, placeholder, className, toolbarRight, readonly = false, style }: RichTextEditorProps): JSX.Element => {
+export const RichTextEditor = ({ value, onChange, placeholder, className, toolbarRight, readonly = false, style, onAIComplete }: RichTextEditorProps): JSX.Element => {
   return (
     <UnifiedEditor
       content={value}
@@ -33,6 +37,7 @@ export const RichTextEditor = ({ value, onChange, placeholder, className, toolba
       toolbarPosition="floating"
       markdown={true}
       mentionItems={resourceMentionItems}
+      onAIComplete={onAIComplete}
     />
   );
 };
