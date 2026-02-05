@@ -8,13 +8,23 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 
+import { editorCommandActions } from '../commandActions';
 import type { PlayerControls, UnifiedToolbarProps } from './types';
 
 /**
  * 播放器控制按钮组
  */
 const PlayerControlsComponent: React.FC<{ controls?: PlayerControls }> = ({ controls }) => {
-  const [isPlaying, setIsPlaying] = useState(false);
+  const isControlled = typeof controls?.isPlaying === 'boolean';
+  const [localPlaying, setLocalPlaying] = useState(false);
+  const isPlaying = isControlled ? (controls?.isPlaying as boolean) : localPlaying;
+
+  const setPlaying = (next: boolean) => {
+    if (!isControlled) {
+      setLocalPlaying(next);
+    }
+    controls?.onPlayStateChange?.(next);
+  };
 
   const handleSeekBackward = () => {
     controls?.seekBackward?.(15);
@@ -25,12 +35,12 @@ const PlayerControlsComponent: React.FC<{ controls?: PlayerControls }> = ({ cont
   };
 
   const handlePlay = () => {
-    setIsPlaying(true);
+    setPlaying(true);
     controls?.play?.();
   };
 
   const handlePause = () => {
-    setIsPlaying(false);
+    setPlaying(false);
     controls?.pause?.();
   };
 
@@ -83,67 +93,60 @@ const MediaButtons: React.FC<{ controls?: PlayerControls }> = ({ controls }) => 
  * 格式化按钮组
  */
 const FormatButtons: React.FC<{ editor: Editor }> = ({ editor }) => {
+  const undoAction = editorCommandActions.undo;
+  const redoAction = editorCommandActions.redo;
+  const boldAction = editorCommandActions.bold;
+  const italicAction = editorCommandActions.italic;
+  const strikeAction = editorCommandActions.strike;
+  const heading1Action = editorCommandActions.heading1;
+  const heading2Action = editorCommandActions.heading2;
+  const heading3Action = editorCommandActions.heading3;
+  const bulletListAction = editorCommandActions.bulletList;
+  const orderedListAction = editorCommandActions.orderedList;
+
   return (
     <div className="flex flex-wrap gap-1 items-center">
       {/* 撤销/重做 */}
-      <Button variant="ghost" size="icon" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} title="撤销" className="w-8 h-8">
+      <Button variant="ghost" size="icon" onClick={() => undoAction.run(editor)} disabled={!undoAction.canRun?.(editor)} title="撤销" className="w-8 h-8">
         <Undo className="h-4 w-4" />
       </Button>
-      <Button variant="ghost" size="icon" onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} title="重做" className="w-8 h-8">
+      <Button variant="ghost" size="icon" onClick={() => redoAction.run(editor)} disabled={!redoAction.canRun?.(editor)} title="重做" className="w-8 h-8">
         <Redo className="h-4 w-4" />
       </Button>
 
       <Separator orientation="vertical" className="h-6 mx-1" />
 
       {/* 文字样式 */}
-      <Button variant="ghost" size="icon" onClick={() => editor.chain().focus().toggleBold().run()} className={cn('w-8 h-8', editor.isActive('bold') && 'bg-muted')} title="粗体">
+      <Button variant="ghost" size="icon" onClick={() => boldAction.run(editor)} className={cn('w-8 h-8', boldAction.isActive?.(editor) && 'bg-muted')} title="粗体">
         <Bold className="h-4 w-4" />
       </Button>
-      <Button variant="ghost" size="icon" onClick={() => editor.chain().focus().toggleItalic().run()} className={cn('w-8 h-8', editor.isActive('italic') && 'bg-muted')} title="斜体">
+      <Button variant="ghost" size="icon" onClick={() => italicAction.run(editor)} className={cn('w-8 h-8', italicAction.isActive?.(editor) && 'bg-muted')} title="斜体">
         <Italic className="h-4 w-4" />
       </Button>
-      <Button variant="ghost" size="icon" onClick={() => editor.chain().focus().toggleStrike().run()} className={cn('w-8 h-8', editor.isActive('strike') && 'bg-muted')} title="删除线">
+      <Button variant="ghost" size="icon" onClick={() => strikeAction.run(editor)} className={cn('w-8 h-8', strikeAction.isActive?.(editor) && 'bg-muted')} title="删除线">
         <Strikethrough className="h-4 w-4" />
       </Button>
 
       <Separator orientation="vertical" className="h-6 mx-1" />
 
       {/* 标题 */}
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-        className={cn('w-8 h-8', editor.isActive('heading', { level: 1 }) && 'bg-muted')}
-        title="标题 1"
-      >
+      <Button variant="ghost" size="icon" onClick={() => heading1Action.run(editor)} className={cn('w-8 h-8', heading1Action.isActive?.(editor) && 'bg-muted')} title="标题 1">
         <Heading1 className="h-4 w-4" />
       </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-        className={cn('w-8 h-8', editor.isActive('heading', { level: 2 }) && 'bg-muted')}
-        title="标题 2"
-      >
+      <Button variant="ghost" size="icon" onClick={() => heading2Action.run(editor)} className={cn('w-8 h-8', heading2Action.isActive?.(editor) && 'bg-muted')} title="标题 2">
         <Heading2 className="h-4 w-4" />
       </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-        className={cn('w-8 h-8', editor.isActive('heading', { level: 3 }) && 'bg-muted')}
-        title="标题 3"
-      >
+      <Button variant="ghost" size="icon" onClick={() => heading3Action.run(editor)} className={cn('w-8 h-8', heading3Action.isActive?.(editor) && 'bg-muted')} title="标题 3">
         <Heading3 className="h-4 w-4" />
       </Button>
 
       <Separator orientation="vertical" className="h-6 mx-1" />
 
       {/* 列表 */}
-      <Button variant="ghost" size="icon" onClick={() => editor.chain().focus().toggleBulletList().run()} className={cn('w-8 h-8', editor.isActive('bulletList') && 'bg-muted')} title="无序列表">
+      <Button variant="ghost" size="icon" onClick={() => bulletListAction.run(editor)} className={cn('w-8 h-8', bulletListAction.isActive?.(editor) && 'bg-muted')} title="无序列表">
         <List className="h-4 w-4" />
       </Button>
-      <Button variant="ghost" size="icon" onClick={() => editor.chain().focus().toggleOrderedList().run()} className={cn('w-8 h-8', editor.isActive('orderedList') && 'bg-muted')} title="有序列表">
+      <Button variant="ghost" size="icon" onClick={() => orderedListAction.run(editor)} className={cn('w-8 h-8', orderedListAction.isActive?.(editor) && 'bg-muted')} title="有序列表">
         <ListOrdered className="h-4 w-4" />
       </Button>
     </div>

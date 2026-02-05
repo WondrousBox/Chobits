@@ -1,7 +1,8 @@
+import type { EditorProps } from '@tiptap/pm/view';
 import type { Editor, EditorEvents, Range } from '@tiptap/react';
 import type { ReactNode } from 'react';
 
-import type { MentionItem } from '../extensions';
+import type { MentionItem, SlashCommandConfig } from '../extensions';
 
 /**
  * 工具栏位置
@@ -78,6 +79,10 @@ export interface PlayerControls {
   play?: () => void;
   /** 暂停 */
   pause?: () => void;
+  /** 当前是否播放中 */
+  isPlaying?: boolean;
+  /** 外部同步播放状态 */
+  onPlayStateChange?: (isPlaying: boolean) => void;
   /** 前进指定秒数 */
   seekForward?: (seconds: number) => void;
   /** 后退指定秒数 */
@@ -119,6 +124,8 @@ export interface UnifiedEditorProps {
   showPlayerControls?: boolean;
   /** 是否显示截图和标记按钮 */
   showMediaButtons?: boolean;
+  /** 可注入的 editorProps */
+  editorProps?: EditorProps;
   /** 内容更新回调（返回 Markdown 格式） */
   onChange?: (content: string) => void;
   /** 完整更新回调（包含编辑器事件） */
@@ -129,6 +136,8 @@ export interface UnifiedEditorProps {
   markdown?: boolean;
   /** 自定义 Mention 项列表 */
   mentionItems?: MentionItem[];
+  /** Slash Command 配置 */
+  slashCommandConfig?: SlashCommandConfig;
   /** 自定义 extensions */
   additionalExtensions?: any[];
   /** 播放器控制接口 - 用于解耦业务逻辑 */
@@ -137,6 +146,8 @@ export interface UnifiedEditorProps {
   onImageUpload?: ImageUploadHandler;
   /** AI 续写处理函数 */
   onAIComplete?: AICompletionHandler;
+  /** 控制工具栏是否在 blur 时保持可见 */
+  shouldKeepToolbarVisible?: () => boolean;
 }
 
 /**

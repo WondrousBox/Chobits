@@ -1,28 +1,44 @@
-import { Editor, Extension, Range } from '@tiptap/react';
-import { ReactRenderer } from '@tiptap/react';
+import { Editor, Extension, Range, ReactRenderer } from '@tiptap/react';
 import Suggestion, { SuggestionOptions, SuggestionProps } from '@tiptap/suggestion';
 import { ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { TbCode, TbH1, TbH2, TbH3, TbList, TbListNumbers, TbLoader, TbLollipop, TbMessage2, TbPhoto, TbQuote, TbSquareCheck, TbTextSize } from 'react-icons/tb';
 import tippy from 'tippy.js';
 
+import { type EditorCommandAction, editorCommandActions } from '../commandActions';
 import { defaultImageUploadHandler } from '../props';
-import type { AICompletionHandler } from '../UnifiedEditor/types';
+import type { AICompletionHandler, ImageUploadHandler } from '../UnifiedEditor/types';
 
-interface CommandItemProps {
+export interface SlashCommandItem {
   title: string;
   description: string;
   icon: ReactNode;
   searchTerms?: string[];
-  command?: (props: CommandProps) => void;
+  command?: (props: SlashCommandCommandProps) => void;
 }
 
-interface CommandProps {
+export interface SlashCommandCommandProps {
   editor: Editor;
   range: Range;
 }
 
 interface SlashCommandOptions {
   suggestion: Omit<SuggestionOptions, 'editor'>;
+}
+
+export interface SlashCommandItemContext {
+  editor: Editor;
+  onAIComplete?: AICompletionHandler;
+  defaultItems: SlashCommandItem[];
+}
+
+export type SlashCommandItems = SlashCommandItem[] | ((context: SlashCommandItemContext) => SlashCommandItem[]);
+
+export interface SlashCommandConfig {
+  items?: SlashCommandItems;
+  onImageUpload?: ImageUploadHandler;
+  pickImage?: () => Promise<File | null> | File | null;
+  onOpenFeedback?: () => void;
+  feedbackUrl?: string;
 }
 
 // Storage key for dynamic AI completion handler
@@ -55,18 +71,59 @@ const Command = Extension.create<SlashCommandOptions>({
   }
 });
 
-const getSuggestionItems = ({ query, editor }: { query: string; editor: Editor }): CommandItemProps[] => {
-  // 从 editor.storage 动态获取 onAIComplete
-  const onAIComplete = editor.storage['slash-command']?.[AI_COMPLETE_STORAGE_KEY] as AICompletionHandler | undefined;
+const createAIItem = (): SlashCommandItem => ({
+  title: 'AI续写',
+  description: '使用 AI 来扩展你的想法。',
+  searchTerms: ['gpt', 'ai', 'complete', 'generate'],
+  icon: <TbLollipop />
+});
 
-  const baseItems: CommandItemProps[] = [
+const pickImageFile = async (pickImage?: SlashCommandConfig['pickImage']): Promise<File | null> => {
+  if (pickImage) {
+    const result = await pickImage();
+    return result ?? null;
+  }
+
+  if (typeof document === 'undefined') {
+    return null;
+  }
+
+  return await new Promise<File | null>((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = () => resolve(input.files?.[0] ?? null);
+    input.click();
+  });
+};
+
+const runActionWithRange = (editor: Editor, range: Range, action: EditorCommandAction): void => {
+  editor.chain().focus().deleteRange(range).run();
+  action.run(editor);
+};
+
+const createDefaultItems = (config?: SlashCommandConfig): SlashCommandItem[] => {
+  const feedbackUrl = config?.feedbackUrl ?? '/feedback';
+  const openFeedback = () => {
+    if (config?.onOpenFeedback) {
+      config.onOpenFeedback();
+      return;
+    }
+    if (typeof window !== 'undefined') {
+      window.open(feedbackUrl, '_blank');
+    }
+  };
+
+  const { paragraph, taskList, heading1, heading2, heading3, bulletList, orderedList, blockquote, codeBlock } = editorCommandActions;
+
+  return [
     {
       title: 'Send Feedback',
       description: 'Let us know how we can improve.',
       icon: <TbMessage2 />,
-      command: ({ editor, range }: CommandProps) => {
+      command: ({ editor, range }: SlashCommandCommandProps) => {
         editor.chain().focus().deleteRange(range).run();
-        window.open('/feedback', '_blank');
+        openFeedback();
       }
     },
     {
@@ -74,8 +131,8 @@ const getSuggestionItems = ({ query, editor }: { query: string; editor: Editor }
       description: '使用普通的文本开始输入。',
       searchTerms: ['p', 'paragraph'],
       icon: <TbTextSize />,
-      command: ({ editor, range }: CommandProps) => {
-        editor.chain().focus().deleteRange(range).toggleNode('paragraph', 'paragraph').run();
+      command: ({ editor, range }: SlashCommandCommandProps) => {
+        runActionWithRange(editor, range, paragraph);
       }
     },
     {
@@ -83,8 +140,8 @@ const getSuggestionItems = ({ query, editor }: { query: string; editor: Editor }
       description: '使用待办列表跟踪任务。',
       searchTerms: ['todo', 'task', 'list', 'check', 'checkbox'],
       icon: <TbSquareCheck />,
-      command: ({ editor, range }: CommandProps) => {
-        editor.chain().focus().deleteRange(range).toggleTaskList().run();
+      command: ({ editor, range }: SlashCommandCommandProps) => {
+        runActionWithRange(editor, range, taskList);
       }
     },
     {
@@ -92,8 +149,8 @@ const getSuggestionItems = ({ query, editor }: { query: string; editor: Editor }
       description: '大标题',
       searchTerms: ['title', 'big', 'large', 'h1'],
       icon: <TbH1 />,
-      command: ({ editor, range }: CommandProps) => {
-        editor.chain().focus().deleteRange(range).setNode('heading', { level: 1 }).run();
+      command: ({ editor, range }: SlashCommandCommandProps) => {
+        runActionWithRange(editor, range, heading1);
       }
     },
     {
@@ -101,8 +158,8 @@ const getSuggestionItems = ({ query, editor }: { query: string; editor: Editor }
       description: '中等标题',
       searchTerms: ['subtitle', 'medium', 'h2'],
       icon: <TbH2 />,
-      command: ({ editor, range }: CommandProps) => {
-        editor.chain().focus().deleteRange(range).setNode('heading', { level: 2 }).run();
+      command: ({ editor, range }: SlashCommandCommandProps) => {
+        runActionWithRange(editor, range, heading2);
       }
     },
     {
@@ -110,8 +167,8 @@ const getSuggestionItems = ({ query, editor }: { query: string; editor: Editor }
       description: '小标题',
       searchTerms: ['subtitle', 'small', 'h3'],
       icon: <TbH3 />,
-      command: ({ editor, range }: CommandProps) => {
-        editor.chain().focus().deleteRange(range).setNode('heading', { level: 3 }).run();
+      command: ({ editor, range }: SlashCommandCommandProps) => {
+        runActionWithRange(editor, range, heading3);
       }
     },
     {
@@ -119,8 +176,8 @@ const getSuggestionItems = ({ query, editor }: { query: string; editor: Editor }
       description: '创建带小点的无序列表。',
       searchTerms: ['unordered', 'point', 'bullet'],
       icon: <TbList />,
-      command: ({ editor, range }: CommandProps) => {
-        editor.chain().focus().deleteRange(range).toggleBulletList().run();
+      command: ({ editor, range }: SlashCommandCommandProps) => {
+        runActionWithRange(editor, range, bulletList);
       }
     },
     {
@@ -128,8 +185,8 @@ const getSuggestionItems = ({ query, editor }: { query: string; editor: Editor }
       description: '创建带数字的有序列表。',
       searchTerms: ['ordered', 'number'],
       icon: <TbListNumbers />,
-      command: ({ editor, range }: CommandProps) => {
-        editor.chain().focus().deleteRange(range).toggleOrderedList().run();
+      command: ({ editor, range }: SlashCommandCommandProps) => {
+        runActionWithRange(editor, range, orderedList);
       }
     },
     {
@@ -137,49 +194,51 @@ const getSuggestionItems = ({ query, editor }: { query: string; editor: Editor }
       description: '创建一个引用段落',
       searchTerms: ['blockquote', 'quote'],
       icon: <TbQuote />,
-      command: ({ editor, range }: CommandProps) => editor.chain().focus().deleteRange(range).toggleNode('paragraph', 'paragraph').toggleBlockquote().run()
+      command: ({ editor, range }: SlashCommandCommandProps) => {
+        runActionWithRange(editor, range, blockquote);
+      }
     },
     {
       title: '代码',
       description: '插入代码片段',
       searchTerms: ['codeblock', 'code'],
       icon: <TbCode />,
-      command: ({ editor, range }: CommandProps) => editor.chain().focus().deleteRange(range).toggleCodeBlock().run()
+      command: ({ editor, range }: SlashCommandCommandProps) => {
+        runActionWithRange(editor, range, codeBlock);
+      }
     },
     {
       title: '图片',
       description: '从电脑上传图片',
       searchTerms: ['photo', 'picture', 'media', 'image'],
       icon: <TbPhoto />,
-      command: ({ editor, range }: CommandProps) => {
+      command: async ({ editor, range }: SlashCommandCommandProps) => {
         editor.chain().focus().deleteRange(range).run();
-        // 创建文件选择器
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'image/*';
-        input.onchange = async () => {
-          if (input.files?.length) {
-            const file = input.files[0];
-            return defaultImageUploadHandler(file);
-          }
-        };
-        input.click();
+        const file = await pickImageFile(config?.pickImage);
+        if (!file) {
+          return;
+        }
+        const handler = config?.onImageUpload ?? defaultImageUploadHandler;
+        await handler(file);
       }
     }
   ];
+};
 
-  // 只有传入 onAIComplete 时才显示 AI 续写菜单项
-  const items: CommandItemProps[] = onAIComplete
-    ? [
-        {
-          title: 'AI续写',
-          description: '使用 AI 来扩展你的想法。',
-          searchTerms: ['gpt', 'ai', 'complete', 'generate'],
-          icon: <TbLollipop />
-        },
-        ...baseItems
-      ]
-    : baseItems;
+const getSuggestionItems = ({ query, editor, config }: { query: string; editor: Editor; config?: SlashCommandConfig }): SlashCommandItem[] => {
+  // 从 editor.storage 动态获取 onAIComplete
+  const onAIComplete = editor.storage['slash-command']?.[AI_COMPLETE_STORAGE_KEY] as AICompletionHandler | undefined;
+
+  const defaultItems = createDefaultItems(config);
+  let items: SlashCommandItem[];
+
+  if (config?.items) {
+    items = typeof config.items === 'function' ? config.items({ editor, onAIComplete, defaultItems }) : config.items;
+  } else if (onAIComplete) {
+    items = [createAIItem(), ...defaultItems];
+  } else {
+    items = defaultItems;
+  }
 
   return items.filter((item) => {
     if (typeof query === 'string' && query.length > 0) {
@@ -206,8 +265,8 @@ export const updateScrollView = (container: HTMLElement, item: HTMLElement): voi
 };
 
 interface CommandListProps {
-  items: CommandItemProps[];
-  command: (item: CommandItemProps) => void;
+  items: SlashCommandItem[];
+  command: (item: SlashCommandItem) => void;
   editor: Editor;
   range: Range;
   onAIComplete?: AICompletionHandler;
@@ -345,7 +404,7 @@ const CommandList = ({ items, command, editor, range, onAIComplete }: CommandLis
       ref={commandListContainer}
       className="z-50 h-auto max-h-[330px] w-72 overflow-y-auto scroll-smooth rounded-md border border-border bg-popover px-1 py-2 shadow-md transition-all"
     >
-      {items.map((item: CommandItemProps, index: number) => {
+      {items.map((item: SlashCommandItem, index: number) => {
         return (
           <button
             className={`flex w-full items-center space-x-2 rounded-md px-2 py-1 text-left text-sm text-foreground hover:bg-accent ${index === selectedIndex ? 'bg-accent text-foreground' : ''}`}
@@ -377,7 +436,7 @@ const createRenderItems = () => {
     let popup: any | null = null;
 
     return {
-      onStart: (props: SuggestionProps<CommandItemProps>) => {
+      onStart: (props: SuggestionProps<SlashCommandItem>) => {
         // 从 editor.storage 动态获取 onAIComplete
         const onAIComplete = props.editor.storage['slash-command']?.[AI_COMPLETE_STORAGE_KEY] as AICompletionHandler | undefined;
 
@@ -400,7 +459,7 @@ const createRenderItems = () => {
           placement: 'bottom-start'
         });
       },
-      onUpdate: (props: SuggestionProps<CommandItemProps>) => {
+      onUpdate: (props: SuggestionProps<SlashCommandItem>) => {
         // 从 editor.storage 动态获取 onAIComplete
         const onAIComplete = props.editor.storage['slash-command']?.[AI_COMPLETE_STORAGE_KEY] as AICompletionHandler | undefined;
 
@@ -438,10 +497,10 @@ const createRenderItems = () => {
  * AI 续写功能通过 editor.storage 动态控制
  * 使用 setAICompleteHandler 来设置/更新 AI 处理函数
  */
-export const createSlashCommand = (): typeof Command => {
+export const createSlashCommand = (config?: SlashCommandConfig): typeof Command => {
   return Command.configure({
     suggestion: {
-      items: ({ query, editor }: { query: string; editor: Editor }) => getSuggestionItems({ query, editor }),
+      items: ({ query, editor }: { query: string; editor: Editor }) => getSuggestionItems({ query, editor, config }),
       render: createRenderItems()
     }
   });

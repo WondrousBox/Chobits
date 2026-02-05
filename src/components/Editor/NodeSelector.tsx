@@ -4,6 +4,7 @@ import { Dispatch, FC, SetStateAction } from 'react';
 import { TbCheck, TbChevronDown, TbCode, TbH1, TbH2, TbH3, TbList, TbListNumbers, TbQuote, TbSquareCheck, TbTextSize } from 'react-icons/tb';
 
 import { BubbleMenuItem } from './Bubble';
+import { editorCommandActions } from './commandActions';
 
 interface NodeSelectorProps {
   editor: Editor;
@@ -16,59 +17,54 @@ export const NodeSelector: FC<NodeSelectorProps> = ({ editor, isOpen, setIsOpen 
     {
       name: 'Text',
       icon: TbTextSize,
-      command: () => editor.chain().focus().toggleNode('paragraph', 'paragraph').run(),
-      // I feel like there has to be a more efficient way to do this – feel free to PR if you know how!
-      isActive: () => editor.isActive('paragraph') && !editor.isActive('bulletList') && !editor.isActive('orderedList')
+      action: editorCommandActions.paragraph
     },
     {
       name: '标题1',
       icon: TbH1,
-      command: () => editor.chain().focus().toggleHeading({ level: 1 }).run(),
-      isActive: () => editor.isActive('heading', { level: 1 })
+      action: editorCommandActions.heading1
     },
     {
       name: '标题2',
       icon: TbH2,
-      command: () => editor.chain().focus().toggleHeading({ level: 2 }).run(),
-      isActive: () => editor.isActive('heading', { level: 2 })
+      action: editorCommandActions.heading2
     },
     {
       name: '标题3',
       icon: TbH3,
-      command: () => editor.chain().focus().toggleHeading({ level: 3 }).run(),
-      isActive: () => editor.isActive('heading', { level: 3 })
+      action: editorCommandActions.heading3
     },
     {
       name: '待办',
       icon: TbSquareCheck,
-      command: () => editor.chain().focus().toggleTaskList().run(),
-      isActive: () => editor.isActive('taskItem')
+      action: editorCommandActions.taskList
     },
     {
       name: '无序列表',
       icon: TbList,
-      command: () => editor.chain().focus().toggleBulletList().run(),
-      isActive: () => editor.isActive('bulletList')
+      action: editorCommandActions.bulletList
     },
     {
       name: '有序列表',
       icon: TbListNumbers,
-      command: () => editor.chain().focus().toggleOrderedList().run(),
-      isActive: () => editor.isActive('orderedList')
+      action: editorCommandActions.orderedList
     },
     {
       name: '引用',
       icon: TbQuote,
-      command: () => editor.chain().focus().toggleNode('paragraph', 'paragraph').toggleBlockquote().run(),
-      isActive: () => editor.isActive('blockquote')
+      action: editorCommandActions.blockquote
     },
     {
       name: '代码',
       icon: TbCode,
-      command: () => editor.chain().focus().toggleCodeBlock().run(),
-      isActive: () => editor.isActive('codeBlock')
+      action: editorCommandActions.codeBlock
     }
-  ];
+  ].map((item) => ({
+    name: item.name,
+    icon: item.icon,
+    command: () => item.action.run(editor),
+    isActive: () => item.action.isActive?.(editor) ?? false
+  }));
 
   const activeItem = items.filter((item) => item.isActive()).pop() ?? {
     name: '多段'
