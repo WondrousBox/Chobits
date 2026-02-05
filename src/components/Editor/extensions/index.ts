@@ -3,4 +3,4 @@
 
 export { createFullExtensions, extensions } from './createExtensions';
 export type { MentionItem } from './wrappers/mentionItems';
-export { defaultMentionItems, resourceMentionItems } from './wrappers/mentionItems';
+export { createVideoMentionItems, defaultMentionItems, resourceMentionItems } from './wrappers/mentionItems';

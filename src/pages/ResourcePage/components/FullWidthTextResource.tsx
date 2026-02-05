@@ -49,7 +49,7 @@ const FullWidthTextResource: React.FC<FullWidthTextResourceProps> = ({ item, onP
           <TbMaximize />
         </Button>
       </div>
-      <RichTextEditor value={content} onChange={() => { }} editable={false} placeholder="暂无内容" className="border-0 shadow-none" />
+      <RichTextEditor value={content} onChange={() => { }} readonly placeholder="暂无内容" className="border-0 shadow-none" />
     </div>
   );
 };

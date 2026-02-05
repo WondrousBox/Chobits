@@ -16,11 +16,11 @@ interface RichTextEditorProps {
   placeholder?: string;
   className?: string;
   toolbarRight?: ReactNode;
-  editable?: boolean;
+  readonly?: boolean;
   style?: React.CSSProperties;
 }
 
-export const RichTextEditor = ({ value, onChange, placeholder, className, toolbarRight, editable = true, style }: RichTextEditorProps): JSX.Element => {
+export const RichTextEditor = ({ value, onChange, placeholder, className, toolbarRight, readonly = false, style }: RichTextEditorProps): JSX.Element => {
   return (
     <UnifiedEditor
       content={value}
@@ -28,9 +28,8 @@ export const RichTextEditor = ({ value, onChange, placeholder, className, toolba
       placeholder={placeholder}
       className={className}
       toolbarRight={toolbarRight}
-      editable={editable}
+      readonly={readonly}
       style={style}
-      mode={editable ? 'full' : 'readonly'}
       toolbarPosition="floating"
       markdown={true}
       mentionItems={resourceMentionItems}
