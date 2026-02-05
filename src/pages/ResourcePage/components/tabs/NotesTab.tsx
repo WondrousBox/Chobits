@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { UnifiedEditor } from '@/components/Editor';
 
-import { createResourceCardSlashItem, createResourceUploadHandler } from '../../utils/resourceCardEditor';
+import { createResourceUploadHandler } from '../../utils/resourceCardEditor';
 import { useResourceTabContext } from './ResourceTabContext';
 
 const NotesTab: React.FC = () => {
@@ -102,20 +102,6 @@ const NotesTab: React.FC = () => {
     [debouncedSave]
   );
 
-  const pickResourceFile = useCallback((): Promise<File | null> => {
-    if (typeof document === 'undefined') {
-      return Promise.resolve(null);
-    }
-    return new Promise((resolve) => {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.onchange = () => {
-        resolve(input.files?.[0] ?? null);
-      };
-      input.click();
-    });
-  }, []);
-
   const handleResourceUpload = useMemo(
     () =>
       createResourceUploadHandler({
@@ -124,8 +110,6 @@ const NotesTab: React.FC = () => {
       }),
     [resource?.workspaceId, resource?.folderId]
   );
-
-  const resourceSlashItem = useMemo(() => createResourceCardSlashItem(pickResourceFile), [pickResourceFile]);
 
   if (loading) {
     return (
@@ -146,9 +130,6 @@ const NotesTab: React.FC = () => {
         showMediaButtons
         onUpdate={handleUpdate}
         onResourceUpload={handleResourceUpload}
-        slashCommandConfig={{
-          items: ({ defaultItems }) => [resourceSlashItem, ...defaultItems]
-        }}
       />
     </div>
   );

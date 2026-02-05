@@ -54,6 +54,31 @@ export const UnifiedEditor = ({
   const [isFocused, setIsFocused] = useState(false);
   const hideToolbarTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const allowUpload = Boolean(onResourceUpload);
+  const resolvedOnImageUpload = allowUpload ? onImageUpload : undefined;
+  const resolvedSlashCommandConfig = useMemo(() => {
+    if (!slashCommandConfig) {
+      return slashCommandConfig;
+    }
+    const { items, ...rest } = slashCommandConfig;
+    if (allowUpload) {
+      return slashCommandConfig;
+    }
+
+    if (!items) {
+      return rest;
+    }
+
+    const filterItems = (itemsToFilter: typeof items extends (infer U)[] ? U[] : any[]) =>
+      (itemsToFilter as any[]).filter((item) => !(item as { requiresUpload?: boolean })?.requiresUpload);
+
+    const filteredItems = typeof items === 'function' ? (ctx: any) => filterItems(items(ctx)) : filterItems(items);
+    return {
+      ...rest,
+      items: filteredItems
+    };
+  }, [slashCommandConfig, allowUpload]);
+
   const isNoteLayout = toolbarPosition === 'bottom';
 
   void noteId;
@@ -75,7 +100,14 @@ export const UnifiedEditor = ({
     }
   };
 
-  const resolvedEditorProps = useMemo(() => editorPropsOverride ?? createEditorProps(onImageUpload), [editorPropsOverride, onImageUpload]);
+  const resolvedEditorProps = useMemo(
+    () =>
+      editorPropsOverride ??
+      createEditorProps(resolvedOnImageUpload, {
+        disableFileHandlers: Boolean(onResourceUpload)
+      }),
+    [editorPropsOverride, resolvedOnImageUpload, onResourceUpload]
+  );
 
   // 统一使用完整扩展（slash、mention、代码块等）
   // AI 续写通过 useEffect 动态同步，不需要在这里传入 onAIComplete
@@ -83,8 +115,8 @@ export const UnifiedEditor = ({
     ...createFullExtensions({
       mentionItems,
       placeholder,
-      onImageUpload,
-      slashCommandConfig
+      onImageUpload: resolvedOnImageUpload,
+      slashCommandConfig: resolvedSlashCommandConfig
     }),
     ...additionalExtensions
   ];
