@@ -10,6 +10,9 @@ export const aiBridge = {
   async getAgents() {
     return ipcRenderer.invoke('ai:getAgents');
   },
+  async listTools(): Promise<Array<{ id: string; name: string; description: string }>> {
+    return ipcRenderer.invoke('ai:listTools');
+  },
   async listModels(providerId: string, instanceId?: string) {
     return ipcRenderer.invoke('ai:listModels', { providerId, instanceId });
   },
@@ -117,7 +120,7 @@ export const aiBridge = {
   async listInstances(providerId?: string) {
     return ipcRenderer.invoke('ai:listInstances', { providerId });
   },
-  async createInstance(payload: { providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any> }) {
+  async createInstance(payload: { providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any>; enabledTools?: string[] }) {
     return ipcRenderer.invoke('ai:createInstance', payload);
   },
   async updateInstance(id: string, patch: any) {

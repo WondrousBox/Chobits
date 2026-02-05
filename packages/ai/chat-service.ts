@@ -4,7 +4,7 @@ import { Agent } from '@mastra/core/agent';
 import { BrowserWindow, ipcMain, WebContents } from 'electron';
 
 import { ChatRepo } from '../common/db';
-import { getAgent } from './agents';
+import { getAgent, getFilteredTools } from './agents';
 import { InstancesStore } from './instances-store';
 import { createModel } from './models/index';
 import { getProvider } from './registry';
@@ -344,13 +344,13 @@ ${JSON.stringify(req, null, 2)}
    */
   private async getConfiguredAgent(req: ChatRequest): Promise<Agent | undefined> {
     const agentId = req.agentId || 'assistant';
-    const agent = getAgent(agentId);
-    if (!agent) return undefined;
+    const baseAgent = getAgent(agentId);
+    if (!baseAgent) return undefined;
 
     // 获取 provider 配置
     const providerId = req.providerId || 'openai';
     const providerConfig = this.getProviderConfig(providerId);
-    if (!providerConfig) return agent;
+    if (!providerConfig) return baseAgent;
 
     // 获取 secrets
     const fields = providerConfig.fields as Array<{ key: string; required?: boolean }>;
@@ -360,7 +360,7 @@ ${JSON.stringify(req, null, 2)}
 
     if (!apiKey && fields.some((f) => f.key === 'apiKey' && f.required)) {
       console.warn(`Provider ${providerId} 未配置 API Key`);
-      return agent;
+      return baseAgent;
     }
 
     // 创建模型实例并配置 Agent
@@ -372,11 +372,22 @@ ${JSON.stringify(req, null, 2)}
       };
       const model = createModel(providerId, modelConfig);
 
-      agent.model = model;
+      // 根据实例配置的 enabledTools 过滤工具
+      const enabledTools = req.extras?.enabledTools as string[] | undefined;
+      const filteredTools = enabledTools !== undefined ? getFilteredTools(enabledTools) : undefined;
+
+      // 创建配置好的 Agent 副本
+      const agent = new Agent({
+        name: baseAgent.name,
+        instructions: (baseAgent as any).instructions || '',
+        model,
+        tools: filteredTools || (baseAgent as any).tools || {}
+      });
+
       return agent;
     } catch (error) {
       console.error('创建模型失败:', error);
-      return agent;
+      return baseAgent;
     }
   }
 
@@ -388,6 +399,8 @@ ${JSON.stringify(req, null, 2)}
     // Merge instance fields
     const extras = { ...(req.extras || {}) } as any;
     if (inst.model && !extras.model) extras.model = inst.model;
+    // Pass enabledTools to extras for agent configuration
+    if (inst.enabledTools?.length) extras.enabledTools = inst.enabledTools;
     // Load secrets for this instance to allow provider overrides
     try {
       const schema = getProvider(inst.providerId)?.getConfigSchema?.();

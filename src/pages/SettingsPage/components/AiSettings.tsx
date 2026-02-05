@@ -19,7 +19,7 @@ type ProviderRow = {
     fields?: Array<{ key: string; label: string; type: string; required?: boolean; options?: any[] }>;
   };
 };
-type Instance = { id: string; providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any>; createdAt?: number };
+type Instance = { id: string; providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any>; enabledTools?: string[]; createdAt?: number };
 type ModelOpt = { id: string; label?: string; type?: string; context?: number; pricing?: any; tags?: string[]; description?: string; free?: boolean };
 // Templates are now loaded within InstanceFormDialog
 
@@ -177,7 +177,14 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
       return;
     }
     setErrors((prev) => ({ ...prev, __new__: {} }));
-    const created = await window.YUA.ai.createInstance({ providerId: selectedProvider.id, name: vals.name, model: vals.model, systemPrompt: vals.systemPrompt, config: {} });
+    const created = await window.YUA.ai.createInstance({
+      providerId: selectedProvider.id,
+      name: vals.name,
+      model: vals.model,
+      systemPrompt: vals.systemPrompt,
+      config: {},
+      enabledTools: vals.enabledTools
+    });
     if (created?.id) await window.YUA.ai.setInstanceSecrets(created.id, vals.secrets);
     const list = await window.YUA.ai.listInstances(selectedProvider.id);
     setInstances(list || []);
@@ -197,7 +204,12 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
       return;
     }
     setErrors((prev) => ({ ...prev, [inst.id]: {} }));
-    await window.YUA.ai.updateInstance(inst.id, { name: vals.name, model: vals.model, systemPrompt: vals.systemPrompt });
+    await window.YUA.ai.updateInstance(inst.id, {
+      name: vals.name,
+      model: vals.model,
+      systemPrompt: vals.systemPrompt,
+      enabledTools: vals.enabledTools
+    });
     await window.YUA.ai.setInstanceSecrets(inst.id, vals.secrets || {});
     const list = await window.YUA.ai.listInstances(inst.providerId);
     setInstances(list || []);
@@ -228,12 +240,13 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
 
   const modalInitialValues: InstanceFormValues =
     modalMode === 'create'
-      ? { name: '', model: '', systemPrompt: '', secrets: {} }
+      ? { name: '', model: '', systemPrompt: '', secrets: {}, enabledTools: [] }
       : {
         name: editing?.name || '',
         model: editing?.model || '',
         systemPrompt: editing?.systemPrompt || '',
-        secrets: editing ? instanceSecrets[editing.id] || {} : {}
+        secrets: editing ? instanceSecrets[editing.id] || {} : {},
+        enabledTools: editing?.enabledTools || []
       };
 
   const modalErrors: Record<string, string> = modalMode === 'create' ? errors.__new__ || {} : editing ? errors[editing.id] || {} : {};

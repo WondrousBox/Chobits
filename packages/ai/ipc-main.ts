@@ -50,6 +50,7 @@ import {
   updateApiKey
 } from './settings-store';
 import { getAllInstanceSecrets as getAllInstSecrets, setInstanceSecrets as setInstSecrets } from './settings-store';
+import { listToolInfos } from './tools';
 
 export function initAIHandlers(win: BrowserWindow): void {
   // Bootstrapping built-in provider(s) and agent(s)
@@ -170,6 +171,11 @@ export function initAIHandlers(win: BrowserWindow): void {
     return listAgents().map((a) => ({ id: a.id, label: a.label, description: a.description }));
   });
 
+  // 列出所有可用工具
+  ipcMain.handle('ai:listTools', async () => {
+    return listToolInfos();
+  });
+
   ipcMain.handle('ai:transcribe', async (_e, payload: { providerId: string; file: Buffer; model?: string; language?: string; prompt?: string }) => {
     const provider = getProvider(payload.providerId);
     if (!provider) {
@@ -221,7 +227,7 @@ export function initAIHandlers(win: BrowserWindow): void {
   ipcMain.handle('ai:listInstances', async (_e, payload?: { providerId?: string }) => {
     return InstancesStore.list(payload?.providerId);
   });
-  ipcMain.handle('ai:createInstance', async (_e, payload: { providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any> }) => {
+  ipcMain.handle('ai:createInstance', async (_e, payload: { providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any>; enabledTools?: string[] }) => {
     return InstancesStore.create(payload as any);
   });
   ipcMain.handle('ai:updateInstance', async (_e, payload: { id: string; patch: any }) => {

@@ -1,9 +1,10 @@
 import { DialogDescription } from '@radix-ui/react-dialog';
 import { useEffect, useState } from 'react';
-import { TbPlus, TbStarFilled } from 'react-icons/tb';
+import { TbChevronDown, TbChevronRight, TbPlus, TbStarFilled, TbTool } from 'react-icons/tb';
 
 import TintableSvg from '@/components/common/TintableSvg';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -23,12 +24,14 @@ export type ProviderRow = {
 export type ModelOpt = { id: string; label?: string; type?: string; context?: number; pricing?: any; tags?: string[]; description?: string; free?: boolean };
 export type Template = { id: string; name: string; type: 'system' | 'user'; content: string };
 export type ApiKeyItem = { name: string; value: string; isDefault?: boolean };
+export type ToolInfo = { id: string; name: string; description: string };
 
 export type InstanceFormValues = {
   name: string;
   model?: string;
   systemPrompt?: string;
   secrets: Record<string, string>;
+  enabledTools?: string[];
 };
 
 export function InstanceFormDialog(props: {
@@ -45,13 +48,15 @@ export function InstanceFormDialog(props: {
   const { open, title, provider, models, initialValues, errors, onClose, onSubmit } = props;
   const [values, setValues] = useState<InstanceFormValues>(initialValues);
   const [templates, setTemplates] = useState<Template[]>([]);
+  const [availableTools, setAvailableTools] = useState<ToolInfo[]>([]);
+  const [toolsExpanded, setToolsExpanded] = useState(false);
   const [apiKeyManagerOpen, setApiKeyManagerOpen] = useState(false);
   const [selectedFieldKey, setSelectedFieldKey] = useState<string | null>(null);
   const [apiKeysCache, setApiKeysCache] = useState<Record<string, ApiKeyItem[]>>({});
 
   // Initialize form values when dialog is opened via onOpenChange to avoid lint warning on setState in effect
 
-  // Fetch prompt templates and API keys when dialog opens
+  // Fetch prompt templates, API keys, and available tools when dialog opens
   useEffect(() => {
     if (!open) return;
     (async () => {
@@ -60,6 +65,14 @@ export function InstanceFormDialog(props: {
         setTemplates(tmpl || []);
       } catch {
         setTemplates([]);
+      }
+
+      // Load available tools
+      try {
+        const tools = await window.YUA.ai.listTools().catch(() => []);
+        setAvailableTools(tools || []);
+      } catch {
+        setAvailableTools([]);
       }
 
       // Load API keys for password fields
@@ -219,18 +232,13 @@ export function InstanceFormDialog(props: {
                         新增
                       </Button>
                     </div>
-                    <Select
-                      value={values.secrets?.[f.key] || ''}
-                      onValueChange={(val) => setValues((v) => ({ ...v, secrets: { ...(v.secrets || {}), [f.key]: val } }))}
-                    >
+                    <Select value={values.secrets?.[f.key] || ''} onValueChange={(val) => setValues((v) => ({ ...v, secrets: { ...(v.secrets || {}), [f.key]: val } }))}>
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder={apiKeyOptions.length > 0 ? "选择 API Key" : "请先添加 API Key"} />
+                        <SelectValue placeholder={apiKeyOptions.length > 0 ? '选择 API Key' : '请先添加 API Key'} />
                       </SelectTrigger>
                       <SelectContent>
                         {apiKeyOptions.length === 0 ? (
-                          <div className="px-2 py-1.5 text-sm text-muted-foreground text-center">
-                            暂无 API Key，请点击上方"新增"按钮
-                          </div>
+                          <div className="px-2 py-1.5 text-sm text-muted-foreground text-center">暂无 API Key，请点击上方&ldquo;新增&rdquo;按钮</div>
                         ) : (
                           apiKeyOptions.map((key) => (
                             <SelectItem key={key.name} value={key.value}>
@@ -257,11 +265,7 @@ export function InstanceFormDialog(props: {
               return (
                 <label key={f.key} className="grid gap-1">
                   <span className="text-sm text-muted-foreground">{label}</span>
-                  <Input
-                    type="text"
-                    value={values.secrets?.[f.key] || ''}
-                    onChange={(e) => setValues((v) => ({ ...v, secrets: { ...(v.secrets || {}), [f.key]: e.target.value } }))}
-                  />
+                  <Input type="text" value={values.secrets?.[f.key] || ''} onChange={(e) => setValues((v) => ({ ...v, secrets: { ...(v.secrets || {}), [f.key]: e.target.value } }))} />
                   {!!errors?.[f.key] && <span className="text-xs text-red-600">{errors[f.key]}</span>}
                 </label>
               );
@@ -328,6 +332,65 @@ export function InstanceFormDialog(props: {
           </div>
 
           <div className="grid gap-1">{!!values.systemPrompt && <pre className="rounded border p-2 bg-muted/30 min-h-[60px] whitespace-pre-wrap text-xs">{values.systemPrompt}</pre>}</div>
+
+          {/* 工具配置 */}
+          <div className="space-y-2">
+            <Button
+              type="button"
+              variant="ghost"
+              className="flex w-full items-center justify-between px-2 py-2 text-sm text-muted-foreground hover:text-foreground"
+              onClick={() => setToolsExpanded(!toolsExpanded)}
+            >
+              <span className="flex items-center gap-2">
+                <TbTool className="w-4 h-4" />
+                工具配置 ({(values.enabledTools || []).length}/{availableTools.length} 个已启用)
+              </span>
+              <span className="flex items-center gap-1 text-xs">
+                {toolsExpanded ? <TbChevronDown className="w-4 h-4" /> : <TbChevronRight className="w-4 h-4" />}
+                {toolsExpanded ? '收起' : '展开'}
+              </span>
+            </Button>
+            {toolsExpanded && (
+              <div className="mt-2 space-y-2">
+                <div className="grid gap-2 max-h-48 overflow-y-auto rounded border p-3 bg-muted/30">
+                  {availableTools.length === 0 ? (
+                    <div className="text-sm text-muted-foreground text-center py-2">暂无可用工具</div>
+                  ) : (
+                    availableTools.map((tool) => {
+                      const isChecked = (values.enabledTools || []).includes(tool.id);
+                      return (
+                        <label key={tool.id} className="flex items-start gap-3 cursor-pointer hover:bg-muted/50 rounded p-2 -mx-1">
+                          <Checkbox
+                            checked={isChecked}
+                            onCheckedChange={(checked) => {
+                              setValues((v) => {
+                                const current = v.enabledTools || [];
+                                const next = checked ? [...current, tool.id] : current.filter((id) => id !== tool.id);
+                                return { ...v, enabledTools: next };
+                              });
+                            }}
+                            className="mt-0.5"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium">{tool.name}</div>
+                            <div className="text-xs text-muted-foreground truncate">{tool.description}</div>
+                          </div>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+                <div className="flex justify-between text-xs text-muted-foreground px-1">
+                  <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setValues((v) => ({ ...v, enabledTools: availableTools.map((t) => t.id) }))}>
+                    全选
+                  </Button>
+                  <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setValues((v) => ({ ...v, enabledTools: [] }))}>
+                    清空
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
 
           <DialogFooter>
             <div className="flex w-full justify-end gap-2">

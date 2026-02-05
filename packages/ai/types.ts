@@ -16,7 +16,7 @@ export type ChatMessage = {
 export type ChatRequest = {
   conversationId?: string;
   messages: ChatMessage[];
-  agentId: string; // which agent to use
+  agentId?: string; // which agent to use (optional, can be inferred from instance config)
   providerId: string; // which provider adapter to use
   providerInstanceId?: string; // which provider instance to use
   stream?: boolean;
@@ -104,9 +104,16 @@ export interface AgentDefinition {
 
 export type StartStreamPayload = { requestId: string; eventsChannel: string } & ChatRequest;
 
+export type ToolInfo = {
+  id: string;
+  name: string;
+  description: string;
+};
+
 export type AIApi = {
   getProviders(): Promise<any[]>;
   getAgents(): Promise<any[]>;
+  listTools(): Promise<ToolInfo[]>;
   listModels(providerId: string, instanceId?: string): Promise<Array<{ id: string; label?: string;[k: string]: any }>>;
   getProviderSecrets(providerId: string): Promise<Record<string, string>>;
   setProviderSecrets(providerId: string, secrets: Record<string, string>): Promise<{ ok: boolean }>;
@@ -166,7 +173,7 @@ export type AIApi = {
   embed(payload: { texts: string[]; providerId?: string; model?: string; normalize?: boolean }): Promise<{ vectors: number[][]; dim: number }>;
   // Instances
   listInstances(providerId?: string): Promise<any[]>;
-  createInstance(payload: { providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any> }): Promise<any>;
+  createInstance(payload: { providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any>; enabledTools?: string[] }): Promise<any>;
   updateInstance(id: string, patch: any): Promise<any>;
   deleteInstance(id: string): Promise<{ ok: boolean }>;
   getInstanceSecrets(instanceId: string): Promise<Record<string, string>>;
