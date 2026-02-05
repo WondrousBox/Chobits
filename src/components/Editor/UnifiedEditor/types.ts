@@ -2,7 +2,7 @@ import type { EditorProps } from '@tiptap/pm/view';
 import type { Editor, EditorEvents, Range } from '@tiptap/react';
 import type { ReactNode } from 'react';
 
-import type { MentionItem, SlashCommandConfig } from '../extensions';
+import type { MentionItem, ResourceUploadHandler, SlashCommandConfig } from '../extensions';
 
 /**
  * 工具栏位置
@@ -144,6 +144,8 @@ export interface UnifiedEditorProps {
   playerControls?: PlayerControls;
   /** 图片上传处理函数 */
   onImageUpload?: ImageUploadHandler;
+  /** 资源上传处理函数 */
+  onResourceUpload?: ResourceUploadHandler;
   /** AI 续写处理函数 */
   onAIComplete?: AICompletionHandler;
   /** 控制工具栏是否在 blur 时保持可见 */

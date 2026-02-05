@@ -3,6 +3,8 @@
 
 export type { ExtensionOptions } from './createExtensions';
 export { createFullExtensions } from './createExtensions';
+export type { ResourceCardData, ResourceCardStatus, ResourceUploadHandler } from './resourceCard';
+export { getResourceUploadHandler, insertResourceCardFromFile, ResourceCard, setResourceUploadHandler } from './resourceCard';
 export type { SlashCommandCommandProps, SlashCommandConfig, SlashCommandItem, SlashCommandItemContext, SlashCommandItems } from './SlashCommand';
 export { createSlashCommand, getAICompleteHandler, setAICompleteHandler } from './SlashCommand';
 export type { MentionItem, PromptHandler } from './wrappers/mentionItems';
