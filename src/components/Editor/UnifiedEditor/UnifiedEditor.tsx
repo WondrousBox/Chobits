@@ -35,8 +35,8 @@ export const UnifiedEditor = ({
   toolbarPosition = 'top',
   toolbarRight,
   showBubbleMenu = false,
-  showPlayerControls = false,
   showMediaButtons = false,
+  mediaControls,
   editorProps: editorPropsOverride,
   onChange,
   onUpdate,
@@ -45,7 +45,6 @@ export const UnifiedEditor = ({
   mentionItems,
   slashCommandConfig,
   additionalExtensions = [],
-  playerControls,
   onImageUpload,
   onResourceUpload,
   onAIComplete,
@@ -265,9 +264,8 @@ export const UnifiedEditor = ({
       editor={editor}
       visible={true}
       toolbarRight={toolbarRight}
-      showPlayerControls={showPlayerControls}
       showMediaButtons={showMediaButtons}
-      playerControls={playerControls}
+      mediaControls={mediaControls}
       onInteractionStart={cancelHideToolbar}
       className={showFloatingToolbar ? 'absolute left-0 z-10 w-full box-border -top-12 border border-solid rounded-lg' : toolbarPosition === 'top' ? 'rounded-t-lg' : 'rounded-b-lg'}
     />
