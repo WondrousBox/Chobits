@@ -29,7 +29,7 @@ const AssistantPage: React.FC = () => {
   // 控制当实例下拉展开时，暂停自动尺寸调整
   const instanceMenuOpenRef = useRef<boolean>(false);
 
-  const { providerId, instanceId, agentId, setProviderId, setInstanceId, getOrderedInstances } = useChatSelection();
+  const { providerId, instanceId, setProviderId, setInstanceId, getOrderedInstances } = useChatSelection();
 
   const handleToggleRecording = useCallback(async () => {
     try {
@@ -96,7 +96,6 @@ const AssistantPage: React.FC = () => {
           messages: [{ role: 'user', content }],
           providerId,
           providerInstanceId: instanceId,
-          agentId,
           stream: true
         },
         (ev: any) => {

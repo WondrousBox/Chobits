@@ -136,7 +136,61 @@ export type ToolName = keyof typeof allTools;
 /**
  * 工具 ID 类型定义
  */
-export type ToolId = 'get-weather' | 'translate-subtitles' | 'summarize-content' | 'query-resources';
+export type ToolId = 'get-weather' | 'translate-subtitles' | 'summarize-content' | 'query-resources' | 'youtube-download' | 'youtube-subscribe' | 'read-subtitle';
+
+/**
+ * 工具信息类型
+ */
+export type ToolInfo = {
+  id: string;
+  name: string;
+  description: string;
+};
+
+/**
+ * 列出所有可用工具的信息
+ *
+ * @returns 工具信息数组
+ */
+export function listToolInfos(): ToolInfo[] {
+  return [
+    {
+      id: 'get-weather',
+      name: 'weatherTool',
+      description: weatherTool.description || '查询指定城市的当前天气'
+    },
+    {
+      id: 'query-resources',
+      name: 'resourceQueryTool',
+      description: resourceQueryTool.description || '智能查询资源库中的内容'
+    },
+    {
+      id: 'read-subtitle',
+      name: 'readSubtitleTool',
+      description: readSubtitleTool.description || '读取字幕文件内容'
+    },
+    {
+      id: 'translate-subtitles',
+      name: 'translationTool',
+      description: translationTool.description || '翻译字幕内容'
+    },
+    {
+      id: 'summarize-content',
+      name: 'summaryTool',
+      description: summaryTool.description || '总结字幕和文本内容'
+    },
+    {
+      id: 'youtube-download',
+      name: 'youtubeDownloadTool',
+      description: youtubeDownloadTool.description || '下载 YouTube 视频'
+    },
+    {
+      id: 'youtube-subscribe',
+      name: 'youtubeSubscribeTool',
+      description: youtubeSubscribeTool.description || '订阅 YouTube 频道'
+    }
+  ];
+}
 
 // 向后兼容（保留原有的导出名称）
 export const getTools = getAllTools;

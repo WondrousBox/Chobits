@@ -12,6 +12,8 @@ export type ProviderInstance = {
   systemPrompt?: string;
   // non-secret config copy (e.g., baseUrl or org)
   config?: Record<string, any>;
+  // enabled tools for this instance (agent functionality)
+  enabledTools?: string[];
   createdAt: number;
   updatedAt: number;
 };
@@ -29,11 +31,13 @@ function read(): StoreShape {
     return { instances: [] };
   }
 }
-function write(data: StoreShape) {
+function write(data: StoreShape): void {
   try {
     fs.mkdirSync(path.dirname(FILE), { recursive: true });
     fs.writeFileSync(FILE, JSON.stringify(data, null, 2), 'utf8');
-  } catch { }
+  } catch {
+    // ignore write errors
+  }
 }
 
 export const InstancesStore = {
@@ -55,6 +59,7 @@ export const InstancesStore = {
       model: payload.model,
       systemPrompt: payload.systemPrompt,
       config: payload.config || {},
+      enabledTools: payload.enabledTools || [],
       createdAt: now,
       updatedAt: now
     };

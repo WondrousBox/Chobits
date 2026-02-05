@@ -44,6 +44,38 @@ const allBoundTools = {
   youtubeSubscribeTool
 };
 
+// 工具名称到 ID 的映射
+const toolNameToId: Record<string, string> = {
+  weatherTool: 'get-weather',
+  resourceQueryTool: 'query-resources',
+  readSubtitleTool: 'read-subtitle',
+  translationTool: 'translate-subtitles',
+  summaryTool: 'summarize-content',
+  youtubeDownloadTool: 'youtube-download',
+  youtubeSubscribeTool: 'youtube-subscribe'
+};
+
+// 工具 ID 到名称的映射
+const toolIdToName: Record<string, string> = Object.entries(toolNameToId).reduce((acc, [name, id]) => ({ ...acc, [id]: name }), {} as Record<string, string>);
+
+/**
+ * 根据 enabledTools ID 列表过滤工具
+ * @param enabledToolIds - 启用的工具 ID 列表，如果为空或 undefined 则返回所有工具
+ */
+export function getFilteredTools(enabledToolIds?: string[]): Record<string, any> {
+  if (!enabledToolIds || enabledToolIds.length === 0) {
+    return allBoundTools;
+  }
+  const filtered: Record<string, any> = {};
+  for (const toolId of enabledToolIds) {
+    const toolName = toolIdToName[toolId];
+    if (toolName && allBoundTools[toolName as keyof typeof allBoundTools]) {
+      filtered[toolName] = allBoundTools[toolName as keyof typeof allBoundTools];
+    }
+  }
+  return filtered;
+}
+
 // ============================================================================
 // 基础助手 Agent
 // ============================================================================
