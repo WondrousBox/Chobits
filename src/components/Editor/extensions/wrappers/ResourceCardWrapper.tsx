@@ -27,6 +27,9 @@ const getTypeIcon = (type?: string) => {
 
 const getStatusLabel = (status?: ResourceCardStatus, errorMessage?: string): string => {
   if (status === 'uploading') return '上传中...';
+  if (status === 'processing') return '处理中...';
+  if (status === 'new') return '准备中...';
+  if (status === 'archived') return '已归档';
   if (status === 'error') return errorMessage || '上传失败';
   return '';
 };

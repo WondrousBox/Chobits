@@ -3,7 +3,7 @@ import { mergeAttributes, Node, ReactNodeViewRenderer } from '@tiptap/react';
 
 import { ResourceCardWrapper } from './wrappers/ResourceCardWrapper';
 
-export type ResourceCardStatus = 'uploading' | 'ready' | 'error';
+export type ResourceCardStatus = 'uploading' | 'ready' | 'processing' | 'new' | 'archived' | 'error';
 
 export interface ResourceCardData {
   resourceId?: string;
@@ -23,6 +23,53 @@ export type ResourceUploadHandler = (file: File) => Promise<ResourceCardData | n
 
 type ResourceCardAttrs = ResourceCardData & {
   tempId?: string;
+};
+
+const RESOURCE_CARD_JSON_ATTR = 'data-resource-card-json';
+
+const buildPayload = (attrs: ResourceCardAttrs): Record<string, unknown> => {
+  const payload: Record<string, unknown> = {};
+  Object.entries(attrs).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return;
+    payload[key] = value;
+  });
+  return payload;
+};
+
+const encodePayload = (attrs: ResourceCardAttrs): string => {
+  try {
+    return encodeURIComponent(JSON.stringify(buildPayload(attrs)));
+  } catch {
+    return '';
+  }
+};
+
+const decodePayload = (element: HTMLElement): Record<string, unknown> => {
+  const raw = element.getAttribute(RESOURCE_CARD_JSON_ATTR);
+  if (!raw) return {};
+  try {
+    return JSON.parse(decodeURIComponent(raw));
+  } catch {
+    return {};
+  }
+};
+
+const getPayloadValue = (element: HTMLElement, key: keyof ResourceCardAttrs): unknown => {
+  const payload = decodePayload(element);
+  if (payload && Object.prototype.hasOwnProperty.call(payload, key)) {
+    return payload[key];
+  }
+  const attrKey = String(key);
+  return element.getAttribute(attrKey) ?? element.getAttribute(attrKey.toLowerCase());
+};
+
+const parseNumberValue = (value: unknown): number | undefined => {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
 };
 
 declare module '@tiptap/react' {
@@ -53,40 +100,52 @@ export const ResourceCard = Node.create({
   addAttributes() {
     return {
       tempId: {
-        default: ''
+        default: '',
+        parseHTML: (element) => getPayloadValue(element, 'tempId') || ''
       },
       resourceId: {
-        default: ''
+        default: '',
+        parseHTML: (element) => getPayloadValue(element, 'resourceId') || ''
       },
       title: {
-        default: ''
+        default: '',
+        parseHTML: (element) => getPayloadValue(element, 'title') || ''
       },
       description: {
-        default: ''
+        default: '',
+        parseHTML: (element) => getPayloadValue(element, 'description') || ''
       },
       type: {
-        default: ''
+        default: '',
+        parseHTML: (element) => getPayloadValue(element, 'type') || ''
       },
       sizeBytes: {
-        default: 0
+        default: 0,
+        parseHTML: (element) => parseNumberValue(getPayloadValue(element, 'sizeBytes')) || 0
       },
       filePath: {
-        default: ''
+        default: '',
+        parseHTML: (element) => getPayloadValue(element, 'filePath') || ''
       },
       previewUrl: {
-        default: ''
+        default: '',
+        parseHTML: (element) => getPayloadValue(element, 'previewUrl') || ''
       },
       thumbnailPath: {
-        default: ''
+        default: '',
+        parseHTML: (element) => getPayloadValue(element, 'thumbnailPath') || ''
       },
       mimeType: {
-        default: ''
+        default: '',
+        parseHTML: (element) => getPayloadValue(element, 'mimeType') || ''
       },
       status: {
-        default: 'ready'
+        default: 'ready',
+        parseHTML: (element) => (getPayloadValue(element, 'status') as string) || 'ready'
       },
       errorMessage: {
-        default: ''
+        default: '',
+        parseHTML: (element) => getPayloadValue(element, 'errorMessage') || ''
       }
     };
   },
@@ -100,12 +159,39 @@ export const ResourceCard = Node.create({
   },
 
   renderHTML({ HTMLAttributes }) {
-    return ['div', mergeAttributes({ 'data-resource-card': 'true' }, this.options.HTMLAttributes, HTMLAttributes)];
+    const payload = encodePayload(HTMLAttributes as ResourceCardAttrs);
+    return [
+      'div',
+      mergeAttributes(
+        {
+          'data-resource-card': 'true',
+          ...(payload ? { [RESOURCE_CARD_JSON_ATTR]: payload } : {})
+        },
+        this.options.HTMLAttributes,
+        HTMLAttributes
+      )
+    ];
   },
 
   addStorage() {
     return {
-      [STORAGE_KEY_UPLOAD]: undefined as ResourceUploadHandler | undefined
+      [STORAGE_KEY_UPLOAD]: undefined as ResourceUploadHandler | undefined,
+      markdown: {
+        serialize(state: any, node: any) {
+          if (!this.editor.storage.markdown?.options?.html) {
+            state.write(`[resource-card:${node.attrs?.title || ''}]`);
+            state.closeBlock(node);
+            return;
+          }
+          const payload = encodePayload(node.attrs || {});
+          const attrs = payload ? ` ${RESOURCE_CARD_JSON_ATTR}="${payload}"` : '';
+          state.write(`<div data-resource-card="true"${attrs}></div>`);
+          state.closeBlock(node);
+        },
+        parse: {
+          // handled by markdown-it
+        }
+      }
     };
   },
 

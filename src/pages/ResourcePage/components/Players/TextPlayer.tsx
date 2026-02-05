@@ -101,7 +101,14 @@ export const TextPlayer: React.FC<TextPlayerProps> = ({ resource }) => {
         <>
           {isPureText ? (
             <div className="h-full w-full">
-              <RichTextEditor value={textContent} onChange={handleTextChange} placeholder={loadingText ? '加载中…' : '暂无内容'} className="h-full w-full" style={{ height: '100%' }} />
+              <RichTextEditor
+                value={textContent}
+                onChange={handleTextChange}
+                placeholder={loadingText ? '加载中…' : '暂无内容'}
+                className="h-full w-full"
+                style={{ height: '100%' }}
+                resourceUploadContext={{ workspaceId: resource.workspaceId, folderId: resource.folderId }}
+              />
             </div>
           ) : (
             <ScrollArea className="h-full w-full">

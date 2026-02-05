@@ -1,15 +1,10 @@
 import { EditorEvents } from '@tiptap/react';
 import { debounce } from 'lodash-es';
-import { FileUp } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { UnifiedEditor } from '@/components/Editor';
-import type { ResourceUploadHandler, SlashCommandItem } from '@/components/Editor/extensions';
-import { insertResourceCardFromFile } from '@/components/Editor/extensions';
 
-import { addResourcesFromSelectedFiles } from '../../services/resourceService';
-import type { SelectedResourceFileType } from '../../types';
-import { isImageFile, makeResSrc } from '../../utils/resourceProtocol';
+import { createResourceCardSlashItem, createResourceUploadHandler } from '../../utils/resourceCardEditor';
 import { useResourceTabContext } from './ResourceTabContext';
 
 const NotesTab: React.FC = () => {
@@ -121,59 +116,16 @@ const NotesTab: React.FC = () => {
     });
   }, []);
 
-  const handleResourceUpload = useCallback<ResourceUploadHandler>(
-    async (file) => {
-      const files: SelectedResourceFileType[] = [
-        {
-          path: (file as any).path || file.name,
-          name: file.name,
-          size: file.size,
-          file
-        }
-      ];
-
-      const [uploaded] = await addResourcesFromSelectedFiles(files, {
+  const handleResourceUpload = useMemo(
+    () =>
+      createResourceUploadHandler({
         workspaceId: resource?.workspaceId,
         folderId: resource?.folderId
-      });
-
-      if (!uploaded) {
-        return null;
-      }
-
-      const previewUrl = uploaded.thumbnailPath ? makeResSrc(uploaded.thumbnailPath) : uploaded.filePath && isImageFile(uploaded.filePath) ? makeResSrc(uploaded.filePath) : undefined;
-
-      return {
-        resourceId: uploaded.id,
-        title: uploaded.title || file.name,
-        description: uploaded.description,
-        type: uploaded.type,
-        sizeBytes: uploaded.sizeBytes,
-        filePath: uploaded.filePath,
-        previewUrl,
-        thumbnailPath: uploaded.thumbnailPath,
-        mimeType: uploaded.mimeType,
-        status: uploaded.status
-      };
-    },
+      }),
     [resource?.workspaceId, resource?.folderId]
   );
 
-  const resourceSlashItem = useMemo<SlashCommandItem>(
-    () => ({
-      title: '资源卡片',
-      description: '上传文件并插入资源卡片',
-      searchTerms: ['resource', 'file', 'upload', 'card'],
-      icon: <FileUp className="h-4 w-4" />,
-      command: async ({ editor, range }) => {
-        editor.chain().focus().deleteRange(range).run();
-        const file = await pickResourceFile();
-        if (!file) return;
-        await insertResourceCardFromFile(editor, file);
-      }
-    }),
-    [pickResourceFile]
-  );
+  const resourceSlashItem = useMemo(() => createResourceCardSlashItem(pickResourceFile), [pickResourceFile]);
 
   if (loading) {
     return (
