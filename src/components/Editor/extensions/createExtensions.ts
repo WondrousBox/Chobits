@@ -1,5 +1,6 @@
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { Color } from '@tiptap/extension-color';
+// import Document from '@tiptap/extension-document'
 import HorizontalRule from '@tiptap/extension-horizontal-rule';
 import Image from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
@@ -7,20 +8,34 @@ import Mention from '@tiptap/extension-mention';
 import Placeholder from '@tiptap/extension-placeholder';
 import TaskItem from '@tiptap/extension-task-item';
 import TaskList from '@tiptap/extension-task-list';
+// import ListItem from '@tiptap/extension-list-item'
 import TextStyle from '@tiptap/extension-text-style';
 import Underline from '@tiptap/extension-underline';
 import type { AnyExtension } from '@tiptap/react';
 import { InputRule, ReactNodeViewRenderer } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
+// import css from 'highlight.js/lib/languages/css'
+// import js from 'highlight.js/lib/languages/javascript'
+// import ts from 'highlight.js/lib/languages/typescript'
+// import html from 'highlight.js/lib/languages/xml'
+// load all highlight.js languages
 import { lowlight } from 'lowlight';
 
 import { Countdown } from './countdown';
+// lowlight.registerLanguage('html', html)
+// lowlight.registerLanguage('css', css)
+// lowlight.registerLanguage('js', js)
+// lowlight.registerLanguage('ts', ts)
 import SlashCommand from './SlashCommand';
 import { Status } from './status';
 import { Timestamp } from './timestamp';
 import CodeBlockComponent from './wrappers/CodeBlockComponent';
 import type { MentionItem } from './wrappers/mentionItems';
 import { createSuggestion } from './wrappers/suggestion';
+
+// const CustomDocument = Document.extend({
+//   content: 'heading block*',
+// })
 
 /**
  * 创建完整的编辑器扩展配置
@@ -31,10 +46,24 @@ export const createFullExtensions = (mentionItems?: MentionItem[]): AnyExtension
   const suggestionConfig = createSuggestion(mentionItems);
 
   return [
-    Color.configure({}),
-    TextStyle.configure({}),
+    // CustomDocument,
+    Color.configure({
+      // types: [TextStyle.name, ListItem.name]
+    }),
+    TextStyle.configure({
+      // types: [ListItem.name]
+    }),
     SlashCommand,
     StarterKit.configure({
+      // document: false,
+      // bulletList: {
+      //   keepMarks: true,
+      //   keepAttributes: false, // TODO : Making this as `false` becase marks are not preserved when I try to preserve attrs, awaiting a bit of help
+      // },
+      // orderedList: {
+      //   keepMarks: true,
+      //   keepAttributes: false, // TODO : Making this as `false` becase marks are not preserved when I try to preserve attrs, awaiting a bit of help
+      // },
       bulletList: {
         HTMLAttributes: {
           class: 'list-disc list-outside leading-3'
@@ -56,6 +85,12 @@ export const createFullExtensions = (mentionItems?: MentionItem[]): AnyExtension
         }
       },
       codeBlock: false,
+      // codeBlock: {
+      //   HTMLAttributes: {
+      //     class:
+      //       "rounded-sm bg-stone-100 p-5 font-mono font-medium text-stone-800",
+      //   },
+      // },
       code: {
         HTMLAttributes: {
           class: 'rounded-md bg-stone-200 px-1.5 py-1 font-mono font-medium text-black'
