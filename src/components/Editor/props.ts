@@ -2,6 +2,13 @@ import { EditorProps } from '@tiptap/pm/view';
 
 import type { ImageUploadHandler } from './UnifiedEditor/types';
 
+type CreateEditorPropsOptions = {
+  /**
+   * 禁用默认的文件粘贴/拖拽处理（交由其他扩展处理）
+   */
+  disableFileHandlers?: boolean;
+};
+
 /**
  * 默认的图片上传处理函数
  * 仅做基础验证，实际上传逻辑应从外部传入
@@ -27,7 +34,7 @@ export const defaultImageUploadHandler: ImageUploadHandler = async (file: File) 
  * 创建可配置的 Tiptap 编辑器属性
  * @param onImageUpload 图片上传处理函数
  */
-export const createEditorProps = (onImageUpload?: ImageUploadHandler): EditorProps => ({
+export const createEditorProps = (onImageUpload?: ImageUploadHandler, options: CreateEditorPropsOptions = {}): EditorProps => ({
   attributes: {
     class: 'prose-lg prose-headings:font-display focus:outline-none'
   },
@@ -43,6 +50,9 @@ export const createEditorProps = (onImageUpload?: ImageUploadHandler): EditorPro
     }
   },
   handlePaste: (_view, event) => {
+    if (options.disableFileHandlers) {
+      return false;
+    }
     if (event.clipboardData?.files?.[0]) {
       event.preventDefault();
       const file = event.clipboardData.files[0];
@@ -53,6 +63,9 @@ export const createEditorProps = (onImageUpload?: ImageUploadHandler): EditorPro
     return false;
   },
   handleDrop: (_view, event, _slice, moved) => {
+    if (options.disableFileHandlers) {
+      return false;
+    }
     if (!moved && event.dataTransfer?.files?.[0]) {
       event.preventDefault();
       const file = event.dataTransfer.files[0];

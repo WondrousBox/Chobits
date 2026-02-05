@@ -64,18 +64,11 @@ export interface ExtensionOptions {
 export const createFullExtensions = (options?: ExtensionOptions): AnyExtension[] => {
   // 兼容旧的调用方式（直接传入 mentionItems 数组）
   const opts: ExtensionOptions = Array.isArray(options) ? { mentionItems: options } : options || {};
-  const { mentionItems, placeholder, onImageUpload, slashCommandConfig } = opts;
+  const { mentionItems, placeholder, slashCommandConfig } = opts;
 
   const suggestionConfig = createSuggestion(mentionItems);
   // 使用 createSlashCommand 创建扩展，AI 续写功能通过 setAICompleteHandler 动态设置
-  const slashCommand = createSlashCommand(
-    slashCommandConfig || onImageUpload
-      ? {
-        ...slashCommandConfig,
-        onImageUpload: slashCommandConfig?.onImageUpload ?? onImageUpload
-      }
-      : undefined
-  );
+  const slashCommand = createSlashCommand(slashCommandConfig);
 
   return [
     // CustomDocument,

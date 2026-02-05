@@ -1,5 +1,7 @@
+import { Plugin, PluginKey } from '@tiptap/pm/state';
 import type { Editor } from '@tiptap/react';
 import { mergeAttributes, Node, ReactNodeViewRenderer } from '@tiptap/react';
+import type MarkdownIt from 'markdown-it';
 
 import { ResourceCardWrapper } from './wrappers/ResourceCardWrapper';
 
@@ -26,6 +28,7 @@ type ResourceCardAttrs = ResourceCardData & {
 };
 
 const RESOURCE_CARD_JSON_ATTR = 'data-resource-card-json';
+const RESOURCE_CARD_MARKER = '::resource-card';
 
 const buildPayload = (attrs: ResourceCardAttrs): Record<string, unknown> => {
   const payload: Record<string, unknown> = {};
@@ -70,6 +73,38 @@ const parseNumberValue = (value: unknown): number | undefined => {
     return Number.isFinite(parsed) ? parsed : undefined;
   }
   return undefined;
+};
+
+const parseResourceCardLine = (line: string): Record<string, unknown> | null => {
+  if (line.startsWith(RESOURCE_CARD_MARKER)) {
+    const raw = line.slice(RESOURCE_CARD_MARKER.length).trim();
+    if (!raw) {
+      return {};
+    }
+    try {
+      return JSON.parse(raw);
+    } catch {
+      try {
+        return JSON.parse(decodeURIComponent(raw));
+      } catch {
+        return { title: raw };
+      }
+    }
+  }
+
+  const legacyMatch = line.match(/^\[resource-card:(.*)\]$/);
+  if (legacyMatch) {
+    const title = legacyMatch[1]?.trim();
+    return title ? { title } : {};
+  }
+
+  return null;
+};
+
+const buildResourceCardHtml = (payload: Record<string, unknown>): string => {
+  const encoded = encodePayload(payload as ResourceCardAttrs);
+  const attrs = encoded ? ` ${RESOURCE_CARD_JSON_ATTR}="${encoded}"` : '';
+  return `<div data-resource-card="true"${attrs}></div>\n`;
 };
 
 declare module '@tiptap/react' {
@@ -179,7 +214,8 @@ export const ResourceCard = Node.create({
       markdown: {
         serialize(state: any, node: any) {
           if (!this.editor.storage.markdown?.options?.html) {
-            state.write(`[resource-card:${node.attrs?.title || ''}]`);
+            const payload = buildPayload(node.attrs || {});
+            state.write(`${RESOURCE_CARD_MARKER} ${JSON.stringify(payload)}`);
             state.closeBlock(node);
             return;
           }
@@ -189,7 +225,21 @@ export const ResourceCard = Node.create({
           state.closeBlock(node);
         },
         parse: {
-          // handled by markdown-it
+          setup(markdownit: MarkdownIt) {
+            markdownit.block.ruler.before('paragraph', 'resource_card', (state, startLine, _endLine, silent) => {
+              const pos = state.bMarks[startLine] + state.tShift[startLine];
+              const max = state.eMarks[startLine];
+              const line = state.src.slice(pos, max).trim();
+              const payload = parseResourceCardLine(line);
+              if (!payload) return false;
+              if (silent) return true;
+
+              const token = state.push('html_block', '', 0);
+              token.content = buildResourceCardHtml(payload);
+              state.line = startLine + 1;
+              return true;
+            });
+          }
         }
       }
     };
@@ -209,6 +259,49 @@ export const ResourceCard = Node.create({
 
   addNodeView() {
     return ReactNodeViewRenderer(ResourceCardWrapper);
+  },
+
+  addProseMirrorPlugins() {
+    const editor = this.editor;
+    return [
+      new Plugin({
+        key: new PluginKey('resourceCardDrop'),
+        props: {
+          handleDrop: (_view, event, _slice, moved) => {
+            if (moved) return false;
+            const handler = getResourceUploadHandler(editor);
+            if (!handler) return false;
+            const files = Array.from(event.dataTransfer?.files || []);
+            if (files.length === 0) return false;
+
+            event.preventDefault();
+
+            const coords = _view.posAtCoords({ left: event.clientX, top: event.clientY });
+            if (coords) {
+              editor.commands.setTextSelection(coords.pos);
+            }
+
+            files.forEach((file) => {
+              void insertResourceCardFromFile(editor, file);
+            });
+            return true;
+          },
+          handlePaste: (_view, event) => {
+            const handler = getResourceUploadHandler(editor);
+            if (!handler) return false;
+            const files = Array.from(event.clipboardData?.files || []);
+            if (files.length === 0) return false;
+
+            event.preventDefault();
+
+            files.forEach((file) => {
+              void insertResourceCardFromFile(editor, file);
+            });
+            return true;
+          }
+        }
+      })
+    ];
   }
 });
 

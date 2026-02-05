@@ -52,9 +52,10 @@ export const createResourceUploadHandler = (context: ResourceUploadContext): Res
 };
 
 export const createResourceCardSlashItem = (pickFile: () => Promise<File | null>): SlashCommandItem => ({
-  title: '资源卡片',
+  title: '插入文件',
   description: '上传文件并插入资源卡片',
   searchTerms: ['resource', 'file', 'upload', 'card'],
+  requiresUpload: true,
   icon: <FileUp className="h-4 w-4" />,
   command: async ({ editor, range }) => {
     editor.chain().focus().deleteRange(range).run();

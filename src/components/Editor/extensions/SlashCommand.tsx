@@ -1,18 +1,23 @@
+import { PluginKey } from '@tiptap/pm/state';
 import { Editor, Extension, Range, ReactRenderer } from '@tiptap/react';
 import Suggestion, { SuggestionOptions, SuggestionProps } from '@tiptap/suggestion';
 import { ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { TbCode, TbH1, TbH2, TbH3, TbList, TbListNumbers, TbLoader, TbLollipop, TbMessage2, TbPhoto, TbQuote, TbSquareCheck, TbTextSize } from 'react-icons/tb';
+import { TbCode, TbFile, TbH1, TbH2, TbH3, TbList, TbListNumbers, TbLoader, TbLollipop, TbMessage2, TbQuote, TbSquareCheck, TbTextSize } from 'react-icons/tb';
 import tippy from 'tippy.js';
 
 import { type EditorCommandAction, editorCommandActions } from '../commandActions';
-import { defaultImageUploadHandler } from '../props';
-import type { AICompletionHandler, ImageUploadHandler } from '../UnifiedEditor/types';
+import type { AICompletionHandler } from '../UnifiedEditor/types';
+import { getResourceUploadHandler, insertResourceCardFromFile } from './resourceCard';
 
 export interface SlashCommandItem {
   title: string;
   description: string;
   icon: ReactNode;
   searchTerms?: string[];
+  /**
+   * 是否依赖上传能力（用于在未配置上传时隐藏）
+   */
+  requiresUpload?: boolean;
   command?: (props: SlashCommandCommandProps) => void;
 }
 
@@ -35,8 +40,8 @@ export type SlashCommandItems = SlashCommandItem[] | ((context: SlashCommandItem
 
 export interface SlashCommandConfig {
   items?: SlashCommandItems;
-  onImageUpload?: ImageUploadHandler;
   pickImage?: () => Promise<File | null> | File | null;
+  pickFile?: () => Promise<File | null> | File | null;
   onOpenFeedback?: () => void;
   feedbackUrl?: string;
 }
@@ -62,12 +67,19 @@ const Command = Extension.create<SlashCommandOptions>({
     };
   },
   addProseMirrorPlugins() {
-    return [
+    const baseSuggestion = {
+      editor: this.editor,
+      ...this.options.suggestion
+    };
+    const primaryChar = baseSuggestion.char ?? '/';
+    const chars = Array.from(new Set([primaryChar, '、']));
+    return chars.map((char) =>
       Suggestion({
-        editor: this.editor,
-        ...this.options.suggestion
+        ...baseSuggestion,
+        char,
+        pluginKey: new PluginKey(`slash-command-${char}`)
       })
-    ];
+    );
   }
 });
 
@@ -78,9 +90,14 @@ const createAIItem = (): SlashCommandItem => ({
   icon: <TbLollipop />
 });
 
-const pickImageFile = async (pickImage?: SlashCommandConfig['pickImage']): Promise<File | null> => {
-  if (pickImage) {
-    const result = await pickImage();
+const pickUploadFile = async (config?: SlashCommandConfig): Promise<File | null> => {
+  if (config?.pickFile) {
+    const result = await config.pickFile();
+    return result ?? null;
+  }
+
+  if (config?.pickImage) {
+    const result = await config.pickImage();
     return result ?? null;
   }
 
@@ -91,7 +108,6 @@ const pickImageFile = async (pickImage?: SlashCommandConfig['pickImage']): Promi
   return await new Promise<File | null>((resolve) => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = 'image/*';
     input.onchange = () => resolve(input.files?.[0] ?? null);
     input.click();
   });
@@ -102,7 +118,7 @@ const runActionWithRange = (editor: Editor, range: Range, action: EditorCommandA
   action.run(editor);
 };
 
-const createDefaultItems = (config?: SlashCommandConfig): SlashCommandItem[] => {
+const createDefaultItems = (config?: SlashCommandConfig, editor?: Editor): SlashCommandItem[] => {
   const feedbackUrl = config?.feedbackUrl ?? '/feedback';
   const openFeedback = () => {
     if (config?.onOpenFeedback) {
@@ -116,7 +132,7 @@ const createDefaultItems = (config?: SlashCommandConfig): SlashCommandItem[] => 
 
   const { paragraph, taskList, heading1, heading2, heading3, bulletList, orderedList, blockquote, codeBlock } = editorCommandActions;
 
-  return [
+  const items: SlashCommandItem[] = [
     {
       title: 'Send Feedback',
       description: 'Let us know how we can improve.',
@@ -206,30 +222,35 @@ const createDefaultItems = (config?: SlashCommandConfig): SlashCommandItem[] => 
       command: ({ editor, range }: SlashCommandCommandProps) => {
         runActionWithRange(editor, range, codeBlock);
       }
-    },
-    {
-      title: '图片',
-      description: '从电脑上传图片',
-      searchTerms: ['photo', 'picture', 'media', 'image'],
-      icon: <TbPhoto />,
+    }
+  ];
+
+  if (editor && getResourceUploadHandler(editor)) {
+    items.push({
+      title: '插入文件',
+      description: '上传文件并插入资源卡片',
+      searchTerms: ['file', 'upload', 'resource', 'image'],
+      requiresUpload: true,
+      icon: <TbFile />,
       command: async ({ editor, range }: SlashCommandCommandProps) => {
         editor.chain().focus().deleteRange(range).run();
-        const file = await pickImageFile(config?.pickImage);
+        const file = await pickUploadFile(config);
         if (!file) {
           return;
         }
-        const handler = config?.onImageUpload ?? defaultImageUploadHandler;
-        await handler(file);
+        await insertResourceCardFromFile(editor, file);
       }
-    }
-  ];
+    });
+  }
+
+  return items;
 };
 
 const getSuggestionItems = ({ query, editor, config }: { query: string; editor: Editor; config?: SlashCommandConfig }): SlashCommandItem[] => {
   // 从 editor.storage 动态获取 onAIComplete
   const onAIComplete = editor.storage['slash-command']?.[AI_COMPLETE_STORAGE_KEY] as AICompletionHandler | undefined;
 
-  const defaultItems = createDefaultItems(config);
+  const defaultItems = createDefaultItems(config, editor);
   let items: SlashCommandItem[];
 
   if (config?.items) {
