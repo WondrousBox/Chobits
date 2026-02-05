@@ -112,7 +112,7 @@ const NotesTab: React.FC = () => {
   return (
     <div className="h-full w-full overflow-hidden relative">
       {isSaving && <div className="absolute top-2 right-2 z-50 text-xs text-muted-foreground bg-background/80 backdrop-blur-sm px-2 py-1 rounded-md border">保存中...</div>}
-      <UnifiedEditor content={content} noteId={noteId || undefined} mode="full" showBubbleMenu showPlayerControls showMediaButtons onUpdate={handleUpdate} />
+      <UnifiedEditor content={content} noteId={noteId || undefined} showBubbleMenu showPlayerControls showMediaButtons onUpdate={handleUpdate} />
     </div>
   );
 };

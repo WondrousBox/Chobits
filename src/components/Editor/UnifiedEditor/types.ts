@@ -4,16 +4,32 @@ import type { ReactNode } from 'react';
 import type { MentionItem } from '../extensions';
 
 /**
- * 编辑器模式
- * - full: 可编辑
- * - readonly: 只读
- */
-export type EditorMode = 'full' | 'readonly';
-
-/**
  * 工具栏位置
  */
 export type ToolbarPosition = 'top' | 'bottom' | 'floating' | 'none';
+
+/**
+ * 播放器控制接口 - 用于解耦业务逻辑
+ */
+export interface PlayerControls {
+  /** 播放 */
+  play?: () => void;
+  /** 暂停 */
+  pause?: () => void;
+  /** 前进指定秒数 */
+  seekForward?: (seconds: number) => void;
+  /** 后退指定秒数 */
+  seekBackward?: (seconds: number) => void;
+  /** 截图 */
+  screenshot?: () => void;
+  /** 获取当前时间 */
+  getCurrentTime?: () => number;
+}
+
+/**
+ * 图片上传处理函数类型
+ */
+export type ImageUploadHandler = (file: File) => Promise<string | void>;
 
 /**
  * 统一编辑器属性
@@ -24,9 +40,7 @@ export interface UnifiedEditorProps {
   /** 笔记 ID（用于保存） */
   noteId?: string;
   /** 编辑器模式 */
-  mode?: EditorMode;
-  /** 是否可编辑 */
-  editable?: boolean;
+  readonly?: boolean;
   /** 占位符文本 */
   placeholder?: string;
   /** 自定义类名 */
@@ -55,6 +69,10 @@ export interface UnifiedEditorProps {
   mentionItems?: MentionItem[];
   /** 自定义 extensions */
   additionalExtensions?: any[];
+  /** 播放器控制接口 - 用于解耦业务逻辑 */
+  playerControls?: PlayerControls;
+  /** 图片上传处理函数 */
+  onImageUpload?: ImageUploadHandler;
 }
 
 /**
@@ -69,4 +87,6 @@ export interface UnifiedToolbarProps {
   showMediaButtons?: boolean;
   showPlayerControls?: boolean;
   mini?: boolean;
+  /** 播放器控制接口 - 用于解耦业务逻辑 */
+  playerControls?: PlayerControls;
 }

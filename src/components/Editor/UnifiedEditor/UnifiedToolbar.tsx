@@ -8,45 +8,47 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 
-import type { UnifiedToolbarProps } from './types';
+import type { PlayerControls, UnifiedToolbarProps } from './types';
 
 /**
  * 播放器控制按钮组
  */
-const PlayerControls: React.FC = () => {
+const PlayerControlsComponent: React.FC<{ controls?: PlayerControls }> = ({ controls }) => {
   const [isPlaying, setIsPlaying] = useState(false);
+
+  const handleSeekBackward = () => {
+    controls?.seekBackward?.(15);
+  };
+
+  const handleSeekForward = () => {
+    controls?.seekForward?.(15);
+  };
+
+  const handlePlay = () => {
+    setIsPlaying(true);
+    controls?.play?.();
+  };
+
+  const handlePause = () => {
+    setIsPlaying(false);
+    controls?.pause?.();
+  };
 
   return (
     <div className="flex items-center">
-      <Button size="icon" variant="ghost" onClick={() => (window as any).AIM?.player?.seekBackward?.(15)} title="后退 15 秒">
+      <Button size="icon" variant="ghost" onClick={handleSeekBackward} title="后退 15 秒">
         <TbPlayerTrackPrevFilled />
       </Button>
       {!isPlaying ? (
-        <Button
-          size="icon"
-          variant="ghost"
-          onClick={() => {
-            setIsPlaying(true);
-            (window as any).AIM?.player?.play?.();
-          }}
-          title="播放"
-        >
+        <Button size="icon" variant="ghost" onClick={handlePlay} title="播放">
           <TbPlayerPlayFilled />
         </Button>
       ) : (
-        <Button
-          size="icon"
-          variant="ghost"
-          onClick={() => {
-            setIsPlaying(false);
-            (window as any).AIM?.player?.pause?.();
-          }}
-          title="暂停"
-        >
+        <Button size="icon" variant="ghost" onClick={handlePause} title="暂停">
           <TbPlayerPauseFilled />
         </Button>
       )}
-      <Button size="icon" variant="ghost" onClick={() => (window as any).AIM?.player?.seekForward?.(15)} title="前进 15 秒">
+      <Button size="icon" variant="ghost" onClick={handleSeekForward} title="前进 15 秒">
         <TbPlayerTrackNextFilled />
       </Button>
     </div>
@@ -56,13 +58,21 @@ const PlayerControls: React.FC = () => {
 /**
  * 媒体操作按钮组（截图、标记等）
  */
-const MediaButtons: React.FC = () => {
+const MediaButtons: React.FC<{ controls?: PlayerControls }> = ({ controls }) => {
+  const handleScreenshot = () => {
+    controls?.screenshot?.();
+  };
+
+  const handleTimestamp = () => {
+    controls?.getCurrentTime?.();
+  };
+
   return (
     <div className="flex items-center gap-1">
-      <Button size="icon" variant="outline" onClick={() => (window as any).AIM?.player?.screenshot?.()} title="截图">
+      <Button size="icon" variant="outline" onClick={handleScreenshot} title="截图">
         <TbCamera />
       </Button>
-      <Button size="icon" variant="outline" onClick={() => (window as any).AIM?.player?.getCurrentTime?.()} title="标记时间戳">
+      <Button size="icon" variant="outline" onClick={handleTimestamp} title="标记时间戳">
         <TbFlag3 />
       </Button>
     </div>
@@ -156,7 +166,8 @@ export const UnifiedToolbar: React.FC<UnifiedToolbarProps> = ({
   toolbarRight,
   showMediaButtons = false,
   showPlayerControls = false,
-  mini = false
+  mini = false,
+  playerControls
 }) => {
   if (!editor || !visible) {
     return null;
@@ -166,7 +177,7 @@ export const UnifiedToolbar: React.FC<UnifiedToolbarProps> = ({
   if (mini) {
     return (
       <div className={clsx('flex items-center w-full p-1 justify-center', className)}>
-        <PlayerControls />
+        <PlayerControlsComponent controls={playerControls} />
       </div>
     );
   }
@@ -175,8 +186,8 @@ export const UnifiedToolbar: React.FC<UnifiedToolbarProps> = ({
   if (position === 'bottom') {
     return (
       <div className={clsx('flex items-center w-full p-1 justify-between', className)}>
-        {showMediaButtons && <MediaButtons />}
-        <PlayerControls />
+        {showMediaButtons && <MediaButtons controls={playerControls} />}
+        <PlayerControlsComponent controls={playerControls} />
       </div>
     );
   }
@@ -189,13 +200,13 @@ export const UnifiedToolbar: React.FC<UnifiedToolbarProps> = ({
         {showPlayerControls && (
           <>
             <Separator orientation="vertical" className="h-6 mx-1" />
-            <PlayerControls />
+            <PlayerControlsComponent controls={playerControls} />
           </>
         )}
         {showMediaButtons && (
           <>
             <Separator orientation="vertical" className="h-6 mx-1" />
-            <MediaButtons />
+            <MediaButtons controls={playerControls} />
           </>
         )}
       </div>

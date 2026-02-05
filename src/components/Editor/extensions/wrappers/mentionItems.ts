@@ -11,14 +11,15 @@ export interface MentionItem {
 }
 
 /**
- * 默认的 Mention 项列表（用于完整编辑器/笔记）
+ * 创建视频相关的 Mention 项
+ * @param playerControls 播放器控制接口，从外部传入
  */
-export const defaultMentionItems: MentionItem[] = [
+export const createVideoMentionItems = (playerControls?: { getCurrentTime?: () => number; screenshot?: () => void }): MentionItem[] => [
   {
     value: 'timestamp',
     label: '视频时间',
     onSelect: (editor, range) => {
-      (window as any).AIM?.player?.getCurrentTime?.();
+      playerControls?.getCurrentTime?.();
       editor.chain().focus().deleteRange(range).run();
     }
   },
@@ -26,14 +27,20 @@ export const defaultMentionItems: MentionItem[] = [
     value: 'screenshot',
     label: '视频截图',
     onSelect: (editor, range) => {
-      (window as any).AIM?.player?.screenshot?.();
+      playerControls?.screenshot?.();
       editor.chain().focus().deleteRange(range).run();
     }
   }
 ];
 
 /**
- * 用于资源列表的简化 Mention 项（示例）
+ * 默认的 Mention 项列表（不依赖外部业务逻辑）
+ * 注意：视频相关功能需要通过 createVideoMentionItems 传入 playerControls
+ */
+export const defaultMentionItems: MentionItem[] = [];
+
+/**
+ * 用于资源列表的简化 Mention 项
  */
 export const resourceMentionItems: MentionItem[] = [
   {
