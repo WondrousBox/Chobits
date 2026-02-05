@@ -3,13 +3,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { TbEdit, TbLoader2, TbPlus, TbRefresh, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
+import { ChatInputWithService } from '@/components/chat';
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { formatDateTime, formatRelativeTime } from '@/lib/time';
 
-import ChatInputBar from './components/ChatInputBar';
 import MarkdownMessage from './components/MarkdownMessage';
 
 interface ChatPageProps {
@@ -281,7 +281,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
             (messages.length === 0 && (
               <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
                 <div className="text-center text-lg">今天有什么能帮到你？</div>
-                <ChatInputBar loading={loading} onStart={start} onStop={stop} />
+                <ChatInputWithService loading={loading} onStart={start} onStop={stop} />
               </div>
             ))}
           {messages.length > 0 && (
@@ -311,7 +311,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
                 <div className="h-96"></div>
               </div>
               <div className="absolute bottom-0 left-0 right-0 flex justify-center">
-                <ChatInputBar loading={loading} onStart={start} onStop={stop} />
+                <ChatInputWithService loading={loading} onStart={start} onStop={stop} />
               </div>
             </>
           )}
