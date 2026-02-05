@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 
 import { EditorBubbleMenu } from '../Bubble';
 import DEFAULT_EDITOR_CONTENT from '../default-content';
-import { createFullExtensions } from '../extensions';
+import { createFullExtensions, setAICompleteHandler } from '../extensions';
 import { TiptapEditorProps as editorProps } from '../props';
 import type { UnifiedEditorProps } from './types';
 import { UnifiedToolbar } from './UnifiedToolbar';
@@ -72,7 +72,8 @@ export const UnifiedEditor = ({
   };
 
   // 统一使用完整扩展（slash、mention、代码块等）
-  const extensions = [...createFullExtensions({ mentionItems, onAIComplete }), ...additionalExtensions];
+  // AI 续写通过 useEffect 动态同步，不需要在这里传入 onAIComplete
+  const extensions = [...createFullExtensions({ mentionItems }), ...additionalExtensions];
 
   const initialContent = content || DEFAULT_EDITOR_CONTENT;
 
@@ -96,7 +97,15 @@ export const UnifiedEditor = ({
     },
     onBlur: () => {
       if (readonly) return;
+      // 延迟检测，因为焦点转移可能尚未完成
       hideToolbarTimeoutRef.current = setTimeout(() => {
+        // 检测是否有 Radix UI 的 Popover/Dropdown/Dialog 打开
+        // Radix UI 的 Portal 内容会有这些 data 属性
+        const hasOpenPopover = document.querySelector('[data-radix-popper-content-wrapper], [data-radix-menu-content], [data-state="open"][role="dialog"]');
+        // 如果有 Popover 打开，不隐藏工具栏
+        if (hasOpenPopover) {
+          return;
+        }
         setIsFocused(false);
         hideToolbarTimeoutRef.current = null;
       }, 200);
@@ -109,6 +118,13 @@ export const UnifiedEditor = ({
       onEditorReady(editor);
     }
   }, [editor, onEditorReady]);
+
+  // 同步 AI 续写处理函数
+  useEffect(() => {
+    if (editor) {
+      setAICompleteHandler(editor, onAIComplete);
+    }
+  }, [editor, onAIComplete]);
 
   // 同步 editable 状态
   useEffect(() => {
@@ -197,6 +213,7 @@ export const UnifiedEditor = ({
       showPlayerControls={showPlayerControls}
       showMediaButtons={showMediaButtons}
       playerControls={playerControls}
+      onInteractionStart={cancelHideToolbar}
       className={showFloatingToolbar ? 'absolute left-0 z-10 w-full box-border -top-12 border border-solid rounded-lg' : toolbarPosition === 'top' ? 'rounded-t-lg' : 'rounded-b-lg'}
     />
   );
