@@ -72,25 +72,13 @@ export interface AICompletionCallbacks {
 export type AICompletionHandler = (context: AICompletionContext, callbacks: AICompletionCallbacks) => (() => void) | void;
 
 /**
- * 播放器控制接口 - 用于解耦业务逻辑
+ * 媒体操作接口（截图、插入时间戳等，不包含播放控制）
  */
-export interface PlayerControls {
-  /** 播放 */
-  play?: () => void;
-  /** 暂停 */
-  pause?: () => void;
-  /** 当前是否播放中 */
-  isPlaying?: boolean;
-  /** 外部同步播放状态 */
-  onPlayStateChange?: (isPlaying: boolean) => void;
-  /** 前进指定秒数 */
-  seekForward?: (seconds: number) => void;
-  /** 后退指定秒数 */
-  seekBackward?: (seconds: number) => void;
+export interface MediaControls {
   /** 截图 */
   screenshot?: () => void;
-  /** 获取当前时间 */
-  getCurrentTime?: () => number;
+  /** 获取当前时间 / 插入时间戳 */
+  getCurrentTime?: () => void;
 }
 
 /**
@@ -120,10 +108,10 @@ export interface UnifiedEditorProps {
   toolbarRight?: ReactNode;
   /** 是否显示 BubbleMenu */
   showBubbleMenu?: boolean;
-  /** 是否显示播放控制 */
-  showPlayerControls?: boolean;
-  /** 是否显示截图和标记按钮 */
+  /** 是否显示截图与插入时间戳按钮 */
   showMediaButtons?: boolean;
+  /** 媒体操作回调（截图、时间戳），与 showMediaButtons 配合使用 */
+  mediaControls?: MediaControls;
   /** 可注入的 editorProps */
   editorProps?: EditorProps;
   /** 内容更新回调（返回 Markdown 格式） */
@@ -140,8 +128,6 @@ export interface UnifiedEditorProps {
   slashCommandConfig?: SlashCommandConfig;
   /** 自定义 extensions */
   additionalExtensions?: any[];
-  /** 播放器控制接口 - 用于解耦业务逻辑 */
-  playerControls?: PlayerControls;
   /** 图片上传处理函数 */
   onImageUpload?: ImageUploadHandler;
   /** 资源上传处理函数 */
@@ -166,14 +152,10 @@ export interface UnifiedToolbarProps {
   position?: ToolbarPosition;
   /** 工具栏右侧自定义内容 */
   toolbarRight?: React.ReactNode;
-  /** 是否显示媒体操作按钮（截图、标记等） */
+  /** 是否显示截图与插入时间戳按钮 */
   showMediaButtons?: boolean;
-  /** 是否显示播放器控制 */
-  showPlayerControls?: boolean;
-  /** 是否为迷你模式（只显示播放控制） */
-  mini?: boolean;
-  /** 播放器控制回调 */
-  playerControls?: PlayerControls;
+  /** 媒体操作回调（截图、时间戳） */
+  mediaControls?: MediaControls;
   /** 取消隐藏工具栏的回调（用于浮动工具栏防止下拉菜单导致工具栏隐藏） */
   onInteractionStart?: () => void;
 }
