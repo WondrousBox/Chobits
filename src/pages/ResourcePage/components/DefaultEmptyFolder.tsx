@@ -161,6 +161,7 @@ const DefaultEmptyFolder: React.FC<Props> = ({ folderId, workspaceId, hideEditor
           placeholder="在此输入内容..."
           className="max-h-[calc(100vh-400px)] border min-w-[600px] border-solid rounded-lg box-border"
           style={{ width: 'calc(100% - 300px)' }}
+          resourceUploadContext={{ folderId, workspaceId }}
           onAIComplete={handleAIComplete}
           toolbarRight={
             <div className="flex items-center gap-2">
