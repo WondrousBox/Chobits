@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 
 import { EditorBubbleMenu } from '../Bubble';
 import DEFAULT_EDITOR_CONTENT from '../default-content';
-import { createFullExtensions, setAICompleteHandler } from '../extensions';
+import { createFullExtensions, setAICompleteHandler, setResourceUploadHandler } from '../extensions';
 import { createEditorProps } from '../props';
 import type { UnifiedEditorProps } from './types';
 import { UnifiedToolbar } from './UnifiedToolbar';
@@ -47,6 +47,7 @@ export const UnifiedEditor = ({
   additionalExtensions = [],
   playerControls,
   onImageUpload,
+  onResourceUpload,
   onAIComplete,
   shouldKeepToolbarVisible
 }: UnifiedEditorProps): JSX.Element => {
@@ -140,6 +141,13 @@ export const UnifiedEditor = ({
       setAICompleteHandler(editor, onAIComplete);
     }
   }, [editor, onAIComplete]);
+
+  // 同步资源上传处理函数
+  useEffect(() => {
+    if (editor) {
+      setResourceUploadHandler(editor, onResourceUpload);
+    }
+  }, [editor, onResourceUpload]);
 
   // 同步 editable 状态
   useEffect(() => {

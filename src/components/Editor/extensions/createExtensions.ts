@@ -23,6 +23,7 @@ import { lowlight } from 'lowlight';
 
 import type { AICompletionHandler, ImageUploadHandler } from '../UnifiedEditor/types';
 import { Countdown } from './countdown';
+import { ResourceCard } from './resourceCard';
 import type { SlashCommandConfig } from './SlashCommand';
 // lowlight.registerLanguage('html', html)
 // lowlight.registerLanguage('css', css)
@@ -207,6 +208,7 @@ export const createFullExtensions = (options?: ExtensionOptions): AnyExtension[]
         class: 'flex items-start mb-2'
       }
     }),
+    ResourceCard,
     Countdown,
     Status,
     Timestamp
