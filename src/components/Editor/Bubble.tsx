@@ -4,6 +4,7 @@ import { FC, useState } from 'react';
 import { TbBold, TbCode, TbItalic, TbStrikethrough, TbUnderline } from 'react-icons/tb';
 
 import { ColorSelector } from './ColorSelector';
+import { editorCommandActions } from './commandActions';
 import { NodeSelector } from './NodeSelector';
 
 export interface BubbleMenuItem {
@@ -29,35 +30,35 @@ export const EditorBubbleMenu: FC<EditorBubbleMenuProps> = (props) => {
   const items: BubbleMenuItem[] = [
     {
       name: 'bold',
-      isActive: () => editor.isActive('bold'),
-      command: () => editor.chain().focus().toggleBold().run(),
+      action: editorCommandActions.bold,
       icon: TbBold
     },
     {
       name: 'italic',
-      isActive: () => editor.isActive('italic'),
-      command: () => editor.chain().focus().toggleItalic().run(),
+      action: editorCommandActions.italic,
       icon: TbItalic
     },
     {
       name: 'underline',
-      isActive: () => editor.isActive('underline'),
-      command: () => editor.chain().focus().toggleUnderline().run(),
+      action: editorCommandActions.underline,
       icon: TbUnderline
     },
     {
       name: 'strike',
-      isActive: () => editor.isActive('strike'),
-      command: () => editor.chain().focus().toggleStrike().run(),
+      action: editorCommandActions.strike,
       icon: TbStrikethrough
     },
     {
       name: 'code',
-      isActive: () => editor.isActive('code'),
-      command: () => editor.chain().focus().toggleCode().run(),
+      action: editorCommandActions.code,
       icon: TbCode
     }
-  ];
+  ].map((item) => ({
+    name: item.name,
+    isActive: () => item.action.isActive?.(editor) ?? false,
+    command: () => item.action.run(editor),
+    icon: item.icon
+  }));
 
   const bubbleMenuProps: EditorBubbleMenuProps = {
     ...props,

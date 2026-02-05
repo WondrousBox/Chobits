@@ -2,14 +2,14 @@ import '../index.scss';
 
 import { EditorContent, EditorEvents, useEditor } from '@tiptap/react';
 import { debounce, DebouncedFunc } from 'lodash-es';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { cn } from '@/lib/utils';
 
 import { EditorBubbleMenu } from '../Bubble';
 import DEFAULT_EDITOR_CONTENT from '../default-content';
 import { createFullExtensions, setAICompleteHandler } from '../extensions';
-import { TiptapEditorProps as editorProps } from '../props';
+import { createEditorProps } from '../props';
 import type { UnifiedEditorProps } from './types';
 import { UnifiedToolbar } from './UnifiedToolbar';
 
@@ -37,14 +37,18 @@ export const UnifiedEditor = ({
   showBubbleMenu = false,
   showPlayerControls = false,
   showMediaButtons = false,
+  editorProps: editorPropsOverride,
   onChange,
   onUpdate,
   onEditorReady,
   markdown = true,
   mentionItems,
+  slashCommandConfig,
   additionalExtensions = [],
   playerControls,
-  onAIComplete
+  onImageUpload,
+  onAIComplete,
+  shouldKeepToolbarVisible
 }: UnifiedEditorProps): JSX.Element => {
   const [isFocused, setIsFocused] = useState(false);
   const hideToolbarTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -52,7 +56,6 @@ export const UnifiedEditor = ({
   const isNoteLayout = toolbarPosition === 'bottom';
 
   void noteId;
-  void placeholder;
 
   // 创建防抖保存函数
   const saveNoteRef = useRef<SaveFunction | null>(null);
@@ -71,15 +74,25 @@ export const UnifiedEditor = ({
     }
   };
 
+  const resolvedEditorProps = useMemo(() => editorPropsOverride ?? createEditorProps(onImageUpload), [editorPropsOverride, onImageUpload]);
+
   // 统一使用完整扩展（slash、mention、代码块等）
   // AI 续写通过 useEffect 动态同步，不需要在这里传入 onAIComplete
-  const extensions = [...createFullExtensions({ mentionItems }), ...additionalExtensions];
+  const extensions = [
+    ...createFullExtensions({
+      mentionItems,
+      placeholder,
+      onImageUpload,
+      slashCommandConfig
+    }),
+    ...additionalExtensions
+  ];
 
   const initialContent = content || DEFAULT_EDITOR_CONTENT;
 
   const editor = useEditor({
     extensions,
-    editorProps,
+    editorProps: resolvedEditorProps,
     content: initialContent,
     editable: !readonly,
     onUpdate: (e: EditorEvents['update']) => {
@@ -101,7 +114,9 @@ export const UnifiedEditor = ({
       hideToolbarTimeoutRef.current = setTimeout(() => {
         // 检测是否有 Radix UI 的 Popover/Dropdown/Dialog 打开
         // Radix UI 的 Portal 内容会有这些 data 属性
-        const hasOpenPopover = document.querySelector('[data-radix-popper-content-wrapper], [data-radix-menu-content], [data-state="open"][role="dialog"]');
+        const hasOpenPopover =
+          shouldKeepToolbarVisible?.() ??
+          (typeof document !== 'undefined' && Boolean(document.querySelector('[data-radix-popper-content-wrapper], [data-radix-menu-content], [data-state="open"][role="dialog"]')));
         // 如果有 Popover 打开，不隐藏工具栏
         if (hasOpenPopover) {
           return;
