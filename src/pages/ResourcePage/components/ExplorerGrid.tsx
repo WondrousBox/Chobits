@@ -521,6 +521,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
     // 优先使用资源记录自身的类型字段（如果有）
     if (typeof item?.type === 'string' && item.type) {
       const t = item.type.toLowerCase();
+      if (t === 'screenshot') return 'image';
       if (t === 'image' || t === 'video' || t === 'audio' || t === 'document' || t === 'other') return t;
     }
 

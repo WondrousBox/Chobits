@@ -34,12 +34,14 @@ const ResourceFileList: React.FC<ResourceFileListProps> = ({ currentResource, on
         const allResources: ResourceItem[] = await window.YUA.resource['resource:list'](currentResource.workspaceId ? { workspaceId: currentResource.workspaceId } : undefined);
         let filteredResources: ResourceItem[] = [];
 
+        const visibleResources = (allResources || []).filter((r: any) => r.type !== 'screenshot');
+
         if (currentResource.folderId) {
           // 筛选同文件夹的资源
-          filteredResources = allResources.filter((r: any) => r.folderId === currentResource.folderId && r.id !== currentResource.id);
+          filteredResources = visibleResources.filter((r: any) => r.folderId === currentResource.folderId && r.id !== currentResource.id);
         } else if (currentResource.workspaceId) {
           // 如果没有 folderId，筛选同工作空间且没有 folderId 的资源
-          filteredResources = allResources.filter((r: any) => r.workspaceId === currentResource.workspaceId && !r.folderId && r.id !== currentResource.id);
+          filteredResources = visibleResources.filter((r: any) => r.workspaceId === currentResource.workspaceId && !r.folderId && r.id !== currentResource.id);
         }
 
         // 将当前资源插入到列表开头
