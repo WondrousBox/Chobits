@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TbMaximize, TbMinimize, TbPlayerPause, TbPlayerPlay, TbSettings, TbVolume, TbVolumeOff } from 'react-icons/tb';
+import { TbCamera, TbMaximize, TbMinimize, TbPlayerPause, TbPlayerPlay, TbSettings, TbVolume, TbVolumeOff } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 
@@ -249,6 +249,7 @@ interface MediaControlsProps {
   onVolumeChange: (volume: number) => void;
   onPlaybackRateChange: (rate: number) => void;
   onToggleFullscreen: () => void;
+  onScreenshot?: () => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
   type: 'video' | 'audio';
@@ -267,6 +268,7 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
   onVolumeChange,
   onPlaybackRateChange,
   onToggleFullscreen,
+  onScreenshot,
   onMouseEnter,
   onMouseLeave,
   type
@@ -334,6 +336,11 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
 
         <div className="flex items-center gap-2">
           <PlaybackRateControl playbackRate={playbackRate} onPlaybackRateChange={onPlaybackRateChange} type={type} />
+          {type === 'video' && onScreenshot && (
+            <Button size="sm" variant="ghost" onClick={onScreenshot} className="w-8 h-8 p-0 text-white hover:bg-white/20" title="截图">
+              <TbCamera size={16} />
+            </Button>
+          )}
           {type === 'video' && <FullscreenButton isFullscreen={isFullscreen} onToggleFullscreen={onToggleFullscreen} />}
         </div>
       </div>

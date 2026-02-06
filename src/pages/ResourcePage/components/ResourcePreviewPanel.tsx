@@ -137,6 +137,58 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
     window.dispatchEvent(new CustomEvent('custom:media-state-change', { detail: { isPlaying: false } }));
   }, [data?.id]);
 
+  // 截图保存为资源：上传图片文件并创建子资源（type=screenshot），不在主资源列表直接展示
+  const handleScreenshot = useCallback(
+    async (blob: Blob) => {
+      if (!data?.id) return;
+      try {
+        const buffer = await blob.arrayBuffer();
+        const now = new Date();
+        const pad = (n: number): string => n.toString().padStart(2, '0');
+        const ts = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(
+          now.getSeconds()
+        )}`;
+        const baseName = data.title || data.filePath || data.url || 'screenshot';
+        const safeName = String(baseName).split(/[\\/]/).pop() || 'screenshot';
+        const fileName = `${safeName}-${ts}.png`;
+
+        const uploadResult = await window.YUA.resource.uploadResourceFile({
+          fileName,
+          data: buffer,
+          workspaceId: data.workspaceId || undefined,
+          folderId: data.folderId ?? null
+        });
+
+        if (!uploadResult?.success || !uploadResult.filePath) {
+          console.warn('upload screenshot file failed', uploadResult);
+          return;
+        }
+
+        const seconds = Math.floor(currentTime);
+        const mm = Math.floor(seconds / 60)
+          .toString()
+          .padStart(2, '0');
+        const ss = Math.floor(seconds % 60)
+          .toString()
+          .padStart(2, '0');
+
+        await window.YUA.resource['resource:add']({
+          resource: {
+            type: 'screenshot',
+            filePath: uploadResult.filePath,
+            workspaceId: data.workspaceId,
+            folderId: data.folderId,
+            parentResourceId: data.id,
+            title: `截图 @ ${mm}:${ss}`
+          }
+        });
+      } catch (e) {
+        console.warn('save screenshot resource failed', e);
+      }
+    },
+    [data, currentTime]
+  );
+
   if (!data) {
     return <div className="w-full h-full flex items-center justify-center bg-background text-muted-foreground text-sm">选择资源进行预览</div>;
   }
@@ -151,7 +203,19 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
     if (isVideo && fileSrc) {
       return (
         <div className="w-full aspect-video bg-black">
-          <MediaPlayer ref={mediaPlayerRef} src={fileSrc} type="video" title={title} autoPlay={false} className="w-full h-full" onTimeUpdate={setCurrentTime} onDurationChange={setMediaDuration} onPlay={handlePlay} />
+          <MediaPlayer
+            ref={mediaPlayerRef}
+            src={fileSrc}
+            type="video"
+            title={title}
+            autoPlay={false}
+            className="w-full h-full"
+            onTimeUpdate={setCurrentTime}
+            onDurationChange={setMediaDuration}
+            onPlay={handlePlay}
+            onPause={handlePause}
+            onScreenshot={handleScreenshot}
+          />
         </div>
       );
     }

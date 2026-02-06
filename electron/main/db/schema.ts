@@ -120,8 +120,8 @@ export const resources = sqliteTable(
       .primaryKey()
       .$defaultFn(() => randomUUID()), // 资源唯一ID
     type: text('type', {
-      enum: ['image', 'video', 'audio', 'recording', 'subtitle', 'text', 'link', 'file', 'document', 'rss', 'translation', 'summary', 'mindmap', 'note', 'other']
-    }).notNull(), // 资源类型（recording=录音，subtitle=字幕，rss=订阅源，translation=翻译数据，summary=总结数据，mindmap=脑图数据，note=笔记）
+      enum: ['image', 'video', 'audio', 'recording', 'subtitle', 'text', 'link', 'file', 'document', 'rss', 'translation', 'summary', 'mindmap', 'note', 'screenshot', 'other']
+    }).notNull(), // 资源类型（recording=录音，subtitle=字幕，rss=订阅源，translation=翻译数据，summary=总结数据，mindmap=脑图数据，note=笔记，screenshot=截图）
     title: text('title'), // 标题
     description: text('description'), // 简要描述
 
