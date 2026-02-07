@@ -824,5 +824,54 @@
         ]
       }
     ]
+  },
+  {
+    "id": "fast-whisper-cli",
+    "pluginId": "plugin:fast-whisper",
+    "type": "engine",
+    "name": "fast-whisper-cli",
+    "displayName": "Fast Whisper CLI",
+    "description": "Fast Whisper 命令行工具，用于快速音频和视频转录",
+    "version": "1.0.0",
+    "binaryName": "fast-whisper",
+    "archiveType": "zip",
+    "category": "asr",
+    "languages": [
+      "multi"
+    ],
+    "platforms": [
+      {
+        "platform": "win32",
+        "arch": "x64",
+        "sourceUrl": "https://github.com/YuQian2015/memo-build/releases/download/v1.0.0/fast-whisper-cli-win32-x64-1.0.0.zip",
+        "sizeBytes": 10485760,
+        "sha256": "d922c38388ff72257416a653a5ebf5d127a3cd6ec1e9f6216021116f90b5269d"
+      }
+    ],
+    "models": [
+      {
+        "id": "fast-whisper-tiny",
+        "pluginId": "plugin:fast-whisper",
+        "type": "model",
+        "name": "tiny",
+        "displayName": "Fast Whisper Tiny",
+        "description": "最小的 Whisper 模型，速度最快",
+        "version": "1.0.0",
+        "archiveType": "none",
+        "category": "asr",
+        "languages": [
+          "multi"
+        ],
+        "platforms": [
+          {
+            "platform": "all",
+            "arch": "all",
+            "sourceUrl": "https://github.com/YuQian2015/memo-build/releases/download/v1.0.0/faster-whisper-tiny.zip",
+            "sizeBytes": 77704715,
+            "sha256": "479a1804eff9dcfaecafc10918e67c509d8d2eea4669fcbdc0c79094f3f820af"
+          }
+        ]
+      }
+    ]
   }
 ]

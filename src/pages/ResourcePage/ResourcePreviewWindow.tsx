@@ -37,8 +37,8 @@ const ResourcePreviewWindow: React.FC = () => {
   const [data, setData] = useState<ResourceItem | null>(null);
   const [subtitleList, setSubtitleList] = useState<ResourceItem[]>([]);
   const [activeSubtitle, setActiveSubtitle] = useState<ResourceItem | null>(null);
-  const TABS_EXPANDED_KEY = 'chobits:resource-preview:tabsExpanded';
-  const BOTTOM_EXPANDED_KEY = 'chobits:resource-preview:bottomExpanded';
+  const TABS_EXPANDED_KEY = 'resource-preview:tabsExpanded';
+  const BOTTOM_EXPANDED_KEY = 'resource-preview:bottomExpanded';
   const [isTabsExpanded, setIsTabsExpandedState] = useState(() => {
     if (typeof window === 'undefined') return true;
     const stored = localStorage.getItem(TABS_EXPANDED_KEY);

@@ -62,7 +62,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
   const [translationTrackMeta, setTranslationTrackMeta] = useState<{ languageCode: string; label: string; resourceId: string }[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [subtitleFormat, setSubtitleFormat] = useState<SubtitleFormat>('srt');
-  const SUBTITLE_VIEW_MODE_KEY = 'chobits:subtitle-player:viewMode';
+  const SUBTITLE_VIEW_MODE_KEY = 'subtitle-player:viewMode';
   const [viewMode, setViewModeState] = useState<'list' | 'timeline'>(() => {
     if (typeof window === 'undefined') return 'list';
     const stored = localStorage.getItem(SUBTITLE_VIEW_MODE_KEY);
