@@ -850,14 +850,14 @@
     ],
     "models": [
       {
-        "id": "fast-whisper-tiny",
+        "id": "faster-whisper-tin",
         "pluginId": "plugin:fast-whisper",
         "type": "model",
-        "name": "tiny",
+        "name": "faster-whisper-tiny",
         "displayName": "Fast Whisper Tiny",
         "description": "最小的 Whisper 模型，速度最快",
         "version": "1.0.0",
-        "archiveType": "none",
+        "archiveType": "zip",
         "category": "asr",
         "languages": [
           "multi"

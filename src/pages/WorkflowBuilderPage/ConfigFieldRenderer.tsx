@@ -33,6 +33,9 @@ interface ConfigFieldRendererProps {
   loadingFolders?: boolean;
 }
 
+// Radix Select 不允许 SelectItem 的 value 为空字符串，用占位值表示“空”
+const SELECT_EMPTY_VALUE = '__empty__';
+
 // 类型守卫：判断是否是分组选项
 function isOptionGroup(option: { value?: string; label?: string; group?: string; options?: any[] }): option is { group: string; options: Array<{ value: string; label: string }> } {
   return 'group' in option && 'options' in option;
@@ -128,14 +131,12 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
             return (
               <label
                 key={opt.value}
-                className={`flex items-center gap-2 cursor-pointer rounded-md px-2 py-1.5 transition-colors ${
-                  isChecked ? 'bg-primary/8 text-foreground' : 'hover:bg-muted/50 text-muted-foreground hover:text-foreground'
-                }`}
+                className={`flex items-center gap-2 cursor-pointer rounded-md px-2 py-1.5 transition-colors ${isChecked ? 'bg-primary/8 text-foreground' : 'hover:bg-muted/50 text-muted-foreground hover:text-foreground'
+                  }`}
               >
                 <div
-                  className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors shrink-0 ${
-                    isChecked ? 'bg-primary border-primary' : 'border-muted-foreground/30 bg-background'
-                  }`}
+                  className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors shrink-0 ${isChecked ? 'bg-primary border-primary' : 'border-muted-foreground/30 bg-background'
+                    }`}
                 >
                   {isChecked && (
                     <svg className="w-2.5 h-2.5 text-primary-foreground" viewBox="0 0 12 12" fill="none">
@@ -174,6 +175,8 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
       if (!text) return false;
       return text.toLowerCase().includes(filterText);
     };
+    const selectValue = value === '' ? SELECT_EMPTY_VALUE : value;
+    const handleSelectChange = (v: string) => onValueChange(v === SELECT_EMPTY_VALUE ? '' : v);
 
     // 检查是否有分组
     const hasGroups = field.options.some((opt) => isOptionGroup(opt));
@@ -184,8 +187,11 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
       return (
         <div className={containerClass}>
           <label className={`block ${labelClass} mb-1`}>{label}</label>
-          <Select value={value} onValueChange={onValueChange}>
-            <SelectTrigger className={`${inputHeightClass} bg-muted/30 border-transparent hover:border-border focus:border-border focus:bg-background transition-colors`} onMouseDown={(e) => e.stopPropagation()}>
+          <Select value={selectValue} onValueChange={handleSelectChange}>
+            <SelectTrigger
+              className={`${inputHeightClass} bg-muted/30 border-transparent hover:border-border focus:border-border focus:bg-background transition-colors`}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
               <SelectValue placeholder={field.description || `选择${label}`} />
             </SelectTrigger>
             <SelectContent>
@@ -216,7 +222,7 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
                     <SelectGroup>
                       <SelectLabel className="text-[10px] text-muted-foreground/70">{group.group}</SelectLabel>
                       {groupOptions.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value} className="text-[11px]">
+                        <SelectItem key={opt.value || SELECT_EMPTY_VALUE} value={opt.value === '' ? SELECT_EMPTY_VALUE : opt.value} className="text-[11px]">
                           {opt.label}
                         </SelectItem>
                       ))}
@@ -237,8 +243,11 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
     return (
       <div className={containerClass}>
         <label className={`block ${labelClass} mb-1`}>{label}</label>
-        <Select value={value} onValueChange={onValueChange}>
-          <SelectTrigger className={`${inputHeightClass} bg-muted/30 border-transparent hover:border-border focus:border-border focus:bg-background transition-colors`} onMouseDown={(e) => e.stopPropagation()}>
+        <Select value={selectValue} onValueChange={handleSelectChange}>
+          <SelectTrigger
+            className={`${inputHeightClass} bg-muted/30 border-transparent hover:border-border focus:border-border focus:bg-background transition-colors`}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
             <SelectValue placeholder={field.description || `选择${label}`} />
           </SelectTrigger>
           <SelectContent>
@@ -261,7 +270,7 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
               </>
             )}
             {filteredOptions.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value} className="text-[11px]">
+              <SelectItem key={opt.value === '' ? SELECT_EMPTY_VALUE : opt.value} value={opt.value === '' ? SELECT_EMPTY_VALUE : opt.value} className="text-[11px]">
                 {opt.label}
               </SelectItem>
             ))}
@@ -677,19 +686,45 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="eq" className="text-[11px]">等于</SelectItem>
-                    <SelectItem value="neq" className="text-[11px]">不等于</SelectItem>
-                    <SelectItem value="contains" className="text-[11px]">包含</SelectItem>
-                    <SelectItem value="not_contains" className="text-[11px]">不包含</SelectItem>
-                    <SelectItem value="starts_with" className="text-[11px]">开头是</SelectItem>
-                    <SelectItem value="ends_with" className="text-[11px]">结尾是</SelectItem>
-                    <SelectItem value="gt" className="text-[11px]">大于</SelectItem>
-                    <SelectItem value="lt" className="text-[11px]">小于</SelectItem>
-                    <SelectItem value="gte" className="text-[11px]">大于等于</SelectItem>
-                    <SelectItem value="lte" className="text-[11px]">小于等于</SelectItem>
-                    <SelectItem value="empty" className="text-[11px]">为空</SelectItem>
-                    <SelectItem value="not_empty" className="text-[11px]">不为空</SelectItem>
-                    <SelectItem value="regex" className="text-[11px]">正则</SelectItem>
+                    <SelectItem value="eq" className="text-[11px]">
+                      等于
+                    </SelectItem>
+                    <SelectItem value="neq" className="text-[11px]">
+                      不等于
+                    </SelectItem>
+                    <SelectItem value="contains" className="text-[11px]">
+                      包含
+                    </SelectItem>
+                    <SelectItem value="not_contains" className="text-[11px]">
+                      不包含
+                    </SelectItem>
+                    <SelectItem value="starts_with" className="text-[11px]">
+                      开头是
+                    </SelectItem>
+                    <SelectItem value="ends_with" className="text-[11px]">
+                      结尾是
+                    </SelectItem>
+                    <SelectItem value="gt" className="text-[11px]">
+                      大于
+                    </SelectItem>
+                    <SelectItem value="lt" className="text-[11px]">
+                      小于
+                    </SelectItem>
+                    <SelectItem value="gte" className="text-[11px]">
+                      大于等于
+                    </SelectItem>
+                    <SelectItem value="lte" className="text-[11px]">
+                      小于等于
+                    </SelectItem>
+                    <SelectItem value="empty" className="text-[11px]">
+                      为空
+                    </SelectItem>
+                    <SelectItem value="not_empty" className="text-[11px]">
+                      不为空
+                    </SelectItem>
+                    <SelectItem value="regex" className="text-[11px]">
+                      正则
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -763,7 +798,10 @@ export const ConfigFieldRenderer: React.FC<ConfigFieldRendererProps> = ({
           </div>
         ) : (
           <Select value={value} onValueChange={onValueChange}>
-            <SelectTrigger className={`w-full ${inputHeightClass} bg-muted/30 border-transparent hover:border-border focus:border-border focus:bg-background transition-colors`} onMouseDown={(e) => e.stopPropagation()}>
+            <SelectTrigger
+              className={`w-full ${inputHeightClass} bg-muted/30 border-transparent hover:border-border focus:border-border focus:bg-background transition-colors`}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
               <SelectValue placeholder={field.description || '请选择文件夹'} />
             </SelectTrigger>
             <SelectContent>

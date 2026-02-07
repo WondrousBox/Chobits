@@ -256,17 +256,17 @@ export const TranscribeFastWhisperNode: NodeHandler = {
         description: '选择 Fast Whisper 模型',
         inputType: 'select',
         options: [
-          { value: 'tiny', label: 'Tiny', description: '最快速，精度较低' },
-          { value: 'tiny.en', label: 'Tiny English', description: '仅英语，速度最快' },
-          { value: 'base', label: 'Base', description: '平衡速度和精度' },
-          { value: 'base.en', label: 'Base English', description: '仅英语，速度较快' },
-          { value: 'small', label: 'Small', description: '高精度，适合正式场景' },
-          { value: 'small.en', label: 'Small English', description: '仅英语，精度较高' },
-          { value: 'medium', label: 'Medium', description: '更高精度，速度较慢' },
-          { value: 'medium.en', label: 'Medium English', description: '仅英语，高精度' },
-          { value: 'large-v1', label: 'Large v1', description: '最高精度 v1' },
-          { value: 'large-v2', label: 'Large v2', description: '最高精度 v2' },
-          { value: 'large-v3', label: 'Large v3', description: '最新 Large 模型' }
+          { value: 'faster-whisper-tiny', label: 'Tiny', description: '最快速，精度较低' },
+          { value: 'faster-whisper-tiny.en', label: 'Tiny English', description: '仅英语，速度最快' },
+          { value: 'faster-whisper-base', label: 'Base', description: '平衡速度和精度' },
+          { value: 'faster-whisper-base.en', label: 'Base English', description: '仅英语，速度较快' },
+          { value: 'faster-whisper-small', label: 'Small', description: '高精度，适合正式场景' },
+          { value: 'faster-whisper-small.en', label: 'Small English', description: '仅英语，精度较高' },
+          { value: 'faster-whisper-medium', label: 'Medium', description: '更高精度，速度较慢' },
+          { value: 'faster-whisper-medium.en', label: 'Medium English', description: '仅英语，高精度' },
+          { value: 'faster-whisper-large-v1', label: 'Large v1', description: '最高精度 v1' },
+          { value: 'faster-whisper-large-v2', label: 'Large v2', description: '最高精度 v2' },
+          { value: 'faster-whisper-large-v3', label: 'Large v3', description: '最新 Large 模型' }
         ]
       },
       {
@@ -458,22 +458,31 @@ export const TranscribeFastWhisperNode: NodeHandler = {
     // fast-whisper 参数组装
     const args: string[] = [];
 
-    // 模型参数 (--model)
+    // 模型参数 (--model)：优先从插件模型管理获取绝对路径，否则再使用 modelDir + 模型名
     const modelName = String(config?.model || 'tiny');
-    let modelPath = modelName;
-
-    // 如果指定了模型目录，则组合路径
-    const modelDir = String(config?.modelDir || '');
-    if (modelDir) {
-      if (path.isAbsolute(modelDir)) {
-        modelPath = path.join(modelDir, modelName);
+    let modelPath: string = modelName;
+    try {
+      const { pluginResourceManager } = await import('../../plugins');
+      const managedPath = pluginResourceManager.getModelPath('plugin:fast-whisper', modelName);
+      if (managedPath && fs.existsSync(managedPath)) {
+        modelPath = managedPath;
+        console.log('[fast-whisper] 使用转录模型:', modelPath);
       } else {
-        modelPath = path.join(modelDir, modelName);
+        const modelDir = String(config?.modelDir || '');
+        if (modelDir) {
+          modelPath = path.isAbsolute(modelDir) ? path.join(modelDir, modelName) : path.join(modelDir, modelName);
+        }
+        console.log('[fast-whisper] 模型管理路径不存在或未配置，使用:', modelPath, managedPath ? `(管理路径: ${managedPath})` : '');
       }
+    } catch (error) {
+      const modelDir = String(config?.modelDir || '');
+      if (modelDir) {
+        modelPath = path.isAbsolute(modelDir) ? path.join(modelDir, modelName) : path.join(modelDir, modelName);
+      }
+      console.log('[fast-whisper] 无法获取模型管理路径，使用:', modelPath, error);
     }
 
     args.push('--model', modelPath);
-    console.log('[fast-whisper] 使用转录模型:', modelPath);
 
     // 音频文件参数 (--audio)
     args.push('--audio', finalSrc);
@@ -500,8 +509,8 @@ export const TranscribeFastWhisperNode: NodeHandler = {
       args.push('--language', language);
     }
 
-    // 线程数 (--threads)
-    if (config?.threads != null) {
+    // 线程数 (--threads)：未设置或无数值时不传
+    if (config?.threads != null && config.threads > 0) {
       args.push('--threads', String(config.threads));
     }
 
