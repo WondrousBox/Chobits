@@ -252,8 +252,8 @@ export const TranscribeFastWhisperNode: NodeHandler = {
         label: '模型',
         type: 'string',
         required: true,
-        default: 'tiny',
-        description: '选择 Fast Whisper 模型',
+        default: 'faster-whisper-tiny',
+        description: '选择 Fast Whisper 模型（需在插件管理中下载）',
         inputType: 'select',
         options: [
           { value: 'faster-whisper-tiny', label: 'Tiny', description: '最快速，精度较低' },
@@ -398,9 +398,6 @@ export const TranscribeFastWhisperNode: NodeHandler = {
           { value: 'srt', label: 'SRT - 字幕文件' }
         ]
       },
-      { key: 'outputFilename', label: '输出文件名', type: 'string', required: false, default: 'output', description: '输出文件名（不含扩展名）', group: 'basic' },
-      { key: 'wordTimestamps', label: '单词时间戳', type: 'boolean', required: false, default: false, description: '是否输出单词级别的时间戳', group: 'more' },
-      { key: 'modelDir', label: '模型目录', type: 'string', required: false, default: 'model', description: '模型文件所在目录（相对于可执行文件或绝对路径）', group: 'advanced' },
       { key: 'threads', label: '线程数', type: 'number', required: false, description: '使用的线程数', group: 'more' },
       { key: 'temperature', label: '采样温度', type: 'number', required: false, default: 0.0, description: '采样温度（0.0-1.0）', group: 'advanced' },
       { key: 'bestOf', label: '候选数量', type: 'number', required: false, default: 5, description: '候选数量（用于解码）', group: 'advanced' },
@@ -458,28 +455,22 @@ export const TranscribeFastWhisperNode: NodeHandler = {
     // fast-whisper 参数组装
     const args: string[] = [];
 
-    // 模型参数 (--model)：优先从插件模型管理获取绝对路径，否则再使用 modelDir + 模型名
-    const modelName = String(config?.model || 'tiny');
-    let modelPath: string = modelName;
+    // 模型参数 (--model)：仅使用插件模型管理器返回的目录
+    const modelName = String(config?.model || 'faster-whisper-tiny');
+    let modelPath: string;
     try {
       const { pluginResourceManager } = await import('../../plugins');
-      const managedPath = pluginResourceManager.getModelPath('plugin:fast-whisper', modelName);
-      if (managedPath && fs.existsSync(managedPath)) {
-        modelPath = managedPath;
-        console.log('[fast-whisper] 使用转录模型:', modelPath);
-      } else {
-        const modelDir = String(config?.modelDir || '');
-        if (modelDir) {
-          modelPath = path.isAbsolute(modelDir) ? path.join(modelDir, modelName) : path.join(modelDir, modelName);
-        }
-        console.log('[fast-whisper] 模型管理路径不存在或未配置，使用:', modelPath, managedPath ? `(管理路径: ${managedPath})` : '');
+      modelPath = pluginResourceManager.getModelPath('plugin:fast-whisper', modelName);
+      if (!modelPath || !fs.existsSync(modelPath)) {
+        throw new Error(`模型路径不存在，请先在插件管理中下载模型 "${modelName}"。路径: ${modelPath || '(空)'}`);
       }
+      console.log('[fast-whisper] 使用转录模型:', modelPath);
     } catch (error) {
-      const modelDir = String(config?.modelDir || '');
-      if (modelDir) {
-        modelPath = path.isAbsolute(modelDir) ? path.join(modelDir, modelName) : path.join(modelDir, modelName);
+      if (error instanceof Error && error.message.includes('模型路径不存在')) {
+        throw error;
       }
-      console.log('[fast-whisper] 无法获取模型管理路径，使用:', modelPath, error);
+      console.error('[fast-whisper] 无法获取模型管理路径:', error);
+      throw new Error(`无法获取 Fast Whisper 模型路径，请通过插件管理下载模型 "${modelName}"`);
     }
 
     args.push('--model', modelPath);
@@ -490,18 +481,12 @@ export const TranscribeFastWhisperNode: NodeHandler = {
     // 输出目录 (--output-dir)
     args.push('--output-dir', outDir);
 
-    // 输出文件名 (--output-filename)
-    const outputFilename = String(config?.outputFilename || 'output');
-    args.push('--output-filename', outputFilename);
+    args.push('--output-filename', 'output');
 
     // 输出格式 (--output-format)
     const outputFormats = Array.isArray(config?.outputFormats) ? config.outputFormats : ['json', 'txt', 'srt'];
     args.push('--output-format', outputFormats.join(','));
-
-    // 单词时间戳 (--word-timestamps)
-    if (config?.wordTimestamps) {
-      args.push('--word-timestamps');
-    }
+    args.push('--word-timestamps');
 
     // 语言参数 (--language)
     const language = config?.language ? String(config.language) : '';
@@ -545,9 +530,9 @@ export const TranscribeFastWhisperNode: NodeHandler = {
     const out: Record<string, any> = {};
 
     // fast-whisper 会在输出目录生成指定文件名的文件
-    const txtPath = path.join(outDir, `${outputFilename}.txt`);
-    const srtPath = path.join(outDir, `${outputFilename}.srt`);
-    const jsonPath = path.join(outDir, `${outputFilename}.json`);
+    const txtPath = path.join(outDir, `output.txt`);
+    const srtPath = path.join(outDir, `output.srt`);
+    const jsonPath = path.join(outDir, `output.json`);
 
     if (fileExists(txtPath)) {
       try {
