@@ -323,6 +323,28 @@ const ResourcePreviewWindow: React.FC = () => {
     window.dispatchEvent(new CustomEvent('custom:media-state-change', { detail: { isPlaying: false } }));
   }, [data]);
 
+  // 截图：只传文件数据与上下文，主进程负责创建/查找截图文件夹、写入文件、创建资源记录
+  const handleScreenshot = useCallback(
+    async (blob: Blob) => {
+      if (!data?.id) return;
+      try {
+        const buffer = await blob.arrayBuffer();
+        const parentTitle = data.title || data.filePath || data.url || undefined;
+        await window.YUA.resource['resource:saveScreenshot']({
+          data: buffer,
+          workspaceId: data.workspaceId,
+          folderId: data.folderId ?? null,
+          parentResourceId: data.id,
+          currentTimeSeconds: Math.floor(currentTime),
+          parentTitle
+        });
+      } catch (e) {
+        console.warn('save screenshot failed', e);
+      }
+    },
+    [data, currentTime]
+  );
+
   if (!data) {
     return <div className="w-full h-full flex items-center justify-center bg-background text-muted-foreground text-sm">等待资源数据...</div>;
   }
@@ -347,6 +369,7 @@ const ResourcePreviewWindow: React.FC = () => {
           onPlay={handlePlay}
           onPause={handlePause}
           onStop={handleStop}
+          onScreenshot={isVideoFile(data.filePath) ? handleScreenshot : undefined}
         />
       )}
       {isSubtitleFile(data.filePath) && <ResourceSubtitlePlayer resource={data} />}

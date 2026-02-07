@@ -33,9 +33,8 @@ export const useResourceData = (
         rows = await window.YUA.resource['resource:list'](wsFilter ? { workspaceId: wsFilter } : undefined);
       }
       console.log('load resources', rows);
-      // 过滤掉截图类资源，避免直接出现在主资源列表
-      const filtered = (rows || []).filter((r: any) => r.type !== 'screenshot');
-      setList(filtered);
+      // 截图资源仅出现在「截图」文件夹内，不在此过滤（按 folderId 筛选时自然只会在打开截图文件夹时看到）
+      setList(rows || []);
     } catch (e) {
       console.warn('load resources failed', e);
     }

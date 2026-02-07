@@ -14,6 +14,38 @@ import { detectBasicType, generateThumbnailForResource } from '../../utils/thumb
 import { embeddingQueue } from '../embedding/queue';
 import type { Resource } from './ipc-renderer';
 
+const SCREENSHOT_FOLDER_NAME = '截图';
+
+/**
+ * 获取或创建「截图」文件夹（主进程）：位于当前资源所在层级，用于统一存放截图资源。
+ */
+export async function getOrCreateScreenshotFolder(
+  workspaceId: string | undefined,
+  parentFolderId: string | null | undefined
+): Promise<string | null> {
+  let ws: any;
+  if (workspaceId) {
+    ws = await WorkspacesRepo.getById(workspaceId);
+  } else {
+    ws = await WorkspacesRepo.getDefault();
+  }
+  if (!ws?.id || !ws.rootPath) return null;
+  const wsId = ws.id;
+  const parentId = parentFolderId ?? null;
+
+  const siblings = await FoldersRepo.list({ workspaceId: wsId, parentId, deletedAt: 0 } as any, 2000, 0);
+  const existing = (siblings as any[]).find((s: any) => s.name === SCREENSHOT_FOLDER_NAME);
+  if (existing?.id) return existing.id;
+
+  const row = await FoldersRepo.create({ name: SCREENSHOT_FOLDER_NAME, parentId, workspaceId: wsId } as any);
+  const baseDir = path.join(ws.rootPath, 'resources', 'folders');
+  await fs.mkdir(baseDir, { recursive: true });
+  const dirPath = path.join(baseDir, row.id);
+  await fs.mkdir(dirPath, { recursive: true });
+  eventManager.emit(AppEvent.FOLDER_CREATED, row);
+  return row.id;
+}
+
 export async function ensureDailyFolder(workspaceId: string, rootPath: string): Promise<string> {
   const today = dayjs().format('YYYY-MM-DD');
   // Check if folder exists in DB
