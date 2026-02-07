@@ -80,38 +80,59 @@ function cleanDownloadUrl(url: string): string {
   return url.trim();
 }
 
+// Windows 保留文件名（设备名等），不区分大小写
+const WINDOWS_RESERVED_NAMES = new Set([
+  'con', 'prn', 'aux', 'nul',
+  'com1', 'com2', 'com3', 'com4', 'com5', 'com6', 'com7', 'com8', 'com9',
+  'lpt1', 'lpt2', 'lpt3', 'lpt4', 'lpt5', 'lpt6', 'lpt7', 'lpt8', 'lpt9'
+]);
+
 /**
- * 清理文件名，移除或替换系统不支持的特殊字符
- * Windows 不支持的字符: < > : " / \ | ? *
- * 同时移除控制字符和其他不可见字符
+ * 清理文件名，移除或替换系统不支持的特殊字符（跨平台：Windows / Linux / macOS）
+ *
+ * 规则取最严格（Windows），保证三端均可安全存储：
+ * - 非法字符: < > : " / \ | ? *（Windows 禁止；Linux 仅禁止 /；macOS 禁止 / 和 :）
+ * - 控制字符: 0x00-0x1F、0x7F(DEL)、0x80-0x9F（三端均不允许 NUL 等）
+ * - 末尾不能为空格或点（Windows 禁止；在 Linux/macOS 去掉也无害）
+ * - 保留名仅 Windows 检查（CON、PRN、AUX、NUL、COM1-9、LPT1-9）
  */
 function sanitizeFilename(filename: string): string {
   if (!filename) return filename;
 
-  // 移除或替换不支持的字符
-  let cleaned = filename
-    // 替换 Windows 不支持的特殊字符
+  // 先去掉扩展名，只处理主文件名（调用方会再追加 .mp4）
+  const ext = path.extname(filename);
+  const base = ext ? filename.slice(0, -ext.length) : filename;
+
+  // 替换各平台非法字符（取 Windows 集合，兼容 Linux/macOS）
+  let cleaned = base
     .replace(/[<>:"/\\|?*]/g, '_')
-    // 不允许以点开头
     .replace(/^\.+/, '_')
-    // 移除末尾的点
-    .replace(/\.+$/, '')
-    // 将多个空格替换为单个空格
     .replace(/\s+/g, ' ')
-    // 移除首尾空格
     .trim();
 
-  // 移除控制字符 (0x00-0x1F) 和部分扩展 ASCII (0x80-0x9F)
+  // 移除控制字符 0x00-0x1F、0x7F(DEL)、0x80-0x9F（C1 控制字符）
   cleaned = cleaned
     .split('')
     .filter((char) => {
       const code = char.charCodeAt(0);
-      return !(code < 32 || (code >= 128 && code <= 159));
+      return !(code < 32 || code === 127 || (code >= 128 && code <= 159));
     })
     .join('');
 
-  // 限制文件名长度（大多数文件系统限制为 255 字符）
-  return cleaned.substring(0, 255);
+  // 末尾不能是空格或点（Windows 禁止；Linux/macOS 去掉也可避免兼容性问题）
+  cleaned = cleaned.replace(/[\s.]+$/g, '');
+
+  // 限制文件名长度（多数文件系统 255）
+  cleaned = cleaned.substring(0, 255);
+
+  // 若清理后为空则用默认名；仅 Windows 检查保留设备名
+  if (!cleaned) return 'video';
+  const lower = cleaned.toLowerCase();
+  if (process.platform === 'win32' && WINDOWS_RESERVED_NAMES.has(lower)) {
+    return '_' + cleaned;
+  }
+
+  return cleaned;
 }
 
 function generateUUID(): string {
