@@ -11,7 +11,7 @@ import { AppEvent } from '../../../../packages/event/events';
 import { FoldersRepo, ResourcesRepo, TagsRepo, WorkspacesRepo } from '../../db/repositories';
 // import { sendAppNotice } from '../../../../packages/event';
 import { generateThumbnailForResource } from '../../utils/thumbnail';
-import { addResource, ensureDailyFolder } from '.';
+import { addResource, ensureDailyFolder, getOrCreateScreenshotFolder } from '.';
 import type { Resource } from './ipc-renderer';
 
 // 存储正在上传的文件流
@@ -531,6 +531,79 @@ export function initResourceHandlers(): void {
       return { success: false, error: e?.message || 'unknown-error' };
     }
   });
+
+  // 截图保存：主进程负责查找/创建「截图」文件夹、写入文件、创建资源记录；渲染进程只传文件数据与上下文
+  ipcMain.handle(
+    'resource:saveScreenshot',
+    async (
+      _event,
+      payload: {
+        data: ArrayBuffer;
+        workspaceId?: string;
+        folderId?: string | null;
+        parentResourceId: string;
+        currentTimeSeconds: number;
+        parentTitle?: string;
+      }
+    ) => {
+      try {
+        const { data, workspaceId, folderId, parentResourceId, currentTimeSeconds, parentTitle } = payload || ({} as any);
+        if (!data || !parentResourceId) return { success: false, error: 'invalid-params' };
+
+        let ws: any;
+        if (workspaceId) {
+          ws = await WorkspacesRepo.getById(workspaceId);
+        } else {
+          ws = await WorkspacesRepo.getDefault();
+        }
+        if (!ws?.rootPath) return { success: false, error: 'no-workspace' };
+
+        const screenshotFolderId = await getOrCreateScreenshotFolder(workspaceId ?? ws.id, folderId ?? null);
+        if (!screenshotFolderId) return { success: false, error: 'screenshot-folder-failed' };
+
+        const baseDir = path.join(ws.rootPath, 'resources', 'folders', screenshotFolderId);
+        await fs.mkdir(baseDir, { recursive: true });
+
+        const now = new Date();
+        const pad = (n: number) => n.toString().padStart(2, '0');
+        const ts = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+        const baseName = (parentTitle || 'screenshot').replace(/[\\/]+/g, '-').slice(0, 80) || 'screenshot';
+        const fileName = `${baseName}-${ts}.png`;
+
+        let target = path.join(baseDir, fileName);
+        const ext = path.extname(fileName);
+        const nameNoExt = path.basename(fileName, ext);
+        let counter = 1;
+        while (fscb.existsSync(target)) {
+          target = path.join(baseDir, `${nameNoExt}(${counter})${ext}`);
+          counter++;
+        }
+
+        const buffer = Buffer.from(data as ArrayBuffer);
+        await fs.writeFile(target, buffer);
+
+        const mm = Math.floor(currentTimeSeconds / 60).toString().padStart(2, '0');
+        const ss = Math.floor(currentTimeSeconds % 60).toString().padStart(2, '0');
+        const title = `截图 @ ${mm}:${ss}`;
+
+        const result = await addResource({
+          resource: {
+            type: 'screenshot',
+            filePath: target,
+            workspaceId: workspaceId ?? ws.id,
+            folderId: screenshotFolderId,
+            parentResourceId,
+            title
+          } as any
+        });
+
+        return result?.data ? { success: true, data: result.data } : { success: false, error: 'add-resource-failed' };
+      } catch (e: any) {
+        console.warn('resource:saveScreenshot failed', e);
+        return { success: false, error: e?.message || 'unknown-error' };
+      }
+    }
+  );
 
   // 流式上传：开始上传
   ipcMain.handle(

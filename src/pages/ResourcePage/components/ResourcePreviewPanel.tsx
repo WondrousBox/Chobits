@@ -137,53 +137,23 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
     window.dispatchEvent(new CustomEvent('custom:media-state-change', { detail: { isPlaying: false } }));
   }, [data?.id]);
 
-  // 截图保存为资源：上传图片文件并创建子资源（type=screenshot），不在主资源列表直接展示
+  // 截图：只传文件数据与上下文，主进程负责创建/查找截图文件夹、写入文件、创建资源记录
   const handleScreenshot = useCallback(
     async (blob: Blob) => {
       if (!data?.id) return;
       try {
         const buffer = await blob.arrayBuffer();
-        const now = new Date();
-        const pad = (n: number): string => n.toString().padStart(2, '0');
-        const ts = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(
-          now.getSeconds()
-        )}`;
-        const baseName = data.title || data.filePath || data.url || 'screenshot';
-        const safeName = String(baseName).split(/[\\/]/).pop() || 'screenshot';
-        const fileName = `${safeName}-${ts}.png`;
-
-        const uploadResult = await window.YUA.resource.uploadResourceFile({
-          fileName,
+        const parentTitle = data.title || data.filePath || data.url || undefined;
+        await window.YUA.resource['resource:saveScreenshot']({
           data: buffer,
-          workspaceId: data.workspaceId || undefined,
-          folderId: data.folderId ?? null
-        });
-
-        if (!uploadResult?.success || !uploadResult.filePath) {
-          console.warn('upload screenshot file failed', uploadResult);
-          return;
-        }
-
-        const seconds = Math.floor(currentTime);
-        const mm = Math.floor(seconds / 60)
-          .toString()
-          .padStart(2, '0');
-        const ss = Math.floor(seconds % 60)
-          .toString()
-          .padStart(2, '0');
-
-        await window.YUA.resource['resource:add']({
-          resource: {
-            type: 'screenshot',
-            filePath: uploadResult.filePath,
-            workspaceId: data.workspaceId,
-            folderId: data.folderId,
-            parentResourceId: data.id,
-            title: `截图 @ ${mm}:${ss}`
-          }
+          workspaceId: data.workspaceId,
+          folderId: data.folderId ?? null,
+          parentResourceId: data.id,
+          currentTimeSeconds: Math.floor(currentTime),
+          parentTitle
         });
       } catch (e) {
-        console.warn('save screenshot resource failed', e);
+        console.warn('save screenshot failed', e);
       }
     },
     [data, currentTime]
@@ -233,7 +203,17 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
     if (isAudio && fileSrc) {
       return (
         <div className="w-full p-4 bg-muted/30">
-          <MediaPlayer ref={mediaPlayerRef} src={fileSrc} type="audio" title={title} autoPlay={false} className="w-full" onTimeUpdate={setCurrentTime} onDurationChange={setMediaDuration} onPlay={handlePlay} />
+          <MediaPlayer
+            ref={mediaPlayerRef}
+            src={fileSrc}
+            type="audio"
+            title={title}
+            autoPlay={false}
+            className="w-full"
+            onTimeUpdate={setCurrentTime}
+            onDurationChange={setMediaDuration}
+            onPlay={handlePlay}
+          />
         </div>
       );
     }

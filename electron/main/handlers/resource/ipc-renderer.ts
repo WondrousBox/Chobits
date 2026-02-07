@@ -77,6 +77,20 @@ export type ResourceIpcParams = {
   'resource:importLocalFiles': IpcParams<[{ workspaceId?: string; folderId?: string }], { canceled: boolean; success?: boolean }>;
   /** 导入本地文件夹（仅文件夹，支持多选） */
   'resource:importLocalFolders': IpcParams<[{ workspaceId?: string; folderId?: string }], { canceled: boolean; success?: boolean }>;
+  /** 保存截图：主进程创建/查找截图文件夹、写入文件、创建资源记录；渲染进程只传 data 与上下文 */
+  'resource:saveScreenshot': IpcParams<
+    [
+      {
+        data: ArrayBuffer;
+        workspaceId?: string;
+        folderId?: string | null;
+        parentResourceId: string;
+        currentTimeSeconds: number;
+        parentTitle?: string;
+      }
+    ],
+    { success: boolean; data?: Resource; error?: string }
+  >;
 };
 
 const methods: Array<keyof ResourceIpcParams> = [
@@ -101,7 +115,8 @@ const methods: Array<keyof ResourceIpcParams> = [
   'listResourcesByTag',
   'tags:backfill',
   'resource:importLocalFiles',
-  'resource:importLocalFolders'
+  'resource:importLocalFolders',
+  'resource:saveScreenshot'
 ];
 
 export type ResourceIpcType = {
