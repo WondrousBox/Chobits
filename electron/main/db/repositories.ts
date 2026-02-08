@@ -635,7 +635,7 @@ export const ResourcesRepo = {
     let changes = 0;
     (db as any).transaction((tx: any) => {
       // 先解除/删除所有引用待删 resource id 的数据，再删 resources，避免外键约束报错
-      // 资源是否不能被直接删除，因为有可能多个资源共用一个tag的，所以我认为资源tag不能和资源做强关联吧？
+      // FIXME: 资源是否不能被直接删除，因为有可能多个资源共用一个tag的，所以我认为资源tag不能和资源做强关联吧？
       tx.delete(resource_tags).where(inArray(resource_tags.resourceId, allIdsToDelete)).run?.();
       tx.update(documents).set({ sourceId: null }).where(inArray(documents.sourceId, allIdsToDelete)).run?.();
       tx.update(resources).set({ parentResourceId: null }).where(inArray(resources.parentResourceId, allIdsToDelete)).run?.();
