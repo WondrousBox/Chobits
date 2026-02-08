@@ -569,24 +569,17 @@ export const ResourcesRepo = {
     if (!ids.length) return 0;
     const db = getOrm();
 
-    // 0) 查找所有子资源（translation 和 summary 类型）并递归删除
-    const childResIds: string[] = [];
-    for (const parentId of ids) {
-      try {
-        const children = await this.listChildren(parentId, 1000, 0);
-        for (const child of children as any[]) {
-          // 只处理 translation、summary 和 mindmap 类型的子资源
-          if (child.type === 'translation' || child.type === 'summary' || child.type === 'mindmap') {
-            childResIds.push(child.id);
-          }
-        }
-      } catch (e) {
-        console.warn('[deleteByIds] 查找子资源失败:', e);
+    // 0) 递归找出所有“以待删资源为祖先”的子资源（不限类型，避免以后新增类型又无法删除）
+    const allIdsToDelete: string[] = [...ids];
+    let prevLength = 0;
+    while (prevLength !== allIdsToDelete.length) {
+      prevLength = allIdsToDelete.length;
+      const rows = await db.select({ id: resources.id }).from(resources).where(inArray(resources.parentResourceId, allIdsToDelete));
+      for (const r of rows as any[]) {
+        if (r?.id && !allIdsToDelete.includes(r.id)) allIdsToDelete.push(r.id);
       }
     }
-
-    // 合并所有要删除的资源 ID（父资源 + 子资源）
-    const allIdsToDelete = [...ids, ...childResIds];
+    const childResIds = allIdsToDelete.filter((id) => !ids.includes(id));
 
     // 1) 预取将要删除的资源行，收集文件/缩略图路径
     const toDeleteRows = await db.select().from(resources).where(inArray(resources.id, allIdsToDelete));
@@ -616,15 +609,44 @@ export const ResourcesRepo = {
       }
     }
 
-    // 3) 删除资源表与回收站索引（事务内）
+    // 3) 调试：查出引用待删除资源的相关数据并打印，便于决策
+    const refTags = await db.select().from(resource_tags).where(inArray(resource_tags.resourceId, allIdsToDelete));
+    const refDocs = await db.select({ id: documents.id, sourceId: documents.sourceId }).from(documents).where(inArray(documents.sourceId, allIdsToDelete));
+    const refParent = await db
+      .select({ id: resources.id, parentResourceId: resources.parentResourceId, title: resources.title })
+      .from(resources)
+      .where(inArray(resources.parentResourceId, allIdsToDelete));
+    const refRssByRss = await db
+      .select({ id: rss_feed_items.id, rssResourceId: rss_feed_items.rssResourceId, title: rss_feed_items.title })
+      .from(rss_feed_items)
+      .where(inArray(rss_feed_items.rssResourceId, allIdsToDelete));
+    const refRssByLocal = await db
+      .select({ id: rss_feed_items.id, localResourceId: rss_feed_items.localResourceId, title: rss_feed_items.title })
+      .from(rss_feed_items)
+      .where(inArray(rss_feed_items.localResourceId, allIdsToDelete));
+    console.log('[deleteByIds] 待删除资源 ID 列表:', allIdsToDelete);
+    console.log('[deleteByIds] 引用这些资源的 resource_tags 条数:', refTags.length, refTags.length ? refTags : '');
+    console.log('[deleteByIds] 引用这些资源 sourceId 的 documents 条数:', refDocs.length, refDocs.length ? refDocs : '');
+    console.log('[deleteByIds] 以这些资源为 parent 的 resources 条数:', refParent.length, refParent.length ? refParent : '');
+    console.log('[deleteByIds] 引用这些资源 rssResourceId 的 rss_feed_items 条数:', refRssByRss.length, refRssByRss.length ? refRssByRss : '');
+    console.log('[deleteByIds] 引用这些资源 localResourceId 的 rss_feed_items 条数:', refRssByLocal.length, refRssByLocal.length ? refRssByLocal : '');
+
+    // 4) 在事务内先解除/删除所有引用 resources 的数据，再删除资源与回收站索引（避免外键约束失败）
     let changes = 0;
     (db as any).transaction((tx: any) => {
+      // 先解除/删除所有引用待删 resource id 的数据，再删 resources，避免外键约束报错
+      // 资源是否不能被直接删除，因为有可能多个资源共用一个tag的，所以我认为资源tag不能和资源做强关联吧？
+      tx.delete(resource_tags).where(inArray(resource_tags.resourceId, allIdsToDelete)).run?.();
+      tx.update(documents).set({ sourceId: null }).where(inArray(documents.sourceId, allIdsToDelete)).run?.();
+      tx.update(resources).set({ parentResourceId: null }).where(inArray(resources.parentResourceId, allIdsToDelete)).run?.();
+      tx.delete(rss_feed_items).where(inArray(rss_feed_items.rssResourceId, allIdsToDelete)).run?.();
+      tx.update(rss_feed_items).set({ localResourceId: null }).where(inArray(rss_feed_items.localResourceId, allIdsToDelete)).run?.();
       const res = tx.delete(resources).where(inArray(resources.id, allIdsToDelete)).run?.();
       changes = (res as any)?.changes ?? 0;
       tx.delete(recycle_bin).where(inArray(recycle_bin.entityId, allIdsToDelete)).run?.();
     });
 
-    // 4) 尝试删除磁盘上的实际文件与缩略图（容错，不影响主流程）
+    // 5) 尝试删除磁盘上的实际文件与缩略图（容错，不影响主流程）
     const tryUnlink = async (p?: string): Promise<void> => {
       if (!p) return;
       try {
