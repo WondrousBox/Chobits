@@ -569,17 +569,36 @@ export const ResourcesRepo = {
     if (!ids.length) return 0;
     const db = getOrm();
 
-    // 0) 递归找出所有“以待删资源为祖先”的子资源（不限类型，避免以后新增类型又无法删除）
-    const allIdsToDelete: string[] = [...ids];
-    let prevLength = 0;
-    while (prevLength !== allIdsToDelete.length) {
-      prevLength = allIdsToDelete.length;
-      const rows = await db.select({ id: resources.id }).from(resources).where(inArray(resources.parentResourceId, allIdsToDelete));
-      for (const r of rows as any[]) {
-        if (r?.id && !allIdsToDelete.includes(r.id)) allIdsToDelete.push(r.id);
+    // 0) 查找所有子资源（translation、summary、mindmap 和 note 类型）并递归删除
+    const childResIds: string[] = [];
+    for (const parentId of ids) {
+      try {
+        const children = await this.listChildren(parentId, 1000, 0);
+        for (const child of children as any[]) {
+          // 只处理 translation、summary 和 mindmap 类型的子资源
+          if (child.type === 'translation' || child.type === 'summary' || child.type === 'mindmap' || child.type === 'note') {
+            childResIds.push(child.id);
+          }
+        }
+      } catch (e) {
+        console.warn('[deleteByIds] 查找子资源失败:', e);
       }
     }
-    const childResIds = allIdsToDelete.filter((id) => !ids.includes(id));
+
+    // 合并所有要删除的资源 ID（父资源 + 子资源）
+    const allIdsToDelete = [...ids, ...childResIds];
+
+    // // 0) 递归找出所有“以待删资源为祖先”的子资源（不限类型，避免以后新增类型又无法删除）
+    // const allIdsToDelete: string[] = [...ids];
+    // let prevLength = 0;
+    // while (prevLength !== allIdsToDelete.length) {
+    //   prevLength = allIdsToDelete.length;
+    //   const rows = await db.select({ id: resources.id }).from(resources).where(inArray(resources.parentResourceId, allIdsToDelete));
+    //   for (const r of rows as any[]) {
+    //     if (r?.id && !allIdsToDelete.includes(r.id)) allIdsToDelete.push(r.id);
+    //   }
+    // }
+    // const childResIds = allIdsToDelete.filter((id) => !ids.includes(id));
 
     // 1) 预取将要删除的资源行，收集文件/缩略图路径
     const toDeleteRows = await db.select().from(resources).where(inArray(resources.id, allIdsToDelete));
