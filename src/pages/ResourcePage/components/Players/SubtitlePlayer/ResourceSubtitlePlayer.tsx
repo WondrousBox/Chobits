@@ -1,7 +1,7 @@
 import { AimSegments, parser, tools, utils } from '@aim-packages/subtitle';
 import { debounce } from 'lodash-es';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbCrosshair, TbList, TbTimeline } from 'react-icons/tb';
+import { TbCrosshair, TbDownload, TbList, TbTimeline } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -9,6 +9,7 @@ import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 
 import type { ResourceItem } from '../../../types';
 import { MediaPlayerRef } from '../MediaPlayer/MediaPlayer';
+import { ExportDialog } from './ExportDialog';
 import { SubtitlePlayer } from './SubtitleListPlayer/SubtitlePlayer';
 import { aimTracksToTimelineTracks, formatSecondsToTime, indicesToIds, parseSegmentId, parseTimeToSeconds, SubtitleTimeline, TimelineSegment } from './SubtitleTimeline';
 import type { TTSAudioItem as TimelineTTSAudioItem } from './SubtitleTimeline/types';
@@ -74,6 +75,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     localStorage.setItem(SUBTITLE_VIEW_MODE_KEY, mode);
   }, []);
   const [followTime, setFollowTime] = useState<boolean>(followCurrentTime);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
   // 外部值变化时同步本地开关
   useEffect(() => {
@@ -956,6 +958,14 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
             onSynthesisStart={handleTTSSynthesisStart}
             onSynthesize={(config, options) => startSynthesis(config, options)}
           />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button className="h-8 w-8 p-0" variant="ghost" size="sm" onClick={() => setExportDialogOpen(true)} title="导出视频">
+                <TbDownload />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">导出</TooltipContent>
+          </Tooltip>
         </div>
       </div>
 
@@ -1011,6 +1021,23 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
           onTTSTimeChange={handleTTSTimeChange}
         />
       )}
+
+      {/* 导出对话框 */}
+      <ExportDialog
+        open={exportDialogOpen}
+        onOpenChange={setExportDialogOpen}
+        videoPath={audioPath}
+        audioPath={audioPath}
+        duration={mediaDuration || 0}
+        resourceId={resource.id}
+        workspaceId={resource.workspaceId}
+        folderId={resource.folderId}
+        subtitleEntries={subtitleEntries}
+        translationTracks={translationTracks}
+        translationTrackMeta={translationTrackMeta}
+        synthesizedItemsByTrack={synthesizedItemsByTrack}
+        ttsTrackLabels={ttsTrackLabelsForTimeline}
+      />
     </div>
   );
 };
