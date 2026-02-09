@@ -133,8 +133,8 @@ export interface ExportProgress {
 
 /** 导出请求参数（发送给主进程） */
 export interface ExportRequest {
-  /** 原视频文件路径 */
-  videoPath: string;
+  /** 资源ID（handler 端通过此 ID 查询数据库获取视频路径） */
+  resourceId: string;
   /** 总时长（秒） */
   duration: number;
   /** 导出配置 */
@@ -143,11 +143,9 @@ export interface ExportRequest {
   subtitleTracks: ExportSubtitleTrack[];
   /** TTS音频轨道数据 */
   ttsAudioTracks: ExportTTSAudioTrack[];
-  /** 资源ID（用于临时文件路径） */
-  resourceId: string;
-  /** 工作区ID（用于临时文件路径） */
+  /** 工作区ID */
   workspaceId?: string;
-  /** 文件夹ID（用于临时文件路径） */
+  /** 文件夹ID */
   folderId?: string;
 }
 
