@@ -9,6 +9,7 @@ import { app } from 'electron';
 import ffmpeg from 'fluent-ffmpeg';
 
 import { AIRemoveBackground } from './ai-remove-background';
+import { executeExport } from './export-video';
 
 // ESM-safe __dirname/__filename
 const __filename = fileURLToPath(import.meta.url);
@@ -343,4 +344,17 @@ export function initFFmpegHandlers(win: BrowserWindow): void {
       });
     }
   );
+
+  /**
+   * 导出视频：合并视频+字幕+TTS音频
+   */
+  ipcMain.handle('exportVideo', async (_evt, arg: any) => {
+    try {
+      return await executeExport(win, arg);
+    } catch (err: any) {
+      // 确保错误信息能通过 IPC 完整传递给渲染进程
+      console.error('[ipc-exportVideo] 导出失败:', err?.message || err);
+      throw new Error(err?.message || String(err) || '导出视频失败');
+    }
+  });
 }
