@@ -295,12 +295,11 @@ export function ExportDialog({
         });
 
       const exportRequest: ExportRequest = {
-        videoPath: videoPath || audioPath || '',
+        resourceId,
         duration,
         config,
         subtitleTracks,
         ttsAudioTracks,
-        resourceId,
         workspaceId,
         folderId
       };

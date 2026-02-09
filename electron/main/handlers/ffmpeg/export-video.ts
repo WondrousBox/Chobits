@@ -26,6 +26,8 @@ import { fileURLToPath } from 'node:url';
 import type { BrowserWindow } from 'electron';
 import ffmpeg from 'fluent-ffmpeg';
 
+import { ResourcesRepo } from '../../db/repositories';
+
 // ---------- 类型定义（与渲染进程共享） ----------
 
 interface ExportConfig {
@@ -63,12 +65,11 @@ interface ExportTTSSegment {
 }
 
 interface ExportRequest {
-  videoPath: string;
+  resourceId: string;
   duration: number;
   config: ExportConfig;
   subtitleTracks: ExportSubtitleTrack[];
   ttsAudioTracks: ExportTTSAudioTrack[];
-  resourceId: string;
   workspaceId?: string;
   folderId?: string;
 }
@@ -165,7 +166,7 @@ function runFfmpegCommand(args: string[], label?: string): Promise<string> {
 /**
  * 使用 ffprobe 获取媒体信息
  */
-function getMediaInfo(inputPath: string): Promise<{ duration: number; width?: number; height?: number; hasAudio: boolean }> {
+function getMediaInfo(inputPath: string): Promise<{ duration: number; width?: number; height?: number; hasAudio: boolean; hasVideo: boolean }> {
   return new Promise((resolve, reject) => {
     ffmpeg.setFfprobePath(ffprobePath);
     ffmpeg.ffprobe(inputPath, (err, metadata) => {
@@ -173,14 +174,16 @@ function getMediaInfo(inputPath: string): Promise<{ duration: number; width?: nu
         reject(err);
         return;
       }
-      const duration = metadata.format.duration || 0;
+      const rawDuration = metadata.format.duration;
+      const duration = typeof rawDuration === 'number' && isFinite(rawDuration) ? rawDuration : 0;
       const videoStream = metadata.streams.find((s) => s.codec_type === 'video');
       const audioStream = metadata.streams.find((s) => s.codec_type === 'audio');
       resolve({
         duration,
         width: videoStream?.width,
         height: videoStream?.height,
-        hasAudio: !!audioStream
+        hasAudio: !!audioStream,
+        hasVideo: !!videoStream
       });
     });
   });
@@ -247,8 +250,10 @@ async function processTTSSegment(segment: ExportTTSSegment, tempDir: string): Pr
  * Step 3: 将多个TTS片段拼接为完整时长的音频轨
  * 在片段之间填充静音，使最终音频时长 = duration
  *
- * 实现方式：使用 ffmpeg 的 adelay + amix 方式
- * 更可靠的方式：先生成总时长静音轨，再把每个片段 overlay 上去
+ * 实现方式：生成总时长静音底轨，然后在单次 filter_complex 中
+ * 使用 adelay 将每个片段定位到正确时间位置，最终通过 amix 一次性混合。
+ * 关键：amix 的 inputs 数量等于所有输入数（底轨+片段），并用 volume 滤镜
+ * 补偿 amix 的自动归一化（amix 会把每路音量除以 inputs 数）。
  */
 async function buildTTSAudioTrack(track: ExportTTSAudioTrack, duration: number, tempDir: string, trackIndex: number): Promise<string> {
   const segments = track.segments.filter((s) => s.startTime >= 0 && s.endTime > s.startTime);
@@ -266,19 +271,20 @@ async function buildTTSAudioTrack(track: ExportTTSAudioTrack, duration: number, 
     processedSegments.push({ path: processed, startTime: seg.startTime, endTime: seg.endTime });
   }
 
-  // Step 3b: 使用 ffmpeg 的 filter_complex 将所有片段定位到正确时间位置
-  // 先生成一条静音底轨，再用 overlay (amix) 叠加各片段
-  const silentBasePath = path.join(tempDir, `tts_track_${trackIndex}_base.wav`);
-  await runFfmpegCommand(['-y', '-f', 'lavfi', '-i', `anullsrc=r=44100:cl=mono`, '-t', duration.toFixed(3), '-ar', '44100', '-ac', '1', silentBasePath], `silent-base-${trackIndex}`);
+  // Step 3b: 使用单次 filter_complex 将所有片段定位并混合
+  // 避免逐个 amix 导致的音量衰减问题
+  const outputPath = path.join(tempDir, `tts_track_${trackIndex}_mixed.wav`);
 
-  // 如果只有一个片段，直接 overlay
+  // 如果只有一个片段，简单处理
   if (processedSegments.length === 1) {
     const seg = processedSegments[0];
-    const outputPath = path.join(tempDir, `tts_track_${trackIndex}_mixed.wav`);
+    const silentBasePath = path.join(tempDir, `tts_track_${trackIndex}_base.wav`);
+    await runFfmpegCommand(['-y', '-f', 'lavfi', '-i', `anullsrc=r=44100:cl=mono`, '-t', duration.toFixed(3), '-ar', '44100', '-ac', '1', silentBasePath], `silent-base-${trackIndex}`);
+
     const delayMs = Math.round(seg.startTime * 1000);
     const slotDuration = seg.endTime - seg.startTime;
 
-    // adelay 将片段延迟到正确位置，atrim 截取槽位时长
+    // adelay 将片段延迟到正确位置，使用 volume=2 补偿 amix 的归一化
     await runFfmpegCommand([
       '-y',
       '-i',
@@ -286,7 +292,7 @@ async function buildTTSAudioTrack(track: ExportTTSAudioTrack, duration: number, 
       '-i',
       seg.path,
       '-filter_complex',
-      `[1:a]atrim=0:${slotDuration.toFixed(3)},apad=whole_dur=${slotDuration.toFixed(3)},adelay=${delayMs}|${delayMs}[delayed];[0:a][delayed]amix=inputs=2:duration=first:dropout_transition=0[out]`,
+      `[1:a]atrim=0:${slotDuration.toFixed(3)},apad=whole_dur=${slotDuration.toFixed(3)},adelay=${delayMs}|${delayMs},volume=2[delayed];[0:a][delayed]amix=inputs=2:duration=first:dropout_transition=0[out]`,
       '-map',
       '[out]',
       '-ar',
@@ -298,43 +304,50 @@ async function buildTTSAudioTrack(track: ExportTTSAudioTrack, duration: number, 
     return outputPath;
   }
 
-  // 多个片段：逐个叠加
-  let currentBase = silentBasePath;
-  for (let i = 0; i < processedSegments.length; i++) {
-    const seg = processedSegments[i];
-    const outputPath = path.join(tempDir, `tts_track_${trackIndex}_step_${i}.wav`);
-    const delayMs = Math.round(seg.startTime * 1000);
-    const slotDuration = seg.endTime - seg.startTime;
+  // 多个片段：在单次 filter_complex 中一次性混合所有片段
+  // 构建输入参数：input 0 = 静音底轨，input 1..N = 各片段
+  const args: string[] = ['-y'];
 
-    await runFfmpegCommand([
-      '-y',
-      '-i',
-      currentBase,
-      '-i',
-      seg.path,
-      '-filter_complex',
-      `[1:a]atrim=0:${slotDuration.toFixed(3)},apad=whole_dur=${slotDuration.toFixed(3)},adelay=${delayMs}|${delayMs}[delayed];[0:a][delayed]amix=inputs=2:duration=first:dropout_transition=0[out]`,
-      '-map',
-      '[out]',
-      '-ar',
-      '44100',
-      '-ac',
-      '1',
-      outputPath
-    ]);
-
-    // 清理上一步中间文件（保留原始静音底轨和最终结果）
-    if (currentBase !== silentBasePath && fs.existsSync(currentBase)) {
-      try {
-        fs.unlinkSync(currentBase);
-      } catch {
-        /* ignore */
-      }
-    }
-    currentBase = outputPath;
+  // 输入0：静音底轨（使用 lavfi）
+  args.push('-f', 'lavfi', '-i', `anullsrc=r=44100:cl=mono`);
+  // 输入1..N：各片段
+  for (const seg of processedSegments) {
+    args.push('-i', seg.path);
   }
 
-  return currentBase;
+  // 构建 filter_complex
+  const filterParts: string[] = [];
+  // 底轨：截取到总时长
+  filterParts.push(`[0:a]atrim=0:${duration.toFixed(3)},asetpts=PTS-STARTPTS[base]`);
+
+  const mixLabels: string[] = ['[base]'];
+  const totalInputs = processedSegments.length + 1; // base + N segments
+
+  for (let i = 0; i < processedSegments.length; i++) {
+    const seg = processedSegments[i];
+    const delayMs = Math.round(seg.startTime * 1000);
+    const slotDuration = seg.endTime - seg.startTime;
+    const label = `s${i}`;
+
+    // 每个片段：截取槽位时长 → 补齐时长 → 延迟到正确位置 → 音量补偿
+    // amix 会把每路除以 inputs 数，所以补偿为 volume=totalInputs
+    const filterStr = `[${i + 1}:a]atrim=0:${slotDuration.toFixed(3)},apad=whole_dur=${slotDuration.toFixed(3)},adelay=${delayMs}|${delayMs},volume=${totalInputs}[${label}]`;
+    filterParts.push(filterStr);
+    mixLabels.push(`[${label}]`);
+  }
+
+  // amix 一次性混合所有输入
+  filterParts.push(`${mixLabels.join('')}amix=inputs=${totalInputs}:duration=first:dropout_transition=0[out]`);
+
+  args.push('-filter_complex', filterParts.join(';'));
+  args.push('-map', '[out]');
+  args.push('-ar', '44100', '-ac', '1');
+  args.push('-t', duration.toFixed(3));
+  args.push(outputPath);
+
+  await runFfmpegCommand(args, `tts-mix-track-${trackIndex}`);
+
+  return outputPath;
 }
 
 /**
@@ -346,20 +359,23 @@ async function buildTTSAudioTrack(track: ExportTTSAudioTrack, duration: number, 
  * - 硬字幕(ASS) + 缩放：filter chain = scale→pad→ass
  * - 软字幕：添加为额外的字幕流（在所有 -i 之后追加）
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+
 async function encodeOutput(
   win: BrowserWindow,
   request: ExportRequest,
+  videoPath: string,
+  hasOriginalAudio: boolean,
   subtitleFiles: { srtPaths: string[]; assPaths: string[] },
   ttsAudioPaths: string[],
   _tempDir: string,
   outputPath: string
 ): Promise<void> {
-  const { videoPath, config, duration } = request;
+  const { config, duration } = request;
 
   console.log('[export-encode] 开始构建编码命令');
   console.log('[export-encode] 输入:', videoPath);
   console.log('[export-encode] 输出:', outputPath);
+  console.log('[export-encode] 原始音频:', hasOriginalAudio);
   console.log('[export-encode] 配置:', JSON.stringify(config));
   console.log('[export-encode] TTS音轨数:', ttsAudioPaths.length);
   console.log('[export-encode] 字幕文件:', JSON.stringify(subtitleFiles));
@@ -406,15 +422,26 @@ async function encodeOutput(
       filterParts.push(`[0:v]${videoFilterStr}[vout]`);
     }
 
-    // 音频混合：原音频(0:a?) + 所有 TTS 音轨
-    const audioLabels: string[] = [];
-    // 使用 anullsrc 作为 fallback 以防原视频无音频
-    // 直接引用 0:a；如果原视频无音频，后面会处理
-    audioLabels.push('[0:a]');
-    for (let i = 0; i < ttsAudioPaths.length; i++) {
-      audioLabels.push(`[${i + 1}:a]`);
+    // 音频混合：根据原视频是否有音频决定混合策略
+    if (hasOriginalAudio) {
+      // 有原始音频：原音频 + 所有 TTS 音轨混合
+      const audioLabels: string[] = [];
+      audioLabels.push('[0:a]');
+      for (let i = 0; i < ttsAudioPaths.length; i++) {
+        audioLabels.push(`[${i + 1}:a]`);
+      }
+      filterParts.push(`${audioLabels.join('')}amix=inputs=${audioLabels.length}:duration=longest:dropout_transition=0[aout]`);
+    } else if (ttsAudioPaths.length === 1) {
+      // 无原始音频 + 单个 TTS 音轨：直接使用
+      filterParts.push(`[1:a]acopy[aout]`);
+    } else {
+      // 无原始音频 + 多个 TTS 音轨：只混合 TTS
+      const audioLabels: string[] = [];
+      for (let i = 0; i < ttsAudioPaths.length; i++) {
+        audioLabels.push(`[${i + 1}:a]`);
+      }
+      filterParts.push(`${audioLabels.join('')}amix=inputs=${audioLabels.length}:duration=longest:dropout_transition=0[aout]`);
     }
-    filterParts.push(`${audioLabels.join('')}amix=inputs=${audioLabels.length}:duration=longest:dropout_transition=0[aout]`);
 
     args.push('-filter_complex', filterParts.join(';'));
     args.push('-map', videoFilterStr ? '[vout]' : '0:v');
@@ -480,10 +507,63 @@ async function encodeOutput(
  * Phase 2: 合并轨道为最终视频文件
  */
 export async function executeExport(win: BrowserWindow, request: ExportRequest): Promise<string> {
-  const { videoPath, duration, config, subtitleTracks, ttsAudioTracks, resourceId } = request;
+  const { duration, config, subtitleTracks, ttsAudioTracks, resourceId } = request;
+
+  // 通过 resourceId 从数据库获取资源信息，逐级查找视频/音频文件路径
+  const resource = await ResourcesRepo.getById(resourceId);
+  if (!resource) {
+    throw new Error(`资源不存在: ${resourceId}`);
+  }
+
+  // 判断文件是否为视频/音频格式
+  const isMediaFile = (filePath: string): boolean => {
+    const ext = path.extname(filePath).toLowerCase();
+    const mediaExts = ['.mp4', '.mkv', '.webm', '.avi', '.mov', '.flv', '.wmv', '.m4v', '.ogv', '.mp3', '.wav', '.m4a', '.flac', '.opus', '.ogg', '.aac'];
+    return mediaExts.includes(ext);
+  };
+
+  let videoPath = resource.filePath;
+
+  // 如果当前资源的文件不是视频/音频（如字幕文件），则通过 parentResourceId 向上查找
+  if (videoPath && !isMediaFile(videoPath) && resource.parentResourceId) {
+    console.log(`[export] 当前资源文件非视频/音频 (${videoPath})，尝试从父资源获取...`);
+    const parentResource = await ResourcesRepo.getById(resource.parentResourceId);
+    if (parentResource?.filePath && isMediaFile(parentResource.filePath)) {
+      videoPath = parentResource.filePath;
+      console.log(`[export] 从父资源获取到视频路径: ${videoPath}`);
+    } else if (parentResource?.parentResourceId) {
+      // 再往上查一级（如 字幕 → 音频 → 视频）
+      const grandParent = await ResourcesRepo.getById(parentResource.parentResourceId);
+      if (grandParent?.filePath && isMediaFile(grandParent.filePath)) {
+        videoPath = grandParent.filePath;
+        console.log(`[export] 从祖父资源获取到视频路径: ${videoPath}`);
+      }
+    }
+  }
+
+  // 如果仍然没有找到视频路径，尝试在同目录下搜索视频文件
+  if (!videoPath || !isMediaFile(videoPath)) {
+    const resourceFilePath = resource.filePath;
+    if (resourceFilePath) {
+      const dir = path.dirname(resourceFilePath);
+      if (fs.existsSync(dir)) {
+        const files = fs.readdirSync(dir);
+        const videoFile = files.find((f) => isMediaFile(f) && !f.startsWith('.'));
+        if (videoFile) {
+          videoPath = path.join(dir, videoFile);
+          console.log(`[export] 从同目录找到视频文件: ${videoPath}`);
+        }
+      }
+    }
+  }
+
+  if (!videoPath) {
+    throw new Error(`无法找到资源关联的视频/音频文件: ${resourceId}`);
+  }
 
   console.log('[export] ========== 开始导出 ==========');
-  console.log('[export] videoPath:', videoPath);
+  console.log('[export] resourceId:', resourceId);
+  console.log('[export] videoPath (resolved):', videoPath);
   console.log('[export] duration:', duration);
   console.log('[export] 字幕轨数:', subtitleTracks.length);
   console.log('[export] TTS音轨数:', ttsAudioTracks.length);
@@ -624,7 +704,7 @@ export async function executeExport(win: BrowserWindow, request: ExportRequest):
 
       const mergedFileName = `output.${config.container}`;
       const mergedPath = path.join(exportDir, mergedFileName);
-      await encodeOutput(win, request, subtitleFileMap, ttsExportPaths, tempDir, mergedPath);
+      await encodeOutput(win, request, videoPath, mediaInfo.hasAudio, subtitleFileMap, ttsExportPaths, tempDir, mergedPath);
 
       exportedFiles.push({ label: `合并视频.${config.container}`, fileName: mergedFileName, filePath: mergedPath, type: 'video' });
 
