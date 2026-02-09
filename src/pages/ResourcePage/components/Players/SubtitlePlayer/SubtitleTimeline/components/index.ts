@@ -1,3 +1,6 @@
+export { ClipSegmentBlock } from './ClipSegmentBlock';
+export { ClipTrack } from './ClipTrack';
+export { ClipTrackLabel } from './ClipTrackLabel';
 export { SeekBar } from './SeekBar';
 export { TimelineSegmentBlock } from './TimelineSegmentBlock';
 export { TimelineTrackView } from './TimelineTrackView';

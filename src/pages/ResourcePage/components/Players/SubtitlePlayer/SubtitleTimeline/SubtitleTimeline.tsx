@@ -5,10 +5,10 @@ import { TbMinus, TbPlus, TbWaveSine } from 'react-icons/tb';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 
-import { SeekBar, TimelineTrackView, TimeRuler, TrackLabel, TTSAudioTrack, TTSTrackLabel, WaveformTrack } from './components';
+import { ClipTrack, ClipTrackLabel, SeekBar, TimelineTrackView, TimeRuler, TrackLabel, TTSAudioTrack, TTSTrackLabel, WaveformTrack } from './components';
 import { useTimelineInteraction } from './hooks';
 import type { TimelineSegment } from './types';
-import { DEFAULT_CONFIG, SubtitleTimelineProps, TRACK_COLORS, ViewportState } from './types';
+import { ClipTool, DEFAULT_CONFIG, SubtitleTimelineProps, TRACK_COLORS, ViewportState } from './types';
 import { parseSegmentId } from './utils';
 
 const audioWaveformHeight = 40;
@@ -58,7 +58,11 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   onAddSegment,
   onDeleteSegment,
   onSeek,
-  onViewportChange
+  onViewportChange,
+  showClipTrack = false,
+  clipTrack: clipTrackData,
+  clipTool: propClipTool = 'select',
+  clipCallbacks
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -73,8 +77,9 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   const [selectedTTS, setSelectedTTS] = useState<{ trackId: string; index: number } | null>(null);
   // 本地 mock 播放时间（用于没有音视频时的“假 seek”）
   const [mockCurrentTime, setMockCurrentTime] = useState(0);
+  const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
+  const [internalClipTool, setInternalClipTool] = useState<ClipTool>(propClipTool);
 
-  // 记录初始的 pixelsPerSecond 作为滑块的最小值（使用普通常量而不是 ref）
   const initialPixelsPerSecondValue = initialViewport?.pixelsPerSecond ?? DEFAULT_CONFIG.DEFAULT_PIXELS_PER_SECOND;
 
   // 缩放级别（每秒像素数）
@@ -248,9 +253,10 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
       ...handlers,
       onMouseDown: (e: React.MouseEvent) => {
         const target = e.target as HTMLElement;
-        if (!target.closest('[data-segment]') && !target.closest('[data-tts-block]')) {
+        if (!target.closest('[data-segment]') && !target.closest('[data-tts-block]') && !target.closest('[data-clip-block]')) {
           setSelectedSegmentId(null);
           setSelectedTTS(null);
+          setSelectedClipId(null);
         }
         handlers.onMouseDown(e);
       }
@@ -262,11 +268,18 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   useEffect(() => {
     const hasSubtitleTarget = onDeleteSegment && selectedSegmentId;
     const hasTTSTarget = onDeleteTTSSegment && selectedTTS;
-    if (!hasSubtitleTarget && !hasTTSTarget) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const hasClipTarget = clipCallbacks?.onClipDelete && selectedClipId;
+    if (!hasSubtitleTarget && !hasTTSTarget && !hasClipTarget) return;
+    const handleKeyDown = (e: KeyboardEvent): void => {
       if (e.key !== 'Delete' && e.key !== 'Backspace') return;
       const target = document.activeElement as HTMLElement | null;
       if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') return;
+      if (hasClipTarget && selectedClipId) {
+        e.preventDefault();
+        clipCallbacks?.onClipDelete?.(selectedClipId);
+        setSelectedClipId(null);
+        return;
+      }
       if (hasSubtitleTarget && selectedSegmentId) {
         const parsed = parseSegmentId(selectedSegmentId);
         if (!parsed) return;
@@ -287,7 +300,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onDeleteSegment, selectedSegmentId, tracksWithColors, onDeleteTTSSegment, selectedTTS]);
+  }, [onDeleteSegment, selectedSegmentId, tracksWithColors, onDeleteTTSSegment, selectedTTS, clipCallbacks, selectedClipId]);
 
   // 监听容器尺寸变化
   useEffect(() => {
@@ -510,6 +523,10 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                 );
               })}
 
+            {showClipTrack && clipTrackData && (
+              <ClipTrackLabel activeTool={internalClipTool} onToolChange={clipCallbacks?.onClipToolChange ?? setInternalClipTool} clipCount={clipTrackData.clips.length} />
+            )}
+
             <div className="flex items-center justify-center hover:bg-accent/50 cursor-pointer" style={{ height: 40 }}>
               <TbPlus />
             </div>
@@ -630,6 +647,28 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                   </React.Fragment>
                 );
               })}
+
+            {showClipTrack && clipTrackData && (
+              <ClipTrack
+                clips={clipTrackData.clips}
+                sourceDuration={clipTrackData.sourceDuration}
+                pixelsPerSecond={pixelsPerSecond}
+                width={totalWidth}
+                currentTime={effectiveCurrentTime}
+                activeTool={internalClipTool}
+                selectedClipId={selectedClipId}
+                onCut={clipCallbacks?.onClipCut}
+                onDelete={clipCallbacks?.onClipDelete}
+                onReorder={clipCallbacks?.onClipReorder}
+                onSpeedChange={clipCallbacks?.onClipSpeedChange}
+                onToggleDisabled={clipCallbacks?.onClipToggleDisabled}
+                onClipSelect={(id: string) => {
+                  setSelectedSegmentId(null);
+                  setSelectedTTS(null);
+                  setSelectedClipId(id);
+                }}
+              />
+            )}
           </div>
         </div>
       </div>

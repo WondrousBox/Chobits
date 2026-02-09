@@ -1,7 +1,7 @@
 import { AimSegments, parser, tools, utils } from '@aim-packages/subtitle';
 import { debounce } from 'lodash-es';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbCrosshair, TbDownload, TbList, TbTimeline } from 'react-icons/tb';
+import { TbCrosshair, TbDownload, TbList, TbScissors, TbTimeline } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -11,8 +11,8 @@ import type { ResourceItem } from '../../../types';
 import { MediaPlayerRef } from '../MediaPlayer/MediaPlayer';
 import { ExportDialog } from './ExportDialog';
 import { SubtitlePlayer } from './SubtitleListPlayer/SubtitlePlayer';
-import { aimTracksToTimelineTracks, formatSecondsToTime, indicesToIds, parseSegmentId, parseTimeToSeconds, SubtitleTimeline, TimelineSegment } from './SubtitleTimeline';
-import type { TTSAudioItem as TimelineTTSAudioItem } from './SubtitleTimeline/types';
+import { aimTracksToTimelineTracks, ClipSequence, formatSecondsToTime, indicesToIds, parseSegmentId, parseTimeToSeconds, SubtitleTimeline, TimelineSegment } from './SubtitleTimeline';
+import type { ClipSegment, ClipTrackCallbacks, ClipTrackData, TTSAudioItem as TimelineTTSAudioItem } from './SubtitleTimeline/types';
 import { SubtitleTranslator } from './SubtitleTranslator';
 import type { TTSTrackOption } from './TTSSynthesizer';
 import { TTSSynthesizer } from './TTSSynthesizer';
@@ -76,6 +76,10 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
   }, []);
   const [followTime, setFollowTime] = useState<boolean>(followCurrentTime);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
+
+  // ---- 剪辑轨道状态 ----
+  const [showClipTrack, setShowClipTrack] = useState(false);
+  const [clipSegments, setClipSegments] = useState<ClipSegment[]>([]);
 
   // 外部值变化时同步本地开关
   useEffect(() => {
@@ -915,6 +919,54 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     [updateTTSSegmentTimes]
   );
 
+  // ---- 剪辑轨道 ----
+
+  /** 切换剪辑轨道显示。首次开启时自动生成一个覆盖整段媒体的初始片段 */
+  const handleToggleClipTrack = useCallback(() => {
+    setShowClipTrack((prev) => {
+      if (!prev && clipSegments.length === 0 && mediaDuration && mediaDuration > 0) {
+        setClipSegments(ClipSequence.createInitial(mediaDuration));
+      }
+      return !prev;
+    });
+  }, [clipSegments.length, mediaDuration]);
+
+  /** 剪辑轨道数据（传给 SubtitleTimeline） */
+  const clipTrackData = useMemo((): ClipTrackData | undefined => {
+    if (!showClipTrack || clipSegments.length === 0) return undefined;
+    return {
+      id: 'clip-track-main',
+      label: '剪辑',
+      clips: clipSegments,
+      sourceDuration: mediaDuration || 0
+    };
+  }, [showClipTrack, clipSegments, mediaDuration]);
+
+  /** 剪辑轨道回调集合 */
+  const clipCallbacks = useMemo(
+    (): ClipTrackCallbacks => ({
+      onClipCut: (time: number) => {
+        setClipSegments((prev) => ClipSequence.cutAtTime(prev, time));
+      },
+      onClipDelete: (clipId: string) => {
+        setClipSegments((prev) => ClipSequence.deleteClip(prev, clipId));
+      },
+      onClipReorder: (orderedIds: string[]) => {
+        setClipSegments((prev) => ClipSequence.reorderByIds(prev, orderedIds));
+      },
+      onClipSpeedChange: (clipId: string, rate: number) => {
+        setClipSegments((prev) => ClipSequence.changeSpeed(prev, clipId, rate));
+      },
+      onClipToggleDisabled: (clipId: string) => {
+        setClipSegments((prev) => ClipSequence.toggleDisabled(prev, clipId));
+      },
+      onClipLabelChange: (clipId: string, label: string) => {
+        setClipSegments((prev) => ClipSequence.changeLabel(prev, clipId, label));
+      }
+    }),
+    []
+  );
+
   return (
     <div className="flex h-full w-full flex-col text-muted-foreground">
       <div className="flex items-center justify-between gap-2 border-b border-border/50 px-2">
@@ -939,6 +991,16 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
             </TooltipTrigger>
             <TooltipContent side="bottom">跟随滚动</TooltipContent>
           </Tooltip>
+          {viewMode === 'timeline' && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button className="h-8 w-8 p-0" variant={showClipTrack ? 'default' : 'ghost'} size="sm" onClick={handleToggleClipTrack}>
+                  <TbScissors />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">{showClipTrack ? '隐藏剪辑轨道' : '显示剪辑轨道'}</TooltipContent>
+            </Tooltip>
+          )}
           <SubtitleTranslator
             subtitleEntries={subtitleEntries}
             resourceId={resource.id}
@@ -1019,6 +1081,9 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
           onDeleteTTSTrack={handleDeleteTTSTrack}
           onDeleteTTSSegment={handleDeleteTTSSegment}
           onTTSTimeChange={handleTTSTimeChange}
+          showClipTrack={showClipTrack}
+          clipTrack={clipTrackData}
+          clipCallbacks={clipCallbacks}
         />
       )}
 

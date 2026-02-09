@@ -74,9 +74,9 @@ export function useTimelineInteraction({ disabled = false, onZoom, onPan, pixelT
       // 只响应左键或中键
       if (e.button !== 0 && e.button !== 1) return;
 
-      // 如果点击的是片段或 TTS 块，不处理拖拽
+      // 如果点击的是片段、TTS 块或剪辑块，不处理拖拽
       const target = e.target as HTMLElement;
-      if (target.closest('[data-segment]') || target.closest('[data-tts-block]')) return;
+      if (target.closest('[data-segment]') || target.closest('[data-tts-block]') || target.closest('[data-clip-block]') || target.closest('[data-clip-track]')) return;
 
       setIsDragging(true);
       dragStartRef.current = { x: e.clientX, y: e.clientY };
@@ -113,7 +113,7 @@ export function useTimelineInteraction({ disabled = false, onZoom, onPan, pixelT
         if (dx < 3 && dy < 3) {
           // 这是一个点击，触发 seek
           const target = e.target as HTMLElement;
-          if (!target.closest('[data-segment]') && pixelToTime && onSeek) {
+          if (!target.closest('[data-segment]') && !target.closest('[data-clip-block]') && !target.closest('[data-clip-track]') && pixelToTime && onSeek) {
             const scrollContainer = e.currentTarget as HTMLElement;
             const rect = scrollContainer.getBoundingClientRect();
             // 考虑滚动位置：视口内的点击位置 + 滚动偏移量
