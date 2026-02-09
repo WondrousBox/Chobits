@@ -173,6 +173,16 @@ export interface SubtitleTimelineProps extends TimelineCallbacks {
   onDeleteTTSSegment?: (trackId: string, index: number) => void;
   /** TTS 块时间变更回调（拖拽移动或边缘调整后） */
   onTTSTimeChange?: (trackId: string, index: number, newStartTime: number, newEndTime: number) => void;
+
+  // ---- 剪辑轨道 Props ----
+  /** 是否显示剪辑轨道 */
+  showClipTrack?: boolean;
+  /** 剪辑轨道数据 */
+  clipTrack?: ClipTrackData;
+  /** 当前激活的剪辑工具 */
+  clipTool?: ClipTool;
+  /** 剪辑轨道回调 */
+  clipCallbacks?: ClipTrackCallbacks;
 }
 
 /**
@@ -198,7 +208,9 @@ export const DEFAULT_CONFIG = {
   /** 片段圆角 */
   SEGMENT_BORDER_RADIUS: 4,
   /** 缩放步进 */
-  ZOOM_STEP: 1.2
+  ZOOM_STEP: 1.2,
+  /** 剪辑轨道高度 */
+  CLIP_TRACK_HEIGHT: 48
 } as const;
 
 /**
@@ -212,3 +224,69 @@ export const TRACK_COLORS = [
   'hsl(340, 75%, 55%)', // 粉色
   'hsl(180, 60%, 50%)' // 青色
 ] as const;
+
+// ========== 剪辑轨道相关类型 ==========
+
+/**
+ * 剪辑片段 — 引用原始视频/音频的一个时间范围
+ *
+ * 每个 ClipSegment 代表用户从源媒体中"剪"出来的一段。
+ * 多个 ClipSegment 按 order 排列后构成最终的播放序列。
+ */
+export interface ClipSegment {
+  /** 唯一标识 */
+  id: string;
+  /** 原始媒体中的开始时间（秒） */
+  sourceStart: number;
+  /** 原始媒体中的结束时间（秒） */
+  sourceEnd: number;
+  /** 在剪辑序列中的排列顺序（从 0 开始，值越小越靠前） */
+  order: number;
+  /** 播放速率 (1.0 = 正常, 0.5 = 慢放, 2.0 = 快放) */
+  playbackRate: number;
+  /** 是否静音 */
+  muted?: boolean;
+  /** 用户自定义标签 / 备注 */
+  label?: string;
+  /** 是否被禁用（跳过播放） */
+  disabled?: boolean;
+}
+
+/**
+ * 剪辑轨道
+ */
+export interface ClipTrackData {
+  /** 轨道 ID */
+  id: string;
+  /** 轨道显示名称 */
+  label: string;
+  /** 剪辑片段列表 */
+  clips: ClipSegment[];
+  /** 原始媒体总时长（秒） */
+  sourceDuration: number;
+}
+
+/**
+ * 剪辑轨道当前激活的工具
+ */
+export type ClipTool = 'select' | 'cut';
+
+/**
+ * 剪辑轨道回调
+ */
+export interface ClipTrackCallbacks {
+  /** 在某个时间点切割（裁剪工具点击时） */
+  onClipCut?: (time: number) => void;
+  /** 删除某个剪辑片段 */
+  onClipDelete?: (clipId: string) => void;
+  /** 片段排序变更（拖拽排序完成后）- 传入新的排序后的 id 列表 */
+  onClipReorder?: (orderedClipIds: string[]) => void;
+  /** 片段播放速率变更 */
+  onClipSpeedChange?: (clipId: string, playbackRate: number) => void;
+  /** 片段启用/禁用切换 */
+  onClipToggleDisabled?: (clipId: string) => void;
+  /** 片段标签/备注变更 */
+  onClipLabelChange?: (clipId: string, label: string) => void;
+  /** 切割工具切换 */
+  onClipToolChange?: (tool: ClipTool) => void;
+}
