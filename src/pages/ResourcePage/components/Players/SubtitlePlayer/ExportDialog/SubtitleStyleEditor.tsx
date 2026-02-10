@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Slider } from '@/components/ui/slider';
 
-import type { SubtitleAlign, SubtitleBorderStyle, SubtitleFontName, SubtitleStyleConfig } from './types';
+import type { SubtitleBorderStyle, SubtitleFontName, SubtitleStyleConfig } from './types';
 
 interface SubtitleStyleEditorProps {
   /** 字幕样式配置 */
@@ -41,23 +41,52 @@ const FONT_OPTIONS: { label: string; value: SubtitleFontName }[] = [
   { label: 'Impact', value: 'Impact' }
 ];
 
-/** 描边样式选项 */
+/** 描边样式选项 (ASS BorderStyle) */
 const BORDER_STYLE_OPTIONS: { label: string; value: SubtitleBorderStyle }[] = [
   { label: '边框 + 阴影', value: '1' },
-  { label: '底部描边', value: '3' },
-  { label: '描色边框', value: '4' }
+  { label: '不透明底框', value: '3' }
 ];
 
-/** 对齐方式选项 */
-const ALIGN_OPTIONS: { label: string; value: SubtitleAlign }[] = [
-  { label: '左对齐', value: 'left' },
-  { label: '居中', value: 'center' },
-  { label: '右对齐', value: 'right' }
+/** 对齐方式选项 (ASS Alignment numpad 底行) */
+const ALIGN_OPTIONS: { label: string; value: '1' | '2' | '3' }[] = [
+  { label: '左对齐', value: '1' },
+  { label: '居中', value: '2' },
+  { label: '右对齐', value: '3' }
 ];
 
 /**
+ * 将 ASS &HBBGGRR 颜色转为 CSS #RRGGBB
+ */
+function assColorToCssHex(assColor: string): string {
+  const hex = assColor.replace('&H', '').replace('&', '');
+  if (hex.length === 6) {
+    return `#${hex.slice(4, 6)}${hex.slice(2, 4)}${hex.slice(0, 2)}`;
+  }
+  if (hex.length === 8) {
+    return `#${hex.slice(6, 8)}${hex.slice(4, 6)}${hex.slice(2, 4)}`;
+  }
+  return assColor;
+}
+
+/**
+ * 将 ASS &HAABBGGRR BackColour 转为 CSS backgroundColor + opacity
+ * ASS alpha: 00=不透明, FF=透明
+ */
+function assBackColorToDisplay(assColor: string): { cssColor: string; opacity: number } {
+  const hex = assColor.replace('&H', '').replace('&', '');
+  if (hex.length >= 8) {
+    const assAlpha = parseInt(hex.slice(0, 2), 16);
+    const bb = hex.slice(2, 4);
+    const gg = hex.slice(4, 6);
+    const rr = hex.slice(6, 8);
+    return { cssColor: `#${rr}${gg}${bb}`, opacity: (255 - assAlpha) / 255 };
+  }
+  return { cssColor: '#000000', opacity: 1 };
+}
+
+/**
  * 字幕样式编辑器
- * 提供字体、颜色、位置等样式设置
+ * 提供字体、颜色、位置等样式设置，完全对应 ASS Style 字段
  */
 export const SubtitleStyleEditor: React.FC<SubtitleStyleEditorProps> = ({ style, onChange, disabled }) => {
   const updateStyle = useCallback(
@@ -132,7 +161,7 @@ export const SubtitleStyleEditor: React.FC<SubtitleStyleEditorProps> = ({ style,
           <span>颜色设置</span>
         </div>
 
-        {/* 主颜色 */}
+        {/* 主颜色 (ASS PrimaryColour) */}
         <div className="space-y-2">
           <Label className="text-xs">文字颜色</Label>
           <div className="flex flex-wrap gap-1.5">
@@ -142,13 +171,13 @@ export const SubtitleStyleEditor: React.FC<SubtitleStyleEditorProps> = ({ style,
                 onClick={() => updateStyle('primaryColor', color.value)}
                 disabled={disabled}
                 className={`w-7 h-7 rounded border-2 transition-all ${style.primaryColor === color.value ? 'border-primary scale-110' : 'border-transparent hover:scale-105'}`}
-                style={{ backgroundColor: color.value.replace('&H', '#').substring(0, 7) }}
+                style={{ backgroundColor: assColorToCssHex(color.value) }}
                 title={color.name}
               />
             ))}
             <input
               type="color"
-              value={style.primaryColor.replace('&H', '#').substring(0, 7)}
+              value={assColorToCssHex(style.primaryColor)}
               onChange={(e) => updateStyle('primaryColor', `&H${e.target.value.slice(5, 7)}${e.target.value.slice(3, 5)}${e.target.value.slice(1, 3)}`)}
               disabled={disabled}
               className="w-7 h-7 p-0.5 rounded border border-border cursor-pointer"
@@ -157,24 +186,24 @@ export const SubtitleStyleEditor: React.FC<SubtitleStyleEditorProps> = ({ style,
           </div>
         </div>
 
-        {/* 描边颜色 */}
+        {/* 描边颜色 (ASS OutlineColour) */}
         <div className="space-y-2">
           <Label className="text-xs">描边颜色</Label>
           <div className="flex flex-wrap gap-1.5">
             {COLOR_PRESETS.map((color) => (
               <button
                 key={color.value}
-                onClick={() => updateStyle('secondaryColor', color.value)}
+                onClick={() => updateStyle('outlineColor', color.value)}
                 disabled={disabled}
-                className={`w-7 h-7 rounded border-2 transition-all ${style.secondaryColor === color.value ? 'border-primary scale-110' : 'border-transparent hover:scale-105'}`}
-                style={{ backgroundColor: color.value.replace('&H', '#').substring(0, 7) }}
+                className={`w-7 h-7 rounded border-2 transition-all ${style.outlineColor === color.value ? 'border-primary scale-110' : 'border-transparent hover:scale-105'}`}
+                style={{ backgroundColor: assColorToCssHex(color.value) }}
                 title={color.name}
               />
             ))}
             <input
               type="color"
-              value={style.secondaryColor.replace('&H', '#').substring(0, 7)}
-              onChange={(e) => updateStyle('secondaryColor', `&H${e.target.value.slice(5, 7)}${e.target.value.slice(3, 5)}${e.target.value.slice(1, 3)}`)}
+              value={assColorToCssHex(style.outlineColor)}
+              onChange={(e) => updateStyle('outlineColor', `&H${e.target.value.slice(5, 7)}${e.target.value.slice(3, 5)}${e.target.value.slice(1, 3)}`)}
               disabled={disabled}
               className="w-7 h-7 p-0.5 rounded border border-border cursor-pointer"
               title="自定义颜色"
@@ -253,13 +282,13 @@ export const SubtitleStyleEditor: React.FC<SubtitleStyleEditorProps> = ({ style,
           </div>
         </div>
 
-        {/* 垂直位置 */}
+        {/* 垂直位置 (ASS MarginV, px) */}
         <div className="space-y-1">
           <div className="flex items-center justify-between">
-            <Label className="text-xs">垂直位置</Label>
-            <span className="text-xs text-muted-foreground">{style.marginV}%</span>
+            <Label className="text-xs">垂直边距</Label>
+            <span className="text-xs text-muted-foreground">{style.marginV}px</span>
           </div>
-          <Slider min={0} max={50} step={1} value={[style.marginV]} onValueChange={([v]) => updateStyle('marginV', v)} disabled={disabled} />
+          <Slider min={0} max={200} step={1} value={[style.marginV]} onValueChange={([v]) => updateStyle('marginV', v)} disabled={disabled} />
         </div>
       </div>
 
@@ -271,41 +300,43 @@ export const SubtitleStyleEditor: React.FC<SubtitleStyleEditorProps> = ({ style,
           <span className="text-xs">背景</span>
         </div>
 
-        {/* 背景颜色 */}
+        {/* 背景颜色 (ASS BackColour, &HAABBGGRR, AA: 00=不透明, FF=透明) */}
         <div className="space-y-2">
           <Label className="text-xs">背景颜色</Label>
           <div className="flex flex-wrap gap-1.5">
             {[
-              { name: '透明', value: '&H00000000' },
+              { name: '透明', value: '&HFF000000' },
               { name: '黑色半透明', value: '&H80000000' },
               { name: '白色半透明', value: '&H80FFFFFF' },
-              { name: '黑色', value: '&HFF000000' }
-            ].map((color) => (
-              <button
-                key={color.value}
-                onClick={() => updateStyle('backColor', color.value)}
-                disabled={disabled}
-                className={`w-7 h-7 rounded border-2 transition-all ${style.backColor === color.value ? 'border-primary scale-110' : 'border-transparent hover:scale-105'} relative overflow-hidden`}
-                title={color.name}
-              >
-                <div
-                  className="absolute inset-0"
-                  style={{
-                    backgroundColor: color.value.replace('&H', '#').substring(0, 7),
-                    opacity: parseInt(color.value.slice(2, 4), 16) / 255
-                  }}
-                />
-              </button>
-            ))}
+              { name: '黑色不透明', value: '&H00000000' }
+            ].map((color) => {
+              const display = assBackColorToDisplay(color.value);
+              return (
+                <button
+                  key={color.value}
+                  onClick={() => updateStyle('backColor', color.value)}
+                  disabled={disabled}
+                  className={`w-7 h-7 rounded border-2 transition-all ${style.backColor === color.value ? 'border-primary scale-110' : 'border-transparent hover:scale-105'} relative overflow-hidden`}
+                  title={color.name}
+                >
+                  <div
+                    className="absolute inset-0"
+                    style={{
+                      backgroundColor: display.cssColor,
+                      opacity: display.opacity
+                    }}
+                  />
+                </button>
+              );
+            })}
             <input
               type="color"
-              value={style.backColor.replace('&H', '#').substring(0, 7)}
+              value={assBackColorToDisplay(style.backColor).cssColor}
               onChange={(e) => {
                 const hex = e.target.value;
-                const alpha = Math.round(style.backOpacity * 255)
-                  .toString(16)
-                  .padStart(2, '0')
-                  .toUpperCase();
+                // 保留当前 alpha
+                const currentHex = style.backColor.replace('&H', '').replace('&', '');
+                const alpha = currentHex.length >= 8 ? currentHex.slice(0, 2) : '00';
                 updateStyle('backColor', `&H${alpha}${hex.slice(5, 7)}${hex.slice(3, 5)}${hex.slice(1, 3)}`);
               }}
               disabled={disabled}
@@ -313,15 +344,6 @@ export const SubtitleStyleEditor: React.FC<SubtitleStyleEditorProps> = ({ style,
               title="自定义颜色"
             />
           </div>
-        </div>
-
-        {/* 背景不透明度 */}
-        <div className="space-y-1">
-          <div className="flex items-center justify-between">
-            <Label className="text-xs">背景不透明度</Label>
-            <span className="text-xs text-muted-foreground">{Math.round(style.backOpacity * 100)}%</span>
-          </div>
-          <Slider min={0} max={1} step={0.05} value={[style.backOpacity]} onValueChange={([v]) => updateStyle('backOpacity', v)} disabled={disabled} />
         </div>
       </div>
     </div>
