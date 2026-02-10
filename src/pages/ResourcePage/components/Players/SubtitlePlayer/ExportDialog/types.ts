@@ -27,40 +27,44 @@ export type SubtitleEmbedMode = 'hardcode' | 'softcode' | 'external';
 /** 字幕字体名称 */
 export type SubtitleFontName = 'Arial' | 'Microsoft YaHei' | 'SimHei' | 'SimSun' | 'KaiTi' | 'FangSong' | 'NSimSun' | 'Impact';
 
-/** 字幕文字对齐方式 */
-export type SubtitleAlign = 'left' | 'center' | 'right';
+/** 字幕对齐方式 (ASS Alignment, numpad 底行: 1=左, 2=中, 3=右) */
+export type SubtitleAlign = '1' | '2' | '3';
 
-/** 字幕描边样式 */
-export type SubtitleBorderStyle = '1' | '3' | '4'; // 1=边框+阴影, 3=底部描边, 4=描边边框
+/** 字幕描边样式 (ASS BorderStyle: 1=Outline+Shadow, 3=Opaque box) */
+export type SubtitleBorderStyle = '1' | '3';
 
-/** 字幕样式配置 */
+/**
+ * 字幕样式配置
+ * 字段对应 ASS Style 行:
+ * Style: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour,
+ *        BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing,
+ *        Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+ */
 export interface SubtitleStyleConfig {
-  /** 字体名称 */
+  /** Fontname */
   fontName: SubtitleFontName;
-  /** 字体大小 (px) */
+  /** Fontsize (px) */
   fontSize: number;
-  /** 主颜色 (Hex) */
+  /** PrimaryColour — 文字填充色 (ASS: &HBBGGRR) */
   primaryColor: string;
-  /** 次要颜色/描边颜色 (Hex) */
-  secondaryColor: string;
-  /** 描边样式 */
+  /** OutlineColour — 描边颜色 (ASS: &HBBGGRR) */
+  outlineColor: string;
+  /** BorderStyle (1=Outline+Shadow, 3=Opaque box) */
   borderStyle: SubtitleBorderStyle;
-  /** 描边宽度 */
+  /** Outline — 描边宽度 (px) */
   outlineWidth: number;
-  /** 阴影深度 */
+  /** Shadow — 阴影深度 (px) */
   shadowDepth: number;
-  /** 垂直位置 (屏幕底部百分比, 0-100) */
+  /** MarginV — 垂直边距 (px) */
   marginV: number;
-  /** 文字对齐 */
+  /** Alignment (ASS numpad: 1=左下, 2=中下, 3=右下) */
   alignment: SubtitleAlign;
-  /** 是否加粗 */
+  /** Bold (-1=true, 0=false) */
   bold: boolean;
-  /** 是否 italic */
+  /** Italic (-1=true, 0=false) */
   italic: boolean;
-  /** 背景颜色 (Hex) 空字符串表示透明 */
+  /** BackColour — 背景/阴影颜色 (ASS: &HAABBGGRR, AA: 00=不透明, FF=透明) */
   backColor: string;
-  /** 背景不透明度 (0-1) */
-  backOpacity: number;
 }
 
 /** 视频编码格式 */
@@ -232,16 +236,15 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyleConfig = {
   fontName: 'Microsoft YaHei',
   fontSize: 48,
   primaryColor: '&HFFFFFF',
-  secondaryColor: '&H000000',
+  outlineColor: '&H000000',
   borderStyle: '1',
   outlineWidth: 2,
   shadowDepth: 1,
-  marginV: 10,
-  alignment: 'center',
+  marginV: 30,
+  alignment: '2',
   bold: true,
   italic: false,
-  backColor: '&H80000000',
-  backOpacity: 0.5
+  backColor: '&H80000000'
 };
 
 /** 默认导出配置 */

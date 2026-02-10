@@ -24,14 +24,7 @@ interface VideoPreviewProps {
  * 视频预览组件
  * 用于在导出对话框中预览视频和字幕效果
  */
-export const VideoPreview: React.FC<VideoPreviewProps> = ({
-  videoPath,
-  subtitleSegments,
-  subtitleStyle,
-  currentTime: externalCurrentTime,
-  onTimeUpdate,
-  onDurationChange
-}) => {
+export const VideoPreview: React.FC<VideoPreviewProps> = ({ videoPath, subtitleSegments, subtitleStyle, currentTime: externalCurrentTime, onTimeUpdate, onDurationChange }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -45,17 +38,17 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({
 
   // 将 ASS 颜色格式转换为 CSS 颜色
   const assColorToCss = useCallback((assColor: string): string => {
-    // ASS 格式: &HAABBGGRR (BGR)
-    // CSS 格式: #RRGGBB
+    // ASS &HBBGGRR (6 hex) 或 &HAABBGGRR (8 hex)
     const hex = assColor.replace('&H', '').replace('&', '');
-    if (hex.length !== 8) return assColor;
-
-    const bb = hex.slice(0, 2);
-    const gg = hex.slice(2, 4);
-    const rr = hex.slice(4, 6);
-    // alpha = hex.slice(6, 8); // 忽略 alpha
-
-    return `#${rr}${gg}${bb}`;
+    if (hex.length === 6) {
+      // &HBBGGRR → #RRGGBB
+      return `#${hex.slice(4, 6)}${hex.slice(2, 4)}${hex.slice(0, 2)}`;
+    }
+    if (hex.length === 8) {
+      // &HAABBGGRR → #RRGGBB (ignore alpha)
+      return `#${hex.slice(6, 8)}${hex.slice(4, 6)}${hex.slice(2, 4)}`;
+    }
+    return assColor;
   }, []);
 
   // 获取当前应该显示的字幕
@@ -71,39 +64,40 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({
   // 生成字幕样式
   const subtitleStyleCss = useMemo(() => {
     const primaryColor = assColorToCss(subtitleStyle.primaryColor);
-    const secondaryColor = assColorToCss(subtitleStyle.secondaryColor);
+    const outlineColor = assColorToCss(subtitleStyle.outlineColor);
 
     let textShadow = '';
     if (subtitleStyle.borderStyle === '1') {
-      // 边框 + 阴影
+      // BorderStyle 1: Outline + Drop Shadow
       textShadow = `
-        ${-subtitleStyle.outlineWidth}px ${-subtitleStyle.outlineWidth}px 0 ${secondaryColor},
-        ${subtitleStyle.outlineWidth}px ${-subtitleStyle.outlineWidth}px 0 ${secondaryColor},
-        ${-subtitleStyle.outlineWidth}px ${subtitleStyle.outlineWidth}px 0 ${secondaryColor},
-        ${subtitleStyle.outlineWidth}px ${subtitleStyle.outlineWidth}px 0 ${secondaryColor},
+        ${-subtitleStyle.outlineWidth}px ${-subtitleStyle.outlineWidth}px 0 ${outlineColor},
+        ${subtitleStyle.outlineWidth}px ${-subtitleStyle.outlineWidth}px 0 ${outlineColor},
+        ${-subtitleStyle.outlineWidth}px ${subtitleStyle.outlineWidth}px 0 ${outlineColor},
+        ${subtitleStyle.outlineWidth}px ${subtitleStyle.outlineWidth}px 0 ${outlineColor},
         0 ${subtitleStyle.shadowDepth * 2}px ${subtitleStyle.shadowDepth * 2}px rgba(0,0,0,0.5)
       `;
     } else if (subtitleStyle.borderStyle === '3') {
-      // 底部描边
-      textShadow = `0 ${subtitleStyle.outlineWidth}px 0 ${secondaryColor}`;
-    } else if (subtitleStyle.borderStyle === '4') {
-      // 描色边框
-      textShadow = `
-        ${-subtitleStyle.outlineWidth}px 0 ${secondaryColor},
-        ${subtitleStyle.outlineWidth}px 0 ${secondaryColor},
-        0 ${-subtitleStyle.outlineWidth}px ${secondaryColor},
-        0 ${subtitleStyle.outlineWidth}px ${secondaryColor}
-      `;
+      // BorderStyle 3: Opaque box (simulate with background)
+      textShadow = 'none';
     }
 
-    const textAlign = subtitleStyle.alignment === 'left' ? 'left' : subtitleStyle.alignment === 'right' ? 'right' : 'center';
+    // ASS Alignment numpad bottom row: 1=left, 2=center, 3=right
+    const textAlign = subtitleStyle.alignment === '1' ? 'left' : subtitleStyle.alignment === '3' ? 'right' : 'center';
 
     let backgroundColor = '';
-    if (subtitleStyle.backColor && subtitleStyle.backColor !== '&H00000000') {
-      const bgColor = assColorToCss(subtitleStyle.backColor);
-      backgroundColor = `${bgColor.substring(0, 7)}${Math.round(subtitleStyle.backOpacity * 255)
-        .toString(16)
-        .padStart(2, '0')}`;
+    if (subtitleStyle.backColor) {
+      const backHex = subtitleStyle.backColor.replace('&H', '').replace('&', '');
+      if (backHex.length >= 8) {
+        const assAlpha = parseInt(backHex.slice(0, 2), 16);
+        // ASS alpha: 00=opaque, FF=transparent → CSS alpha: FF=opaque, 00=transparent
+        const cssAlpha = 255 - assAlpha;
+        if (cssAlpha > 0) {
+          const rr = backHex.slice(6, 8);
+          const gg = backHex.slice(4, 6);
+          const bb = backHex.slice(2, 4);
+          backgroundColor = `#${rr}${gg}${bb}${cssAlpha.toString(16).padStart(2, '0')}`;
+        }
+      }
     }
 
     return {
@@ -117,10 +111,10 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({
       backgroundColor,
       padding: backgroundColor ? '4px 12px' : '0',
       borderRadius: backgroundColor ? '4px' : '0',
-      bottom: `${subtitleStyle.marginV}%`,
-      left: subtitleStyle.alignment === 'center' ? '50%' : subtitleStyle.alignment === 'left' ? '10%' : undefined,
-      right: subtitleStyle.alignment === 'right' ? '10%' : undefined,
-      transform: subtitleStyle.alignment === 'center' ? 'translateX(-50%)' : undefined
+      bottom: `${subtitleStyle.marginV}px`,
+      left: subtitleStyle.alignment === '2' ? '50%' : subtitleStyle.alignment === '1' ? '10%' : undefined,
+      right: subtitleStyle.alignment === '3' ? '10%' : undefined,
+      transform: subtitleStyle.alignment === '2' ? 'translateX(-50%)' : undefined
     };
   }, [subtitleStyle, assColorToCss]);
 
@@ -181,14 +175,17 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({
   }, []);
 
   // 跳转
-  const handleSeek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const percent = x / rect.width;
-    if (videoRef.current && duration > 0) {
-      videoRef.current.currentTime = percent * duration;
-    }
-  }, [duration]);
+  const handleSeek = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const percent = x / rect.width;
+      if (videoRef.current && duration > 0) {
+        videoRef.current.currentTime = percent * duration;
+      }
+    },
+    [duration]
+  );
 
   // 鼠标悬停显示控制栏
   const handleMouseEnter = useCallback(() => {
@@ -238,9 +235,7 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({
       {videoSrc ? (
         <video ref={videoRef} src={videoSrc} className="w-full h-full object-contain" />
       ) : (
-        <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
-          无视频预览
-        </div>
+        <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">无视频预览</div>
       )}
 
       {/* 字幕叠加层 */}
@@ -254,24 +249,14 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({
       {(showHoverControls || !isPlaying) && (
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
           {/* 进度条 */}
-          <div
-            className="h-1 bg-white/30 rounded-full cursor-pointer mb-2 hover:h-1.5 transition-all"
-            onClick={handleSeek}
-          >
-            <div
-              className="h-full bg-white rounded-full"
-              style={{ width: duration > 0 ? `${(effectiveCurrentTime / duration) * 100}%` : '0%' }}
-            />
+          <div className="h-1 bg-white/30 rounded-full cursor-pointer mb-2 hover:h-1.5 transition-all" onClick={handleSeek}>
+            <div className="h-full bg-white rounded-full" style={{ width: duration > 0 ? `${(effectiveCurrentTime / duration) * 100}%` : '0%' }} />
           </div>
 
           {/* 控制按钮 */}
           <div className="flex items-center justify-between text-white text-xs">
             <div className="flex items-center gap-2">
-              <button
-                onClick={togglePlay}
-                className="p-1 hover:bg-white/20 rounded transition-colors"
-                title={isPlaying ? '暂停' : '播放'}
-              >
+              <button onClick={togglePlay} className="p-1 hover:bg-white/20 rounded transition-colors" title={isPlaying ? '暂停' : '播放'}>
                 {isPlaying ? (
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
@@ -293,10 +278,7 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({
       {/* 播放中隐藏控制栏时显示小进度点 */}
       {isPlaying && !showHoverControls && duration > 0 && (
         <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/30">
-          <div
-            className="h-full bg-white"
-            style={{ width: `${(effectiveCurrentTime / duration) * 100}%` }}
-          />
+          <div className="h-full bg-white" style={{ width: `${(effectiveCurrentTime / duration) * 100}%` }} />
         </div>
       )}
     </div>

@@ -23,7 +23,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import type { BrowserWindow } from 'electron';
+import { BrowserWindow } from 'electron';
 import ffmpeg from 'fluent-ffmpeg';
 
 import { ResourcesRepo } from '../../db/repositories';
@@ -111,7 +111,16 @@ const ffprobePath = path.join(__dirname2, '../../resources/ffmpeg', process.plat
  * 发送导出进度给渲染进程
  */
 function sendProgress(win: BrowserWindow, progress: ExportProgress): void {
-  win.webContents.send('export-progress', progress);
+  // 发送消息到渲染进程
+  BrowserWindow.getAllWindows().forEach((w) => {
+    if (!w.isDestroyed()) {
+      try {
+        w.webContents.send('export-progress', progress);
+      } catch (error) {
+        console.error(`发送TTS消息失败:`, error);
+      }
+    }
+  });
 }
 
 /**
@@ -130,6 +139,33 @@ function escapeFilterPath(p: string): string {
     .replace(/'/g, "'\\''") // 转义单引号: ' → '\''
     .replace(/:/g, '\\:'); // 转义冒号（Windows 盘符 C: 等）
   return `'${escaped}'`;
+}
+
+/**
+ * 将 filter_complex 内容写入临时脚本文件，返回文件路径。
+ * FFmpeg 通过 -filter_complex_script <file> 读取，避免命令行过长。
+ */
+let filterScriptCounter = 0;
+function writeFilterScript(filterStr: string, tempDir: string, label: string): string {
+  filterScriptCounter++;
+  const scriptPath = path.join(tempDir, `filter_script_${label}_${filterScriptCounter}.txt`);
+  fs.writeFileSync(scriptPath, filterStr, 'utf-8');
+  console.log(`[export-ffmpeg] 写入 filter_complex_script: ${scriptPath} (${filterStr.length} chars)`);
+  return scriptPath;
+}
+
+/**
+ * 删除临时的 filter_complex_script 文件（安全忽略错误）
+ */
+function removeFilterScript(scriptPath: string): void {
+  try {
+    if (fs.existsSync(scriptPath)) {
+      fs.unlinkSync(scriptPath);
+      console.log(`[export-ffmpeg] 已删除 filter script: ${scriptPath}`);
+    }
+  } catch {
+    console.warn(`[export-ffmpeg] 删除 filter script 失败: ${scriptPath}`);
+  }
 }
 
 /**
@@ -285,22 +321,13 @@ async function buildTTSAudioTrack(track: ExportTTSAudioTrack, duration: number, 
     const slotDuration = seg.endTime - seg.startTime;
 
     // adelay 将片段延迟到正确位置，使用 volume=2 补偿 amix 的归一化
-    await runFfmpegCommand([
-      '-y',
-      '-i',
-      silentBasePath,
-      '-i',
-      seg.path,
-      '-filter_complex',
-      `[1:a]atrim=0:${slotDuration.toFixed(3)},apad=whole_dur=${slotDuration.toFixed(3)},adelay=${delayMs}|${delayMs},volume=2[delayed];[0:a][delayed]amix=inputs=2:duration=first:dropout_transition=0[out]`,
-      '-map',
-      '[out]',
-      '-ar',
-      '44100',
-      '-ac',
-      '1',
-      outputPath
-    ]);
+    const filterStr = `[1:a]atrim=0:${slotDuration.toFixed(3)},apad=whole_dur=${slotDuration.toFixed(3)},adelay=${delayMs}|${delayMs},volume=2[delayed];[0:a][delayed]amix=inputs=2:duration=first:dropout_transition=0[out]`;
+    const scriptPath = writeFilterScript(filterStr, tempDir, `tts-single-${trackIndex}`);
+    try {
+      await runFfmpegCommand(['-y', '-i', silentBasePath, '-i', seg.path, '-filter_complex_script', scriptPath, '-map', '[out]', '-ar', '44100', '-ac', '1', outputPath]);
+    } finally {
+      removeFilterScript(scriptPath);
+    }
     return outputPath;
   }
 
@@ -339,13 +366,18 @@ async function buildTTSAudioTrack(track: ExportTTSAudioTrack, duration: number, 
   // amix 一次性混合所有输入
   filterParts.push(`${mixLabels.join('')}amix=inputs=${totalInputs}:duration=first:dropout_transition=0[out]`);
 
-  args.push('-filter_complex', filterParts.join(';'));
+  const scriptPath = writeFilterScript(filterParts.join(';'), tempDir, `tts-mix-${trackIndex}`);
+  args.push('-filter_complex_script', scriptPath);
   args.push('-map', '[out]');
   args.push('-ar', '44100', '-ac', '1');
   args.push('-t', duration.toFixed(3));
   args.push(outputPath);
 
-  await runFfmpegCommand(args, `tts-mix-track-${trackIndex}`);
+  try {
+    await runFfmpegCommand(args, `tts-mix-track-${trackIndex}`);
+  } finally {
+    removeFilterScript(scriptPath);
+  }
 
   return outputPath;
 }
@@ -367,7 +399,7 @@ async function encodeOutput(
   hasOriginalAudio: boolean,
   subtitleFiles: { srtPaths: string[]; assPaths: string[] },
   ttsAudioPaths: string[],
-  _tempDir: string,
+  tempDir: string,
   outputPath: string
 ): Promise<void> {
   const { config, duration } = request;
@@ -443,7 +475,8 @@ async function encodeOutput(
       filterParts.push(`${audioLabels.join('')}amix=inputs=${audioLabels.length}:duration=longest:dropout_transition=0[aout]`);
     }
 
-    args.push('-filter_complex', filterParts.join(';'));
+    const filterScriptPath = writeFilterScript(filterParts.join(';'), tempDir, 'encode');
+    args.push('-filter_complex_script', filterScriptPath);
     args.push('-map', videoFilterStr ? '[vout]' : '0:v');
     args.push('-map', '[aout]');
   } else {
@@ -493,7 +526,16 @@ async function encodeOutput(
 
   console.log('[export-encode] 最终命令参数:', JSON.stringify(args));
 
-  await runFfmpegCommand(args, 'encode');
+  // 查找 filter_complex_script 路径以便编码后清理
+  const scriptIdx = args.indexOf('-filter_complex_script');
+  const encodeScriptPath = scriptIdx >= 0 ? args[scriptIdx + 1] : null;
+  try {
+    await runFfmpegCommand(args, 'encode');
+  } finally {
+    if (encodeScriptPath) {
+      removeFilterScript(encodeScriptPath);
+    }
+  }
 }
 
 /**
