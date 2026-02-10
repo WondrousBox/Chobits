@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbExternalLink, TbFolderFilled, TbFolderOpen, TbFolderPlus, TbLine, TbPencil, TbRefresh, TbSettings, TbTrash } from 'react-icons/tb';
+import { TbExternalLink, TbFolderFilled, TbFolderOpen, TbFolderPlus, TbLine, TbLoader2, TbMusic, TbPencil, TbRefresh, TbSettings, TbTrash } from 'react-icons/tb';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -7,11 +7,13 @@ import { Button } from '@/components/ui/button';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { runWorkflow } from '@/lib/workflow-runner';
 
 import { useResourceTaskStatus } from '../hooks/useResourceTaskStatus';
 import { ResourceItem } from '../types';
+import { isAudioFile } from '../utils/resourceProtocol';
 import { ResourceItemWithSubtitles } from '../utils/subtitleUtils';
 import type { UIFolder } from './FolderSidebar';
 import ResourceGalleryItem from './ResourceGalleryItem';
@@ -58,12 +60,13 @@ const GridFolderTile: React.FC<{
             <div
               data-explorer-folder
               onContextMenu={(e) => e.stopPropagation()}
-              className={`group relative aspect-video w-full overflow-hidden rounded-md border bg-card text-card-foreground shadow-sm transition-all cursor-pointer select-none ${over
+              className={`group relative aspect-video w-full overflow-hidden rounded-md border bg-card text-card-foreground shadow-sm transition-all cursor-pointer select-none ${
+                over
                   ? overInvalid
                     ? 'ring-2 ring-destructive border-destructive/50 bg-destructive/10'
                     : 'ring-2 ring-primary border-primary/50 bg-primary/5'
                   : 'hover:shadow-md hover:border-primary/30'
-                } bg-gradient-to-br from-background to-muted flex items-center justify-center`}
+              } bg-gradient-to-br from-background to-muted flex items-center justify-center`}
               onClick={() => onOpen?.()}
               draggable
               onDragStart={(e: any) => {
@@ -247,6 +250,13 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
   // 内部选择状态（用于非受控模式）
   const [internalSelected, setInternalSelected] = useState<Set<string>>(new Set());
   const [anchorIndex, setAnchorIndex] = useState<number | null>(null);
+
+  // Spleeter 对话框状态
+  const [spleeterDialogOpen, setSpleeterDialogOpen] = useState(false);
+  const [spleeterProgress, setSpleeterProgress] = useState(0);
+  const [spleeterStatus, setSpleeterStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
+  const [spleeterResult, setSpleeterResult] = useState<{ accompaniment: string; vocals: string } | null>(null);
+  const [spleeterError, setSpleeterError] = useState<string | null>(null);
 
   // 使用受控模式（如果提供了 props）或非受控模式
   const selected = selectedItemsProp ?? internalSelected;
@@ -478,6 +488,85 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
     }
   }, [folderId, workspaceId, onFolderCreated]);
 
+  // Spleeter 音频分离处理
+  const handleSpleeterSeparate = useCallback(async () => {
+    console.log('[Spleeter] Starting audio separation...');
+
+    if (!firstSelectedItem?.filePath) {
+      console.error('[Spleeter] No file path');
+      toast.error('无法执行音频分离', { description: '没有文件路径' });
+      return;
+    }
+
+    console.log('[Spleeter] Selected item:', firstSelectedItem);
+    console.log('[Spleeter] File path:', firstSelectedItem.filePath);
+
+    if (!isAudioFile(firstSelectedItem.filePath)) {
+      console.error('[Spleeter] Not an audio file:', firstSelectedItem.filePath);
+      toast.error('无法执行音频分离', { description: '仅支持音频文件' });
+      return;
+    }
+
+    console.log('[Spleeter] Is audio file: true');
+    setSpleeterStatus('processing');
+    setSpleeterProgress(0);
+    setSpleeterResult(null);
+    setSpleeterError(null);
+    setSpleeterDialogOpen(true);
+
+    try {
+      console.log('[Spleeter] Checking if Spleeter is installed...');
+      // 检查 Spleeter 是否已安装
+      const checkResult = await (window as any).YUA?.spleeter?.isInstalled();
+      console.log('[Spleeter] Installation check result:', checkResult);
+
+      if (!checkResult?.installed) {
+        console.error('[Spleeter] Spleeter is not installed');
+        setSpleeterStatus('error');
+        setSpleeterError('Spleeter 未安装，请先在插件管理中安装 Spleeter');
+        return;
+      }
+
+      console.log('[Spleeter] Spleeter is installed');
+      console.log('[Spleeter] Executing audio separation...');
+      // 执行音频分离
+      const unsubscribe = (window as any).YUA?.spleeter?.onProgress?.(({ progress }: { progress: number }) => {
+        console.log('[Spleeter] Progress update:', progress.toFixed(2), '%');
+        setSpleeterProgress(progress);
+      });
+
+      const result = await (window as any).YUA?.spleeter?.separate({
+        inputFile: firstSelectedItem.filePath
+      });
+
+      console.log('[Spleeter] Separate result:', result);
+      unsubscribe?.();
+
+      if (result) {
+        console.log('[Spleeter] Success, result:', result);
+        setSpleeterStatus('success');
+        setSpleeterResult(result);
+        toast.success('音频分离成功', { description: '伴奏和人声已生成' });
+        // 刷新资源列表
+        onFolderCreated?.();
+      }
+    } catch (error: any) {
+      console.error('[Spleeter] Error during separation:', error);
+      console.error('[Spleeter] Error stack:', error?.stack);
+      setSpleeterStatus('error');
+      setSpleeterError(error?.message || '未知错误');
+      toast.error('音频分离失败', { description: error?.message });
+    }
+  }, [firstSelectedItem, onFolderCreated]);
+
+  const handleSpleeterDialogClose = useCallback(() => {
+    setSpleeterDialogOpen(false);
+    setSpleeterProgress(0);
+    setSpleeterStatus('idle');
+    setSpleeterResult(null);
+    setSpleeterError(null);
+  }, []);
+
   // Folder DnD helpers
   const parentMap = useMemo(() => {
     const map = new Map<string, string | null>();
@@ -493,7 +582,7 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
       .then((defs: any[]) => {
         setWorkflows(defs || []);
       })
-      .catch(() => { });
+      .catch(() => {});
   }, []);
 
   // 获取工作流的开始节点输入模式
@@ -817,6 +906,16 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
                 })()}
               </ContextMenuSubContent>
             </ContextMenuSub>
+            {/* Spleeter 音频分离 - 仅对单个音频文件显示 */}
+            {selectedCount === 1 && firstSelectedItem?.filePath && isAudioFile(firstSelectedItem.filePath) && (
+              <>
+                <ContextMenuSeparator />
+                <ContextMenuItem onSelect={handleSpleeterSeparate}>
+                  <TbMusic className="mr-2 w-4 h-4" />
+                  音频背景分离…
+                </ContextMenuItem>
+              </>
+            )}
             <ContextMenuSeparator />
             <ContextMenuItem
               onSelect={() => {
@@ -949,6 +1048,68 @@ export const ExplorerGrid: React.FC<ExplorerGridProps> = ({
             <Button size="sm" className="w-20" onClick={handleRenameConfirm} disabled={!renameValue.trim()}>
               确定
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Spleeter 音频分离对话框 */}
+      <Dialog open={spleeterDialogOpen} onOpenChange={setSpleeterDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <TbMusic className="w-5 h-5" />
+              音频背景分离
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            {spleeterStatus === 'processing' ? (
+              <div className="flex flex-col items-center gap-4">
+                <TbLoader2 className="w-12 h-12 text-primary animate-spin" />
+                <div className="text-center">
+                  <div className="text-sm font-medium">正在处理音频...</div>
+                  <div className="text-xs text-muted-foreground mt-1">{spleeterProgress.toFixed(0)}%</div>
+                </div>
+                <Progress value={spleeterProgress} className="w-full" />
+              </div>
+            ) : spleeterStatus === 'success' ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-green-600">
+                  <TbRefresh className="w-5 h-5" />
+                  <span className="font-medium">分离完成</span>
+                </div>
+                {spleeterResult && (
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center justify-between p-2 bg-muted rounded">
+                      <span>伴奏文件</span>
+                      <span className="font-mono text-xs text-muted-foreground truncate max-w-[200px]">{spleeterResult.accompaniment}</span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 bg-muted rounded">
+                      <span>人声文件</span>
+                      <span className="font-mono text-xs text-muted-foreground truncate max-w-[200px]">{spleeterResult.vocals}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : spleeterStatus === 'error' ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-destructive">
+                  <TbTrash className="w-5 h-5" />
+                  <span className="font-medium">处理失败</span>
+                </div>
+                <div className="text-sm text-muted-foreground">{spleeterError}</div>
+              </div>
+            ) : null}
+          </div>
+          <DialogFooter>
+            {spleeterStatus === 'success' || spleeterStatus === 'error' ? (
+              <Button size="sm" className="w-20" onClick={handleSpleeterDialogClose}>
+                关闭
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" className="w-20" onClick={handleSpleeterDialogClose} disabled={spleeterStatus === 'processing'}>
+                取消
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

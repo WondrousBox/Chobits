@@ -16,6 +16,8 @@ export type PluginCategory =
   | 'translation' // 翻译
   | 'punctuation' // 标点符号恢复
   | 'embedding' // 文本嵌入/向量化
+  // 音频相关
+  | 'audio-process' // 音频处理
   // 图像相关
   | 'image-gen' // 图像生成 (Text-to-Image)
   | 'image-edit' // 图像编辑

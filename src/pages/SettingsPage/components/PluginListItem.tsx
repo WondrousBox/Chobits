@@ -65,6 +65,7 @@ const getCategoryName = (category?: string): string => {
     'image-recognition': '图像识别',
     face: '人脸识别',
     'image-super-res': '图像超分',
+    'audio-process': '音频处理',
     // 视频相关
     'video-gen': '视频生成',
     'video-edit': '视频编辑',
