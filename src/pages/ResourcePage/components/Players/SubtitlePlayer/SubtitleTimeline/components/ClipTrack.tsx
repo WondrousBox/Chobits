@@ -1,5 +1,8 @@
 import clsx from 'clsx';
 import React, { useCallback, useMemo, useRef } from 'react';
+import { TbArrowBackUp } from 'react-icons/tb';
+
+import { Button } from '@/components/ui/button';
 
 import type { ClipSegment, ClipTool } from '../types';
 import { DEFAULT_CONFIG } from '../types';
@@ -15,18 +18,18 @@ interface ClipTrackProps {
   pixelsPerSecond: number;
   /** 轨道总宽度 */
   width: number;
-  /** 当前播放时间（播放序列时间，非源时间） */
+  /** 当前播放时间（源时间） */
   currentTime?: number;
   /** 当前激活的工具 */
   activeTool?: ClipTool;
   /** 选中的片段 ID */
   selectedClipId?: string | null;
-  /** 在某个时间点切割 */
+  /** 在某个源时间点切割 */
   onCut?: (sourceTime: number) => void;
-  /** 删除片段 */
+  /** 删除片段（软删除） */
   onDelete?: (clipId: string) => void;
-  /** 排序变更 */
-  onReorder?: (orderedClipIds: string[]) => void;
+  /** 恢复已删除的片段 */
+  onRestore?: (clipId: string) => void;
   /** 变速变更 */
   onSpeedChange?: (clipId: string, playbackRate: number) => void;
   /** 启用/禁用切换 */
@@ -36,13 +39,10 @@ interface ClipTrackProps {
 }
 
 /**
- * ClipTrack - 剪辑轨道组件
+ * ClipTrack - 剪辑轨道组件（源时间布局）
  *
- * 显示按播放顺序排列的剪辑片段。
- * 支持裁剪工具（点击在源时间轴上切割）和片段拖拽排序。
- *
- * 注意：剪辑轨道的横轴表示的是"播放时间"而非"源时间"。
- * 片段按 order 顺序首尾相接排列，每个片段的宽度 = 源时长 / playbackRate * pixelsPerSecond。
+ * 片段按源时间位置排列，与字幕/TTS 轨道共享同一时间轴。
+ * 已删除的片段显示为带斜线的空白区域，可以恢复。
  */
 export const ClipTrack: React.FC<ClipTrackProps> = ({
   clips,
@@ -53,19 +53,16 @@ export const ClipTrack: React.FC<ClipTrackProps> = ({
   selectedClipId,
   onCut,
   onDelete,
-  onReorder,
+  onRestore,
   onSpeedChange,
   onToggleDisabled,
   onClipSelect
 }) => {
   const trackRef = useRef<HTMLDivElement>(null);
-  const dragState = useRef<{ clipId: string; startX: number; startOrder: number } | null>(null);
 
-  // 构建 ClipSequence 以获取每个片段的播放位置
   const sequence = useMemo(() => new ClipSequence(clips), [clips]);
-  const playbackInfos = useMemo(() => sequence.getPlaybackInfos(), [sequence]);
+  const allInfos = useMemo(() => sequence.getAllPlaybackInfos(), [sequence]);
 
-  // 当前正在播放的片段信息
   const activeClipInfo = useMemo(() => {
     if (currentTime === undefined) return null;
     const mapping = sequence.playTimeToSource(currentTime);
@@ -73,76 +70,19 @@ export const ClipTrack: React.FC<ClipTrackProps> = ({
     return { clipId: mapping.clipId, progress: mapping.progress };
   }, [sequence, currentTime]);
 
-  // 裁剪工具点击处理：将点击位置的播放时间映射回源时间，然后执行切割
+  // 裁剪工具：源时间布局下点击位置直接就是源时间
   const handleTrackClick = useCallback(
     (e: React.MouseEvent) => {
       if (activeTool !== 'cut' || !onCut) return;
-
       const rect = trackRef.current?.getBoundingClientRect();
       if (!rect) return;
-
       const x = e.clientX - rect.left;
-      const playTime = x / pixelsPerSecond;
-
-      // 将播放时间映射到源时间
-      const mapping = sequence.playTimeToSource(playTime);
-      if (mapping) {
-        onCut(mapping.sourceTime);
-      }
+      const sourceTime = x / pixelsPerSecond;
+      onCut(sourceTime);
     },
-    [activeTool, onCut, pixelsPerSecond, sequence]
+    [activeTool, onCut, pixelsPerSecond]
   );
 
-  // 拖拽排序开始
-  const handleDragStart = useCallback(
-    (clipId: string, e: React.MouseEvent) => {
-      const clip = clips.find((c) => c.id === clipId);
-      if (!clip) return;
-      dragState.current = { clipId, startX: e.clientX, startOrder: clip.order };
-
-      const handleMouseMove = (me: MouseEvent): void => {
-        if (!dragState.current) return;
-        const deltaX = me.clientX - dragState.current.startX;
-        const deltaTime = deltaX / pixelsPerSecond;
-
-        // 基于拖拽距离确定交换方向
-        const sorted = [...clips].sort((a, b) => a.order - b.order);
-        const currentIndex = sorted.findIndex((c) => c.id === clipId);
-        if (currentIndex === -1) return;
-
-        // 获取当前片段的播放时长
-        const info = playbackInfos.find((pi) => pi.clip.id === clipId);
-        if (!info) return;
-
-        // 如果拖拽距离超过当前片段一半宽度，执行交换
-        const halfDuration = info.playDuration / 2;
-        if (Math.abs(deltaTime) > halfDuration) {
-          const direction = deltaTime > 0 ? 1 : -1;
-          const swapIndex = currentIndex + direction;
-          if (swapIndex >= 0 && swapIndex < sorted.length) {
-            const newOrder = sorted.map((c) => c.id);
-            // 交换
-            [newOrder[currentIndex], newOrder[swapIndex]] = [newOrder[swapIndex], newOrder[currentIndex]];
-            onReorder?.(newOrder);
-            // 重置拖拽起始位置
-            dragState.current.startX = me.clientX;
-          }
-        }
-      };
-
-      const handleMouseUp = (): void => {
-        dragState.current = null;
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-      };
-
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-    },
-    [clips, pixelsPerSecond, playbackInfos, onReorder]
-  );
-
-  // 点击片段选中
   const handleClipClick = useCallback(
     (clipId: string) => {
       onClipSelect?.(clipId);
@@ -163,37 +103,67 @@ export const ClipTrack: React.FC<ClipTrackProps> = ({
       {/* 背景 */}
       <div className="absolute inset-0 bg-background/50" />
 
-      {/* 渲染剪辑片段 */}
-      {playbackInfos.map((info) => (
-        <ClipSegmentBlock
-          key={info.clip.id}
-          clip={info.clip}
-          playStart={info.playStart}
-          playEnd={info.playEnd}
-          pixelsPerSecond={pixelsPerSecond}
-          trackHeight={trackHeight}
-          isSelected={selectedClipId === info.clip.id}
-          isActive={activeClipInfo?.clipId === info.clip.id}
-          activeProgress={activeClipInfo?.clipId === info.clip.id ? activeClipInfo.progress : 0}
-          isDisabled={!!info.clip.disabled}
-          activeTool={activeTool}
-          onClick={handleClipClick}
-          onDelete={onDelete}
-          onSpeedChange={onSpeedChange}
-          onToggleDisabled={onToggleDisabled}
-          onDragStart={onReorder ? handleDragStart : undefined}
-        />
-      ))}
+      {/* 渲染所有片段（含已删除的） */}
+      {allInfos.map((info) =>
+        info.clip.deleted ? (
+          <div
+            key={info.clip.id}
+            data-clip-block={info.clip.id}
+            className={clsx('absolute flex items-center justify-center', 'border border-dashed rounded opacity-40', selectedClipId === info.clip.id && 'ring-2 ring-orange-400 opacity-60')}
+            style={{
+              left: info.playStart * pixelsPerSecond,
+              width: Math.max(DEFAULT_CONFIG.SEGMENT_MIN_WIDTH, info.playDuration * pixelsPerSecond),
+              top: DEFAULT_CONFIG.TRACK_GAP / 2,
+              height: trackHeight,
+              borderColor: 'hsl(0, 60%, 50%)',
+              borderRadius: DEFAULT_CONFIG.SEGMENT_BORDER_RADIUS,
+              backgroundImage: 'repeating-linear-gradient(135deg, transparent, transparent 3px, hsla(0, 60%, 50%, 0.15) 3px, hsla(0, 60%, 50%, 0.15) 6px)',
+              cursor: activeTool === 'cut' ? 'crosshair' : 'pointer'
+            }}
+            onClick={(e) => {
+              if (activeTool === 'cut') return;
+              e.stopPropagation();
+              onClipSelect?.(info.clip.id);
+            }}
+          >
+            <span className="text-[9px] text-muted-foreground select-none">已删除</span>
+            {selectedClipId === info.clip.id && onRestore && (
+              <Button
+                size="icon"
+                variant="outline"
+                className="absolute -top-3 right-0 w-6 h-6 rounded-full p-0 bg-background shadow-sm hover:bg-accent z-30"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRestore(info.clip.id);
+                }}
+                title="恢复片段"
+              >
+                <TbArrowBackUp className="w-3 h-3" />
+              </Button>
+            )}
+          </div>
+        ) : (
+          <ClipSegmentBlock
+            key={info.clip.id}
+            clip={info.clip}
+            playStart={info.playStart}
+            playEnd={info.playEnd}
+            pixelsPerSecond={pixelsPerSecond}
+            trackHeight={trackHeight}
+            isSelected={selectedClipId === info.clip.id}
+            isActive={activeClipInfo?.clipId === info.clip.id}
+            activeProgress={activeClipInfo?.clipId === info.clip.id ? activeClipInfo.progress : 0}
+            isDisabled={!!info.clip.disabled}
+            activeTool={activeTool}
+            onClick={handleClipClick}
+            onDelete={onDelete}
+            onSpeedChange={onSpeedChange}
+            onToggleDisabled={onToggleDisabled}
+          />
+        )
+      )}
 
-      {/* 裁剪工具鼠标跟踪线 */}
       {activeTool === 'cut' && <div className="absolute inset-0 pointer-events-none z-30" />}
-
-      {/* 总时长结束线 */}
-      <div
-        className="absolute top-0 bottom-0 w-0.5 bg-orange-500 z-10 pointer-events-none"
-        style={{ left: sequence.totalDuration * pixelsPerSecond }}
-        title={`剪辑总时长: ${sequence.totalDuration.toFixed(2)}s`}
-      />
     </div>
   );
 };

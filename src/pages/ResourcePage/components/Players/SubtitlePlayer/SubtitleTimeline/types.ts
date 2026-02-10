@@ -250,6 +250,8 @@ export interface ClipSegment {
   label?: string;
   /** 是否被禁用（跳过播放） */
   disabled?: boolean;
+  /** 是否已删除（保留占位但跳过播放，播放到此区域会自动跳过） */
+  deleted?: boolean;
 }
 
 /**
@@ -277,10 +279,10 @@ export type ClipTool = 'select' | 'cut';
 export interface ClipTrackCallbacks {
   /** 在某个时间点切割（裁剪工具点击时） */
   onClipCut?: (time: number) => void;
-  /** 删除某个剪辑片段 */
+  /** 删除某个剪辑片段（软删除） */
   onClipDelete?: (clipId: string) => void;
-  /** 片段排序变更（拖拽排序完成后）- 传入新的排序后的 id 列表 */
-  onClipReorder?: (orderedClipIds: string[]) => void;
+  /** 恢复已删除的剪辑片段 */
+  onClipRestore?: (clipId: string) => void;
   /** 片段播放速率变更 */
   onClipSpeedChange?: (clipId: string, playbackRate: number) => void;
   /** 片段启用/禁用切换 */

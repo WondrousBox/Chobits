@@ -659,7 +659,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                 selectedClipId={selectedClipId}
                 onCut={clipCallbacks?.onClipCut}
                 onDelete={clipCallbacks?.onClipDelete}
-                onReorder={clipCallbacks?.onClipReorder}
+                onRestore={clipCallbacks?.onClipRestore}
                 onSpeedChange={clipCallbacks?.onClipSpeedChange}
                 onToggleDisabled={clipCallbacks?.onClipToggleDisabled}
                 onClipSelect={(id: string) => {

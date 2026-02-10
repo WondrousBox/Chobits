@@ -6,7 +6,7 @@ export type { ClipSegment, ClipTool, ClipTrackCallbacks, ClipTrackData, Selectio
 export { DEFAULT_CONFIG, TRACK_COLORS } from './types';
 
 // 工具函数
-export type { ClipPlaybackInfo, ClipTimeMapping, TimeRange } from './utils';
+export type { ClipPlaybackInfo, ClipTimeMapping, SkipRegion, TimeRange } from './utils';
 export {
   aimSegmentsToTimelineSegments,
   aimTracksToTimelineTracks,
