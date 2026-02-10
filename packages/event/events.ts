@@ -26,6 +26,9 @@ export enum AppEvent {
   // Sprite
   SPRITE_MESSAGE = 'SPRITE_MESSAGE',
 
+  // Spleeter
+  SPLEETER_PROGRESS = 'SPLEETER_PROGRESS',
+
   // System
   APP_STARTED = 'APP_STARTED'
 }

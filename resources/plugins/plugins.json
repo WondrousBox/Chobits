@@ -873,5 +873,43 @@
         ]
       }
     ]
+  },
+  {
+    "id": "spleeter",
+    "pluginId": "plugin:spleeter",
+    "type": "engine",
+    "name": "spleeter",
+    "displayName": "Spleeter",
+    "description": "音频分离工具，用于从音频中分离人声和伴奏",
+    "version": "1.0.0",
+    "binaryName": "memo-spleeter",
+    "archiveType": "zip",
+    "category": [
+      "audio-process"
+    ],
+    "languages": [],
+    "platforms": [
+      {
+        "platform": "darwin",
+        "arch": "arm64",
+        "sourceUrl": "https://model.memo.ac/integration/rspleeter/memo-extension-rspleeter-arm64@1.0.0.zip",
+        "sizeBytes": 169763840,
+        "sha256": "261dfb8339913032760725c1f0b18bde82061ea7ee71185d7e52bc00e5481a08"
+      },
+      {
+        "platform": "darwin",
+        "arch": "x64",
+        "sourceUrl": "https://model.memo.ac/integration/rspleeter/memo-extension-rspleeter-x64@1.0.0.zip",
+        "sizeBytes": 191889408,
+        "sha256": "86b0093222e20f44b0828116f366702bfe6ae3610bbd71c2cad9a4a9fd8394c6"
+      },
+      {
+        "platform": "win32",
+        "arch": "x64",
+        "sourceUrl": "https://model.memo.ac/integration/rspleeter/memo-extension-rspleeter-win@1.0.0.zip",
+        "sizeBytes": 119537664,
+        "sha256": "519a502a25e0ee3a9d3cffd357571b935d0596d03cded58b4329d2ba92a21fcc"
+      }
+    ]
   }
 ]

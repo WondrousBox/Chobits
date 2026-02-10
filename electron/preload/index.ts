@@ -17,6 +17,7 @@ import { preferencesIpcRenderer } from '../main/handlers/preferences/ipc-rendere
 import { proxyIpcRenderer } from '../main/handlers/proxy/ipc-renderer';
 import { resourceIpcRenderer } from '../main/handlers/resource/ipc-renderer';
 import { createRssApi } from '../main/handlers/rss/ipc-renderer';
+import { spleeterIpcRenderer } from '../main/handlers/spleeter/ipc-renderer';
 import { systemIpcRenderer } from '../main/handlers/system/ipc-renderer';
 import { themeIpcRenderer } from '../main/handlers/theme/ipc-renderer';
 import { trashIpcRenderer } from '../main/handlers/trash/ipc-renderer';
@@ -85,6 +86,7 @@ contextBridge.exposeInMainWorld('YUA', {
   sherpa: sherpaIpcRenderer,
   preferences: preferencesIpcRenderer,
   ytdlp: ytdlpIpcRenderer,
+  spleeter: spleeterIpcRenderer,
   rss: createRssApi(ipcRenderer),
   tts: createTTSIpcRenderer(ipcRenderer),
   events: {
@@ -110,6 +112,7 @@ contextBridge.exposeInMainWorld('YUA', {
 });
 
 // --------- Preload scripts loading ---------
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function domReady(condition: DocumentReadyState[] = ['complete', 'interactive']): Promise<boolean> {
   return new Promise((resolve) => {
     if (condition.includes(document.readyState)) {
@@ -143,6 +146,7 @@ const safeDOM = {
  * https://projects.lukehaas.me/css-loaders
  * https://matejkustec.github.io/SpinThatShit
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function makeLoadingHelpers(): { appendLoading: () => void; removeLoading: () => void } {
   const className = `loaders-css__square-spin`;
   const styleContent = `

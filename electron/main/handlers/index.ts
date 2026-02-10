@@ -23,6 +23,7 @@ import { getHttpProxy } from './proxy/proxy';
 import { initResourceHandlers } from './resource/ipc-main';
 import { initRssHandlers } from './rss/ipc-main';
 import { initShortcutsHandlers } from './shortcuts';
+import { initSpleeterHandlers } from './spleeter/ipc-main';
 import { initSpriteHandlers } from './sprite';
 import { initStatusHandlers } from './status';
 import { initSystemHandlers } from './system/ipc-main';
@@ -88,6 +89,7 @@ export function initHandlers(win: BrowserWindow): void {
   initProxyHandlers(win);
   initThemeHandlers();
   initScreenshotHandlers();
+  initSpleeterHandlers(win);
   initYtDlpHandlers(win);
   initSkillTreeHandlers();
 }
