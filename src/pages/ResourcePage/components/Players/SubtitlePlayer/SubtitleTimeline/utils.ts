@@ -201,5 +201,5 @@ export function detectOverlappingSegments(segments: TimelineSegment[]): Set<stri
 }
 
 // Re-export clip sequence utilities
-export type { ClipPlaybackInfo, ClipTimeMapping } from './utils/clipSequence';
+export type { ClipPlaybackInfo, ClipTimeMapping, SkipRegion } from './utils/clipSequence';
 export { ClipSequence } from './utils/clipSequence';

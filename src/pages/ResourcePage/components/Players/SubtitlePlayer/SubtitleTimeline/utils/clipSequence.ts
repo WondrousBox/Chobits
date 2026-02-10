@@ -17,128 +17,202 @@ export interface ClipTimeMapping {
 }
 
 /**
- * 剪辑片段在播放序列中的信息（含计算好的时间偏移）
+ * 剪辑片段在轨道上的布局信息
+ *
+ * 以**源时间轴**为基准布局：每个片段在轨道上的位置 = sourceStart / sourceEnd。
+ * 这样剪辑轨道和字幕/TTS 轨道共享同一条时间轴，不会错位。
  */
 export interface ClipPlaybackInfo {
   clip: ClipSegment;
-  /** 该片段在播放序列中的起始时间（秒） */
+  /** 该片段在源时间轴上的起始时间（= clip.sourceStart） */
   playStart: number;
-  /** 该片段在播放序列中的结束时间（秒） */
+  /** 该片段在源时间轴上的结束时间（= clip.sourceEnd） */
   playEnd: number;
-  /** 该片段的播放时长（考虑变速后） */
+  /** 该片段在源时间轴上的时长 */
   playDuration: number;
   /** 该片段在源媒体中的时长 */
   sourceDuration: number;
 }
 
 /**
- * ClipSequence — 剪辑序列引擎
+ * 需要跳过的时间区间（已删除的片段对应的源时间范围）
+ */
+export interface SkipRegion {
+  /** 区间起始（源时间，秒） */
+  start: number;
+  /** 区间结束（源时间，秒） */
+  end: number;
+  /** 删除后应跳转到的目标时间（源时间，秒） */
+  skipTo: number;
+}
+
+/**
+ * ClipSequence — 剪辑序列引擎（源时间布局版本）
  *
- * 纯逻辑类，负责：
- * 1. 维护有序的剪辑片段列表（EDL - Edit Decision List）
- * 2. 源时间 ↔ 播放时间 的双向映射
- * 3. 在指定时间点切割片段
- * 4. 片段排序
- * 5. 计算总时长
+ * 核心设计：
+ * - 片段在轨道上按**源时间**位置布局，与字幕/TTS 轨道对齐
+ * - 删除操作为**软删除**（设置 deleted 标记），片段保留在原位显示为空白
+ * - 播放器播放到删除区域时自动跳过
  *
  * 设计原则：
  * - 不可变操作：所有修改操作返回新的 ClipSegment[]，不修改原数据
  * - 纯函数 + 类方法，无 React 依赖
  */
 export class ClipSequence {
-  /** 按 order 排序的剪辑片段 */
+  /** 按 sourceStart 排序的所有剪辑片段（含已删除的） */
   private readonly clips: ClipSegment[];
 
-  /** 预计算的播放信息缓存 */
-  private readonly playbackInfos: ClipPlaybackInfo[];
+  /** 活跃片段（未删除 & 未禁用）的播放信息 */
+  private readonly activeInfos: ClipPlaybackInfo[];
 
-  /** 播放总时长 */
+  /** 所有片段（含已删除的）的播放信息 */
+  private readonly allInfos: ClipPlaybackInfo[];
+
+  /** 需要跳过的区域列表 */
+  private readonly skipRegions: SkipRegion[];
+
+  /** 源时间轴总时长（= 最后一个片段的 sourceEnd） */
   public readonly totalDuration: number;
 
+  /** 活跃（可播放）区域的总时长 */
+  public readonly activeDuration: number;
+
   constructor(clips: ClipSegment[]) {
-    // 只保留未禁用的片段参与播放，但缓存所有片段
-    this.clips = [...clips].sort((a, b) => a.order - b.order);
+    this.clips = [...clips].sort((a, b) => a.sourceStart - b.sourceStart);
 
-    // 预计算播放信息
-    let elapsed = 0;
-    this.playbackInfos = this.clips
-      .filter((c) => !c.disabled)
-      .map((clip) => {
-        const sourceDuration = clip.sourceEnd - clip.sourceStart;
-        const playDuration = sourceDuration / clip.playbackRate;
-        const info: ClipPlaybackInfo = {
-          clip,
-          playStart: elapsed,
-          playEnd: elapsed + playDuration,
-          playDuration,
-          sourceDuration
-        };
-        elapsed += playDuration;
-        return info;
-      });
+    // 所有片段的信息
+    this.allInfos = this.clips.map((clip) => {
+      const dur = clip.sourceEnd - clip.sourceStart;
+      return {
+        clip,
+        playStart: clip.sourceStart,
+        playEnd: clip.sourceEnd,
+        playDuration: dur,
+        sourceDuration: dur
+      };
+    });
 
-    this.totalDuration = elapsed;
+    // 活跃片段
+    this.activeInfos = this.allInfos.filter(
+      (info) => !info.clip.deleted && !info.clip.disabled
+    );
+
+    // 总时长
+    this.totalDuration =
+      this.clips.length > 0
+        ? Math.max(...this.clips.map((c) => c.sourceEnd))
+        : 0;
+
+    // 活跃时长
+    this.activeDuration = this.activeInfos.reduce(
+      (sum, info) => sum + info.sourceDuration,
+      0
+    );
+
+    // 计算跳过区域
+    this.skipRegions = this.buildSkipRegions();
   }
 
   /**
-   * 获取所有剪辑片段（含禁用的）
+   * 构建需要跳过的区域列表
+   */
+  private buildSkipRegions(): SkipRegion[] {
+    const regions: SkipRegion[] = [];
+    const sorted = [...this.clips].sort(
+      (a, b) => a.sourceStart - b.sourceStart
+    );
+
+    for (const clip of sorted) {
+      if (!clip.deleted) continue;
+
+      // 找到此删除区间之后最近的活跃片段
+      let target = this.totalDuration; // 默认跳到末尾
+      for (const active of this.activeInfos) {
+        if (active.clip.sourceStart >= clip.sourceEnd) {
+          target = active.clip.sourceStart;
+          break;
+        }
+      }
+
+      regions.push({
+        start: clip.sourceStart,
+        end: clip.sourceEnd,
+        skipTo: target
+      });
+    }
+
+    return regions;
+  }
+
+  /**
+   * 获取所有剪辑片段（含已删除的）
    */
   getAllClips(): ClipSegment[] {
     return this.clips;
   }
 
   /**
-   * 获取活跃的（未禁用的）剪辑片段播放信息
+   * 获取所有片段的播放信息（含已删除的，用于轨道渲染）
    */
-  getPlaybackInfos(): ClipPlaybackInfo[] {
-    return this.playbackInfos;
+  getAllPlaybackInfos(): ClipPlaybackInfo[] {
+    return this.allInfos;
   }
 
   /**
-   * 播放时间 → 源时间映射
-   *
-   * @param playTime 播放序列中的时间（秒）
-   * @returns 映射结果，或 null（到达末尾/无片段）
+   * 获取活跃的（未删除且未禁用的）剪辑片段播放信息
    */
-  playTimeToSource(playTime: number): ClipTimeMapping | null {
-    if (this.playbackInfos.length === 0) return null;
+  getPlaybackInfos(): ClipPlaybackInfo[] {
+    return this.activeInfos;
+  }
 
-    // 二分查找 playTime 所在的片段
-    let left = 0;
-    let right = this.playbackInfos.length - 1;
+  /**
+   * 获取跳过区域列表
+   */
+  getSkipRegions(): SkipRegion[] {
+    return this.skipRegions;
+  }
 
-    while (left <= right) {
-      const mid = (left + right) >>> 1;
-      const info = this.playbackInfos[mid];
+  /**
+   * 检查源时间是否在需要跳过的区域内
+   * @returns 如果需要跳过，返回应该跳转到的时间；否则返回 null
+   */
+  getSkipTarget(sourceTime: number): number | null {
+    for (const region of this.skipRegions) {
+      if (sourceTime >= region.start && sourceTime < region.end) {
+        return region.skipTo;
+      }
+    }
+    return null;
+  }
 
-      if (playTime < info.playStart) {
-        right = mid - 1;
-      } else if (playTime >= info.playEnd) {
-        left = mid + 1;
-      } else {
-        // 命中
-        const offsetInPlay = playTime - info.playStart;
-        const offsetInSource = offsetInPlay * info.clip.playbackRate;
-        const progress = info.playDuration > 0 ? offsetInPlay / info.playDuration : 0;
-
+  /**
+   * 源时间 → 片段映射（在活跃片段中查找）
+   */
+  playTimeToSource(sourceTime: number): ClipTimeMapping | null {
+    for (let i = 0; i < this.activeInfos.length; i++) {
+      const info = this.activeInfos[i];
+      if (sourceTime >= info.playStart && sourceTime < info.playEnd) {
+        const offset = sourceTime - info.playStart;
+        const prog =
+          info.playDuration > 0 ? offset / info.playDuration : 0;
         return {
-          sourceTime: info.clip.sourceStart + offsetInSource,
+          sourceTime,
           clipId: info.clip.id,
           playbackRate: info.clip.playbackRate,
-          clipIndex: mid,
-          progress
+          clipIndex: i,
+          progress: prog
         };
       }
     }
 
-    // playTime 超出范围
-    if (playTime >= this.totalDuration && this.playbackInfos.length > 0) {
-      const last = this.playbackInfos[this.playbackInfos.length - 1];
+    // 恰好在末尾
+    if (this.activeInfos.length > 0 && sourceTime >= this.totalDuration) {
+      const last = this.activeInfos[this.activeInfos.length - 1];
       return {
         sourceTime: last.clip.sourceEnd,
         clipId: last.clip.id,
         playbackRate: last.clip.playbackRate,
-        clipIndex: this.playbackInfos.length - 1,
+        clipIndex: this.activeInfos.length - 1,
         progress: 1
       };
     }
@@ -148,66 +222,64 @@ export class ClipSequence {
 
   /**
    * 源时间 → 播放时间映射
-   *
-   * 注意：如果同一个源时间段被引用了多次（比如复制后的片段），
-   * 此方法返回第一个匹配的播放时间。
-   *
-   * @param sourceTime 源媒体中的时间（秒）
-   * @returns 播放序列中的时间（秒），或 null（不在任何片段中）
+   * 在源时间布局下，播放时间 = 源时间（对于活跃片段）
    */
   sourceToPlayTime(sourceTime: number): number | null {
-    for (const info of this.playbackInfos) {
-      if (sourceTime >= info.clip.sourceStart && sourceTime < info.clip.sourceEnd) {
-        const offsetInSource = sourceTime - info.clip.sourceStart;
-        const offsetInPlay = offsetInSource / info.clip.playbackRate;
-        return info.playStart + offsetInPlay;
+    for (const info of this.activeInfos) {
+      if (
+        sourceTime >= info.clip.sourceStart &&
+        sourceTime < info.clip.sourceEnd
+      ) {
+        return sourceTime;
       }
     }
     return null;
   }
 
   /**
-   * 获取播放时间对应的下一个片段起始播放时间
-   * 用于在片段间自动跳转
+   * 获取下一个活跃片段的起始时间
    */
-  getNextClipPlayStart(currentPlayTime: number): number | null {
-    for (const info of this.playbackInfos) {
-      if (info.playStart > currentPlayTime) {
+  getNextClipPlayStart(currentSourceTime: number): number | null {
+    for (const info of this.activeInfos) {
+      if (info.playStart > currentSourceTime) {
         return info.playStart;
       }
     }
     return null;
   }
 
-  // ========== 静态工具方法（返回新的 clips 数组，不修改原数组） ==========
+  // ========== 静态工具方法 ==========
 
   /**
    * 在指定的源时间点切割片段
-   *
-   * @param clips 当前的片段列表
-   * @param cutTime 切割的源时间点（秒）
-   * @returns 切割后的新片段列表
    */
-  static cutAtTime(clips: ClipSegment[], cutTime: number): ClipSegment[] {
-    const sorted = [...clips].sort((a, b) => a.order - b.order);
+  static cutAtTime(
+    clips: ClipSegment[],
+    cutTime: number
+  ): ClipSegment[] {
+    const sorted = [...clips].sort(
+      (a, b) => a.sourceStart - b.sourceStart
+    );
     const result: ClipSegment[] = [];
 
     for (const clip of sorted) {
-      // 切割点在片段内部（且不在边缘）
-      if (cutTime > clip.sourceStart + 0.05 && cutTime < clip.sourceEnd - 0.05) {
-        // 分成两段
+      if (
+        !clip.deleted &&
+        cutTime > clip.sourceStart + 0.05 &&
+        cutTime < clip.sourceEnd - 0.05
+      ) {
         const leftClip: ClipSegment = {
           ...clip,
-          id: `${clip.id}-L-${Date.now()}`,
+          id: clip.id + '-L-' + Date.now(),
           sourceEnd: cutTime,
-          label: clip.label ? `${clip.label} (前)` : undefined
+          label: clip.label ? clip.label + ' (前)' : undefined
         };
         const rightClip: ClipSegment = {
           ...clip,
-          id: `${clip.id}-R-${Date.now()}`,
+          id: clip.id + '-R-' + Date.now(),
           sourceStart: cutTime,
-          order: clip.order + 0.5, // 临时 order，后面会重新编号
-          label: clip.label ? `${clip.label} (后)` : undefined
+          order: clip.order + 0.5,
+          label: clip.label ? clip.label + ' (后)' : undefined
         };
         result.push(leftClip, rightClip);
       } else {
@@ -215,19 +287,18 @@ export class ClipSequence {
       }
     }
 
-    // 重新编号 order
     return ClipSequence.reorder(result);
   }
 
   /**
-   * 从源媒体时长创建初始的单一片段（代表整个未剪辑的媒体）
+   * 从源媒体时长创建初始的单一片段
    */
-  static createInitial(sourceDuration: number): ClipSegment[] {
+  static createInitial(dur: number): ClipSegment[] {
     return [
       {
-        id: `clip-initial-${Date.now()}`,
+        id: 'clip-initial-' + Date.now(),
         sourceStart: 0,
-        sourceEnd: sourceDuration,
+        sourceEnd: dur,
         order: 0,
         playbackRate: 1.0
       }
@@ -235,17 +306,36 @@ export class ClipSequence {
   }
 
   /**
-   * 删除指定片段
+   * 软删除指定片段（标记为 deleted，保留在原位作为空白占位）
    */
-  static deleteClip(clips: ClipSegment[], clipId: string): ClipSegment[] {
-    const filtered = clips.filter((c) => c.id !== clipId);
-    return ClipSequence.reorder(filtered);
+  static deleteClip(
+    clips: ClipSegment[],
+    clipId: string
+  ): ClipSegment[] {
+    return clips.map((c) =>
+      c.id === clipId ? { ...c, deleted: true } : c
+    );
+  }
+
+  /**
+   * 恢复已删除的片段
+   */
+  static restoreClip(
+    clips: ClipSegment[],
+    clipId: string
+  ): ClipSegment[] {
+    return clips.map((c) =>
+      c.id === clipId ? { ...c, deleted: false } : c
+    );
   }
 
   /**
    * 按给定的 ID 列表重新排序
    */
-  static reorderByIds(clips: ClipSegment[], orderedIds: string[]): ClipSegment[] {
+  static reorderByIds(
+    clips: ClipSegment[],
+    orderedIds: string[]
+  ): ClipSegment[] {
     const clipMap = new Map(clips.map((c) => [c.id, c]));
     const result: ClipSegment[] = [];
 
@@ -256,7 +346,6 @@ export class ClipSequence {
       }
     });
 
-    // 添加不在 orderedIds 中的片段（保持原有顺序追加到末尾）
     const orderedSet = new Set(orderedIds);
     let nextOrder = result.length;
     for (const clip of clips) {
@@ -271,28 +360,49 @@ export class ClipSequence {
   /**
    * 修改片段播放速率
    */
-  static changeSpeed(clips: ClipSegment[], clipId: string, playbackRate: number): ClipSegment[] {
-    return clips.map((c) => (c.id === clipId ? { ...c, playbackRate: Math.max(0.1, Math.min(10, playbackRate)) } : c));
+  static changeSpeed(
+    clips: ClipSegment[],
+    clipId: string,
+    playbackRate: number
+  ): ClipSegment[] {
+    return clips.map((c) =>
+      c.id === clipId
+        ? { ...c, playbackRate: Math.max(0.1, Math.min(10, playbackRate)) }
+        : c
+    );
   }
 
   /**
    * 切换片段启用/禁用
    */
-  static toggleDisabled(clips: ClipSegment[], clipId: string): ClipSegment[] {
-    return clips.map((c) => (c.id === clipId ? { ...c, disabled: !c.disabled } : c));
+  static toggleDisabled(
+    clips: ClipSegment[],
+    clipId: string
+  ): ClipSegment[] {
+    return clips.map((c) =>
+      c.id === clipId ? { ...c, disabled: !c.disabled } : c
+    );
   }
 
   /**
    * 修改片段标签
    */
-  static changeLabel(clips: ClipSegment[], clipId: string, label: string): ClipSegment[] {
-    return clips.map((c) => (c.id === clipId ? { ...c, label } : c));
+  static changeLabel(
+    clips: ClipSegment[],
+    clipId: string,
+    label: string
+  ): ClipSegment[] {
+    return clips.map((c) =>
+      c.id === clipId ? { ...c, label } : c
+    );
   }
 
   /**
-   * 重新编号 order（按当前排序顺序，从 0 开始连续编号）
+   * 重新编号 order
    */
   static reorder(clips: ClipSegment[]): ClipSegment[] {
-    return [...clips].sort((a, b) => a.order - b.order).map((c, i) => ({ ...c, order: i }));
+    return [...clips]
+      .sort((a, b) => a.order - b.order)
+      .map((c, i) => ({ ...c, order: i }));
   }
 }

@@ -951,8 +951,8 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
       onClipDelete: (clipId: string) => {
         setClipSegments((prev) => ClipSequence.deleteClip(prev, clipId));
       },
-      onClipReorder: (orderedIds: string[]) => {
-        setClipSegments((prev) => ClipSequence.reorderByIds(prev, orderedIds));
+      onClipRestore: (clipId: string) => {
+        setClipSegments((prev) => ClipSequence.restoreClip(prev, clipId));
       },
       onClipSpeedChange: (clipId: string, rate: number) => {
         setClipSegments((prev) => ClipSequence.changeSpeed(prev, clipId, rate));
@@ -966,6 +966,25 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     }),
     []
   );
+
+  /**
+   * 播放跳过逻辑：当播放位置进入已删除片段区域时，自动跳到下一个活跃区域
+   */
+  const lastSkipTimeRef = useRef<number>(-1);
+  useEffect(() => {
+    if (!showClipTrack || clipSegments.length === 0 || !onSeek) return;
+
+    const seq = new ClipSequence(clipSegments);
+    const skipTarget = seq.getSkipTarget(currentTime);
+
+    if (skipTarget !== null && lastSkipTimeRef.current !== skipTarget) {
+      lastSkipTimeRef.current = skipTarget;
+      onSeek(skipTarget);
+    } else if (skipTarget === null) {
+      // 重置，允许后续再次跳过同一目标
+      lastSkipTimeRef.current = -1;
+    }
+  }, [currentTime, clipSegments, showClipTrack, onSeek]);
 
   return (
     <div className="flex h-full w-full flex-col text-muted-foreground">
