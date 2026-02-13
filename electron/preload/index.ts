@@ -8,6 +8,7 @@ import { recorderIpcRenderer } from '../../packages/recorder/ipc-renderer';
 import { sherpaIpcRenderer } from '../../packages/sherpa/ipc-renderer';
 import { createTTSIpcRenderer } from '../../packages/tts/ipc-renderer';
 import { dailyCareBridge } from '../main/daily/ipc-renderer';
+import { createClipIpcRenderer } from '../main/handlers/clip/ipc-renderer';
 import downloaderIpcRenderer from '../main/handlers/downloader/ipc-renderer';
 import { vectorIpcRenderer } from '../main/handlers/embedding/ipc-renderer';
 import { ffmpegIpcRenderer } from '../main/handlers/ffmpeg/ipc-renderer';
@@ -89,6 +90,7 @@ contextBridge.exposeInMainWorld('YUA', {
   spleeter: spleeterIpcRenderer,
   rss: createRssApi(ipcRenderer),
   tts: createTTSIpcRenderer(ipcRenderer),
+  clip: createClipIpcRenderer(ipcRenderer),
   events: {
     on: (callback: (payload: AppEventPayload) => void) => {
       const subscription = (_event: any, payload: AppEventPayload): void => callback(payload);

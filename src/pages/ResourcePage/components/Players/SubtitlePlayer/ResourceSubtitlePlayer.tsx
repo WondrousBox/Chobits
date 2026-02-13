@@ -82,20 +82,18 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
   const [clipSegments, setClipSegments] = useState<ClipSegment[]>([]);
   const isLoadingClipSegmentsRef = useRef(false);
 
-  // 防抖保存剪辑状态（存储到 resource.metadata.clipSegments）
+  // 防抖保存剪辑状态（存储到独立的 clip 文件）
   const debouncedSaveClipSegments = useMemo(
     () =>
-      debounce(async (resourceId: string, currentMetadataStr: string | undefined, clips: ClipSegment[]) => {
+      debounce(async (resourceId: string, clips: ClipSegment[]) => {
         if (!resourceId) return;
         try {
-          const currentMetadata = currentMetadataStr ? JSON.parse(currentMetadataStr) : {};
-          const updatedMetadata = { ...currentMetadata, clipSegments: clips };
-
-          await window.YUA.resource['resource:update']({
-            id: resourceId,
-            patch: { metadata: JSON.stringify(updatedMetadata) }
-          });
-          console.log('[auto-save] 剪辑状态已保存');
+          const result = await window.YUA.clip.save(resourceId, clips);
+          if (result.success) {
+            console.log('[auto-save] 剪辑状态已保存');
+          } else {
+            console.error('[auto-save] 保存剪辑状态失败:', result.error);
+          }
         } catch (error) {
           console.error('[auto-save] 保存剪辑状态失败:', error);
         }
@@ -103,24 +101,20 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     []
   );
 
-  // 从 metadata 加载剪辑状态
-  const loadClipSegmentsFromMetadata = useCallback((metadataStr?: string, mediaDur?: number) => {
-    console.log('[SubtitlePlayer] loadClipSegmentsFromMetadata 被调用', {
-      hasMetadata: !!metadataStr,
-      metadataLength: metadataStr?.length,
+  // 从独立文件加载剪辑状态
+  const loadClipSegments = useCallback(async (resourceId: string, mediaDur?: number) => {
+    console.log('[SubtitlePlayer] loadClipSegments 被调用', {
+      resourceId,
       mediaDuration: mediaDur
     });
     isLoadingClipSegmentsRef.current = true;
     try {
-      if (metadataStr) {
-        const metadata = JSON.parse(metadataStr);
-        console.log('[SubtitlePlayer] 解析 metadata:', metadata);
-        if (Array.isArray(metadata.clipSegments) && metadata.clipSegments.length > 0) {
-          console.log('[SubtitlePlayer] 加载到已保存的剪辑片段:', metadata.clipSegments.length, '个');
-          setClipSegments(metadata.clipSegments);
-          setShowClipTrack(true);
-          return;
-        }
+      const data = await window.YUA.clip.load(resourceId);
+      if (data && Array.isArray(data.clips) && data.clips.length > 0) {
+        console.log('[SubtitlePlayer] 加载到已保存的剪辑片段:', data.clips.length, '个');
+        setClipSegments(data.clips);
+        setShowClipTrack(true);
+        return;
       }
       console.log('[SubtitlePlayer] 没有已保存的剪辑片段，将创建初始片段');
       // 没有保存的剪辑数据，如果有媒体时长则创建初始片段
@@ -153,12 +147,9 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
       console.log('[SubtitlePlayer] 跳过加载过程中的自动保存');
       return;
     }
-    // 跳过初始加载时的保存（由 loadClipSegmentsFromMetadata 触发的不需要再保存）
-    const isInitial = clipSegments.length === 1 && clipSegments[0].id.startsWith('clip-initial-');
-    if (isInitial && !resource.metadata) return;
     console.log('[SubtitlePlayer] 触发剪辑状态自动保存, clipSegments:', clipSegments.length, '个');
-    debouncedSaveClipSegments(resource.id, resource.metadata, clipSegments);
-  }, [clipSegments, resource.id, resource.metadata, debouncedSaveClipSegments]);
+    debouncedSaveClipSegments(resource.id, clipSegments);
+  }, [clipSegments, resource.id, debouncedSaveClipSegments]);
 
   // 外部值变化时同步本地开关
   useEffect(() => {
@@ -576,13 +567,13 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
   // 加载剪辑状态（当资源或媒体时长变化时）
   useEffect(() => {
     if (resource.id && mediaDuration && mediaDuration > 0) {
-      loadClipSegmentsFromMetadata(resource.metadata, mediaDuration);
+      void loadClipSegments(resource.id, mediaDuration);
     } else if (!resource.id) {
       // 资源清空时重置状态
       setClipSegments([]);
       setShowClipTrack(false);
     }
-  }, [resource.id, resource.metadata, mediaDuration, loadClipSegmentsFromMetadata]);
+  }, [resource.id, mediaDuration, loadClipSegments]);
 
   // 加载字幕文件内容（支持 srt、vtt、ass 格式）
   useEffect(() => {

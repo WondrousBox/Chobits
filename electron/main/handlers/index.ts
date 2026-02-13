@@ -12,6 +12,7 @@ import { initScreenshotHandlers } from '../screenshot';
 import { initSkillTreeHandlers } from '../skillTreeWindow';
 import { getResourcePath } from '../utils/resources-path';
 import { initAutomationHandlers } from './automation/ipc-main';
+import { initClipHandlers } from './clip/ipc-main';
 import { initDownloadHandlers } from './downloader/ipc-main';
 import { initVectorHandlers } from './embedding/ipc-main';
 import { initFFmpegHandlers } from './ffmpeg/ipc-main';
@@ -92,4 +93,5 @@ export function initHandlers(win: BrowserWindow): void {
   initSpleeterHandlers(win);
   initYtDlpHandlers(win);
   initSkillTreeHandlers();
+  initClipHandlers();
 }
