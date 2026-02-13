@@ -363,7 +363,78 @@ const [clips, setClips] = useState<ClipSegment[]>(ClipSequence.createInitial(vid
 3. **TTS 映射**：`subtitleToTTSTrackMap` 将时间轴轨道 ID 映射到 TTS 轨道 ID（如 `track-0` -> `main`）
 4. **原生滚动**：组件使用原生滚动条而非虚拟滚动库，保持原生体验
 
+## 剪辑状态持久化
+
+剪辑轨道的片段状态会自动保存到资源的 `metadata.clipSegments` 字段中，实现跨会话持久化。
+
+### 存储格式
+
+```typescript
+// resource.metadata (JSON string)
+{
+  "clipSegments": [
+    {
+      "id": "clip-initial-1234567890",
+      "sourceStart": 0,
+      "sourceEnd": 120.5,
+      "order": 0,
+      "playbackRate": 1.0
+    },
+    {
+      "id": "clip-L-1234567890",
+      "sourceStart": 0,
+      "sourceEnd": 30,
+      "order": 0,
+      "playbackRate": 1.0,
+      "label": "片段1 (前)"
+    },
+    {
+      "id": "clip-R-1234567890",
+      "sourceStart": 30,
+      "sourceEnd": 120.5,
+      "order": 1,
+      "playbackRate": 1.0,
+      "deleted": true  // 软删除标记
+    }
+  ]
+}
+```
+
+### 加载与保存流程
+
+1. **加载**：当资源加载且媒体时长可用时，从 `resource.metadata.clipSegments` 读取已保存的剪辑状态
+2. **保存**：剪辑状态变更后通过防抖（1秒）自动保存到 `resource.metadata`
+3. **卸载时保存**：组件卸载或切换资源时，立即保存未完成的更改
+
+### 实现细节（ResourceSubtitlePlayer.tsx）
+
+```typescript
+// 防抖保存剪辑状态
+const debouncedSaveClipSegments = useMemo(
+  () =>
+    debounce(async (resourceId, metadataStr, clips) => {
+      const metadata = metadataStr ? JSON.parse(metadataStr) : {};
+      await window.YUA.resource['resource:update']({
+        id: resourceId,
+        patch: { metadata: JSON.stringify({ ...metadata, clipSegments: clips }) }
+      });
+    }, 1000),
+  []
+);
+
+// 加载剪辑状态
+const loadClipSegmentsFromMetadata = useCallback((metadataStr, mediaDur) => {
+  const metadata = metadataStr ? JSON.parse(metadataStr) : {};
+  if (Array.isArray(metadata.clipSegments) && metadata.clipSegments.length > 0) {
+    setClipSegments(metadata.clipSegments);
+    setShowClipTrack(true);
+  } else if (mediaDur > 0) {
+    setClipSegments(ClipSequence.createInitial(mediaDur));
+  }
+}, []);
+```
+
 ## 相关文件
 
-- `ResourceSubtitlePlayer.tsx` - 上层容器组件，处理字幕加载/保存
+- `ResourceSubtitlePlayer.tsx` - 上层容器组件，处理字幕加载/保存及剪辑状态持久化
 - `@aim-packages/subtitle` - 字幕解析库（AimSegments 格式）
