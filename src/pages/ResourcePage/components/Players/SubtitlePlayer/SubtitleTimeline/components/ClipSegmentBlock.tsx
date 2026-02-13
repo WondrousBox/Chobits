@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TbGripVertical, TbPlayerPause, TbPlayerPlay, TbTrash } from 'react-icons/tb';
+import { TbChevronDown, TbChevronUp, TbGripVertical, TbPlayerPause, TbPlayerPlay, TbTrash } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 
@@ -22,6 +22,10 @@ interface ClipSegmentBlockProps {
   pixelsPerSecond: number;
   /** 轨道高度 */
   trackHeight: number;
+  /** 该片段在排序中的索引（用于显示顺序号） */
+  orderIndex?: number;
+  /** 总活跃片段数（用于判断是否可以上移/下移） */
+  totalActiveClips?: number;
   /** 是否选中 */
   isSelected?: boolean;
   /** 是否为当前正在播放的片段 */
@@ -38,8 +42,10 @@ interface ClipSegmentBlockProps {
   onSpeedChange?: (clipId: string, playbackRate: number) => void;
   /** 启用/禁用切换 */
   onToggleDisabled?: (clipId: string) => void;
-  /** 拖拽排序开始 */
-  onDragStart?: (clipId: string, event: React.MouseEvent) => void;
+  /** 上移回调 */
+  onMoveUp?: (clipId: string) => void;
+  /** 下移回调 */
+  onMoveDown?: (clipId: string) => void;
   /** 当前激活的工具（cut 模式下点击事件不拦截，让父级处理切割） */
   activeTool?: ClipTool;
 }
@@ -48,10 +54,10 @@ interface ClipSegmentBlockProps {
  * ClipSegmentBlock - 单个剪辑片段块
  *
  * 在剪辑轨道上显示一个片段，包括：
+ * - 播放顺序号
  * - 源时间范围标记
  * - 播放速率显示
- * - 拖拽手柄（排序）
- * - 选中时的操作按钮
+ * - 选中时的操作按钮（包括上移/下移）
  * - 播放进度指示
  */
 export const ClipSegmentBlock: React.FC<ClipSegmentBlockProps> = ({
@@ -60,6 +66,8 @@ export const ClipSegmentBlock: React.FC<ClipSegmentBlockProps> = ({
   playEnd,
   pixelsPerSecond,
   trackHeight,
+  orderIndex,
+  totalActiveClips = 0,
   isSelected = false,
   isActive = false,
   activeProgress = 0,
@@ -68,7 +76,8 @@ export const ClipSegmentBlock: React.FC<ClipSegmentBlockProps> = ({
   onDelete,
   onSpeedChange,
   onToggleDisabled,
-  onDragStart,
+  onMoveUp,
+  onMoveDown,
   activeTool = 'select'
 }) => {
   const blockRef = useRef<HTMLDivElement>(null);
@@ -131,19 +140,32 @@ export const ClipSegmentBlock: React.FC<ClipSegmentBlockProps> = ({
     [clip.id, onSpeedChange]
   );
 
-  const handleDragHandleMouseDown = useCallback(
+  const handleMoveUp = useCallback(
     (e: React.MouseEvent) => {
-      if (activeTool === 'cut') return; // 切割模式下不启动拖拽
       e.stopPropagation();
-      onDragStart?.(clip.id, e);
+      onMoveUp?.(clip.id);
     },
-    [clip.id, onDragStart, activeTool]
+    [clip.id, onMoveUp]
   );
+
+  const handleMoveDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      onMoveDown?.(clip.id);
+    },
+    [clip.id, onMoveDown]
+  );
+
+  // 顺序号（1-indexed）
+  const displayOrder = orderIndex !== undefined ? orderIndex + 1 : clip.order + 1;
+  const canMoveUp = orderIndex !== undefined && orderIndex > 0;
+  const canMoveDown = orderIndex !== undefined && orderIndex < totalActiveClips - 1;
 
   return (
     <div
       ref={blockRef}
       data-clip-block={clip.id}
+      data-clip-order={displayOrder}
       className={clsx(
         'group absolute flex flex-col transition-shadow duration-100 overflow-hidden',
         'border rounded',
@@ -168,12 +190,16 @@ export const ClipSegmentBlock: React.FC<ClipSegmentBlockProps> = ({
 
       {/* 顶部信息行 */}
       <div className="flex items-center gap-1 px-1 pt-0.5 min-w-0 z-10">
-        {/* 拖拽手柄 */}
-        {onDragStart && (
-          <div className="shrink-0 cursor-grab active:cursor-grabbing text-foreground/40 hover:text-foreground/70" onMouseDown={handleDragHandleMouseDown} title="拖拽排序">
-            <TbGripVertical className="w-3 h-3" />
-          </div>
-        )}
+        {/* 播放顺序号 */}
+        <span
+          className={clsx(
+            'shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold',
+            isDisabled ? 'bg-gray-500/30 text-gray-400' : isActive ? 'bg-blue-500 text-white' : 'bg-blue-500/60 text-white'
+          )}
+          title={`播放顺序: 第 ${displayOrder} 个`}
+        >
+          {displayOrder}
+        </span>
 
         {/* 片段标签或源时间范围 */}
         <span className="text-[10px] text-foreground/80 truncate leading-tight flex-1">
@@ -187,13 +213,27 @@ export const ClipSegmentBlock: React.FC<ClipSegmentBlockProps> = ({
       {/* 底部信息行 */}
       <div className="flex items-center justify-between px-1 mt-auto pb-0.5 min-w-0 z-10">
         <span className="text-[9px] text-foreground/50 font-mono truncate">
-          {sourceDuration.toFixed(1)}s{clip.playbackRate !== 1.0 && ` → ${playDuration.toFixed(1)}s`}
+          {sourceDuration.toFixed(1)}s{clip.playbackRate !== 1.0 && ` → ${(sourceDuration / clip.playbackRate).toFixed(1)}s`}
         </span>
       </div>
 
       {/* 选中时的操作按钮 */}
       {isSelected && (
         <div className="absolute -top-3 right-0 flex items-center gap-0.5 z-30">
+          {/* 上移按钮 */}
+          {canMoveUp && (
+            <Button size="icon" variant="outline" className="w-6 h-6 rounded-full p-0 bg-background shadow-sm hover:bg-accent" onClick={handleMoveUp} title="上移（提前播放）">
+              <TbChevronUp className="w-3 h-3" />
+            </Button>
+          )}
+
+          {/* 下移按钮 */}
+          {canMoveDown && (
+            <Button size="icon" variant="outline" className="w-6 h-6 rounded-full p-0 bg-background shadow-sm hover:bg-accent" onClick={handleMoveDown} title="下移（延后播放）">
+              <TbChevronDown className="w-3 h-3" />
+            </Button>
+          )}
+
           {/* 变速按钮 */}
           <div className="relative" ref={speedMenuRef}>
             <Button

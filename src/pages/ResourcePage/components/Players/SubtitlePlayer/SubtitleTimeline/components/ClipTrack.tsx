@@ -36,12 +36,17 @@ interface ClipTrackProps {
   onToggleDisabled?: (clipId: string) => void;
   /** 片段点击（选中） */
   onClipSelect?: (clipId: string) => void;
+  /** 上移回调 */
+  onMoveUp?: (clipId: string) => void;
+  /** 下移回调 */
+  onMoveDown?: (clipId: string) => void;
 }
 
 /**
- * ClipTrack - 剪辑轨道组件（源时间布局）
+ * ClipTrack - 剪辑轨道组件（源时间布局 + 乱序播放）
  *
  * 片段按源时间位置排列，与字幕/TTS 轨道共享同一时间轴。
+ * 每个片段显示播放顺序号（order），支持通过上移/下移按钮调整播放顺序。
  * 已删除的片段显示为带斜线的空白区域，可以恢复。
  */
 export const ClipTrack: React.FC<ClipTrackProps> = ({
@@ -56,12 +61,24 @@ export const ClipTrack: React.FC<ClipTrackProps> = ({
   onRestore,
   onSpeedChange,
   onToggleDisabled,
-  onClipSelect
+  onClipSelect,
+  onMoveUp,
+  onMoveDown
 }) => {
   const trackRef = useRef<HTMLDivElement>(null);
 
   const sequence = useMemo(() => new ClipSequence(clips), [clips]);
   const allInfos = useMemo(() => sequence.getAllPlaybackInfos(), [sequence]);
+  const orderedClips = useMemo(() => sequence.getOrderedClips(), [sequence]);
+
+  // 构建 clipId -> orderIndex 的映射
+  const orderIndexMap = useMemo(() => {
+    const map = new Map<string, number>();
+    orderedClips.forEach((info, index) => {
+      map.set(info.clip.id, index);
+    });
+    return map;
+  }, [orderedClips]);
 
   const activeClipInfo = useMemo(() => {
     if (currentTime === undefined) return null;
@@ -91,6 +108,7 @@ export const ClipTrack: React.FC<ClipTrackProps> = ({
   );
 
   const trackHeight = DEFAULT_CONFIG.CLIP_TRACK_HEIGHT;
+  const totalActiveClips = orderedClips.length;
 
   return (
     <div
@@ -150,6 +168,8 @@ export const ClipTrack: React.FC<ClipTrackProps> = ({
             playEnd={info.playEnd}
             pixelsPerSecond={pixelsPerSecond}
             trackHeight={trackHeight}
+            orderIndex={orderIndexMap.get(info.clip.id)}
+            totalActiveClips={totalActiveClips}
             isSelected={selectedClipId === info.clip.id}
             isActive={activeClipInfo?.clipId === info.clip.id}
             activeProgress={activeClipInfo?.clipId === info.clip.id ? activeClipInfo.progress : 0}
@@ -159,6 +179,8 @@ export const ClipTrack: React.FC<ClipTrackProps> = ({
             onDelete={onDelete}
             onSpeedChange={onSpeedChange}
             onToggleDisabled={onToggleDisabled}
+            onMoveUp={onMoveUp}
+            onMoveDown={onMoveDown}
           />
         )
       )}
