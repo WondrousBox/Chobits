@@ -291,4 +291,8 @@ export interface ClipTrackCallbacks {
   onClipLabelChange?: (clipId: string, label: string) => void;
   /** 切割工具切换 */
   onClipToolChange?: (tool: ClipTool) => void;
+  /** 片段排序变更（拖拽排序后） */
+  onClipReorder?: (orderedIds: string[]) => void;
+  /** 片段移动到指定位置 */
+  onClipMove?: (clipId: string, targetOrder: number) => void;
 }

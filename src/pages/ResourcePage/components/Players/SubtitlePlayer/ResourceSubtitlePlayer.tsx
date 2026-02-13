@@ -1045,9 +1045,28 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
       },
       onClipLabelChange: (clipId: string, label: string) => {
         setClipSegments((prev) => ClipSequence.changeLabel(prev, clipId, label));
+      },
+      onClipMove: (clipId: string, targetOrder: number) => {
+        setClipSegments((prev) => ClipSequence.moveClipToOrder(prev, clipId, targetOrder));
+      },
+      onClipReorder: (orderedIds: string[]) => {
+        setClipSegments((prev) => ClipSequence.reorderByIds(prev, orderedIds));
       }
     }),
     []
+  );
+
+  /**
+   * 获取下一个按 order 顺序播放的片段的源时间起始点
+   * 用于乱序播放：当当前片段播放完成时，跳转到下一个片段
+   */
+  const getNextOrderedClipSourceStart = useCallback(
+    (currentSourceTime: number): number | null => {
+      const seq = new ClipSequence(clipSegments);
+      const nextClip = seq.getNextOrderedClip(currentSourceTime);
+      return nextClip ? nextClip.clip.sourceStart : null;
+    },
+    [clipSegments]
   );
 
   /**
