@@ -21,6 +21,7 @@ interface MediaPlayerProps {
 export interface MediaPlayerRef {
   seekTo: (time: number) => void; // 跳转到指定时间
   pause: () => void; // 暂停播放
+  setPlaybackRate: (rate: number) => void; // 设置播放速度
   getCurrentTime: () => number; // 获取当前播放时间
   getDuration: () => number; // 获取媒体总时长（秒）
   isPlaying: () => boolean; // 是否正在播放
@@ -113,19 +114,6 @@ export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(
       return mediaRef.current?.duration ?? 0;
     }, []);
 
-    // 暴露方法给父组件
-    useImperativeHandle(
-      ref,
-      () => ({
-        seekTo,
-        pause,
-        getCurrentTime,
-        getDuration,
-        isPlaying: () => isPlaying
-      }),
-      [seekTo, pause, getCurrentTime, getDuration, isPlaying]
-    );
-
     // 设置音量
     const changeVolume = useCallback((vol: number) => {
       if (mediaRef.current) {
@@ -141,6 +129,20 @@ export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(
         setPlaybackRate(rate);
       }
     }, []);
+
+    // 暴露方法给父组件
+    useImperativeHandle(
+      ref,
+      () => ({
+        seekTo,
+        pause,
+        setPlaybackRate: changePlaybackRate,
+        getCurrentTime,
+        getDuration,
+        isPlaying: () => isPlaying
+      }),
+      [seekTo, pause, changePlaybackRate, getCurrentTime, getDuration, isPlaying]
+    );
 
     // 切换全屏
     const toggleFullscreen = useCallback(() => {
@@ -378,7 +380,7 @@ export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(
           onSeek={seekTo}
           onVolumeChange={changeVolume}
           onPlaybackRateChange={changePlaybackRate}
-          onToggleFullscreen={() => { }}
+          onToggleFullscreen={() => {}}
           type="audio"
         />
         {title && <div className="text-[11px] text-muted-foreground px-1">音频预览 - {title}</div>}
