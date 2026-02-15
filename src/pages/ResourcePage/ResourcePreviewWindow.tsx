@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { BroadcastChannelManager, CHANNEL_NAMES, type MediaSyncMessage } from '@/utils/broadcastChannels';
 
-import { ImagePlayer, MediaPlayer, ResourceSubtitlePlayer, TextPlayer } from './components/Players';
+import { ImagePlayer, MediaPlayer, ResourceSubtitlePlayer, SubtitleOverlay, TextPlayer } from './components/Players';
 import type { MediaPlayerRef } from './components/Players/MediaPlayer/MediaPlayer';
 import ResourceTabs from './components/ResourceTabs';
 import type { ResourceItem } from './types';
@@ -370,7 +370,9 @@ const ResourcePreviewWindow: React.FC = () => {
           onPause={handlePause}
           onStop={handleStop}
           onScreenshot={isVideoFile(data.filePath) ? handleScreenshot : undefined}
-        />
+        >
+          <SubtitleOverlay />
+        </MediaPlayer>
       )}
       {isSubtitleFile(data.filePath) && <ResourceSubtitlePlayer resource={data} />}
       {!isImageFile(data.filePath) && !isVideoFile(data.filePath) && !isAudioFile(data.filePath) && !isSubtitleFile(data.filePath) && <TextPlayer resource={data} />}
