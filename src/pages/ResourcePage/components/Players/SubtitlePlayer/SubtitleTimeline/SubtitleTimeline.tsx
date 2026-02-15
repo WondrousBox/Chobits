@@ -721,7 +721,6 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                 onMoveUp={handleClipMoveUp}
                 onMoveDown={handleClipMoveDown}
                 layoutMode={clipLayoutMode}
-                audioPath={audioPath}
                 onClipSelect={(id: string) => {
                   setSelectedSegmentId(null);
                   setSelectedTTS(null);

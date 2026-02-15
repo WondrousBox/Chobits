@@ -10,7 +10,7 @@ import { formatSecondsToTime } from '../utils';
 
 /** 变速范围 */
 const MIN_RATE = 0.25;
-const MAX_RATE = 4.0;
+const MAX_RATE = 16.0;
 
 /** 拖拽边缘宽度 */
 const EDGE_WIDTH = 6;
