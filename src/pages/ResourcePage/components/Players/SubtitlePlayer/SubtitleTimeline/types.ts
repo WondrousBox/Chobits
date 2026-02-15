@@ -274,6 +274,11 @@ export interface ClipTrackData {
 export type ClipTool = 'select' | 'cut';
 
 /**
+ * 剪辑轨道布局模式
+ */
+export type ClipLayoutMode = 'source-time' | 'playback-order';
+
+/**
  * 剪辑轨道回调
  */
 export interface ClipTrackCallbacks {

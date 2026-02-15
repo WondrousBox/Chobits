@@ -8,7 +8,7 @@ import { Slider } from '@/components/ui/slider';
 import { ClipTrack, ClipTrackLabel, SeekBar, TimelineTrackView, TimeRuler, TrackLabel, TTSAudioTrack, TTSTrackLabel, WaveformTrack } from './components';
 import { useTimelineInteraction } from './hooks';
 import type { TimelineSegment } from './types';
-import { ClipTool, DEFAULT_CONFIG, SubtitleTimelineProps, TRACK_COLORS, ViewportState } from './types';
+import { ClipLayoutMode, ClipTool, DEFAULT_CONFIG, SubtitleTimelineProps, TRACK_COLORS, ViewportState } from './types';
 import { parseSegmentId } from './utils';
 
 const audioWaveformHeight = 40;
@@ -79,6 +79,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   const [mockCurrentTime, setMockCurrentTime] = useState(0);
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
   const [internalClipTool, setInternalClipTool] = useState<ClipTool>(propClipTool);
+  const [clipLayoutMode, setClipLayoutMode] = useState<ClipLayoutMode>('source-time');
 
   const initialPixelsPerSecondValue = initialViewport?.pixelsPerSecond ?? DEFAULT_CONFIG.DEFAULT_PIXELS_PER_SECOND;
 
@@ -560,8 +561,8 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                   <React.Fragment key={track.id}>
                     {/* 字幕轨道标签 */}
                     <TrackLabel
-                      onToggleLock={() => {}}
-                      onToggleHidden={() => {}}
+                      onToggleLock={() => { }}
+                      onToggleHidden={() => { }}
                       track={track}
                       index={index}
                       allowDelete={track.id !== 'track-0' && !!onDeleteSubtitleTrack}
@@ -574,7 +575,13 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
               })}
 
             {showClipTrack && clipTrackData && (
-              <ClipTrackLabel activeTool={internalClipTool} onToolChange={clipCallbacks?.onClipToolChange ?? setInternalClipTool} clipCount={clipTrackData.clips.length} />
+              <ClipTrackLabel
+                activeTool={internalClipTool}
+                onToolChange={clipCallbacks?.onClipToolChange ?? setInternalClipTool}
+                clipCount={clipTrackData.clips.length}
+                layoutMode={clipLayoutMode}
+                onLayoutModeChange={setClipLayoutMode}
+              />
             )}
 
             <div className="flex items-center justify-center hover:bg-accent/50 cursor-pointer" style={{ height: 40 }}>
@@ -713,6 +720,8 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                 onSpeedChange={clipCallbacks?.onClipSpeedChange}
                 onMoveUp={handleClipMoveUp}
                 onMoveDown={handleClipMoveDown}
+                layoutMode={clipLayoutMode}
+                audioPath={audioPath}
                 onClipSelect={(id: string) => {
                   setSelectedSegmentId(null);
                   setSelectedTTS(null);
