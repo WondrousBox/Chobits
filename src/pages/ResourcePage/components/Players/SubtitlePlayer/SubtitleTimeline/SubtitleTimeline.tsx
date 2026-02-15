@@ -62,7 +62,12 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   showClipTrack = false,
   clipTrack: clipTrackData,
   clipTool: propClipTool = 'select',
-  clipCallbacks
+  clipCallbacks,
+  onToggleSubtitleTrackEnabled,
+  onToggleTTSTrackEnabled,
+  onToggleClipTrackEnabled,
+  clipTrackEnabled = true,
+  ttsTrackEnabledMap
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -561,15 +566,23 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                   <React.Fragment key={track.id}>
                     {/* 字幕轨道标签 */}
                     <TrackLabel
-                      onToggleLock={() => { }}
-                      onToggleHidden={() => { }}
                       track={track}
                       index={index}
                       allowDelete={track.id !== 'track-0' && !!onDeleteSubtitleTrack}
                       onDelete={onDeleteSubtitleTrack}
+                      onToggleEnabled={onToggleSubtitleTrackEnabled}
                     />
                     {/* TTS轨道标签（如果有） */}
-                    {hasTTSTrack && <TTSTrackLabel trackLabel={track.label} trackColor={track.color} ttsTrackId={ttsTrackId} onDelete={onDeleteTTSTrack} />}
+                    {hasTTSTrack && (
+                      <TTSTrackLabel
+                        trackLabel={track.label}
+                        trackColor={track.color}
+                        ttsTrackId={ttsTrackId}
+                        onDelete={onDeleteTTSTrack}
+                        enabled={ttsTrackEnabledMap?.get(ttsTrackId) !== false}
+                        onToggleEnabled={onToggleTTSTrackEnabled}
+                      />
+                    )}
                   </React.Fragment>
                 );
               })}
@@ -581,6 +594,8 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                 clipCount={clipTrackData.clips.length}
                 layoutMode={clipLayoutMode}
                 onLayoutModeChange={setClipLayoutMode}
+                enabled={clipTrackEnabled}
+                onToggleEnabled={onToggleClipTrackEnabled}
               />
             )}
 
@@ -673,7 +688,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                       onSegmentTextChange={onSegmentTextChange}
                       onSegmentTimeChange={onSegmentTimeChange}
                       onDeleteSegment={onDeleteSegment}
-                      disabled={disabled || track.locked}
+                      disabled={disabled || track.locked || track.enabled === false}
                     />
                     {/* TTS轨道内容（如果有） */}
                     {hasTTSTrack && (
@@ -699,6 +714,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                         onTimeChange={(index, newStartTime, newEndTime) => onTTSTimeChange?.(ttsTrackId, index, newStartTime, newEndTime)}
                         maxDuration={duration}
                         onDeleteSegment={onDeleteTTSSegment ? (item) => onDeleteTTSSegment(ttsTrackId, item.index) : undefined}
+                        disabled={ttsTrackEnabledMap?.get(ttsTrackId) === false}
                       />
                     )}
                   </React.Fragment>
@@ -726,6 +742,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                   setSelectedTTS(null);
                   setSelectedClipId(id);
                 }}
+                disabled={!clipTrackEnabled}
               />
             )}
           </div>

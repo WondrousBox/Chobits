@@ -1,3 +1,4 @@
+import clsx from 'clsx';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import type { TTSAudioItem } from '../types';
@@ -45,6 +46,8 @@ interface TTSAudioTrackProps {
   onTimeChange?: (index: number, newStartTime: number, newEndTime: number) => void;
   /** 最大时长（秒），用于拖拽边界 */
   maxDuration?: number;
+  /** 禁用交互（轨道未启用时） */
+  disabled?: boolean;
 }
 
 /**
@@ -65,7 +68,8 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
   onBlockSelect,
   onDeleteSegment,
   onTimeChange,
-  maxDuration
+  maxDuration,
+  disabled = false
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -246,7 +250,7 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
   }
 
   return (
-    <div className="relative border-border" style={{ height: trackHeight, width }}>
+    <div className={clsx('relative border-border', disabled && 'opacity-40 pointer-events-none')} style={{ height: trackHeight, width }}>
       {/* 轨道内容容器（设置总宽度） */}
       <div ref={containerRef} className="relative h-full" style={{ width }}>
         {/* 单轨单 Canvas：波形层（在块下方，半透明块背景可透出波形） */}

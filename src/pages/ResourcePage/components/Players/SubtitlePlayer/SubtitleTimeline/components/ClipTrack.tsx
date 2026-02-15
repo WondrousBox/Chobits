@@ -40,6 +40,8 @@ interface ClipTrackProps {
   onMoveDown?: (clipId: string) => void;
   /** 布局模式 */
   layoutMode?: ClipLayoutMode;
+  /** 禁用交互（轨道未启用时） */
+  disabled?: boolean;
 }
 
 /**
@@ -68,7 +70,8 @@ export const ClipTrack: React.FC<ClipTrackProps> = ({
   onClipSelect,
   onMoveUp,
   onMoveDown,
-  layoutMode = 'source-time'
+  layoutMode = 'source-time',
+  disabled = false
 }) => {
   const trackRef = useRef<HTMLDivElement>(null);
 
@@ -157,7 +160,7 @@ export const ClipTrack: React.FC<ClipTrackProps> = ({
     <div
       ref={trackRef}
       data-clip-track
-      className={clsx('relative border-border', activeTool === 'cut' && 'cursor-crosshair')}
+      className={clsx('relative border-border', activeTool === 'cut' && 'cursor-crosshair', disabled && 'opacity-40 pointer-events-none')}
       style={{ height: trackHeight + DEFAULT_CONFIG.TRACK_GAP, width }}
       onClick={handleTrackClick}
     >
