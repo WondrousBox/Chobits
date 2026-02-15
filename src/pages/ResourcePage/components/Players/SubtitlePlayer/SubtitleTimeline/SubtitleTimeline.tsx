@@ -234,6 +234,56 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
     [onSegmentClick]
   );
 
+  // 剪辑片段上移
+  const handleClipMoveUp = useCallback(
+    (clipId: string) => {
+      const clip = clipTrackData?.clips.find((c) => c.id === clipId);
+      if (!clip || clip.deleted) return;
+
+      const activeClips = clipTrackData?.clips.filter((c) => !c.deleted) || [];
+      const sortedActive = [...activeClips].sort((a, b) => a.order - b.order);
+      const currentIndex = sortedActive.findIndex((c) => c.id === clipId);
+
+      if (currentIndex <= 0) return;
+
+      const targetIndex = currentIndex - 1;
+      const targetClip = sortedActive[targetIndex];
+
+      clipCallbacks?.onClipReorder?.(
+        sortedActive
+          .map((c) => c.id)
+          .toSpliced(currentIndex, 1)
+          .toSpliced(targetIndex, 0, clipId)
+      );
+    },
+    [clipTrackData, clipCallbacks]
+  );
+
+  // 剪辑片段下移
+  const handleClipMoveDown = useCallback(
+    (clipId: string) => {
+      const clip = clipTrackData?.clips.find((c) => c.id === clipId);
+      if (!clip || clip.deleted) return;
+
+      const activeClips = clipTrackData?.clips.filter((c) => !c.deleted) || [];
+      const sortedActive = [...activeClips].sort((a, b) => a.order - b.order);
+      const currentIndex = sortedActive.findIndex((c) => c.id === clipId);
+
+      if (currentIndex >= sortedActive.length - 1 || currentIndex === -1) return;
+
+      const targetIndex = currentIndex + 1;
+      const targetClip = sortedActive[targetIndex];
+
+      clipCallbacks?.onClipReorder?.(
+        sortedActive
+          .map((c) => c.id)
+          .toSpliced(currentIndex, 1)
+          .toSpliced(targetIndex, 0, clipId)
+      );
+    },
+    [clipTrackData, clipCallbacks]
+  );
+
   // 交互管理
   const { isDragging, handlers, handleSegmentClick, handleSegmentDoubleClick } = useTimelineInteraction({
     disabled,
@@ -510,8 +560,8 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                   <React.Fragment key={track.id}>
                     {/* 字幕轨道标签 */}
                     <TrackLabel
-                      onToggleLock={() => { }}
-                      onToggleHidden={() => { }}
+                      onToggleLock={() => {}}
+                      onToggleHidden={() => {}}
                       track={track}
                       index={index}
                       allowDelete={track.id !== 'track-0' && !!onDeleteSubtitleTrack}
@@ -661,7 +711,8 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                 onDelete={clipCallbacks?.onClipDelete}
                 onRestore={clipCallbacks?.onClipRestore}
                 onSpeedChange={clipCallbacks?.onClipSpeedChange}
-                onToggleDisabled={clipCallbacks?.onClipToggleDisabled}
+                onMoveUp={handleClipMoveUp}
+                onMoveDown={handleClipMoveDown}
                 onClipSelect={(id: string) => {
                   setSelectedSegmentId(null);
                   setSelectedTTS(null);

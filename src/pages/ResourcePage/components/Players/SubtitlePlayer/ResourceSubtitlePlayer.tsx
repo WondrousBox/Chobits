@@ -1088,6 +1088,53 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     }
   }, [currentTime, clipSegments, showClipTrack, onSeek]);
 
+  /**
+   * 乱序播放逻辑：当播放位置接近当前片段结束时，跳转到下一个按 order 顺序的片段
+   */
+  const lastOrderedJumpTimeRef = useRef<number>(-1);
+  useEffect(() => {
+    if (!showClipTrack || clipSegments.length === 0 || !onSeek) return;
+
+    const isPlaying = mediaPlayerRef?.current?.isPlaying() ?? false;
+    if (!isPlaying) return;
+
+    const seq = new ClipSequence(clipSegments);
+    const currentClipInfo = seq.playTimeToSource(currentTime);
+
+    if (!currentClipInfo) {
+      lastOrderedJumpTimeRef.current = -1;
+      return;
+    }
+
+    const currentOrderedIndex = seq.getOrderedClips().findIndex((info) => info.clip.id === currentClipInfo.clipId);
+    if (currentOrderedIndex === -1) {
+      lastOrderedJumpTimeRef.current = -1;
+      return;
+    }
+
+    const currentClip = seq.getOrderedClips()[currentOrderedIndex];
+    const currentClipSourceEnd = currentClip.clip.sourceEnd;
+
+    const timeUntilEnd = currentClipSourceEnd - currentTime;
+    if (timeUntilEnd <= 0.1 && timeUntilEnd >= 0 && lastOrderedJumpTimeRef.current !== currentTime) {
+      lastOrderedJumpTimeRef.current = currentTime;
+
+      const nextClip = seq.getOrderedClips()[currentOrderedIndex + 1];
+      if (nextClip) {
+        onSeek(nextClip.clip.sourceStart);
+      }
+    }
+
+    if (currentTime > currentClipSourceEnd && lastOrderedJumpTimeRef.current !== currentTime) {
+      lastOrderedJumpTimeRef.current = currentTime;
+
+      const nextClip = seq.getOrderedClips()[currentOrderedIndex + 1];
+      if (nextClip) {
+        onSeek(nextClip.clip.sourceStart);
+      }
+    }
+  }, [currentTime, clipSegments, showClipTrack, onSeek, mediaPlayerRef]);
+
   return (
     <div className="flex h-full w-full flex-col text-muted-foreground">
       <div className="flex items-center justify-between gap-2 border-b border-border/50 px-2">
