@@ -16,6 +16,8 @@ interface MediaPlayerProps {
   onStop?: () => void; // 播放结束回调（ended）
   /** 视频截图回调，不传则默认触发浏览器下载 */
   onScreenshot?: (blob: Blob) => void;
+  /** 子元素，可用于渲染字幕叠加层等 */
+  children?: React.ReactNode;
 }
 
 export interface MediaPlayerRef {
@@ -28,7 +30,7 @@ export interface MediaPlayerRef {
 }
 
 export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(
-  ({ src, type, title, autoPlay = false, className = '', onTimeUpdate, onDurationChange, onPlay, onPause, onStop, onScreenshot }, ref) => {
+  ({ src, type, title, autoPlay = false, className = '', onTimeUpdate, onDurationChange, onPlay, onPause, onStop, onScreenshot, children }, ref) => {
     const mediaRef = useRef<HTMLVideoElement | HTMLAudioElement | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -342,6 +344,7 @@ export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(
             onClick={handleVideoClick}
             onDoubleClick={handleVideoDoubleClick}
           />
+          {children}
           <CenterPlayButton isPlaying={isPlaying} onTogglePlay={togglePlay} />
           <MediaControls
             isPlaying={isPlaying}
@@ -380,7 +383,7 @@ export const MediaPlayer = forwardRef<MediaPlayerRef, MediaPlayerProps>(
           onSeek={seekTo}
           onVolumeChange={changeVolume}
           onPlaybackRateChange={changePlaybackRate}
-          onToggleFullscreen={() => {}}
+          onToggleFullscreen={() => { }}
           type="audio"
         />
         {title && <div className="text-[11px] text-muted-foreground px-1">音频预览 - {title}</div>}

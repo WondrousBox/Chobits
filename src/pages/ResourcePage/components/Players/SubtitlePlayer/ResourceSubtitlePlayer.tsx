@@ -9,6 +9,7 @@ import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 
 import type { ResourceItem } from '../../../types';
 import { MediaPlayerRef } from '../MediaPlayer/MediaPlayer';
+import { dispatchSubtitleDisplay, type SubtitleDisplayLine } from '../MediaPlayer/subtitleDisplayEvent';
 import { ExportDialog } from './ExportDialog';
 import { SubtitlePlayer } from './SubtitleListPlayer/SubtitlePlayer';
 import { aimTracksToTimelineTracks, ClipSequence, formatSecondsToTime, indicesToIds, parseSegmentId, parseTimeToSeconds, SubtitleTimeline, TimelineSegment } from './SubtitleTimeline';
@@ -1225,6 +1226,60 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
       enabled: subtitleTrackEnabledMap.get(track.id) !== false // 默认 true
     }));
   }, [timelineTracks, subtitleTrackEnabledMap]);
+
+  // ---- 多轨道字幕叠加显示：计算当前时间每个启用轨道的字幕，并广播给 SubtitleOverlay ----
+  useEffect(() => {
+    if (subtitleEntries.length === 0) {
+      dispatchSubtitleDisplay([]);
+      return;
+    }
+
+    // 所有字幕轨道：主轨 + 翻译轨 + 翻译中临时轨
+    const allTracks: AimSegments[][] = [subtitleEntries, ...translationTracks];
+    const allTrackIds = ['track-0', ...translationTrackMeta.map((_, idx) => `track-${idx + 1}`)];
+    const allLabels = ['原文', ...translationTrackMeta.map((m) => m.label)];
+
+    // 如果有正在翻译的临时轨也加入
+    if (typingTexts.length > 0) {
+      allTracks.push(typingTexts);
+      allTrackIds.push(`track-${translationTracks.length + 1}`);
+      allLabels.push('翻译中');
+    }
+
+    const lines: SubtitleDisplayLine[] = [];
+
+    allTracks.forEach((track, trackIdx) => {
+      const trackId = allTrackIds[trackIdx];
+      // 在时间轴模式下尊重轨道启用状态；列表模式下默认全部显示
+      const isEnabled = subtitleTrackEnabledMap.get(trackId) !== false;
+      if (!isEnabled) return;
+
+      // 遍历当前轨道的所有片段，找到匹配 currentTime 的文本（每个轨道有独立的 st/et）
+      for (const seg of track) {
+        if (seg.delete) continue;
+        const st = utils.convertToSeconds(seg.st);
+        const et = utils.convertToSeconds(seg.et);
+        if (currentTime >= st && currentTime < et && seg.text) {
+          lines.push({
+            trackId,
+            trackLabel: allLabels[trackIdx],
+            text: seg.text,
+            isTranslation: trackIdx > 0
+          });
+          break;
+        }
+      }
+    });
+
+    dispatchSubtitleDisplay(lines);
+  }, [currentTime, subtitleEntries, translationTracks, translationTrackMeta, typingTexts, subtitleTrackEnabledMap]);
+
+  // 组件卸载时清空字幕显示
+  useEffect(() => {
+    return () => {
+      dispatchSubtitleDisplay([]);
+    };
+  }, []);
 
   return (
     <div className="flex h-full w-full flex-col text-muted-foreground">
