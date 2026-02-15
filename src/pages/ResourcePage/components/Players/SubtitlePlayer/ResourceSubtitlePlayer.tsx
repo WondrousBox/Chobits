@@ -82,6 +82,14 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
   const [clipSegments, setClipSegments] = useState<ClipSegment[]>([]);
   const isLoadingClipSegmentsRef = useRef(false);
 
+  // ---- 轨道启用/禁用状态 ----
+  /** 字幕轨道启用状态：timeline track id -> enabled */
+  const [subtitleTrackEnabledMap, setSubtitleTrackEnabledMap] = useState<Map<string, boolean>>(new Map());
+  /** TTS轨道启用状态：ttsTrackId -> enabled */
+  const [ttsTrackEnabledMap, setTTSTrackEnabledMap] = useState<Map<string, boolean>>(new Map());
+  /** 剪辑轨道是否启用 */
+  const [clipTrackEnabled, setClipTrackEnabled] = useState(true);
+
   // 防抖保存剪辑状态（存储到独立的 clip 文件）
   const debouncedSaveClipSegments = useMemo(
     () =>
@@ -451,9 +459,13 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
   const trackIds = useMemo(() => ['main', ...translationTrackMeta.map((t) => t.languageCode)], [translationTrackMeta]);
 
   // 监听媒体播放器播放/暂停状态变化；首次进入时若已在播放（如自动播放）也同步启动 TTS
+  // 仅在至少一个 TTS 轨道启用时才启动同步播放
   useEffect(() => {
+    // 检查是否有任何 TTS 轨道启用
+    const hasEnabledTTSTrack = ttsTrackEnabledMap.size === 0 || Array.from(ttsTrackEnabledMap.values()).some((v) => v !== false);
+
     const handleMediaStateChange = (event: CustomEvent<{ isPlaying: boolean }>) => {
-      if (event.detail.isPlaying) {
+      if (event.detail.isPlaying && hasEnabledTTSTrack) {
         startTTSPlayback('main');
       } else {
         stopTTSPlayback();
@@ -464,7 +476,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
 
     // 首次挂载时检测：若播放器已在播放（如自动播放），事件可能已错过，需主动触发 TTS
     const checkInitialPlaying = () => {
-      if (mediaPlayerRef?.current?.isPlaying()) {
+      if (mediaPlayerRef?.current?.isPlaying() && hasEnabledTTSTrack) {
         startTTSPlayback('main');
       }
     };
@@ -475,7 +487,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
       window.clearTimeout(tid);
       window.removeEventListener('custom:media-state-change', handleMediaStateChange as EventListener);
     };
-  }, [startTTSPlayback, stopTTSPlayback]);
+  }, [startTTSPlayback, stopTTSPlayback, ttsTrackEnabledMap]);
 
   // TTS 合成选项（原文 + 各翻译轨）供 TTSSynthesizer 选择
   const ttsTrackOptions = useMemo<TTSTrackOption[]>(() => {
@@ -1072,9 +1084,12 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
   /**
    * 播放跳过逻辑：当播放位置进入已删除片段区域时，自动跳到下一个活跃区域
    */
+  // 判断剪辑轨道是否实际生效（显示且启用）
+  const clipTrackEffective = showClipTrack && clipTrackEnabled;
+
   const lastSkipTimeRef = useRef<number>(-1);
   useEffect(() => {
-    if (!showClipTrack || clipSegments.length === 0 || !onSeek) return;
+    if (!clipTrackEffective || clipSegments.length === 0 || !onSeek) return;
 
     const seq = new ClipSequence(clipSegments);
     const skipTarget = seq.getSkipTarget(currentTime);
@@ -1086,14 +1101,14 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
       // 重置，允许后续再次跳过同一目标
       lastSkipTimeRef.current = -1;
     }
-  }, [currentTime, clipSegments, showClipTrack, onSeek]);
+  }, [currentTime, clipSegments, clipTrackEffective, onSeek]);
 
   /**
    * 乱序播放逻辑：当播放位置接近当前片段结束时，跳转到下一个按 order 顺序的片段
    */
   const lastOrderedJumpTimeRef = useRef<number>(-1);
   useEffect(() => {
-    if (!showClipTrack || clipSegments.length === 0 || !onSeek) return;
+    if (!clipTrackEffective || clipSegments.length === 0 || !onSeek) return;
 
     const isPlaying = mediaPlayerRef?.current?.isPlaying() ?? false;
     if (!isPlaying) return;
@@ -1133,14 +1148,14 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
         onSeek(nextClip.clip.sourceStart);
       }
     }
-  }, [currentTime, clipSegments, showClipTrack, onSeek, mediaPlayerRef]);
+  }, [currentTime, clipSegments, clipTrackEffective, onSeek, mediaPlayerRef]);
 
   /**
    * 播放速度控制：根据当前播放片段的 playbackRate 调整播放器速度
    */
   const lastPlaybackRateClipIdRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!showClipTrack || clipSegments.length === 0) {
+    if (!clipTrackEffective || clipSegments.length === 0) {
       mediaPlayerRef?.current?.setPlaybackRate?.(1.0);
       lastPlaybackRateClipIdRef.current = null;
       return;
@@ -1163,7 +1178,38 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     const targetRate = clip.playbackRate ?? 1.0;
     mediaPlayerRef?.current?.setPlaybackRate?.(targetRate);
     lastPlaybackRateClipIdRef.current = clipId;
-  }, [currentTime, clipSegments, showClipTrack, mediaPlayerRef]);
+  }, [currentTime, clipSegments, clipTrackEffective, mediaPlayerRef]);
+
+  // ---- 轨道启用/禁用切换回调 ----
+  const handleToggleSubtitleTrackEnabled = useCallback((trackId: string) => {
+    setSubtitleTrackEnabledMap((prev) => {
+      const next = new Map(prev);
+      const current = next.get(trackId) !== false; // 默认 true
+      next.set(trackId, !current);
+      return next;
+    });
+  }, []);
+
+  const handleToggleTTSTrackEnabled = useCallback((ttsTrackId: string) => {
+    setTTSTrackEnabledMap((prev) => {
+      const next = new Map(prev);
+      const current = next.get(ttsTrackId) !== false; // 默认 true
+      next.set(ttsTrackId, !current);
+      return next;
+    });
+  }, []);
+
+  const handleToggleClipTrackEnabled = useCallback(() => {
+    setClipTrackEnabled((prev) => !prev);
+  }, []);
+
+  // 将字幕轨道的启用状态合并到 timelineTracks 中
+  const timelineTracksWithEnabled = useMemo(() => {
+    return timelineTracks.map((track) => ({
+      ...track,
+      enabled: subtitleTrackEnabledMap.get(track.id) !== false // 默认 true
+    }));
+  }, [timelineTracks, subtitleTrackEnabledMap]);
 
   return (
     <div className="flex h-full w-full flex-col text-muted-foreground">
@@ -1252,7 +1298,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
       ) : (
         // 时间轴视图
         <SubtitleTimeline
-          tracks={timelineTracks}
+          tracks={timelineTracksWithEnabled}
           duration={mediaDuration}
           currentTime={currentTime}
           followCurrentTime={followTime}
@@ -1282,6 +1328,11 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
           showClipTrack={showClipTrack}
           clipTrack={clipTrackData}
           clipCallbacks={clipCallbacks}
+          onToggleSubtitleTrackEnabled={handleToggleSubtitleTrackEnabled}
+          onToggleTTSTrackEnabled={handleToggleTTSTrackEnabled}
+          onToggleClipTrackEnabled={handleToggleClipTrackEnabled}
+          clipTrackEnabled={clipTrackEnabled}
+          ttsTrackEnabledMap={ttsTrackEnabledMap}
         />
       )}
 

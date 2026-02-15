@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import React from 'react';
-import { TbArrowsSort, TbPointer, TbScissors, TbTimeline } from 'react-icons/tb';
+import { TbArrowsSort, TbEye, TbEyeOff, TbPointer, TbScissors, TbTimeline } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 
@@ -19,6 +19,10 @@ interface ClipTrackLabelProps {
   layoutMode?: ClipLayoutMode;
   /** 切换布局模式回调 */
   onLayoutModeChange?: (mode: ClipLayoutMode) => void;
+  /** 轨道是否启用 */
+  enabled?: boolean;
+  /** 切换启用/禁用回调 */
+  onToggleEnabled?: () => void;
 }
 
 /**
@@ -26,10 +30,10 @@ interface ClipTrackLabelProps {
  *
  * 显示轨道名称、布局模式切换和工具切换按钮
  */
-export const ClipTrackLabel: React.FC<ClipTrackLabelProps> = ({ activeTool, onToolChange, clipCount, className, layoutMode = 'source-time', onLayoutModeChange }) => {
+export const ClipTrackLabel: React.FC<ClipTrackLabelProps> = ({ activeTool, onToolChange, clipCount, className, layoutMode = 'source-time', onLayoutModeChange, enabled = true, onToggleEnabled }) => {
   return (
     <div
-      className={clsx('flex flex-col items-start justify-center px-2 border-b border-border bg-muted/30 shrink-0 overflow-hidden gap-0.5', className)}
+      className={clsx('flex flex-col items-start justify-center px-2 border-b border-border bg-muted/30 shrink-0 overflow-hidden gap-0.5', !enabled && 'opacity-40', className)}
       style={{ height: DEFAULT_CONFIG.CLIP_TRACK_HEIGHT + DEFAULT_CONFIG.TRACK_GAP }}
     >
       {/* 轨道名称 */}
@@ -37,6 +41,19 @@ export const ClipTrackLabel: React.FC<ClipTrackLabelProps> = ({ activeTool, onTo
         <div className="w-1.5 h-4 rounded-full shrink-0 bg-cyan-500" />
         <span className="text-xs text-foreground/80 truncate flex-1">剪辑</span>
         <span className="text-[10px] text-muted-foreground">{clipCount}</span>
+        {/* 启用/禁用按钮（眼睛图标） */}
+        {onToggleEnabled && (
+          <button
+            className={clsx('p-0.5 rounded hover:bg-accent/50 transition-colors shrink-0', enabled ? 'text-muted-foreground hover:text-foreground' : 'text-muted-foreground/50 hover:text-foreground')}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleEnabled();
+            }}
+            title={enabled ? '禁用剪辑轨道（播放时不生效）' : '启用剪辑轨道（播放时生效）'}
+          >
+            {enabled ? <TbEye className="w-3 h-3" /> : <TbEyeOff className="w-3 h-3" />}
+          </button>
+        )}
       </div>
 
       {/* 工具切换 */}

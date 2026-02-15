@@ -15,18 +15,21 @@ interface TrackLabelProps {
   allowDelete?: boolean;
   /** 删除轨道回调 */
   onDelete?: (trackId: string) => void;
+  /** 切换启用/禁用回调 */
+  onToggleEnabled?: (trackId: string) => void;
   className?: string;
 }
 
 /**
  * 轨道标签组件
  */
-export const TrackLabel: React.FC<TrackLabelProps> = ({ track, index, onToggleLock, onToggleHidden, allowDelete = false, onDelete, className }) => {
+export const TrackLabel: React.FC<TrackLabelProps> = ({ track, index, onToggleLock, onToggleHidden, allowDelete = false, onDelete, onToggleEnabled, className }) => {
   const height = track.height ?? DEFAULT_CONFIG.TRACK_HEIGHT;
+  const isEnabled = track.enabled !== false;
 
   const content = (
     <div
-      className={clsx('flex items-center justify-between px-2 border-b border-border bg-muted/30 shrink-0 overflow-hidden', track.hidden && 'opacity-50', className)}
+      className={clsx('flex items-center justify-between px-2 border-b border-border bg-muted/30 shrink-0 overflow-hidden', !isEnabled && 'opacity-40', className)}
       style={{ height: height + DEFAULT_CONFIG.TRACK_GAP }}
     >
       <div className="flex items-center gap-1.5 min-w-0 flex-1">
@@ -50,13 +53,16 @@ export const TrackLabel: React.FC<TrackLabelProps> = ({ track, index, onToggleLo
             {track.locked ? <TbLock className="w-3 h-3" /> : <TbLockOpen className="w-3 h-3" />}
           </button>
         )}
-        {onToggleHidden && (
+        {onToggleEnabled && (
           <button
-            className="p-0.5 rounded hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-colors"
-            onClick={() => onToggleHidden(track.id)}
-            title={track.hidden ? '显示轨道' : '隐藏轨道'}
+            className={clsx('p-0.5 rounded hover:bg-accent/50 transition-colors', isEnabled ? 'text-muted-foreground hover:text-foreground' : 'text-muted-foreground/50 hover:text-foreground')}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleEnabled(track.id);
+            }}
+            title={isEnabled ? '禁用轨道（播放时不生效）' : '启用轨道（播放时生效）'}
           >
-            {track.hidden ? <TbEyeOff className="w-3 h-3" /> : <TbEye className="w-3 h-3" />}
+            {isEnabled ? <TbEye className="w-3 h-3" /> : <TbEyeOff className="w-3 h-3" />}
           </button>
         )}
       </div>
