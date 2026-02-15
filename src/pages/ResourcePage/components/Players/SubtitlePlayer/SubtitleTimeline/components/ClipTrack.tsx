@@ -32,8 +32,6 @@ interface ClipTrackProps {
   onRestore?: (clipId: string) => void;
   /** 变速变更 */
   onSpeedChange?: (clipId: string, playbackRate: number) => void;
-  /** 启用/禁用切换 */
-  onToggleDisabled?: (clipId: string) => void;
   /** 片段点击（选中） */
   onClipSelect?: (clipId: string) => void;
   /** 上移回调 */
@@ -60,7 +58,6 @@ export const ClipTrack: React.FC<ClipTrackProps> = ({
   onDelete,
   onRestore,
   onSpeedChange,
-  onToggleDisabled,
   onClipSelect,
   onMoveUp,
   onMoveDown
@@ -173,12 +170,10 @@ export const ClipTrack: React.FC<ClipTrackProps> = ({
             isSelected={selectedClipId === info.clip.id}
             isActive={activeClipInfo?.clipId === info.clip.id}
             activeProgress={activeClipInfo?.clipId === info.clip.id ? activeClipInfo.progress : 0}
-            isDisabled={!!info.clip.disabled}
             activeTool={activeTool}
             onClick={handleClipClick}
             onDelete={onDelete}
             onSpeedChange={onSpeedChange}
-            onToggleDisabled={onToggleDisabled}
             onMoveUp={onMoveUp}
             onMoveDown={onMoveDown}
           />

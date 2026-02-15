@@ -7,7 +7,7 @@ import type { MessageCatalog, MessageCategory, MessageProducer, MessagesProvider
 const asText = (m: MessageProducer | string, ctx?: any): string => (typeof m === 'function' ? m(ctx) : m);
 
 const catalog: MessageCatalog = {
-  welcome: ['叽~', '叽~很高兴见到你，我在这儿等你吩咐。', '欢迎回来！今天想做点什么？'],
+  welcome: ['叽~', '叽~我在这儿等你吩咐。', '欢迎回来！今天想做点什么？'],
   loading: '正在检查系统中…',
   configure: '叽~没有工作空间，请先创建。',
   click: ['叽~有什么可以帮助你的吗？', '我在～需要我做点什么吗？', '收到～告诉我你的想法吧。'],

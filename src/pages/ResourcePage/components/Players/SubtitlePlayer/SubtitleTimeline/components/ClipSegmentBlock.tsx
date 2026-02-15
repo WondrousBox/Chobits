@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TbChevronDown, TbChevronUp, TbGripVertical, TbPlayerPause, TbPlayerPlay, TbTrash } from 'react-icons/tb';
+import { TbChevronDown, TbChevronUp, TbTrash } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 
@@ -32,16 +32,12 @@ interface ClipSegmentBlockProps {
   isActive?: boolean;
   /** 当前播放进度（0~1，仅在 isActive 时有意义） */
   activeProgress?: number;
-  /** 是否禁用 */
-  isDisabled?: boolean;
   /** 点击回调 */
   onClick?: (clipId: string, event: React.MouseEvent) => void;
   /** 删除回调 */
   onDelete?: (clipId: string) => void;
   /** 变速回调 */
   onSpeedChange?: (clipId: string, playbackRate: number) => void;
-  /** 启用/禁用切换 */
-  onToggleDisabled?: (clipId: string) => void;
   /** 上移回调 */
   onMoveUp?: (clipId: string) => void;
   /** 下移回调 */
@@ -71,11 +67,9 @@ export const ClipSegmentBlock: React.FC<ClipSegmentBlockProps> = ({
   isSelected = false,
   isActive = false,
   activeProgress = 0,
-  isDisabled = false,
   onClick,
   onDelete,
   onSpeedChange,
-  onToggleDisabled,
   onMoveUp,
   onMoveDown,
   activeTool = 'select'
@@ -90,9 +84,9 @@ export const ClipSegmentBlock: React.FC<ClipSegmentBlockProps> = ({
   const sourceDuration = clip.sourceEnd - clip.sourceStart;
 
   // 片段颜色：根据状态
-  const bgColor = isDisabled ? 'hsla(0, 0%, 50%, 0.2)' : isActive ? 'hsla(200, 80%, 55%, 0.6)' : isSelected ? 'hsla(200, 80%, 55%, 0.45)' : 'hsla(200, 70%, 50%, 0.3)';
+  const bgColor = isActive ? 'hsla(200, 80%, 55%, 0.6)' : isSelected ? 'hsla(200, 80%, 55%, 0.45)' : 'hsla(200, 70%, 50%, 0.3)';
 
-  const borderColor = isDisabled ? 'hsla(0, 0%, 50%, 0.4)' : isActive ? 'hsla(200, 80%, 55%, 0.8)' : isSelected ? 'hsla(200, 80%, 55%, 0.6)' : 'hsla(200, 70%, 50%, 0.4)';
+  const borderColor = isActive ? 'hsla(200, 80%, 55%, 0.8)' : isSelected ? 'hsla(200, 80%, 55%, 0.6)' : 'hsla(200, 70%, 50%, 0.4)';
 
   // 点击速度菜单外部时关闭
   useEffect(() => {
@@ -122,14 +116,6 @@ export const ClipSegmentBlock: React.FC<ClipSegmentBlockProps> = ({
       onDelete?.(clip.id);
     },
     [clip.id, onDelete]
-  );
-
-  const handleToggleDisabled = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      onToggleDisabled?.(clip.id);
-    },
-    [clip.id, onToggleDisabled]
   );
 
   const handleSpeedSelect = useCallback(
@@ -166,13 +152,7 @@ export const ClipSegmentBlock: React.FC<ClipSegmentBlockProps> = ({
       ref={blockRef}
       data-clip-block={clip.id}
       data-clip-order={displayOrder}
-      className={clsx(
-        'group absolute flex flex-col transition-shadow duration-100 overflow-hidden',
-        'border rounded',
-        isDisabled && 'opacity-40',
-        isSelected && 'ring-2 ring-blue-500 z-20',
-        isActive && 'ring-1 ring-blue-400'
-      )}
+      className={clsx('group absolute flex flex-col transition-shadow duration-100', 'border rounded', isSelected && 'ring-2 ring-blue-500 z-20', isActive && 'ring-1 ring-blue-400')}
       style={{
         left,
         width,
@@ -192,10 +172,7 @@ export const ClipSegmentBlock: React.FC<ClipSegmentBlockProps> = ({
       <div className="flex items-center gap-1 px-1 pt-0.5 min-w-0 z-10">
         {/* 播放顺序号 */}
         <span
-          className={clsx(
-            'shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold',
-            isDisabled ? 'bg-gray-500/30 text-gray-400' : isActive ? 'bg-blue-500 text-white' : 'bg-blue-500/60 text-white'
-          )}
+          className={clsx('shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold', isActive ? 'bg-blue-500 text-white' : 'bg-blue-500/60 text-white')}
           title={`播放顺序: 第 ${displayOrder} 个`}
         >
           {displayOrder}
@@ -265,17 +242,6 @@ export const ClipSegmentBlock: React.FC<ClipSegmentBlockProps> = ({
               </div>
             )}
           </div>
-
-          {/* 启用/禁用 */}
-          <Button
-            size="icon"
-            variant="outline"
-            className="w-6 h-6 rounded-full p-0 bg-background shadow-sm hover:bg-accent"
-            onClick={handleToggleDisabled}
-            title={isDisabled ? '启用片段' : '禁用片段（跳过播放）'}
-          >
-            {isDisabled ? <TbPlayerPlay className="w-3 h-3" /> : <TbPlayerPause className="w-3 h-3" />}
-          </Button>
 
           {/* 删除 */}
           <Button

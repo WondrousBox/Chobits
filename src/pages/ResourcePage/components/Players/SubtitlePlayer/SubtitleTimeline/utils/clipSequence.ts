@@ -465,27 +465,36 @@ export class ClipSequence {
     const clip = clips.find((c) => c.id === clipId);
     if (!clip) return clips;
 
-    const oldOrder = clip.order;
-    if (oldOrder === targetOrder) return clips;
+    // 获取所有活跃片段（未删除的）
+    const activeClips = clips.filter((c) => !c.deleted);
+    // 按 order 排序
+    const sortedActive = [...activeClips].sort((a, b) => a.order - b.order);
 
+    // 找到当前片段在排序数组中的索引
+    const currentIndex = sortedActive.findIndex((c) => c.id === clipId);
+    if (currentIndex === -1) return clips;
+
+    // 找到目标片段
+    const targetIndex = sortedActive.findIndex((c) => c.order === targetOrder);
+    if (targetIndex === -1) return clips;
+
+    // 交换两个位置的片段
+    const newSorted = [...sortedActive];
+    const temp = newSorted[currentIndex];
+    newSorted[currentIndex] = newSorted[targetIndex];
+    newSorted[targetIndex] = temp;
+
+    // 重新分配所有活跃片段的 order 值，使其连续
+    const newOrderMap = new Map<string, number>();
+    newSorted.forEach((c, index) => {
+      newOrderMap.set(c.id, index);
+    });
+
+    // 更新 clips
     return clips.map((c) => {
-      if (c.id === clipId) {
-        return { ...c, order: targetOrder };
+      if (newOrderMap.has(c.id)) {
+        return { ...c, order: newOrderMap.get(c.id)! };
       }
-
-      // 调整其他片段的 order
-      if (targetOrder < oldOrder) {
-        // 向前移动：[targetOrder, oldOrder) 之间的片段 order + 1
-        if (c.order >= targetOrder && c.order < oldOrder) {
-          return { ...c, order: c.order + 1 };
-        }
-      } else {
-        // 向后移动：(oldOrder, targetOrder] 之间的片段 order - 1
-        if (c.order > oldOrder && c.order <= targetOrder) {
-          return { ...c, order: c.order - 1 };
-        }
-      }
-
       return c;
     });
   }
