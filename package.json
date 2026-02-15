@@ -141,7 +141,7 @@
     "https-proxy-agent": "^7.0.6",
     "lodash": "^4.17.21",
     "lodash-es": "^4.17.21",
-    "lowlight": "^2.9.0",
+    "lowlight": "^3.3.0",
     "lucide-react": "^0.537.0",
     "markmap-lib": "^0.18.12",
     "markmap-view": "^0.18.12",
