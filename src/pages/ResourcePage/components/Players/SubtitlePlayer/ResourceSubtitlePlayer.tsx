@@ -1135,6 +1135,36 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     }
   }, [currentTime, clipSegments, showClipTrack, onSeek, mediaPlayerRef]);
 
+  /**
+   * 播放速度控制：根据当前播放片段的 playbackRate 调整播放器速度
+   */
+  const lastPlaybackRateClipIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!showClipTrack || clipSegments.length === 0) {
+      mediaPlayerRef?.current?.setPlaybackRate?.(1.0);
+      lastPlaybackRateClipIdRef.current = null;
+      return;
+    }
+
+    const seq = new ClipSequence(clipSegments);
+    const currentClipInfo = seq.playTimeToSource(currentTime);
+
+    if (!currentClipInfo) {
+      lastPlaybackRateClipIdRef.current = null;
+      return;
+    }
+
+    const clipId = currentClipInfo.clipId;
+    if (clipId === lastPlaybackRateClipIdRef.current) return;
+
+    const clip = clipSegments.find((c) => c.id === clipId);
+    if (!clip) return;
+
+    const targetRate = clip.playbackRate ?? 1.0;
+    mediaPlayerRef?.current?.setPlaybackRate?.(targetRate);
+    lastPlaybackRateClipIdRef.current = clipId;
+  }, [currentTime, clipSegments, showClipTrack, mediaPlayerRef]);
+
   return (
     <div className="flex h-full w-full flex-col text-muted-foreground">
       <div className="flex items-center justify-between gap-2 border-b border-border/50 px-2">
