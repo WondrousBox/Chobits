@@ -60,6 +60,8 @@ export interface SubtitlePlayerProps {
   onSeek?: (time: number) => void;
   /** 当某一行文本变更后回调，返回新的 segments 数组（外层负责持久化等业务） */
   onSegmentsChange?: (segments: AimSegments[]) => void;
+  /** 非主轨道文本变更回调（trackIndex 对应 tracks 数组的下标），外层负责持久化 */
+  onTrackTextChange?: (trackIndex: number, segmentIndex: number, newText: string) => void;
   /** 外部处理：往前合并当前片段（与时间轴统一），主轨使用 trackId: 'track-0' */
   onMergePrev?: (payload: { trackId: string; segmentIndex: number }) => void;
   /** 外部处理：往后合并当前片段，主轨使用 trackId: 'track-0' */
@@ -78,6 +80,8 @@ export interface SubtitlePlayerProps {
   ttsItemsByTrack?: Map<string, Map<number, TTSSynthesizedItem>>;
   /** 轨道 ID 列表，与 tracks 顺序一致：主轨为 'main'，翻译轨为语言代码 */
   trackIds?: string[];
+  /** 轨道显示名称列表，与 tracks 顺序一致：主轨为 '原文'，翻译轨为语言名 */
+  trackLabels?: string[];
   /** 当前正在合成任务对应的轨道 ID（用于显示 synthesizing 状态） */
   activeTTSTrackId?: string | null;
   /** 正在合成TTS的索引集合（当前任务） */
@@ -164,6 +168,7 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
   followCurrentTime = false,
   onSeek,
   onSegmentsChange,
+  onTrackTextChange,
   onMergePrev,
   onMergeNext,
   disabledIndices,
@@ -171,6 +176,7 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
   summaries,
   ttsItemsByTrack,
   trackIds = ['main'],
+  trackLabels,
   activeTTSTrackId = null,
   ttsSynthesizingIndices,
   onPlayTTS
@@ -180,8 +186,61 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
 
   // 第一个轨道作为主轨道（添加空值保护）
   const mainTrack = useMemo(() => tracks?.[0] || [], [tracks]);
-  // 其他轨道作为附加轨道
-  const additionalTracks = tracks?.slice(1) || [];
+
+  const trackIdList = useMemo(() => {
+    if (trackIds.length >= tracks.length) return trackIds;
+    return tracks.map((_, idx) => trackIds[idx] ?? `track-${idx}`);
+  }, [trackIds, tracks]);
+
+  const trackLabelList = useMemo(() => {
+    if (trackLabels && trackLabels.length >= tracks.length) return trackLabels;
+    return tracks.map((_, idx) => {
+      if (idx === 0) return '原文';
+      return trackLabels?.[idx] ?? trackIdList[idx] ?? `track-${idx}`;
+    });
+  }, [trackLabels, trackIdList, tracks]);
+
+  type ListRow = {
+    id: string;
+    trackIndex: number;
+    segmentIndex: number;
+    trackId: string;
+    trackLabel: string;
+    segment: AimSegments;
+    start: number;
+    end: number;
+    isMain: boolean;
+  };
+
+  const listRows = useMemo<ListRow[]>(() => {
+    const rows: ListRow[] = [];
+    tracks.forEach((track, trackIndex) => {
+      const trackId = trackIdList[trackIndex] ?? `track-${trackIndex}`;
+      const trackLabel = trackLabelList[trackIndex] ?? trackId;
+      track.forEach((segment, segmentIndex) => {
+        if (segment.delete) return;
+        const start = utils.convertToSeconds(segment.st);
+        const end = utils.convertToSeconds(segment.et);
+        rows.push({
+          id: `${trackId}-${segmentIndex}`,
+          trackIndex,
+          segmentIndex,
+          trackId,
+          trackLabel,
+          segment,
+          start: Number.isFinite(start) ? start : 0,
+          end: Number.isFinite(end) ? end : 0,
+          isMain: trackIndex === 0
+        });
+      });
+    });
+    rows.sort((a, b) => {
+      if (a.start !== b.start) return a.start - b.start;
+      if (a.trackIndex !== b.trackIndex) return a.trackIndex - b.trackIndex;
+      return a.segmentIndex - b.segmentIndex;
+    });
+    return rows;
+  }, [tracks, trackIdList, trackLabelList]);
 
   const disabledSet = toIndexSet(disabledIndices);
   const highlightSet = toIndexSet(highlightIndices);
@@ -189,15 +248,17 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
 
   // 虚拟滚动配置
   const virtualizer = useVirtualizer({
-    count: mainTrack.length,
+    count: listRows.length,
     getScrollElement: () => scrollContainerRef.current,
-    estimateSize: useCallback(() => {
-      // 估算每行的高度
-      // 主轨道大约 60px，附加轨道每个大约 40px
-      const additionalHeight = additionalTracks.length * 40;
-      return 60 + additionalHeight;
-    }, [additionalTracks.length]),
-    overscan: 5 // 预渲染前后5项
+    estimateSize: useCallback(
+      (index: number) => {
+        const row = listRows[index];
+        if (!row) return 56;
+        return row.isMain ? 62 : 48;
+      },
+      [listRows]
+    ),
+    overscan: 8 // 预渲染前后8项
   });
 
   const handleTextChange = useCallback(
@@ -212,6 +273,17 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
       onSegmentsChange(updated);
     },
     [mainTrack, onSegmentsChange]
+  );
+
+  // 为每个 listRow 创建 onTextChange：主轨道走 handleTextChange，其他轨道走 onTrackTextChange
+  const makeRowTextChangeHandler = useCallback(
+    (row: ListRow) => {
+      if (row.isMain) return handleTextChange;
+      return (_segmentIndex: number, newText: string) => {
+        onTrackTextChange?.(row.trackIndex, _segmentIndex, newText);
+      };
+    },
+    [handleTextChange, onTrackTextChange]
   );
 
   const handleMergePrev = useCallback(
@@ -229,24 +301,28 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
     [onMergeNext]
   );
 
-  // 根据当前时间找到对应的字幕索引（基于主轨道）
-  const activeIndex = useMemo(() => {
-    if (!currentTime || mainTrack.length === 0) return -1;
-
-    for (let i = 0; i < mainTrack.length; i++) {
-      const segment = mainTrack[i];
-      if (segment.delete) continue;
-
-      const startTime = utils.convertToSeconds(segment.st);
-      const endTime = utils.convertToSeconds(segment.et);
-
-      if (currentTime >= startTime && currentTime < endTime) {
-        return i;
+  // 每一行根据自身 st/et 判断是否处于当前播放时间范围内
+  const activeRowSet = useMemo(() => {
+    const set = new Set<number>();
+    if (!currentTime || listRows.length === 0) return set;
+    for (let i = 0; i < listRows.length; i++) {
+      const row = listRows[i];
+      if (currentTime >= row.start && currentTime < row.end) {
+        set.add(i);
       }
     }
+    return set;
+  }, [currentTime, listRows]);
 
-    return -1;
-  }, [currentTime, mainTrack]);
+  // 用于自动滚动的目标行：优先主轨道的活跃行
+  const scrollTargetIndex = useMemo(() => {
+    for (const idx of activeRowSet) {
+      if (listRows[idx]?.isMain) return idx;
+    }
+    // 如果没有主轨道匹配，取第一个活跃行
+    const first = activeRowSet.values().next();
+    return first.done ? -1 : first.value;
+  }, [activeRowSet, listRows]);
 
   // 计算需要在哪些索引前显示 summary 卡片
   // 返回 Map<segmentIndex, ChunkSummaryInfo>
@@ -280,14 +356,13 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
   // 当高亮字幕改变时，自动滚动到该位置（虚拟滚动版本）
   useEffect(() => {
     if (!followCurrentTime) return;
-    if (activeIndex >= 0) {
-      // 使用 virtualizer 的 scrollToIndex 方法
-      virtualizer.scrollToIndex(activeIndex, {
+    if (scrollTargetIndex >= 0) {
+      virtualizer.scrollToIndex(scrollTargetIndex, {
         align: 'center',
         behavior: 'smooth'
       });
     }
-  }, [activeIndex, followCurrentTime, virtualizer]);
+  }, [scrollTargetIndex, followCurrentTime, virtualizer]);
 
   // 获取虚拟项
   const virtualItems = virtualizer.getVirtualItems();
@@ -307,17 +382,18 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
       >
         {/* 只渲染可见的项 */}
         {virtualItems.map((virtualItem) => {
-          const idx = virtualItem.index;
-          const entry = mainTrack[idx];
-          const disabled = !!disabledSet?.has(idx);
-          const highlight = !!highlightSet?.has(idx);
-          // 检查是否需要在当前索引前显示 summary 卡片
-          const summaryInfo = summaryDisplayMap.get(idx);
+          const rowIndex = virtualItem.index;
+          const row = listRows[rowIndex];
+          if (!row) return null;
+          const disabled = row.isMain ? !!disabledSet?.has(row.segmentIndex) : false;
+          const highlight = row.isMain ? !!highlightSet?.has(row.segmentIndex) : false;
+          // 检查是否需要在当前索引前显示 summary 卡片（只绑定主轨道）
+          const summaryInfo = row.isMain ? summaryDisplayMap.get(row.segmentIndex) : undefined;
 
           return (
             <div
-              key={virtualItem.key}
-              data-index={idx}
+              key={row.id}
+              data-index={rowIndex}
               ref={virtualizer.measureElement}
               style={{
                 position: 'absolute',
@@ -334,44 +410,24 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
                   chunkLabel={summaryDisplayMap.size > 1 ? `分块 ${summaryInfo.chunkIndex + 1} 翻译中` : '正在翻译中'}
                 />
               )}
-              {/* 主轨道 */}
               <SubtitleRow
-                index={idx}
-                segment={entry}
-                isActive={idx === activeIndex}
-                rowRef={idx === activeIndex ? activeRowRef : undefined}
-                onTextChange={handleTextChange}
-                onMergePrev={handleMergePrev}
-                onMergeNext={handleMergeNext}
+                index={row.segmentIndex}
+                segment={row.segment}
+                isActive={activeRowSet.has(rowIndex)}
+                rowRef={rowIndex === scrollTargetIndex ? activeRowRef : undefined}
+                onTextChange={makeRowTextChangeHandler(row)}
+                onMergePrev={row.isMain ? handleMergePrev : undefined}
+                onMergeNext={row.isMain ? handleMergeNext : undefined}
                 onTimeClick={onSeek}
                 disabled={disabled}
                 highlight={highlight}
-                isMainTrack={true}
-                ttsItem={ttsItemsByTrack?.get(trackIds[0])?.get(idx)}
-                ttsSynthesizing={ttsItemsByTrack?.get(trackIds[0])?.get(idx)?.status === 'synthesizing'}
+                isMainTrack={row.isMain}
+                isEditable={true}
+                trackLabel={row.trackLabel}
+                ttsItem={ttsItemsByTrack?.get(row.trackId)?.get(row.segmentIndex)}
+                ttsSynthesizing={ttsItemsByTrack?.get(row.trackId)?.get(row.segmentIndex)?.status === 'synthesizing'}
                 onPlayTTS={onPlayTTS}
               />
-              {/* 附加轨道 */}
-              {additionalTracks.map((track, trackIndex) => {
-                const trackSegment = track[idx];
-                const trackId = trackIds[trackIndex + 1] ?? `track-${trackIndex + 1}`;
-                if (!trackSegment || !trackSegment.text) return null;
-                return (
-                  <SubtitleRow
-                    key={`track-${trackIndex}-${idx}`}
-                    index={idx}
-                    segment={trackSegment}
-                    isActive={false}
-                    disabled={disabled}
-                    highlight={highlight}
-                    onTextChange={handleTextChange}
-                    isMainTrack={false}
-                    ttsItem={ttsItemsByTrack?.get(trackId)?.get(idx)}
-                    ttsSynthesizing={ttsItemsByTrack?.get(trackId)?.get(idx)?.status === 'synthesizing'}
-                    onPlayTTS={onPlayTTS}
-                  />
-                );
-              })}
             </div>
           );
         })}

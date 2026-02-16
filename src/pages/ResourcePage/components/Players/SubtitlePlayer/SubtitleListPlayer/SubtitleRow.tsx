@@ -31,6 +31,8 @@ interface SubtitleRowProps {
   disabled?: boolean; // 是否禁用编辑
   highlight?: boolean; // 是否高亮显示（用于标识新变更的内容，引起用户注意）
   isMainTrack?: boolean; // 是否是主轨道（用于控制时间显示）
+  isEditable?: boolean; // 是否允许编辑文本
+  trackLabel?: string; // 轨道显示名称
   ttsItem?: TTSSynthesizedItem; // TTS合成结果
   ttsSynthesizing?: boolean; // 是否正在合成TTS
   onPlayTTS?: (index: number, audioPath: string) => void; // 播放TTS音频的回调
@@ -57,6 +59,8 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({
   disabled = false,
   highlight = false,
   isMainTrack = true,
+  isEditable = true,
+  trackLabel,
   ttsItem,
   ttsSynthesizing,
   onPlayTTS
@@ -81,7 +85,7 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({
 
   const handleTextClick = (event: React.MouseEvent<HTMLDivElement>): void => {
     // 如果禁用，禁止编辑
-    if (disabled) {
+    if (disabled || !isEditable) {
       return;
     }
     // 使用 getClickTextPosition 获取点击位置的字符偏移
@@ -167,7 +171,7 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({
         </>
       )}
       {/* 合并按钮：绝对定位在两行之间，不占高度 */}
-      {index > 0 && onMergePrev && (
+      {index > 0 && onMergePrev && isMainTrack && (
         <div className="absolute left-1 top-0 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20 pointer-events-auto">
           <div className="w-14 h-1 absolute -top-1 left-4 rounded-tl-lg border border-dashed border-ring border-r-0 border-b-0"></div>
           <Button size="sm" variant="outline" className="w-8 h-8 rounded-full p-0 bg-background shadow-sm hover:bg-accent" onClick={() => onMergePrev(index)} title="合并到上一行">
@@ -179,17 +183,23 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({
       )}
       <div
         className={clsx(
-          'select-none pt-3 text-xs w-12 text-center relative transition-colors duration-200 z-10',
-          isMainTrack && 'cursor-pointer',
+          'select-none pt-3 text-xs w-16 text-center relative transition-colors duration-200 z-10',
+          isMainTrack && onTimeClick && 'cursor-pointer',
           isMainTrack && (isActive ? 'text-primary font-medium' : 'text-muted-foreground hover:text-primary'),
           isMainTrack && onTimeClick && 'hover:underline',
-          !isMainTrack && 'opacity-0 pointer-events-none'
+          !isMainTrack && 'text-muted-foreground/60'
         )}
-        onClick={isMainTrack ? handleTimeClick : undefined}
+        onClick={isMainTrack && onTimeClick ? handleTimeClick : undefined}
         title={isMainTrack && onTimeClick ? '点击跳转到此时间' : undefined}
       >
-        <span className="text-xs absolute left-1/2 -translate-x-1/2 -top-1  group-hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity duration-300">#{index + 1}</span>
-        {utils.cleanTimeDisplay(segment.st)}
+        {isMainTrack ? (
+          <>
+            <span className="text-xs absolute left-1/2 -translate-x-1/2 -top-1 group-hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity duration-300">#{index + 1}</span>
+            {utils.cleanTimeDisplay(segment.st)}
+          </>
+        ) : (
+          <span className="text-[10px] text-muted-foreground/50 truncate"></span>
+        )}
       </div>
       {isEditing ? (
         <Textarea
