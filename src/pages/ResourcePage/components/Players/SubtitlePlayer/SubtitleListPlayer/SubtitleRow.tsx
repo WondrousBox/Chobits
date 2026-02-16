@@ -2,12 +2,9 @@ import { AimSegments, utils } from '@aim-packages/subtitle';
 import clsx from 'clsx';
 import React, { useCallback, useRef, useState } from 'react';
 import Textarea from 'react-expanding-textarea';
-import { TbArrowMerge, TbLoader2, TbPlayerPlay, TbVolume } from 'react-icons/tb';
+import { TbArrowMerge } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-
-import type { TTSSynthesizedItem } from './SubtitlePlayer';
 
 function getClickTextPosition(e: MouseEvent): number {
   let position = 0;
@@ -33,9 +30,6 @@ interface SubtitleRowProps {
   isMainTrack?: boolean; // 是否是主轨道（用于控制时间显示）
   isEditable?: boolean; // 是否允许编辑文本
   trackLabel?: string; // 轨道显示名称
-  ttsItem?: TTSSynthesizedItem; // TTS合成结果
-  ttsSynthesizing?: boolean; // 是否正在合成TTS
-  onPlayTTS?: (index: number, audioPath: string) => void; // 播放TTS音频的回调
 }
 
 const textareaStyle = 'resize-none block p-2 flex-1 outline-none box-border bg-background text-foreground border-none text-base';
@@ -60,10 +54,7 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({
   highlight = false,
   isMainTrack = true,
   isEditable = true,
-  trackLabel,
-  ttsItem,
-  ttsSynthesizing,
-  onPlayTTS
+  trackLabel
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editingText, setEditingText] = useState(segment.text);
@@ -223,70 +214,6 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({
           <div className={clsx(getClassName(segment.delete, isActive), disabled && 'pointer-events-none cursor-not-allowed opacity-80')} style={{ whiteSpace: 'pre-wrap' }} onClick={handleTextClick}>
             {segment.text?.trim() || '\u200b'}
           </div>
-        </div>
-      )}
-      {/* TTS状态指示器（每个轨道行都可显示） */}
-      {(ttsItem || ttsSynthesizing) && (
-        <div className="flex items-center gap-1 pr-2 relative z-10">
-          {ttsSynthesizing ? (
-            // 正在合成
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="flex items-center gap-1 text-blue-500">
-                    <TbLoader2 className="h-4 w-4 animate-spin" />
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>正在合成语音...</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          ) : ttsItem?.status === 'completed' && ttsItem.audioPath ? (
-            // 合成完成
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-1.5 gap-1 text-green-600 hover:text-green-700 hover:bg-green-100/50"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onPlayTTS?.(index, ttsItem.audioPath!);
-                    }}
-                  >
-                    <TbPlayerPlay className="h-3.5 w-3.5" />
-                    <span className="text-xs">{ttsItem.trimmedDuration ? `${ttsItem.trimmedDuration.toFixed(1)}s` : ttsItem.duration ? `${ttsItem.duration.toFixed(1)}s` : ''}</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <div className="text-xs">
-                    <div>点击播放语音</div>
-                    {ttsItem.duration && (
-                      <div className="text-muted-foreground">
-                        原始时长: {ttsItem.duration.toFixed(1)}s
-                        {ttsItem.trimmedDuration && ttsItem.trimmedDuration !== ttsItem.duration && <span> → 去静音后: {ttsItem.trimmedDuration.toFixed(1)}s</span>}
-                      </div>
-                    )}
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          ) : ttsItem?.status === 'error' ? (
-            // 合成失败
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="flex items-center gap-1 text-red-500">
-                    <TbVolume className="h-4 w-4" />
-                    <span className="text-xs">失败</span>
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <div className="text-xs text-red-500">{ttsItem.error || '合成失败'}</div>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          ) : null}
         </div>
       )}
     </div>
