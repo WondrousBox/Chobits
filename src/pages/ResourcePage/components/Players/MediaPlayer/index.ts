@@ -3,5 +3,8 @@ export { MediaControls } from './MediaControls';
 export type { MediaPlayerRef } from './MediaPlayer';
 export { MediaPlayer } from './MediaPlayer';
 export { SubtitleOverlay } from './SubtitleOverlay';
+export { TrackSettingsPopover } from './TrackSettingsPopover';
 export type { SubtitleDisplayLine } from './subtitleDisplayEvent';
 export { dispatchSubtitleDisplay } from './subtitleDisplayEvent';
+export type { TrackSettingsItem, TrackTogglePayload, TrackType } from './trackSettingsEvent';
+export { dispatchTrackSettings, dispatchTrackToggle, TRACK_SETTINGS_UPDATE_EVENT, TRACK_TOGGLE_EVENT } from './trackSettingsEvent';

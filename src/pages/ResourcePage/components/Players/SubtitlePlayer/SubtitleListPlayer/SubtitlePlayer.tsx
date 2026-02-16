@@ -62,6 +62,8 @@ export interface SubtitlePlayerProps {
   onSegmentsChange?: (segments: AimSegments[]) => void;
   /** 非主轨道文本变更回调（trackIndex 对应 tracks 数组的下标），外层负责持久化 */
   onTrackTextChange?: (trackIndex: number, segmentIndex: number, newText: string) => void;
+  /** 启用的轨道索引集合，未在集合中的轨道将被隐藏；不传则全部显示 */
+  enabledTrackIndices?: Set<number>;
   /** 外部处理：往前合并当前片段（与时间轴统一），主轨使用 trackId: 'track-0' */
   onMergePrev?: (payload: { trackId: string; segmentIndex: number }) => void;
   /** 外部处理：往后合并当前片段，主轨使用 trackId: 'track-0' */
@@ -169,6 +171,7 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
   onSeek,
   onSegmentsChange,
   onTrackTextChange,
+  enabledTrackIndices,
   onMergePrev,
   onMergeNext,
   disabledIndices,
@@ -215,6 +218,8 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
   const listRows = useMemo<ListRow[]>(() => {
     const rows: ListRow[] = [];
     tracks.forEach((track, trackIndex) => {
+      // 如果传入了 enabledTrackIndices 且当前轨道不在其中，跳过
+      if (enabledTrackIndices && !enabledTrackIndices.has(trackIndex)) return;
       const trackId = trackIdList[trackIndex] ?? `track-${trackIndex}`;
       const trackLabel = trackLabelList[trackIndex] ?? trackId;
       track.forEach((segment, segmentIndex) => {
@@ -240,7 +245,7 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
       return a.segmentIndex - b.segmentIndex;
     });
     return rows;
-  }, [tracks, trackIdList, trackLabelList]);
+  }, [tracks, trackIdList, trackLabelList, enabledTrackIndices]);
 
   const disabledSet = toIndexSet(disabledIndices);
   const highlightSet = toIndexSet(highlightIndices);

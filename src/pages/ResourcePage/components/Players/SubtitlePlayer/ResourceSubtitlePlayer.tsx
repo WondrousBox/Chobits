@@ -10,6 +10,7 @@ import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 import type { ResourceItem } from '../../../types';
 import { MediaPlayerRef } from '../MediaPlayer/MediaPlayer';
 import { dispatchSubtitleDisplay, type SubtitleDisplayLine } from '../MediaPlayer/subtitleDisplayEvent';
+import { dispatchTrackSettings, TRACK_TOGGLE_EVENT, type TrackSettingsItem, type TrackTogglePayload } from '../MediaPlayer/trackSettingsEvent';
 import { ExportDialog } from './ExportDialog';
 import { SubtitlePlayer } from './SubtitleListPlayer/SubtitlePlayer';
 import { aimTracksToTimelineTracks, ClipSequence, formatSecondsToTime, indicesToIds, parseSegmentId, parseTimeToSeconds, SubtitleTimeline, TimelineSegment } from './SubtitleTimeline';
@@ -1268,6 +1269,75 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     }));
   }, [timelineTracks, subtitleTrackEnabledMap]);
 
+  // 列表模式用：根据 subtitleTrackEnabledMap 计算启用的轨道索引集合
+  const enabledTrackIndices = useMemo(() => {
+    const set = new Set<number>();
+    const trackCount = 1 + translationTracks.length + (typingTexts.length > 0 ? 1 : 0);
+    for (let i = 0; i < trackCount; i++) {
+      const trackId = `track-${i}`;
+      if (subtitleTrackEnabledMap.get(trackId) !== false) {
+        set.add(i);
+      }
+    }
+    return set;
+  }, [subtitleTrackEnabledMap, translationTracks.length, typingTexts.length]);
+
+  // ---- 广播轨道设置信息给播放器控制栏 TrackSettingsPopover ----
+  useEffect(() => {
+    const items: TrackSettingsItem[] = [];
+
+    // 字幕轨道（track-0 = 原文，track-1.. = 翻译轨，翻译中临时轨）
+    items.push({ id: 'track-0', label: '原文', type: 'subtitle', enabled: true, isMain: true });
+    translationTrackMeta.forEach((meta, idx) => {
+      const trackId = `track-${idx + 1}`;
+      items.push({ id: trackId, label: meta.label, type: 'subtitle', enabled: subtitleTrackEnabledMap.get(trackId) !== false });
+    });
+    if (typingTexts.length > 0) {
+      const trackId = `track-${translationTracks.length + 1}`;
+      items.push({ id: trackId, label: '翻译中', type: 'subtitle', enabled: subtitleTrackEnabledMap.get(trackId) !== false });
+    }
+
+    // TTS 轨道（仅在有合成数据或正在合成时显示）
+    const allTTSTrackIds = ['main', ...translationTrackMeta.map((t) => t.languageCode)];
+    const allTTSLabels = ['TTS: 原文', ...translationTrackMeta.map((t) => `TTS: ${t.label}`)];
+    allTTSTrackIds.forEach((tid, idx) => {
+      const hasTTS = synthesizedItemsByTrack.get(tid) && synthesizedItemsByTrack.get(tid)!.size > 0;
+      if (hasTTS || isSynthesizing) {
+        items.push({ id: tid, label: allTTSLabels[idx], type: 'tts', enabled: ttsTrackEnabledMap.get(tid) !== false });
+      }
+    });
+
+    // 剪辑轨道
+    if (showClipTrack) {
+      items.push({ id: 'clip', label: '剪辑', type: 'clip', enabled: clipTrackEnabled });
+    }
+
+    dispatchTrackSettings(items);
+  }, [subtitleTrackEnabledMap, ttsTrackEnabledMap, clipTrackEnabled, translationTrackMeta, translationTracks.length, typingTexts.length, synthesizedItemsByTrack, isSynthesizing, showClipTrack]);
+
+  // 组件卸载时清空轨道设置
+  useEffect(() => {
+    return () => {
+      dispatchTrackSettings([]);
+    };
+  }, []);
+
+  // ---- 监听播放器控制栏的轨道切换请求 ----
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { id, type } = (e as CustomEvent<TrackTogglePayload>).detail;
+      if (type === 'subtitle') {
+        handleToggleSubtitleTrackEnabled(id);
+      } else if (type === 'tts') {
+        handleToggleTTSTrackEnabled(id);
+      } else if (type === 'clip') {
+        handleToggleClipTrackEnabled();
+      }
+    };
+    window.addEventListener(TRACK_TOGGLE_EVENT, handler);
+    return () => window.removeEventListener(TRACK_TOGGLE_EVENT, handler);
+  }, [handleToggleSubtitleTrackEnabled, handleToggleTTSTrackEnabled, handleToggleClipTrackEnabled]);
+
   // ---- 多轨道字幕叠加显示：计算当前时间每个启用轨道的字幕，并广播给 SubtitleOverlay ----
   useEffect(() => {
     if (subtitleEntries.length === 0) {
@@ -1398,6 +1468,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
           onSeek={onSeek}
           onSegmentsChange={handleSegmentsChange}
           onTrackTextChange={handleListTrackTextChange}
+          enabledTrackIndices={enabledTrackIndices}
           disabledIndices={translatingChunks}
           highlightIndices={translatingChunks}
           summaries={chunkSummaryInfoMap}
