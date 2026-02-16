@@ -1472,12 +1472,8 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
           disabledIndices={translatingChunks}
           highlightIndices={translatingChunks}
           summaries={chunkSummaryInfoMap}
-          ttsItemsByTrack={synthesizedItemsByTrack}
           trackIds={trackIds}
           trackLabels={trackLabels}
-          activeTTSTrackId={activeTrackId}
-          ttsSynthesizingIndices={synthesizingIndices}
-          onPlayTTS={handlePlayTTS}
         />
       ) : (
         // 时间轴视图

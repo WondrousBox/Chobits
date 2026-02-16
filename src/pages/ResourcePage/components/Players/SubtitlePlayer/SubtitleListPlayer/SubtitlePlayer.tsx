@@ -78,18 +78,10 @@ export interface SubtitlePlayerProps {
    * - LegacySummaries: 旧格式，向后兼容
    */
   summaries?: Map<number, ChunkSummaryInfo> | LegacySummaries;
-  /** 按轨道分组的 TTS 合成结果：trackId -> index -> 合成项 */
-  ttsItemsByTrack?: Map<string, Map<number, TTSSynthesizedItem>>;
   /** 轨道 ID 列表，与 tracks 顺序一致：主轨为 'main'，翻译轨为语言代码 */
   trackIds?: string[];
   /** 轨道显示名称列表，与 tracks 顺序一致：主轨为 '原文'，翻译轨为语言名 */
   trackLabels?: string[];
-  /** 当前正在合成任务对应的轨道 ID（用于显示 synthesizing 状态） */
-  activeTTSTrackId?: string | null;
-  /** 正在合成TTS的索引集合（当前任务） */
-  ttsSynthesizingIndices?: Set<number>;
-  /** 播放TTS音频的回调 */
-  onPlayTTS?: (index: number, audioPath: string) => void;
 }
 
 const toIndexSet = (value?: Set<number> | number[]): Set<number> | undefined => {
@@ -177,12 +169,8 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
   disabledIndices,
   highlightIndices,
   summaries,
-  ttsItemsByTrack,
   trackIds = ['main'],
-  trackLabels,
-  activeTTSTrackId = null,
-  ttsSynthesizingIndices,
-  onPlayTTS
+  trackLabels
 }) => {
   const activeRowRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -249,7 +237,6 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
 
   const disabledSet = toIndexSet(disabledIndices);
   const highlightSet = toIndexSet(highlightIndices);
-  const ttsSynthesizingSet = toIndexSet(ttsSynthesizingIndices);
 
   // 虚拟滚动配置
   const virtualizer = useVirtualizer({
@@ -429,9 +416,6 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
                 isMainTrack={row.isMain}
                 isEditable={true}
                 trackLabel={row.trackLabel}
-                ttsItem={ttsItemsByTrack?.get(row.trackId)?.get(row.segmentIndex)}
-                ttsSynthesizing={ttsItemsByTrack?.get(row.trackId)?.get(row.segmentIndex)?.status === 'synthesizing'}
-                onPlayTTS={onPlayTTS}
               />
             </div>
           );
