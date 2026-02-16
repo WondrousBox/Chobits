@@ -456,8 +456,19 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     [handleStopTTS, playingTTSIndex]
   );
 
-  // 列表用：轨道 ID 列表（主轨 + 各翻译轨）
-  const trackIds = useMemo(() => ['main', ...translationTrackMeta.map((t) => t.languageCode)], [translationTrackMeta]);
+  // 列表用：轨道 ID 列表（主轨 + 各翻译轨 + 翻译中临时轨）
+  const trackIds = useMemo(() => {
+    const ids = ['main', ...translationTrackMeta.map((t) => t.languageCode)];
+    if (typingTexts.length > 0) ids.push('typing');
+    return ids;
+  }, [translationTrackMeta, typingTexts.length]);
+
+  // 列表用：轨道显示标签（与 trackIds 顺序一致）
+  const trackLabels = useMemo(() => {
+    const labels = ['原文', ...translationTrackMeta.map((t) => t.label)];
+    if (typingTexts.length > 0) labels.push('翻译中');
+    return labels;
+  }, [translationTrackMeta, typingTexts.length]);
 
   // 监听媒体播放器播放/暂停状态变化；首次进入时若已在播放（如自动播放）也同步启动 TTS
   // 根据各 TTS 轨道的眼睛图标启用状态，并行播放/停止对应轨道
@@ -753,6 +764,36 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
           }
           return track;
         });
+        setTranslationTracks(updatedTracks);
+        if (meta?.resourceId) {
+          const key = `${meta.resourceId}-${segmentIndex}`;
+          const prev = pendingTranslationUpdatesRef.current.get(key);
+          pendingTranslationUpdatesRef.current.set(key, {
+            translationResourceId: meta.resourceId,
+            segmentIndex,
+            patch: { ...prev?.patch, text: newText }
+          });
+          debouncedFlushTranslationUpdates();
+        }
+      }
+    },
+    [subtitleEntries, translationTracks, translationTrackMeta, resource.id, isLoading, debouncedSave, debouncedFlushTranslationUpdates, subtitleFormat]
+  );
+
+  // 处理列表模式非主轨道的文本编辑
+  const handleListTrackTextChange = useCallback(
+    (trackIndex: number, segmentIndex: number, newText: string) => {
+      if (trackIndex === 0) {
+        // 主轨道
+        const updated = subtitleEntries.map((item, i) => (i === segmentIndex ? { ...item, text: newText } : item));
+        setSubtitleEntries(updated);
+        if (resource.id && !isLoading) {
+          debouncedSave(resource.id, updated, subtitleFormat);
+        }
+      } else if (trackIndex > 0 && trackIndex <= translationTracks.length) {
+        const translationIndex = trackIndex - 1;
+        const meta = translationTrackMeta[translationIndex];
+        const updatedTracks = translationTracks.map((track, idx) => (idx === translationIndex ? track.map((item, i) => (i === segmentIndex ? { ...item, text: newText } : item)) : track));
         setTranslationTracks(updatedTracks);
         if (meta?.resourceId) {
           const key = `${meta.resourceId}-${segmentIndex}`;
@@ -1356,11 +1397,13 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
           onMergeNext={handleMergeNext}
           onSeek={onSeek}
           onSegmentsChange={handleSegmentsChange}
+          onTrackTextChange={handleListTrackTextChange}
           disabledIndices={translatingChunks}
           highlightIndices={translatingChunks}
           summaries={chunkSummaryInfoMap}
           ttsItemsByTrack={synthesizedItemsByTrack}
           trackIds={trackIds}
+          trackLabels={trackLabels}
           activeTTSTrackId={activeTrackId}
           ttsSynthesizingIndices={synthesizingIndices}
           onPlayTTS={handlePlayTTS}
