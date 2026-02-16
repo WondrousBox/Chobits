@@ -3,6 +3,8 @@ import { TbCamera, TbMaximize, TbMinimize, TbPlayerPause, TbPlayerPlay, TbSettin
 
 import { Button } from '@/components/ui/button';
 
+import { TrackSettingsPopover } from './TrackSettingsPopover';
+
 // 播放/暂停按钮组件
 interface PlayPauseButtonProps {
   isPlaying: boolean;
@@ -318,7 +320,7 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
 
   const controlsClass =
     type === 'video'
-      ? `absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`
+      ? `absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-black/80 to-transparent p-3 transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`
       : 'flex items-center justify-between gap-3 p-3 bg-background/90 rounded-lg border';
 
   return (
@@ -335,6 +337,7 @@ export const MediaControls: React.FC<MediaControlsProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          <TrackSettingsPopover type={type} />
           <PlaybackRateControl playbackRate={playbackRate} onPlaybackRateChange={onPlaybackRateChange} type={type} />
           {type === 'video' && onScreenshot && (
             <Button size="sm" variant="ghost" onClick={onScreenshot} className="w-8 h-8 p-0 text-white hover:bg-white/20" title="截图">
