@@ -82,6 +82,7 @@ packages/                   # Shared packages (monorepo-style)
 **Channel naming**: `domain:action` (e.g., `resource:importLocalFiles`, `ai:chat`)
 
 **Handler locations**:
+
 - Main process: `electron/main/handlers/*/ipc-main.ts`
 - Preload bridge: `electron/preload/apis/*.ts`
 - Renderer access: `window.YUA.domain.action(payload)`
@@ -95,6 +96,7 @@ packages/                   # Shared packages (monorepo-style)
 **Repositories**: `electron/main/db/repositories/`
 
 **Key tables**:
+
 - `resources` - File metadata (videos, docs, images, etc.)
 - `documents` - Text content with embeddings (semantic search)
 - `folders` - Hierarchical organization
@@ -127,6 +129,7 @@ Events broadcast to all windows via IPC for cross-window state synchronization.
 **Scheme**: `res://` - Secure file access protocol for resources
 
 **URL patterns**:
+
 - Absolute path: `res://local/<encodeURIComponent(C:/path/to/file)>`
 - Workspace relative: `res://ws/<workspaceId>/<relative/path>`
 
@@ -148,11 +151,13 @@ Events broadcast to all windows via IPC for cross-window state synchronization.
 **Location**: `packages/ai/`
 
 **Provider adapters**: Abstract interface for AI providers
+
 - Supported: OpenAI, Anthropic, Gemini, DeepSeek, Qwen, Zhipu, Ollama
 - Each implements: `chat()`, `embed()`, `stream()`
 - Dynamic configuration via JSON schemas
 
 **Chat service**: `packages/ai/chat-service.ts`
+
 - Conversation management with persistence
 - Streaming responses with abort support
 - Agent-based routing (system prompts, tools)
@@ -166,6 +171,7 @@ Events broadcast to all windows via IPC for cross-window state synchronization.
 **Architecture**: DAG-based execution engine with topological sort
 
 **Node categories** (30+ nodes):
+
 - Core: Start, End
 - Resource: Load, Create, Update
 - Media: Transcode, ExtractKeyframes, OCR
@@ -184,6 +190,7 @@ Events broadcast to all windows via IPC for cross-window state synchronization.
 **Purpose**: Manages native plugin resources (FFmpeg, Tesseract, Whisper models, etc.)
 
 **Features**:
+
 - Download queue with configurable concurrency
 - SHA256 verification after download
 - Archive extraction (zip, tar.gz, tar.bz2)
@@ -191,6 +198,7 @@ Events broadcast to all windows via IPC for cross-window state synchronization.
 - Platform-specific binary resolution
 
 **Resource types**:
+
 - `engine` - Native binaries (FFmpeg, Tesseract, etc.)
 - `model` - Model files for AI/ML plugins
 
@@ -212,6 +220,7 @@ Events broadcast to all windows via IPC for cross-window state synchronization.
 ### Sprite Window (Assistant UI)
 
 **Configuration**:
+
 - Frameless window (`frame: false`)
 - Transparent background (`transparent: true`)
 - Always on top (`alwaysOnTop: true`)
@@ -219,6 +228,7 @@ Events broadcast to all windows via IPC for cross-window state synchronization.
 - Resizable: false (fixed size)
 
 **Features**:
+
 - Drag-to-move functionality
 - Click-through behavior when idle
 - Animated sprite with walk cycles
@@ -230,6 +240,7 @@ Events broadcast to all windows via IPC for cross-window state synchronization.
 **Location**: `electron/main/screenshot/`
 
 **Features**:
+
 - Screen capture with selection UI
 - Triggered via global shortcut or IPC
 - Integration with workflow system for OCR pipelines
@@ -249,6 +260,7 @@ Configured in `tsconfig.json` and `vite.config.ts`.
 ## UI Architecture
 
 **Routing**: HashRouter with 15+ routes
+
 - `/` - AI assistant (floating sprite)
 - `/status` - Status page
 - `/chat` - Chat interface
@@ -259,6 +271,7 @@ Configured in `tsconfig.json` and `vite.config.ts`.
 - `/screenshot` - Screenshot tool
 
 **Component organization**:
+
 - Page components: `src/pages/`
 - Feature components: Self-contained features
 - UI components: `src/components/ui/` (shadcn/ui primitives)
@@ -271,6 +284,7 @@ Configured in `tsconfig.json` and `vite.config.ts`.
 ### New IPC Handler
 
 1. Create `electron/main/handlers/yourfeature/ipc-main.ts`:
+
 ```typescript
 import { ipcMain } from 'electron';
 
@@ -283,6 +297,7 @@ export function initYourFeatureHandlers() {
 ```
 
 2. Register in `electron/main/handlers/index.ts`:
+
 ```typescript
 import { initYourFeatureHandlers } from './yourfeature/ipc-main';
 
@@ -299,6 +314,7 @@ export function initHandlers(win: BrowserWindow): void {
 ### New Workflow Node
 
 1. Create node handler in `packages/workflow/nodes/yournode.ts`:
+
 ```typescript
 import { NodeHandler } from '../types';
 
@@ -307,16 +323,17 @@ export const YourNode: NodeHandler = {
     id: 'your-node',
     label: 'Your Node',
     inputs: [{ id: 'in', type: 'any' }],
-    outputs: [{ id: 'out', type: 'any' }],
+    outputs: [{ id: 'out', type: 'any' }]
   },
   run: async ({ input, config, ctx, emit, getPlugin }) => {
     // Node logic
     return { out: result };
-  },
+  }
 };
 ```
 
 2. Register in `packages/workflow/index.ts`:
+
 ```typescript
 import { YourNode } from './nodes/yournode';
 import { registry } from './registry';
@@ -336,6 +353,7 @@ export function initWorkflowSystem() {
 ## Native Dependencies
 
 These require rebuild for Electron:
+
 - `better-sqlite3` - Embedded SQLite database
 - `sqlite-vec` - Vector similarity search
 - `sharp` - Image processing
@@ -355,6 +373,7 @@ Run `pnpm rebuild` after any `npm install` or `pnpm install`.
 **Framework**: Vitest + Playwright
 
 **Test structure**:
+
 ```
 test/
 ├── e2e.spec.ts          # E2E tests (Playwright + Electron)
@@ -368,6 +387,8 @@ test/
 - **ESLint**: Configured with React & TypeScript rules
 - **Prettier**: Code formatting (`.prettierrc.yaml`)
 - **Import order**: `eslint-plugin-simple-import-sort` enforced
+
+**IMPORTANT**: Never run `pnpm lint` or `pnpm lint --fix` automatically. These commands will modify code formatting across the entire project, making it difficult to track actual changes. Only run these commands when explicitly requested by the user.
 
 ## Important Notes
 
@@ -394,6 +415,7 @@ pnpm rebuild:sqlite-vec
 ```
 
 **Common symptoms**:
+
 - `Cannot find module 'better-sqlite3'`
 - `Error: The specified module could not be found`
 - `dlopen(...): image not found`
