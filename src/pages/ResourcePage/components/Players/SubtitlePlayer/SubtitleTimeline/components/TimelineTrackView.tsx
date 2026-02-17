@@ -1,6 +1,7 @@
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import type { WordTimestamp } from '../../../MediaPlayer/subtitleDisplayEvent';
 import { DEFAULT_CONFIG, TimelineSegment, TimelineTrack, ViewportState } from '../types';
 import { detectOverlappingSegments } from '../utils';
 import { TimelineSegmentBlock } from './TimelineSegmentBlock';
@@ -47,6 +48,8 @@ interface TimelineTrackViewProps {
   /** 禁用交互 */
   disabled?: boolean;
   className?: string;
+  /** 字级别时间戳映射：segment id -> WordTimestamp[] */
+  wordsMap?: Map<string, WordTimestamp[]>;
 }
 
 /**
@@ -79,7 +82,8 @@ export const TimelineTrackView: React.FC<TimelineTrackViewProps> = ({
   onMergePrev,
   onDeleteSegment,
   disabled = false,
-  className
+  className,
+  wordsMap
 }) => {
   const height = track.height ?? DEFAULT_CONFIG.TRACK_HEIGHT;
   const trackRef = useRef<HTMLDivElement>(null);
@@ -282,6 +286,7 @@ export const TimelineTrackView: React.FC<TimelineTrackViewProps> = ({
           onMergePrev={onMergePrev}
           onDeleteSegment={onDeleteSegment}
           currentTime={currentTime}
+          words={wordsMap?.get(segment.id)}
         />
       ))}
 

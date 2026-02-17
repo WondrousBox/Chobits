@@ -108,6 +108,26 @@ export function initResourceHandlers(): void {
       return null;
     }
   });
+  // 更新字幕资源的 segments 数据（字级别时间戳）
+  ipcMain.handle('resource:updateSegmentsData', async (_event, payload: { subtitleResourceId: string; segmentsData: any[] }) => {
+    const { subtitleResourceId, segmentsData } = payload || ({} as any);
+    if (!subtitleResourceId || !Array.isArray(segmentsData)) {
+      return { success: false, error: 'invalid params' };
+    }
+    try {
+      const children = await ResourcesRepo.listChildren(subtitleResourceId, 100, 0);
+      const segmentsResource = (children as any[]).find((c: any) => c.type === 'segments');
+      if (!segmentsResource?.filePath) {
+        return { success: false, error: 'segments resource not found' };
+      }
+      await fs.writeFile(segmentsResource.filePath, JSON.stringify(segmentsData, null, 2), 'utf8');
+      console.log('[resource:updateSegmentsData] segments.json updated for', subtitleResourceId);
+      return { success: true };
+    } catch (e: any) {
+      console.warn('[resource:updateSegmentsData] failed:', e);
+      return { success: false, error: e?.message || String(e) };
+    }
+  });
   ipcMain.handle('getResource', async (_event, payload: { id: string }) => {
     const r: any = await ResourcesRepo.getById(payload.id);
     if (!r) return r;

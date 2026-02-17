@@ -47,6 +47,8 @@ export type ResourceIpcParams = {
   'resource:listChildren': IpcParams<[{ parentResourceId: string; limit?: number; offset?: number }], Resource[]>;
   /** 获取字幕资源的 segments 数据（字级别时间戳） */
   'resource:getSegmentsData': IpcParams<[{ subtitleResourceId: string }], any[] | null>;
+  /** 更新字幕资源的 segments 数据（字级别时间戳） */
+  'resource:updateSegmentsData': IpcParams<[{ subtitleResourceId: string; segmentsData: any[] }], { success: boolean; error?: string }>;
   getResource: IpcParams<[{ id: string }], Resource | undefined>;
   'resource:update': IpcParams<[{ id: string; patch: any }], { success: boolean; data?: any }>;
   deleteResource: IpcParams<[{ id: string }], { success: true }>;
@@ -100,6 +102,7 @@ const methods: Array<keyof ResourceIpcParams> = [
   'resource:list',
   'resource:listChildren',
   'resource:getSegmentsData',
+  'resource:updateSegmentsData',
   'getResource',
   'resource:update',
   'deleteResource',

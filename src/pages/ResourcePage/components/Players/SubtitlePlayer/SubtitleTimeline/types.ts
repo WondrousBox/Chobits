@@ -1,3 +1,5 @@
+import type { WordTimestamp } from '../../MediaPlayer/subtitleDisplayEvent';
+
 /**
  * SubtitleTimeline 时间轴组件类型定义
  *
@@ -185,6 +187,8 @@ export interface SubtitleTimelineProps extends TimelineCallbacks {
   clipTrackEnabled?: boolean;
   /** TTS 轨道的启用状态：ttsTrackId -> enabled */
   ttsTrackEnabledMap?: Map<string, boolean>;
+  /** 字级别时间戳映射：segment id -> WordTimestamp[]，用于卡拉OK高亮 */
+  wordsMap?: Map<string, WordTimestamp[]>;
 
   // ---- 剪辑轨道 Props ----
   /** 是否显示剪辑轨道 */
