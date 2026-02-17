@@ -16,6 +16,7 @@ import { SubtitlePlayer } from './SubtitleListPlayer/SubtitlePlayer';
 import { aimTracksToTimelineTracks, ClipSequence, formatSecondsToTime, indicesToIds, parseSegmentId, parseTimeToSeconds, SubtitleTimeline, TimelineSegment } from './SubtitleTimeline';
 import type { ClipSegment, ClipTrackCallbacks, ClipTrackData, TTSAudioItem as TimelineTTSAudioItem } from './SubtitleTimeline/types';
 import { SubtitleTranslator } from './SubtitleTranslator';
+import { mergeSegmentsChildren, syncSegmentsWithEntries } from './syncSegmentsData';
 import type { TTSTrackOption } from './TTSSynthesizer';
 import { TTSSynthesizer } from './TTSSynthesizer';
 import { useSubtitleTranslation } from './useSubtitleTranslation';
@@ -62,6 +63,9 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
   const [subtitleEntries, setSubtitleEntries] = useState<AimSegments[]>([]);
   /** segments.json 中的字级别时间戳数据（与 subtitleEntries 按 st/et 匹配） */
   const [segmentsData, setSegmentsData] = useState<AimSegments[] | null>(null);
+  /** 上次同步 segments 时的 subtitleEntries 快照，用于 diff 对比 */
+  const lastSyncedEntriesRef = useRef<AimSegments[]>([]);
+  const segmentsDataRef = useRef<AimSegments[] | null>(null);
   const [translationTracks, setTranslationTracks] = useState<AimSegments[][]>([]);
   /** 各翻译轨道的语言、显示名和资源ID（与 translationTracks 顺序一致） */
   const [translationTrackMeta, setTranslationTrackMeta] = useState<{ languageCode: string; label: string; resourceId: string }[]>([]);
@@ -174,6 +178,11 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     subtitleEntriesRef.current = subtitleEntries;
   }, [subtitleEntries]);
 
+  // 保持 segmentsData ref 同步
+  useEffect(() => {
+    segmentsDataRef.current = segmentsData;
+  }, [segmentsData]);
+
   // 防抖保存函数（用于用户手动编辑字幕时保存）
   const debouncedSave = useMemo(
     () =>
@@ -206,6 +215,32 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
             console.log(`[auto-save] 字幕已保存 (${format})`);
           } else {
             console.error('[auto-save] 保存失败');
+          }
+
+          // 同步更新 segments.json（字级别时间戳）
+          const currentSegmentsData = segmentsDataRef.current;
+          if (currentSegmentsData && currentSegmentsData.length > 0) {
+            const oldEntries = lastSyncedEntriesRef.current;
+            const updatedSegments = syncSegmentsWithEntries(currentSegmentsData, oldEntries, validSegments);
+            if (updatedSegments) {
+              // 更新本地状态
+              segmentsDataRef.current = updatedSegments;
+              setSegmentsData(updatedSegments);
+              lastSyncedEntriesRef.current = validSegments.map((s) => ({ ...s }));
+              // 持久化到磁盘
+              window.YUA.resource['resource:updateSegmentsData']({
+                subtitleResourceId: resourceId,
+                segmentsData: updatedSegments
+              })
+                .then((res) => {
+                  if (res.success) {
+                    console.log('[auto-save] segments.json 已同步更新');
+                  } else {
+                    console.warn('[auto-save] segments.json 更新失败:', res.error);
+                  }
+                })
+                .catch((err) => console.error('[auto-save] segments.json 更新异常:', err));
+            }
           }
         } catch (error) {
           console.error('[auto-save] 保存字幕时出错:', error);
@@ -700,6 +735,16 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
       });
   }, [resource?.id]);
 
+  // 当 segmentsData 和 subtitleEntries 都就绪时，初始化 lastSyncedEntriesRef（保证可靠的 diff 基准）
+  const hasSyncedInitialRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (segmentsData && segmentsData.length > 0 && subtitleEntries.length > 0 && hasSyncedInitialRef.current !== resource?.id) {
+      lastSyncedEntriesRef.current = subtitleEntries.map((s) => ({ ...s }));
+      hasSyncedInitialRef.current = resource?.id ?? null;
+      console.log('[SubtitlePlayer] lastSyncedEntriesRef 已初始化，共', subtitleEntries.length, '条');
+    }
+  }, [segmentsData, subtitleEntries, resource?.id]);
+
   // 构建主轨道每个片段的字级别时间戳映射（索引对齐 subtitleEntries）
   const segmentsWordData = useMemo<(WordTimestamp[] | undefined)[]>(() => {
     if (!segmentsData || subtitleEntries.length === 0) return [];
@@ -721,6 +766,17 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
       return undefined;
     });
   }, [segmentsData, subtitleEntries]);
+
+  // 构建时间轴用的 wordsMap：segment id -> WordTimestamp[]
+  const timelineWordsMap = useMemo<Map<string, WordTimestamp[]>>(() => {
+    const map = new Map<string, WordTimestamp[]>();
+    segmentsWordData.forEach((words, index) => {
+      if (words) {
+        map.set(`t0-${index}`, words);
+      }
+    });
+    return map;
+  }, [segmentsWordData]);
 
   // 用户手动编辑字幕时的回调：同步到本地 state 并触发保存
   const handleSegmentsChange = useCallback(
@@ -932,8 +988,22 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
   const handleMergePrev = useCallback(
     ({ trackId, segmentIndex }: { trackId: string; segmentIndex: number }) => {
       if (trackId !== 'track-0' || segmentIndex <= 0) return;
+      const seg1 = subtitleEntries[segmentIndex - 1];
+      const seg2 = subtitleEntries[segmentIndex];
       const merged = utils.mergeAimSegmentRange(subtitleEntries, segmentIndex - 1, segmentIndex);
       setSubtitleEntries(merged);
+      // 同步 segments 合并
+      if (segmentsDataRef.current && seg1 && seg2) {
+        const mergedEntry = merged[segmentIndex - 1];
+        if (mergedEntry) {
+          const updatedSegs = mergeSegmentsChildren(segmentsDataRef.current, mergedEntry, seg1.st, seg2.et);
+          if (updatedSegs) {
+            segmentsDataRef.current = updatedSegs;
+            setSegmentsData(updatedSegs);
+            lastSyncedEntriesRef.current = merged.map((s) => ({ ...s }));
+          }
+        }
+      }
       if (resource.id && !isLoading) {
         debouncedSave(resource.id, merged, subtitleFormat);
       }
@@ -947,8 +1017,22 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
       if (trackId !== 'track-0') return;
       if (segmentIndex < 0 || segmentIndex >= subtitleEntries.length - 1) return;
 
+      const seg1 = subtitleEntries[segmentIndex];
+      const seg2 = subtitleEntries[segmentIndex + 1];
       const merged = utils.mergeAimSegmentRange(subtitleEntries, segmentIndex, segmentIndex + 1);
       setSubtitleEntries(merged);
+      // 同步 segments 合并
+      if (segmentsDataRef.current && seg1 && seg2) {
+        const mergedEntry = merged[segmentIndex];
+        if (mergedEntry) {
+          const updatedSegs = mergeSegmentsChildren(segmentsDataRef.current, mergedEntry, seg1.st, seg2.et);
+          if (updatedSegs) {
+            segmentsDataRef.current = updatedSegs;
+            setSegmentsData(updatedSegs);
+            lastSyncedEntriesRef.current = merged.map((s) => ({ ...s }));
+          }
+        }
+      }
       if (resource.id && !isLoading) {
         debouncedSave(resource.id, merged, subtitleFormat);
       }
@@ -1546,6 +1630,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
           duration={mediaDuration}
           currentTime={currentTime}
           followCurrentTime={followTime}
+          wordsMap={timelineWordsMap}
           onSeek={onSeek}
           onAddSegment={handleAddSegment}
           onDeleteSegment={handleDeleteSegment}

@@ -67,7 +67,8 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   onToggleTTSTrackEnabled,
   onToggleClipTrackEnabled,
   clipTrackEnabled = true,
-  ttsTrackEnabledMap
+  ttsTrackEnabledMap,
+  wordsMap
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -689,6 +690,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                       onSegmentTimeChange={onSegmentTimeChange}
                       onDeleteSegment={onDeleteSegment}
                       disabled={disabled || track.locked || track.enabled === false}
+                      wordsMap={track.id === 'track-0' ? wordsMap : undefined}
                     />
                     {/* TTS轨道内容（如果有） */}
                     {hasTTSTrack && (

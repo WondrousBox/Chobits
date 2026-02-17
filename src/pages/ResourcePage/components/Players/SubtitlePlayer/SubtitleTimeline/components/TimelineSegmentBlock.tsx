@@ -4,6 +4,7 @@ import { TbArrowMerge, TbPencil, TbTrash } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 
+import type { WordTimestamp } from '../../../MediaPlayer/subtitleDisplayEvent';
 import { DEFAULT_CONFIG, TimelineSegment } from '../types';
 
 interface TimelineSegmentBlockProps {
@@ -44,6 +45,8 @@ interface TimelineSegmentBlockProps {
   onDeleteSegment?: (segment: TimelineSegment, trackId: string) => void;
   /** 当前播放时间（秒），用于在活跃片段上显示播放进度 */
   currentTime?: number;
+  /** 字级别时间戳数据（卡拉OK高亮用） */
+  words?: WordTimestamp[];
 }
 
 type DragMode = 'none' | 'move' | 'resize-left' | 'resize-right';
@@ -96,7 +99,8 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
   onDragEnd,
   onMergePrev,
   onDeleteSegment,
-  currentTime
+  currentTime,
+  words
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(segment.text);
@@ -497,8 +501,23 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
             </div>
           </div>
         ) : (
-          // 普通模式：省略显示
-          <span className={clsx('text-xs text-foreground truncate leading-tight px-1.5', isDeleted && 'line-through')}>{segment.text?.trim()}</span>
+          // 普通模式：省略显示，活跃时显示卡拉OK字级别高亮
+          <span className={clsx('text-xs text-foreground truncate leading-tight px-1.5', isDeleted && 'line-through')}>
+            {isActive && words && words.length > 0 && currentTime !== undefined
+              ? words.map((word, i) => {
+                const isWordActive = currentTime >= word.st && currentTime < word.et;
+                const isPast = currentTime >= word.et;
+                return (
+                  <span
+                    key={i}
+                    className={clsx('transition-colors duration-100', isWordActive && 'text-primary font-bold', isPast && 'text-foreground', !isPast && !isWordActive && 'text-foreground/40')}
+                  >
+                    {word.text}
+                  </span>
+                );
+              })
+              : segment.text?.trim()}
+          </span>
         )}
 
         {/* 右下角显示持续时长（秒） */}
