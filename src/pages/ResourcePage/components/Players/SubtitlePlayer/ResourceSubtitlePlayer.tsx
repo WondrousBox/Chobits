@@ -1595,6 +1595,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
         translationTrackMeta={translationTrackMeta}
         synthesizedItemsByTrack={synthesizedItemsByTrack}
         ttsTrackLabels={ttsTrackLabelsForTimeline}
+        segmentsData={segmentsData}
       />
     </div>
   );

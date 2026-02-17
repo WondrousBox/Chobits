@@ -103,6 +103,8 @@ export interface ExportConfig {
   audioBitrate: number;
   /** 字幕样式配置（仅硬字幕时生效） */
   subtitleStyle?: SubtitleStyleConfig;
+  /** 是否启用卡拉OK式字级别高亮（需要 segments 数据） */
+  enableKaraoke?: boolean;
 }
 
 /** 已导出的文件信息 */
@@ -256,5 +258,6 @@ export const DEFAULT_EXPORT_CONFIG: ExportConfig = {
   qualityPreset: '1080p',
   crf: 23,
   audioBitrate: 192,
-  subtitleStyle: { ...DEFAULT_SUBTITLE_STYLE }
+  subtitleStyle: { ...DEFAULT_SUBTITLE_STYLE },
+  enableKaraoke: false
 };
