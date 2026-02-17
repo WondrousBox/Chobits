@@ -2,9 +2,11 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { writeFile, writeLocalJSON } from '@aim-packages/file-utils';
+import { filter, parser, tools } from '@aim-packages/subtitle';
 import ffmpeg from 'fluent-ffmpeg';
 
-import { NodeConfig, NodeHandler, PortSchema, ValueType } from '../types';
+import { NodeHandler } from '../types';
 
 // Parakeet 模型定义
 const PARAKEET_MODELS = [
@@ -21,6 +23,100 @@ const PARAKEET_MODELS = [
     supportLangs: 'Multilingual'
   }
 ];
+
+// 关键词过滤列表
+const defaultKeywords: string[][] = [
+  ['请不吝点赞 订阅 转发 打赏支持明镜与点点栏目', ''],
+  ['請不吝點贊訂閱轉發打賞支持明鏡與點點欄目', ''],
+  ['明镜需要您的支持 欢迎订阅明镜', ''],
+  ['中文字幕由 Amara.org 社群提供', ''],
+  ['由 Amara.org 社群提供的字幕', ''],
+  ['中文字幕由Amara.org社区提供', ''],
+  ['小編字幕由Amara.org社區提供', ''],
+  ['字幕制作/时间轴:秋月', ''],
+  ['明镜与点点栏目', ''],
+  ['优优独播剧场——YoYo Television Series Exclusive', ''],
+  ['中文字幕志愿者申请', ''],
+  ['字幕志愿者 杨栋梁', ''],
+  ['Amara.org', ''],
+  ['www.mooji.org', ''],
+  ['Transcribed by https://otter.ai', ''],
+  ['https://otter.ai', '']
+];
+
+// 关键词后处理
+function postProcessKeywordReplace(text: string, keywords: string[][]): string {
+  if (!text || !keywords || keywords.length === 0) return text;
+  let result = text;
+  const sortedKeywords = [...keywords].sort((a, b) => (b[0]?.length || 0) - (a[0]?.length || 0));
+  for (const [keyword, replaceText] of sortedKeywords) {
+    if (keyword && keyword.length > 0) {
+      result = result.split(keyword).join(replaceText ?? '');
+    }
+  }
+  return result;
+}
+
+// 检测标点符号
+function detectCJKHindiPunctuation(text: string, language?: string, maxSegmentLength?: number): { hasPunctuation: boolean; matches: string[]; languageName: string } {
+  const chinesePunctuation = ['。', '、', '，', '！', '？', '；', '…'];
+  const japanesePunctuation = ['。', '、', '，', '！', '？', '；', '…', '‥'];
+  const koreanPunctuation = ['。', '，', '！', '？', '；', '…'];
+  const hindiPunctuation = ['।', '॥', '，', '？', '！', '；', '…'];
+  const englishPunctuation = ['.', ',', '!', '?', ';', ':', '...'];
+
+  let targetPunctuation: string[] = [];
+  let languageName = '';
+
+  switch (language) {
+    case 'zh':
+    case 'zh_s':
+    case 'zh_t':
+      targetPunctuation = chinesePunctuation;
+      languageName = '中文';
+      break;
+    case 'ja':
+      targetPunctuation = japanesePunctuation;
+      languageName = '日文';
+      break;
+    case 'ko':
+      targetPunctuation = koreanPunctuation;
+      languageName = '韩文';
+      break;
+    case 'hi':
+      targetPunctuation = hindiPunctuation;
+      languageName = '印地语';
+      break;
+    case 'yue':
+      targetPunctuation = chinesePunctuation;
+      languageName = '粤语';
+      break;
+    default:
+      targetPunctuation = englishPunctuation;
+      languageName = language ? `未知(${language})` : '英文';
+      break;
+  }
+
+  const matches: string[] = [];
+  for (const char of text) {
+    if (targetPunctuation.includes(char) && !matches.includes(char)) matches.push(char);
+  }
+
+  if (maxSegmentLength != null && maxSegmentLength > 0) {
+    let currentSegmentLength = 0;
+    for (const char of text) {
+      if (targetPunctuation.includes(char)) currentSegmentLength = 0;
+      else {
+        currentSegmentLength++;
+        if (currentSegmentLength > maxSegmentLength) {
+          return { hasPunctuation: false, matches: [], languageName };
+        }
+      }
+    }
+  }
+
+  return { hasPunctuation: matches.length > 0, matches, languageName };
+}
 
 function fileExists(p: string): boolean {
   try {
@@ -111,7 +207,7 @@ async function transcodeAudio(filePath: string, outputDir: string): Promise<stri
 }
 
 // 运行 Parakeet CLI
-async function runParakeet(args: string[], onProgress?: (progress: number, message: string) => void, totalDuration?: number | null): Promise<void> {
+async function runParakeet(args: string[], onProgress?: (progress: number, message: string) => void): Promise<void> {
   const { pluginResourceManager } = await import('../../plugins');
   const { platform } = await import('node:os');
   const binaryName = platform() === 'win32' ? 'parakeet.exe' : 'parakeet';
@@ -163,27 +259,6 @@ async function runParakeet(args: string[], onProgress?: (progress: number, messa
   });
 }
 
-// 根据配置计算动态输出端口
-function getDynamicOutputs(config?: NodeConfig): PortSchema[] {
-  const outputs: PortSchema[] = [];
-  const outputFormats: string[] = Array.isArray(config?.outputFormats) ? config.outputFormats : ['txt', 'srt', 'vtt', 'json'];
-  const formatMap: Record<string, { key: string; label: string; type: ValueType }> = {
-    txt: { key: 'txt', label: 'TXT 文件', type: 'file' },
-    srt: { key: 'srt', label: 'SRT 文件', type: 'file' },
-    vtt: { key: 'vtt', label: 'VTT 文件', type: 'file' },
-    json: { key: 'json', label: 'JSON 文件', type: 'file' }
-  };
-
-  for (const format of outputFormats) {
-    const formatDef = formatMap[format];
-    if (formatDef) {
-      outputs.push({ key: formatDef.key, label: formatDef.label, type: formatDef.type });
-    }
-  }
-
-  return outputs;
-}
-
 export const TranscribeParakeetNode: NodeHandler = {
   spec: {
     id: 'media/transcribe-parakeet',
@@ -193,8 +268,7 @@ export const TranscribeParakeetNode: NodeHandler = {
     requires: ['plugin:parakeet', 'plugin:ffmpeg'],
     inputs: [{ key: 'media', label: '媒体文件', type: ['file', 'string'], required: true }],
     configGroups: {
-      basic: { label: '基础属性', defaultExpanded: true },
-      advanced: { label: '高级设置', defaultExpanded: false }
+      basic: { label: '基础属性', defaultExpanded: true }
     },
     config: [
       {
@@ -202,49 +276,19 @@ export const TranscribeParakeetNode: NodeHandler = {
         label: '模型',
         type: 'string',
         required: true,
-        default: 'parakeet-v3',
-        description: '选择 Parakeet 模型',
+        default: '',
+        description: '选择 Parakeet 模型进行转录',
         inputType: 'select-menu',
         options: PARAKEET_MODELS.map((m) => ({
           value: m.id,
-          label: `${m.name}`,
-          description: `${m.description} - ${m.supportLangs}`
+          label: m.name,
+          description: `${m.description} (${m.supportLangs})`
         }))
-      },
-      {
-        key: 'outputFormats',
-        label: '输出格式',
-        type: 'array',
-        required: false,
-        default: ['txt', 'srt', 'vtt', 'json'],
-        description: '输出格式列表',
-        inputType: 'select-multiple',
-        options: [
-          { value: 'txt', label: 'TXT - 纯文本文件' },
-          { value: 'srt', label: 'SRT - 字幕文件' },
-          { value: 'vtt', label: 'VTT - WebVTT 字幕文件' },
-          { value: 'json', label: 'JSON - JSON 格式文件' }
-        ]
-      },
-      {
-        key: 'autoDetect',
-        label: '智能断句',
-        type: 'boolean',
-        required: false,
-        default: false,
-        description: '使用智能断句算法（将字级时间戳合并为段落）',
-        group: 'advanced'
       }
     ],
-    outputs: [
-      { key: 'txt', label: 'TXT 文件', type: 'file' },
-      { key: 'srt', label: 'SRT 文件', type: 'file' },
-      { key: 'vtt', label: 'VTT 文件', type: 'file' },
-      { key: 'json', label: 'JSON 文件', type: 'file' }
-    ]
+    outputs: [{ key: 'srt', label: 'SRT 文件', type: 'file' }]
   },
-  getOutputs: getDynamicOutputs,
-  async run({ input, config, ctx, emit }) {
+  async run({ input, config, emit }) {
     const src = String(input.media || '');
     if (!src) throw new Error('缺少媒体文件路径');
     if (!fs.existsSync(src)) throw new Error(`媒体文件不存在: ${src}`);
@@ -284,7 +328,10 @@ export const TranscribeParakeetNode: NodeHandler = {
     emit('node:progress', { progress: 0, message: '开始转录...' });
 
     // 获取模型路径
-    const modelId = String(config?.model || 'parakeet-v3');
+    const modelId = config?.model;
+    if (!modelId) {
+      throw new Error('请选择转录模型');
+    }
     const { pluginResourceManager } = await import('../../plugins');
     const modelDir = pluginResourceManager.getModelPath('plugin:parakeet', modelId);
 
@@ -295,7 +342,7 @@ export const TranscribeParakeetNode: NodeHandler = {
     console.log('[parakeet] 使用模型目录:', modelDir);
 
     // Parakeet CLI 参数
-    const args: string[] = ['--model', modelDir, '--input', finalSrc, '--output-dir', outDir, '--output-filename', base, '--output-format', 'txt, srt, json'];
+    const args: string[] = ['--model', modelDir, '--input', finalSrc, '--output-dir', outDir, '--output-filename', base, '--output-format', 'json'];
     // 创建进度回调函数
     const onProgress = (progress: number, message: string): void => {
       emit('node:progress', { progress, message });
@@ -303,7 +350,7 @@ export const TranscribeParakeetNode: NodeHandler = {
 
     console.log(args.join(' '));
 
-    await runParakeet(args, onProgress, totalDuration);
+    await runParakeet(args, onProgress);
 
     // 读取 JSON 输出文件
     const jsonFilePath = path.join(outDir, `${base}.json`);
@@ -313,133 +360,71 @@ export const TranscribeParakeetNode: NodeHandler = {
 
     const jsonData = JSON.parse(fs.readFileSync(jsonFilePath, 'utf8'));
 
-    // 处理 tokenTimings
-    let segments: Array<{ text: string; start: number; end: number }> = [];
-    if (jsonData && Array.isArray(jsonData.tokenTimings) && jsonData.tokenTimings.length > 0) {
-      segments = jsonData.tokenTimings.map((item: any) => ({
-        text: item.text,
-        start: item.startMs || 0,
-        end: item.endMs || 0
-      }));
-
-      // 如果启用智能断句
-      const autoDetect = config?.autoDetect === true;
-      if (autoDetect && segments.length > 0) {
-        // 简单的智能断句：根据标点符号和时间间隔
-        const mergedSegments: typeof segments = [];
-        let currentSegment = { ...segments[0] };
-
-        for (let i = 1; i < segments.length; i++) {
-          const seg = segments[i];
-          const timeGap = seg.start - currentSegment.end;
-
-          // 如果时间间隔小于 2 秒，则合并
-          if (timeGap < 2000) {
-            currentSegment.text += seg.text;
-            currentSegment.end = seg.end;
-          } else {
-            mergedSegments.push(currentSegment);
-            currentSegment = { ...seg };
-          }
-        }
-        mergedSegments.push(currentSegment);
-        segments = mergedSegments;
-      }
-    }
-
-    // 生成各种格式文件
-    const outputFormats = Array.isArray(config?.outputFormats) ? config.outputFormats : ['txt', 'srt', 'vtt', 'json'];
-
-    // 生成 TXT 文件
-    const txtFilePath = path.join(outDir, `${base}.txt`);
-    console.log('[parakeet] txtFilePath:', txtFilePath, JSON.stringify(config));
-    if (outputFormats.includes('txt')) {
-      const textContent = segments.map((seg) => seg.text).join('');
-      fs.writeFileSync(txtFilePath, textContent, 'utf8');
-    }
-
-    // 生成 SRT 文件
-    const srtFilePath = path.join(outDir, `${base}.srt`);
-    if (outputFormats.includes('srt')) {
-      let srtContent = '';
-      segments.forEach((seg, index) => {
-        const startTime = formatSrtTime(seg.start);
-        const endTime = formatSrtTime(seg.end);
-        srtContent += `${index + 1}\n${startTime} --> ${endTime}\n${seg.text}\n\n`;
-      });
-      fs.writeFileSync(srtFilePath, srtContent, 'utf8');
-    }
-
-    // 生成 VTT 文件
-    const vttFilePath = path.join(outDir, `${base}.vtt`);
-    if (outputFormats.includes('vtt')) {
-      let vttContent = 'WEBVTT\n\n';
-      segments.forEach((seg) => {
-        const startTime = formatVttTime(seg.start);
-        const endTime = formatVttTime(seg.end);
-        vttContent += `${startTime} --> ${endTime}\n${seg.text}\n\n`;
-      });
-      fs.writeFileSync(vttFilePath, vttContent, 'utf8');
-    }
-
-    // 如果不输出 JSON 格式，删除临时 JSON 文件
-    if (!outputFormats.includes('json')) {
-      fs.unlinkSync(jsonFilePath);
-    }
-
     // 收集输出
-    const out: Record<string, any> = {
-      segments: segments.map((seg) => ({
-        text: seg.text,
-        timestamps: {
-          from: msToTimeString(seg.start),
-          to: msToTimeString(seg.end)
-        }
-      }))
-    };
+    const out: Record<string, any> = {};
 
-    if (outputFormats.includes('txt') && fileExists(txtFilePath)) {
-      out.txt = txtFilePath;
-      out.text = fs.readFileSync(txtFilePath, 'utf8');
-    }
-    if (outputFormats.includes('srt') && fileExists(srtFilePath)) {
-      out.srt = srtFilePath;
-    }
-    if (outputFormats.includes('vtt') && fileExists(vttFilePath)) {
-      out.vtt = vttFilePath;
-    }
-    if (outputFormats.includes('json') && fileExists(jsonFilePath)) {
-      out.json = jsonFilePath;
-    }
+    await (async () => {
+      try {
+        // 1. 解析 Parakeet JSON 为 AIM 段落
+        const s = await parser.parakeetToAimSegments(jsonData);
+        if (!Array.isArray(s) || s.length === 0) {
+          console.warn('[parakeet] 解析结果为空');
+          return;
+        }
+
+        const segmentsPath = path.join(outDir, `${base}.segments.json`);
+        let segmentsToWrite: any[] = s;
+
+        // 2. 标点检测 + 关键词过滤 + 按句长分段（默认开启）
+        const allText = s.map((item: any) => item.text ?? '').join('');
+        const punctuationResult = detectCJKHindiPunctuation(allText, undefined, 200);
+
+        if (punctuationResult.hasPunctuation) {
+          const allChildren = s.map((item: any) => item.children ?? []).flat();
+          const sf = new filter.StreamFilter();
+          sf.reParse(defaultKeywords);
+          const sentenceLength = 75;
+          const allParsedSegments: any[] = [];
+
+          const segmentParser = parser.createSegmentStreamParser({
+            onParse: (event: any) => {
+              if (event?.type === 'event' && event?.event === 'message' && event?.data) {
+                event.data.forEach((segment: any) => {
+                  let processedText = sf.feedAll(segment.text ?? '').trim();
+                  processedText = postProcessKeywordReplace(processedText, defaultKeywords);
+                  segment.text = processedText;
+                });
+                allParsedSegments.push(...event.data.filter((seg: any) => !!seg.text));
+              }
+            },
+            onEnd: () => {
+              //
+            },
+            sentenceLength
+          });
+          segmentParser.feed(allChildren.length > 0 ? allChildren : []);
+          segmentParser.end();
+          segmentsToWrite = allParsedSegments.length > 0 ? allParsedSegments : s;
+        }
+
+        // 3. 保存 segments.json
+        await writeLocalJSON(segmentsPath, segmentsToWrite);
+
+        // 4. 从 segments 生成 SRT 文件
+        const srtFilePath = path.join(outDir, `${base}.srt`);
+        const iSegments: [string, string, string, string | undefined][] = segmentsToWrite.map((seg: { st: string; et: string; text: string }) => [seg.st, seg.et, seg.text ?? '', undefined]);
+        const srtContent = tools.outputSrt({ segments1: iSegments });
+        await writeFile(srtFilePath, srtContent);
+
+        out.srt = srtFilePath;
+      } catch (err) {
+        console.warn('[parakeet] segments 处理或写入失败:', err);
+      }
+    })();
+
+    // 删除临时 JSON 文件（内部使用，不对外暴露）
+    // fs.unlinkSync(jsonFilePath);
 
     return out;
   }
 };
-
-// 辅助函数：格式化时间戳
-function formatSrtTime(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  const milliseconds = ms % 1000;
-  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')},${milliseconds.toString().padStart(3, '0')}`;
-}
-
-function formatVttTime(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  const milliseconds = ms % 1000;
-  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
-}
-
-function msToTimeString(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  const milliseconds = ms % 1000;
-  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
-}

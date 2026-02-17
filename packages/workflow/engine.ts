@@ -58,8 +58,8 @@ export class WorkflowEngine extends EngineEmitter {
   }
 
   private log(runId: string, level: WorkflowRunLogLevel, nodeId: string | undefined, ...args: any[]): void {
-    const printer = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
-    printer(...args);
+    // const printer = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
+    // printer(...args);
     const message = args.map((arg) => (typeof arg === 'string' ? arg : util.inspect(arg, { depth: 6, colors: false, compact: false }))).join(' ');
     const entry: WorkflowRunLogEntry = {
       runId,
