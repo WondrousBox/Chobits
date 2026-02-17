@@ -2,6 +2,7 @@ import { AimSegments, utils } from '@aim-packages/subtitle';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 
+import type { WordTimestamp } from '../../MediaPlayer/subtitleDisplayEvent';
 import { SubtitleRow } from './SubtitleRow';
 
 /**
@@ -82,6 +83,8 @@ export interface SubtitlePlayerProps {
   trackIds?: string[];
   /** 轨道显示名称列表，与 tracks 顺序一致：主轨为 '原文'，翻译轨为语言名 */
   trackLabels?: string[];
+  /** 主轨道每个片段的字级别时间戳（与 tracks[0] 索引对齐），用于卡拉OK高亮 */
+  segmentsWordData?: (WordTimestamp[] | undefined)[];
 }
 
 const toIndexSet = (value?: Set<number> | number[]): Set<number> | undefined => {
@@ -170,7 +173,8 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
   highlightIndices,
   summaries,
   trackIds = ['main'],
-  trackLabels
+  trackLabels,
+  segmentsWordData
 }) => {
   const activeRowRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -416,6 +420,8 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
                 isMainTrack={row.isMain}
                 isEditable={true}
                 trackLabel={row.trackLabel}
+                words={row.isMain && segmentsWordData ? segmentsWordData[row.segmentIndex] : undefined}
+                currentTime={currentTime}
               />
             </div>
           );

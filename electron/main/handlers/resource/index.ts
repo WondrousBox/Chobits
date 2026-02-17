@@ -17,12 +17,92 @@ import type { Resource } from './ipc-renderer';
 const SCREENSHOT_FOLDER_NAME = '截图';
 
 /**
+ * 查找字幕文件的伴随 segments.json 文件路径。
+ * 命名约定：与字幕文件同目录、同 basename，后缀为 `.segments.json`。
+ * 例如：`video.srt` → `video.segments.json`
+ */
+function findCompanionSegmentsPath(subtitleFilePath: string): string | null {
+  const dir = path.dirname(subtitleFilePath);
+  const baseName = path.basename(subtitleFilePath, path.extname(subtitleFilePath));
+  const segmentsPath = path.join(dir, `${baseName}.segments.json`);
+  if (fscb.existsSync(segmentsPath)) {
+    return segmentsPath;
+  }
+  return null;
+}
+
+/**
+ * 为字幕资源创建伴随的 segments.json 子资源。
+ * segments.json 包含字级时间戳等详细分段信息，类似于 JavaScript 的 source map，
+ * 方便后续查询字幕文件的详细时间轴数据。
+ *
+ * @param parentRow  已创建的字幕资源行
+ * @param originalFilePath  原始字幕文件路径（复制前）
+ * @param currentFilePath   当前字幕文件路径（可能已复制到工作空间）
+ * @param workspaceId  工作空间 ID
+ * @param folderId  文件夹 ID
+ */
+async function createSegmentsChildResource(
+  parentRow: any,
+  originalFilePath: string,
+  currentFilePath: string | undefined,
+  workspaceId: string | undefined,
+  folderId: string | undefined
+): Promise<void> {
+  // 1. 在原始路径查找伴随文件
+  let segmentsSourcePath = findCompanionSegmentsPath(originalFilePath);
+
+  // 2. 如果原始路径没有，尝试在当前路径（工作空间复制后的位置）查找
+  if (!segmentsSourcePath && currentFilePath && currentFilePath !== originalFilePath) {
+    segmentsSourcePath = findCompanionSegmentsPath(currentFilePath);
+  }
+
+  if (!segmentsSourcePath) return;
+
+  console.log('[addResource] 找到字幕伴随 segments 文件:', segmentsSourcePath);
+
+  // 3. 确定 segments 文件的目标路径（与字幕文件在同一目录）
+  const subtitleDir = currentFilePath ? path.dirname(currentFilePath) : path.dirname(originalFilePath);
+  const subtitleBaseName = path.basename(currentFilePath || originalFilePath, path.extname(currentFilePath || originalFilePath));
+  const segmentsTargetPath = path.join(subtitleDir, `${subtitleBaseName}.segments.json`);
+
+  // 4. 如果源文件和目标不同，复制到工作空间
+  if (segmentsSourcePath !== segmentsTargetPath) {
+    try {
+      await fs.copyFile(segmentsSourcePath, segmentsTargetPath);
+      console.log('[addResource] segments 文件已复制到:', segmentsTargetPath);
+    } catch (e) {
+      console.warn('[addResource] 复制 segments 文件失败:', e);
+      return;
+    }
+  }
+
+  // 5. 创建子资源记录（type: 'segments' 为隐藏资源类型，不在普通列表中显示）
+  const segmentsStats = fscb.statSync(segmentsTargetPath);
+  const childResource = {
+    type: 'segments' as const,
+    title: `${subtitleBaseName}.segments.json`,
+    filePath: segmentsTargetPath,
+    mimeType: 'application/json',
+    sizeBytes: segmentsStats.size,
+    parentResourceId: parentRow.id,
+    workspaceId,
+    folderId,
+    status: 'ready' as const,
+    description: '字幕分段时间戳数据（segments map）'
+  };
+
+  const childRow = await ResourcesRepo.upsert(childResource as any);
+  if (childRow) {
+    console.log('[addResource] segments 子资源已创建, id:', childRow.id, ', parentId:', parentRow.id);
+    eventManager.emit(AppEvent.RESOURCE_CREATED, childRow);
+  }
+}
+
+/**
  * 获取或创建「截图」文件夹（主进程）：位于当前资源所在层级，用于统一存放截图资源。
  */
-export async function getOrCreateScreenshotFolder(
-  workspaceId: string | undefined,
-  parentFolderId: string | null | undefined
-): Promise<string | null> {
+export async function getOrCreateScreenshotFolder(workspaceId: string | undefined, parentFolderId: string | null | undefined): Promise<string | null> {
   let ws: any;
   if (workspaceId) {
     ws = await WorkspacesRepo.getById(workspaceId);
@@ -89,6 +169,7 @@ export async function addResource(r: { resource: Resource }): Promise<{ success:
   // Attach workspace: copy local file into default workspace if available
   let workspaceId = res.workspaceId;
   let filePath = res.filePath as string | undefined;
+  const originalFilePath = filePath; // 记录原始路径，用于查找伴随文件（如 .segments.json）
   let folderId = res.folderId;
 
   try {
@@ -136,6 +217,24 @@ export async function addResource(r: { resource: Resource }): Promise<{ success:
               target = path.join(targetDir, `${name}(${i})${ext}`);
             }
             await fs.copyFile(filePath, target);
+            // 复制字幕伴随文件（.segments.json）
+            try {
+              const ext = path.extname(filePath).toLowerCase();
+              const subtitleExts = ['.srt', '.vtt', '.ass', '.ssa'];
+              if (subtitleExts.includes(ext)) {
+                const srcBase = path.basename(filePath, path.extname(filePath));
+                const srcDir = path.dirname(filePath);
+                const segmentsSource = path.join(srcDir, `${srcBase}.segments.json`);
+                if (fscb.existsSync(segmentsSource)) {
+                  const destBase = path.basename(target, path.extname(target));
+                  const segmentsTarget = path.join(targetDir, `${destBase}.segments.json`);
+                  await fs.copyFile(segmentsSource, segmentsTarget);
+                  console.log('[addResource] 已复制字幕伴随 segments 文件:', segmentsTarget);
+                }
+              }
+            } catch (segErr) {
+              console.warn('[addResource] 复制伴随 segments 文件失败:', segErr);
+            }
             filePath = target;
           }
         } catch (e) {
@@ -265,6 +364,15 @@ export async function addResource(r: { resource: Resource }): Promise<{ success:
           w.webContents.send('resource:changed', payload);
         });
 
+        // 字幕资源伴随文件处理（缩略图分支）
+        if ((finalType as string) === 'subtitle' && originalFilePath) {
+          try {
+            await createSegmentsChildResource(row, originalFilePath, filePath, workspaceId, folderId);
+          } catch (e) {
+            console.warn('[addResource] segments child resource creation failed', e);
+          }
+        }
+
         return { success: true, data: (updated || row) as Resource };
       }
     } catch (e) {
@@ -285,5 +393,16 @@ export async function addResource(r: { resource: Resource }): Promise<{ success:
   } catch {
     /* ignore */
   }
+
+  // 字幕资源伴随文件处理：如果创建的是字幕资源，检查是否存在伴随的 .segments.json 文件
+  // segments.json 包含字级时间戳等详细分段信息，类似于 JavaScript 的 source map
+  if (row && (finalType as string) === 'subtitle' && originalFilePath) {
+    try {
+      await createSegmentsChildResource(row, originalFilePath, filePath, workspaceId, folderId);
+    } catch (e) {
+      console.warn('[addResource] segments child resource creation failed', e);
+    }
+  }
+
   return { success: true, data: row as Resource };
 }

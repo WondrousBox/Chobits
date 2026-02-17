@@ -281,6 +281,7 @@ export const TimelineTrackView: React.FC<TimelineTrackViewProps> = ({
           onTimeChange={onSegmentTimeChange}
           onMergePrev={onMergePrev}
           onDeleteSegment={onDeleteSegment}
+          currentTime={currentTime}
         />
       ))}
 

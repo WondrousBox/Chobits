@@ -1,4 +1,20 @@
-export type ResourceTypes = 'image' | 'video' | 'audio' | 'text' | 'file' | 'subtitle' | 'document' | 'link' | 'rss' | 'translation' | 'summary' | 'mindmap' | 'note' | 'screenshot' | 'other';
+export type ResourceTypes =
+  | 'image'
+  | 'video'
+  | 'audio'
+  | 'text'
+  | 'file'
+  | 'subtitle'
+  | 'document'
+  | 'link'
+  | 'rss'
+  | 'translation'
+  | 'summary'
+  | 'mindmap'
+  | 'note'
+  | 'screenshot'
+  | 'segments'
+  | 'other';
 
 export type SelectedResourceFileType = {
   _id?: string;

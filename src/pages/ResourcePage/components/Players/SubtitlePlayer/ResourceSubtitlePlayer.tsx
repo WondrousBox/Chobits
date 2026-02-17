@@ -9,7 +9,7 @@ import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 
 import type { ResourceItem } from '../../../types';
 import { MediaPlayerRef } from '../MediaPlayer/MediaPlayer';
-import { dispatchSubtitleDisplay, type SubtitleDisplayLine } from '../MediaPlayer/subtitleDisplayEvent';
+import { dispatchSubtitleDisplay, type SubtitleDisplayLine, type WordTimestamp } from '../MediaPlayer/subtitleDisplayEvent';
 import { dispatchTrackSettings, TRACK_TOGGLE_EVENT, type TrackSettingsItem, type TrackTogglePayload } from '../MediaPlayer/trackSettingsEvent';
 import { ExportDialog } from './ExportDialog';
 import { SubtitlePlayer } from './SubtitleListPlayer/SubtitlePlayer';
@@ -60,6 +60,8 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
   onMediaPause
 }) => {
   const [subtitleEntries, setSubtitleEntries] = useState<AimSegments[]>([]);
+  /** segments.json 中的字级别时间戳数据（与 subtitleEntries 按 st/et 匹配） */
+  const [segmentsData, setSegmentsData] = useState<AimSegments[] | null>(null);
   const [translationTracks, setTranslationTracks] = useState<AimSegments[][]>([]);
   /** 各翻译轨道的语言、显示名和资源ID（与 translationTracks 顺序一致） */
   const [translationTrackMeta, setTranslationTrackMeta] = useState<{ languageCode: string; label: string; resourceId: string }[]>([]);
@@ -676,6 +678,49 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     setTranslationTracks([]);
     setTranslationTrackMeta([]);
   }, [resource, debouncedSave, debouncedFlushTranslationUpdates]);
+
+  // 加载字幕的 segments 数据（字级别时间戳，用于卡拉OK高亮）
+  useEffect(() => {
+    if (!resource?.id) {
+      setSegmentsData(null);
+      return;
+    }
+    window.YUA.resource['resource:getSegmentsData']({ subtitleResourceId: resource.id })
+      .then((data: AimSegments[] | null) => {
+        if (Array.isArray(data) && data.length > 0) {
+          console.log('[SubtitlePlayer] 已加载 segments 数据，共', data.length, '段');
+          setSegmentsData(data);
+        } else {
+          setSegmentsData(null);
+        }
+      })
+      .catch((err: any) => {
+        console.warn('[SubtitlePlayer] 加载 segments 数据失败:', err);
+        setSegmentsData(null);
+      });
+  }, [resource?.id]);
+
+  // 构建主轨道每个片段的字级别时间戳映射（索引对齐 subtitleEntries）
+  const segmentsWordData = useMemo<(WordTimestamp[] | undefined)[]>(() => {
+    if (!segmentsData || subtitleEntries.length === 0) return [];
+    return subtitleEntries.map((entry) => {
+      const st = utils.convertToSeconds(entry.st);
+      const et = utils.convertToSeconds(entry.et);
+      const match = segmentsData.find((s: any) => {
+        const sSt = utils.convertToSeconds(s.st);
+        const sEt = utils.convertToSeconds(s.et);
+        return Math.abs(sSt - st) < 0.05 && Math.abs(sEt - et) < 0.05;
+      });
+      if (match?.children?.length) {
+        return (match.children as any[]).map((c: any) => ({
+          st: utils.convertToSeconds(c.st),
+          et: utils.convertToSeconds(c.et),
+          text: c.text ?? ''
+        }));
+      }
+      return undefined;
+    });
+  }, [segmentsData, subtitleEntries]);
 
   // 用户手动编辑字幕时的回调：同步到本地 state 并触发保存
   const handleSegmentsChange = useCallback(
@@ -1341,7 +1386,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
   // ---- 多轨道字幕叠加显示：计算当前时间每个启用轨道的字幕，并广播给 SubtitleOverlay ----
   useEffect(() => {
     if (subtitleEntries.length === 0) {
-      dispatchSubtitleDisplay([]);
+      dispatchSubtitleDisplay([], currentTime);
       return;
     }
 
@@ -1371,24 +1416,42 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
         const st = utils.convertToSeconds(seg.st);
         const et = utils.convertToSeconds(seg.et);
         if (currentTime >= st && currentTime < et && seg.text) {
-          lines.push({
+          const line: SubtitleDisplayLine = {
             trackId,
             trackLabel: allLabels[trackIdx],
             text: seg.text,
             isTranslation: trackIdx > 0
-          });
+          };
+
+          // 主轨道：尝试从 segmentsData 中查找对应片段的字级别时间戳
+          if (trackIdx === 0 && segmentsData) {
+            const matchingSeg = segmentsData.find((s: any) => {
+              const sSt = utils.convertToSeconds(s.st);
+              const sEt = utils.convertToSeconds(s.et);
+              return Math.abs(sSt - st) < 0.05 && Math.abs(sEt - et) < 0.05;
+            });
+            if (matchingSeg?.children?.length) {
+              line.words = (matchingSeg.children as any[]).map((c: any) => ({
+                st: utils.convertToSeconds(c.st),
+                et: utils.convertToSeconds(c.et),
+                text: c.text ?? ''
+              }));
+            }
+          }
+
+          lines.push(line);
           break;
         }
       }
     });
 
-    dispatchSubtitleDisplay(lines);
-  }, [currentTime, subtitleEntries, translationTracks, translationTrackMeta, typingTexts, subtitleTrackEnabledMap]);
+    dispatchSubtitleDisplay(lines, currentTime);
+  }, [currentTime, subtitleEntries, translationTracks, translationTrackMeta, typingTexts, subtitleTrackEnabledMap, segmentsData]);
 
   // 组件卸载时清空字幕显示
   useEffect(() => {
     return () => {
-      dispatchSubtitleDisplay([]);
+      dispatchSubtitleDisplay([], 0);
     };
   }, []);
 
@@ -1474,6 +1537,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
           summaries={chunkSummaryInfoMap}
           trackIds={trackIds}
           trackLabels={trackLabels}
+          segmentsWordData={segmentsWordData}
         />
       ) : (
         // 时间轴视图

@@ -1,10 +1,32 @@
 import React, { useEffect, useState } from 'react';
 
-import { SUBTITLE_DISPLAY_EVENT, type SubtitleDisplayLine } from './subtitleDisplayEvent';
+import { SUBTITLE_DISPLAY_EVENT, type SubtitleDisplayEventDetail, type SubtitleDisplayLine, type WordTimestamp } from './subtitleDisplayEvent';
 
 interface SubtitleOverlayProps {
   className?: string;
 }
+
+/**
+ * 渲染卡拉OK式字级别高亮的字幕文本
+ */
+const KaraokeText: React.FC<{ words: WordTimestamp[]; currentTime: number }> = ({ words, currentTime }) => {
+  return (
+    <>
+      {words.map((word, i) => {
+        const isActive = currentTime >= word.st && currentTime < word.et;
+        const isPast = currentTime >= word.et;
+        return (
+          <span
+            key={i}
+            className={isActive ? 'text-yellow-300 font-bold transition-colors duration-100' : isPast ? 'text-white/90 transition-colors duration-100' : 'text-white/50 transition-colors duration-100'}
+          >
+            {word.text}
+          </span>
+        );
+      })}
+    </>
+  );
+};
 
 /**
  * 字幕叠加层组件
@@ -13,11 +35,13 @@ interface SubtitleOverlayProps {
  */
 export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({ className = '' }) => {
   const [lines, setLines] = useState<SubtitleDisplayLine[]>([]);
+  const [currentTime, setCurrentTime] = useState(0);
 
   useEffect(() => {
     const handler = (e: Event): void => {
-      const ce = e as CustomEvent<{ lines: SubtitleDisplayLine[] }>;
+      const ce = e as CustomEvent<SubtitleDisplayEventDetail>;
       setLines(ce.detail.lines);
+      setCurrentTime(ce.detail.currentTime);
     };
     window.addEventListener(SUBTITLE_DISPLAY_EVENT, handler);
     return () => {
@@ -34,7 +58,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({ className = ''
           key={`${line.trackId}-${idx}`}
           className={`inline-block max-w-[90%] px-3 py-1 rounded text-center leading-snug whitespace-pre-wrap break-words pointer-events-auto select-text ${line.isTranslation ? 'bg-black/60 text-yellow-200 text-sm' : 'bg-black/70 text-white text-base font-medium'}`}
         >
-          {line.text}
+          {line.words && line.words.length > 0 && !line.isTranslation ? <KaraokeText words={line.words} currentTime={currentTime} /> : line.text}
         </div>
       ))}
     </div>
