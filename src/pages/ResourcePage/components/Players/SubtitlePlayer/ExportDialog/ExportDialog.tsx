@@ -12,6 +12,7 @@ import { PreviewPanel } from './components/PreviewPanel';
 import { SubtitleConfig } from './components/SubtitleConfig';
 import { TrackSelector } from './components/TrackSelector';
 import { VideoConfig } from './components/VideoConfig';
+import { generateKaraokeAss, hasWordLevelTimestamps, type RawSegment } from './karaokeAss';
 import type {
   ExportConfig,
   ExportProgress,
@@ -42,6 +43,8 @@ interface ExportDialogProps {
   translationTrackMeta: { languageCode: string; label: string; resourceId: string }[];
   synthesizedItemsByTrack: Map<string, Map<number, TTSSynthesisItem>>;
   ttsTrackLabels?: Map<string, string>;
+  /** 原始 segments 数据（包含 children 字级别时间戳），用于卡拉OK效果 */
+  segmentsData?: RawSegment[] | null;
 }
 
 /**
@@ -66,7 +69,8 @@ export function ExportDialog({
   translationTracks,
   translationTrackMeta,
   synthesizedItemsByTrack,
-  ttsTrackLabels
+  ttsTrackLabels,
+  segmentsData
 }: ExportDialogProps) {
   // Config state
   const [config, setConfig] = useState<ExportConfig>({ ...DEFAULT_EXPORT_CONFIG });
@@ -214,6 +218,12 @@ export function ExportDialog({
     setConfig((prev) => ({ ...prev, audioBitrate: value }));
   }, []);
 
+  const handleKaraokeChange = useCallback((enabled: boolean) => {
+    setConfig((prev) => ({ ...prev, enableKaraoke: enabled }));
+  }, []);
+
+  const hasWordTimestamps = useMemo(() => hasWordLevelTimestamps(segmentsData ?? null), [segmentsData]);
+
   // Export handler
   const handleExport = useCallback(async () => {
     if (!videoPath && !audioPath) return;
@@ -227,11 +237,12 @@ export function ExportDialog({
 
       if (config.selectedTrackIds.includes('subtitle-original') && subtitleEntries.length > 0) {
         const iSegments = subtitleEntries.map((seg) => [seg.st, seg.et, seg.text, undefined] as [string, string, string, undefined]);
+        const useKaraoke = config.enableKaraoke && segmentsData && hasWordLevelTimestamps(segmentsData);
         subtitleTracks.push({
           trackId: 'original',
           label: '原文',
           srtContent: tools.outputSrt({ segments1: iSegments }),
-          assContent: tools.outputAss({ segments1: iSegments })
+          assContent: useKaraoke ? generateKaraokeAss(segmentsData!, config.subtitleStyle) : tools.outputAss({ segments1: iSegments })
         });
       }
 
@@ -327,7 +338,7 @@ export function ExportDialog({
       });
       setExporting(false);
     }
-  }, [videoPath, audioPath, config, duration, resourceId, workspaceId, folderId, subtitleEntries, translationTracks, translationTrackMeta, synthesizedItemsByTrack, ttsTrackLabels]);
+  }, [videoPath, audioPath, config, duration, resourceId, workspaceId, folderId, subtitleEntries, translationTracks, translationTrackMeta, synthesizedItemsByTrack, ttsTrackLabels, segmentsData]);
 
   return (
     <Dialog open={open} onOpenChange={exporting ? undefined : onOpenChange}>
@@ -363,7 +374,15 @@ export function ExportDialog({
 
                 {hasSelectedSubtitle && (
                   <>
-                    <SubtitleConfig embedMode={config.subtitleEmbedMode} onEmbedModeChange={handleEmbedModeChange} disabled={exporting} showStyleHint />
+                    <SubtitleConfig
+                      embedMode={config.subtitleEmbedMode}
+                      onEmbedModeChange={handleEmbedModeChange}
+                      disabled={exporting}
+                      showStyleHint
+                      enableKaraoke={config.enableKaraoke}
+                      onKaraokeChange={handleKaraokeChange}
+                      hasWordTimestamps={hasWordTimestamps}
+                    />
                     <Separator />
                   </>
                 )}
