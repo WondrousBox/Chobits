@@ -260,6 +260,26 @@ export const ResourceCreateNode: NodeHandler = {
           // 复制文件
           await fs.promises.copyFile(filePath, copyTargetPath);
           finalFilePath = copyTargetPath;
+
+          // 复制字幕伴随文件（.segments.json）
+          // 如果是字幕文件，检查是否存在同名的 .segments.json 并一起复制
+          try {
+            const ext = path.extname(filePath).toLowerCase();
+            const subtitleExts = ['.srt', '.vtt', '.ass', '.ssa'];
+            if (subtitleExts.includes(ext)) {
+              const srcBase = path.basename(filePath, path.extname(filePath));
+              const srcDir = path.dirname(filePath);
+              const segmentsSource = path.join(srcDir, `${srcBase}.segments.json`);
+              if (fs.existsSync(segmentsSource)) {
+                const destBase = path.basename(copyTargetPath, path.extname(copyTargetPath));
+                const segmentsTarget = path.join(targetDir, `${destBase}.segments.json`);
+                await fs.promises.copyFile(segmentsSource, segmentsTarget);
+                console.log('[resource-create] 已复制字幕伴随 segments 文件:', segmentsTarget);
+              }
+            }
+          } catch (segErr) {
+            console.warn('[resource-create] 复制伴随 segments 文件失败:', segErr);
+          }
         } else {
           // 文件已经在目标文件夹中，直接使用
           finalFilePath = filePath;

@@ -79,12 +79,34 @@ export function initResourceHandlers(): void {
     if (payload?.workspaceId) {
       filter.workspaceId = payload.workspaceId;
     }
-    return await ResourcesRepo.list(filter);
+    const rows = await ResourcesRepo.list(filter);
+    // 隐藏内部类型的资源（segments 等），这些资源通过 listChildren 查询
+    const HIDDEN_TYPES = new Set(['segments']);
+    return (rows as any[]).filter((r: any) => !HIDDEN_TYPES.has(r.type));
   });
   ipcMain.handle('resource:listChildren', async (_event, payload: { parentResourceId: string; limit?: number; offset?: number }) => {
     const { parentResourceId, limit = 100, offset = 0 } = payload || ({} as any);
     if (!parentResourceId) return [];
     return await ResourcesRepo.listChildren(parentResourceId, limit, offset);
+  });
+
+  // 获取字幕资源的 segments 数据（字级别时间戳）
+  ipcMain.handle('resource:getSegmentsData', async (_event, payload: { subtitleResourceId: string }) => {
+    const { subtitleResourceId } = payload || ({} as any);
+    if (!subtitleResourceId) return null;
+    try {
+      // 查找 segments 类型的子资源
+      const children = await ResourcesRepo.listChildren(subtitleResourceId, 100, 0);
+      const segmentsResource = (children as any[]).find((c: any) => c.type === 'segments');
+      if (!segmentsResource?.filePath) return null;
+      // 读取 segments.json 文件
+      if (!fscb.existsSync(segmentsResource.filePath)) return null;
+      const content = fscb.readFileSync(segmentsResource.filePath, 'utf8');
+      return JSON.parse(content);
+    } catch (e) {
+      console.warn('[resource:getSegmentsData] failed:', e);
+      return null;
+    }
   });
   ipcMain.handle('getResource', async (_event, payload: { id: string }) => {
     const r: any = await ResourcesRepo.getById(payload.id);
@@ -582,8 +604,12 @@ export function initResourceHandlers(): void {
         const buffer = Buffer.from(data as ArrayBuffer);
         await fs.writeFile(target, buffer);
 
-        const mm = Math.floor(currentTimeSeconds / 60).toString().padStart(2, '0');
-        const ss = Math.floor(currentTimeSeconds % 60).toString().padStart(2, '0');
+        const mm = Math.floor(currentTimeSeconds / 60)
+          .toString()
+          .padStart(2, '0');
+        const ss = Math.floor(currentTimeSeconds % 60)
+          .toString()
+          .padStart(2, '0');
         const title = `截图 @ ${mm}:${ss}`;
 
         const result = await addResource({
@@ -811,7 +837,7 @@ export function initResourceHandlers(): void {
       if (stream) {
         try {
           stream.writeStream.destroy();
-          await fs.unlink(stream.filePath).catch(() => {});
+          await fs.unlink(stream.filePath).catch(() => { });
         } catch {
           /* ignore */
         }
@@ -1063,7 +1089,7 @@ async function runImportTask(win: BrowserWindow, filePaths: string[], workspaceI
                 await ResourcesRepo.update(row.id, { thumbnailPath: thumbPath } as any);
               }
             })
-            .catch(() => {});
+            .catch(() => { });
         }
       } catch (e) {
         console.error('Import file failed', task.path, e);

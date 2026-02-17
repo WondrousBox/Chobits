@@ -423,7 +423,7 @@ export const TranscribeParakeetNode: NodeHandler = {
     })();
 
     // 删除临时 JSON 文件（内部使用，不对外暴露）
-    // fs.unlinkSync(jsonFilePath);
+    fs.unlinkSync(jsonFilePath);
 
     return out;
   }

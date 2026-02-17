@@ -4,7 +4,7 @@ import type { IpcParams, PartialByKey } from '../types';
 
 export type Resource = {
   id: string;
-  type: 'image' | 'video' | 'audio' | 'text' | 'link' | 'file' | 'document' | 'translation' | 'summary' | 'mindmap' | 'note' | 'screenshot' | 'other';
+  type: 'image' | 'video' | 'audio' | 'text' | 'link' | 'file' | 'document' | 'translation' | 'summary' | 'mindmap' | 'note' | 'screenshot' | 'segments' | 'other';
   workspaceId?: string;
   folderId?: string;
   parentResourceId?: string; // 父资源ID（用于记录资源来源关系）
@@ -45,6 +45,8 @@ export type ResourceIpcParams = {
   'resource:list': IpcParams<[{ workspaceId?: string; deletedAt?: number }?], Resource[]>;
   /** 按父资源 ID 查询子资源列表 */
   'resource:listChildren': IpcParams<[{ parentResourceId: string; limit?: number; offset?: number }], Resource[]>;
+  /** 获取字幕资源的 segments 数据（字级别时间戳） */
+  'resource:getSegmentsData': IpcParams<[{ subtitleResourceId: string }], any[] | null>;
   getResource: IpcParams<[{ id: string }], Resource | undefined>;
   'resource:update': IpcParams<[{ id: string; patch: any }], { success: boolean; data?: any }>;
   deleteResource: IpcParams<[{ id: string }], { success: true }>;
@@ -97,6 +99,7 @@ const methods: Array<keyof ResourceIpcParams> = [
   'resource:add',
   'resource:list',
   'resource:listChildren',
+  'resource:getSegmentsData',
   'getResource',
   'resource:update',
   'deleteResource',

@@ -6,6 +6,8 @@ import { TbArrowMerge } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 
+import type { WordTimestamp } from '../../MediaPlayer/subtitleDisplayEvent';
+
 function getClickTextPosition(e: MouseEvent): number {
   let position = 0;
   const range = document.caretRangeFromPoint(e.clientX, e.clientY);
@@ -30,6 +32,10 @@ interface SubtitleRowProps {
   isMainTrack?: boolean; // 是否是主轨道（用于控制时间显示）
   isEditable?: boolean; // 是否允许编辑文本
   trackLabel?: string; // 轨道显示名称
+  /** 字级别时间戳数据（卡拉OK高亮用） */
+  words?: WordTimestamp[];
+  /** 当前播放时间（秒），配合 words 实现卡拉OK高亮 */
+  currentTime?: number;
 }
 
 const textareaStyle = 'resize-none block p-2 flex-1 outline-none box-border bg-background text-foreground border-none text-base';
@@ -54,7 +60,9 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({
   highlight = false,
   isMainTrack = true,
   isEditable = true,
-  trackLabel
+  trackLabel,
+  words,
+  currentTime = 0
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editingText, setEditingText] = useState(segment.text);
@@ -210,9 +218,27 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({
         />
       ) : (
         <div className="flex-1 relative z-10">
-          {/* 原始文本 */}
+          {/* 原始文本（可卡拉OK高亮） */}
           <div className={clsx(getClassName(segment.delete, isActive), disabled && 'pointer-events-none cursor-not-allowed opacity-80')} style={{ whiteSpace: 'pre-wrap' }} onClick={handleTextClick}>
-            {segment.text?.trim() || '\u200b'}
+            {isActive && words && words.length > 0
+              ? words.map((word, i) => {
+                const isWordActive = currentTime >= word.st && currentTime < word.et;
+                const isPast = currentTime >= word.et;
+                return (
+                  <span
+                    key={i}
+                    className={clsx(
+                      'transition-colors duration-100',
+                      isWordActive && 'text-primary font-bold bg-primary/20 rounded-sm',
+                      isPast && 'text-foreground',
+                      !isPast && !isWordActive && 'text-muted-foreground'
+                    )}
+                  >
+                    {word.text}
+                  </span>
+                );
+              })
+              : segment.text?.trim() || '\u200b'}
           </div>
         </div>
       )}

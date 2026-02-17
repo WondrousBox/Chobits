@@ -42,6 +42,8 @@ interface TimelineSegmentBlockProps {
   onMergePrev?: (payload: { trackId: string; segmentIndex: number }) => void;
   /** 删除片段（选中时按钮或快捷键） */
   onDeleteSegment?: (segment: TimelineSegment, trackId: string) => void;
+  /** 当前播放时间（秒），用于在活跃片段上显示播放进度 */
+  currentTime?: number;
 }
 
 type DragMode = 'none' | 'move' | 'resize-left' | 'resize-right';
@@ -93,7 +95,8 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
   onDragStart,
   onDragEnd,
   onMergePrev,
-  onDeleteSegment
+  onDeleteSegment,
+  currentTime
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(segment.text);
@@ -453,6 +456,25 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
             </Button>
           </div>
         )}
+
+        {/* 活跃片段播放进度指示条 */}
+        {isActive &&
+          !isEditing &&
+          currentTime !== undefined &&
+          (() => {
+            const duration = segment.endTime - segment.startTime;
+            if (duration <= 0) return null;
+            const progress = Math.min(1, Math.max(0, (currentTime - segment.startTime) / duration));
+            return (
+              <div
+                className="absolute left-0 top-0 bottom-0 bg-foreground/15 pointer-events-none rounded-l transition-[width] duration-100"
+                style={{
+                  width: `${progress * 100}%`,
+                  borderRadius: progress >= 0.99 ? DEFAULT_CONFIG.SEGMENT_BORDER_RADIUS : `${DEFAULT_CONFIG.SEGMENT_BORDER_RADIUS}px 0 0 ${DEFAULT_CONFIG.SEGMENT_BORDER_RADIUS}px`
+                }}
+              />
+            );
+          })()}
 
         {/* 内容区域 */}
         {isEditing ? (
