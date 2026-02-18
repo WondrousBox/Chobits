@@ -1,5 +1,9 @@
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { TbZoomReset } from 'react-icons/tb';
+
+import type { SpriteAnimation } from '@/components/AIAssistant/types';
+import { resolveSpriteSrc } from '@/components/AIAssistant/utils/resource';
 
 import ParticleBackground from './ParticleBackground';
 import SkillNode from './SkillNode';
@@ -26,25 +30,60 @@ const TIER_GAP = 60; // 等级之间的额外间距
 const MAX_COLUMNS_PER_TIER = 2; // 每个等级最多2列
 
 const SkillTreeCanvas: React.FC<SkillTreeCanvasProps> = ({ skillStatuses, selectedSkill, onSelectSkill }) => {
-  // 拖拽滚动状态
+  // 拖拽 & 缩放状态
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [startPos, setStartPos] = useState({ x: 0, y: 0 });
   const [scrollPos, setScrollPos] = useState({ x: 0, y: 0 });
+  const [scale, setScale] = useState(1);
+
+  // 加载精灵 idle sprite
+  const [idleSprite, setIdleSprite] = useState<SpriteAnimation | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const loadSprite = async (): Promise<void> => {
+      try {
+        const sprites: SpriteAnimation[] = await window.YUA.sprite.list();
+        if (cancelled) return;
+        // 优先找 idle 事件的 sprite，否则取第一个
+        const idle = sprites.find((s) => s.meta.eventType === 'idle') ?? sprites[0];
+        if (idle) setIdleSprite(idle);
+      } catch {
+        // sprite 可能未初始化
+      }
+    };
+    loadSprite();
+    return () => { cancelled = true; };
+  }, []);
+
+  const spriteSrc = useMemo(() => {
+    if (!idleSprite) return null;
+    return resolveSpriteSrc(idleSprite.source);
+  }, [idleSprite]);
 
   // 初始化：设置精灵核心居中
   useEffect(() => {
     if (containerRef.current) {
       const containerWidth = containerRef.current.clientWidth;
-      // 使精灵核心居中：容器宽度的一半减去核心X位置再减去核心半径
-      const centerScrollLeft = CORE_X - containerWidth / 2 + 50; // 50是核心半径的一半
+      const containerHeight = containerRef.current.clientHeight;
+      const centerScrollLeft = CORE_X - containerWidth / 2 + 60;
+      const centerScrollTop = Math.max(0, (canvasHeight * scale) / 2 - containerHeight / 2);
       containerRef.current.scrollLeft = centerScrollLeft;
+      containerRef.current.scrollTop = centerScrollTop;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 鼠标滚轮缩放
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      setScale((prev) => Math.min(2, Math.max(0.4, prev - e.deltaY * 0.002)));
     }
   }, []);
 
   // 鼠标拖拽开始
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    // 只在点击背景时启用拖拽
     if ((e.target as HTMLElement).closest('.skill-node-interactive')) return;
 
     setIsDragging(true);
@@ -150,12 +189,17 @@ const SkillTreeCanvas: React.FC<SkillTreeCanvasProps> = ({ skillStatuses, select
   const canvasWidth = START_X + TIER_ORDER.length * (MAX_COLUMNS_PER_TIER * COLUMN_WIDTH + TIER_GAP) + 200;
   // 计算画布总高度（基于最大行数）
   const maxRow = Math.max(...skillTreeNodes.map((n) => n.row));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const canvasHeight = START_Y + (maxRow + 1) * ROW_HEIGHT + 150;
+
+  // 精灵核心尺寸 — 采用与桌面悬浮精灵相同的宽高
+  const spriteW = idleSprite?.width ?? 180;
+  const spriteH = idleSprite?.height ?? 240;
 
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900"
+      className="relative w-full h-full skill-tree-bg"
       style={{
         cursor: isDragging ? 'grabbing' : 'grab',
         overflow: 'auto',
@@ -166,22 +210,35 @@ const SkillTreeCanvas: React.FC<SkillTreeCanvasProps> = ({ skillStatuses, select
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseLeave}
+      onWheel={handleWheel}
     >
       {/* 粒子背景 - 固定 */}
       <div className="fixed inset-0 pointer-events-none">
         <ParticleBackground />
       </div>
 
+      {/* 暗角遮罩 */}
+      <div className="fixed inset-0 pointer-events-none skill-tree-vignette" />
+
       {/* 可滚动内容区域 */}
       <div
         className="relative"
         style={{
-          width: canvasWidth,
-          height: canvasHeight,
-          minWidth: canvasWidth,
-          minHeight: canvasHeight
+          width: canvasWidth * scale,
+          height: canvasHeight * scale,
+          minWidth: canvasWidth * scale,
+          minHeight: canvasHeight * scale
         }}
       >
+        {/* 缩放容器 */}
+        <div
+          style={{
+            width: canvasWidth,
+            height: canvasHeight,
+            transform: `scale(${scale})`,
+            transformOrigin: 'top left'
+          }}
+        >
         {/* 等级背景区块 */}
         <div className="absolute top-0 left-0 bottom-0 flex" style={{ paddingLeft: START_X - 60, height: canvasHeight, zIndex: 0 }}>
           {TIER_ORDER.map((tier, index) => {
@@ -225,48 +282,51 @@ const SkillTreeCanvas: React.FC<SkillTreeCanvasProps> = ({ skillStatuses, select
           })}
         </div>
 
-        {/* 精灵核心 - 左侧起点 */}
+        {/* 精灵核心 - 左侧起点（直接显示 Sprite 动画） */}
         <motion.div
           className="absolute flex flex-col items-center skill-node-interactive"
           style={{
-            left: CORE_X - 40,
-            top: canvasHeight / 2 - 60
+            left: CORE_X - spriteW / 2,
+            top: canvasHeight / 2 - spriteH / 2 - 16
           }}
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          transition={{ duration: 0.5, type: 'spring' }}
+          transition={{ duration: 0.6, type: 'spring' }}
         >
-          {/* 核心圆圈 */}
-          <motion.div
-            className="relative w-24 h-24 rounded-full flex items-center justify-center"
-            style={{
-              background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
-              boxShadow: '0 0 30px rgba(251, 191, 36, 0.6), 0 0 60px rgba(251, 191, 36, 0.3)'
-            }}
-            animate={{
-              boxShadow: [
-                '0 0 30px rgba(251, 191, 36, 0.6), 0 0 60px rgba(251, 191, 36, 0.3)',
-                '0 0 40px rgba(251, 191, 36, 0.8), 0 0 80px rgba(251, 191, 36, 0.4)',
-                '0 0 30px rgba(251, 191, 36, 0.6), 0 0 60px rgba(251, 191, 36, 0.3)'
-              ]
-            }}
-            transition={{ duration: 2, repeat: Infinity }}
-          >
-            {/* 精灵占位图标 */}
-            <span className="text-4xl">🧚</span>
-
-            {/* 旋转光环 */}
-            <motion.div className="absolute inset-[-8px] rounded-full border-2 border-amber-400/40" animate={{ rotate: 360 }} transition={{ duration: 10, repeat: Infinity, ease: 'linear' }} />
-            <motion.div
-              className="absolute inset-[-16px] rounded-full border border-amber-300/20"
-              style={{ borderStyle: 'dashed' }}
-              animate={{ rotate: -360 }}
-              transition={{ duration: 15, repeat: Infinity, ease: 'linear' }}
+          {/* Sprite 视频 — 与桌面精灵同尺寸 */}
+          {spriteSrc ? (
+            <video
+              src={spriteSrc.url}
+              autoPlay
+              muted
+              loop
+              playsInline
+              style={{
+                width: spriteW,
+                height: spriteH,
+                userSelect: 'none',
+                pointerEvents: 'none'
+              }}
             />
-          </motion.div>
+          ) : (
+            <div
+              className="flex items-center justify-center"
+              style={{ width: spriteW, height: spriteH }}
+            >
+              <span className="text-5xl">🧚</span>
+            </div>
+          )}
 
           {/* 标签 */}
-          <motion.span className="mt-3 px-3 py-1 rounded-lg text-sm font-bold text-amber-400 bg-slate-800/80" style={{ textShadow: '0 0 10px rgba(251, 191, 36, 0.5)' }}>
+          <motion.span
+            className="mt-2 px-4 py-1.5 rounded-full text-sm font-bold text-amber-400"
+            style={{
+              background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.9) 0%, rgba(30, 41, 59, 0.9) 100%)',
+              border: '1px solid rgba(251, 191, 36, 0.3)',
+              textShadow: '0 0 12px rgba(251, 191, 36, 0.6)',
+              boxShadow: '0 0 20px rgba(251, 191, 36, 0.15)'
+            }}
+          >
             精灵核心
           </motion.span>
         </motion.div>
@@ -330,13 +390,13 @@ const SkillTreeCanvas: React.FC<SkillTreeCanvasProps> = ({ skillStatuses, select
                   {/* 发光底线 */}
                   {hasActiveBeginner && (
                     <motion.line
-                      x1={CORE_X + 40}
+                      x1={CORE_X + spriteW / 2}
                       y1={coreY}
                       x2={BRANCH_POINT_X}
                       y2={branchY}
                       stroke="#fbbf24"
-                      strokeWidth="6"
-                      opacity={0.3}
+                      strokeWidth="8"
+                      opacity={0.25}
                       filter="url(#line-glow-canvas)"
                       initial={{ pathLength: 0 }}
                       animate={{ pathLength: 1 }}
@@ -345,14 +405,14 @@ const SkillTreeCanvas: React.FC<SkillTreeCanvasProps> = ({ skillStatuses, select
                   )}
                   {/* 主线 */}
                   <motion.line
-                    x1={CORE_X + 40}
+                    x1={CORE_X + spriteW / 2}
                     y1={coreY}
                     x2={BRANCH_POINT_X}
                     y2={branchY}
-                    stroke={hasActiveBeginner ? '#fbbf24' : '#374151'}
-                    strokeWidth={hasActiveBeginner ? 3 : 2}
-                    opacity={hasActiveBeginner ? 0.8 : 0.3}
-                    strokeDasharray={hasActiveBeginner ? '0' : '8 8'}
+                    stroke={hasActiveBeginner ? '#fbbf24' : '#1e293b'}
+                    strokeWidth={hasActiveBeginner ? 3.5 : 1.5}
+                    opacity={hasActiveBeginner ? 0.9 : 0.25}
+                    strokeDasharray={hasActiveBeginner ? '0' : '6 10'}
                     initial={{ pathLength: 0 }}
                     animate={{ pathLength: 1 }}
                     transition={{ duration: 0.8 }}
@@ -369,11 +429,7 @@ const SkillTreeCanvas: React.FC<SkillTreeCanvasProps> = ({ skillStatuses, select
                   // 只有真正激活（active）的技能才显示高光和流动粒子
                   const isActive = status === 'active';
 
-                  // 计算距离和方向
-                  const dx = targetPos.x - 40 - BRANCH_POINT_X;
-                  const dy = targetPos.y - branchY;
-
-                  // S曲线控制点计算 - 开始水平 → 弯曲 → 末端水平
+                  // S曲线控制点计算
                   // 第一个控制点：从分支点水平延伸，Y保持与分支点相同
                   // X方向：向右延伸约60px，保持水平
                   // Y方向：与分支点相同，确保开始部分水平
@@ -399,7 +455,7 @@ const SkillTreeCanvas: React.FC<SkillTreeCanvasProps> = ({ skillStatuses, select
                         <motion.path
                           d={pathData}
                           stroke={`url(#${glowGradientId})`}
-                          strokeWidth="6"
+                          strokeWidth="8"
                           fill="none"
                           filter="url(#line-glow-canvas)"
                           initial={{ pathLength: 0 }}
@@ -407,23 +463,28 @@ const SkillTreeCanvas: React.FC<SkillTreeCanvasProps> = ({ skillStatuses, select
                           transition={{ duration: 1, delay: 0.5 + index * 0.1 }}
                         />
                       )}
-                      {/* 贝塞尔曲线主线 - 使用渐变色从主线颜色到分支颜色 */}
+                      {/* 贝塞尔曲线主线 */}
                       <motion.path
                         d={pathData}
-                        stroke={isActive ? `url(#${gradientId})` : '#374151'}
-                        strokeWidth={isActive ? 3 : 2}
+                        stroke={isActive ? `url(#${gradientId})` : '#1e293b'}
+                        strokeWidth={isActive ? 3.5 : 1.5}
                         fill="none"
-                        opacity={isActive ? 0.8 : 0.3}
-                        strokeDasharray={isActive ? '0' : '8 8'}
+                        opacity={isActive ? 0.9 : 0.25}
+                        strokeDasharray={isActive ? '0' : '6 10'}
                         initial={{ pathLength: 0 }}
                         animate={{ pathLength: 1 }}
                         transition={{ duration: 0.8, delay: 0.3 + index * 0.1 }}
                       />
-                      {/* 流动粒子 - 只有激活时显示 */}
+                      {/* 流动粒子 - 只有激活时显示（双粒子） */}
                       {isActive && (
-                        <motion.circle r="4" fill={colors.color} filter="url(#line-glow-canvas)">
-                          <animateMotion dur="2s" repeatCount="indefinite" path={pathData} />
-                        </motion.circle>
+                        <>
+                          <motion.circle r="4" fill={colors.color} filter="url(#line-glow-canvas)" opacity={0.9}>
+                            <animateMotion dur="2s" repeatCount="indefinite" path={pathData} />
+                          </motion.circle>
+                          <motion.circle r="2.5" fill="#ffffff" filter="url(#line-glow-canvas)" opacity={0.6}>
+                            <animateMotion dur="2s" repeatCount="indefinite" path={pathData} begin="0.3s" />
+                          </motion.circle>
+                        </>
                       )}
                     </g>
                   );
@@ -438,17 +499,18 @@ const SkillTreeCanvas: React.FC<SkillTreeCanvasProps> = ({ skillStatuses, select
 
             // 计算贝塞尔曲线控制点
             const midX = (line.from.x + line.to.x) / 2;
+            const pathD = `M ${line.from.x} ${line.from.y} C ${midX} ${line.from.y}, ${midX} ${line.to.y}, ${line.to.x} ${line.to.y}`;
 
             return (
               <g key={line.id}>
                 {/* 发光底线 */}
                 {line.isActive && (
                   <motion.path
-                    d={`M ${line.from.x} ${line.from.y} C ${midX} ${line.from.y}, ${midX} ${line.to.y}, ${line.to.x} ${line.to.y}`}
+                    d={pathD}
                     stroke={colors.color}
-                    strokeWidth="6"
+                    strokeWidth="8"
                     fill="none"
-                    opacity={0.3}
+                    opacity={0.25}
                     filter="url(#line-glow-canvas)"
                     initial={{ pathLength: 0 }}
                     animate={{ pathLength: 1 }}
@@ -457,21 +519,26 @@ const SkillTreeCanvas: React.FC<SkillTreeCanvasProps> = ({ skillStatuses, select
                 )}
                 {/* 主线 */}
                 <motion.path
-                  d={`M ${line.from.x} ${line.from.y} C ${midX} ${line.from.y}, ${midX} ${line.to.y}, ${line.to.x} ${line.to.y}`}
-                  stroke={line.isActive ? colors.color : '#374151'}
-                  strokeWidth={line.isActive ? 3 : 2}
+                  d={pathD}
+                  stroke={line.isActive ? colors.color : '#1e293b'}
+                  strokeWidth={line.isActive ? 3.5 : 1.5}
                   fill="none"
-                  opacity={line.isActive ? 0.8 : 0.3}
-                  strokeDasharray={line.isActive ? '0' : '8 8'}
+                  opacity={line.isActive ? 0.9 : 0.25}
+                  strokeDasharray={line.isActive ? '0' : '6 10'}
                   initial={{ pathLength: 0 }}
                   animate={{ pathLength: 1 }}
                   transition={{ duration: 0.8 }}
                 />
-                {/* 流动粒子 */}
+                {/* 流动粒子（双粒子） */}
                 {line.isActive && (
-                  <motion.circle r="4" fill={colors.color} filter="url(#line-glow-canvas)">
-                    <animateMotion dur="2s" repeatCount="indefinite" path={`M ${line.from.x} ${line.from.y} C ${midX} ${line.from.y}, ${midX} ${line.to.y}, ${line.to.x} ${line.to.y}`} />
-                  </motion.circle>
+                  <>
+                    <motion.circle r="4" fill={colors.color} filter="url(#line-glow-canvas)" opacity={0.9}>
+                      <animateMotion dur="2s" repeatCount="indefinite" path={pathD} />
+                    </motion.circle>
+                    <motion.circle r="2.5" fill="#ffffff" filter="url(#line-glow-canvas)" opacity={0.6}>
+                      <animateMotion dur="2s" repeatCount="indefinite" path={pathD} begin="0.4s" />
+                    </motion.circle>
+                  </>
                 )}
               </g>
             );
@@ -535,7 +602,32 @@ const SkillTreeCanvas: React.FC<SkillTreeCanvasProps> = ({ skillStatuses, select
             );
           })}
         </div>
+        {/* 缩放容器闭合 */}
+        </div>
       </div>
+
+      {/* 缩放指示器 + 重置按钮（缩放比例不为 1 时显示） */}
+      <AnimatePresence>
+        {scale !== 1 && (
+          <motion.div
+            className="fixed bottom-6 right-6 z-50 flex items-center gap-2 zoom-indicator rounded-lg px-3 py-2"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            transition={{ duration: 0.2 }}
+          >
+            <span className="text-xs text-slate-400 font-mono">{Math.round(scale * 100)}%</span>
+            <button
+              onClick={() => setScale(1)}
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-slate-300 hover:text-white hover:bg-slate-700/60 transition-colors"
+              title="重置为 100%"
+            >
+              <TbZoomReset className="w-3.5 h-3.5" />
+              <span>重置</span>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

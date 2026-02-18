@@ -1,6 +1,8 @@
 import './styles.css';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { TbSparkles, TbX } from 'react-icons/tb';
 
 import SkillDetailPanel from './SkillDetailPanel';
 import SkillTreeCanvas from './SkillTreeCanvas';
@@ -157,13 +159,80 @@ const SkillTreeSettings: React.FC = () => {
     }
   }, []);
 
+  // 计算技能统计
+  const skillStats = useMemo(() => {
+    const total = skillTreeNodes.length;
+    const active = Object.values(skillStatuses).filter((s) => s === 'active').length;
+    return { total, active };
+  }, [skillStatuses]);
+
+  const handleClose = useCallback(() => {
+    window.ipcRenderer.invoke('skillTree:close');
+  }, []);
+
   return (
     <div className="absolute inset-0 overflow-hidden">
       {/* 技能树画布 */}
       <SkillTreeCanvas skillStatuses={skillStatuses} selectedSkill={selectedSkill} onSelectSkill={handleSelectSkill} />
 
+      {/* 顶部 HUD 信息栏 */}
+      <motion.div
+        className="fixed top-0 left-0 right-0 z-40 skill-tree-hud"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3, duration: 0.5 }}
+      >
+        <div className="flex items-center justify-between px-6 py-3">
+          {/* 左侧：标题 */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <TbSparkles className="w-5 h-5 text-amber-400" style={{ filter: 'drop-shadow(0 0 6px rgba(251, 191, 36, 0.6))' }} />
+              <span className="text-sm font-bold text-slate-200" style={{ textShadow: '0 0 10px rgba(255,255,255,0.1)' }}>
+                技能树
+              </span>
+            </div>
+            <div className="h-4 w-px bg-slate-700" />
+            {/* 技能统计 */}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-emerald-400" style={{ boxShadow: '0 0 6px rgba(52, 211, 153, 0.6)' }} />
+                <span className="text-xs text-slate-400">
+                  已激活 <span className="text-emerald-400 font-bold">{skillStats.active}</span> / {skillStats.total}
+                </span>
+              </div>
+              {/* 进度条 */}
+              <div className="w-24 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                <motion.div
+                  className="h-full rounded-full"
+                  style={{
+                    background: 'linear-gradient(90deg, #22c55e, #10b981)',
+                    boxShadow: '0 0 8px rgba(34, 197, 94, 0.5)'
+                  }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${skillStats.total > 0 ? (skillStats.active / skillStats.total) * 100 : 0}%` }}
+                  transition={{ duration: 1, delay: 0.5 }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 右侧：提示 + 关闭 */}
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] text-slate-500">按住 Cmd/Ctrl + 滚轮缩放 · 拖拽平移</span>
+            <button
+              onClick={handleClose}
+              className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-slate-700/50 transition-colors group"
+            >
+              <TbX className="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-colors" />
+            </button>
+          </div>
+        </div>
+      </motion.div>
+
       {/* 技能详情面板 */}
-      {selectedSkill && selectedSkill !== 'core' && <SkillDetailPanel selectedSkillId={selectedSkill} skillStatuses={skillStatuses} onClose={handleClosePanel} onToggleSkill={handleToggleSkill} />}
+      <AnimatePresence>
+        {selectedSkill && selectedSkill !== 'core' && <SkillDetailPanel selectedSkillId={selectedSkill} skillStatuses={skillStatuses} onClose={handleClosePanel} onToggleSkill={handleToggleSkill} />}
+      </AnimatePresence>
     </div>
   );
 };
