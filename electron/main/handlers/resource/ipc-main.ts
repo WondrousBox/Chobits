@@ -150,8 +150,9 @@ export function initResourceHandlers(): void {
     return r;
   });
   ipcMain.handle('deleteResource', async (_event, payload: { id: string }) => {
-    // Soft delete: mark deletedAt to trigger recycle_bin entry via trigger
-    const row = await ResourcesRepo.update(payload.id, { deletedAt: Date.now() } as any);
+    // Soft delete: mark deletedAt, create recycle_bin entry, and move file to .trash/
+    const rows = await ResourcesRepo.softDelete([payload.id]);
+    const row = rows[0];
     if (row) {
       eventManager.emit(AppEvent.RESOURCE_DELETED, row);
     }
@@ -159,9 +160,9 @@ export function initResourceHandlers(): void {
   });
 
   ipcMain.handle('deleteResources', async (_event, payload: { ids: string[] }) => {
-    const now = Date.now();
-    const rows = await Promise.all((payload.ids || []).map((id) => ResourcesRepo.update(id, { deletedAt: now } as any)));
-    const deleted = rows.filter(Boolean);
+    const ids = payload.ids || [];
+    if (!ids.length) return { success: true, deleted: 0, data: [] };
+    const deleted = await ResourcesRepo.softDelete(ids);
     if (deleted.length > 0) {
       eventManager.emit(AppEvent.RESOURCE_BATCH_DELETED, deleted);
     }
