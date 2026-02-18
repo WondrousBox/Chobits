@@ -235,6 +235,17 @@ export async function addResource(r: { resource: Resource }): Promise<{ success:
             } catch (segErr) {
               console.warn('[addResource] 复制伴随 segments 文件失败:', segErr);
             }
+            // 删除工作空间资源目录内的原始文件，避免复制后产生重复文件
+            // （仅当原始文件位于工作空间 resources 目录内时才删除，不会删除用户系统中的外部文件）
+            try {
+              const resolvedOrig = path.resolve(filePath!);
+              const resolvedResDir = path.resolve(path.join(ws.rootPath, 'resources'));
+              if (resolvedOrig.startsWith(resolvedResDir + path.sep)) {
+                await fs.unlink(filePath!);
+              }
+            } catch {
+              // ignore cleanup errors
+            }
             filePath = target;
           }
         } catch (e) {
