@@ -1,15 +1,17 @@
-import { closestCenter, DndContext, type DragEndEvent, DragOverlay, type DragStartEvent, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { closestCenter, DndContext, type DragEndEvent, DragOverlay, type DragStartEvent, KeyboardSensor, PointerSensor, useDroppable, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, horizontalListSortingStrategy, SortableContext, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { TbFileText, TbFileTextAi, TbLanguage, TbList, TbNotebook, TbSparkles } from 'react-icons/tb';
 
 import { Tabs, TabsContent } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
 
 import type { ResourceItem } from '../types';
 import { isAudioFile, isImageFile, isVideoFile } from '../utils/resourceProtocol';
 import { isSubtitleFile } from '../utils/subtitleUtils';
 import type { MediaPlayerRef } from './Players/MediaPlayer/MediaPlayer';
 import { ResourceTabContextProvider, tabPanelManager, tabRegistry } from './tabs';
+import { useCrossPanelDnd } from './tabs/CrossPanelDndProvider';
 import { registerDefaultTabs } from './tabs/registerTabs';
 import { SortableTabTrigger, TabPreview } from './tabs/SortableTabTrigger';
 import { TabSettings } from './tabs/TabSettings';
@@ -121,6 +123,9 @@ const ResourceTabs: React.FC<ResourceTabsProps> = ({
     // return () => tabPanelManager.unregisterPanel(panelId);
   }, [panelId, allowedTabIds, defaultPinnedTabs]);
 
+  // 跨面板拖拽上下文
+  const { isProvided: isCrossPanelMode, registerPanel, unregisterPanel, activeTab: crossActiveTab } = useCrossPanelDnd();
+
   // 监听注册表变化和面板管理器变化，动态更新可用的 tab
   const [registeredTabs, setRegisteredTabs] = useState(() => tabRegistry.getAll());
   const [pinnedTabIds, setPinnedTabIds] = useState<string[]>(() => tabPanelManager.getPinnedTabs(panelId));
@@ -146,8 +151,8 @@ const ResourceTabs: React.FC<ResourceTabsProps> = ({
 
     // 监听面板管理器变化
     const unsubscribePanel = tabPanelManager.addEventListener((event) => {
-      // 只响应与当前面板相关的事件
-      if (event.panelId === panelId) {
+      // 响应与当前面板相关的事件，以及跨面板拖拽导致的其他面板变化
+      if (event.panelId === panelId || isCrossPanelMode) {
         updatePinnedTabs();
       }
     });
@@ -156,9 +161,9 @@ const ResourceTabs: React.FC<ResourceTabsProps> = ({
       unsubscribeRegistry();
       unsubscribePanel();
     };
-  }, [panelId]);
+  }, [panelId, isCrossPanelMode]);
 
-  // 拖拽传感器 - 增加激活距离避免误触
+  // 拖拽传感器 - 增加激活距离避免误触（仅独立模式使用）
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -170,17 +175,35 @@ const ResourceTabs: React.FC<ResourceTabsProps> = ({
     })
   );
 
+  // 面板级 droppable（跨面板模式下作为放置目标）
+  const { setNodeRef: setPanelDropRef, isOver: isPanelOver } = useDroppable({
+    id: `panel-drop-${panelId}`,
+    disabled: !isCrossPanelMode
+  });
+
   // 根据资源类型、启用状态和面板 pin 状态过滤可用的标签
   const availableTabs = useMemo((): TabConfig[] => {
-    // 获取该面板 pin 的且在允许列表中的 tab
+    // 获取该面板 pin 的且在允许列表中的 tab（动态扩展始终允许）
     return registeredTabs
-      .filter((tab) => allowedTabIds.includes(tab.id) && pinnedTabIds.includes(tab.id))
+      .filter((tab) => (allowedTabIds.includes(tab.id) || tab.isDynamic) && pinnedTabIds.includes(tab.id))
       .map((tab) => ({
         id: tab.id as TabType,
         label: tab.name,
         icon: tab.icon || TAB_ICONS[tab.id] || TbFileText
       }));
   }, [registeredTabs, allowedTabIds, pinnedTabIds]);
+
+  // 跨面板模式：注册面板信息到 provider
+  useEffect(() => {
+    if (isCrossPanelMode) {
+      registerPanel(
+        panelId,
+        availableTabs.map((t) => t.id),
+        allowedTabIds
+      );
+      return () => unregisterPanel(panelId);
+    }
+  }, [isCrossPanelMode, panelId, availableTabs, allowedTabIds, registerPanel, unregisterPanel]);
 
   // 当前拖拽的 tab
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -267,25 +290,57 @@ const ResourceTabs: React.FC<ResourceTabsProps> = ({
     onMediaPause
   };
 
+  // 跨面板拖拽状态：是否有其他面板正在拖拽
+  const isDraggingFromOtherPanel = !!crossActiveTab && crossActiveTab.panelId !== panelId;
+
+  // Tab 列表内容（SortableContext + items，共享于独立/跨面板两种模式）
+  const renderTabBarItems = (): React.ReactNode => (
+    <div
+      ref={isCrossPanelMode ? setPanelDropRef : undefined}
+      className={cn(
+        'flex-1 flex items-center h-full px-1 gap-0.5 overflow-x-auto transition-colors',
+        // 跨面板拖拽中：其他面板开始拖拽时，本面板淡高亮提示"可放置"
+        isDraggingFromOtherPanel && !isPanelOver && 'bg-primary/5 ring-1 ring-inset ring-primary/20 ring-dashed rounded',
+        // 跨面板拖拽中：鼠标悬停到本面板时，强高亮提示"即将放置"
+        isDraggingFromOtherPanel && isPanelOver && 'bg-primary/10 ring-2 ring-inset ring-primary/40 rounded'
+      )}
+    >
+      <SortableContext items={availableTabs.map((tab) => tab.id)} strategy={horizontalListSortingStrategy}>
+        {availableTabs.map((tab) => (
+          <SortableTabTrigger key={tab.id} id={tab.id} value={tab.id} icon={tab.icon} label={tab.label} isActive={activeTab === tab.id} onClick={() => setActiveTab(tab.id)} />
+        ))}
+      </SortableContext>
+    </div>
+  );
+
   return (
     <ResourceTabContextProvider value={contextValue}>
       <div className="flex-1 flex flex-col overflow-hidden min-h-0">
         {/* 标签栏 - 始终显示，即使没有可用的tab */}
         <div className="flex items-center border-y bg-muted/30 shrink-0 h-9">
           {availableTabs.length > 0 ? (
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
-              <div className="flex-1 flex items-center h-full px-1 gap-0.5 overflow-x-auto">
-                <SortableContext items={availableTabs.map((tab) => tab.id)} strategy={horizontalListSortingStrategy}>
-                  {availableTabs.map((tab) => (
-                    <SortableTabTrigger key={tab.id} id={tab.id} value={tab.id} icon={tab.icon} label={tab.label} isActive={activeTab === tab.id} onClick={() => setActiveTab(tab.id)} />
-                  ))}
-                </SortableContext>
-              </div>
-              {/* DragOverlay - Chrome 风格拖拽预览 */}
-              <DragOverlay dropAnimation={null}>{activeTabConfig && <TabPreview icon={activeTabConfig.icon} label={activeTabConfig.label} isActive={activeTab === activeId} />}</DragOverlay>
-            </DndContext>
+            isCrossPanelMode ? (
+              // 跨面板模式：使用 provider 的共享 DndContext，只渲染 SortableContext
+              renderTabBarItems()
+            ) : (
+              // 独立模式：使用自己的 DndContext
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
+                {renderTabBarItems()}
+                {/* DragOverlay - Chrome 风格拖拽预览 */}
+                <DragOverlay dropAnimation={null}>{activeTabConfig && <TabPreview icon={activeTabConfig.icon} label={activeTabConfig.label} isActive={activeTab === activeId} />}</DragOverlay>
+              </DndContext>
+            )
           ) : (
-            <div className="flex-1 flex items-center h-full px-2 text-xs text-muted-foreground">暂无 Tab，请点击右侧按钮添加</div>
+            <div
+              ref={isCrossPanelMode ? setPanelDropRef : undefined}
+              className={cn(
+                'flex-1 flex items-center h-full px-2 text-xs text-muted-foreground',
+                isDraggingFromOtherPanel && !isPanelOver && 'bg-primary/5 ring-1 ring-inset ring-primary/20 ring-dashed rounded',
+                isDraggingFromOtherPanel && isPanelOver && 'bg-primary/10 ring-2 ring-inset ring-primary/40 rounded'
+              )}
+            >
+              {isDraggingFromOtherPanel ? (isPanelOver ? '松开以添加到此面板' : '拖拽到此处') : '暂无 Tab，请点击右侧按钮添加'}
+            </div>
           )}
           {/* 设置按钮 - 始终显示 */}
           <div className="px-2 border-l h-full flex items-center">
