@@ -217,14 +217,15 @@ BEGIN
   DELETE FROM recycle_bin WHERE entity_type='document' AND entity_id=OLD.id;
 END;`);
 
-    // Resources: soft delete -> upsert recycle_bin
+    // Resources: soft delete -> upsert recycle_bin (drop old trigger to update payload logic)
+    db.exec(`DROP TRIGGER IF EXISTS trg_resources_soft_delete`);
     db.exec(`CREATE TRIGGER IF NOT EXISTS trg_resources_soft_delete
 AFTER UPDATE OF deleted_at ON resources
 WHEN NEW.deleted_at IS NOT NULL AND (OLD.deleted_at IS NULL OR OLD.deleted_at != NEW.deleted_at)
 BEGIN
   INSERT INTO recycle_bin (id, entity_type, entity_id, title, summary, reason, deleted_at, deleted_by, payload, expire_at)
-  VALUES ('res:' || NEW.id, 'resource', NEW.id, NEW.title, COALESCE(NEW.content_text, NEW.description), 'soft-delete', NEW.deleted_at, 'trigger', NULL, NULL)
-  ON CONFLICT(id) DO UPDATE SET deleted_at=excluded.deleted_at, title=excluded.title, summary=excluded.summary;
+  VALUES ('res:' || NEW.id, 'resource', NEW.id, NEW.title, COALESCE(NEW.content_text, NEW.description), 'soft-delete', NEW.deleted_at, 'trigger', json_object('id', NEW.id, 'originalFilePath', NEW.file_path), NULL)
+  ON CONFLICT(id) DO UPDATE SET deleted_at=excluded.deleted_at, title=excluded.title, summary=excluded.summary, payload=excluded.payload;
 END;`);
 
     // Resources: restore -> remove recycle_bin

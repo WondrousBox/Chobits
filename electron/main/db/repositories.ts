@@ -833,7 +833,12 @@ export const ResourcesRepo = {
           .values(items as any)
           .onConflictDoUpdate({
             target: recycle_bin.id,
-            set: { deletedAt: now }
+            set: {
+              deletedAt: sql`excluded.deleted_at`,
+              payload: sql`excluded.payload`,
+              title: sql`excluded.title`,
+              summary: sql`excluded.summary`
+            }
           })
           .run?.();
       }
