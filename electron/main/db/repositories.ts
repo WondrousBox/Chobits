@@ -428,6 +428,82 @@ export const RecycleBinRepo = {
   }
 };
 
+// ─── 资源文件回收站辅助函数 ───────────────────────────────────────────────
+
+/**
+ * 将资源物理文件移入 workspace 的 .trash/<resourceId>/ 目录，释放原文件名以供新资源使用。
+ * 返回新的 trash 路径；若文件不存在或移动失败则返回 null。
+ */
+async function moveResourceFileToTrash(filePath: string, resourceId: string, workspaceRoot: string): Promise<string | null> {
+  if (!filePath || !fscb.existsSync(filePath)) return null;
+  const trashDir = path.join(workspaceRoot, 'resources', '.trash', resourceId);
+  await fs.mkdir(trashDir, { recursive: true });
+  const fileName = path.basename(filePath);
+  const trashPath = path.join(trashDir, fileName);
+  try {
+    await fs.rename(filePath, trashPath);
+    return trashPath;
+  } catch (e: any) {
+    if (e?.code === 'EXDEV') {
+      // 跨分区：copy + unlink
+      await fs.copyFile(filePath, trashPath);
+      await fs.unlink(filePath);
+      return trashPath;
+    }
+    console.warn('[moveResourceFileToTrash] failed:', e);
+    return null;
+  }
+}
+
+/**
+ * 将资源物理文件从 .trash/ 恢复至原始路径。
+ * 若原路径已被占用，则追加 (n) 后缀（与导入逻辑一致）。
+ * 恢复成功后清理空的 trash 子目录。返回最终的文件路径。
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function restoreResourceFileFromTrash(trashPath: string, originalPath: string, _resourceId?: string): Promise<string> {
+  if (!trashPath || !fscb.existsSync(trashPath)) return originalPath;
+
+  const targetDir = path.dirname(originalPath);
+  await fs.mkdir(targetDir, { recursive: true });
+
+  let target = originalPath;
+  // 处理命名冲突：若原位置已有同名文件，追加 (n) 后缀
+  if (fscb.existsSync(target)) {
+    const ext = path.extname(originalPath);
+    const name = path.basename(originalPath, ext);
+    let i = 1;
+    while (fscb.existsSync(path.join(targetDir, `${name}(${i})${ext}`))) {
+      i++;
+    }
+    target = path.join(targetDir, `${name}(${i})${ext}`);
+  }
+
+  try {
+    await fs.rename(trashPath, target);
+  } catch (e: any) {
+    if (e?.code === 'EXDEV') {
+      await fs.copyFile(trashPath, target);
+      await fs.unlink(trashPath);
+    } else {
+      throw e;
+    }
+  }
+
+  // 清理空的 trash 子目录
+  try {
+    const trashSubDir = path.dirname(trashPath);
+    const remaining = await fs.readdir(trashSubDir);
+    if (remaining.length === 0) {
+      await fs.rmdir(trashSubDir);
+    }
+  } catch {
+    /* ignore */
+  }
+
+  return target;
+}
+
 /**
  * 资源表操作空间
  * - 支持 upsert、批量 upsert、单条/批量删除、软删除、恢复、更新、分页、筛选、计数、存在性判断等
@@ -670,6 +746,16 @@ export const ResourcesRepo = {
       if (!p) return;
       try {
         if (fscb.existsSync(p)) await fs.unlink(p);
+        // 若文件位于 .trash/<resourceId>/ 子目录，清理空目录
+        const parentDir = path.dirname(p);
+        if (parentDir.includes(`${path.sep}.trash${path.sep}`) || parentDir.includes('/.trash/')) {
+          try {
+            const remaining = await fs.readdir(parentDir);
+            if (remaining.length === 0) await fs.rmdir(parentDir);
+          } catch {
+            /* ignore */
+          }
+        }
       } catch {
         /* ignore */
       }
@@ -683,27 +769,65 @@ export const ResourcesRepo = {
   async deleteById(id: string): Promise<number> {
     return this.deleteByIds([id]);
   },
-  /** 批量软删除资源：标记 deletedAt 并写入回收站索引 */
+  /** 批量软删除资源：标记 deletedAt 并写入回收站索引，同时将物理文件移入 .trash/ 目录
+   *  【级联删除】自动收集所有通过 parentResourceId 关联的子资源（翻译、摘要、脑图、笔记、片段、TTS 等）一并软删除，
+   *  因为这些子资源由父资源派生，用户无法单独管理，应与父资源共享生命周期。
+   */
   async softDelete(ids: string[]): Promise<ResourceRow[]> {
     if (!ids.length) return [];
     const db = getOrm();
     const now = Date.now();
+
+    // 0) 级联收集所有子资源 ID（递归，不限类型——未来新增的子资源类型也自动覆盖）
+    const allIds = new Set(ids);
+    let frontier = [...ids];
+    while (frontier.length) {
+      const childRows = await db
+        .select({ id: resources.id })
+        .from(resources)
+        .where(and(inArray(resources.parentResourceId, frontier), isNull(resources.deletedAt)));
+      const next: string[] = [];
+      for (const r of childRows as any[]) {
+        if (r?.id && !allIds.has(r.id)) {
+          allIds.add(r.id);
+          next.push(r.id);
+        }
+      }
+      frontier = next;
+    }
+    const expandedIds = Array.from(allIds);
+    if (expandedIds.length > ids.length) {
+      console.log(`[softDelete] 级联收集子资源: ${ids.length} → ${expandedIds.length} 个`);
+    }
+
+    // 1) 预取完整资源行（含 filePath、workspaceId），用于后续文件搬移
+    const fullRows = await db.select().from(resources).where(inArray(resources.id, expandedIds));
+
     let resultRows: any[] = [];
     (db as any).transaction((tx: any) => {
-      tx.update(resources).set({ deletedAt: now }).where(inArray(resources.id, ids)).run?.();
-      const rows = tx.select({ id: resources.id, title: resources.title, description: resources.description, contentText: resources.contentText }).from(resources).where(inArray(resources.id, ids));
-      const items = rows.map((r: any) => ({
-        id: `res:${r.id}`,
-        entityType: 'resource',
-        entityId: r.id,
-        title: r.title ?? r.description ?? r.contentText?.slice(0, 80) ?? r.id,
-        summary: r.description ?? r.contentText?.slice(0, 160) ?? null,
-        reason: 'user-delete',
-        deletedAt: now,
-        deletedBy: 'system',
-        payload: JSON.stringify({ id: r.id }),
-        expireAt: null
-      }));
+      tx.update(resources).set({ deletedAt: now }).where(inArray(resources.id, expandedIds)).run?.();
+      const rows =
+        tx
+          .select({ id: resources.id, title: resources.title, description: resources.description, contentText: resources.contentText })
+          .from(resources)
+          .where(inArray(resources.id, expandedIds))
+          .all?.() ??
+        tx.select({ id: resources.id, title: resources.title, description: resources.description, contentText: resources.contentText }).from(resources).where(inArray(resources.id, expandedIds));
+      const items = (Array.isArray(rows) ? rows : []).map((r: any) => {
+        const full = (fullRows as any[]).find((fr: any) => fr.id === r.id);
+        return {
+          id: `res:${r.id}`,
+          entityType: 'resource',
+          entityId: r.id,
+          title: r.title ?? r.description ?? r.contentText?.slice(0, 80) ?? r.id,
+          summary: r.description ?? r.contentText?.slice(0, 160) ?? null,
+          reason: 'user-delete',
+          deletedAt: now,
+          deletedBy: 'system',
+          payload: JSON.stringify({ id: r.id, originalFilePath: full?.filePath ?? null }),
+          expireAt: null
+        };
+      });
       if (items.length) {
         tx.insert(recycle_bin)
           .values(items as any)
@@ -713,20 +837,107 @@ export const ResourcesRepo = {
           })
           .run?.();
       }
-      resultRows = tx.select().from(resources).where(inArray(resources.id, ids));
+      resultRows = tx.select().from(resources).where(inArray(resources.id, expandedIds)).all?.() ?? [];
     });
+
+    // 2) 将物理文件移入 workspace 的 .trash/<resourceId>/ 目录，释放原文件名
+    for (const row of fullRows as any[]) {
+      if (!row.filePath || !row.workspaceId) continue;
+      try {
+        const ws = await WorkspacesRepo.getById(row.workspaceId);
+        if (!ws?.rootPath) continue;
+        const trashPath = await moveResourceFileToTrash(row.filePath, row.id, ws.rootPath);
+        if (trashPath) {
+          // 更新 DB 中的 filePath 指向 .trash/ 位置
+          db.update(resources)
+            .set({ filePath: trashPath } as any)
+            .where(eq(resources.id, row.id))
+            .run();
+        }
+      } catch (e) {
+        console.warn('[softDelete] move file to trash failed for', row.id, e);
+      }
+    }
+
+    // 3) 重新查询以获取更新后的 filePath
+    resultRows = await db.select().from(resources).where(inArray(resources.id, expandedIds));
     return resultRows as any;
   },
-  /** 批量恢复资源：清空 deletedAt 并删除回收站索引 */
+  /** 批量恢复资源：清空 deletedAt 并删除回收站索引，同时将文件从 .trash/ 恢复至原位置
+   *  【级联恢复】自动收集所有通过 parentResourceId 关联的已删除子资源一并恢复，
+   *  与 softDelete 的级联删除对称，确保子资源与父资源共享生命周期。
+   */
   async restore(ids: string[]): Promise<ResourceRow[]> {
     if (!ids.length) return [];
     const db = getOrm();
+
+    // 0) 级联收集当前 ids 对应的所有已软删除子资源（递归）
+    const allIds = new Set(ids);
+    let frontier = [...ids];
+    while (frontier.length) {
+      const childRows = await db
+        .select({ id: resources.id })
+        .from(resources)
+        .where(and(inArray(resources.parentResourceId, frontier), isNotNull(resources.deletedAt)));
+      const next: string[] = [];
+      for (const r of childRows as any[]) {
+        if (r?.id && !allIds.has(r.id)) {
+          allIds.add(r.id);
+          next.push(r.id);
+        }
+      }
+      frontier = next;
+    }
+    const expandedIds = Array.from(allIds);
+    if (expandedIds.length > ids.length) {
+      console.log(`[restore] 级联收集子资源: ${ids.length} → ${expandedIds.length} 个`);
+    }
+
+    // 1) 预取 recycle_bin 条目以获取原始文件路径
+    const recycleBinEntries = await db.select().from(recycle_bin).where(inArray(recycle_bin.entityId, expandedIds));
+    const originalPathMap = new Map<string, string>();
+    for (const entry of recycleBinEntries as any[]) {
+      try {
+        const payload = JSON.parse(entry.payload || '{}');
+        if (payload.originalFilePath) {
+          originalPathMap.set(entry.entityId, payload.originalFilePath);
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+
+    // 2) 预取当前资源行以获取当前 filePath（可能在 .trash/ 中）
+    const currentRows = await db.select().from(resources).where(inArray(resources.id, expandedIds));
+
     let rows: any[] = [];
     (db as any).transaction((tx: any) => {
-      tx.update(resources).set({ deletedAt: null, updatedAt: Date.now() }).where(inArray(resources.id, ids)).run?.();
-      tx.delete(recycle_bin).where(inArray(recycle_bin.entityId, ids)).run?.();
-      rows = tx.select().from(resources).where(inArray(resources.id, ids));
+      tx.update(resources).set({ deletedAt: null, updatedAt: Date.now() }).where(inArray(resources.id, expandedIds)).run?.();
+      tx.delete(recycle_bin).where(inArray(recycle_bin.entityId, expandedIds)).run?.();
+      rows = tx.select().from(resources).where(inArray(resources.id, expandedIds)).all?.() ?? [];
     });
+
+    // 3) 将文件从 .trash/ 恢复至原始位置
+    for (const row of currentRows as any[]) {
+      const originalPath = originalPathMap.get(row.id);
+      if (!row.filePath || !originalPath) continue;
+      // 仅当文件确实在 .trash/ 目录中才恢复
+      if (!row.filePath.includes(`${path.sep}.trash${path.sep}`) && !row.filePath.includes('/.trash/')) continue;
+      try {
+        const restoredPath = await restoreResourceFileFromTrash(row.filePath, originalPath, row.id);
+        if (restoredPath && restoredPath !== row.filePath) {
+          db.update(resources)
+            .set({ filePath: restoredPath } as any)
+            .where(eq(resources.id, row.id))
+            .run();
+        }
+      } catch (e) {
+        console.warn('[restore] restore file from trash failed for', row.id, e);
+      }
+    }
+
+    // 4) 重新查询以获取更新后的 filePath
+    rows = await db.select().from(resources).where(inArray(resources.id, expandedIds));
     return rows as any;
   },
   /** 基础列表与计数（含软删筛选） */

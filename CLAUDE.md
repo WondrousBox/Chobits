@@ -59,7 +59,7 @@ electron/main/              # Main process (Node.js)
 └── utils/                  # Main process utilities
 
 electron/preload/           # Preload scripts (IPC bridge)
-└── index.mjs               # Exposes window.YUA API
+└── index.ts                # Exposes window.YUA API
 
 src/                        # Renderer process (React app)
 ├── pages/                  # Route components (15+ pages)
@@ -69,13 +69,17 @@ src/                        # Renderer process (React app)
 
 packages/                   # Shared packages (monorepo-style)
 ├── ai/                     # AI service layer (multi-provider)
+├── ai-agent/               # AI agent framework
 ├── workflow/               # Workflow engine (DAG-based)
 ├── plugins/                # Plugin system
 ├── common/                 # Shared utilities & DB
 ├── event/                  # Event bus system
 ├── sherpa/                 # Speech recognition
+├── tts/                    # Text-to-speech
 └── recorder/               # Recording functionality
 ```
+
+**Path aliases**: `@/*` → `src/*`, `@packages/*` → `packages/*` (configured in `tsconfig.json` and `vite.config.ts`)
 
 ### IPC Communication Pattern
 
@@ -87,13 +91,13 @@ packages/                   # Shared packages (monorepo-style)
 - Preload bridge: `electron/preload/apis/*.ts`
 - Renderer access: `window.YUA.domain.action(payload)`
 
-**Handler domains** (25+): `resource`, `ai`, `ffmpeg`, `folder`, `workspace`, `file`, `system`, `preferences`, `proxy`, `theme`, `shortcuts`, `sprite`, `status`, `trash`, `ytdlp`, `rss`, `automation`, `downloader`, `embedding`
+**Handler domains** (25+): `resource`, `ai`, `ffmpeg`, `folder`, `workspace`, `file`, `system`, `preferences`, `proxy`, `theme`, `shortcuts`, `sprite`, `status`, `trash`, `ytdlp`, `rss`, `automation`, `downloader`, `embedding`, `clip`, `spleeter`, `window`
 
 ### Database Architecture
 
 **ORM**: Drizzle ORM with SQLite
-**Schema location**: `electron/main/db/schema.ts`
-**Repositories**: `electron/main/db/repositories/`
+**Schema**: `electron/main/db/schema.ts`
+**Repositories**: `electron/main/db/repositories.ts`
 
 **Key tables**:
 
@@ -101,10 +105,11 @@ packages/                   # Shared packages (monorepo-style)
 - `documents` - Text content with embeddings (semantic search)
 - `folders` - Hierarchical organization
 - `workspaces` - Multi-workspace support
-- `tags` - Tagging system
-- `conversations` - AI chat history
-- `messages` - Chat messages
-- `rss_feeds` & `rss_items` - RSS subscriptions
+- `tags` / `resource_tags` - Tagging system
+- `conversations` / `chat_messages` - AI chat history
+- `rss_feed_items` - RSS subscriptions
+- `recycle_bin` - Soft-delete index for trash/restore
+- `automation_rules` - Workflow automation triggers
 
 **Repository pattern**: Always use repository methods (e.g., `ResourcesRepo.getById()`) instead of raw queries. Access via IPC from renderer.
 
@@ -128,265 +133,69 @@ Events broadcast to all windows via IPC for cross-window state synchronization.
 
 **Scheme**: `res://` - Secure file access protocol for resources
 
-**URL patterns**:
-
-- Absolute path: `res://local/<encodeURIComponent(C:/path/to/file)>`
+- Absolute path: `res://local/<encodeURIComponent(absolutePath)>`
 - Workspace relative: `res://ws/<workspaceId>/<relative/path>`
 
-**Security**: Only files in allowed roots (workspace resources, app resources) are accessible. Protocol setup in `electron/main/resource-protocol.ts`.
-
-### Global Shortcuts
-
-**System-wide hotkeys** registered via Electron's `globalShortcut`:
-
-- `toggleAssistant` - Show/hide assistant window
-- `toggleDevtools` - Toggle developer tools
-- `toggleMainWindow` - Show/hide main window
-- `screenshot` - Trigger screenshot capture
-
-**Configuration**: Stored in `electron/main/shortcut-store.ts`, user-customizable via settings IPC (`shortcuts:*`).
+Only files in allowed roots (workspace resources, app resources) are accessible. Setup in `electron/main/resource-protocol.ts`.
 
 ### AI Service Architecture
 
 **Location**: `packages/ai/`
 
-**Provider adapters**: Abstract interface for AI providers
-
-- Supported: OpenAI, Anthropic, Gemini, DeepSeek, Qwen, Zhipu, Ollama
-- Each implements: `chat()`, `embed()`, `stream()`
-- Dynamic configuration via JSON schemas
-
-**Chat service**: `packages/ai/chat-service.ts`
-
-- Conversation management with persistence
-- Streaming responses with abort support
-- Agent-based routing (system prompts, tools)
-
-**Instance-based selection**: Per-conversation provider configuration with fallback mechanisms.
+- **Provider adapters**: OpenAI, Anthropic, Gemini, DeepSeek, Qwen, Zhipu, Ollama — each implements `chat()`, `embed()`, `stream()`
+- **Chat service**: `packages/ai/chat-service.ts` — conversation management, streaming, abort support
+- **Instance-based selection**: Per-conversation provider configuration with fallback
+- **API key storage**: System keychain via `keytar` with JSON fallback; secrets never exposed to renderer
 
 ### Workflow System
 
 **Location**: `packages/workflow/`
 
-**Architecture**: DAG-based execution engine with topological sort
-
-**Node categories** (30+ nodes):
-
-- Core: Start, End
-- Resource: Load, Create, Update
-- Media: Transcode, ExtractKeyframes, OCR
-- AI: Chat, ImageUnderstand, ImageGenerate
-- Text: DocToMarkdown, TextOutput
-- Speech: TranscribeWhisper, TranscribeParakeet
+DAG-based execution engine with topological sort. 30+ node types across categories: Core, Resource, Media, AI, Text, Speech.
 
 **IPC prefix**: `wf:` (e.g., `wf:run`, `wf:validate`, `wf:listNodes`)
-
-**Execution**: Sequential (with error strategy), progress events to renderer, results in `WorkflowStore`
 
 ### Plugin System
 
 **Location**: `packages/plugins/`
 
-**Purpose**: Manages native plugin resources (FFmpeg, Tesseract, Whisper models, etc.)
-
-**Features**:
-
-- Download queue with configurable concurrency
-- SHA256 verification after download
-- Archive extraction (zip, tar.gz, tar.bz2)
-- Progress tracking via IPC (`plugin-resource:progress`)
-- Platform-specific binary resolution
-
-**Resource types**:
-
-- `engine` - Native binaries (FFmpeg, Tesseract, etc.)
-- `model` - Model files for AI/ML plugins
+Manages native plugin resources (FFmpeg, Tesseract, Whisper models, etc.) with download queue, SHA256 verification, archive extraction, and platform-specific binary resolution.
 
 **IPC prefix**: `plugin-resource:*`
-
-**Categories**: ASR, TTS, OCR, LLM, image generation, translation, etc.
-
-### API Key Storage
-
-**Storage**: System keychain via `keytar` with JSON fallback
-
-**Location**: `userData/data/ai-settings.json` (fallback only)
-
-**Provider secrets**: Stored per-provider (e.g., OpenAI API key)
-**Instance secrets**: Stored per-instance for override configurations
-
-**Security**: Secrets never exposed to renderer; accessed only in main process via IPC (`ai:getProviderSecrets`, `ai:setProviderSecrets`).
-
-### Sprite Window (Assistant UI)
-
-**Configuration**:
-
-- Frameless window (`frame: false`)
-- Transparent background (`transparent: true`)
-- Always on top (`alwaysOnTop: true`)
-- Skip taskbar (`skipTaskbar: true`)
-- Resizable: false (fixed size)
-
-**Features**:
-
-- Drag-to-move functionality
-- Click-through behavior when idle
-- Animated sprite with walk cycles
-- File drop support
-- Contextual messages and status indicators
-
-### Screenshot System
-
-**Location**: `electron/main/screenshot/`
-
-**Features**:
-
-- Screen capture with selection UI
-- Triggered via global shortcut or IPC
-- Integration with workflow system for OCR pipelines
-- Stored as resources in the database
-
-**IPC**: `screenshot:*` channels for capture and configuration
-
-## Path Aliases
-
-```typescript
-@/*          → src/*
-@packages/*  → packages/*
-```
-
-Configured in `tsconfig.json` and `vite.config.ts`.
 
 ## UI Architecture
 
 **Routing**: HashRouter with 15+ routes
 
-- `/` - AI assistant (floating sprite)
-- `/status` - Status page
-- `/chat` - Chat interface
-- `/resources/*` - Resource manager
-- `/workflow` - Workflow builder
-- `/settings` - Settings
-- `/plugin-manager` - Plugin management
-- `/screenshot` - Screenshot tool
+**Key pages**: Assistant (`/`), Chat (`/chat`), Resources (`/resources/*`), Workflow (`/workflow`), Settings (`/settings`), Plugin Manager (`/plugin-manager`), ASR (`/asr`), TTS (`/tts`), Screenshot (`/screenshot`), Workspace, Tagging, Status
 
-**Component organization**:
-
-- Page components: `src/pages/`
-- Feature components: Self-contained features
-- UI components: `src/components/ui/` (shadcn/ui primitives)
-- Common components: `src/components/common/`
-
-**Styling**: TailwindCSS with CSS variables for theming (light/dark mode)
+**Styling**: TailwindCSS + shadcn/ui primitives, CSS variables for light/dark theming
 
 ## Adding New Features
 
 ### New IPC Handler
 
-1. Create `electron/main/handlers/yourfeature/ipc-main.ts`:
-
-```typescript
-import { ipcMain } from 'electron';
-
-export function initYourFeatureHandlers() {
-  ipcMain.handle('yourfeature:action', async (event, payload) => {
-    // Handler logic
-    return response;
-  });
-}
-```
-
-2. Register in `electron/main/handlers/index.ts`:
-
-```typescript
-import { initYourFeatureHandlers } from './yourfeature/ipc-main';
-
-export function initHandlers(win: BrowserWindow): void {
-  // ...
-  initYourFeatureHandlers();
-}
-```
-
-3. Create preload bridge (optional, for type safety)
-
+1. Create `electron/main/handlers/yourfeature/ipc-main.ts` with `initYourFeatureHandlers()` function
+2. Register in `electron/main/handlers/index.ts`
+3. Create preload bridge in `electron/preload/apis/` (optional, for type safety)
 4. Access from renderer: `window.YUA.yourfeature.action(payload)`
 
 ### New Workflow Node
 
-1. Create node handler in `packages/workflow/nodes/yournode.ts`:
-
-```typescript
-import { NodeHandler } from '../types';
-
-export const YourNode: NodeHandler = {
-  spec: {
-    id: 'your-node',
-    label: 'Your Node',
-    inputs: [{ id: 'in', type: 'any' }],
-    outputs: [{ id: 'out', type: 'any' }]
-  },
-  run: async ({ input, config, ctx, emit, getPlugin }) => {
-    // Node logic
-    return { out: result };
-  }
-};
-```
-
-2. Register in `packages/workflow/index.ts`:
-
-```typescript
-import { YourNode } from './nodes/yournode';
-import { registry } from './registry';
-
-export function initWorkflowSystem() {
-  registry.registerNode(YourNode);
-  // ...
-}
-```
+1. Create node in `packages/workflow/nodes/yournode.ts` implementing `NodeHandler` (with `spec` + `run`)
+2. Register in `packages/workflow/index.ts` via `registry.registerNode()`
 
 ### New AI Provider
 
-1. Create provider in `packages/ai/providers/yourprovider.ts` implementing `ProviderAdapter`
-2. Register in `packages/ai/ipc-main.ts` via `registerProvider(new YourProvider())`
+1. Create provider in `packages/ai/providers/` implementing `ProviderAdapter`
+2. Register in `packages/ai/ipc-main.ts` via `registerProvider()`
 3. Add provider schema to `resources/providers/` (optional)
-
-## Native Dependencies
-
-These require rebuild for Electron:
-
-- `better-sqlite3` - Embedded SQLite database
-- `sqlite-vec` - Vector similarity search
-- `sharp` - Image processing
-- `sherpa-onnx-node` - Speech recognition
-
-Run `pnpm rebuild` after any `npm install` or `pnpm install`.
-
-## Type Safety
-
-- **Strict TypeScript** enabled
-- **IPC payloads typed** - Define types for channel payloads
-- **Database schema typed** - Drizzle ORM provides types
-- **React components fully typed** - Use TypeScript for all components
-
-## Testing
-
-**Framework**: Vitest + Playwright
-
-**Test structure**:
-
-```
-test/
-├── e2e.spec.ts          # E2E tests (Playwright + Electron)
-└── workflow.spec.ts     # Workflow engine tests
-```
-
-**Running**: `pnpm test` (builds first via `pretest`)
 
 ## Code Quality
 
-- **ESLint**: Configured with React & TypeScript rules
-- **Prettier**: Code formatting (`.prettierrc.yaml`)
-- **Import order**: `eslint-plugin-simple-import-sort` enforced
+- **Strict TypeScript** with typed IPC payloads, Drizzle schema types, and typed React components
+- **ESLint** + **Prettier** (`.prettierrc.yaml`), import ordering via `eslint-plugin-simple-import-sort`
+- **Testing**: Vitest + Playwright — `test/e2e.spec.ts`, `test/workflow.spec.ts`
 
 **IMPORTANT**: Never run `pnpm lint` or `pnpm lint --fix` automatically. These commands will modify code formatting across the entire project, making it difficult to track actual changes. Only run these commands when explicitly requested by the user.
 
@@ -394,10 +203,47 @@ test/
 
 - **Main process only**: File I/O, database operations, native modules
 - **Renderer process only**: UI, user interactions
-- **Preload**: Secure IPC bridge via `contextBridge` - never expose secrets
+- **Preload**: Secure IPC bridge via `contextBridge` — never expose secrets
 - **Repository pattern**: Always use repository methods for database access
 - **Event-driven**: Use event system for cross-window communication
 - **Local-first**: Data stored in SQLite, AI providers are optional
+
+## Resource Lifecycle Design Principles
+
+### Cascading Lifecycle: Parent ↔ Child Resources
+
+Resources in Chobits have a **parent-child relationship** via the `parentResourceId` field. A parent resource (e.g., a video, audio, or document) can spawn derived child resources such as:
+
+- `translation` — Translated text
+- `summary` — AI-generated summary
+- `mindmap` — Mind map data
+- `note` — User notes attached to a resource
+- `segments` — Subtitle/audio segments JSON
+- `screenshot` — Keyframe screenshots from video
+- `subtitle` — Extracted/generated subtitles
+- Any future derived resource type linked by `parentResourceId`
+
+**Core Principle**: Child resources share the lifecycle of their parent. They are not independently manageable by users and should follow their parent automatically:
+
+| Parent Action                            | Child Behavior                                                                     |
+| ---------------------------------------- | ---------------------------------------------------------------------------------- |
+| **Soft delete** (move to recycle bin)    | All children are **automatically soft-deleted** and moved to recycle bin together  |
+| **Restore** (recover from recycle bin)   | All children are **automatically restored** together                               |
+| **Hard delete** (purge from recycle bin) | All children are **automatically hard-deleted** (DB rows + physical files removed) |
+
+**Implementation** (in `ResourcesRepo`):
+
+- `softDelete(ids)`: Recursively collects all descendant resources via `parentResourceId`, then soft-deletes them all in one transaction. Physical files are moved to `<workspace>/resources/.trash/<resourceId>/` to free the original filename for reuse.
+- `restore(ids)`: Recursively collects all soft-deleted descendants, restores them all, and moves files back from `.trash/` to their original locations.
+- `deleteByIds(ids)`: Already collects child resources for physical deletion.
+
+**Why this matters**:
+
+1. Users cannot see or manage child resources directly — they appear as features of the parent (e.g., "this video has a translation"). Orphaned children are invisible clutter.
+2. When a parent is deleted, its filename should be immediately reusable. Files are moved to `.trash/` on soft delete rather than left in place.
+3. Restoration should be seamless — "undo delete" brings back the parent with all its derived data intact.
+
+**For AI contributors**: When adding new derived resource types, always set `parentResourceId` to link them to their source resource. The cascading delete/restore logic uses recursive BFS on `parentResourceId` with **no type filter**, so new child types are automatically covered without code changes.
 
 ## Troubleshooting
 
@@ -456,3 +302,57 @@ DEBUG_IPC=1 pnpm dev
 - `packages/ai/ai-module-design.md` - AI system design
 - `packages/workflow/README.md` - Workflow system documentation
 - `resources/providers/README.md` - Provider schemas
+
+## Documentation Maintenance Rules
+
+> **This section is a mandatory process for all AI contributors (and human developers). Every code change must consider its documentation impact.**
+
+### Rule 1: Major System Changes — Mandatory CLAUDE.md Review
+
+When making **architectural, cross-cutting, or design-level changes** (examples: new lifecycle rules, new IPC domains, schema migrations, new subsystems, changes to core patterns), you **MUST**:
+
+1. **Review** all relevant sections of `CLAUDE.md` to check if they need updating.
+2. **Update** affected sections (Architecture, Design Principles, Important Notes, etc.) to reflect the new behavior.
+3. **Add new sections** if the change introduces a new design principle, subsystem, or cross-cutting concern that future contributors need to know.
+
+**What counts as "major":**
+
+- New or changed database tables/columns
+- New IPC handler domains or changes to IPC patterns
+- Changes to resource lifecycle, workflow engine, AI service layer, or plugin system
+- New Electron windows or changes to window management
+- Changes to build, packaging, or native module handling
+- New cross-cutting design principles or patterns
+
+### Rule 2: Feature Updates — Maintain Corresponding Module Docs
+
+When making **feature-level changes** (examples: new workflow node, new AI provider, new resource type, UI page additions), you **MUST**:
+
+1. **Update the module-level doc** closest to the change:
+   - AI features → `packages/ai/ai-module-design.md`
+   - Workflow features → `packages/workflow/README.md`
+   - Provider schemas → `resources/providers/README.md`
+   - User-facing features → `README.md`
+2. **If no module doc exists** for the area you changed, consider whether one should be created (e.g., a new `packages/<module>/README.md`).
+3. **Update `CLAUDE.md`** only if the feature change affects architecture awareness (e.g., adds a new handler domain, a new resource type to the enum, or a new event).
+
+**What counts as "feature-level":**
+
+- New workflow nodes
+- New AI provider adapters
+- New resource types (add to the type enum docs)
+- New UI pages or routes
+- New plugin resource types
+- Bug fixes that change externally visible behavior
+
+### Rule 3: Documentation Change Checklist
+
+Before completing any task, run through this checklist:
+
+- [ ] Does this change affect how the system **architecture** works? → Update `CLAUDE.md` Architecture section
+- [ ] Does this change introduce a new **design principle** or **lifecycle rule**? → Add to `CLAUDE.md` Design Principles
+- [ ] Does this change add a new **IPC handler domain**? → Update `CLAUDE.md` IPC section and Handler domains list
+- [ ] Does this change add or modify a **database table/column**? → Update `CLAUDE.md` Database Architecture section
+- [ ] Does this change affect a specific **module** (AI, workflow, plugins, etc.)? → Update the module's own README/doc
+- [ ] Does this change add a new **troubleshooting** scenario? → Update `CLAUDE.md` Troubleshooting section
+- [ ] Does this change add a new **development command** or script? → Update `CLAUDE.md` Development Commands section
