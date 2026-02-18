@@ -38,7 +38,26 @@ class TabRegistryImpl implements ITabRegistry {
   }
 
   getAll(): TabComponent[] {
-    return Array.from(this.tabs.values());
+    // 按照 tabOrder 顺序返回，保证拖拽排序持久化生效
+    const ordered: TabComponent[] = [];
+    const orderedIds = new Set<string>();
+
+    for (const id of this.tabOrder) {
+      const tab = this.tabs.get(id);
+      if (tab) {
+        ordered.push(tab);
+        orderedIds.add(id);
+      }
+    }
+
+    // 追加不在 tabOrder 中的 tab（新注册但未排序的）
+    for (const [id, tab] of this.tabs) {
+      if (!orderedIds.has(id)) {
+        ordered.push(tab);
+      }
+    }
+
+    return ordered;
   }
 
   has(id: string): boolean {

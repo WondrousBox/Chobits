@@ -21,6 +21,8 @@ export type { TabComponent, TabIcon as TabIconType, TabRegistry } from './types'
 export type { MediaPlayerRef, ResourceItem } from './remote-hooks';
 
 // Tab 设置组件
+export type { CrossPanelDndContextValue } from './CrossPanelDndProvider';
+export { CrossPanelDndProvider, useCrossPanelDnd } from './CrossPanelDndProvider';
 export { SortableTabTrigger, TabPreview } from './SortableTabTrigger';
 export { TabIcon } from './TabIcon';
 export { TabSettings } from './TabSettings';

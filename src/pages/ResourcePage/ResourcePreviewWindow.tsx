@@ -10,6 +10,7 @@ import { BroadcastChannelManager, CHANNEL_NAMES, type MediaSyncMessage } from '@
 import { ImagePlayer, MediaPlayer, ResourceSubtitlePlayer, SubtitleOverlay, TextPlayer } from './components/Players';
 import type { MediaPlayerRef } from './components/Players/MediaPlayer/MediaPlayer';
 import ResourceTabs from './components/ResourceTabs';
+import { CrossPanelDndProvider } from './components/tabs/CrossPanelDndProvider';
 import type { ResourceItem } from './types';
 import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from './utils/resourceProtocol';
 import { isSubtitleFile } from './utils/subtitleUtils';
@@ -407,65 +408,67 @@ const ResourcePreviewWindow: React.FC = () => {
       {/* Content */}
       <div className="h-full overflow-hidden" style={{ height: 'calc(100% - 36px)' }}>
         {data && (
-          <ResizablePanelGroup direction="horizontal" className="h-full">
-            {/* 左侧：垂直布局（播放器 + 底部 ResourceTabs） */}
-            <ResizablePanel defaultSize={isTabsExpanded ? 60 : 100}>
-              <ResizablePanelGroup direction="vertical" className="h-full">
-                {/* 上方：播放器 */}
-                <ResizablePanel defaultSize={isBottomExpanded ? 60 : 100} minSize={30}>
-                  {renderMainContent()}
-                </ResizablePanel>
-                {/* 下方：ResourceTabs 底部面板 */}
-                {isBottomExpanded && (
-                  <>
-                    <ResizableHandle className="hover:bg-primary" withHandle />
-                    <ResizablePanel defaultSize={40} minSize={0} collapsible={true}>
-                      <div className="h-full flex flex-col overflow-hidden bg-background border-t">
-                        <ResourceTabs
-                          panelId="preview-window-bottom"
-                          resource={data}
-                          currentTime={currentTime}
-                          mediaDuration={mediaDuration > 0 ? mediaDuration : undefined}
-                          mediaPlayerRef={mediaPlayerRef}
-                          subtitleList={subtitleList}
-                          activeSubtitle={activeSubtitle}
-                          setActiveSubtitle={setActiveSubtitle}
-                          onResourceChange={handleResourceChange}
-                          onMediaPlay={handlePlay}
-                          onMediaPause={handlePause}
-                          defaultPinnedTabs={['subtitle', 'translate']}
-                        />
-                      </div>
-                    </ResizablePanel>
-                  </>
-                )}
-              </ResizablePanelGroup>
-            </ResizablePanel>
-            {/* 右侧：ResourceTabs 侧边栏 */}
-            {isTabsExpanded && (
-              <>
-                <ResizableHandle className="hover:bg-primary" withHandle />
-                <ResizablePanel defaultSize={40} minSize={20}>
-                  <div className="h-full flex flex-col overflow-hidden bg-background border-l">
-                    <ResourceTabs
-                      panelId="preview-window-sidebar"
-                      resource={data}
-                      currentTime={currentTime}
-                      mediaDuration={mediaDuration > 0 ? mediaDuration : undefined}
-                      mediaPlayerRef={mediaPlayerRef}
-                      subtitleList={subtitleList}
-                      activeSubtitle={activeSubtitle}
-                      setActiveSubtitle={setActiveSubtitle}
-                      onResourceChange={handleResourceChange}
-                      onMediaPlay={handlePlay}
-                      onMediaPause={handlePause}
-                      defaultPinnedTabs={['summary', 'list']}
-                    />
-                  </div>
-                </ResizablePanel>
-              </>
-            )}
-          </ResizablePanelGroup>
+          <CrossPanelDndProvider>
+            <ResizablePanelGroup direction="horizontal" className="h-full">
+              {/* 左侧：垂直布局（播放器 + 底部 ResourceTabs） */}
+              <ResizablePanel defaultSize={isTabsExpanded ? 60 : 100}>
+                <ResizablePanelGroup direction="vertical" className="h-full">
+                  {/* 上方：播放器 */}
+                  <ResizablePanel defaultSize={isBottomExpanded ? 60 : 100} minSize={30}>
+                    {renderMainContent()}
+                  </ResizablePanel>
+                  {/* 下方：ResourceTabs 底部面板 */}
+                  {isBottomExpanded && (
+                    <>
+                      <ResizableHandle className="hover:bg-primary" withHandle />
+                      <ResizablePanel defaultSize={40} minSize={0} collapsible={true}>
+                        <div className="h-full flex flex-col overflow-hidden bg-background border-t">
+                          <ResourceTabs
+                            panelId="preview-window-bottom"
+                            resource={data}
+                            currentTime={currentTime}
+                            mediaDuration={mediaDuration > 0 ? mediaDuration : undefined}
+                            mediaPlayerRef={mediaPlayerRef}
+                            subtitleList={subtitleList}
+                            activeSubtitle={activeSubtitle}
+                            setActiveSubtitle={setActiveSubtitle}
+                            onResourceChange={handleResourceChange}
+                            onMediaPlay={handlePlay}
+                            onMediaPause={handlePause}
+                            defaultPinnedTabs={['subtitle', 'translate']}
+                          />
+                        </div>
+                      </ResizablePanel>
+                    </>
+                  )}
+                </ResizablePanelGroup>
+              </ResizablePanel>
+              {/* 右侧：ResourceTabs 侧边栏 */}
+              {isTabsExpanded && (
+                <>
+                  <ResizableHandle className="hover:bg-primary" withHandle />
+                  <ResizablePanel defaultSize={40} minSize={20}>
+                    <div className="h-full flex flex-col overflow-hidden bg-background border-l">
+                      <ResourceTabs
+                        panelId="preview-window-sidebar"
+                        resource={data}
+                        currentTime={currentTime}
+                        mediaDuration={mediaDuration > 0 ? mediaDuration : undefined}
+                        mediaPlayerRef={mediaPlayerRef}
+                        subtitleList={subtitleList}
+                        activeSubtitle={activeSubtitle}
+                        setActiveSubtitle={setActiveSubtitle}
+                        onResourceChange={handleResourceChange}
+                        onMediaPlay={handlePlay}
+                        onMediaPause={handlePause}
+                        defaultPinnedTabs={['summary', 'list']}
+                      />
+                    </div>
+                  </ResizablePanel>
+                </>
+              )}
+            </ResizablePanelGroup>
+          </CrossPanelDndProvider>
         )}
       </div>
     </div>
