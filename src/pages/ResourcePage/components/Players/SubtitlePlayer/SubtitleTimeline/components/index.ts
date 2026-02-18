@@ -1,3 +1,5 @@
+export { AnnotationTrack } from './AnnotationTrack';
+export { AnnotationTrackLabel } from './AnnotationTrackLabel';
 export { ClipSegmentBlock } from './ClipSegmentBlock';
 export { ClipTrack } from './ClipTrack';
 export { ClipTrackLabel } from './ClipTrackLabel';

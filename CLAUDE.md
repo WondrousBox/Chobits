@@ -91,7 +91,7 @@ packages/                   # Shared packages (monorepo-style)
 - Preload bridge: `electron/preload/apis/*.ts`
 - Renderer access: `window.YUA.domain.action(payload)`
 
-**Handler domains** (25+): `resource`, `ai`, `ffmpeg`, `folder`, `workspace`, `file`, `system`, `preferences`, `proxy`, `theme`, `shortcuts`, `sprite`, `status`, `trash`, `ytdlp`, `rss`, `automation`, `downloader`, `embedding`, `clip`, `spleeter`, `window`
+**Handler domains** (25+): `resource`, `ai`, `ffmpeg`, `folder`, `workspace`, `file`, `system`, `preferences`, `proxy`, `theme`, `shortcuts`, `sprite`, `status`, `trash`, `ytdlp`, `rss`, `automation`, `downloader`, `embedding`, `clip`, `annotation`, `spleeter`, `window`
 
 ### Database Architecture
 

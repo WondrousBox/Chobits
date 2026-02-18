@@ -11,6 +11,7 @@ import { initDailyCare } from '../daily';
 import { initScreenshotHandlers } from '../screenshot';
 import { initSkillTreeHandlers } from '../skillTreeWindow';
 import { getResourcePath } from '../utils/resources-path';
+import { initAnnotationHandlers } from './annotation/ipc-main';
 import { initAutomationHandlers } from './automation/ipc-main';
 import { initClipHandlers } from './clip/ipc-main';
 import { initDownloadHandlers } from './downloader/ipc-main';
@@ -94,4 +95,5 @@ export function initHandlers(win: BrowserWindow): void {
   initYtDlpHandlers(win);
   initSkillTreeHandlers();
   initClipHandlers();
+  initAnnotationHandlers();
 }

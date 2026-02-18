@@ -1,9 +1,27 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TbCamera, TbMaximize, TbMinimize, TbPlayerPause, TbPlayerPlay, TbSettings, TbVolume, TbVolumeOff } from 'react-icons/tb';
+import { TbBookmark, TbCamera, TbHighlight, TbMaximize, TbMinimize, TbNote, TbPlayerPause, TbPlayerPlay, TbSettings, TbVocabulary, TbVolume, TbVolumeOff } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
+import { ANNOTATION_MARKERS_UPDATE_EVENT, type AnnotationMarker } from './annotationMarkersEvent';
 import { TrackSettingsPopover } from './TrackSettingsPopover';
+
+// 标注类型图标映射
+const ANNOTATION_TYPE_ICONS: Record<string, React.ReactNode> = {
+  highlight: <TbHighlight className="w-3 h-3" />,
+  note: <TbNote className="w-3 h-3" />,
+  vocabulary: <TbVocabulary className="w-3 h-3" />,
+  comment: <TbNote className="w-3 h-3" />,
+  custom: <TbBookmark className="w-3 h-3" />
+};
+
+// 格式化时间
+function formatMarkerTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
 
 // 播放/暂停按钮组件
 interface PlayPauseButtonProps {
@@ -142,6 +160,16 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({ currentTime, duration, 
   const [isDragging, setIsDragging] = useState(false);
   const [dragValue, setDragValue] = useState(0);
   const seekTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [annotationMarkers, setAnnotationMarkers] = useState<AnnotationMarker[]>([]);
+
+  // 监听标注标记更新事件
+  useEffect(() => {
+    const handler = (e: Event) => {
+      setAnnotationMarkers((e as CustomEvent<AnnotationMarker[]>).detail);
+    };
+    window.addEventListener(ANNOTATION_MARKERS_UPDATE_EVENT, handler);
+    return () => window.removeEventListener(ANNOTATION_MARKERS_UPDATE_EVENT, handler);
+  }, []);
 
   // 计算进度百分比
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
@@ -202,7 +230,7 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({ currentTime, duration, 
   }, []);
 
   return (
-    <div className="mb-2">
+    <div className="mb-2 relative h-1">
       <input
         type="range"
         min="0"
@@ -212,7 +240,7 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({ currentTime, duration, 
         onChange={handleSliderChange}
         onMouseDown={handleMouseDown}
         onMouseUp={handleMouseUp}
-        className={`w-full h-1 rounded-full appearance-none cursor-pointer progress-slider ${type === 'video' ? 'bg-white/30' : 'bg-muted-foreground/30'}`}
+        className={`absolute inset-0 w-full h-full rounded-full appearance-none cursor-pointer progress-slider ${type === 'video' ? 'bg-white/30' : 'bg-muted-foreground/30'}`}
         style={{
           background:
             type === 'video'
@@ -220,6 +248,45 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({ currentTime, duration, 
               : `linear-gradient(to right, hsl(var(--foreground)) 0%, hsl(var(--foreground)) ${displayValue}%, hsl(var(--muted-foreground) / 0.3) ${displayValue}%, hsl(var(--muted-foreground) / 0.3) 100%)`
         }}
       />
+      {/* 标注标记点 */}
+      {duration > 0 && annotationMarkers.length > 0 && (
+        <div className="absolute inset-0 pointer-events-none" aria-hidden>
+          {annotationMarkers.map((marker) => {
+            const left = (marker.startTime / duration) * 100;
+            const width = Math.max(((marker.endTime - marker.startTime) / duration) * 100, 0.3);
+            const color = marker.color || 'hsl(48, 95%, 55%)';
+
+            return (
+              <Tooltip key={marker.id}>
+                <TooltipTrigger asChild>
+                  <div
+                    className="absolute top-0.5 h-full rounded-full opacity-80 hover:opacity-100 transition-opacity pointer-events-auto cursor-pointer"
+                    style={{
+                      left: `${left}%`,
+                      width: `${width}%`,
+                      minWidth: 6,
+                      backgroundColor: color
+                    }}
+                  />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[250px]">
+                  <div className="text-xs space-y-1">
+                    <div className="flex items-center gap-1.5">
+                      <span style={{ color }}>{ANNOTATION_TYPE_ICONS[marker.type] || ANNOTATION_TYPE_ICONS.custom}</span>
+                      <span className="font-medium">{marker.title || marker.type}</span>
+                    </div>
+                    {marker.text && <div className="text-muted-foreground italic">「{marker.text}」</div>}
+                    {marker.description && <div className="text-muted-foreground text-[10px] line-clamp-3">{marker.description}</div>}
+                    <div className="text-muted-foreground/60 text-[10px]">
+                      {formatMarkerTime(marker.startTime)} → {formatMarkerTime(marker.endTime)}
+                    </div>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };
