@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 
 import type { WordTimestamp } from '../../MediaPlayer/subtitleDisplayEvent';
+import type { AddAnnotationParams, SegmentAnnotationHighlight } from '../useAnnotations';
 import { SubtitleRow } from './SubtitleRow';
 
 /**
@@ -85,6 +86,12 @@ export interface SubtitlePlayerProps {
   trackLabels?: string[];
   /** 主轨道每个片段的字级别时间戳（与 tracks[0] 索引对齐），用于卡拉OK高亮 */
   segmentsWordData?: (WordTimestamp[] | undefined)[];
+  /** 获取指定片段的标注高亮列表 */
+  getSegmentHighlights?: (segmentIndex: number) => SegmentAnnotationHighlight[];
+  /** 添加标注回调 */
+  onAddAnnotation?: (params: AddAnnotationParams) => void;
+  /** 删除标注回调 */
+  onRemoveAnnotation?: (annotationId: string) => void;
 }
 
 const toIndexSet = (value?: Set<number> | number[]): Set<number> | undefined => {
@@ -174,7 +181,10 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
   summaries,
   trackIds = ['main'],
   trackLabels,
-  segmentsWordData
+  segmentsWordData,
+  getSegmentHighlights,
+  onAddAnnotation,
+  onRemoveAnnotation
 }) => {
   const activeRowRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -422,6 +432,9 @@ export const SubtitlePlayer: React.FC<SubtitlePlayerProps> = ({
                 trackLabel={row.trackLabel}
                 words={row.isMain && segmentsWordData ? segmentsWordData[row.segmentIndex] : undefined}
                 currentTime={currentTime}
+                annotationHighlights={row.isMain && getSegmentHighlights ? getSegmentHighlights(row.segmentIndex) : undefined}
+                onAddAnnotation={row.isMain ? onAddAnnotation : undefined}
+                onRemoveAnnotation={row.isMain ? onRemoveAnnotation : undefined}
               />
             </div>
           );

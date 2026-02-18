@@ -1,6 +1,8 @@
 import type { IpcRendererEvent } from 'electron';
 
 import type { DailyCareBridgeType } from '../electron/main/daily/ipc-renderer';
+import type { AnnotationIpcRenderer } from '../electron/main/handlers/annotation/ipc-renderer';
+import type { ClipIpcRenderer } from '../electron/main/handlers/clip/ipc-renderer';
 import type { DownloaderIpcRendererType } from '../electron/main/handlers/downloader/ipc-renderer';
 import type { VectorIpcType } from '../electron/main/handlers/embedding/ipc-renderer';
 import type { FFmpegIpcType } from '../electron/main/handlers/ffmpeg/ipc-renderer';
@@ -16,7 +18,6 @@ import type { ThemeIpcType } from '../electron/main/handlers/theme/ipc-renderer'
 import type { TrashIpcType } from '../electron/main/handlers/trash/ipc-renderer';
 import type { WorkspaceIpcType } from '../electron/main/handlers/workspace/ipc-renderer';
 import type { YtDlpIpcRendererType } from '../electron/main/handlers/ytdlp/ipc-renderer';
-import type { ClipIpcRenderer } from '../electron/main/handlers/clip/ipc-renderer';
 import type { PluginResourceIpcType } from '../electron/main/plugins/ipc-renderer';
 import type { ShortcutsBridgeType } from '../electron/preload/apis/shortcuts';
 import type { SpriteBridgeType } from '../electron/preload/apis/sprite';
@@ -71,6 +72,7 @@ declare global {
       ai: AIApi;
       tts: TTSIpcRenderer;
       clip: ClipIpcRenderer;
+      annotation: AnnotationIpcRenderer;
       events: {
         on: (callback: (payload: AppEventPayload) => void) => () => void;
       };

@@ -5,7 +5,7 @@ import { TbMinus, TbPlus, TbWaveSine } from 'react-icons/tb';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 
-import { ClipTrack, ClipTrackLabel, SeekBar, TimelineTrackView, TimeRuler, TrackLabel, TTSAudioTrack, TTSTrackLabel, WaveformTrack } from './components';
+import { AnnotationTrack, AnnotationTrackLabel, ClipTrack, ClipTrackLabel, SeekBar, TimelineTrackView, TimeRuler, TrackLabel, TTSAudioTrack, TTSTrackLabel, WaveformTrack } from './components';
 import { useTimelineInteraction } from './hooks';
 import type { TimelineSegment } from './types';
 import { ClipLayoutMode, ClipTool, DEFAULT_CONFIG, SubtitleTimelineProps, TRACK_COLORS, ViewportState } from './types';
@@ -68,7 +68,12 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   onToggleClipTrackEnabled,
   clipTrackEnabled = true,
   ttsTrackEnabledMap,
-  wordsMap
+  wordsMap,
+  showAnnotationTrack = false,
+  annotationTrack: annotationTrackData,
+  annotationCallbacks,
+  annotationTrackEnabled = true,
+  onToggleAnnotationTrackEnabled
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -588,6 +593,10 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                 );
               })}
 
+            {showAnnotationTrack && annotationTrackData && (
+              <AnnotationTrackLabel annotationCount={annotationTrackData.annotations.length} enabled={annotationTrackEnabled} onToggleEnabled={onToggleAnnotationTrackEnabled} />
+            )}
+
             {showClipTrack && clipTrackData && (
               <ClipTrackLabel
                 activeTool={internalClipTool}
@@ -722,6 +731,17 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                   </React.Fragment>
                 );
               })}
+
+            {showAnnotationTrack && annotationTrackData && (
+              <AnnotationTrack
+                annotations={annotationTrackData.annotations}
+                totalWidth={totalWidth}
+                pixelsPerSecond={pixelsPerSecond}
+                viewport={viewport}
+                callbacks={annotationCallbacks}
+                enabled={annotationTrackEnabled}
+              />
+            )}
 
             {showClipTrack && clipTrackData && (
               <ClipTrack

@@ -190,6 +190,18 @@ export interface SubtitleTimelineProps extends TimelineCallbacks {
   /** 字级别时间戳映射：segment id -> WordTimestamp[]，用于卡拉OK高亮 */
   wordsMap?: Map<string, WordTimestamp[]>;
 
+  // ---- 标注轨道 Props ----
+  /** 是否显示标注轨道 */
+  showAnnotationTrack?: boolean;
+  /** 标注轨道数据 */
+  annotationTrack?: AnnotationTrackData;
+  /** 标注轨道回调 */
+  annotationCallbacks?: AnnotationTrackCallbacks;
+  /** 标注轨道是否启用 */
+  annotationTrackEnabled?: boolean;
+  /** 切换标注轨道启用/禁用 */
+  onToggleAnnotationTrackEnabled?: () => void;
+
   // ---- 剪辑轨道 Props ----
   /** 是否显示剪辑轨道 */
   showClipTrack?: boolean;
@@ -240,6 +252,34 @@ export const TRACK_COLORS = [
   'hsl(340, 75%, 55%)', // 粉色
   'hsl(180, 60%, 50%)' // 青色
 ] as const;
+
+// ========== 标注轨道相关类型 ==========
+
+import type { AnnotationItem } from '../useAnnotations';
+
+/**
+ * 标注轨道数据
+ */
+export interface AnnotationTrackData {
+  /** 轨道 ID */
+  id: string;
+  /** 轨道显示名称 */
+  label: string;
+  /** 标注列表 */
+  annotations: AnnotationItem[];
+}
+
+/**
+ * 标注轨道回调
+ */
+export interface AnnotationTrackCallbacks {
+  /** 点击标注 */
+  onAnnotationClick?: (annotation: AnnotationItem) => void;
+  /** 删除标注 */
+  onAnnotationDelete?: (annotationId: string) => void;
+  /** 更新标注 */
+  onAnnotationUpdate?: (annotationId: string, patch: Partial<Pick<AnnotationItem, 'title' | 'description' | 'type' | 'color'>>) => void;
+}
 
 // ========== 剪辑轨道相关类型 ==========
 

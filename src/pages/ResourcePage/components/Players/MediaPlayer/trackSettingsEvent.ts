@@ -8,7 +8,7 @@
  */
 
 /** 轨道类型 */
-export type TrackType = 'subtitle' | 'tts' | 'clip';
+export type TrackType = 'subtitle' | 'tts' | 'clip' | 'annotation';
 
 /** 单个轨道的信息 */
 export interface TrackSettingsItem {

@@ -1,7 +1,7 @@
 import { AimSegments, parser, tools, utils } from '@aim-packages/subtitle';
 import { debounce } from 'lodash-es';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbCrosshair, TbDownload, TbList, TbScissors, TbTimeline } from 'react-icons/tb';
+import { TbBookmark, TbCrosshair, TbDownload, TbList, TbScissors, TbTimeline } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -10,15 +10,17 @@ import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 import type { ResourceItem } from '../../../types';
 import { MediaPlayerRef } from '../MediaPlayer/MediaPlayer';
 import { dispatchSubtitleDisplay, type SubtitleDisplayLine, type WordTimestamp } from '../MediaPlayer/subtitleDisplayEvent';
+import { dispatchAnnotationMarkers, type AnnotationMarker } from '../MediaPlayer/annotationMarkersEvent';
 import { dispatchTrackSettings, TRACK_TOGGLE_EVENT, type TrackSettingsItem, type TrackTogglePayload } from '../MediaPlayer/trackSettingsEvent';
 import { ExportDialog } from './ExportDialog';
 import { SubtitlePlayer } from './SubtitleListPlayer/SubtitlePlayer';
 import { aimTracksToTimelineTracks, ClipSequence, formatSecondsToTime, indicesToIds, parseSegmentId, parseTimeToSeconds, SubtitleTimeline, TimelineSegment } from './SubtitleTimeline';
-import type { ClipSegment, ClipTrackCallbacks, ClipTrackData, TTSAudioItem as TimelineTTSAudioItem } from './SubtitleTimeline/types';
+import type { AnnotationTrackCallbacks, AnnotationTrackData, ClipSegment, ClipTrackCallbacks, ClipTrackData, TTSAudioItem as TimelineTTSAudioItem } from './SubtitleTimeline/types';
 import { SubtitleTranslator } from './SubtitleTranslator';
 import { mergeSegmentsChildren, syncSegmentsWithEntries } from './syncSegmentsData';
 import type { TTSTrackOption } from './TTSSynthesizer';
 import { TTSSynthesizer } from './TTSSynthesizer';
+import { useAnnotations } from './useAnnotations';
 import { useSubtitleTranslation } from './useSubtitleTranslation';
 import { useTTSSynthesis } from './useTTSSynthesis';
 
@@ -97,6 +99,10 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
   const [ttsTrackEnabledMap, setTTSTrackEnabledMap] = useState<Map<string, boolean>>(new Map());
   /** 剪辑轨道是否启用 */
   const [clipTrackEnabled, setClipTrackEnabled] = useState(true);
+  /** 标注轨道是否显示 */
+  const [showAnnotationTrack, setShowAnnotationTrack] = useState(true);
+  /** 标注轨道是否启用 */
+  const [annotationTrackEnabled, setAnnotationTrackEnabled] = useState(true);
 
   // 防抖保存剪辑状态（存储到独立的 clip 文件）
   const debouncedSaveClipSegments = useMemo(
@@ -379,6 +385,16 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     // 翻译完成后重新加载翻译轨道
     onTranslationComplete: handleTranslationComplete
   });
+
+  // 使用标注 Hook
+  const {
+    annotations,
+    addAnnotation,
+    removeAnnotation,
+    updateAnnotation,
+    getSegmentHighlights,
+    annotationsBySegment
+  } = useAnnotations({ resourceId: resource.id });
 
   // 使用TTS合成 Hook（多轨道）
   const {
@@ -1203,6 +1219,38 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
 
   // ---- 剪辑轨道 ----
 
+  /** 切换标注轨道显示 */
+  const handleToggleAnnotationTrack = useCallback(() => {
+    setShowAnnotationTrack((prev) => !prev);
+  }, []);
+
+  /** 标注轨道数据（传给 SubtitleTimeline） */
+  const annotationTrackData = useMemo((): AnnotationTrackData | undefined => {
+    if (!showAnnotationTrack || annotations.length === 0) return undefined;
+    return {
+      id: 'annotation-track-main',
+      label: '标注',
+      annotations
+    };
+  }, [showAnnotationTrack, annotations]);
+
+  /** 标注轨道回调集合 */
+  const annotationCallbacks = useMemo(
+    (): AnnotationTrackCallbacks => ({
+      onAnnotationClick: (annotation) => {
+        // 点击标注时跳转到对应时间
+        onSeek?.(annotation.startTime);
+      },
+      onAnnotationDelete: (annotationId) => {
+        removeAnnotation(annotationId);
+      },
+      onAnnotationUpdate: (annotationId, patch) => {
+        updateAnnotation(annotationId, patch);
+      }
+    }),
+    [onSeek, removeAnnotation, updateAnnotation]
+  );
+
   /** 切换剪辑轨道显示。首次开启时自动生成一个覆盖整段媒体的初始片段 */
   const handleToggleClipTrack = useCallback(() => {
     setShowClipTrack((prev) => {
@@ -1390,6 +1438,10 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     setClipTrackEnabled((prev) => !prev);
   }, []);
 
+  const handleToggleAnnotationTrackEnabled = useCallback(() => {
+    setAnnotationTrackEnabled((prev) => !prev);
+  }, []);
+
   // 将字幕轨道的启用状态合并到 timelineTracks 中
   const timelineTracksWithEnabled = useMemo(() => {
     return timelineTracks.map((track) => ({
@@ -1436,18 +1488,45 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
       }
     });
 
+    // 标注轨道
+    if (showAnnotationTrack && annotations.length > 0) {
+      items.push({ id: 'annotation', label: '标注', type: 'annotation', enabled: annotationTrackEnabled });
+    }
+
     // 剪辑轨道
     if (showClipTrack) {
       items.push({ id: 'clip', label: '剪辑', type: 'clip', enabled: clipTrackEnabled });
     }
 
     dispatchTrackSettings(items);
-  }, [subtitleTrackEnabledMap, ttsTrackEnabledMap, clipTrackEnabled, translationTrackMeta, translationTracks.length, typingTexts.length, synthesizedItemsByTrack, isSynthesizing, showClipTrack]);
+  }, [subtitleTrackEnabledMap, ttsTrackEnabledMap, clipTrackEnabled, annotationTrackEnabled, translationTrackMeta, translationTracks.length, typingTexts.length, synthesizedItemsByTrack, isSynthesizing, showClipTrack, showAnnotationTrack, annotations.length]);
 
   // 组件卸载时清空轨道设置
   useEffect(() => {
     return () => {
       dispatchTrackSettings([]);
+    };
+  }, []);
+
+  // ---- 广播标注标记位置给进度条 ----
+  useEffect(() => {
+    const markers: AnnotationMarker[] = annotations.map((a) => ({
+      id: a.id,
+      startTime: a.startTime,
+      endTime: a.endTime,
+      type: a.type,
+      text: a.text,
+      title: a.title,
+      description: a.description,
+      color: a.color
+    }));
+    dispatchAnnotationMarkers(markers);
+  }, [annotations]);
+
+  // 组件卸载时清空标注标记
+  useEffect(() => {
+    return () => {
+      dispatchAnnotationMarkers([]);
     };
   }, []);
 
@@ -1459,13 +1538,15 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
         handleToggleSubtitleTrackEnabled(id);
       } else if (type === 'tts') {
         handleToggleTTSTrackEnabled(id);
+      } else if (type === 'annotation') {
+        handleToggleAnnotationTrackEnabled();
       } else if (type === 'clip') {
         handleToggleClipTrackEnabled();
       }
     };
     window.addEventListener(TRACK_TOGGLE_EVENT, handler);
     return () => window.removeEventListener(TRACK_TOGGLE_EVENT, handler);
-  }, [handleToggleSubtitleTrackEnabled, handleToggleTTSTrackEnabled, handleToggleClipTrackEnabled]);
+  }, [handleToggleSubtitleTrackEnabled, handleToggleTTSTrackEnabled, handleToggleClipTrackEnabled, handleToggleAnnotationTrackEnabled]);
 
   // ---- 多轨道字幕叠加显示：计算当前时间每个启用轨道的字幕，并广播给 SubtitleOverlay ----
   useEffect(() => {
@@ -1564,14 +1645,24 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
             <TooltipContent side="bottom">跟随滚动</TooltipContent>
           </Tooltip>
           {viewMode === 'timeline' && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button className="h-8 w-8 p-0" variant={showClipTrack ? 'default' : 'ghost'} size="sm" onClick={handleToggleClipTrack}>
-                  <TbScissors />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">{showClipTrack ? '隐藏剪辑轨道' : '显示剪辑轨道'}</TooltipContent>
-            </Tooltip>
+            <>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button className="h-8 w-8 p-0" variant={showAnnotationTrack ? 'default' : 'ghost'} size="sm" onClick={handleToggleAnnotationTrack}>
+                    <TbBookmark />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">{showAnnotationTrack ? '隐藏标注轨道' : '显示标注轨道'}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button className="h-8 w-8 p-0" variant={showClipTrack ? 'default' : 'ghost'} size="sm" onClick={handleToggleClipTrack}>
+                    <TbScissors />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">{showClipTrack ? '隐藏剪辑轨道' : '显示剪辑轨道'}</TooltipContent>
+              </Tooltip>
+            </>
           )}
           <SubtitleTranslator
             subtitleEntries={subtitleEntries}
@@ -1622,6 +1713,9 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
           trackIds={trackIds}
           trackLabels={trackLabels}
           segmentsWordData={segmentsWordData}
+          getSegmentHighlights={getSegmentHighlights}
+          onAddAnnotation={addAnnotation}
+          onRemoveAnnotation={removeAnnotation}
         />
       ) : (
         // 时间轴视图
@@ -1662,6 +1756,11 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
           onToggleClipTrackEnabled={handleToggleClipTrackEnabled}
           clipTrackEnabled={clipTrackEnabled}
           ttsTrackEnabledMap={ttsTrackEnabledMap}
+          showAnnotationTrack={showAnnotationTrack}
+          annotationTrack={annotationTrackData}
+          annotationCallbacks={annotationCallbacks}
+          annotationTrackEnabled={annotationTrackEnabled}
+          onToggleAnnotationTrackEnabled={handleToggleAnnotationTrackEnabled}
         />
       )}
 

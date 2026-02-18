@@ -12,6 +12,7 @@ SubtitleTimeline 是一个高性能、多功能的字幕时间轴编辑组件，
 - **交互友好**：点击跳转、双击编辑、拖拽调整时间
 - **波形显示**：支持音频波形轨道
 - **剪辑轨道**：支持视频片段剪辑、切割、删除
+- **标注轨道**：支持字幕文本标注（高亮、笔记、词汇、评论），时间轴展示标注标记
 
 ## 文件结构
 
@@ -38,6 +39,8 @@ SubtitleTimeline/
 │   ├── TTSAudioBlock.tsx        # TTS 音频块
 │   ├── TTSTrackLabel.tsx        # TTS 轨道标签
 │   ├── WaveformTrack.tsx        # 波形轨道
+│   ├── AnnotationTrack.tsx      # 标注轨道
+│   ├── AnnotationTrackLabel.tsx # 标注轨道标签
 │   ├── ClipTrack.tsx            # 剪辑轨道
 │   ├── ClipTrackLabel.tsx       # 剪辑轨道标签
 │   └── ClipSegmentBlock.tsx     # 剪辑片段块
@@ -132,6 +135,7 @@ interface SubtitleTimelineProps {
   showTrackLabels?: boolean; // 显示轨道标签（默认 true）
   showWaveform?: boolean; // 显示波形（默认 true）
   showTTSTrack?: boolean; // 显示 TTS 轨道（默认 true）
+  showAnnotationTrack?: boolean; // 显示标注轨道（默认 true）
   showClipTrack?: boolean; // 显示剪辑轨道（默认 false）
 
   // 缩放配置
@@ -143,6 +147,11 @@ interface SubtitleTimelineProps {
   ttsItemsByTrack?: Map<string, TTSAudioItem[]>;
   ttsTrackLabels?: Map<string, string>;
   subtitleToTTSTrackMap?: Map<string, string>; // track-0 -> 'main'
+
+  // 标注轨道
+  annotationTrack?: AnnotationTrackData;
+  annotationCallbacks?: AnnotationTrackCallbacks;
+  annotationTrackEnabled?: boolean;
 
   // 剪辑轨道
   clipTrack?: ClipTrackData;
@@ -164,6 +173,9 @@ interface SubtitleTimelineProps {
   onStopTTSAudio?: () => void;
   onTTSTimeChange?: (trackId, index, startTime, endTime) => void;
   onDeleteTTSSegment?: (trackId, index) => void;
+
+  // 标注回调
+  annotationCallbacks?: AnnotationTrackCallbacks;
 
   // 剪辑回调
   clipCallbacks?: ClipTrackCallbacks;
@@ -331,6 +343,22 @@ function MyEditor() {
 />
 ```
 
+### 带标注轨道
+
+```tsx
+<SubtitleTimeline
+  tracks={subtitleTracks}
+  showAnnotationTrack
+  annotationTrack={{ id: 'annotation-main', label: '标注', annotations }}
+  annotationCallbacks={{
+    onAnnotationClick: (a) => seek(a.startTime),
+    onAnnotationDelete: (id) => removeAnnotation(id),
+    onAnnotationUpdate: (id, patch) => updateAnnotation(id, patch)
+  }}
+  annotationTrackEnabled
+/>
+```
+
 ### 带剪辑轨道
 
 ```tsx
@@ -436,5 +464,6 @@ const loadClipSegmentsFromMetadata = useCallback((metadataStr, mediaDur) => {
 
 ## 相关文件
 
-- `ResourceSubtitlePlayer.tsx` - 上层容器组件，处理字幕加载/保存及剪辑状态持久化
+- `ResourceSubtitlePlayer.tsx` - 上层容器组件，处理字幕加载/保存、剪辑状态持久化及标注集成
+- `useAnnotations.ts` - 标注数据 Hook（加载/保存/CRUD/高亮计算）
 - `@aim-packages/subtitle` - 字幕解析库（AimSegments 格式）

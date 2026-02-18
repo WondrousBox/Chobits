@@ -5,8 +5,11 @@ import Textarea from 'react-expanding-textarea';
 import { TbArrowMerge } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 import type { WordTimestamp } from '../../MediaPlayer/subtitleDisplayEvent';
+import type { AddAnnotationParams, SegmentAnnotationHighlight } from '../useAnnotations';
+import { AnnotationPopover } from './AnnotationPopover';
 
 function getClickTextPosition(e: MouseEvent): number {
   let position = 0;
@@ -36,6 +39,12 @@ interface SubtitleRowProps {
   words?: WordTimestamp[];
   /** 当前播放时间（秒），配合 words 实现卡拉OK高亮 */
   currentTime?: number;
+  /** 当前片段的标注高亮列表 */
+  annotationHighlights?: SegmentAnnotationHighlight[];
+  /** 添加标注回调 */
+  onAddAnnotation?: (params: AddAnnotationParams) => void;
+  /** 删除标注回调 */
+  onRemoveAnnotation?: (annotationId: string) => void;
 }
 
 const textareaStyle = 'resize-none block p-2 flex-1 outline-none box-border bg-background text-foreground border-none text-base';
@@ -62,7 +71,10 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({
   isEditable = true,
   trackLabel,
   words,
-  currentTime = 0
+  currentTime = 0,
+  annotationHighlights,
+  onAddAnnotation,
+  onRemoveAnnotation
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editingText, setEditingText] = useState(segment.text);
@@ -70,6 +82,18 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const clickPosition = useRef(0);
   const internalRowRef = useRef<HTMLDivElement>(null);
+  /** 标注浮窗状态 */
+  const [annotationPopover, setAnnotationPopover] = useState<{
+    selectedText: string;
+    selectionRect: { top: number; bottom: number; left: number; right: number; width: number };
+    wordStartIndex: number;
+    wordEndIndex: number;
+    startTime: number;
+    endTime: number;
+  } | null>(null);
+  /** 是否悬停在文本区域（用于显示标注提示） */
+  const [isTextHovered, setIsTextHovered] = useState(false);
+  const textContainerRef = useRef<HTMLDivElement>(null);
 
   // 使用传入的 rowRef 或内部的 ref
   const currentRowRef = rowRef || internalRowRef;
@@ -82,7 +106,118 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({
     }
   }, [onTimeClick, segment.st]);
 
+  // 根据字符偏移计算标注的时间范围（共享逻辑）
+  const computeAnnotationTimeRange = useCallback(
+    (wordStartIdx: number, wordEndIdx: number) => {
+      let startTime = utils.convertToSeconds(segment.st);
+      let endTime = utils.convertToSeconds(segment.et);
+      if (words && words.length > 0) {
+        let charPos = 0;
+        let foundStart = false;
+        for (const w of words) {
+          const wEnd = charPos + w.text.length;
+          if (!foundStart && wEnd > wordStartIdx) {
+            startTime = w.st;
+            foundStart = true;
+          }
+          if (wEnd >= wordEndIdx) {
+            endTime = w.et;
+            break;
+          }
+          charPos = wEnd;
+        }
+      }
+      return { startTime, endTime };
+    },
+    [segment.st, segment.et, words]
+  );
+
+  // 处理文字选择（非编辑模式 div 的 mouseup）
+  const handleTextMouseUp = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (!onAddAnnotation || !isMainTrack) return;
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed || !selection.toString().trim()) return;
+
+      const selectedText = selection.toString().trim();
+      const segText = segment.text || '';
+
+      const range = selection.getRangeAt(0);
+      let wordStartIndex = -1;
+      let wordEndIndex = -1;
+
+      if (textContainerRef.current) {
+        const startIdx = segText.indexOf(selectedText);
+        if (startIdx !== -1) {
+          wordStartIndex = startIdx;
+          wordEndIndex = startIdx + selectedText.length;
+        }
+      }
+
+      if (wordStartIndex < 0) return;
+
+      const { startTime, endTime } = computeAnnotationTimeRange(wordStartIndex, wordEndIndex);
+
+      // 使用 getClientRects() 获取最后一个矩形（选区尾部），避免多行选区整体 boundingRect 过大
+      const rects = range.getClientRects();
+      const rect = rects.length > 0 ? rects[rects.length - 1] : range.getBoundingClientRect();
+      setAnnotationPopover({
+        selectedText,
+        selectionRect: { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right, width: rect.width },
+        wordStartIndex,
+        wordEndIndex,
+        startTime,
+        endTime
+      });
+    },
+    [onAddAnnotation, isMainTrack, segment.text, computeAnnotationTimeRange]
+  );
+
+  // 处理文字选择（编辑模式 textarea 的 mouseup）
+  const handleTextareaMouseUp = useCallback(
+    (event: React.MouseEvent<HTMLTextAreaElement>) => {
+      if (!onAddAnnotation || !isMainTrack) return;
+      const textarea = event.currentTarget;
+      const selStart = textarea.selectionStart;
+      const selEnd = textarea.selectionEnd;
+      if (selStart === selEnd) {
+        // 没有选中文字，只是放置光标——关闭可能已存在的浮窗
+        setAnnotationPopover(null);
+        return;
+      }
+
+      const selectedText = textarea.value.slice(selStart, selEnd).trim();
+      if (!selectedText) return;
+
+      const { startTime, endTime } = computeAnnotationTimeRange(selStart, selEnd);
+
+      // textarea 内无法用 Range.getBoundingClientRect()，
+      // 用鼠标释放坐标近似选区矩形（配合两阶段触发按钮足够准确）
+      const textareaRect = textarea.getBoundingClientRect();
+      setAnnotationPopover({
+        selectedText,
+        selectionRect: {
+          top: event.clientY - 14,
+          bottom: event.clientY + 4,
+          left: Math.max(event.clientX - 30, textareaRect.left),
+          right: Math.min(event.clientX + 30, textareaRect.right),
+          width: 60
+        },
+        wordStartIndex: selStart,
+        wordEndIndex: selEnd,
+        startTime,
+        endTime
+      });
+    },
+    [onAddAnnotation, isMainTrack, computeAnnotationTimeRange]
+  );
+
   const handleTextClick = (event: React.MouseEvent<HTMLDivElement>): void => {
+    // 如果有选中文字（刚触发了 mouseup），不进入编辑模式
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed && selection.toString().trim()) {
+      return;
+    }
     // 如果禁用，禁止编辑
     if (disabled || !isEditable) {
       return;
@@ -208,6 +343,7 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({
           onChange={handleChange}
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
+          onMouseUp={handleTextareaMouseUp}
           rows={Math.max(1, editingText.split('\n').length)}
           onFocus={
             // // https://stackoverflow.com/questions/44983286/send-cursor-to-the-end-of-input-value-in-react
@@ -217,31 +353,225 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({
           autoFocus
         />
       ) : (
-        <div className="flex-1 relative z-10">
-          {/* 原始文本（可卡拉OK高亮） */}
-          <div className={clsx(getClassName(segment.delete, isActive), disabled && 'pointer-events-none cursor-not-allowed opacity-80')} style={{ whiteSpace: 'pre-wrap' }} onClick={handleTextClick}>
+        <div className="flex-1 relative z-10" ref={textContainerRef}>
+          {/* 原始文本（可卡拉OK高亮 + 标注高亮） */}
+          <div
+            className={clsx(getClassName(segment.delete, isActive), disabled && 'pointer-events-none cursor-not-allowed opacity-80')}
+            style={{ whiteSpace: 'pre-wrap' }}
+            onClick={handleTextClick}
+            onMouseUp={handleTextMouseUp}
+            onMouseEnter={onAddAnnotation && isMainTrack ? () => setIsTextHovered(true) : undefined}
+            onMouseLeave={onAddAnnotation && isMainTrack ? () => setIsTextHovered(false) : undefined}
+          >
             {isActive && words && words.length > 0
-              ? words.map((word, i) => {
-                const isWordActive = currentTime >= word.st && currentTime < word.et;
-                const isPast = currentTime >= word.et;
-                return (
-                  <span
-                    key={i}
-                    className={clsx(
-                      'transition-colors duration-100',
-                      isWordActive && 'text-primary font-bold bg-primary/20 rounded-sm',
-                      isPast && 'text-foreground',
-                      !isPast && !isWordActive && 'text-muted-foreground'
-                    )}
-                  >
-                    {word.text}
-                  </span>
-                );
-              })
-              : segment.text?.trim() || '\u200b'}
+              ? renderWordsWithAnnotations(words, currentTime, annotationHighlights, onRemoveAnnotation)
+              : renderTextWithAnnotations(segment.text?.trim() || '\u200b', annotationHighlights, onRemoveAnnotation)}
           </div>
+          {/* 标注可发现性提示：当悬停在主轨道文本区域时，显示微弱提示 */}
+          {isTextHovered && onAddAnnotation && isMainTrack && !isEditing && !annotationPopover && (
+            <div
+              className="absolute bottom-0 left-2 right-2 flex items-center justify-center pointer-events-none
+              animate-in fade-in duration-300"
+            >
+              <span className="text-[10px] text-muted-foreground/40 select-none">选中文本可添加标注</span>
+            </div>
+          )}
         </div>
       )}
+
+      {/* 标注浮窗 */}
+      {annotationPopover && onAddAnnotation && (
+        <AnnotationPopover
+          selectedText={annotationPopover.selectedText}
+          selectionRect={annotationPopover.selectionRect}
+          startTime={annotationPopover.startTime}
+          endTime={annotationPopover.endTime}
+          segmentIndex={index}
+          wordStartIndex={annotationPopover.wordStartIndex}
+          wordEndIndex={annotationPopover.wordEndIndex}
+          onAdd={(params) => {
+            onAddAnnotation(params);
+            setAnnotationPopover(null);
+            window.getSelection()?.removeAllRanges();
+            // 清除 textarea 选区（如果还在编辑模式）
+            if (inputRef.current) {
+              const pos = inputRef.current.selectionEnd;
+              inputRef.current.selectionStart = pos;
+            }
+          }}
+          onClose={() => {
+            setAnnotationPopover(null);
+            window.getSelection()?.removeAllRanges();
+            if (inputRef.current) {
+              const pos = inputRef.current.selectionEnd;
+              inputRef.current.selectionStart = pos;
+            }
+          }}
+        />
+      )}
     </div>
+  );
+};
+
+// ========== 辅助渲染函数：带标注高亮的文字 ==========
+
+/**
+ * 渲染带标注高亮的纯文本（非卡拉OK模式）
+ */
+function renderTextWithAnnotations(text: string, highlights?: SegmentAnnotationHighlight[], onRemoveAnnotation?: (id: string) => void): React.ReactNode {
+  if (!highlights || highlights.length === 0) return text;
+
+  // 按 startIndex 排序
+  const sorted = [...highlights].sort((a, b) => a.startIndex - b.startIndex);
+  const parts: React.ReactNode[] = [];
+  let lastEnd = 0;
+
+  for (const hl of sorted) {
+    const start = Math.max(hl.startIndex, lastEnd);
+    const end = Math.min(hl.endIndex, text.length);
+    if (start >= end) continue;
+
+    // 前面没有高亮的部分
+    if (lastEnd < start) {
+      parts.push(<span key={`t-${lastEnd}`}>{text.slice(lastEnd, start)}</span>);
+    }
+
+    // 高亮部分
+    const hlText = text.slice(start, end);
+    parts.push(<AnnotationHighlightSpan key={`a-${hl.id}`} highlight={hl} text={hlText} onRemove={onRemoveAnnotation} />);
+
+    lastEnd = end;
+  }
+
+  // 剩余文字
+  if (lastEnd < text.length) {
+    parts.push(<span key={`t-${lastEnd}`}>{text.slice(lastEnd)}</span>);
+  }
+
+  return parts;
+}
+
+/**
+ * 渲染卡拉OK模式 + 标注高亮的文字
+ * words 模式下按字符偏移匹配标注
+ */
+function renderWordsWithAnnotations(words: WordTimestamp[], currentTime: number, highlights?: SegmentAnnotationHighlight[], onRemoveAnnotation?: (id: string) => void): React.ReactNode {
+  if (!highlights || highlights.length === 0) {
+    return words.map((word, i) => {
+      const isWordActive = currentTime >= word.st && currentTime < word.et;
+      const isPast = currentTime >= word.et;
+      return (
+        <span
+          key={i}
+          className={clsx(
+            'transition-colors duration-100',
+            isWordActive && 'text-primary font-bold bg-primary/20 rounded-sm',
+            isPast && 'text-foreground',
+            !isPast && !isWordActive && 'text-muted-foreground'
+          )}
+        >
+          {word.text}
+        </span>
+      );
+    });
+  }
+
+  // 构建字符偏移到标注的映射
+  const hlMap = new Map<number, SegmentAnnotationHighlight>();
+  for (const hl of highlights) {
+    for (let i = hl.startIndex; i < hl.endIndex; i++) {
+      hlMap.set(i, hl);
+    }
+  }
+
+  let charPos = 0;
+  return words.map((word, i) => {
+    const wordStart = charPos;
+    const wordEnd = charPos + word.text.length;
+    charPos = wordEnd;
+
+    const isWordActive = currentTime >= word.st && currentTime < word.et;
+    const isPast = currentTime >= word.et;
+
+    // 检查这个 word 是否被标注覆盖
+    const hl = hlMap.get(wordStart);
+
+    const wordEl = (
+      <span
+        key={i}
+        className={clsx(
+          'transition-colors duration-100',
+          isWordActive && 'text-primary font-bold bg-primary/20 rounded-sm',
+          isPast && 'text-foreground',
+          !isPast && !isWordActive && 'text-muted-foreground',
+          hl && 'underline decoration-2 decoration-wavy'
+        )}
+        style={hl ? { textDecorationColor: hl.color } : undefined}
+      >
+        {word.text}
+      </span>
+    );
+
+    // 如果这个 word 是标注范围的第一个字，用 Tooltip 包裹
+    if (hl && wordStart === hl.startIndex) {
+      return (
+        <Tooltip key={`a-${i}`}>
+          <TooltipTrigger asChild>{wordEl}</TooltipTrigger>
+          <TooltipContent side="top" className="max-w-[200px]">
+            <div className="text-xs">
+              {hl.title && <div className="font-medium">{hl.title}</div>}
+              {hl.description && <div className="text-muted-foreground mt-0.5">{hl.description}</div>}
+              {!hl.title && !hl.description && <div className="text-muted-foreground">{hl.type}</div>}
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      );
+    }
+
+    return wordEl;
+  });
+}
+
+/**
+ * 标注高亮文字片段（带 Tooltip 和右键删除）
+ */
+const AnnotationHighlightSpan: React.FC<{
+  highlight: SegmentAnnotationHighlight;
+  text: string;
+  onRemove?: (id: string) => void;
+}> = ({ highlight, text, onRemove }) => {
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      if (!onRemove) return;
+      e.preventDefault();
+      if (window.confirm('删除此标注？')) {
+        onRemove(highlight.id);
+      }
+    },
+    [highlight.id, onRemove]
+  );
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className="underline decoration-2 decoration-wavy cursor-pointer"
+          style={{
+            textDecorationColor: highlight.color,
+            backgroundColor: `${highlight.color}20`
+          }}
+          onContextMenu={handleContextMenu}
+        >
+          {text}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-[200px]">
+        <div className="text-xs">
+          {highlight.title && <div className="font-medium">{highlight.title}</div>}
+          {highlight.description && <div className="text-muted-foreground mt-0.5">{highlight.description}</div>}
+          {!highlight.title && !highlight.description && <div className="text-muted-foreground">{highlight.type}</div>}
+        </div>
+      </TooltipContent>
+    </Tooltip>
   );
 };

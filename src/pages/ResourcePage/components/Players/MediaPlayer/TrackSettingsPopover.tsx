@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { TbCheck, TbMusic, TbScissors, TbSubtask } from 'react-icons/tb';
+import { TbBookmark, TbCheck, TbMusic, TbScissors, TbSubtask } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -10,6 +10,7 @@ import { dispatchTrackToggle, TRACK_SETTINGS_UPDATE_EVENT, type TrackSettingsIte
 const GROUP_CONFIG: Record<TrackType, { label: string; icon: React.ReactNode }> = {
   subtitle: { label: '字幕轨道', icon: <TbSubtask className="w-3.5 h-3.5" /> },
   tts: { label: 'TTS 音频轨道', icon: <TbMusic className="w-3.5 h-3.5" /> },
+  annotation: { label: '标注轨道', icon: <TbBookmark className="w-3.5 h-3.5" /> },
   clip: { label: '剪辑轨道', icon: <TbScissors className="w-3.5 h-3.5" /> }
 };
 
@@ -81,7 +82,7 @@ export const TrackSettingsPopover: React.FC<TrackSettingsPopoverProps> = ({ type
       </PopoverTrigger>
       <PopoverContent side="top" align="end" className={`w-56 p-2 ${isVideo ? 'bg-black/90 border-white/20 text-white' : 'bg-background border text-foreground'}`}>
         <div className="text-xs font-semibold mb-2 px-1 opacity-70">轨道设置</div>
-        {(['subtitle', 'tts', 'clip'] as TrackType[]).map((groupType) => {
+        {(['subtitle', 'tts', 'annotation', 'clip'] as TrackType[]).map((groupType) => {
           const groupItems = groups.get(groupType);
           if (!groupItems || groupItems.length === 0) return null;
           const cfg = GROUP_CONFIG[groupType];
