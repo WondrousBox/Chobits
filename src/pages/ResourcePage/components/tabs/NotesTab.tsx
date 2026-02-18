@@ -8,27 +8,31 @@ import { createResourceUploadHandler } from '../../utils/resourceCardEditor';
 import { useResourceTabContext } from './ResourceTabContext';
 
 const NotesTab: React.FC = () => {
-  const { resource } = useResourceTabContext();
+  const { resource, activeSubtitle } = useResourceTabContext();
   const [content, setContent] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [noteId, setNoteId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
+  // 笔记关联的目标资源：当主资源为音视频且有关联字幕时，关联到字幕资源
+  // 因为音视频本身不具备文本信息，字幕资源才是有文本内容的载体
+  const noteResource = (resource?.type === 'video' || resource?.type === 'audio') && activeSubtitle ? activeSubtitle : resource;
+
   // 使用 ref 保存最新的 resourceId，避免闭包问题
   const resourceIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    resourceIdRef.current = resource?.id || null;
-  }, [resource?.id]);
+    resourceIdRef.current = noteResource?.id || null;
+  }, [noteResource?.id]);
 
   // 加载笔记内容
   useEffect(() => {
     const loadNote = async (): Promise<void> => {
-      if (!resource?.id) return;
+      if (!noteResource?.id) return;
 
       setLoading(true);
       try {
-        const noteData = await window.YUA.ai.getResourceNote(resource.id);
+        const noteData = await window.YUA.ai.getResourceNote(noteResource.id);
         if (noteData) {
           setContent(noteData.content || '');
           setNoteId(noteData.id);
@@ -45,7 +49,7 @@ const NotesTab: React.FC = () => {
     };
 
     loadNote();
-  }, [resource?.id]);
+  }, [noteResource?.id]);
 
   // 实际的保存函数（不再使用标题）
   const saveNote = useCallback(async (markdown: string) => {
