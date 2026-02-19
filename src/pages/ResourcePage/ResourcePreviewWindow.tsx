@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 import { BroadcastChannelManager, CHANNEL_NAMES, type MediaSyncMessage } from '@/utils/broadcastChannels';
 
-import { ImagePlayer, MediaPlayer, ResourceSubtitlePlayer, SubtitleOverlay, TextPlayer } from './components/Players';
+import { AnnotationAlertOverlay, ImagePlayer, MediaPlayer, ResourceSubtitlePlayer, SubtitleOverlay, TextPlayer } from './components/Players';
 import type { MediaPlayerRef } from './components/Players/MediaPlayer/MediaPlayer';
 import ResourceTabs from './components/ResourceTabs';
 import { CrossPanelDndProvider } from './components/tabs/CrossPanelDndProvider';
@@ -373,6 +373,7 @@ const ResourcePreviewWindow: React.FC = () => {
           onScreenshot={isVideoFile(data.filePath) ? handleScreenshot : undefined}
         >
           <SubtitleOverlay />
+          <AnnotationAlertOverlay />
         </MediaPlayer>
       )}
       {isSubtitleFile(data.filePath) && <ResourceSubtitlePlayer resource={data} />}

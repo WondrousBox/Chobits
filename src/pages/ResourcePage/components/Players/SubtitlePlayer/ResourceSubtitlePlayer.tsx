@@ -9,6 +9,7 @@ import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 
 import type { ResourceItem } from '../../../types';
 import { ANNOTATION_DELETE_EVENT, type AnnotationMarker, dispatchAnnotationMarkers } from '../MediaPlayer/annotationMarkersEvent';
+import { dispatchAnnotationAlert } from '../MediaPlayer/annotationAlertEvent';
 import { MediaPlayerRef } from '../MediaPlayer/MediaPlayer';
 import { dispatchSubtitleDisplay, type SubtitleDisplayLine, type WordTimestamp } from '../MediaPlayer/subtitleDisplayEvent';
 import { dispatchTrackSettings, TRACK_TOGGLE_EVENT, type TrackSettingsItem, type TrackTogglePayload } from '../MediaPlayer/trackSettingsEvent';
@@ -1635,6 +1636,29 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
       dispatchSubtitleDisplay([], 0);
     };
   }, []);
+
+  // ---- 标注Alert显示：检测当前时间是否在标注范围内，广播给 AnnotationAlertOverlay ----
+  // 标注显示规则：从标注开始时间算起，持续显示3秒后隐藏
+  useEffect(() => {
+    if (annotations.length === 0) {
+      dispatchAnnotationAlert([], currentTime);
+      return;
+    }
+
+    const DISPLAY_DURATION = 3; // 显示持续时间（秒）
+
+    // 找出需要显示的标注
+    const activeAnnotations = annotations.filter((a) => {
+      // 标注尚未开始
+      if (currentTime < a.startTime) return false;
+
+      // 从标注开始时间算起，3秒内显示
+      const timeSinceStart = currentTime - a.startTime;
+      return timeSinceStart < DISPLAY_DURATION;
+    });
+
+    dispatchAnnotationAlert(activeAnnotations, currentTime);
+  }, [currentTime, annotations]);
 
   return (
     <div className="flex h-full w-full flex-col text-muted-foreground">
