@@ -502,6 +502,7 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
           </div>
         ) : (
           // 普通模式：省略显示，活跃时显示卡拉OK字级别高亮
+          // 只改变颜色，不改变字体大小/粗细/padding，避免播放时抖动
           <span className={clsx('text-xs text-foreground truncate leading-tight px-1.5', isDeleted && 'line-through')}>
             {isActive && words && words.length > 0 && currentTime !== undefined
               ? words.map((word, i) => {
@@ -510,7 +511,7 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
                 return (
                   <span
                     key={i}
-                    className={clsx('transition-colors duration-100', isWordActive && 'text-primary font-bold', isPast && 'text-foreground', !isPast && !isWordActive && 'text-foreground/40')}
+                    className={clsx('transition-colors duration-100', isWordActive && 'text-primary', isPast && 'text-foreground', !isPast && !isWordActive && 'text-foreground/40')}
                   >
                     {word.text}
                   </span>

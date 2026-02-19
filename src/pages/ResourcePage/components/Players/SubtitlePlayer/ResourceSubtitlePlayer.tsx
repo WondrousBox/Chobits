@@ -1640,6 +1640,12 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
   // ---- 标注Alert显示：检测当前时间是否在标注范围内，广播给 AnnotationAlertOverlay ----
   // 标注显示规则：从标注开始时间算起，持续显示3秒后隐藏
   useEffect(() => {
+    // 标注轨道未启用时，不显示alert
+    if (!annotationTrackEnabled) {
+      dispatchAnnotationAlert([], currentTime);
+      return;
+    }
+
     if (annotations.length === 0) {
       dispatchAnnotationAlert([], currentTime);
       return;
@@ -1658,7 +1664,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     });
 
     dispatchAnnotationAlert(activeAnnotations, currentTime);
-  }, [currentTime, annotations]);
+  }, [currentTime, annotations, annotationTrackEnabled]);
 
   return (
     <div className="flex h-full w-full flex-col text-muted-foreground">

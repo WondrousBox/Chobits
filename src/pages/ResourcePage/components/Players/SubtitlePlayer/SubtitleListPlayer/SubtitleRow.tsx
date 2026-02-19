@@ -446,6 +446,7 @@ function renderTextWithAnnotations(text: string, highlights?: SegmentAnnotationH
 /**
  * 渲染卡拉OK模式 + 标注高亮的文字
  * words 模式下按字符偏移匹配标注
+ * 只改变颜色，不改变字体大小/粗细/padding，避免播放时抖动
  */
 function renderWordsWithAnnotations(words: WordTimestamp[], currentTime: number, highlights?: SegmentAnnotationHighlight[], onDelete?: (id: string) => void): React.ReactNode {
   if (!highlights || highlights.length === 0) {
@@ -457,7 +458,7 @@ function renderWordsWithAnnotations(words: WordTimestamp[], currentTime: number,
           key={i}
           className={clsx(
             'transition-colors duration-100',
-            isWordActive && 'text-primary font-bold bg-primary/20 rounded-sm',
+            isWordActive && 'text-primary',
             isPast && 'text-foreground',
             !isPast && !isWordActive && 'text-muted-foreground'
           )}
@@ -493,7 +494,7 @@ function renderWordsWithAnnotations(words: WordTimestamp[], currentTime: number,
         key={i}
         className={clsx(
           'transition-colors duration-100',
-          isWordActive && 'text-primary font-bold bg-primary/20 rounded-sm',
+          isWordActive && 'text-primary',
           isPast && 'text-foreground',
           !isPast && !isWordActive && 'text-muted-foreground',
           hl && 'underline decoration-2 decoration-wavy'
