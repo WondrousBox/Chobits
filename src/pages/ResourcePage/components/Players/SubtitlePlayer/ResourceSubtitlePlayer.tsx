@@ -8,9 +8,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 
 import type { ResourceItem } from '../../../types';
+import { ANNOTATION_DELETE_EVENT, type AnnotationMarker, dispatchAnnotationMarkers } from '../MediaPlayer/annotationMarkersEvent';
 import { MediaPlayerRef } from '../MediaPlayer/MediaPlayer';
 import { dispatchSubtitleDisplay, type SubtitleDisplayLine, type WordTimestamp } from '../MediaPlayer/subtitleDisplayEvent';
-import { dispatchAnnotationMarkers, type AnnotationMarker } from '../MediaPlayer/annotationMarkersEvent';
 import { dispatchTrackSettings, TRACK_TOGGLE_EVENT, type TrackSettingsItem, type TrackTogglePayload } from '../MediaPlayer/trackSettingsEvent';
 import { ExportDialog } from './ExportDialog';
 import { SubtitlePlayer } from './SubtitleListPlayer/SubtitlePlayer';
@@ -387,14 +387,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
   });
 
   // 使用标注 Hook
-  const {
-    annotations,
-    addAnnotation,
-    removeAnnotation,
-    updateAnnotation,
-    getSegmentHighlights,
-    annotationsBySegment
-  } = useAnnotations({ resourceId: resource.id });
+  const { annotations, addAnnotation, removeAnnotation, updateAnnotation, getSegmentHighlights, annotationsBySegment } = useAnnotations({ resourceId: resource.id });
 
   // 使用TTS合成 Hook（多轨道）
   const {
@@ -1499,7 +1492,20 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     }
 
     dispatchTrackSettings(items);
-  }, [subtitleTrackEnabledMap, ttsTrackEnabledMap, clipTrackEnabled, annotationTrackEnabled, translationTrackMeta, translationTracks.length, typingTexts.length, synthesizedItemsByTrack, isSynthesizing, showClipTrack, showAnnotationTrack, annotations.length]);
+  }, [
+    subtitleTrackEnabledMap,
+    ttsTrackEnabledMap,
+    clipTrackEnabled,
+    annotationTrackEnabled,
+    translationTrackMeta,
+    translationTracks.length,
+    typingTexts.length,
+    synthesizedItemsByTrack,
+    isSynthesizing,
+    showClipTrack,
+    showAnnotationTrack,
+    annotations.length
+  ]);
 
   // 组件卸载时清空轨道设置
   useEffect(() => {
@@ -1529,6 +1535,16 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
       dispatchAnnotationMarkers([]);
     };
   }, []);
+
+  // ---- 监听进度条上的标注删除请求 ----
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const annotationId = (e as CustomEvent<string>).detail;
+      removeAnnotation(annotationId);
+    };
+    window.addEventListener(ANNOTATION_DELETE_EVENT, handler);
+    return () => window.removeEventListener(ANNOTATION_DELETE_EVENT, handler);
+  }, [removeAnnotation]);
 
   // ---- 监听播放器控制栏的轨道切换请求 ----
   useEffect(() => {

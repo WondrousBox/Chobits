@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TbBookmark, TbCamera, TbHighlight, TbMaximize, TbMinimize, TbNote, TbPlayerPause, TbPlayerPlay, TbSettings, TbVocabulary, TbVolume, TbVolumeOff } from 'react-icons/tb';
+import { TbBookmark, TbCamera, TbHighlight, TbMaximize, TbMinimize, TbNote, TbPlayerPause, TbPlayerPlay, TbSettings, TbTrash, TbVocabulary, TbVolume, TbVolumeOff } from 'react-icons/tb';
 
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
-import { ANNOTATION_MARKERS_UPDATE_EVENT, type AnnotationMarker } from './annotationMarkersEvent';
+import { ANNOTATION_MARKERS_UPDATE_EVENT, type AnnotationMarker, dispatchAnnotationDelete } from './annotationMarkersEvent';
 import { TrackSettingsPopover } from './TrackSettingsPopover';
 
 // 标注类型图标映射
@@ -161,6 +162,9 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({ currentTime, duration, 
   const [dragValue, setDragValue] = useState(0);
   const seekTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [annotationMarkers, setAnnotationMarkers] = useState<AnnotationMarker[]>([]);
+  // 删除确认对话框状态
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [markerToDelete, setMarkerToDelete] = useState<AnnotationMarker | null>(null);
 
   // 监听标注标记更新事件
   useEffect(() => {
@@ -256,6 +260,11 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({ currentTime, duration, 
             const width = Math.max(((marker.endTime - marker.startTime) / duration) * 100, 0.3);
             const color = marker.color || 'hsl(48, 95%, 55%)';
 
+            const handleDeleteClick = () => {
+              setMarkerToDelete(marker);
+              setDeleteDialogOpen(true);
+            };
+
             return (
               <Tooltip key={marker.id}>
                 <TooltipTrigger asChild>
@@ -271,9 +280,14 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({ currentTime, duration, 
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-[250px]">
                   <div className="text-xs space-y-1">
-                    <div className="flex items-center gap-1.5">
-                      <span style={{ color }}>{ANNOTATION_TYPE_ICONS[marker.type] || ANNOTATION_TYPE_ICONS.custom}</span>
-                      <span className="font-medium">{marker.title || marker.type}</span>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <span style={{ color }}>{ANNOTATION_TYPE_ICONS[marker.type] || ANNOTATION_TYPE_ICONS.custom}</span>
+                        <span className="font-medium">{marker.title || marker.type}</span>
+                      </div>
+                      <button onClick={handleDeleteClick} className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors" title="删除标注">
+                        <TbTrash className="w-3 h-3" />
+                      </button>
                     </div>
                     {marker.text && <div className="text-muted-foreground italic">「{marker.text}」</div>}
                     {marker.description && <div className="text-muted-foreground text-[10px] line-clamp-3">{marker.description}</div>}
@@ -287,6 +301,30 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({ currentTime, duration, 
           })}
         </div>
       )}
+
+      {/* 删除确认对话框 */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除标注</AlertDialogTitle>
+            <AlertDialogDescription>确定要删除此标注吗？此操作无法撤销。</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (markerToDelete) {
+                  dispatchAnnotationDelete(markerToDelete.id);
+                  setMarkerToDelete(null);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

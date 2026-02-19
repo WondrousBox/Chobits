@@ -26,12 +26,22 @@ export interface AnnotationMarker {
 }
 
 export const ANNOTATION_MARKERS_UPDATE_EVENT = 'custom:annotation-markers-update';
+export const ANNOTATION_DELETE_EVENT = 'custom:annotation-delete';
 
 /** 广播标注标记列表（由 ResourceSubtitlePlayer 调用） */
 export function dispatchAnnotationMarkers(markers: AnnotationMarker[]): void {
   window.dispatchEvent(
     new CustomEvent<AnnotationMarker[]>(ANNOTATION_MARKERS_UPDATE_EVENT, {
       detail: markers
+    })
+  );
+}
+
+/** 请求删除标注（由 ProgressSlider 调用） */
+export function dispatchAnnotationDelete(annotationId: string): void {
+  window.dispatchEvent(
+    new CustomEvent<string>(ANNOTATION_DELETE_EVENT, {
+      detail: annotationId
     })
   );
 }
