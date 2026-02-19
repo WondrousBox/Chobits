@@ -4,6 +4,9 @@ import { TbHighlight, TbLoader2, TbNote, TbVocabulary, TbX } from 'react-icons/t
 
 import { Button } from '@/components/ui/button';
 
+import ServiceInstanceSelect from '@/pages/ChatPage/components/ServiceInstanceSelect';
+import { useChatSelection } from '@/pages/ChatPage/context/ChatSelectionContext';
+
 import type { AddAnnotationParams, AnnotationType } from '../useAnnotations';
 
 interface AnnotationPopoverProps {
@@ -41,6 +44,8 @@ const VOCABULARY_SYSTEM_PROMPT = `你是一个语言学习助手。用户会给�
 释义：xxx
 例句：xxx`;
 
+type PanelView = 'actions' | 'note-form' | 'vocabulary-model-select';
+
 /**
  * 标注操作浮窗
  *
@@ -48,7 +53,7 @@ const VOCABULARY_SYSTEM_PROMPT = `你是一个语言学习助手。用户会给�
  * 靠近视口底部时自动翻转到上方。
  */
 export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedText, selectionRect, startTime, endTime, segmentIndex, wordStartIndex, wordEndIndex, onAdd, onClose, onExitEditing }) => {
-  const [showForm, setShowForm] = useState(false);
+  const [panelView, setPanelView] = useState<PanelView>('actions');
   const [content, setContent] = useState(''); // 统一的内容输入
   const [annotationType, setAnnotationType] = useState<AnnotationType>('note');
   /** 是否需要翻转到选区上方 */
@@ -58,18 +63,23 @@ export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedTe
   const popoverRef = useRef<HTMLDivElement>(null);
   const contentInputRef = useRef<HTMLTextAreaElement>(null);
 
+  // 模型选择
+  const { providerId, instanceId, setProviderId, setInstanceId } = useChatSelection();
+
   // 计算是否需要翻转位置
   useEffect(() => {
     const checkFlip = () => {
       const spaceBelow = window.innerHeight - selectionRect.bottom;
-      // 面板高度：按钮行约 48px，表单约 280px
-      const neededHeight = showForm ? 280 : 48;
+      // 面板高度：按钮行约 48px，备注表单约 280px，模型选择约 120px
+      let neededHeight = 48;
+      if (panelView === 'note-form') neededHeight = 280;
+      else if (panelView === 'vocabulary-model-select') neededHeight = 120;
       setFlipAbove(spaceBelow < neededHeight);
     };
     checkFlip();
     window.addEventListener('resize', checkFlip);
     return () => window.removeEventListener('resize', checkFlip);
-  }, [selectionRect.bottom, showForm]);
+  }, [selectionRect.bottom, panelView]);
 
   // 视口边界钳制：确保浮窗不超出屏幕
   useLayoutEffect(() => {
@@ -107,10 +117,10 @@ export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedTe
 
   // 展开表单时自动聚焦内容输入框
   useEffect(() => {
-    if (showForm) {
+    if (panelView === 'note-form') {
       contentInputRef.current?.focus();
     }
-  }, [showForm]);
+  }, [panelView]);
 
   // Esc 关闭
   useEffect(() => {
@@ -145,11 +155,18 @@ export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedTe
 
   const handleQuickNote = useCallback(() => {
     setAnnotationType('note');
-    setShowForm(true);
+    setPanelView('note-form');
+  }, []);
+
+  /** 点击单词表按钮 - 显示模型选择 */
+  const handleVocabularyClick = useCallback(() => {
+    setPanelView('vocabulary-model-select');
   }, []);
 
   /** 生成单词表 - 调用 AI */
   const handleGenerateVocabulary = useCallback(async () => {
+    if (!providerId || !instanceId) return;
+
     setIsGeneratingVocabulary(true);
     try {
       const resultText = await new Promise<string>((resolve, reject) => {
@@ -163,7 +180,9 @@ export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedTe
                 { role: 'user', content: `请分析以下文本，提取其中的单词和短语：\n\n${selectedText}` }
               ],
               stream: true,
-              persist: false
+              persist: false,
+              providerId,
+              providerInstanceId: instanceId
             },
             (event) => {
               if (event.type === 'delta' && event.data?.text) {
@@ -205,7 +224,7 @@ export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedTe
     } finally {
       setIsGeneratingVocabulary(false);
     }
-  }, [selectedText, startTime, endTime, segmentIndex, wordStartIndex, wordEndIndex, onAdd, onClose]);
+  }, [selectedText, startTime, endTime, segmentIndex, wordStartIndex, wordEndIndex, onAdd, onClose, providerId, instanceId]);
 
   const handleFormSubmit = useCallback(() => {
     // 备注类型：内容存到 description 字段
@@ -253,7 +272,7 @@ export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedTe
       }}
       onMouseDown={handlePopoverMouseDown}
     >
-      {!showForm ? (
+      {panelView === 'actions' ? (
         /* 快捷操作面板 */
         <div
           className="bg-popover text-popover-foreground border rounded-lg shadow-xl
@@ -271,9 +290,9 @@ export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedTe
               <TbNote className="w-4 h-4 text-blue-500" />
               备注
             </Button>
-            <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs" onClick={handleGenerateVocabulary} disabled={isGeneratingVocabulary} title="AI 生成单词表">
-              {isGeneratingVocabulary ? <TbLoader2 className="w-4 h-4 text-green-500 animate-spin" /> : <TbVocabulary className="w-4 h-4 text-green-500" />}
-              {isGeneratingVocabulary ? '生成中...' : '单词表'}
+            <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs" onClick={handleVocabularyClick} title="AI 生成单词表">
+              <TbVocabulary className="w-4 h-4 text-green-500" />
+              单词表
             </Button>
             <Button variant="ghost" size="sm" className="h-8 w-8 p-0 ml-auto" onClick={onClose} title="关闭">
               <TbX className="w-4 h-4" />
@@ -282,8 +301,58 @@ export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedTe
           {/* 下方小三角指示器（当面板在上方时） */}
           {flipAbove && <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rotate-45 bg-popover border-r border-b border-border" />}
         </div>
+      ) : panelView === 'vocabulary-model-select' ? (
+        /* 单词表模型选择面板 */
+        <div
+          className="bg-popover text-popover-foreground border rounded-lg shadow-xl
+            animate-in fade-in slide-in-from-top-1 duration-200
+            relative"
+          style={{ minWidth: 280 }}
+        >
+          {!flipAbove && <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rotate-45 bg-popover border-l border-t border-border" />}
+          <div className="p-3 space-y-2 relative z-10">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-muted-foreground">AI 生成单词表</span>
+              <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={onClose}>
+                <TbX className="w-3 h-3" />
+              </Button>
+            </div>
+            <div className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1 truncate" title={selectedText}>
+              「{selectedText}」
+            </div>
+            <div className="flex items-center gap-2">
+              <ServiceInstanceSelect
+                providerId={providerId}
+                instanceId={instanceId}
+                onChange={(pid, iid) => {
+                  setProviderId(pid);
+                  setInstanceId(iid);
+                }}
+                buttonVariant="outline"
+                buttonSize="sm"
+                placeholder="选择模型"
+              />
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setPanelView('actions')}>
+                返回
+              </Button>
+              <Button size="sm" className="h-7 text-xs" onClick={handleGenerateVocabulary} disabled={!providerId || !instanceId || isGeneratingVocabulary}>
+                {isGeneratingVocabulary ? (
+                  <>
+                    <TbLoader2 className="w-3 h-3 mr-1 animate-spin" />
+                    生成中...
+                  </>
+                ) : (
+                  '生成'
+                )}
+              </Button>
+            </div>
+          </div>
+          {flipAbove && <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rotate-45 bg-popover border-r border-b border-border" />}
+        </div>
       ) : (
-        /* 详细表单 */
+        /* 备注表单 */
         <div
           className="bg-popover text-popover-foreground border rounded-lg shadow-xl
             animate-in fade-in slide-in-from-top-1 duration-200
@@ -310,7 +379,7 @@ export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedTe
               className="w-full px-2 py-1.5 text-sm border rounded bg-background text-foreground outline-none focus:ring-1 focus:ring-ring resize-none"
             />
             <div className="flex items-center justify-end gap-2">
-              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setShowForm(false)}>
+              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setPanelView('actions')}>
                 返回
               </Button>
               <Button size="sm" className="h-7 text-xs" onClick={handleFormSubmit}>

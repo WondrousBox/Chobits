@@ -8,7 +8,7 @@ import { BroadcastChannelManager, CHANNEL_NAMES, type MediaSyncMessage } from '@
 import type { ResourceItem } from '../types';
 import { isAudioFile, isImageFile, isVideoFile, makeResSrc } from '../utils/resourceProtocol';
 import { isSubtitleFile } from '../utils/subtitleUtils';
-import { ImagePlayer, MediaPlayer, SubtitleOverlay } from './Players';
+import { AnnotationAlertOverlay, ImagePlayer, MediaPlayer, SubtitleOverlay } from './Players';
 import type { MediaPlayerRef } from './Players/MediaPlayer/MediaPlayer';
 import ResourceTabs from './ResourceTabs';
 
@@ -187,6 +187,7 @@ const ResourcePreviewPanel: React.FC<ResourcePreviewPanelProps> = ({ resource, r
             onScreenshot={handleScreenshot}
           >
             <SubtitleOverlay />
+            <AnnotationAlertOverlay />
           </MediaPlayer>
         </div>
       );

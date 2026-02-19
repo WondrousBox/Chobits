@@ -1,3 +1,4 @@
+export { AnnotationAlertOverlay } from './MediaPlayer/AnnotationAlertOverlay';
 export { ImagePlayer } from './ImagePlayer';
 export { MediaPlayer } from './MediaPlayer';
 export { SubtitleOverlay } from './MediaPlayer/SubtitleOverlay';
