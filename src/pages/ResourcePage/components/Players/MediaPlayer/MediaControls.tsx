@@ -267,6 +267,10 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({ currentTime, duration, 
                       minWidth: 6,
                       backgroundColor: color
                     }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSeek(marker.startTime);
+                    }}
                   />
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-[250px]">

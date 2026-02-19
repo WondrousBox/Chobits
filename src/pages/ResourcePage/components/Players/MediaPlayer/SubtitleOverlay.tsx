@@ -8,6 +8,7 @@ interface SubtitleOverlayProps {
 
 /**
  * 渲染卡拉OK式字级别高亮的字幕文本
+ * 只改变颜色，不改变字体大小/粗细/padding，避免播放时抖动
  */
 const KaraokeText: React.FC<{ words: WordTimestamp[]; currentTime: number }> = ({ words, currentTime }) => {
   return (
@@ -18,7 +19,7 @@ const KaraokeText: React.FC<{ words: WordTimestamp[]; currentTime: number }> = (
         return (
           <span
             key={i}
-            className={isActive ? 'text-yellow-300 font-bold transition-colors duration-100' : isPast ? 'text-white/90 transition-colors duration-100' : 'text-white/50 transition-colors duration-100'}
+            className={`transition-colors duration-100 ${isActive ? 'text-yellow-300' : isPast ? 'text-white/90' : 'text-white/50'}`}
           >
             {word.text}
           </span>
