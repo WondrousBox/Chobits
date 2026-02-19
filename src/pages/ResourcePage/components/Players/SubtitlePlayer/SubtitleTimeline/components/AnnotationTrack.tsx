@@ -75,11 +75,7 @@ export const AnnotationTrack: React.FC<AnnotationTrackProps> = ({ annotations, t
                 onClick={() => callbacks?.onAnnotationClick?.(annotation)}
                 onContextMenu={(e) => {
                   e.preventDefault();
-                  if (callbacks?.onAnnotationDelete) {
-                    if (window.confirm('删除此标注？')) {
-                      callbacks.onAnnotationDelete(annotation.id);
-                    }
-                  }
+                  callbacks?.onAnnotationDelete?.(annotation.id);
                 }}
               >
                 <span style={{ color }} className="text-xs opacity-80">
@@ -92,18 +88,27 @@ export const AnnotationTrack: React.FC<AnnotationTrackProps> = ({ annotations, t
                 )}
               </div>
             </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-[250px]">
-              <div className="text-xs space-y-1">
-                <div className="flex items-center gap-1.5">
-                  <span style={{ color }}>{ANNOTATION_TYPE_ICONS[annotation.type]}</span>
-                  <span className="font-medium">{annotation.title || annotation.type}</span>
+            <TooltipContent side="top" className="max-w-[200px]">
+              <div className="text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    {annotation.title && <div className="font-medium truncate">{annotation.title}</div>}
+                    {annotation.description && <div className="text-muted-foreground mt-0.5 line-clamp-2">{annotation.description}</div>}
+                    {/* 高亮类型不显示类型文字 */}
+                    {!annotation.title && !annotation.description && annotation.type !== 'highlight' && (
+                      <div className="text-muted-foreground">{annotation.type}</div>
+                    )}
+                  </div>
+                  {callbacks?.onAnnotationDelete && (
+                    <button
+                      onClick={() => callbacks.onAnnotationDelete?.(annotation.id)}
+                      className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                      title="删除标注"
+                    >
+                      <TbTrash className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
-                <div className="text-muted-foreground italic">「{annotation.text}」</div>
-                {annotation.description && <div className="text-muted-foreground">{annotation.description}</div>}
-                <div className="text-muted-foreground/60 text-[10px]">
-                  {formatTime(annotation.startTime)} → {formatTime(annotation.endTime)}
-                </div>
-                {callbacks?.onAnnotationDelete && <div className="text-muted-foreground/50 text-[10px]">右键删除</div>}
               </div>
             </TooltipContent>
           </Tooltip>
@@ -112,9 +117,3 @@ export const AnnotationTrack: React.FC<AnnotationTrackProps> = ({ annotations, t
     </div>
   );
 };
-
-function formatTime(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}

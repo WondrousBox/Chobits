@@ -23,6 +23,8 @@ interface AnnotationPopoverProps {
   onAdd: (params: AddAnnotationParams) => void;
   /** 关闭回调 */
   onClose: () => void;
+  /** 退出编辑模式回调（用于高亮类型标注后退出编辑，以便显示波浪线） */
+  onExitEditing?: () => void;
 }
 
 /** AI 生成单词表的系统提示词 */
@@ -45,17 +47,16 @@ const VOCABULARY_SYSTEM_PROMPT = `你是一个语言学习助手。用户会给�
  * 选中文本后直接在选区下方显示操作面板，支持快速高亮、备注、单词表等操作。
  * 靠近视口底部时自动翻转到上方。
  */
-export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedText, selectionRect, startTime, endTime, segmentIndex, wordStartIndex, wordEndIndex, onAdd, onClose }) => {
+export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedText, selectionRect, startTime, endTime, segmentIndex, wordStartIndex, wordEndIndex, onAdd, onClose, onExitEditing }) => {
   const [showForm, setShowForm] = useState(false);
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+  const [content, setContent] = useState(''); // 统一的内容输入
   const [annotationType, setAnnotationType] = useState<AnnotationType>('note');
   /** 是否需要翻转到选区上方 */
   const [flipAbove, setFlipAbove] = useState(false);
   /** 是否正在生成单词表 */
   const [isGeneratingVocabulary, setIsGeneratingVocabulary] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
-  const titleInputRef = useRef<HTMLInputElement>(null);
+  const contentInputRef = useRef<HTMLTextAreaElement>(null);
 
   // 计算是否需要翻转位置
   useEffect(() => {
@@ -104,10 +105,10 @@ export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedTe
     };
   }, [onClose]);
 
-  // 展开表单时自动聚焦标题输入框
+  // 展开表单时自动聚焦内容输入框
   useEffect(() => {
     if (showForm) {
-      titleInputRef.current?.focus();
+      contentInputRef.current?.focus();
     }
   }, [showForm]);
 
@@ -139,7 +140,8 @@ export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedTe
 
   const handleQuickHighlight = useCallback(() => {
     createAnnotation('highlight');
-  }, [createAnnotation]);
+    onExitEditing?.(); // 高亮类型标注后退出编辑模式，以便显示波浪线
+  }, [createAnnotation, onExitEditing]);
 
   const handleQuickNote = useCallback(() => {
     setAnnotationType('note');
@@ -206,8 +208,9 @@ export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedTe
   }, [selectedText, startTime, endTime, segmentIndex, wordStartIndex, wordEndIndex, onAdd, onClose]);
 
   const handleFormSubmit = useCallback(() => {
-    createAnnotation(annotationType, { title: title.trim() || undefined, description: description.trim() || undefined });
-  }, [createAnnotation, annotationType, title, description]);
+    // 备注类型：内容存到 description 字段
+    createAnnotation(annotationType, { description: content.trim() || undefined });
+  }, [createAnnotation, annotationType, content]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -285,7 +288,7 @@ export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedTe
           className="bg-popover text-popover-foreground border rounded-lg shadow-xl
             animate-in fade-in slide-in-from-top-1 duration-200
             relative"
-          style={{ minWidth: 280 }}
+          style={{ minWidth: 260 }}
         >
           {!flipAbove && <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 rotate-45 bg-popover border-l border-t border-border" />}
           <div className="p-3 space-y-2 relative z-10">
@@ -298,19 +301,11 @@ export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedTe
             <div className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1 truncate" title={selectedText}>
               「{selectedText}」
             </div>
-            <input
-              ref={titleInputRef}
-              type="text"
-              placeholder="标题（可选）"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="w-full h-8 px-2 text-sm border rounded bg-background text-foreground outline-none focus:ring-1 focus:ring-ring"
-            />
             <textarea
-              placeholder="描述（可选）"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              ref={contentInputRef}
+              placeholder="备注内容（可选）"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
               rows={2}
               className="w-full px-2 py-1.5 text-sm border rounded bg-background text-foreground outline-none focus:ring-1 focus:ring-ring resize-none"
             />

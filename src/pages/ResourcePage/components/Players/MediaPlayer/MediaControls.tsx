@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { TbBookmark, TbCamera, TbHighlight, TbMaximize, TbMinimize, TbNote, TbPlayerPause, TbPlayerPlay, TbSettings, TbTrash, TbVocabulary, TbVolume, TbVolumeOff } from 'react-icons/tb';
 
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -162,9 +161,6 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({ currentTime, duration, 
   const [dragValue, setDragValue] = useState(0);
   const seekTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [annotationMarkers, setAnnotationMarkers] = useState<AnnotationMarker[]>([]);
-  // 删除确认对话框状态
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [markerToDelete, setMarkerToDelete] = useState<AnnotationMarker | null>(null);
 
   // 监听标注标记更新事件
   useEffect(() => {
@@ -260,11 +256,6 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({ currentTime, duration, 
             const width = Math.max(((marker.endTime - marker.startTime) / duration) * 100, 0.3);
             const color = marker.color || 'hsl(48, 95%, 55%)';
 
-            const handleDeleteClick = () => {
-              setMarkerToDelete(marker);
-              setDeleteDialogOpen(true);
-            };
-
             return (
               <Tooltip key={marker.id}>
                 <TooltipTrigger asChild>
@@ -283,9 +274,15 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({ currentTime, duration, 
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5">
                         <span style={{ color }}>{ANNOTATION_TYPE_ICONS[marker.type] || ANNOTATION_TYPE_ICONS.custom}</span>
-                        <span className="font-medium">{marker.title || marker.type}</span>
+                        {/* 高亮类型不显示类型文字，其他类型显示 title 或 type */}
+                        {marker.type !== 'highlight' && <span className="font-medium">{marker.title || marker.type}</span>}
+                        {marker.type === 'highlight' && marker.title && <span className="font-medium">{marker.title}</span>}
                       </div>
-                      <button onClick={handleDeleteClick} className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors" title="删除标注">
+                      <button
+                        onClick={() => dispatchAnnotationDelete(marker.id)}
+                        className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors"
+                        title="删除标注"
+                      >
                         <TbTrash className="w-3 h-3" />
                       </button>
                     </div>
@@ -301,30 +298,6 @@ const ProgressSlider: React.FC<ProgressSliderProps> = ({ currentTime, duration, 
           })}
         </div>
       )}
-
-      {/* 删除确认对话框 */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>删除标注</AlertDialogTitle>
-            <AlertDialogDescription>确定要删除此标注吗？此操作无法撤销。</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (markerToDelete) {
-                  dispatchAnnotationDelete(markerToDelete.id);
-                  setMarkerToDelete(null);
-                }
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              删除
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 };
