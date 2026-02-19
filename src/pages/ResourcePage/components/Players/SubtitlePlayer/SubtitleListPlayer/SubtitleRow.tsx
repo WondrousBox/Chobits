@@ -4,7 +4,6 @@ import React, { useCallback, useRef, useState } from 'react';
 import Textarea from 'react-expanding-textarea';
 import { TbArrowMerge, TbTrash } from 'react-icons/tb';
 
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -92,24 +91,7 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({
     startTime: number;
     endTime: number;
   } | null>(null);
-  /** 删除确认对话框状态 */
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [annotationToDelete, setAnnotationToDelete] = useState<{ id: string; title?: string } | null>(null);
   const textContainerRef = useRef<HTMLDivElement>(null);
-
-  // 打开删除确认对话框
-  const openDeleteDialog = useCallback((annotationId: string, title?: string) => {
-    setAnnotationToDelete({ id: annotationId, title });
-    setDeleteDialogOpen(true);
-  }, []);
-
-  // 确认删除
-  const confirmDelete = useCallback(() => {
-    if (annotationToDelete && onRemoveAnnotation) {
-      onRemoveAnnotation(annotationToDelete.id);
-    }
-    setAnnotationToDelete(null);
-  }, [annotationToDelete, onRemoveAnnotation]);
 
   // 使用传入的 rowRef 或内部的 ref
   const currentRowRef = rowRef || internalRowRef;
@@ -378,8 +360,8 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({
             onMouseUp={handleTextMouseUp}
           >
             {isActive && words && words.length > 0
-              ? renderWordsWithAnnotations(words, currentTime, annotationHighlights, openDeleteDialog)
-              : renderTextWithAnnotations(segment.text?.trim() || '\u200b', annotationHighlights, openDeleteDialog)}
+              ? renderWordsWithAnnotations(words, currentTime, annotationHighlights, onRemoveAnnotation)
+              : renderTextWithAnnotations(segment.text?.trim() || '\u200b', annotationHighlights, onRemoveAnnotation)}
           </div>
         </div>
       )}
@@ -412,31 +394,13 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({
               inputRef.current.selectionStart = pos;
             }
           }}
+          onExitEditing={() => {
+            setIsEditing(false);
+            setAnnotationPopover(null);
+            window.getSelection()?.removeAllRanges();
+          }}
         />
       )}
-
-      {/* 删除确认对话框 */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>删除标注</AlertDialogTitle>
-            <AlertDialogDescription>
-              {annotationToDelete?.title
-                ? `确定要删除标注「${annotationToDelete.title}」吗？此操作无法撤销。`
-                : '确定要删除此标注吗？此操作无法撤销。'}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              删除
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 };
@@ -446,7 +410,7 @@ export const SubtitleRow: React.FC<SubtitleRowProps> = ({
 /**
  * 渲染带标注高亮的纯文本（非卡拉OK模式）
  */
-function renderTextWithAnnotations(text: string, highlights?: SegmentAnnotationHighlight[], openDeleteDialog?: (id: string, title?: string) => void): React.ReactNode {
+function renderTextWithAnnotations(text: string, highlights?: SegmentAnnotationHighlight[], onDelete?: (id: string) => void): React.ReactNode {
   if (!highlights || highlights.length === 0) return text;
 
   // 按 startIndex 排序
@@ -466,7 +430,7 @@ function renderTextWithAnnotations(text: string, highlights?: SegmentAnnotationH
 
     // 高亮部分
     const hlText = text.slice(start, end);
-    parts.push(<AnnotationHighlightSpan key={`a-${hl.id}`} highlight={hl} text={hlText} openDeleteDialog={openDeleteDialog} />);
+    parts.push(<AnnotationHighlightSpan key={`a-${hl.id}`} highlight={hl} text={hlText} onDelete={onDelete} />);
 
     lastEnd = end;
   }
@@ -483,7 +447,7 @@ function renderTextWithAnnotations(text: string, highlights?: SegmentAnnotationH
  * 渲染卡拉OK模式 + 标注高亮的文字
  * words 模式下按字符偏移匹配标注
  */
-function renderWordsWithAnnotations(words: WordTimestamp[], currentTime: number, highlights?: SegmentAnnotationHighlight[], openDeleteDialog?: (id: string, title?: string) => void): React.ReactNode {
+function renderWordsWithAnnotations(words: WordTimestamp[], currentTime: number, highlights?: SegmentAnnotationHighlight[], onDelete?: (id: string) => void): React.ReactNode {
   if (!highlights || highlights.length === 0) {
     return words.map((word, i) => {
       const isWordActive = currentTime >= word.st && currentTime < word.et;
@@ -551,11 +515,12 @@ function renderWordsWithAnnotations(words: WordTimestamp[], currentTime: number,
                 <div className="flex-1 min-w-0">
                   {hl.title && <div className="font-medium truncate">{hl.title}</div>}
                   {hl.description && <div className="text-muted-foreground mt-0.5 line-clamp-2">{hl.description}</div>}
-                  {!hl.title && !hl.description && <div className="text-muted-foreground">{hl.type}</div>}
+                  {/* 高亮类型不显示类型文字 */}
+                  {!hl.title && !hl.description && hl.type !== 'highlight' && <div className="text-muted-foreground">{hl.type}</div>}
                 </div>
-                {openDeleteDialog && (
+                {onDelete && (
                   <button
-                    onClick={() => openDeleteDialog(hl.id, hl.title)}
+                    onClick={() => onDelete(hl.id)}
                     className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors shrink-0"
                     title="删除标注"
                   >
@@ -574,22 +539,13 @@ function renderWordsWithAnnotations(words: WordTimestamp[], currentTime: number,
 }
 
 /**
- * 标注高亮文字片段（带 Tooltip 和右键删除）
+ * 标注高亮文字片段（带 Tooltip）
  */
 const AnnotationHighlightSpan: React.FC<{
   highlight: SegmentAnnotationHighlight;
   text: string;
-  openDeleteDialog?: (id: string, title?: string) => void;
-}> = ({ highlight, text, openDeleteDialog }) => {
-  const handleContextMenu = useCallback(
-    (e: React.MouseEvent) => {
-      if (!openDeleteDialog) return;
-      e.preventDefault();
-      openDeleteDialog(highlight.id, highlight.title);
-    },
-    [highlight.id, highlight.title, openDeleteDialog]
-  );
-
+  onDelete?: (id: string) => void;
+}> = ({ highlight, text, onDelete }) => {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -599,7 +555,6 @@ const AnnotationHighlightSpan: React.FC<{
             textDecorationColor: highlight.color,
             backgroundColor: `${highlight.color}20`
           }}
-          onContextMenu={handleContextMenu}
         >
           {text}
         </span>
@@ -610,11 +565,12 @@ const AnnotationHighlightSpan: React.FC<{
             <div className="flex-1 min-w-0">
               {highlight.title && <div className="font-medium truncate">{highlight.title}</div>}
               {highlight.description && <div className="text-muted-foreground mt-0.5 line-clamp-2">{highlight.description}</div>}
-              {!highlight.title && !highlight.description && <div className="text-muted-foreground">{highlight.type}</div>}
+              {/* 高亮类型不显示类型文字 */}
+              {!highlight.title && !highlight.description && highlight.type !== 'highlight' && <div className="text-muted-foreground">{highlight.type}</div>}
             </div>
-            {openDeleteDialog && (
+            {onDelete && (
               <button
-                onClick={() => openDeleteDialog(highlight.id, highlight.title)}
+                onClick={() => onDelete(highlight.id)}
                 className="p-1 rounded hover:bg-destructive/20 text-muted-foreground hover:text-destructive transition-colors shrink-0"
                 title="删除标注"
               >
