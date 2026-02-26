@@ -26,6 +26,7 @@ import { trashIpcRenderer } from '../main/handlers/trash/ipc-renderer';
 import { workspaceIpcRenderer } from '../main/handlers/workspace/ipc-renderer';
 import { ytdlpIpcRenderer } from '../main/handlers/ytdlp/ipc-renderer';
 import { arch, isLinux, isMac, isMacIntel, isWindows, platform } from '../main/utils/os';
+import { personaApi } from './apis/persona';
 import { shortcutsBridge } from './apis/shortcuts';
 import { spriteBridge } from './apis/sprite';
 import { statusBridge } from './apis/status';
@@ -78,6 +79,7 @@ contextBridge.exposeInMainWorld('YUA', {
   videoDownloader: downloaderIpcRenderer,
   sprite: spriteBridge,
   status: statusBridge,
+  persona: personaApi,
   shortcuts: shortcutsBridge,
   ai: aiBridge,
   recorder: recorderIpcRenderer,

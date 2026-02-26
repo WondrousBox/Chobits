@@ -1,0 +1,8 @@
+{
+  "name": "@packages/sprite-core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Desktop sprite gamification core engine",
+  "main": "index.ts",
+  "types": "index.ts"
+}

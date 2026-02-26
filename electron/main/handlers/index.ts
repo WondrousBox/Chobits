@@ -19,6 +19,7 @@ import { initVectorHandlers } from './embedding/ipc-main';
 import { initFFmpegHandlers } from './ffmpeg/ipc-main';
 import { initFileHandlers } from './file/ipc-main';
 import { initFolderHandlers } from './folder/ipc-main';
+import { initPersonaStateHandlers } from './persona-state-ipc';
 import { initPreferencesHandlers } from './preferences/ipc-main';
 import { initProxyHandlers } from './proxy/ipc-main';
 import { getHttpProxy } from './proxy/proxy';
@@ -35,7 +36,7 @@ import { initWindowHandlers } from './window';
 import { initWorkspaceHandlers } from './workspace/ipc-main';
 import { initYtDlpHandlers } from './ytdlp/ipc-main';
 
-export function initHandlers(win: BrowserWindow): void {
+export async function initHandlers(win: BrowserWindow): Promise<void> {
   console.log(process.versions);
 
   initWindowHandlers(win);
@@ -96,4 +97,5 @@ export function initHandlers(win: BrowserWindow): void {
   initSkillTreeHandlers();
   initClipHandlers();
   initAnnotationHandlers();
+  await initPersonaStateHandlers(win);
 }

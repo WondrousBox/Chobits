@@ -52,7 +52,7 @@
     "@ai-sdk/google": "^3.0.10",
     "@ai-sdk/openai": "^3.0.12",
     "@aim-packages/downloader": "^0.1.0",
-    "@aim-packages/file-utils": "^0.0.9",
+    "@aim-packages/file-utils": "^0.2.0",
     "@aim-packages/subtitle": "^0.5.1",
     "@aim-packages/window-manager": "^0.1.1",
     "@anthropic-ai/sdk": "^0.67.0",
