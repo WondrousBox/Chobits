@@ -3,17 +3,16 @@
  * - 职责：拼装 UI（VideoSprite、统一消息组件、指示器）与行为 hooks（初始化、拖动、穿透、行走、文件拖拽）。
  * - 约束：不在此文件内编写复杂业务逻辑/IPC 调用，逻辑统一下沉到 hooks/services。
  */
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import Dropzone from '../common/Dropzone';
-import { createBehaviors } from './behaviors';
+import { useSpritePersona } from './context/SpritePersonaContext';
 import { useSpritePlayer } from './context/SpritePlayerContext';
 import useAssistant from './hooks';
-import { useBehaviorScheduler } from './hooks/useBehaviorScheduler';
 import useClickThrough from './hooks/useClickThrough';
 import useDragMove from './hooks/useDragMove';
 import useFileDrop from './hooks/useFileDrop';
-import useSpriteEventController from './hooks/useSpriteEventController';
+import useSpriteStateBridge from './hooks/useSpriteStateBridge';
 import useWalkAnimation from './hooks/useWalkAnimation';
 import { MessageProvider, SpriteMessage, useMessageSync } from './message';
 import { Renderer } from './renderers';
@@ -24,8 +23,9 @@ const showBlock = false; // 开发时显示
 
 /** 内部组件：包含实际逻辑 */
 const AIAssistantInner: React.FC = () => {
-  const { padding: paddingState, screenSize, messageState, setAssistantState } = useAssistant();
+  const { padding: paddingState, screenSize, messageState, setMessageState } = useAssistant();
   const { current: currentSprite, play: playAnimation, stop: stopAnimation } = useSpritePlayer();
+  const { stateMachine, eventBus, behaviorEngine } = useSpritePersona();
   const [isHovering, setIsHovering] = useState(false);
   const [autoWalkEnabled, setAutoWalkEnabled] = useState(true);
 
@@ -39,7 +39,10 @@ const AIAssistantInner: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const { setClickThrough } = useClickThrough(containerRef);
   const { animateMoveWindow, stopWalking, isWalking, walkDirection } = useWalkAnimation();
-  useSpriteEventController();
+
+  // 桥接 StateMachine → Conductor 动画切换
+  useSpriteStateBridge();
+
   const {
     bind: dragBind,
     isDragging,
@@ -48,13 +51,14 @@ const AIAssistantInner: React.FC = () => {
     screenSize,
     padding: paddingState,
     onHoldStart: () => {
-      setAssistantState('hold:start', 'hold');
+      stateMachine.playOnce('hold');
+      setMessageState('hold');
     },
     onDragStateChange: (dragging) => {
       if (dragging) setClickThrough(false);
     },
     onDragEnd: () => {
-      setAssistantState('drop');
+      stateMachine.playOnce('drop');
     }
   });
   const { isFileDragOver, handleDragEnter, handleDragLeave, handleDropFiles } = useFileDrop(stopWalking, setClickThrough);
@@ -62,12 +66,15 @@ const AIAssistantInner: React.FC = () => {
   // 点击交互
   const handleClick = (): void => {
     stopWalking();
-    setAssistantState('click', 'click');
+    stateMachine.playOnce('click');
+    setMessageState('click');
+    eventBus.emit('interact:click', {}, 'ai-assistant');
   };
 
   // 鼠标进入精灵区域
   const handleMouseEnter = (): void => {
     setIsHovering(true);
+    eventBus.emit('interact:hover:enter', {}, 'ai-assistant');
     if (isWalking) {
       stopWalking();
       stopAnimation();
@@ -77,6 +84,7 @@ const AIAssistantInner: React.FC = () => {
   // 鼠标离开精灵区域
   const handleMouseLeave = (): void => {
     setIsHovering(false);
+    eventBus.emit('interact:hover:leave', {}, 'ai-assistant');
   };
 
   // keep dev vector probe to preserve previous behavior
@@ -133,9 +141,9 @@ const AIAssistantInner: React.FC = () => {
   // drive sprite states from drag/walk flags
   useEffect(() => {
     if (isDragging) {
-      setAssistantState('drag:start');
+      stateMachine.transitionTo('dragging');
     } else if (isWalking) {
-      setAssistantState('walk:start');
+      stateMachine.transitionTo('walking');
       playAnimation(); // Start three-phase animation when walking starts
     } else {
       // 停止动画，让 VideoSprite 播放 outro 部分
@@ -143,15 +151,15 @@ const AIAssistantInner: React.FC = () => {
       // 如果不是三段式动画，直接切换到 idle
       // 如果是三段式动画，VideoSprite 会在 outro 播放完成后自动触发 idle 事件
       if (!hasOutro) {
-        setAssistantState('idle');
+        stateMachine.transitionTo('idle');
       }
     }
-  }, [isDragging, isWalking, setAssistantState, playAnimation, stopAnimation, hasOutro]);
+  }, [isDragging, isWalking, stateMachine, playAnimation, stopAnimation, hasOutro]);
 
   // reflect file drag-over on sprite
   useEffect(() => {
     if (isFileDragOver) {
-      setAssistantState('fileDragOver');
+      stateMachine.transitionTo('reacting', { subState: 'file-drag-over' });
       playAnimation(); // Start three-phase animation when file drag over starts
     } else if (!isDragging && !isWalking) {
       // 停止动画，让 VideoSprite 播放 outro 部分
@@ -159,20 +167,20 @@ const AIAssistantInner: React.FC = () => {
       // 如果不是三段式动画，直接切换到 idle
       // 如果是三段式动画，VideoSprite 会在 outro 播放完成后自动触发 idle 事件
       if (!hasOutro) {
-        setAssistantState('idle');
+        stateMachine.transitionTo('idle');
       }
     }
-  }, [isFileDragOver, isDragging, isWalking, setAssistantState, playAnimation, stopAnimation, hasOutro]);
+  }, [isFileDragOver, isDragging, isWalking, stateMachine, playAnimation, stopAnimation, hasOutro]);
 
   const onDropFiles = React.useCallback(
     async (files: any) => {
-      setAssistantState('fileDrop');
+      stateMachine.playOnce('file-drop');
+      setMessageState('fileDrop');
       await handleDropFiles(files);
     },
-    [handleDropFiles, setAssistantState]
+    [handleDropFiles, stateMachine, setMessageState]
   );
 
-  // --- 稳定订阅 window:command，避免依赖变化导致重复绑定 ---
   // --- 监听自动移动开关变化 ---
   useEffect(() => {
     const loadConfig = async (): Promise<void> => {
@@ -196,32 +204,72 @@ const AIAssistantInner: React.FC = () => {
     };
   }, []);
 
-  // --- 行为调度器 ---
-  const behaviors = useMemo(
-    () =>
-      createBehaviors(
-        {
-          animateMoveWindow,
-          setAssistantState
-        },
-        { autoWalkEnabled }
-      ),
-    [animateMoveWindow, setAssistantState, autoWalkEnabled]
-  );
+  // --- 同步自动行走开关到行为引擎 ---
+  useEffect(() => {
+    behaviorEngine.setEnabled('auto-walk', autoWalkEnabled);
+  }, [autoWalkEnabled, behaviorEngine]);
 
-  useBehaviorScheduler(
-    {
-      isDragging,
-      isWalking,
-      isHovering,
-      screenSize,
-      padding: paddingState,
-      spriteWidth,
-      spriteHeight,
-      getPosition: () => window.YUA.window['window:position:get']()
-    },
-    behaviors
-  );
+  // --- 行为引擎事件监听 ---
+  // BehaviorEngine 通过 EventBus 发出行为触发事件，此处监听并执行实际操作
+  const animateMoveRef = useRef(animateMoveWindow);
+  animateMoveRef.current = animateMoveWindow;
+
+  useEffect(() => {
+    const unsubs: Array<() => void> = [];
+
+    // 自动行走行为：计算随机目标并移动窗口
+    unsubs.push(
+      eventBus.on('behavior:walk-triggered' as any, async () => {
+        try {
+          const [currentX, currentY] = await window.YUA.window['window:position:get']();
+          const size = screenSize;
+          const pad = paddingState;
+          const sw = spriteWidth;
+          const sh = spriteHeight;
+
+          const minX = -pad;
+          const maxX = size.width - sw - pad;
+          const minY = -pad;
+          const maxY = size.height - sh - pad;
+
+          // X: Random
+          const targetX = Math.random() * (maxX - minX) + minX;
+          // Y: Near current Y (10% of screen height)
+          const yRange = size.height * 0.1;
+          const yMin = Math.max(minY, currentY - yRange);
+          const yMax = Math.min(maxY, currentY + yRange);
+          const targetY = Math.random() * (yMax - yMin) + yMin;
+
+          await animateMoveRef.current(targetX, targetY);
+        } catch (err) {
+          console.error('[AIAssistant] Auto walk failed:', err);
+        }
+      })
+    );
+
+    // 困倦行为
+    unsubs.push(
+      eventBus.on('behavior:night-sleepy-triggered' as any, () => {
+        stateMachine.playOnce('sleepy');
+      })
+    );
+
+    // 无聊行为
+    unsubs.push(
+      eventBus.on('behavior:long-idle-bored-triggered' as any, () => {
+        stateMachine.transitionTo('bored');
+      })
+    );
+
+    // 随机消息行为
+    unsubs.push(
+      eventBus.on('behavior:random-message-triggered' as any, () => {
+        setMessageState('reminder');
+      })
+    );
+
+    return () => unsubs.forEach((u) => u());
+  }, [eventBus, stateMachine, screenSize, paddingState, spriteWidth, spriteHeight, setMessageState]);
 
   return (
     <div

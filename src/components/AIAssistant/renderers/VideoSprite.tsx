@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 
 import { DEFAULT_ASSISTANT_PADDING } from '../constants';
+import { useSpritePersona } from '../context/SpritePersonaContext';
 import { useSpritePlayer } from '../context/SpritePlayerContext';
-import { dispatchSpriteEvent } from '../events/spriteEvents';
 import { resolveSpriteSrc } from '../utils/resource';
 
 /**
@@ -17,6 +17,7 @@ type AnimationPhase = 'intro' | 'loop' | 'outro' | 'idle';
 export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' | 'right' | null }): JSX.Element | null {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const { current, isPlaying } = useSpritePlayer();
+  const { stateMachine } = useSpritePersona();
   // Use ref instead of state to avoid cascading re-renders from effect
   const phaseRef = useRef<AnimationPhase>('idle');
   const prevIsPlayingRef = useRef(false);
@@ -130,7 +131,7 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
           v.pause();
           const autoIdle = current?.autoIdle ?? true;
           if (autoIdle) {
-            dispatchSpriteEvent('idle');
+            stateMachine.transitionTo('idle');
           }
         }
       } else if (phase === 'idle') {
@@ -154,7 +155,7 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
           v.pause();
           const autoIdle = current?.autoIdle ?? true;
           if (autoIdle) {
-            dispatchSpriteEvent('idle');
+            stateMachine.transitionTo('idle');
           }
         }
       }
@@ -226,7 +227,7 @@ export default function VideoSprite({ walkDirection }: { walkDirection?: 'left' 
     // 播放完成且不循环，根据 autoIdle 配置决定是否切换到 idle 状态
     const autoIdle = current.autoIdle ?? true;
     if (autoIdle) {
-      dispatchSpriteEvent('idle');
+      stateMachine.transitionTo('idle');
     }
     // 如果 autoIdle 为 false，视频会保持暂停在最后一帧，不做任何操作
   };

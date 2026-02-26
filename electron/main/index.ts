@@ -111,7 +111,7 @@ async function createWindow(): Promise<void> {
     return { action: 'deny' };
   });
 
-  initHandlers(win);
+  await initHandlers(win);
   // (workspace resource root addition moved to app.whenReady after protocol setup)
 
   // https://github.com/electron/electron/issues/7049
