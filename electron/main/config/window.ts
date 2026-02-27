@@ -297,14 +297,17 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     showOnReady: false,
     openDevTools: false,
     options: {
-      width: 500,
-      height: 500,
+      width: 340,
+      height: 140,
+      minWidth: 300,
+      minHeight: 120,
       frame: false,
       transparent: true,
       resizable: false,
       alwaysOnTop: true,
       skipTaskbar: true,
       show: false,
+      hasShadow: false,
       backgroundColor: '#00000000',
       webPreferences: { nodeIntegration: true, contextIsolation: true }
     }
