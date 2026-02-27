@@ -164,6 +164,12 @@ export const aiBridge = {
   async restoreConversation(id: string) {
     return ipcRenderer.invoke('ai:restoreConversation', { id });
   },
+  /** Subscribe to conversation title updates pushed from main process */
+  onConversationTitleUpdated(callback: (data: { conversationId: string; title: string | null; status: 'generating' | 'done' | 'error' }) => void) {
+    const handler = (_: any, data: any): void => callback(data);
+    ipcRenderer.on('ai:conversation-title-updated', handler);
+    return () => ipcRenderer.removeListener('ai:conversation-title-updated', handler);
+  },
   // Utilities
   async autoTagText(text: string, maxLabels?: number): Promise<{ success: true; tags: string[] }> {
     return ipcRenderer.invoke('ai:autoTagText', { text, maxLabels });

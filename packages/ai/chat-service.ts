@@ -23,6 +23,9 @@ function safeUuid(): string {
   }
 }
 
+/** IPC channel for broadcasting conversation title updates to all renderer windows */
+const CONV_TITLE_UPDATED_CHANNEL = 'ai:conversation-title-updated';
+
 export class ChatService {
   private controllers = new Map<string, AbortController>();
   // Use defaultWin as a fallback when sender window is unavailable
@@ -298,6 +301,13 @@ ${JSON.stringify(req, null, 2)}
               //
             }
           }
+          // Auto-generate title for new conversations (title is null)
+          if (conv && !conv.title) {
+            this.generateConversationTitle(conv.id, lastUserMessage?.content || '', fullText, resolved).catch((e) => {
+              console.warn('[ChatService] Auto title generation failed:', e);
+            });
+          }
+
           emit({ type: 'done' });
         } finally {
           // 清理翻译工具上下文
@@ -419,5 +429,53 @@ ${JSON.stringify(req, null, 2)}
   getProviderConfig(providerId: string): any {
     const prov = getProvider(providerId);
     return prov?.getConfigSchema?.();
+  }
+
+  /**
+   * Generate a conversation title using AI in the main process.
+   * Runs in the background after the first assistant reply.
+   * Broadcasts the updated title to all renderer windows.
+   */
+  private async generateConversationTitle(conversationId: string, userContent: string, assistantContent: string, resolved: ChatRequest): Promise<void> {
+    // Notify all windows that title generation has started (for shimmer animation)
+    this.broadcastToAllWindows(CONV_TITLE_UPDATED_CHANNEL, { conversationId, title: null, status: 'generating' });
+
+    try {
+      const titleReq: ChatRequest = {
+        providerId: resolved.providerId,
+        providerInstanceId: (resolved as any).providerInstanceId,
+        messages: [
+          { role: 'system', content: '你是一个标题生成助手。请根据以下用户和AI的对话内容，生成一个简洁的对话标题（不超过20个字）。只输出标题本身，不要加引号、前缀或解释。' },
+          { role: 'user', content: `用户: ${userContent}\nAI: ${assistantContent.slice(0, 500)}` }
+        ],
+        persist: false
+      };
+      const resp = await this.chatEphemeral(this.defaultWin, titleReq);
+      let title = (resp?.message?.content || '').trim().replace(/^["'\u300c]|["'\u300d]$/g, '');
+      if (title && title.length > 30) title = title.slice(0, 30) + '\u2026';
+
+      if (title && title.length > 0) {
+        await ChatRepo.renameConversation(conversationId, title);
+        this.broadcastToAllWindows(CONV_TITLE_UPDATED_CHANNEL, { conversationId, title, status: 'done' });
+      } else {
+        this.broadcastToAllWindows(CONV_TITLE_UPDATED_CHANNEL, { conversationId, title: null, status: 'done' });
+      }
+    } catch (e) {
+      console.warn('[ChatService] Title generation failed:', e);
+      this.broadcastToAllWindows(CONV_TITLE_UPDATED_CHANNEL, { conversationId, title: null, status: 'error' });
+    }
+  }
+
+  /** Broadcast a message to all open renderer windows */
+  private broadcastToAllWindows(channel: string, data: any): void {
+    BrowserWindow.getAllWindows().forEach((w) => {
+      if (!w.isDestroyed()) {
+        try {
+          w.webContents.send(channel, data);
+        } catch {
+          // window may have been destroyed between check and send
+        }
+      }
+    });
   }
 }
