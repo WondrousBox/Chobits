@@ -119,6 +119,47 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
     }
   };
 
+  // 使用 ref 保存 start 函数引用，供 IPC 回调使用
+  const startRef = useRef<(params: { content: string; providerId: string; instanceId: string }) => Promise<void>>();
+
+  // Listen for initial message from assistant window (on:window:open:ready)
+  useEffect(() => {
+    const handlePayload = (payload: any): void => {
+      if (!payload?.initialMessage) return;
+      // 重置为新对话状态
+      newConversation();
+      // 延迟一帧确保状态已重置，再发起对话
+      setTimeout(() => {
+        startRef.current?.({
+          content: payload.initialMessage,
+          providerId: payload.providerId,
+          instanceId: payload.instanceId
+        });
+      }, 50);
+    };
+
+    const ipcHandler = (_event: any, data: any): void => handlePayload(data);
+    window.ipcRenderer?.on('on:window:open:ready', ipcHandler);
+
+    // Fallback: 主动拉取缓存 payload（避免 race condition，仅首次加载执行）
+    let fallbackDone = false;
+    const timer = setTimeout(async () => {
+      if (fallbackDone) return;
+      fallbackDone = true;
+      try {
+        const cached = await window.YUA.window['window:payload:get']('chat');
+        if (cached?.initialMessage) handlePayload(cached);
+      } catch {
+        /* noop */
+      }
+    }, 120);
+
+    return () => {
+      window.ipcRenderer?.off('on:window:open:ready', ipcHandler);
+      clearTimeout(timer);
+    };
+  }, []);
+
   // Listen for conversation title updates from main process
   useEffect(() => {
     const dispose = window.YUA.ai.onConversationTitleUpdated((data) => {
@@ -214,6 +255,11 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
     });
     disposerRef.current = disposer;
   };
+
+  // Keep startRef in sync so the IPC handler can call it
+  useEffect(() => {
+    startRef.current = start;
+  });
 
   const stop = async (): Promise<void> => {
     try {
