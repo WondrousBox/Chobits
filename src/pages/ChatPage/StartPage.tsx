@@ -85,39 +85,25 @@ const AssistantPage: React.FC = () => {
     }
   };
 
-  // 发送消息进行聊天
+  // 发送消息：打开聊天独立窗口并传递初始消息
   const handleSend = async (content: string): Promise<void> => {
     if (!content.trim() || !instanceId) return;
     setLoading(true);
     try {
-      // 发起聊天流
-      const disposer = await window.YUA.ai.chatStream(
-        {
-          messages: [{ role: 'user', content }],
-          providerId,
-          providerInstanceId: instanceId,
-          stream: true
-        },
-        (ev: any) => {
-          if (ev?.type === 'message_completed') {
-            setLoading(false);
-            toast.success('消息已发送');
-            setQuery('');
-            // 关闭助手窗口
-            setTimeout(() => close(), 300);
-          }
-          if (ev?.type === 'error') {
-            setLoading(false);
-            toast.error(ev.data?.message || '发送失败');
-          }
-        }
-      );
-      // 简单场景下可以直接 dispose
-      disposer.dispose();
+      // 打开聊天独立窗口，传递初始消息数据
+      await window.YUA.window['window:open']('chat', {
+        initialMessage: content,
+        providerId,
+        instanceId
+      });
+      setQuery('');
+      // 关闭助手窗口
+      setTimeout(() => close(), 150);
     } catch (e) {
-      console.error('[chat] send failed', e);
+      console.error('[chat] open chat window failed', e);
+      toast.error('打开聊天窗口失败');
+    } finally {
       setLoading(false);
-      toast.error('发送失败');
     }
   };
 
