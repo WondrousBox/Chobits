@@ -189,6 +189,8 @@ export type AIApi = {
   renameConversation(id: string, title: string): Promise<{ ok: boolean; row?: any }>;
   deleteConversation(id: string): Promise<{ ok: boolean }>;
   restoreConversation(id: string): Promise<{ ok: boolean }>;
+  /** Subscribe to conversation title updates pushed from main process */
+  onConversationTitleUpdated(callback: (data: { conversationId: string; title: string | null; status: 'generating' | 'done' | 'error' }) => void): () => void;
   // Glossary management
   listGlossaryCategories(): Promise<Array<{ id: string; name: string; description?: string; createdAt: number; updatedAt: number }>>;
   createGlossaryCategory(payload: { name: string; description?: string }): Promise<{ id: string; name: string; description?: string; createdAt: number; updatedAt: number }>;

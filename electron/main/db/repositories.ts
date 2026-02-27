@@ -1578,16 +1578,12 @@ export const ChatRepo = {
       .returning()
       .all();
 
-    // 更新会话计数与时间，并在首条用户消息时自动生成标题
+    // 更新会话计数与时间
+    // Title generation is now handled by the renderer after the first AI reply completes
     const conv = await db.select().from(conversations).where(eq(conversations.id, conversationId)).limit(1);
     const prevCount = conv[0]?.messagesCount ?? 0;
     const countVal = prevCount + 1;
     const patch: any = { messagesCount: countVal, lastMessageAt: now, updatedAt: now };
-    if ((!conv[0]?.title || conv[0]?.title === null) && message.role === 'user' && nextSeq === 1) {
-      const raw = (message.content || '').trim();
-      const short = raw.length > 40 ? raw.slice(0, 40) + '…' : raw;
-      patch.title = short || '新对话';
-    }
     await db.update(conversations).set(patch).where(eq(conversations.id, conversationId)).run();
     return rows[0];
   },

@@ -90,3 +90,27 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Shimmer animation for generating titles */
+@keyframes shimmer-title-anim {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.shimmer-title {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted-foreground) / 0.15) 0%,
+    hsl(280 70% 60% / 0.35) 20%,
+    hsl(200 80% 55% / 0.35) 40%,
+    hsl(160 70% 50% / 0.3) 60%,
+    hsl(320 70% 55% / 0.35) 80%,
+    hsl(var(--muted-foreground) / 0.15) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer-title-anim 2s ease-in-out infinite;
+}

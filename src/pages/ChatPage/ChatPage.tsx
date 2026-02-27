@@ -1,12 +1,12 @@
-/* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { TbEdit, TbLoader2, TbPlus, TbRefresh, TbTrash } from 'react-icons/tb';
+import { TbDots, TbEdit, TbLoader2, TbPin, TbPlus, TbRefresh, TbShare, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { ChatInputWithService } from '@/components/chat';
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { formatDateTime, formatRelativeTime } from '@/lib/time';
 
@@ -30,6 +30,8 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [renamingConvId, setRenamingConvId] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState('');
+  // Track conversations that are waiting for AI-generated titles
+  const [generatingTitleIds, setGeneratingTitleIds] = useState<Set<string>>(new Set());
 
   const currentConversation = useMemo(() => conversations.find((c) => c.id === conversationId) || null, [conversations, conversationId]);
 
@@ -117,6 +119,30 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
     }
   };
 
+  // Listen for conversation title updates from main process
+  useEffect(() => {
+    const dispose = window.YUA.ai.onConversationTitleUpdated((data) => {
+      if (data.status === 'generating') {
+        setGeneratingTitleIds((prev) => new Set(prev).add(data.conversationId));
+      } else {
+        // 'done' or 'error' — stop shimmer and refresh list
+        setGeneratingTitleIds((prev) => {
+          const next = new Set(prev);
+          next.delete(data.conversationId);
+          return next;
+        });
+        // Update title in local state immediately if available
+        if (data.title) {
+          setConversations((prev) => prev.map((c) => (c.id === data.conversationId ? { ...c, title: data.title } : c)));
+        } else {
+          // Fallback: reload from DB
+          loadConversations();
+        }
+      }
+    });
+    return () => dispose();
+  }, []);
+
   const start = async (params: { content: string; providerId: string; instanceId: string }): Promise<void> => {
     const { content, providerId, instanceId } = params;
     if (!instanceId || !content.trim()) return;
@@ -136,6 +162,9 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
     const disposer = await window.YUA.ai.chatStream({ conversationId, messages: history as any, providerId, providerInstanceId: instanceId, stream: true }, (ev: any) => {
       if (ev?.type === 'metadata' && ev.data?.conversationId) {
         setConversationId(ev.data.conversationId);
+        setSelectedConvId(ev.data.conversationId);
+        // Refresh conversation list so the new conversation appears in sidebar
+        loadConversations();
       }
       if (ev?.type === 'delta' && ev.data?.text) {
         const delta: string = ev.data.text;
@@ -161,12 +190,15 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
         });
         setLoading(false);
         // capture conversationId from completed metadata if present
-        if (ev.data?.message?.metadata?.conversationId && !conversationId) setConversationId(ev.data.message.metadata.conversationId);
+        const metaConvId = ev.data?.message?.metadata?.conversationId;
+        if (metaConvId && !conversationId) setConversationId(metaConvId);
       }
       if (ev?.type === 'message_completed') {
         setLoading(false);
         disposerRef.current?.dispose?.();
         disposerRef.current = null;
+        // Refresh conversation list to show updated message count
+        loadConversations();
       }
       if (ev?.type === 'error') {
         setMessages((prev) => {
@@ -232,45 +264,73 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
             {loadingConvs && <div className="p-2 text-xs text-muted-foreground">加载中…</div>}
             {!loadingConvs && conversations.length === 0 && <div className="p-2 text-xs text-muted-foreground">暂无会话，点击“新对话”开始</div>}
             <div className="flex flex-col">
-              {conversations.map((c) => (
-                <div
-                  key={c.id}
-                  className={`group flex items-center gap-2 px-2 py-1 cursor-pointer relative ${selectedConvId === c.id ? 'bg-primary text-primary-foreground' : ''}`}
-                  onClick={() => selectConversation(c.id)}
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="truncate text-sm">{c.title || '未命名会话'}</div>
-                    <div className="text-xs text-muted-foreground" title={formatDateTime(c.lastMessageAt)}>
-                      {c.messagesCount ?? 0} 条消息{c.lastMessageAt ? ` • ${formatRelativeTime(c.lastMessageAt)}` : ''}
+              {conversations.map((c) => {
+                const isGenerating = generatingTitleIds.has(c.id);
+                return (
+                  <div
+                    key={c.id}
+                    className={`group flex items-center gap-2 px-2 py-1.5 cursor-pointer rounded-md mx-1 mb-0.5 ${selectedConvId === c.id ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}
+                    onClick={() => selectConversation(c.id)}
+                  >
+                    <div className="flex-1 min-w-0">
+                      {isGenerating ? <div className="h-4 rounded shimmer-title" /> : <div className="truncate text-sm">{c.title || '未命名会话'}</div>}
+                      <div className={`text-xs ${selectedConvId === c.id ? 'text-primary-foreground/70' : 'text-muted-foreground'}`} title={formatDateTime(c.lastMessageAt)}>
+                        {c.messagesCount ?? 0} 条消息{c.lastMessageAt ? ` • ${formatRelativeTime(c.lastMessageAt)}` : ''}
+                      </div>
                     </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button className="opacity-0 group-hover:opacity-100 w-7 h-7 shrink-0" size="icon" variant="ghost" onClick={(e) => e.stopPropagation()}>
+                          <TbDots className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" side="bottom" className="w-40">
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Copy conversation to clipboard
+                            const text = `${c.title || '未命名会话'}`;
+                            navigator.clipboard.writeText(text);
+                            toast.success('已复制对话标题');
+                          }}
+                        >
+                          <TbShare className="w-4 h-4 mr-2" />
+                          分享对话内容
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Toggle pin (placeholder)
+                            toast.info(c.pinned ? '已取消固定' : '已固定会话');
+                          }}
+                        >
+                          <TbPin className="w-4 h-4 mr-2" />
+                          {c.pinned ? '取消固定' : '固定'}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openRenameDialog(c.id);
+                          }}
+                        >
+                          <TbEdit className="w-4 h-4 mr-2" />
+                          重命名
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteConversation(c.id);
+                          }}
+                        >
+                          <TbTrash className="w-4 h-4 mr-2" />
+                          删除
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
-                  <div className="absolute top-2 right-2 flex items-center gap-1">
-                    <Button
-                      className="opacity-0 group-hover:opacity-100 w-8 h-8"
-                      size="icon"
-                      variant={'outline'}
-                      title="重命名"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openRenameDialog(c.id);
-                      }}
-                    >
-                      <TbEdit className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      className="opacity-0 group-hover:opacity-100 w-8 h-8"
-                      size="icon"
-                      variant={'destructive'}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteConversation(c.id);
-                      }}
-                    >
-                      <TbTrash className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
