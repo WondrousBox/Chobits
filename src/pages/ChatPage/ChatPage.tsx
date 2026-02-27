@@ -126,6 +126,8 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
   useEffect(() => {
     const handlePayload = (payload: any): void => {
       if (!payload?.initialMessage) return;
+      // 清除缓存 payload，防止关闭后再次打开时重复触发
+      window.ipcRenderer?.invoke('window:payload:clear', 'chat').catch(() => { });
       // 重置为新对话状态
       newConversation();
       // 延迟一帧确保状态已重置，再发起对话
