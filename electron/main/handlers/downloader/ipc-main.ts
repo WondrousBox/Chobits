@@ -135,15 +135,15 @@ export function initDownloadHandlers(win: BrowserWindow): void {
       const downloadWindow = await windowManager.createOrShow('downloadFloating', { task });
       console.log('[VideoDownload] 下载悬浮窗创建结果:', downloadWindow ? '成功' : '失败');
       if (downloadWindow) {
-        // 设置窗口位置（右上角）
+        // 设置窗口位置（右下角，留出一些边距）
         const primaryDisplay = screen.getPrimaryDisplay();
-        const { width: screenWidth } = primaryDisplay.workAreaSize;
-        const windowWidth = 320;
-        const windowHeight = 120;
+        const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+        const windowWidth = 340;
+        const windowHeight = 140;
 
         downloadWindow.setBounds({
-          x: screenWidth - windowWidth - 20,
-          y: 20,
+          x: screenWidth - windowWidth - 24,
+          y: screenHeight - windowHeight - 24,
           width: windowWidth,
           height: windowHeight
         });

@@ -8,8 +8,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { SettingGroup, SettingItem } from '@/pages/SettingsPage/components/SettingComponents';
 
-import { SettingGroup, SettingItem } from './SettingComponents';
 import { YoutubeCookieSettings } from './YoutubeCookieSettings';
 
 interface ReleaseInfo {

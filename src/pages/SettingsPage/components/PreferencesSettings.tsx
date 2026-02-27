@@ -1,7 +1,7 @@
 import React from 'react';
 
 import AppearanceSettings from './AppearanceSettings';
-import DownloaderSettings from './DownloaderSettings';
+import { DownloaderSettings } from '@/features/download';
 import FolderSetting from './FolderSetting';
 import KeyManagementSettings from './KeyManagementSettings';
 import PreviewSettings from './PreviewSettings';

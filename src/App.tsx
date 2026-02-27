@@ -1,7 +1,7 @@
 import { TbSparkles } from 'react-icons/tb';
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 
-import DownloadFloating from '@/components/DownloadFloating';
+import { DownloadFloating } from '@/features/download';
 import { Toaster } from '@/components/ui/sonner';
 import { useAIProviderConfig } from '@/hooks/useAIProviderConfig';
 import { useWorkspaceCheck } from '@/hooks/useWorkspaceCheck';

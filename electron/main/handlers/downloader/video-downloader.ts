@@ -82,9 +82,28 @@ function cleanDownloadUrl(url: string): string {
 
 // Windows 保留文件名（设备名等），不区分大小写
 const WINDOWS_RESERVED_NAMES = new Set([
-  'con', 'prn', 'aux', 'nul',
-  'com1', 'com2', 'com3', 'com4', 'com5', 'com6', 'com7', 'com8', 'com9',
-  'lpt1', 'lpt2', 'lpt3', 'lpt4', 'lpt5', 'lpt6', 'lpt7', 'lpt8', 'lpt9'
+  'con',
+  'prn',
+  'aux',
+  'nul',
+  'com1',
+  'com2',
+  'com3',
+  'com4',
+  'com5',
+  'com6',
+  'com7',
+  'com8',
+  'com9',
+  'lpt1',
+  'lpt2',
+  'lpt3',
+  'lpt4',
+  'lpt5',
+  'lpt6',
+  'lpt7',
+  'lpt8',
+  'lpt9'
 ]);
 
 /**
@@ -691,7 +710,9 @@ export class VideoDownloader implements Downloader {
     const tempName = DEFAULT_FOLDERS.download + '_' + generateUUID();
     // 清理文件名，移除系统不支持的特殊字符
     const sanitizedFilename = filename ? sanitizeFilename(filename) : undefined;
-    const tempFile = sanitizedFilename ? changeFileName(sanitizedFilename, tempName) : tempName + '.mp4';
+    // 临时文件始终使用固定的 UUID 名 + .mp4 扩展名，不从视频标题中提取扩展名
+    // （视频标题可能包含点号，path.extname 会错误地将其解析为扩展名）
+    const tempFile = tempName + '.mp4';
     const downloadPath = resolve(actualDestination, tempFile);
     const destPath = resolve(actualDestination, (sanitizedFilename || tempName) + '.mp4');
 

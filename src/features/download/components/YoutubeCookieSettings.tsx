@@ -1,11 +1,12 @@
-import { AlertCircle, CheckCircle2, Cookie, LogIn, LogOut, XCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Cookie, LogOut, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { TbBrandYoutube } from 'react-icons/tb';
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { clearYoutubeCookies, CookieStatus, getCookieStatus, openYoutubeLogin } from '@/lib/youtube-cookie-api';
+
+import { clearYoutubeCookies, CookieStatus, getCookieStatus, openYoutubeLogin } from '../lib/youtube-cookie-api';
 
 export function YoutubeCookieSettings(): JSX.Element {
   const [status, setStatus] = useState<CookieStatus | null>(null);
