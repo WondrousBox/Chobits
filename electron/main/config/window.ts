@@ -57,7 +57,8 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     forceCenterAlignment: true,
     suspendHoverMonitorOnShow: true,
     parent: 'main',
-    closeOnBlur: true,
+    // closeOnBlur: true, // 移除，改为在页面中处理，以便播放退出动画
+    hideOnClose: true, // 关闭时只隐藏不销毁，配合预创建提升打开速度
     showOnReady: false,
     options: {
       width: 600,
