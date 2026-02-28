@@ -8,17 +8,17 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 
 import type { ResourceItem } from '../../../types';
-import { ANNOTATION_DELETE_EVENT, type AnnotationMarker, dispatchAnnotationMarkers } from '../MediaPlayer/annotationMarkersEvent';
 import { dispatchAnnotationAlert } from '../MediaPlayer/annotationAlertEvent';
+import { ANNOTATION_DELETE_EVENT, type AnnotationMarker, dispatchAnnotationMarkers } from '../MediaPlayer/annotationMarkersEvent';
 import { MediaPlayerRef } from '../MediaPlayer/MediaPlayer';
 import { dispatchSubtitleDisplay, type SubtitleDisplayLine, type WordTimestamp } from '../MediaPlayer/subtitleDisplayEvent';
 import { dispatchTrackSettings, TRACK_TOGGLE_EVENT, type TrackSettingsItem, type TrackTogglePayload } from '../MediaPlayer/trackSettingsEvent';
 import { ExportDialog } from './ExportDialog';
 import { SubtitlePlayer } from './SubtitleListPlayer/SubtitlePlayer';
 import { aimTracksToTimelineTracks, ClipSequence, formatSecondsToTime, indicesToIds, parseSegmentId, parseTimeToSeconds, SubtitleTimeline, TimelineSegment } from './SubtitleTimeline';
-import type { AnnotationTrackCallbacks, AnnotationTrackData, ClipSegment, ClipTrackCallbacks, ClipTrackData, TTSAudioItem as TimelineTTSAudioItem } from './SubtitleTimeline/types';
+import type { AnnotationTrackCallbacks, AnnotationTrackData, ClipSegment, ClipTrackCallbacks, ClipTrackData, TTSAudioItem as TimelineTTSAudioItem, WaveformState } from './SubtitleTimeline/types';
 import { SubtitleTranslator } from './SubtitleTranslator';
-import { mergeSegmentsChildren, syncSegmentsWithEntries } from './syncSegmentsData';
+import { mergeSegmentsChildren, shiftSegmentTime, syncSegmentsWithEntries } from './syncSegmentsData';
 import type { TTSTrackOption } from './TTSSynthesizer';
 import { TTSSynthesizer } from './TTSSynthesizer';
 import { useAnnotations } from './useAnnotations';
@@ -89,7 +89,6 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
   // ---- 剪辑轨道状态 ----
-  const [showClipTrack, setShowClipTrack] = useState(false);
   const [clipSegments, setClipSegments] = useState<ClipSegment[]>([]);
   const isLoadingClipSegmentsRef = useRef(false);
 
@@ -100,10 +99,11 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
   const [ttsTrackEnabledMap, setTTSTrackEnabledMap] = useState<Map<string, boolean>>(new Map());
   /** 剪辑轨道是否启用 */
   const [clipTrackEnabled, setClipTrackEnabled] = useState(true);
-  /** 标注轨道是否显示 */
-  const [showAnnotationTrack, setShowAnnotationTrack] = useState(true);
   /** 标注轨道是否启用 */
   const [annotationTrackEnabled, setAnnotationTrackEnabled] = useState(true);
+
+  // ---- 波形数据状态 ----
+  const [waveform, setWaveform] = useState<WaveformState>({});
 
   // 防抖保存剪辑状态（存储到独立的 clip 文件）
   const debouncedSaveClipSegments = useMemo(
@@ -136,7 +136,6 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
       if (data && Array.isArray(data.clips) && data.clips.length > 0) {
         console.log('[SubtitlePlayer] 加载到已保存的剪辑片段:', data.clips.length, '个');
         setClipSegments(data.clips);
-        setShowClipTrack(true);
         return;
       }
       console.log('[SubtitlePlayer] 没有已保存的剪辑片段，将创建初始片段');
@@ -658,9 +657,46 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     } else if (!resource.id) {
       // 资源清空时重置状态
       setClipSegments([]);
-      setShowClipTrack(false);
     }
   }, [resource.id, mediaDuration, loadClipSegments]);
+
+  // 加载波形数据（当音频路径或时长变化时）
+  useEffect(() => {
+    if (!audioPath || !mediaDuration || mediaDuration <= 0) {
+      setWaveform({});
+      return;
+    }
+
+    let cancelled = false;
+    const loadWaveform = async () => {
+      setWaveform({ loading: true });
+
+      try {
+        // 计算采样数量：平均每秒 200 个采样点，最少 5000，最多 100000
+        const samplesCount = Math.min(Math.max(5000, Math.ceil(mediaDuration * 200)), 100000);
+
+        const result = await window.YUA.ffmpeg.extractWaveform({
+          inputPath: audioPath,
+          samplesCount
+        });
+
+        if (!cancelled) {
+          setWaveform({ data: result, loading: false });
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('[SubtitlePlayer] Failed to load waveform:', err);
+          setWaveform({ error: err instanceof Error ? err.message : '加载波形失败', loading: false });
+        }
+      }
+    };
+
+    void loadWaveform();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [audioPath, mediaDuration]);
 
   // 加载字幕文件内容（支持 srt、vtt、ass 格式）
   useEffect(() => {
@@ -946,6 +982,10 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
 
       if (trackIndex === 0) {
         // 主轨道（track-0）
+        const originalEntry = subtitleEntries[segmentIndex];
+        const originalSt = utils.convertToSeconds(originalEntry.st);
+        const originalEt = utils.convertToSeconds(originalEntry.et);
+
         const updated = subtitleEntries.map((item, i) => {
           if (i === segmentIndex) {
             return {
@@ -957,6 +997,22 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
           return item;
         });
         setSubtitleEntries(updated);
+
+        // 同步更新 segmentsData 中的字级别时间戳
+        if (segmentsDataRef.current) {
+          const updatedSegments = shiftSegmentTime(
+            segmentsDataRef.current,
+            originalSt,
+            originalEt,
+            newStartTime,
+            newEndTime
+          );
+          if (updatedSegments) {
+            segmentsDataRef.current = updatedSegments;
+            setSegmentsData(updatedSegments);
+          }
+        }
+
         if (resource.id && !isLoading) {
           debouncedSave(resource.id, updated, subtitleFormat);
         }
@@ -1213,20 +1269,15 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
 
   // ---- 剪辑轨道 ----
 
-  /** 切换标注轨道显示 */
-  const handleToggleAnnotationTrack = useCallback(() => {
-    setShowAnnotationTrack((prev) => !prev);
-  }, []);
-
   /** 标注轨道数据（传给 SubtitleTimeline） */
   const annotationTrackData = useMemo((): AnnotationTrackData | undefined => {
-    if (!showAnnotationTrack || annotations.length === 0) return undefined;
+    if (annotations.length === 0) return undefined;
     return {
       id: 'annotation-track-main',
       label: '标注',
       annotations
     };
-  }, [showAnnotationTrack, annotations]);
+  }, [annotations]);
 
   /** 标注轨道回调集合 */
   const annotationCallbacks = useMemo(
@@ -1245,26 +1296,16 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     [onSeek, removeAnnotation, updateAnnotation]
   );
 
-  /** 切换剪辑轨道显示。首次开启时自动生成一个覆盖整段媒体的初始片段 */
-  const handleToggleClipTrack = useCallback(() => {
-    setShowClipTrack((prev) => {
-      if (!prev && clipSegments.length === 0 && mediaDuration && mediaDuration > 0) {
-        setClipSegments(ClipSequence.createInitial(mediaDuration));
-      }
-      return !prev;
-    });
-  }, [clipSegments.length, mediaDuration]);
-
   /** 剪辑轨道数据（传给 SubtitleTimeline） */
   const clipTrackData = useMemo((): ClipTrackData | undefined => {
-    if (!showClipTrack || clipSegments.length === 0) return undefined;
+    if (clipSegments.length === 0) return undefined;
     return {
       id: 'clip-track-main',
       label: '剪辑',
       clips: clipSegments,
       sourceDuration: mediaDuration || 0
     };
-  }, [showClipTrack, clipSegments, mediaDuration]);
+  }, [clipSegments, mediaDuration]);
 
   /** 剪辑轨道回调集合 */
   const clipCallbacks = useMemo(
@@ -1313,8 +1354,8 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
   /**
    * 播放跳过逻辑：当播放位置进入已删除片段区域时，自动跳到下一个活跃区域
    */
-  // 判断剪辑轨道是否实际生效（显示且启用）
-  const clipTrackEffective = showClipTrack && clipTrackEnabled;
+  // 判断剪辑轨道是否实际生效（启用且有剪辑数据）
+  const clipTrackEffective = clipTrackEnabled && clipSegments.length > 0;
 
   const lastSkipTimeRef = useRef<number>(-1);
   useEffect(() => {
@@ -1482,13 +1523,13 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
       }
     });
 
-    // 标注轨道
-    if (showAnnotationTrack && annotations.length > 0) {
+    // 标注轨道（有标注数据时显示）
+    if (annotations.length > 0) {
       items.push({ id: 'annotation', label: '标注', type: 'annotation', enabled: annotationTrackEnabled });
     }
 
-    // 剪辑轨道
-    if (showClipTrack) {
+    // 剪辑轨道（有剪辑数据时显示）
+    if (clipSegments.length > 0) {
       items.push({ id: 'clip', label: '剪辑', type: 'clip', enabled: clipTrackEnabled });
     }
 
@@ -1503,8 +1544,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     typingTexts.length,
     synthesizedItemsByTrack,
     isSynthesizing,
-    showClipTrack,
-    showAnnotationTrack,
+    clipSegments.length,
     annotations.length
   ]);
 
@@ -1690,26 +1730,6 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
             </TooltipTrigger>
             <TooltipContent side="bottom">跟随滚动</TooltipContent>
           </Tooltip>
-          {viewMode === 'timeline' && (
-            <>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button className="h-8 w-8 p-0" variant={showAnnotationTrack ? 'default' : 'ghost'} size="sm" onClick={handleToggleAnnotationTrack}>
-                    <TbBookmark />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">{showAnnotationTrack ? '隐藏标注轨道' : '显示标注轨道'}</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button className="h-8 w-8 p-0" variant={showClipTrack ? 'default' : 'ghost'} size="sm" onClick={handleToggleClipTrack}>
-                    <TbScissors />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">{showClipTrack ? '隐藏剪辑轨道' : '显示剪辑轨道'}</TooltipContent>
-              </Tooltip>
-            </>
-          )}
           <SubtitleTranslator
             subtitleEntries={subtitleEntries}
             resourceId={resource.id}
@@ -1781,7 +1801,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
           disabled={isTranslating}
           showRuler
           showTrackLabels
-          audioPath={audioPath}
+          waveform={waveform}
           showWaveform={!!audioPath}
           ttsItemsByTrack={ttsItemsByTrackForTimeline}
           ttsTrackLabels={ttsTrackLabelsForTimeline}
@@ -1794,19 +1814,15 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
           onDeleteTTSTrack={handleDeleteTTSTrack}
           onDeleteTTSSegment={handleDeleteTTSSegment}
           onTTSTimeChange={handleTTSTimeChange}
-          showClipTrack={showClipTrack}
           clipTrack={clipTrackData}
           clipCallbacks={clipCallbacks}
           onToggleSubtitleTrackEnabled={handleToggleSubtitleTrackEnabled}
           onToggleTTSTrackEnabled={handleToggleTTSTrackEnabled}
-          onToggleClipTrackEnabled={handleToggleClipTrackEnabled}
           clipTrackEnabled={clipTrackEnabled}
           ttsTrackEnabledMap={ttsTrackEnabledMap}
-          showAnnotationTrack={showAnnotationTrack}
           annotationTrack={annotationTrackData}
           annotationCallbacks={annotationCallbacks}
           annotationTrackEnabled={annotationTrackEnabled}
-          onToggleAnnotationTrackEnabled={handleToggleAnnotationTrackEnabled}
         />
       )}
 

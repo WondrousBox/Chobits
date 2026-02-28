@@ -240,6 +240,70 @@ export function hasSegmentsChildren(segmentsData: AimSegments[] | null): boolean
 }
 
 /**
+ * 当字幕块时间被拖拽调整时，同步更新对应 segment 及其 children 的时间戳
+ *
+ * @param segmentsData 当前完整的 segments 数据
+ * @param originalSt   原始开始时间（秒）
+ * @param originalEt   原始结束时间（秒）
+ * @param newSt        新开始时间（秒）
+ * @param newEt        新结束时间（秒）
+ * @returns 更新后的 segmentsData，如果无需更新返回 null
+ */
+export function shiftSegmentTime(segmentsData: AimSegments[], originalSt: number, originalEt: number, newSt: number, newEt: number): AimSegments[] | null {
+  if (!segmentsData || segmentsData.length === 0) return null;
+
+  // 计算时间偏移量
+  const offset = newSt - originalSt;
+  const durationChange = newEt - newSt - (originalEt - originalSt);
+
+  // 找到匹配的 segment
+  const segIdx = segmentsData.findIndex((s) => {
+    const sSt = utils.convertToSeconds(s.st);
+    const sEt = utils.convertToSeconds(s.et);
+    return Math.abs(sSt - originalSt) < TIME_MATCH_THRESHOLD && Math.abs(sEt - originalEt) < TIME_MATCH_THRESHOLD;
+  });
+
+  if (segIdx < 0) return null;
+
+  const seg = segmentsData[segIdx];
+  const updated = [...segmentsData];
+  const newSeg = { ...seg };
+
+  // 更新 segment 的顶层时间
+  newSeg.st = utils.formatTime(newSt);
+  newSeg.et = utils.formatTime(newEt);
+
+  // 如果有 children，按比例调整每个 child 的时间戳
+  if (seg.children && seg.children.length > 0) {
+    const originalDuration = originalEt - originalSt;
+    const newDuration = newEt - newSt;
+    const scale = originalDuration > 0 ? newDuration / originalDuration : 1;
+
+    newSeg.children = (seg.children as Array<{ st: string; et: string; text: string }>).map((child) => {
+      const childSt = utils.convertToSeconds(child.st);
+      const childEt = utils.convertToSeconds(child.et);
+
+      // 计算相对于 segment 开始的偏移
+      const relativeSt = childSt - originalSt;
+      const relativeEt = childEt - originalSt;
+
+      // 按比例缩放后再加上新的起始时间
+      const newChildSt = newSt + relativeSt * scale;
+      const newChildEt = newSt + relativeEt * scale;
+
+      return {
+        ...child,
+        st: utils.formatTime(newChildSt),
+        et: utils.formatTime(newChildEt)
+      };
+    }) as AimSegments[];
+  }
+
+  updated[segIdx] = newSeg;
+  return updated;
+}
+
+/**
  * 合并两个相邻 segment 的 children（用于字幕行合并操作）
  *
  * @param segmentsData 当前完整的 segments 数据
