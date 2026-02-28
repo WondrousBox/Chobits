@@ -21,6 +21,7 @@ declare module '@aim-packages/window-manager' {
     ttsConfig: void;
     tts: void;
     skillTree: void;
+    levelUp: void;
   }
 }
 
@@ -498,6 +499,27 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
       movable: false,
       hasShadow: false,
       enableLargerThanScreen: true,
+      show: false,
+      backgroundColor: '#00000000',
+      webPreferences: { nodeIntegration: true, contextIsolation: true }
+    }
+  },
+  levelUp: {
+    routeHash: 'level-up',
+    autoCenterOn: 'parent-display',
+    showOnReady: false,
+    openDevTools: false,
+    options: {
+      width: 500,
+      height: 400,
+      frame: false,
+      transparent: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      resizable: false,
+      movable: false,
+      focusable: false,
+      hasShadow: false,
       show: false,
       backgroundColor: '#00000000',
       webPreferences: { nodeIntegration: true, contextIsolation: true }

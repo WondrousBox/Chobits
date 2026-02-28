@@ -42,6 +42,15 @@ const AIAssistantInner: React.FC = () => {
     };
   }, []);
 
+  // 订阅升级事件，打开升级动画窗口
+  useEffect(() => {
+    const unsub = window.YUA.persona.onLevelUp(async (data) => {
+      // 打开升级窗口并传递数据
+      await window.YUA.window['window:open']('levelUp', data);
+    });
+    return unsub;
+  }, []);
+
   // 首次挂载：初始定位窗口
   const isInitialMountRef = useRef(true);
   useEffect(() => {

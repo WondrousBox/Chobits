@@ -15,7 +15,6 @@
  *   sprite:persona:changeFavor — 修改好感度
  *   sprite:persona:recordLogin — 记录登录
  *   sprite:persona:unlockAchievement — 解锁成就
- *   sprite:persona:getOverview — 系统概览
  *   sprite:config:getAutoWalk — 获取自动行走开关
  *   sprite:config:setAutoWalk — 设置自动行走开关
  *
@@ -36,17 +35,7 @@ import { SpriteManager } from '../sprite-manager';
 import { WindowController } from '../window-controller';
 import { listSprites } from './sprite-assets';
 
-/** 外部依赖注入 */
-export interface SpriteManagerIPCDeps {
-  /** 获取数据库实例（用于系统概览） */
-  getDB: () => any;
-  /** 获取默认工作空间 */
-  getDefaultWorkspace: () => Promise<any>;
-}
-
-export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManagerIPCDeps): Promise<void> {
-  const { getDB, getDefaultWorkspace } = deps;
-
+export async function initSpriteManagerIPC(win: BrowserWindow): Promise<void> {
   // 初始化 SpriteManager
   const mgr = SpriteManager.init({
     win: win as any,
@@ -157,45 +146,6 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     return { ok: true, unlocked };
   });
 
-  // 系统概览（保留原有 DB 查询逻辑）
-  ipcMain.handle('sprite:persona:getOverview', async () => {
-    const db = getDB();
-    const ws = await getDefaultWorkspace();
-
-    function getSingle<T = any>(sql: string, params: any[] = [], fallback: any = 0): T {
-      try {
-        const row = (db as any).prepare(sql).get(...params);
-        return (row as any) ?? fallback;
-      } catch {
-        return fallback;
-      }
-    }
-    function getAll<T = any>(sql: string, params: any[] = []): T[] {
-      try {
-        return (db as any).prepare(sql).all(...params) as T[];
-      } catch {
-        return [] as T[];
-      }
-    }
-
-    const resTotal = getSingle<{ count: number }>('SELECT COUNT(*) as count FROM resources WHERE deleted_at IS NULL', [])?.count ?? 0;
-    const resSize = getSingle<{ size: number }>('SELECT COALESCE(SUM(size_bytes), 0) as size FROM resources WHERE deleted_at IS NULL', [])?.size ?? 0;
-    const resByType = getAll<{ type: string; count: number; size: number }>(
-      'SELECT type as type, COUNT(*) as count, COALESCE(SUM(size_bytes), 0) as size FROM resources WHERE deleted_at IS NULL GROUP BY type'
-    );
-
-    const docTotal = getSingle<{ count: number }>('SELECT COUNT(*) as count FROM documents WHERE deleted_at IS NULL', [])?.count ?? 0;
-    const docWithEmb = getSingle<{ count: number }>('SELECT COUNT(*) as count FROM documents WHERE deleted_at IS NULL AND embedding IS NOT NULL', [])?.count ?? 0;
-
-    return {
-      ok: true,
-      workspace: ws || null,
-      resources: { total: resTotal, totalSizeBytes: resSize, byType: resByType },
-      documents: { total: docTotal, withEmbedding: docWithEmb },
-      personaState: mgr.getPersonaState()
-    };
-  });
-
   // ===== 配置 =====
 
   ipcMain.handle('sprite:config:getAutoWalk', () => {
@@ -229,6 +179,18 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
 
   // ===== 启动引擎 =====
   await mgr.start();
+
+  // ===== 事件转发：persona:level-up → 主窗口 =====
+  // 渲染进程负责打开窗口和处理数据
+  mgr.on('persona:level-up', (event) => {
+    try {
+      if (!win.isDestroyed()) {
+        win.webContents.send('persona:level-up', event.payload);
+      }
+    } catch {
+      /* ignore */
+    }
+  });
 
   // ===== 加载动画并触发初始播放 =====
   try {

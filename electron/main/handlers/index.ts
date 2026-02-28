@@ -99,11 +99,5 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   initSkillTreeHandlers();
   initClipHandlers();
   initAnnotationHandlers();
-  await initSpriteManagerIPC(win, {
-    getDB: (await import('../db')).getDB,
-    getDefaultWorkspace: async () => {
-      const { WorkspacesRepo } = await import('../db/repositories');
-      return WorkspacesRepo.getDefault();
-    }
-  });
+  await initSpriteManagerIPC(win);
 }

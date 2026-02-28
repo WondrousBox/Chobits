@@ -17,11 +17,12 @@ import { canUnlockSkill, getNodeColors, getTierConfig, SkillStatus, skillTreeNod
 interface SkillDetailPanelProps {
   selectedSkillId: string | null;
   skillStatuses: Record<string, SkillStatus>;
+  personaLevel?: number;
   onClose: () => void;
   onToggleSkill: (skillId: string, enabled: boolean) => void;
 }
 
-const SkillDetailPanel: React.FC<SkillDetailPanelProps> = ({ selectedSkillId, skillStatuses, onClose, onToggleSkill }) => {
+const SkillDetailPanel: React.FC<SkillDetailPanelProps> = ({ selectedSkillId, skillStatuses, personaLevel = 1, onClose, onToggleSkill }) => {
   const selectedNode = skillTreeNodes.find((n) => n.id === selectedSkillId);
   const [shortcutVerified, setShortcutVerified] = useState(false);
   const [showActivationAnimation, setShowActivationAnimation] = useState(false);
@@ -44,7 +45,8 @@ const SkillDetailPanel: React.FC<SkillDetailPanelProps> = ({ selectedSkillId, sk
   const status = skillStatuses[selectedNode.id] || 'locked';
   const isActive = status === 'active';
   const isUnlocked = status === 'unlocked' || status === 'active';
-  const canUnlock = canUnlockSkill(selectedNode.id, activeSkills);
+  const canUnlock = canUnlockSkill(selectedNode.id, activeSkills, personaLevel);
+  const meetsLevelRequirement = !selectedNode.requiredLevel || personaLevel >= selectedNode.requiredLevel;
   const Icon = selectedNode.icon;
   const hasRequiredShortcut = !!selectedNode.requiredShortcut;
 
@@ -248,10 +250,25 @@ const SkillDetailPanel: React.FC<SkillDetailPanelProps> = ({ selectedSkillId, sk
           </div>
 
           {/* 前置技能要求 - 紧凑版 */}
-          {prerequisites.length > 0 && (
+          {(prerequisites.length > 0 || selectedNode.requiredLevel) && (
             <div className="mt-3 p-2 rounded-lg bg-slate-800/30 border border-slate-700/30">
               <div className="text-[10px] text-slate-500 mb-1">前置技能要求</div>
               <div className="flex flex-wrap gap-1">
+                {/* 等级要求 */}
+                {selectedNode.requiredLevel && (
+                  <span
+                    className="px-1.5 py-0.5 rounded text-[10px] font-medium flex items-center gap-1"
+                    style={{
+                      backgroundColor: meetsLevelRequirement ? 'rgba(34, 197, 94, 0.2)' : 'rgba(251, 191, 36, 0.2)',
+                      color: meetsLevelRequirement ? '#22c55e' : '#fbbf24',
+                      border: `1px solid ${meetsLevelRequirement ? 'rgba(34, 197, 94, 0.4)' : 'rgba(251, 191, 36, 0.4)'}`
+                    }}
+                  >
+                    {meetsLevelRequirement ? '✓' : <TbLock className="w-2.5 h-2.5" />}
+                    Lv.{selectedNode.requiredLevel}
+                  </span>
+                )}
+                {/* 前置技能 */}
                 {prerequisites.map((prereq) => (
                   <span
                     key={prereq.id}
@@ -296,7 +313,15 @@ const SkillDetailPanel: React.FC<SkillDetailPanelProps> = ({ selectedSkillId, sk
                 }}
               />
               <span className="text-xs text-slate-300 font-medium">
-                {isActive ? '技能已激活' : hasRequiredShortcut && !shortcutVerified ? '请先验证快捷键' : canUnlock ? '可以解锁' : '需要前置技能'}
+                {isActive
+                  ? '技能已激活'
+                  : !meetsLevelRequirement
+                    ? `需要精灵 Lv.${selectedNode.requiredLevel}`
+                    : hasRequiredShortcut && !shortcutVerified
+                      ? '请先验证快捷键'
+                      : canUnlock
+                        ? '可以解锁'
+                        : '需要前置技能'}
               </span>
             </div>
 
@@ -310,7 +335,7 @@ const SkillDetailPanel: React.FC<SkillDetailPanelProps> = ({ selectedSkillId, sk
                 // 如果是从关闭切换到开启，会触发动画（通过状态变化监听）
                 onToggleSkill(selectedNode.id, checked);
               }}
-              disabled={(!canUnlock && !isActive) || (hasRequiredShortcut && !shortcutVerified && !isActive)}
+              disabled={(!canUnlock && !isActive) || !meetsLevelRequirement || (hasRequiredShortcut && !shortcutVerified && !isActive)}
               className="data-[state=checked]:bg-primary"
               style={
                 isActive

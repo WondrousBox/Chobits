@@ -3,7 +3,7 @@ import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 
 import { Toaster } from '@/components/ui/sonner';
 import { DownloadFloating } from '@/features/download';
-import { AIAssistant } from '@/features/sprite-assistant';
+import { AIAssistant, LevelUpPage, StatusPage } from '@/features/sprite-assistant';
 import { useAIProviderConfig } from '@/hooks/useAIProviderConfig';
 import { useWorkspaceCheck } from '@/hooks/useWorkspaceCheck';
 import { ChatSelectionProvider } from '@/pages/ChatPage/context/ChatSelectionContext';
@@ -27,7 +27,6 @@ import WorkspacePage from './pages/SettingsPage/components/Workspace';
 import PluginDownloadPage from './pages/SettingsPage/PluginDownloadPage';
 import PluginPage from './pages/SettingsPage/PluginPage';
 import SettingsPage from './pages/SettingsPage/SettingsPage';
-import StatusPage from './pages/StatusPage/StatusPage';
 import TaggingPage from './pages/TaggingPage/TaggingPage';
 import TTSConfigPage from './pages/TTSPage/TTSConfigPage';
 import TTSPage from './pages/TTSPage/TTSPage';
@@ -88,6 +87,7 @@ function App(): JSX.Element {
                 <Route path="/resource-preview" element={<ResourcePreviewWindow />} />
                 <Route path="/download" element={<DownloadFloating />} />
                 <Route path="/skill-tree" element={<SkillTreeSettings />} />
+                <Route path="/level-up" element={<LevelUpPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
               <Toaster />

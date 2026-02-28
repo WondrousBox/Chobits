@@ -2,17 +2,22 @@ import './styles.css';
 
 import { AnimatePresence, motion } from 'framer-motion';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { TbSparkles, TbX } from 'react-icons/tb';
+import { TbSparkles, TbStarFilled, TbX } from 'react-icons/tb';
 
 import SkillDetailPanel from './SkillDetailPanel';
 import SkillTreeCanvas from './SkillTreeCanvas';
 import { SkillStatus, skillTreeNodes } from './skillTreeData';
 
-// 初始化所有技能的默认状态
-const initializeSkillStatuses = (): Record<string, SkillStatus> => {
+// 初始化所有技能的默认状态（考虑等级要求）
+const initializeSkillStatuses = (personaLevel: number): Record<string, SkillStatus> => {
   const statuses: Record<string, SkillStatus> = {};
   skillTreeNodes.forEach((node) => {
-    // 初级技能默认解锁，其他锁定
+    // 检查等级要求
+    if (node.requiredLevel && personaLevel < node.requiredLevel) {
+      statuses[node.id] = 'locked';
+      return;
+    }
+    // 初级技能默认解锁，其他锁定（由于前置技能）
     statuses[node.id] = node.prerequisites.length === 0 ? 'unlocked' : 'locked';
   });
   return statuses;
@@ -20,7 +25,8 @@ const initializeSkillStatuses = (): Record<string, SkillStatus> => {
 
 const SkillTreeSettings: React.FC = () => {
   const [selectedSkill, setSelectedSkill] = useState<string | null>(null);
-  const [skillStatuses, setSkillStatuses] = useState<Record<string, SkillStatus>>(initializeSkillStatuses);
+  const [personaLevel, setPersonaLevel] = useState<number>(1);
+  const [skillStatuses, setSkillStatuses] = useState<Record<string, SkillStatus>>(() => initializeSkillStatuses(1));
 
   // ESC 键退出功能
   useEffect(() => {
@@ -37,6 +43,18 @@ const SkillTreeSettings: React.FC = () => {
   useEffect(() => {
     const loadStatuses = async (): Promise<void> => {
       try {
+        // 加载精灵等级
+        let currentLevel = 1;
+        try {
+          const personaResult = await window.YUA.persona.getState();
+          if (personaResult?.ok && personaResult.state?.level) {
+            currentLevel = personaResult.state.level;
+            setPersonaLevel(currentLevel);
+          }
+        } catch {
+          // Persona API 可能不可用
+        }
+
         // 加载 Movement 状态
         const movementEnabled = await window.YUA.window.getAutoWalkEnabled();
 
@@ -65,17 +83,22 @@ const SkillTreeSettings: React.FC = () => {
           // 截图功能可能未初始化
         }
 
-        setSkillStatuses((prev) => ({
-          ...prev,
-          // 映射到新的技能 ID
-          movement: movementEnabled ? 'active' : 'unlocked',
-          dailyCare: dailyCareEnabled ? 'active' : 'unlocked',
-          microphone: recorderEnabled ? 'active' : 'unlocked',
-          systemAudio: recorderEnabled ? 'active' : 'unlocked',
-          screenshot: screenshotEnabled ? 'active' : 'unlocked',
-          spriteManage: 'unlocked', // Sprite 管理始终解锁
-          aiChat: 'unlocked' // AI 对话始终解锁
-        }));
+        setSkillStatuses((prev) => {
+          // 先用等级初始化基础状态
+          const baseStatuses = initializeSkillStatuses(currentLevel);
+          return {
+            ...baseStatuses,
+            ...prev,
+            // 映射到新的技能 ID（覆盖等级检查，因为已经启用）
+            movement: movementEnabled ? 'active' : baseStatuses['movement'] ?? 'unlocked',
+            dailyCare: dailyCareEnabled ? 'active' : baseStatuses['dailyCare'] ?? 'unlocked',
+            microphone: recorderEnabled ? 'active' : baseStatuses['microphone'] ?? 'unlocked',
+            systemAudio: recorderEnabled ? 'active' : baseStatuses['systemAudio'] ?? 'unlocked',
+            screenshot: screenshotEnabled ? 'active' : baseStatuses['screenshot'] ?? 'unlocked',
+            spriteManage: 'unlocked', // Sprite 管理始终解锁
+            aiChat: 'unlocked' // AI 对话始终解锁
+          };
+        });
       } catch (error) {
         console.warn('加载技能状态失败:', error);
       }
@@ -192,6 +215,14 @@ const SkillTreeSettings: React.FC = () => {
               </span>
             </div>
             <div className="h-4 w-px bg-slate-700" />
+            {/* 精灵等级 */}
+            <div className="flex items-center gap-1.5">
+              <TbStarFilled className="w-3.5 h-3.5 text-amber-400" style={{ filter: 'drop-shadow(0 0 4px rgba(251, 191, 36, 0.6))' }} />
+              <span className="text-xs text-slate-400">
+                精灵 <span className="text-amber-400 font-bold">Lv.{personaLevel}</span>
+              </span>
+            </div>
+            <div className="h-4 w-px bg-slate-700" />
             {/* 技能统计 */}
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1.5">
@@ -231,7 +262,9 @@ const SkillTreeSettings: React.FC = () => {
 
       {/* 技能详情面板 */}
       <AnimatePresence>
-        {selectedSkill && selectedSkill !== 'core' && <SkillDetailPanel selectedSkillId={selectedSkill} skillStatuses={skillStatuses} onClose={handleClosePanel} onToggleSkill={handleToggleSkill} />}
+        {selectedSkill && selectedSkill !== 'core' && (
+          <SkillDetailPanel selectedSkillId={selectedSkill} skillStatuses={skillStatuses} personaLevel={personaLevel} onClose={handleClosePanel} onToggleSkill={handleToggleSkill} />
+        )}
       </AnimatePresence>
     </div>
   );

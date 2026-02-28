@@ -13,5 +13,9 @@ export { SpriteStateProvider, useSpriteState } from './context/SpriteStateContex
 export type { MessageCatalog, MessageCategory, MessageProducer, MessagesProvider, SpriteAnimation, SpriteEventType } from './types';
 export { SPRITE_EVENT_TYPES, SpriteEventGroups } from './types';
 
+// ── Pages ───────────────────────────────────────────────────
+export { default as LevelUpPage } from './pages/LevelUp';
+export { StatusPage } from './pages/StatusPage';
+
 // ── Utils ───────────────────────────────────────────────────
 export { resolveSpriteSrc } from './utils/resource';

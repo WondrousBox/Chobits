@@ -5,8 +5,6 @@ import path from 'node:path';
 import { app, BrowserWindow, ipcMain } from 'electron';
 
 import pkg from '../../../package.json';
-import { getDB } from '../db';
-import { WorkspacesRepo } from '../db/repositories';
 
 const SETTINGS_DIR = path.join(app.getPath('userData'), 'data');
 const ROLE_FILE = path.join(SETTINGS_DIR, 'role.json');
@@ -48,74 +46,5 @@ export function initStatusHandlers(_win: BrowserWindow) {
     const next = { ...current, ...payload?.patch };
     await writeJson(ROLE_FILE, next);
     return { ok: true, role: next };
-  });
-
-  ipcMain.handle('status:getOverview', async () => {
-    const db = getDB();
-    const userDir = app.getPath('userData');
-    const dbDir = path.join(userDir, 'data');
-    const dbPath = path.join(dbDir, process.env.NODE_ENV === 'development' ? 'app-dev.db' : 'app.db');
-    const ws = await WorkspacesRepo.getDefault();
-
-    function getSingle<T = any>(sql: string, params: any[] = [], fallback: any = 0): T {
-      try {
-        const row = (db as any).prepare(sql).get(...params);
-        return (row as any) ?? fallback;
-      } catch {
-        return fallback;
-      }
-    }
-    function getAll<T = any>(sql: string, params: any[] = []): T[] {
-      try {
-        return (db as any).prepare(sql).all(...params) as T[];
-      } catch {
-        return [] as T[];
-      }
-    }
-
-    const resTotal = getSingle<{ count: number }>(`SELECT COUNT(*) as count FROM resources WHERE deleted_at IS NULL`, [])?.count ?? 0;
-    const resSize = getSingle<{ size: number }>(`SELECT COALESCE(SUM(size_bytes), 0) as size FROM resources WHERE deleted_at IS NULL`, [])?.size ?? 0;
-    const resByType = getAll<{ type: string; count: number; size: number }>(
-      `SELECT type as type, COUNT(*) as count, COALESCE(SUM(size_bytes), 0) as size FROM resources WHERE deleted_at IS NULL GROUP BY type`
-    );
-    const thumbWith = getSingle<{ cnt: number }>(`SELECT COUNT(*) as cnt FROM resources WHERE deleted_at IS NULL AND thumbnail_path IS NOT NULL`, [])?.cnt ?? 0;
-    const thumbWithout = getSingle<{ cnt: number }>(`SELECT COUNT(*) as cnt FROM resources WHERE deleted_at IS NULL AND (thumbnail_path IS NULL OR thumbnail_path = '')`, [])?.cnt ?? 0;
-
-    const docTotal = getSingle<{ count: number }>(`SELECT COUNT(*) as count FROM documents WHERE deleted_at IS NULL`, [])?.count ?? 0;
-    const docWithEmb = getSingle<{ count: number }>(`SELECT COUNT(*) as count FROM documents WHERE deleted_at IS NULL AND embedding IS NOT NULL`, [])?.count ?? 0;
-    const docByType = getAll<{ docType: string | null; count: number }>(`SELECT doc_type as docType, COUNT(*) as count FROM documents WHERE deleted_at IS NULL GROUP BY doc_type`);
-
-    // 检查是否存在任何维度表（支持多维度并存）
-    const vecTables = getAll<{ name: string }>(`SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'vec_docs_%'`, []);
-    const vecEnabled = vecTables.length > 0;
-    // 统计所有维度表的向量总数
-    let vecTotal = 0;
-    if (vecEnabled) {
-      for (const table of vecTables) {
-        const count = getSingle<{ count: number }>(`SELECT COUNT(*) as count FROM ${table.name}`, [])?.count ?? 0;
-        vecTotal += count;
-      }
-    }
-
-    const recycleTotal = getSingle<{ count: number }>(`SELECT COUNT(*) as count FROM recycle_bin`, [])?.count ?? 0;
-
-    return {
-      ok: true,
-      workspace: ws || null,
-      resources: {
-        total: resTotal,
-        totalSizeBytes: resSize,
-        byType: resByType,
-        thumbnails: { withThumb: thumbWith, withoutThumb: thumbWithout }
-      },
-      documents: {
-        total: docTotal,
-        withEmbedding: docWithEmb,
-        byDocType: docByType
-      },
-      vectors: { enabled: vecEnabled, total: vecTotal },
-      recycleBin: { total: recycleTotal },
-      system: { userDataDir: userDir }
-    };
   });
 }

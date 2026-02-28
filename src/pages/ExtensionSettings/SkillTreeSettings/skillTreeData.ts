@@ -48,6 +48,7 @@ export interface SkillNode {
   prerequisites: string[]; // 前置技能 IDs
   settingsKey?: string; // 映射到实际设置组件的 key
   unlockCondition?: string; // 解锁条件描述
+  requiredLevel?: number; // 解锁所需的精灵等级
   requiredShortcut?: {
     ctrl?: boolean;
     shift?: boolean;
@@ -268,7 +269,8 @@ export const skillTreeNodes: SkillNode[] = [
     tier: 'advanced',
     column: 0,
     row: 3,
-    prerequisites: ['scheduleReminder']
+    prerequisites: ['scheduleReminder'],
+    requiredLevel: 20
   },
 
   // ============ 化身系分支 (row 5-6) ============
@@ -296,7 +298,8 @@ export const skillTreeNodes: SkillNode[] = [
     column: 0,
     row: 6,
     prerequisites: [],
-    settingsKey: 'movement'
+    settingsKey: 'movement',
+    requiredLevel: 5
   },
   // 中级 第1列 - 外观定制
   {
@@ -308,7 +311,8 @@ export const skillTreeNodes: SkillNode[] = [
     tier: 'intermediate',
     column: 0,
     row: 5,
-    prerequisites: ['spriteManage']
+    prerequisites: ['spriteManage'],
+    requiredLevel: 10
   },
   // 高级 第1列 - 动作编排
   {
@@ -320,7 +324,8 @@ export const skillTreeNodes: SkillNode[] = [
     tier: 'advanced',
     column: 0,
     row: 5,
-    prerequisites: ['customAppearance', 'movement']
+    prerequisites: ['customAppearance', 'movement'],
+    requiredLevel: 12
   },
   // 专业 第1列 - 情感表达
   {
@@ -332,7 +337,8 @@ export const skillTreeNodes: SkillNode[] = [
     tier: 'professional',
     column: 0,
     row: 5,
-    prerequisites: ['actionChoreography']
+    prerequisites: ['actionChoreography'],
+    requiredLevel: 15
   },
 
   // ============ 智能系分支 (row 7-8) ============
@@ -407,7 +413,8 @@ export const skillTreeNodes: SkillNode[] = [
     column: 0,
     row: 7,
     prerequisites: ['autoAgent', 'emotionExpression', 'videoAnalysis', 'smartReminder'],
-    unlockCondition: '解锁所有专业级技能'
+    unlockCondition: '解锁所有专业级技能',
+    requiredLevel: 50
   }
 ];
 
@@ -421,10 +428,15 @@ export const getTierConfig = (tier: SkillTier): { label: string; color: string; 
   return skillTierConfig[tier];
 };
 
-// 检查技能是否可解锁（前置技能都已激活）
-export const canUnlockSkill = (skillId: string, activeSkills: Set<string>): boolean => {
+// 检查技能是否可解锁（前置技能都已激活 + 等级满足）
+export const canUnlockSkill = (skillId: string, activeSkills: Set<string>, personaLevel?: number): boolean => {
   const skill = skillTreeNodes.find((n) => n.id === skillId);
   if (!skill) return false;
+  // 检查等级要求
+  if (skill.requiredLevel && personaLevel !== undefined && personaLevel < skill.requiredLevel) {
+    return false;
+  }
+  // 检查前置技能
   if (skill.prerequisites.length === 0) return true;
   return skill.prerequisites.every((prereq) => activeSkills.has(prereq));
 };
