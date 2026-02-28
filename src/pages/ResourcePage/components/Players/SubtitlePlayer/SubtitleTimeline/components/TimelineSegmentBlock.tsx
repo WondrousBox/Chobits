@@ -471,7 +471,7 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
             const progress = Math.min(1, Math.max(0, (currentTime - segment.startTime) / duration));
             return (
               <div
-                className="absolute left-0 top-0 bottom-0 bg-foreground/15 pointer-events-none rounded-l transition-[width] duration-100"
+                className="absolute left-0 top-0 bottom-0 bg-foreground/30 pointer-events-none rounded-l"
                 style={{
                   width: `${progress * 100}%`,
                   borderRadius: progress >= 0.99 ? DEFAULT_CONFIG.SEGMENT_BORDER_RADIUS : `${DEFAULT_CONFIG.SEGMENT_BORDER_RADIUS}px 0 0 ${DEFAULT_CONFIG.SEGMENT_BORDER_RADIUS}px`
@@ -509,10 +509,7 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
                 const isWordActive = currentTime >= word.st && currentTime < word.et;
                 const isPast = currentTime >= word.et;
                 return (
-                  <span
-                    key={i}
-                    className={clsx('transition-colors duration-100', isWordActive && 'text-primary', isPast && 'text-foreground', !isPast && !isWordActive && 'text-foreground/40')}
-                  >
+                  <span key={i} className={clsx('transition-colors duration-100', isWordActive && 'text-primary', isPast && 'text-foreground', !isPast && !isWordActive && 'text-foreground/40')}>
                     {word.text}
                   </span>
                 );

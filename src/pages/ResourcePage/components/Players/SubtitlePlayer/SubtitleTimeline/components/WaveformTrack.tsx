@@ -1,10 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { ViewportState } from '../types';
+import type { ViewportState, WaveformData } from '../types';
 
 interface WaveformTrackProps {
-  /** 音频文件路径 */
-  audioPath?: string;
+  /** 波形数据（外部传入） */
+  waveformData?: WaveformData;
+  /** 是否加载中 */
+  isLoading?: boolean;
+  /** 错误信息 */
+  error?: string | null;
   /** 时间轴总宽度 */
   totalWidth: number;
   /** 时长（秒） */
@@ -25,11 +29,6 @@ interface WaveformTrackProps {
   containerWidth?: number;
 }
 
-interface WaveformData {
-  peaks: number[];
-  duration: number;
-}
-
 /**
  * WaveformTrack - 高性能音频波形轨道组件
  *
@@ -39,9 +38,12 @@ interface WaveformData {
  * - 支持缩放和平移
  * - 固定在顶部，不随轨道垂直滚动
  * - 水平滚动与时间轴同步
+ * - 波形数据由外部传入，组件只负责渲染
  */
 export const WaveformTrack: React.FC<WaveformTrackProps> = ({
-  audioPath,
+  waveformData,
+  isLoading = false,
+  error = null,
   // totalWidth 和 viewport 不再需要，但保留在 props 中以保持接口一致性
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   totalWidth: _totalWidth,
@@ -57,13 +59,7 @@ export const WaveformTrack: React.FC<WaveformTrackProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const [waveformData, setWaveformData] = useState<WaveformData | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [actualContainerWidth, setActualContainerWidth] = useState(containerWidth);
-
-  // 多级缓存：根据采样数量缓存不同精度的波形数据
-  const waveformCacheRef = useRef<Map<string, WaveformData>>(new Map());
 
   // 跟踪鼠标按下位置，用于区分点击和拖拽
   const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
@@ -84,56 +80,6 @@ export const WaveformTrack: React.FC<WaveformTrackProps> = ({
 
     return () => observer.disconnect();
   }, []);
-
-  // 加载波形数据
-  const loadWaveform = useCallback(async () => {
-    if (!audioPath) {
-      setWaveformData(null);
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      // 计算采样数量
-      // 基础：保证有足够的采样点来展现波形细节
-      // 最少 5000 个采样点（低质量），最多 100000 个采样点（高质量）
-      // 平均每秒 200 个采样点
-      const samplesCount = Math.min(Math.max(5000, Math.ceil(duration * 200)), 100000);
-      const cacheKey = `${audioPath}:${samplesCount}`;
-
-      console.log('samplesCount', samplesCount, 'duration', duration);
-
-      // 检查缓存
-      const cachedData = waveformCacheRef.current.get(cacheKey);
-      if (cachedData) {
-        setWaveformData(cachedData);
-        setIsLoading(false);
-        return;
-      }
-
-      // 调用 ffmpeg 提取波形
-      const result = await window.YUA.ffmpeg.extractWaveform({
-        inputPath: audioPath,
-        samplesCount
-      });
-
-      // 缓存结果
-      waveformCacheRef.current.set(cacheKey, result);
-      setWaveformData(result);
-    } catch (err) {
-      console.error('[WaveformTrack] Failed to load waveform:', err);
-      setError(err instanceof Error ? err.message : '加载波形失败');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [audioPath, duration]);
-
-  // 当音频路径变化或缩放级别变化时重新加载波形
-  useEffect(() => {
-    loadWaveform();
-  }, [loadWaveform]);
 
   // 绘制波形 - 只绘制可见区域，固定条形宽度
   useEffect(() => {
@@ -157,7 +103,7 @@ export const WaveformTrack: React.FC<WaveformTrackProps> = ({
     if (Math.abs(actualAudioDuration - duration) > 0.1) {
       console.warn('[WaveformTrack] Duration mismatch:', {
         propsDuration: duration,
-        ffmpegDuration: actualAudioDuration,
+        audioDuration: actualAudioDuration,
         diff: actualAudioDuration - duration
       });
     }
@@ -206,7 +152,7 @@ export const WaveformTrack: React.FC<WaveformTrackProps> = ({
       const barEndTime = barStartTime + timePerBar;
 
       // 计算对应的峰值索引范围
-      // 使用 FFmpeg 返回的实际音频时长来计算，确保波形与音频精确对齐
+      // 使用实际音频时长来计算，确保波形与音频精确对齐
       const peakDuration = actualAudioDuration / peaks.length;
       const startPeakIndex = Math.floor(barStartTime / peakDuration);
       const endPeakIndex = Math.ceil(barEndTime / peakDuration);
@@ -266,8 +212,8 @@ export const WaveformTrack: React.FC<WaveformTrackProps> = ({
     [onSeek, pixelsPerSecond, duration, scrollLeft]
   );
 
-  // 如果没有音频路径，不渲染
-  if (!audioPath) {
+  // 如果没有波形数据且不在加载中，不渲染
+  if (!waveformData && !isLoading) {
     return null;
   }
 

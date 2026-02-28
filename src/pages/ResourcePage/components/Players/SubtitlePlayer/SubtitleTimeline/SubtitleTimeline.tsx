@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbMinus, TbPlus, TbWaveSine } from 'react-icons/tb';
+import { TbMinus, TbPlus, TbPointer, TbScissors, TbWaveSine } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -8,10 +8,12 @@ import { Slider } from '@/components/ui/slider';
 import { AnnotationTrack, AnnotationTrackLabel, ClipTrack, ClipTrackLabel, SeekBar, TimelineTrackView, TimeRuler, TrackLabel, TTSAudioTrack, TTSTrackLabel, WaveformTrack } from './components';
 import { useTimelineInteraction } from './hooks';
 import type { TimelineSegment } from './types';
-import { ClipLayoutMode, ClipTool, DEFAULT_CONFIG, SubtitleTimelineProps, TRACK_COLORS, ViewportState } from './types';
+import { ClipTool, DEFAULT_CONFIG, SubtitleTimelineProps, TRACK_COLORS, ViewportState, WaveformState } from './types';
 import { parseSegmentId } from './utils';
 
 const audioWaveformHeight = 40;
+/** 波形+剪辑叠加时的轨道高度 */
+const overlayTrackHeight = Math.max(audioWaveformHeight, DEFAULT_CONFIG.CLIP_TRACK_HEIGHT);
 
 /**
  * SubtitleTimeline - 高性能字幕时间轴组件
@@ -37,7 +39,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   disabled = false,
   highlightIds: propHighlightIds,
   className,
-  audioPath,
+  waveform,
   showWaveform = true,
   ttsItemsByTrack,
   ttsTrackLabels,
@@ -59,21 +61,17 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   onDeleteSegment,
   onSeek,
   onViewportChange,
-  showClipTrack = false,
   clipTrack: clipTrackData,
   clipTool: propClipTool = 'select',
   clipCallbacks,
   onToggleSubtitleTrackEnabled,
   onToggleTTSTrackEnabled,
-  onToggleClipTrackEnabled,
   clipTrackEnabled = true,
   ttsTrackEnabledMap,
   wordsMap,
-  showAnnotationTrack = false,
   annotationTrack: annotationTrackData,
   annotationCallbacks,
-  annotationTrackEnabled = true,
-  onToggleAnnotationTrackEnabled
+  annotationTrackEnabled = true
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -90,7 +88,6 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   const [mockCurrentTime, setMockCurrentTime] = useState(0);
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
   const [internalClipTool, setInternalClipTool] = useState<ClipTool>(propClipTool);
-  const [clipLayoutMode, setClipLayoutMode] = useState<ClipLayoutMode>('source-time');
 
   const initialPixelsPerSecondValue = initialViewport?.pixelsPerSecond ?? DEFAULT_CONFIG.DEFAULT_PIXELS_PER_SECOND;
 
@@ -122,6 +119,13 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
       color: track.color ?? TRACK_COLORS[index % TRACK_COLORS.length]
     }));
   }, [tracks]);
+
+  // 是否显示波形轨道
+  const showWaveformTrack = showWaveform && (waveform?.data || waveform?.loading) && propDuration !== undefined && propDuration > 0;
+  // 是否将剪辑轨道叠加在波形上方（有波形且有剪辑数据时叠加显示）
+  const waveformClipOverlay = showWaveformTrack && !!clipTrackData;
+  // 波形/叠加区域的实际高度
+  const effectiveWaveformHeight = waveformClipOverlay ? overlayTrackHeight : audioWaveformHeight;
 
   // 时间轴内容区域宽度（不包含轨道标签）
   const timelineContentWidth = containerWidth - (showTrackLabels ? trackLabelWidth : 0);
@@ -516,6 +520,33 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
           <Button variant="ghost" size="sm" className="w-8 h-8 p-0 shrink-0" onClick={handleZoomIn} title="放大">
             <TbPlus className="w-4 h-4" />
           </Button>
+
+          {/* 剪辑工具（从剪辑轨道标签移至顶部工具栏） */}
+          {clipTrackData && (
+            <>
+              <div className="w-px h-5 bg-border mx-1" />
+              <div className="flex items-center gap-0.5">
+                <Button
+                  variant={internalClipTool === 'select' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="w-7 h-7 p-0"
+                  onClick={() => (clipCallbacks?.onClipToolChange ?? setInternalClipTool)('select')}
+                  title="选择工具"
+                >
+                  <TbPointer className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  variant={internalClipTool === 'cut' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="w-7 h-7 p-0"
+                  onClick={() => (clipCallbacks?.onClipToolChange ?? setInternalClipTool)('cut')}
+                  title="裁剪工具"
+                >
+                  <TbScissors className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
@@ -552,10 +583,10 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
             {/* 标签区域顶部占位（对应时间刻度） */}
             {showRuler && <div className="border-b bg-muted/30 shrink-0" style={{ height: DEFAULT_CONFIG.RULER_HEIGHT }} />}
 
-            {showTrackLabels && showWaveform && audioPath && propDuration !== undefined && propDuration > 0 && (
-              <div className="flex items-center gap-1 px-2 border-r bg-muted/30 shrink-0 box-border" style={{ width: trackLabelWidth, height: audioWaveformHeight }}>
+            {showTrackLabels && showWaveformTrack && (
+              <div className="flex items-center gap-1 px-2 border-b border-r bg-muted/30 shrink-0 box-border" style={{ width: trackLabelWidth, height: effectiveWaveformHeight }}>
                 <TbWaveSine className="w-4 h-4 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground truncate">波形</span>
+                <span className="text-xs text-muted-foreground truncate">{waveformClipOverlay ? '波形/剪辑' : '波形'}</span>
               </div>
             )}
 
@@ -593,20 +624,17 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                 );
               })}
 
-            {showAnnotationTrack && annotationTrackData && (
-              <AnnotationTrackLabel annotationCount={annotationTrackData.annotations.length} enabled={annotationTrackEnabled} onToggleEnabled={onToggleAnnotationTrackEnabled} />
-            )}
+            {annotationTrackData && <AnnotationTrackLabel annotationCount={annotationTrackData.annotations.length} enabled={annotationTrackEnabled} />}
 
-            {showClipTrack && clipTrackData && (
-              <ClipTrackLabel
-                activeTool={internalClipTool}
-                onToolChange={clipCallbacks?.onClipToolChange ?? setInternalClipTool}
-                clipCount={clipTrackData.clips.length}
-                layoutMode={clipLayoutMode}
-                onLayoutModeChange={setClipLayoutMode}
-                enabled={clipTrackEnabled}
-                onToggleEnabled={onToggleClipTrackEnabled}
-              />
+            {clipTrackData && !waveformClipOverlay && (
+              <div
+                className={clsx('flex items-center gap-1.5 px-2 border-b border-r bg-muted/30 shrink-0 box-border', !clipTrackEnabled && 'opacity-40')}
+                style={{ width: trackLabelWidth, height: DEFAULT_CONFIG.CLIP_TRACK_HEIGHT + DEFAULT_CONFIG.TRACK_GAP }}
+              >
+                <div className="w-1.5 h-4 rounded-full shrink-0 bg-cyan-500" />
+                <span className="text-xs text-foreground/80 truncate flex-1">剪辑</span>
+                <span className="text-[10px] text-muted-foreground">{clipTrackData.clips.length}</span>
+              </div>
             )}
 
             <div className="flex items-center justify-center hover:bg-accent/50 cursor-pointer" style={{ height: 40 }}>
@@ -641,27 +669,54 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
               />
             )}
 
-            {/* 波形轨道（固定在顶部，不随字幕轨道垂直滚动） */}
-            {showWaveform && audioPath && propDuration !== undefined && propDuration > 0 && (
+            {/* 波形轨道（固定在顶部，不随字幕轨道垂直滚动）+ 剪辑轨道叠加 */}
+            {showWaveformTrack && (
               <>
                 <div className="h-0 w-0">
                   <div className="absolute" style={{ width: scrollContainerWidth }}>
                     <WaveformTrack
-                      audioPath={audioPath}
+                      waveformData={waveform?.data}
+                      isLoading={waveform?.loading}
+                      error={waveform?.error}
                       totalWidth={totalWidth}
                       duration={duration}
-                      height={audioWaveformHeight}
+                      height={effectiveWaveformHeight}
                       pixelsPerSecond={pixelsPerSecond}
                       viewport={viewport}
                       currentTime={effectiveCurrentTime}
-                      trackLabelWidth={trackLabelWidth}
-                      showTrackLabel={showTrackLabels}
                       scrollLeft={scrollLeft}
                       onSeek={handleSeekUnified}
                     />
                   </div>
                 </div>
-                <div className="w-full" style={{ height: audioWaveformHeight }}></div>
+                <div className="w-full" style={{ height: effectiveWaveformHeight }}>
+                  {/* 剪辑轨道叠加在波形上方 */}
+                  {waveformClipOverlay && (
+                    <ClipTrack
+                      overlay
+                      clips={clipTrackData.clips}
+                      sourceDuration={clipTrackData.sourceDuration}
+                      pixelsPerSecond={pixelsPerSecond}
+                      width={totalWidth}
+                      currentTime={effectiveCurrentTime}
+                      activeTool={internalClipTool}
+                      selectedClipId={selectedClipId}
+                      onCut={clipCallbacks?.onClipCut}
+                      onDelete={clipCallbacks?.onClipDelete}
+                      onRestore={clipCallbacks?.onClipRestore}
+                      onSpeedChange={clipCallbacks?.onClipSpeedChange}
+                      onMoveUp={handleClipMoveUp}
+                      onMoveDown={handleClipMoveDown}
+                      onClipSelect={(id: string) => {
+                        setSelectedSegmentId(null);
+                        setSelectedTTS(null);
+                        setSelectedClipId(id);
+                      }}
+                      disabled={!clipTrackEnabled}
+                      height={effectiveWaveformHeight}
+                    />
+                  )}
+                </div>
               </>
             )}
 
@@ -732,7 +787,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                 );
               })}
 
-            {showAnnotationTrack && annotationTrackData && (
+            {annotationTrackData && (
               <AnnotationTrack
                 annotations={annotationTrackData.annotations}
                 totalWidth={totalWidth}
@@ -743,7 +798,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
               />
             )}
 
-            {showClipTrack && clipTrackData && (
+            {clipTrackData && !waveformClipOverlay && (
               <ClipTrack
                 clips={clipTrackData.clips}
                 sourceDuration={clipTrackData.sourceDuration}
@@ -758,7 +813,6 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                 onSpeedChange={clipCallbacks?.onClipSpeedChange}
                 onMoveUp={handleClipMoveUp}
                 onMoveDown={handleClipMoveDown}
-                layoutMode={clipLayoutMode}
                 onClipSelect={(id: string) => {
                   setSelectedSegmentId(null);
                   setSelectedTTS(null);

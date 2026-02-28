@@ -1,10 +1,10 @@
 import clsx from 'clsx';
 import React from 'react';
-import { TbArrowsSort, TbEye, TbEyeOff, TbPointer, TbScissors, TbTimeline } from 'react-icons/tb';
+import { TbPointer, TbScissors } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 
-import type { ClipLayoutMode, ClipTool } from '../types';
+import type { ClipTool } from '../types';
 import { DEFAULT_CONFIG } from '../types';
 
 interface ClipTrackLabelProps {
@@ -15,25 +15,17 @@ interface ClipTrackLabelProps {
   /** 剪辑片段数量 */
   clipCount: number;
   className?: string;
-  /** 布局模式 */
-  layoutMode?: ClipLayoutMode;
-  /** 切换布局模式回调 */
-  onLayoutModeChange?: (mode: ClipLayoutMode) => void;
-  /** 轨道是否启用 */
-  enabled?: boolean;
-  /** 切换启用/禁用回调 */
-  onToggleEnabled?: () => void;
 }
 
 /**
  * ClipTrackLabel - 剪辑轨道左侧标签
  *
- * 显示轨道名称、布局模式切换和工具切换按钮
+ * 显示轨道名称和工具切换按钮
  */
-export const ClipTrackLabel: React.FC<ClipTrackLabelProps> = ({ activeTool, onToolChange, clipCount, className, layoutMode = 'source-time', onLayoutModeChange, enabled = true, onToggleEnabled }) => {
+export const ClipTrackLabel: React.FC<ClipTrackLabelProps> = ({ activeTool, onToolChange, clipCount, className }) => {
   return (
     <div
-      className={clsx('flex flex-col items-start justify-center px-2 border-b border-border bg-muted/30 shrink-0 overflow-hidden gap-0.5', !enabled && 'opacity-40', className)}
+      className={clsx('flex flex-col items-start justify-center px-2 border-b border-border bg-muted/30 shrink-0 overflow-hidden gap-0.5', className)}
       style={{ height: DEFAULT_CONFIG.CLIP_TRACK_HEIGHT + DEFAULT_CONFIG.TRACK_GAP }}
     >
       {/* 轨道名称 */}
@@ -41,29 +33,10 @@ export const ClipTrackLabel: React.FC<ClipTrackLabelProps> = ({ activeTool, onTo
         <div className="w-1.5 h-4 rounded-full shrink-0 bg-cyan-500" />
         <span className="text-xs text-foreground/80 truncate flex-1">剪辑</span>
         <span className="text-[10px] text-muted-foreground">{clipCount}</span>
-        {/* 启用/禁用按钮（眼睛图标） */}
-        {onToggleEnabled && (
-          <button
-            className={clsx('p-0.5 rounded hover:bg-accent/50 transition-colors shrink-0', enabled ? 'text-muted-foreground hover:text-foreground' : 'text-muted-foreground/50 hover:text-foreground')}
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleEnabled();
-            }}
-            title={enabled ? '禁用剪辑轨道（播放时不生效）' : '启用剪辑轨道（播放时生效）'}
-          >
-            {enabled ? <TbEye className="w-3 h-3" /> : <TbEyeOff className="w-3 h-3" />}
-          </button>
-        )}
       </div>
 
       {/* 工具切换 */}
       <div className="flex items-center gap-0.5">
-        <Button variant={layoutMode === 'source-time' ? 'secondary' : 'ghost'} size="sm" className="w-6 h-5 p-0" onClick={() => onLayoutModeChange?.('source-time')} title="源时间布局">
-          <TbTimeline className="w-3 h-3" />
-        </Button>
-        <Button variant={layoutMode === 'playback-order' ? 'secondary' : 'ghost'} size="sm" className="w-6 h-5 p-0" onClick={() => onLayoutModeChange?.('playback-order')} title="播放顺序布局">
-          <TbArrowsSort className="w-3 h-3" />
-        </Button>
         <Button variant={activeTool === 'select' ? 'secondary' : 'ghost'} size="sm" className="w-6 h-5 p-0" onClick={() => onToolChange?.('select')} title="选择工具">
           <TbPointer className="w-3 h-3" />
         </Button>

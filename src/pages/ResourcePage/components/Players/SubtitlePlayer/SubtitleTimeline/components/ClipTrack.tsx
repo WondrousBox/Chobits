@@ -4,7 +4,7 @@ import { TbArrowBackUp } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 
-import type { ClipLayoutMode, ClipSegment, ClipTool } from '../types';
+import type { ClipSegment, ClipTool } from '../types';
 import { DEFAULT_CONFIG } from '../types';
 import { ClipSequence } from '../utils';
 import { ClipSegmentBlock } from './ClipSegmentBlock';
@@ -38,22 +38,20 @@ interface ClipTrackProps {
   onMoveUp?: (clipId: string) => void;
   /** 下移回调 */
   onMoveDown?: (clipId: string) => void;
-  /** 布局模式 */
-  layoutMode?: ClipLayoutMode;
   /** 禁用交互（轨道未启用时） */
   disabled?: boolean;
+  /** 覆盖模式（叠加在波形轨道上方） */
+  overlay?: boolean;
+  /** 自定义轨道容器高度（覆盖模式下由父级控制） */
+  height?: number;
 }
 
 /**
- * ClipTrack - 剪辑轨道组件（源时间布局 + 乱序播放）
+ * ClipTrack - 剪辑轨道组件
  *
  * 片段按源时间位置排列，与字幕/TTS 轨道共享同一时间轴。
  * 每个片段显示播放顺序号（order），支持通过上移/下移按钮调整播放顺序。
  * 已删除的片段显示为带斜线的空白区域，可以恢复。
- *
- * 布局模式：
- * - source-time: 按源时间位置排列（默认，与字幕轨道对齐）
- * - playback-order: 按播放顺序连续排列（符合直觉）
  */
 export const ClipTrack: React.FC<ClipTrackProps> = ({
   clips,
@@ -70,38 +68,15 @@ export const ClipTrack: React.FC<ClipTrackProps> = ({
   onClipSelect,
   onMoveUp,
   onMoveDown,
-  layoutMode = 'source-time',
-  disabled = false
+  disabled = false,
+  overlay = false,
+  height
 }) => {
   const trackRef = useRef<HTMLDivElement>(null);
 
   const sequence = useMemo(() => new ClipSequence(clips), [clips]);
   const allInfos = useMemo(() => sequence.getAllPlaybackInfos(), [sequence]);
   const orderedClips = useMemo(() => sequence.getOrderedClips(), [sequence]);
-
-  // 根据布局模式计算片段位置
-  const clipLayouts = useMemo(() => {
-    if (layoutMode === 'playback-order') {
-      const activeClips = allInfos.filter((info) => !info.clip.deleted);
-      let currentX = 0;
-      const SEGMENT_GAP = 8;
-
-      const layoutMap = new Map<string, { playStart: number; playEnd: number }>();
-
-      activeClips.forEach((info) => {
-        const segWidth = Math.max(DEFAULT_CONFIG.SEGMENT_MIN_WIDTH, info.playDuration * pixelsPerSecond);
-        layoutMap.set(info.clip.id, {
-          playStart: currentX / pixelsPerSecond,
-          playEnd: (currentX + segWidth) / pixelsPerSecond
-        });
-        currentX += segWidth + SEGMENT_GAP;
-      });
-
-      return layoutMap;
-    }
-
-    return new Map<string, { playStart: number; playEnd: number }>();
-  }, [layoutMode, allInfos, pixelsPerSecond]);
 
   // 构建 clipId -> orderIndex 的映射
   const orderIndexMap = useMemo(() => {
@@ -139,52 +114,46 @@ export const ClipTrack: React.FC<ClipTrackProps> = ({
     [onClipSelect]
   );
 
-  const trackHeight = DEFAULT_CONFIG.CLIP_TRACK_HEIGHT;
+  // 覆盖模式下，容器高度由父级指定；块高度 = 容器高度 - 间距
+  const containerHeight = overlay ? (height ?? DEFAULT_CONFIG.CLIP_TRACK_HEIGHT) : DEFAULT_CONFIG.CLIP_TRACK_HEIGHT + DEFAULT_CONFIG.TRACK_GAP;
+  const trackHeight = overlay ? containerHeight - DEFAULT_CONFIG.TRACK_GAP : DEFAULT_CONFIG.CLIP_TRACK_HEIGHT;
   const totalActiveClips = orderedClips.length;
-
-  // 获取片段的渲染位置
-  const getClipPosition = useCallback(
-    (clipId: string, defaultPlayStart: number, defaultPlayEnd: number) => {
-      if (layoutMode === 'playback-order') {
-        const layout = clipLayouts.get(clipId);
-        if (layout) {
-          return { playStart: layout.playStart, playEnd: layout.playEnd };
-        }
-      }
-      return { playStart: defaultPlayStart, playEnd: defaultPlayEnd };
-    },
-    [layoutMode, clipLayouts]
-  );
 
   return (
     <div
       ref={trackRef}
       data-clip-track
       className={clsx('relative border-border', activeTool === 'cut' && 'cursor-crosshair', disabled && 'opacity-40 pointer-events-none')}
-      style={{ height: trackHeight + DEFAULT_CONFIG.TRACK_GAP, width }}
+      style={{
+        height: containerHeight,
+        width,
+        // 覆盖模式：选择工具时容器不拦截鼠标事件，让点击穿透到下方波形轨道；
+        // 裁剪工具时容器需要拦截点击以执行切割
+        pointerEvents: overlay && activeTool !== 'cut' && !disabled ? 'none' : undefined
+      }}
       onClick={handleTrackClick}
     >
-      {/* 背景 */}
-      <div className="absolute inset-0 bg-background/50" />
+      {/* 背景 - 覆盖模式下透明，让波形可见 */}
+      {!overlay && <div className="absolute inset-0 bg-background/50" />}
 
       {/* 渲染所有片段（含已删除的） */}
       {allInfos.map((info) => {
-        const position = getClipPosition(info.clip.id, info.playStart, info.playEnd);
-
         return info.clip.deleted ? (
           <div
             key={info.clip.id}
             data-clip-block={info.clip.id}
             className={clsx('absolute flex items-center justify-center', 'border border-dashed rounded opacity-40', selectedClipId === info.clip.id && 'ring-2 ring-orange-400 opacity-60')}
             style={{
-              left: position.playStart * pixelsPerSecond,
-              width: Math.max(DEFAULT_CONFIG.SEGMENT_MIN_WIDTH, (position.playEnd - position.playStart) * pixelsPerSecond),
+              left: info.playStart * pixelsPerSecond,
+              width: Math.max(DEFAULT_CONFIG.SEGMENT_MIN_WIDTH, (info.playEnd - info.playStart) * pixelsPerSecond),
               top: DEFAULT_CONFIG.TRACK_GAP / 2,
               height: trackHeight,
               borderColor: 'hsl(0, 60%, 50%)',
               borderRadius: DEFAULT_CONFIG.SEGMENT_BORDER_RADIUS,
               backgroundImage: 'repeating-linear-gradient(135deg, transparent, transparent 3px, hsla(0, 60%, 50%, 0.15) 3px, hsla(0, 60%, 50%, 0.15) 6px)',
-              cursor: activeTool === 'cut' ? 'crosshair' : 'pointer'
+              cursor: activeTool === 'cut' ? 'crosshair' : 'pointer',
+              // 覆盖模式下，让删除块也能接收鼠标事件
+              pointerEvents: overlay ? 'auto' : undefined
             }}
             onClick={(e) => {
               if (activeTool === 'cut') return;
@@ -212,8 +181,8 @@ export const ClipTrack: React.FC<ClipTrackProps> = ({
           <ClipSegmentBlock
             key={info.clip.id}
             clip={info.clip}
-            playStart={position.playStart}
-            playEnd={position.playEnd}
+            playStart={info.playStart}
+            playEnd={info.playEnd}
             pixelsPerSecond={pixelsPerSecond}
             trackHeight={trackHeight}
             orderIndex={orderIndexMap.get(info.clip.id)}
@@ -222,6 +191,7 @@ export const ClipTrack: React.FC<ClipTrackProps> = ({
             isActive={activeClipInfo?.clipId === info.clip.id}
             activeProgress={activeClipInfo?.clipId === info.clip.id ? activeClipInfo.progress : 0}
             activeTool={activeTool}
+            overlay={overlay}
             onClick={handleClipClick}
             onDelete={onDelete}
             onSpeedChange={onSpeedChange}

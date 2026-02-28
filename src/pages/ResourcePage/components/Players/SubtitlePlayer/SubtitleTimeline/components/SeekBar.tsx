@@ -104,12 +104,12 @@ export const SeekBar: React.FC<SeekBarProps> = ({ duration, currentTime = 0, seg
         ))}
 
         {/* 已播放进度 */}
-        <div className="absolute left-0 top-0 h-full bg-primary/50 transition-all duration-100" style={{ width: `${currentProgress}%` }} />
+        <div className="absolute left-0 top-0 h-full bg-primary/50" style={{ width: `${currentProgress}%` }} />
       </div>
 
       {/* 当前播放位置指示器 */}
-      <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 transition-all duration-100" style={{ left: `${currentProgress}%` }}>
-        <div className="w-3 h-3 bg-primary rounded-full shadow-md border-2 border-background group-hover:scale-125 transition-transform" />
+      <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2" style={{ left: `${currentProgress}%` }}>
+        <div className="w-3 h-3 bg-primary rounded-full shadow-md border-2 border-background group-hover:scale-125" />
       </div>
 
       {/* 悬停时显示时间提示 */}

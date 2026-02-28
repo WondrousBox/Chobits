@@ -50,6 +50,28 @@ export interface TimelineTrack {
 }
 
 /**
+ * 波形数据
+ */
+export interface WaveformData {
+  /** 峰值数组（0-1 范围） */
+  peaks: number[];
+  /** 音频时长（秒） */
+  duration: number;
+}
+
+/**
+ * 波形状态（包含数据和加载状态）
+ */
+export interface WaveformState {
+  /** 波形数据 */
+  data?: WaveformData;
+  /** 是否加载中 */
+  loading?: boolean;
+  /** 错误信息 */
+  error?: string | null;
+}
+
+/**
  * 视口状态 - 控制可视区域
  */
 export interface ViewportState {
@@ -151,8 +173,8 @@ export interface SubtitleTimelineProps extends TimelineCallbacks {
   highlightIds?: Set<string> | string[];
   /** 自定义类名 */
   className?: string;
-  /** 音频文件路径（用于显示波形轨道） */
-  audioPath?: string;
+  /** 波形状态（包含数据、加载状态和错误信息） */
+  waveform?: WaveformState;
   /** 是否显示波形轨道 */
   showWaveform?: boolean;
   /** 按轨道分组的 TTS 音频项：trackId -> TTSAudioItem[] */
@@ -181,8 +203,6 @@ export interface SubtitleTimelineProps extends TimelineCallbacks {
   onToggleSubtitleTrackEnabled?: (trackId: string) => void;
   /** 切换TTS轨道启用/禁用 */
   onToggleTTSTrackEnabled?: (ttsTrackId: string) => void;
-  /** 切换剪辑轨道启用/禁用 */
-  onToggleClipTrackEnabled?: () => void;
   /** 剪辑轨道是否启用（默认 true） */
   clipTrackEnabled?: boolean;
   /** TTS 轨道的启用状态：ttsTrackId -> enabled */
@@ -191,20 +211,14 @@ export interface SubtitleTimelineProps extends TimelineCallbacks {
   wordsMap?: Map<string, WordTimestamp[]>;
 
   // ---- 标注轨道 Props ----
-  /** 是否显示标注轨道 */
-  showAnnotationTrack?: boolean;
   /** 标注轨道数据 */
   annotationTrack?: AnnotationTrackData;
   /** 标注轨道回调 */
   annotationCallbacks?: AnnotationTrackCallbacks;
   /** 标注轨道是否启用 */
   annotationTrackEnabled?: boolean;
-  /** 切换标注轨道启用/禁用 */
-  onToggleAnnotationTrackEnabled?: () => void;
 
   // ---- 剪辑轨道 Props ----
-  /** 是否显示剪辑轨道 */
-  showClipTrack?: boolean;
   /** 剪辑轨道数据 */
   clipTrack?: ClipTrackData;
   /** 当前激活的剪辑工具 */
@@ -328,11 +342,6 @@ export interface ClipTrackData {
  * 剪辑轨道当前激活的工具
  */
 export type ClipTool = 'select' | 'cut';
-
-/**
- * 剪辑轨道布局模式
- */
-export type ClipLayoutMode = 'source-time' | 'playback-order';
 
 /**
  * 剪辑轨道回调

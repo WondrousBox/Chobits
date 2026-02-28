@@ -120,6 +120,25 @@ interface ViewportState {
 }
 ```
 
+### WaveformData - 波形数据
+
+```typescript
+interface WaveformData {
+  peaks: number[]; // 峰值数组（0-1 范围）
+  duration: number; // 音频时长（秒）
+}
+```
+
+### WaveformState - 波形状态
+
+```typescript
+interface WaveformState {
+  data?: WaveformData; // 波形数据
+  loading?: boolean; // 是否加载中
+  error?: string | null; // 错误信息
+}
+```
+
 ## 组件 Props
 
 ```typescript
@@ -128,15 +147,13 @@ interface SubtitleTimelineProps {
   tracks: TimelineTrack[]; // 轨道列表
   duration?: number; // 总时长（秒）
   currentTime?: number; // 当前播放时间
-  audioPath?: string; // 音频文件路径（波形显示）
+  waveform?: WaveformState; // 波形状态（包含数据、加载状态和错误信息）
 
   // 显示配置
   showRuler?: boolean; // 显示时间刻度（默认 true）
   showTrackLabels?: boolean; // 显示轨道标签（默认 true）
   showWaveform?: boolean; // 显示波形（默认 true）
   showTTSTrack?: boolean; // 显示 TTS 轨道（默认 true）
-  showAnnotationTrack?: boolean; // 显示标注轨道（默认 true）
-  showClipTrack?: boolean; // 显示剪辑轨道（默认 false）
 
   // 缩放配置
   minPixelsPerSecond?: number; // 最小缩放（默认 20）
@@ -348,7 +365,6 @@ function MyEditor() {
 ```tsx
 <SubtitleTimeline
   tracks={subtitleTracks}
-  showAnnotationTrack
   annotationTrack={{ id: 'annotation-main', label: '标注', annotations }}
   annotationCallbacks={{
     onAnnotationClick: (a) => seek(a.startTime),
@@ -366,7 +382,6 @@ const [clips, setClips] = useState<ClipSegment[]>(ClipSequence.createInitial(vid
 
 <SubtitleTimeline
   tracks={subtitleTracks}
-  showClipTrack
   clipTrack={{ id: 'clip-0', label: '剪辑', clips, sourceDuration: videoDuration }}
   clipTool="cut"
   clipCallbacks={{

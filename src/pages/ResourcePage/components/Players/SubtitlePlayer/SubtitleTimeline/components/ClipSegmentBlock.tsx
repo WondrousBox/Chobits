@@ -50,6 +50,8 @@ interface ClipSegmentBlockProps {
   onMoveDown?: (clipId: string) => void;
   /** 当前激活的工具（cut 模式下点击事件不拦截，让父级处理切割） */
   activeTool?: ClipTool;
+  /** 覆盖模式（叠加在波形上，需要 pointer-events: auto） */
+  overlay?: boolean;
 }
 
 /**
@@ -78,7 +80,8 @@ export const ClipSegmentBlock: React.FC<ClipSegmentBlockProps> = ({
   onSpeedChange,
   onMoveUp,
   onMoveDown,
-  activeTool = 'select'
+  activeTool = 'select',
+  overlay = false
 }) => {
   const blockRef = useRef<HTMLDivElement>(null);
 
@@ -248,7 +251,9 @@ export const ClipSegmentBlock: React.FC<ClipSegmentBlockProps> = ({
           backgroundColor: bgColor,
           borderColor,
           borderRadius: DEFAULT_CONFIG.SEGMENT_BORDER_RADIUS,
-          cursor: activeTool === 'cut' ? 'crosshair' : 'pointer'
+          cursor: activeTool === 'cut' ? 'crosshair' : 'pointer',
+          // 覆盖模式下，片段块需要接收鼠标事件（父容器可能 pointer-events: none）
+          pointerEvents: overlay ? 'auto' : undefined
         }}
         onClick={handleClick}
         onMouseDown={handleEdgeMouseDown}
