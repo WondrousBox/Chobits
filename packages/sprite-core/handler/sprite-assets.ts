@@ -1,19 +1,43 @@
+/**
+ * Sprite Assets Handler
+ *
+ * 管理精灵动画资源的 CRUD：
+ *   sprite:list        — 列出全部动画
+ *   sprite:listByEvent — 按事件类型筛选
+ *   sprite:get         — 获取单个动画
+ *   sprite:register    — 注册新动画
+ *   sprite:remove      — 删除动画
+ *   sprite:updateMeta  — 更新元数据
+ */
+
 import { randomUUID } from 'node:crypto';
 import fscb from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, ipcMain } from 'electron';
 
-import type { SpriteAnimation } from '@/components/AIAssistant/types';
-
-import { addAllowedResourceRoot } from '../resource-protocol';
-import { getResourcePath } from '../utils/resources-path';
+import type { SpriteAnimation } from '../types';
 
 type SpriteIndex = {
   version: 1;
   items: SpriteAnimation[];
 };
+
+/** 外部依赖注入 */
+export interface SpriteAssetsDeps {
+  /** 将目录加入 res:// 协议的白名单 */
+  addAllowedResourceRoot: (dir: string) => void;
+  /** 获取 resources/ 下的平台资源路径 */
+  getResourcePath: (...args: any[]) => string | undefined;
+}
+
+let _deps: SpriteAssetsDeps | undefined;
+
+function deps(): SpriteAssetsDeps {
+  if (!_deps) throw new Error('[sprite-assets] Must call initSpriteHandlers(deps) first');
+  return _deps;
+}
 
 async function ensureDirs(dir: string): Promise<void> {
   await fs.mkdir(dir, { recursive: true });
@@ -23,15 +47,15 @@ const SETTINGS_DIR = path.join(app.getPath('userData'), 'data');
 
 async function getDefaultSpritesDir(): Promise<string> {
   // Packaged resources (read-only)
-  const spritesDir = getResourcePath('sprites');
-  addAllowedResourceRoot(spritesDir! as string);
+  const spritesDir = deps().getResourcePath('sprites');
+  deps().addAllowedResourceRoot(spritesDir! as string);
   return spritesDir!;
 }
 
 async function getUserSpritesDir(): Promise<string> {
   const userDir = path.join(SETTINGS_DIR, 'sprites');
   await ensureDirs(userDir);
-  addAllowedResourceRoot(userDir);
+  deps().addAllowedResourceRoot(userDir);
   return userDir;
 }
 
@@ -84,19 +108,24 @@ function inferMimeFromExt(ext: string): string | undefined {
   }
 }
 
-export function initSpriteHandlers(): void {
-  ipcMain.handle('sprite:list', async () => {
-    const [defDir, userDir] = await Promise.all([getDefaultSpritesDir(), getUserSpritesDir()]);
-    const [defIdx, userIdx] = await Promise.all([readIndex(defDir), readIndex(userDir)]);
-    // tag origin and deletable
-    const withFlagsDefault = defIdx.items.map((it) => ({ ...it, meta: { ...it.meta, deletable: false } as SpriteAnimation['meta'] }));
-    const withFlagsUser = userIdx.items.map((it) => ({ ...it, meta: { ...it.meta, deletable: true } as SpriteAnimation['meta'] }));
-    // Merge: user overrides default on same id
-    const map = new Map<string, SpriteAnimation>();
-    for (const it of withFlagsDefault) map.set(it.meta.id, it);
-    for (const it of withFlagsUser) map.set(it.meta.id, it);
-    return Array.from(map.values());
-  });
+/** 从磁盘加载全部精灵动画（默认 + 用户），供 IPC 和 SpriteManager 共用 */
+export async function listSprites(): Promise<SpriteAnimation[]> {
+  const [defDir, userDir] = await Promise.all([getDefaultSpritesDir(), getUserSpritesDir()]);
+  const [defIdx, userIdx] = await Promise.all([readIndex(defDir), readIndex(userDir)]);
+  // tag origin and deletable
+  const withFlagsDefault = defIdx.items.map((it) => ({ ...it, meta: { ...it.meta, deletable: false } as SpriteAnimation['meta'] }));
+  const withFlagsUser = userIdx.items.map((it) => ({ ...it, meta: { ...it.meta, deletable: true } as SpriteAnimation['meta'] }));
+  // Merge: user overrides default on same id
+  const map = new Map<string, SpriteAnimation>();
+  for (const it of withFlagsDefault) map.set(it.meta.id, it);
+  for (const it of withFlagsUser) map.set(it.meta.id, it);
+  return Array.from(map.values());
+}
+
+export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
+  _deps = injectedDeps;
+
+  ipcMain.handle('sprite:list', () => listSprites());
 
   ipcMain.handle('sprite:listByEvent', async (_e, payload: { eventType?: SpriteAnimation['meta']['eventType'] }) => {
     const { eventType } = payload || {};

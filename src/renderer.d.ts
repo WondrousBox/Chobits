@@ -21,13 +21,13 @@ import type { YtDlpIpcRendererType } from '../electron/main/handlers/ytdlp/ipc-r
 import type { PluginResourceIpcType } from '../electron/main/plugins/ipc-renderer';
 import type { PersonaApiBridgeType } from '../electron/preload/apis/persona';
 import type { ShortcutsBridgeType } from '../electron/preload/apis/shortcuts';
-import type { SpriteBridgeType } from '../electron/preload/apis/sprite';
 import type { StatusBridgeType } from '../electron/preload/apis/status';
 import type { WindowBridgeType } from '../electron/preload/apis/window';
 import type { AIApi } from '../packages/ai/types';
 import type { AppEventPayload } from '../packages/event/events';
 import type { RecorderIpcRendererType } from '../packages/recorder/ipc-renderer';
 import type { SherpaIpcRendererType } from '../packages/sherpa/ipc-renderer';
+import type { SpriteBridgeType } from '../packages/sprite-core/preload';
 import type { TTSIpcRenderer } from '../packages/tts/ipc-renderer';
 
 declare global {

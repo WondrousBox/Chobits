@@ -182,6 +182,11 @@ export function MessageProvider({ children }: MessageProviderProps): JSX.Element
     window.ipcRenderer?.on(MESSAGE_IPC_CHANNELS.LEGACY_BUSY_START, handleLegacyBusyStart);
     window.ipcRenderer?.on(MESSAGE_IPC_CHANNELS.LEGACY_BUSY_END, handleLegacyBusyEnd);
     window.ipcRenderer?.on(MESSAGE_IPC_CHANNELS.LEGACY_BUSY_PROGRESS, handleLegacyBusyProgress);
+    // 新通道: sprite:message (来自 SpriteManager)
+    window.ipcRenderer?.on('sprite:message', handleMessage);
+    // 新通道: sprite:busy:update / sprite:busy:clear
+    window.ipcRenderer?.on('sprite:busy:update', handleLegacyBusyProgress);
+    window.ipcRenderer?.on('sprite:busy:clear', handleLegacyBusyEnd);
 
     return () => {
       window.ipcRenderer?.off(MESSAGE_IPC_CHANNELS.MESSAGE, handleMessage);
@@ -190,6 +195,9 @@ export function MessageProvider({ children }: MessageProviderProps): JSX.Element
       window.ipcRenderer?.off(MESSAGE_IPC_CHANNELS.LEGACY_BUSY_START, handleLegacyBusyStart);
       window.ipcRenderer?.off(MESSAGE_IPC_CHANNELS.LEGACY_BUSY_END, handleLegacyBusyEnd);
       window.ipcRenderer?.off(MESSAGE_IPC_CHANNELS.LEGACY_BUSY_PROGRESS, handleLegacyBusyProgress);
+      window.ipcRenderer?.off('sprite:message', handleMessage);
+      window.ipcRenderer?.off('sprite:busy:update', handleLegacyBusyProgress);
+      window.ipcRenderer?.off('sprite:busy:clear', handleLegacyBusyEnd);
     };
   }, [showToast, showNotice, showBusy, updateBusy, clearBusy, dismiss, clearAll]);
 

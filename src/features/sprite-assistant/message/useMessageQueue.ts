@@ -52,7 +52,7 @@ const getDedupeKey = (message: SpriteMessage): string => {
     return `toast:${toast.category || toast.content || 'default'}`;
   }
 
-  return `unknown:${message.id}`;
+  return `unknown:${(message as any).id}`;
 };
 
 export interface UseMessageQueueReturn {

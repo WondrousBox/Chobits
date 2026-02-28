@@ -1,43 +1,48 @@
 /**
  * Persona State Preload API
  *
- * 提供 window.YUA.persona.* 接口给渲染进程调用人格状态相关功能。
+ * window.YUA.persona.* 接口
+ * 通道已重定向至 sprite:persona:* 统一前缀
+ * 保留对旧通道的兼容事件订阅
  */
 
 import { ipcRenderer } from 'electron';
 
 export const personaApi = {
   /** 获取完整人格状态 */
-  getState: () => ipcRenderer.invoke('persona:getState'),
-
-  /** 更新人格状态 */
-  updateState: (patch: Record<string, any>) => ipcRenderer.invoke('persona:updateState', { patch }),
+  getState: () => ipcRenderer.invoke('sprite:persona:getState'),
 
   /** 增加经验值 */
-  addXP: (amount: number) => ipcRenderer.invoke('persona:addXP', { amount }),
+  addXP: (amount: number) => ipcRenderer.invoke('sprite:persona:addXP', { amount }),
 
   /** 修改好感度 */
-  changeFavor: (delta: number, reason?: string) => ipcRenderer.invoke('persona:changeFavor', { delta, reason }),
+  changeFavor: (delta: number, reason?: string) => ipcRenderer.invoke('sprite:persona:changeFavor', { delta, reason }),
 
   /** 记录每日登录 */
-  recordLogin: () => ipcRenderer.invoke('persona:recordLogin'),
-
-  /** 记录交互 */
-  recordInteraction: () => ipcRenderer.invoke('persona:recordInteraction'),
+  recordLogin: () => ipcRenderer.invoke('sprite:persona:recordLogin'),
 
   /** 解锁成就 */
-  unlockAchievement: (achievementId: string) => ipcRenderer.invoke('persona:unlockAchievement', { achievementId }),
+  unlockAchievement: (achievementId: string) => ipcRenderer.invoke('sprite:persona:unlockAchievement', { id: achievementId }),
 
   /** 获取系统概览 */
-  getOverview: () => ipcRenderer.invoke('persona:getOverview'),
+  getOverview: () => ipcRenderer.invoke('sprite:persona:getOverview'),
 
-  // --- 事件订阅 ---
+  // --- 事件订阅 (统一通过 sprite:state 新通道) ---
 
   /** 订阅人格状态变化事件 */
   onStateChanged: (callback: (state: any) => void) => {
-    const handler = (_: any, state: any): void => callback(state);
-    ipcRenderer.on('persona:state-changed', handler);
-    return () => ipcRenderer.removeListener('persona:state-changed', handler);
+    // 新通道: sprite:state 包含 personaSnapshot
+    const handler = (_: any, data: any): void => {
+      if (data?.personaSnapshot) callback(data.personaSnapshot);
+    };
+    ipcRenderer.on('sprite:state', handler);
+    // 同时兼容旧通道
+    const oldHandler = (_: any, state: any): void => callback(state);
+    ipcRenderer.on('persona:state-changed', oldHandler);
+    return () => {
+      ipcRenderer.removeListener('sprite:state', handler);
+      ipcRenderer.removeListener('persona:state-changed', oldHandler);
+    };
   },
 
   /** 订阅升级事件 */

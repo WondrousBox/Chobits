@@ -28,7 +28,7 @@ import { ytdlpIpcRenderer } from '../main/handlers/ytdlp/ipc-renderer';
 import { arch, isLinux, isMac, isMacIntel, isWindows, platform } from '../main/utils/os';
 import { personaApi } from './apis/persona';
 import { shortcutsBridge } from './apis/shortcuts';
-import { spriteBridge } from './apis/sprite';
+import { spriteBridge } from '../../packages/sprite-core/preload';
 import { statusBridge } from './apis/status';
 import { windowBridge } from './apis/window';
 

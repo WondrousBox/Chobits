@@ -1,0 +1,149 @@
+/**
+ * AIAssistant 组装层 (重构后)
+ *
+ * 职责：纯展示层 + 交互采集器
+ * - 从 SpriteStateContext 被动接收状态
+ * - 通过 IPC 上报用户交互到主进程
+ * - 不再实例化任何 sprite-core 引擎
+ */
+import React, { useEffect, useRef } from 'react';
+
+import Dropzone from '@/components/common/Dropzone';
+
+import { useSpriteState } from './context/SpriteStateContext';
+import { useDragCollector } from './hooks/useDragCollector';
+import { useFileDropCollector } from './hooks/useFileDropCollector';
+import { MessageProvider, SpriteMessage } from './message';
+import { Renderer } from './renderers';
+import PaddingDebugOverlay from './ui/PaddingDebugOverlay';
+import StatusIndicator from './ui/StatusIndicator';
+
+/** 内部组件：包含实际逻辑 */
+const AIAssistantInner: React.FC = () => {
+  const { spriteState, currentAnimation, walkDirection, isWalking, spriteConfig, ready } = useSpriteState();
+  const { width, height, padding } = spriteConfig;
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { onMouseDown, isDragging, isDragReady } = useDragCollector();
+  const { isFileDragOver, handleDragEnter, handleDragLeave, handleDrop, handleDropFiles } = useFileDropCollector();
+
+  // 阻止浏览器默认拖放
+  useEffect(() => {
+    const prevent = (e: DragEvent): void => {
+      e.preventDefault();
+    };
+    window.addEventListener('dragover', prevent);
+    window.addEventListener('drop', prevent);
+    return () => {
+      window.removeEventListener('dragover', prevent);
+      window.removeEventListener('drop', prevent);
+    };
+  }, []);
+
+  // 首次挂载：初始定位窗口
+  const isInitialMountRef = useRef(true);
+  useEffect(() => {
+    if (!ready) return;
+    const positionWindow = async (): Promise<void> => {
+      try {
+        const screenSize = await window.YUA.window['screen:size:get']();
+        const winWidth = width + padding * 2;
+        const winHeight = height + padding * 2;
+
+        if (isInitialMountRef.current) {
+          isInitialMountRef.current = false;
+          const winX = Math.max(0, screenSize.width - winWidth - 20);
+          const winY = Math.max(0, screenSize.height - winHeight - 40);
+          await window.YUA.window['window:move']({ x: winX, y: winY });
+        }
+      } catch (error) {
+        console.error('Failed to handle window position:', error);
+      }
+    };
+    positionWindow();
+  }, [ready, width, height, padding]);
+
+  // 当动画切换时，设置窗口大小
+  useEffect(() => {
+    if (!currentAnimation?.playback) return;
+    const p = currentAnimation.playback;
+    const setSize = async (): Promise<void> => {
+      try {
+        await window.YUA.window.setAssistantSize({
+          width: p.width ?? width,
+          height: p.height ?? height,
+          padding: p.padding ?? padding
+        });
+      } catch (error) {
+        console.error('Failed to set assistant size:', error);
+      }
+    };
+    setSize();
+  }, [currentAnimation, width, height, padding]);
+
+  // 交互采集
+  const handleClick = (): void => {
+    window.YUA.sprite.interact('click');
+  };
+
+  const handleMouseEnter = (): void => {
+    window.YUA.sprite.interact('hover-enter');
+  };
+
+  const handleMouseLeave = (): void => {
+    window.YUA.sprite.interact('hover-leave');
+  };
+
+  const handleContextMenu = (e: React.MouseEvent): void => {
+    e.preventDefault();
+    window.YUA.window['window:open']('menu');
+  };
+
+  const handleDoubleClick = (): void => {
+    window.YUA.window['window:open']('assistant');
+  };
+
+  if (!ready) return null;
+
+  return (
+    <div
+      ref={containerRef}
+      style={{ width, height, left: padding, top: padding }}
+      className={`fixed select-none z-[9999] pointer-events-auto
+        ${isDragReady ? 'cursor-grabbing opacity-80' : 'cursor-grab'}
+      `}
+      onMouseDown={onMouseDown}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      onContextMenu={handleContextMenu}
+      onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
+    >
+      <PaddingDebugOverlay padding={padding} />
+      {/* 统一消息组件 */}
+      <SpriteMessage />
+      <Dropzone
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDropFiles={handleDropFiles}
+        customDropzoneInside={
+          <div className="flex items-center justify-center absolute top-2 left-1/2 -translate-x-1/2 p-1 rounded-md bg-primary text-primary-foreground text-xs whitespace-nowrap z-10">
+            把文件交给我吧
+          </div>
+        }
+      >
+        <Renderer width={width} height={height} walkDirection={walkDirection} />
+      </Dropzone>
+      <StatusIndicator isDragging={isDragging} isWalking={isWalking} />
+    </div>
+  );
+};
+
+/** AIAssistant 组件：包裹 MessageProvider */
+export const AIAssistant: React.FC = () => {
+  return (
+    <MessageProvider>
+      <AIAssistantInner />
+    </MessageProvider>
+  );
+};
