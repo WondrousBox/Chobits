@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 import RadialMenu, { RadialMenuItem } from '../../components/common/RadialMenu/RadialMenu';
 
@@ -6,7 +6,15 @@ interface AssistantMenuPageProps { }
 
 const characterPosition: { x: number; y: number } = { x: 300, y: 300 };
 
+/** 退出动画时长 (ms) */
+const EXIT_ANIMATION_DURATION = 250;
+
 const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
+  // 控制菜单显示状态，初始为 false，等待窗口显示事件后再展开
+  const [isOpen, setIsOpen] = useState(false);
+  // 是否正在播放关闭动画
+  const [isClosing, setIsClosing] = useState(false);
+
   const menuItems: RadialMenuItem[] = useMemo(
     () => [
       {
@@ -97,7 +105,61 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
     ],
     []
   );
-  return <RadialMenu items={menuItems} open anchor={characterPosition} onClose={() => window.YUA.window['window:close']('menu')} />;
+
+  // 处理菜单关闭请求（播放退出动画后关闭窗口）
+  const handleClose = useMemo(
+    () => (): void => {
+      if (isClosing) return; // 防止重复触发
+
+      setIsClosing(true);
+      setIsOpen(false);
+
+      // 等待退出动画完成后再关闭窗口
+      setTimeout(() => {
+        window.YUA.window['window:close']('menu');
+        setIsClosing(false);
+      }, EXIT_ANIMATION_DURATION);
+    },
+    [isClosing]
+  );
+
+  // 监听窗口可见性变化事件
+  useEffect(() => {
+    const handleVisibilityChange = (_event: any, data: { visible: boolean; key: string }): void => {
+      // 只处理当前窗口 (menu) 的事件
+      if (data.key !== 'menu') return;
+
+      if (data.visible) {
+        // 窗口显示时，播放入场动画
+        setIsOpen(true);
+        setIsClosing(false);
+      }
+      // 注意：隐藏事件在窗口已经隐藏后发送，此时无法播放动画
+      // 关闭动画通过 onClose 回调触发
+    };
+
+    window.ipcRenderer?.on('window:visibility-changed', handleVisibilityChange);
+    return () => {
+      window.ipcRenderer?.off('window:visibility-changed', handleVisibilityChange);
+    };
+  }, []);
+
+  // 监听窗口失焦事件（替代 closeOnBlur 配置）
+  useEffect(() => {
+    const handleBlur = (): void => {
+      // 只有在菜单打开且不在关闭过程中时才处理
+      if (isOpen && !isClosing) {
+        handleClose();
+      }
+    };
+
+    window.addEventListener('blur', handleBlur);
+    return () => {
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, [isOpen, isClosing, handleClose]);
+
+  return <RadialMenu items={menuItems} open={isOpen} anchor={characterPosition} onClose={handleClose} />;
 };
 
 export default AssistantMenuPage;
