@@ -24,9 +24,6 @@ export const personaApi = {
   /** 解锁成就 */
   unlockAchievement: (achievementId: string) => ipcRenderer.invoke('sprite:persona:unlockAchievement', { id: achievementId }),
 
-  /** 获取系统概览 */
-  getOverview: () => ipcRenderer.invoke('sprite:persona:getOverview'),
-
   // --- 事件订阅 (统一通过 sprite:state 新通道) ---
 
   /** 订阅人格状态变化事件 */
@@ -46,8 +43,8 @@ export const personaApi = {
   },
 
   /** 订阅升级事件 */
-  onLevelUp: (callback: (data: { newLevel: number }) => void) => {
-    const handler = (_: any, data: { newLevel: number }): void => callback(data);
+  onLevelUp: (callback: (data: { oldLevel: number; newLevel: number }) => void) => {
+    const handler = (_: any, data: { oldLevel: number; newLevel: number }): void => callback(data);
     ipcRenderer.on('persona:level-up', handler);
     return () => ipcRenderer.removeListener('persona:level-up', handler);
   },
