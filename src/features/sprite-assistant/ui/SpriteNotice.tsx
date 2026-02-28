@@ -3,7 +3,7 @@ import { TbAlertTriangle, TbCircleCheck, TbInfoCircle, TbX } from 'react-icons/t
 
 import { Button } from '@/components/ui/button';
 
-import type { NoticeButton, NoticeLevel } from '../hooks/useNoticeState';
+import type { MessageButton as NoticeButton, MessageLevel as NoticeLevel } from '../message/types';
 
 interface SpriteNoticeProps {
   message: string;

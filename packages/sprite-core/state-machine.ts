@@ -275,6 +275,10 @@ export class SpriteStateMachine {
    */
   playOnce(subState: SpriteSubState, options?: { durationMs?: number; fallback?: SpriteState; metadata?: Record<string, any> }): boolean {
     const { durationMs, fallback, metadata } = options ?? {};
+    const currentConfig = this.configs.get(this.state);
+    const defaultFallback = this.state === 'reacting' || currentConfig?.ephemeral ? this.previousStableState : this.state;
+    const fallbackState = fallback ?? defaultFallback;
+
     const success = this.transitionTo('reacting', { subState, metadata, force: true });
 
     if (success) {
@@ -282,7 +286,7 @@ export class SpriteStateMachine {
       this.clearEphemeralTimer();
       this.ephemeralTimer = setTimeout(
         () => {
-          this.transitionTo(fallback ?? this.previousStableState);
+          this.transitionTo(fallbackState, { force: true });
         },
         Math.max(200, duration)
       );

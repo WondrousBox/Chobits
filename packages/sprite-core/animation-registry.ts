@@ -77,6 +77,18 @@ export class AnimationRegistry {
 
   /** 注册动画 */
   register(entry: AnimationEntry): void {
+    const existing = this.animations.get(entry.id);
+    if (existing) {
+      for (const event of existing.eventTypes) {
+        const ids = this.eventIndex.get(event);
+        if (!ids) continue;
+        ids.delete(entry.id);
+        if (ids.size === 0) {
+          this.eventIndex.delete(event);
+        }
+      }
+    }
+
     this.animations.set(entry.id, entry);
     for (const event of entry.eventTypes) {
       if (!this.eventIndex.has(event)) {
@@ -98,7 +110,12 @@ export class AnimationRegistry {
     const entry = this.animations.get(id);
     if (!entry) return;
     for (const event of entry.eventTypes) {
-      this.eventIndex.get(event)?.delete(id);
+      const ids = this.eventIndex.get(event);
+      if (!ids) continue;
+      ids.delete(id);
+      if (ids.size === 0) {
+        this.eventIndex.delete(event);
+      }
     }
     this.animations.delete(id);
   }

@@ -1,8 +1,9 @@
 import { TbSparkles } from 'react-icons/tb';
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 
-import { DownloadFloating } from '@/features/download';
 import { Toaster } from '@/components/ui/sonner';
+import { DownloadFloating } from '@/features/download';
+import { AIAssistant } from '@/features/sprite-assistant';
 import { useAIProviderConfig } from '@/hooks/useAIProviderConfig';
 import { useWorkspaceCheck } from '@/hooks/useWorkspaceCheck';
 import { ChatSelectionProvider } from '@/pages/ChatPage/context/ChatSelectionContext';
@@ -12,7 +13,6 @@ import FileActionsMenu from '@/pages/FileActionsMenu/FileActionsMenu';
 import ResourcePreviewWindow from '@/pages/ResourcePage/ResourcePreviewWindow';
 import { ThemeProvider } from '@/pages/SettingsPage/providers/ThemeProvider';
 
-import { AIAssistant } from './components/AIAssistant';
 import { TooltipProvider } from './components/ui/tooltip';
 import AiProviderConfigWindow from './pages/AiProviderConfigWindow/AiProviderConfigWindow';
 import ASRConfigPage from './pages/ASRPage/ASRConfigPage';

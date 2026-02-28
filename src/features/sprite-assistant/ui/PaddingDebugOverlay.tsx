@@ -4,19 +4,15 @@
  */
 import React from 'react';
 
-import { DEFAULT_ASSISTANT_PADDING, SHOW_PADDING_DEBUG } from '../constants';
-import { useSpritePlayer } from '../context/SpritePlayerContext';
+import { SHOW_PADDING_DEBUG } from '../constants';
+import { useSpriteState } from '../context/SpriteStateContext';
 
 export const PaddingDebugOverlay: React.FC<{ padding: number }> = ({ padding }) => {
-  const { current: currentSprite } = useSpritePlayer();
+  const { spriteConfig } = useSpriteState();
 
-  // 从当前精灵动画定义中获取尺寸，如果没有则使用默认值
-  const width = currentSprite?.width ?? 180;
-  const height = currentSprite?.height ?? 240;
-  const spritePadding = currentSprite?.padding ?? DEFAULT_ASSISTANT_PADDING;
-
-  // 使用精灵动画定义的 padding，如果没有则使用传入的 padding
-  const actualPadding = spritePadding ?? padding;
+  const width = spriteConfig.width;
+  const height = spriteConfig.height;
+  const actualPadding = spriteConfig.padding ?? padding;
 
   return SHOW_PADDING_DEBUG ? (
     <div

@@ -15,8 +15,8 @@
  */
 
 import { SpriteEventBus } from './event-bus';
-import type { PersonaState } from './persona-state';
 import type { InteractionStats } from './interaction-tracker';
+import type { PersonaState } from './persona-state';
 import type { SpriteState, SpriteStateMachine } from './state-machine';
 
 // ============ 类型定义 ============

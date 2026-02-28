@@ -1,8 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { TbTools, TbTrash } from 'react-icons/tb';
 
-import type { SpriteAnimation, SpriteEventType } from '@/components/AIAssistant/types';
-import { SPRITE_EVENT_TYPES, SpriteEventGroups } from '@/components/AIAssistant/types';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
@@ -17,6 +15,8 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import type { SpriteAnimation, SpriteEventType } from '@/features/sprite-assistant';
+import { SPRITE_EVENT_TYPES, SpriteEventGroups } from '@/features/sprite-assistant';
 import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 
 function baseName(p: string): string {

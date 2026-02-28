@@ -18,7 +18,7 @@ import { SpriteEventBus, type SpritePersonaEvent } from './event-bus';
 // ============ 类型定义 ============
 
 /** 交互类型 */
-export type InteractionType = 'click' | 'double-click' | 'drag' | 'hold' | 'hover' | 'file-drop' | 'context-menu' | 'conversation' | 'walk-trigger' | 'custom';
+export type InteractionType = 'click' | 'double-click' | 'drag' | 'hold' | 'hover' | 'file-drag-over' | 'file-drag-leave' | 'file-drop' | 'context-menu' | 'conversation' | 'walk-trigger' | 'custom';
 
 /** 单次交互记录 */
 export interface InteractionEvent {
@@ -161,6 +161,8 @@ export class InteractionTracker {
       drag: 0,
       hold: 0,
       hover: 0,
+      'file-drag-over': 0,
+      'file-drag-leave': 0,
       'file-drop': 0,
       'context-menu': 0,
       conversation: 0,

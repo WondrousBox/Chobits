@@ -6,6 +6,7 @@ import type { DownloadProgress } from '../../../packages/plugins';
 import { initPluginResourceHandlers } from '../../../packages/plugins/ipc-main';
 import { initRecorderHandlers } from '../../../packages/recorder/ipc-main';
 import { initSherpaHandlers } from '../../../packages/sherpa/ipc-main';
+import { initSpriteHandlers, initSpriteManagerIPC } from '../../../packages/sprite-core/handler';
 import { initTTSHandlers } from '../../../packages/tts/ipc-main';
 import { initDailyCare } from '../daily';
 import { initScreenshotHandlers } from '../screenshot';
@@ -19,7 +20,6 @@ import { initVectorHandlers } from './embedding/ipc-main';
 import { initFFmpegHandlers } from './ffmpeg/ipc-main';
 import { initFileHandlers } from './file/ipc-main';
 import { initFolderHandlers } from './folder/ipc-main';
-import { initPersonaStateHandlers } from './persona-state-ipc';
 import { initPreferencesHandlers } from './preferences/ipc-main';
 import { initProxyHandlers } from './proxy/ipc-main';
 import { getHttpProxy } from './proxy/proxy';
@@ -27,7 +27,6 @@ import { initResourceHandlers } from './resource/ipc-main';
 import { initRssHandlers } from './rss/ipc-main';
 import { initShortcutsHandlers } from './shortcuts';
 import { initSpleeterHandlers } from './spleeter/ipc-main';
-import { initSpriteHandlers } from './sprite';
 import { initStatusHandlers } from './status';
 import { initSystemHandlers } from './system/ipc-main';
 import { initThemeHandlers } from './theme/ipc-main';
@@ -51,7 +50,10 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   initFileHandlers(win);
   initSystemHandlers();
   initDownloadHandlers(win);
-  initSpriteHandlers();
+  initSpriteHandlers({
+    addAllowedResourceRoot: (await import('../resource-protocol')).addAllowedResourceRoot,
+    getResourcePath
+  });
   initDailyCare(() => {
     if (win && !win.isDestroyed()) return win;
     const existing = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed());
@@ -97,5 +99,11 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   initSkillTreeHandlers();
   initClipHandlers();
   initAnnotationHandlers();
-  await initPersonaStateHandlers(win);
+  await initSpriteManagerIPC(win, {
+    getDB: (await import('../db')).getDB,
+    getDefaultWorkspace: async () => {
+      const { WorkspacesRepo } = await import('../db/repositories');
+      return WorkspacesRepo.getDefault();
+    }
+  });
 }
