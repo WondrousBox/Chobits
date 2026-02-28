@@ -18,6 +18,8 @@ import { Renderer } from './renderers';
 import PaddingDebugOverlay from './ui/PaddingDebugOverlay';
 import StatusIndicator from './ui/StatusIndicator';
 
+const showBlock = true; // 开发时显示
+
 /** 内部组件：包含实际逻辑 */
 const AIAssistantInner: React.FC = () => {
   const { spriteState, currentAnimation, walkDirection, isWalking, spriteConfig, ready } = useSpriteState();
@@ -111,6 +113,7 @@ const AIAssistantInner: React.FC = () => {
       style={{ width, height, left: padding, top: padding }}
       className={`fixed select-none z-[9999] pointer-events-auto
         ${isDragReady ? 'cursor-grabbing opacity-80' : 'cursor-grab'}
+        ${showBlock ? 'opacity-10' : ''}
       `}
       onMouseDown={onMouseDown}
       onMouseEnter={handleMouseEnter}
@@ -135,6 +138,19 @@ const AIAssistantInner: React.FC = () => {
         <Renderer width={width} height={height} walkDirection={walkDirection} />
       </Dropzone>
       <StatusIndicator isDragging={isDragging} isWalking={isWalking} />
+      {window.YUA.isDev && showBlock && (
+        <div
+          style={{
+            left: padding,
+            top: padding,
+            bottom: padding,
+            right: padding
+          }}
+          className="text-xs bg-background fixed rounded-md border border-solid border-ring"
+        >
+          {padding} {width} {height}
+        </div>
+      )}
     </div>
   );
 };
