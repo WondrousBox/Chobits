@@ -12,6 +12,7 @@ import SkillTreeSettings from '@/pages/ExtensionSettings/SkillTreeSettings';
 import FileActionsMenu from '@/pages/FileActionsMenu/FileActionsMenu';
 import ResourcePreviewWindow from '@/pages/ResourcePage/ResourcePreviewWindow';
 import { ThemeProvider } from '@/pages/SettingsPage/providers/ThemeProvider';
+import WebRecorderWindow from '@/pages/WebRecorderWindow/WebRecorderWindow';
 
 import { TooltipProvider } from './components/ui/tooltip';
 import AiProviderConfigWindow from './pages/AiProviderConfigWindow/AiProviderConfigWindow';
@@ -88,6 +89,7 @@ function App(): JSX.Element {
                 <Route path="/download" element={<DownloadFloating />} />
                 <Route path="/skill-tree" element={<SkillTreeSettings />} />
                 <Route path="/level-up" element={<LevelUpPage />} />
+                <Route path="/web-recorder" element={<WebRecorderWindow />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
               <Toaster />
