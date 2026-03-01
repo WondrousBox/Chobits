@@ -29,41 +29,63 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         label: '状态',
         icon: '💬',
         shortcut: 'i',
-        action: () => window.YUA.window['window:open']('status')
+        action: () => {
+          window.YUA.window['window:open']('status');
+        }
+      },
+      {
+        id: 'web-recorder',
+        label: '录音',
+        icon: '🎙️',
+        shortcut: 'm',
+        action: () => {
+          window.YUA.window['window:open']('webRecorder');
+        }
       },
       {
         id: 'asr-config',
         label: 'ASR 测试',
         icon: '🎤',
         shortcut: 'a',
-        action: () => window.YUA.window['window:open']('asrConfig')
+        action: () => {
+          window.YUA.window['window:open']('asrConfig');
+        }
       },
       {
         id: 'tts-config',
         label: 'TTS 测试',
         icon: '🔊',
         shortcut: 'v',
-        action: () => window.YUA.window['window:open']('ttsConfig')
+        action: () => {
+          window.YUA.window['window:open']('ttsConfig');
+        }
       },
       {
         id: 'tagger',
         label: '总结打标',
         icon: '🏷️',
         shortcut: 't',
-        action: () => window.YUA.window['window:open']('tagger'),
+        action: () => {
+          window.YUA.window['window:open']('tagger');
+        },
         children: [
           {
             id: 'tagger-sum',
             label: '总结打标',
             icon: '📝',
             shortcut: 's',
-            action: () => window.YUA.window['window:open']('tagger')
+            action: () => {
+              window.YUA.window['window:open']('tagger');
+            }
           },
           {
             id: 'tagger-tag',
             label: '标签打标',
             icon: '🏷️',
-            shortcut: 't'
+            shortcut: 't',
+            action: () => {
+              // TODO: implement tag tagging
+            }
           }
         ]
       },
@@ -72,21 +94,27 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         label: '聊天',
         icon: '🗨️',
         shortcut: 'c',
-        action: () => window.YUA.window['window:open']('chat')
+        action: () => {
+          window.YUA.window['window:open']('chat');
+        }
       },
       {
         id: 'resources',
         label: '资源库',
         icon: '📚',
         shortcut: 'r',
-        action: () => window.YUA.window['window:open']('resources')
+        action: () => {
+          window.YUA.window['window:open']('resources');
+        }
       },
       {
         id: 'skill-tree',
         label: '技能树',
         icon: '🌳',
         shortcut: 'k',
-        action: () => window.ipcRenderer.invoke('skillTree:open')
+        action: () => {
+          window.ipcRenderer.invoke('skillTree:open');
+        }
       },
       // {
       //   id: 'recycle',
@@ -100,7 +128,9 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         label: '设置',
         icon: '⚙️',
         shortcut: 's',
-        action: () => window.YUA.window['window:open']('settings')
+        action: () => {
+          window.YUA.window['window:open']('settings');
+        }
       }
     ],
     []

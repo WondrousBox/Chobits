@@ -22,6 +22,7 @@ declare module '@aim-packages/window-manager' {
     tts: void;
     skillTree: void;
     levelUp: void;
+    webRecorder: void;
   }
 }
 
@@ -520,6 +521,26 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
       movable: false,
       focusable: false,
       hasShadow: false,
+      show: false,
+      backgroundColor: '#00000000',
+      webPreferences: { nodeIntegration: true, contextIsolation: true }
+    }
+  },
+  webRecorder: {
+    routeHash: 'web-recorder',
+    autoCenterOn: 'parent-display',
+    showOnReady: false,
+    openDevTools: false,
+    options: {
+      width: 280,
+      height: 48,
+      frame: false,
+      transparent: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      resizable: false,
+      movable: true,
+      hasShadow: true,
       show: false,
       backgroundColor: '#00000000',
       webPreferences: { nodeIntegration: true, contextIsolation: true }
