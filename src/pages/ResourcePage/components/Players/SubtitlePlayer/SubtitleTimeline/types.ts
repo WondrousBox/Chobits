@@ -225,6 +225,20 @@ export interface SubtitleTimelineProps extends TimelineCallbacks {
   clipTool?: ClipTool;
   /** 剪辑轨道回调 */
   clipCallbacks?: ClipTrackCallbacks;
+
+  // ---- 媒体轨道 Props ----
+  /** 媒体轨道列表 */
+  mediaTracks?: MediaTrackData[];
+  /** 媒体源映射：sourceId -> MediaSource */
+  mediaSources?: Map<string, MediaSource>;
+  /** 媒体轨道回调 */
+  mediaCallbacks?: MediaTrackCallbacks;
+  /** 当前激活的媒体工具 */
+  mediaTool?: MediaTool;
+  /** 媒体轨道是否启用 */
+  mediaTrackEnabled?: boolean;
+  /** 切换媒体轨道启用状态 */
+  onToggleMediaTrack?: () => void;
 }
 
 /**
@@ -366,3 +380,223 @@ export interface ClipTrackCallbacks {
   /** 片段移动到指定位置 */
   onClipMove?: (clipId: string, targetOrder: number) => void;
 }
+
+// ========== 媒体轨道相关类型 ==========
+
+/**
+ * 媒体源类型
+ */
+export type MediaType = 'video' | 'image';
+
+/**
+ * 媒体文件引用
+ */
+export interface MediaSource {
+  /** 唯一标识 */
+  id: string;
+  /** 文件路径 */
+  path: string;
+  /** 媒体类型 */
+  type: MediaType;
+  /** 视频时长（秒，仅视频类型） */
+  duration?: number;
+  /** 原始宽度 */
+  width: number;
+  /** 原始高度 */
+  height: number;
+}
+
+/**
+ * 变换参数
+ */
+export interface MediaTransform {
+  /** X 位置（百分比 0-100） */
+  x: number;
+  /** Y 位置（百分比 0-100） */
+  y: number;
+  /** 缩放比例（1.0 = 100%） */
+  scale: number;
+  /** 旋转角度（度） */
+  rotation: number;
+  /** 不透明度（0-1） */
+  opacity: number;
+  /** 水平翻转 */
+  flipX: boolean;
+  /** 垂直翻转 */
+  flipY: boolean;
+}
+
+/**
+ * 转场类型
+ */
+export type TransitionType = 'none' | 'fade' | 'dissolve' | 'wipe-left' | 'wipe-right';
+
+/**
+ * 转场配置
+ */
+export interface MediaTransition {
+  /** 转场类型 */
+  type: TransitionType;
+  /** 转场时长（秒） */
+  duration: number;
+}
+
+/**
+ * 缩略图数据
+ */
+export interface MediaThumbnail {
+  /** 缩略图 URL（data URL 或文件路径） */
+  url: string;
+  /** 在源媒体中的时间偏移（秒） */
+  timeOffset: number;
+  /** 缩略图宽度 */
+  width: number;
+  /** 缩略图高度 */
+  height: number;
+}
+
+/**
+ * 媒体片段
+ */
+export interface MediaSegment {
+  /** 唯一标识 */
+  id: string;
+  /** 关联的媒体源 ID */
+  sourceId: string;
+
+  // ---- 时间轴时间范围 ----
+  /** 在时间轴上的起始时间（秒） */
+  timelineStart: number;
+  /** 在时间轴上的结束时间（秒） */
+  timelineEnd: number;
+
+  // ---- 源时间范围（仅视频） ----
+  /** 源媒体中的起始时间（秒） */
+  sourceStart?: number;
+  /** 源媒体中的结束时间（秒） */
+  sourceEnd?: number;
+
+  // ---- 播放控制 ----
+  /** 播放速率（1.0 = 正常） */
+  playbackRate: number;
+  /** 是否静音 */
+  muted: boolean;
+  /** 音量（0-1） */
+  volume: number;
+
+  // ---- 视觉效果 ----
+  /** 变换参数 */
+  transform: MediaTransform;
+  /** 入场转场 */
+  transitionIn?: MediaTransition;
+  /** 出场转场 */
+  transitionOut?: MediaTransition;
+
+  // ---- 缩略图 ----
+  /** 缩略图列表 */
+  thumbnails?: MediaThumbnail[];
+
+  // ---- 状态 ----
+  /** 自定义标签 */
+  label?: string;
+  /** 是否禁用 */
+  disabled?: boolean;
+  /** 是否已删除 */
+  deleted?: boolean;
+}
+
+/**
+ * 媒体轨道数据
+ */
+export interface MediaTrackData {
+  /** 轨道 ID */
+  id: string;
+  /** 轨道显示名称 */
+  label: string;
+  /** 媒体片段列表 */
+  segments: MediaSegment[];
+  /** 图层顺序（值越大越在上层） */
+  zIndex: number;
+  /** 是否可见 */
+  visible: boolean;
+  /** 是否锁定 */
+  locked: boolean;
+  /** 轨道颜色 */
+  color?: string;
+  /** 轨道高度（像素） */
+  height?: number;
+}
+
+/**
+ * 媒体工具类型
+ */
+export type MediaTool = 'select' | 'cut' | 'trim' | 'transform';
+
+/**
+ * 媒体轨道回调
+ */
+export interface MediaTrackCallbacks {
+  /** 添加媒体源 */
+  onSourceAdd?: (sources: MediaSource[]) => void;
+  /** 添加片段 */
+  onSegmentAdd?: (trackId: string, segment: Omit<MediaSegment, 'id'>) => void;
+  /** 更新片段 */
+  onSegmentUpdate?: (trackId: string, segmentId: string, patch: Partial<MediaSegment>) => void;
+  /** 删除片段 */
+  onSegmentDelete?: (trackId: string, segmentId: string) => void;
+  /** 恢复片段 */
+  onSegmentRestore?: (trackId: string, segmentId: string) => void;
+  /** 在指定时间切割片段 */
+  onSegmentCut?: (trackId: string, timelineTime: number) => void;
+  /** 移动片段 */
+  onSegmentMove?: (trackId: string, segmentId: string, newTimelineStart: number) => void;
+  /** 调整片段大小 */
+  onSegmentResize?: (trackId: string, segmentId: string, edge: 'start' | 'end', newTime: number) => void;
+  /** 变换片段 */
+  onSegmentTransform?: (trackId: string, segmentId: string, transform: Partial<MediaTransform>) => void;
+  /** 添加轨道 */
+  onTrackAdd?: () => void;
+  /** 删除轨道 */
+  onTrackDelete?: (trackId: string) => void;
+  /** 重排轨道顺序 */
+  onTrackReorder?: (trackIds: string[]) => void;
+  /** 选中片段 */
+  onSegmentSelect?: (trackId: string, segmentId: string | null) => void;
+  /** 请求生成缩略图 */
+  onThumbnailRequest?: (trackId: string, segmentId: string) => void;
+  /** 工具切换 */
+  onToolChange?: (tool: MediaTool) => void;
+}
+
+/**
+ * 媒体轨道配置常量
+ */
+export const MEDIA_CONFIG = {
+  /** 默认轨道高度 */
+  DEFAULT_TRACK_HEIGHT: 64,
+  /** 缩略图宽度 */
+  THUMBNAIL_WIDTH: 80,
+  /** 缩略图高度 */
+  THUMBNAIL_HEIGHT: 45,
+  /** 每秒缩略图数量 */
+  THUMBNAILS_PER_SECOND: 0.5,
+  /** 每个片段最大缩略图数 */
+  MAX_THUMBNAILS_PER_SEGMENT: 20,
+  /** 片段最小宽度（像素） */
+  MIN_SEGMENT_WIDTH: 20,
+  /** 默认转场时长（秒） */
+  DEFAULT_TRANSITION_DURATION: 0.5,
+} as const;
+
+/**
+ * 默认变换参数
+ */
+export const DEFAULT_TRANSFORM: MediaTransform = {
+  x: 50,
+  y: 50,
+  scale: 1.0,
+  rotation: 0,
+  opacity: 1,
+  flipX: false,
+  flipY: false,
+};

@@ -20,6 +20,7 @@ import { initVectorHandlers } from './embedding/ipc-main';
 import { initFFmpegHandlers } from './ffmpeg/ipc-main';
 import { initFileHandlers } from './file/ipc-main';
 import { initFolderHandlers } from './folder/ipc-main';
+import { initMediaHandlers } from './media/ipc-main';
 import { initPreferencesHandlers } from './preferences/ipc-main';
 import { initProxyHandlers } from './proxy/ipc-main';
 import { getHttpProxy } from './proxy/proxy';
@@ -99,5 +100,6 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   initSkillTreeHandlers();
   initClipHandlers();
   initAnnotationHandlers();
+  initMediaHandlers(win);
   await initSpriteManagerIPC(win);
 }

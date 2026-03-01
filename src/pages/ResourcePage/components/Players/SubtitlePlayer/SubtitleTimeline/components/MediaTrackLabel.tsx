@@ -1,0 +1,149 @@
+import clsx from 'clsx';
+import React from 'react';
+import { TbEye, TbEyeClosed, TbLock, TbLockOpen, TbTrash } from 'react-icons/tb';
+
+import { Button } from '@/components/ui/button';
+
+import type { MediaTrackData } from '../types';
+import { MEDIA_CONFIG } from '../types';
+
+interface MediaTrackLabelProps {
+  /** 轨道数据 */
+  track: MediaTrackData;
+  /** 是否选中 */
+  isSelected?: boolean;
+  /** 点击选中回调 */
+  onSelect?: (trackId: string) => void;
+  /** 切换可见性回调 */
+  onToggleVisibility?: (trackId: string) => void;
+  /** 切换锁定状态回调 */
+  onToggleLock?: (trackId: string) => void;
+  /** 删除轨道回调 */
+  onDelete?: (trackId: string) => void;
+  /** 是否允许删除 */
+  canDelete?: boolean;
+  /** 禁用状态 */
+  disabled?: boolean;
+}
+
+/**
+ * MediaTrackLabel - 媒体轨道标签组件
+ *
+ * 显示轨道名称、颜色、可见性/锁定切换按钮和删除按钮
+ */
+export const MediaTrackLabel: React.FC<MediaTrackLabelProps> = ({
+  track,
+  isSelected = false,
+  onSelect,
+  onToggleVisibility,
+  onToggleLock,
+  onDelete,
+  canDelete = true,
+  disabled = false
+}) => {
+  const height = track.height ?? MEDIA_CONFIG.DEFAULT_TRACK_HEIGHT;
+
+  const handleClick = () => {
+    if (!disabled) {
+      onSelect?.(track.id);
+    }
+  };
+
+  return (
+    <div
+      className={clsx(
+        'flex items-center gap-1.5 px-2 border-b border-r shrink-0 box-border transition-colors',
+        isSelected ? 'bg-accent/50' : 'bg-muted/30 hover:bg-muted/50',
+        !track.visible && 'opacity-50',
+        disabled && 'opacity-40 pointer-events-none'
+      )}
+      style={{ height: height + 4 }}
+      onClick={handleClick}
+    >
+      {/* 轨道颜色指示器 */}
+      <div className={clsx('w-1.5 rounded-full shrink-0', track.visible ? '' : 'opacity-40')} style={{ height: Math.min(height - 8, 20), backgroundColor: track.color || 'hsl(160, 60%, 40%)' }} />
+
+      {/* 轨道名称 */}
+      <span className={clsx('text-xs truncate flex-1', track.visible ? 'text-foreground/80' : 'text-muted-foreground')}>{track.label}</span>
+
+      {/* 片段数量 */}
+      <span className="text-[10px] text-muted-foreground shrink-0">{track.segments.filter((s) => !s.deleted).length}</span>
+
+      {/* 操作按钮 */}
+      <div className="flex items-center gap-0.5 shrink-0">
+        {/* 可见性切换 */}
+        {onToggleVisibility && (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="w-5 h-5 p-0 opacity-50 hover:opacity-100"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleVisibility(track.id);
+            }}
+            title={track.visible ? '隐藏轨道' : '显示轨道'}
+          >
+            {track.visible ? <TbEye className="w-3 h-3" /> : <TbEyeClosed className="w-3 h-3" />}
+          </Button>
+        )}
+
+        {/* 锁定切换 */}
+        {onToggleLock && (
+          <Button
+            size="icon"
+            variant="ghost"
+            className={clsx('w-5 h-5 p-0', track.locked ? 'opacity-100' : 'opacity-50 hover:opacity-100')}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleLock(track.id);
+            }}
+            title={track.locked ? '解锁轨道' : '锁定轨道'}
+          >
+            {track.locked ? <TbLock className="w-3 h-3 text-orange-500" /> : <TbLockOpen className="w-3 h-3" />}
+          </Button>
+        )}
+
+        {/* 删除按钮 */}
+        {canDelete && onDelete && (
+          <Button
+            size="icon"
+            variant="ghost"
+            className="w-5 h-5 p-0 opacity-0 group-hover:opacity-50 hover:!opacity-100 hover:text-destructive"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(track.id);
+            }}
+            title="删除轨道"
+          >
+            <TbTrash className="w-3 h-3" />
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/**
+ * MediaTrackAddButton - 添加媒体轨道按钮
+ */
+interface MediaTrackAddButtonProps {
+  onClick?: () => void;
+  disabled?: boolean;
+}
+
+export const MediaTrackAddButton: React.FC<MediaTrackAddButtonProps> = ({ onClick, disabled = false }) => {
+  return (
+    <button
+      type="button"
+      className={clsx(
+        'flex items-center justify-center gap-1 px-2 border-b border-r bg-muted/20 hover:bg-muted/40 transition-colors',
+        disabled && 'opacity-40 pointer-events-none'
+      )}
+      style={{ height: MEDIA_CONFIG.DEFAULT_TRACK_HEIGHT + 4 }}
+      onClick={onClick}
+      disabled={disabled}
+    >
+      <span className="text-xs text-muted-foreground">+ 添加媒体轨道</span>
+    </button>
+  );
+};

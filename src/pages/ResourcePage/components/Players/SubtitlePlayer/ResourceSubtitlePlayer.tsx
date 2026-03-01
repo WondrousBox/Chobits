@@ -16,7 +16,20 @@ import { dispatchTrackSettings, TRACK_TOGGLE_EVENT, type TrackSettingsItem, type
 import { ExportDialog } from './ExportDialog';
 import { SubtitlePlayer } from './SubtitleListPlayer/SubtitlePlayer';
 import { aimTracksToTimelineTracks, ClipSequence, formatSecondsToTime, indicesToIds, parseSegmentId, parseTimeToSeconds, SubtitleTimeline, TimelineSegment } from './SubtitleTimeline';
-import type { AnnotationTrackCallbacks, AnnotationTrackData, ClipSegment, ClipTrackCallbacks, ClipTrackData, TTSAudioItem as TimelineTTSAudioItem, WaveformState } from './SubtitleTimeline/types';
+import { MediaSequence } from './SubtitleTimeline';
+import type {
+  AnnotationTrackCallbacks,
+  AnnotationTrackData,
+  ClipSegment,
+  ClipTrackCallbacks,
+  ClipTrackData,
+  MediaSegment,
+  MediaSource,
+  MediaTrackCallbacks,
+  MediaTrackData,
+  TTSAudioItem as TimelineTTSAudioItem,
+  WaveformState
+} from './SubtitleTimeline/types';
 import { SubtitleTranslator } from './SubtitleTranslator';
 import { mergeSegmentsChildren, shiftSegmentTime, syncSegmentsWithEntries } from './syncSegmentsData';
 import type { TTSTrackOption } from './TTSSynthesizer';
@@ -91,6 +104,11 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
   // ---- 剪辑轨道状态 ----
   const [clipSegments, setClipSegments] = useState<ClipSegment[]>([]);
   const isLoadingClipSegmentsRef = useRef(false);
+
+  // ---- 媒体轨道状态 ----
+  const [mediaTracks, setMediaTracks] = useState<MediaTrackData[]>([]);
+  const [mediaSources, setMediaSources] = useState<Map<string, MediaSource>>(new Map());
+  const [mediaTrackEnabled, setMediaTrackEnabled] = useState(false);
 
   // ---- 轨道启用/禁用状态 ----
   /** 字幕轨道启用状态：timeline track id -> enabled */
@@ -1000,13 +1018,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
 
         // 同步更新 segmentsData 中的字级别时间戳
         if (segmentsDataRef.current) {
-          const updatedSegments = shiftSegmentTime(
-            segmentsDataRef.current,
-            originalSt,
-            originalEt,
-            newStartTime,
-            newEndTime
-          );
+          const updatedSegments = shiftSegmentTime(segmentsDataRef.current, originalSt, originalEt, newStartTime, newEndTime);
           if (updatedSegments) {
             segmentsDataRef.current = updatedSegments;
             setSegmentsData(updatedSegments);
@@ -1337,6 +1349,128 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     }),
     []
   );
+
+  /** 媒体轨道回调集合 */
+  const mediaCallbacks = useMemo(
+    (): MediaTrackCallbacks => ({
+      onSourceAdd: (sources) => {
+        // 添加媒体源到映射表
+        setMediaSources((prev) => {
+          const newMap = new Map(prev);
+          sources.forEach((source) => {
+            newMap.set(source.id, source);
+          });
+          return newMap;
+        });
+      },
+      onTrackAdd: () => {
+        // 添加新的媒体轨道
+        const newTrack = MediaSequence.createTrack(`媒体轨道 ${mediaTracks.length + 1}`, mediaTracks.length);
+        setMediaTracks((prev) => [...prev, newTrack]);
+      },
+      onTrackDelete: (trackId: string) => {
+        setMediaTracks((prev) => prev.filter((t) => t.id !== trackId));
+      },
+      onTrackReorder: (trackIds: string[]) => {
+        setMediaTracks((prev) => {
+          const trackMap = new Map(prev.map((t) => [t.id, t]));
+          return trackIds
+            .map((id) => trackMap.get(id))
+            .filter((t): t is MediaTrackData => !!t)
+            .map((t, index) => ({ ...t, zIndex: index }));
+        });
+      },
+      onSegmentAdd: (trackId, segment) => {
+        setMediaTracks((prev) => {
+          // 如果没有轨道或找不到对应轨道，创建一个新轨道
+          if (prev.length === 0 || !prev.find((t) => t.id === trackId)) {
+            const newTrack = MediaSequence.createTrack('媒体轨道 1', 0);
+            const newSegment = MediaSequence.createSegment(segment.sourceId, segment.timelineStart, segment.timelineEnd, segment);
+            return [{ ...newTrack, segments: [newSegment] }];
+          }
+
+          return prev.map((track) => {
+            if (track.id !== trackId) return track;
+            const newSegment = MediaSequence.createSegment(segment.sourceId, segment.timelineStart, segment.timelineEnd, segment);
+            return { ...track, segments: [...track.segments, newSegment] };
+          });
+        });
+      },
+      onSegmentDelete: (trackId, segmentId) => {
+        setMediaTracks((prev) =>
+          prev.map((track) => {
+            if (track.id !== trackId) return track;
+            return {
+              ...track,
+              segments: MediaSequence.deleteSegment(track.segments, segmentId)
+            };
+          })
+        );
+      },
+      onSegmentRestore: (trackId, segmentId) => {
+        setMediaTracks((prev) =>
+          prev.map((track) => {
+            if (track.id !== trackId) return track;
+            return {
+              ...track,
+              segments: MediaSequence.restoreSegment(track.segments, segmentId)
+            };
+          })
+        );
+      },
+      onSegmentMove: (trackId, segmentId, newTimelineStart) => {
+        setMediaTracks((prev) =>
+          prev.map((track) => {
+            if (track.id !== trackId) return track;
+            return {
+              ...track,
+              segments: MediaSequence.moveSegment(track.segments, segmentId, newTimelineStart)
+            };
+          })
+        );
+      },
+      onSegmentResize: (trackId, segmentId, edge, newTime) => {
+        setMediaTracks((prev) =>
+          prev.map((track) => {
+            if (track.id !== trackId) return track;
+            return {
+              ...track,
+              segments: MediaSequence.resizeSegment(track.segments, segmentId, edge, newTime)
+            };
+          })
+        );
+      },
+      onSegmentCut: (trackId, timelineTime) => {
+        setMediaTracks((prev) =>
+          prev.map((track) => {
+            if (track.id !== trackId) return track;
+            const segment = track.segments.find((s) => !s.deleted && timelineTime >= s.timelineStart && timelineTime < s.timelineEnd);
+            if (!segment) return track;
+
+            const result = MediaSequence.splitSegment(segment, timelineTime);
+            if (!result) return track;
+
+            return {
+              ...track,
+              segments: track.segments.map((s) => (s.id === segment.id ? result.left : s)).concat([result.right])
+            };
+          })
+        );
+      },
+      onSegmentSelect: (trackId, segmentId) => {
+        // 可以在这里处理选中逻辑
+      },
+      onToolChange: (tool) => {
+        // 可以在这里处理工具切换
+      }
+    }),
+    [mediaTracks.length]
+  );
+
+  /** 切换媒体轨道启用状态 */
+  const handleToggleMediaTrack = useCallback(() => {
+    setMediaTrackEnabled((prev) => !prev);
+  }, []);
 
   /**
    * 获取下一个按 order 顺序播放的片段的源时间起始点
@@ -1823,6 +1957,11 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
           annotationTrack={annotationTrackData}
           annotationCallbacks={annotationCallbacks}
           annotationTrackEnabled={annotationTrackEnabled}
+          mediaTracks={mediaTracks}
+          mediaSources={mediaSources}
+          mediaCallbacks={mediaCallbacks}
+          mediaTrackEnabled={mediaTrackEnabled}
+          onToggleMediaTrack={handleToggleMediaTrack}
         />
       )}
 
