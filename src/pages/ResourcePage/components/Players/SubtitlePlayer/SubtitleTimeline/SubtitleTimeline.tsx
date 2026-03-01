@@ -1,14 +1,14 @@
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbMinus, TbPlus, TbPointer, TbScissors, TbWaveSine } from 'react-icons/tb';
+import { TbFileImport, TbLayersSubtract, TbMinus, TbPlus, TbPointer, TbScissors, TbWaveSine } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 
-import { AnnotationTrack, AnnotationTrackLabel, ClipTrack, ClipTrackLabel, SeekBar, TimelineTrackView, TimeRuler, TrackLabel, TTSAudioTrack, TTSTrackLabel, WaveformTrack } from './components';
+import { AnnotationTrack, AnnotationTrackLabel, ClipTrack, ClipTrackLabel, MediaImportPanel, MediaTrackLabel, MediaTrackManager, MediaTrackAddButton, SeekBar, TimelineTrackView, TimeRuler, TrackLabel, TTSAudioTrack, TTSTrackLabel, WaveformTrack } from './components';
 import { useTimelineInteraction } from './hooks';
-import type { TimelineSegment } from './types';
-import { ClipTool, DEFAULT_CONFIG, SubtitleTimelineProps, TRACK_COLORS, ViewportState, WaveformState } from './types';
+import type { MediaSegment, MediaSource, TimelineSegment } from './types';
+import { ClipTool, DEFAULT_CONFIG, MediaTool, SubtitleTimelineProps, TRACK_COLORS, ViewportState, WaveformState } from './types';
 import { parseSegmentId } from './utils';
 
 const audioWaveformHeight = 40;
@@ -71,7 +71,14 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   wordsMap,
   annotationTrack: annotationTrackData,
   annotationCallbacks,
-  annotationTrackEnabled = true
+  annotationTrackEnabled = true,
+  // Media Track Props
+  mediaTracks,
+  mediaSources,
+  mediaCallbacks,
+  mediaTool: propMediaTool = 'select',
+  mediaTrackEnabled = true,
+  onToggleMediaTrack
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -88,6 +95,11 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   const [mockCurrentTime, setMockCurrentTime] = useState(0);
   const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
   const [internalClipTool, setInternalClipTool] = useState<ClipTool>(propClipTool);
+  /** 选中的媒体片段（格式：trackId:segmentId） */
+  const [selectedMediaSegmentId, setSelectedMediaSegmentId] = useState<string | null>(null);
+  const [internalMediaTool, setInternalMediaTool] = useState<MediaTool>(propMediaTool);
+  /** 显示媒体导入面板 */
+  const [showMediaImport, setShowMediaImport] = useState(false);
 
   const initialPixelsPerSecondValue = initialViewport?.pixelsPerSecond ?? DEFAULT_CONFIG.DEFAULT_PIXELS_PER_SECOND;
 
@@ -319,10 +331,11 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
       ...handlers,
       onMouseDown: (e: React.MouseEvent) => {
         const target = e.target as HTMLElement;
-        if (!target.closest('[data-segment]') && !target.closest('[data-tts-block]') && !target.closest('[data-clip-block]')) {
+        if (!target.closest('[data-segment]') && !target.closest('[data-tts-block]') && !target.closest('[data-clip-block]') && !target.closest('[data-media-block]')) {
           setSelectedSegmentId(null);
           setSelectedTTS(null);
           setSelectedClipId(null);
+          setSelectedMediaSegmentId(null);
         }
         handlers.onMouseDown(e);
       }
@@ -330,12 +343,13 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
     [handlers]
   );
 
-  // 快捷键：Delete / Backspace 删除选中的字幕块或 TTS 块（不在输入框中时）
+  // 快捷键：Delete / Backspace 删除选中的字幕块或 TTS 块或媒体片段（不在输入框中时）
   useEffect(() => {
     const hasSubtitleTarget = onDeleteSegment && selectedSegmentId;
     const hasTTSTarget = onDeleteTTSSegment && selectedTTS;
     const hasClipTarget = clipCallbacks?.onClipDelete && selectedClipId;
-    if (!hasSubtitleTarget && !hasTTSTarget && !hasClipTarget) return;
+    const hasMediaTarget = mediaCallbacks?.onSegmentDelete && selectedMediaSegmentId;
+    if (!hasSubtitleTarget && !hasTTSTarget && !hasClipTarget && !hasMediaTarget) return;
     const handleKeyDown = (e: KeyboardEvent): void => {
       if (e.key !== 'Delete' && e.key !== 'Backspace') return;
       const target = document.activeElement as HTMLElement | null;
@@ -344,6 +358,13 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
         e.preventDefault();
         clipCallbacks?.onClipDelete?.(selectedClipId);
         setSelectedClipId(null);
+        return;
+      }
+      if (hasMediaTarget && selectedMediaSegmentId) {
+        e.preventDefault();
+        const [trackId, segmentId] = selectedMediaSegmentId.split(':');
+        mediaCallbacks?.onSegmentDelete?.(trackId, segmentId);
+        setSelectedMediaSegmentId(null);
         return;
       }
       if (hasSubtitleTarget && selectedSegmentId) {
@@ -366,7 +387,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onDeleteSegment, selectedSegmentId, tracksWithColors, onDeleteTTSSegment, selectedTTS, clipCallbacks, selectedClipId]);
+  }, [onDeleteSegment, selectedSegmentId, tracksWithColors, onDeleteTTSSegment, selectedTTS, clipCallbacks, selectedClipId, mediaCallbacks, selectedMediaSegmentId]);
 
   // 监听容器尺寸变化
   useEffect(() => {
@@ -547,9 +568,60 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
               </div>
             </>
           )}
+
+          {/* 媒体工具 */}
+          {mediaTrackEnabled && (
+            <>
+              <div className="w-px h-5 bg-border mx-1" />
+              <div className="flex items-center gap-0.5">
+                <Button
+                  variant={internalMediaTool === 'select' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="w-7 h-7 p-0"
+                  onClick={() => (mediaCallbacks?.onToolChange ?? setInternalMediaTool)('select')}
+                  title="选择工具"
+                >
+                  <TbPointer className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  variant={internalMediaTool === 'cut' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="w-7 h-7 p-0"
+                  onClick={() => (mediaCallbacks?.onToolChange ?? setInternalMediaTool)('cut')}
+                  title="切割工具"
+                >
+                  <TbScissors className="w-3.5 h-3.5" />
+                </Button>
+                {/* 导入媒体按钮 */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-7 h-7 p-0"
+                  onClick={() => setShowMediaImport(true)}
+                  title="导入媒体"
+                >
+                  <TbFileImport className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
+          {/* 媒体轨道开关 */}
+          {onToggleMediaTrack && (
+            <Button
+              variant={mediaTrackEnabled ? 'secondary' : 'ghost'}
+              size="sm"
+              className="h-6 px-2 text-xs gap-1"
+              onClick={onToggleMediaTrack}
+              title={mediaTrackEnabled ? '隐藏媒体轨道' : '显示媒体轨道'}
+            >
+              <TbLayersSubtract className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">媒体轨道</span>
+            </Button>
+          )}
+
           <div className="text-xs text-muted-foreground">
             {tracks.length} 轨道 · {tracks.reduce((sum, t) => sum + t.segments.length, 0)} 片段
           </div>
@@ -635,6 +707,33 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                 <span className="text-xs text-foreground/80 truncate flex-1">剪辑</span>
                 <span className="text-[10px] text-muted-foreground">{clipTrackData.clips.length}</span>
               </div>
+            )}
+
+            {/* 媒体轨道标签 */}
+            {mediaTracks && mediaTrackEnabled && mediaTracks.map((mediaTrack) => (
+              <MediaTrackLabel
+                key={mediaTrack.id}
+                track={mediaTrack}
+                canDelete={mediaTracks.length > 1}
+                onDelete={mediaCallbacks?.onTrackDelete}
+                onToggleVisibility={(trackId) => {
+                  mediaCallbacks?.onTrackReorder?.(mediaTracks.map((t) => t.id));
+                }}
+              />
+            ))}
+
+            {/* 添加媒体轨道按钮 - 始终显示如果 mediaTrackEnabled */}
+            {mediaTrackEnabled && (
+              <MediaTrackAddButton
+                onClick={() => {
+                  if (mediaCallbacks?.onTrackAdd) {
+                    mediaCallbacks.onTrackAdd();
+                  } else {
+                    // 如果没有提供 onTrackAdd 回调，输出提示
+                    console.log('请提供 mediaCallbacks.onTrackAdd 回调来添加媒体轨道');
+                  }
+                }}
+              />
             )}
 
             <div className="flex items-center justify-center hover:bg-accent/50 cursor-pointer" style={{ height: 40 }}>
@@ -821,9 +920,90 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                 disabled={!clipTrackEnabled}
               />
             )}
+
+            {/* 媒体轨道 */}
+            {mediaTrackEnabled && (
+              mediaTracks && mediaTracks.length > 0 ? (
+                <MediaTrackManager
+                  tracks={mediaTracks}
+                  sources={mediaSources}
+                  viewport={viewport}
+                  pixelsPerSecond={pixelsPerSecond}
+                  width={totalWidth}
+                  currentTime={effectiveCurrentTime}
+                  activeTool={internalMediaTool}
+                  selectedSegmentId={selectedMediaSegmentId}
+                  onSegmentClick={(trackId, segmentId, event) => {
+                    setSelectedSegmentId(null);
+                    setSelectedTTS(null);
+                    setSelectedClipId(null);
+                    setSelectedMediaSegmentId(`${trackId}:${segmentId}`);
+                    mediaCallbacks?.onSegmentSelect?.(trackId, segmentId);
+                  }}
+                  onSegmentDelete={(trackId, segmentId) => {
+                    mediaCallbacks?.onSegmentDelete?.(trackId, segmentId);
+                    setSelectedMediaSegmentId(null);
+                  }}
+                  onSegmentRestore={(trackId, segmentId) => {
+                    mediaCallbacks?.onSegmentRestore?.(trackId, segmentId);
+                  }}
+                  onSegmentMove={(trackId, segmentId, newTimelineStart) => {
+                    mediaCallbacks?.onSegmentMove?.(trackId, segmentId, newTimelineStart);
+                  }}
+                  onSegmentResize={(trackId, segmentId, edge, newTime) => {
+                    mediaCallbacks?.onSegmentResize?.(trackId, segmentId, edge, newTime);
+                  }}
+                  onSegmentCut={(trackId, timelineTime) => {
+                    mediaCallbacks?.onSegmentCut?.(trackId, timelineTime);
+                  }}
+                />
+              ) : (
+                /* 空状态提示 */
+                <div
+                  className="flex items-center justify-center border border-dashed border-emerald-500/30 rounded-lg mx-2"
+                  style={{
+                    width: totalWidth - 16,
+                    height: 64,
+                    backgroundColor: 'hsla(160, 60%, 40%, 0.05)'
+                  }}
+                >
+                  <div className="text-center">
+                    <TbLayersSubtract className="w-6 h-6 mx-auto mb-1 text-emerald-500/50" />
+                    <p className="text-xs text-muted-foreground">
+                      点击左侧 <strong>+ 添加媒体轨道</strong> 开始混剪
+                    </p>
+                    <p className="text-[10px] text-muted-foreground/70 mt-0.5">
+                      或通过 <code className="px-1 py-0.5 bg-muted rounded text-[9px]">mediaCallbacks.onTrackAdd</code> 添加轨道
+                    </p>
+                  </div>
+                </div>
+              )
+            )}
           </div>
         </div>
       </div>
+
+      {/* 媒体导入面板 */}
+      <MediaImportPanel
+        open={showMediaImport}
+        onClose={() => setShowMediaImport(false)}
+        tracks={mediaTracks ?? []}
+        currentTime={effectiveCurrentTime}
+        duration={duration}
+        onImport={(sources: MediaSource[], segments?: Omit<MediaSegment, 'id'>[]) => {
+          // 1. 先添加媒体源
+          mediaCallbacks?.onSourceAdd?.(sources);
+
+          // 2. 添加 segments 到轨道（onSegmentAdd 会自动创建轨道如果不存在）
+          if (segments && segments.length > 0) {
+            const targetTrackId = mediaTracks && mediaTracks.length > 0 ? mediaTracks[0].id : 'auto-create';
+            segments.forEach((segment) => {
+              mediaCallbacks?.onSegmentAdd?.(targetTrackId, segment);
+            });
+          }
+          setShowMediaImport(false);
+        }}
+      />
     </div>
   );
 };

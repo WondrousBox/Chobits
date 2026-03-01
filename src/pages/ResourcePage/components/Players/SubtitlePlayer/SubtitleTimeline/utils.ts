@@ -203,3 +203,7 @@ export function detectOverlappingSegments(segments: TimelineSegment[]): Set<stri
 // Re-export clip sequence utilities
 export type { ClipPlaybackInfo, ClipTimeMapping, SkipRegion } from './utils/clipSequence';
 export { ClipSequence } from './utils/clipSequence';
+
+// Re-export media sequence utilities
+export type { ActiveSegmentInfo, OverlapInfo, SegmentLayoutInfo, SplitResult, TransformMatrix } from './utils/mediaSequence';
+export { MediaSequence } from './utils/mediaSequence';
