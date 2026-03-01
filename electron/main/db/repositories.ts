@@ -946,7 +946,7 @@ export const ResourcesRepo = {
     return rows as any;
   },
   /** 基础列表与计数（含软删筛选） */
-  async list(filter: Partial<ResourceRow> = {}, limit = 100, offset = 0): Promise<ResourceRow[]> {
+  async list(filter: Partial<ResourceRow> = {}, limit = 2000, offset = 0): Promise<ResourceRow[]> {
     const db = getOrm();
     // 优化：列表查询排除大字段 (contentText, thumbnail, embedding, metadata)
     let query = db
@@ -1008,7 +1008,8 @@ export const ResourcesRepo = {
     if ((filter as any).deletedAt === 0) wheres.push(isNull(resources.deletedAt));
     if ((filter as any).deletedAt === 1) wheres.push(isNotNull(resources.deletedAt));
     if (wheres.length) query = query.where(and(...wheres));
-    return query.limit(limit).offset(offset) as any;
+    // 按收集时间降序排序，新资源在前面
+    return query.orderBy(desc(resources.collectedAt)).limit(limit).offset(offset) as any;
   },
   async count(filter: Partial<ResourceRow> = {}): Promise<number> {
     const db = getOrm();
