@@ -4,7 +4,7 @@ import { TbLoader2, TbPlayerPause, TbPlayerPlay, TbTrash } from 'react-icons/tb'
 
 import { Button } from '@/components/ui/button';
 
-import { DEFAULT_CONFIG, type TTSAudioItem } from '../types';
+import { DEFAULT_CONFIG, type TTSAudioItem } from '../../types';
 
 type DragMode = 'none' | 'move' | 'resize-left' | 'resize-right';
 

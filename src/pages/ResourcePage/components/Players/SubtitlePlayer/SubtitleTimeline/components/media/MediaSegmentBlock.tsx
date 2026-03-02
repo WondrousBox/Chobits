@@ -4,11 +4,11 @@ import { TbArrowsHorizontal, TbArrowsVertical, TbPhoto, TbPlayerPause, TbRefresh
 
 import { Button } from '@/components/ui/button';
 
-import type { MediaSegment, MediaSource, MediaTool, MediaTransform } from '../types';
-import { DEFAULT_CONFIG, MEDIA_CONFIG } from '../types';
-import { formatSecondsToTime } from '../utils';
+import type { MediaSegment, MediaSource, MediaTool, MediaTransform } from '../../types';
+import { DEFAULT_CONFIG, MEDIA_CONFIG } from '../../types';
+import { formatSecondsToTime } from '../../utils';
 import { ThumbnailStrip } from './ThumbnailStrip';
-import { TransitionIndicator } from './TransitionIndicator';
+import { TransitionIndicator } from '../shared/TransitionIndicator';
 
 /** 边缘拖拽检测宽度 */
 const EDGE_WIDTH = 8;

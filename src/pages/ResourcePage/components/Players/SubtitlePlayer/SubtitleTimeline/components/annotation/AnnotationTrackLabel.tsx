@@ -2,7 +2,7 @@ import clsx from 'clsx';
 import React from 'react';
 import { TbBookmark, TbEye, TbEyeOff } from 'react-icons/tb';
 
-import { DEFAULT_CONFIG } from '../types';
+import { DEFAULT_CONFIG } from '../../types';
 
 interface AnnotationTrackLabelProps {
   /** 标注数量 */

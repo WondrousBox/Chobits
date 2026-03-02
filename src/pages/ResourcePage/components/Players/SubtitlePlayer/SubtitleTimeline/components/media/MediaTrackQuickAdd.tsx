@@ -4,8 +4,8 @@ import { TbFileImport, TbPhoto, TbUpload, TbVideo } from 'react-icons/tb';
 
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
 
-import type { MediaSegment, MediaSource } from '../types';
-import { DEFAULT_TRANSFORM } from '../types';
+import type { MediaSegment, MediaSource } from '../../types';
+import { DEFAULT_TRANSFORM } from '../../types';
 
 interface MediaTrackQuickAddProps {
   /** 子元素（轨道容器） */

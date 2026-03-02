@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 
-import type { ViewportState, WaveformData } from '../types';
+import type { ViewportState, WaveformData } from '../../types';
 
 interface WaveformTrackProps {
   /** 波形数据（外部传入） */

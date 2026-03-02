@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo } from 'react';
 
-import type { MediaSegment, MediaSource, MediaTool, MediaTrackData, ViewportState } from '../types';
+import type { MediaSegment, MediaSource, MediaTool, MediaTrackData, ViewportState } from '../../types';
 import { MediaTrack } from './MediaTrack';
 
 interface MediaTrackManagerProps {

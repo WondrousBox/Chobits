@@ -1,9 +1,9 @@
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import type { WordTimestamp } from '../../../MediaPlayer/subtitleDisplayEvent';
-import { DEFAULT_CONFIG, TimelineSegment, TimelineTrack, ViewportState } from '../types';
-import { detectOverlappingSegments } from '../utils';
+import type { WordTimestamp } from '../../../../MediaPlayer/subtitleDisplayEvent';
+import { DEFAULT_CONFIG, TimelineSegment, TimelineTrack, ViewportState } from '../../types';
+import { detectOverlappingSegments } from '../../utils';
 import { TimelineSegmentBlock } from './TimelineSegmentBlock';
 
 interface TimelineTrackViewProps {

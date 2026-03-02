@@ -1,15 +1,15 @@
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import type { TTSAudioItem } from '../types';
-import { DEFAULT_CONFIG, ViewportState } from '../types';
-import { detectOverlappingIndices, TimeRange } from '../utils';
-import type { WaveformData } from '../utils/ttsWaveformLoader';
-import { getTTSBlockWaveform } from '../utils/ttsWaveformLoader';
+import type { TTSAudioItem } from '../../types';
+import { DEFAULT_CONFIG, ViewportState } from '../../types';
+import { detectOverlappingIndices, TimeRange } from '../../utils';
+import type { WaveformData } from '../../utils/ttsWaveformLoader';
+import { getTTSBlockWaveform } from '../../utils/ttsWaveformLoader';
 import { TTSAudioBlock } from './TTSAudioBlock';
 
 /** 从 types 导出，供外部使用 */
-export type { TTSAudioItem } from '../types';
+export type { TTSAudioItem } from '../../types';
 
 interface TTSAudioTrackProps {
   /** TTS 轨道 ID（如 main、zh-CN） */

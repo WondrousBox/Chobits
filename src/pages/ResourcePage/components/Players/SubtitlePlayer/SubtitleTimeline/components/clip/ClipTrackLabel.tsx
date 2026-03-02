@@ -4,8 +4,8 @@ import { TbPointer, TbScissors } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 
-import type { ClipTool } from '../types';
-import { DEFAULT_CONFIG } from '../types';
+import type { ClipTool } from '../../types';
+import { DEFAULT_CONFIG } from '../../types';
 
 interface ClipTrackLabelProps {
   /** 当前激活的工具 */

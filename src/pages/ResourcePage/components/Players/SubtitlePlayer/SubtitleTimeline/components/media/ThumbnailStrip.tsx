@@ -1,8 +1,8 @@
 import clsx from 'clsx';
 import React from 'react';
 
-import type { MediaThumbnail } from '../types';
-import { MEDIA_CONFIG } from '../types';
+import type { MediaThumbnail } from '../../types';
+import { MEDIA_CONFIG } from '../../types';
 
 interface ThumbnailStripProps {
   /** 缩略图列表 */
