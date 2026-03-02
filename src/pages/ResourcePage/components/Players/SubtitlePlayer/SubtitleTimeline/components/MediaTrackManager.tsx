@@ -1,4 +1,3 @@
-import clsx from 'clsx';
 import React, { useCallback, useMemo } from 'react';
 
 import type { MediaSegment, MediaSource, MediaTool, MediaTrackData, ViewportState } from '../types';
@@ -15,6 +14,8 @@ interface MediaTrackManagerProps {
   pixelsPerSecond: number;
   /** 轨道总宽度 */
   width: number;
+  /** 滚动偏移（用于计算拖放时间） */
+  scrollLeft?: number;
   /** 当前播放时间 */
   currentTime?: number;
   /** 当前激活的工具 */
@@ -35,6 +36,8 @@ interface MediaTrackManagerProps {
   onSegmentResize?: (trackId: string, segmentId: string, edge: 'start' | 'end', newTime: number) => void;
   /** 在指定时间切割回调 */
   onSegmentCut?: (trackId: string, timelineTime: number) => void;
+  /** 快速添加媒体回调 */
+  onQuickAdd?: (trackId: string, sources: MediaSource[], segments: Omit<MediaSegment, 'id'>[]) => void;
   /** 添加轨道回调 */
   onTrackAdd?: () => void;
   /** 删除轨道回调 */
@@ -52,6 +55,7 @@ interface MediaTrackManagerProps {
  * - 按 zIndex 顺序渲染轨道
  * - 处理轨道间的交互
  * - 提供轨道管理功能（添加、删除、重排）
+ * - 支持快速添加媒体（右键菜单、拖拽）
  */
 export const MediaTrackManager: React.FC<MediaTrackManagerProps> = ({
   tracks,
@@ -59,6 +63,7 @@ export const MediaTrackManager: React.FC<MediaTrackManagerProps> = ({
   viewport,
   pixelsPerSecond,
   width,
+  scrollLeft = 0,
   currentTime,
   activeTool = 'select',
   selectedTrackId,
@@ -69,6 +74,7 @@ export const MediaTrackManager: React.FC<MediaTrackManagerProps> = ({
   onSegmentMove,
   onSegmentResize,
   onSegmentCut,
+  onQuickAdd,
   onTrackAdd,
   onTrackDelete,
   onTrackReorder,
@@ -89,9 +95,17 @@ export const MediaTrackManager: React.FC<MediaTrackManagerProps> = ({
   // 处理片段点击
   const handleSegmentClick = useCallback(
     (trackId: string, segmentId: string, event: React.MouseEvent) => {
-    onSegmentClick?.(trackId, segmentId, event);
+      onSegmentClick?.(trackId, segmentId, event);
     },
     [onSegmentClick]
+  );
+
+  // 处理快速添加
+  const handleQuickAdd = useCallback(
+    (trackId: string, sources: MediaSource[], segments: Omit<MediaSegment, 'id'>[]) => {
+      onQuickAdd?.(trackId, sources, segments);
+    },
+    [onQuickAdd]
   );
 
   return (
@@ -105,6 +119,7 @@ export const MediaTrackManager: React.FC<MediaTrackManagerProps> = ({
           viewport={viewport}
           pixelsPerSecond={pixelsPerSecond}
           width={width}
+          scrollLeft={scrollLeft}
           currentTime={currentTime}
           activeTool={activeTool}
           selectedSegmentId={parsedSelection?.trackId === track.id ? parsedSelection.segmentId : null}
@@ -114,6 +129,7 @@ export const MediaTrackManager: React.FC<MediaTrackManagerProps> = ({
           onSegmentMove={onSegmentMove}
           onSegmentResize={onSegmentResize}
           onSegmentCut={onSegmentCut}
+          onQuickAdd={handleQuickAdd}
           disabled={disabled || !track.visible}
         />
       ))}

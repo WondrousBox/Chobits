@@ -22,15 +22,7 @@ interface MediaImportPanelProps {
  *
  * 支持拖拽和选择文件来导入媒体（视频/图片）
  */
-export const MediaImportPanel: React.FC<MediaImportPanelProps> = ({
-  open,
-  onClose,
-  onImport,
-  tracks,
-  currentTime = 0,
-  duration,
-  className
-}) => {
+export const MediaImportPanel: React.FC<MediaImportPanelProps> = ({ open, onClose, onImport, tracks, currentTime = 0, duration, className }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<MediaSource[]>([]);
   const [loading, setLoading] = useState(false);
@@ -155,9 +147,7 @@ export const MediaImportPanel: React.FC<MediaImportPanelProps> = ({
   const openFileDialog = useCallback(async () => {
     try {
       const result = await window.YUA.file['file:pickFile']({
-        filters: [
-          { name: 'Media Files', extensions: ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'] }
-        ],
+        filters: [{ name: 'Media Files', extensions: ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'] }],
         multi: true
       });
 
@@ -240,9 +230,7 @@ export const MediaImportPanel: React.FC<MediaImportPanelProps> = ({
           ) : (
             <>
               <TbUpload className="w-10 h-10 mx-auto mb-2 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground mb-2">
-                拖拽视频或图片文件到此处
-              </p>
+              <p className="text-sm text-muted-foreground mb-2">拖拽视频或图片文件到此处</p>
               <Button variant="outline" size="sm" onClick={openFileDialog}>
                 <TbFileImport className="w-4 h-4 mr-1" />
                 选择文件
@@ -252,11 +240,7 @@ export const MediaImportPanel: React.FC<MediaImportPanelProps> = ({
         </div>
 
         {/* Error message */}
-        {error && (
-          <div className="mx-4 mb-2 px-3 py-2 bg-destructive/10 text-destructive text-xs rounded">
-            {error}
-          </div>
-        )}
+        {error && <div className="mx-4 mb-2 px-3 py-2 bg-destructive/10 text-destructive text-xs rounded">{error}</div>}
 
         {/* Selected files */}
         {selectedFiles.length > 0 && (
@@ -264,27 +248,13 @@ export const MediaImportPanel: React.FC<MediaImportPanelProps> = ({
             <div className="text-xs text-muted-foreground mb-2">已选择的文件 ({selectedFiles.length})</div>
             <div className="max-h-40 overflow-y-auto space-y-1">
               {selectedFiles.map((file) => (
-                <div
-                  key={file.id}
-                  className="flex items-center justify-between px-2 py-1.5 bg-muted/30 rounded text-xs"
-                >
+                <div key={file.id} className="flex items-center justify-between px-2 py-1.5 bg-muted/30 rounded text-xs">
                   <div className="flex items-center gap-2 min-w-0">
-                    {file.type === 'video' ? (
-                      <TbVideo className="w-4 h-4 shrink-0 text-blue-500" />
-                    ) : (
-                      <TbPhoto className="w-4 h-4 shrink-0 text-green-500" />
-                    )}
+                    {file.type === 'video' ? <TbVideo className="w-4 h-4 shrink-0 text-blue-500" /> : <TbPhoto className="w-4 h-4 shrink-0 text-green-500" />}
                     <span className="truncate">{file.path.split('/').pop()}</span>
-                    {file.duration && (
-                      <span className="text-muted-foreground shrink-0">{file.duration.toFixed(1)}s</span>
-                    )}
+                    {file.duration && <span className="text-muted-foreground shrink-0">{file.duration.toFixed(1)}s</span>}
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-5 h-5 p-0 shrink-0"
-                    onClick={() => handleRemoveFile(file.id)}
-                  >
+                  <Button variant="ghost" size="sm" className="w-5 h-5 p-0 shrink-0" onClick={() => handleRemoveFile(file.id)}>
                     <TbX className="w-3 h-3" />
                   </Button>
                 </div>
@@ -296,11 +266,7 @@ export const MediaImportPanel: React.FC<MediaImportPanelProps> = ({
         {/* Track selector */}
         <div className="mx-4 mb-4">
           <div className="text-xs text-muted-foreground mb-2">添加到轨道</div>
-          <select
-            value={targetTrackId}
-            onChange={(e) => setTargetTrackId(e.target.value)}
-            className="w-full px-3 py-2 text-sm border rounded bg-background"
-          >
+          <select value={targetTrackId} onChange={(e) => setTargetTrackId(e.target.value)} className="w-full px-3 py-2 text-sm border rounded bg-background">
             <option value="new">新建轨道</option>
             {tracks.map((track) => (
               <option key={track.id} value={track.id}>

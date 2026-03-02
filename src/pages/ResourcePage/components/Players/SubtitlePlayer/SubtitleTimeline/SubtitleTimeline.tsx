@@ -1,11 +1,27 @@
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbFileImport, TbLayersSubtract, TbMinus, TbPlus, TbPointer, TbScissors, TbWaveSine } from 'react-icons/tb';
+import { TbFileImport, TbMinus, TbPlus, TbPointer, TbScissors, TbWaveSine } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 
-import { AnnotationTrack, AnnotationTrackLabel, ClipTrack, ClipTrackLabel, MediaImportPanel, MediaTrackLabel, MediaTrackManager, MediaTrackAddButton, SeekBar, TimelineTrackView, TimeRuler, TrackLabel, TTSAudioTrack, TTSTrackLabel, WaveformTrack } from './components';
+import {
+  AnnotationTrack,
+  AnnotationTrackLabel,
+  ClipTrack,
+  ClipTrackLabel,
+  MediaImportPanel,
+  MediaTrackAddButton,
+  MediaTrackLabel,
+  MediaTrackManager,
+  SeekBar,
+  TimelineTrackView,
+  TimeRuler,
+  TrackLabel,
+  TTSAudioTrack,
+  TTSTrackLabel,
+  WaveformTrack
+} from './components';
 import { useTimelineInteraction } from './hooks';
 import type { MediaSegment, MediaSource, TimelineSegment } from './types';
 import { ClipTool, DEFAULT_CONFIG, MediaTool, SubtitleTimelineProps, TRACK_COLORS, ViewportState, WaveformState } from './types';
@@ -76,9 +92,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   mediaTracks,
   mediaSources,
   mediaCallbacks,
-  mediaTool: propMediaTool = 'select',
-  mediaTrackEnabled = true,
-  onToggleMediaTrack
+  mediaTool: propMediaTool = 'select'
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -570,7 +584,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
           )}
 
           {/* 媒体工具 */}
-          {mediaTrackEnabled && (
+          {mediaTracks && mediaTracks.length > 0 && (
             <>
               <div className="w-px h-5 bg-border mx-1" />
               <div className="flex items-center gap-0.5">
@@ -593,13 +607,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                   <TbScissors className="w-3.5 h-3.5" />
                 </Button>
                 {/* 导入媒体按钮 */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-7 h-7 p-0"
-                  onClick={() => setShowMediaImport(true)}
-                  title="导入媒体"
-                >
+                <Button variant="ghost" size="sm" className="w-7 h-7 p-0" onClick={() => setShowMediaImport(true)} title="导入媒体">
                   <TbFileImport className="w-3.5 h-3.5" />
                 </Button>
               </div>
@@ -608,20 +616,6 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
         </div>
 
         <div className="flex items-center gap-3">
-          {/* 媒体轨道开关 */}
-          {onToggleMediaTrack && (
-            <Button
-              variant={mediaTrackEnabled ? 'secondary' : 'ghost'}
-              size="sm"
-              className="h-6 px-2 text-xs gap-1"
-              onClick={onToggleMediaTrack}
-              title={mediaTrackEnabled ? '隐藏媒体轨道' : '显示媒体轨道'}
-            >
-              <TbLayersSubtract className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">媒体轨道</span>
-            </Button>
-          )}
-
           <div className="text-xs text-muted-foreground">
             {tracks.length} 轨道 · {tracks.reduce((sum, t) => sum + t.segments.length, 0)} 片段
           </div>
@@ -710,35 +704,29 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
             )}
 
             {/* 媒体轨道标签 */}
-            {mediaTracks && mediaTrackEnabled && mediaTracks.map((mediaTrack) => (
-              <MediaTrackLabel
-                key={mediaTrack.id}
-                track={mediaTrack}
-                canDelete={mediaTracks.length > 1}
-                onDelete={mediaCallbacks?.onTrackDelete}
-                onToggleVisibility={(trackId) => {
-                  mediaCallbacks?.onTrackReorder?.(mediaTracks.map((t) => t.id));
-                }}
-              />
-            ))}
+            {mediaTracks &&
+              mediaTracks.map((mediaTrack) => (
+                <MediaTrackLabel
+                  key={mediaTrack.id}
+                  track={mediaTrack}
+                  canDelete={mediaTracks.length > 1}
+                  onDelete={mediaCallbacks?.onTrackDelete}
+                  onToggleVisibility={(trackId) => {
+                    mediaCallbacks?.onTrackReorder?.(mediaTracks.map((t) => t.id));
+                  }}
+                />
+              ))}
 
-            {/* 添加媒体轨道按钮 - 始终显示如果 mediaTrackEnabled */}
-            {mediaTrackEnabled && (
-              <MediaTrackAddButton
-                onClick={() => {
-                  if (mediaCallbacks?.onTrackAdd) {
-                    mediaCallbacks.onTrackAdd();
-                  } else {
-                    // 如果没有提供 onTrackAdd 回调，输出提示
-                    console.log('请提供 mediaCallbacks.onTrackAdd 回调来添加媒体轨道');
-                  }
-                }}
-              />
-            )}
-
-            <div className="flex items-center justify-center hover:bg-accent/50 cursor-pointer" style={{ height: 40 }}>
-              <TbPlus />
-            </div>
+            {/* 添加媒体轨道按钮 */}
+            <MediaTrackAddButton
+              onAddTrack={() => {
+                if (mediaCallbacks?.onTrackAdd) {
+                  mediaCallbacks.onTrackAdd();
+                } else {
+                  console.log('请提供 mediaCallbacks.onTrackAdd 回调来添加媒体轨道');
+                }
+              }}
+            />
           </div>
         )}
 
@@ -922,62 +910,51 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
             )}
 
             {/* 媒体轨道 */}
-            {mediaTrackEnabled && (
-              mediaTracks && mediaTracks.length > 0 ? (
-                <MediaTrackManager
-                  tracks={mediaTracks}
-                  sources={mediaSources}
-                  viewport={viewport}
-                  pixelsPerSecond={pixelsPerSecond}
-                  width={totalWidth}
-                  currentTime={effectiveCurrentTime}
-                  activeTool={internalMediaTool}
-                  selectedSegmentId={selectedMediaSegmentId}
-                  onSegmentClick={(trackId, segmentId, event) => {
-                    setSelectedSegmentId(null);
-                    setSelectedTTS(null);
-                    setSelectedClipId(null);
-                    setSelectedMediaSegmentId(`${trackId}:${segmentId}`);
-                    mediaCallbacks?.onSegmentSelect?.(trackId, segmentId);
-                  }}
-                  onSegmentDelete={(trackId, segmentId) => {
-                    mediaCallbacks?.onSegmentDelete?.(trackId, segmentId);
-                    setSelectedMediaSegmentId(null);
-                  }}
-                  onSegmentRestore={(trackId, segmentId) => {
-                    mediaCallbacks?.onSegmentRestore?.(trackId, segmentId);
-                  }}
-                  onSegmentMove={(trackId, segmentId, newTimelineStart) => {
-                    mediaCallbacks?.onSegmentMove?.(trackId, segmentId, newTimelineStart);
-                  }}
-                  onSegmentResize={(trackId, segmentId, edge, newTime) => {
-                    mediaCallbacks?.onSegmentResize?.(trackId, segmentId, edge, newTime);
-                  }}
-                  onSegmentCut={(trackId, timelineTime) => {
-                    mediaCallbacks?.onSegmentCut?.(trackId, timelineTime);
-                  }}
-                />
-              ) : (
-                /* 空状态提示 */
-                <div
-                  className="flex items-center justify-center border border-dashed border-emerald-500/30 rounded-lg mx-2"
-                  style={{
-                    width: totalWidth - 16,
-                    height: 64,
-                    backgroundColor: 'hsla(160, 60%, 40%, 0.05)'
-                  }}
-                >
-                  <div className="text-center">
-                    <TbLayersSubtract className="w-6 h-6 mx-auto mb-1 text-emerald-500/50" />
-                    <p className="text-xs text-muted-foreground">
-                      点击左侧 <strong>+ 添加媒体轨道</strong> 开始混剪
-                    </p>
-                    <p className="text-[10px] text-muted-foreground/70 mt-0.5">
-                      或通过 <code className="px-1 py-0.5 bg-muted rounded text-[9px]">mediaCallbacks.onTrackAdd</code> 添加轨道
-                    </p>
-                  </div>
-                </div>
-              )
+            {mediaTracks && mediaTracks.length > 0 && (
+              <MediaTrackManager
+                tracks={mediaTracks}
+                sources={mediaSources}
+                viewport={viewport}
+                pixelsPerSecond={pixelsPerSecond}
+                width={totalWidth}
+                scrollLeft={scrollLeft}
+                currentTime={effectiveCurrentTime}
+                activeTool={internalMediaTool}
+                selectedSegmentId={selectedMediaSegmentId}
+                onSegmentClick={(trackId, segmentId) => {
+                  setSelectedSegmentId(null);
+                  setSelectedTTS(null);
+                  setSelectedClipId(null);
+                  setSelectedMediaSegmentId(`${trackId}:${segmentId}`);
+                  mediaCallbacks?.onSegmentSelect?.(trackId, segmentId);
+                }}
+                onSegmentDelete={(trackId, segmentId) => {
+                  mediaCallbacks?.onSegmentDelete?.(trackId, segmentId);
+                  setSelectedMediaSegmentId(null);
+                }}
+                onSegmentRestore={(trackId, segmentId) => {
+                  mediaCallbacks?.onSegmentRestore?.(trackId, segmentId);
+                }}
+                onSegmentMove={(trackId, segmentId, newTimelineStart) => {
+                  mediaCallbacks?.onSegmentMove?.(trackId, segmentId, newTimelineStart);
+                }}
+                onSegmentResize={(trackId, segmentId, edge, newTime) => {
+                  mediaCallbacks?.onSegmentResize?.(trackId, segmentId, edge, newTime);
+                }}
+                onSegmentCut={(trackId, timelineTime) => {
+                  mediaCallbacks?.onSegmentCut?.(trackId, timelineTime);
+                }}
+                onQuickAdd={(trackId, sources, segments) => {
+                  // 1. 先添加媒体源
+                  mediaCallbacks?.onSourceAdd?.(sources);
+                  // 2. 添加片段到轨道
+                  if (segments.length > 0) {
+                    segments.forEach((segment) => {
+                      mediaCallbacks?.onSegmentAdd?.(trackId, segment);
+                    });
+                  }
+                }}
+              />
             )}
           </div>
         </div>

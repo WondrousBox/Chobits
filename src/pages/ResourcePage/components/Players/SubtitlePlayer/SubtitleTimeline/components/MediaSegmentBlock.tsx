@@ -96,29 +96,13 @@ export const MediaSegmentBlock: React.FC<MediaSegmentBlockProps> = ({
   // 拖拽时的视觉位置
   const visualLeft = dragMode === 'move' ? left + dragDeltaX : dragMode === 'resize-start' ? left + dragDeltaX : left;
   const visualWidth =
-    dragMode === 'resize-start'
-      ? Math.max(MEDIA_CONFIG.MIN_SEGMENT_WIDTH, width - dragDeltaX)
-      : dragMode === 'resize-end'
-        ? Math.max(MEDIA_CONFIG.MIN_SEGMENT_WIDTH, width + dragDeltaX)
-        : width;
+    dragMode === 'resize-start' ? Math.max(MEDIA_CONFIG.MIN_SEGMENT_WIDTH, width - dragDeltaX) : dragMode === 'resize-end' ? Math.max(MEDIA_CONFIG.MIN_SEGMENT_WIDTH, width + dragDeltaX) : width;
 
   // 片段颜色
   const isDeleted = segment.deleted;
-  const bgColor = isDeleted
-    ? 'hsla(0, 60%, 50%, 0.15)'
-    : isActive
-      ? 'hsla(160, 70%, 45%, 0.5)'
-      : isSelected
-        ? 'hsla(160, 70%, 45%, 0.4)'
-        : 'hsla(160, 60%, 40%, 0.25)';
+  const bgColor = isDeleted ? 'hsla(0, 60%, 50%, 0.15)' : isActive ? 'hsla(160, 70%, 45%, 0.5)' : isSelected ? 'hsla(160, 70%, 45%, 0.4)' : 'hsla(160, 60%, 40%, 0.25)';
 
-  const borderColor = isDeleted
-    ? 'hsla(0, 60%, 50%, 0.5)'
-    : isActive
-      ? 'hsla(160, 70%, 45%, 0.8)'
-      : isSelected
-        ? 'hsla(160, 70%, 45%, 0.7)'
-        : 'hsla(160, 60%, 40%, 0.4)';
+  const borderColor = isDeleted ? 'hsla(0, 60%, 50%, 0.5)' : isActive ? 'hsla(160, 70%, 45%, 0.8)' : isSelected ? 'hsla(160, 70%, 45%, 0.7)' : 'hsla(160, 60%, 40%, 0.4)';
 
   // 媒体类型图标
   const TypeIcon = source?.type === 'video' ? TbVideo : TbPhoto;
@@ -282,13 +266,7 @@ export const MediaSegmentBlock: React.FC<MediaSegmentBlockProps> = ({
       >
         <span className="text-[10px] text-muted-foreground select-none">已删除</span>
         {isSelected && onRestore && (
-          <Button
-            size="icon"
-            variant="outline"
-            className="absolute -top-3 right-0 w-6 h-6 rounded-full p-0 bg-background shadow-sm hover:bg-accent z-30"
-            onClick={handleRestore}
-            title="恢复片段"
-          >
+          <Button size="icon" variant="outline" className="absolute -top-3 right-0 w-6 h-6 rounded-full p-0 bg-background shadow-sm hover:bg-accent z-30" onClick={handleRestore} title="恢复片段">
             <TbRestore className="w-3 h-3" />
           </Button>
         )}
@@ -322,9 +300,7 @@ export const MediaSegmentBlock: React.FC<MediaSegmentBlockProps> = ({
       onMouseMove={handleMouseMove}
     >
       {/* 播放进度指示条 */}
-      {isActive && activeProgress > 0 && (
-        <div className="absolute top-0 left-0 bottom-0 bg-emerald-400/30 pointer-events-none z-0" style={{ width: `${Math.min(100, activeProgress * 100)}%` }} />
-      )}
+      {isActive && activeProgress > 0 && <div className="absolute top-0 left-0 bottom-0 bg-emerald-400/30 pointer-events-none z-0" style={{ width: `${Math.min(100, activeProgress * 100)}%` }} />}
 
       {/* 缩略图条 */}
       <ThumbnailStrip thumbnails={segment.thumbnails} width={visualWidth} height={trackHeight} />
@@ -336,8 +312,16 @@ export const MediaSegmentBlock: React.FC<MediaSegmentBlockProps> = ({
       {/* 左右拖拽边缘手柄 */}
       {activeTool === 'select' && !disabled && (
         <>
-          <div className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l opacity-0 group-hover:opacity-100 bg-emerald-400/40 transition-opacity z-20" style={{ cursor: 'ew-resize' }} title="拖拽调整开始时间" />
-          <div className="absolute right-0 top-0 bottom-0 w-1.5 rounded-r opacity-0 group-hover:opacity-100 bg-emerald-400/40 transition-opacity z-20" style={{ cursor: 'ew-resize' }} title="拖拽调整结束时间" />
+          <div
+            className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l opacity-0 group-hover:opacity-100 bg-emerald-400/40 transition-opacity z-20"
+            style={{ cursor: 'ew-resize' }}
+            title="拖拽调整开始时间"
+          />
+          <div
+            className="absolute right-0 top-0 bottom-0 w-1.5 rounded-r opacity-0 group-hover:opacity-100 bg-emerald-400/40 transition-opacity z-20"
+            style={{ cursor: 'ew-resize' }}
+            title="拖拽调整结束时间"
+          />
         </>
       )}
 
@@ -354,9 +338,7 @@ export const MediaSegmentBlock: React.FC<MediaSegmentBlockProps> = ({
         </span>
 
         {/* 速率标记 */}
-        {segment.playbackRate !== 1.0 && (
-          <span className="text-[9px] font-mono shrink-0 bg-black/40 px-1 rounded text-white/90">{segment.playbackRate}x</span>
-        )}
+        {segment.playbackRate !== 1.0 && <span className="text-[9px] font-mono shrink-0 bg-black/40 px-1 rounded text-white/90">{segment.playbackRate}x</span>}
 
         {/* 静音标记 */}
         {segment.muted && <TbPlayerPause className="w-3 h-3 text-white/70" title="已静音" />}
@@ -365,8 +347,7 @@ export const MediaSegmentBlock: React.FC<MediaSegmentBlockProps> = ({
       {/* 底部时长信息 */}
       <div className="absolute bottom-0 left-0 right-0 flex items-center px-1.5 pb-0.5 z-10">
         <span className="text-[9px] text-white/70 font-mono drop-shadow-sm">
-          {duration.toFixed(1)}s
-          {segment.playbackRate !== 1.0 && ` → ${(duration / segment.playbackRate).toFixed(1)}s`}
+          {duration.toFixed(1)}s{segment.playbackRate !== 1.0 && ` → ${(duration / segment.playbackRate).toFixed(1)}s`}
         </span>
       </div>
 
@@ -398,7 +379,13 @@ export const MediaSegmentBlock: React.FC<MediaSegmentBlockProps> = ({
 
           {/* 删除按钮 */}
           {onDelete && (
-            <Button size="icon" variant="outline" className="w-6 h-6 rounded-full p-0 bg-background shadow-sm hover:bg-destructive hover:text-destructive-foreground" onClick={handleDelete} title="删除片段">
+            <Button
+              size="icon"
+              variant="outline"
+              className="w-6 h-6 rounded-full p-0 bg-background shadow-sm hover:bg-destructive hover:text-destructive-foreground"
+              onClick={handleDelete}
+              title="删除片段"
+            >
               <TbTrash className="w-3 h-3" />
             </Button>
           )}

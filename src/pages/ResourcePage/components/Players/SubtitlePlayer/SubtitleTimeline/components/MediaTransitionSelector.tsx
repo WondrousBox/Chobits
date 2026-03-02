@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import React, { useCallback } from 'react';
-import { TbArrowBarToRight, TbArrowBarToLeft, TbBlur, TbX } from 'react-icons/tb';
+import { TbArrowBarToLeft, TbArrowBarToRight, TbBlur, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -41,14 +41,7 @@ const TRANSITION_OPTIONS: { type: TransitionType; label: string; icon: React.Ele
  * - 转场类型选择
  * - 转场时长调整
  */
-export const MediaTransitionSelector: React.FC<MediaTransitionSelectorProps> = ({
-  open,
-  onClose,
-  transition,
-  position,
-  onTransitionChange,
-  className
-}) => {
+export const MediaTransitionSelector: React.FC<MediaTransitionSelectorProps> = ({ open, onClose, transition, position, onTransitionChange, className }) => {
   const currentType = transition?.type ?? 'none';
   const currentDuration = transition?.duration ?? MEDIA_CONFIG.DEFAULT_TRANSITION_DURATION;
 
@@ -106,10 +99,7 @@ export const MediaTransitionSelector: React.FC<MediaTransitionSelectorProps> = (
             <button
               key={option.type}
               type="button"
-              className={clsx(
-                'w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors',
-                isSelected ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-foreground'
-              )}
+              className={clsx('w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs transition-colors', isSelected ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-foreground')}
               onClick={() => handleTypeChange(option.type)}
               title={option.description}
             >
@@ -128,14 +118,7 @@ export const MediaTransitionSelector: React.FC<MediaTransitionSelectorProps> = (
             <label className="text-xs font-medium text-foreground">时长</label>
             <span className="text-xs text-muted-foreground font-mono">{currentDuration.toFixed(1)}s</span>
           </div>
-          <Slider
-            value={[currentDuration]}
-            onValueChange={handleDurationChange}
-            min={0.1}
-            max={2.0}
-            step={0.1}
-            className="w-full"
-          />
+          <Slider value={[currentDuration]} onValueChange={handleDurationChange} min={0.1} max={2.0} step={0.1} className="w-full" />
           <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
             <span>0.1s</span>
             <span>2.0s</span>
@@ -171,12 +154,7 @@ interface TransitionTypeButtonProps {
   isSelectorOpen?: boolean;
 }
 
-export const TransitionTypeButton: React.FC<TransitionTypeButtonProps> = ({
-  transition,
-  position,
-  onClick,
-  isSelectorOpen = false
-}) => {
+export const TransitionTypeButton: React.FC<TransitionTypeButtonProps> = ({ transition, position, onClick, isSelectorOpen = false }) => {
   const hasTransition = transition && transition.type !== 'none';
 
   return (
@@ -190,11 +168,7 @@ export const TransitionTypeButton: React.FC<TransitionTypeButtonProps> = ({
       onClick={onClick}
       title={hasTransition ? `${position === 'in' ? '入场' : '出场'}: ${transition.type} (${transition.duration}s)` : `添加${position === 'in' ? '入场' : '出场'}转场`}
     >
-      {hasTransition ? (
-        <span className="text-[10px] font-mono">{transition.duration.toFixed(1)}</span>
-      ) : (
-        <span className="text-[10px]">+</span>
-      )}
+      {hasTransition ? <span className="text-[10px] font-mono">{transition.duration.toFixed(1)}</span> : <span className="text-[10px]">+</span>}
     </button>
   );
 };
