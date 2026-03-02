@@ -1,4 +1,8 @@
-import type { WordTimestamp } from '../../MediaPlayer/subtitleDisplayEvent';
+// Re-export WordTimestamp from adapters for backward compatibility
+export type { WordTimestamp, AnnotationItem, TimelineAdapters } from './adapters/types';
+
+// Import WordTimestamp for internal use
+import type { WordTimestamp, AnnotationItem, TimelineAdapters } from './adapters/types';
 
 /**
  * SubtitleTimeline 时间轴组件类型定义
@@ -235,6 +239,13 @@ export interface SubtitleTimelineProps extends TimelineCallbacks {
   mediaCallbacks?: MediaTrackCallbacks;
   /** 当前激活的媒体工具 */
   mediaTool?: MediaTool;
+
+  // ---- 适配器 Props (用于独立组件库模式) ----
+  /**
+   * 适配器配置，用于注入外部服务依赖
+   * 如果不提供，组件将使用默认的 no-op 实现（部分功能受限）
+   */
+  adapters?: TimelineAdapters;
 }
 
 /**
@@ -278,8 +289,6 @@ export const TRACK_COLORS = [
 ] as const;
 
 // ========== 标注轨道相关类型 ==========
-
-import type { AnnotationItem } from '../useAnnotations';
 
 /**
  * 标注轨道数据

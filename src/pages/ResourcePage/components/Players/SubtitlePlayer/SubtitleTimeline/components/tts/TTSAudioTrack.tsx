@@ -1,11 +1,11 @@
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { useMediaAdapter } from '../../context';
 import type { TTSAudioItem } from '../../types';
 import { DEFAULT_CONFIG, ViewportState } from '../../types';
 import { detectOverlappingIndices, TimeRange } from '../../utils';
-import type { WaveformData } from '../../utils/ttsWaveformLoader';
-import { getTTSBlockWaveform } from '../../utils/ttsWaveformLoader';
+import { createTTSWaveformLoader, type WaveformData } from '../../utils/ttsWaveformLoader';
 import { TTSAudioBlock } from './TTSAudioBlock';
 
 /** 从 types 导出，供外部使用 */
@@ -75,6 +75,10 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [waveformMap, setWaveformMap] = useState<Record<string, WaveformData>>({});
 
+  // Get media adapter from context and create waveform loader
+  const mediaAdapter = useMediaAdapter();
+  const waveformLoader = useMemo(() => createTTSWaveformLoader(mediaAdapter), [mediaAdapter]);
+
   const trackHeight = DEFAULT_CONFIG.TRACK_HEIGHT + DEFAULT_CONFIG.TRACK_GAP;
 
   // 检测重叠的音频项（基于块的 startTime/endTime 时间槽）
@@ -101,7 +105,7 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
     const pathsToRequest = visibleItems.filter((item) => item.status === 'completed' && item.audioPath).map((item) => item.audioPath as string);
 
     pathsToRequest.forEach((audioPath) => {
-      getTTSBlockWaveform(audioPath).then(
+      waveformLoader.getWaveform(audioPath).then(
         (data) => {
           if (!cancelled) {
             setWaveformMap((prev) => (prev[audioPath] ? prev : { ...prev, [audioPath]: data }));
@@ -116,7 +120,7 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [visibleItems]);
+  }, [visibleItems, waveformLoader]);
 
   // 单轨单 Canvas：根据 waveformMap 与可见块绘制所有波形
   useEffect(() => {

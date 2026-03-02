@@ -4,6 +4,7 @@ import { TbFileImport, TbPhoto, TbUpload, TbVideo, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 
+import { useConfigAdapter, useIdGeneratorAdapter, useMediaAdapter } from '../../context';
 import type { MediaSegment, MediaSource, MediaTrackData } from '../../types';
 import { DEFAULT_TRANSFORM } from '../../types';
 
@@ -28,6 +29,15 @@ export const MediaImportPanel: React.FC<MediaImportPanelProps> = ({ open, onClos
   const [loading, setLoading] = useState(false);
   const [targetTrackId, setTargetTrackId] = useState<string | 'new'>('new');
   const [error, setError] = useState<string | null>(null);
+
+  // Get adapters from context
+  const mediaAdapter = useMediaAdapter();
+  const configAdapter = useConfigAdapter();
+  const idGeneratorAdapter = useIdGeneratorAdapter();
+
+  // Get file extensions from config adapter
+  const videoExtensions = configAdapter?.videoExtensions || ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v'];
+  const imageExtensions = configAdapter?.imageExtensions || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
 
   // Handle drag events
   const handleDragEnter = useCallback((e: React.DragEvent) => {
@@ -58,8 +68,6 @@ export const MediaImportPanel: React.FC<MediaImportPanelProps> = ({ open, onClos
       for (const filePath of filePaths) {
         // Determine file type by extension
         const ext = filePath.split('.').pop()?.toLowerCase() || '';
-        const videoExtensions = ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v'];
-        const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
 
         const isVideo = videoExtensions.includes(ext);
         const isImage = imageExtensions.includes(ext);
@@ -69,21 +77,24 @@ export const MediaImportPanel: React.FC<MediaImportPanelProps> = ({ open, onClos
           continue;
         }
 
-        // Get media info via IPC
-        let info: { width: number; height: number; duration: number } | null = null;
+        // Get media info via adapter
+        let info: { width: number; height: number; duration?: number } | null = null;
         try {
-          info = await window.YUA.media?.['media:getInfo']?.(filePath);
+          info = await mediaAdapter?.getMediaInfo?.(filePath) || null;
         } catch (err) {
           console.warn(`Could not get info for ${filePath}:`, err);
         }
 
-        // Use info from IPC or fallback to defaults
-        const width = info?.width || 1920;
-        const height = info?.height || 1080;
+        // Use info from adapter or fallback to defaults
+        const width = info?.width || configAdapter?.defaultMediaInfo?.width || 1920;
+        const height = info?.height || configAdapter?.defaultMediaInfo?.height || 1080;
         const videoDuration = info?.duration || (isVideo ? 10 : undefined);
 
+        // Generate ID using adapter
+        const sourceId = idGeneratorAdapter?.generateMediaSourceId?.() || `source-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
         mediaSources.push({
-          id: `source-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+          id: sourceId,
           path: filePath,
           type: isVideo ? 'video' : 'image',
           duration: videoDuration,
@@ -103,7 +114,7 @@ export const MediaImportPanel: React.FC<MediaImportPanelProps> = ({ open, onClos
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [mediaAdapter, configAdapter, idGeneratorAdapter, videoExtensions, imageExtensions]);
 
   // Handle file drop
   const handleDrop = useCallback(
@@ -146,8 +157,8 @@ export const MediaImportPanel: React.FC<MediaImportPanelProps> = ({ open, onClos
   // Open file dialog
   const openFileDialog = useCallback(async () => {
     try {
-      const result = await window.YUA.file['file:pickFile']({
-        filters: [{ name: 'Media Files', extensions: ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'] }],
+      const result = await mediaAdapter?.pickFiles?.({
+        filters: [{ name: 'Media Files', extensions: [...videoExtensions, ...imageExtensions] }],
         multi: true
       });
 
@@ -161,7 +172,7 @@ export const MediaImportPanel: React.FC<MediaImportPanelProps> = ({ open, onClos
       console.error('Error opening file dialog:', err);
       setError(err instanceof Error ? err.message : '打开文件对话框失败');
     }
-  }, [processFilePaths]);
+  }, [mediaAdapter, videoExtensions, imageExtensions, processFilePaths]);
 
   // Handle import
   const handleImport = useCallback(() => {

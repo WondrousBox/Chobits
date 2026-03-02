@@ -4,8 +4,8 @@ import { TbBookmark, TbHighlight, TbNote, TbTrash, TbVocabulary } from 'react-ic
 
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
-import type { AnnotationItem } from '../../../useAnnotations';
-import { getAnnotationColor } from '../../../useAnnotations';
+import { useAnnotationAdapter } from '../../context';
+import type { AnnotationItem } from '../../adapters/types';
 import type { AnnotationTrackCallbacks, ViewportState } from '../../types';
 import { DEFAULT_CONFIG } from '../../types';
 
@@ -37,6 +37,9 @@ const ANNOTATION_TYPE_ICONS: Record<string, React.ReactNode> = {
  * 在时间轴上显示标注标记，每个标注显示为一个色块
  */
 export const AnnotationTrack: React.FC<AnnotationTrackProps> = ({ annotations, totalWidth, pixelsPerSecond, viewport, callbacks, enabled = true }) => {
+  // Get annotation adapter from context
+  const annotationAdapter = useAnnotationAdapter();
+
   // 虚拟化：只渲染视口内的标注（带缓冲区）
   const bufferSeconds = 5;
   const visibleAnnotations = useMemo(() => {
@@ -44,6 +47,11 @@ export const AnnotationTrack: React.FC<AnnotationTrackProps> = ({ annotations, t
     const viewEnd = viewport.endTime + bufferSeconds;
     return annotations.filter((a) => a.endTime >= viewStart && a.startTime <= viewEnd);
   }, [annotations, viewport.startTime, viewport.endTime]);
+
+  // Helper to get annotation color from adapter
+  const getAnnotationColorFromAdapter = (type: AnnotationItem['type']): string => {
+    return annotationAdapter?.getAnnotationColor?.(type) || 'hsl(48, 95%, 55%)';
+  };
 
   return (
     <div
@@ -56,7 +64,7 @@ export const AnnotationTrack: React.FC<AnnotationTrackProps> = ({ annotations, t
       {visibleAnnotations.map((annotation) => {
         const left = annotation.startTime * pixelsPerSecond;
         const width = Math.max((annotation.endTime - annotation.startTime) * pixelsPerSecond, 6); // 最小 6px 确保可见
-        const color = annotation.color || getAnnotationColor(annotation.type);
+        const color = annotation.color || getAnnotationColorFromAdapter(annotation.type);
 
         return (
           <Tooltip key={annotation.id}>

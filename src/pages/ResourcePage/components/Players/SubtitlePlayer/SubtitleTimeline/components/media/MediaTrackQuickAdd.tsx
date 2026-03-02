@@ -4,6 +4,7 @@ import { TbFileImport, TbPhoto, TbUpload, TbVideo } from 'react-icons/tb';
 
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
 
+import { useConfigAdapter, useIdGeneratorAdapter, useMediaAdapter } from '../../context';
 import type { MediaSegment, MediaSource } from '../../types';
 import { DEFAULT_TRANSFORM } from '../../types';
 
@@ -33,6 +34,15 @@ export const MediaTrackQuickAdd: React.FC<MediaTrackQuickAddProps> = ({ children
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // Get adapters from context
+  const mediaAdapter = useMediaAdapter();
+  const configAdapter = useConfigAdapter();
+  const idGeneratorAdapter = useIdGeneratorAdapter();
+
+  // Get file extensions from config adapter
+  const videoExtensions = configAdapter?.videoExtensions || ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v'];
+  const imageExtensions = configAdapter?.imageExtensions || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
+
   // 处理文件路径，创建 MediaSource
   const processFilePaths = useCallback(
     async (filePaths: string[], targetTime: number) => {
@@ -43,8 +53,6 @@ export const MediaTrackQuickAdd: React.FC<MediaTrackQuickAddProps> = ({ children
 
         for (const filePath of filePaths) {
           const ext = filePath.split('.').pop()?.toLowerCase() || '';
-          const videoExtensions = ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v'];
-          const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
 
           const isVideo = videoExtensions.includes(ext);
           const isImage = imageExtensions.includes(ext);
@@ -54,20 +62,23 @@ export const MediaTrackQuickAdd: React.FC<MediaTrackQuickAddProps> = ({ children
             continue;
           }
 
-          // 获取媒体信息
-          let info: { width: number; height: number; duration: number } | null = null;
+          // 获取媒体信息 via adapter
+          let info: { width: number; height: number; duration?: number } | null = null;
           try {
-            info = await window.YUA.media?.['media:getInfo']?.(filePath);
+            info = await mediaAdapter?.getMediaInfo?.(filePath) || null;
           } catch (err) {
             console.warn(`Could not get info for ${filePath}:`, err);
           }
 
-          const width = info?.width || 1920;
-          const height = info?.height || 1080;
+          const width = info?.width || configAdapter?.defaultMediaInfo?.width || 1920;
+          const height = info?.height || configAdapter?.defaultMediaInfo?.height || 1080;
           const videoDuration = info?.duration || (isVideo ? 10 : undefined);
 
+          // Generate ID using adapter
+          const sourceId = idGeneratorAdapter?.generateMediaSourceId?.() || `source-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
           mediaSources.push({
-            id: `source-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+            id: sourceId,
             path: filePath,
             type: isVideo ? 'video' : 'image',
             duration: videoDuration,
@@ -104,14 +115,14 @@ export const MediaTrackQuickAdd: React.FC<MediaTrackQuickAddProps> = ({ children
         setLoading(false);
       }
     },
-    [onImport]
+    [onImport, mediaAdapter, configAdapter, idGeneratorAdapter, videoExtensions, imageExtensions]
   );
 
   // 打开文件选择对话框
   const handleSelectFile = useCallback(async () => {
     try {
-      const result = await window.YUA.file['file:pickFile']({
-        filters: [{ name: 'Media Files', extensions: ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'] }],
+      const result = await mediaAdapter?.pickFiles?.({
+        filters: [{ name: 'Media Files', extensions: [...videoExtensions, ...imageExtensions] }],
         multi: true
       });
 
@@ -124,7 +135,7 @@ export const MediaTrackQuickAdd: React.FC<MediaTrackQuickAddProps> = ({ children
     } catch (err) {
       console.error('Error opening file dialog:', err);
     }
-  }, [clickTime, processFilePaths]);
+  }, [clickTime, processFilePaths, mediaAdapter, videoExtensions, imageExtensions]);
 
   // 拖拽事件处理
   const handleDragEnter = useCallback(
