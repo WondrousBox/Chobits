@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import React from 'react';
-import { TbEye, TbEyeClosed, TbLock, TbLockOpen, TbTrash } from 'react-icons/tb';
+import { TbEye, TbEyeClosed, TbLock, TbLockOpen, TbPlus, TbTrash } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 
@@ -31,19 +31,10 @@ interface MediaTrackLabelProps {
  *
  * 显示轨道名称、颜色、可见性/锁定切换按钮和删除按钮
  */
-export const MediaTrackLabel: React.FC<MediaTrackLabelProps> = ({
-  track,
-  isSelected = false,
-  onSelect,
-  onToggleVisibility,
-  onToggleLock,
-  onDelete,
-  canDelete = true,
-  disabled = false
-}) => {
+export const MediaTrackLabel: React.FC<MediaTrackLabelProps> = ({ track, isSelected = false, onSelect, onToggleVisibility, onToggleLock, onDelete, canDelete = true, disabled = false }) => {
   const height = track.height ?? MEDIA_CONFIG.DEFAULT_TRACK_HEIGHT;
 
-  const handleClick = () => {
+  const handleClick = (): void => {
     if (!disabled) {
       onSelect?.(track.id);
     }
@@ -127,23 +118,23 @@ export const MediaTrackLabel: React.FC<MediaTrackLabelProps> = ({
  * MediaTrackAddButton - 添加媒体轨道按钮
  */
 interface MediaTrackAddButtonProps {
-  onClick?: () => void;
+  /** 添加轨道回调 */
+  onAddTrack?: () => void;
+  /** 禁用状态 */
   disabled?: boolean;
 }
 
-export const MediaTrackAddButton: React.FC<MediaTrackAddButtonProps> = ({ onClick, disabled = false }) => {
+export const MediaTrackAddButton: React.FC<MediaTrackAddButtonProps> = ({ onAddTrack, disabled = false }) => {
   return (
     <button
       type="button"
-      className={clsx(
-        'flex items-center justify-center gap-1 px-2 border-b border-r bg-muted/20 hover:bg-muted/40 transition-colors',
-        disabled && 'opacity-40 pointer-events-none'
-      )}
+      className={clsx('flex items-center justify-center gap-1 px-2 border-b border-r bg-muted/20 hover:bg-muted/40 transition-colors', disabled && 'opacity-40 pointer-events-none')}
       style={{ height: MEDIA_CONFIG.DEFAULT_TRACK_HEIGHT + 4 }}
-      onClick={onClick}
+      onClick={onAddTrack}
       disabled={disabled}
     >
-      <span className="text-xs text-muted-foreground">+ 添加媒体轨道</span>
+      <TbPlus className="w-3.5 h-3.5 text-muted-foreground" />
+      <span className="text-xs text-muted-foreground">添加轨道</span>
     </button>
   );
 };

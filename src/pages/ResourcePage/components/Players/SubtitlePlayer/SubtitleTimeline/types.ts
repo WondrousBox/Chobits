@@ -235,10 +235,6 @@ export interface SubtitleTimelineProps extends TimelineCallbacks {
   mediaCallbacks?: MediaTrackCallbacks;
   /** 当前激活的媒体工具 */
   mediaTool?: MediaTool;
-  /** 媒体轨道是否启用 */
-  mediaTrackEnabled?: boolean;
-  /** 切换媒体轨道启用状态 */
-  onToggleMediaTrack?: () => void;
 }
 
 /**
@@ -540,6 +536,8 @@ export interface MediaTrackCallbacks {
   onSourceAdd?: (sources: MediaSource[]) => void;
   /** 添加片段 */
   onSegmentAdd?: (trackId: string, segment: Omit<MediaSegment, 'id'>) => void;
+  /** 快速添加媒体（右键菜单或拖拽添加时触发，同时添加源和片段） */
+  onQuickAdd?: (trackId: string, sources: MediaSource[], segments: Omit<MediaSegment, 'id'>[]) => void;
   /** 更新片段 */
   onSegmentUpdate?: (trackId: string, segmentId: string, patch: Partial<MediaSegment>) => void;
   /** 删除片段 */
@@ -585,7 +583,7 @@ export const MEDIA_CONFIG = {
   /** 片段最小宽度（像素） */
   MIN_SEGMENT_WIDTH: 20,
   /** 默认转场时长（秒） */
-  DEFAULT_TRANSITION_DURATION: 0.5,
+  DEFAULT_TRANSITION_DURATION: 0.5
 } as const;
 
 /**
@@ -598,5 +596,5 @@ export const DEFAULT_TRANSFORM: MediaTransform = {
   rotation: 0,
   opacity: 1,
   flipX: false,
-  flipY: false,
+  flipY: false
 };

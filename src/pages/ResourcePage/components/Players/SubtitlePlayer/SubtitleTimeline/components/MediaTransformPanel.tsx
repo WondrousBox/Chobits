@@ -33,14 +33,7 @@ interface MediaTransformPanelProps {
  * - 不透明度
  * - 翻转
  */
-export const MediaTransformPanel: React.FC<MediaTransformPanelProps> = ({
-  open,
-  onClose,
-  segment,
-  source,
-  onTransformChange,
-  className
-}) => {
+export const MediaTransformPanel: React.FC<MediaTransformPanelProps> = ({ open, onClose, segment, source, onTransformChange, className }) => {
   const transform = segment?.transform ?? DEFAULT_TRANSFORM;
 
   // Reset to defaults
@@ -159,7 +152,9 @@ export const MediaTransformPanel: React.FC<MediaTransformPanelProps> = ({
               {source.type === 'video' ? '🎬' : '🖼️'} {source.path.split('/').pop()}
             </div>
             <div className="flex gap-2">
-              <span>{source.width}x{source.height}</span>
+              <span>
+                {source.width}x{source.height}
+              </span>
               {source.duration && <span>{source.duration.toFixed(1)}s</span>}
             </div>
           </div>
@@ -193,14 +188,7 @@ export const MediaTransformPanel: React.FC<MediaTransformPanelProps> = ({
             </label>
             <span className="text-xs text-muted-foreground font-mono">{transform.x.toFixed(1)}%</span>
           </div>
-          <Slider
-            value={[transform.x]}
-            onValueChange={handleXChange}
-            min={0}
-            max={100}
-            step={0.1}
-            className="w-full"
-          />
+          <Slider value={[transform.x]} onValueChange={handleXChange} min={0} max={100} step={0.1} className="w-full" />
         </div>
 
         {/* Position Y */}
@@ -212,14 +200,7 @@ export const MediaTransformPanel: React.FC<MediaTransformPanelProps> = ({
             </label>
             <span className="text-xs text-muted-foreground font-mono">{transform.y.toFixed(1)}%</span>
           </div>
-          <Slider
-            value={[transform.y]}
-            onValueChange={handleYChange}
-            min={0}
-            max={100}
-            step={0.1}
-            className="w-full"
-          />
+          <Slider value={[transform.y]} onValueChange={handleYChange} min={0} max={100} step={0.1} className="w-full" />
         </div>
 
         {/* Scale */}
@@ -231,14 +212,7 @@ export const MediaTransformPanel: React.FC<MediaTransformPanelProps> = ({
             </label>
             <span className="text-xs text-muted-foreground font-mono">{(transform.scale * 100).toFixed(0)}%</span>
           </div>
-          <Slider
-            value={[transform.scale * 100]}
-            onValueChange={handleScaleChange}
-            min={10}
-            max={300}
-            step={1}
-            className="w-full"
-          />
+          <Slider value={[transform.scale * 100]} onValueChange={handleScaleChange} min={10} max={300} step={1} className="w-full" />
         </div>
 
         {/* Rotation */}
@@ -250,14 +224,7 @@ export const MediaTransformPanel: React.FC<MediaTransformPanelProps> = ({
             </label>
             <span className="text-xs text-muted-foreground font-mono">{transform.rotation.toFixed(0)}°</span>
           </div>
-          <Slider
-            value={[transform.rotation]}
-            onValueChange={handleRotationChange}
-            min={0}
-            max={360}
-            step={1}
-            className="w-full"
-          />
+          <Slider value={[transform.rotation]} onValueChange={handleRotationChange} min={0} max={360} step={1} className="w-full" />
           <div className="flex gap-1">
             <Button variant="outline" size="sm" className="h-6 text-xs flex-1" onClick={handleRotateMinus90}>
               -90°
@@ -277,35 +244,18 @@ export const MediaTransformPanel: React.FC<MediaTransformPanelProps> = ({
             </label>
             <span className="text-xs text-muted-foreground font-mono">{(transform.opacity * 100).toFixed(0)}%</span>
           </div>
-          <Slider
-            value={[transform.opacity * 100]}
-            onValueChange={handleOpacityChange}
-            min={0}
-            max={100}
-            step={1}
-            className="w-full"
-          />
+          <Slider value={[transform.opacity * 100]} onValueChange={handleOpacityChange} min={0} max={100} step={1} className="w-full" />
         </div>
 
         {/* Flip */}
         <div className="space-y-1.5">
           <div className="text-xs font-medium text-foreground">翻转</div>
           <div className="flex gap-2">
-            <Button
-              variant={transform.flipX ? 'secondary' : 'outline'}
-              size="sm"
-              className="h-8 flex-1 text-xs"
-              onClick={handleFlipX}
-            >
+            <Button variant={transform.flipX ? 'secondary' : 'outline'} size="sm" className="h-8 flex-1 text-xs" onClick={handleFlipX}>
               <TbFlipHorizontal className="w-4 h-4 mr-1" />
               水平翻转
             </Button>
-            <Button
-              variant={transform.flipY ? 'secondary' : 'outline'}
-              size="sm"
-              className="h-8 flex-1 text-xs"
-              onClick={handleFlipY}
-            >
+            <Button variant={transform.flipY ? 'secondary' : 'outline'} size="sm" className="h-8 flex-1 text-xs" onClick={handleFlipY}>
               <TbFlipVertical className="w-4 h-4 mr-1" />
               垂直翻转
             </Button>

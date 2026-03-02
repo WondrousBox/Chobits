@@ -1960,8 +1960,6 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
           mediaTracks={mediaTracks}
           mediaSources={mediaSources}
           mediaCallbacks={mediaCallbacks}
-          mediaTrackEnabled={mediaTrackEnabled}
-          onToggleMediaTrack={handleToggleMediaTrack}
         />
       )}
 
