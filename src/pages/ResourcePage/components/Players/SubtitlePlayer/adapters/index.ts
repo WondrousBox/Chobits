@@ -1,0 +1,1 @@
+export { createChobitsAdapters } from './chobitsAdapters';

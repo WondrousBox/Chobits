@@ -22,6 +22,7 @@ import {
   TTSTrackLabel,
   WaveformTrack
 } from './components';
+import { TimelineAdapterProvider } from './context';
 import { useTimelineInteraction } from './hooks';
 import type { MediaSegment, MediaSource, TimelineSegment } from './types';
 import { ClipTool, DEFAULT_CONFIG, MediaTool, SubtitleTimelineProps, TRACK_COLORS, ViewportState, WaveformState } from './types';
@@ -92,7 +93,9 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   mediaTracks,
   mediaSources,
   mediaCallbacks,
-  mediaTool: propMediaTool = 'select'
+  mediaTool: propMediaTool = 'select',
+  // Adapters
+  adapters
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -531,7 +534,8 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   }, []);
 
   return (
-    <div ref={containerRef} className={clsx('flex flex-col bg-background border rounded-lg overflow-hidden select-none h-full', className)}>
+    <TimelineAdapterProvider adapters={adapters}>
+      <div ref={containerRef} className={clsx('flex flex-col bg-background border rounded-lg overflow-hidden select-none h-full', className)}>
       {/* 工具栏 */}
       <div className="flex items-center justify-between px-2 py-1 border-b bg-muted/30 shrink-0">
         <div className="flex items-center gap-2 flex-1">
@@ -848,7 +852,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                       <TTSAudioTrack
                         key={`tts-${ttsTrackId}`}
                         ttsTrackId={ttsTrackId}
-                        items={ttsItems}
+                        items={ttsItems ?? []}
                         viewport={viewport}
                         totalDuration={duration}
                         pixelsPerSecond={pixelsPerSecond}
@@ -982,5 +986,6 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
         }}
       />
     </div>
+    </TimelineAdapterProvider>
   );
 };

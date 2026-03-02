@@ -2,8 +2,9 @@ import clsx from 'clsx';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { TbUpload } from 'react-icons/tb';
 
+import { useConfigAdapter, useIdGeneratorAdapter, useMediaAdapter } from '../../context';
 import type { MediaSegment, MediaSource, MediaTool, MediaTrackData, ViewportState } from '../../types';
-import { DEFAULT_CONFIG, MEDIA_CONFIG } from '../../types';
+import { DEFAULT_CONFIG, DEFAULT_TRANSFORM, MEDIA_CONFIG } from '../../types';
 import { MediaSegmentBlock } from './MediaSegmentBlock';
 import { MediaTrackQuickAdd } from './MediaTrackQuickAdd';
 
@@ -74,6 +75,15 @@ export const MediaTrack: React.FC<MediaTrackProps> = ({
   disabled = false
 }) => {
   const trackRef = useRef<HTMLDivElement>(null);
+
+  // Get adapters from context
+  const mediaAdapter = useMediaAdapter();
+  const configAdapter = useConfigAdapter();
+  const idGeneratorAdapter = useIdGeneratorAdapter();
+
+  // Get file extensions from config adapter
+  const videoExtensions = configAdapter?.videoExtensions || ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v'];
+  const imageExtensions = configAdapter?.imageExtensions || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
 
   // 右键菜单点击位置对应的时间
   const [contextMenuTime, setContextMenuTime] = useState(0);
@@ -211,33 +221,33 @@ export const MediaTrack: React.FC<MediaTrackProps> = ({
 
           for (const filePath of filePaths) {
             const ext = filePath.split('.').pop()?.toLowerCase() || '';
-            const videoExtensions = ['mp4', 'webm', 'mov', 'avi', 'mkv', 'm4v'];
-            const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'];
 
             const isVideo = videoExtensions.includes(ext);
             const isImage = imageExtensions.includes(ext);
 
             if (!isVideo && !isImage) continue;
 
-            let info: { width: number; height: number; duration: number } | null = null;
+            let info: { width: number; height: number; duration?: number } | null = null;
             try {
-              info = await window.YUA.media?.['media:getInfo']?.(filePath);
+              info = await mediaAdapter?.getMediaInfo?.(filePath) || null;
             } catch (err) {
               console.warn(`Could not get info for ${filePath}:`, err);
             }
 
+            // Generate ID using adapter
+            const sourceId = idGeneratorAdapter?.generateMediaSourceId?.() || `source-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
             mediaSources.push({
-              id: `source-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+              id: sourceId,
               path: filePath,
               type: isVideo ? 'video' : 'image',
               duration: info?.duration || (isVideo ? 10 : undefined),
-              width: info?.width || 1920,
-              height: info?.height || 1080
+              width: info?.width || configAdapter?.defaultMediaInfo?.width || 1920,
+              height: info?.height || configAdapter?.defaultMediaInfo?.height || 1080
             });
           }
 
           if (mediaSources.length > 0) {
-            const { DEFAULT_TRANSFORM } = await import('../../types');
             const segments: Omit<MediaSegment, 'id'>[] = mediaSources.map((source, index) => {
               const startOffset = index * 0.5;
               const segmentDuration = source.type === 'video' ? Math.min(source.duration || 5, 5) : 5;
@@ -263,7 +273,7 @@ export const MediaTrack: React.FC<MediaTrackProps> = ({
         }
       }
     },
-    [disabled, track.locked, onQuickAdd, track.id, getTimeFromEvent]
+    [disabled, track.locked, onQuickAdd, track.id, getTimeFromEvent, mediaAdapter, configAdapter, idGeneratorAdapter, videoExtensions, imageExtensions]
   );
 
   // 禁用状态

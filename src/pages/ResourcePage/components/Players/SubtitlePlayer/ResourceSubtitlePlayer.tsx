@@ -13,6 +13,7 @@ import { ANNOTATION_DELETE_EVENT, type AnnotationMarker, dispatchAnnotationMarke
 import { MediaPlayerRef } from '../MediaPlayer/MediaPlayer';
 import { dispatchSubtitleDisplay, type SubtitleDisplayLine, type WordTimestamp } from '../MediaPlayer/subtitleDisplayEvent';
 import { dispatchTrackSettings, TRACK_TOGGLE_EVENT, type TrackSettingsItem, type TrackTogglePayload } from '../MediaPlayer/trackSettingsEvent';
+import { createChobitsAdapters } from './adapters';
 import { ExportDialog } from './ExportDialog';
 import { SubtitlePlayer } from './SubtitleListPlayer/SubtitlePlayer';
 import { aimTracksToTimelineTracks, ClipSequence, formatSecondsToTime, indicesToIds, parseSegmentId, parseTimeToSeconds, SubtitleTimeline, TimelineSegment } from './SubtitleTimeline';
@@ -122,6 +123,9 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
 
   // ---- 波形数据状态 ----
   const [waveform, setWaveform] = useState<WaveformState>({});
+
+  // ---- 创建 Chobits 适配器 ----
+  const chobitsAdapters = useMemo(() => createChobitsAdapters(), []);
 
   // 防抖保存剪辑状态（存储到独立的 clip 文件）
   const debouncedSaveClipSegments = useMemo(
@@ -1960,6 +1964,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
           mediaTracks={mediaTracks}
           mediaSources={mediaSources}
           mediaCallbacks={mediaCallbacks}
+          adapters={chobitsAdapters}
         />
       )}
 
