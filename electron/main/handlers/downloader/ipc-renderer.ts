@@ -23,15 +23,6 @@ const downloaderIpcRenderer = {
   // 清理已完成的任务
   cleanup: () => ipcRenderer.invoke('video-downloader:cleanup'),
 
-  // 获取外部资源设置
-  getExternalResourceSettings: () => ipcRenderer.invoke('video-downloader:get-external-resource-settings'),
-
-  // 设置外部资源设置
-  setExternalResourceSettings: (settings: any) => ipcRenderer.invoke('video-downloader:set-external-resource-settings', settings),
-
-  // 获取 yt-dlp 配置文件路径
-  getConfigPath: () => ipcRenderer.invoke('video-downloader:get-config-path'),
-
   // 订阅管理
   getSubscriptions: () => ipcRenderer.invoke('video-downloader:get-subscriptions'),
   addSubscription: (data: { channelIdOrUrl: string; channelName?: string; autoDownload?: boolean }) => ipcRenderer.invoke('video-downloader:add-subscription', data),

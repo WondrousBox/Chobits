@@ -7,7 +7,9 @@ import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import { eventManager } from '../../packages/event';
 import { AppEvent } from '../../packages/event/events';
 import { initWorkflowSystem } from '../../packages/workflow/index';
+import { ytdlpService } from '../../packages/ytdlp';
 import { initHandlers } from './handlers';
+import { cookieManager } from './handlers/downloader/cookie-manager';
 import { initScheduler } from './handlers/scheduler';
 import { logger } from './logger';
 import { addAllowedResourceRoot, addWorkspaceResourceRoot, setupResourceProtocol } from './resource-protocol';
@@ -133,6 +135,15 @@ app.whenReady().then(async () => {
   } catch (e) {
     console.warn('[protocol res] setup failed', e);
   }
+
+  // Initialize yt-dlp service with cookie manager
+  try {
+    ytdlpService.initialize({ cookieManager });
+    console.log('[ytdlp] Service initialized');
+  } catch (e) {
+    console.warn('[ytdlp] Service initialization failed', e);
+  }
+
   // Add workspace root if exists
   try {
     const { WorkspacesRepo } = await import('./db/repositories');

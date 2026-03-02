@@ -5,7 +5,9 @@ import { app } from 'electron';
 
 import { getRealPath } from '.';
 
-export function getResourcePath(binName: 'ffmpeg' | 'recorder' | 'sherpa' | 'ffprobe' | 'yt-dlp' | 'sprites' | 'resources' | 'plugins' | 'providers' | 'logs' | 'workflows'): string | undefined {
+export function getResourcePath(
+  binName: 'ffmpeg' | 'recorder' | 'sherpa' | 'ffprobe' | 'yt-dlp' | 'sprites' | 'resources' | 'plugins' | 'providers' | 'logs' | 'workflows' | 'bun'
+): string | undefined {
   switch (binName) {
     case 'ffmpeg':
       return getRealPath(
@@ -21,6 +23,11 @@ export function getResourcePath(binName: 'ffmpeg' | 'recorder' | 'sherpa' | 'ffp
       return getRealPath(
         `../yt-dlp/${os.platform()}/${os.platform() === 'darwin' ? 'yt-dlp_macos' : 'yt-dlp.exe'}`,
         `./resources/yt-dlp/${os.platform()}/${os.platform() === 'darwin' ? 'yt-dlp_macos' : 'yt-dlp.exe'}`
+      );
+    case 'bun':
+      return getRealPath(
+        `../bun/${os.platform()}/${os.arch()}/${os.platform() === 'darwin' ? 'bun' : 'bun.exe'}`,
+        `./resources/bun/${os.platform()}/${os.arch()}/${os.platform() === 'darwin' ? 'bun' : 'bun.exe'}`
       );
     case 'sherpa':
       return getRealPath(`../sherpa`, `./resources/sherpa`);

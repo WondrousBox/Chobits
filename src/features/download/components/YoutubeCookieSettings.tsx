@@ -60,55 +60,42 @@ export function YoutubeCookieSettings(): JSX.Element {
           <Cookie className="h-5 w-5" />
           YouTube 登录
         </CardTitle>
-        <CardDescription>登录 YouTube 以下载私密和年龄限制视频</CardDescription>
+        <CardDescription>登录 YouTube 以下载私密、年龄限制、会员专属内容视频，更好的下载稳定性</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* 状态显示 */}
-        {status && (
-          <div className="flex items-center gap-2 rounded-lg border p-3">
-            {status.isLoggedIn ? <CheckCircle2 className="h-5 w-5 text-green-500" /> : <XCircle className="h-5 w-5 text-gray-400" />}
-            <div className="flex-1">
-              <p className="text-sm font-medium">{status.isLoggedIn ? '已登录' : '未登录'}</p>
-              {status.isLoggedIn && <p className="text-xs text-muted-foreground">{status.cookieCount} 个 Cookie 已存储</p>}
+        <div className="flex items-center justify-between border-solid border border-ring rounded-lg p-4">
+          {/* 状态显示 */}
+          {status && (
+            <div className="flex items-center gap-2 rounded-lg border p-3">
+              {status.isLoggedIn ? <CheckCircle2 className="h-5 w-5 text-green-500" /> : <XCircle className="h-5 w-5 text-gray-400" />}
+              <div className="flex-1">
+                <p className="text-sm font-medium">{status.isLoggedIn ? '已登录' : '未登录'}</p>
+                {status.isLoggedIn && <p className="text-xs text-muted-foreground">{status.cookieCount} 个 Cookie 已存储</p>}
+              </div>
             </div>
-          </div>
-        )}
-
-        {/* 错误提示 */}
-        {error && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {/* 信息提示 */}
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            使用您的 YouTube 账户登录以访问：
-            <ul className="mt-2 list-inside list-disc space-y-1 text-sm">
-              <li>私密视频</li>
-              <li>年龄限制内容</li>
-              <li>会员专属内容</li>
-              <li>更好的下载稳定性</li>
-            </ul>
-          </AlertDescription>
-        </Alert>
-
-        {/* 操作按钮 */}
-        <div className="flex gap-2">
-          {status?.isLoggedIn ? (
-            <Button variant="outline" onClick={handleLogout} disabled={loading} className="flex items-center gap-2">
-              <LogOut />
-              {loading ? '正在退出...' : '退出登录'}
-            </Button>
-          ) : (
-            <Button onClick={handleLogin} disabled={loading} className="flex items-center gap-2">
-              <TbBrandYoutube />
-              {loading ? '正在打开登录...' : '使用 YouTube 登录'}
-            </Button>
           )}
+
+          {/* 错误提示 */}
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          {/* 操作按钮 */}
+          <div className="flex gap-2">
+            {status?.isLoggedIn ? (
+              <Button variant="outline" onClick={handleLogout} disabled={loading} className="flex items-center gap-2">
+                <LogOut />
+                {loading ? '正在退出...' : '退出登录'}
+              </Button>
+            ) : (
+              <Button onClick={handleLogin} disabled={loading} className="flex items-center gap-2">
+                <TbBrandYoutube />
+                {loading ? '正在打开登录...' : '使用 YouTube 登录'}
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* 工作原理 */}

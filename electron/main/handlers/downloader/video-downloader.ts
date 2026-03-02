@@ -5,67 +5,19 @@ import path from 'node:path';
 import { resolve } from 'node:path';
 
 import { app, BrowserWindow } from 'electron';
-import { HttpsProxyAgent } from 'https-proxy-agent';
-import { SocksProxyAgent } from 'socks-proxy-agent';
 
-import pkg from '../../../../package.json';
 import ytdlpStatic from '../../../../packages/common/libs/ytdlp-static';
+import { isUnsupportedOptionError, UnsupportedOptionError, ytdlpService } from '../../../../packages/ytdlp';
 import { ResourcesRepo, WorkspacesRepo } from '../../db/repositories';
 import { binPathLog } from '../../logger';
 import { getResourcePath } from '../../utils/resources-path';
 import { generateThumbnailForResource } from '../../utils/thumbnail';
-import { getHttpProxy as getSystemHttpProxy } from '../proxy/proxy';
 import { ensureDailyFolder } from '../resource';
-import { getCurrentBinaryPath } from '../ytdlp/updater';
-import { cookieManager } from './cookie-manager';
 
 // 默认文件夹配置
 const DEFAULT_FOLDERS = {
   download: './downloads'
 };
-
-/**
- * 获取 Node.js 可执行文件路径
- * 在开发环境中使用系统 Node.js，在生产环境中使用打包的 Node.js
- */
-function getNodeJsPath(): string {
-  // 方法 1: 尝试使用 process.execPath (Electron 环境)
-  // 在开发环境中，这会指向 electron.exe，我们需要找到真正的 node.exe
-
-  if (app.isPackaged) {
-    // 生产环境：使用打包的 node.exe
-    // Electron 打包后，node.exe 位于 resources 目录
-    const resourcesPath = process.resourcesPath;
-    const possiblePaths = [
-      path.join(resourcesPath, 'node.exe'), // Windows
-      path.join(resourcesPath, 'node'), // macOS/Linux
-      path.join(path.dirname(process.execPath), 'node.exe'), // Windows fallback
-      path.join(path.dirname(process.execPath), 'node') // macOS/Linux fallback
-    ];
-
-    for (const nodePath of possiblePaths) {
-      if (fs.existsSync(nodePath)) {
-        console.log('[VideoDownloader] Found Node.js in production:', nodePath);
-        return nodePath;
-      }
-    }
-  }
-
-  // 开发环境：使用系统 Node.js
-  // process.execPath 在开发时指向 electron，但 Electron 内部使用系统 Node.js
-  const isWindows = process.platform === 'win32';
-
-  if (isWindows) {
-    // Windows: 使用系统 PATH 中的 node
-    // 先尝试直接返回 'node'，让系统在 PATH 中查找
-    console.log('[VideoDownloader] Using Node.js from system PATH: node');
-    return 'node';
-  } else {
-    // macOS/Linux: 使用系统 node
-    console.log('[VideoDownloader] Using Node.js from system PATH: node');
-    return 'node';
-  }
-}
 
 function isFunction(fn: any): fn is Function {
   return typeof fn === 'function';
@@ -382,216 +334,6 @@ function compareAndRenameFiles(source: string, dest: string): void {
   }
 }
 
-function getHttpProxy(): HttpsProxyAgent<string> | SocksProxyAgent | undefined {
-  // 使用系统的代理功能
-  return getSystemHttpProxy();
-}
-
-// 外部资源设置存储
-type ExternalResourceSettings = {
-  externalResourceMode: string;
-  externalResourceCookies: boolean;
-  preferredBrowser: string;
-  // EJS 配置
-  ejsRemoteComponents?: 'github' | 'npm' | 'none'; // EJS 远程组件来源，none 表示使用内置
-  ejsJsRuntime?: 'deno' | 'node' | 'bun' | 'quickjs' | 'auto'; // JavaScript 运行时，auto 表示自动检测
-};
-
-const SETTINGS_DIR = path.join(app.getPath('userData'), 'data');
-const SETTINGS_FILE = path.join(SETTINGS_DIR, 'external-resource-settings.json');
-// yt-dlp 配置文件路径（标准格式）
-export const YTDLP_CONFIG_FILE = path.join(SETTINGS_DIR, 'yt-dlp.conf');
-
-function ensureSettingsDir(): void {
-  if (!fs.existsSync(SETTINGS_DIR)) {
-    fs.mkdirSync(SETTINGS_DIR, { recursive: true });
-  }
-}
-
-function readSettings(): ExternalResourceSettings {
-  ensureSettingsDir();
-  const defaultSettings: ExternalResourceSettings = {
-    externalResourceMode: '1',
-    externalResourceCookies: false,
-    preferredBrowser: 'chrome',
-    // EJS 默认配置：使用 npm 远程组件，使用 Node.js (Electron 内置)
-    ejsRemoteComponents: 'npm',
-    ejsJsRuntime: 'node'
-  };
-
-  // 如果配置文件不存在，创建默认配置
-  if (!fs.existsSync(SETTINGS_FILE)) {
-    writeSettings(defaultSettings);
-    return defaultSettings;
-  }
-
-  try {
-    const content = fs.readFileSync(SETTINGS_FILE, 'utf8');
-    const settings = JSON.parse(content);
-    const mergedSettings = { ...defaultSettings, ...settings };
-
-    // 如果 yt-dlp 配置文件不存在，从 JSON 设置生成
-    if (!fs.existsSync(YTDLP_CONFIG_FILE)) {
-      writeYtDlpConfig(mergedSettings);
-    }
-
-    return mergedSettings;
-  } catch (error) {
-    console.warn('[VideoDownloader] Failed to read settings, using defaults:', error);
-    return defaultSettings;
-  }
-}
-
-/**
- * 将设置转换为 yt-dlp 配置文件格式
- * 参考：https://github.com/yt-dlp/yt-dlp?tab=readme-ov-file#configuration
- *
- * 注意：Cookie 配置不在配置文件中，因为需要动态处理浏览器回退逻辑
- */
-function generateYtDlpConfig(settings: ExternalResourceSettings): string {
-  const lines: string[] = [];
-
-  // 添加文件头注释
-  lines.push('# yt-dlp configuration file');
-  lines.push('# Generated automatically by ' + pkg.name + '');
-  lines.push('# This file is managed by the application settings');
-  lines.push('# Manual edits may be overwritten');
-  lines.push('');
-
-  // EJS 远程组件配置
-  if (settings.ejsRemoteComponents && settings.ejsRemoteComponents !== 'none') {
-    lines.push('# EJS remote components');
-    lines.push(`--remote-components ejs:${settings.ejsRemoteComponents}`);
-    lines.push('');
-  }
-
-  // EJS JavaScript 运行时配置
-  // 优先使用 Node.js（系统或 Electron 内置），避免要求用户安装 Deno
-  if (settings.ejsJsRuntime && settings.ejsJsRuntime !== 'auto') {
-    lines.push('# EJS JavaScript runtime');
-    if (settings.ejsJsRuntime === 'node') {
-      // 使用系统 Node.js 或 Electron 内置的 Node.js
-      const nodePath = getNodeJsPath();
-      lines.push(`--js-runtimes node:${nodePath}`);
-    } else {
-      lines.push(`--js-runtimes ${settings.ejsJsRuntime}`);
-    }
-    lines.push('');
-  } else {
-    // 如果是 auto，强制使用 Node.js 以避免查找 Deno
-    lines.push('# EJS JavaScript runtime (using Node.js)');
-    const nodePath = getNodeJsPath();
-    lines.push(`--js-runtimes node:${nodePath}`);
-    lines.push('');
-  }
-
-  // 下载质量模式
-  // 根据 externalResourceMode 设置不同的格式选择器
-  // 参考: https://github.com/yt-dlp/yt-dlp#format-selection
-  const formatSelectors: Record<string, { comment: string; format: string }> = {
-    best: {
-      comment: 'Download quality: best (default)',
-      format: 'bestvideo+bestaudio/best'
-    },
-    '1080p': {
-      comment: 'Download quality: limit to 1080p',
-      format: 'bv*[height<=1080]+ba/b[height<=1080]'
-    },
-    '720p': {
-      comment: 'Download quality: limit to 720p',
-      format: 'bv*[height<=720]+ba/b[height<=720]'
-    },
-    '480p': {
-      comment: 'Download quality: limit to 480p',
-      format: 'bv*[height<=480]+ba/b[height<=480] / wv*+ba/w'
-    },
-    audio: {
-      comment: 'Download quality: audio only',
-      format: 'bestaudio/best'
-    }
-  };
-
-  const qualityMode = settings.externalResourceMode;
-  if (qualityMode && qualityMode !== '1' && formatSelectors[qualityMode]) {
-    const selector = formatSelectors[qualityMode];
-    lines.push(`# ${selector.comment}`);
-    lines.push(`-f "${selector.format}"`);
-    lines.push('');
-  }
-
-  // 其他常用配置
-  lines.push('# Prefer free formats');
-  lines.push('--prefer-free-formats');
-  lines.push('');
-
-  // // 禁用 web_safari 客户端以避免 m3u8 格式的 403 错误
-  // // 参考: https://github.com/yt-dlp/yt-dlp/issues/15569
-  // lines.push('# Disable web_safari client to avoid m3u8 403 errors');
-  // lines.push('--extractor-args "youtube:player_client=default,-web_safari"');
-  // lines.push('');
-
-  // // 添加重要的 HTTP 头部来避免 403 错误
-  // lines.push('# User-Agent to avoid 403 errors');
-  // lines.push('--user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"');
-  // lines.push('');
-
-  // // 添加 Referer 头部
-  // lines.push('# Referer header');
-  // lines.push('--referer "https://www.youtube.com/"');
-  // lines.push('');
-
-  // // 添加重试和超时配置
-  // lines.push('# Retry and timeout settings');
-  // lines.push('--retries 10');
-  // lines.push('--fragment-retries 10');
-  // lines.push('--socket-timeout 30');
-  // lines.push('');
-
-  // // 添加速率限制来避免被封禁
-  // lines.push('# Rate limiting to avoid bans');
-  // lines.push('--sleep-requests 1');
-  // lines.push('--sleep-interval 0.5');
-
-  return lines.join('\n');
-}
-
-/**
- * 写入 yt-dlp 配置文件
- */
-function writeYtDlpConfig(settings: ExternalResourceSettings): void {
-  ensureSettingsDir();
-  try {
-    const configContent = generateYtDlpConfig(settings);
-    fs.writeFileSync(YTDLP_CONFIG_FILE, configContent, 'utf8');
-    console.log('[VideoDownloader] yt-dlp config file written:', YTDLP_CONFIG_FILE);
-  } catch (error) {
-    console.warn('[VideoDownloader] Failed to write yt-dlp config:', error);
-  }
-}
-
-function writeSettings(settings: ExternalResourceSettings): void {
-  ensureSettingsDir();
-  try {
-    // 同时写入 JSON 文件（用于 UI 读取）和 yt-dlp 配置文件
-    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf8');
-    writeYtDlpConfig(settings);
-  } catch (error) {
-    console.warn('[VideoDownloader] Failed to write settings:', error);
-  }
-}
-
-export function getSetting(key?: string): ExternalResourceSettings | any {
-  const settings = readSettings();
-  return key ? settings[key as keyof ExternalResourceSettings] : settings;
-}
-
-export function setSetting(key: keyof ExternalResourceSettings, value: any): void {
-  const settings = readSettings();
-  // @ts-ignore
-  settings[key] = value;
-  writeSettings(settings);
-}
-
 // 下载器接口
 export interface Downloader {
   download(options: DownloadOptions): Promise<void>;
@@ -664,17 +406,12 @@ export interface VideoInfo {
 export class VideoDownloader implements Downloader {
   private controller?: AbortController;
   private ffmpegPath: string;
-  private ytdlPath: string;
 
   constructor() {
     this.ffmpegPath = getResourcePath('ffmpeg')!;
-    // 使用 updater 中的函数获取正确的 yt-dlp 路径
-    this.ytdlPath = getCurrentBinaryPath();
 
     binPathLog(this.ffmpegPath, 'ffmpeg');
-    binPathLog(this.ytdlPath, 'yt-dlp');
-
-    ytdlpStatic.setBinaryPath(this.ytdlPath);
+    binPathLog(ytdlpService.getCurrentBinaryPath(), 'yt-dlp');
   }
 
   async download(options: DownloadOptions): Promise<void> {
@@ -729,7 +466,7 @@ thumbnailUrl: ${thumbnailUrl}
 
 --- paths ---------------------------------------------------
 ffmpegPath: ${this.ffmpegPath}
-yt-dlpPath: ${this.ytdlPath}
+yt-dlpPath: ${ytdlpService.getCurrentBinaryPath()}
 workspaceResourcePath: ${workspaceResourcePath}
 sanitizedFilename: ${sanitizedFilename}
 actualDestination: ${actualDestination}
@@ -741,20 +478,10 @@ destPath: ${destPath}
 =============================================================
       `);
 
-    const args = [cleanDownloadUrl(url), ...quality, '-o', downloadPath, '--ffmpeg-location', this.ffmpegPath];
+    const baseArgs = [cleanDownloadUrl(url), ...quality, '-o', downloadPath, '--ffmpeg-location', this.ffmpegPath];
 
-    // 使用 yt-dlp 配置文件（如果存在）
-    if (fs.existsSync(YTDLP_CONFIG_FILE)) {
-      args.push('--config-location', YTDLP_CONFIG_FILE);
-      console.log('[VideoDownloader] Using yt-dlp config file:', YTDLP_CONFIG_FILE);
-    } else {
-      // 如果配置文件不存在，使用代码中的配置作为后备
-      this.applyEjsConfig(args);
-    }
-
-    // 注意：配置文件中的选项会被自动应用，但命令行参数会覆盖配置文件
-    // Cookie 和代理等动态配置仍然需要在参数中添加
-    await this.applyCookies(this.getAgent(args));
+    // 使用 ytdlpService 构建完整参数（包含配置文件、代理、cookie）
+    const args = await ytdlpService.buildArgsAsync(baseArgs);
 
     console.log('[VideoDownloader] --> args: ', args);
 
@@ -802,9 +529,18 @@ destPath: ${destPath}
           return;
         }
         console.error(`${url} retrieve failed:`, error);
-        isFunction(onError) && onError(error);
+
+        // 检测不支持的选项错误
+        const { isUnsupported, option } = isUnsupportedOptionError(error);
+        let processedError = error;
+        if (isUnsupported && option) {
+          const unsupportedError = new UnsupportedOptionError(option, error.message || String(error));
+          processedError = new Error(unsupportedError.getUserFriendlyMessage());
+        }
+
+        isFunction(onError) && onError(processedError);
         sendMainWindowError({
-          error,
+          error: processedError,
           data: {
             title: 'Failed to retrieve media file',
             body: filename
@@ -917,144 +653,13 @@ ${destPath}
   cancel(): void {
     this.controller?.abort();
   }
-
-  /**
-   * 应用 EJS 配置到 yt-dlp 参数
-   * 根据设置添加 --remote-components 和 --js-runtimes 参数
-   */
-  private applyEjsConfig(args: string[]): string[] {
-    try {
-      const settings = getSetting();
-      const remoteComponents = settings.ejsRemoteComponents || 'npm';
-      const jsRuntime = settings.ejsJsRuntime || 'node';
-
-      // 添加远程组件配置（如果启用）
-      if (remoteComponents !== 'none') {
-        args.push('--remote-components', `ejs:${remoteComponents}`);
-        console.log(`[VideoDownloader] EJS remote components: ${remoteComponents}`);
-      }
-
-      // 添加 JavaScript 运行时配置
-      // 优先使用 Node.js（系统或内置），避免要求用户安装 Deno
-      if (jsRuntime === 'node') {
-        // 使用系统 Node.js 或内置的 Node.js
-        const nodePath = getNodeJsPath();
-        args.push('--js-runtimes', `node:${nodePath}`);
-        console.log(`[VideoDownloader] EJS JS runtime: node (${nodePath})`);
-      } else if (jsRuntime !== 'auto') {
-        args.push('--js-runtimes', jsRuntime);
-        console.log(`[VideoDownloader] EJS JS runtime: ${jsRuntime}`);
-      } else {
-        // auto 模式：强制使用 Node.js 而不是让 yt-dlp 查找 Deno
-        const nodePath = getNodeJsPath();
-        args.push('--js-runtimes', `node:${nodePath}`);
-        console.log(`[VideoDownloader] EJS JS runtime: auto -> node (${nodePath})`);
-      }
-    } catch (error) {
-      console.warn('[VideoDownloader] Failed to apply EJS config:', error);
-    }
-
-    return args;
-  }
-
-  private async applyCookies(args: string[]): Promise<string[]> {
-    try {
-      const useCookies = getSetting('externalResourceCookies');
-
-      if (useCookies) {
-        // 优先使用内置的 Cookie Manager
-        if (cookieManager.isLoggedIn()) {
-          try {
-            // 导出 cookies 到临时文件
-            const cookieFile = await cookieManager.exportNetscapeCookies();
-            args.push('--cookies', cookieFile);
-            console.log('[VideoDownloader] Using cookies from built-in Cookie Manager');
-            return args;
-          } catch (error) {
-            console.warn('[VideoDownloader] Failed to use Cookie Manager cookies:', error);
-          }
-        } else {
-          console.log('[VideoDownloader] Cookie Manager: Not logged in. User should login via YouTube login window.');
-        }
-
-        // 回退方案：尝试从浏览器读取 cookies
-        const preferredBrowser = getSetting('preferredBrowser');
-        const browsers = [preferredBrowser, 'chrome', 'firefox', 'edge', 'safari'].filter((browser, index, arr) => arr.indexOf(browser) === index);
-        let cookieApplied = false;
-
-        for (const browser of browsers) {
-          try {
-            args.push('--cookies-from-browser', browser);
-            cookieApplied = true;
-            console.log(`[VideoDownloader] Using cookies from ${browser} browser`);
-            break;
-          } catch (error) {
-            console.warn(`[VideoDownloader] Failed to use cookies from ${browser}:`, error);
-            // 移除失败的浏览器参数
-            const lastIndex = args.lastIndexOf('--cookies-from-browser');
-            if (lastIndex !== -1) {
-              args.splice(lastIndex, 2);
-            }
-          }
-        }
-
-        if (!cookieApplied) {
-          console.warn('[VideoDownloader] Could not apply cookies from any source. For private/age-restricted videos, please login via YouTube login window.');
-        }
-      }
-    } catch (error) {
-      console.warn('[VideoDownloader] Failed to apply cookies:', error);
-    }
-
-    return args;
-  }
-
-  private getAgent(args: string[]): string[] {
-    try {
-      const agent = getHttpProxy();
-      if (agent instanceof HttpsProxyAgent) {
-        // 使用公共方法获取代理URL
-        const proxyUrl = (agent as any).proxy?.href || (agent as any).proxy?.toString();
-        if (proxyUrl) {
-          args.push('--proxy', proxyUrl, '--socket-timeout', '60');
-        }
-      } else if (agent instanceof SocksProxyAgent) {
-        // 使用公共方法获取代理信息
-        const proxyInfo = (agent as any).proxy;
-        if (proxyInfo?.host && proxyInfo?.port) {
-          args.push('--proxy', `socks://${proxyInfo.host}:${proxyInfo.port}`, '--socket-timeout', '60');
-        }
-      }
-    } catch (error) {
-      console.warn('[VideoDownloader] Failed to get proxy agent:', error);
-    }
-
-    return args;
-  }
 }
 
 // 获取视频信息的函数
 export async function getVideoInfo(url: string, timeoutMs: number = 30000): Promise<VideoInfo> {
   console.log('[VideoDownloader] Starting info fetch for:', url);
 
-  const args = [cleanDownloadUrl(url), '--prefer-free-formats', '--dump-json', '--no-playlist'];
-  const downloader = new VideoDownloader();
-
-  // 使用 yt-dlp 配置文件（如果存在）
-  if (fs.existsSync(YTDLP_CONFIG_FILE)) {
-    args.push('--config-location', YTDLP_CONFIG_FILE);
-  } else {
-    // 如果配置文件不存在，使用代码中的配置作为后备
-    downloader['applyEjsConfig'](args);
-  }
-
-  // 应用动态配置（cookies 和代理）
-  // 注意：Cookie 需要动态处理浏览器回退，所以仍然在代码中处理
-  try {
-    await downloader['applyCookies'](downloader['getAgent'](args));
-  } catch (error) {
-    console.warn('[VideoDownloader] Failed to apply cookies/proxy:', error);
-  }
+  const baseArgs = [cleanDownloadUrl(url), '--prefer-free-formats'];
 
   const controller = new AbortController();
   const signal = controller.signal;
@@ -1066,9 +671,17 @@ export async function getVideoInfo(url: string, timeoutMs: number = 30000): Prom
   }, timeoutMs);
 
   try {
+    // 使用 ytdlpService 构建参数
+    const args = await ytdlpService.buildArgsAsync(baseArgs);
     const info: VideoInfo = await ytdlpStatic.getVideoInfo(args, signal);
 
     if (info instanceof Error) {
+      // 检测不支持的选项错误
+      const { isUnsupported, option } = isUnsupportedOptionError(info);
+      if (isUnsupported && option) {
+        throw new UnsupportedOptionError(option, info.message);
+      }
+
       if (timeoutError) {
         console.error(timeoutError.message || timeoutError);
         throw timeoutError.message || timeoutError;
@@ -1083,6 +696,17 @@ export async function getVideoInfo(url: string, timeoutMs: number = 30000): Prom
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error('[VideoDownloader] Error fetching info:', errorMessage);
 
+    // 检测不支持的选项错误
+    if (error instanceof UnsupportedOptionError) {
+      throw new Error(error.getUserFriendlyMessage());
+    }
+
+    const { isUnsupported, option } = isUnsupportedOptionError(error as Error);
+    if (isUnsupported && option) {
+      const unsupportedError = new UnsupportedOptionError(option, errorMessage);
+      throw new Error(unsupportedError.getUserFriendlyMessage());
+    }
+
     if (signal.aborted) {
       throw new Error(`Operation aborted: ${timeoutError?.message || errorMessage}`);
     }
@@ -1095,14 +719,13 @@ export async function getVideoInfo(url: string, timeoutMs: number = 30000): Prom
 
 // 获取缩略图的函数
 export async function getThumbnail(url: string): Promise<string> {
-  const args = [cleanDownloadUrl(url)];
-  const downloader = new VideoDownloader();
+  const baseArgs = [cleanDownloadUrl(url)];
 
   try {
-    await downloader['applyCookies'](downloader['getAgent'](args));
+    const args = await ytdlpService.buildArgsAsync(baseArgs);
+    return ytdlpStatic.getThumbnail(args);
   } catch (error) {
     console.warn('[VideoDownloader] Failed to apply cookies/proxy for thumbnail:', error);
+    return ytdlpStatic.getThumbnail(baseArgs);
   }
-
-  return ytdlpStatic.getThumbnail(args);
 }

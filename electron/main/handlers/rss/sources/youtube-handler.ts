@@ -1,9 +1,9 @@
 import http from 'node:http';
 import https from 'node:https';
 
+import { ytdlpService } from '../../../../../packages/ytdlp';
 import ytdlpStatic from '../../../../../packages/common/libs/ytdlp-static';
 import { getHttpProxy as getSystemHttpProxy } from '../../proxy/proxy';
-import { getCurrentBinaryPath } from '../../ytdlp/updater';
 import type { ChannelInfo, RssSourceHandler } from '../rss-source-handler';
 import type { RssFeed, RssFeedItem, RssMetadata, RssSourceType } from '../types';
 
@@ -285,10 +285,6 @@ export class YouTubeHandler implements RssSourceHandler {
     const limit = options?.limit ?? 50;
     const playlistStart = options?.playlistStart ?? 1;
 
-    // 确保 yt-dlp 使用正确的路径
-    const ytdlpPath = getCurrentBinaryPath();
-    ytdlpStatic.setBinaryPath(ytdlpPath);
-
     // 构建频道视频页面 URL
     let targetUrl = channelUrl;
     if (channelUrl.startsWith('UC') && channelUrl.length === 24) {
@@ -299,7 +295,7 @@ export class YouTubeHandler implements RssSourceHandler {
       targetUrl = channelUrl.replace(/\/?$/, '/videos');
     }
 
-    const args: string[] = [
+    const baseArgs: string[] = [
       targetUrl,
       '--flat-playlist', // 只获取播放列表信息，不下载
       '--dump-json',
@@ -311,14 +307,16 @@ export class YouTubeHandler implements RssSourceHandler {
 
     // 添加日期过滤
     if (options?.dateAfter) {
-      args.push('--dateafter', options.dateAfter);
+      baseArgs.push('--dateafter', options.dateAfter);
     }
     if (options?.dateBefore) {
-      args.push('--datebefore', options.dateBefore);
+      baseArgs.push('--datebefore', options.dateBefore);
     }
 
     try {
-      const output = await ytdlpStatic.execPromise(args);
+      // 使用 ytdlpService 构建完整参数
+      const args = ytdlpService.buildArgs(baseArgs);
+      const output = await ytdlpService.getExecutor().execPromise(args);
       const items: RssFeedItem[] = [];
 
       // yt-dlp 在 flat-playlist 模式下每行输出一个 JSON 对象
@@ -360,10 +358,6 @@ export class YouTubeHandler implements RssSourceHandler {
    * @param limit 最大获取数量（默认 50）
    */
   async fetchChannelVideosDetailed(channelUrl: string, limit: number = 50): Promise<RssFeedItem[]> {
-    // 确保 yt-dlp 使用正确的路径
-    const ytdlpPath = getCurrentBinaryPath();
-    ytdlpStatic.setBinaryPath(ytdlpPath);
-
     // 构建频道视频页面 URL
     let targetUrl = channelUrl;
     if (channelUrl.startsWith('UC') && channelUrl.length === 24) {
@@ -375,7 +369,9 @@ export class YouTubeHandler implements RssSourceHandler {
     }
 
     try {
-      const playlistInfo = await ytdlpStatic.getPlaylistInfo([targetUrl, '--playlist-end', String(limit)]);
+      const baseArgs = [targetUrl, '--playlist-end', String(limit)];
+      const args = ytdlpService.buildArgs(baseArgs);
+      const playlistInfo = await ytdlpService.getExecutor().getPlaylistInfo(targetUrl, args.filter((a) => a !== targetUrl));
 
       if (!playlistInfo?.entries) {
         return [];
