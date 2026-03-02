@@ -246,7 +246,7 @@ export const TimelineTrackView: React.FC<TimelineTrackViewProps> = ({
               'placeholder:text-muted-foreground'
             )}
             style={{ minHeight: height + 20 }}
-            placeholder="输入内容，回车添加"
+            placeholder="输入内容，enter 确认，esc 取消"
             value={newSegmentInput}
             onChange={(e) => setNewSegmentInput(e.target.value)}
             onBlur={handleNewSegmentBlur}
