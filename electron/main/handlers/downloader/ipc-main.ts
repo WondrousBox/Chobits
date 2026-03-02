@@ -2,7 +2,7 @@ import { windowManager } from '@aim-packages/window-manager';
 import { BrowserWindow, ipcMain, screen } from 'electron';
 
 import { getMainWindow } from '../../index';
-import { downloadManager, getSetting, getThumbnail, getVideoInfo, setSetting, subscriptionManager, YTDLP_CONFIG_FILE } from '.';
+import { downloadManager, getThumbnail, getVideoInfo, subscriptionManager } from '.';
 import { cookieManager } from './cookie-manager';
 import { SubscriptionManager } from './subscription-manager';
 
@@ -228,49 +228,6 @@ export function initDownloadHandlers(win: BrowserWindow): void {
       }
     } catch (error) {
       console.warn('[VideoDownload] 重置进度条失败:', error);
-    }
-  });
-
-  // 获取外部资源设置
-  ipcMain.handle('video-downloader:get-external-resource-settings', async () => {
-    try {
-      const settings = getSetting();
-      return { success: true, data: settings };
-    } catch (error) {
-      console.error('[VideoDownload] Failed to get external resource settings:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error)
-      };
-    }
-  });
-
-  // 设置外部资源设置
-  ipcMain.handle('video-downloader:set-external-resource-settings', async (event, settings) => {
-    try {
-      Object.keys(settings).forEach((key) => {
-        setSetting(key as any, settings[key]);
-      });
-      return { success: true };
-    } catch (error) {
-      console.error('[VideoDownload] Failed to set external resource settings:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error)
-      };
-    }
-  });
-
-  // 获取 yt-dlp 配置文件路径
-  ipcMain.handle('video-downloader:get-config-path', async () => {
-    try {
-      return { success: true, data: { configPath: YTDLP_CONFIG_FILE } };
-    } catch (error) {
-      console.error('[VideoDownload] Failed to get config path:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error)
-      };
     }
   });
 

@@ -6,7 +6,9 @@ import { APP_EVENT_CHANNEL, AppEventPayload } from '../../packages/event/events'
 import { pluginResourceIpcRenderer } from '../../packages/plugins/ipc-renderer';
 import { recorderIpcRenderer } from '../../packages/recorder/ipc-renderer';
 import { sherpaIpcRenderer } from '../../packages/sherpa/ipc-renderer';
+import { spriteBridge } from '../../packages/sprite-core/preload';
 import { createTTSIpcRenderer } from '../../packages/tts/ipc-renderer';
+import { ytdlpIpcRenderer } from '../../packages/ytdlp/ipc-renderer';
 import { dailyCareBridge } from '../main/daily/ipc-renderer';
 import { createAnnotationIpcRenderer } from '../main/handlers/annotation/ipc-renderer';
 import { createClipIpcRenderer } from '../main/handlers/clip/ipc-renderer';
@@ -25,11 +27,9 @@ import { systemIpcRenderer } from '../main/handlers/system/ipc-renderer';
 import { themeIpcRenderer } from '../main/handlers/theme/ipc-renderer';
 import { trashIpcRenderer } from '../main/handlers/trash/ipc-renderer';
 import { workspaceIpcRenderer } from '../main/handlers/workspace/ipc-renderer';
-import { ytdlpIpcRenderer } from '../main/handlers/ytdlp/ipc-renderer';
 import { arch, isLinux, isMac, isMacIntel, isWindows, platform } from '../main/utils/os';
 import { personaApi } from './apis/persona';
 import { shortcutsBridge } from './apis/shortcuts';
-import { spriteBridge } from '../../packages/sprite-core/preload';
 import { statusBridge } from './apis/status';
 import { windowBridge } from './apis/window';
 

@@ -29,6 +29,8 @@
     "download-ffmpeg-win32-x64": "mkdirp resources/ffmpeg/win32/x64 && cd resources/ffmpeg/win32/x64 && npx download-cli https://github.com/YuQian2015/memo-build/releases/download/v1.0.0/ffmpeg.exe --out . --filename ffmpeg.exe && npx download-cli https://github.com/YuQian2015/memo-build/releases/download/v1.0.0/ffprobe.exe --out . --filename ffprobe.exe",
     "download-ytdlp-win32": "mkdirp resources/yt-dlp/win32 && cd resources/yt-dlp/win32 && npx download-cli https://github.com/yt-dlp/yt-dlp/releases/download/2025.10.14/yt-dlp.exe --out . --filename yt-dlp.exe",
     "download-ytdlp-darwin": "mkdir -p resources/yt-dlp/darwin && cd resources/yt-dlp/darwin && wget https://github.com/yt-dlp/yt-dlp/releases/download/2025.10.14/yt-dlp_macos.zip -O yt-dlp.zip && unzip yt-dlp.zip && rm yt-dlp.zip",
+    "download-bun-darwin-arm64": "mkdir -p resources/bun/darwin/arm64 && cd resources/bun/darwin/arm64 && wget https://github.com/oven-sh/bun/releases/download/bun-v1.2.5/bun-darwin-aarch64.zip -O bun.zip && unzip -o bun.zip && mv bun-darwin-aarch64/bun . && rm -rf bun-darwin-aarch64 bun.zip && chmod +x bun",
+    "download-bun-win32-x64": "mkdirp resources/bun/win32/x64 && cd resources/bun/win32/x64 && npx download-cli https://github.com/oven-sh/bun/releases/download/bun-v1.2.5/bun-windows-x64.zip --out . --filename bun.zip && npx extract-zip bun.zip && mv bun-windows-x64/bun.exe . && rm -rf bun-windows-x64 bun.zip",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",

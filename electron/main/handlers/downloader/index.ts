@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 
 import { subscriptionManager, type YouTubeSubscription } from './subscription-manager';
-import { type DownloadOptions, type DownloadProgress, getSetting, getThumbnail, getVideoInfo, setSetting, VideoDownloader, type VideoInfo, YTDLP_CONFIG_FILE } from './video-downloader';
+import { type DownloadOptions, type DownloadProgress, getThumbnail, getVideoInfo, VideoDownloader, type VideoInfo } from './video-downloader';
 
 function generateUUID(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
@@ -168,6 +168,6 @@ export class DownloadManager extends EventEmitter {
 // 创建全局下载管理器实例
 export const downloadManager = new DownloadManager();
 
-// 导出设置管理函数和配置文件路径供 IPC 使用
-export { getSetting, getThumbnail, getVideoInfo, setSetting, subscriptionManager, VideoDownloader, YTDLP_CONFIG_FILE };
+// 导出函数供 IPC 使用
+export { getThumbnail, getVideoInfo, subscriptionManager, VideoDownloader };
 export type { DownloadOptions, DownloadProgress, VideoInfo, YouTubeSubscription };

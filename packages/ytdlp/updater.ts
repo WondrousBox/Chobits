@@ -1,167 +1,13 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
 import { app } from 'electron';
-import fs from 'fs';
 import fetch from 'node-fetch';
-import os from 'os';
-import path from 'path';
 
-import ytdlpStatic, { YTDlpWrap } from '../../../../packages/common/libs/ytdlp-static';
-import { getResourcePath } from '../../utils/resources-path';
-import { getHttpProxy } from '../proxy/proxy';
+import { getHttpProxy } from '../../electron/main/handlers/proxy/proxy';
 
-/**
- * 获取默认的二进制文件名
- */
-function getDefaultBinaryName(): string {
-  return os.platform() === 'darwin' ? 'yt-dlp_macos' : 'yt-dlp.exe';
-}
-
-/**
- * 获取内置的 yt-dlp 二进制路径
- */
-export function getBuiltinBinaryPath(): string {
-  return getResourcePath('yt-dlp')!;
-}
-
-/**
- * 获取当前应该使用的 yt-dlp 二进制路径
- * 优先使用用户下载的版本，否则使用内置版本
- */
-export function getCurrentBinaryPath(): string {
-  const userPath = getUserBinaryPath();
-
-  // 优先使用用户下载的版本
-  if (fs.existsSync(userPath)) {
-    return userPath;
-  }
-
-  // 否则使用内置版本
-  return getBuiltinBinaryPath();
-}
-
-/**
- * 确保 ytdlpStatic 使用正确的二进制路径
- * 应该在 electron 启动后尽早调用
- */
-export function ensureYtdlpBinaryPath(): string {
-  const currentPath = getCurrentBinaryPath();
-  ytdlpStatic.setBinaryPath(currentPath);
-  console.log('[yt-dlp] ensureYtdlpBinaryPath:', currentPath);
-  return currentPath;
-}
-
-/**
- * 递归查找指定文件名的文件
- * @param dir 要搜索的目录
- * @param fileName 要查找的文件名
- * @returns 找到的文件完整路径，如果未找到则返回 null
- */
-function findBinaryFile(dir: string, fileName: string): string | null {
-  if (!fs.existsSync(dir)) {
-    return null;
-  }
-
-  try {
-    const items = fs.readdirSync(dir);
-
-    for (const item of items) {
-      const itemPath = path.join(dir, item);
-      const stat = fs.statSync(itemPath);
-
-      if (stat.isDirectory()) {
-        // 递归搜索子目录
-        const found = findBinaryFile(itemPath, fileName);
-        if (found) {
-          return found;
-        }
-      } else if (stat.isFile() && item === fileName) {
-        // 找到目标文件
-        return itemPath;
-      }
-    }
-  } catch (error) {
-    console.error('[yt-dlp] Error searching for binary file:', error);
-  }
-
-  return null;
-}
-
-/**
- * 获取用户数据目录中的 yt-dlp 二进制路径
- */
-export function getUserBinaryPath(): string {
-  const name = getDefaultBinaryName();
-  const destDir = path.resolve(app.getPath('userData'), 'data', 'yt-dlp');
-  if (!fs.existsSync(destDir)) {
-    fs.mkdirSync(destDir, { recursive: true });
-  }
-
-  return path.resolve(destDir, name);
-}
-
-/**
- * 获取当前 yt-dlp 版本
- */
-export async function getCurrentYtDlpVersion(binaryPath: string): Promise<string | null> {
-  try {
-    // 先检查文件是否存在
-    if (!fs.existsSync(binaryPath)) {
-      console.warn('[yt-dlp] getCurrentYtDlpVersion: binary not found', { binaryPath });
-      return null;
-    }
-
-    // 检查是否是文件（不是目录）
-    const stat = fs.statSync(binaryPath);
-    if (!stat.isFile()) {
-      console.warn('[yt-dlp] getCurrentYtDlpVersion: path is not a file', { binaryPath });
-      return null;
-    }
-
-    // 在 macOS/Linux 上检查执行权限
-    if (os.platform() !== 'win32') {
-      try {
-        fs.accessSync(binaryPath, fs.constants.X_OK);
-      } catch {
-        console.warn('[yt-dlp] getCurrentYtDlpVersion: file is not executable', { binaryPath });
-        // 尝试添加执行权限
-        try {
-          fs.chmodSync(binaryPath, 0o755);
-        } catch {
-          console.warn('[yt-dlp] getCurrentYtDlpVersion: failed to add execute permission', { binaryPath });
-        }
-      }
-    }
-
-    const wrap = new YTDlpWrap(binaryPath);
-    const out = await wrap.execPromise(['--version']);
-
-    console.log('[yt-dlp] getCurrentYtDlpVersion', { binaryPath, out: (out || '').trim() });
-
-    return (out || '').trim();
-  } catch (error) {
-    console.error('[yt-dlp] getCurrentYtDlpVersion error', { binaryPath, error });
-    return null;
-  }
-}
-
-/**
- * GitHub Release 资产信息
- */
-export interface YtDlpAsset {
-  name: string;
-  browser_download_url: string;
-  size: number;
-}
-
-/**
- * GitHub Release 信息
- */
-export interface YtDlpReleaseInfo {
-  tag_name: string;
-  name: string;
-  published_at: string;
-  assets: YtDlpAsset[];
-  body?: string;
-}
+import { ytdlpService } from './ytdlp-service';
+import type { YtDlpAsset, YtDlpDownloadProgress, YtDlpInstallResult, YtDlpReleaseInfo, YtDlpUpdateInfo } from './types';
 
 /**
  * 获取最新的 release 信息
@@ -215,22 +61,37 @@ export function compareYtDlpVersion(a?: string | null, b?: string | null): numbe
 }
 
 /**
- * 下载进度信息
+ * 递归查找指定文件名的文件
+ * @param dir 要搜索的目录
+ * @param fileName 要查找的文件名
+ * @returns 找到的文件完整路径，如果未找到则返回 null
  */
-export type YtDlpDownloadProgress = {
-  received: number;
-  total?: number;
-  percent?: number;
-  status?: 'downloading' | 'extracting' | 'installing' | 'completed' | 'error';
-  message?: string;
-};
+function findBinaryFile(dir: string, fileName: string): string | null {
+  if (!fs.existsSync(dir)) {
+    return null;
+  }
 
-/**
- * 下载安装结果
- */
-export interface YtDlpInstallResult {
-  installedVersion: string;
-  path: string;
+  try {
+    const items = fs.readdirSync(dir);
+
+    for (const item of items) {
+      const itemPath = path.join(dir, item);
+      const stat = fs.statSync(itemPath);
+
+      if (stat.isDirectory()) {
+        const found = findBinaryFile(itemPath, fileName);
+        if (found) {
+          return found;
+        }
+      } else if (stat.isFile() && item === fileName) {
+        return itemPath;
+      }
+    }
+  } catch (error) {
+    console.error('[yt-dlp] Error searching for binary file:', error);
+  }
+
+  return null;
 }
 
 /**
@@ -242,19 +103,20 @@ async function downloadToFile(url: string, destPath: string, onProgress?: (p: Yt
     throw new Error(`下载失败: ${res.status}`);
   }
 
+  const body = res.body;
   const total = Number(res.headers.get('content-length') || 0) || undefined;
   let received = 0;
 
   await new Promise<void>((resolve, reject) => {
     const ws = fs.createWriteStream(destPath);
-    res.body!.on('data', (chunk: Buffer) => {
+    body.on('data', (chunk: Buffer) => {
       received += chunk.length;
       if (onProgress) {
         const percent = total ? Math.min(1, received / total) : undefined;
         onProgress({ received, total, percent, status: 'downloading' });
       }
     });
-    res.body!.on('error', (e: any) => {
+    body.on('error', (e: any) => {
       try {
         ws.close();
       } catch {
@@ -262,7 +124,7 @@ async function downloadToFile(url: string, destPath: string, onProgress?: (p: Yt
       }
       reject(e);
     });
-    res.body!.pipe(ws);
+    body.pipe(ws);
     ws.on('finish', () => {
       ws.close();
       resolve();
@@ -314,6 +176,8 @@ async function unzipFile(zipPath: string, destDir: string): Promise<void> {
   }
 }
 
+import os from 'node:os';
+
 /**
  * 下载并安装指定版本的 yt-dlp
  * @param release 要安装的 release 信息，如果不传则安装最新版本
@@ -325,7 +189,7 @@ export async function downloadAndInstallVersion(release?: YtDlpReleaseInfo, onPr
     release = await fetchLatestRelease();
   }
 
-  const binaryName = getDefaultBinaryName();
+  const binaryName = os.platform() === 'darwin' ? 'yt-dlp_macos' : 'yt-dlp.exe';
   const isMacOS = os.platform() === 'darwin';
 
   // macOS 优先查找 zip 文件，Windows 优先查找 exe 文件
@@ -338,13 +202,13 @@ export async function downloadAndInstallVersion(release?: YtDlpReleaseInfo, onPr
     throw new Error('未找到匹配平台的 yt-dlp 资产');
   }
 
-  const destPath = getUserBinaryPath();
+  const destPath = ytdlpService.getUserBinaryPath();
 
   console.log('[yt-dlp] downloadAndInstallVersion', { version: release.tag_name, asset: asset.name });
 
   // macOS 使用 zip 文件下载并解压，Windows 直接下载 exe
   if (asset.name.endsWith('.zip')) {
-    // 下载 zip 并解压（使用临时后缀防止未完成时的正式文件名残留）
+    // 下载 zip 并解压
     const tmpZip = destPath + '.zip.downloading';
     console.log('[yt-dlp] downloading from', asset.browser_download_url);
     await downloadToFile(asset.browser_download_url, tmpZip, onProgress);
@@ -354,12 +218,10 @@ export async function downloadAndInstallVersion(release?: YtDlpReleaseInfo, onPr
     // 使用系统命令解压到临时目录
     const tmpExtractDir = path.dirname(destPath) + '.extracting';
     try {
-      // 确保临时解压目录存在
       if (!fs.existsSync(tmpExtractDir)) {
         fs.mkdirSync(tmpExtractDir, { recursive: true });
       }
 
-      // 解压
       await unzipFile(tmpZip, tmpExtractDir);
 
       onProgress?.({ received: 0, status: 'installing', message: '正在安装...' });
@@ -370,13 +232,9 @@ export async function downloadAndInstallVersion(release?: YtDlpReleaseInfo, onPr
         throw new Error('压缩包中未找到 yt-dlp 可执行文件');
       }
 
-      // 获取二进制文件所在的目录
       const foundDir = path.dirname(foundPath);
-
-      // 目标目录
       const destDir = path.dirname(destPath);
 
-      // 确保目标目录存在
       if (!fs.existsSync(destDir)) {
         fs.mkdirSync(destDir, { recursive: true });
       }
@@ -457,10 +315,10 @@ export async function downloadAndInstallVersion(release?: YtDlpReleaseInfo, onPr
     }
   }
 
-  // 更新 ytdlpStatic 的二进制路径
-  ytdlpStatic.setBinaryPath(destPath);
+  // 更新服务中的二进制路径
+  ytdlpService.updateBinaryPath(destPath);
 
-  const installedVersion = (await getCurrentYtDlpVersion(destPath)) || '';
+  const installedVersion = await ytdlpService.getExecutor().getVersion();
 
   onProgress?.({ received: 0, status: 'completed', message: '安装完成' });
 
@@ -468,25 +326,13 @@ export async function downloadAndInstallVersion(release?: YtDlpReleaseInfo, onPr
 }
 
 /**
- * 检查更新信息
- */
-export interface YtDlpUpdateInfo {
-  current: string | null;
-  latest: string;
-  hasUpdate: boolean;
-  path: string;
-  recentReleases: YtDlpReleaseInfo[];
-}
-
-/**
  * 检查 yt-dlp 更新
  * @param includeRecentReleases 是否包含最近的版本列表
  */
 export async function checkYtDlpUpdate(includeRecentReleases: boolean = true): Promise<YtDlpUpdateInfo> {
-  // 使用 getCurrentBinaryPath 获取正确的路径，不依赖 ytdlpStatic 的状态
-  const currentPath = getCurrentBinaryPath();
-
-  const current = await getCurrentYtDlpVersion(currentPath);
+  const currentPath = ytdlpService.getCurrentBinaryPath();
+  const binaryInfo = await ytdlpService.getBinaryInfo();
+  const current = binaryInfo.version;
 
   // 获取最近的版本列表
   const recentReleases = includeRecentReleases ? await fetchRecentReleases(5) : [];
@@ -510,3 +356,17 @@ export async function checkYtDlpUpdate(includeRecentReleases: boolean = true): P
     recentReleases
   };
 }
+
+/**
+ * 确保 yt-dlp 使用正确的二进制路径
+ * 应该在 electron 启动后尽早调用
+ */
+export function ensureYtdlpBinaryPath(): string {
+  const currentPath = ytdlpService.getCurrentBinaryPath();
+  ytdlpService.updateBinaryPath(currentPath);
+  console.log('[yt-dlp] ensureYtdlpBinaryPath:', currentPath);
+  return currentPath;
+}
+
+// 重新导出类型
+export type { YtDlpAsset, YtDlpDownloadProgress, YtDlpInstallResult, YtDlpReleaseInfo, YtDlpUpdateInfo };

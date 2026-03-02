@@ -8,6 +8,7 @@ import { initRecorderHandlers } from '../../../packages/recorder/ipc-main';
 import { initSherpaHandlers } from '../../../packages/sherpa/ipc-main';
 import { initSpriteHandlers, initSpriteManagerIPC } from '../../../packages/sprite-core/handler';
 import { initTTSHandlers } from '../../../packages/tts/ipc-main';
+import { initYtDlpIpcHandlers } from '../../../packages/ytdlp';
 import { initDailyCare } from '../daily';
 import { initScreenshotHandlers } from '../screenshot';
 import { initSkillTreeHandlers } from '../skillTreeWindow';
@@ -34,7 +35,6 @@ import { initThemeHandlers } from './theme/ipc-main';
 import { initTrashHandlers } from './trash/ipc-main';
 import { initWindowHandlers } from './window';
 import { initWorkspaceHandlers } from './workspace/ipc-main';
-import { initYtDlpHandlers } from './ytdlp/ipc-main';
 
 export async function initHandlers(win: BrowserWindow): Promise<void> {
   console.log(process.versions);
@@ -96,7 +96,7 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   initThemeHandlers();
   initScreenshotHandlers();
   initSpleeterHandlers(win);
-  initYtDlpHandlers(win);
+  initYtDlpIpcHandlers(win);
   initSkillTreeHandlers();
   initClipHandlers();
   initAnnotationHandlers();

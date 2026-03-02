@@ -1,11 +1,13 @@
 import { ipcRenderer } from 'electron';
 
-import type { YtDlpDownloadProgress, YtDlpReleaseInfo, YtDlpUpdateInfo } from './updater';
+import type { YtDlpConfig, YtDlpDownloadProgress, YtDlpReleaseInfo, YtDlpUpdateInfo } from './types';
 
 /**
  * yt-dlp 渲染进程 API
  */
 export const ytdlpIpcRenderer = {
+  // ========== 二进制管理 ==========
+
   /**
    * 检查更新（包含最近5个版本）
    */
@@ -40,10 +42,29 @@ export const ytdlpIpcRenderer = {
     const handler = (_event: any, progress: YtDlpDownloadProgress): void => callback(progress);
     ipcRenderer.on('ytdlp:download-progress', handler);
     return () => ipcRenderer.off('ytdlp:download-progress', handler);
-  }
+  },
+
+  // ========== 配置管理 ==========
+
+  /**
+   * 获取配置
+   */
+  getConfig: (): Promise<{ success: boolean; data?: YtDlpConfig; error?: string }> => ipcRenderer.invoke('ytdlp:get-config'),
+
+  /**
+   * 设置配置
+   */
+  setConfig: (config: Partial<YtDlpConfig>): Promise<{ success: boolean; data?: YtDlpConfig; error?: string }> =>
+    ipcRenderer.invoke('ytdlp:set-config', config),
+
+  /**
+   * 获取配置文件路径
+   */
+  getConfigPath: (): Promise<{ success: boolean; data?: { configPath: string; ytdlpConfPath: string }; error?: string }> =>
+    ipcRenderer.invoke('ytdlp:get-config-path')
 };
 
 export type YtDlpIpcRendererType = typeof ytdlpIpcRenderer;
 
 // 重新导出类型
-export type { YtDlpDownloadProgress, YtDlpReleaseInfo, YtDlpUpdateInfo } from './updater';
+export type { YtDlpConfig, YtDlpDownloadProgress, YtDlpReleaseInfo, YtDlpUpdateInfo } from './types';
