@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 
-import { TimelineSegment } from '../types';
+import { TimelineSegment } from '../../types';
 
 interface SeekBarProps {
   /** 总时长（秒） */

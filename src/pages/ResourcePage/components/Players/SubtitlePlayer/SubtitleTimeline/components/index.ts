@@ -1,25 +1,34 @@
-export { AnnotationTrack } from './AnnotationTrack';
-export { AnnotationTrackLabel } from './AnnotationTrackLabel';
-export { ClipSegmentBlock } from './ClipSegmentBlock';
-export { ClipTrack } from './ClipTrack';
-export { ClipTrackLabel } from './ClipTrackLabel';
-export { MediaImportPanel } from './MediaImportPanel';
-export { MediaSegmentBlock } from './MediaSegmentBlock';
-export { MediaTrack } from './MediaTrack';
-export { MediaTrackAddButton, MediaTrackLabel } from './MediaTrackLabel';
-export { MediaTrackManager } from './MediaTrackManager';
-export { MediaTrackQuickAdd, useMediaDrop } from './MediaTrackQuickAdd';
-export { MediaTransformPanel } from './MediaTransformPanel';
-export { MediaTransitionSelector, TransitionTypeButton } from './MediaTransitionSelector';
-export { SeekBar } from './SeekBar';
-export { ThumbnailStrip } from './ThumbnailStrip';
-export { TimelineSegmentBlock } from './TimelineSegmentBlock';
-export { TimelineTrackView } from './TimelineTrackView';
-export { TimeRuler } from './TimeRuler';
-export { TrackLabel } from './TrackLabel';
-export { TransitionBadge, TransitionIndicator } from './TransitionIndicator';
-export type { TTSAudioItem } from './TTSAudioTrack';
-export { TTSAudioTrack } from './TTSAudioTrack';
-export type { TTSTrackLabelProps } from './TTSTrackLabel';
-export { TTSTrackLabel } from './TTSTrackLabel';
-export { WaveformTrack } from './WaveformTrack';
+// Annotation components
+export { AnnotationTrack } from './annotation';
+export { AnnotationTrackLabel } from './annotation';
+
+// Clip components
+export { ClipSegmentBlock } from './clip';
+export { ClipTrack } from './clip';
+export { ClipTrackLabel } from './clip';
+
+// Media components
+export { MediaImportPanel } from './media';
+export { MediaSegmentBlock } from './media';
+export { MediaTrack } from './media';
+export { MediaTrackAddButton, MediaTrackLabel } from './media';
+export { MediaTrackManager } from './media';
+export { MediaTrackQuickAdd, useMediaDrop } from './media';
+export { MediaTransformPanel } from './media';
+export { MediaTransitionSelector, TransitionTypeButton } from './media';
+export { ThumbnailStrip } from './media';
+
+// Shared components
+export { SeekBar } from './shared';
+export { TimelineSegmentBlock } from './shared';
+export { TimelineTrackView } from './shared';
+export { TimeRuler } from './shared';
+export { TrackLabel } from './shared';
+export { TransitionBadge, TransitionIndicator } from './shared';
+export { WaveformTrack } from './shared';
+
+// TTS components
+export type { TTSAudioItem } from './tts';
+export { TTSAudioTrack } from './tts';
+export type { TTSTrackLabelProps } from './tts';
+export { TTSTrackLabel } from './tts';

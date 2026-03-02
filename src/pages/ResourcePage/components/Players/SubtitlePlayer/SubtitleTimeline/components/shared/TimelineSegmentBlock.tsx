@@ -4,8 +4,8 @@ import { TbArrowMerge, TbPencil, TbTrash } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 
-import type { WordTimestamp } from '../../../MediaPlayer/subtitleDisplayEvent';
-import { DEFAULT_CONFIG, TimelineSegment } from '../types';
+import type { WordTimestamp } from '../../../../MediaPlayer/subtitleDisplayEvent';
+import { DEFAULT_CONFIG, TimelineSegment } from '../../types';
 
 interface TimelineSegmentBlockProps {
   segment: TimelineSegment;
@@ -506,14 +506,14 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
           <span className={clsx('text-xs text-foreground truncate leading-tight px-1.5', isDeleted && 'line-through')}>
             {isActive && words && words.length > 0 && currentTime !== undefined
               ? words.map((word, i) => {
-                const isWordActive = currentTime >= word.st && currentTime < word.et;
-                const isPast = currentTime >= word.et;
-                return (
-                  <span key={i} className={clsx('transition-colors duration-100', isWordActive && 'text-primary', isPast && 'text-foreground', !isPast && !isWordActive && 'text-foreground/40')}>
-                    {word.text}
-                  </span>
-                );
-              })
+                  const isWordActive = currentTime >= word.st && currentTime < word.et;
+                  const isPast = currentTime >= word.et;
+                  return (
+                    <span key={i} className={clsx('transition-colors duration-100', isWordActive && 'text-primary', isPast && 'text-foreground', !isPast && !isWordActive && 'text-foreground/40')}>
+                      {word.text}
+                    </span>
+                  );
+                })
               : segment.text?.trim()}
           </span>
         )}

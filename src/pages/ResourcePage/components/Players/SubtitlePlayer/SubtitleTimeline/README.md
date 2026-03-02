@@ -7,11 +7,12 @@ SubtitleTimeline 是一个高性能、多功能的字幕时间轴编辑组件，
 ## 核心特性
 
 - **高性能渲染**：虚拟化渲染，只渲染可视区域及缓冲区内的片段
-- **多轨道支持**：支持多个字幕轨道、TTS 音频轨道并排显示
+- **多轨道支持**：支持多个字幕轨道、TTS 音频轨道、媒体轨道并排显示
 - **缩放和平移**：Ctrl+滚轮缩放，拖拽平移
 - **交互友好**：点击跳转、双击编辑、拖拽调整时间
 - **波形显示**：支持音频波形轨道
 - **剪辑轨道**：支持视频片段剪辑、切割、删除
+- **媒体轨道**：支持视频/图片媒体添加、拖拽导入、变换编辑、转场效果
 - **标注轨道**：支持字幕文本标注（高亮、笔记、词汇、评论），时间轴展示标注标记
 
 ## 文件结构
@@ -29,22 +30,42 @@ SubtitleTimeline/
 │   ├── useTimelineViewport.ts     # 视口状态管理
 │   └── useClipPlayback.ts         # 剪辑播放调度
 ├── components/
-│   ├── index.ts
-│   ├── TimeRuler.tsx            # 时间刻度尺
-│   ├── SeekBar.tsx              # 播放进度条
-│   ├── TrackLabel.tsx           # 轨道标签
-│   ├── TimelineTrackView.tsx    # 轨道视图容器
-│   ├── TimelineSegmentBlock.tsx # 字幕片段块
-│   ├── TTSAudioTrack.tsx        # TTS 音频轨道
-│   ├── TTSAudioBlock.tsx        # TTS 音频块
-│   ├── TTSTrackLabel.tsx        # TTS 轨道标签
-│   ├── WaveformTrack.tsx        # 波形轨道
-│   ├── AnnotationTrack.tsx      # 标注轨道
-│   ├── AnnotationTrackLabel.tsx # 标注轨道标签
-│   ├── ClipTrack.tsx            # 剪辑轨道
-│   ├── ClipTrackLabel.tsx       # 剪辑轨道标签
-│   └── ClipSegmentBlock.tsx     # 剪辑片段块
-└── README.md                    # 本文档
+│   ├── index.ts                    # 统一导出
+│   ├── shared/                     # 共享组件
+│   │   ├── index.ts
+│   │   ├── SeekBar.tsx             # 播放进度条
+│   │   ├── TimeRuler.tsx           # 时间刻度尺
+│   │   ├── TrackLabel.tsx          # 轨道标签
+│   │   ├── TimelineSegmentBlock.tsx # 字幕片段块
+│   │   ├── TimelineTrackView.tsx   # 轨道视图容器
+│   │   ├── TransitionIndicator.tsx # 转场指示器
+│   │   └── WaveformTrack.tsx       # 波形轨道
+│   ├── tts/                        # TTS 轨道组件
+│   │   ├── index.ts
+│   │   ├── TTSAudioTrack.tsx       # TTS 音频轨道
+│   │   ├── TTSAudioBlock.tsx       # TTS 音频块
+│   │   └── TTSTrackLabel.tsx       # TTS 轨道标签
+│   ├── media/                      # 媒体轨道组件
+│   │   ├── index.ts
+│   │   ├── MediaTrack.tsx          # 媒体轨道
+│   │   ├── MediaTrackLabel.tsx     # 媒体轨道标签
+│   │   ├── MediaTrackManager.tsx   # 多轨道管理器
+│   │   ├── MediaSegmentBlock.tsx   # 媒体片段块
+│   │   ├── MediaTrackQuickAdd.tsx  # 快速添加媒体
+│   │   ├── MediaImportPanel.tsx    # 媒体导入面板
+│   │   ├── MediaTransformPanel.tsx # 变换编辑面板
+│   │   ├── MediaTransitionSelector.tsx # 转场选择器
+│   │   └── ThumbnailStrip.tsx      # 缩略图条
+│   ├── clip/                       # 剪辑轨道组件
+│   │   ├── index.ts
+│   │   ├── ClipTrack.tsx           # 剪辑轨道
+│   │   ├── ClipTrackLabel.tsx      # 剪辑轨道标签
+│   │   └── ClipSegmentBlock.tsx    # 剪辑片段块
+│   └── annotation/                 # 标注轨道组件
+│       ├── index.ts
+│       ├── AnnotationTrack.tsx     # 标注轨道
+│       └── AnnotationTrackLabel.tsx # 标注轨道标签
+└── README.md                       # 本文档
 ```
 
 ## 核心类型定义
@@ -107,6 +128,64 @@ interface ClipSegment {
   label?: string; // 自定义标签
   disabled?: boolean; // 是否禁用
   deleted?: boolean; // 是否删除（软删除，保留占位）
+}
+```
+
+### MediaSegment - 媒体片段
+
+```typescript
+interface MediaSegment {
+  id: string; // 唯一标识
+  sourceId: string; // 媒体源 ID
+  timelineStart: number; // 时间轴上的开始时间（秒）
+  timelineEnd: number; // 时间轴上的结束时间（秒）
+  sourceStart?: number; // 源媒体中的开始时间（秒，视频类型）
+  sourceEnd?: number; // 源媒体中的结束时间（秒，视频类型）
+  playbackRate: number; // 播放速率（1.0 = 正常）
+  muted: boolean; // 是否静音
+  volume: number; // 音量（0-1）
+  transform: MediaTransform; // 变换参数
+  transitionIn?: MediaTransition; // 入场转场
+  transitionOut?: MediaTransition; // 出场转场
+  label?: string; // 自定义标签
+  thumbnails?: MediaThumbnail[]; // 缩略图列表
+  deleted?: boolean; // 是否删除
+}
+```
+
+### MediaSource - 媒体源
+
+```typescript
+interface MediaSource {
+  id: string; // 唯一标识
+  path: string; // 文件路径
+  type: 'video' | 'image'; // 媒体类型
+  duration?: number; // 时长（秒，视频类型）
+  width: number; // 宽度
+  height: number; // 高度
+}
+```
+
+### MediaTransform - 媒体变换
+
+```typescript
+interface MediaTransform {
+  x: number; // 水平位置（百分比 0-100）
+  y: number; // 垂直位置（百分比 0-100）
+  scale: number; // 缩放比例（1.0 = 100%）
+  rotation: number; // 旋转角度（0-360）
+  opacity: number; // 不透明度（0-1）
+  flipX: boolean; // 水平翻转
+  flipY: boolean; // 垂直翻转
+}
+```
+
+### MediaTransition - 转场效果
+
+```typescript
+interface MediaTransition {
+  type: 'none' | 'fade' | 'dissolve' | 'wipe-left' | 'wipe-right';
+  duration: number; // 转场时长（秒）
 }
 ```
 

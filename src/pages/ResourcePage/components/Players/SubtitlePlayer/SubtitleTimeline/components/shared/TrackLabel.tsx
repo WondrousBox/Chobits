@@ -4,7 +4,7 @@ import { TbEye, TbEyeOff, TbLock, TbLockOpen, TbTrash } from 'react-icons/tb';
 
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
 
-import { DEFAULT_CONFIG, TimelineTrack } from '../types';
+import { DEFAULT_CONFIG, TimelineTrack } from '../../types';
 
 interface TrackLabelProps {
   track: TimelineTrack;

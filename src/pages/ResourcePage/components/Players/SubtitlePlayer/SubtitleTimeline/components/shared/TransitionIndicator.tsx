@@ -2,7 +2,7 @@ import clsx from 'clsx';
 import React from 'react';
 import { TbArrowBarRight, TbArrowBarToLeft, TbArrowBarToRight, TbBlur } from 'react-icons/tb';
 
-import type { MediaTransition, TransitionType } from '../types';
+import type { MediaTransition, TransitionType } from '../../types';
 
 interface TransitionIndicatorProps {
   /** 转场配置 */

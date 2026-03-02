@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import React, { useMemo, useRef } from 'react';
 
-import { DEFAULT_CONFIG } from '../types';
+import { DEFAULT_CONFIG } from '../../types';
 
 interface TimeRulerProps {
   /** 时间轴起始时间（通常为 0） */

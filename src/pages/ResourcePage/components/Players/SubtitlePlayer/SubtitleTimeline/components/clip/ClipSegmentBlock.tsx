@@ -4,9 +4,9 @@ import { TbChevronDown, TbChevronUp, TbTrash } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 
-import type { ClipSegment, ClipTool } from '../types';
-import { DEFAULT_CONFIG } from '../types';
-import { formatSecondsToTime } from '../utils';
+import type { ClipSegment, ClipTool } from '../../types';
+import { DEFAULT_CONFIG } from '../../types';
+import { formatSecondsToTime } from '../../utils';
 
 /** 变速范围 */
 const MIN_RATE = 0.25;

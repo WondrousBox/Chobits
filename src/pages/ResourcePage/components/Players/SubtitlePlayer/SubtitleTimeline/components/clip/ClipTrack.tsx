@@ -4,9 +4,9 @@ import { TbArrowBackUp } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 
-import type { ClipSegment, ClipTool } from '../types';
-import { DEFAULT_CONFIG } from '../types';
-import { ClipSequence } from '../utils';
+import type { ClipSegment, ClipTool } from '../../types';
+import { DEFAULT_CONFIG } from '../../types';
+import { ClipSequence } from '../../utils';
 import { ClipSegmentBlock } from './ClipSegmentBlock';
 
 interface ClipTrackProps {

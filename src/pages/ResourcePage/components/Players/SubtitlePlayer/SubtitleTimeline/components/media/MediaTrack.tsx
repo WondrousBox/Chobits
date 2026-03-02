@@ -2,8 +2,8 @@ import clsx from 'clsx';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { TbUpload } from 'react-icons/tb';
 
-import type { MediaSegment, MediaSource, MediaTool, MediaTrackData, ViewportState } from '../types';
-import { DEFAULT_CONFIG, MEDIA_CONFIG } from '../types';
+import type { MediaSegment, MediaSource, MediaTool, MediaTrackData, ViewportState } from '../../types';
+import { DEFAULT_CONFIG, MEDIA_CONFIG } from '../../types';
 import { MediaSegmentBlock } from './MediaSegmentBlock';
 import { MediaTrackQuickAdd } from './MediaTrackQuickAdd';
 
@@ -237,7 +237,7 @@ export const MediaTrack: React.FC<MediaTrackProps> = ({
           }
 
           if (mediaSources.length > 0) {
-            const { DEFAULT_TRANSFORM } = await import('../types');
+            const { DEFAULT_TRANSFORM } = await import('../../types');
             const segments: Omit<MediaSegment, 'id'>[] = mediaSources.map((source, index) => {
               const startOffset = index * 0.5;
               const segmentDuration = source.type === 'video' ? Math.min(source.duration || 5, 5) : 5;

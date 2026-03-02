@@ -5,8 +5,8 @@ import { TbArrowBarToLeft, TbArrowBarToRight, TbBlur, TbX } from 'react-icons/tb
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 
-import type { MediaTransition, TransitionType } from '../types';
-import { MEDIA_CONFIG } from '../types';
+import type { MediaTransition, TransitionType } from '../../types';
+import { MEDIA_CONFIG } from '../../types';
 
 interface MediaTransitionSelectorProps {
   /** Whether the panel is open */

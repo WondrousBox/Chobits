@@ -5,8 +5,8 @@ import { TbArrowsHorizontal, TbArrowsVertical, TbColorFilter, TbFlipHorizontal, 
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 
-import type { MediaSegment, MediaSource, MediaTransform } from '../types';
-import { DEFAULT_TRANSFORM } from '../types';
+import type { MediaSegment, MediaSource, MediaTransform } from '../../types';
+import { DEFAULT_TRANSFORM } from '../../types';
 
 interface MediaTransformPanelProps {
   /** Whether the panel is open */

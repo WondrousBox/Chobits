@@ -4,10 +4,10 @@ import { TbBookmark, TbHighlight, TbNote, TbTrash, TbVocabulary } from 'react-ic
 
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
-import type { AnnotationItem } from '../../useAnnotations';
-import { getAnnotationColor } from '../../useAnnotations';
-import type { AnnotationTrackCallbacks, ViewportState } from '../types';
-import { DEFAULT_CONFIG } from '../types';
+import type { AnnotationItem } from '../../../useAnnotations';
+import { getAnnotationColor } from '../../../useAnnotations';
+import type { AnnotationTrackCallbacks, ViewportState } from '../../types';
+import { DEFAULT_CONFIG } from '../../types';
 
 interface AnnotationTrackProps {
   /** 标注列表 */

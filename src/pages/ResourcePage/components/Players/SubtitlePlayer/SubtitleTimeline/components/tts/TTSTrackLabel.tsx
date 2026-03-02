@@ -5,7 +5,7 @@ import { TbEye, TbEyeOff, TbTrash, TbVolume } from 'react-icons/tb';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
 
-import { DEFAULT_CONFIG } from '../types';
+import { DEFAULT_CONFIG } from '../../types';
 
 export interface TTSTrackLabelProps {
   trackLabel: string;

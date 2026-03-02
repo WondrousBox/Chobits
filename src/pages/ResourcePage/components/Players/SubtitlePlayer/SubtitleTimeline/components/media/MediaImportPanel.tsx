@@ -4,8 +4,8 @@ import { TbFileImport, TbPhoto, TbUpload, TbVideo, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 
-import type { MediaSegment, MediaSource, MediaTrackData } from '../types';
-import { DEFAULT_TRANSFORM } from '../types';
+import type { MediaSegment, MediaSource, MediaTrackData } from '../../types';
+import { DEFAULT_TRANSFORM } from '../../types';
 
 interface MediaImportPanelProps {
   open: boolean;

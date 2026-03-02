@@ -4,8 +4,8 @@ import { TbEye, TbEyeClosed, TbLock, TbLockOpen, TbPlus, TbTrash } from 'react-i
 
 import { Button } from '@/components/ui/button';
 
-import type { MediaTrackData } from '../types';
-import { MEDIA_CONFIG } from '../types';
+import type { MediaTrackData } from '../../types';
+import { MEDIA_CONFIG } from '../../types';
 
 interface MediaTrackLabelProps {
   /** 轨道数据 */
