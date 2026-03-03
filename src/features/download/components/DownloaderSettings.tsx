@@ -200,11 +200,10 @@ const DownloaderSettings: React.FC = () => {
     setConfig((prev) => ({ ...prev, ...partial }));
   }, []);
 
-  // 初始化时加载设置和检查更新
+  // 初始化时加载设置
   useEffect(() => {
     fetchConfig();
-    checkUpdate();
-  }, [fetchConfig, checkUpdate]);
+  }, [fetchConfig]);
 
   // 格式化日期
   const formatDate = (dateStr: string): string => {
@@ -248,16 +247,23 @@ const DownloaderSettings: React.FC = () => {
     <SettingGroup title="下载器">
       <SettingItem
         title="yt-dlp 版本"
-        description={updateInfo ? `当前版本: ${updateInfo.current || '未知'} ${updateInfo.hasUpdate ? '(有新版本可用)' : ''}` : '正在检查...'}
+        description={updateInfo ? `当前版本: ${updateInfo.current || '未知'} ${updateInfo.hasUpdate ? '(有新版本可用)' : ''}` : '点击"检查更新"获取版本信息'}
         action={
           <div className="flex items-center gap-2">
             {/* 检查更新按钮 */}
-            <Button variant="outline" size="sm" disabled={checking || downloading} onClick={checkUpdate} className="h-8 w-8">
-              {checking ? <TbLoader2 className="h-4 w-4 animate-spin" /> : <TbRefresh className="h-4 w-4" />}
+            <Button variant="ghost" size="sm" disabled={checking || downloading} onClick={checkUpdate}>
+              {checking ? <TbLoader2 className="h-4 w-4 animate-spin" /> : <TbRefresh className="h-4 w-4" />} 检查更新
             </Button>
-
+            <Button variant="ghost" size="sm" onClick={openFolder} className="h-8">
+              <TbFolderOpen className="h-4 w-4 mr-1.5" />
+              打开位置
+            </Button>
+            <Button variant="ghost" size="sm" onClick={resetToBuiltin} disabled={downloading} className="h-8">
+              <TbRotate className="h-4 w-4 mr-1.5" />
+              重置版本
+            </Button>
             {/* 版本选择下拉菜单 */}
-            {updateInfo && updateInfo.recentReleases.length > 0 && (
+            {updateInfo && updateInfo.recentReleases.length > 0 ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" disabled={downloading}>
@@ -299,6 +305,11 @@ const DownloaderSettings: React.FC = () => {
                   })}
                 </DropdownMenuContent>
               </DropdownMenu>
+            ) : (
+              <Button variant="outline" size="sm" disabled={checking || downloading} onClick={checkUpdate}>
+                <TbDownload />
+                选择版本
+              </Button>
             )}
           </div>
         }
@@ -313,24 +324,31 @@ const DownloaderSettings: React.FC = () => {
       </SettingItem>
 
       {/* 下载质量模式 */}
-      <SettingItem title="下载质量模式" description="针对视频数据设置默认下载质量，避免占用过多空间或带宽" action={null}>
-        <div className="mt-3">
-          <Select value={config.qualityMode || '1'} onValueChange={(v) => updateConfig({ qualityMode: v as YtDlpConfig['qualityMode'] })} disabled={loadingSettings}>
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="1">最佳质量（默认）</SelectItem>
-              <SelectItem value="best">最佳视频+音频</SelectItem>
-              <SelectItem value="1080p">高质量（1080p）</SelectItem>
-              <SelectItem value="720p">中等质量（720p）</SelectItem>
-              <SelectItem value="480p">低质量（480p）</SelectItem>
-              <SelectItem value="audio">仅音频</SelectItem>
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground mt-2">根据 yt-dlp 格式选择器设置下载质量。最佳质量：下载最高可用质量；仅音频：仅下载音频文件。</p>
-        </div>
-      </SettingItem>
+      <SettingItem
+        title="下载质量模式"
+        description="针对视频数据设置默认下载质量，避免占用过多空间或带宽"
+        action={
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={openConfigPath} className="h-8">
+              <TbFolderOpen />
+              配置文件
+            </Button>
+            <Select value={config.qualityMode || '1'} onValueChange={(v) => updateConfig({ qualityMode: v as YtDlpConfig['qualityMode'] })} disabled={loadingSettings}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">最佳质量（默认）</SelectItem>
+                <SelectItem value="best">最佳视频+音频</SelectItem>
+                <SelectItem value="1080p">高质量（1080p）</SelectItem>
+                <SelectItem value="720p">中等质量（720p）</SelectItem>
+                <SelectItem value="480p">低质量（480p）</SelectItem>
+                <SelectItem value="audio">仅音频</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        }
+      ></SettingItem>
 
       {/* 高级选项折叠按钮 */}
       <SettingItem
@@ -347,52 +365,11 @@ const DownloaderSettings: React.FC = () => {
       {/* 高级选项内容 */}
       {showAdvanced && (
         <>
-          {/* 使用登录 Cookie */}
-          <SettingItem
-            title="使用登录 Cookie"
-            description="启用后将使用已登录账号的 Cookie，用于访问需要登录的资源"
-            action={<Switch checked={config.useCookies} onCheckedChange={(checked: boolean) => updateConfig({ useCookies: checked })} disabled={loadingSettings} />}
-          />
-
-          {/* 打开下载文件夹 */}
-          <SettingItem
-            title="打开下载文件夹"
-            description="在文件管理器中打开 yt-dlp 下载安装的文件夹位置"
-            action={
-              <Button variant="ghost" size="sm" onClick={openFolder} className="h-8">
-                <TbFolderOpen className="h-4 w-4 mr-1.5" />
-                打开
-              </Button>
-            }
-          />
-
-          {/* 重置为内置版本 */}
-          <SettingItem
-            title="重置下载器"
-            description="将 yt-dlp 重置为软件内置的版本"
-            action={
-              <Button variant="ghost" size="sm" onClick={resetToBuiltin} disabled={downloading} className="h-8">
-                <TbRotate className="h-4 w-4 mr-1.5" />
-                重置
-              </Button>
-            }
-          />
-
-          {/* 打开配置文件路径 */}
-          <SettingItem
-            title="打开配置文件路径"
-            description="在文件管理器中打开 yt-dlp 配置文件所在的位置"
-            action={
-              <Button variant="ghost" size="sm" onClick={openConfigPath} className="h-8">
-                <TbFolderOpen className="h-4 w-4 mr-1.5" />
-                打开
-              </Button>
-            }
-          />
-
           {/* EJS 远程组件配置 */}
-          <SettingItem title="EJS 远程组件" description="配置 EJS 脚本的获取方式，用于解密 YouTube 视频" action={null}>
-            <div className="mt-3">
+          <SettingItem
+            title="EJS 远程组件"
+            description="配置 EJS 脚本的获取方式，用于解密 YouTube 视频"
+            action={
               <Select value={config.ejsRemoteComponents || 'npm'} onValueChange={(v: 'github' | 'npm' | 'none') => updateConfig({ ejsRemoteComponents: v })} disabled={loadingSettings}>
                 <SelectTrigger className="w-full">
                   <SelectValue />
@@ -403,14 +380,18 @@ const DownloaderSettings: React.FC = () => {
                   <SelectItem value="none">使用内置版本</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground mt-2">npm：从 npm 下载 EJS 脚本，使用内置 Bun 运行时。GitHub：从 GitHub 下载。内置：使用 PyInstaller 打包的版本。</p>
-            </div>
-          </SettingItem>
+            }
+          />
+
+          {/* 使用登录 Cookie */}
+          <SettingItem
+            title="使用登录 Cookie"
+            description="启用后将使用已登录账号的 Cookie，用于访问需要登录的资源"
+            action={<Switch checked={config.useCookies} onCheckedChange={(checked: boolean) => updateConfig({ useCookies: checked })} disabled={loadingSettings} />}
+          />
 
           {/* YouTube 登录设置 */}
-          <div className="pt-2">
-            <YoutubeCookieSettings />
-          </div>
+          {config.useCookies && <YoutubeCookieSettings />}
         </>
       )}
     </SettingGroup>
