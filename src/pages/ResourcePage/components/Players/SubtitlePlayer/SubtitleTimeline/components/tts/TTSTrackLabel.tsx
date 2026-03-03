@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import React, { useState } from 'react';
-import { TbEye, TbEyeOff, TbTrash, TbVolume } from 'react-icons/tb';
+import { TbEye, TbEyeOff, TbSettings, TbTrash, TbVolume } from 'react-icons/tb';
 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
@@ -16,12 +16,16 @@ export interface TTSTrackLabelProps {
   enabled?: boolean;
   /** 切换启用/禁用回调 */
   onToggleEnabled?: (ttsTrackId: string) => void;
+  /** 打开 TTS 设置回调 */
+  onOpenSettings?: (ttsTrackId: string) => void;
+  /** TTS 语音名称（简短显示，如 "Xiaoxiao"） */
+  voiceLabel?: string;
 }
 
 /**
- * TTS轨道标签组件（带右键删除菜单）
+ * TTS轨道标签组件（带右键删除菜单和设置按钮）
  */
-export const TTSTrackLabel: React.FC<TTSTrackLabelProps> = ({ trackLabel, trackColor, ttsTrackId, onDelete, enabled = true, onToggleEnabled }) => {
+export const TTSTrackLabel: React.FC<TTSTrackLabelProps> = ({ trackLabel, trackColor, ttsTrackId, onDelete, enabled = true, onToggleEnabled, onOpenSettings, voiceLabel }) => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const content = (
@@ -29,28 +33,40 @@ export const TTSTrackLabel: React.FC<TTSTrackLabelProps> = ({ trackLabel, trackC
       className={clsx('flex items-center gap-1.5 px-2 border-b border-border bg-muted/20 shrink-0 overflow-hidden', !enabled && 'opacity-40')}
       style={{ height: DEFAULT_CONFIG.TRACK_HEIGHT + DEFAULT_CONFIG.TRACK_GAP }}
     >
-      {/* 使用和字幕轨道相同的颜色指示器 */}
       <div className="w-1.5 h-4 rounded-full shrink-0" style={{ backgroundColor: trackColor }} />
-      {/* 轨道名称 + TTS图标 */}
       <div className="flex items-center gap-1 min-w-0 flex-1">
+        <TbVolume className="w-3 h-3 text-muted-foreground shrink-0" />
         <span className="text-xs text-foreground/80 truncate" title={trackLabel}>
           {trackLabel}
         </span>
-        <TbVolume className="w-3 h-3 text-muted-foreground shrink-0" />
+        {voiceLabel && <span className="text-[10px] text-muted-foreground truncate">({voiceLabel})</span>}
       </div>
-      {/* 启用/禁用按钮（眼睛图标） */}
-      {onToggleEnabled && (
-        <button
-          className={clsx('p-0.5 rounded hover:bg-accent/50 transition-colors shrink-0', enabled ? 'text-muted-foreground hover:text-foreground' : 'text-muted-foreground/50 hover:text-foreground')}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleEnabled(ttsTrackId);
-          }}
-          title={enabled ? '禁用TTS轨道（播放时不生效）' : '启用TTS轨道（播放时生效）'}
-        >
-          {enabled ? <TbEye className="w-3 h-3" /> : <TbEyeOff className="w-3 h-3" />}
-        </button>
-      )}
+      <div className="flex items-center gap-0.5 shrink-0">
+        {onOpenSettings && (
+          <button
+            className="p-0.5 rounded hover:bg-accent/50 transition-colors text-muted-foreground hover:text-foreground"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenSettings(ttsTrackId);
+            }}
+            title="TTS 设置"
+          >
+            <TbSettings className="w-3 h-3" />
+          </button>
+        )}
+        {onToggleEnabled && (
+          <button
+            className={clsx('p-0.5 rounded hover:bg-accent/50 transition-colors shrink-0', enabled ? 'text-muted-foreground hover:text-foreground' : 'text-muted-foreground/50 hover:text-foreground')}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleEnabled(ttsTrackId);
+            }}
+            title={enabled ? '禁用TTS轨道' : '启用TTS轨道'}
+          >
+            {enabled ? <TbEye className="w-3 h-3" /> : <TbEyeOff className="w-3 h-3" />}
+          </button>
+        )}
+      </div>
     </div>
   );
 

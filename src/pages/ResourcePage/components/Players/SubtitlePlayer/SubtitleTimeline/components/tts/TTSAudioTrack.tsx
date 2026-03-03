@@ -48,6 +48,12 @@ interface TTSAudioTrackProps {
   maxDuration?: number;
   /** 禁用交互（轨道未启用时） */
   disabled?: boolean;
+  /** 是否允许点击空白添加片段（独立 TTS 轨道） */
+  allowAddSegment?: boolean;
+  /** 在空白处添加片段回调 (startTime, endTime) */
+  onAddSegment?: (startTime: number, endTime: number) => void;
+  /** 双击已有块编辑回调 */
+  onBlockDoubleClick?: (item: TTSAudioItem) => void;
 }
 
 /**
@@ -69,7 +75,10 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
   onDeleteSegment,
   onTimeChange,
   maxDuration,
-  disabled = false
+  disabled = false,
+  allowAddSegment = false,
+  onAddSegment,
+  onBlockDoubleClick
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -249,12 +258,26 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
     return currentTime * pixelsPerSecond;
   }, [currentTime, pixelsPerSecond]);
 
-  if (items.length === 0) {
+  // 双击空白区域添加片段
+  const handleTrackDoubleClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (!allowAddSegment || !onAddSegment || disabled) return;
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const x = e.clientX - rect.left;
+      const time = x / pixelsPerSecond;
+      const segDuration = 3;
+      onAddSegment(Math.max(0, time), Math.min(time + segDuration, maxDuration ?? time + segDuration));
+    },
+    [allowAddSegment, onAddSegment, disabled, pixelsPerSecond, maxDuration]
+  );
+
+  if (items.length === 0 && !allowAddSegment) {
     return null;
   }
 
   return (
-    <div className={clsx('relative border-border', disabled && 'opacity-40 pointer-events-none')} style={{ height: trackHeight, width }}>
+    <div className={clsx('relative border-border', disabled && 'opacity-40 pointer-events-none')} style={{ height: trackHeight, width }} onDoubleClick={handleTrackDoubleClick}>
       {/* 轨道内容容器（设置总宽度） */}
       <div ref={containerRef} className="relative h-full" style={{ width }}>
         {/* 单轨单 Canvas：波形层（在块下方，半透明块背景可透出波形） */}
@@ -273,14 +296,17 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
               onPlayClick={handlePlayClick}
               onDeleteClick={handleDeleteClick}
               onTimeChange={item.md5 && onTimeChange ? (newStartTime, newEndTime) => onTimeChange(item.index, newStartTime, newEndTime) : undefined}
+              onDoubleClick={onBlockDoubleClick ? (_e, it) => onBlockDoubleClick(it) : undefined}
             />
           ))}
         </div>
 
-        {/* 当前时间指示线 */}
-        {
-          // currentTimeX !== null && <div className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none" style={{ left: currentTimeX }} />
-        }
+        {/* 空轨道提示 */}
+        {items.length === 0 && allowAddSegment && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <span className="text-[10px] text-muted-foreground/60">双击添加语音片段</span>
+          </div>
+        )}
 
         {/* 音频结束截止线 */}
         <div className="absolute top-0 bottom-0 w-0.5 bg-orange-500 z-10 pointer-events-none" style={{ left: totalDuration * pixelsPerSecond }} title={`音频结束: ${totalDuration.toFixed(2)}s`} />

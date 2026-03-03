@@ -1,8 +1,8 @@
 // Re-export WordTimestamp from adapters for backward compatibility
-export type { WordTimestamp, AnnotationItem, TimelineAdapters } from './adapters/types';
+export type { AnnotationItem, TimelineAdapters, WordTimestamp } from './adapters/types';
 
 // Import WordTimestamp for internal use
-import type { WordTimestamp, AnnotationItem, TimelineAdapters } from './adapters/types';
+import type { AnnotationItem, TimelineAdapters, WordTimestamp } from './adapters/types';
 
 /**
  * SubtitleTimeline 时间轴组件类型定义
@@ -127,7 +127,7 @@ export interface TimelineCallbacks {
  * TTS音频项（用于时间轴显示）
  */
 export interface TTSAudioItem {
-  /** 字幕索引 */
+  /** 片段索引 */
   index: number;
   /** 合成状态 */
   status: 'pending' | 'synthesizing' | 'completed' | 'error';
@@ -145,6 +145,20 @@ export interface TTSAudioItem {
   endTime: number;
   /** 该条 content md5（用于更新 history 中的 st/et） */
   md5?: string;
+  /** 合成所用的原始文本（独立 TTS 轨道片段自包含文本） */
+  text?: string;
+}
+
+/**
+ * 独立 TTS 轨道信息（不绑定字幕轨道，在时间轴中独立显示）
+ */
+export interface StandaloneTTSTrack {
+  /** 轨道 ID（如 tts-xxxxx） */
+  id: string;
+  /** 显示名称 */
+  label: string;
+  /** 轨道颜色 */
+  color?: string;
 }
 
 /**
@@ -189,12 +203,22 @@ export interface SubtitleTimelineProps extends TimelineCallbacks {
   subtitleToTTSTrackMap?: Map<string, string>;
   /** 是否显示TTS轨道 */
   showTTSTrack?: boolean;
+  /** 独立 TTS 轨道列表（不绑定字幕轨道，在字幕轨道之后独立显示） */
+  standaloneTTSTracks?: StandaloneTTSTrack[];
+  /** 在独立 TTS 轨道空白处添加片段的回调 */
+  onAddTTSSegment?: (ttsTrackId: string, startTime: number, endTime: number) => void;
+  /** 双击 TTS 音频块编辑回调（传入 trackId 和 item） */
+  onTTSBlockDoubleClick?: (ttsTrackId: string, item: TTSAudioItem) => void;
   /** 播放TTS音频回调 */
   onPlayTTSAudio?: (index: number, audioPath: string) => void;
   /** 停止TTS播放回调 */
   onStopTTSAudio?: () => void;
   /** 当前正在播放的TTS索引 */
   playingTTSIndex?: number;
+  /** 添加字幕轨道回调 */
+  onAddSubtitleTrack?: () => void;
+  /** 添加 TTS 语音轨道回调 */
+  onAddTTSTrack?: () => void;
   /** 删除字幕轨道回调（trackId 为 timeline track id，如 'track-1'） */
   onDeleteSubtitleTrack?: (trackId: string) => void;
   /** 删除TTS轨道回调（trackId 为 TTS trackId，如 'main', 'zh-CN'） */
@@ -207,12 +231,16 @@ export interface SubtitleTimelineProps extends TimelineCallbacks {
   onToggleSubtitleTrackEnabled?: (trackId: string) => void;
   /** 切换TTS轨道启用/禁用 */
   onToggleTTSTrackEnabled?: (ttsTrackId: string) => void;
+  /** 打开 TTS 设置面板回调 */
+  onOpenTTSSettings?: (ttsTrackId: string) => void;
+  /** TTS 语音标签映射：ttsTrackId -> 短名称（如 "Xiaoxiao"） */
+  ttsVoiceLabels?: Map<string, string>;
   /** 剪辑轨道是否启用（默认 true） */
   clipTrackEnabled?: boolean;
   /** TTS 轨道的启用状态：ttsTrackId -> enabled */
   ttsTrackEnabledMap?: Map<string, boolean>;
-  /** 字级别时间戳映射：segment id -> WordTimestamp[]，用于卡拉OK高亮 */
-  wordsMap?: Map<string, WordTimestamp[]>;
+  /** 字级别时间戳映射：trackId -> (segment id -> WordTimestamp[])，用于卡拉OK高亮 */
+  wordsMapByTrack?: Map<string, Map<string, WordTimestamp[]>>;
 
   // ---- 标注轨道 Props ----
   /** 标注轨道数据 */

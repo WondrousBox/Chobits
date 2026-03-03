@@ -4,6 +4,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { TbBookmark, TbCrosshair, TbDownload, TbList, TbScissors, TbTimeline } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
 
@@ -13,7 +15,7 @@ import { ANNOTATION_DELETE_EVENT, type AnnotationMarker, dispatchAnnotationMarke
 import { MediaPlayerRef } from '../MediaPlayer/MediaPlayer';
 import { dispatchSubtitleDisplay, type SubtitleDisplayLine, type WordTimestamp } from '../MediaPlayer/subtitleDisplayEvent';
 import { dispatchTrackSettings, TRACK_TOGGLE_EVENT, type TrackSettingsItem, type TrackTogglePayload } from '../MediaPlayer/trackSettingsEvent';
-import { createChobitsAdapters } from './adapters';
+import { createAimAdapters } from './adapters';
 import { ExportDialog } from './ExportDialog';
 import { SubtitlePlayer } from './SubtitleListPlayer/SubtitlePlayer';
 import { aimTracksToTimelineTracks, ClipSequence, formatSecondsToTime, indicesToIds, parseSegmentId, parseTimeToSeconds, SubtitleTimeline, TimelineSegment } from './SubtitleTimeline';
@@ -86,6 +88,22 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
   const [translationTracks, setTranslationTracks] = useState<AimSegments[][]>([]);
   /** 各翻译轨道的语言、显示名和资源ID（与 translationTracks 顺序一致） */
   const [translationTrackMeta, setTranslationTrackMeta] = useState<{ languageCode: string; label: string; resourceId: string }[]>([]);
+  /** 编排字幕轨道 */
+  const [subtitleEditTracks, setSubtitleEditTracks] = useState<AimSegments[][]>([]);
+  const [subtitleEditTrackMeta, setSubtitleEditTrackMeta] = useState<{ label: string; resourceId: string }[]>([]);
+  const [subtitleEditNameDialog, setSubtitleEditNameDialog] = useState<{ open: boolean; name: string }>({ open: false, name: '' });
+  /** 独立 TTS 轨道元数据：每个轨道有唯一 ID、名称、TTS 配置 */
+  const [standaloneTTSTracks, setStandaloneTTSTracks] = useState<{ id: string; label: string; voiceName: string; rate: number; pitch: number; autoTrimSilence: boolean }[]>([]);
+  const [ttsTrackNameDialog, setTTSTrackNameDialog] = useState<{ open: boolean; name: string }>({ open: false, name: '' });
+  /** TTS 片段文本输入对话框（双击空白或编辑已有片段） */
+  const [ttsSegmentDialog, setTTSSegmentDialog] = useState<{
+    open: boolean;
+    trackId: string;
+    text: string;
+    startTime: number;
+    endTime: number;
+    editIndex?: number; // 编辑已有片段时的索引
+  }>({ open: false, trackId: '', text: '', startTime: 0, endTime: 3 });
   const [isLoading, setIsLoading] = useState(false);
   const [subtitleFormat, setSubtitleFormat] = useState<SubtitleFormat>('srt');
   const SUBTITLE_VIEW_MODE_KEY = 'subtitle-player:viewMode';
@@ -124,8 +142,8 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
   // ---- 波形数据状态 ----
   const [waveform, setWaveform] = useState<WaveformState>({});
 
-  // ---- 创建 Chobits 适配器 ----
-  const chobitsAdapters = useMemo(() => createChobitsAdapters(), []);
+  // ---- 创建 Aim 适配器 ----
+  const aimAdapters = useMemo(() => createAimAdapters(), []);
 
   // 防抖保存剪辑状态（存储到独立的 clip 文件）
   const debouncedSaveClipSegments = useMemo(
@@ -437,6 +455,30 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     loadTranslationTracks(0);
   }, [resource.id, subtitleEntries.length, loadTranslationTracks]);
 
+  // 加载编排字幕轨道
+  const loadSubtitleEditTracks = useCallback(async () => {
+    if (!resource.id) return;
+    try {
+      const tracks = await window.YUA.resource['resource:getSubtitleEditTracks']({ parentResourceId: resource.id });
+      const editTracksData: AimSegments[][] = [];
+      const meta: { label: string; resourceId: string }[] = [];
+      for (const t of tracks) {
+        const segments: AimSegments[] = (t.segments || []).sort((a, b) => a.index - b.index).map((s) => ({ st: s.st ?? '00:00:00,000', et: s.et ?? '00:00:00,000', text: s.text ?? '' }));
+        editTracksData.push(segments);
+        meta.push({ label: t.title || '编排字幕', resourceId: t.id });
+      }
+      setSubtitleEditTracks(editTracksData);
+      setSubtitleEditTrackMeta(meta);
+    } catch (err) {
+      console.error('[SubtitlePlayer] 加载编排字幕轨道失败:', err);
+    }
+  }, [resource.id]);
+
+  useEffect(() => {
+    if (!resource.id || subtitleEntries.length === 0) return;
+    loadSubtitleEditTracks();
+  }, [resource.id, subtitleEntries.length, loadSubtitleEditTracks]);
+
   // 翻译完成后的回调：期望轨道数比当前多 1
   const handleTranslationComplete = useCallback(() => {
     const expectedTracks = translationTracks.length + 1;
@@ -670,7 +712,6 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
       const map = synthesizedItemsByTrack.get(tid);
       if (!map || map.size === 0) return;
 
-      // 找到对应的字幕轨道：main -> track-0 (index 0), 翻译轨道 -> track-1, track-2... (index 1, 2...)
       const subtitleTrackIndex = tid === 'main' ? 0 : translationTrackMeta.findIndex((t) => t.languageCode === tid) + 1;
       const subtitleTrack = allSubtitleTracks[subtitleTrackIndex];
       if (!subtitleTrack) return;
@@ -679,7 +720,6 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
       map.forEach((item, index) => {
         const seg = subtitleTrack[index];
         if (!seg) return;
-        // 优先使用 history 中的 startTime/endTime（可拖拽调整），否则用字幕轨道的 st/et
         const startTime = item.startTime ?? utils.convertToSeconds(seg.st);
         const endTime = item.endTime ?? utils.convertToSeconds(seg.et);
         items.push({
@@ -698,8 +738,33 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
       byTrack.set(tid, items);
       labels.set(tid, tid === 'main' ? '原文' : (translationTrackMeta.find((t) => t.languageCode === tid)?.label ?? tid));
     });
+
+    // 独立 TTS 轨道的数据
+    standaloneTTSTracks.forEach((stt) => {
+      const map = synthesizedItemsByTrack.get(stt.id);
+      if (!map || map.size === 0) return;
+      const items: TimelineTTSAudioItem[] = [];
+      map.forEach((item, index) => {
+        items.push({
+          index,
+          status: item.status,
+          audioPath: item.audioPath,
+          duration: item.duration,
+          trimmedDuration: item.trimmedDuration,
+          error: item.error,
+          startTime: item.startTime ?? 0,
+          endTime: item.endTime ?? (item.startTime ?? 0) + (item.trimmedDuration ?? item.duration ?? 3),
+          md5: item.md5,
+          text: item.text
+        });
+      });
+      items.sort((a, b) => a.startTime - b.startTime);
+      byTrack.set(stt.id, items);
+      labels.set(stt.id, stt.label);
+    });
+
     return { ttsItemsByTrackForTimeline: byTrack, ttsTrackLabelsForTimeline: labels, subtitleToTTSTrackMap: subtitleToTTS };
-  }, [subtitleEntries, translationTracks, synthesizedItemsByTrack, translationTrackMeta]);
+  }, [subtitleEntries, translationTracks, synthesizedItemsByTrack, translationTrackMeta, standaloneTTSTracks]);
 
   // 更新 clearTypingTexts ref
   useEffect(() => {
@@ -885,15 +950,15 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     });
   }, [segmentsData, subtitleEntries]);
 
-  // 构建时间轴用的 wordsMap：segment id -> WordTimestamp[]
-  const timelineWordsMap = useMemo<Map<string, WordTimestamp[]>>(() => {
-    const map = new Map<string, WordTimestamp[]>();
+  // 构建时间轴用的 wordsMapByTrack：trackId -> (segment id -> WordTimestamp[])
+  const timelineWordsMapByTrack = useMemo<Map<string, Map<string, WordTimestamp[]>>>(() => {
+    const trackMap = new Map<string, WordTimestamp[]>();
     segmentsWordData.forEach((words, index) => {
       if (words) {
-        map.set(`t0-${index}`, words);
+        trackMap.set(`t0-${index}`, words);
       }
     });
-    return map;
+    return new Map([['track-0', trackMap]]);
   }, [segmentsWordData]);
 
   // 用户手动编辑字幕时的回调：同步到本地 state 并触发保存
@@ -929,8 +994,13 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
       tracksArray.push(typingTexts);
     }
 
+    // 添加编排字幕轨道
+    if (subtitleEditTracks.length > 0) {
+      tracksArray.push(...subtitleEditTracks);
+    }
+
     return tracksArray;
-  }, [subtitleEntries, translationTracks, typingTexts]);
+  }, [subtitleEntries, translationTracks, typingTexts, subtitleEditTracks]);
 
   // 时间轴视图数据
   const timelineTracks = useMemo(() => {
@@ -941,16 +1011,22 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     if (typingTexts.length > 0) {
       labels.push('翻译中');
     }
+    if (subtitleEditTracks.length > 0) {
+      labels.push(...subtitleEditTrackMeta.map((m) => m.label));
+    }
     // 类型适配：时间轴工具内部定义的 AimSegments 结构与外部包的类型略有差异，运行时兼容，这里进行类型断言
     return aimTracksToTimelineTracks(tracks as any, labels);
-  }, [tracks, translationTracks, typingTexts]);
+  }, [tracks, translationTracks, typingTexts, subtitleEditTracks, subtitleEditTrackMeta]);
 
   // 时间轴高亮的片段 ID
   const timelineHighlightIds = useMemo(() => {
     return indicesToIds(translatingChunks, 0); // 主轨道的翻译中片段
   }, [translatingChunks]);
 
-  // 处理时间轴文本编辑（主轨道写回字幕文件，翻译轨道写回翻译 JSON）
+  // 编排轨道在 tracks 中的起始索引：1(主) + translationTracks.length + (typingTexts ? 1 : 0)
+  const subtitleEditTrackStartIndex = 1 + translationTracks.length + (typingTexts.length > 0 ? 1 : 0);
+
+  // 处理时间轴文本编辑（主轨道写回字幕文件，翻译/编排轨道写回 JSON）
   const handleTimelineTextChange = useCallback(
     (segment: TimelineSegment, trackId: string, newText: string) => {
       const parsed = parseSegmentId(segment.id);
@@ -995,9 +1071,43 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
           });
           debouncedFlushTranslationUpdates();
         }
+      } else if (trackIndex >= subtitleEditTrackStartIndex) {
+        // 编排字幕轨道
+        const editIndex = trackIndex - subtitleEditTrackStartIndex;
+        const meta = subtitleEditTrackMeta[editIndex];
+        if (!meta) return;
+        const updatedTracks = subtitleEditTracks.map((track, idx) => {
+          if (idx === editIndex) {
+            return track.map((item, i) => (i === segmentIndex ? { ...item, text: newText } : item));
+          }
+          return track;
+        });
+        setSubtitleEditTracks(updatedTracks);
+        if (meta.resourceId) {
+          const key = `${meta.resourceId}-${segmentIndex}`;
+          const prev = pendingTranslationUpdatesRef.current.get(key);
+          pendingTranslationUpdatesRef.current.set(key, {
+            translationResourceId: meta.resourceId,
+            segmentIndex,
+            patch: { ...prev?.patch, text: newText }
+          });
+          debouncedFlushTranslationUpdates();
+        }
       }
     },
-    [subtitleEntries, translationTracks, translationTrackMeta, resource.id, isLoading, debouncedSave, debouncedFlushTranslationUpdates, subtitleFormat]
+    [
+      subtitleEntries,
+      translationTracks,
+      translationTrackMeta,
+      subtitleEditTracks,
+      subtitleEditTrackMeta,
+      subtitleEditTrackStartIndex,
+      resource.id,
+      isLoading,
+      debouncedSave,
+      debouncedFlushTranslationUpdates,
+      subtitleFormat
+    ]
   );
 
   // 处理列表模式非主轨道的文本编辑
@@ -1110,10 +1220,44 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
           });
           debouncedFlushTranslationUpdates();
         }
+      } else if (trackIndex >= subtitleEditTrackStartIndex) {
+        // 编排字幕轨道
+        const editIndex = trackIndex - subtitleEditTrackStartIndex;
+        const meta = subtitleEditTrackMeta[editIndex];
+        const newSt = formatTime(newStartTime);
+        const newEt = formatTime(newEndTime);
+        const updatedTracks = subtitleEditTracks.map((track, idx) => {
+          if (idx === editIndex) {
+            return track.map((item, i) => (i === segmentIndex ? { ...item, st: newSt, et: newEt } : item));
+          }
+          return track;
+        });
+        setSubtitleEditTracks(updatedTracks);
+        if (meta?.resourceId) {
+          const key = `${meta.resourceId}-${segmentIndex}`;
+          const prev = pendingTranslationUpdatesRef.current.get(key);
+          pendingTranslationUpdatesRef.current.set(key, {
+            translationResourceId: meta.resourceId,
+            segmentIndex,
+            patch: { ...prev?.patch, st: newSt, et: newEt }
+          });
+          debouncedFlushTranslationUpdates();
+        }
       }
-      // "翻译中"临时轨道（trackIndex > translationTracks.length）不需要处理，因为它是临时的
     },
-    [subtitleEntries, translationTracks, translationTrackMeta, resource.id, isLoading, debouncedSave, debouncedFlushTranslationUpdates, subtitleFormat]
+    [
+      subtitleEntries,
+      translationTracks,
+      translationTrackMeta,
+      subtitleEditTracks,
+      subtitleEditTrackMeta,
+      subtitleEditTrackStartIndex,
+      resource.id,
+      isLoading,
+      debouncedSave,
+      debouncedFlushTranslationUpdates,
+      subtitleFormat
+    ]
   );
 
   // 统一：往前合并（仅主轨道 track-0）
@@ -1221,9 +1365,37 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
         const newSeg: AimSegments = { st, et, text };
         const updatedTrack = [...trackSegments.slice(0, insertIndex), newSeg, ...trackSegments.slice(insertIndex)];
         setTranslationTracks((prev) => prev.map((t, idx) => (idx === translationIndex ? updatedTrack : t)));
+        return;
+      }
+
+      // 编排字幕轨道
+      if (trackIndex >= subtitleEditTrackStartIndex) {
+        const editIndex = trackIndex - subtitleEditTrackStartIndex;
+        const meta = subtitleEditTrackMeta[editIndex];
+        if (!meta?.resourceId) return;
+        const trackSegments = subtitleEditTracks[editIndex] || [];
+        let insertIndex = trackSegments.length;
+        for (let i = 0; i < trackSegments.length; i++) {
+          if (parseTimeToSeconds(trackSegments[i].st) > startTime) {
+            insertIndex = i;
+            break;
+          }
+        }
+        const res = await window.YUA.ai.insertTranslationSegment({
+          translationResourceId: meta.resourceId,
+          insertIndex,
+          segment: { st, et, text }
+        });
+        if (!res.success) {
+          console.warn('[SubtitlePlayer] 编排轨道新增片段失败:', res.message);
+          return;
+        }
+        const newSeg: AimSegments = { st, et, text };
+        const updatedTrack = [...trackSegments.slice(0, insertIndex), newSeg, ...trackSegments.slice(insertIndex)];
+        setSubtitleEditTracks((prev) => prev.map((t, idx) => (idx === editIndex ? updatedTrack : t)));
       }
     },
-    [subtitleEntries, translationTracks, translationTrackMeta, resource.id, isLoading, debouncedSave, subtitleFormat]
+    [subtitleEntries, translationTracks, translationTrackMeta, subtitleEditTracks, subtitleEditTrackMeta, subtitleEditTrackStartIndex, resource.id, isLoading, debouncedSave, subtitleFormat]
   );
 
   // 删除选中的字幕块（快捷键 Delete/Backspace 或选中块上的删除按钮）
@@ -1251,55 +1423,84 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
             setTranslationTracks((prev) => prev.map((t, idx) => (idx === trackIndex - 1 ? t.filter((_, i) => i !== segmentIndex) : t)));
           })
           .catch((err) => console.error('[SubtitlePlayer] 删除翻译片段失败:', err));
+        return;
+      }
+
+      // 编排字幕轨道
+      if (trackIndex >= subtitleEditTrackStartIndex) {
+        const editIndex = trackIndex - subtitleEditTrackStartIndex;
+        const meta = subtitleEditTrackMeta[editIndex];
+        if (!meta?.resourceId) return;
+        window.YUA.ai
+          .deleteTranslationSegment({ translationResourceId: meta.resourceId, segmentIndex })
+          .then((res) => {
+            if (!res.success) {
+              console.warn('[SubtitlePlayer] 编排轨道删除片段失败:', res.message);
+              return;
+            }
+            setSubtitleEditTracks((prev) => prev.map((t, idx) => (idx === editIndex ? t.filter((_, i) => i !== segmentIndex) : t)));
+          })
+          .catch((err) => console.error('[SubtitlePlayer] 删除编排片段失败:', err));
       }
     },
-    [subtitleEntries, translationTrackMeta, resource.id, isLoading, debouncedSave, subtitleFormat]
+    [subtitleEntries, translationTrackMeta, subtitleEditTrackMeta, subtitleEditTrackStartIndex, resource.id, isLoading, debouncedSave, subtitleFormat]
   );
 
-  // 删除字幕轨道（翻译轨道）
+  // 删除字幕轨道（翻译轨道或编排字幕轨道）
   const handleDeleteSubtitleTrack = useCallback(
     async (trackId: string) => {
-      // 解析轨道索引：track-1 -> 0, track-2 -> 1, ...
       const trackIndexMatch = trackId.match(/^track-(\d+)$/);
       if (!trackIndexMatch) return;
       const trackIndex = parseInt(trackIndexMatch[1], 10);
 
-      // track-0 是主轨道，不允许删除
       if (trackIndex === 0) return;
 
-      // track-1, track-2... 对应翻译轨道
-      const translationIndex = trackIndex - 1;
-      if (translationIndex < 0 || translationIndex >= translationTrackMeta.length) return;
-
-      const meta = translationTrackMeta[translationIndex];
-      if (!meta?.resourceId) {
-        console.warn(`[SubtitlePlayer] 无法删除轨道 ${trackId}：找不到资源ID`);
+      // 翻译轨道
+      if (trackIndex > 0 && trackIndex <= translationTrackMeta.length) {
+        const translationIndex = trackIndex - 1;
+        const meta = translationTrackMeta[translationIndex];
+        if (!meta?.resourceId) {
+          console.warn(`[SubtitlePlayer] 无法删除轨道 ${trackId}：找不到资源ID`);
+          return;
+        }
+        try {
+          await window.YUA.resource.deleteResource({ id: meta.resourceId });
+          await loadTranslationTracks();
+        } catch (error) {
+          console.error(`[SubtitlePlayer] 删除翻译轨道失败:`, error);
+          alert('删除翻译轨道失败，请重试');
+        }
         return;
       }
 
-      try {
-        // 删除翻译资源
-        await window.YUA.resource.deleteResource({ id: meta.resourceId });
-        console.log(`[SubtitlePlayer] 已删除翻译轨道 ${trackId}，资源ID: ${meta.resourceId}`);
-
-        // 重新加载翻译轨道（会自动移除已删除的）
-        await loadTranslationTracks();
-      } catch (error) {
-        console.error(`[SubtitlePlayer] 删除翻译轨道失败:`, error);
-        alert('删除翻译轨道失败，请重试');
+      // 编排字幕轨道
+      if (trackIndex >= subtitleEditTrackStartIndex) {
+        const editIndex = trackIndex - subtitleEditTrackStartIndex;
+        const meta = subtitleEditTrackMeta[editIndex];
+        if (!meta?.resourceId) return;
+        try {
+          await window.YUA.resource.deleteResource({ id: meta.resourceId });
+          await loadSubtitleEditTracks();
+        } catch (error) {
+          console.error(`[SubtitlePlayer] 删除编排字幕轨道失败:`, error);
+          alert('删除字幕轨道失败，请重试');
+        }
       }
     },
-    [translationTrackMeta, loadTranslationTracks]
+    [translationTrackMeta, subtitleEditTrackMeta, subtitleEditTrackStartIndex, loadTranslationTracks, loadSubtitleEditTracks]
   );
 
   // 删除TTS轨道
   const handleDeleteTTSTrack = useCallback(
     async (ttsTrackId: string) => {
       try {
-        // 清除该轨道的TTS数据
         resetSynthesis(ttsTrackId);
 
-        // 删除TTS文件目录
+        // 独立 TTS 轨道：从列表中移除
+        if (ttsTrackId.startsWith('tts-')) {
+          setStandaloneTTSTracks((prev) => prev.filter((t) => t.id !== ttsTrackId));
+        }
+
         if (resource.id) {
           const result = await window.YUA.tts.deleteTrackFiles({ resourceId: resource.id, trackId: ttsTrackId });
           if (!result.success) {
@@ -1310,11 +1511,107 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
         console.log(`[SubtitlePlayer] 已删除TTS轨道 ${ttsTrackId}`);
       } catch (error) {
         console.error(`[SubtitlePlayer] 删除TTS轨道失败:`, error);
-        alert('删除TTS轨道失败，请重试');
       }
     },
     [resource.id, resetSynthesis]
   );
+
+  // 添加编排字幕轨道 — 弹出命名对话框
+  const handleAddSubtitleTrack = useCallback(() => {
+    setSubtitleEditNameDialog({ open: true, name: `字幕 ${translationTracks.length + subtitleEditTracks.length + 2}` });
+  }, [translationTracks.length, subtitleEditTracks.length]);
+
+  const handleConfirmAddSubtitleTrack = useCallback(async () => {
+    const trackName = subtitleEditNameDialog.name.trim();
+    if (!trackName) return;
+    setSubtitleEditNameDialog({ open: false, name: '' });
+    try {
+      await window.YUA.resource['resource:createSubtitleEditTrack']({
+        parentResourceId: resource.id,
+        title: trackName
+      });
+      await loadSubtitleEditTracks();
+    } catch (err) {
+      console.error('[SubtitlePlayer] 创建编排字幕轨道失败:', err);
+    }
+  }, [resource.id, subtitleEditNameDialog.name, loadSubtitleEditTracks]);
+
+  // 添加独立 TTS 语音轨道 — 弹出命名 Dialog
+  const [ttsSettingsTrackId, setTTSSettingsTrackId] = useState<string | null>(null);
+
+  const handleAddTTSTrack = useCallback(() => {
+    setTTSTrackNameDialog({ open: true, name: `配音 ${standaloneTTSTracks.length + 1}` });
+  }, [standaloneTTSTracks.length]);
+
+  const handleConfirmAddTTSTrack = useCallback(() => {
+    const trackName = ttsTrackNameDialog.name.trim();
+    if (!trackName) return;
+    setTTSTrackNameDialog({ open: false, name: '' });
+
+    // 读取当前 TTS 默认配置
+    let voiceName = 'zh-CN-XiaoxiaoNeural';
+    let rate = 20;
+    let pitch = 0;
+    let autoTrimSilence = true;
+    try {
+      const stored = localStorage.getItem('tts-synthesizer-preferences');
+      if (stored) {
+        const prefs = JSON.parse(stored);
+        if (prefs.selectedVoice) voiceName = prefs.selectedVoice;
+        if (prefs.rate != null) rate = prefs.rate;
+        if (prefs.pitch != null) pitch = prefs.pitch;
+        if (prefs.autoTrimSilence != null) autoTrimSilence = prefs.autoTrimSilence;
+      }
+    } catch {
+      /* ignore */
+    }
+
+    const trackId = `tts-${Date.now().toString(36)}`;
+    const newTrack = { id: trackId, label: trackName, voiceName, rate, pitch, autoTrimSilence };
+    setStandaloneTTSTracks((prev) => [...prev, newTrack]);
+    // 打开 TTS 设置面板让用户调整配置
+    setTTSSettingsTrackId(trackId);
+  }, [ttsTrackNameDialog.name]);
+
+  // 打开 TTS 设置
+  const handleOpenTTSSettings = useCallback((ttsTrackId: string) => {
+    setTTSSettingsTrackId(ttsTrackId);
+  }, []);
+
+  // TTS 语音标签映射
+  const ttsVoiceLabels = useMemo(() => {
+    const labels = new Map<string, string>();
+    try {
+      const stored = localStorage.getItem('tts-synthesizer-preferences');
+      if (stored) {
+        const prefs = JSON.parse(stored);
+        const voiceName = prefs.selectedVoice;
+        if (voiceName) {
+          const shortLabel =
+            voiceName
+              .replace(/Neural$/, '')
+              .split('-')
+              .pop() || voiceName;
+          labels.set('main', shortLabel);
+          translationTrackMeta.forEach((meta) => {
+            labels.set(meta.languageCode, shortLabel);
+          });
+        }
+      }
+    } catch {
+      // ignore
+    }
+    // 独立 TTS 轨道各自有配置
+    standaloneTTSTracks.forEach((t) => {
+      const shortLabel =
+        t.voiceName
+          .replace(/Neural$/, '')
+          .split('-')
+          .pop() || t.voiceName;
+      labels.set(t.id, shortLabel);
+    });
+    return labels;
+  }, [translationTrackMeta, standaloneTTSTracks]);
 
   // 删除单个TTS片段（从内存移除，并从 history 的 orderList 等中移除该 ID）
   const handleDeleteTTSSegment = useCallback(
@@ -1332,6 +1629,47 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     },
     [updateTTSSegmentTimes]
   );
+
+  // 独立 TTS 轨道：双击空白添加片段 → 弹出文本输入
+  const handleAddTTSSegment = useCallback((ttsTrackId: string, startTime: number, endTime: number) => {
+    setTTSSegmentDialog({ open: true, trackId: ttsTrackId, text: '', startTime, endTime });
+  }, []);
+
+  // 独立 TTS 轨道：双击已有块编辑文本 → 弹出编辑输入
+  const handleTTSBlockDoubleClick = useCallback((ttsTrackId: string, item: TimelineTTSAudioItem) => {
+    setTTSSegmentDialog({
+      open: true,
+      trackId: ttsTrackId,
+      text: item.text ?? '',
+      startTime: item.startTime,
+      endTime: item.endTime,
+      editIndex: item.index
+    });
+  }, []);
+
+  // 确认 TTS 片段文本输入 → 立即合成
+  const handleConfirmTTSSegment = useCallback(async () => {
+    const { trackId, text, startTime, endTime } = ttsSegmentDialog;
+    if (!text.trim()) return;
+    setTTSSegmentDialog((prev) => ({ ...prev, open: false }));
+
+    const trackConfig = standaloneTTSTracks.find((t) => t.id === trackId);
+    if (!trackConfig) return;
+
+    try {
+      await startSynthesis(
+        { voiceName: trackConfig.voiceName, rate: trackConfig.rate, pitch: trackConfig.pitch, autoTrimSilence: trackConfig.autoTrimSilence },
+        { trackId, segments: [{ st: '00:00:00,000', et: '00:00:00,000', text: text.trim() }] }
+      );
+      // 合成完成后由 useTTSSynthesis 事件监听自动更新 synthesizedItemsByTrack
+      // 这里主动设置 startTime/endTime
+      setTimeout(() => {
+        void updateTTSSegmentTimes(trackId, 0, startTime, endTime);
+      }, 500);
+    } catch (err) {
+      console.error('[SubtitlePlayer] TTS 片段合成失败:', err);
+    }
+  }, [ttsSegmentDialog, standaloneTTSTracks, startSynthesis, updateTTSSegmentTimes]);
 
   // ---- 剪辑轨道 ----
 
@@ -1978,7 +2316,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
           duration={mediaDuration}
           currentTime={currentTime}
           followCurrentTime={followTime}
-          wordsMap={timelineWordsMap}
+          wordsMapByTrack={timelineWordsMapByTrack}
           onSeek={onSeek}
           onAddSegment={handleAddSegment}
           onDeleteSegment={handleDeleteSegment}
@@ -1994,10 +2332,15 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
           ttsItemsByTrack={ttsItemsByTrackForTimeline}
           ttsTrackLabels={ttsTrackLabelsForTimeline}
           subtitleToTTSTrackMap={subtitleToTTSTrackMap}
-          showTTSTrack={ttsItemsByTrackForTimeline.size > 0 || isSynthesizing}
+          showTTSTrack={ttsItemsByTrackForTimeline.size > 0 || isSynthesizing || !!ttsSettingsTrackId || standaloneTTSTracks.length > 0}
+          standaloneTTSTracks={standaloneTTSTracks.map((t) => ({ id: t.id, label: t.label }))}
+          onAddTTSSegment={handleAddTTSSegment}
+          onTTSBlockDoubleClick={handleTTSBlockDoubleClick}
           onPlayTTSAudio={handlePlayTTS}
           onStopTTSAudio={handleStopTTS}
           playingTTSIndex={playingTTSIndex ?? undefined}
+          onAddSubtitleTrack={handleAddSubtitleTrack}
+          onAddTTSTrack={handleAddTTSTrack}
           onDeleteSubtitleTrack={handleDeleteSubtitleTrack}
           onDeleteTTSTrack={handleDeleteTTSTrack}
           onDeleteTTSSegment={handleDeleteTTSSegment}
@@ -2006,6 +2349,8 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
           clipCallbacks={clipCallbacks}
           onToggleSubtitleTrackEnabled={handleToggleSubtitleTrackEnabled}
           onToggleTTSTrackEnabled={handleToggleTTSTrackEnabled}
+          onOpenTTSSettings={handleOpenTTSSettings}
+          ttsVoiceLabels={ttsVoiceLabels}
           clipTrackEnabled={clipTrackEnabled}
           ttsTrackEnabledMap={ttsTrackEnabledMap}
           annotationTrack={annotationTrackData}
@@ -2014,9 +2359,146 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
           mediaTracks={mediaTracks}
           mediaSources={mediaSources}
           mediaCallbacks={mediaCallbacks}
-          adapters={chobitsAdapters}
+          adapters={aimAdapters}
         />
       )}
+
+      {/* 新建编排字幕轨道命名对话框 */}
+      <Dialog open={subtitleEditNameDialog.open} onOpenChange={(open) => !open && setSubtitleEditNameDialog({ open: false, name: '' })}>
+        <DialogContent className="sm:max-w-xs">
+          <DialogHeader>
+            <DialogTitle>新建字幕轨道</DialogTitle>
+          </DialogHeader>
+          <Input
+            autoFocus
+            value={subtitleEditNameDialog.name}
+            onChange={(e) => setSubtitleEditNameDialog((prev) => ({ ...prev, name: e.target.value }))}
+            onKeyDown={(e) => e.key === 'Enter' && handleConfirmAddSubtitleTrack()}
+            placeholder="请输入轨道名称"
+          />
+          <DialogFooter>
+            <Button size="sm" variant="ghost" onClick={() => setSubtitleEditNameDialog({ open: false, name: '' })}>
+              取消
+            </Button>
+            <Button size="sm" onClick={handleConfirmAddSubtitleTrack} disabled={!subtitleEditNameDialog.name.trim()}>
+              确定
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 新建 TTS 轨道命名对话框 */}
+      <Dialog open={ttsTrackNameDialog.open} onOpenChange={(open) => !open && setTTSTrackNameDialog({ open: false, name: '' })}>
+        <DialogContent className="sm:max-w-xs">
+          <DialogHeader>
+            <DialogTitle>新建配音轨道</DialogTitle>
+          </DialogHeader>
+          <Input
+            autoFocus
+            value={ttsTrackNameDialog.name}
+            onChange={(e) => setTTSTrackNameDialog((prev) => ({ ...prev, name: e.target.value }))}
+            onKeyDown={(e) => e.key === 'Enter' && handleConfirmAddTTSTrack()}
+            placeholder="请输入轨道名称"
+          />
+          <DialogFooter>
+            <Button size="sm" variant="ghost" onClick={() => setTTSTrackNameDialog({ open: false, name: '' })}>
+              取消
+            </Button>
+            <Button size="sm" onClick={handleConfirmAddTTSTrack} disabled={!ttsTrackNameDialog.name.trim()}>
+              确定
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* TTS 片段文本输入对话框 */}
+      <Dialog open={ttsSegmentDialog.open} onOpenChange={(open) => !open && setTTSSegmentDialog((prev) => ({ ...prev, open: false }))}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{ttsSegmentDialog.editIndex != null ? '编辑配音文本' : '添加配音片段'}</DialogTitle>
+          </DialogHeader>
+          <textarea
+            autoFocus
+            className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            value={ttsSegmentDialog.text}
+            onChange={(e) => setTTSSegmentDialog((prev) => ({ ...prev, text: e.target.value }))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleConfirmTTSSegment();
+            }}
+            placeholder="输入要合成语音的文本..."
+          />
+          <p className="text-[11px] text-muted-foreground">输入文本后将立即合成语音。⌘+Enter 确认。</p>
+          <DialogFooter>
+            <Button size="sm" variant="ghost" onClick={() => setTTSSegmentDialog((prev) => ({ ...prev, open: false }))}>
+              取消
+            </Button>
+            <Button size="sm" onClick={handleConfirmTTSSegment} disabled={!ttsSegmentDialog.text.trim()}>
+              {ttsSegmentDialog.editIndex != null ? '重新合成' : '合成'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* TTS 设置对话框 — 字幕关联 TTS 轨道 */}
+      {ttsSettingsTrackId && !ttsSettingsTrackId.startsWith('tts-') && (
+        <Dialog open onOpenChange={(open) => !open && setTTSSettingsTrackId(null)}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>
+                TTS 语音设置 — {ttsSettingsTrackId === 'main' ? '原文' : (translationTrackMeta.find((t) => t.languageCode === ttsSettingsTrackId)?.label ?? ttsSettingsTrackId)}
+              </DialogTitle>
+            </DialogHeader>
+            <TTSSynthesizer
+              embedded
+              subtitleEntries={subtitleEntries}
+              resourceId={resource.id}
+              trackOptions={ttsTrackOptions.filter((o) => o.trackId === ttsSettingsTrackId)}
+              tracksSegments={ttsTracksSegments}
+              isSynthesizing={isSynthesizing}
+              synthesisProgress={synthesisProgress}
+              onStopSynthesis={stopSynthesis}
+              onSynthesisStart={(requestId) => {
+                handleTTSSynthesisStart(requestId);
+                setTTSSettingsTrackId(null);
+              }}
+              onSynthesize={(config, options) => startSynthesis(config, options)}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* TTS 设置对话框 — 独立 TTS 轨道（仅配置语音参数） */}
+      {ttsSettingsTrackId?.startsWith('tts-') &&
+        (() => {
+          const trackConfig = standaloneTTSTracks.find((t) => t.id === ttsSettingsTrackId);
+          if (!trackConfig) return null;
+          return (
+            <Dialog open onOpenChange={(open) => !open && setTTSSettingsTrackId(null)}>
+              <DialogContent className="sm:max-w-sm">
+                <DialogHeader>
+                  <DialogTitle>配音设置 — {trackConfig.label}</DialogTitle>
+                </DialogHeader>
+                <TTSSynthesizer
+                  embedded
+                  subtitleEntries={[]}
+                  resourceId={resource.id}
+                  trackOptions={[{ trackId: trackConfig.id, label: trackConfig.label }]}
+                  tracksSegments={[]}
+                  isSynthesizing={false}
+                  synthesisProgress={0}
+                  onConfigSave={(config) => {
+                    setStandaloneTTSTracks((prev) =>
+                      prev.map((t) =>
+                        t.id === ttsSettingsTrackId ? { ...t, voiceName: config.voiceName, rate: config.rate ?? 20, pitch: config.pitch ?? 0, autoTrimSilence: config.autoTrimSilence ?? true } : t
+                      )
+                    );
+                    setTTSSettingsTrackId(null);
+                  }}
+                />
+              </DialogContent>
+            </Dialog>
+          );
+        })()}
 
       {/* 导出对话框 */}
       <ExportDialog

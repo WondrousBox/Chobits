@@ -9,21 +9,26 @@ export type {
   ClipTrackData,
   MediaSegment,
   MediaSource,
+  MediaThumbnail,
   MediaTool,
   MediaTrackCallbacks,
   MediaTrackData,
   MediaTransform,
   MediaTransition,
-  MediaThumbnail,
   MediaType,
   SelectionState,
+  StandaloneTTSTrack,
   SubtitleTimelineProps,
   TimelineCallbacks,
   TimelineSegment,
   TimelineTrack,
   ViewportState
 } from './types';
-export { DEFAULT_CONFIG, MEDIA_CONFIG, TRACK_COLORS, DEFAULT_TRANSFORM } from './types';
+export { DEFAULT_CONFIG, DEFAULT_TRANSFORM, MEDIA_CONFIG, TRACK_COLORS } from './types';
+
+// 适配器类型与默认值
+export type { TimelineAdapters, TimelineLabels } from './adapters';
+export { DEFAULT_LABELS } from './adapters/defaults';
 
 // 工具函数
 export type { ActiveSegmentInfo, ClipPlaybackInfo, ClipTimeMapping, OverlapInfo, SegmentLayoutInfo, SkipRegion, SplitResult, TimeRange, TransformMatrix } from './utils';
@@ -47,6 +52,7 @@ export {
 export { useClipPlayback, useMediaDrag, useMediaThumbnails, useTimelineInteraction, useTimelineViewport } from './hooks';
 
 // 子组件（可选导出，供高级用户自定义）
+export type { TrackAddMenuProps } from './components';
 export {
   ClipTrack,
   ClipTrackLabel,
@@ -61,6 +67,7 @@ export {
   TimelineSegmentBlock,
   TimelineTrackView,
   TimeRuler,
+  TrackAddMenu,
   TrackLabel,
   TransitionIndicator,
   TransitionTypeButton

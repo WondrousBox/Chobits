@@ -29,6 +29,8 @@ export interface TTSAudioBlockProps {
   onDeleteClick?: (e: React.MouseEvent, item: TTSAudioItem) => void;
   /** 时间变更回调（拖拽移动或边缘调整后） */
   onTimeChange?: (newStartTime: number, newEndTime: number) => void;
+  /** 双击块回调（编辑文本） */
+  onDoubleClick?: (e: React.MouseEvent, item: TTSAudioItem) => void;
 }
 
 /** 根据状态与重叠返回块样式类名 */
@@ -65,7 +67,8 @@ export const TTSAudioBlock: React.FC<TTSAudioBlockProps> = ({
   onBlockClick,
   onPlayClick,
   onDeleteClick,
-  onTimeChange
+  onTimeChange,
+  onDoubleClick
 }) => {
   const [dragMode, setDragMode] = useState<DragMode>('none');
   const [dragStartX, setDragStartX] = useState(0);
@@ -82,10 +85,7 @@ export const TTSAudioBlock: React.FC<TTSAudioBlockProps> = ({
   const width = Math.max(slotDuration * pixelsPerSecond, DEFAULT_CONFIG.SEGMENT_MIN_WIDTH);
   const audioDuration = item.trimmedDuration ?? item.duration ?? slotDuration;
   // 块展示时长与音频时长不一致时，播放倍率 = 实际音频时长 / 块时长（>1 需加速，<1 需减速）
-  const playbackRate =
-    slotDuration > 0 && (item.trimmedDuration != null || item.duration != null)
-      ? (item.trimmedDuration ?? item.duration ?? 0) / slotDuration
-      : null;
+  const playbackRate = slotDuration > 0 && (item.trimmedDuration != null || item.duration != null) ? (item.trimmedDuration ?? item.duration ?? 0) / slotDuration : null;
 
   const getEdgeFromPosition = useCallback((clientX: number): DragMode => {
     if (!blockRef.current) return 'move';
@@ -219,6 +219,14 @@ export const TTSAudioBlock: React.FC<TTSAudioBlockProps> = ({
           cursor: canDragResize ? (dragMode !== 'none' ? 'grabbing' : 'grab') : undefined
         }}
         onClick={handleClick}
+        onDoubleClick={
+          onDoubleClick
+            ? (e) => {
+              e.stopPropagation();
+              onDoubleClick(e, item);
+            }
+            : undefined
+        }
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseLeave={() => {

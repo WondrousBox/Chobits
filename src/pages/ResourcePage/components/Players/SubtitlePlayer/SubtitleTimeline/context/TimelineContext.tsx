@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useMemo } from 'react';
 
-import { mergeAdapters } from '../adapters/defaults';
-import type { TimelineAdapters } from '../adapters/types';
+import { DEFAULT_LABELS, mergeAdapters } from '../adapters/defaults';
+import type { TimelineAdapters, TimelineLabels } from '../adapters/types';
 
 // ========== Context Definition ==========
 
@@ -60,6 +60,14 @@ export const useConfigAdapter = () => useTimelineAdapters().config;
 export const useSelectionAdapter = () => useTimelineAdapters().selection;
 
 // ========== Specialized Hooks ==========
+
+/**
+ * Get merged labels (user overrides + defaults)
+ */
+export const useLabels = (): Required<TimelineLabels> => {
+  const config = useConfigAdapter();
+  return useMemo(() => ({ ...DEFAULT_LABELS, ...config?.labels }), [config?.labels]);
+};
 
 /**
  * Check if selection is in controlled mode

@@ -1,3 +1,4 @@
+import { DEFAULT_LABELS } from './adapters/defaults';
 import { TimelineSegment, TimelineTrack, TRACK_COLORS } from './types';
 
 /**
@@ -71,11 +72,9 @@ export function aimSegmentsToTimelineSegments(segments: AimSegments[], idPrefix 
  * 将多个 AimSegments 轨道转换为 TimelineTrack 数组
  */
 export function aimTracksToTimelineTracks(tracks: AimSegments[][], labels?: string[]): TimelineTrack[] {
-  const defaultLabels = ['原文', '译文', '轨道 3', '轨道 4', '轨道 5', '轨道 6'];
-
   return tracks.map((segments, index) => ({
     id: `track-${index}`,
-    label: labels?.[index] ?? defaultLabels[index] ?? `轨道 ${index + 1}`,
+    label: labels?.[index] ?? DEFAULT_LABELS.defaultTrackLabels[index] ?? DEFAULT_LABELS.trackLabelTemplate.replace('{index}', String(index + 1)),
     segments: aimSegmentsToTimelineSegments(segments, `t${index}-`),
     color: TRACK_COLORS[index % TRACK_COLORS.length]
   }));

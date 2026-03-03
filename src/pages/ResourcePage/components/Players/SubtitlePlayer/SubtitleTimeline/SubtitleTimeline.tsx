@@ -5,18 +5,19 @@ import { TbFileImport, TbMinus, TbPlus, TbPointer, TbScissors, TbWaveSine } from
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 
+import { DEFAULT_LABELS } from './adapters/defaults';
 import {
   AnnotationTrack,
   AnnotationTrackLabel,
   ClipTrack,
   ClipTrackLabel,
   MediaImportPanel,
-  MediaTrackAddButton,
   MediaTrackLabel,
   MediaTrackManager,
   SeekBar,
   TimelineTrackView,
   TimeRuler,
+  TrackAddMenu,
   TrackLabel,
   TTSAudioTrack,
   TTSTrackLabel,
@@ -62,9 +63,14 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   ttsTrackLabels,
   subtitleToTTSTrackMap,
   showTTSTrack = true,
+  standaloneTTSTracks,
+  onAddTTSSegment,
+  onTTSBlockDoubleClick,
   onPlayTTSAudio,
   onStopTTSAudio,
   playingTTSIndex,
+  onAddSubtitleTrack,
+  onAddTTSTrack,
   onDeleteSubtitleTrack,
   onDeleteTTSTrack,
   onDeleteTTSSegment,
@@ -83,9 +89,11 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   clipCallbacks,
   onToggleSubtitleTrackEnabled,
   onToggleTTSTrackEnabled,
+  onOpenTTSSettings,
+  ttsVoiceLabels,
   clipTrackEnabled = true,
   ttsTrackEnabledMap,
-  wordsMap,
+  wordsMapByTrack,
   annotationTrack: annotationTrackData,
   annotationCallbacks,
   annotationTrackEnabled = true,
@@ -117,6 +125,8 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   const [internalMediaTool, setInternalMediaTool] = useState<MediaTool>(propMediaTool);
   /** 显示媒体导入面板 */
   const [showMediaImport, setShowMediaImport] = useState(false);
+
+  const labels = useMemo(() => ({ ...DEFAULT_LABELS, ...adapters?.config?.labels }), [adapters?.config?.labels]);
 
   const initialPixelsPerSecondValue = initialViewport?.pixelsPerSecond ?? DEFAULT_CONFIG.DEFAULT_PIXELS_PER_SECOND;
 
@@ -536,456 +546,503 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   return (
     <TimelineAdapterProvider adapters={adapters}>
       <div ref={containerRef} className={clsx('flex flex-col bg-background border rounded-lg overflow-hidden select-none h-full', className)}>
-      {/* 工具栏 */}
-      <div className="flex items-center justify-between px-2 py-1 border-b bg-muted/30 shrink-0">
-        <div className="flex items-center gap-2 flex-1">
-          <Button variant="ghost" size="sm" className="w-8 h-8 p-0 shrink-0" onClick={handleZoomOut} title="缩小">
-            <TbMinus className="w-4 h-4" />
-          </Button>
+        {/* 工具栏 */}
+        <div className="flex items-center justify-between px-2 py-1 border-b bg-muted/30 shrink-0">
+          <div className="flex items-center gap-2 flex-1">
+            <Button variant="ghost" size="sm" className="w-8 h-8 p-0 shrink-0" onClick={handleZoomOut} title={labels.zoomOut}>
+              <TbMinus className="w-4 h-4" />
+            </Button>
 
-          {/* 缩放滑块 */}
-          <div className="flex items-center gap-2 flex-1 max-w-[200px]">
-            <Slider
-              value={[pixelsPerSecond]}
-              onValueChange={handleSliderChange}
-              min={DEFAULT_CONFIG.MIN_PIXELS_PER_SECOND}
-              max={DEFAULT_CONFIG.MAX_PIXELS_PER_SECOND}
-              step={10}
-              className="flex-1"
-              title={`缩放级别: ${pixelsPerSecond.toFixed(0)} px/s`}
-            />
-          </div>
-
-          <Button variant="ghost" size="sm" className="w-8 h-8 p-0 shrink-0" onClick={handleZoomIn} title="放大">
-            <TbPlus className="w-4 h-4" />
-          </Button>
-
-          {/* 剪辑工具（从剪辑轨道标签移至顶部工具栏） */}
-          {clipTrackData && (
-            <>
-              <div className="w-px h-5 bg-border mx-1" />
-              <div className="flex items-center gap-0.5">
-                <Button
-                  variant={internalClipTool === 'select' ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className="w-7 h-7 p-0"
-                  onClick={() => (clipCallbacks?.onClipToolChange ?? setInternalClipTool)('select')}
-                  title="选择工具"
-                >
-                  <TbPointer className="w-3.5 h-3.5" />
-                </Button>
-                <Button
-                  variant={internalClipTool === 'cut' ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className="w-7 h-7 p-0"
-                  onClick={() => (clipCallbacks?.onClipToolChange ?? setInternalClipTool)('cut')}
-                  title="裁剪工具"
-                >
-                  <TbScissors className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-            </>
-          )}
-
-          {/* 媒体工具 */}
-          {mediaTracks && mediaTracks.length > 0 && (
-            <>
-              <div className="w-px h-5 bg-border mx-1" />
-              <div className="flex items-center gap-0.5">
-                <Button
-                  variant={internalMediaTool === 'select' ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className="w-7 h-7 p-0"
-                  onClick={() => (mediaCallbacks?.onToolChange ?? setInternalMediaTool)('select')}
-                  title="选择工具"
-                >
-                  <TbPointer className="w-3.5 h-3.5" />
-                </Button>
-                <Button
-                  variant={internalMediaTool === 'cut' ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className="w-7 h-7 p-0"
-                  onClick={() => (mediaCallbacks?.onToolChange ?? setInternalMediaTool)('cut')}
-                  title="切割工具"
-                >
-                  <TbScissors className="w-3.5 h-3.5" />
-                </Button>
-                {/* 导入媒体按钮 */}
-                <Button variant="ghost" size="sm" className="w-7 h-7 p-0" onClick={() => setShowMediaImport(true)} title="导入媒体">
-                  <TbFileImport className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-            </>
-          )}
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="text-xs text-muted-foreground">
-            {tracks.length} 轨道 · {tracks.reduce((sum, t) => sum + t.segments.length, 0)} 片段
-          </div>
-          <div className="text-xs font-mono text-foreground">
-            {(() => {
-              const formatTime = (seconds: number): string => {
-                const h = Math.floor(seconds / 3600);
-                const m = Math.floor((seconds % 3600) / 60);
-                const s = Math.floor(seconds % 60);
-                if (h > 0) {
-                  return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-                }
-                return `${m}:${s.toString().padStart(2, '0')}`;
-              };
-              const current = effectiveCurrentTime !== undefined ? formatTime(effectiveCurrentTime) : '--:--';
-              const total = formatTime(duration);
-              return `${current} / ${total}`;
-            })()}
-          </div>
-        </div>
-      </div>
-
-      {/* SeekBar - 播放进度条和字幕片段概览 */}
-      <SeekBar duration={duration} currentTime={effectiveCurrentTime} segments={tracksWithColors[0]?.segments || []} onSeek={handleSeekUnified} />
-
-      {/* 主内容区域 */}
-      <div className="flex flex-1 overflow-hidden min-h-0">
-        {/* 左侧轨道标签（固定） */}
-        {showTrackLabels && (
-          <div className="flex flex-col shrink-0 border-r" style={{ width: trackLabelWidth }}>
-            {/* 标签区域顶部占位（对应时间刻度） */}
-            {showRuler && <div className="border-b bg-muted/30 shrink-0" style={{ height: DEFAULT_CONFIG.RULER_HEIGHT }} />}
-
-            {showTrackLabels && showWaveformTrack && (
-              <div className="flex items-center gap-1 px-2 border-b border-r bg-muted/30 shrink-0 box-border" style={{ width: trackLabelWidth, height: effectiveWaveformHeight }}>
-                <TbWaveSine className="w-4 h-4 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground truncate">{waveformClipOverlay ? '波形/剪辑' : '波形'}</span>
-              </div>
-            )}
-
-            {/* 轨道标签列表（每个字幕轨道后紧跟对应的TTS轨道标签） */}
-            {tracksWithColors
-              .filter((t) => !t.hidden)
-              .map((track, index) => {
-                const ttsTrackId = subtitleToTTSTrackMap?.get(track.id);
-                const ttsItems = ttsTrackId ? ttsItemsByTrack?.get(ttsTrackId) : undefined;
-                // 如果有TTS项（包括正在合成的），或者正在合成这个轨道，则显示TTS轨道
-                const hasTTSTrack = showTTSTrack && ttsTrackId && (ttsItems?.length ?? 0) > 0;
-
-                return (
-                  <React.Fragment key={track.id}>
-                    {/* 字幕轨道标签 */}
-                    <TrackLabel
-                      track={track}
-                      index={index}
-                      allowDelete={track.id !== 'track-0' && !!onDeleteSubtitleTrack}
-                      onDelete={onDeleteSubtitleTrack}
-                      onToggleEnabled={onToggleSubtitleTrackEnabled}
-                    />
-                    {/* TTS轨道标签（如果有） */}
-                    {hasTTSTrack && (
-                      <TTSTrackLabel
-                        trackLabel={track.label}
-                        trackColor={track.color}
-                        ttsTrackId={ttsTrackId}
-                        onDelete={onDeleteTTSTrack}
-                        enabled={ttsTrackEnabledMap?.get(ttsTrackId) !== false}
-                        onToggleEnabled={onToggleTTSTrackEnabled}
-                      />
-                    )}
-                  </React.Fragment>
-                );
-              })}
-
-            {annotationTrackData && <AnnotationTrackLabel annotationCount={annotationTrackData.annotations.length} enabled={annotationTrackEnabled} />}
-
-            {clipTrackData && !waveformClipOverlay && (
-              <div
-                className={clsx('flex items-center gap-1.5 px-2 border-b border-r bg-muted/30 shrink-0 box-border', !clipTrackEnabled && 'opacity-40')}
-                style={{ width: trackLabelWidth, height: DEFAULT_CONFIG.CLIP_TRACK_HEIGHT + DEFAULT_CONFIG.TRACK_GAP }}
-              >
-                <div className="w-1.5 h-4 rounded-full shrink-0 bg-cyan-500" />
-                <span className="text-xs text-foreground/80 truncate flex-1">剪辑</span>
-                <span className="text-[10px] text-muted-foreground">{clipTrackData.clips.length}</span>
-              </div>
-            )}
-
-            {/* 媒体轨道标签 */}
-            {mediaTracks &&
-              mediaTracks.map((mediaTrack) => (
-                <MediaTrackLabel
-                  key={mediaTrack.id}
-                  track={mediaTrack}
-                  canDelete={mediaTracks.length > 1}
-                  onDelete={mediaCallbacks?.onTrackDelete}
-                  onToggleVisibility={(trackId) => {
-                    mediaCallbacks?.onTrackReorder?.(mediaTracks.map((t) => t.id));
-                  }}
-                />
-              ))}
-
-            {/* 添加媒体轨道按钮 */}
-            <MediaTrackAddButton
-              onAddTrack={() => {
-                if (mediaCallbacks?.onTrackAdd) {
-                  mediaCallbacks.onTrackAdd();
-                } else {
-                  console.log('请提供 mediaCallbacks.onTrackAdd 回调来添加媒体轨道');
-                }
-              }}
-            />
-          </div>
-        )}
-
-        {/* 右侧时间轴内容区域（可滚动） */}
-        <div
-          ref={scrollContainerRef}
-          className={clsx('flex-1 overflow-x-auto overflow-y-hidden', isDragging && 'cursor-grabbing')}
-          style={{
-            backgroundImage: 'radial-gradient(circle, hsl(var(--border)) 1px, transparent 1px)',
-            backgroundSize: '20px 20px'
-          }}
-          {...handlersWithClearSelection}
-        >
-          {/* 内容容器（设置总宽度） */}
-          <div style={{ width: totalWidth, minWidth: '100%' }}>
-            {/* 时间刻度尺 */}
-            {showRuler && (
-              <TimeRuler
-                startTime={0}
-                endTime={duration}
-                pixelsPerSecond={pixelsPerSecond}
-                width={totalWidth}
-                currentTime={effectiveCurrentTime}
-                onClick={handleSeekUnified}
-                viewportStart={viewport.startTime}
-                viewportEnd={viewport.endTime}
+            {/* 缩放滑块 */}
+            <div className="flex items-center gap-2 flex-1 max-w-[200px]">
+              <Slider
+                value={[pixelsPerSecond]}
+                onValueChange={handleSliderChange}
+                min={DEFAULT_CONFIG.MIN_PIXELS_PER_SECOND}
+                max={DEFAULT_CONFIG.MAX_PIXELS_PER_SECOND}
+                step={10}
+                className="flex-1"
+                title={labels.zoomLevel.replace('{value}', pixelsPerSecond.toFixed(0))}
               />
-            )}
+            </div>
 
-            {/* 波形轨道（固定在顶部，不随字幕轨道垂直滚动）+ 剪辑轨道叠加 */}
-            {showWaveformTrack && (
+            <Button variant="ghost" size="sm" className="w-8 h-8 p-0 shrink-0" onClick={handleZoomIn} title={labels.zoomIn}>
+              <TbPlus className="w-4 h-4" />
+            </Button>
+
+            {/* 剪辑工具（从剪辑轨道标签移至顶部工具栏） */}
+            {clipTrackData && (
               <>
-                <div className="h-0 w-0">
-                  <div className="absolute" style={{ width: scrollContainerWidth }}>
-                    <WaveformTrack
-                      waveformData={waveform?.data}
-                      isLoading={waveform?.loading}
-                      error={waveform?.error}
-                      totalWidth={totalWidth}
-                      duration={duration}
-                      height={effectiveWaveformHeight}
-                      pixelsPerSecond={pixelsPerSecond}
-                      viewport={viewport}
-                      currentTime={effectiveCurrentTime}
-                      scrollLeft={scrollLeft}
-                      onSeek={handleSeekUnified}
-                    />
-                  </div>
-                </div>
-                <div className="w-full" style={{ height: effectiveWaveformHeight }}>
-                  {/* 剪辑轨道叠加在波形上方 */}
-                  {waveformClipOverlay && (
-                    <ClipTrack
-                      overlay
-                      clips={clipTrackData.clips}
-                      sourceDuration={clipTrackData.sourceDuration}
-                      pixelsPerSecond={pixelsPerSecond}
-                      width={totalWidth}
-                      currentTime={effectiveCurrentTime}
-                      activeTool={internalClipTool}
-                      selectedClipId={selectedClipId}
-                      onCut={clipCallbacks?.onClipCut}
-                      onDelete={clipCallbacks?.onClipDelete}
-                      onRestore={clipCallbacks?.onClipRestore}
-                      onSpeedChange={clipCallbacks?.onClipSpeedChange}
-                      onMoveUp={handleClipMoveUp}
-                      onMoveDown={handleClipMoveDown}
-                      onClipSelect={(id: string) => {
-                        setSelectedSegmentId(null);
-                        setSelectedTTS(null);
-                        setSelectedClipId(id);
-                      }}
-                      disabled={!clipTrackEnabled}
-                      height={effectiveWaveformHeight}
-                    />
-                  )}
+                <div className="w-px h-5 bg-border mx-1" />
+                <div className="flex items-center gap-0.5">
+                  <Button
+                    variant={internalClipTool === 'select' ? 'secondary' : 'ghost'}
+                    size="sm"
+                    className="w-7 h-7 p-0"
+                    onClick={() => (clipCallbacks?.onClipToolChange ?? setInternalClipTool)('select')}
+                    title={labels.selectTool}
+                  >
+                    <TbPointer className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button
+                    variant={internalClipTool === 'cut' ? 'secondary' : 'ghost'}
+                    size="sm"
+                    className="w-7 h-7 p-0"
+                    onClick={() => (clipCallbacks?.onClipToolChange ?? setInternalClipTool)('cut')}
+                    title={labels.cutTool}
+                  >
+                    <TbScissors className="w-3.5 h-3.5" />
+                  </Button>
                 </div>
               </>
             )}
 
-            {/* 轨道内容（每个字幕轨道后紧跟对应的TTS轨道） */}
-            {tracksWithColors
-              .filter((t) => !t.hidden)
-              .map((track) => {
-                const ttsTrackId = subtitleToTTSTrackMap?.get(track.id);
-                const ttsItems = ttsTrackId ? ttsItemsByTrack?.get(ttsTrackId) : undefined;
-                // 如果有TTS项（包括正在合成的），或者正在合成这个轨道，则显示TTS轨道
-                const hasTTSTrack = showTTSTrack && ttsTrackId && (ttsItems?.length ?? 0) > 0;
+            {/* 媒体工具 */}
+            {mediaTracks && mediaTracks.length > 0 && (
+              <>
+                <div className="w-px h-5 bg-border mx-1" />
+                <div className="flex items-center gap-0.5">
+                  <Button
+                    variant={internalMediaTool === 'select' ? 'secondary' : 'ghost'}
+                    size="sm"
+                    className="w-7 h-7 p-0"
+                    onClick={() => (mediaCallbacks?.onToolChange ?? setInternalMediaTool)('select')}
+                    title={labels.selectTool}
+                  >
+                    <TbPointer className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button
+                    variant={internalMediaTool === 'cut' ? 'secondary' : 'ghost'}
+                    size="sm"
+                    className="w-7 h-7 p-0"
+                    onClick={() => (mediaCallbacks?.onToolChange ?? setInternalMediaTool)('cut')}
+                    title={labels.cutTool}
+                  >
+                    <TbScissors className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button variant="ghost" size="sm" className="w-7 h-7 p-0" onClick={() => setShowMediaImport(true)} title={labels.importMedia}>
+                    <TbFileImport className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
 
-                return (
-                  <React.Fragment key={track.id}>
-                    {/* 字幕轨道内容 */}
-                    <TimelineTrackView
-                      track={track}
-                      viewport={viewport}
-                      totalDuration={duration}
-                      pixelsPerSecond={pixelsPerSecond}
-                      width={totalWidth}
-                      currentTime={effectiveCurrentTime}
-                      highlightIds={highlightIds}
-                      selectedIds={selectedIds}
-                      scrollLeft={scrollLeft}
-                      pendingNewSegment={pendingNewSegment?.trackId === track.id ? { startTime: pendingNewSegment.startTime, endTime: pendingNewSegment.endTime } : null}
-                      onTrackEmptyClick={handleTrackEmptyClick}
-                      onAddSegmentConfirm={handleAddSegmentConfirm}
-                      onCancelNewSegment={handleCancelNewSegment}
-                      allowAddSegment={!!onAddSegment}
-                      onMergePrev={onMergePrev}
-                      onSegmentClick={handleSegmentClick}
-                      onSegmentDoubleClick={handleSegmentDoubleClick}
-                      onSegmentTextChange={onSegmentTextChange}
-                      onSegmentTimeChange={onSegmentTimeChange}
-                      onDeleteSegment={onDeleteSegment}
-                      disabled={disabled || track.locked || track.enabled === false}
-                      wordsMap={track.id === 'track-0' ? wordsMap : undefined}
+          <div className="flex items-center gap-3">
+            <div className="text-xs text-muted-foreground">
+              {labels.trackCount.replace('{count}', String(tracks.length))} · {labels.segmentCount.replace('{count}', String(tracks.reduce((sum, t) => sum + t.segments.length, 0)))}
+            </div>
+            <div className="text-xs font-mono text-foreground">
+              {(() => {
+                const formatTime = (seconds: number): string => {
+                  const h = Math.floor(seconds / 3600);
+                  const m = Math.floor((seconds % 3600) / 60);
+                  const s = Math.floor(seconds % 60);
+                  if (h > 0) {
+                    return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+                  }
+                  return `${m}:${s.toString().padStart(2, '0')}`;
+                };
+                const current = effectiveCurrentTime !== undefined ? formatTime(effectiveCurrentTime) : '--:--';
+                const total = formatTime(duration);
+                return `${current} / ${total}`;
+              })()}
+            </div>
+          </div>
+        </div>
+
+        {/* SeekBar - 播放进度条和字幕片段概览 */}
+        <SeekBar duration={duration} currentTime={effectiveCurrentTime} segments={tracksWithColors[0]?.segments || []} onSeek={handleSeekUnified} />
+
+        {/* 主内容区域 */}
+        <div className="flex flex-1 overflow-hidden min-h-0">
+          {/* 左侧轨道标签（固定） */}
+          {showTrackLabels && (
+            <div className="flex flex-col shrink-0 border-r" style={{ width: trackLabelWidth }}>
+              {/* 标签区域顶部占位（对应时间刻度） */}
+              {showRuler && <div className="border-b bg-muted/30 shrink-0" style={{ height: DEFAULT_CONFIG.RULER_HEIGHT }} />}
+
+              {showTrackLabels && showWaveformTrack && (
+                <div className="flex items-center gap-1 px-2 border-b border-r bg-muted/30 shrink-0 box-border" style={{ width: trackLabelWidth, height: effectiveWaveformHeight }}>
+                  <TbWaveSine className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground truncate">{waveformClipOverlay ? labels.waveformClip : labels.waveform}</span>
+                </div>
+              )}
+
+              {/* 轨道标签列表（每个字幕轨道后紧跟对应的TTS轨道标签） */}
+              {tracksWithColors
+                .filter((t) => !t.hidden)
+                .map((track, index) => {
+                  const ttsTrackId = subtitleToTTSTrackMap?.get(track.id);
+                  const ttsItems = ttsTrackId ? ttsItemsByTrack?.get(ttsTrackId) : undefined;
+                  // 如果有TTS项（包括正在合成的），或者正在合成这个轨道，则显示TTS轨道
+                  const hasTTSTrack = showTTSTrack && ttsTrackId && (ttsItems?.length ?? 0) > 0;
+
+                  return (
+                    <React.Fragment key={track.id}>
+                      {/* 字幕轨道标签 */}
+                      <TrackLabel
+                        track={track}
+                        index={index}
+                        allowDelete={track.id !== 'track-0' && !!onDeleteSubtitleTrack}
+                        onDelete={onDeleteSubtitleTrack}
+                        onToggleEnabled={onToggleSubtitleTrackEnabled}
+                      />
+                      {/* TTS轨道标签（如果有） */}
+                      {hasTTSTrack && (
+                        <TTSTrackLabel
+                          trackLabel={track.label}
+                          trackColor={track.color}
+                          ttsTrackId={ttsTrackId}
+                          onDelete={onDeleteTTSTrack}
+                          enabled={ttsTrackEnabledMap?.get(ttsTrackId) !== false}
+                          onToggleEnabled={onToggleTTSTrackEnabled}
+                          onOpenSettings={onOpenTTSSettings}
+                          voiceLabel={ttsVoiceLabels?.get(ttsTrackId)}
+                        />
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+
+              {/* 独立 TTS 轨道标签 */}
+              {showTTSTrack &&
+                standaloneTTSTracks?.map((stt) => {
+                  const items = ttsItemsByTrack?.get(stt.id);
+                  return (
+                    <TTSTrackLabel
+                      key={`standalone-tts-label-${stt.id}`}
+                      trackLabel={stt.label}
+                      trackColor={stt.color ?? TRACK_COLORS[(tracksWithColors.length + standaloneTTSTracks.indexOf(stt)) % TRACK_COLORS.length]}
+                      ttsTrackId={stt.id}
+                      onDelete={onDeleteTTSTrack}
+                      enabled={ttsTrackEnabledMap?.get(stt.id) !== false}
+                      onToggleEnabled={onToggleTTSTrackEnabled}
+                      onOpenSettings={onOpenTTSSettings}
+                      voiceLabel={ttsVoiceLabels?.get(stt.id)}
                     />
-                    {/* TTS轨道内容（如果有） */}
-                    {hasTTSTrack && (
-                      <TTSAudioTrack
-                        key={`tts-${ttsTrackId}`}
-                        ttsTrackId={ttsTrackId}
-                        items={ttsItems ?? []}
+                  );
+                })}
+
+              {annotationTrackData && <AnnotationTrackLabel annotationCount={annotationTrackData.annotations.length} enabled={annotationTrackEnabled} />}
+
+              {clipTrackData && !waveformClipOverlay && (
+                <div
+                  className={clsx('flex items-center gap-1.5 px-2 border-b border-r bg-muted/30 shrink-0 box-border', !clipTrackEnabled && 'opacity-40')}
+                  style={{ width: trackLabelWidth, height: DEFAULT_CONFIG.CLIP_TRACK_HEIGHT + DEFAULT_CONFIG.TRACK_GAP }}
+                >
+                  <div className="w-1.5 h-4 rounded-full shrink-0 bg-cyan-500" />
+                  <span className="text-xs text-foreground/80 truncate flex-1">{labels.clip}</span>
+                  <span className="text-[10px] text-muted-foreground">{clipTrackData.clips.length}</span>
+                </div>
+              )}
+
+              {/* 媒体轨道标签 */}
+              {mediaTracks &&
+                mediaTracks.map((mediaTrack) => (
+                  <MediaTrackLabel
+                    key={mediaTrack.id}
+                    track={mediaTrack}
+                    canDelete={mediaTracks.length > 1}
+                    onDelete={mediaCallbacks?.onTrackDelete}
+                    onToggleVisibility={(trackId) => {
+                      mediaCallbacks?.onTrackReorder?.(mediaTracks.map((t) => t.id));
+                    }}
+                  />
+                ))}
+
+              {/* 添加轨道菜单 */}
+              <TrackAddMenu onAddMediaTrack={mediaCallbacks?.onTrackAdd} onAddSubtitleTrack={onAddSubtitleTrack} onAddTTSTrack={onAddTTSTrack} />
+            </div>
+          )}
+
+          {/* 右侧时间轴内容区域（可滚动） */}
+          <div
+            ref={scrollContainerRef}
+            className={clsx('flex-1 overflow-x-auto overflow-y-hidden', isDragging && 'cursor-grabbing')}
+            style={{
+              backgroundImage: 'radial-gradient(circle, hsl(var(--border)) 1px, transparent 1px)',
+              backgroundSize: '20px 20px'
+            }}
+            {...handlersWithClearSelection}
+          >
+            {/* 内容容器（设置总宽度） */}
+            <div style={{ width: totalWidth, minWidth: '100%' }}>
+              {/* 时间刻度尺 */}
+              {showRuler && (
+                <TimeRuler
+                  startTime={0}
+                  endTime={duration}
+                  pixelsPerSecond={pixelsPerSecond}
+                  width={totalWidth}
+                  currentTime={effectiveCurrentTime}
+                  onClick={handleSeekUnified}
+                  viewportStart={viewport.startTime}
+                  viewportEnd={viewport.endTime}
+                />
+              )}
+
+              {/* 波形轨道（固定在顶部，不随字幕轨道垂直滚动）+ 剪辑轨道叠加 */}
+              {showWaveformTrack && (
+                <>
+                  <div className="h-0 w-0">
+                    <div className="absolute" style={{ width: scrollContainerWidth }}>
+                      <WaveformTrack
+                        waveformData={waveform?.data}
+                        isLoading={waveform?.loading}
+                        error={waveform?.error}
+                        totalWidth={totalWidth}
+                        duration={duration}
+                        height={effectiveWaveformHeight}
+                        pixelsPerSecond={pixelsPerSecond}
+                        viewport={viewport}
+                        currentTime={effectiveCurrentTime}
+                        scrollLeft={scrollLeft}
+                        onSeek={handleSeekUnified}
+                      />
+                    </div>
+                  </div>
+                  <div className="w-full" style={{ height: effectiveWaveformHeight }}>
+                    {/* 剪辑轨道叠加在波形上方 */}
+                    {waveformClipOverlay && (
+                      <ClipTrack
+                        overlay
+                        clips={clipTrackData.clips}
+                        sourceDuration={clipTrackData.sourceDuration}
+                        pixelsPerSecond={pixelsPerSecond}
+                        width={totalWidth}
+                        currentTime={effectiveCurrentTime}
+                        activeTool={internalClipTool}
+                        selectedClipId={selectedClipId}
+                        onCut={clipCallbacks?.onClipCut}
+                        onDelete={clipCallbacks?.onClipDelete}
+                        onRestore={clipCallbacks?.onClipRestore}
+                        onSpeedChange={clipCallbacks?.onClipSpeedChange}
+                        onMoveUp={handleClipMoveUp}
+                        onMoveDown={handleClipMoveDown}
+                        onClipSelect={(id: string) => {
+                          setSelectedSegmentId(null);
+                          setSelectedTTS(null);
+                          setSelectedClipId(id);
+                        }}
+                        disabled={!clipTrackEnabled}
+                        height={effectiveWaveformHeight}
+                      />
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* 轨道内容（每个字幕轨道后紧跟对应的TTS轨道） */}
+              {tracksWithColors
+                .filter((t) => !t.hidden)
+                .map((track) => {
+                  const ttsTrackId = subtitleToTTSTrackMap?.get(track.id);
+                  const ttsItems = ttsTrackId ? ttsItemsByTrack?.get(ttsTrackId) : undefined;
+                  // 如果有TTS项（包括正在合成的），或者正在合成这个轨道，则显示TTS轨道
+                  const hasTTSTrack = showTTSTrack && ttsTrackId && (ttsItems?.length ?? 0) > 0;
+
+                  return (
+                    <React.Fragment key={track.id}>
+                      {/* 字幕轨道内容 */}
+                      <TimelineTrackView
+                        track={track}
                         viewport={viewport}
                         totalDuration={duration}
                         pixelsPerSecond={pixelsPerSecond}
                         width={totalWidth}
                         currentTime={effectiveCurrentTime}
-                        trackLabelWidth={0}
-                        showTrackLabel={false}
-                        selectedIndex={selectedTTS?.trackId === ttsTrackId ? selectedTTS.index : null}
-                        onBlockSelect={(index) => {
-                          setSelectedSegmentId(null);
-                          setSelectedTTS({ trackId: ttsTrackId, index });
-                        }}
-                        onPlayAudio={onPlayTTSAudio}
-                        onStopAudio={onStopTTSAudio}
-                        playingIndex={playingTTSIndex}
-                        onTimeChange={(index, newStartTime, newEndTime) => onTTSTimeChange?.(ttsTrackId, index, newStartTime, newEndTime)}
-                        maxDuration={duration}
-                        onDeleteSegment={onDeleteTTSSegment ? (item) => onDeleteTTSSegment(ttsTrackId, item.index) : undefined}
-                        disabled={ttsTrackEnabledMap?.get(ttsTrackId) === false}
+                        highlightIds={highlightIds}
+                        selectedIds={selectedIds}
+                        scrollLeft={scrollLeft}
+                        pendingNewSegment={pendingNewSegment?.trackId === track.id ? { startTime: pendingNewSegment.startTime, endTime: pendingNewSegment.endTime } : null}
+                        onTrackEmptyClick={handleTrackEmptyClick}
+                        onAddSegmentConfirm={handleAddSegmentConfirm}
+                        onCancelNewSegment={handleCancelNewSegment}
+                        allowAddSegment={!!onAddSegment}
+                        onMergePrev={onMergePrev}
+                        onSegmentClick={handleSegmentClick}
+                        onSegmentDoubleClick={handleSegmentDoubleClick}
+                        onSegmentTextChange={onSegmentTextChange}
+                        onSegmentTimeChange={onSegmentTimeChange}
+                        onDeleteSegment={onDeleteSegment}
+                        disabled={disabled || track.locked || track.enabled === false}
+                        wordsMap={wordsMapByTrack?.get(track.id)}
                       />
-                    )}
-                  </React.Fragment>
-                );
-              })}
+                      {/* TTS轨道内容（如果有） */}
+                      {hasTTSTrack && (
+                        <TTSAudioTrack
+                          key={`tts-${ttsTrackId}`}
+                          ttsTrackId={ttsTrackId}
+                          items={ttsItems ?? []}
+                          viewport={viewport}
+                          totalDuration={duration}
+                          pixelsPerSecond={pixelsPerSecond}
+                          width={totalWidth}
+                          currentTime={effectiveCurrentTime}
+                          trackLabelWidth={0}
+                          showTrackLabel={false}
+                          selectedIndex={selectedTTS?.trackId === ttsTrackId ? selectedTTS.index : null}
+                          onBlockSelect={(index) => {
+                            setSelectedSegmentId(null);
+                            setSelectedTTS({ trackId: ttsTrackId, index });
+                          }}
+                          onPlayAudio={onPlayTTSAudio}
+                          onStopAudio={onStopTTSAudio}
+                          playingIndex={playingTTSIndex}
+                          onTimeChange={(index, newStartTime, newEndTime) => onTTSTimeChange?.(ttsTrackId, index, newStartTime, newEndTime)}
+                          maxDuration={duration}
+                          onDeleteSegment={onDeleteTTSSegment ? (item) => onDeleteTTSSegment(ttsTrackId, item.index) : undefined}
+                          disabled={ttsTrackEnabledMap?.get(ttsTrackId) === false}
+                        />
+                      )}
+                    </React.Fragment>
+                  );
+                })}
 
-            {annotationTrackData && (
-              <AnnotationTrack
-                annotations={annotationTrackData.annotations}
-                totalWidth={totalWidth}
-                pixelsPerSecond={pixelsPerSecond}
-                viewport={viewport}
-                callbacks={annotationCallbacks}
-                enabled={annotationTrackEnabled}
-              />
-            )}
+              {/* 独立 TTS 轨道内容 */}
+              {showTTSTrack &&
+                standaloneTTSTracks?.map((stt) => {
+                  const items = ttsItemsByTrack?.get(stt.id) ?? [];
+                  return (
+                    <TTSAudioTrack
+                      key={`standalone-tts-content-${stt.id}`}
+                      ttsTrackId={stt.id}
+                      items={items}
+                      viewport={viewport}
+                      totalDuration={duration}
+                      pixelsPerSecond={pixelsPerSecond}
+                      width={totalWidth}
+                      currentTime={effectiveCurrentTime}
+                      trackLabelWidth={0}
+                      showTrackLabel={false}
+                      selectedIndex={selectedTTS?.trackId === stt.id ? selectedTTS.index : null}
+                      onBlockSelect={(index) => {
+                        setSelectedSegmentId(null);
+                        setSelectedTTS({ trackId: stt.id, index });
+                      }}
+                      onPlayAudio={onPlayTTSAudio}
+                      onStopAudio={onStopTTSAudio}
+                      playingIndex={playingTTSIndex}
+                      onTimeChange={(index, newStartTime, newEndTime) => onTTSTimeChange?.(stt.id, index, newStartTime, newEndTime)}
+                      maxDuration={duration}
+                      onDeleteSegment={onDeleteTTSSegment ? (item) => onDeleteTTSSegment(stt.id, item.index) : undefined}
+                      disabled={ttsTrackEnabledMap?.get(stt.id) === false}
+                      allowAddSegment={!!onAddTTSSegment}
+                      onAddSegment={onAddTTSSegment ? (startTime, endTime) => onAddTTSSegment(stt.id, startTime, endTime) : undefined}
+                      onBlockDoubleClick={onTTSBlockDoubleClick ? (item) => onTTSBlockDoubleClick(stt.id, item) : undefined}
+                    />
+                  );
+                })}
 
-            {clipTrackData && !waveformClipOverlay && (
-              <ClipTrack
-                clips={clipTrackData.clips}
-                sourceDuration={clipTrackData.sourceDuration}
-                pixelsPerSecond={pixelsPerSecond}
-                width={totalWidth}
-                currentTime={effectiveCurrentTime}
-                activeTool={internalClipTool}
-                selectedClipId={selectedClipId}
-                onCut={clipCallbacks?.onClipCut}
-                onDelete={clipCallbacks?.onClipDelete}
-                onRestore={clipCallbacks?.onClipRestore}
-                onSpeedChange={clipCallbacks?.onClipSpeedChange}
-                onMoveUp={handleClipMoveUp}
-                onMoveDown={handleClipMoveDown}
-                onClipSelect={(id: string) => {
-                  setSelectedSegmentId(null);
-                  setSelectedTTS(null);
-                  setSelectedClipId(id);
-                }}
-                disabled={!clipTrackEnabled}
-              />
-            )}
+              {annotationTrackData && (
+                <AnnotationTrack
+                  annotations={annotationTrackData.annotations}
+                  totalWidth={totalWidth}
+                  pixelsPerSecond={pixelsPerSecond}
+                  viewport={viewport}
+                  callbacks={annotationCallbacks}
+                  enabled={annotationTrackEnabled}
+                />
+              )}
 
-            {/* 媒体轨道 */}
-            {mediaTracks && mediaTracks.length > 0 && (
-              <MediaTrackManager
-                tracks={mediaTracks}
-                sources={mediaSources}
-                viewport={viewport}
-                pixelsPerSecond={pixelsPerSecond}
-                width={totalWidth}
-                scrollLeft={scrollLeft}
-                currentTime={effectiveCurrentTime}
-                activeTool={internalMediaTool}
-                selectedSegmentId={selectedMediaSegmentId}
-                onSegmentClick={(trackId, segmentId) => {
-                  setSelectedSegmentId(null);
-                  setSelectedTTS(null);
-                  setSelectedClipId(null);
-                  setSelectedMediaSegmentId(`${trackId}:${segmentId}`);
-                  mediaCallbacks?.onSegmentSelect?.(trackId, segmentId);
-                }}
-                onSegmentDelete={(trackId, segmentId) => {
-                  mediaCallbacks?.onSegmentDelete?.(trackId, segmentId);
-                  setSelectedMediaSegmentId(null);
-                }}
-                onSegmentRestore={(trackId, segmentId) => {
-                  mediaCallbacks?.onSegmentRestore?.(trackId, segmentId);
-                }}
-                onSegmentMove={(trackId, segmentId, newTimelineStart) => {
-                  mediaCallbacks?.onSegmentMove?.(trackId, segmentId, newTimelineStart);
-                }}
-                onSegmentResize={(trackId, segmentId, edge, newTime) => {
-                  mediaCallbacks?.onSegmentResize?.(trackId, segmentId, edge, newTime);
-                }}
-                onSegmentCut={(trackId, timelineTime) => {
-                  mediaCallbacks?.onSegmentCut?.(trackId, timelineTime);
-                }}
-                onQuickAdd={(trackId, sources, segments) => {
-                  // 1. 先添加媒体源
-                  mediaCallbacks?.onSourceAdd?.(sources);
-                  // 2. 添加片段到轨道
-                  if (segments.length > 0) {
-                    segments.forEach((segment) => {
-                      mediaCallbacks?.onSegmentAdd?.(trackId, segment);
-                    });
-                  }
-                }}
-              />
-            )}
+              {clipTrackData && !waveformClipOverlay && (
+                <ClipTrack
+                  clips={clipTrackData.clips}
+                  sourceDuration={clipTrackData.sourceDuration}
+                  pixelsPerSecond={pixelsPerSecond}
+                  width={totalWidth}
+                  currentTime={effectiveCurrentTime}
+                  activeTool={internalClipTool}
+                  selectedClipId={selectedClipId}
+                  onCut={clipCallbacks?.onClipCut}
+                  onDelete={clipCallbacks?.onClipDelete}
+                  onRestore={clipCallbacks?.onClipRestore}
+                  onSpeedChange={clipCallbacks?.onClipSpeedChange}
+                  onMoveUp={handleClipMoveUp}
+                  onMoveDown={handleClipMoveDown}
+                  onClipSelect={(id: string) => {
+                    setSelectedSegmentId(null);
+                    setSelectedTTS(null);
+                    setSelectedClipId(id);
+                  }}
+                  disabled={!clipTrackEnabled}
+                />
+              )}
+
+              {/* 媒体轨道 */}
+              {mediaTracks && mediaTracks.length > 0 && (
+                <MediaTrackManager
+                  tracks={mediaTracks}
+                  sources={mediaSources}
+                  viewport={viewport}
+                  pixelsPerSecond={pixelsPerSecond}
+                  width={totalWidth}
+                  scrollLeft={scrollLeft}
+                  currentTime={effectiveCurrentTime}
+                  activeTool={internalMediaTool}
+                  selectedSegmentId={selectedMediaSegmentId}
+                  onSegmentClick={(trackId, segmentId) => {
+                    setSelectedSegmentId(null);
+                    setSelectedTTS(null);
+                    setSelectedClipId(null);
+                    setSelectedMediaSegmentId(`${trackId}:${segmentId}`);
+                    mediaCallbacks?.onSegmentSelect?.(trackId, segmentId);
+                  }}
+                  onSegmentDelete={(trackId, segmentId) => {
+                    mediaCallbacks?.onSegmentDelete?.(trackId, segmentId);
+                    setSelectedMediaSegmentId(null);
+                  }}
+                  onSegmentRestore={(trackId, segmentId) => {
+                    mediaCallbacks?.onSegmentRestore?.(trackId, segmentId);
+                  }}
+                  onSegmentMove={(trackId, segmentId, newTimelineStart) => {
+                    mediaCallbacks?.onSegmentMove?.(trackId, segmentId, newTimelineStart);
+                  }}
+                  onSegmentResize={(trackId, segmentId, edge, newTime) => {
+                    mediaCallbacks?.onSegmentResize?.(trackId, segmentId, edge, newTime);
+                  }}
+                  onSegmentCut={(trackId, timelineTime) => {
+                    mediaCallbacks?.onSegmentCut?.(trackId, timelineTime);
+                  }}
+                  onQuickAdd={(trackId, sources, segments) => {
+                    // 1. 先添加媒体源
+                    mediaCallbacks?.onSourceAdd?.(sources);
+                    // 2. 添加片段到轨道
+                    if (segments.length > 0) {
+                      segments.forEach((segment) => {
+                        mediaCallbacks?.onSegmentAdd?.(trackId, segment);
+                      });
+                    }
+                  }}
+                />
+              )}
+            </div>
           </div>
         </div>
+
+        {/* 媒体导入面板 */}
+        <MediaImportPanel
+          open={showMediaImport}
+          onClose={() => setShowMediaImport(false)}
+          tracks={mediaTracks ?? []}
+          currentTime={effectiveCurrentTime}
+          duration={duration}
+          onImport={(sources: MediaSource[], segments?: Omit<MediaSegment, 'id'>[]) => {
+            // 1. 先添加媒体源
+            mediaCallbacks?.onSourceAdd?.(sources);
+
+            // 2. 添加 segments 到轨道（onSegmentAdd 会自动创建轨道如果不存在）
+            if (segments && segments.length > 0) {
+              const targetTrackId = mediaTracks && mediaTracks.length > 0 ? mediaTracks[0].id : 'auto-create';
+              segments.forEach((segment) => {
+                mediaCallbacks?.onSegmentAdd?.(targetTrackId, segment);
+              });
+            }
+            setShowMediaImport(false);
+          }}
+        />
       </div>
-
-      {/* 媒体导入面板 */}
-      <MediaImportPanel
-        open={showMediaImport}
-        onClose={() => setShowMediaImport(false)}
-        tracks={mediaTracks ?? []}
-        currentTime={effectiveCurrentTime}
-        duration={duration}
-        onImport={(sources: MediaSource[], segments?: Omit<MediaSegment, 'id'>[]) => {
-          // 1. 先添加媒体源
-          mediaCallbacks?.onSourceAdd?.(sources);
-
-          // 2. 添加 segments 到轨道（onSegmentAdd 会自动创建轨道如果不存在）
-          if (segments && segments.length > 0) {
-            const targetTrackId = mediaTracks && mediaTracks.length > 0 ? mediaTracks[0].id : 'auto-create';
-            segments.forEach((segment) => {
-              mediaCallbacks?.onSegmentAdd?.(targetTrackId, segment);
-            });
-          }
-          setShowMediaImport(false);
-        }}
-      />
-    </div>
     </TimelineAdapterProvider>
   );
 };

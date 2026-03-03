@@ -19,16 +19,18 @@ export { MediaTransitionSelector, TransitionTypeButton } from './media';
 export { ThumbnailStrip } from './media';
 
 // Shared components
+export type { TrackAddMenuProps } from './shared';
 export { SeekBar } from './shared';
 export { TimelineSegmentBlock } from './shared';
 export { TimelineTrackView } from './shared';
 export { TimeRuler } from './shared';
+export { TrackAddMenu } from './shared';
 export { TrackLabel } from './shared';
 export { TransitionBadge, TransitionIndicator } from './shared';
 export { WaveformTrack } from './shared';
 
 // TTS components
 export type { TTSAudioItem } from './tts';
-export { TTSAudioTrack } from './tts';
 export type { TTSTrackLabelProps } from './tts';
+export { TTSAudioTrack } from './tts';
 export { TTSTrackLabel } from './tts';

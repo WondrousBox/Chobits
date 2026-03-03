@@ -19,8 +19,7 @@ export const useResourceFilter = ({ list, wsFilter, tagFilter, folderFilter, fav
     // 过滤掉 translation、summary、mindmap 和笔记类型的资源（不在文件夹中显示）
     let filtered = list.filter((r: any) => {
       if (r.workspaceId !== wsFilter) return false;
-      if (r.type === 'translation' || r.type === 'summary' || r.type === 'mindmap') return false;
-      // 笔记资源现在使用独立类型 note，直接过滤掉
+      if (r.type === 'translation' || r.type === 'summary' || r.type === 'mindmap' || r.type === 'subtitle-edit') return false;
       if (r.type === 'note') return false;
       return true;
     });

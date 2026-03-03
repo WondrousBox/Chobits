@@ -112,6 +112,39 @@ export interface IdGeneratorAdapter {
 // ========== Configuration Adapter ==========
 
 /**
+ * UI labels for i18n support
+ * All labels have built-in defaults (Chinese), override to localize
+ */
+export interface TimelineLabels {
+  /** Zoom out button tooltip */
+  zoomOut?: string;
+  /** Zoom in button tooltip */
+  zoomIn?: string;
+  /** Zoom level tooltip template, use {value} as placeholder */
+  zoomLevel?: string;
+  /** Select tool tooltip */
+  selectTool?: string;
+  /** Cut tool tooltip */
+  cutTool?: string;
+  /** Import media button tooltip */
+  importMedia?: string;
+  /** Track count display, use {count} as placeholder */
+  trackCount?: string;
+  /** Segment count display, use {count} as placeholder */
+  segmentCount?: string;
+  /** Waveform track label */
+  waveform?: string;
+  /** Waveform + clip overlay track label */
+  waveformClip?: string;
+  /** Clip track label */
+  clip?: string;
+  /** Default track labels (index-based fallback) */
+  defaultTrackLabels?: string[];
+  /** Fallback track label template, use {index} as placeholder */
+  trackLabelTemplate?: string;
+}
+
+/**
  * Configuration adapter for customizable settings
  */
 export interface ConfigAdapter {
@@ -123,6 +156,8 @@ export interface ConfigAdapter {
   defaultMediaInfo?: MediaInfo;
   /** TTS waveform sample count */
   waveformSampleCount?: number;
+  /** UI labels for i18n */
+  labels?: TimelineLabels;
 }
 
 // ========== Selection State Adapters (Controlled Mode) ==========

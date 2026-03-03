@@ -102,6 +102,10 @@ interface TTSSynthesizerProps {
    * - 传入 config 与选中的 trackId / languageCode / 该轨道的 segments
    */
   onSynthesize?: (config: TTSSynthesisConfig, options: { trackId: TTSTrackId; languageCode?: string; segments: AimSegments[] }) => Promise<string>;
+  /** 嵌入模式：直接渲染面板内容，不使用 Popover 包装 */
+  embedded?: boolean;
+  /** 仅保存配置（独立 TTS 轨道设置）：显示"保存"按钮代替"开始合成" */
+  onConfigSave?: (config: TTSSynthesisConfig) => void;
 }
 
 // localStorage 键名
@@ -140,7 +144,9 @@ export const TTSSynthesizer: React.FC<TTSSynthesizerProps> = ({
   synthesisProgress = 0,
   onStopSynthesis,
   onSynthesisStart,
-  onSynthesize
+  onSynthesize,
+  embedded = false,
+  onConfigSave
 }) => {
   // 从 localStorage 加载保存的偏好设置
   const savedPreferences = loadPreferences();
@@ -274,6 +280,111 @@ export const TTSSynthesizer: React.FC<TTSSynthesizerProps> = ({
     );
   }
 
+  const panelContent = (
+    <div className="space-y-4">
+      {!embedded && (
+        <div className="space-y-1">
+          <h4 className="font-medium text-sm">TTS语音合成</h4>
+          <p className="text-xs text-muted-foreground">为字幕生成语音音频</p>
+        </div>
+      )}
+
+      {effectiveTrackOptions.length > 1 && (
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">合成内容轨道</Label>
+          <Select value={selectedTrackId} onValueChange={(v) => setSelectedTrackId(v as TTSTrackId)}>
+            <SelectTrigger>
+              <SelectValue placeholder="选择轨道" />
+            </SelectTrigger>
+            <SelectContent>
+              {effectiveTrackOptions.map((opt) => (
+                <SelectItem key={opt.trackId} value={opt.trackId}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        <Label className="text-sm font-medium">语音</Label>
+        <Select value={selectedVoice} onValueChange={setSelectedVoice}>
+          <SelectTrigger>
+            <SelectValue placeholder="选择语音">
+              {selectedVoiceInfo && (
+                <div className="flex items-center gap-2">
+                  <TbMicrophone className="h-3 w-3" />
+                  <span>{selectedVoiceInfo.label}</span>
+                </div>
+              )}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <ScrollArea className="h-[200px]">
+              {groupedVoices.map((group) => (
+                <div key={group.label} className="mb-2">
+                  <div className="px-2 py-1 text-xs font-medium text-muted-foreground sticky top-0 bg-popover">{group.label}</div>
+                  {group.voices.map((voice) => (
+                    <SelectItem key={voice.value} value={voice.value}>
+                      <div className="flex items-center gap-2">
+                        <span>{voice.label}</span>
+                        <span className="text-xs text-muted-foreground">({voice.language})</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </div>
+              ))}
+            </ScrollArea>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label className="text-sm font-medium">语速</Label>
+          <span className="text-xs text-muted-foreground">
+            {rate > 0 ? '+' : ''}
+            {rate}%
+          </span>
+        </div>
+        <Slider value={[rate]} onValueChange={([v]) => setRate(v)} min={-50} max={100} step={10} className="w-full" />
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label className="text-sm font-medium">音高</Label>
+          <span className="text-xs text-muted-foreground">
+            {pitch > 0 ? '+' : ''}
+            {pitch}%
+          </span>
+        </div>
+        <Slider value={[pitch]} onValueChange={([v]) => setPitch(v)} min={-50} max={50} step={10} className="w-full" />
+      </div>
+
+      <div className="flex items-center justify-between">
+        <div className="space-y-0.5">
+          <Label className="text-sm font-medium">自动去静音</Label>
+          <p className="text-xs text-muted-foreground">去除音频首尾的静音部分</p>
+        </div>
+        <Switch checked={autoTrimSilence} onCheckedChange={setAutoTrimSilence} />
+      </div>
+
+      {onConfigSave ? (
+        <Button className="w-full" onClick={() => onConfigSave({ voiceName: selectedVoice, rate, pitch, autoTrimSilence })} disabled={!selectedVoice}>
+          保存配置
+        </Button>
+      ) : (
+        <Button className="w-full" onClick={handleSynthesize} disabled={!selectedVoice || segmentsForSelectedTrack.filter((s) => !s.delete).length === 0}>
+          <TbVolume className="h-4 w-4 mr-2" />
+          开始合成 ({segmentsForSelectedTrack.filter((s) => !s.delete).length} 条)
+        </Button>
+      )}
+    </div>
+  );
+
+  if (embedded) return panelContent;
+
   return (
     <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
       <PopoverTrigger asChild>
@@ -283,104 +394,7 @@ export const TTSSynthesizer: React.FC<TTSSynthesizerProps> = ({
         </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80" sideOffset={5}>
-        <div className="space-y-4">
-          <div className="space-y-1">
-            <h4 className="font-medium text-sm">TTS语音合成</h4>
-            <p className="text-xs text-muted-foreground">为字幕生成语音音频</p>
-          </div>
-
-          {/* 语言轨道选择：用哪条轨道的内容去合成 */}
-          {effectiveTrackOptions.length > 1 && (
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">合成内容轨道</Label>
-              <Select value={selectedTrackId} onValueChange={(v) => setSelectedTrackId(v as TTSTrackId)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="选择轨道" />
-                </SelectTrigger>
-                <SelectContent>
-                  {effectiveTrackOptions.map((opt) => (
-                    <SelectItem key={opt.trackId} value={opt.trackId}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {/* 语音选择 */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">语音</Label>
-            <Select value={selectedVoice} onValueChange={setSelectedVoice}>
-              <SelectTrigger>
-                <SelectValue placeholder="选择语音">
-                  {selectedVoiceInfo && (
-                    <div className="flex items-center gap-2">
-                      <TbMicrophone className="h-3 w-3" />
-                      <span>{selectedVoiceInfo.label}</span>
-                    </div>
-                  )}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <ScrollArea className="h-[200px]">
-                  {groupedVoices.map((group) => (
-                    <div key={group.label} className="mb-2">
-                      <div className="px-2 py-1 text-xs font-medium text-muted-foreground sticky top-0 bg-popover">{group.label}</div>
-                      {group.voices.map((voice) => (
-                        <SelectItem key={voice.value} value={voice.value}>
-                          <div className="flex items-center gap-2">
-                            <span>{voice.label}</span>
-                            <span className="text-xs text-muted-foreground">({voice.language})</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </div>
-                  ))}
-                </ScrollArea>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* 语速调节 (Edge TTS使用百分比: -100到200，默认20) */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium">语速</Label>
-              <span className="text-xs text-muted-foreground">
-                {rate > 0 ? '+' : ''}
-                {rate}%
-              </span>
-            </div>
-            <Slider value={[rate]} onValueChange={([v]) => setRate(v)} min={-50} max={100} step={10} className="w-full" />
-          </div>
-
-          {/* 音高调节 (Edge TTS使用百分比: -100到200，默认0) */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium">音高</Label>
-              <span className="text-xs text-muted-foreground">
-                {pitch > 0 ? '+' : ''}
-                {pitch}%
-              </span>
-            </div>
-            <Slider value={[pitch]} onValueChange={([v]) => setPitch(v)} min={-50} max={50} step={10} className="w-full" />
-          </div>
-
-          {/* 自动去静音 */}
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label className="text-sm font-medium">自动去静音</Label>
-              <p className="text-xs text-muted-foreground">去除音频首尾的静音部分</p>
-            </div>
-            <Switch checked={autoTrimSilence} onCheckedChange={setAutoTrimSilence} />
-          </div>
-
-          {/* 开始合成按钮 */}
-          <Button className="w-full" onClick={handleSynthesize} disabled={!selectedVoice || segmentsForSelectedTrack.filter((s) => !s.delete).length === 0}>
-            <TbVolume className="h-4 w-4 mr-2" />
-            开始合成 ({segmentsForSelectedTrack.filter((s) => !s.delete).length} 条)
-          </Button>
-        </div>
+        {panelContent}
       </PopoverContent>
     </Popover>
   );

@@ -23,7 +23,15 @@ SubtitleTimeline/
 ├── types.ts                # 类型定义
 ├── utils.ts                # 工具函数
 ├── utils/
-│   └── clipSequence.ts     # 剪辑序列引擎
+│   ├── clipSequence.ts     # 剪辑序列引擎
+│   └── mediaSequence.ts    # 媒体序列引擎
+├── adapters/               # 适配器层（解耦外部依赖）
+│   ├── index.ts
+│   ├── types.ts            # 适配器类型定义
+│   └── defaults.ts         # 默认实现 & DEFAULT_LABELS
+├── context/                # React Context（适配器注入）
+│   ├── index.ts
+│   └── TimelineContext.tsx
 ├── hooks/
 │   ├── index.ts
 │   ├── useTimelineInteraction.ts  # 鼠标交互处理
@@ -273,10 +281,61 @@ interface SubtitleTimelineProps {
   // 标注回调
   annotationCallbacks?: AnnotationTrackCallbacks;
 
+  // 字级别时间戳（卡拉OK高亮）
+  wordsMapByTrack?: Map<string, Map<string, WordTimestamp[]>>; // trackId -> (segmentId -> words)
+
   // 剪辑回调
   clipCallbacks?: ClipTrackCallbacks;
+
+  // 适配器（用于独立组件库模式，注入外部服务依赖）
+  adapters?: TimelineAdapters;
 }
 ```
+
+## 适配器 (Adapters)
+
+组件通过适配器模式解耦外部依赖，实现独立使用。所有适配器均为可选，未提供时使用内置默认实现。
+
+```typescript
+interface TimelineAdapters {
+  media?: MediaServiceAdapter;       // 文件操作（获取媒体信息、打开文件选择器等）
+  annotation?: AnnotationServiceAdapter; // 标注颜色/图标
+  idGenerator?: IdGeneratorAdapter;  // ID 生成策略
+  config?: ConfigAdapter;            // 配置（文件扩展名、默认参数、UI 标签等）
+  selection?: SelectionAdapters;     // 受控选中状态
+}
+```
+
+### 自定义 UI 标签 (i18n)
+
+通过 `adapters.config.labels` 可覆盖所有主组件工具栏的 UI 文本，实现国际化：
+
+```tsx
+<SubtitleTimeline
+  tracks={tracks}
+  adapters={{
+    config: {
+      labels: {
+        zoomOut: 'Zoom Out',
+        zoomIn: 'Zoom In',
+        zoomLevel: 'Zoom: {value} px/s',
+        selectTool: 'Select',
+        cutTool: 'Cut',
+        importMedia: 'Import Media',
+        trackCount: '{count} tracks',
+        segmentCount: '{count} segments',
+        waveform: 'Waveform',
+        waveformClip: 'Waveform/Clip',
+        clip: 'Clip',
+        defaultTrackLabels: ['Source', 'Translation', 'Track 3'],
+        trackLabelTemplate: 'Track {index}'
+      }
+    }
+  }}
+/>
+```
+
+未提供的 label 字段自动使用中文默认值（`DEFAULT_LABELS`）。
 
 ## 默认配置
 
@@ -426,6 +485,23 @@ function MyEditor() {
     />
   );
 }
+```
+
+### 带字级别时间戳（卡拉OK高亮）
+
+```tsx
+// wordsMapByTrack: trackId -> (segmentId -> WordTimestamp[])
+const wordsMapByTrack = new Map([
+  ['track-0', new Map([
+    ['t0-0', [{ st: 0, et: 1.5, text: 'Hello' }]],
+    ['t0-1', [{ st: 3.5, et: 5, text: 'World' }]]
+  ])]
+]);
+
+<SubtitleTimeline
+  tracks={tracks}
+  wordsMapByTrack={wordsMapByTrack}
+/>
 ```
 
 ### 带 TTS 轨道
