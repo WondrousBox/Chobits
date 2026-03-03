@@ -308,27 +308,68 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect) return;
       const x = e.clientX - rect.left;
-      const time = x / pixelsPerSecond;
+      const clickTime = x / pixelsPerSecond;
 
-      // 计算新片段的时间范围：以点击时间为中心前后各 1.5 秒（共 3 秒）
-      const segDuration = 3;
-      const halfDuration = segDuration / 2;
-      let startTime = time - halfDuration;
-      let endTime = time + halfDuration;
+      // 按 startTime 排序现有片段，找到点击位置所在的间隙
+      const sortedItems = [...items].sort((a, b) => a.startTime - b.startTime);
 
-      // 确保不超出边界
-      if (startTime < 0) {
-        startTime = 0;
-        endTime = Math.min(segDuration, maxDuration ?? segDuration);
+      // 找到包含点击时间的间隙
+      let gapStart = 0;
+      let gapEnd = maxDuration ?? Infinity;
+
+      for (const item of sortedItems) {
+        if (item.startTime <= clickTime) {
+          gapStart = Math.max(gapStart, item.endTime);
+        } else {
+          gapEnd = Math.min(gapEnd, item.startTime);
+          break;
+        }
       }
+
+      const gapDuration = gapEnd - gapStart;
+
+      // 间隙太小（小于 1 秒），不允许添加
+      if (gapDuration < 1) return;
+
+      let startTime: number;
+      let endTime: number;
+
+      if (gapDuration >= 3) {
+        // 间隙足够大：以点击时间为中心，前后各 1.5 秒（共 3 秒）
+        const segDuration = 3;
+        const halfDuration = segDuration / 2;
+        startTime = clickTime - halfDuration;
+        endTime = clickTime + halfDuration;
+
+        // 确保不超出间隙边界
+        if (startTime < gapStart) {
+          startTime = gapStart;
+          endTime = gapStart + segDuration;
+        }
+        if (endTime > gapEnd) {
+          endTime = gapEnd;
+          startTime = gapEnd - segDuration;
+          if (startTime < gapStart) {
+            startTime = gapStart;
+          }
+        }
+      } else {
+        // 间隙较小：使用整个间隙
+        startTime = gapStart;
+        endTime = gapEnd;
+      }
+
+      // 最终边界检查
       if (maxDuration && endTime > maxDuration) {
         endTime = maxDuration;
-        startTime = Math.max(0, maxDuration - segDuration);
+      }
+      if (startTime < 0) {
+        startTime = 0;
       }
 
       onAddSegment(startTime, endTime);
     },
-    [allowAddSegment, onAddSegment, disabled, pixelsPerSecond, maxDuration]
+    [allowAddSegment, onAddSegment, disabled, pixelsPerSecond, maxDuration, items]
   );
 
   if (items.length === 0 && !allowAddSegment) {
