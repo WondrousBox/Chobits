@@ -97,8 +97,10 @@ function generateYtDlpConf(config: YtDlpConfig): string {
   // JavaScript 运行时配置（使用内置 Bun）
   const bunPath = getBunPath();
   if (bunPath) {
+    // 将 Windows 路径中的反斜杠转换为正斜杠，避免配置文件解析时转义问题
+    const normalizedPath = bunPath.replace(/\\/g, '/');
     lines.push('# JavaScript runtime');
-    lines.push(`--js-runtimes bun:${bunPath}`);
+    lines.push(`--js-runtimes bun:${normalizedPath}`);
     lines.push('');
   }
 
