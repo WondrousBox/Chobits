@@ -81,7 +81,7 @@ export function initResourceHandlers(): void {
     }
     const rows = await ResourcesRepo.list(filter);
     // 隐藏内部类型的资源（segments 等），这些资源通过 listChildren 查询
-    const HIDDEN_TYPES = new Set(['segments']);
+    const HIDDEN_TYPES = new Set(['segments', 'subtitle-edit']);
     return (rows as any[]).filter((r: any) => !HIDDEN_TYPES.has(r.type));
   });
   ipcMain.handle('resource:listChildren', async (_event, payload: { parentResourceId: string; limit?: number; offset?: number }) => {
@@ -867,6 +867,74 @@ export function initResourceHandlers(): void {
       sendAppBusyEnd(); // 上传失败时结束繁忙状态
       return { success: false, error: e?.message || 'unknown-error' };
     }
+  });
+
+  // ---- 编排字幕轨道 (subtitle-edit) ----
+
+  ipcMain.handle('resource:createSubtitleEditTrack', async (_event, payload: { parentResourceId: string; title: string }) => {
+    const { parentResourceId, title } = payload;
+    const parent = await ResourcesRepo.getById(parentResourceId);
+    if (!parent) throw new Error('父资源不存在');
+
+    const parentDir = parent.filePath ? path.dirname(parent.filePath) : undefined;
+    if (!parentDir) throw new Error('父资源无文件路径，无法确定存储目录');
+
+    const trackId = Date.now().toString(36);
+    const parentBaseName = path.basename(parent.filePath!, path.extname(parent.filePath!));
+    const jsonFileName = `${parentBaseName}.subtitle-edit.${trackId}.json`;
+    const jsonPath = path.join(parentDir, jsonFileName);
+
+    const jsonContent = JSON.stringify(
+      {
+        version: 1,
+        resourceId: parentResourceId,
+        targetLanguage: 'subtitle-edit',
+        startedAt: Date.now(),
+        updatedAt: Date.now(),
+        translatedSegments: []
+      },
+      null,
+      2
+    );
+    await fs.writeFile(jsonPath, jsonContent, 'utf8');
+
+    const newResource = await ResourcesRepo.upsert({
+      type: 'subtitle-edit' as any,
+      parentResourceId,
+      workspaceId: parent.workspaceId,
+      folderId: parent.folderId,
+      title,
+      description: `编排字幕轨道: ${title}`,
+      filePath: jsonPath,
+      language: 'subtitle-edit',
+      mimeType: 'application/json',
+      status: 'ready'
+    } as any);
+
+    return { id: newResource.id, filePath: jsonPath };
+  });
+
+  ipcMain.handle('resource:getSubtitleEditTracks', async (_event, payload: { parentResourceId: string }) => {
+    const children = await ResourcesRepo.listChildren(payload.parentResourceId);
+    const editTracks = children.filter((c: any) => c.type === 'subtitle-edit' && c.deletedAt == null);
+
+    const results = await Promise.all(
+      editTracks.map(async (t: any) => {
+        let segments: Array<{ index: number; text: string; st?: string; et?: string }> = [];
+        if (t.filePath) {
+          try {
+            const content = await fs.readFile(t.filePath, 'utf8');
+            const json = JSON.parse(content);
+            segments = json.translatedSegments || [];
+          } catch (err) {
+            console.error('[getSubtitleEditTracks] 读取文件失败:', t.filePath, err);
+          }
+        }
+        return { id: t.id, title: t.title, filePath: t.filePath, segments };
+      })
+    );
+
+    return results;
   });
 }
 

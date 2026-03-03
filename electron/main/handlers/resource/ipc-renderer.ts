@@ -4,7 +4,7 @@ import type { IpcParams, PartialByKey } from '../types';
 
 export type Resource = {
   id: string;
-  type: 'image' | 'video' | 'audio' | 'text' | 'link' | 'file' | 'document' | 'translation' | 'summary' | 'mindmap' | 'note' | 'screenshot' | 'segments' | 'other';
+  type: 'image' | 'video' | 'audio' | 'text' | 'link' | 'file' | 'document' | 'translation' | 'summary' | 'mindmap' | 'note' | 'screenshot' | 'segments' | 'subtitle-edit' | 'other';
   workspaceId?: string;
   folderId?: string;
   parentResourceId?: string; // 父资源ID（用于记录资源来源关系）
@@ -95,6 +95,13 @@ export type ResourceIpcParams = {
     ],
     { success: boolean; data?: Resource; error?: string }
   >;
+  /** 创建编排字幕轨道（subtitle-edit 子资源） */
+  'resource:createSubtitleEditTrack': IpcParams<[{ parentResourceId: string; title: string }], { id: string; filePath: string }>;
+  /** 获取编排字幕轨道列表 */
+  'resource:getSubtitleEditTracks': IpcParams<
+    [{ parentResourceId: string }],
+    Array<{ id: string; title: string; filePath: string; segments: Array<{ index: number; text: string; st?: string; et?: string }> }>
+  >;
 };
 
 const methods: Array<keyof ResourceIpcParams> = [
@@ -122,7 +129,9 @@ const methods: Array<keyof ResourceIpcParams> = [
   'tags:backfill',
   'resource:importLocalFiles',
   'resource:importLocalFolders',
-  'resource:saveScreenshot'
+  'resource:saveScreenshot',
+  'resource:createSubtitleEditTrack',
+  'resource:getSubtitleEditTracks'
 ];
 
 export type ResourceIpcType = {

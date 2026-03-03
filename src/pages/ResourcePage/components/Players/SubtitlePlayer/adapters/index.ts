@@ -1,1 +1,1 @@
-export { createChobitsAdapters } from './chobitsAdapters';
+export { createAimAdapters } from './aimAdapters';

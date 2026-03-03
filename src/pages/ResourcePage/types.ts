@@ -14,6 +14,7 @@ export type ResourceTypes =
   | 'note'
   | 'screenshot'
   | 'segments'
+  | 'subtitle-edit'
   | 'other';
 
 export type SelectedResourceFileType = {

@@ -11,6 +11,7 @@ export type {
   MediaServiceAdapter,
   SelectionAdapters,
   TimelineAdapters,
+  TimelineLabels,
   WordTimestamp
 } from './types';
 

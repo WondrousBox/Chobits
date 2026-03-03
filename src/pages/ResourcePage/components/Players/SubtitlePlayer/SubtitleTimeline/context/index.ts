@@ -5,6 +5,7 @@ export {
   useConfigAdapter,
   useIdGeneratorAdapter,
   useIsControlledSelection,
+  useLabels,
   useMediaAdapter,
   useSelectionAdapter,
   useTimelineAdapters

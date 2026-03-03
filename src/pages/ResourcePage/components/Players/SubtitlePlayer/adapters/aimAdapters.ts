@@ -1,8 +1,8 @@
 /**
- * Chobits-specific adapter implementations
+ * Aim-specific adapter implementations
  *
  * This file provides adapter implementations that connect
- * the SubtitleTimeline component to the Chobits application's
+ * the SubtitleTimeline component to the Aim application's
  * IPC services (window.YUA).
  */
 
@@ -10,11 +10,11 @@ import type { AnnotationType, FilePickOptions, FilePickResult, MediaInfo, Timeli
 import { getAnnotationColor } from '../useAnnotations';
 
 /**
- * Create Chobits-specific adapters for SubtitleTimeline
+ * Create Aim-specific adapters for SubtitleTimeline
  *
  * These adapters bridge the component to the main process via IPC.
  */
-export function createChobitsAdapters(): TimelineAdapters {
+export function createAimAdapters(): TimelineAdapters {
   return {
     media: {
       getMediaInfo: async (filePath: string): Promise<MediaInfo | null> => {
@@ -22,7 +22,7 @@ export function createChobitsAdapters(): TimelineAdapters {
           const info = await window.YUA.media?.['media:getInfo']?.(filePath);
           return info || null;
         } catch (err) {
-          console.warn('[chobitsAdapters] getMediaInfo failed:', err);
+          console.warn('[AimAdapters] getMediaInfo failed:', err);
           return null;
         }
       },
@@ -35,7 +35,7 @@ export function createChobitsAdapters(): TimelineAdapters {
           });
           return result || null;
         } catch (err) {
-          console.warn('[chobitsAdapters] pickFiles failed:', err);
+          console.warn('[AimAdapters] pickFiles failed:', err);
           return null;
         }
       },
@@ -48,7 +48,7 @@ export function createChobitsAdapters(): TimelineAdapters {
           });
           return result || { peaks: [], duration: 0 };
         } catch (err) {
-          console.warn('[chobitsAdapters] extractWaveform failed:', err);
+          console.warn('[AimAdapters] extractWaveform failed:', err);
           return { peaks: [], duration: 0 };
         }
       }
