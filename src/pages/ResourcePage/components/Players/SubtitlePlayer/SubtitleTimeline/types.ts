@@ -207,6 +207,12 @@ export interface SubtitleTimelineProps extends TimelineCallbacks {
   standaloneTTSTracks?: StandaloneTTSTrack[];
   /** 在独立 TTS 轨道空白处添加片段的回调 */
   onAddTTSSegment?: (ttsTrackId: string, startTime: number, endTime: number) => void;
+  /** 待新增 TTS 片段的时间范围（显示 inline 输入框） */
+  pendingTTSSegment?: { trackId: string; startTime: number; endTime: number } | null;
+  /** 确认新增 TTS 片段（输入框失焦且有内容时） */
+  onAddTTSSegmentConfirm?: (trackId: string, startTime: number, endTime: number, text: string) => void;
+  /** 取消新增 TTS 片段 */
+  onCancelTTSSegment?: () => void;
   /** 双击 TTS 音频块编辑回调（传入 trackId 和 item） */
   onTTSBlockDoubleClick?: (ttsTrackId: string, item: TTSAudioItem) => void;
   /** 播放TTS音频回调 */

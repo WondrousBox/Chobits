@@ -4,7 +4,7 @@ import type { IpcParams, PartialByKey } from '../types';
 
 export type Resource = {
   id: string;
-  type: 'image' | 'video' | 'audio' | 'text' | 'link' | 'file' | 'document' | 'translation' | 'summary' | 'mindmap' | 'note' | 'screenshot' | 'segments' | 'subtitle-edit' | 'other';
+  type: 'image' | 'video' | 'audio' | 'text' | 'link' | 'file' | 'document' | 'translation' | 'summary' | 'mindmap' | 'note' | 'screenshot' | 'segments' | 'subtitle-edit' | 'tts-track' | 'other';
   workspaceId?: string;
   folderId?: string;
   parentResourceId?: string; // 父资源ID（用于记录资源来源关系）
@@ -102,6 +102,33 @@ export type ResourceIpcParams = {
     [{ parentResourceId: string }],
     Array<{ id: string; title: string; filePath: string; segments: Array<{ index: number; text: string; st?: string; et?: string }> }>
   >;
+  /** 创建独立 TTS 轨道（tts-track 子资源） */
+  'resource:createTTSTrack': IpcParams<
+    [{ parentResourceId: string; title: string; voiceName: string; rate: number; pitch: number; autoTrimSilence: boolean }],
+    { id: string; trackId: string; filePath: string }
+  >;
+  /** 获取独立 TTS 轨道列表 */
+  'resource:getTTSTracks': IpcParams<
+    [{ parentResourceId: string }],
+    Array<{
+      id: string;
+      title: string;
+      filePath: string;
+      config: { voiceName: string; rate: number; pitch: number; autoTrimSilence: boolean };
+      segments: Array<{ index: number; text: string; startTime: number; endTime: number; md5?: string }>;
+    }>
+  >;
+  /** 更新 TTS 轨道配置或片段 */
+  'resource:updateTTSTrack': IpcParams<
+    [
+      {
+        trackResourceId: string;
+        config?: { voiceName?: string; rate?: number; pitch?: number; autoTrimSilence?: boolean };
+        segments?: Array<{ index: number; text: string; startTime: number; endTime: number; md5?: string }>;
+      }
+    ],
+    { success: boolean }
+  >;
 };
 
 const methods: Array<keyof ResourceIpcParams> = [
@@ -131,7 +158,10 @@ const methods: Array<keyof ResourceIpcParams> = [
   'resource:importLocalFolders',
   'resource:saveScreenshot',
   'resource:createSubtitleEditTrack',
-  'resource:getSubtitleEditTracks'
+  'resource:getSubtitleEditTracks',
+  'resource:createTTSTrack',
+  'resource:getTTSTracks',
+  'resource:updateTTSTrack'
 ];
 
 export type ResourceIpcType = {

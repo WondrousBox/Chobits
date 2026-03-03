@@ -81,7 +81,7 @@ export function initResourceHandlers(): void {
     }
     const rows = await ResourcesRepo.list(filter);
     // 隐藏内部类型的资源（segments 等），这些资源通过 listChildren 查询
-    const HIDDEN_TYPES = new Set(['segments', 'subtitle-edit']);
+    const HIDDEN_TYPES = new Set(['segments', 'subtitle-edit', 'tts-track']);
     return (rows as any[]).filter((r: any) => !HIDDEN_TYPES.has(r.type));
   });
   ipcMain.handle('resource:listChildren', async (_event, payload: { parentResourceId: string; limit?: number; offset?: number }) => {
@@ -935,6 +935,102 @@ export function initResourceHandlers(): void {
     );
 
     return results;
+  });
+
+  // ---- 独立 TTS 轨道 (tts-track) ----
+
+  ipcMain.handle('resource:createTTSTrack', async (_event, payload: { parentResourceId: string; title: string; voiceName: string; rate: number; pitch: number; autoTrimSilence: boolean }) => {
+    const { parentResourceId, title, voiceName, rate, pitch, autoTrimSilence } = payload;
+    const parent = await ResourcesRepo.getById(parentResourceId);
+    if (!parent) throw new Error('父资源不存在');
+
+    const parentDir = parent.filePath ? path.dirname(parent.filePath) : undefined;
+    if (!parentDir) throw new Error('父资源无文件路径，无法确定存储目录');
+
+    const trackId = Date.now().toString(36);
+    const parentBaseName = path.basename(parent.filePath!, path.extname(parent.filePath!));
+    const jsonFileName = `${parentBaseName}.tts-track.${trackId}.json`;
+    const jsonPath = path.join(parentDir, jsonFileName);
+
+    const jsonContent = JSON.stringify(
+      {
+        version: 1,
+        resourceId: parentResourceId,
+        type: 'tts-track',
+        startedAt: Date.now(),
+        updatedAt: Date.now(),
+        config: { voiceName, rate, pitch, autoTrimSilence },
+        segments: [] // 存储合成的片段信息
+      },
+      null,
+      2
+    );
+    await fs.writeFile(jsonPath, jsonContent, 'utf8');
+
+    const newResource = await ResourcesRepo.upsert({
+      type: 'tts-track' as any,
+      parentResourceId,
+      workspaceId: parent.workspaceId,
+      folderId: parent.folderId,
+      title,
+      description: `TTS配音轨道: ${title}`,
+      filePath: jsonPath,
+      language: 'tts-track',
+      mimeType: 'application/json',
+      status: 'ready'
+    } as any);
+
+    return { id: newResource.id, trackId, filePath: jsonPath };
+  });
+
+  ipcMain.handle('resource:getTTSTracks', async (_event, payload: { parentResourceId: string }) => {
+    const children = await ResourcesRepo.listChildren(payload.parentResourceId);
+    const ttsTracks = children.filter((c: any) => c.type === 'tts-track' && c.deletedAt == null);
+
+    const results = await Promise.all(
+      ttsTracks.map(async (t: any) => {
+        let config = { voiceName: 'zh-CN-XiaoxiaoNeural', rate: 20, pitch: 0, autoTrimSilence: true };
+        let segments: Array<{ index: number; text: string; startTime: number; endTime: number; md5?: string }> = [];
+        if (t.filePath) {
+          try {
+            const content = await fs.readFile(t.filePath, 'utf8');
+            const json = JSON.parse(content);
+            if (json.config) config = { ...config, ...json.config };
+            segments = json.segments || [];
+          } catch (err) {
+            console.error('[getTTSTracks] 读取文件失败:', t.filePath, err);
+          }
+        }
+        return { id: t.id, title: t.title, filePath: t.filePath, config, segments };
+      })
+    );
+
+    return results;
+  });
+
+  ipcMain.handle('resource:updateTTSTrack', async (_event, payload: { trackResourceId: string; config?: { voiceName?: string; rate?: number; pitch?: number; autoTrimSilence?: boolean }; segments?: Array<{ index: number; text: string; startTime: number; endTime: number; md5?: string }> }) => {
+    const { trackResourceId, config, segments } = payload;
+    const track = await ResourcesRepo.getById(trackResourceId);
+    if (!track || !track.filePath) throw new Error('TTS轨道资源不存在或无文件路径');
+
+    let json: any = { version: 1 };
+    try {
+      const content = await fs.readFile(track.filePath, 'utf8');
+      json = JSON.parse(content);
+    } catch {
+      /* ignore */
+    }
+
+    json.updatedAt = Date.now();
+    if (config) {
+      json.config = { ...json.config, ...config };
+    }
+    if (segments !== undefined) {
+      json.segments = segments;
+    }
+
+    await fs.writeFile(track.filePath, JSON.stringify(json, null, 2), 'utf8');
+    return { success: true };
   });
 }
 

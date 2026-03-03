@@ -91,6 +91,8 @@ export interface StartSynthesisTrackOptions {
   trackId: TTSTrackId;
   languageCode?: string;
   segments: AimSegments[];
+  /** 起始索引（用于独立 TTS 轨道添加新片段时指定索引位置） */
+  startIndex?: number;
 }
 
 /**
@@ -117,8 +119,8 @@ export interface UseTTSSynthesisReturn {
   resetSynthesis: (trackId?: string) => void;
   /** 删除指定轨道的单个合成项（从内存移除；若传 md5 则同时从 history 的 orderList 等中移除） */
   removeSynthesizedItem: (trackId: string, index: number, md5?: string) => void;
-  /** 加载TTS历史记录（可指定轨道或加载多轨道） */
-  loadTTSHistory: (config: TTSSynthesisConfig, trackId?: TTSTrackId) => Promise<void>;
+  /** 加载TTS历史记录（可指定轨道或加载多轨道；isStandalone 表示独立轨道，不依赖字幕条目） */
+  loadTTSHistory: (config: TTSSynthesisConfig, trackId?: TTSTrackId, isStandalone?: boolean) => Promise<void>;
   /** 更新单条 TTS 的字幕时间（st/et），并写回 history */
   updateTTSSegmentTimes: (trackId: string, index: number, newStartTime: number, newEndTime: number) => Promise<void>;
   /** 当前活跃的任务 ID */
@@ -289,17 +291,25 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, resolveAudioUr
   );
 
   // 加载TTS历史记录（可指定轨道，不传则加载 main）
+  // 对于独立 TTS 轨道（standalone），不依赖字幕条目
   const loadTTSHistory = useCallback(
-    async (config: TTSSynthesisConfig, trackId: TTSTrackId = 'main'): Promise<void> => {
+    async (config: TTSSynthesisConfig, trackId: TTSTrackId = 'main', isStandalone = false): Promise<void> => {
       const currentEntries = subtitleEntriesRef.current || [];
-      if (currentEntries.length === 0 || !resourceId) {
-        console.log('[useTTSSynthesis] 没有字幕条目或资源ID，跳过加载历史');
+
+      // 独立 TTS 轨道不需要字幕条目
+      if (!isStandalone && currentEntries.length === 0) {
+        console.log('[useTTSSynthesis] 没有字幕条目，跳过加载历史（非独立轨道）');
+        return;
+      }
+
+      if (!resourceId) {
+        console.log('[useTTSSynthesis] 没有资源ID，跳过加载历史');
         return;
       }
 
       setIsLoadingHistory(true);
       try {
-        console.log(`[useTTSSynthesis] 加载TTS历史 - resourceId: ${resourceId}, trackId: ${trackId}`);
+        console.log(`[useTTSSynthesis] 加载TTS历史 - resourceId: ${resourceId}, trackId: ${trackId}, isStandalone: ${isStandalone}`);
 
         const history: BatchTTSHistory | null = await window.YUA.tts.loadHistory({
           resourceId,
@@ -330,26 +340,30 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, resolveAudioUr
         const loadedItems = new Map<number, TTSSynthesisItem>();
         if (history.orderList && history.orderList.length > 0) {
           history.orderList.forEach((md5, index) => {
-            if (index < currentEntries.length) {
-              const audioPath = history.trimmedAudioMap[md5] || history.audioMap[md5];
-              const info = history.segmentInfoMap?.[md5];
-              const duration = info?.duration;
-              const trimmedDuration = info?.trimmedDuration;
-              const startTime = parseStEt(info?.st);
-              const endTime = parseStEt(info?.et);
-              if (audioPath) {
-                loadedItems.set(index, {
-                  index,
-                  status: 'completed',
-                  audioPath,
-                  duration: duration != null ? duration / 1000 : undefined,
-                  trimmedDuration: trimmedDuration != null ? trimmedDuration / 1000 : undefined,
-                  text: currentEntries[index]?.text || '',
-                  md5,
-                  startTime,
-                  endTime
-                });
-              }
+            // 独立轨道不检查字幕索引边界
+            if (!isStandalone && index >= currentEntries.length) {
+              return;
+            }
+            const audioPath = history.trimmedAudioMap[md5] || history.audioMap[md5];
+            const info = history.segmentInfoMap?.[md5];
+            const duration = info?.duration;
+            const trimmedDuration = info?.trimmedDuration;
+            const startTime = parseStEt(info?.st);
+            const endTime = parseStEt(info?.et);
+            // 从 info 中获取文本（独立轨道）或从字幕条目获取
+            const text = isStandalone ? info?.text || '' : currentEntries[index]?.text || '';
+            if (audioPath) {
+              loadedItems.set(index, {
+                index,
+                status: 'completed',
+                audioPath,
+                duration: duration != null ? duration / 1000 : undefined,
+                trimmedDuration: trimmedDuration != null ? trimmedDuration / 1000 : undefined,
+                text,
+                md5,
+                startTime,
+                endTime
+              });
             }
           });
         }
@@ -418,40 +432,56 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, resolveAudioUr
       let segments: AimSegments[];
       let languageCode: string | undefined;
       let indicesToSynthesize: number[];
+      let taskStartIndex = 0; // 用于存储 startIndex 供 progress 事件使用
 
       if (Array.isArray(optionsOrIndices)) {
         const currentEntries = subtitleEntriesRef.current || [];
         if (currentEntries.length === 0) throw new Error('没有字幕条目可供合成');
         indicesToSynthesize = optionsOrIndices.length > 0 ? optionsOrIndices : currentEntries.map((_, i) => i);
         segments = currentEntries;
+        taskStartIndex = indicesToSynthesize[0] ?? 0;
       } else if (optionsOrIndices && 'trackId' in optionsOrIndices && optionsOrIndices.segments) {
         const opts = optionsOrIndices as StartSynthesisTrackOptions;
         trackId = opts.trackId;
         languageCode = opts.languageCode;
         segments = opts.segments.filter((s) => !s.delete);
-        indicesToSynthesize = segments.map((_, i) => i);
+        // 如果指定了 startIndex，则从该索引开始；否则使用数组索引
+        taskStartIndex = opts.startIndex ?? 0;
+        indicesToSynthesize = segments.map((_, i) => taskStartIndex + i);
       } else {
         const currentEntries = subtitleEntriesRef.current || [];
         if (currentEntries.length === 0) throw new Error('没有字幕条目可供合成');
         segments = currentEntries;
         indicesToSynthesize = currentEntries.map((_, i) => i);
+        taskStartIndex = 0;
       }
 
       if (indicesToSynthesize.length === 0) throw new Error('没有选择要合成的字幕');
 
-      // 只重置当前轨道的状态，不清空其他轨道
+      // 保留当前轨道已有项目，只添加/更新新项目
       setSynthesizedItemsByTrack((prev) => {
         const next = new Map(prev);
-        // 为当前轨道初始化 pending 状态
-        const initialItems = new Map<number, TTSSynthesisItem>();
-        indicesToSynthesize.forEach((index) => {
-          initialItems.set(index, {
-            index,
+        // 获取当前轨道已有的项目（如果存在）
+        const existingItems = next.get(trackId) ?? new Map<number, TTSSynthesisItem>();
+        // 复制一份以避免修改原 Map
+        const updatedItems = new Map(existingItems);
+        // 解析时间的辅助函数
+        const parseTime = (v: string | undefined): number | undefined => {
+          if (!v) return undefined;
+          return parseTimeToSeconds(v);
+        };
+        // 为当前合成任务添加/更新 pending 状态，同时设置 startTime/endTime
+        indicesToSynthesize.forEach((targetIndex, arrayIndex) => {
+          const seg = segments[arrayIndex];
+          updatedItems.set(targetIndex, {
+            index: targetIndex,
             status: 'pending',
-            text: segments[index]?.text ?? ''
+            text: seg?.text ?? '',
+            startTime: parseTime(seg?.st),
+            endTime: parseTime(seg?.et)
           });
         });
-        next.set(trackId, initialItems);
+        next.set(trackId, updatedItems);
         return next;
       });
 
@@ -463,10 +493,11 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, resolveAudioUr
       // 更新 synthesizingIndices（用于进度条显示）
       setSynthesizingIndices(new Set(indicesToSynthesize));
 
-      const items = indicesToSynthesize.map((index) => {
-        const seg = segments[index];
+      // 使用数组索引访问 segments，使用目标索引作为 item.index
+      const items = indicesToSynthesize.map((targetIndex, arrayIndex) => {
+        const seg = segments[arrayIndex];
         return {
-          index,
+          index: targetIndex,
           text: seg?.text ?? '',
           st: seg.st,
           et: seg.et
@@ -490,7 +521,7 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, resolveAudioUr
       taskTrackMapRef.current.set(taskRequestId, trackId);
       activeTaskIdRef.current = taskRequestId;
       setActiveTaskId(taskRequestId);
-      console.log(`[useTTSSynthesis] TTS任务已启动 requestId: ${taskRequestId}, trackId: ${trackId}, eventsChannel: ${eventsChannel}`);
+      console.log(`[useTTSSynthesis] TTS任务已启动 requestId: ${taskRequestId}, trackId: ${trackId}, startIndex: ${taskStartIndex}, eventsChannel: ${eventsChannel}`);
       return taskRequestId;
     },
     [resourceId, subtitleEntriesRef]
@@ -515,19 +546,20 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, resolveAudioUr
       switch (event.type) {
         case 'progress': {
           if (event.data) {
-            const { currentIndex, percentage } = event.data;
+            const { percentage, itemIndex } = event.data;
             // 只更新当前活跃任务的进度（用于 UI 显示）
             if (event.requestId === activeTaskIdRef.current) {
               setSynthesisProgress(percentage);
             }
-            if (currentIndex !== undefined) {
+            // 使用 itemIndex（实际的项目索引）来更新状态
+            if (itemIndex !== undefined) {
               setSynthesizedItemsByTrack((prev) => {
                 const trackMap = prev.get(trackId);
                 if (!trackMap) return prev;
                 const nextTrack = new Map(trackMap);
-                const existing = nextTrack.get(currentIndex);
+                const existing = nextTrack.get(itemIndex);
                 if (existing && existing.status !== 'synthesizing') {
-                  nextTrack.set(currentIndex, { ...existing, status: 'synthesizing' });
+                  nextTrack.set(itemIndex, { ...existing, status: 'synthesizing' });
                   const next = new Map(prev);
                   next.set(trackId, nextTrack);
                   return next;

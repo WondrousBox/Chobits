@@ -34,6 +34,8 @@ export interface TTSProgressEventData {
     percentage: number;
     message: string;
     currentText?: string;
+    /** 实际的项目索引（用于前端正确映射到轨道位置） */
+    itemIndex?: number;
   };
 }
 
