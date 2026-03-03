@@ -146,6 +146,26 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     []
   );
 
+  // 防抖保存媒体轨道状态（存储到独立的 mediaTrack 文件）
+  const debouncedSaveMediaTracks = useMemo(
+    () =>
+      debounce(async (resourceId: string, tracks: MediaTrackData[], sources: Map<string, MediaSource>) => {
+        if (!resourceId) return;
+        try {
+          const sourcesRecord = Object.fromEntries(sources);
+          const result = await window.YUA.mediaTrack.save(resourceId, { tracks, sources: sourcesRecord });
+          if (result.success) {
+            console.log('[auto-save] 媒体轨道状态已保存');
+          } else {
+            console.error('[auto-save] 保存媒体轨道状态失败:', result.error);
+          }
+        } catch (error) {
+          console.error('[auto-save] 保存媒体轨道状态失败:', error);
+        }
+      }, 1000),
+    []
+  );
+
   // 从独立文件加载剪辑状态
   const loadClipSegments = useCallback(async (resourceId: string, mediaDur?: number) => {
     console.log('[SubtitlePlayer] loadClipSegments 被调用', {
@@ -183,6 +203,23 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     }
   }, []);
 
+  // 从独立文件加载媒体轨道状态
+  const loadMediaTracks = useCallback(async (resourceId: string) => {
+    console.log('[SubtitlePlayer] loadMediaTracks 被调用', { resourceId });
+    try {
+      const data = await window.YUA.mediaTrack.load(resourceId);
+      if (data && Array.isArray(data.tracks) && data.tracks.length > 0) {
+        console.log('[SubtitlePlayer] 加载到已保存的媒体轨道:', data.tracks.length, '个轨道');
+        setMediaTracks(data.tracks);
+        setMediaSources(new Map(Object.entries(data.sources || {})));
+      } else {
+        console.log('[SubtitlePlayer] 没有已保存的媒体轨道');
+      }
+    } catch (error) {
+      console.error('[SubtitlePlayer] 加载媒体轨道状态失败:', error);
+    }
+  }, []);
+
   // 剪辑状态变更时自动保存
   useEffect(() => {
     if (!resource.id || clipSegments.length === 0) return;
@@ -194,6 +231,15 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     console.log('[SubtitlePlayer] 触发剪辑状态自动保存, clipSegments:', clipSegments.length, '个');
     debouncedSaveClipSegments(resource.id, clipSegments);
   }, [clipSegments, resource.id, debouncedSaveClipSegments]);
+
+  // 媒体轨道状态变更时自动保存
+  useEffect(() => {
+    if (!resource.id) return;
+    // 没有轨道且没有源时跳过保存
+    if (mediaTracks.length === 0 && mediaSources.size === 0) return;
+    console.log('[SubtitlePlayer] 触发媒体轨道状态自动保存, tracks:', mediaTracks.length, 'sources:', mediaSources.size);
+    debouncedSaveMediaTracks(resource.id, mediaTracks, mediaSources);
+  }, [mediaTracks, mediaSources, resource.id, debouncedSaveMediaTracks]);
 
   // 外部值变化时同步本地开关
   useEffect(() => {
@@ -676,11 +722,15 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
   useEffect(() => {
     if (resource.id && mediaDuration && mediaDuration > 0) {
       void loadClipSegments(resource.id, mediaDuration);
+      // 同时加载媒体轨道状态
+      void loadMediaTracks(resource.id);
     } else if (!resource.id) {
       // 资源清空时重置状态
       setClipSegments([]);
+      setMediaTracks([]);
+      setMediaSources(new Map());
     }
-  }, [resource.id, mediaDuration, loadClipSegments]);
+  }, [resource.id, mediaDuration, loadClipSegments, loadMediaTracks]);
 
   // 加载波形数据（当音频路径或时长变化时）
   useEffect(() => {

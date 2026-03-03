@@ -18,6 +18,7 @@ import { ffmpegIpcRenderer } from '../main/handlers/ffmpeg/ipc-renderer';
 import { fileIpcRenderer } from '../main/handlers/file/ipc-renderer';
 import { folderIpcRenderer } from '../main/handlers/folder/ipc-renderer';
 import { mediaIpcRenderer } from '../main/handlers/media/ipc-renderer';
+import { createMediaTrackIpcRenderer } from '../main/handlers/mediaTrack/ipc-renderer';
 import { preferencesIpcRenderer } from '../main/handlers/preferences/ipc-renderer';
 import { proxyIpcRenderer } from '../main/handlers/proxy/ipc-renderer';
 import { resourceIpcRenderer } from '../main/handlers/resource/ipc-renderer';
@@ -95,6 +96,7 @@ contextBridge.exposeInMainWorld('YUA', {
   rss: createRssApi(ipcRenderer),
   tts: createTTSIpcRenderer(ipcRenderer),
   clip: createClipIpcRenderer(ipcRenderer),
+  mediaTrack: createMediaTrackIpcRenderer(ipcRenderer),
   annotation: createAnnotationIpcRenderer(ipcRenderer),
   media: mediaIpcRenderer,
   events: {
