@@ -65,6 +65,9 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   showTTSTrack = true,
   standaloneTTSTracks,
   onAddTTSSegment,
+  pendingTTSSegment,
+  onAddTTSSegmentConfirm,
+  onCancelTTSSegment,
   onTTSBlockDoubleClick,
   onPlayTTSAudio,
   onStopTTSAudio,
@@ -904,6 +907,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
               {showTTSTrack &&
                 standaloneTTSTracks?.map((stt) => {
                   const items = ttsItemsByTrack?.get(stt.id) ?? [];
+                  const isPendingThisTrack = pendingTTSSegment?.trackId === stt.id;
                   return (
                     <TTSAudioTrack
                       key={`standalone-tts-content-${stt.id}`}
@@ -930,6 +934,9 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                       disabled={ttsTrackEnabledMap?.get(stt.id) === false}
                       allowAddSegment={!!onAddTTSSegment}
                       onAddSegment={onAddTTSSegment ? (startTime, endTime) => onAddTTSSegment(stt.id, startTime, endTime) : undefined}
+                      pendingNewSegment={isPendingThisTrack ? { startTime: pendingTTSSegment.startTime, endTime: pendingTTSSegment.endTime } : null}
+                      onAddSegmentConfirm={onAddTTSSegmentConfirm ? (startTime, endTime, text) => onAddTTSSegmentConfirm(stt.id, startTime, endTime, text) : undefined}
+                      onCancelNewSegment={onCancelTTSSegment}
                       onBlockDoubleClick={onTTSBlockDoubleClick ? (item) => onTTSBlockDoubleClick(stt.id, item) : undefined}
                     />
                   );

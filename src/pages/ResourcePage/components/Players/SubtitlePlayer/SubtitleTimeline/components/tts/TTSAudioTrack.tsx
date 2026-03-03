@@ -50,8 +50,14 @@ interface TTSAudioTrackProps {
   disabled?: boolean;
   /** 是否允许点击空白添加片段（独立 TTS 轨道） */
   allowAddSegment?: boolean;
-  /** 在空白处添加片段回调 (startTime, endTime) */
+  /** 点击空白处请求添加片段回调 (startTime, endTime) - 父组件设置 pendingNewSegment */
   onAddSegment?: (startTime: number, endTime: number) => void;
+  /** 待新增片段的时间范围（显示 inline 输入框） */
+  pendingNewSegment?: { startTime: number; endTime: number } | null;
+  /** 确认新增片段（输入框失焦且有内容时） */
+  onAddSegmentConfirm?: (startTime: number, endTime: number, text: string) => void;
+  /** 取消新增（输入框失焦且无内容时） */
+  onCancelNewSegment?: () => void;
   /** 双击已有块编辑回调 */
   onBlockDoubleClick?: (item: TTSAudioItem) => void;
 }
@@ -78,11 +84,36 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
   disabled = false,
   allowAddSegment = false,
   onAddSegment,
+  pendingNewSegment,
+  onAddSegmentConfirm,
+  onCancelNewSegment,
   onBlockDoubleClick
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [waveformMap, setWaveformMap] = useState<Record<string, WaveformData>>({});
+  const newSegmentInputRef = useRef<HTMLTextAreaElement>(null);
+  const [newSegmentInput, setNewSegmentInput] = useState('');
+
+  // 打开新增输入框时清空内容并聚焦
+  useEffect(() => {
+    if (pendingNewSegment) {
+      setNewSegmentInput('');
+      requestAnimationFrame(() => newSegmentInputRef.current?.focus());
+    }
+  }, [pendingNewSegment]);
+
+  // 新增片段输入框失焦：无内容则取消，有内容则确认新增
+  const handleNewSegmentBlur = useCallback(() => {
+    if (!pendingNewSegment) return;
+    const text = newSegmentInput.trim();
+    if (text === '') {
+      onCancelNewSegment?.();
+    } else {
+      onAddSegmentConfirm?.(pendingNewSegment.startTime, pendingNewSegment.endTime, text);
+    }
+    setNewSegmentInput('');
+  }, [pendingNewSegment, newSegmentInput, onCancelNewSegment, onAddSegmentConfirm]);
 
   // Get media adapter from context and create waveform loader
   const mediaAdapter = useMediaAdapter();
@@ -258,16 +289,44 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
     return currentTime * pixelsPerSecond;
   }, [currentTime, pixelsPerSecond]);
 
-  // 双击空白区域添加片段
-  const handleTrackDoubleClick = useCallback(
+  /** mousedown 时的横向滚动位置，用于区分「点击空白」与「拖拽滚动后松开」 */
+  const scrollLeftAtMouseDownRef = useRef<number | null>(null);
+
+  // 点击空白区域添加片段（类似字幕轨道的单击添加）
+  const handleTrackMouseDown = useCallback(() => {
+    // 记录 mousedown 时的滚动位置，用于判断是否是真正的点击
+    scrollLeftAtMouseDownRef.current = null; // TTS 轨道没有 scrollLeft，暂时用 null
+  }, []);
+
+  const handleTrackClick = useCallback(
     (e: React.MouseEvent) => {
       if (!allowAddSegment || !onAddSegment || disabled) return;
+      // 确保点击的是轨道背景，而不是块
+      const target = e.target as HTMLElement;
+      if (target.closest('[data-tts-block]')) return;
+
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect) return;
       const x = e.clientX - rect.left;
       const time = x / pixelsPerSecond;
+
+      // 计算新片段的时间范围：以点击时间为中心前后各 1.5 秒（共 3 秒）
       const segDuration = 3;
-      onAddSegment(Math.max(0, time), Math.min(time + segDuration, maxDuration ?? time + segDuration));
+      const halfDuration = segDuration / 2;
+      let startTime = time - halfDuration;
+      let endTime = time + halfDuration;
+
+      // 确保不超出边界
+      if (startTime < 0) {
+        startTime = 0;
+        endTime = Math.min(segDuration, maxDuration ?? segDuration);
+      }
+      if (maxDuration && endTime > maxDuration) {
+        endTime = maxDuration;
+        startTime = Math.max(0, maxDuration - segDuration);
+      }
+
+      onAddSegment(startTime, endTime);
     },
     [allowAddSegment, onAddSegment, disabled, pixelsPerSecond, maxDuration]
   );
@@ -277,7 +336,7 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
   }
 
   return (
-    <div className={clsx('relative border-border', disabled && 'opacity-40 pointer-events-none')} style={{ height: trackHeight, width }} onDoubleClick={handleTrackDoubleClick}>
+    <div className={clsx('relative border-border', disabled && 'opacity-40 pointer-events-none')} style={{ height: trackHeight, width }} onMouseDown={handleTrackMouseDown} onClick={handleTrackClick}>
       {/* 轨道内容容器（设置总宽度） */}
       <div ref={containerRef} className="relative h-full" style={{ width }}>
         {/* 单轨单 Canvas：波形层（在块下方，半透明块背景可透出波形） */}
@@ -301,10 +360,47 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
           ))}
         </div>
 
+        {/* 待新增片段的输入框：样式与字幕轨道一致 */}
+        {pendingNewSegment && (
+          <div
+            className="absolute z-20 overflow-hidden rounded"
+            style={{
+              left: pendingNewSegment.startTime * pixelsPerSecond,
+              width: Math.max(150, (pendingNewSegment.endTime - pendingNewSegment.startTime) * pixelsPerSecond),
+              top: DEFAULT_CONFIG.TRACK_GAP / 2,
+              height: DEFAULT_CONFIG.TRACK_HEIGHT + 20
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <textarea
+              ref={newSegmentInputRef}
+              className={clsx(
+                'w-full h-full min-w-[150px] px-1.5 py-0.5 text-xs leading-tight resize-none',
+                'bg-background border-2 border-primary rounded outline-none text-foreground box-border',
+                'placeholder:text-muted-foreground'
+              )}
+              style={{ minHeight: DEFAULT_CONFIG.TRACK_HEIGHT + 20 }}
+              placeholder="输入内容，enter 确认，esc 取消"
+              value={newSegmentInput}
+              onChange={(e) => setNewSegmentInput(e.target.value)}
+              onBlur={handleNewSegmentBlur}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  (e.target as HTMLTextAreaElement).blur();
+                } else if (e.key === 'Escape') {
+                  setNewSegmentInput('');
+                  onCancelNewSegment?.();
+                }
+              }}
+            />
+          </div>
+        )}
+
         {/* 空轨道提示 */}
         {items.length === 0 && allowAddSegment && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <span className="text-[10px] text-muted-foreground/60">双击添加语音片段</span>
+            <span className="text-[10px] text-muted-foreground/60">点击添加语音片段</span>
           </div>
         )}
 

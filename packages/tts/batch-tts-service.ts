@@ -143,6 +143,8 @@ export interface SegmentInfo {
   duration?: number;
   /** 去静音后时长（毫秒） */
   trimmedDuration?: number;
+  /** 合成的文本内容（用于独立 TTS 轨道） */
+  text?: string;
 }
 
 /**
@@ -199,7 +201,7 @@ function historyPathsToAbsolute(history: BatchTTSHistory, outputDir: string): Ba
 export interface BatchTTSProgressEvent {
   type: 'progress';
   data: {
-    /** 当前处理的索引 */
+    /** 当前处理的索引（处理顺序，1-based） */
     currentIndex: number;
     /** 总数量 */
     total: number;
@@ -209,6 +211,8 @@ export interface BatchTTSProgressEvent {
     message: string;
     /** 当前处理的文本（截取前30字符） */
     currentText?: string;
+    /** 实际的项目索引（用于前端正确映射到轨道位置） */
+    itemIndex?: number;
   };
 }
 
@@ -828,6 +832,10 @@ export const BatchTTSService = {
             seg.et = utils.formatTime(stSeconds + result.trimmedDuration / 1000);
             seg.duration = result.duration;
             seg.trimmedDuration = result.trimmedDuration;
+            // 保存文本（用于独立 TTS 轨道加载历史时显示）
+            if (item.text) {
+              seg.text = item.text;
+            }
           }
 
           successCount++;
@@ -855,7 +863,9 @@ export const BatchTTSService = {
             total: items.length,
             percentage,
             message: `正在合成 ${processedCount}/${items.length}...`,
-            currentText: item.text.substring(0, 30) + (item.text.length > 30 ? '...' : '')
+            currentText: item.text.substring(0, 30) + (item.text.length > 30 ? '...' : ''),
+            // 添加实际的 item 索引，供前端正确映射
+            itemIndex: itemIndex
           }
         });
 
@@ -874,16 +884,19 @@ export const BatchTTSService = {
       results.push(...taskResults);
       results.sort((a, b) => a.index - b.index);
 
-      // 生成顺序列表
+      // 生成顺序列表：保留已有条目，添加新条目（去重）
+      const existingMd5Set = new Set(history.orderList);
       for (const r of results) {
-        if (r.success) {
+        if (r.success && !existingMd5Set.has(r.md5)) {
           orderList.push(r.md5);
+          existingMd5Set.add(r.md5);
         }
       }
+      // 合并：已有的 + 新增的
+      history.orderList = [...history.orderList, ...orderList];
 
       // 更新历史记录
       history.updatedAt = Date.now();
-      history.orderList = orderList;
       console.log(`[BatchTTS] 保存历史记录 - 新增音频: ${successCount - cacheHitCount}, 总音频数: ${Object.keys(history.audioMap).length}`);
       await this.saveHistory(outputDir, history);
 

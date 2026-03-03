@@ -92,10 +92,10 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
   const [subtitleEditTracks, setSubtitleEditTracks] = useState<AimSegments[][]>([]);
   const [subtitleEditTrackMeta, setSubtitleEditTrackMeta] = useState<{ label: string; resourceId: string }[]>([]);
   const [subtitleEditNameDialog, setSubtitleEditNameDialog] = useState<{ open: boolean; name: string }>({ open: false, name: '' });
-  /** 独立 TTS 轨道元数据：每个轨道有唯一 ID、名称、TTS 配置 */
-  const [standaloneTTSTracks, setStandaloneTTSTracks] = useState<{ id: string; label: string; voiceName: string; rate: number; pitch: number; autoTrimSilence: boolean }[]>([]);
+  /** 独立 TTS 轨道元数据：每个轨道有唯一 ID、名称、TTS 配置、数据库资源 ID */
+  const [standaloneTTSTracks, setStandaloneTTSTracks] = useState<{ id: string; label: string; voiceName: string; rate: number; pitch: number; autoTrimSilence: boolean; resourceId?: string }[]>([]);
   const [ttsTrackNameDialog, setTTSTrackNameDialog] = useState<{ open: boolean; name: string }>({ open: false, name: '' });
-  /** TTS 片段文本输入对话框（双击空白或编辑已有片段） */
+  /** TTS 片段文本输入对话框（双击已有片段编辑时使用） */
   const [ttsSegmentDialog, setTTSSegmentDialog] = useState<{
     open: boolean;
     trackId: string;
@@ -104,6 +104,8 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     endTime: number;
     editIndex?: number; // 编辑已有片段时的索引
   }>({ open: false, trackId: '', text: '', startTime: 0, endTime: 3 });
+  /** 待新增 TTS 片段（inline 输入框状态） */
+  const [pendingTTSSegment, setPendingTTSSegment] = useState<{ trackId: string; startTime: number; endTime: number } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [subtitleFormat, setSubtitleFormat] = useState<SubtitleFormat>('srt');
   const SUBTITLE_VIEW_MODE_KEY = 'subtitle-player:viewMode';
@@ -479,6 +481,35 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     loadSubtitleEditTracks();
   }, [resource.id, subtitleEntries.length, loadSubtitleEditTracks]);
 
+  // 加载独立 TTS 轨道
+  const loadTTSTracks = useCallback(async () => {
+    if (!resource.id) return;
+    try {
+      const tracks = await window.YUA.resource['resource:getTTSTracks']({ parentResourceId: resource.id });
+      const ttsTracksData: { id: string; label: string; voiceName: string; rate: number; pitch: number; autoTrimSilence: boolean; resourceId: string }[] = [];
+      for (const t of tracks) {
+        ttsTracksData.push({
+          id: `tts-${t.id}`, // 使用数据库资源 ID 生成唯一 trackId
+          label: t.title || '配音',
+          voiceName: t.config?.voiceName ?? 'zh-CN-XiaoxiaoNeural',
+          rate: t.config?.rate ?? 20,
+          pitch: t.config?.pitch ?? 0,
+          autoTrimSilence: t.config?.autoTrimSilence ?? true,
+          resourceId: t.id
+        });
+      }
+      setStandaloneTTSTracks(ttsTracksData);
+      console.log(`[SubtitlePlayer] 加载到 ${ttsTracksData.length} 个独立 TTS 轨道`);
+    } catch (err) {
+      console.error('[SubtitlePlayer] 加载独立 TTS 轨道失败:', err);
+    }
+  }, [resource.id]);
+
+  useEffect(() => {
+    if (!resource.id || subtitleEntries.length === 0) return;
+    loadTTSTracks();
+  }, [resource.id, subtitleEntries.length, loadTTSTracks]);
+
   // 翻译完成后的回调：期望轨道数比当前多 1
   const handleTranslationComplete = useCallback(() => {
     const expectedTracks = translationTracks.length + 1;
@@ -558,6 +589,20 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
       void loadTTSHistory(config, t.languageCode);
     });
   }, [viewMode, subtitleEntries.length, resource.id, loadTTSHistory, translationTrackMeta]);
+
+  // 加载独立 TTS 轨道的合成历史
+  useEffect(() => {
+    if (standaloneTTSTracks.length === 0 || !resource.id) return;
+
+    // 为每个独立 TTS 轨道加载历史
+    standaloneTTSTracks.forEach((track) => {
+      void loadTTSHistory(
+        { voiceName: track.voiceName, rate: track.rate, pitch: track.pitch },
+        track.id,
+        true // isStandalone = true
+      );
+    });
+  }, [standaloneTTSTracks, resource.id, loadTTSHistory]);
 
   // 当前正在播放的 TTS 索引 & 播放实例
   const [playingTTSIndex, setPlayingTTSIndex] = useState<number | null>(null);
@@ -1496,9 +1541,20 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
       try {
         resetSynthesis(ttsTrackId);
 
-        // 独立 TTS 轨道：从列表中移除
+        // 独立 TTS 轨道：从列表中移除并删除数据库记录
         if (ttsTrackId.startsWith('tts-')) {
+          const trackConfig = standaloneTTSTracks.find((t) => t.id === ttsTrackId);
           setStandaloneTTSTracks((prev) => prev.filter((t) => t.id !== ttsTrackId));
+
+          // 删除数据库记录
+          if (trackConfig?.resourceId) {
+            try {
+              await window.YUA.resource.deleteResource({ id: trackConfig.resourceId });
+              console.log(`[SubtitlePlayer] 已删除 TTS 轨道数据库记录 ${trackConfig.resourceId}`);
+            } catch (dbErr) {
+              console.error('[SubtitlePlayer] 删除 TTS 轨道数据库记录失败:', dbErr);
+            }
+          }
         }
 
         if (resource.id) {
@@ -1513,7 +1569,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
         console.error(`[SubtitlePlayer] 删除TTS轨道失败:`, error);
       }
     },
-    [resource.id, resetSynthesis]
+    [resource.id, resetSynthesis, standaloneTTSTracks]
   );
 
   // 添加编排字幕轨道 — 弹出命名对话框
@@ -1543,7 +1599,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     setTTSTrackNameDialog({ open: true, name: `配音 ${standaloneTTSTracks.length + 1}` });
   }, [standaloneTTSTracks.length]);
 
-  const handleConfirmAddTTSTrack = useCallback(() => {
+  const handleConfirmAddTTSTrack = useCallback(async () => {
     const trackName = ttsTrackNameDialog.name.trim();
     if (!trackName) return;
     setTTSTrackNameDialog({ open: false, name: '' });
@@ -1566,12 +1622,26 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
       /* ignore */
     }
 
-    const trackId = `tts-${Date.now().toString(36)}`;
-    const newTrack = { id: trackId, label: trackName, voiceName, rate, pitch, autoTrimSilence };
-    setStandaloneTTSTracks((prev) => [...prev, newTrack]);
-    // 打开 TTS 设置面板让用户调整配置
-    setTTSSettingsTrackId(trackId);
-  }, [ttsTrackNameDialog.name]);
+    try {
+      // 持久化到数据库
+      const result = await window.YUA.resource['resource:createTTSTrack']({
+        parentResourceId: resource.id,
+        title: trackName,
+        voiceName,
+        rate,
+        pitch,
+        autoTrimSilence
+      });
+      // 使用数据库返回的资源 ID 作为 trackId
+      const trackId = `tts-${result.id}`;
+      const newTrack = { id: trackId, label: trackName, voiceName, rate, pitch, autoTrimSilence, resourceId: result.id };
+      setStandaloneTTSTracks((prev) => [...prev, newTrack]);
+      // 打开 TTS 设置面板让用户调整配置
+      setTTSSettingsTrackId(trackId);
+    } catch (err) {
+      console.error('[SubtitlePlayer] 创建 TTS 轨道失败:', err);
+    }
+  }, [ttsTrackNameDialog.name, resource.id]);
 
   // 打开 TTS 设置
   const handleOpenTTSSettings = useCallback((ttsTrackId: string) => {
@@ -1630,9 +1700,53 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     [updateTTSSegmentTimes]
   );
 
-  // 独立 TTS 轨道：双击空白添加片段 → 弹出文本输入
+  // 独立 TTS 轨道：点击空白添加片段 → 设置 pending 状态显示 inline 输入框
   const handleAddTTSSegment = useCallback((ttsTrackId: string, startTime: number, endTime: number) => {
-    setTTSSegmentDialog({ open: true, trackId: ttsTrackId, text: '', startTime, endTime });
+    setPendingTTSSegment({ trackId: ttsTrackId, startTime, endTime });
+  }, []);
+
+  // 独立 TTS 轨道：inline 输入框确认 → 立即合成
+  const handleConfirmTTSSegmentInline = useCallback(
+    async (trackId: string, startTime: number, endTime: number, text: string) => {
+      if (!text.trim()) return;
+      setPendingTTSSegment(null);
+
+      const trackConfig = standaloneTTSTracks.find((t) => t.id === trackId);
+      if (!trackConfig) return;
+
+      // 计算新片段的索引：基于当前轨道已有的片段数量
+      const existingItems = synthesizedItemsByTrack.get(trackId);
+      const newIndex = existingItems ? existingItems.size : 0;
+
+      // 将时间转换为字幕格式 (HH:MM:SS,mmm)
+      const formatTime = (seconds: number): string => {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = Math.floor(seconds % 60);
+        const ms = Math.round((seconds % 1) * 1000);
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')},${String(ms).padStart(3, '0')}`;
+      };
+
+      try {
+        await startSynthesis(
+          { voiceName: trackConfig.voiceName, rate: trackConfig.rate, pitch: trackConfig.pitch, autoTrimSilence: trackConfig.autoTrimSilence },
+          {
+            trackId,
+            segments: [{ st: formatTime(startTime), et: formatTime(endTime), text: text.trim() }],
+            startIndex: newIndex
+          }
+        );
+        // startTime/endTime 已在 startSynthesis 中设置，无需再调用 updateTTSSegmentTimes
+      } catch (err) {
+        console.error('[SubtitlePlayer] TTS 片段合成失败:', err);
+      }
+    },
+    [standaloneTTSTracks, startSynthesis, synthesizedItemsByTrack]
+  );
+
+  // 取消 inline 输入
+  const handleCancelTTSSegment = useCallback(() => {
+    setPendingTTSSegment(null);
   }, []);
 
   // 独立 TTS 轨道：双击已有块编辑文本 → 弹出编辑输入
@@ -1647,29 +1761,41 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     });
   }, []);
 
-  // 确认 TTS 片段文本输入 → 立即合成
+  // 确认 TTS 片段文本输入（对话框编辑已有块时） → 立即合成
   const handleConfirmTTSSegment = useCallback(async () => {
-    const { trackId, text, startTime, endTime } = ttsSegmentDialog;
+    const { trackId, text, startTime, endTime, editIndex } = ttsSegmentDialog;
     if (!text.trim()) return;
     setTTSSegmentDialog((prev) => ({ ...prev, open: false }));
 
     const trackConfig = standaloneTTSTracks.find((t) => t.id === trackId);
     if (!trackConfig) return;
 
+    // 编辑已有块时使用 editIndex，否则计算新索引
+    const targetIndex = editIndex ?? (synthesizedItemsByTrack.get(trackId)?.size ?? 0);
+
+    // 将时间转换为字幕格式 (HH:MM:SS,mmm)
+    const formatTime = (seconds: number): string => {
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = Math.floor(seconds % 60);
+      const ms = Math.round((seconds % 1) * 1000);
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')},${String(ms).padStart(3, '0')}`;
+    };
+
     try {
       await startSynthesis(
         { voiceName: trackConfig.voiceName, rate: trackConfig.rate, pitch: trackConfig.pitch, autoTrimSilence: trackConfig.autoTrimSilence },
-        { trackId, segments: [{ st: '00:00:00,000', et: '00:00:00,000', text: text.trim() }] }
+        {
+          trackId,
+          segments: [{ st: formatTime(startTime), et: formatTime(endTime), text: text.trim() }],
+          startIndex: targetIndex
+        }
       );
-      // 合成完成后由 useTTSSynthesis 事件监听自动更新 synthesizedItemsByTrack
-      // 这里主动设置 startTime/endTime
-      setTimeout(() => {
-        void updateTTSSegmentTimes(trackId, 0, startTime, endTime);
-      }, 500);
+      // startTime/endTime 已在 startSynthesis 中设置，无需再调用 updateTTSSegmentTimes
     } catch (err) {
       console.error('[SubtitlePlayer] TTS 片段合成失败:', err);
     }
-  }, [ttsSegmentDialog, standaloneTTSTracks, startSynthesis, updateTTSSegmentTimes]);
+  }, [ttsSegmentDialog, standaloneTTSTracks, startSynthesis, synthesizedItemsByTrack]);
 
   // ---- 剪辑轨道 ----
 
@@ -2335,6 +2461,9 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
           showTTSTrack={ttsItemsByTrackForTimeline.size > 0 || isSynthesizing || !!ttsSettingsTrackId || standaloneTTSTracks.length > 0}
           standaloneTTSTracks={standaloneTTSTracks.map((t) => ({ id: t.id, label: t.label }))}
           onAddTTSSegment={handleAddTTSSegment}
+          pendingTTSSegment={pendingTTSSegment}
+          onAddTTSSegmentConfirm={handleConfirmTTSSegmentInline}
+          onCancelTTSSegment={handleCancelTTSSegment}
           onTTSBlockDoubleClick={handleTTSBlockDoubleClick}
           onPlayTTSAudio={handlePlayTTS}
           onStopTTSAudio={handleStopTTS}
@@ -2492,6 +2621,14 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
                         t.id === ttsSettingsTrackId ? { ...t, voiceName: config.voiceName, rate: config.rate ?? 20, pitch: config.pitch ?? 0, autoTrimSilence: config.autoTrimSilence ?? true } : t
                       )
                     );
+                    // 更新数据库中的配置
+                    const trackConfig = standaloneTTSTracks.find((t) => t.id === ttsSettingsTrackId);
+                    if (trackConfig?.resourceId) {
+                      window.YUA.resource['resource:updateTTSTrack']({
+                        trackResourceId: trackConfig.resourceId,
+                        config: { voiceName: config.voiceName, rate: config.rate, pitch: config.pitch, autoTrimSilence: config.autoTrimSilence }
+                      }).catch((err) => console.error('[SubtitlePlayer] 更新 TTS 轨道配置失败:', err));
+                    }
                     setTTSSettingsTrackId(null);
                   }}
                 />
