@@ -22,6 +22,7 @@ import { initFFmpegHandlers } from './ffmpeg/ipc-main';
 import { initFileHandlers } from './file/ipc-main';
 import { initFolderHandlers } from './folder/ipc-main';
 import { initMediaHandlers } from './media/ipc-main';
+import { initMediaTrackHandlers } from './mediaTrack/ipc-main';
 import { initPreferencesHandlers } from './preferences/ipc-main';
 import { initProxyHandlers } from './proxy/ipc-main';
 import { getHttpProxy } from './proxy/proxy';
@@ -99,6 +100,7 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   initYtDlpIpcHandlers(win);
   initSkillTreeHandlers();
   initClipHandlers();
+  initMediaTrackHandlers();
   initAnnotationHandlers();
   initMediaHandlers(win);
   await initSpriteManagerIPC(win);
