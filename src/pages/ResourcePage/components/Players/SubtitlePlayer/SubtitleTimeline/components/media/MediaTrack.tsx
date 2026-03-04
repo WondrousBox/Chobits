@@ -229,7 +229,7 @@ export const MediaTrack: React.FC<MediaTrackProps> = ({
 
             let info: { width: number; height: number; duration?: number } | null = null;
             try {
-              info = await mediaAdapter?.getMediaInfo?.(filePath) || null;
+              info = (await mediaAdapter?.getMediaInfo?.(filePath)) || null;
             } catch (err) {
               console.warn(`Could not get info for ${filePath}:`, err);
             }

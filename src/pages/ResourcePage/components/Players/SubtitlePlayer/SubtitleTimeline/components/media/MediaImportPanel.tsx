@@ -58,63 +58,66 @@ export const MediaImportPanel: React.FC<MediaImportPanelProps> = ({ open, onClos
   }, []);
 
   // Process file paths
-  const processFilePaths = useCallback(async (filePaths: string[]) => {
-    setLoading(true);
-    setError(null);
+  const processFilePaths = useCallback(
+    async (filePaths: string[]) => {
+      setLoading(true);
+      setError(null);
 
-    try {
-      const mediaSources: MediaSource[] = [];
+      try {
+        const mediaSources: MediaSource[] = [];
 
-      for (const filePath of filePaths) {
-        // Determine file type by extension
-        const ext = filePath.split('.').pop()?.toLowerCase() || '';
+        for (const filePath of filePaths) {
+          // Determine file type by extension
+          const ext = filePath.split('.').pop()?.toLowerCase() || '';
 
-        const isVideo = videoExtensions.includes(ext);
-        const isImage = imageExtensions.includes(ext);
+          const isVideo = videoExtensions.includes(ext);
+          const isImage = imageExtensions.includes(ext);
 
-        if (!isVideo && !isImage) {
-          console.warn(`Skipping unsupported file: ${filePath}`);
-          continue;
+          if (!isVideo && !isImage) {
+            console.warn(`Skipping unsupported file: ${filePath}`);
+            continue;
+          }
+
+          // Get media info via adapter
+          let info: { width: number; height: number; duration?: number } | null = null;
+          try {
+            info = (await mediaAdapter?.getMediaInfo?.(filePath)) || null;
+          } catch (err) {
+            console.warn(`Could not get info for ${filePath}:`, err);
+          }
+
+          // Use info from adapter or fallback to defaults
+          const width = info?.width || configAdapter?.defaultMediaInfo?.width || 1920;
+          const height = info?.height || configAdapter?.defaultMediaInfo?.height || 1080;
+          const videoDuration = info?.duration || (isVideo ? 10 : undefined);
+
+          // Generate ID using adapter
+          const sourceId = idGeneratorAdapter?.generateMediaSourceId?.() || `source-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+          mediaSources.push({
+            id: sourceId,
+            path: filePath,
+            type: isVideo ? 'video' : 'image',
+            duration: videoDuration,
+            width,
+            height
+          });
         }
 
-        // Get media info via adapter
-        let info: { width: number; height: number; duration?: number } | null = null;
-        try {
-          info = await mediaAdapter?.getMediaInfo?.(filePath) || null;
-        } catch (err) {
-          console.warn(`Could not get info for ${filePath}:`, err);
+        if (mediaSources.length > 0) {
+          setSelectedFiles((prev) => [...prev, ...mediaSources]);
+        } else {
+          setError('没有找到有效的媒体文件（支持视频和图片)');
         }
-
-        // Use info from adapter or fallback to defaults
-        const width = info?.width || configAdapter?.defaultMediaInfo?.width || 1920;
-        const height = info?.height || configAdapter?.defaultMediaInfo?.height || 1080;
-        const videoDuration = info?.duration || (isVideo ? 10 : undefined);
-
-        // Generate ID using adapter
-        const sourceId = idGeneratorAdapter?.generateMediaSourceId?.() || `source-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-
-        mediaSources.push({
-          id: sourceId,
-          path: filePath,
-          type: isVideo ? 'video' : 'image',
-          duration: videoDuration,
-          width,
-          height
-        });
+      } catch (err) {
+        console.error('Error processing files:', err);
+        setError(err instanceof Error ? err.message : '处理文件时出错');
+      } finally {
+        setLoading(false);
       }
-
-      if (mediaSources.length > 0) {
-        setSelectedFiles((prev) => [...prev, ...mediaSources]);
-      } else {
-        setError('没有找到有效的媒体文件（支持视频和图片)');
-      }
-    } catch (err) {
-      console.error('Error processing files:', err);
-      setError(err instanceof Error ? err.message : '处理文件时出错');
-    } finally {
-      setLoading(false);
-    }
-  }, [mediaAdapter, configAdapter, idGeneratorAdapter, videoExtensions, imageExtensions]);
+    },
+    [mediaAdapter, configAdapter, idGeneratorAdapter, videoExtensions, imageExtensions]
+  );
 
   // Handle file drop
   const handleDrop = useCallback(

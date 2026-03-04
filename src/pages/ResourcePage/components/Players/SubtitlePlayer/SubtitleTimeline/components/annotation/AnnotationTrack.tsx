@@ -4,8 +4,8 @@ import { TbBookmark, TbHighlight, TbNote, TbTrash, TbVocabulary } from 'react-ic
 
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
-import { useAnnotationAdapter } from '../../context';
 import type { AnnotationItem } from '../../adapters/types';
+import { useAnnotationAdapter } from '../../context';
 import type { AnnotationTrackCallbacks, ViewportState } from '../../types';
 import { DEFAULT_CONFIG } from '../../types';
 
@@ -103,9 +103,7 @@ export const AnnotationTrack: React.FC<AnnotationTrackProps> = ({ annotations, t
                     {annotation.title && <div className="font-medium truncate">{annotation.title}</div>}
                     {annotation.description && <div className="text-muted-foreground mt-0.5 line-clamp-2">{annotation.description}</div>}
                     {/* 高亮类型不显示类型文字 */}
-                    {!annotation.title && !annotation.description && annotation.type !== 'highlight' && (
-                      <div className="text-muted-foreground">{annotation.type}</div>
-                    )}
+                    {!annotation.title && !annotation.description && annotation.type !== 'highlight' && <div className="text-muted-foreground">{annotation.type}</div>}
                   </div>
                   {callbacks?.onAnnotationDelete && (
                     <button
