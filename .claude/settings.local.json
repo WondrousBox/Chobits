@@ -6,7 +6,9 @@
       "mcp__zread__get_repo_structure",
       "mcp__zread__read_file",
       "mcp__zread__search_doc",
-      "Bash(pnpm exec tsc --noEmit)"
+      "Bash(pnpm exec tsc --noEmit)",
+      "Bash(pnpm tsc --noEmit --skipLibCheck)",
+      "Bash(pnpm exec tsc --noEmit --skipLibCheck)"
     ]
   }
 }

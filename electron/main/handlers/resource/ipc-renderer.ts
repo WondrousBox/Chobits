@@ -53,6 +53,8 @@ export type ResourceIpcParams = {
   'resource:update': IpcParams<[{ id: string; patch: any }], { success: boolean; data?: any }>;
   deleteResource: IpcParams<[{ id: string }], { success: true }>;
   deleteResources: IpcParams<[{ ids: string[] }], { success: true }>;
+  /** 永久删除资源（不经过回收站） */
+  deleteResourcePermanently: IpcParams<[{ id: string }], { success: true; deleted: number }>;
   revealResource: IpcParams<[{ id: string }], { success: boolean }>;
   renameResource: IpcParams<[{ id: string; newName: string; renameFile?: boolean }], { success: boolean; fileRenamed?: boolean; newPath?: string }>;
   moveResourcesToWorkspace: IpcParams<[{ ids: string[]; workspaceId: string }], { moved: number }>;
@@ -141,6 +143,7 @@ const methods: Array<keyof ResourceIpcParams> = [
   'resource:update',
   'deleteResource',
   'deleteResources',
+  'deleteResourcePermanently',
   'revealResource',
   'renameResource',
   'moveResourcesToWorkspace',

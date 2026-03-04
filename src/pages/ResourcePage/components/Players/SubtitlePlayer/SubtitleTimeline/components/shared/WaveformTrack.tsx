@@ -2,6 +2,18 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { ViewportState, WaveformData } from '../../types';
 
+/**
+ * 波形轨道组件 Props
+ *
+ * 遵循统一命名规范：
+ * - width: 轨道宽度 (原 totalWidth)
+ * - totalDuration: 总时长 (原 duration)
+ * - pixelsPerSecond: 缩放级别
+ * - viewport: 视口状态
+ * - scrollLeft: 滚动偏移
+ * - currentTime: 当前播放时间
+ * - height: 轨道高度
+ */
 interface WaveformTrackProps {
   /** 波形数据（外部传入） */
   waveformData?: WaveformData;
@@ -9,10 +21,10 @@ interface WaveformTrackProps {
   isLoading?: boolean;
   /** 错误信息 */
   error?: string | null;
-  /** 时间轴总宽度 */
-  totalWidth: number;
-  /** 时长（秒） */
-  duration: number;
+  /** 轨道总宽度 - 统一命名为 width */
+  width: number;
+  /** 总时长 (秒) - 统一命名为 totalDuration */
+  totalDuration: number;
   /** 每秒像素数 */
   pixelsPerSecond: number;
   /** 视口状态 */
@@ -44,10 +56,10 @@ export const WaveformTrack: React.FC<WaveformTrackProps> = ({
   waveformData,
   isLoading = false,
   error = null,
-  // totalWidth 和 viewport 不再需要，但保留在 props 中以保持接口一致性
+  // width 和 viewport 不再需要，但保留在 props 中以保持接口一致性
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  totalWidth: _totalWidth,
-  duration,
+  width: _width,
+  totalDuration,
   pixelsPerSecond,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   viewport: _viewport,
@@ -96,15 +108,15 @@ export const WaveformTrack: React.FC<WaveformTrackProps> = ({
     }
 
     // 使用 FFmpeg 返回的实际音频时长来计算波形映射
-    // 这比使用外部传入的 duration 更准确，可以避免波形与音频的错位
+    // 这比使用外部传入的 totalDuration 更准确，可以避免波形与音频的错位
     const actualAudioDuration = waveformData.duration;
 
     // 调试：检查时长是否一致
-    if (Math.abs(actualAudioDuration - duration) > 0.1) {
+    if (Math.abs(actualAudioDuration - totalDuration) > 0.1) {
       console.warn('[WaveformTrack] Duration mismatch:', {
-        propsDuration: duration,
+        propsDuration: totalDuration,
         audioDuration: actualAudioDuration,
-        diff: actualAudioDuration - duration
+        diff: actualAudioDuration - totalDuration
       });
     }
 
@@ -180,7 +192,7 @@ export const WaveformTrack: React.FC<WaveformTrackProps> = ({
 
       ctx.fillRect(x, y, BAR_WIDTH, barHeight);
     }
-  }, [waveformData, actualContainerWidth, height, scrollLeft, pixelsPerSecond, duration]);
+  }, [waveformData, actualContainerWidth, height, scrollLeft, pixelsPerSecond, totalDuration]);
 
   // 处理鼠标按下
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -204,12 +216,12 @@ export const WaveformTrack: React.FC<WaveformTrackProps> = ({
         const x = e.clientX - rect.left;
         // 计算点击位置对应的时间（考虑滚动偏移）
         const time = (x + scrollLeft) / pixelsPerSecond;
-        onSeek(Math.max(0, Math.min(duration, time)));
+        onSeek(Math.max(0, Math.min(totalDuration, time)));
       }
 
       mouseDownPosRef.current = null;
     },
-    [onSeek, pixelsPerSecond, duration, scrollLeft]
+    [onSeek, pixelsPerSecond, totalDuration, scrollLeft]
   );
 
   // 如果没有波形数据且不在加载中，不渲染
@@ -249,8 +261,8 @@ export const WaveformTrack: React.FC<WaveformTrackProps> = ({
         }
 
         {/* 音频结束截止线 */}
-        {duration > 0 && (
-          <div className="absolute top-0 bottom-0 w-0.5 bg-orange-500 z-10 pointer-events-none" style={{ left: duration * pixelsPerSecond - scrollLeft }} title={`音频结束: ${duration.toFixed(2)}s`} />
+        {totalDuration > 0 && (
+          <div className="absolute top-0 bottom-0 w-0.5 bg-orange-500 z-10 pointer-events-none" style={{ left: totalDuration * pixelsPerSecond - scrollLeft }} title={`音频结束: ${totalDuration.toFixed(2)}s`} />
         )}
       </div>
     </div>

@@ -13,6 +13,150 @@ import type { AnnotationItem, TimelineAdapters, WordTimestamp } from './adapters
  * 3. 交互友好 - 支持缩放、平移、点击、选中等操作
  */
 
+// ========== 统一基础类型 ==========
+
+/**
+ * 片段基础数据 - 所有片段类型共享
+ */
+export interface BaseSegment {
+  /** 片段唯一 ID */
+  id: string;
+  /** 开始时间 (秒) */
+  startTime: number;
+  /** 结束时间 (秒) */
+  endTime: number;
+  /** 是否已删除 (软删除) */
+  deleted?: boolean;
+}
+
+/**
+ * 统一的轨道 Props - 所有轨道类型共享
+ * 某些 props 可能对特定轨道不使用，但保持接口一致
+ */
+export interface TrackProps {
+  // ========== 布局 (必需) ==========
+  /** 轨道总宽度 (像素) */
+  width: number;
+  /** 轨道高度 (像素) */
+  height?: number;
+  /** 缩放级别 (每秒像素数) */
+  pixelsPerSecond: number;
+
+  // ========== 视口 (必需) ==========
+  /** 可视区域状态 */
+  viewport: ViewportState;
+  /** 水平滚动偏移 */
+  scrollLeft?: number;
+
+  // ========== 时间上下文 ==========
+  /** 总时长 (秒) */
+  totalDuration: number;
+  /** 当前播放时间 */
+  currentTime?: number;
+
+  // ========== 交互状态 ==========
+  /** 是否禁用交互 */
+  disabled?: boolean;
+
+  // ========== 轨道数据 ==========
+  /** 轨道 ID */
+  trackId?: string;
+  /** 轨道标签 */
+  trackLabel?: string;
+  /** 轨道颜色 */
+  trackColor?: string;
+
+  // ========== 选中状态 (统一为 string | number | null) ==========
+  /** 选中的片段/块 ID */
+  selectedId?: string | number | null;
+  /** 高亮的片段 ID 集合 */
+  highlightIds?: Set<string>;
+
+  // ========== 工具状态 ==========
+  /** 当前激活的工具 */
+  activeTool?: ClipTool | MediaTool;
+
+  // ========== 数据 (轨道特定，但统一命名) ==========
+  /** 片段数据 (字幕/TTS/剪辑/媒体通用) */
+  segments?: BaseSegment[];
+  /** 轨道完整数据 (用于需要额外元数据的轨道) */
+  trackData?: TimelineTrack | MediaTrackData | ClipTrackData;
+
+  // ========== 波形特定 ==========
+  /** 波形数据 */
+  waveformData?: WaveformData;
+  /** 是否加载中 */
+  isLoading?: boolean;
+  /** 错误信息 */
+  error?: string | null;
+
+  // ========== TTS 特定 ==========
+  /** 正在播放的索引 */
+  playingIndex?: number;
+
+  // ========== 媒体轨道特定 ==========
+  /** 媒体源映射 */
+  sources?: Map<string, MediaSource>;
+
+  // ========== 回调函数 (统一签名) ==========
+  /** 点击片段 */
+  onSegmentClick?: (segmentId: string, event?: React.MouseEvent) => void;
+  /** 双击片段 */
+  onSegmentDoubleClick?: (segmentId: string) => void;
+  /** 删除片段 */
+  onSegmentDelete?: (segmentId: string) => void;
+  /** 恢复片段 */
+  onSegmentRestore?: (segmentId: string) => void;
+  /** 片段时间变更 */
+  onSegmentTimeChange?: (segmentId: string, newStartTime: number, newEndTime: number) => void;
+  /** 片段移动 */
+  onSegmentMove?: (segmentId: string, newStartTime: number) => void;
+  /** 片段大小调整 */
+  onSegmentResize?: (segmentId: string, edge: 'start' | 'end', newTime: number) => void;
+  /** 跳转 */
+  onSeek?: (time: number) => void;
+  /** 选中变更 */
+  onSelect?: (id: string | number | null) => void;
+
+  // ========== 字幕特定回调 ==========
+  /** 文本变更 */
+  onTextChange?: (segmentId: string, newText: string) => void;
+  /** 合并上一片段 */
+  onMergePrev?: (segmentId: string) => void;
+
+  // ========== TTS 特定回调 ==========
+  /** 播放音频 */
+  onPlayAudio?: (index: number, audioPath?: string) => void;
+  /** 停止音频 */
+  onStopAudio?: () => void;
+
+  // ========== 剪辑特定回调 ==========
+  /** 剪切 */
+  onCut?: (time: number) => void;
+  /** 速度变更 */
+  onSpeedChange?: (clipId: string, speed: number) => void;
+  /** 上移 */
+  onMoveUp?: (clipId: string) => void;
+  /** 下移 */
+  onMoveDown?: (clipId: string) => void;
+
+  // ========== 添加片段 (通用) ==========
+  /** 允许添加片段 */
+  allowAddSegment?: boolean;
+  /** 待添加的片段 */
+  pendingNewSegment?: { startTime: number; endTime: number } | null;
+  /** 确认添加 */
+  onAddSegmentConfirm?: (startTime: number, endTime: number, text?: string) => void;
+  /** 取消添加 */
+  onCancelNewSegment?: () => void;
+
+  // ========== 其他 ==========
+  /** 自定义类名 */
+  className?: string;
+}
+
+// ========== 现有类型定义 ==========
+
 /**
  * 时间片段 - 时间轴上的基本单元
  */
