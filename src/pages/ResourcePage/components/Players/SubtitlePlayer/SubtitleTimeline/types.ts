@@ -383,6 +383,8 @@ export interface SubtitleTimelineProps extends TimelineCallbacks {
   onToggleTTSTrackEnabled?: (ttsTrackId: string) => void;
   /** 打开 TTS 设置面板回调 */
   onOpenTTSSettings?: (ttsTrackId: string) => void;
+  /** 打开 TTS 批量文本输入面板回调 */
+  onOpenTTSBatchInput?: (ttsTrackId: string) => void;
   /** TTS 语音标签映射：ttsTrackId -> 短名称（如 "Xiaoxiao"） */
   ttsVoiceLabels?: Map<string, string>;
   /** 剪辑轨道是否启用（默认 true） */

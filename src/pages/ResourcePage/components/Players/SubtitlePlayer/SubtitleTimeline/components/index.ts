@@ -32,5 +32,4 @@ export { WaveformTrack } from './shared';
 // TTS components
 export type { TTSAudioItem } from './tts';
 export type { TTSTrackLabelProps } from './tts';
-export { TTSAudioTrack } from './tts';
-export { TTSTrackLabel } from './tts';
+export { TTSAudioTrack, TTSBatchTextInputPanel, TTSTrackLabel } from './tts';

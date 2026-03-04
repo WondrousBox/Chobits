@@ -92,6 +92,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   onToggleSubtitleTrackEnabled,
   onToggleTTSTrackEnabled,
   onOpenTTSSettings,
+  onOpenTTSBatchInput,
   ttsVoiceLabels,
   clipTrackEnabled = true,
   ttsTrackEnabledMap,
@@ -687,6 +688,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                       enabled={ttsTrackEnabledMap?.get(stt.id) !== false}
                       onToggleEnabled={onToggleTTSTrackEnabled}
                       onOpenSettings={onOpenTTSSettings}
+                      onLabelClick={onOpenTTSBatchInput}
                       voiceLabel={ttsVoiceLabels?.get(stt.id)}
                     />
                   );
