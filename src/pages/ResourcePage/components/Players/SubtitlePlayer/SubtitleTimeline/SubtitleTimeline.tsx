@@ -77,6 +77,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   onDeleteTTSTrack,
   onDeleteTTSSegment,
   onTTSTimeChange,
+  onTTSTextChange,
   onSegmentClick,
   onSegmentDoubleClick,
   onSegmentTextChange,
@@ -860,6 +861,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                           onStopAudio={onStopTTSAudio}
                           playingIndex={playingTTSIndex}
                           onTimeChange={(index, newStartTime, newEndTime) => onTTSTimeChange?.(ttsTrackId, index, newStartTime, newEndTime)}
+                          onTextChange={onTTSTextChange ? (index, newText) => onTTSTextChange(ttsTrackId, index, newText) : undefined}
                           maxDuration={duration}
                           onDeleteSegment={onDeleteTTSSegment ? (item) => onDeleteTTSSegment(ttsTrackId, item.index) : undefined}
                           disabled={ttsTrackEnabledMap?.get(ttsTrackId) === false}
@@ -895,6 +897,7 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                       onStopAudio={onStopTTSAudio}
                       playingIndex={playingTTSIndex}
                       onTimeChange={(index, newStartTime, newEndTime) => onTTSTimeChange?.(stt.id, index, newStartTime, newEndTime)}
+                      onTextChange={onTTSTextChange ? (index, newText) => onTTSTextChange(stt.id, index, newText) : undefined}
                       maxDuration={duration}
                       onDeleteSegment={onDeleteTTSSegment ? (item) => onDeleteTTSSegment(stt.id, item.index) : undefined}
                       disabled={ttsTrackEnabledMap?.get(stt.id) === false}

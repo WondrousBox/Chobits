@@ -1817,6 +1817,46 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     [updateTTSSegmentTimes]
   );
 
+  // TTS 块文本变更（内联编辑后），重新合成该片段
+  const handleTTSTextChange = useCallback(
+    async (ttsTrackId: string, index: number, newText: string) => {
+      if (!newText.trim()) return;
+
+      const trackConfig = standaloneTTSTracks.find((t) => t.id === ttsTrackId);
+      if (!trackConfig) return;
+
+      // 获取原片段的时间信息
+      const existingItem = synthesizedItemsByTrack.get(ttsTrackId)?.get(index);
+      if (!existingItem) return;
+
+      const startTime = existingItem.startTime ?? 0;
+      const endTime = existingItem.endTime ?? startTime + 5;
+
+      // 将时间转换为字幕格式 (HH:MM:SS,mmm)
+      const formatTime = (seconds: number): string => {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = Math.floor(seconds % 60);
+        const ms = Math.round((seconds % 1) * 1000);
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')},${String(ms).padStart(3, '0')}`;
+      };
+
+      try {
+        await startSynthesis(
+          { voiceName: trackConfig.voiceName, rate: trackConfig.rate, pitch: trackConfig.pitch, autoTrimSilence: trackConfig.autoTrimSilence },
+          {
+            trackId: ttsTrackId,
+            segments: [{ st: formatTime(startTime), et: formatTime(endTime), text: newText.trim() }],
+            startIndex: index
+          }
+        );
+      } catch (err) {
+        console.error('[SubtitlePlayer] TTS 片段文本更新合成失败:', err);
+      }
+    },
+    [standaloneTTSTracks, synthesizedItemsByTrack, startSynthesis]
+  );
+
   // 独立 TTS 轨道：点击空白添加片段 → 检查是否已配置，未配置则先打开设置面板
   const handleAddTTSSegment = useCallback(
     (ttsTrackId: string, startTime: number, endTime: number) => {
@@ -2614,6 +2654,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
             onDeleteTTSTrack={handleDeleteTTSTrack}
             onDeleteTTSSegment={handleDeleteTTSSegment}
             onTTSTimeChange={handleTTSTimeChange}
+            onTTSTextChange={handleTTSTextChange}
             clipTrack={clipTrackData}
             clipCallbacks={clipCallbacks}
             onToggleSubtitleTrackEnabled={handleToggleSubtitleTrackEnabled}

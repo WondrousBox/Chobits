@@ -377,6 +377,8 @@ export interface SubtitleTimelineProps extends TimelineCallbacks {
   onDeleteTTSSegment?: (trackId: string, index: number) => void;
   /** TTS 块时间变更回调（拖拽移动或边缘调整后） */
   onTTSTimeChange?: (trackId: string, index: number, newStartTime: number, newEndTime: number) => void;
+  /** TTS 块文本变更回调（内联编辑后） */
+  onTTSTextChange?: (trackId: string, index: number, newText: string) => void;
   /** 切换字幕轨道启用/禁用 */
   onToggleSubtitleTrackEnabled?: (trackId: string) => void;
   /** 切换TTS轨道启用/禁用 */

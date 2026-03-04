@@ -372,7 +372,24 @@ export function useTTSSynthesis({ resourceId, subtitleEntriesRef, resolveAudioUr
           console.log(`[useTTSSynthesis] 加载了 ${loadedItems.size} 个已合成的TTS项目 (track: ${trackId})`);
           setSynthesizedItemsByTrack((prev) => {
             const next = new Map(prev);
-            next.set(trackId, loadedItems);
+            // 获取当前轨道已有的项目
+            const existingItems = next.get(trackId);
+            if (existingItems) {
+              // 合并数据：保留当前状态中正在合成的项目，用历史数据更新已完成的项目
+              const mergedItems = new Map(existingItems);
+              for (const [index, item] of loadedItems) {
+                const existing = mergedItems.get(index);
+                // 如果当前没有该项目，或者该项目不是正在合成状态，则用历史数据更新
+                if (!existing || existing.status !== 'synthesizing') {
+                  mergedItems.set(index, item);
+                }
+                // 如果正在合成，保留当前状态（合成完成后会自动更新）
+              }
+              next.set(trackId, mergedItems);
+            } else {
+              // 没有现有数据，直接使用历史数据
+              next.set(trackId, loadedItems);
+            }
             return next;
           });
 
