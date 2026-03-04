@@ -44,6 +44,8 @@ interface TTSAudioTrackProps {
   onDeleteSegment?: (item: TTSAudioItem) => void;
   /** 块时间变更回调（拖拽移动或边缘调整后） */
   onTimeChange?: (index: number, newStartTime: number, newEndTime: number) => void;
+  /** 块文本变更回调（内联编辑后） */
+  onTextChange?: (index: number, newText: string) => void;
   /** 最大时长（秒），用于拖拽边界 */
   maxDuration?: number;
   /** 禁用交互（轨道未启用时） */
@@ -80,6 +82,7 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
   onBlockSelect,
   onDeleteSegment,
   onTimeChange,
+  onTextChange,
   maxDuration,
   disabled = false,
   allowAddSegment = false,
@@ -396,6 +399,7 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
               onPlayClick={handlePlayClick}
               onDeleteClick={handleDeleteClick}
               onTimeChange={item.md5 && onTimeChange ? (newStartTime, newEndTime) => onTimeChange(item.index, newStartTime, newEndTime) : undefined}
+              onTextChange={onTextChange ? (newText) => onTextChange(item.index, newText) : undefined}
               onDoubleClick={onBlockDoubleClick ? (_e, it) => onBlockDoubleClick(it) : undefined}
             />
           ))}

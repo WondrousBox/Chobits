@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TbLoader2, TbPlayerPause, TbPlayerPlay, TbTrash } from 'react-icons/tb';
+import { TbLoader2, TbPencil, TbPlayerPause, TbPlayerPlay, TbTrash } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 
@@ -29,6 +29,8 @@ export interface TTSAudioBlockProps {
   onDeleteClick?: (e: React.MouseEvent, item: TTSAudioItem) => void;
   /** 时间变更回调（拖拽移动或边缘调整后） */
   onTimeChange?: (newStartTime: number, newEndTime: number) => void;
+  /** 文本变更回调（内联编辑后） */
+  onTextChange?: (newText: string) => void;
   /** 双击块回调（编辑文本） */
   onDoubleClick?: (e: React.MouseEvent, item: TTSAudioItem) => void;
 }
@@ -68,14 +70,18 @@ export const TTSAudioBlock: React.FC<TTSAudioBlockProps> = ({
   onPlayClick,
   onDeleteClick,
   onTimeChange,
+  onTextChange,
   onDoubleClick
 }) => {
   const [dragMode, setDragMode] = useState<DragMode>('none');
   const [dragStartX, setDragStartX] = useState(0);
   const [originalTimes, setOriginalTimes] = useState({ start: 0, end: 0 });
   const [dragHoverTime, setDragHoverTime] = useState<{ startTime?: number; endTime?: number; x: number; y: number } | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(item.text ?? '');
 
   const blockRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const didDragJustEndRef = useRef(false);
   const didMoveDuringDragRef = useRef(false);
 
@@ -86,6 +92,51 @@ export const TTSAudioBlock: React.FC<TTSAudioBlockProps> = ({
   const audioDuration = item.trimmedDuration ?? item.duration ?? slotDuration;
   // 块展示时长与音频时长不一致时，播放倍率 = 实际音频时长 / 块时长（>1 需加速，<1 需减速）
   const playbackRate = slotDuration > 0 && (item.trimmedDuration != null || item.duration != null) ? (item.trimmedDuration ?? item.duration ?? 0) / slotDuration : null;
+
+  // 进入编辑模式时聚焦输入框
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  // 同步外部文本变化
+  useEffect(() => {
+    if (!isEditing) {
+      setEditText(item.text ?? '');
+    }
+  }, [item.text, isEditing]);
+
+  // 提交编辑：保存文本并退出编辑模式
+  const tryCommitEdit = useCallback(() => {
+    if (!isEditing) return;
+    setIsEditing(false);
+    const trimmedText = editText.trim();
+    if (trimmedText && trimmedText !== item.text) {
+      onTextChange?.(trimmedText);
+    }
+  }, [isEditing, editText, item.text, onTextChange]);
+
+  // 处理编辑完成（失焦时）
+  const handleEditBlur = useCallback(() => {
+    if (!isEditing) return;
+    tryCommitEdit();
+  }, [isEditing, tryCommitEdit]);
+
+  // 处理键盘事件
+  const handleEditKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        tryCommitEdit();
+      } else if (e.key === 'Escape') {
+        setEditText(item.text ?? '');
+        setIsEditing(false);
+      }
+    },
+    [tryCommitEdit, item.text]
+  );
 
   const getEdgeFromPosition = useCallback((clientX: number): DragMode => {
     if (!blockRef.current) return 'move';
@@ -189,9 +240,15 @@ export const TTSAudioBlock: React.FC<TTSAudioBlockProps> = ({
         onBlockClick?.(e, item);
         return;
       }
+      // 已选中时再次点击进入编辑模式
+      if (isSelected && onTextChange) {
+        setIsEditing(true);
+        setEditText(item.text ?? '');
+        return;
+      }
       onBlockClick?.(e, item);
     },
-    [item, onBlockClick]
+    [item, isSelected, onTextChange, onBlockClick]
   );
 
   const pillClass = 'pointer-events-none select-none text-[10px] leading-none text-foreground/70 bg-background/70 rounded px-1 py-0.5';
@@ -245,7 +302,25 @@ export const TTSAudioBlock: React.FC<TTSAudioBlockProps> = ({
         )}
 
         <div className="flex items-center justify-center h-full px-1 overflow-hidden">
-          {item.status === 'synthesizing' ? (
+          {isEditing ? (
+            // 编辑模式：显示 textarea
+            <div
+              className="absolute inset-0 z-30 bg-background border-2 border-primary rounded"
+              style={{ left: -1, right: -1, top: -1, bottom: -1, minWidth: Math.max(width, 150), minHeight: 60 }}
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <textarea
+                ref={inputRef}
+                className="w-full h-full p-1.5 text-xs leading-tight resize-none box-border bg-transparent outline-none text-foreground"
+                value={editText}
+                onChange={(e) => setEditText(e.target.value)}
+                onBlur={handleEditBlur}
+                onKeyDown={handleEditKeyDown}
+                placeholder="输入文本..."
+              />
+            </div>
+          ) : item.status === 'synthesizing' ? (
             <div className="flex items-center gap-1">
               <TbLoader2 className="h-3 w-3 shrink-0 animate-spin text-blue-500" />
               <span className="text-[10px] text-blue-600 truncate [@container(max-width:56px)]:hidden">合成中</span>
