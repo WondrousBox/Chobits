@@ -4,7 +4,24 @@ import type { IpcParams, PartialByKey } from '../types';
 
 export type Resource = {
   id: string;
-  type: 'image' | 'video' | 'audio' | 'text' | 'link' | 'file' | 'document' | 'translation' | 'summary' | 'mindmap' | 'note' | 'screenshot' | 'segments' | 'subtitle-edit' | 'tts-track' | 'other';
+  type:
+  | 'image'
+  | 'video'
+  | 'audio'
+  | 'text'
+  | 'link'
+  | 'file'
+  | 'document'
+  | 'translation'
+  | 'summary'
+  | 'mindmap'
+  | 'note'
+  | 'screenshot'
+  | 'segments'
+  | 'subtitle-edit'
+  | 'tts-track'
+  | 'media-track'
+  | 'other';
   workspaceId?: string;
   folderId?: string;
   parentResourceId?: string; // 父资源ID（用于记录资源来源关系）
@@ -131,6 +148,41 @@ export type ResourceIpcParams = {
     ],
     { success: boolean }
   >;
+  /** 创建媒体轨道（media-track 子资源） */
+  'resource:createMediaTrack': IpcParams<[{ parentResourceId: string; trackId: string; label: string; zIndex: number; color?: string }], { id: string; trackId: string; filePath: string }>;
+  /** 获取媒体轨道列表 */
+  'resource:getMediaTracks': IpcParams<
+    [{ parentResourceId: string }],
+    Array<{
+      id: string;
+      trackId: string;
+      title: string;
+      filePath: string;
+      label: string;
+      zIndex: number;
+      visible: boolean;
+      locked: boolean;
+      color?: string;
+      segments: any[];
+      sources: any[];
+    }>
+  >;
+  /** 更新媒体轨道 */
+  'resource:updateMediaTrack': IpcParams<
+    [
+      {
+        trackResourceId: string;
+        label?: string;
+        zIndex?: number;
+        visible?: boolean;
+        locked?: boolean;
+        color?: string;
+        segments?: any[];
+        sources?: any[];
+      }
+    ],
+    { success: boolean }
+  >;
 };
 
 const methods: Array<keyof ResourceIpcParams> = [
@@ -164,7 +216,10 @@ const methods: Array<keyof ResourceIpcParams> = [
   'resource:getSubtitleEditTracks',
   'resource:createTTSTrack',
   'resource:getTTSTracks',
-  'resource:updateTTSTrack'
+  'resource:updateTTSTrack',
+  'resource:createMediaTrack',
+  'resource:getMediaTracks',
+  'resource:updateMediaTrack'
 ];
 
 export type ResourceIpcType = {

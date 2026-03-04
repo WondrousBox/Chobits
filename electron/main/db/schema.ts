@@ -138,9 +138,10 @@ export const resources = sqliteTable(
         'screenshot',
         'segments',
         'subtitle-edit',
+        'media-track',
         'other'
       ]
-    }).notNull(), // 资源类型（recording=录音，subtitle=字幕，rss=订阅源，translation=翻译数据，summary=总结数据，mindmap=脑图数据，note=笔记，screenshot=截图，subtitle-edit=编排字幕轨道）
+    }).notNull(), // 资源类型（recording=录音，subtitle=字幕，rss=订阅源，translation=翻译数据，summary=总结数据，mindmap=脑图数据，note=笔记，screenshot=截图，subtitle-edit=编排字幕轨道，media-track=媒体轨道）
     title: text('title'), // 标题
     description: text('description'), // 简要描述
 

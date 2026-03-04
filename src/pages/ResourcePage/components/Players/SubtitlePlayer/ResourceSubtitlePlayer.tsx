@@ -130,6 +130,14 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
   // ---- 媒体轨道状态 ----
   const [mediaTracks, setMediaTracks] = useState<MediaTrackData[]>([]);
   const [mediaSources, setMediaSources] = useState<Map<string, MediaSource>>(new Map());
+  const isLoadingMediaTracksRef = useRef(false);
+  const isSavingMediaTracksRef = useRef(false);
+  /** 已加载媒体轨道的资源 ID，防止重复加载 */
+  const loadedMediaTracksResourceIdRef = useRef<string | null>(null);
+  /** 媒体轨道 trackId -> resourceId 映射，用于删除时调用后端 */
+  const mediaTrackResourceIdMapRef = useRef<Map<string, string>>(new Map());
+
+  // 保持 subtitleEntries 的引用始终是最新的
   const [mediaTrackEnabled, setMediaTrackEnabled] = useState(false);
 
   // ---- 轨道启用/禁用状态 ----
@@ -167,21 +175,73 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     []
   );
 
-  // 防抖保存媒体轨道状态（存储到独立的 mediaTrack 文件）
+  // 防抖保存媒体轨道状态（存储到独立的 media-track 资源）
   const debouncedSaveMediaTracks = useMemo(
     () =>
       debounce(async (resourceId: string, tracks: MediaTrackData[], sources: Map<string, MediaSource>) => {
         if (!resourceId) return;
+        // 防止并发保存
+        if (isSavingMediaTracksRef.current) {
+          console.log('[auto-save] 媒体轨道正在保存中，跳过');
+          return;
+        }
+        // 跳过加载过程中的保存
+        if (isLoadingMediaTracksRef.current) {
+          console.log('[auto-save] 媒体轨道正在加载中，跳过保存');
+          return;
+        }
+
+        isSavingMediaTracksRef.current = true;
         try {
-          const sourcesRecord = Object.fromEntries(sources);
-          const result = await window.YUA.mediaTrack.save(resourceId, { tracks, sources: sourcesRecord });
-          if (result.success) {
-            console.log('[auto-save] 媒体轨道状态已保存');
-          } else {
-            console.error('[auto-save] 保存媒体轨道状态失败:', result.error);
+          // 获取现有的媒体轨道资源
+          const existingTracks = await window.YUA.resource['resource:getMediaTracks']({ parentResourceId: resourceId });
+          const existingMap = new Map(existingTracks.map((t) => [t.trackId, t]));
+
+          for (const track of tracks) {
+            const trackSources = track.segments.map((s) => sources.get(s.sourceId)).filter(Boolean) as MediaSource[];
+
+            const existing = existingMap.get(track.id);
+
+            if (existing) {
+              // 更新现有轨道
+              await window.YUA.resource['resource:updateMediaTrack']({
+                trackResourceId: existing.id,
+                label: track.label,
+                zIndex: track.zIndex,
+                visible: track.visible,
+                locked: track.locked,
+                color: track.color,
+                segments: track.segments,
+                sources: trackSources
+              });
+            } else {
+              // 创建新轨道（使用前端生成的 track.id 作为 trackId）
+              const newTrack = await window.YUA.resource['resource:createMediaTrack']({
+                parentResourceId: resourceId,
+                trackId: track.id,
+                label: track.label,
+                zIndex: track.zIndex,
+                color: track.color
+              });
+              // 创建后更新 segments 和 sources
+              if (newTrack) {
+                // 存储 trackId -> resourceId 映射
+                mediaTrackResourceIdMapRef.current.set(track.id, newTrack.id);
+                await window.YUA.resource['resource:updateMediaTrack']({
+                  trackResourceId: newTrack.id,
+                  segments: track.segments,
+                  sources: trackSources,
+                  visible: track.visible,
+                  locked: track.locked
+                });
+              }
+            }
           }
+          console.log('[auto-save] 媒体轨道状态已保存');
         } catch (error) {
           console.error('[auto-save] 保存媒体轨道状态失败:', error);
+        } finally {
+          isSavingMediaTracksRef.current = false;
         }
       }, 1000),
     []
@@ -224,20 +284,57 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     }
   }, []);
 
-  // 从独立文件加载媒体轨道状态
+  // 从数据库资源加载媒体轨道状态（新格式：每个轨道一个资源）
   const loadMediaTracks = useCallback(async (resourceId: string) => {
+    // 防止重复加载同一资源
+    if (loadedMediaTracksResourceIdRef.current === resourceId) {
+      console.log('[SubtitlePlayer] 跳过重复加载媒体轨道:', resourceId);
+      return;
+    }
     console.log('[SubtitlePlayer] loadMediaTracks 被调用', { resourceId });
+    isLoadingMediaTracksRef.current = true;
+    loadedMediaTracksResourceIdRef.current = resourceId;
     try {
-      const data = await window.YUA.mediaTrack.load(resourceId);
-      if (data && Array.isArray(data.tracks) && data.tracks.length > 0) {
-        console.log('[SubtitlePlayer] 加载到已保存的媒体轨道:', data.tracks.length, '个轨道');
-        setMediaTracks(data.tracks);
-        setMediaSources(new Map(Object.entries(data.sources || {})));
+      const tracks = await window.YUA.resource['resource:getMediaTracks']({ parentResourceId: resourceId });
+      if (tracks && tracks.length > 0) {
+        console.log('[SubtitlePlayer] 加载到已保存的媒体轨道:', tracks.length, '个轨道');
+        // 存储 trackId -> resourceId 映射
+        const resourceIdMap = new Map<string, string>();
+        tracks.forEach((t) => {
+          resourceIdMap.set(t.trackId, t.id);
+        });
+        mediaTrackResourceIdMapRef.current = resourceIdMap;
+        setMediaTracks(
+          tracks.map((t) => ({
+            id: t.trackId,
+            label: t.label,
+            segments: t.segments,
+            zIndex: t.zIndex,
+            visible: t.visible,
+            locked: t.locked,
+            color: t.color
+          }))
+        );
+        // 合并所有轨道的 sources
+        const allSources = new Map<string, MediaSource>();
+        for (const t of tracks) {
+          for (const s of t.sources) {
+            allSources.set(s.id, s);
+          }
+        }
+        setMediaSources(allSources);
       } else {
         console.log('[SubtitlePlayer] 没有已保存的媒体轨道');
+        mediaTrackResourceIdMapRef.current = new Map();
       }
     } catch (error) {
       console.error('[SubtitlePlayer] 加载媒体轨道状态失败:', error);
+    } finally {
+      // 延迟重置加载状态，确保 React 状态更新已完成
+      setTimeout(() => {
+        isLoadingMediaTracksRef.current = false;
+        console.log('[SubtitlePlayer] loadMediaTracks 加载完成');
+      }, 100);
     }
   }, []);
 
@@ -258,6 +355,11 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     if (!resource.id) return;
     // 没有轨道且没有源时跳过保存
     if (mediaTracks.length === 0 && mediaSources.size === 0) return;
+    // 跳过加载过程中的保存
+    if (isLoadingMediaTracksRef.current) {
+      console.log('[SubtitlePlayer] 跳过加载过程中的媒体轨道自动保存');
+      return;
+    }
     console.log('[SubtitlePlayer] 触发媒体轨道状态自动保存, tracks:', mediaTracks.length, 'sources:', mediaSources.size);
     debouncedSaveMediaTracks(resource.id, mediaTracks, mediaSources);
   }, [mediaTracks, mediaSources, resource.id, debouncedSaveMediaTracks]);
@@ -841,6 +943,8 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
       setClipSegments([]);
       setMediaTracks([]);
       setMediaSources(new Map());
+      mediaTrackResourceIdMapRef.current = new Map();
+      loadedMediaTracksResourceIdRef.current = null;
     }
   }, [resource.id, mediaDuration, loadClipSegments, loadMediaTracks]);
 
@@ -1898,7 +2002,20 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
         const newTrack = MediaSequence.createTrack(`媒体轨道 ${mediaTracks.length + 1}`, mediaTracks.length);
         setMediaTracks((prev) => [...prev, newTrack]);
       },
-      onTrackDelete: (trackId: string) => {
+      onTrackDelete: async (trackId: string) => {
+        // 先从后端永久删除资源
+        const resourceId = mediaTrackResourceIdMapRef.current.get(trackId);
+        if (resourceId) {
+          try {
+            await window.YUA.resource.deleteResourcePermanently({ id: resourceId });
+            console.log('[MediaTrack] 已删除媒体轨道资源:', resourceId);
+            // 从映射中移除
+            mediaTrackResourceIdMapRef.current.delete(trackId);
+          } catch (error) {
+            console.error('[MediaTrack] 删除媒体轨道资源失败:', error);
+          }
+        }
+        // 从本地状态移除
         setMediaTracks((prev) => prev.filter((t) => t.id !== trackId));
       },
       onTrackReorder: (trackIds: string[]) => {

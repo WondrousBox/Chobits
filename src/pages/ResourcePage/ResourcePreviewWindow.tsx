@@ -415,14 +415,14 @@ const ResourcePreviewWindow: React.FC = () => {
               <ResizablePanel defaultSize={isTabsExpanded ? 60 : 100}>
                 <ResizablePanelGroup direction="vertical" className="h-full">
                   {/* 上方：播放器 */}
-                  <ResizablePanel defaultSize={isBottomExpanded ? 60 : 100} minSize={30}>
+                  <ResizablePanel defaultSize={isBottomExpanded ? 50 : 100} minSize={5}>
                     {renderMainContent()}
                   </ResizablePanel>
                   {/* 下方：ResourceTabs 底部面板 */}
                   {isBottomExpanded && (
                     <>
                       <ResizableHandle className="hover:bg-primary" withHandle />
-                      <ResizablePanel defaultSize={40} minSize={0} collapsible={true}>
+                      <ResizablePanel defaultSize={50} minSize={0} collapsible={true}>
                         <div className="h-full flex flex-col overflow-hidden bg-background border-t">
                           <ResourceTabs
                             panelId="preview-window-bottom"
