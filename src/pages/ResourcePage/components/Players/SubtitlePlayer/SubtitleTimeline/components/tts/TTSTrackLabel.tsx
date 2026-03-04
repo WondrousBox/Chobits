@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { TbEye, TbEyeOff, TbSettings, TbTrash, TbVolume } from 'react-icons/tb';
 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -18,6 +18,8 @@ export interface TTSTrackLabelProps {
   onToggleEnabled?: (ttsTrackId: string) => void;
   /** 打开 TTS 设置回调 */
   onOpenSettings?: (ttsTrackId: string) => void;
+  /** 点击标签区域回调（用于打开批量输入面板） */
+  onLabelClick?: (ttsTrackId: string) => void;
   /** TTS 语音名称（简短显示，如 "Xiaoxiao"） */
   voiceLabel?: string;
 }
@@ -25,13 +27,23 @@ export interface TTSTrackLabelProps {
 /**
  * TTS轨道标签组件（带右键删除菜单和设置按钮）
  */
-export const TTSTrackLabel: React.FC<TTSTrackLabelProps> = ({ trackLabel, trackColor, ttsTrackId, onDelete, enabled = true, onToggleEnabled, onOpenSettings, voiceLabel }) => {
+export const TTSTrackLabel: React.FC<TTSTrackLabelProps> = ({ trackLabel, trackColor, ttsTrackId, onDelete, enabled = true, onToggleEnabled, onOpenSettings, onLabelClick, voiceLabel }) => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  const handleLabelClick = useCallback(
+    (e: React.MouseEvent) => {
+      // 忽略按钮点击
+      if ((e.target as HTMLElement).closest('button')) return;
+      onLabelClick?.(ttsTrackId);
+    },
+    [onLabelClick, ttsTrackId]
+  );
 
   const content = (
     <div
-      className={clsx('flex items-center gap-1.5 px-2 border-b border-border bg-muted/20 shrink-0 overflow-hidden', !enabled && 'opacity-40')}
+      className={clsx('flex items-center gap-1.5 px-2 border-b border-border bg-muted/20 shrink-0 overflow-hidden cursor-pointer hover:bg-muted/40 transition-colors', !enabled && 'opacity-40')}
       style={{ height: DEFAULT_CONFIG.TRACK_HEIGHT + DEFAULT_CONFIG.TRACK_GAP }}
+      onClick={handleLabelClick}
     >
       <div className="w-1.5 h-4 rounded-full shrink-0" style={{ backgroundColor: trackColor }} />
       <div className="flex items-center gap-1 min-w-0 flex-1">
@@ -41,7 +53,7 @@ export const TTSTrackLabel: React.FC<TTSTrackLabelProps> = ({ trackLabel, trackC
         </span>
         {voiceLabel && <span className="text-[10px] text-muted-foreground truncate">({voiceLabel})</span>}
       </div>
-      <div className="flex items-center gap-0.5 shrink-0">
+      <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
         {onOpenSettings && (
           <button
             className="p-0.5 rounded hover:bg-accent/50 transition-colors text-muted-foreground hover:text-foreground"

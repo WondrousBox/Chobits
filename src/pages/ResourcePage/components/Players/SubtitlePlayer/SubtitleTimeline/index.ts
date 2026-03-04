@@ -72,5 +72,6 @@ export {
   TrackAddMenu,
   TrackLabel,
   TransitionIndicator,
-  TransitionTypeButton
+  TransitionTypeButton,
+  TTSBatchTextInputPanel
 } from './components';

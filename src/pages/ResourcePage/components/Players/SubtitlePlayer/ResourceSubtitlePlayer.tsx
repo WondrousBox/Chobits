@@ -19,7 +19,7 @@ import { createAimAdapters } from './adapters';
 import { ExportDialog } from './ExportDialog';
 import { SubtitlePlayer } from './SubtitleListPlayer/SubtitlePlayer';
 import { aimTracksToTimelineTracks, ClipSequence, formatSecondsToTime, indicesToIds, parseSegmentId, parseTimeToSeconds, SubtitleTimeline, TimelineSegment } from './SubtitleTimeline';
-import { MediaSequence } from './SubtitleTimeline';
+import { MediaSequence, TTSBatchTextInputPanel } from './SubtitleTimeline';
 import type {
   AnnotationTrackCallbacks,
   AnnotationTrackData,
@@ -1709,6 +1709,8 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
 
   // 添加独立 TTS 语音轨道 — 直接创建，不弹窗
   const [ttsSettingsTrackId, setTTSSettingsTrackId] = useState<string | null>(null);
+  /** TTS 批量文本输入面板打开的轨道 ID */
+  const [ttsBatchInputTrackId, setTTSBatchInputTrackId] = useState<string | null>(null);
 
   const handleAddTTSTrack = useCallback(async () => {
     const trackName = `配音 ${standaloneTTSTracks.length + 1}`;
@@ -1753,6 +1755,14 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
   // 打开 TTS 设置
   const handleOpenTTSSettings = useCallback((ttsTrackId: string) => {
     setTTSSettingsTrackId(ttsTrackId);
+  }, []);
+
+  // 打开 TTS 批量文本输入面板（仅限独立 TTS 轨道）
+  const handleOpenTTSBatchInput = useCallback((ttsTrackId: string) => {
+    // 仅限独立 TTS 轨道（以 'tts-' 开头）
+    if (ttsTrackId.startsWith('tts-')) {
+      setTTSBatchInputTrackId(ttsTrackId);
+    }
   }, []);
 
   // TTS 语音标签映射
@@ -2565,60 +2575,135 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
           onRemoveAnnotation={removeAnnotation}
         />
       ) : (
-        // 时间轴视图
-        <SubtitleTimeline
-          tracks={timelineTracksWithEnabled}
-          duration={mediaDuration}
-          currentTime={currentTime}
-          followCurrentTime={followTime}
-          wordsMapByTrack={timelineWordsMapByTrack}
-          onSeek={onSeek}
-          onAddSegment={handleAddSegment}
-          onDeleteSegment={handleDeleteSegment}
-          onSegmentTextChange={handleTimelineTextChange}
-          onSegmentTimeChange={handleTimelineTimeChange}
-          onMergePrev={handleMergePrev}
-          highlightIds={timelineHighlightIds}
-          disabled={isTranslating}
-          showRuler
-          showTrackLabels
-          waveform={waveform}
-          showWaveform={!!audioPath}
-          ttsItemsByTrack={ttsItemsByTrackForTimeline}
-          ttsTrackLabels={ttsTrackLabelsForTimeline}
-          subtitleToTTSTrackMap={subtitleToTTSTrackMap}
-          showTTSTrack={ttsItemsByTrackForTimeline.size > 0 || isSynthesizing || !!ttsSettingsTrackId || standaloneTTSTracks.length > 0}
-          standaloneTTSTracks={standaloneTTSTracks.map((t) => ({ id: t.id, label: t.label }))}
-          onAddTTSSegment={handleAddTTSSegment}
-          pendingTTSSegment={pendingTTSSegment}
-          onAddTTSSegmentConfirm={handleConfirmTTSSegmentInline}
-          onCancelTTSSegment={handleCancelTTSSegment}
-          onTTSBlockDoubleClick={handleTTSBlockDoubleClick}
-          onPlayTTSAudio={handlePlayTTS}
-          onStopTTSAudio={handleStopTTS}
-          playingTTSIndex={playingTTSIndex ?? undefined}
-          onAddSubtitleTrack={handleAddSubtitleTrack}
-          onAddTTSTrack={handleAddTTSTrack}
-          onDeleteSubtitleTrack={handleDeleteSubtitleTrack}
-          onDeleteTTSTrack={handleDeleteTTSTrack}
-          onDeleteTTSSegment={handleDeleteTTSSegment}
-          onTTSTimeChange={handleTTSTimeChange}
-          clipTrack={clipTrackData}
-          clipCallbacks={clipCallbacks}
-          onToggleSubtitleTrackEnabled={handleToggleSubtitleTrackEnabled}
-          onToggleTTSTrackEnabled={handleToggleTTSTrackEnabled}
-          onOpenTTSSettings={handleOpenTTSSettings}
-          ttsVoiceLabels={ttsVoiceLabels}
-          clipTrackEnabled={clipTrackEnabled}
-          ttsTrackEnabledMap={ttsTrackEnabledMap}
-          annotationTrack={annotationTrackData}
-          annotationCallbacks={annotationCallbacks}
-          annotationTrackEnabled={annotationTrackEnabled}
-          mediaTracks={mediaTracks}
-          mediaSources={mediaSources}
-          mediaCallbacks={mediaCallbacks}
-          adapters={aimAdapters}
-        />
+        // 时间轴视图（包装在相对定位容器中以支持浮动面板）
+        <div className="relative flex-1 min-h-0">
+          <SubtitleTimeline
+            tracks={timelineTracksWithEnabled}
+            duration={mediaDuration}
+            currentTime={currentTime}
+            followCurrentTime={followTime}
+            wordsMapByTrack={timelineWordsMapByTrack}
+            onSeek={onSeek}
+            onAddSegment={handleAddSegment}
+            onDeleteSegment={handleDeleteSegment}
+            onSegmentTextChange={handleTimelineTextChange}
+            onSegmentTimeChange={handleTimelineTimeChange}
+            onMergePrev={handleMergePrev}
+            highlightIds={timelineHighlightIds}
+            disabled={isTranslating}
+            showRuler
+            showTrackLabels
+            waveform={waveform}
+            showWaveform={!!audioPath}
+            ttsItemsByTrack={ttsItemsByTrackForTimeline}
+            ttsTrackLabels={ttsTrackLabelsForTimeline}
+            subtitleToTTSTrackMap={subtitleToTTSTrackMap}
+            showTTSTrack={ttsItemsByTrackForTimeline.size > 0 || isSynthesizing || !!ttsSettingsTrackId || standaloneTTSTracks.length > 0}
+            standaloneTTSTracks={standaloneTTSTracks.map((t) => ({ id: t.id, label: t.label }))}
+            onAddTTSSegment={handleAddTTSSegment}
+            pendingTTSSegment={pendingTTSSegment}
+            onAddTTSSegmentConfirm={handleConfirmTTSSegmentInline}
+            onCancelTTSSegment={handleCancelTTSSegment}
+            onTTSBlockDoubleClick={handleTTSBlockDoubleClick}
+            onPlayTTSAudio={handlePlayTTS}
+            onStopTTSAudio={handleStopTTS}
+            playingTTSIndex={playingTTSIndex ?? undefined}
+            onAddSubtitleTrack={handleAddSubtitleTrack}
+            onAddTTSTrack={handleAddTTSTrack}
+            onDeleteSubtitleTrack={handleDeleteSubtitleTrack}
+            onDeleteTTSTrack={handleDeleteTTSTrack}
+            onDeleteTTSSegment={handleDeleteTTSSegment}
+            onTTSTimeChange={handleTTSTimeChange}
+            clipTrack={clipTrackData}
+            clipCallbacks={clipCallbacks}
+            onToggleSubtitleTrackEnabled={handleToggleSubtitleTrackEnabled}
+            onToggleTTSTrackEnabled={handleToggleTTSTrackEnabled}
+            onOpenTTSSettings={handleOpenTTSSettings}
+            onOpenTTSBatchInput={handleOpenTTSBatchInput}
+            ttsVoiceLabels={ttsVoiceLabels}
+            clipTrackEnabled={clipTrackEnabled}
+            ttsTrackEnabledMap={ttsTrackEnabledMap}
+            annotationTrack={annotationTrackData}
+            annotationCallbacks={annotationCallbacks}
+            annotationTrackEnabled={annotationTrackEnabled}
+            mediaTracks={mediaTracks}
+            mediaSources={mediaSources}
+            mediaCallbacks={mediaCallbacks}
+            adapters={aimAdapters}
+          />
+          {/* TTS 批量文本输入面板 */}
+          {ttsBatchInputTrackId && (
+            <TTSBatchTextInputPanel
+              open={!!ttsBatchInputTrackId}
+              onClose={() => setTTSBatchInputTrackId(null)}
+              trackId={ttsBatchInputTrackId}
+              trackLabel={standaloneTTSTracks.find((t) => t.id === ttsBatchInputTrackId)?.label ?? 'TTS'}
+              config={(() => {
+                const track = standaloneTTSTracks.find((t) => t.id === ttsBatchInputTrackId);
+                if (!track) return null;
+                return {
+                  voiceName: track.voiceName,
+                  rate: track.rate,
+                  pitch: track.pitch,
+                  autoTrimSilence: track.autoTrimSilence
+                };
+              })()}
+              isSynthesizing={isSynthesizing}
+              synthesisProgress={synthesisProgress}
+              onSynthesize={async (texts, startIndex) => {
+                const track = standaloneTTSTracks.find((t) => t.id === ttsBatchInputTrackId);
+                if (!track) return null;
+                try {
+                  // 计算起始时间：基于当前轨道已有片段的最晚结束时间
+                  const existingItems = synthesizedItemsByTrack.get(ttsBatchInputTrackId);
+                  let currentTime = 0;
+                  if (existingItems && existingItems.size > 0) {
+                    // 找到最晚的结束时间
+                    for (const [, item] of existingItems) {
+                      if (item.endTime && item.endTime > currentTime) {
+                        currentTime = item.endTime;
+                      }
+                    }
+                  }
+
+                  // 根据文本长度预估时长并计算每个片段的时间
+                  // 假设平均语速：每秒约 4 个汉字或 12 个英文字符
+                  const estimateDuration = (text: string): number => {
+                    const charCount = text.length;
+                    // 简单估算：假设平均每秒 5 个字符
+                    const duration = Math.max(1, charCount / 5);
+                    // 加上一些缓冲时间
+                    return duration + 0.5;
+                  };
+
+                  const segments = texts.map((text) => {
+                    const duration = estimateDuration(text);
+                    const st = currentTime;
+                    const et = currentTime + duration;
+                    currentTime = et + 0.3; // 片段之间留 0.3 秒间隔
+                    return {
+                      text,
+                      st: formatSecondsToTime(st),
+                      et: formatSecondsToTime(et)
+                    };
+                  });
+
+                  const requestId = await startSynthesis(
+                    { voiceName: track.voiceName, rate: track.rate, pitch: track.pitch, autoTrimSilence: track.autoTrimSilence },
+                    { trackId: ttsBatchInputTrackId, segments, startIndex }
+                  );
+                  return requestId;
+                } catch (err) {
+                  console.error('[SubtitlePlayer] 批量 TTS 合成失败:', err);
+                  return null;
+                }
+              }}
+              onStopSynthesis={stopSynthesis}
+              existingSegmentCount={synthesizedItemsByTrack.get(ttsBatchInputTrackId)?.size ?? 0}
+              synthesizedCount={synthesizedItemsByTrack.get(ttsBatchInputTrackId)?.size ?? 0}
+            />
+          )}
+        </div>
       )}
 
       {/* 新建编排字幕轨道命名对话框 */}

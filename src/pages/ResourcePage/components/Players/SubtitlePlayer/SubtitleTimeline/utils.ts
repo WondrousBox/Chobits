@@ -39,6 +39,7 @@ export function parseTimeToSeconds(timeStr: string): number {
 
 /**
  * 秒数格式化为时间字符串
+ * 始终返回 hh:mm:ss,ms 格式（兼容 @aim-packages/subtitle 的 convertToSeconds）
  */
 export function formatSecondsToTime(seconds: number, includeMs = true): string {
   const h = Math.floor(seconds / 3600);
@@ -46,11 +47,7 @@ export function formatSecondsToTime(seconds: number, includeMs = true): string {
   const s = Math.floor(seconds % 60);
   const ms = Math.round((seconds % 1) * 1000);
 
-  if (h > 0) {
-    const base = `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-    return includeMs ? `${base},${ms.toString().padStart(3, '0')}` : base;
-  }
-  const base = `${m}:${s.toString().padStart(2, '0')}`;
+  const base = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   return includeMs ? `${base},${ms.toString().padStart(3, '0')}` : base;
 }
 
