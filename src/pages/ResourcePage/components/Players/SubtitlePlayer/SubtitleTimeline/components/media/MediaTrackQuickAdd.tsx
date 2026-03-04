@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import React, { useCallback, useState } from 'react';
-import { TbFileImport, TbPhoto, TbUpload, TbVideo } from 'react-icons/tb';
+import { TbFileImport, TbUpload, TbVideo } from 'react-icons/tb';
 
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator, ContextMenuTrigger } from '@/components/ui/context-menu';
 
@@ -65,7 +65,7 @@ export const MediaTrackQuickAdd: React.FC<MediaTrackQuickAddProps> = ({ children
           // 获取媒体信息 via adapter
           let info: { width: number; height: number; duration?: number } | null = null;
           try {
-            info = await mediaAdapter?.getMediaInfo?.(filePath) || null;
+            info = (await mediaAdapter?.getMediaInfo?.(filePath)) || null;
           } catch (err) {
             console.warn(`Could not get info for ${filePath}:`, err);
           }

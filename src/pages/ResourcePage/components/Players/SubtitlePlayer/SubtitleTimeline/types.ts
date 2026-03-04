@@ -271,8 +271,6 @@ export interface SubtitleTimelineProps extends TimelineCallbacks {
   mediaSources?: Map<string, MediaSource>;
   /** 媒体轨道回调 */
   mediaCallbacks?: MediaTrackCallbacks;
-  /** 当前激活的媒体工具 */
-  mediaTool?: MediaTool;
 
   // ---- 适配器 Props (用于独立组件库模式) ----
   /**
@@ -605,8 +603,6 @@ export interface MediaTrackCallbacks {
   onSegmentSelect?: (trackId: string, segmentId: string | null) => void;
   /** 请求生成缩略图 */
   onThumbnailRequest?: (trackId: string, segmentId: string) => void;
-  /** 工具切换 */
-  onToolChange?: (tool: MediaTool) => void;
 }
 
 /**

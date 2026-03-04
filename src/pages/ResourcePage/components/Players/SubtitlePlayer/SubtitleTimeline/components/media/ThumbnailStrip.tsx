@@ -46,18 +46,8 @@ export const ThumbnailStrip: React.FC<ThumbnailStripProps> = ({ thumbnails, widt
   return (
     <div className={clsx('absolute inset-0 flex overflow-hidden', className)}>
       {thumbnails.map((thumb, index) => (
-        <div
-          key={`${thumb.timeOffset}-${index}`}
-          className="relative flex-shrink-0 h-full"
-          style={{ width: thumbnailWidth }}
-        >
-          <img
-            src={thumb.url}
-            alt={`缩略图 ${index + 1}`}
-            className="w-full h-full object-cover"
-            loading="lazy"
-            decoding="async"
-          />
+        <div key={`${thumb.timeOffset}-${index}`} className="relative flex-shrink-0 h-full" style={{ width: thumbnailWidth }}>
+          <img src={thumb.url} alt={`缩略图 ${index + 1}`} className="w-full h-full object-cover" loading="lazy" decoding="async" />
         </div>
       ))}
 

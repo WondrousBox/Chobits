@@ -1,14 +1,14 @@
 import clsx from 'clsx';
 import React, { useCallback, useRef, useState } from 'react';
-import { TbArrowsHorizontal, TbArrowsVertical, TbPhoto, TbPlayerPause, TbRefresh, TbRestore, TbRotate, TbTrash, TbVideo } from 'react-icons/tb';
+import { TbArrowsHorizontal, TbPhoto, TbPlayerPause, TbRestore, TbRotate, TbTrash, TbVideo } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 
 import type { MediaSegment, MediaSource, MediaTool, MediaTransform } from '../../types';
 import { DEFAULT_CONFIG, MEDIA_CONFIG } from '../../types';
 import { formatSecondsToTime } from '../../utils';
-import { ThumbnailStrip } from './ThumbnailStrip';
 import { TransitionIndicator } from '../shared/TransitionIndicator';
+import { ThumbnailStrip } from './ThumbnailStrip';
 
 /** 边缘拖拽检测宽度 */
 const EDGE_WIDTH = 8;

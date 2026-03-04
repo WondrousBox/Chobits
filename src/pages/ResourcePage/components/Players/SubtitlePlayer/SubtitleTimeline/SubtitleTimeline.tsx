@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbFileImport, TbMinus, TbPlus, TbPointer, TbScissors, TbWaveSine } from 'react-icons/tb';
+import { TbMinus, TbPlus, TbPointer, TbScissors, TbWaveSine } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -11,7 +11,6 @@ import {
   AnnotationTrackLabel,
   ClipTrack,
   ClipTrackLabel,
-  MediaImportPanel,
   MediaTrackLabel,
   MediaTrackManager,
   SeekBar,
@@ -25,8 +24,8 @@ import {
 } from './components';
 import { TimelineAdapterProvider } from './context';
 import { useTimelineInteraction } from './hooks';
-import type { MediaSegment, MediaSource, TimelineSegment } from './types';
-import { ClipTool, DEFAULT_CONFIG, MediaTool, SubtitleTimelineProps, TRACK_COLORS, ViewportState, WaveformState } from './types';
+import type { TimelineSegment } from './types';
+import { ClipTool, DEFAULT_CONFIG, SubtitleTimelineProps, TRACK_COLORS, ViewportState } from './types';
 import { parseSegmentId } from './utils';
 
 const audioWaveformHeight = 40;
@@ -104,7 +103,6 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   mediaTracks,
   mediaSources,
   mediaCallbacks,
-  mediaTool: propMediaTool = 'select',
   // Adapters
   adapters
 }) => {
@@ -125,9 +123,6 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   const [internalClipTool, setInternalClipTool] = useState<ClipTool>(propClipTool);
   /** 选中的媒体片段（格式：trackId:segmentId） */
   const [selectedMediaSegmentId, setSelectedMediaSegmentId] = useState<string | null>(null);
-  const [internalMediaTool, setInternalMediaTool] = useState<MediaTool>(propMediaTool);
-  /** 显示媒体导入面板 */
-  const [showMediaImport, setShowMediaImport] = useState(false);
 
   const labels = useMemo(() => ({ ...DEFAULT_LABELS, ...adapters?.config?.labels }), [adapters?.config?.labels]);
 
@@ -599,36 +594,6 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                 </div>
               </>
             )}
-
-            {/* 媒体工具 */}
-            {mediaTracks && mediaTracks.length > 0 && (
-              <>
-                <div className="w-px h-5 bg-border mx-1" />
-                <div className="flex items-center gap-0.5">
-                  <Button
-                    variant={internalMediaTool === 'select' ? 'secondary' : 'ghost'}
-                    size="sm"
-                    className="w-7 h-7 p-0"
-                    onClick={() => (mediaCallbacks?.onToolChange ?? setInternalMediaTool)('select')}
-                    title={labels.selectTool}
-                  >
-                    <TbPointer className="w-3.5 h-3.5" />
-                  </Button>
-                  <Button
-                    variant={internalMediaTool === 'cut' ? 'secondary' : 'ghost'}
-                    size="sm"
-                    className="w-7 h-7 p-0"
-                    onClick={() => (mediaCallbacks?.onToolChange ?? setInternalMediaTool)('cut')}
-                    title={labels.cutTool}
-                  >
-                    <TbScissors className="w-3.5 h-3.5" />
-                  </Button>
-                  <Button variant="ghost" size="sm" className="w-7 h-7 p-0" onClick={() => setShowMediaImport(true)} title={labels.importMedia}>
-                    <TbFileImport className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-              </>
-            )}
           </div>
 
           <div className="flex items-center gap-3">
@@ -987,7 +952,6 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                   width={totalWidth}
                   scrollLeft={scrollLeft}
                   currentTime={effectiveCurrentTime}
-                  activeTool={internalMediaTool}
                   selectedSegmentId={selectedMediaSegmentId}
                   onSegmentClick={(trackId, segmentId) => {
                     setSelectedSegmentId(null);
@@ -1027,28 +991,6 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
             </div>
           </div>
         </div>
-
-        {/* 媒体导入面板 */}
-        <MediaImportPanel
-          open={showMediaImport}
-          onClose={() => setShowMediaImport(false)}
-          tracks={mediaTracks ?? []}
-          currentTime={effectiveCurrentTime}
-          duration={duration}
-          onImport={(sources: MediaSource[], segments?: Omit<MediaSegment, 'id'>[]) => {
-            // 1. 先添加媒体源
-            mediaCallbacks?.onSourceAdd?.(sources);
-
-            // 2. 添加 segments 到轨道（onSegmentAdd 会自动创建轨道如果不存在）
-            if (segments && segments.length > 0) {
-              const targetTrackId = mediaTracks && mediaTracks.length > 0 ? mediaTracks[0].id : 'auto-create';
-              segments.forEach((segment) => {
-                mediaCallbacks?.onSegmentAdd?.(targetTrackId, segment);
-              });
-            }
-            setShowMediaImport(false);
-          }}
-        />
       </div>
     </TimelineAdapterProvider>
   );
