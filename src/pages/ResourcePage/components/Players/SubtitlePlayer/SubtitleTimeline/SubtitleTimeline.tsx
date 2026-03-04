@@ -711,7 +711,6 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                   <MediaTrackLabel
                     key={mediaTrack.id}
                     track={mediaTrack}
-                    canDelete={mediaTracks.length > 1}
                     onDelete={mediaCallbacks?.onTrackDelete}
                     onToggleVisibility={(trackId) => {
                       mediaCallbacks?.onTrackReorder?.(mediaTracks.map((t) => t.id));

@@ -81,7 +81,7 @@ export function initResourceHandlers(): void {
     }
     const rows = await ResourcesRepo.list(filter);
     // 隐藏内部类型的资源（segments 等），这些资源通过 listChildren 查询
-    const HIDDEN_TYPES = new Set(['segments', 'subtitle-edit', 'tts-track']);
+    const HIDDEN_TYPES = new Set(['segments', 'subtitle-edit', 'tts-track', 'media-track']);
     return (rows as any[]).filter((r: any) => !HIDDEN_TYPES.has(r.type));
   });
   ipcMain.handle('resource:listChildren', async (_event, payload: { parentResourceId: string; limit?: number; offset?: number }) => {
@@ -1017,30 +1017,191 @@ export function initResourceHandlers(): void {
     return results;
   });
 
-  ipcMain.handle('resource:updateTTSTrack', async (_event, payload: { trackResourceId: string; config?: { voiceName?: string; rate?: number; pitch?: number; autoTrimSilence?: boolean }; segments?: Array<{ index: number; text: string; startTime: number; endTime: number; md5?: string }> }) => {
-    const { trackResourceId, config, segments } = payload;
-    const track = await ResourcesRepo.getById(trackResourceId);
-    if (!track || !track.filePath) throw new Error('TTS轨道资源不存在或无文件路径');
+  ipcMain.handle(
+    'resource:updateTTSTrack',
+    async (
+      _event,
+      payload: {
+        trackResourceId: string;
+        config?: { voiceName?: string; rate?: number; pitch?: number; autoTrimSilence?: boolean };
+        segments?: Array<{ index: number; text: string; startTime: number; endTime: number; md5?: string }>;
+      }
+    ) => {
+      const { trackResourceId, config, segments } = payload;
+      const track = await ResourcesRepo.getById(trackResourceId);
+      if (!track || !track.filePath) throw new Error('TTS轨道资源不存在或无文件路径');
 
-    let json: any = { version: 1 };
-    try {
-      const content = await fs.readFile(track.filePath, 'utf8');
-      json = JSON.parse(content);
-    } catch {
-      /* ignore */
+      let json: any = { version: 1 };
+      try {
+        const content = await fs.readFile(track.filePath, 'utf8');
+        json = JSON.parse(content);
+      } catch {
+        /* ignore */
+      }
+
+      json.updatedAt = Date.now();
+      if (config) {
+        json.config = { ...json.config, ...config };
+      }
+      if (segments !== undefined) {
+        json.segments = segments;
+      }
+
+      await fs.writeFile(track.filePath, JSON.stringify(json, null, 2), 'utf8');
+      return { success: true };
+    }
+  );
+
+  // ---- 媒体轨道 (media-track) ----
+
+  ipcMain.handle('resource:createMediaTrack', async (_event, payload: { parentResourceId: string; trackId: string; label: string; zIndex: number; color?: string }) => {
+    const { parentResourceId, trackId, label, zIndex, color } = payload;
+    const parent = await ResourcesRepo.getById(parentResourceId);
+    if (!parent) throw new Error('父资源不存在');
+
+    const parentDir = parent.filePath ? path.dirname(parent.filePath) : undefined;
+    if (!parentDir) throw new Error('父资源无文件路径，无法确定存储目录');
+
+    const parentBaseName = path.basename(parent.filePath!, path.extname(parent.filePath!));
+    const jsonFileName = `${parentBaseName}.media-track.${trackId}.json`;
+    const jsonPath = path.join(parentDir, jsonFileName);
+
+    const jsonContent = JSON.stringify(
+      {
+        version: 1,
+        resourceId: parentResourceId,
+        trackId,
+        label,
+        segments: [],
+        sources: [],
+        zIndex,
+        visible: true,
+        locked: false,
+        color: color || null,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      },
+      null,
+      2
+    );
+
+    await fs.writeFile(jsonPath, jsonContent, 'utf8');
+
+    const newResource = await ResourcesRepo.upsert({
+      type: 'media-track' as any,
+      parentResourceId,
+      workspaceId: parent.workspaceId,
+      folderId: parent.folderId,
+      title: label,
+      description: `媒体轨道: ${label}`,
+      filePath: jsonPath,
+      mimeType: 'application/json',
+      status: 'ready'
+    } as any);
+
+    if (!newResource) {
+      throw new Error('创建媒体轨道资源失败');
     }
 
-    json.updatedAt = Date.now();
-    if (config) {
-      json.config = { ...json.config, ...config };
-    }
-    if (segments !== undefined) {
-      json.segments = segments;
-    }
-
-    await fs.writeFile(track.filePath, JSON.stringify(json, null, 2), 'utf8');
-    return { success: true };
+    console.log(`[createMediaTrack] 创建媒体轨道: ${label}, ID: ${newResource.id}`);
+    return { id: newResource.id, trackId, filePath: jsonPath };
   });
+
+  ipcMain.handle('resource:getMediaTracks', async (_event, payload: { parentResourceId: string }) => {
+    const children = await ResourcesRepo.listChildren(payload.parentResourceId);
+    const mediaTracks = children.filter((c: any) => c.type === 'media-track' && c.deletedAt == null);
+
+    const results = await Promise.all(
+      mediaTracks.map(async (t: any) => {
+        let trackData: any = {
+          label: t.title,
+          zIndex: 0,
+          visible: true,
+          locked: false,
+          color: null,
+          segments: [],
+          sources: []
+        };
+
+        if (t.filePath) {
+          try {
+            const content = await fs.readFile(t.filePath, 'utf8');
+            const json = JSON.parse(content);
+            trackData = { ...trackData, ...json };
+          } catch (err) {
+            console.error('[getMediaTracks] 读取文件失败:', t.filePath, err);
+          }
+        }
+
+        return {
+          id: t.id,
+          trackId: trackData.trackId || t.id, // 使用 JSON 中的 trackId，如果没有则使用资源 ID
+          title: t.title,
+          filePath: t.filePath,
+          label: trackData.label,
+          zIndex: trackData.zIndex ?? 0,
+          visible: trackData.visible ?? true,
+          locked: trackData.locked ?? false,
+          color: trackData.color,
+          segments: trackData.segments || [],
+          sources: trackData.sources || []
+        };
+      })
+    );
+
+    // 按 zIndex 排序
+    return results.sort((a, b) => a.zIndex - b.zIndex);
+  });
+
+  ipcMain.handle(
+    'resource:updateMediaTrack',
+    async (
+      _event,
+      payload: {
+        trackResourceId: string;
+        label?: string;
+        zIndex?: number;
+        visible?: boolean;
+        locked?: boolean;
+        color?: string;
+        segments?: any[];
+        sources?: any[];
+      }
+    ) => {
+      const { trackResourceId, ...updates } = payload;
+      const track = await ResourcesRepo.getById(trackResourceId);
+      if (!track || !track.filePath) throw new Error('媒体轨道资源不存在或无文件路径');
+
+      let json: any = { version: 1 };
+      try {
+        const content = await fs.readFile(track.filePath, 'utf8');
+        json = JSON.parse(content);
+      } catch {
+        /* ignore */
+      }
+
+      json.updatedAt = Date.now();
+      if (updates.label !== undefined) json.label = updates.label;
+      if (updates.zIndex !== undefined) json.zIndex = updates.zIndex;
+      if (updates.visible !== undefined) json.visible = updates.visible;
+      if (updates.locked !== undefined) json.locked = updates.locked;
+      if (updates.color !== undefined) json.color = updates.color;
+      if (updates.segments !== undefined) json.segments = updates.segments;
+      if (updates.sources !== undefined) json.sources = updates.sources;
+
+      await fs.writeFile(track.filePath, JSON.stringify(json, null, 2), 'utf8');
+
+      // 如果 label 变化，更新资源标题
+      if (updates.label !== undefined) {
+        await ResourcesRepo.update(trackResourceId, {
+          title: updates.label,
+          description: `媒体轨道: ${updates.label}`
+        });
+      }
+
+      return { success: true };
+    }
+  );
 }
 
 // keep file local helpers minimal; tagging moved to TaggingService
