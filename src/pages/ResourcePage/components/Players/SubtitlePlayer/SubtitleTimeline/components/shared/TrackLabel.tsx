@@ -1,7 +1,8 @@
 import clsx from 'clsx';
-import React from 'react';
+import React, { useState } from 'react';
 import { TbEye, TbEyeOff, TbLock, TbLockOpen, TbTrash } from 'react-icons/tb';
 
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
 
 import { DEFAULT_CONFIG, TimelineTrack } from '../../types';
@@ -26,6 +27,7 @@ interface TrackLabelProps {
 export const TrackLabel: React.FC<TrackLabelProps> = ({ track, index, onToggleLock, onToggleHidden, allowDelete = false, onDelete, onToggleEnabled, className }) => {
   const height = track.height ?? DEFAULT_CONFIG.TRACK_HEIGHT;
   const isEnabled = track.enabled !== false;
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const content = (
     <div
@@ -72,22 +74,38 @@ export const TrackLabel: React.FC<TrackLabelProps> = ({ track, index, onToggleLo
   // 如果允许删除，包装在右键菜单中
   if (allowDelete && onDelete) {
     return (
-      <ContextMenu>
-        <ContextMenuTrigger asChild>{content}</ContextMenuTrigger>
-        <ContextMenuContent>
-          <ContextMenuItem
-            className="text-destructive focus:text-destructive"
-            onClick={() => {
-              if (confirm(`确定要删除轨道「${track.label}」吗？此操作将删除该翻译资源。`)) {
-                onDelete(track.id);
-              }
-            }}
-          >
-            <TbTrash className="w-4 h-4 mr-2" />
-            删除轨道
-          </ContextMenuItem>
-        </ContextMenuContent>
-      </ContextMenu>
+      <>
+        <ContextMenu>
+          <ContextMenuTrigger asChild>{content}</ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem className="text-destructive focus:text-destructive" onClick={() => setShowDeleteDialog(true)}>
+              <TbTrash className="w-4 h-4 mr-2" />
+              删除轨道
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
+
+        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>删除轨道</AlertDialogTitle>
+              <AlertDialogDescription>确定要删除轨道「{track.label}」吗？此操作将永久删除该资源，无法恢复。</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>取消</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => {
+                  setShowDeleteDialog(false);
+                  onDelete(track.id);
+                }}
+              >
+                删除
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </>
     );
   }
 

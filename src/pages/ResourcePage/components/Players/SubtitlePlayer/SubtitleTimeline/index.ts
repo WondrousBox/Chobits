@@ -3,6 +3,7 @@ export { SubtitleTimeline } from './SubtitleTimeline';
 
 // 类型
 export type {
+  BaseSegment,
   ClipSegment,
   ClipTool,
   ClipTrackCallbacks,
@@ -22,6 +23,7 @@ export type {
   TimelineCallbacks,
   TimelineSegment,
   TimelineTrack,
+  TrackProps,
   ViewportState
 } from './types';
 export { DEFAULT_CONFIG, DEFAULT_TRANSFORM, MEDIA_CONFIG, TRACK_COLORS } from './types';

@@ -9,19 +9,28 @@ import { useAnnotationAdapter } from '../../context';
 import type { AnnotationTrackCallbacks, ViewportState } from '../../types';
 import { DEFAULT_CONFIG } from '../../types';
 
+/**
+ * 标注轨道组件 Props
+ *
+ * 遵循统一命名规范：
+ * - width: 轨道宽度 (原 totalWidth)
+ * - pixelsPerSecond: 缩放级别
+ * - viewport: 视口状态
+ * - disabled: 是否禁用 (原 enabled，逻辑反转)
+ */
 interface AnnotationTrackProps {
   /** 标注列表 */
   annotations: AnnotationItem[];
-  /** 总宽度（像素） */
-  totalWidth: number;
+  /** 轨道总宽度 (像素) - 统一命名为 width */
+  width: number;
   /** 每秒像素数 */
   pixelsPerSecond: number;
   /** 视口状态 */
   viewport: ViewportState;
   /** 回调 */
   callbacks?: AnnotationTrackCallbacks;
-  /** 是否启用 */
-  enabled?: boolean;
+  /** 是否禁用 - 统一命名为 disabled (原 enabled，逻辑反转) */
+  disabled?: boolean;
 }
 
 const ANNOTATION_TYPE_ICONS: Record<string, React.ReactNode> = {
@@ -36,7 +45,7 @@ const ANNOTATION_TYPE_ICONS: Record<string, React.ReactNode> = {
  * AnnotationTrack - 标注轨道渲染组件
  * 在时间轴上显示标注标记，每个标注显示为一个色块
  */
-export const AnnotationTrack: React.FC<AnnotationTrackProps> = ({ annotations, totalWidth, pixelsPerSecond, viewport, callbacks, enabled = true }) => {
+export const AnnotationTrack: React.FC<AnnotationTrackProps> = ({ annotations, width, pixelsPerSecond, viewport, callbacks, disabled = false }) => {
   // Get annotation adapter from context
   const annotationAdapter = useAnnotationAdapter();
 
@@ -55,9 +64,9 @@ export const AnnotationTrack: React.FC<AnnotationTrackProps> = ({ annotations, t
 
   return (
     <div
-      className={clsx('relative border-b border-border shrink-0', !enabled && 'opacity-30')}
+      className={clsx('relative border-b border-border shrink-0', disabled && 'opacity-30')}
       style={{
-        width: totalWidth,
+        width,
         height: DEFAULT_CONFIG.TRACK_HEIGHT + DEFAULT_CONFIG.TRACK_GAP
       }}
     >

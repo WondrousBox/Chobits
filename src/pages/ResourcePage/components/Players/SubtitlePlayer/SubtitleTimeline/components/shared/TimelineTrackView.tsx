@@ -6,6 +6,18 @@ import { DEFAULT_CONFIG, TimelineSegment, TimelineTrack, ViewportState } from '.
 import { detectOverlappingSegments } from '../../utils';
 import { TimelineSegmentBlock } from './TimelineSegmentBlock';
 
+/**
+ * 字幕轨道组件 Props
+ *
+ * 遵循统一命名规范：
+ * - width: 轨道宽度
+ * - totalDuration: 总时长
+ * - pixelsPerSecond: 缩放级别
+ * - viewport: 视口状态
+ * - scrollLeft: 滚动偏移
+ * - currentTime: 当前播放时间
+ * - disabled: 是否禁用
+ */
 interface TimelineTrackViewProps {
   track: TimelineTrack;
   viewport: ViewportState;

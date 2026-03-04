@@ -85,8 +85,8 @@ export const TTSTrackLabel: React.FC<TTSTrackLabelProps> = ({ trackLabel, trackC
         <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
           <AlertDialogContent className="w-96">
             <AlertDialogHeader>
-              <AlertDialogTitle>确定要删除 TTS 轨道「{trackLabel}」吗？</AlertDialogTitle>
-              <AlertDialogDescription>此操作将删除该轨道的所有 TTS 音频文件。</AlertDialogDescription>
+              <AlertDialogTitle>删除 TTS 轨道</AlertDialogTitle>
+              <AlertDialogDescription>确定要删除 TTS 轨道「{trackLabel}」吗？此操作将永久删除该轨道及所有音频文件，无法恢复。</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>取消</AlertDialogCancel>

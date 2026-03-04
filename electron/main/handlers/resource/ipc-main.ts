@@ -169,6 +169,15 @@ export function initResourceHandlers(): void {
     return { success: true, deleted: deleted.length, data: deleted };
   });
 
+  // 永久删除资源（不经过回收站）
+  ipcMain.handle('deleteResourcePermanently', async (_event, payload: { id: string }) => {
+    const deleted = await ResourcesRepo.deleteById(payload.id);
+    if (deleted > 0) {
+      eventManager.emit(AppEvent.RESOURCE_DELETED, { id: payload.id });
+    }
+    return { success: true, deleted };
+  });
+
   ipcMain.handle('moveResourcesToWorkspace', async (_event, payload: { ids: string[]; workspaceId: string }) => {
     const { ids, workspaceId } = payload || { ids: [], workspaceId: '' };
     if (!ids.length || !workspaceId) return { moved: 0 };

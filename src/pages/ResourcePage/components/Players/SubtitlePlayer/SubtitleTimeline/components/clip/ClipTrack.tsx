@@ -4,26 +4,40 @@ import { TbArrowBackUp } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 
-import type { ClipSegment, ClipTool } from '../../types';
+import type { ClipSegment, ClipTool, ViewportState } from '../../types';
 import { DEFAULT_CONFIG } from '../../types';
 import { ClipSequence } from '../../utils';
 import { ClipSegmentBlock } from './ClipSegmentBlock';
 
+/**
+ * 剪辑轨道组件 Props
+ *
+ * 遵循统一命名规范：
+ * - width: 轨道宽度
+ * - totalDuration: 总时长 (原 sourceDuration)
+ * - pixelsPerSecond: 缩放级别
+ * - viewport: 视口状态 (可选，用于未来扩展)
+ * - currentTime: 当前播放时间
+ * - disabled: 是否禁用
+ * - selectedId: 选中的片段 ID (原 selectedId)
+ */
 interface ClipTrackProps {
   /** 剪辑片段列表 */
   clips: ClipSegment[];
-  /** 原始媒体总时长（秒） */
-  sourceDuration: number;
+  /** 原始媒体总时长（秒） - 统一命名为 totalDuration */
+  totalDuration: number;
   /** 每秒像素数 */
   pixelsPerSecond: number;
   /** 轨道总宽度 */
   width: number;
+  /** 视口状态 (可选，用于虚拟化) */
+  viewport?: ViewportState;
   /** 当前播放时间（源时间） */
   currentTime?: number;
   /** 当前激活的工具 */
   activeTool?: ClipTool;
-  /** 选中的片段 ID */
-  selectedClipId?: string | null;
+  /** 选中的片段 ID - 统一命名为 selectedId */
+  selectedId?: string | null;
   /** 在某个源时间点切割 */
   onCut?: (sourceTime: number) => void;
   /** 删除片段（软删除） */
@@ -55,12 +69,13 @@ interface ClipTrackProps {
  */
 export const ClipTrack: React.FC<ClipTrackProps> = ({
   clips,
-  sourceDuration,
+  totalDuration,
   pixelsPerSecond,
   width,
+  viewport,
   currentTime,
   activeTool = 'select',
-  selectedClipId,
+  selectedId,
   onCut,
   onDelete,
   onRestore,
@@ -142,7 +157,7 @@ export const ClipTrack: React.FC<ClipTrackProps> = ({
           <div
             key={info.clip.id}
             data-clip-block={info.clip.id}
-            className={clsx('absolute flex items-center justify-center', 'border border-dashed rounded opacity-40', selectedClipId === info.clip.id && 'ring-2 ring-orange-400 opacity-60')}
+            className={clsx('absolute flex items-center justify-center', 'border border-dashed rounded opacity-40', selectedId === info.clip.id && 'ring-2 ring-orange-400 opacity-60')}
             style={{
               left: info.playStart * pixelsPerSecond,
               width: Math.max(DEFAULT_CONFIG.SEGMENT_MIN_WIDTH, (info.playEnd - info.playStart) * pixelsPerSecond),
@@ -162,7 +177,7 @@ export const ClipTrack: React.FC<ClipTrackProps> = ({
             }}
           >
             <span className="text-[9px] text-muted-foreground select-none">已删除</span>
-            {selectedClipId === info.clip.id && onRestore && (
+            {selectedId === info.clip.id && onRestore && (
               <Button
                 size="icon"
                 variant="outline"
@@ -187,7 +202,7 @@ export const ClipTrack: React.FC<ClipTrackProps> = ({
             trackHeight={trackHeight}
             orderIndex={orderIndexMap.get(info.clip.id)}
             totalActiveClips={totalActiveClips}
-            isSelected={selectedClipId === info.clip.id}
+            isSelected={selectedId === info.clip.id}
             isActive={activeClipInfo?.clipId === info.clip.id}
             activeProgress={activeClipInfo?.clipId === info.clip.id ? activeClipInfo.progress : 0}
             activeTool={activeTool}

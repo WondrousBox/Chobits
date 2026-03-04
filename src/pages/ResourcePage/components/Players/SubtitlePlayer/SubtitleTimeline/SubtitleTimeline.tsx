@@ -759,8 +759,8 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                         waveformData={waveform?.data}
                         isLoading={waveform?.loading}
                         error={waveform?.error}
-                        totalWidth={totalWidth}
-                        duration={duration}
+                        width={totalWidth}
+                        totalDuration={duration}
                         height={effectiveWaveformHeight}
                         pixelsPerSecond={pixelsPerSecond}
                         viewport={viewport}
@@ -776,12 +776,12 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                       <ClipTrack
                         overlay
                         clips={clipTrackData.clips}
-                        sourceDuration={clipTrackData.sourceDuration}
+                        totalDuration={clipTrackData.sourceDuration}
                         pixelsPerSecond={pixelsPerSecond}
                         width={totalWidth}
                         currentTime={effectiveCurrentTime}
                         activeTool={internalClipTool}
-                        selectedClipId={selectedClipId}
+                        selectedId={selectedClipId}
                         onCut={clipCallbacks?.onClipCut}
                         onDelete={clipCallbacks?.onClipDelete}
                         onRestore={clipCallbacks?.onClipRestore}
@@ -910,23 +910,23 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
               {annotationTrackData && (
                 <AnnotationTrack
                   annotations={annotationTrackData.annotations}
-                  totalWidth={totalWidth}
+                  width={totalWidth}
                   pixelsPerSecond={pixelsPerSecond}
                   viewport={viewport}
                   callbacks={annotationCallbacks}
-                  enabled={annotationTrackEnabled}
+                  disabled={!annotationTrackEnabled}
                 />
               )}
 
               {clipTrackData && !waveformClipOverlay && (
                 <ClipTrack
                   clips={clipTrackData.clips}
-                  sourceDuration={clipTrackData.sourceDuration}
+                  totalDuration={clipTrackData.sourceDuration}
                   pixelsPerSecond={pixelsPerSecond}
                   width={totalWidth}
                   currentTime={effectiveCurrentTime}
                   activeTool={internalClipTool}
-                  selectedClipId={selectedClipId}
+                  selectedId={selectedClipId}
                   onCut={clipCallbacks?.onClipCut}
                   onDelete={clipCallbacks?.onClipDelete}
                   onRestore={clipCallbacks?.onClipRestore}
