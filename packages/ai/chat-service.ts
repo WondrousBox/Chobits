@@ -10,6 +10,7 @@ import { createModel } from './models/index';
 import { getProvider } from './registry';
 import { getAllSecrets, getFirstApiKey } from './settings-store';
 import { getAllInstanceSecrets } from './settings-store';
+import { pushCardToolContext } from './tools/push-card-tool-context';
 import { summaryToolContext } from './tools/summary-tool-context';
 import { translationToolContext } from './tools/translation-tool-context';
 import { AgentDefinition, ChatMessage, ChatRequest, ChatResponse, EmbeddingResponse, StreamEvent } from './types';
@@ -250,6 +251,11 @@ ${JSON.stringify(req, null, 2)}
           model: modelName
         });
 
+        // 设置推送卡片工具执行上下文
+        pushCardToolContext.setContext({
+          conversationId: conv?.id
+        });
+
         try {
           // 流式调用（使用字符串输入）
           const streamInput = recentMessages?.length ? recentMessages : lastUserMessage?.content || '';
@@ -314,6 +320,8 @@ ${JSON.stringify(req, null, 2)}
           translationToolContext.clearContext();
           // 清理总结工具上下文
           summaryToolContext.clearContext();
+          // 清理推送卡片工具上下文
+          pushCardToolContext.clearContext();
         }
       } catch (error: any) {
         console.error('Stream 错误:', error);

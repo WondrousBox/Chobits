@@ -2,15 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { TbDots, TbEdit, TbLoader2, TbPin, TbPlus, TbRefresh, TbShare, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
-import { ChatInputWithService } from '@/components/chat';
+import { ChatInputWithService, ChatMessageRenderer, ResourceCard } from '@/components/chat';
+import type { ChatCard } from '@/components/chat/types';
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { formatDateTime, formatRelativeTime } from '@/lib/time';
-
-import MarkdownMessage from './components/MarkdownMessage';
 
 interface ChatPageProps {
   hideTitleBar?: boolean;
@@ -32,6 +31,9 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
   const [newTitle, setNewTitle] = useState('');
   // Track conversations that are waiting for AI-generated titles
   const [generatingTitleIds, setGeneratingTitleIds] = useState<Set<string>>(new Set());
+
+  // Pushed cards from main process
+  const [pushedCards, setPushedCards] = useState<Array<ChatCard & { timestamp: number; text?: string }>>([]);
 
   const currentConversation = useMemo(() => conversations.find((c) => c.id === conversationId) || null, [conversations, conversationId]);
 
@@ -263,6 +265,23 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
     startRef.current = start;
   });
 
+  // Listen for card push events from main process
+  useEffect(() => {
+    const dispose = window.YUA.ai.onCardPushed((card) => {
+      // Only accept cards for current conversation or broadcast (no conversationId)
+      if (card.conversationId && card.conversationId !== conversationId) return;
+
+      // Add card to the pushed cards list
+      setPushedCards((prev) => [...prev, { type: card.type, resourceId: card.resourceId, data: card.data, timestamp: card.timestamp, text: card.text }]);
+
+      // Optional: show a toast notification
+      if (card.text) {
+        toast.info('收到资源卡片', { description: card.text });
+      }
+    });
+    return () => dispose();
+  }, [conversationId]);
+
   const stop = async (): Promise<void> => {
     try {
       await disposerRef.current?.cancel();
@@ -400,7 +419,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
                     <div key={i} className={m.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
                       <div className={'max-w-[80%] rounded-2xl px-3 py-2 break-words ' + (m.role === 'user' ? 'bg-primary text-primary-foreground whitespace-pre-wrap' : 'bg-muted text-foreground')}>
                         {m.role === 'assistant' ? (
-                          <MarkdownMessage content={m.content || ''} />
+                          <ChatMessageRenderer content={m.content || ''} compactCards />
                         ) : (
                           m.content ||
                           (loading && i === messages.length - 1 ? (
@@ -414,6 +433,19 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
                       </div>
                     </div>
                   ))}
+                  {/* Pushed cards from main process */}
+                  {pushedCards.length > 0 && (
+                    <div className="flex flex-col gap-2 pt-2">
+                      {pushedCards.map((card, i) => (
+                        <div key={`pushed-${i}-${card.timestamp}`} className="flex justify-start">
+                          <div>
+                            {card.text && <div className="text-xs text-muted-foreground mb-1">{card.text}</div>}
+                            <ResourceCard resourceId={card.resourceId} data={card.data} cardType={card.type} compact />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div ref={listEndRef} />
                 </div>
                 <div className="h-96"></div>
