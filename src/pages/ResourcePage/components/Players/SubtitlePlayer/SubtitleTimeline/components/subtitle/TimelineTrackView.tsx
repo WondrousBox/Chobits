@@ -1,9 +1,10 @@
 import clsx from 'clsx';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 
 import type { WordTimestamp } from '../../../../MediaPlayer/subtitleDisplayEvent';
 import { DEFAULT_CONFIG, TimelineSegment, TimelineTrack, ViewportState } from '../../types';
 import { detectOverlappingSegments } from '../../utils';
+import { InlinePendingSegmentInput } from '../shared/InlinePendingSegmentInput';
 import { TimelineSegmentBlock } from './TimelineSegmentBlock';
 
 /**
@@ -99,18 +100,8 @@ export const TimelineTrackView: React.FC<TimelineTrackViewProps> = ({
 }) => {
   const height = track.height ?? DEFAULT_CONFIG.TRACK_HEIGHT;
   const trackRef = useRef<HTMLDivElement>(null);
-  const newSegmentInputRef = useRef<HTMLTextAreaElement>(null);
-  const [newSegmentInput, setNewSegmentInput] = useState('');
   /** mousedown 时的横向滚动位置，用于区分「点击空白」与「拖拽滚动后松开」 */
   const scrollLeftAtMouseDownRef = useRef<number | null>(null);
-
-  // 打开新增输入框时清空内容并聚焦
-  useEffect(() => {
-    if (pendingNewSegment) {
-      setNewSegmentInput('');
-      requestAnimationFrame(() => newSegmentInputRef.current?.focus());
-    }
-  }, [pendingNewSegment]);
 
   // 预计算片段的时间数组（用于二分查找）
   const { startTimes, endTimes } = useMemo(() => {
@@ -217,59 +208,19 @@ export const TimelineTrackView: React.FC<TimelineTrackViewProps> = ({
     scrollLeftAtMouseDownRef.current = scrollLeft ?? 0;
   }, [scrollLeft]);
 
-  // 新增片段输入框失焦：无内容则取消，有内容则确认新增
-  const handleNewSegmentBlur = useCallback(() => {
-    if (!pendingNewSegment) return;
-    const text = newSegmentInput.trim();
-    if (text === '') {
-      onCancelNewSegment?.();
-    } else {
-      onAddSegmentConfirm?.(track.id, pendingNewSegment.startTime, pendingNewSegment.endTime, text);
-    }
-    setNewSegmentInput('');
-  }, [pendingNewSegment, newSegmentInput, onCancelNewSegment, onAddSegmentConfirm, track.id]);
-
   return (
     <div ref={trackRef} className={clsx('relative border-border', className)} style={{ height: height + DEFAULT_CONFIG.TRACK_GAP, width }}>
       {/* 背景区域（点击空白处可新增片段；mousedown 记录滚动位置以区分点击与拖拽滚动） */}
       <div className="absolute inset-0 bg-background" role="presentation" onMouseDown={handleTrackBackgroundMouseDown} onClick={handleTrackBackgroundClick} />
 
-      {/* 待新增片段的输入框：样式与双击编辑一致（多行、边框、最小宽高） */}
-      {pendingNewSegment && (
-        <div
-          className="absolute z-20 overflow-hidden rounded"
-          style={{
-            left: timeToPixel(pendingNewSegment.startTime),
-            width: Math.max(150, timeToPixel(pendingNewSegment.endTime - pendingNewSegment.startTime)),
-            top: DEFAULT_CONFIG.TRACK_GAP / 2,
-            height: height + 20
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <textarea
-            ref={newSegmentInputRef}
-            className={clsx(
-              'w-full h-full min-w-[150px] px-1.5 py-0.5 text-xs leading-tight resize-none',
-              'bg-background border-2 border-primary rounded outline-none text-foreground box-border',
-              'placeholder:text-muted-foreground'
-            )}
-            style={{ minHeight: height + 20 }}
-            placeholder="输入内容，enter 确认，esc 取消"
-            value={newSegmentInput}
-            onChange={(e) => setNewSegmentInput(e.target.value)}
-            onBlur={handleNewSegmentBlur}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                (e.target as HTMLTextAreaElement).blur();
-              } else if (e.key === 'Escape') {
-                setNewSegmentInput('');
-                onCancelNewSegment?.();
-              }
-            }}
-          />
-        </div>
-      )}
+      <InlinePendingSegmentInput
+        pendingSegment={pendingNewSegment}
+        pixelsPerSecond={pixelsPerSecond}
+        top={DEFAULT_CONFIG.TRACK_GAP / 2}
+        height={height + 20}
+        onConfirm={(startTime, endTime, text) => onAddSegmentConfirm?.(track.id, startTime, endTime, text)}
+        onCancel={onCancelNewSegment}
+      />
 
       {/* 片段渲染 */}
       {visibleSegments.map(({ segment, index }) => (

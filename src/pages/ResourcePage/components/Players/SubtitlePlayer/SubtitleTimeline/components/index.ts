@@ -19,12 +19,14 @@ export { ThumbnailStrip } from './media';
 
 // Shared components
 export { SeekBar } from './shared';
-export { TimelineSegmentBlock } from './shared';
-export { TimelineTrackView } from './shared';
 export { TimeRuler } from './shared';
 export { TrackAddMenu } from './shared';
 export { TransitionBadge, TransitionIndicator } from './shared';
 export { CommonTrackLabel, WaveformTrack } from './shared';
+
+// Subtitle components
+export { TimelineSegmentBlock } from './subtitle';
+export { TimelineTrackView } from './subtitle';
 
 // TTS components
 export type { TTSAudioItem } from './tts';
