@@ -10,6 +10,7 @@ import { ResourcesRepo } from '../../common/db';
 import { SummaryService } from '../services/summary-service';
 import { TranslationService } from '../services/translation-service';
 import { weatherTool } from '../tools';
+import { createPushCardTool } from '../tools/push-card-tool';
 import { createReadSubtitleTool } from '../tools/read-subtitle-tool';
 import { createResourceQueryTool } from '../tools/resource-query-tool';
 import { createSummaryTool } from '../tools/summary-tool';
@@ -33,6 +34,9 @@ const boundTranslationTool = createTranslationTool(TranslationService);
 // 创建绑定了 SummaryService 的总结工具
 const boundSummaryTool = createSummaryTool(SummaryService);
 
+// 创建推送卡片工具
+const boundPushCardTool = createPushCardTool();
+
 // 所有可用工具（包括绑定版本）
 const allBoundTools = {
   weatherTool,
@@ -40,6 +44,7 @@ const allBoundTools = {
   readSubtitleTool: boundReadSubtitleTool,
   translationTool: boundTranslationTool,
   summaryTool: boundSummaryTool,
+  pushCardTool: boundPushCardTool,
   youtubeDownloadTool,
   youtubeSubscribeTool
 };
@@ -51,6 +56,7 @@ const toolNameToId: Record<string, string> = {
   readSubtitleTool: 'read-subtitle',
   translationTool: 'translate-subtitles',
   summaryTool: 'summarize-content',
+  pushCardTool: 'push-card',
   youtubeDownloadTool: 'youtube-download',
   youtubeSubscribeTool: 'youtube-subscribe'
 };
@@ -104,6 +110,7 @@ export const assistantAgent = new Agent({
 - 读取字幕文件内容
 - 翻译字幕文件
 - 总结字幕和文本内容
+- **在聊天中推送资源卡片，让用户可以直接点击查看**
 - **下载 YouTube 视频到本地资源库**
 - **订阅 YouTube 频道获取最新视频**
 
@@ -114,10 +121,21 @@ export const assistantAgent = new Agent({
 - "我最新的字幕文件是什么？"
 - "找今天的视频"
 - "查找收藏的音频"
+- "有没有关于xxx的资源？给我看看"
 - "帮我翻译最新的字幕文件"
 - "帮我总结最新的字幕内容"
 - "下载这个 YouTube 视频：https://www.youtube.com/watch?v=xxx"
 - "订阅这个 YouTube 频道"
+
+**关于推送资源卡片的工作流程**：
+当用户想要查看资源、询问有没有某个资源、或者你找到了用户需要的资源时：
+1. 先使用 resourceQueryTool 查询资源（获取 resourceId 和资源信息）
+2. 使用 pushCardTool 推送资源卡片到聊天窗口，让用户可以直接点击查看
+3. 推送卡片时，可以附带简短的文字说明（text 参数）
+
+pushCardTool 使用示例：
+- 推送数据库中的资源：pushCardTool({ type: 'video', resourceId: 'xxx', text: '这是你想要找的视频' })
+- 推送临时内容：pushCardTool({ type: 'link', data: { id: 'temp', title: '示例', url: 'https://...' }, text: '推荐链接' })
 
 **关于翻译功能的工作流程**：
 当用户需要翻译字幕时，请按照以下步骤操作：
@@ -148,6 +166,7 @@ export const assistantAgent = new Agent({
 4. 如果有 latestVideos，可以向用户展示最新的几个视频
 
 **重要提示**：
+- 当用户询问资源或想要查看资源时，务必使用 pushCardTool 推送资源卡片
 - 翻译工具需要字幕片段数组（segments）作为输入
 - 总结工具可以接受字幕片段数组（segments）或纯文本（content）作为输入
 - 必须先调用 readSubtitleTool 获取内容，然后才能调用 translationTool 或 summaryTool

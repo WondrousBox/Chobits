@@ -14,6 +14,7 @@
 export { weatherTool } from './weather-tool';
 
 // AI 工具（需要绑定依赖）
+export { createPushCardTool, pushCardTool } from './push-card-tool';
 export { createReadSubtitleTool, readSubtitleTool } from './read-subtitle-tool';
 export { createResourceQueryTool, resourceQueryTool } from './resource-query-tool';
 export { createSummaryTool, summaryTool } from './summary-tool';
@@ -24,6 +25,7 @@ export { createYoutubeDownloadTool, youtubeDownloadTool } from './youtube-downlo
 export { createYoutubeSubscribeTool, youtubeSubscribeTool } from './youtube-subscribe-tool';
 
 // 导入用于类型和工具列表
+import { pushCardTool } from './push-card-tool';
 import { readSubtitleTool } from './read-subtitle-tool';
 import { resourceQueryTool } from './resource-query-tool';
 import { summaryTool } from './summary-tool';
@@ -61,6 +63,7 @@ export const allTools = {
   translationTool,
   summaryTool,
   resourceQueryTool,
+  pushCardTool,
 
   // YouTube 工具
   youtubeDownloadTool,
@@ -87,7 +90,8 @@ export function getAITools() {
   return {
     translationTool,
     summaryTool,
-    resourceQueryTool
+    resourceQueryTool,
+    pushCardTool
   };
 }
 
@@ -122,6 +126,7 @@ export function getToolById(id: string) {
     'translate-subtitles': translationTool,
     'summarize-content': summaryTool,
     'query-resources': resourceQueryTool,
+    'push-card': pushCardTool,
     'youtube-download': youtubeDownloadTool,
     'youtube-subscribe': youtubeSubscribeTool
   };
@@ -136,7 +141,7 @@ export type ToolName = keyof typeof allTools;
 /**
  * 工具 ID 类型定义
  */
-export type ToolId = 'get-weather' | 'translate-subtitles' | 'summarize-content' | 'query-resources' | 'youtube-download' | 'youtube-subscribe' | 'read-subtitle';
+export type ToolId = 'get-weather' | 'translate-subtitles' | 'summarize-content' | 'query-resources' | 'push-card' | 'youtube-download' | 'youtube-subscribe' | 'read-subtitle';
 
 /**
  * 工具信息类型
@@ -163,6 +168,11 @@ export function listToolInfos(): ToolInfo[] {
       id: 'query-resources',
       name: 'resourceQueryTool',
       description: resourceQueryTool.description || '智能查询资源库中的内容'
+    },
+    {
+      id: 'push-card',
+      name: 'pushCardTool',
+      description: pushCardTool.description || '在聊天中推送资源卡片'
     },
     {
       id: 'read-subtitle',

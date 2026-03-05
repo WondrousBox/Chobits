@@ -51,6 +51,34 @@ import {
 } from './settings-store';
 import { getAllInstanceSecrets as getAllInstSecrets, setInstanceSecrets as setInstSecrets } from './settings-store';
 import { listToolInfos } from './tools';
+import type { PushedCard } from './types';
+
+/** IPC channel for broadcasting pushed cards to renderer windows */
+export const CARD_PUSHED_CHANNEL = 'ai:card-pushed';
+
+/**
+ * Push a card to all renderer windows (or specific window via filter)
+ * @param card The card data to push
+ * @param targetWindowId Optional specific window ID to target
+ */
+export function pushCardToWindows(card: Omit<PushedCard, 'timestamp'>, targetWindowId?: number): void {
+  const payload: PushedCard = {
+    ...card,
+    timestamp: Date.now()
+  };
+
+  BrowserWindow.getAllWindows().forEach((w) => {
+    // If targetWindowId is specified, only send to that window
+    if (targetWindowId !== undefined && w.id !== targetWindowId) return;
+    if (!w.isDestroyed()) {
+      try {
+        w.webContents.send(CARD_PUSHED_CHANNEL, payload);
+      } catch {
+        // window may have been destroyed
+      }
+    }
+  });
+}
 
 export function initAIHandlers(win: BrowserWindow): void {
   // Bootstrapping built-in provider(s) and agent(s)
@@ -394,5 +422,16 @@ export function initAIHandlers(win: BrowserWindow): void {
   // 获取笔记
   ipcMain.handle('ai:getResourceNote', async (_e, payload: { resourceId: string }) => {
     return loadResourceNote(payload.resourceId);
+  });
+
+  // ==================== 卡片推送 ====================
+
+  /**
+   * Push a card to chat window(s)
+   * Can target specific conversation or broadcast to all windows
+   */
+  ipcMain.handle('ai:pushCard', async (_e, payload: { card: Omit<PushedCard, 'timestamp'>; targetWindowId?: number }) => {
+    pushCardToWindows(payload.card, payload.targetWindowId);
+    return { success: true };
   });
 }

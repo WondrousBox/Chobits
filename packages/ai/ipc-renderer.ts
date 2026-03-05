@@ -1,6 +1,8 @@
 import { AimSegments } from '@aim-packages/subtitle';
 import { ipcRenderer } from 'electron';
 
+import type { PushedCard } from './types';
+
 export type StreamCallback = (event: { type: string; data?: any }) => void;
 
 export const aiBridge = {
@@ -169,6 +171,12 @@ export const aiBridge = {
     const handler = (_: any, data: any): void => callback(data);
     ipcRenderer.on('ai:conversation-title-updated', handler);
     return () => ipcRenderer.removeListener('ai:conversation-title-updated', handler);
+  },
+  /** Subscribe to card push events from main process */
+  onCardPushed(callback: (card: PushedCard) => void) {
+    const handler = (_: any, card: PushedCard): void => callback(card);
+    ipcRenderer.on('ai:card-pushed', handler);
+    return () => ipcRenderer.removeListener('ai:card-pushed', handler);
   },
   // Utilities
   async autoTagText(text: string, maxLabels?: number): Promise<{ success: true; tags: string[] }> {

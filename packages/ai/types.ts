@@ -110,6 +110,27 @@ export type ToolInfo = {
   description: string;
 };
 
+// ==================== 卡片推送类型 ====================
+
+/** 卡片类型 */
+export type ChatCardType = 'resource' | 'video' | 'audio' | 'image' | 'document' | 'link' | 'file';
+
+/** 推送的卡片数据 */
+export interface PushedCard {
+  /** 卡片类型 */
+  type: ChatCardType;
+  /** 资源 ID（用于从数据库加载完整资源信息） */
+  resourceId?: string;
+  /** 内嵌的资源数据（用于临时卡片，无需从数据库加载） */
+  data?: Record<string, any> & { id: string };
+  /** 关联的会话 ID（可选，用于定向推送到特定会话） */
+  conversationId?: string;
+  /** 可选的文本说明 */
+  text?: string;
+  /** 时间戳 */
+  timestamp: number;
+}
+
 export type AIApi = {
   getProviders(): Promise<any[]>;
   getAgents(): Promise<any[]>;
@@ -191,6 +212,8 @@ export type AIApi = {
   restoreConversation(id: string): Promise<{ ok: boolean }>;
   /** Subscribe to conversation title updates pushed from main process */
   onConversationTitleUpdated(callback: (data: { conversationId: string; title: string | null; status: 'generating' | 'done' | 'error' }) => void): () => void;
+  /** Subscribe to card push events from main process */
+  onCardPushed(callback: (card: PushedCard) => void): () => void;
   // Glossary management
   listGlossaryCategories(): Promise<Array<{ id: string; name: string; description?: string; createdAt: number; updatedAt: number }>>;
   createGlossaryCategory(payload: { name: string; description?: string }): Promise<{ id: string; name: string; description?: string; createdAt: number; updatedAt: number }>;
