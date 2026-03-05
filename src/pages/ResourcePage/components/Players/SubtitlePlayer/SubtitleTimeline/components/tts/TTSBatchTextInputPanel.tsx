@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbChevronRight, TbLoader2, TbPlayerPause, TbPlayerPlay, TbX } from 'react-icons/tb';
+import { TbLoader2, TbPlayerPause, TbPlayerPlay, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 

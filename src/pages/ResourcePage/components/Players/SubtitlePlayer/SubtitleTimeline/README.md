@@ -44,10 +44,12 @@ SubtitleTimeline/
 │   │   ├── SeekBar.tsx             # 播放进度条
 │   │   ├── TimeRuler.tsx           # 时间刻度尺
 │   │   ├── TrackLabel.tsx          # 轨道标签
-│   │   ├── TimelineSegmentBlock.tsx # 字幕片段块
-│   │   ├── TimelineTrackView.tsx   # 轨道视图容器
 │   │   ├── TransitionIndicator.tsx # 转场指示器
 │   │   └── WaveformTrack.tsx       # 波形轨道
+│   ├── subtitle/                   # 字幕轨道组件
+│   │   ├── index.ts
+│   │   ├── TimelineSegmentBlock.tsx # 字幕片段块
+│   │   └── TimelineTrackView.tsx   # 轨道视图容器
 │   ├── tts/                        # TTS 轨道组件
 │   │   ├── index.ts
 │   │   ├── TTSAudioTrack.tsx       # TTS 音频轨道

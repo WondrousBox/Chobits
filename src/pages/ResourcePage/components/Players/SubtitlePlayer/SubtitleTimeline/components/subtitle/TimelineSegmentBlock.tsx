@@ -5,6 +5,7 @@ import { TbArrowMerge, TbPencil, TbTrash } from 'react-icons/tb';
 import { Button } from '@/components/ui/button';
 
 import type { WordTimestamp } from '../../../../MediaPlayer/subtitleDisplayEvent';
+import { useSegmentDragResize } from '../../hooks/useSegmentDragResize';
 import { DEFAULT_CONFIG, TimelineSegment } from '../../types';
 
 interface TimelineSegmentBlockProps {
@@ -48,8 +49,6 @@ interface TimelineSegmentBlockProps {
   /** 字级别时间戳数据（卡拉OK高亮用） */
   words?: WordTimestamp[];
 }
-
-type DragMode = 'none' | 'move' | 'resize-left' | 'resize-right';
 
 /** 校验字幕块编辑内容：非空、无影响展示的非法字符 */
 function validateSegmentText(text: string): { valid: boolean; message?: string } {
@@ -106,17 +105,15 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
   const [editText, setEditText] = useState(segment.text);
   const [validationError, setValidationError] = useState(false);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
-  const [dragMode, setDragMode] = useState<DragMode>('none');
-  const [dragStartX, setDragStartX] = useState(0);
-  const [originalTimes, setOriginalTimes] = useState({ start: 0, end: 0 });
-  const [dragHoverTime, setDragHoverTime] = useState<{ startTime?: number; endTime?: number; x: number; y: number } | null>(null);
 
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const blockRef = useRef<HTMLDivElement>(null);
-  /** 刚结束拖拽（时间调整）后的 mouseup 会触发 click，此时不进入编辑 */
-  const didDragJustEndRef = useRef(false);
-  /** 本次按下后是否发生过拖拽（mousemove），用于区分单击与拖拽结束 */
-  const didMoveDuringDragRef = useRef(false);
+  const { dragMode, dragHoverTime, didDragJustEndRef, startDrag, resolveDragMode } = useSegmentDragResize({
+    pixelsPerSecond,
+    maxDuration,
+    onTimeChange: onTimeChange ? (newStartTime, newEndTime) => onTimeChange(segment, trackId, newStartTime, newEndTime) : undefined,
+    onDragEnd: onDragEnd ? () => onDragEnd(segment, trackId) : undefined
+  });
 
   // 计算位置和尺寸
   const left = segment.startTime * pixelsPerSecond;
@@ -150,9 +147,6 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
   const backgroundColor = isOverlapping
     ? 'hsla(15, 85%, 55%, 0.5)' // 橙红色，半透明
     : toAlpha(trackColor, isActive ? 1 : 0.35);
-
-  // 边缘拖拽区域宽度
-  const EDGE_WIDTH = 6;
 
   // 进入编辑模式时聚焦输入框
   useEffect(() => {
@@ -221,18 +215,6 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
     return () => clearTimeout(t);
   }, [validationError]);
 
-  // 判断鼠标是否在边缘
-  const getEdgeFromPosition = useCallback((clientX: number): DragMode => {
-    if (!blockRef.current) return 'move';
-
-    const rect = blockRef.current.getBoundingClientRect();
-    const relativeX = clientX - rect.left;
-
-    if (relativeX <= EDGE_WIDTH) return 'resize-left';
-    if (relativeX >= rect.width - EDGE_WIDTH) return 'resize-right';
-    return 'move';
-  }, []);
-
   // 处理鼠标按下
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -242,92 +224,25 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
       e.stopPropagation();
       e.preventDefault();
 
-      const mode = getEdgeFromPosition(e.clientX);
-      setDragMode(mode);
-      setDragStartX(e.clientX);
-      setOriginalTimes({ start: segment.startTime, end: segment.endTime });
-      didMoveDuringDragRef.current = false;
+      const mode = resolveDragMode(e.clientX, blockRef.current);
+      startDrag({
+        mode,
+        clientX: e.clientX,
+        startTime: segment.startTime,
+        endTime: segment.endTime
+      });
 
       onDragStart?.(segment, trackId);
     },
-    [disabled, isEditing, getEdgeFromPosition, segment, trackId, onDragStart]
+    [disabled, isEditing, resolveDragMode, startDrag, segment, trackId, onDragStart]
   );
-
-  // 处理鼠标移动（拖拽中）
-  useEffect(() => {
-    if (dragMode === 'none') return;
-
-    const handleMouseMove = (e: MouseEvent): void => {
-      didMoveDuringDragRef.current = true; // 发生过位移，视为拖拽
-      const deltaX = e.clientX - dragStartX;
-      const deltaTime = deltaX / pixelsPerSecond;
-
-      let newStartTime = originalTimes.start;
-      let newEndTime = originalTimes.end;
-      const minDuration = 0.1; // 最小时长 0.1 秒
-      const segmentDuration = originalTimes.end - originalTimes.start;
-
-      switch (dragMode) {
-        case 'move':
-          // 整体移动
-          newStartTime = Math.max(0, originalTimes.start + deltaTime);
-          newEndTime = newStartTime + segmentDuration;
-          // 限制不超出最大时长
-          if (maxDuration !== undefined && newEndTime > maxDuration) {
-            newEndTime = maxDuration;
-            newStartTime = maxDuration - segmentDuration;
-          }
-          break;
-
-        case 'resize-left':
-          // 调整左边缘（改变开始时间）
-          newStartTime = Math.max(0, Math.min(originalTimes.end - minDuration, originalTimes.start + deltaTime));
-          break;
-
-        case 'resize-right':
-          // 调整右边缘（改变结束时间）
-          newEndTime = Math.max(originalTimes.start + minDuration, originalTimes.end + deltaTime);
-          // 限制不超出最大时长
-          if (maxDuration !== undefined && newEndTime > maxDuration) {
-            newEndTime = maxDuration;
-          }
-          break;
-      }
-
-      // 更新悬浮时间提示：拖左侧只显示开始时间，拖右侧只显示结束时间，拖中间显示开始和结束
-      if (dragMode === 'move') {
-        setDragHoverTime({ startTime: newStartTime, endTime: newEndTime, x: e.clientX, y: e.clientY });
-      } else if (dragMode === 'resize-left') {
-        setDragHoverTime({ startTime: newStartTime, x: e.clientX, y: e.clientY });
-      } else {
-        setDragHoverTime({ endTime: newEndTime, x: e.clientX, y: e.clientY });
-      }
-
-      onTimeChange?.(segment, trackId, newStartTime, newEndTime);
-    };
-
-    const handleMouseUp = (): void => {
-      if (didMoveDuringDragRef.current) didDragJustEndRef.current = true;
-      setDragMode('none');
-      setDragHoverTime(null);
-      onDragEnd?.(segment, trackId);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [dragMode, dragStartX, pixelsPerSecond, originalTimes, segment, trackId, onTimeChange, onDragEnd, maxDuration]);
 
   // 更新鼠标样式
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
       if (disabled || isEditing || dragMode !== 'none') return;
 
-      const mode = getEdgeFromPosition(e.clientX);
+      const mode = resolveDragMode(e.clientX, blockRef.current);
       const block = blockRef.current;
       if (!block) return;
 
@@ -340,7 +255,7 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
           block.style.cursor = 'grab';
       }
     },
-    [disabled, isEditing, dragMode, getEdgeFromPosition]
+    [disabled, isEditing, dragMode, resolveDragMode]
   );
 
   // 处理点击：未选中时通知父组件高亮；已选中时再次单击进入编辑（与双击一致）；刚结束拖拽后的 click 不进入编辑
@@ -361,7 +276,7 @@ export const TimelineSegmentBlock: React.FC<TimelineSegmentBlockProps> = ({
       }
       onClick?.(segment, trackId, e);
     },
-    [disabled, isSelected, segment, trackId, onClick, onDoubleClick]
+    [disabled, isSelected, segment, trackId, onClick, onDoubleClick, didDragJustEndRef]
   );
 
   const isDeleted = segment.deleted;

@@ -1,12 +1,11 @@
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TbLoader2, TbPencil, TbPlayerPause, TbPlayerPlay, TbTrash } from 'react-icons/tb';
+import { TbLoader2, TbPlayerPause, TbPlayerPlay, TbTrash } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 
+import { useSegmentDragResize } from '../../hooks/useSegmentDragResize';
 import { DEFAULT_CONFIG, type TTSAudioItem } from '../../types';
-
-type DragMode = 'none' | 'move' | 'resize-left' | 'resize-right';
 
 export interface TTSAudioBlockProps {
   /** TTS 音频项 */
@@ -53,8 +52,6 @@ function getStatusColor(status: TTSAudioItem['status'], isOverlapping: boolean):
   }
 }
 
-const EDGE_WIDTH = 6;
-
 /**
  * TTS 音频块组件
  * 支持拖拽移动与左右边缘调整时间（与字幕块一致）
@@ -73,19 +70,18 @@ export const TTSAudioBlock: React.FC<TTSAudioBlockProps> = ({
   onTextChange,
   onDoubleClick
 }) => {
-  const [dragMode, setDragMode] = useState<DragMode>('none');
-  const [dragStartX, setDragStartX] = useState(0);
-  const [originalTimes, setOriginalTimes] = useState({ start: 0, end: 0 });
-  const [dragHoverTime, setDragHoverTime] = useState<{ startTime?: number; endTime?: number; x: number; y: number } | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(item.text ?? '');
 
   const blockRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const didDragJustEndRef = useRef(false);
-  const didMoveDuringDragRef = useRef(false);
 
   const canDragResize = !!onTimeChange;
+  const { dragMode, dragHoverTime, didDragJustEndRef, startDrag, resolveDragMode } = useSegmentDragResize({
+    pixelsPerSecond,
+    maxDuration,
+    onTimeChange: canDragResize ? onTimeChange : undefined
+  });
   const left = item.startTime * pixelsPerSecond;
   const slotDuration = item.endTime - item.startTime;
   const width = Math.max(slotDuration * pixelsPerSecond, DEFAULT_CONFIG.SEGMENT_MIN_WIDTH);
@@ -138,89 +134,26 @@ export const TTSAudioBlock: React.FC<TTSAudioBlockProps> = ({
     [tryCommitEdit, item.text]
   );
 
-  const getEdgeFromPosition = useCallback((clientX: number): DragMode => {
-    if (!blockRef.current) return 'move';
-    const rect = blockRef.current.getBoundingClientRect();
-    const relativeX = clientX - rect.left;
-    if (relativeX <= EDGE_WIDTH) return 'resize-left';
-    if (relativeX >= rect.width - EDGE_WIDTH) return 'resize-right';
-    return 'move';
-  }, []);
-
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       if (!canDragResize || e.button !== 0) return;
       e.stopPropagation();
       e.preventDefault();
-      const mode = getEdgeFromPosition(e.clientX);
-      setDragMode(mode);
-      setDragStartX(e.clientX);
-      setOriginalTimes({ start: item.startTime, end: item.endTime });
-      didMoveDuringDragRef.current = false;
+      const mode = resolveDragMode(e.clientX, blockRef.current);
+      startDrag({
+        mode,
+        clientX: e.clientX,
+        startTime: item.startTime,
+        endTime: item.endTime
+      });
     },
-    [canDragResize, getEdgeFromPosition, item.startTime, item.endTime]
+    [canDragResize, resolveDragMode, startDrag, item.startTime, item.endTime]
   );
-
-  useEffect(() => {
-    if (dragMode === 'none') return;
-
-    const handleMouseMove = (e: MouseEvent): void => {
-      didMoveDuringDragRef.current = true;
-      const deltaX = e.clientX - dragStartX;
-      const deltaTime = deltaX / pixelsPerSecond;
-
-      let newStartTime = originalTimes.start;
-      let newEndTime = originalTimes.end;
-      const minDuration = 0.1;
-      const segmentDuration = originalTimes.end - originalTimes.start;
-
-      switch (dragMode) {
-        case 'move':
-          newStartTime = Math.max(0, originalTimes.start + deltaTime);
-          newEndTime = newStartTime + segmentDuration;
-          if (maxDuration !== undefined && newEndTime > maxDuration) {
-            newEndTime = maxDuration;
-            newStartTime = maxDuration - segmentDuration;
-          }
-          break;
-        case 'resize-left':
-          newStartTime = Math.max(0, Math.min(originalTimes.end - minDuration, originalTimes.start + deltaTime));
-          break;
-        case 'resize-right':
-          newEndTime = Math.max(originalTimes.start + minDuration, originalTimes.end + deltaTime);
-          if (maxDuration !== undefined && newEndTime > maxDuration) newEndTime = maxDuration;
-          break;
-      }
-
-      if (dragMode === 'move') {
-        setDragHoverTime({ startTime: newStartTime, endTime: newEndTime, x: e.clientX, y: e.clientY });
-      } else if (dragMode === 'resize-left') {
-        setDragHoverTime({ startTime: newStartTime, x: e.clientX, y: e.clientY });
-      } else {
-        setDragHoverTime({ endTime: newEndTime, x: e.clientX, y: e.clientY });
-      }
-
-      onTimeChange?.(newStartTime, newEndTime);
-    };
-
-    const handleMouseUp = (): void => {
-      if (didMoveDuringDragRef.current) didDragJustEndRef.current = true;
-      setDragMode('none');
-      setDragHoverTime(null);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [dragMode, dragStartX, pixelsPerSecond, originalTimes, maxDuration, onTimeChange]);
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
       if (!canDragResize || dragMode !== 'none') return;
-      const mode = getEdgeFromPosition(e.clientX);
+      const mode = resolveDragMode(e.clientX, blockRef.current);
       const block = blockRef.current;
       if (!block) return;
       if (mode === 'resize-left' || mode === 'resize-right') {
@@ -229,7 +162,7 @@ export const TTSAudioBlock: React.FC<TTSAudioBlockProps> = ({
         block.style.cursor = 'grab';
       }
     },
-    [canDragResize, dragMode, getEdgeFromPosition]
+    [canDragResize, dragMode, resolveDragMode]
   );
 
   const handleClick = useCallback(
@@ -248,7 +181,7 @@ export const TTSAudioBlock: React.FC<TTSAudioBlockProps> = ({
       }
       onBlockClick?.(e, item);
     },
-    [item, isSelected, onTextChange, onBlockClick]
+    [item, isSelected, onTextChange, onBlockClick, didDragJustEndRef]
   );
 
   const pillClass = 'pointer-events-none select-none text-[10px] leading-none text-foreground/70 bg-background/70 rounded px-1 py-0.5';
@@ -279,9 +212,9 @@ export const TTSAudioBlock: React.FC<TTSAudioBlockProps> = ({
         onDoubleClick={
           onDoubleClick
             ? (e) => {
-              e.stopPropagation();
-              onDoubleClick(e, item);
-            }
+                e.stopPropagation();
+                onDoubleClick(e, item);
+              }
             : undefined
         }
         onMouseDown={handleMouseDown}
@@ -337,7 +270,7 @@ export const TTSAudioBlock: React.FC<TTSAudioBlockProps> = ({
             {(() => {
               const actualDur = Math.max(0, audioDuration);
               const slotDur = Math.max(0, slotDuration);
-              const precision = (t: number) => (t >= 10 ? 1 : 2);
+              const precision = (t: number): number => (t >= 10 ? 1 : 2);
               const hasTrimmed = item.trimmedDuration != null && item.duration != null && item.trimmedDuration !== item.duration;
               const showRate = playbackRate != null && Math.abs(playbackRate - 1) > 0.02;
               if (showRate) {

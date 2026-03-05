@@ -6,6 +6,7 @@ import type { TTSAudioItem } from '../../types';
 import { DEFAULT_CONFIG, ViewportState } from '../../types';
 import { detectOverlappingIndices, TimeRange } from '../../utils';
 import { createTTSWaveformLoader, type WaveformData } from '../../utils/ttsWaveformLoader';
+import { InlinePendingSegmentInput } from '../shared/InlinePendingSegmentInput';
 import { TTSAudioBlock } from './TTSAudioBlock';
 
 /** 从 types 导出，供外部使用 */
@@ -73,7 +74,6 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
   viewport,
   pixelsPerSecond,
   totalDuration,
-  currentTime,
   width,
   selectedIndex = null,
   onPlayAudio,
@@ -95,28 +95,6 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [waveformMap, setWaveformMap] = useState<Record<string, WaveformData>>({});
-  const newSegmentInputRef = useRef<HTMLTextAreaElement>(null);
-  const [newSegmentInput, setNewSegmentInput] = useState('');
-
-  // 打开新增输入框时清空内容并聚焦
-  useEffect(() => {
-    if (pendingNewSegment) {
-      setNewSegmentInput('');
-      requestAnimationFrame(() => newSegmentInputRef.current?.focus());
-    }
-  }, [pendingNewSegment]);
-
-  // 新增片段输入框失焦：无内容则取消，有内容则确认新增
-  const handleNewSegmentBlur = useCallback(() => {
-    if (!pendingNewSegment) return;
-    const text = newSegmentInput.trim();
-    if (text === '') {
-      onCancelNewSegment?.();
-    } else {
-      onAddSegmentConfirm?.(pendingNewSegment.startTime, pendingNewSegment.endTime, text);
-    }
-    setNewSegmentInput('');
-  }, [pendingNewSegment, newSegmentInput, onCancelNewSegment, onAddSegmentConfirm]);
 
   // Get media adapter from context and create waveform loader
   const mediaAdapter = useMediaAdapter();
@@ -286,12 +264,6 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
     [onDeleteSegment]
   );
 
-  // 计算当前时间指示线位置
-  const currentTimeX = useMemo(() => {
-    if (currentTime === undefined || currentTime < 0) return null;
-    return currentTime * pixelsPerSecond;
-  }, [currentTime, pixelsPerSecond]);
-
   /** mousedown 时的横向滚动位置，用于区分「点击空白」与「拖拽滚动后松开」 */
   const scrollLeftAtMouseDownRef = useRef<number | null>(null);
 
@@ -405,42 +377,14 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
           ))}
         </div>
 
-        {/* 待新增片段的输入框：样式与字幕轨道一致 */}
-        {pendingNewSegment && (
-          <div
-            className="absolute z-20 overflow-hidden rounded"
-            style={{
-              left: pendingNewSegment.startTime * pixelsPerSecond,
-              width: Math.max(150, (pendingNewSegment.endTime - pendingNewSegment.startTime) * pixelsPerSecond),
-              top: DEFAULT_CONFIG.TRACK_GAP / 2,
-              height: DEFAULT_CONFIG.TRACK_HEIGHT + 20
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <textarea
-              ref={newSegmentInputRef}
-              className={clsx(
-                'w-full h-full min-w-[150px] px-1.5 py-0.5 text-xs leading-tight resize-none',
-                'bg-background border-2 border-primary rounded outline-none text-foreground box-border',
-                'placeholder:text-muted-foreground'
-              )}
-              style={{ minHeight: DEFAULT_CONFIG.TRACK_HEIGHT + 20 }}
-              placeholder="输入内容，enter 确认，esc 取消"
-              value={newSegmentInput}
-              onChange={(e) => setNewSegmentInput(e.target.value)}
-              onBlur={handleNewSegmentBlur}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  (e.target as HTMLTextAreaElement).blur();
-                } else if (e.key === 'Escape') {
-                  setNewSegmentInput('');
-                  onCancelNewSegment?.();
-                }
-              }}
-            />
-          </div>
-        )}
+        <InlinePendingSegmentInput
+          pendingSegment={pendingNewSegment}
+          pixelsPerSecond={pixelsPerSecond}
+          top={DEFAULT_CONFIG.TRACK_GAP / 2}
+          height={DEFAULT_CONFIG.TRACK_HEIGHT + 20}
+          onConfirm={(startTime, endTime, text) => onAddSegmentConfirm?.(startTime, endTime, text)}
+          onCancel={onCancelNewSegment}
+        />
 
         {/* 空轨道提示 */}
         {items.length === 0 && allowAddSegment && (
