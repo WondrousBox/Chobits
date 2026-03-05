@@ -29,62 +29,49 @@ export { UnifiedBlock } from './UnifiedBlock';
 
 // 预设配置
 export {
-  SUBTITLE_BLOCK_CAPABILITIES,
-  TTS_BLOCK_CAPABILITIES,
-  CLIP_BLOCK_CAPABILITIES,
-  MEDIA_BLOCK_CAPABILITIES,
   ANNOTATION_BLOCK_CAPABILITIES,
+  CLIP_BLOCK_CAPABILITIES,
   DEFAULT_BLOCK_CAPABILITIES,
-  mergeCapabilities
+  MEDIA_BLOCK_CAPABILITIES,
+  mergeCapabilities,
+  SUBTITLE_BLOCK_CAPABILITIES,
+  TTS_BLOCK_CAPABILITIES
 } from './presets';
 
 // 类型导出
 export type {
+  BlockActionBarProps,
+  BlockCallbacks,
   // 能力配置
   BlockCapabilities,
-  BlockTextCapabilities,
-  BlockThumbnailCapabilities,
-  BlockWaveformCapabilities,
-  BlockPlaybackCapabilities,
-  BlockDragCapabilities,
-  BlockSelectionCapabilities,
-  BlockSpecialCapabilities,
-
+  BlockContainerProps,
   // 数据类型
   BlockContent,
-  BlockCallbacks,
-  BlockLayout,
-
+  BlockContentProps,
+  BlockDragCapabilities,
   // 拖拽相关
   BlockDragMode,
   BlockDragState,
-  BlockTimeTooltip as BlockTimeTooltipData,
-
-  // Props
-  UnifiedBlockProps,
-  BlockContainerProps,
-  BlockContentProps,
   BlockHandlesProps,
-  BlockActionBarProps,
-  BlockProgressBarProps,
-  BlockTimeTooltipProps,
+  BlockLayout,
   BlockOrderBadgeProps,
+  BlockPlaybackCapabilities,
+  BlockProgressBarProps,
+  BlockRateLabelProps,
+  BlockSelectionCapabilities,
+  BlockSpecialCapabilities,
   BlockStatusBadgeProps,
-  BlockRateLabelProps
+  BlockTextCapabilities,
+  BlockThumbnailCapabilities,
+  BlockTimeTooltip as BlockTimeTooltipData,
+  BlockTimeTooltipProps,
+  BlockWaveformCapabilities,
+  // Props
+  UnifiedBlockProps
 } from './types';
 
 // 子组件（用于高级自定义）
-export {
-  BlockContainer,
-  BlockHandles,
-  BlockActionBar,
-  BlockProgressBar,
-  BlockTimeTooltip,
-  BlockOrderBadge,
-  BlockStatusBadge,
-  BlockRateLabel,
-  UnifiedBlockContent
-} from './components';
+export { BlockActionBar, BlockContainer, BlockHandles, BlockOrderBadge, BlockProgressBar, BlockRateLabel, BlockStatusBadge, BlockTimeTooltip, UnifiedBlockContent } from './components';
 
 // Hooks（用于自定义实现）
 export { useBlockDrag, useBlockLayout } from './hooks';

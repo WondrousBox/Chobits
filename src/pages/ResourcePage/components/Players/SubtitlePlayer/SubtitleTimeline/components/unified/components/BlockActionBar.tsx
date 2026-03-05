@@ -5,17 +5,7 @@
  */
 
 import React from 'react';
-import {
-  TbArrowsHorizontal,
-  TbChevronDown,
-  TbChevronUp,
-  TbPencil,
-  TbPlayerPause,
-  TbPlayerPlay,
-  TbRestore,
-  TbRotate,
-  TbTrash
-} from 'react-icons/tb';
+import { TbArrowMerge, TbArrowsHorizontal, TbChevronDown, TbChevronUp, TbPencil, TbPlayerPause, TbPlayerPlay, TbRestore, TbRotate, TbTrash } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 
@@ -119,11 +109,7 @@ export const BlockActionBar: React.FC<BlockActionBarProps> = ({ capabilities, co
   // 速率显示（剪辑块，只显示不可点击）
   if (capabilities.special?.showRateLabel && content.playbackRate !== undefined) {
     buttons.push(
-      <span
-        key="rate"
-        className="inline-flex items-center justify-center w-7 h-6 rounded bg-background border shadow-sm text-[10px] font-mono text-foreground/70"
-        title="拖拽块两端边缘可调整速度"
-      >
+      <span key="rate" className="inline-flex items-center justify-center w-7 h-6 rounded bg-background border shadow-sm text-[10px] font-mono text-foreground/70" title="拖拽块两端边缘可调整速度">
         {content.playbackRate}x
       </span>
     );
@@ -132,13 +118,7 @@ export const BlockActionBar: React.FC<BlockActionBarProps> = ({ capabilities, co
   // 变换按钮（媒体块）
   if (callbacks?.onTransform) {
     buttons.push(
-      <Button
-        key="transform"
-        size="icon"
-        variant="outline"
-        className="w-6 h-6 rounded-full p-0 bg-background shadow-sm hover:bg-accent"
-        title="变换设置"
-      >
+      <Button key="transform" size="icon" variant="outline" className="w-6 h-6 rounded-full p-0 bg-background shadow-sm hover:bg-accent" title="变换设置">
         <TbArrowsHorizontal className="w-3 h-3" />
       </Button>
     );
@@ -181,6 +161,25 @@ export const BlockActionBar: React.FC<BlockActionBarProps> = ({ capabilities, co
     );
   }
 
+  // 合并按钮（字幕块）
+  if (capabilities.special?.showMergeButton && callbacks?.onMergePrev) {
+    buttons.push(
+      <Button
+        key="merge"
+        size="icon"
+        variant="outline"
+        className="w-6 h-6 rounded-full p-0 bg-background shadow-sm hover:bg-accent"
+        onClick={(e) => {
+          e.stopPropagation();
+          callbacks.onMergePrev?.(content.id);
+        }}
+        title="合并到上一条"
+      >
+        <TbArrowMerge className="-rotate-90 w-3 h-3" />
+      </Button>
+    );
+  }
+
   // 删除按钮
   if (callbacks?.onDelete && !content.deleted) {
     buttons.push(
@@ -202,11 +201,7 @@ export const BlockActionBar: React.FC<BlockActionBarProps> = ({ capabilities, co
 
   if (buttons.length === 0) return null;
 
-  return (
-    <div className="absolute -top-3 right-0 flex items-center gap-0.5 z-30">
-      {buttons}
-    </div>
-  );
+  return <div className="absolute -top-3 right-0 flex items-center gap-0.5 z-30">{buttons}</div>;
 };
 
 BlockActionBar.displayName = 'BlockActionBar';

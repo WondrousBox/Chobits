@@ -4,7 +4,52 @@
  * 为不同类型的块提供预设的能力配置
  */
 
-import type { BlockCapabilities } from './types';
+import type {
+  BlockCapabilities,
+  BlockDragCapabilities,
+  BlockPlaybackCapabilities,
+  BlockSelectionCapabilities,
+  BlockSpecialCapabilities,
+  BlockTextCapabilities,
+  BlockThumbnailCapabilities,
+  BlockWaveformCapabilities
+} from './types';
+
+/** 深层可选类型 */
+type DeepPartial<T> = {
+  [P in keyof T]?: Partial<T[P]>;
+};
+
+/**
+ * 合并能力配置（用于覆盖默认值）
+ */
+export function mergeCapabilities(base: BlockCapabilities, override: DeepPartial<BlockCapabilities>): BlockCapabilities {
+  const result = { ...base };
+
+  if (override.text) {
+    result.text = { ...base.text, ...override.text } as BlockTextCapabilities;
+  }
+  if (override.thumbnail) {
+    result.thumbnail = { ...base.thumbnail, ...override.thumbnail } as BlockThumbnailCapabilities;
+  }
+  if (override.waveform) {
+    result.waveform = { ...base.waveform, ...override.waveform } as BlockWaveformCapabilities;
+  }
+  if (override.playback) {
+    result.playback = { ...base.playback, ...override.playback } as BlockPlaybackCapabilities;
+  }
+  if (override.drag) {
+    result.drag = { ...base.drag, ...override.drag } as BlockDragCapabilities;
+  }
+  if (override.selection) {
+    result.selection = { ...base.selection, ...override.selection } as BlockSelectionCapabilities;
+  }
+  if (override.special) {
+    result.special = { ...base.special, ...override.special } as BlockSpecialCapabilities;
+  }
+
+  return result;
+}
 
 /**
  * 字幕块预设配置
@@ -45,7 +90,8 @@ export const SUBTITLE_BLOCK_CAPABILITIES: BlockCapabilities = {
     showOrder: false,
     showTransition: false,
     showStatusBadge: false,
-    showRateLabel: false
+    showRateLabel: false,
+    showMergeButton: false
   }
 };
 
@@ -258,18 +304,3 @@ export const DEFAULT_BLOCK_CAPABILITIES: BlockCapabilities = {
     showRateLabel: false
   }
 };
-
-/**
- * 合并能力配置（用于覆盖默认值）
- */
-export function mergeCapabilities(base: BlockCapabilities, override: Partial<BlockCapabilities>): BlockCapabilities {
-  return {
-    text: { ...base.text, ...override.text },
-    thumbnail: { ...base.thumbnail, ...override.thumbnail },
-    waveform: { ...base.waveform, ...override.waveform },
-    playback: { ...base.playback, ...override.playback },
-    drag: { ...base.drag, ...override.drag },
-    selection: { ...base.selection, ...override.selection },
-    special: { ...base.special, ...override.special }
-  };
-}
