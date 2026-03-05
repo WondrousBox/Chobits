@@ -51,8 +51,7 @@ SubtitleTimeline/
 │   ├── tts/                        # TTS 轨道组件
 │   │   ├── index.ts
 │   │   ├── TTSAudioTrack.tsx       # TTS 音频轨道
-│   │   ├── TTSAudioBlock.tsx       # TTS 音频块
-│   │   └── TTSTrackLabel.tsx       # TTS 轨道标签
+│   │   └── TTSAudioBlock.tsx       # TTS 音频块
 │   ├── media/                      # 媒体轨道组件
 │   │   ├── index.ts
 │   │   ├── MediaTrack.tsx          # 媒体轨道
@@ -71,8 +70,7 @@ SubtitleTimeline/
 │   │   └── ClipSegmentBlock.tsx    # 剪辑片段块
 │   └── annotation/                 # 标注轨道组件
 │       ├── index.ts
-│       ├── AnnotationTrack.tsx     # 标注轨道
-│       └── AnnotationTrackLabel.tsx # 标注轨道标签
+│       └── AnnotationTrack.tsx     # 标注轨道
 └── README.md                       # 本文档
 ```
 
@@ -298,11 +296,11 @@ interface SubtitleTimelineProps {
 
 ```typescript
 interface TimelineAdapters {
-  media?: MediaServiceAdapter;       // 文件操作（获取媒体信息、打开文件选择器等）
+  media?: MediaServiceAdapter; // 文件操作（获取媒体信息、打开文件选择器等）
   annotation?: AnnotationServiceAdapter; // 标注颜色/图标
-  idGenerator?: IdGeneratorAdapter;  // ID 生成策略
-  config?: ConfigAdapter;            // 配置（文件扩展名、默认参数、UI 标签等）
-  selection?: SelectionAdapters;     // 受控选中状态
+  idGenerator?: IdGeneratorAdapter; // ID 生成策略
+  config?: ConfigAdapter; // 配置（文件扩展名、默认参数、UI 标签等）
+  selection?: SelectionAdapters; // 受控选中状态
 }
 ```
 
@@ -492,16 +490,16 @@ function MyEditor() {
 ```tsx
 // wordsMapByTrack: trackId -> (segmentId -> WordTimestamp[])
 const wordsMapByTrack = new Map([
-  ['track-0', new Map([
-    ['t0-0', [{ st: 0, et: 1.5, text: 'Hello' }]],
-    ['t0-1', [{ st: 3.5, et: 5, text: 'World' }]]
-  ])]
+  [
+    'track-0',
+    new Map([
+      ['t0-0', [{ st: 0, et: 1.5, text: 'Hello' }]],
+      ['t0-1', [{ st: 3.5, et: 5, text: 'World' }]]
+    ])
+  ]
 ]);
 
-<SubtitleTimeline
-  tracks={tracks}
-  wordsMapByTrack={wordsMapByTrack}
-/>
+<SubtitleTimeline tracks={tracks} wordsMapByTrack={wordsMapByTrack} />;
 ```
 
 ### 带 TTS 轨道

@@ -206,8 +206,11 @@ export const TTSBatchTextInputPanel: React.FC<TTSBatchTextInputPanelProps> = ({
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b shrink-0">
         <div className="flex items-center gap-2 min-w-0">
-          <TbChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-          <h3 className="text-sm font-medium truncate">批量合成 — {trackLabel}</h3>
+          <h3 className="text-sm font-medium truncate">{trackLabel}</h3>
+
+          <Button variant="outline" size="sm" onClick={handleClear} disabled={isLocalSynthesizing || rawText.length === 0}>
+            清空文本
+          </Button>
         </div>
         <Button variant="ghost" size="sm" className="w-6 h-6 p-0 shrink-0" onClick={handleClose}>
           <TbX className="w-4 h-4" />
@@ -229,7 +232,7 @@ export const TTSBatchTextInputPanel: React.FC<TTSBatchTextInputPanelProps> = ({
           <textarea
             ref={textareaRef}
             className="flex-1 w-full p-2 text-sm border rounded-md resize-none bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-            placeholder="在此粘贴文本，每行将作为一个独立的 TTS 片段合成&#10;&#10;例如：&#10;这是第一句话&#10;这是第二句话&#10;这是第三句话"
+            placeholder="在此粘贴文本，一行为一句&#10;&#10;例如：&#10;这是第一句话&#10;这是第二句话&#10;这是第三句话"
             value={rawText}
             onChange={(e) => setRawText(e.target.value)}
             disabled={isLocalSynthesizing}
@@ -297,14 +300,6 @@ export const TTSBatchTextInputPanel: React.FC<TTSBatchTextInputPanelProps> = ({
               依次合成 ({stats.pending} 句)
             </Button>
           )}
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="flex-1" onClick={handleClear} disabled={isLocalSynthesizing || rawText.length === 0}>
-            清空文本
-          </Button>
-          <Button variant="outline" size="sm" className="flex-1" onClick={handleClose} disabled={isLocalSynthesizing}>
-            关闭
-          </Button>
         </div>
       </div>
     </div>

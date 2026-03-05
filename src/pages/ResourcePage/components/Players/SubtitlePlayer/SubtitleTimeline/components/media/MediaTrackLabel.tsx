@@ -1,39 +1,35 @@
 import clsx from 'clsx';
 import React, { useState } from 'react';
-import { TbEye, TbEyeClosed, TbLock, TbLockOpen, TbPlus, TbTrash } from 'react-icons/tb';
+import { TbEye, TbEyeOff, TbTrash, TbVideo } from 'react-icons/tb';
 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
 
-import type { MediaTrackData } from '../../types';
+import type { MediaTrackData, TrackLabelProps } from '../../types';
 import { MEDIA_CONFIG } from '../../types';
 
-interface MediaTrackLabelProps {
-  /** 轨道数据 */
+/**
+ * 媒体轨道标签组件 Props
+ * 扩展自统一的 TrackLabelProps，添加媒体轨道特有属性
+ */
+export interface MediaTrackLabelProps extends TrackLabelProps {
+  /** 轨道完整数据（用于获取额外信息如高度，可选） */
   track: MediaTrackData;
-  /** 是否选中 */
-  isSelected?: boolean;
-  /** 点击选中回调 */
-  onSelect?: (trackId: string) => void;
-  /** 切换可见性回调 */
-  onToggleVisibility?: (trackId: string) => void;
-  /** 切换锁定状态回调 */
-  onToggleLock?: (trackId: string) => void;
-  /** 删除轨道回调 */
-  onDelete?: (trackId: string) => void;
-  /** 禁用状态 */
-  disabled?: boolean;
 }
 
 /**
  * MediaTrackLabel - 媒体轨道标签组件
  *
- * 显示轨道名称、颜色、可见性/锁定切换按钮，右键菜单支持删除
+ * 显示轨道名称、颜色、启用/禁用切换按钮，右键菜单支持删除
  */
-export const MediaTrackLabel: React.FC<MediaTrackLabelProps> = ({ track, isSelected = false, onSelect, onToggleVisibility, onToggleLock, onDelete, disabled = false }) => {
-  const height = track.height ?? MEDIA_CONFIG.DEFAULT_TRACK_HEIGHT;
+export const MediaTrackLabel: React.FC<MediaTrackLabelProps> = ({ track, onSelect, onToggleEnabled, onDelete }) => {
+  const height = track?.height ?? MEDIA_CONFIG.DEFAULT_TRACK_HEIGHT;
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  // 从 track 获取状态
+  const isVisible = track?.visible ?? true;
+  const isSelected = track?.selected ?? false;
+  const disabled = track?.disabled ?? false;
 
   const handleClick = (): void => {
     if (!disabled) {
@@ -41,58 +37,45 @@ export const MediaTrackLabel: React.FC<MediaTrackLabelProps> = ({ track, isSelec
     }
   };
 
+  if (!track) {
+    return null;
+  }
+
   const content = (
     <div
       className={clsx(
-        'flex items-center gap-1.5 px-2 border-b border-r shrink-0 box-border transition-colors',
-        isSelected ? 'bg-accent/50' : 'bg-muted/30 hover:bg-muted/50',
-        !track.visible && 'opacity-50',
+        'flex items-center gap-1.5 px-2 border-b border-r shrink-0 box-border transition-colors cursor-pointer',
+        isSelected ? 'bg-accent/50 hover:bg-accent/60' : 'bg-muted/30 hover:bg-muted/50',
+        !isVisible && 'opacity-50',
         disabled && 'opacity-40 pointer-events-none'
       )}
       style={{ height: height + 4 }}
       onClick={handleClick}
     >
       {/* 轨道颜色指示器 */}
-      <div className={clsx('w-1.5 rounded-full shrink-0', track.visible ? '' : 'opacity-40')} style={{ height: Math.min(height - 8, 20), backgroundColor: track.color || 'hsl(160, 60%, 40%)' }} />
+      <div className={clsx('w-1.5 rounded-full shrink-0', isVisible ? '' : 'opacity-40')} style={{ height: Math.min(height - 8, 20), backgroundColor: track?.color || 'hsl(160, 60%, 40%)' }} />
 
+      <TbVideo />
       {/* 轨道名称 */}
-      <span className={clsx('text-xs truncate flex-1', track.visible ? 'text-foreground/80' : 'text-muted-foreground')}>{track.label}</span>
-
-      {/* 片段数量 */}
-      <span className="text-[10px] text-muted-foreground shrink-0">{track.segments.filter((s) => !s.deleted).length}</span>
+      <span className={clsx('text-xs truncate flex-1', isVisible ? 'text-foreground/80' : 'text-muted-foreground')}>{track.label}</span>
 
       {/* 操作按钮 */}
       <div className="flex items-center gap-0.5 shrink-0">
-        {/* 可见性切换 */}
-        {onToggleVisibility && (
-          <Button
-            size="icon"
-            variant="ghost"
-            className="w-5 h-5 p-0 opacity-50 hover:opacity-100"
+        {/* 启用/禁用切换 */}
+        {onToggleEnabled && (
+          <button
+            className={clsx(
+              'p-0.5 rounded hover:bg-accent/50 transition-colors shrink-0',
+              isVisible ? 'text-muted-foreground hover:text-foreground' : 'text-muted-foreground/50 hover:text-foreground'
+            )}
             onClick={(e) => {
               e.stopPropagation();
-              onToggleVisibility(track.id);
+              onToggleEnabled(track.id);
             }}
-            title={track.visible ? '隐藏轨道' : '显示轨道'}
+            title={isVisible ? '隐藏轨道' : '显示轨道'}
           >
-            {track.visible ? <TbEye className="w-3 h-3" /> : <TbEyeClosed className="w-3 h-3" />}
-          </Button>
-        )}
-
-        {/* 锁定切换 */}
-        {onToggleLock && (
-          <Button
-            size="icon"
-            variant="ghost"
-            className={clsx('w-5 h-5 p-0', track.locked ? 'opacity-100' : 'opacity-50 hover:opacity-100')}
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleLock(track.id);
-            }}
-            title={track.locked ? '解锁轨道' : '锁定轨道'}
-          >
-            {track.locked ? <TbLock className="w-3 h-3 text-orange-500" /> : <TbLockOpen className="w-3 h-3" />}
-          </Button>
+            {isVisible ? <TbEye className="w-3 h-3" /> : <TbEyeOff className="w-3 h-3" />}
+          </button>
         )}
       </div>
     </div>
@@ -137,29 +120,4 @@ export const MediaTrackLabel: React.FC<MediaTrackLabelProps> = ({ track, isSelec
   }
 
   return content;
-};
-
-/**
- * MediaTrackAddButton - 添加媒体轨道按钮
- */
-interface MediaTrackAddButtonProps {
-  /** 添加轨道回调 */
-  onAddTrack?: () => void;
-  /** 禁用状态 */
-  disabled?: boolean;
-}
-
-export const MediaTrackAddButton: React.FC<MediaTrackAddButtonProps> = ({ onAddTrack, disabled = false }) => {
-  return (
-    <button
-      type="button"
-      className={clsx('flex items-center justify-center gap-1 px-2 border-b border-r bg-muted/20 hover:bg-muted/40 transition-colors', disabled && 'opacity-40 pointer-events-none')}
-      style={{ height: MEDIA_CONFIG.DEFAULT_TRACK_HEIGHT + 4 }}
-      onClick={onAddTrack}
-      disabled={disabled}
-    >
-      <TbPlus className="w-3.5 h-3.5 text-muted-foreground" />
-      <span className="text-xs text-muted-foreground">添加轨道</span>
-    </button>
-  );
 };

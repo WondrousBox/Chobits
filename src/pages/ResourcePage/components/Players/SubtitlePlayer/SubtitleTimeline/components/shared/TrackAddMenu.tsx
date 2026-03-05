@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import React from 'react';
-import { TbFileText, TbPhoto, TbPlus, TbVolume } from 'react-icons/tb';
+import { TbFileText, TbPlus, TbVideo, TbWaveSawTool } from 'react-icons/tb';
 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
@@ -48,20 +48,20 @@ export const TrackAddMenu: React.FC<TrackAddMenuProps> = ({ onAddMediaTrack, onA
       <DropdownMenuContent align="start" side="right">
         {onAddSubtitleTrack && (
           <DropdownMenuItem onClick={onAddSubtitleTrack}>
-            <TbFileText className="w-4 h-4 mr-2" />
-            字幕轨道
+            <TbFileText />
+            字幕
           </DropdownMenuItem>
         )}
         {onAddTTSTrack && (
           <DropdownMenuItem onClick={onAddTTSTrack}>
-            <TbVolume className="w-4 h-4 mr-2" />
-            TTS 语音轨道
+            <TbWaveSawTool />
+            语音合成
           </DropdownMenuItem>
         )}
         {onAddMediaTrack && (
           <DropdownMenuItem onClick={onAddMediaTrack}>
-            <TbPhoto className="w-4 h-4 mr-2" />
-            媒体轨道
+            <TbVideo />
+            图片和视频
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>
