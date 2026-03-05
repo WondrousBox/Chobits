@@ -31,3 +31,53 @@ export { TimelineTrackView } from './subtitle';
 // TTS components
 export type { TTSAudioItem } from './tts';
 export { TTSAudioTrack, TTSBatchTextInputPanel } from './tts';
+
+// Unified Block components (通用块组件)
+export {
+  ANNOTATION_BLOCK_CAPABILITIES,
+  BlockActionBar,
+  BlockContainer,
+  BlockHandles,
+  BlockOrderBadge,
+  BlockProgressBar,
+  BlockRateLabel,
+  BlockStatusBadge,
+  BlockTimeTooltip,
+  CLIP_BLOCK_CAPABILITIES,
+  DEFAULT_BLOCK_CAPABILITIES,
+  MEDIA_BLOCK_CAPABILITIES,
+  mergeCapabilities,
+  SUBTITLE_BLOCK_CAPABILITIES,
+  TTS_BLOCK_CAPABILITIES,
+  UnifiedBlock,
+  UnifiedBlockContent,
+  useBlockDrag,
+  useBlockLayout
+} from './unified';
+
+// Unified Block types
+export type {
+  BlockActionBarProps,
+  BlockCallbacks,
+  BlockCapabilities,
+  BlockContainerProps,
+  BlockContentProps,
+  BlockDragCapabilities,
+  BlockDragMode,
+  BlockDragState,
+  BlockHandlesProps,
+  BlockLayout,
+  BlockOrderBadgeProps,
+  BlockPlaybackCapabilities,
+  BlockProgressBarProps,
+  BlockRateLabelProps,
+  BlockSelectionCapabilities,
+  BlockSpecialCapabilities,
+  BlockStatusBadgeProps,
+  BlockTextCapabilities,
+  BlockThumbnailCapabilities,
+  BlockTimeTooltipData,
+  BlockTimeTooltipProps,
+  BlockWaveformCapabilities,
+  UnifiedBlockProps
+} from './unified';
