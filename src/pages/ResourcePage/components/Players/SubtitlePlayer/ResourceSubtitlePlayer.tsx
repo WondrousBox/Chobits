@@ -2308,11 +2308,11 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     setAnnotationTrackEnabled((prev) => !prev);
   }, []);
 
-  // 将字幕轨道的启用状态合并到 timelineTracks 中
+  // 将字幕轨道的可见状态合并到 timelineTracks 中
   const timelineTracksWithEnabled = useMemo(() => {
     return timelineTracks.map((track) => ({
       ...track,
-      enabled: subtitleTrackEnabledMap.get(track.id) !== false // 默认 true
+      visible: subtitleTrackEnabledMap.get(track.id) !== false // 默认 true
     }));
   }, [timelineTracks, subtitleTrackEnabledMap]);
 

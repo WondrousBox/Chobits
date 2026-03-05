@@ -13,7 +13,7 @@ export type { TTSAudioItem } from '../../types';
 
 interface TTSAudioTrackProps {
   /** TTS 轨道 ID（如 main、zh-CN） */
-  ttsTrackId?: string;
+  trackId?: string;
   /** TTS音频项列表 */
   items: TTSAudioItem[];
   /** 视口状态 */
@@ -444,8 +444,8 @@ export const TTSAudioTrack: React.FC<TTSAudioTrackProps> = ({
 
         {/* 空轨道提示 */}
         {items.length === 0 && allowAddSegment && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <span className="text-[10px] text-muted-foreground/60">点击添加语音片段</span>
+          <div className="absolute inset-0 flex items-center justify-start pointer-events-none px-2 bg-primary/20">
+            <span className="text-[10px] text-muted-foreground/60">点击添加配音片段</span>
           </div>
         )}
 

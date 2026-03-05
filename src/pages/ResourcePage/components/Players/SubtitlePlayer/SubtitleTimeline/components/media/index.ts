@@ -1,7 +1,7 @@
 export { MediaImportPanel } from './MediaImportPanel';
 export { MediaSegmentBlock } from './MediaSegmentBlock';
 export { MediaTrack } from './MediaTrack';
-export { MediaTrackAddButton, MediaTrackLabel } from './MediaTrackLabel';
+export { MediaTrackLabel } from './MediaTrackLabel';
 export { MediaTrackManager } from './MediaTrackManager';
 export { MediaTrackQuickAdd, useMediaDrop } from './MediaTrackQuickAdd';
 export { MediaTransformPanel } from './MediaTransformPanel';

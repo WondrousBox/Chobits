@@ -54,7 +54,6 @@ export {
 export { useClipPlayback, useMediaDrag, useMediaThumbnails, useTimelineInteraction, useTimelineViewport } from './hooks';
 
 // 子组件（可选导出，供高级用户自定义）
-export type { TrackAddMenuProps } from './components';
 export {
   ClipTrack,
   ClipTrackLabel,
@@ -70,7 +69,6 @@ export {
   TimelineTrackView,
   TimeRuler,
   TrackAddMenu,
-  TrackLabel,
   TransitionIndicator,
   TransitionTypeButton,
   TTSBatchTextInputPanel

@@ -229,10 +229,6 @@ export const TimelineTrackView: React.FC<TimelineTrackViewProps> = ({
     setNewSegmentInput('');
   }, [pendingNewSegment, newSegmentInput, onCancelNewSegment, onAddSegmentConfirm, track.id]);
 
-  if (track.hidden) {
-    return null;
-  }
-
   return (
     <div ref={trackRef} className={clsx('relative border-border', className)} style={{ height: height + DEFAULT_CONFIG.TRACK_GAP, width }}>
       {/* 背景区域（点击空白处可新增片段；mousedown 记录滚动位置以区分点击与拖拽滚动） */}

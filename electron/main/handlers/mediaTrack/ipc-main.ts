@@ -4,17 +4,12 @@ import * as path from 'path';
 
 import { ResourcesRepo, WorkspacesRepo } from '../../db/repositories';
 
-/**
- * 媒体轨道数据结构 V1
- */
-export interface MediaTrackDataV1 {
+export type MediaTrackDataStorage = {
   version: 1;
   tracks: MediaTrackData[];
   sources: Record<string, MediaSource>;
   updatedAt: number;
-}
-
-export type MediaTrackDataStorage = MediaTrackDataV1;
+};
 
 // 类型定义（与前端 types.ts 保持一致）
 export interface MediaSource {

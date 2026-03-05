@@ -179,22 +179,33 @@ export interface TimelineSegment {
  * 轨道定义
  */
 export interface TimelineTrack {
+  // ========== 标识 (必需) ==========
   /** 轨道唯一标识 */
   id: string;
   /** 轨道名称（显示在左侧） */
   label: string;
+  /** 轨道颜色（用于颜色指示器和装饰） */
+  color?: string;
+
+  // ========== 状态 ==========
+  /** 轨道是否可见（默认 true）。不可见时轨道隐藏 */
+  visible?: boolean;
+
+  /** 轨道是否选中（高亮显示） */
+  selected?: boolean;
+  /** 禁用整个标签组件的交互（组件级别的禁用，不同于 visible） */
+  disabled?: boolean;
+
   /** 该轨道的片段列表 */
   segments: TimelineSegment[];
-  /** 轨道颜色 */
-  color?: string;
   /** 是否锁定（禁止编辑） */
   locked?: boolean;
-  /** 是否隐藏 */
-  hidden?: boolean;
-  /** 是否启用（默认 true）。禁用后轨道不可交互，播放时不生效 */
-  enabled?: boolean;
   /** 轨道高度（像素） */
   height?: number;
+
+  // ========== 扩展属性 ==========
+  /** 附加描述信息（如语音名称、轨道类型等） */
+  description?: string;
 }
 
 /**
@@ -439,7 +450,7 @@ export const DEFAULT_CONFIG = {
   /** 时间刻度高度 */
   RULER_HEIGHT: 28,
   /** 轨道标签宽度 */
-  TRACK_LABEL_WIDTH: 100,
+  TRACK_LABEL_WIDTH: 180,
   /** 默认每秒像素数 */
   DEFAULT_PIXELS_PER_SECOND: 100,
   /** 最小每秒像素数 */
@@ -710,6 +721,10 @@ export interface MediaTrackData {
   color?: string;
   /** 轨道高度（像素） */
   height?: number;
+  /** 是否选中（高亮显示） */
+  selected?: boolean;
+  /** 是否禁用交互 */
+  disabled?: boolean;
 }
 
 /**
@@ -785,3 +800,35 @@ export const DEFAULT_TRANSFORM: MediaTransform = {
   flipX: false,
   flipY: false
 };
+
+// ========== 轨道标签通用类型 ==========
+
+/**
+ * 轨道标签组件基础 Props - 所有轨道标签组件共享的标准接口
+ *
+ * 设计原则：
+ * - 接口完整：包含所有可能的属性，允许组件选择性使用
+ * - 命名统一：所有回调使用 trackId 作为参数，保持一致性
+ * - 可扩展：特定轨道可通过扩展接口添加特有属性
+ */
+export interface TrackLabelProps {
+  index: number;
+  track: TimelineTrack;
+
+  className?: string;
+  icon?: React.ReactNode; // 可选图标（如字幕、TTS、剪辑、媒体等类型指示）
+
+  // ========== 回调函数 (统一使用 trackId 作为参数) ==========
+  onToggleLock?: (trackId: string) => void;
+  onToggleHidden?: (trackId: string) => void;
+  /** 切换启用/禁用回调 */
+  onToggleEnabled?: (trackId: string) => void;
+  /** 删除轨道回调 */
+  onDelete?: (trackId: string) => void;
+  /** 点击选中回调 */
+  onSelect?: (trackId: string) => void;
+  /** 点击标签区域回调（用于打开面板等操作） */
+  onLabelClick?: (trackId: string) => void;
+  /** 打开设置回调 */
+  onOpenSettings?: (trackId: string) => void;
+}

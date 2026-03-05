@@ -1,27 +1,13 @@
 import clsx from 'clsx';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbMinus, TbPlus, TbPointer, TbScissors, TbWaveSine } from 'react-icons/tb';
+import { TbBookmark, TbLetterT, TbMinus, TbMusic, TbPlus, TbPointer, TbScissors, TbWaveSine } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 
 import { DEFAULT_LABELS } from './adapters/defaults';
-import {
-  AnnotationTrack,
-  AnnotationTrackLabel,
-  ClipTrack,
-  ClipTrackLabel,
-  MediaTrackLabel,
-  MediaTrackManager,
-  SeekBar,
-  TimelineTrackView,
-  TimeRuler,
-  TrackAddMenu,
-  TrackLabel,
-  TTSAudioTrack,
-  TTSTrackLabel,
-  WaveformTrack
-} from './components';
+import { AnnotationTrack, ClipTrack, ClipTrackLabel, MediaTrackLabel, MediaTrackManager, SeekBar, TimelineTrackView, TimeRuler, TrackAddMenu, TTSAudioTrack, WaveformTrack } from './components';
+import { CommonTrackLabel } from './components';
 import { TimelineAdapterProvider } from './context';
 import { useTimelineInteraction } from './hooks';
 import type { TimelineSegment } from './types';
@@ -125,6 +111,8 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
   const [internalClipTool, setInternalClipTool] = useState<ClipTool>(propClipTool);
   /** 选中的媒体片段（格式：trackId:segmentId） */
   const [selectedMediaSegmentId, setSelectedMediaSegmentId] = useState<string | null>(null);
+  /** 选中的轨道 ID（用于高亮显示轨道标签） */
+  const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null);
 
   const labels = useMemo(() => ({ ...DEFAULT_LABELS, ...adapters?.config?.labels }), [adapters?.config?.labels]);
 
@@ -631,72 +619,101 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
             <div className="flex flex-col shrink-0 border-r" style={{ width: trackLabelWidth }}>
               {/* 标签区域顶部占位（对应时间刻度） */}
               {showRuler && <div className="border-b bg-muted/30 shrink-0" style={{ height: DEFAULT_CONFIG.RULER_HEIGHT }} />}
-
               {showTrackLabels && showWaveformTrack && (
                 <div className="flex items-center gap-1 px-2 border-b border-r bg-muted/30 shrink-0 box-border" style={{ width: trackLabelWidth, height: effectiveWaveformHeight }}>
                   <TbWaveSine className="w-4 h-4 text-muted-foreground" />
                   <span className="text-xs text-muted-foreground truncate">{waveformClipOverlay ? labels.waveformClip : labels.waveform}</span>
                 </div>
               )}
-
               {/* 轨道标签列表（每个字幕轨道后紧跟对应的TTS轨道标签） */}
-              {tracksWithColors
-                .filter((t) => !t.hidden)
-                .map((track, index) => {
-                  const ttsTrackId = subtitleToTTSTrackMap?.get(track.id);
-                  const ttsItems = ttsTrackId ? ttsItemsByTrack?.get(ttsTrackId) : undefined;
-                  // 如果有TTS项（包括正在合成的），或者正在合成这个轨道，则显示TTS轨道
-                  const hasTTSTrack = showTTSTrack && ttsTrackId && (ttsItems?.length ?? 0) > 0;
+              {tracksWithColors.map((track, index) => {
+                const ttsTrackId = subtitleToTTSTrackMap?.get(track.id);
+                const ttsItems = ttsTrackId ? ttsItemsByTrack?.get(ttsTrackId) : undefined;
+                // 如果有TTS项（包括正在合成的），或者正在合成这个轨道，则显示TTS轨道
+                const hasTTSTrack = showTTSTrack && ttsTrackId && (ttsItems?.length ?? 0) > 0;
 
-                  return (
-                    <React.Fragment key={track.id}>
-                      {/* 字幕轨道标签 */}
-                      <TrackLabel
-                        track={track}
-                        index={index}
-                        allowDelete={track.id !== 'track-0' && !!onDeleteSubtitleTrack}
-                        onDelete={onDeleteSubtitleTrack}
-                        onToggleEnabled={onToggleSubtitleTrackEnabled}
+                return (
+                  <React.Fragment key={track.id}>
+                    {/* 字幕轨道标签 */}
+                    <CommonTrackLabel
+                      index={0}
+                      track={{
+                        id: track.id,
+                        label: track.label,
+                        color: track.color,
+                        visible: track.visible,
+                        selected: selectedTrackId === track.id,
+                        segments: []
+                      }}
+                      onSelect={setSelectedTrackId}
+                      onDelete={track.id !== 'track-0' ? onDeleteSubtitleTrack : undefined}
+                      onToggleEnabled={onToggleSubtitleTrackEnabled}
+                      icon={<TbLetterT />}
+                    />
+                    {/* TTS轨道标签（如果有） */}
+                    {hasTTSTrack && (
+                      <CommonTrackLabel
+                        index={0}
+                        track={{
+                          id: ttsTrackId,
+                          label: track.label,
+                          color: track.color,
+                          visible: ttsTrackEnabledMap?.get(ttsTrackId) !== false,
+                          selected: selectedTrackId === ttsTrackId,
+                          segments: [],
+                          description: ttsVoiceLabels?.get(ttsTrackId)
+                        }}
+                        onSelect={setSelectedTrackId}
+                        onDelete={onDeleteTTSTrack}
+                        onToggleEnabled={onToggleTTSTrackEnabled}
+                        onOpenSettings={onOpenTTSSettings}
+                        icon={<TbMusic />}
                       />
-                      {/* TTS轨道标签（如果有） */}
-                      {hasTTSTrack && (
-                        <TTSTrackLabel
-                          trackLabel={track.label}
-                          trackColor={track.color}
-                          ttsTrackId={ttsTrackId}
-                          onDelete={onDeleteTTSTrack}
-                          enabled={ttsTrackEnabledMap?.get(ttsTrackId) !== false}
-                          onToggleEnabled={onToggleTTSTrackEnabled}
-                          onOpenSettings={onOpenTTSSettings}
-                          voiceLabel={ttsVoiceLabels?.get(ttsTrackId)}
-                        />
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-
+                    )}
+                  </React.Fragment>
+                );
+              })}
               {/* 独立 TTS 轨道标签 */}
               {showTTSTrack &&
                 standaloneTTSTracks?.map((stt) => {
                   const items = ttsItemsByTrack?.get(stt.id);
                   return (
-                    <TTSTrackLabel
+                    <CommonTrackLabel
                       key={`standalone-tts-label-${stt.id}`}
-                      trackLabel={stt.label}
-                      trackColor={stt.color ?? TRACK_COLORS[(tracksWithColors.length + standaloneTTSTracks.indexOf(stt)) % TRACK_COLORS.length]}
-                      ttsTrackId={stt.id}
+                      index={0}
+                      track={{
+                        id: stt.id,
+                        label: stt.label,
+                        color: stt.color ?? TRACK_COLORS[(tracksWithColors.length + standaloneTTSTracks.indexOf(stt)) % TRACK_COLORS.length],
+                        visible: ttsTrackEnabledMap?.get(stt.id) !== false,
+                        selected: selectedTrackId === stt.id,
+                        segments: [],
+                        description: ttsVoiceLabels?.get(stt.id)
+                      }}
+                      onSelect={setSelectedTrackId}
                       onDelete={onDeleteTTSTrack}
-                      enabled={ttsTrackEnabledMap?.get(stt.id) !== false}
                       onToggleEnabled={onToggleTTSTrackEnabled}
                       onOpenSettings={onOpenTTSSettings}
                       onLabelClick={onOpenTTSBatchInput}
-                      voiceLabel={ttsVoiceLabels?.get(stt.id)}
+                      icon={<TbMusic />}
                     />
                   );
                 })}
-
-              {annotationTrackData && <AnnotationTrackLabel annotationCount={annotationTrackData.annotations.length} enabled={annotationTrackEnabled} />}
-
+              {annotationTrackData && (
+                <CommonTrackLabel
+                  index={0}
+                  track={{
+                    id: annotationTrackData.id,
+                    label: annotationTrackData.label || '标注',
+                    color: '#eab308',
+                    visible: annotationTrackEnabled,
+                    selected: selectedTrackId === annotationTrackData.id,
+                    segments: []
+                  }}
+                  onSelect={setSelectedTrackId}
+                  icon={<TbBookmark />}
+                />
+              )}
               {clipTrackData && !waveformClipOverlay && (
                 <div
                   className={clsx('flex items-center gap-1.5 px-2 border-b border-r bg-muted/30 shrink-0 box-border', !clipTrackEnabled && 'opacity-40')}
@@ -707,20 +724,23 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
                   <span className="text-[10px] text-muted-foreground">{clipTrackData.clips.length}</span>
                 </div>
               )}
-
               {/* 媒体轨道标签 */}
               {mediaTracks &&
                 mediaTracks.map((mediaTrack) => (
                   <MediaTrackLabel
                     key={mediaTrack.id}
-                    track={mediaTrack}
+                    index={0}
+                    track={{
+                      ...mediaTrack,
+                      selected: selectedTrackId === mediaTrack.id
+                    }}
+                    onSelect={setSelectedTrackId}
                     onDelete={mediaCallbacks?.onTrackDelete}
-                    onToggleVisibility={(trackId) => {
+                    onToggleEnabled={(trackId) => {
                       mediaCallbacks?.onTrackReorder?.(mediaTracks.map((t) => t.id));
                     }}
                   />
                 ))}
-
               {/* 添加轨道菜单 */}
               <TrackAddMenu onAddMediaTrack={mediaCallbacks?.onTrackAdd} onAddSubtitleTrack={onAddSubtitleTrack} onAddTTSTrack={onAddTTSTrack} />
             </div>
@@ -804,72 +824,70 @@ export const SubtitleTimeline: React.FC<SubtitleTimelineProps> = ({
               )}
 
               {/* 轨道内容（每个字幕轨道后紧跟对应的TTS轨道） */}
-              {tracksWithColors
-                .filter((t) => !t.hidden)
-                .map((track) => {
-                  const ttsTrackId = subtitleToTTSTrackMap?.get(track.id);
-                  const ttsItems = ttsTrackId ? ttsItemsByTrack?.get(ttsTrackId) : undefined;
-                  // 如果有TTS项（包括正在合成的），或者正在合成这个轨道，则显示TTS轨道
-                  const hasTTSTrack = showTTSTrack && ttsTrackId && (ttsItems?.length ?? 0) > 0;
+              {tracksWithColors.map((track) => {
+                const ttsTrackId = subtitleToTTSTrackMap?.get(track.id);
+                const ttsItems = ttsTrackId ? ttsItemsByTrack?.get(ttsTrackId) : undefined;
+                // 如果有TTS项（包括正在合成的），或者正在合成这个轨道，则显示TTS轨道
+                const hasTTSTrack = showTTSTrack && ttsTrackId && (ttsItems?.length ?? 0) > 0;
 
-                  return (
-                    <React.Fragment key={track.id}>
-                      {/* 字幕轨道内容 */}
-                      <TimelineTrackView
-                        track={track}
+                return (
+                  <React.Fragment key={track.id}>
+                    {/* 字幕轨道内容 */}
+                    <TimelineTrackView
+                      track={track}
+                      viewport={viewport}
+                      totalDuration={duration}
+                      pixelsPerSecond={pixelsPerSecond}
+                      width={totalWidth}
+                      currentTime={effectiveCurrentTime}
+                      highlightIds={highlightIds}
+                      selectedIds={selectedIds}
+                      scrollLeft={scrollLeft}
+                      pendingNewSegment={pendingNewSegment?.trackId === track.id ? { startTime: pendingNewSegment.startTime, endTime: pendingNewSegment.endTime } : null}
+                      onTrackEmptyClick={handleTrackEmptyClick}
+                      onAddSegmentConfirm={handleAddSegmentConfirm}
+                      onCancelNewSegment={handleCancelNewSegment}
+                      allowAddSegment={!!onAddSegment}
+                      onMergePrev={onMergePrev}
+                      onSegmentClick={handleSegmentClick}
+                      onSegmentDoubleClick={handleSegmentDoubleClick}
+                      onSegmentTextChange={onSegmentTextChange}
+                      onSegmentTimeChange={onSegmentTimeChange}
+                      onDeleteSegment={onDeleteSegment}
+                      disabled={disabled || track.locked || track.visible === false}
+                      wordsMap={wordsMapByTrack?.get(track.id)}
+                    />
+                    {/* TTS轨道内容（如果有） */}
+                    {hasTTSTrack && (
+                      <TTSAudioTrack
+                        key={`tts-${ttsTrackId}`}
+                        ttsTrackId={ttsTrackId}
+                        items={ttsItems ?? []}
                         viewport={viewport}
                         totalDuration={duration}
                         pixelsPerSecond={pixelsPerSecond}
                         width={totalWidth}
                         currentTime={effectiveCurrentTime}
-                        highlightIds={highlightIds}
-                        selectedIds={selectedIds}
-                        scrollLeft={scrollLeft}
-                        pendingNewSegment={pendingNewSegment?.trackId === track.id ? { startTime: pendingNewSegment.startTime, endTime: pendingNewSegment.endTime } : null}
-                        onTrackEmptyClick={handleTrackEmptyClick}
-                        onAddSegmentConfirm={handleAddSegmentConfirm}
-                        onCancelNewSegment={handleCancelNewSegment}
-                        allowAddSegment={!!onAddSegment}
-                        onMergePrev={onMergePrev}
-                        onSegmentClick={handleSegmentClick}
-                        onSegmentDoubleClick={handleSegmentDoubleClick}
-                        onSegmentTextChange={onSegmentTextChange}
-                        onSegmentTimeChange={onSegmentTimeChange}
-                        onDeleteSegment={onDeleteSegment}
-                        disabled={disabled || track.locked || track.enabled === false}
-                        wordsMap={wordsMapByTrack?.get(track.id)}
+                        trackLabelWidth={0}
+                        showTrackLabel={false}
+                        selectedIndex={selectedTTS?.trackId === ttsTrackId ? selectedTTS.index : null}
+                        onBlockSelect={(index) => {
+                          setSelectedSegmentId(null);
+                          setSelectedTTS({ trackId: ttsTrackId, index });
+                        }}
+                        onPlayAudio={onPlayTTSAudio}
+                        onStopAudio={onStopTTSAudio}
+                        playingIndex={playingTTSIndex}
+                        onTimeChange={(index, newStartTime, newEndTime) => onTTSTimeChange?.(ttsTrackId, index, newStartTime, newEndTime)}
+                        onTextChange={onTTSTextChange ? (index, newText) => onTTSTextChange(ttsTrackId, index, newText) : undefined}
+                        maxDuration={duration}
+                        onDeleteSegment={onDeleteTTSSegment ? (item) => onDeleteTTSSegment(ttsTrackId, item.index) : undefined}
+                        disabled={ttsTrackEnabledMap?.get(ttsTrackId) === false}
                       />
-                      {/* TTS轨道内容（如果有） */}
-                      {hasTTSTrack && (
-                        <TTSAudioTrack
-                          key={`tts-${ttsTrackId}`}
-                          ttsTrackId={ttsTrackId}
-                          items={ttsItems ?? []}
-                          viewport={viewport}
-                          totalDuration={duration}
-                          pixelsPerSecond={pixelsPerSecond}
-                          width={totalWidth}
-                          currentTime={effectiveCurrentTime}
-                          trackLabelWidth={0}
-                          showTrackLabel={false}
-                          selectedIndex={selectedTTS?.trackId === ttsTrackId ? selectedTTS.index : null}
-                          onBlockSelect={(index) => {
-                            setSelectedSegmentId(null);
-                            setSelectedTTS({ trackId: ttsTrackId, index });
-                          }}
-                          onPlayAudio={onPlayTTSAudio}
-                          onStopAudio={onStopTTSAudio}
-                          playingIndex={playingTTSIndex}
-                          onTimeChange={(index, newStartTime, newEndTime) => onTTSTimeChange?.(ttsTrackId, index, newStartTime, newEndTime)}
-                          onTextChange={onTTSTextChange ? (index, newText) => onTTSTextChange(ttsTrackId, index, newText) : undefined}
-                          maxDuration={duration}
-                          onDeleteSegment={onDeleteTTSSegment ? (item) => onDeleteTTSSegment(ttsTrackId, item.index) : undefined}
-                          disabled={ttsTrackEnabledMap?.get(ttsTrackId) === false}
-                        />
-                      )}
-                    </React.Fragment>
-                  );
-                })}
+                    )}
+                  </React.Fragment>
+                );
+              })}
 
               {/* 独立 TTS 轨道内容 */}
               {showTTSTrack &&

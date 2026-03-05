@@ -306,7 +306,7 @@ export const MediaTrack: React.FC<MediaTrackProps> = ({
 
       {/* 空轨道提示 */}
       {track.segments.filter((s) => !s.deleted).length === 0 && !isDisabled && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div className="absolute inset-0 flex items-center justify-start pointer-events-none px-2 bg-primary/20">
           <span className="text-xs text-muted-foreground/50">右键或拖拽文件添加媒体</span>
         </div>
       )}
