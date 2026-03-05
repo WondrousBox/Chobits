@@ -1,11 +1,16 @@
-import clsx from 'clsx';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TbLoader2, TbPlayerPause, TbPlayerPlay, TbTrash } from 'react-icons/tb';
+/**
+ * TTSAudioBlock - TTS 音频块组件
+ *
+ * 使用 UnifiedBlock 实现，通过 TTS_BLOCK_CAPABILITIES 配置能力。
+ * 保持原有接口以实现向后兼容。
+ */
 
-import { Button } from '@/components/ui/button';
+import React, { useCallback } from 'react';
 
-import { useSegmentDragResize } from '../../hooks/useSegmentDragResize';
-import { DEFAULT_CONFIG, type TTSAudioItem } from '../../types';
+import type { TTSAudioItem } from '../../types';
+import { UnifiedBlock } from '../unified';
+import { TTS_BLOCK_CAPABILITIES } from '../unified/presets';
+import type { BlockCallbacks, BlockCapabilities, BlockContent, BlockLayout } from '../unified/types';
 
 export interface TTSAudioBlockProps {
   /** TTS 音频项 */
@@ -34,24 +39,6 @@ export interface TTSAudioBlockProps {
   onDoubleClick?: (e: React.MouseEvent, item: TTSAudioItem) => void;
 }
 
-/** 根据状态与重叠返回块样式类名 */
-function getStatusColor(status: TTSAudioItem['status'], isOverlapping: boolean): string {
-  if (isOverlapping) {
-    return 'bg-orange-500/50 border-orange-600 border-2';
-  }
-  switch (status) {
-    case 'completed':
-      return 'bg-green-500/20 border-green-500/50 hover:bg-green-500/30';
-    case 'synthesizing':
-      return 'bg-blue-500/20 border-blue-500/50';
-    case 'error':
-      return 'bg-red-500/20 border-red-500/50';
-    case 'pending':
-    default:
-      return 'bg-muted/30 border-border/50';
-  }
-}
-
 /**
  * TTS 音频块组件
  * 支持拖拽移动与左右边缘调整时间（与字幕块一致）
@@ -70,276 +57,71 @@ export const TTSAudioBlock: React.FC<TTSAudioBlockProps> = ({
   onTextChange,
   onDoubleClick
 }) => {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editText, setEditText] = useState(item.text ?? '');
+  // 映射内容数据
+  const content: BlockContent = {
+    id: `tts-${item.index}`,
+    startTime: item.startTime,
+    endTime: item.endTime,
+    text: item.text,
+    isPlaying,
+    status: item.status,
+    errorMessage: item.error,
+    audioDuration: item.duration,
+    trimmedDuration: item.trimmedDuration,
+    order: item.index + 1 // 显示为 1-indexed
+  };
 
-  const blockRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  // 映射回调函数
+  const callbacks: BlockCallbacks = {
+    onClick: useCallback(
+      (id: string, event: React.MouseEvent) => {
+        onBlockClick?.(event, item);
+      },
+      [item, onBlockClick]
+    ),
+    onDoubleClick: useCallback(
+      (id: string, event: React.MouseEvent) => {
+        onDoubleClick?.(event, item);
+      },
+      [item, onDoubleClick]
+    ),
+    onTextChange: useCallback(
+      (id: string, newText: string) => {
+        onTextChange?.(newText);
+      },
+      [onTextChange]
+    ),
+    onTimeChange: useCallback(
+      (id: string, newStart: number, newEnd: number) => {
+        onTimeChange?.(newStart, newEnd);
+      },
+      [onTimeChange]
+    ),
+    onPlay: useCallback(() => {
+      // 通过构造事件调用 onPlayClick
+      const mockEvent = {} as React.MouseEvent;
+      onPlayClick?.(mockEvent, item);
+    }, [item, onPlayClick]),
+    onDelete: useCallback(() => {
+      const mockEvent = {} as React.MouseEvent;
+      onDeleteClick?.(mockEvent, item);
+    }, [item, onDeleteClick]),
+    onMove: useCallback(
+      (id: string, newStart: number) => {
+        // 移动时保持时长不变
+        const duration = item.endTime - item.startTime;
+        onTimeChange?.(newStart, newStart + duration);
+      },
+      [item, onTimeChange]
+    )
+  };
 
-  const canDragResize = !!onTimeChange;
-  const { dragMode, dragHoverTime, didDragJustEndRef, startDrag, resolveDragMode } = useSegmentDragResize({
+  // 布局配置
+  const layout: BlockLayout = {
     pixelsPerSecond,
     maxDuration,
-    onTimeChange: canDragResize ? onTimeChange : undefined
-  });
-  const left = item.startTime * pixelsPerSecond;
-  const slotDuration = item.endTime - item.startTime;
-  const width = Math.max(slotDuration * pixelsPerSecond, DEFAULT_CONFIG.SEGMENT_MIN_WIDTH);
-  const audioDuration = item.trimmedDuration ?? item.duration ?? slotDuration;
-  // 块展示时长与音频时长不一致时，播放倍率 = 实际音频时长 / 块时长（>1 需加速，<1 需减速）
-  const playbackRate = slotDuration > 0 && (item.trimmedDuration != null || item.duration != null) ? (item.trimmedDuration ?? item.duration ?? 0) / slotDuration : null;
+    trackHeight: 40 // TTS 块默认高度
+  };
 
-  // 进入编辑模式时聚焦输入框
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isEditing]);
-
-  // 同步外部文本变化
-  useEffect(() => {
-    if (!isEditing) {
-      setEditText(item.text ?? '');
-    }
-  }, [item.text, isEditing]);
-
-  // 提交编辑：保存文本并退出编辑模式
-  const tryCommitEdit = useCallback(() => {
-    if (!isEditing) return;
-    setIsEditing(false);
-    const trimmedText = editText.trim();
-    if (trimmedText && trimmedText !== item.text) {
-      onTextChange?.(trimmedText);
-    }
-  }, [isEditing, editText, item.text, onTextChange]);
-
-  // 处理编辑完成（失焦时）
-  const handleEditBlur = useCallback(() => {
-    if (!isEditing) return;
-    tryCommitEdit();
-  }, [isEditing, tryCommitEdit]);
-
-  // 处理键盘事件
-  const handleEditKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        tryCommitEdit();
-      } else if (e.key === 'Escape') {
-        setEditText(item.text ?? '');
-        setIsEditing(false);
-      }
-    },
-    [tryCommitEdit, item.text]
-  );
-
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      if (!canDragResize || e.button !== 0) return;
-      e.stopPropagation();
-      e.preventDefault();
-      const mode = resolveDragMode(e.clientX, blockRef.current);
-      startDrag({
-        mode,
-        clientX: e.clientX,
-        startTime: item.startTime,
-        endTime: item.endTime
-      });
-    },
-    [canDragResize, resolveDragMode, startDrag, item.startTime, item.endTime]
-  );
-
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent) => {
-      if (!canDragResize || dragMode !== 'none') return;
-      const mode = resolveDragMode(e.clientX, blockRef.current);
-      const block = blockRef.current;
-      if (!block) return;
-      if (mode === 'resize-left' || mode === 'resize-right') {
-        block.style.cursor = 'ew-resize';
-      } else {
-        block.style.cursor = 'grab';
-      }
-    },
-    [canDragResize, dragMode, resolveDragMode]
-  );
-
-  const handleClick = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (didDragJustEndRef.current) {
-        didDragJustEndRef.current = false;
-        onBlockClick?.(e, item);
-        return;
-      }
-      // 已选中时再次点击进入编辑模式
-      if (isSelected && onTextChange) {
-        setIsEditing(true);
-        setEditText(item.text ?? '');
-        return;
-      }
-      onBlockClick?.(e, item);
-    },
-    [item, isSelected, onTextChange, onBlockClick, didDragJustEndRef]
-  );
-
-  const pillClass = 'pointer-events-none select-none text-[10px] leading-none text-foreground/70 bg-background/70 rounded px-1 py-0.5';
-
-  return (
-    <>
-      <div
-        ref={blockRef}
-        data-tts-block
-        data-tts-index={item.index}
-        className={clsx(
-          'group absolute top-0 bottom-0 rounded border overflow-visible [container-type:inline-size]',
-          canDragResize && 'cursor-grab hover:border-foreground/20',
-          !canDragResize && 'cursor-pointer',
-          getStatusColor(item.status, isOverlapping),
-          isPlaying && 'ring-2 ring-primary',
-          isSelected && 'ring-2 ring-blue-500',
-          (isSelected || dragMode !== 'none') && 'z-20',
-          dragMode !== 'none' && 'opacity-80 shadow-lg'
-        )}
-        style={{
-          left,
-          width,
-          minWidth: DEFAULT_CONFIG.SEGMENT_MIN_WIDTH,
-          cursor: canDragResize ? (dragMode !== 'none' ? 'grabbing' : 'grab') : undefined
-        }}
-        onClick={handleClick}
-        onDoubleClick={
-          onDoubleClick
-            ? (e) => {
-                e.stopPropagation();
-                onDoubleClick(e, item);
-              }
-            : undefined
-        }
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={() => {
-          if (blockRef.current && dragMode === 'none') blockRef.current.style.cursor = canDragResize ? 'grab' : 'pointer';
-        }}
-      >
-        {isOverlapping && <div className={clsx('absolute left-1 top-0.5 z-10 text-orange-600', pillClass)}>⚠️</div>}
-
-        <div className={clsx('absolute left-1 top-1/2 -translate-y-1/2', pillClass, '[@container(max-width:48px)]:hidden')}>#{item.index + 1}</div>
-
-        {canDragResize && (
-          <>
-            <div className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l opacity-0 hover:opacity-100 bg-foreground/20 transition-opacity" style={{ cursor: 'ew-resize' }} />
-            <div className="absolute right-0 top-0 bottom-0 w-1.5 rounded-r opacity-0 hover:opacity-100 bg-foreground/20 transition-opacity" style={{ cursor: 'ew-resize' }} />
-          </>
-        )}
-
-        <div className="flex items-center justify-center h-full px-1 overflow-hidden">
-          {isEditing ? (
-            // 编辑模式：显示 textarea
-            <div
-              className="absolute inset-0 z-30 bg-background border-2 border-primary rounded"
-              style={{ left: -1, right: -1, top: -1, bottom: -1, minWidth: Math.max(width, 150), minHeight: 60 }}
-              onClick={(e) => e.stopPropagation()}
-              onMouseDown={(e) => e.stopPropagation()}
-            >
-              <textarea
-                ref={inputRef}
-                className="w-full h-full p-1.5 text-xs leading-tight resize-none box-border bg-transparent outline-none text-foreground"
-                value={editText}
-                onChange={(e) => setEditText(e.target.value)}
-                onBlur={handleEditBlur}
-                onKeyDown={handleEditKeyDown}
-                placeholder="输入文本..."
-              />
-            </div>
-          ) : item.status === 'synthesizing' ? (
-            <div className="flex items-center gap-1">
-              <TbLoader2 className="h-3 w-3 shrink-0 animate-spin text-blue-500" />
-              <span className="text-[10px] text-blue-600 truncate [@container(max-width:56px)]:hidden">合成中</span>
-            </div>
-          ) : item.status === 'completed' ? null : item.status === 'error' ? (
-            <span className="text-[10px] text-red-500">!</span>
-          ) : (
-            <span className={clsx('text-[10px]', pillClass)}>等待</span>
-          )}
-        </div>
-
-        {item.status === 'completed' && audioDuration != null && (
-          <div className={clsx('absolute right-1 bottom-0.5 max-w-[calc(100%-4px)] truncate whitespace-nowrap [@container(max-width:48px)]:hidden', pillClass)}>
-            {(() => {
-              const actualDur = Math.max(0, audioDuration);
-              const slotDur = Math.max(0, slotDuration);
-              const precision = (t: number): number => (t >= 10 ? 1 : 2);
-              const hasTrimmed = item.trimmedDuration != null && item.duration != null && item.trimmedDuration !== item.duration;
-              const showRate = playbackRate != null && Math.abs(playbackRate - 1) > 0.02;
-              if (showRate) {
-                const actualStr = hasTrimmed ? `${actualDur.toFixed(precision(actualDur))}s 去静音` : `${actualDur.toFixed(precision(actualDur))}s`;
-                const rateStr = ` · x${playbackRate >= 10 ? playbackRate.toFixed(0) : playbackRate.toFixed(1)}`;
-                return `${actualStr} → ${slotDur.toFixed(precision(slotDur))}s${rateStr}`;
-              }
-              const base = hasTrimmed ? `${actualDur.toFixed(precision(actualDur))}s 去静音` : `${actualDur.toFixed(precision(actualDur))}s`;
-              return base;
-            })()}
-          </div>
-        )}
-
-        {item.status === 'error' && (item.error ?? '合成失败') && (
-          <div className={clsx('absolute left-1 bottom-0.5 max-w-[calc(100%-4px)] truncate whitespace-nowrap text-red-600', pillClass)} title={item.error ?? '合成失败'}>
-            {item.error ?? '合成失败'}
-          </div>
-        )}
-
-        {isSelected && (
-          <div className="absolute right-0 top-0 -translate-y-1/2 flex items-center gap-0.5 z-30">
-            {item.status === 'completed' && item.audioPath && (
-              <Button
-                size="icon"
-                variant="outline"
-                className="w-8 h-8 rounded-full p-0 bg-background shadow-sm hover:bg-accent"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onPlayClick?.(e, item);
-                }}
-                title={isPlaying ? '停止' : '播放'}
-              >
-                {isPlaying ? <TbPlayerPause className="h-4 w-4" /> : <TbPlayerPlay className="h-4 w-4" />}
-              </Button>
-            )}
-            <Button
-              size="icon"
-              variant="outline"
-              className="w-8 h-8 rounded-full p-0 bg-background shadow-sm hover:bg-destructive hover:text-destructive-foreground"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDeleteClick?.(e, item);
-              }}
-              title="删除"
-            >
-              <TbTrash />
-            </Button>
-          </div>
-        )}
-      </div>
-
-      {dragHoverTime && (
-        <div className="fixed z-50 pointer-events-none" style={{ left: `${dragHoverTime.x + 10}px`, top: `${dragHoverTime.y - 30}px` }}>
-          <div className="bg-primary text-primary-foreground px-2 py-1 rounded shadow-lg text-xs font-mono whitespace-nowrap">
-            {(() => {
-              const format = (t: number): string => {
-                const m = Math.floor(t / 60);
-                const s = (t % 60).toFixed(2);
-                return `${m}:${s.padStart(5, '0')}`;
-              };
-              const { startTime, endTime } = dragHoverTime;
-              if (startTime !== undefined && endTime !== undefined) return `${format(startTime)} — ${format(endTime)}`;
-              if (startTime !== undefined) return format(startTime);
-              if (endTime !== undefined) return format(endTime);
-              return null;
-            })()}
-          </div>
-        </div>
-      )}
-    </>
-  );
+  return <UnifiedBlock capabilities={TTS_BLOCK_CAPABILITIES} content={content} callbacks={callbacks} layout={layout} isSelected={isSelected} isOverlapping={isOverlapping} dataAttrType="tts-block" />;
 };
