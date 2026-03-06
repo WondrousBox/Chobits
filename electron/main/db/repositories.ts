@@ -651,8 +651,7 @@ export const ResourcesRepo = {
       try {
         const children = await this.listChildren(parentId, 1000, 0);
         for (const child of children as any[]) {
-          // 只处理 translation、summary 和 mindmap 类型的子资源
-          if (child.type === 'translation' || child.type === 'summary' || child.type === 'mindmap' || child.type === 'note' || child.type === 'segments') {
+          if (child.type === 'translation' || child.type === 'summary' || child.type === 'mindmap' || child.type === 'note') {
             childResIds.push(child.id);
           }
         }

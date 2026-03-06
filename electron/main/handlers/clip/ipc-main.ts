@@ -1,8 +1,8 @@
 import { ipcMain } from 'electron';
 import fs from 'fs-extra';
-import * as path from 'path';
 
-import { ResourcesRepo, WorkspacesRepo } from '../../db/repositories';
+import { ResourcesRepo } from '../../db/repositories';
+import { ensureResourceProjectDir, getProjectDataSubDirFilePath, readProjectDataJsonSubDir, writeProjectDataSubDirFile } from '../resource/resource-project';
 
 export interface ClipDataV1 {
   version: 1;
@@ -12,48 +12,25 @@ export interface ClipDataV1 {
 
 export type ClipData = ClipDataV1;
 
-async function getClipFilePath(resourceId: string): Promise<string | null> {
-  const resource = await ResourcesRepo.getById(resourceId);
-
-  if (!resource) {
-    console.warn(`[Clip] 资源不存在: ${resourceId}`);
-    return null;
-  }
-
-  if (!resource.folderId) {
-    console.warn(`[Clip] 资源不在任何文件夹中: ${resourceId}`);
-    return null;
-  }
-
-  const workspaceId = resource.workspaceId;
-  const workspace = workspaceId ? await WorkspacesRepo.getById(workspaceId) : await WorkspacesRepo.getDefault();
-
-  if (!workspace || !workspace.rootPath) {
-    console.warn(`[Clip] 工作空间根路径不存在`);
-    return null;
-  }
-
-  return path.join(workspace.rootPath, 'resources', 'folders', resource.folderId, 'clips', `${resourceId}.json`);
-}
+const CLIPS_DIR = 'clips';
 
 export async function loadClipData(resourceId: string): Promise<ClipData | null> {
   try {
-    const filePath = await getClipFilePath(resourceId);
-
-    if (!filePath) {
+    const resource = await ResourcesRepo.getById(resourceId);
+    if (!resource || !resource.workspaceId) {
+      console.warn(`[Clip] 资源不存在或缺少工作空间 ID: ${resourceId}`);
       return null;
     }
 
-    if (!(await fs.pathExists(filePath))) {
-      console.log(`[Clip] 剪辑数据文件不存在: ${filePath}`);
-      return null;
+    // 从项目文件夹的 data/clips/ 目录读取
+    const data = await readProjectDataJsonSubDir<ClipData>(resourceId, resource.workspaceId, CLIPS_DIR, `${resourceId}.json`);
+
+    if (data) {
+      console.log(`[Clip] 加载剪辑数据成功: ${resourceId}, ${data.clips?.length || 0} 个片段`);
+      return data;
     }
 
-    const content = await fs.readFile(filePath, 'utf8');
-    const data = JSON.parse(content) as ClipData;
-
-    console.log(`[Clip] 加载剪辑数据成功: ${resourceId}, ${data.clips?.length || 0} 个片段`);
-    return data;
+    return null;
   } catch (error) {
     console.error(`[Clip] 加载剪辑数据失败: ${resourceId}`, error);
     return null;
@@ -62,14 +39,13 @@ export async function loadClipData(resourceId: string): Promise<ClipData | null>
 
 export async function saveClipData(resourceId: string, clips: any[]): Promise<{ success: boolean; error?: string }> {
   try {
-    const filePath = await getClipFilePath(resourceId);
-
-    if (!filePath) {
-      return { success: false, error: '资源不在任何文件夹中，无法保存剪辑数据' };
+    const resource = await ResourcesRepo.getById(resourceId);
+    if (!resource || !resource.workspaceId) {
+      return { success: false, error: '资源不存在或缺少工作空间 ID' };
     }
 
-    const dir = path.dirname(filePath);
-    await fs.ensureDir(dir);
+    // 确保项目目录存在
+    await ensureResourceProjectDir(resourceId, resource.workspaceId, ['data']);
 
     const data: ClipData = {
       version: 1,
@@ -77,7 +53,12 @@ export async function saveClipData(resourceId: string, clips: any[]): Promise<{ 
       updatedAt: Date.now()
     };
 
-    await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf8');
+    // 保存到项目文件夹的 data/clips/ 目录
+    const result = await writeProjectDataSubDirFile(resourceId, resource.workspaceId, CLIPS_DIR, `${resourceId}.json`, JSON.stringify(data, null, 2));
+
+    if (!result.success) {
+      return { success: false, error: result.error };
+    }
 
     console.log(`[Clip] 保存剪辑数据成功: ${resourceId}, ${clips.length} 个片段`);
     return { success: true };
@@ -89,13 +70,14 @@ export async function saveClipData(resourceId: string, clips: any[]): Promise<{ 
 
 export async function deleteClipData(resourceId: string): Promise<{ success: boolean }> {
   try {
-    const filePath = await getClipFilePath(resourceId);
-
-    if (!filePath) {
+    const resource = await ResourcesRepo.getById(resourceId);
+    if (!resource || !resource.workspaceId) {
       return { success: true };
     }
 
-    if (await fs.pathExists(filePath)) {
+    const filePath = await getProjectDataSubDirFilePath(resourceId, resource.workspaceId, CLIPS_DIR, `${resourceId}.json`);
+
+    if (filePath && (await fs.pathExists(filePath))) {
       await fs.remove(filePath);
       console.log(`[Clip] 删除剪辑数据成功: ${resourceId}`);
     }
