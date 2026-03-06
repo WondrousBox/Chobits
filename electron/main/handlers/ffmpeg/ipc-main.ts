@@ -8,6 +8,7 @@ import { ipcMain } from 'electron';
 import { app } from 'electron';
 import ffmpeg from 'fluent-ffmpeg';
 
+import { readProjectTempSubDirJson, writeProjectTempSubDirFile } from '../resource/resource-project';
 import { AIRemoveBackground } from './ai-remove-background';
 import { executeExport } from './export-video';
 
@@ -218,6 +219,8 @@ export function initFFmpegHandlers(win: BrowserWindow): void {
    * 支持缓存：计算后的波形数据会保存到文件，下次直接读取
    * @param arg.inputPath - 输入文件路径（音频或视频）
    * @param arg.samplesCount - 需要的采样点数量（默认 1000）
+   * @param arg.resourceId - 可选，资源ID（用于项目文件夹缓存）
+   * @param arg.workspaceId - 可选，工作空间ID（用于项目文件夹缓存）
    */
   ipcMain.handle(
     'extractWaveform',
@@ -226,36 +229,60 @@ export function initFFmpegHandlers(win: BrowserWindow): void {
       arg: {
         inputPath: string;
         samplesCount?: number;
+        resourceId?: string;
+        workspaceId?: string;
       }
     ) => {
       const input = arg.inputPath;
       const samplesCount = arg.samplesCount || 1000;
+      const { resourceId, workspaceId } = arg;
 
       if (!input) throw new Error('inputPath 必须指定');
 
-      // 生成缓存文件路径
-      const inputDir = path.dirname(input);
+      // 生成缓存文件名
       const inputBasename = path.basename(input);
       const inputExt = path.extname(input);
       const inputNameWithoutExt = inputBasename.slice(0, -inputExt.length);
-
-      // 使用文件名和采样数量生成缓存标识
       const cacheKey = crypto.createHash('md5').update(`${inputBasename}-${samplesCount}`).digest('hex');
-      const cacheFileName = `.${inputNameWithoutExt}.waveform-${cacheKey}.json`;
-      const cachePath = path.join(inputDir, cacheFileName);
+      const cacheFileName = `${inputNameWithoutExt}.waveform-${cacheKey}.json`;
 
-      // 检查缓存是否存在且有效
-      try {
-        if (fs.existsSync(cachePath)) {
-          const cacheData = JSON.parse(fs.readFileSync(cachePath, 'utf-8'));
+      // 确定缓存路径：优先使用项目文件夹，否则使用文件同目录
+      let cachePath: string | null = null;
+      let useProjectFolder = false;
 
-          // 验证缓存数据的有效性
-          if (cacheData.peaks && Array.isArray(cacheData.peaks) && typeof cacheData.duration === 'number' && cacheData.samplesCount === samplesCount) {
-            return { peaks: cacheData.peaks, duration: cacheData.duration };
-          }
+      if (resourceId && workspaceId) {
+        // 尝试从项目文件夹读取缓存
+        const projectCache = await readProjectTempSubDirJson<{
+          peaks: number[];
+          duration: number;
+          samplesCount: number;
+          createdAt: number;
+          version: number;
+        }>(resourceId, workspaceId, 'waveforms', cacheFileName);
+
+        if (projectCache && projectCache.peaks && Array.isArray(projectCache.peaks) && typeof projectCache.duration === 'number' && projectCache.samplesCount === samplesCount) {
+          console.log('[ffmpeg] 从项目文件夹读取波形缓存:', cacheFileName);
+          return { peaks: projectCache.peaks, duration: projectCache.duration };
         }
-      } catch (err) {
-        console.warn('[ffmpeg] 读取波形缓存失败，将重新计算:', err);
+
+        useProjectFolder = true;
+      } else {
+        // 回退到旧逻辑：使用文件同目录
+        const inputDir = path.dirname(input);
+        cachePath = path.join(inputDir, `.${cacheFileName}`);
+
+        // 检查缓存是否存在且有效
+        try {
+          if (fs.existsSync(cachePath)) {
+            const cacheData = JSON.parse(fs.readFileSync(cachePath, 'utf-8'));
+
+            if (cacheData.peaks && Array.isArray(cacheData.peaks) && typeof cacheData.duration === 'number' && cacheData.samplesCount === samplesCount) {
+              return { peaks: cacheData.peaks, duration: cacheData.duration };
+            }
+          }
+        } catch (err) {
+          console.warn('[ffmpeg] 读取波形缓存失败，将重新计算:', err);
+        }
       }
 
       // 缓存不存在或无效，重新计算
@@ -315,19 +342,35 @@ export function initFFmpegHandlers(win: BrowserWindow): void {
 
                 const result = { peaks, duration };
 
-                // 保存到缓存文件
-                try {
-                  const cacheData = {
-                    peaks,
-                    duration,
-                    samplesCount,
-                    createdAt: Date.now(),
-                    version: 1
-                  };
-                  fs.writeFileSync(cachePath, JSON.stringify(cacheData), 'utf-8');
-                } catch (cacheErr) {
-                  console.warn('[ffmpeg] 保存波形缓存失败:', cacheErr);
-                  // 缓存保存失败不影响返回结果
+                // 保存到缓存
+                const cacheData = {
+                  peaks,
+                  duration,
+                  samplesCount,
+                  createdAt: Date.now(),
+                  version: 1
+                };
+
+                if (useProjectFolder && resourceId && workspaceId) {
+                  // 保存到项目文件夹 temp/waveforms/
+                  writeProjectTempSubDirFile(resourceId, workspaceId, 'waveforms', cacheFileName, JSON.stringify(cacheData))
+                    .then((writeResult) => {
+                      if (writeResult.success) {
+                        console.log('[ffmpeg] 波形缓存已保存到项目文件夹:', cacheFileName);
+                      } else {
+                        console.warn('[ffmpeg] 保存波形缓存到项目文件夹失败:', writeResult.error);
+                      }
+                    })
+                    .catch((cacheErr) => {
+                      console.warn('[ffmpeg] 保存波形缓存到项目文件夹失败:', cacheErr);
+                    });
+                } else if (cachePath) {
+                  // 回退到旧逻辑：保存到文件同目录
+                  try {
+                    fs.writeFileSync(cachePath, JSON.stringify(cacheData), 'utf-8');
+                  } catch (cacheErr) {
+                    console.warn('[ffmpeg] 保存波形缓存失败:', cacheErr);
+                  }
                 }
 
                 resolve(result);

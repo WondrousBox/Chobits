@@ -9,6 +9,7 @@ import { GlossaryStore } from './glossary-store';
 import { InstancesStore } from './instances-store';
 import {
   cancelMindmap,
+  cleanupTranslationResources,
   deleteTranslationSegment,
   executeMindmap,
   executeSubtitleTranslation,
@@ -358,17 +359,28 @@ export function initAIHandlers(win: BrowserWindow): void {
   });
 
   // 更新翻译 JSON 中某片段（时间或文本，时间轴拖拽/编辑后写回）
-  ipcMain.handle('ai:updateTranslationSegment', async (_e, payload: { translationResourceId: string; segmentIndex: number; patch: { st?: string; et?: string; text?: string } }) => {
-    return updateTranslationSegment(payload);
-  });
+  ipcMain.handle(
+    'ai:updateTranslationSegment',
+    async (_e, payload: { subtitleResourceId: string; translationEntryId: string; segmentIndex: number; patch: { st?: string; et?: string; text?: string } }) => {
+      return updateTranslationSegment(payload);
+    }
+  );
 
   // 在翻译 JSON 中插入新片段（翻译轨道空白处新增字幕块后保存）
-  ipcMain.handle('ai:insertTranslationSegment', async (_e, payload: { translationResourceId: string; insertIndex: number; segment: { st: string; et: string; text: string } }) => {
-    return insertTranslationSegment(payload);
+  ipcMain.handle(
+    'ai:insertTranslationSegment',
+    async (_e, payload: { subtitleResourceId: string; translationEntryId: string; insertIndex: number; segment: { st: string; et: string; text: string } }) => {
+      return insertTranslationSegment(payload);
+    }
+  );
+
+  ipcMain.handle('ai:deleteTranslationSegment', async (_e, payload: { subtitleResourceId: string; translationEntryId: string; segmentIndex: number }) => {
+    return deleteTranslationSegment(payload);
   });
 
-  ipcMain.handle('ai:deleteTranslationSegment', async (_e, payload: { translationResourceId: string; segmentIndex: number }) => {
-    return deleteTranslationSegment(payload);
+  // 清理数据库中的翻译类型资源（迁移到项目文件夹后的清理）
+  ipcMain.handle('ai:cleanupTranslationResources', async (_e, payload: { subtitleResourceId?: string }) => {
+    return cleanupTranslationResources(payload.subtitleResourceId);
   });
 
   // ==================== 总结相关 ====================

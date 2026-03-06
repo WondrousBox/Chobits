@@ -13,6 +13,7 @@ import { FoldersRepo, ResourcesRepo, WorkspacesRepo } from '../../db/repositorie
 import { detectBasicType, generateThumbnailForResource } from '../../utils/thumbnail';
 import { embeddingQueue } from '../embedding/queue';
 import type { Resource } from './ipc-renderer';
+import { moveFileToProjectDataSubDir, type ProjectSegmentEntry, readProjectMeta, writeProjectMeta } from './resource-project';
 
 const SCREENSHOT_FOLDER_NAME = '截图';
 
@@ -32,23 +33,20 @@ function findCompanionSegmentsPath(subtitleFilePath: string): string | null {
 }
 
 /**
- * 为字幕资源创建伴随的 segments.json 子资源。
- * segments.json 包含字级时间戳等详细分段信息，类似于 JavaScript 的 source map，
- * 方便后续查询字幕文件的详细时间轴数据。
+ * 为字幕资源处理伴随的 segments.json 文件。
+ * segments.json 包含字级时间戳等详细分段信息，类似于 JavaScript 的 source map。
  *
- * @param parentRow  已创建的字幕资源行
- * @param originalFilePath  原始字幕文件路径（复制前）
- * @param currentFilePath   当前字幕文件路径（可能已复制到工作空间）
- * @param workspaceId  工作空间 ID
- * @param folderId  文件夹 ID
+ * 将 segments 文件移动到字幕资源的项目文件夹 data/segments/ 子目录中，
+ * 这样 segments 对用户不可见（不污染资源文件夹），但可被关联查询。
+ *
+ * @param parentRow 已创建的字幕资源行
+ * @param originalFilePath 原始字幕文件路径（复制前）
+ * @param currentFilePath 当前字幕文件路径（可能已复制到工作空间）
+ * @param workspaceId 工作空间 ID
  */
-async function createSegmentsChildResource(
-  parentRow: any,
-  originalFilePath: string,
-  currentFilePath: string | undefined,
-  workspaceId: string | undefined,
-  folderId: string | undefined
-): Promise<void> {
+async function handleSegmentsForSubtitle(parentRow: any, originalFilePath: string, currentFilePath: string | undefined, workspaceId: string | undefined): Promise<void> {
+  if (!workspaceId || !parentRow.id) return;
+
   // 1. 在原始路径查找伴随文件
   let segmentsSourcePath = findCompanionSegmentsPath(originalFilePath);
 
@@ -61,41 +59,49 @@ async function createSegmentsChildResource(
 
   console.log('[addResource] 找到字幕伴随 segments 文件:', segmentsSourcePath);
 
-  // 3. 确定 segments 文件的目标路径（与字幕文件在同一目录）
-  const subtitleDir = currentFilePath ? path.dirname(currentFilePath) : path.dirname(originalFilePath);
+  // 3. 确定 segments 文件的目标名称（基于字幕文件名）
   const subtitleBaseName = path.basename(currentFilePath || originalFilePath, path.extname(currentFilePath || originalFilePath));
-  const segmentsTargetPath = path.join(subtitleDir, `${subtitleBaseName}.segments.json`);
+  const segmentsFileName = `${subtitleBaseName}.segments.json`;
 
-  // 4. 如果源文件和目标不同，复制到工作空间
-  if (segmentsSourcePath !== segmentsTargetPath) {
-    try {
-      await fs.copyFile(segmentsSourcePath, segmentsTargetPath);
-      console.log('[addResource] segments 文件已复制到:', segmentsTargetPath);
-    } catch (e) {
-      console.warn('[addResource] 复制 segments 文件失败:', e);
-      return;
-    }
+  // 4. 移动到字幕资源的项目文件夹 data/segments/ 子目录（不保留源文件）
+  const moveResult = await moveFileToProjectDataSubDir(parentRow.id, workspaceId, segmentsSourcePath, 'segments', segmentsFileName);
+  if (!moveResult.success) {
+    console.warn('[addResource] 移动 segments 文件到项目文件夹失败:', moveResult.error);
+    return;
   }
 
-  // 5. 创建子资源记录（type: 'segments' 为隐藏资源类型，不在普通列表中显示）
-  const segmentsStats = fscb.statSync(segmentsTargetPath);
-  const childResource = {
-    type: 'segments' as const,
-    title: `${subtitleBaseName}.segments.json`,
-    filePath: segmentsTargetPath,
-    mimeType: 'application/json',
-    sizeBytes: segmentsStats.size,
-    parentResourceId: parentRow.id,
-    workspaceId,
-    folderId,
-    status: 'ready' as const,
-    description: '字幕分段时间戳数据（segments map）'
+  console.log('[addResource] segments 文件已移动到项目文件夹:', segmentsFileName);
+
+  // 5. 更新项目元数据，记录 segments 文件信息
+  const subtitleFileName = path.basename(currentFilePath || originalFilePath);
+  const segmentEntry: ProjectSegmentEntry = {
+    subtitleFile: subtitleFileName,
+    segmentsFile: segmentsFileName
   };
 
-  const childRow = await ResourcesRepo.upsert(childResource as any);
-  if (childRow) {
-    console.log('[addResource] segments 子资源已创建, id:', childRow.id, ', parentId:', parentRow.id);
-    eventManager.emit(AppEvent.RESOURCE_CREATED, childRow);
+  // 读取现有元数据并更新
+  const existingMeta = await readProjectMeta(parentRow.id, workspaceId);
+  const existingSegments = existingMeta?.segments || [];
+
+  // 检查是否已存在相同字幕文件的记录
+  const existingIndex = existingSegments.findIndex((s) => s.subtitleFile === subtitleFileName);
+  if (existingIndex >= 0) {
+    existingSegments[existingIndex] = segmentEntry;
+  } else {
+    existingSegments.push(segmentEntry);
+  }
+
+  // 写入更新后的元数据
+  const metaResult = await writeProjectMeta(parentRow.id, workspaceId, {
+    resourceType: 'subtitle',
+    parentResourceId: parentRow.parentResourceId,
+    segments: existingSegments
+  });
+
+  if (metaResult.success) {
+    console.log('[addResource] 项目元数据已更新，segments 记录已添加');
+  } else {
+    console.warn('[addResource] 更新项目元数据失败:', metaResult.error);
   }
 }
 
@@ -217,24 +223,8 @@ export async function addResource(r: { resource: Resource }): Promise<{ success:
               target = path.join(targetDir, `${name}(${i})${ext}`);
             }
             await fs.copyFile(filePath, target);
-            // 复制字幕伴随文件（.segments.json）
-            try {
-              const ext = path.extname(filePath).toLowerCase();
-              const subtitleExts = ['.srt', '.vtt', '.ass', '.ssa'];
-              if (subtitleExts.includes(ext)) {
-                const srcBase = path.basename(filePath, path.extname(filePath));
-                const srcDir = path.dirname(filePath);
-                const segmentsSource = path.join(srcDir, `${srcBase}.segments.json`);
-                if (fscb.existsSync(segmentsSource)) {
-                  const destBase = path.basename(target, path.extname(target));
-                  const segmentsTarget = path.join(targetDir, `${destBase}.segments.json`);
-                  await fs.copyFile(segmentsSource, segmentsTarget);
-                  console.log('[addResource] 已复制字幕伴随 segments 文件:', segmentsTarget);
-                }
-              }
-            } catch (segErr) {
-              console.warn('[addResource] 复制伴随 segments 文件失败:', segErr);
-            }
+            // 注意：不再复制 .segments.json 伴随文件
+            // segments 文件将由 handleSegmentsForSubtitle 移动到项目文件夹
             // 删除工作空间资源目录内的原始文件，避免复制后产生重复文件
             // （仅当原始文件位于工作空间 resources 目录内时才删除，不会删除用户系统中的外部文件）
             try {
@@ -378,9 +368,9 @@ export async function addResource(r: { resource: Resource }): Promise<{ success:
         // 字幕资源伴随文件处理（缩略图分支）
         if ((finalType as string) === 'subtitle' && originalFilePath) {
           try {
-            await createSegmentsChildResource(row, originalFilePath, filePath, workspaceId, folderId);
+            await handleSegmentsForSubtitle(row, originalFilePath, filePath, workspaceId);
           } catch (e) {
-            console.warn('[addResource] segments child resource creation failed', e);
+            console.warn('[addResource] segments handling failed', e);
           }
         }
 
@@ -409,9 +399,9 @@ export async function addResource(r: { resource: Resource }): Promise<{ success:
   // segments.json 包含字级时间戳等详细分段信息，类似于 JavaScript 的 source map
   if (row && (finalType as string) === 'subtitle' && originalFilePath) {
     try {
-      await createSegmentsChildResource(row, originalFilePath, filePath, workspaceId, folderId);
+      await handleSegmentsForSubtitle(row, originalFilePath, filePath, workspaceId);
     } catch (e) {
-      console.warn('[addResource] segments child resource creation failed', e);
+      console.warn('[addResource] segments handling failed', e);
     }
   }
 

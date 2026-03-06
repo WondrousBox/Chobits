@@ -10,6 +10,7 @@ import fs from 'fs-extra';
 import * as path from 'path';
 
 import { ResourcesRepo, WorkspacesRepo } from '../../electron/main/db/repositories';
+import { ensureResourceProjectDir } from '../../electron/main/handlers/resource/resource-project';
 import { type BatchTTSConfig, type BatchTTSEvent, BatchTTSService, type TTSItem } from './batch-tts-service';
 
 /**
@@ -31,7 +32,7 @@ const TTS_EVENT_CHANNEL = 'tts:event';
 /** 轨道标识：main 为主轨道，其他为语言代码如 zh-CN、en */
 export type TTSTrackId = 'main' | string;
 
-// 获取TTS输出目录（按轨道分目录：main/ 或 <languageCode>/）
+// 获取TTS输出目录（存储在项目文件夹的 data/tts/<trackId>/ 子目录）
 async function getTTSOutputDir(resourceId: string, trackId: TTSTrackId = 'main'): Promise<string> {
   try {
     // 从数据库获取资源信息
@@ -58,14 +59,23 @@ async function getTTSOutputDir(resourceId: string, trackId: TTSTrackId = 'main')
       return path.join(userDataPath, 'tts-cache', resourceId, trackId);
     }
 
-    // 构建TTS目录: <workspaceRoot>/resources/tts/<resourceId>/<trackId>
-    let baseTtsDir: string;
-    if (resource.folderId) {
-      baseTtsDir = path.join(workspace.rootPath, 'resources', 'folders', resource.folderId, 'tts', resourceId);
-    } else {
-      baseTtsDir = path.join(workspace.rootPath, 'resources', 'tts', resourceId);
+    // 确保项目文件夹存在，使用 data 子目录
+    const actualWorkspaceId = workspaceId || workspace.id;
+    const result = await ensureResourceProjectDir(resourceId, actualWorkspaceId, ['data']);
+    if (!result) {
+      console.warn(`[TTS] 无法创建项目文件夹,使用默认缓存目录`);
+      const userDataPath = app.getPath('userData');
+      return path.join(userDataPath, 'tts-cache', resourceId, trackId);
     }
-    const ttsDir = path.join(baseTtsDir, trackId);
+
+    // 构建 TTS 目录: <workspaceRoot>/projects/<resourceId>.resproject/data/tts/<trackId>
+    const ttsBaseDir = path.join(result.subDirs.data, 'tts');
+    const ttsDir = path.join(ttsBaseDir, trackId);
+
+    // 确保 TTS 目录存在
+    if (!fs.existsSync(ttsDir)) {
+      await fs.ensureDir(ttsDir);
+    }
 
     console.log(`[TTS] TTS输出目录: ${ttsDir}`);
     return ttsDir;
