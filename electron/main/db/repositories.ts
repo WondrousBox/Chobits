@@ -762,6 +762,29 @@ export const ResourcesRepo = {
     };
     await Promise.all([...filePaths.map(tryUnlink), ...thumbPaths.map(tryUnlink)]);
 
+    // 6) 清理资源项目目录（容错，不影响主流程）
+    // 收集需要清理的资源ID和对应的工作空间ID
+    const projectDirsToDelete = new Map<string, string>(); // resourceId -> workspaceId
+    for (const r of toDeleteRows as any[]) {
+      if (r?.id && r?.workspaceId) {
+        projectDirsToDelete.set(r.id, r.workspaceId);
+      }
+    }
+    // 异步清理项目目录
+    for (const [resourceId, workspaceId] of projectDirsToDelete) {
+      try {
+        const ws = await WorkspacesRepo.getById(workspaceId);
+        if (ws?.rootPath) {
+          const projectPath = path.join(ws.rootPath, 'projects', resourceId);
+          if (fscb.existsSync(projectPath)) {
+            await fs.rm(projectPath, { recursive: true, force: true });
+          }
+        }
+      } catch (e) {
+        console.warn('[deleteByIds] 清理项目目录失败:', resourceId, e);
+      }
+    }
+
     console.log(`[deleteByIds] 已删除 ${changes} 个资源（包含 ${childResIds.length} 个子资源）`);
     return changes;
   },

@@ -13,6 +13,15 @@ import { FoldersRepo, ResourcesRepo, TagsRepo, WorkspacesRepo } from '../../db/r
 import { generateThumbnailForResource } from '../../utils/thumbnail';
 import { addResource, ensureDailyFolder, getOrCreateScreenshotFolder } from '.';
 import type { Resource } from './ipc-renderer';
+import {
+  clearResourceProjectDir,
+  createCustomProjectSubDir,
+  deleteResourceProjectDir,
+  ensureResourceProjectDir,
+  getResourceProjectPath,
+  getResourceProjectStats,
+  type ProjectSubDir
+} from './resource-project';
 
 // 存储正在上传的文件流
 interface UploadStream {
@@ -1202,6 +1211,83 @@ export function initResourceHandlers(): void {
       return { success: true };
     }
   );
+
+  // ---- 资源项目目录管理 ----
+
+  /**
+   * 获取资源项目目录路径（不创建目录）
+   */
+  ipcMain.handle('resource:getProjectPath', async (_event, payload: { resourceId: string; workspaceId: string }) => {
+    const { resourceId, workspaceId } = payload;
+    if (!resourceId || !workspaceId) return { success: false, error: 'invalid-params' };
+
+    const projectPath = await getResourceProjectPath(resourceId, workspaceId);
+    return { success: true, path: projectPath };
+  });
+
+  /**
+   * 确保资源项目目录存在（如果不存在则创建）
+   * 返回项目目录路径和子目录路径
+   */
+  ipcMain.handle('resource:ensureProjectDir', async (_event, payload: { resourceId: string; workspaceId: string; subDirs?: ProjectSubDir[] }) => {
+    const { resourceId, workspaceId, subDirs } = payload;
+    if (!resourceId || !workspaceId) return { success: false, error: 'invalid-params' };
+
+    const result = await ensureResourceProjectDir(resourceId, workspaceId, subDirs);
+    if (!result) {
+      return { success: false, error: 'workspace-not-found' };
+    }
+
+    return { success: true, path: result.path, subDirs: result.subDirs };
+  });
+
+  /**
+   * 清空资源项目目录（保留目录结构，删除内容）
+   * 可选清空指定子目录
+   */
+  ipcMain.handle('resource:clearProjectDir', async (_event, payload: { resourceId: string; workspaceId: string; subDir?: ProjectSubDir }) => {
+    const { resourceId, workspaceId, subDir } = payload;
+    if (!resourceId || !workspaceId) return { success: false, error: 'invalid-params' };
+
+    return await clearResourceProjectDir(resourceId, workspaceId, subDir);
+  });
+
+  /**
+   * 删除资源项目目录（完全删除）
+   */
+  ipcMain.handle('resource:deleteProjectDir', async (_event, payload: { resourceId: string; workspaceId: string }) => {
+    const { resourceId, workspaceId } = payload;
+    if (!resourceId || !workspaceId) return { success: false, error: 'invalid-params' };
+
+    return await deleteResourceProjectDir(resourceId, workspaceId);
+  });
+
+  /**
+   * 获取资源项目目录统计信息
+   */
+  ipcMain.handle('resource:getProjectStats', async (_event, payload: { resourceId: string; workspaceId: string }) => {
+    const { resourceId, workspaceId } = payload;
+    if (!resourceId || !workspaceId) return { success: false, error: 'invalid-params' };
+
+    const stats = await getResourceProjectStats(resourceId, workspaceId);
+    if (!stats) {
+      return { success: false, error: 'workspace-not-found' };
+    }
+
+    return { success: true, ...stats };
+  });
+
+  /**
+   * 在资源项目目录中创建自定义子目录
+   */
+  ipcMain.handle('resource:createProjectSubDir', async (_event, payload: { resourceId: string; workspaceId: string; dirName: string }) => {
+    const { resourceId, workspaceId, dirName } = payload;
+    if (!resourceId || !workspaceId || !dirName) {
+      return { success: false, error: 'invalid-params' };
+    }
+
+    return await createCustomProjectSubDir(resourceId, workspaceId, dirName);
+  });
 }
 
 // keep file local helpers minimal; tagging moved to TaggingService

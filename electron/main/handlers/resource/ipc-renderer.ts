@@ -183,6 +183,50 @@ export type ResourceIpcParams = {
     ],
     { success: boolean }
   >;
+  // ---- 资源项目目录管理 ----
+  /** 获取资源项目目录路径（不创建目录） */
+  'resource:getProjectPath': IpcParams<
+    [{ resourceId: string; workspaceId: string }],
+    { success: boolean; path?: string | null; error?: string }
+  >;
+  /** 确保资源项目目录存在（如果不存在则创建） */
+  'resource:ensureProjectDir': IpcParams<
+    [{ resourceId: string; workspaceId: string; subDirs?: Array<'outputs' | 'cache' | 'temp'> }],
+    {
+      success: boolean;
+      path?: string;
+      subDirs?: { outputs: string; cache: string; temp: string };
+      error?: string;
+    }
+  >;
+  /** 清空资源项目目录 */
+  'resource:clearProjectDir': IpcParams<
+    [{ resourceId: string; workspaceId: string; subDir?: 'outputs' | 'cache' | 'temp' }],
+    { success: boolean; error?: string }
+  >;
+  /** 删除资源项目目录 */
+  'resource:deleteProjectDir': IpcParams<[{ resourceId: string; workspaceId: string }], { success: boolean; error?: string }>;
+  /** 获取资源项目目录统计信息 */
+  'resource:getProjectStats': IpcParams<
+    [{ resourceId: string; workspaceId: string }],
+    {
+      success: boolean;
+      exists?: boolean;
+      totalSize?: number;
+      fileCount?: number;
+      subDirs?: {
+        outputs: { size: number; count: number };
+        cache: { size: number; count: number };
+        temp: { size: number; count: number };
+      };
+      error?: string;
+    }
+  >;
+  /** 在资源项目目录中创建自定义子目录 */
+  'resource:createProjectSubDir': IpcParams<
+    [{ resourceId: string; workspaceId: string; dirName: string }],
+    { success: boolean; path?: string; error?: string }
+  >;
 };
 
 const methods: Array<keyof ResourceIpcParams> = [
@@ -219,7 +263,14 @@ const methods: Array<keyof ResourceIpcParams> = [
   'resource:updateTTSTrack',
   'resource:createMediaTrack',
   'resource:getMediaTracks',
-  'resource:updateMediaTrack'
+  'resource:updateMediaTrack',
+  // 资源项目目录
+  'resource:getProjectPath',
+  'resource:ensureProjectDir',
+  'resource:clearProjectDir',
+  'resource:deleteProjectDir',
+  'resource:getProjectStats',
+  'resource:createProjectSubDir'
 ];
 
 export type ResourceIpcType = {

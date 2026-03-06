@@ -5,6 +5,7 @@ import { randomUUID } from 'crypto';
 import dayjs from 'dayjs';
 import { BrowserWindow, ipcMain } from 'electron';
 import * as fs from 'fs';
+const fsp = fs.promises;
 
 import { getResourcePath } from '../common/utils';
 import { eventManager, sendAppBusyEnd, sendAppBusyProgress, sendAppBusyStart } from '../event';
@@ -115,7 +116,54 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
   const ffmpegPath: string | undefined = getResourcePath('ffmpeg');
   const ffprobePath: string | undefined = getResourcePath('ffprobe');
 
-  const engine = createEngine({ pluginResourceManager, ffmpegPath, ffprobePath });
+  // 实现获取资源项目目录的回调函数
+  // 直接使用上下文中的 resourceId 和 workspaceId，不再通过文件路径查询
+  const getResourceProjectDirs = async (taskType: string, context: { resourceId?: string; workspaceId?: string }) => {
+    const { resourceId, workspaceId } = context;
+
+    // 如果没有 resourceId 或 workspaceId，返回 null 表示不是资源任务
+    if (!resourceId || !workspaceId) {
+      return null;
+    }
+
+    // 获取工作空间信息
+    const ws = await WorkspacesRepo.getById(workspaceId);
+    if (!ws?.rootPath) {
+      return null;
+    }
+
+    // 创建项目目录结构
+    const projectRoot = path.join(ws.rootPath, 'projects');
+    const projectPath = path.join(projectRoot, resourceId);
+    const outputsDir = path.join(projectPath, 'outputs');
+    const cacheDir = path.join(projectPath, 'cache');
+    const tempDir = path.join(projectPath, 'temp');
+    const dataDir = path.join(projectPath, 'data');
+
+    // 确保目录存在
+    await fsp.mkdir(outputsDir, { recursive: true });
+    await fsp.mkdir(cacheDir, { recursive: true });
+    await fsp.mkdir(tempDir, { recursive: true });
+    await fsp.mkdir(dataDir, { recursive: true });
+
+    return {
+      isResource: true,
+      resourceId,
+      workspaceId,
+      outputsDir,
+      cacheDir,
+      tempDir,
+      dataDir
+    };
+  };
+
+  const engine = createEngine({
+    pluginResourceManager,
+    ffmpegPath,
+    ffprobePath,
+    // 类型断言：内部函数接受2个参数，engine.ts会包装成只接受1个参数的版本
+    getResourceProjectDirs: getResourceProjectDirs as any
+  });
   globalEngine = engine;
   // expose engine via closure only (no global)
 
