@@ -288,16 +288,71 @@ export const TranscribeParakeetNode: NodeHandler = {
     ],
     outputs: [{ key: 'srt', label: 'SRT 文件', type: 'file' }]
   },
-  async run({ input, config, emit }) {
+  async run({ input, config, ctx, emit }) {
     const src = String(input.media || '');
     if (!src) throw new Error('缺少媒体文件路径');
     if (!fs.existsSync(src)) throw new Error(`媒体文件不存在: ${src}`);
 
     const base = path.parse(src).name;
 
-    // 使用新的存储结构：在同级目录下的 transcribe 文件夹
-    const { ensureTaskTypeDir } = await import('../task-results');
-    const outDir = await ensureTaskTypeDir(src, 'transcribe');
+    // 使用资源项目目录系统：如果文件关联资源，使用 projects/<resourceId>/ 目录结构
+    // 否则回退到传统的 <inputFileDir>/transcribe/ 目录
+    let projectDirs: {
+      isResource: boolean;
+      resourceId?: string;
+      workspaceId?: string;
+      outputsDir: string;
+      cacheDir: string;
+      tempDir: string;
+      dataDir: string;
+    };
+
+    if (ctx.getResourceProjectDirs) {
+      const dirs = await ctx.getResourceProjectDirs('transcribe');
+      if (dirs) {
+        projectDirs = dirs;
+      } else {
+        // getResourceProjectDirs 返回 null（没有 resourceId 或 workspaceId），使用传统目录结构
+        const inputDir = path.dirname(src);
+        const outDir = path.join(inputDir, 'transcribe');
+        if (!fs.existsSync(outDir)) {
+          fs.mkdirSync(outDir, { recursive: true });
+        }
+        projectDirs = {
+          isResource: false,
+          outputsDir: outDir,
+          cacheDir: outDir,
+          tempDir: outDir,
+          dataDir: outDir
+        };
+      }
+    } else {
+      // 没有 getResourceProjectDirs 方法，使用传统目录结构
+      const inputDir = path.dirname(src);
+      const outDir = path.join(inputDir, 'transcribe');
+      if (!fs.existsSync(outDir)) {
+        fs.mkdirSync(outDir, { recursive: true });
+      }
+      projectDirs = {
+        isResource: false,
+        outputsDir: outDir,
+        cacheDir: outDir,
+        tempDir: outDir,
+        dataDir: outDir
+      };
+    }
+
+    // 根据是否关联资源记录日志
+    if (projectDirs.isResource) {
+      console.log(`[parakeet] 使用资源项目目录: resourceId=${projectDirs.resourceId}, temp=${projectDirs.tempDir}`);
+    } else {
+      console.log(`[parakeet] 使用传统目录: ${projectDirs.tempDir}`);
+    }
+
+    // temp 目录用于转写产物（SRT、segments.json）
+    const outDir = projectDirs.tempDir;
+    // cache 目录用于中间文件（转码后的音频）
+    const cacheDir = projectDirs.cacheDir;
 
     // 检查并转码音频
     let finalSrc = src;
@@ -305,7 +360,8 @@ export const TranscribeParakeetNode: NodeHandler = {
     if (!isCompatible) {
       emit('node:progress', { progress: 0, message: '正在转码音频...' });
       try {
-        finalSrc = await transcodeAudio(src, outDir);
+        // 转码的中间文件存放在 cache 目录（可复用）
+        finalSrc = await transcodeAudio(src, cacheDir);
       } catch (err) {
         const error = err as Error;
         throw new Error(`音频转码失败: ${error.message}`);

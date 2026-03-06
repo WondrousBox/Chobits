@@ -84,7 +84,20 @@ export class WorkflowEngine extends EngineEmitter {
     const tmpDir = path.join(os.tmpdir(), 'workflow', randomUUID());
     console.log('buildCtx', tmpDir);
 
-    return { ...this.baseCtx, tmpDir };
+    const ctx: ExecutionContext = {
+      ...this.baseCtx,
+      tmpDir
+    };
+
+    // 包装 getResourceProjectDirs，自动传入上下文中的 resourceId 和 workspaceId
+    if (this.baseCtx.getResourceProjectDirs) {
+      const originalFn = this.baseCtx.getResourceProjectDirs;
+      ctx.getResourceProjectDirs = (taskType: string) => {
+        return originalFn(taskType, { resourceId: ctx.resourceId, workspaceId: ctx.workspaceId });
+      };
+    }
+
+    return ctx;
   }
 
   async validate(def: WorkflowDefinition): Promise<ValidateResult> {
@@ -327,7 +340,7 @@ runId: ${runId}
     if (metadata?.folderId) {
       ctx.folderId = metadata.folderId;
     }
-    // 从 initialInput 中的 resource 对象获取工作空间和文件夹信息
+    // 从 initialInput 中的 resource 对象获取工作空间、文件夹和资源ID信息
     if (initialInput?.resource) {
       const resource = initialInput.resource;
       if (resource.workspaceId && !ctx.workspaceId) {
@@ -336,6 +349,16 @@ runId: ${runId}
       if (resource.folderId && !ctx.folderId) {
         ctx.folderId = resource.folderId;
       }
+      if (resource.id && !ctx.resourceId) {
+        ctx.resourceId = resource.id;
+      }
+      if (resource.resourceId && !ctx.resourceId) {
+        ctx.resourceId = resource.resourceId;
+      }
+    }
+    // 也支持直接传入 resourceId
+    if (initialInput?.resourceId && !ctx.resourceId) {
+      ctx.resourceId = initialInput.resourceId;
     }
 
     // 存储执行上下文，以便在运行时更新

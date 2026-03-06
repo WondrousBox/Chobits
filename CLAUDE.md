@@ -245,6 +245,92 @@ Resources in Chobits have a **parent-child relationship** via the `parentResourc
 
 **For AI contributors**: When adding new derived resource types, always set `parentResourceId` to link them to their source resource. The cascading delete/restore logic uses recursive BFS on `parentResourceId` with **no type filter**, so new child types are automatically covered without code changes.
 
+## Resource Project Directory
+
+### Overview
+
+Each resource can have an associated **project directory** for storing task outputs, cache files, temporary data, and persistent data. This provides isolated workspace for resource-specific processing without polluting the main resources folder.
+
+**Directory structure:**
+```
+<workspace>/
+├── resources/              # Main resource storage
+│   ├── folders/            # Organized by folder
+│   ├── .trash/             # Recycle bin
+│   └── .thumbs/            # Thumbnails
+└── projects/               # Resource project directories
+    └── <resourceId>/       # One folder per resource
+        ├── outputs/        # Task outputs (exports, generated files for export)
+        ├── cache/          # Cache files (intermediate results, reusable)
+        ├── temp/           # Temporary files (transcription outputs, processing artifacts)
+        └── data/           # Persistent data (regular data files for processing)
+```
+
+**Directory purposes:**
+- `outputs/` - Final export files (e.g., processed videos ready for export)
+- `cache/` - Reusable intermediate files (e.g., transcoded audio for transcription)
+- `temp/` - Temporary processing outputs (e.g., transcription SRT, segments.json)
+- `data/` - Persistent data files used during processing (e.g., vocabulary lists, configuration data)
+
+### Implementation
+
+**Location**: `electron/main/handlers/resource/resource-project.ts`
+
+**IPC API** (prefix: `resource:`):
+
+| Method | Description |
+|--------|-------------|
+| `resource:getProjectPath` | Get project directory path (no creation) |
+| `resource:ensureProjectDir` | Ensure project directory exists, return paths |
+| `resource:clearProjectDir` | Clear contents (keep structure), optionally for specific subdirectory |
+| `resource:deleteProjectDir` | Delete project directory entirely |
+| `resource:getProjectStats` | Get size/file count statistics |
+| `resource:createProjectSubDir` | Create custom subdirectory |
+
+**Usage example:**
+```typescript
+// Renderer process
+const result = await window.YUA.resource['resource:ensureProjectDir']({
+  resourceId: 'xxx-xxx-xxx',
+  workspaceId: 'ws-xxx',
+  subDirs: ['outputs', 'cache', 'temp', 'data']  // Optional, defaults to all
+});
+
+// result.path: "/workspace/projects/xxx-xxx-xxx"
+// result.subDirs.outputs: "/workspace/projects/xxx-xxx-xxx/outputs"
+// result.subDirs.cache: "/workspace/projects/xxx-xxx-xxx/cache"
+// result.subDirs.temp: "/workspace/projects/xxx-xxx-xxx/temp"
+// result.subDirs.data: "/workspace/projects/xxx-xxx-xxx/data"
+```
+
+### Workflow Integration
+
+The workflow engine provides `getResourceProjectDirs` callback through `ExecutionContext`:
+
+```typescript
+// In workflow nodes
+if (ctx.getResourceProjectDirs) {
+  const dirs = await ctx.getResourceProjectDirs('transcribe');
+  // dirs.outputsDir - for final export files
+  // dirs.cacheDir - for reusable intermediate files (e.g., transcoded audio)
+  // dirs.tempDir - for temporary outputs (e.g., SRT, segments.json)
+  // dirs.dataDir - for persistent data files
+}
+```
+
+### Lifecycle Integration
+
+- **Permanent delete**: Project directory is automatically cleaned up when a resource is hard-deleted
+- **Soft delete**: Project directory is preserved (resource can be restored)
+- **Subdirectory types**: `outputs`, `cache`, `temp`, `data` are predefined; custom subdirectories can be created
+
+**For AI contributors**: When implementing features that generate files from resources (e.g., video frame extraction, audio processing, AI analysis results), use the project directory instead of creating files alongside the original resource. This keeps the resources folder clean and makes cleanup predictable.
+
+- Use `cache/` for reusable intermediate files (e.g., transcoded audio that can be reused)
+- Use `temp/` for task outputs that are consumed by other processes (e.g., transcription SRT files)
+- Use `data/` for persistent data files that need to be kept (e.g., vocabulary lists, custom dictionaries)
+- Use `outputs/` for final export-ready files
+
 ## Troubleshooting
 
 ### Native Module Issues

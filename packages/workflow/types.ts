@@ -171,11 +171,24 @@ export type ExecutionContext = {
   workspaceId?: string;
   // folder ID for resource operations (optional)
   folderId?: string;
+  // resource ID for the current task (optional, set when running on a resource)
+  resourceId?: string;
   // 可选：应用级注入的插件资源管理器，用于查找插件相关的 engine/model 路径
   pluginResourceManager?: PluginResourceManager;
   // 可选：应用级注入的 FFmpeg/FFprobe 路径，避免在 workflow 层直接依赖 Electron 资源工具
   ffmpegPath?: string;
   ffprobePath?: string;
+  // 可选：获取资源项目目录的回调函数
+  // 自动使用上下文中的 resourceId、workspaceId 来获取项目目录
+  getResourceProjectDirs?: (taskType: string) => Promise<{
+    isResource: boolean;
+    resourceId?: string;
+    workspaceId?: string;
+    outputsDir: string;
+    cacheDir: string;
+    tempDir: string;
+    dataDir: string;
+  } | null>;
 };
 
 export type NodeHandler = {
