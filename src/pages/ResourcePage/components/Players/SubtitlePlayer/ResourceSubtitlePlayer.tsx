@@ -965,7 +965,9 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
 
         const result = await window.YUA.ffmpeg.extractWaveform({
           inputPath: audioPath,
-          samplesCount
+          samplesCount,
+          resourceId: resource.id,
+          workspaceId: resource.workspaceId
         });
 
         if (!cancelled) {
@@ -984,7 +986,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [audioPath, mediaDuration]);
+  }, [audioPath, mediaDuration, resource.id, resource.workspaceId]);
 
   // 加载字幕文件内容（支持 srt、vtt、ass 格式）
   useEffect(() => {

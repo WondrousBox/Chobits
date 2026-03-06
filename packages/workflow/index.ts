@@ -118,6 +118,9 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
 
   // 实现获取资源项目目录的回调函数
   // 直接使用上下文中的 resourceId 和 workspaceId，不再通过文件路径查询
+  // 项目文件夹使用 .resproject 后缀，以便将来 macOS 可以将其注册为自定义包类型
+  const PROJECT_FOLDER_SUFFIX = '.resproject';
+
   const getResourceProjectDirs = async (taskType: string, context: { resourceId?: string; workspaceId?: string }) => {
     const { resourceId, workspaceId } = context;
 
@@ -132,9 +135,9 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
       return null;
     }
 
-    // 创建项目目录结构
+    // 创建项目目录结构（带 .resproject 后缀）
     const projectRoot = path.join(ws.rootPath, 'projects');
-    const projectPath = path.join(projectRoot, resourceId);
+    const projectPath = path.join(projectRoot, `${resourceId}${PROJECT_FOLDER_SUFFIX}`);
     const outputsDir = path.join(projectPath, 'outputs');
     const cacheDir = path.join(projectPath, 'cache');
     const tempDir = path.join(projectPath, 'temp');

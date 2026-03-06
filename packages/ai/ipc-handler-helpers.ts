@@ -5,7 +5,7 @@ import { BrowserWindow } from 'electron';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
-import { ResourcesRepo } from '../common/db';
+import { ResourcesRepo, WorkspacesRepo } from '../common/db';
 import { sendAppBusyEnd, sendAppBusyProgress, sendAppBusyStart } from '../event';
 import { getAgent } from './agents';
 import { ChatService } from './chat-service';
@@ -14,6 +14,139 @@ import { MindmapService } from './services/mindmap-service';
 import { SummaryService } from './services/summary-service';
 import { TranslationService } from './services/translation-service';
 import { getAllSecrets, getFirstApiKey } from './settings-store';
+
+// ==================== 项目文件夹常量 ====================
+
+/** 项目目录名称 */
+const PROJECTS_DIR_NAME = 'projects';
+
+/** 项目文件夹后缀 */
+const PROJECT_FOLDER_SUFFIX = '.resproject';
+
+/** 翻译文件子目录名称 */
+const TRANSLATIONS_SUBDIR = 'translations';
+
+/** 项目元数据文件名 */
+const PROJECT_META_FILE = 'project.json';
+
+/**
+ * 获取资源的项目目录路径
+ * @param resourceId 资源ID
+ * @param workspaceId 工作空间ID
+ * @returns 资源项目目录路径，如果工作空间不存在则返回 null
+ */
+async function getResourceProjectPath(resourceId: string, workspaceId: string): Promise<string | null> {
+  const ws = await WorkspacesRepo.getById(workspaceId);
+  if (!ws?.rootPath) return null;
+  return path.join(ws.rootPath, PROJECTS_DIR_NAME, `${resourceId}${PROJECT_FOLDER_SUFFIX}`);
+}
+
+/**
+ * 获取翻译文件的存储目录路径
+ * @param resourceId 字幕资源ID
+ * @param workspaceId 工作空间ID
+ * @returns 翻译文件目录路径
+ */
+async function getTranslationsDir(resourceId: string, workspaceId: string): Promise<string | null> {
+  const projectPath = await getResourceProjectPath(resourceId, workspaceId);
+  if (!projectPath) return null;
+  return path.join(projectPath, 'data', TRANSLATIONS_SUBDIR);
+}
+
+/**
+ * 项目元数据中的翻译条目
+ */
+interface ProjectTranslationEntry {
+  id: string; // 翻译记录唯一 ID
+  fileName: string; // 翻译文件名，如 "video.zh-CN.1234567890.json"
+  targetLanguage?: string; // 目标语言，如 "zh-CN"
+  providerId?: string; // AI 提供商 ID
+  model?: string; // AI 模型名称
+  translatedAt: number; // 翻译完成时间戳
+  startTimestamp: number; // 翻译开始时间戳
+}
+
+/**
+ * 项目元数据
+ */
+interface ProjectMeta {
+  version: number;
+  resourceId: string;
+  resourceType?: string;
+  createdAt: number;
+  updatedAt?: number;
+  parentResourceId?: string;
+  segments?: Array<{ subtitleFile: string; segmentsFile: string }>;
+  translations?: ProjectTranslationEntry[];
+  [key: string]: unknown;
+}
+
+/**
+ * 读取项目元数据
+ * @param resourceId 资源ID
+ * @param workspaceId 工作空间ID
+ * @returns 项目元数据，如果不存在则返回 null
+ */
+async function readProjectMeta(resourceId: string, workspaceId: string): Promise<ProjectMeta | null> {
+  try {
+    const projectPath = await getResourceProjectPath(resourceId, workspaceId);
+    if (!projectPath) return null;
+
+    const metaPath = path.join(projectPath, PROJECT_META_FILE);
+    const content = await fs.readFile(metaPath, 'utf-8');
+    return JSON.parse(content) as ProjectMeta;
+  } catch (error) {
+    return null;
+  }
+}
+
+/**
+ * 写入项目元数据
+ * @param resourceId 资源ID
+ * @param workspaceId 工作空间ID
+ * @param meta 项目元数据（会与现有数据合并）
+ */
+async function writeProjectMeta(resourceId: string, workspaceId: string, meta: Partial<ProjectMeta>): Promise<{ success: boolean; error?: string }> {
+  try {
+    const projectPath = await getResourceProjectPath(resourceId, workspaceId);
+    if (!projectPath) {
+      return { success: false, error: 'Failed to get project path' };
+    }
+
+    // 确保项目目录和 data 目录存在
+    await fs.mkdir(path.join(projectPath, 'data'), { recursive: true });
+
+    const metaPath = path.join(projectPath, PROJECT_META_FILE);
+
+    // 读取现有元数据（如果存在）
+    let existingMeta: ProjectMeta | null = null;
+    try {
+      const content = await fs.readFile(metaPath, 'utf-8');
+      existingMeta = JSON.parse(content) as ProjectMeta;
+    } catch {
+      // 忽略读取错误
+    }
+
+    // 合并元数据
+    const now = Date.now();
+    const newMeta: ProjectMeta = {
+      version: 1,
+      resourceId,
+      createdAt: existingMeta?.createdAt || now,
+      updatedAt: now,
+      ...existingMeta,
+      ...meta
+    };
+
+    // 确保 resourceId 不被覆盖
+    newMeta.resourceId = resourceId;
+
+    await fs.writeFile(metaPath, JSON.stringify(newMeta, null, 2), 'utf-8');
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: String(error) };
+  }
+}
 
 /**
  * 从资源ID加载字幕片段
@@ -44,6 +177,7 @@ export async function loadSegmentsFromResource(resourceId: string): Promise<{ fi
 
 /**
  * 加载资源的关联翻译数据（每种语言只返回最新的一个）
+ * 从项目文件夹的 data/translations/ 目录读取
  * @param resourceId 资源 ID
  * @returns 翻译资源列表（JSON 格式），每种语言只包含最新的翻译
  */
@@ -51,41 +185,52 @@ export async function loadTranslatedSubtitles(
   resourceId: string
 ): Promise<Array<{ id: string; language?: string; title?: string; filePath?: string; segments?: Array<{ index: number; text: string }> }>> {
   try {
-    const children = await ResourcesRepo.listChildren(resourceId);
-    // 排除已移到回收站的翻译资源（deletedAt 不为空表示已删除）
-    const translations = children.filter((child) => child.type === 'translation' && (child as { deletedAt?: number | null }).deletedAt == null);
+    // 获取资源信息
+    const resource = await ResourcesRepo.getById(resourceId);
+    if (!resource || !resource.workspaceId) {
+      return [];
+    }
 
-    // 按语言分组，每组只保留最新的（根据 updatedAt）
-    const latestByLanguage = new Map<string, any>();
+    // 读取项目元数据
+    const meta = await readProjectMeta(resourceId, resource.workspaceId);
+    if (!meta?.translations || meta.translations.length === 0) {
+      return [];
+    }
 
-    for (const t of translations) {
-      const lang = t.language || 'unknown';
+    // 按语言分组，每组只保留最新的（根据 translatedAt）
+    const latestByLanguage = new Map<string, ProjectTranslationEntry>();
+    for (const t of meta.translations) {
+      const lang = t.targetLanguage || 'unknown';
       const existing = latestByLanguage.get(lang);
-
-      if (!existing || (t.updatedAt || 0) > (existing.updatedAt || 0)) {
+      if (!existing || t.translatedAt > existing.translatedAt) {
         latestByLanguage.set(lang, t);
       }
     }
 
     // 读取每个最新翻译的 JSON 文件内容
+    const translationsDir = await getTranslationsDir(resourceId, resource.workspaceId);
+    if (!translationsDir) {
+      return [];
+    }
+
     const results = await Promise.all(
       Array.from(latestByLanguage.values()).map(async (t) => {
         let segments: Array<{ index: number; text: string }> | undefined;
-        if (t.filePath) {
-          try {
-            const content = await readFile(t.filePath, 'utf8');
-            const json = JSON.parse(content) as TranslatedSubtitleJsonV1;
-            segments = json.translatedSegments;
-          } catch (error) {
-            console.error('[loadTranslatedSubtitles] 读取翻译文件失败:', t.filePath, error);
-          }
+        const filePath = path.join(translationsDir, t.fileName);
+
+        try {
+          const content = await readFile(filePath, 'utf8');
+          const json = JSON.parse(content) as TranslatedSubtitleJsonV1;
+          segments = json.translatedSegments;
+        } catch (error) {
+          console.error('[loadTranslatedSubtitles] 读取翻译文件失败:', filePath, error);
         }
 
         return {
           id: t.id,
-          language: t.language,
-          title: t.title,
-          filePath: t.filePath,
+          language: t.targetLanguage,
+          title: `${resource.title || '字幕'} - ${t.targetLanguage || '翻译'}`,
+          filePath,
           segments
         };
       })
@@ -364,6 +509,7 @@ export async function loadResourceMindmap(resourceId: string): Promise<any | nul
 
 /**
  * 加载资源的所有翻译历史记录（不做筛选）
+ * 从项目文件夹的 data/translations/ 目录读取
  * @param resourceId 资源 ID
  * @returns 所有翻译资源列表（包括同语言的多个版本）
  */
@@ -371,34 +517,49 @@ export async function loadAllTranslationHistory(
   resourceId: string
 ): Promise<Array<{ id: string; language?: string; title?: string; filePath?: string; segments?: Array<{ index: number; text: string }>; createdAt?: number; updatedAt?: number }>> {
   try {
-    const children = await ResourcesRepo.listChildren(resourceId);
-    const translations = children.filter((child) => child.type === 'translation');
+    // 获取资源信息
+    const resource = await ResourcesRepo.getById(resourceId);
+    if (!resource || !resource.workspaceId) {
+      return [];
+    }
 
-    // 按 updatedAt 倒序排序（最新的在前）
-    translations.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    // 读取项目元数据
+    const meta = await readProjectMeta(resourceId, resource.workspaceId);
+    if (!meta?.translations || meta.translations.length === 0) {
+      return [];
+    }
+
+    // 按 translatedAt 倒序排序（最新的在前）
+    const sortedTranslations = [...meta.translations].sort((a, b) => b.translatedAt - a.translatedAt);
+
+    // 获取翻译目录路径
+    const translationsDir = await getTranslationsDir(resourceId, resource.workspaceId);
+    if (!translationsDir) {
+      return [];
+    }
 
     // 读取每个翻译的 JSON 文件内容
     const results = await Promise.all(
-      translations.map(async (t) => {
+      sortedTranslations.map(async (t) => {
         let segments: Array<{ index: number; text: string }> | undefined;
-        if (t.filePath) {
-          try {
-            const content = await readFile(t.filePath, 'utf8');
-            const json = JSON.parse(content) as TranslatedSubtitleJsonV1;
-            segments = json.translatedSegments;
-          } catch (error) {
-            console.error('[loadAllTranslationHistory] 读取翻译文件失败:', t.filePath, error);
-          }
+        const filePath = path.join(translationsDir, t.fileName);
+
+        try {
+          const content = await readFile(filePath, 'utf8');
+          const json = JSON.parse(content) as TranslatedSubtitleJsonV1;
+          segments = json.translatedSegments;
+        } catch (error) {
+          console.error('[loadAllTranslationHistory] 读取翻译文件失败:', filePath, error);
         }
 
         return {
           id: t.id,
-          language: t.language,
-          title: t.title,
-          filePath: t.filePath,
+          language: t.targetLanguage,
+          title: `${resource.title || '字幕'} - ${t.targetLanguage || '翻译'}`,
+          filePath,
           segments,
-          createdAt: t.createdAt,
-          updatedAt: t.updatedAt
+          createdAt: t.startTimestamp,
+          updatedAt: t.translatedAt
         };
       })
     );
@@ -407,6 +568,43 @@ export async function loadAllTranslationHistory(
   } catch (error) {
     console.error('[loadAllTranslationHistory] 加载翻译历史失败:', error);
     return [];
+  }
+}
+
+/**
+ * 清理数据库中的翻译类型资源
+ * 翻译文件已迁移到项目文件夹存储，此函数用于清理旧的数据库记录
+ * @param subtitleResourceId 可选，指定字幕资源 ID 则只清理该资源的翻译记录
+ * @returns 删除的记录数量
+ */
+export async function cleanupTranslationResources(subtitleResourceId?: string): Promise<{ success: boolean; deletedCount?: number; error?: string }> {
+  try {
+    let deletedCount = 0;
+
+    if (subtitleResourceId) {
+      // 清理指定字幕资源的翻译记录
+      const children = await ResourcesRepo.listChildren(subtitleResourceId);
+      const translations = children.filter((child) => child.type === 'translation');
+
+      for (const t of translations) {
+        await ResourcesRepo.deleteByIds([t.id]);
+        deletedCount++;
+      }
+    } else {
+      // 清理所有翻译类型的资源
+      // 注意：ResourcesRepo 可能没有直接按类型查询的方法，需要通过其他方式
+      // 这里使用 listChildren 配合 parentResourceId 的方式可能不够全面
+      // 暂时只支持指定 resourceId 的清理
+      console.warn('[cleanupTranslationResources] 未指定 subtitleResourceId，暂不支持全量清理');
+      return { success: false, error: '需要指定 subtitleResourceId' };
+    }
+
+    console.log(`[cleanupTranslationResources] 已清理 ${deletedCount} 条翻译资源记录`);
+    return { success: true, deletedCount };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[cleanupTranslationResources] 清理失败:', message);
+    return { success: false, error: message };
   }
 }
 
@@ -651,18 +849,30 @@ function safeSuffixPart(input: string | undefined): string {
   return raw.replace(/[^a-z0-9_-]+/g, '').slice(0, 32);
 }
 
-function buildTranslatedJsonPath(sourceSubtitlePath: string, targetLanguage: string | undefined, startTimestamp: number): string {
-  const dir = path.dirname(sourceSubtitlePath);
+/**
+ * 构建翻译 JSON 文件路径（存储在项目文件夹的 data/translations/ 目录中）
+ * @param resourceId 字幕资源 ID
+ * @param workspaceId 工作空间 ID
+ * @param sourceSubtitlePath 源字幕文件路径（用于提取基础文件名）
+ * @param targetLanguage 目标语言
+ * @param startTimestamp 翻译开始时间戳
+ * @returns 翻译 JSON 文件路径
+ */
+async function buildTranslatedJsonPath(resourceId: string, workspaceId: string, sourceSubtitlePath: string, targetLanguage: string | undefined, startTimestamp: number): Promise<string | null> {
+  const translationsDir = await getTranslationsDir(resourceId, workspaceId);
+  if (!translationsDir) return null;
+
+  // 使用源字幕文件名作为基础名，添加语言和时间戳后缀
   const base = path.basename(sourceSubtitlePath); // keep original extension (e.g. movie.srt)
   const lang = safeSuffixPart(targetLanguage);
-  const suffix = lang ? `.translated.${lang}.${startTimestamp}.json` : `.translated.${startTimestamp}.json`;
-  return path.join(dir, `${base}${suffix}`);
+  const suffix = lang ? `.${lang}.${startTimestamp}.json` : `.${startTimestamp}.json`;
+  return path.join(translationsDir, `${base}${suffix}`);
 }
 /**
- * 创建或更新翻译资源（仅 JSON 格式）
- * 保留所有翻译历史记录，查看时只展示每种语言最新的一个
+ * 更新项目元数据中的翻译条目
+ * 翻译文件存储在项目文件夹的 data/translations/ 目录中，不再创建数据库资源
  * @param translationJsonPath 翻译 JSON 文件路径
- * @param sourceResourceId 源资源 ID
+ * @param sourceResourceId 源资源 ID（字幕资源）
  * @param targetLanguage 目标语言
  * @param providerId AI 提供商 ID
  * @param model AI 模型名称
@@ -681,59 +891,59 @@ async function createOrUpdateTranslationResource(opts: {
   try {
     // 获取源资源信息
     const sourceResource = await ResourcesRepo.getById(sourceResourceId);
-    if (!sourceResource) {
-      console.warn('[translation-resource] 源资源不存在:', sourceResourceId);
+    if (!sourceResource || !sourceResource.workspaceId) {
+      console.warn('[translation-resource] 源资源不存在或缺少 workspaceId:', sourceResourceId);
       return;
     }
 
-    // 读取 JSON 文件获取文件大小
-    const jsonStat = await fs.stat(translationJsonPath);
-    const translatedTitle = sourceResource.title ? `${sourceResource.title} - ${targetLanguage || '翻译'}` : `翻译数据 - ${targetLanguage || ''}`;
+    // 从文件路径提取文件名
+    const fileName = path.basename(translationJsonPath);
 
-    // 获取所有子资源
-    const existingChildren = await ResourcesRepo.listChildren(sourceResourceId);
-
-    // 查找当前 JSON 文件对应的资源
-    const existingTranslation = existingChildren.find((child) => child.type === 'translation' && child.filePath === translationJsonPath);
-
-    const resourceData = {
-      type: 'translation',
-      parentResourceId: sourceResourceId, // 关联源资源
-      workspaceId: sourceResource.workspaceId,
-      folderId: sourceResource.folderId,
-      title: translatedTitle,
-      description: `翻译自: ${sourceResource.title || sourceResource.description || '原字幕'}`,
-      filePath: translationJsonPath,
-      language: targetLanguage,
-      mimeType: 'application/json',
-      sizeBytes: jsonStat.size,
-      status: 'ready',
-      metadata: JSON.stringify({
-        translationSource: sourceResourceId,
-        providerId,
-        model,
-        targetLanguage,
-        translatedAt: Date.now(),
-        startTimestamp
-      })
+    // 创建翻译条目
+    const translationEntry: ProjectTranslationEntry = {
+      id: randomUUID(),
+      fileName,
+      targetLanguage,
+      providerId,
+      model,
+      translatedAt: Date.now(),
+      startTimestamp
     };
 
-    if (existingTranslation) {
-      // 更新现有资源
-      await ResourcesRepo.update(existingTranslation.id, resourceData as any);
-      console.log(`[translation-resource] 翻译资源已更新:`, existingTranslation.id);
+    // 读取现有元数据
+    const existingMeta = await readProjectMeta(sourceResourceId, sourceResource.workspaceId);
+    const existingTranslations = existingMeta?.translations || [];
+
+    // 检查是否已存在相同 startTimestamp 的记录（同一翻译任务）
+    const existingIndex = existingTranslations.findIndex((t) => t.startTimestamp === startTimestamp);
+    if (existingIndex >= 0) {
+      // 更新现有条目
+      existingTranslations[existingIndex] = translationEntry;
     } else {
-      // 创建新资源（保留历史记录，不删除旧的）
-      const newResource = await ResourcesRepo.upsert(resourceData as any);
-      console.log(`[translation-resource] 翻译资源已创建:`, newResource?.id);
+      // 添加新条目
+      existingTranslations.push(translationEntry);
+    }
+
+    // 写入更新后的元数据
+    const metaResult = await writeProjectMeta(sourceResourceId, sourceResource.workspaceId, {
+      resourceType: 'subtitle',
+      parentResourceId: sourceResource.parentResourceId || undefined,
+      translations: existingTranslations
+    });
+
+    if (metaResult.success) {
+      console.log('[translation-resource] 项目元数据已更新，翻译条目已添加/更新:', fileName);
+    } else {
+      console.warn('[translation-resource] 更新项目元数据失败:', metaResult.error);
     }
   } catch (error) {
-    console.error('[translation-resource] 创建/更新翻译资源失败:', error);
+    console.error('[translation-resource] 更新翻译元数据失败:', error);
   }
 }
 
 async function saveTranslatedSubtitleJson(opts: {
   resourceId: string;
+  workspaceId: string;
   sourceFilePath?: string;
   translatedSegments: Array<{ index: number; text: string }>;
   providerId?: string;
@@ -752,7 +962,13 @@ async function saveTranslatedSubtitleJson(opts: {
       return undefined;
     }
 
-    const outPath = buildTranslatedJsonPath(sourceFilePath, opts.targetLanguage, opts.startTimestamp);
+    // 构建项目文件夹中的翻译文件路径
+    const outPath = await buildTranslatedJsonPath(opts.resourceId, opts.workspaceId, sourceFilePath, opts.targetLanguage, opts.startTimestamp);
+    if (!outPath) {
+      console.warn('[translation-save] 无法构建翻译文件路径');
+      return undefined;
+    }
+
     const sorted = [...(opts.translatedSegments || [])].sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
 
     const payload: TranslatedSubtitleJsonV1 = {
@@ -774,7 +990,7 @@ async function saveTranslatedSubtitleJson(opts: {
     const content = JSON.stringify(payload, null, 2);
     await writeFile(outPath, content);
 
-    console.log('[translation-save] 翻译 JSON 已保存:', outPath);
+    console.log('[translation-save] 翻译 JSON 已保存到项目文件夹:', outPath);
     return outPath;
   } catch (error) {
     console.error('[translation-save] 保存翻译 JSON 失败:', error);
@@ -784,22 +1000,41 @@ async function saveTranslatedSubtitleJson(opts: {
 
 /**
  * 更新翻译 JSON 中指定片段（时间或文本）：用户拖拽时间轴或编辑文本后写回文件
+ * @param subtitleResourceId 字幕资源 ID（用于定位项目文件夹）
+ * @param translationEntryId 翻译条目 ID（项目元数据中的 ID）
  * @param patch 只更新传入的字段，支持 st / et / text 的任意组合
  */
 export async function updateTranslationSegment(opts: {
-  translationResourceId: string;
+  subtitleResourceId: string;
+  translationEntryId: string;
   segmentIndex: number;
   patch: { st?: string; et?: string; text?: string };
 }): Promise<{ success: boolean; message?: string }> {
   try {
-    const resource = await ResourcesRepo.getById(opts.translationResourceId);
-    if (!resource || !resource.filePath) {
-      return { success: false, message: '翻译资源不存在或没有文件路径' };
+    // 获取字幕资源信息
+    const resource = await ResourcesRepo.getById(opts.subtitleResourceId);
+    if (!resource || !resource.workspaceId) {
+      return { success: false, message: '字幕资源不存在或缺少工作空间' };
     }
-    const filePath = resource.filePath;
-    if (!filePath.toLowerCase().endsWith('.json')) {
-      return { success: false, message: '不是翻译 JSON 文件' };
+
+    // 读取项目元数据
+    const meta = await readProjectMeta(opts.subtitleResourceId, resource.workspaceId);
+    if (!meta?.translations) {
+      return { success: false, message: '未找到翻译元数据' };
     }
+
+    // 查找翻译条目
+    const translationEntry = meta.translations.find((t) => t.id === opts.translationEntryId);
+    if (!translationEntry) {
+      return { success: false, message: '未找到翻译条目' };
+    }
+
+    // 构建文件路径
+    const translationsDir = await getTranslationsDir(opts.subtitleResourceId, resource.workspaceId);
+    if (!translationsDir) {
+      return { success: false, message: '无法获取翻译目录' };
+    }
+    const filePath = path.join(translationsDir, translationEntry.fileName);
 
     const content = await readFile(filePath, 'utf8');
     const payload = JSON.parse(content) as {
@@ -836,21 +1071,40 @@ export async function updateTranslationSegment(opts: {
 
 /**
  * 在翻译 JSON 中插入一个新片段（用于在翻译轨道空白处新增字幕块）
+ * @param subtitleResourceId 字幕资源 ID（用于定位项目文件夹）
+ * @param translationEntryId 翻译条目 ID（项目元数据中的 ID）
  */
 export async function insertTranslationSegment(opts: {
-  translationResourceId: string;
+  subtitleResourceId: string;
+  translationEntryId: string;
   insertIndex: number;
   segment: { st: string; et: string; text: string };
 }): Promise<{ success: boolean; message?: string }> {
   try {
-    const resource = await ResourcesRepo.getById(opts.translationResourceId);
-    if (!resource || !resource.filePath) {
-      return { success: false, message: '翻译资源不存在或没有文件路径' };
+    // 获取字幕资源信息
+    const resource = await ResourcesRepo.getById(opts.subtitleResourceId);
+    if (!resource || !resource.workspaceId) {
+      return { success: false, message: '字幕资源不存在或缺少工作空间' };
     }
-    const filePath = resource.filePath;
-    if (!filePath.toLowerCase().endsWith('.json')) {
-      return { success: false, message: '不是翻译 JSON 文件' };
+
+    // 读取项目元数据
+    const meta = await readProjectMeta(opts.subtitleResourceId, resource.workspaceId);
+    if (!meta?.translations) {
+      return { success: false, message: '未找到翻译元数据' };
     }
+
+    // 查找翻译条目
+    const translationEntry = meta.translations.find((t) => t.id === opts.translationEntryId);
+    if (!translationEntry) {
+      return { success: false, message: '未找到翻译条目' };
+    }
+
+    // 构建文件路径
+    const translationsDir = await getTranslationsDir(opts.subtitleResourceId, resource.workspaceId);
+    if (!translationsDir) {
+      return { success: false, message: '无法获取翻译目录' };
+    }
+    const filePath = path.join(translationsDir, translationEntry.fileName);
 
     const content = await readFile(filePath, 'utf8');
     const payload = JSON.parse(content) as {
@@ -886,17 +1140,35 @@ export async function insertTranslationSegment(opts: {
 
 /**
  * 从翻译 JSON 中删除指定片段（用于快捷键或按钮删除选中块）
+ * @param subtitleResourceId 字幕资源 ID（用于定位项目文件夹）
+ * @param translationEntryId 翻译条目 ID（项目元数据中的 ID）
  */
-export async function deleteTranslationSegment(opts: { translationResourceId: string; segmentIndex: number }): Promise<{ success: boolean; message?: string }> {
+export async function deleteTranslationSegment(opts: { subtitleResourceId: string; translationEntryId: string; segmentIndex: number }): Promise<{ success: boolean; message?: string }> {
   try {
-    const resource = await ResourcesRepo.getById(opts.translationResourceId);
-    if (!resource || !resource.filePath) {
-      return { success: false, message: '翻译资源不存在或没有文件路径' };
+    // 获取字幕资源信息
+    const resource = await ResourcesRepo.getById(opts.subtitleResourceId);
+    if (!resource || !resource.workspaceId) {
+      return { success: false, message: '字幕资源不存在或缺少工作空间' };
     }
-    const filePath = resource.filePath;
-    if (!filePath.toLowerCase().endsWith('.json')) {
-      return { success: false, message: '不是翻译 JSON 文件' };
+
+    // 读取项目元数据
+    const meta = await readProjectMeta(opts.subtitleResourceId, resource.workspaceId);
+    if (!meta?.translations) {
+      return { success: false, message: '未找到翻译元数据' };
     }
+
+    // 查找翻译条目
+    const translationEntry = meta.translations.find((t) => t.id === opts.translationEntryId);
+    if (!translationEntry) {
+      return { success: false, message: '未找到翻译条目' };
+    }
+
+    // 构建文件路径
+    const translationsDir = await getTranslationsDir(opts.subtitleResourceId, resource.workspaceId);
+    if (!translationsDir) {
+      return { success: false, message: '无法获取翻译目录' };
+    }
+    const filePath = path.join(translationsDir, translationEntry.fileName);
 
     const content = await readFile(filePath, 'utf8');
     const payload = JSON.parse(content) as {
@@ -942,6 +1214,7 @@ export async function executeSubtitleTranslation(payload: TranslatePayload): Pro
   let actualSegments: Array<AimSegments> | undefined = segments;
   const effectiveResourceId: string | undefined = resourceId || metadata?.resourceId;
   let sourceSubtitleFilePath: string | undefined;
+  let sourceWorkspaceId: string | undefined; // 保存工作空间 ID
 
   if (!actualSegments && effectiveResourceId) {
     try {
@@ -965,6 +1238,16 @@ export async function executeSubtitleTranslation(payload: TranslatePayload): Pro
       sourceSubtitleFilePath = resource?.filePath || undefined;
     } catch {
       sourceSubtitleFilePath = undefined;
+    }
+  }
+
+  // 获取工作空间 ID（用于保存翻译文件到项目文件夹）
+  if (effectiveResourceId) {
+    try {
+      const resource = await ResourcesRepo.getById(effectiveResourceId);
+      sourceWorkspaceId = resource?.workspaceId || undefined;
+    } catch {
+      sourceWorkspaceId = undefined;
     }
   }
 
@@ -1002,6 +1285,7 @@ export async function executeSubtitleTranslation(payload: TranslatePayload): Pro
         // 保存翻译结果（JSON）并获取文件路径
         const jsonPath = await saveTranslatedSubtitleJson({
           resourceId: effectiveResourceId,
+          workspaceId: sourceWorkspaceId!,
           sourceFilePath: sourceSubtitleFilePath,
           translatedSegments: accumulatedTranslations,
           providerId,

@@ -66,6 +66,8 @@ export type ResourceIpcParams = {
   'resource:getSegmentsData': IpcParams<[{ subtitleResourceId: string }], any[] | null>;
   /** 更新字幕资源的 segments 数据（字级别时间戳） */
   'resource:updateSegmentsData': IpcParams<[{ subtitleResourceId: string; segmentsData: any[] }], { success: boolean; error?: string }>;
+  /** 删除数据库中现有的 segments 类型资源（迁移到项目文件夹后清理旧数据） */
+  'resource:cleanupSegmentsResources': IpcParams<[{ subtitleResourceId?: string }], { success: boolean; deletedCount?: number; error?: string }>;
   getResource: IpcParams<[{ id: string }], Resource | undefined>;
   'resource:update': IpcParams<[{ id: string; patch: any }], { success: boolean; data?: any }>;
   deleteResource: IpcParams<[{ id: string }], { success: true }>;
@@ -235,6 +237,7 @@ const methods: Array<keyof ResourceIpcParams> = [
   'resource:listChildren',
   'resource:getSegmentsData',
   'resource:updateSegmentsData',
+  'resource:cleanupSegmentsResources',
   'getResource',
   'resource:update',
   'deleteResource',

@@ -251,7 +251,10 @@ Resources in Chobits have a **parent-child relationship** via the `parentResourc
 
 Each resource can have an associated **project directory** for storing task outputs, cache files, temporary data, and persistent data. This provides isolated workspace for resource-specific processing without polluting the main resources folder.
 
+Project folders use the `.resproject` suffix, which allows macOS to register them as custom package types in the future (double-clickable bundles).
+
 **Directory structure:**
+
 ```
 <workspace>/
 ├── resources/              # Main resource storage
@@ -259,18 +262,124 @@ Each resource can have an associated **project directory** for storing task outp
 │   ├── .trash/             # Recycle bin
 │   └── .thumbs/            # Thumbnails
 └── projects/               # Resource project directories
-    └── <resourceId>/       # One folder per resource
+    └── <resourceId>.resproject/  # One package per resource
+        ├── project.json    # Project metadata file
         ├── outputs/        # Task outputs (exports, generated files for export)
         ├── cache/          # Cache files (intermediate results, reusable)
-        ├── temp/           # Temporary files (transcription outputs, processing artifacts)
-        └── data/           # Persistent data (regular data files for processing)
+        ├── temp/           # Temporary files (processing artifacts, caches)
+        │   └── waveforms/  # Audio waveform cache files
+        │       └── video.waveform-abc123.json  # Waveform data for timeline display
+        └── data/           # Persistent data
+            ├── translations/  # Translation files (for subtitle resources)
+            │   └── video.zh-CN.1234567890.json  # Translation JSON with timestamp
+            ├── segments/      # Segments data for subtitles (word-level timestamps)
+            │   └── video.zh.segments.json
+            ├── tts/           # TTS synthesized audio files (organized by track)
+            │   ├── main/      # Main track TTS audio
+            │   │   ├── history-abc12345.json  # TTS synthesis history
+            │   │   └── *.mp3  # Synthesized audio files
+            │   └── en/        # Translation track TTS (language code as folder)
+            │       └── ...
+            └── ...              # Other data files
 ```
 
 **Directory purposes:**
+
+- `project.json` - Project metadata (resource info, segments mappings, translation history)
 - `outputs/` - Final export files (e.g., processed videos ready for export)
 - `cache/` - Reusable intermediate files (e.g., transcoded audio for transcription)
-- `temp/` - Temporary processing outputs (e.g., transcription SRT, segments.json)
-- `data/` - Persistent data files used during processing (e.g., vocabulary lists, configuration data)
+- `temp/` - Temporary processing outputs and caches
+  - `waveforms/` - Audio waveform cache files for timeline display (auto-generated, can be deleted)
+- `data/` - Persistent data files
+  - `translations/` - Translation JSON files (for subtitle resources)
+  - `segments/` - Segments data with word-level timestamps (for subtitle resources)
+  - `tts/` - TTS synthesized audio files, organized by track (`main/` for main track, `<langCode>/` for translation tracks)
+
+### Project Metadata (project.json)
+
+The `project.json` file stores metadata about the project:
+
+```json
+{
+  "version": 1,
+  "resourceId": "xxx-xxx-xxx",
+  "resourceType": "subtitle",
+  "createdAt": 1234567890,
+  "updatedAt": 1234567890,
+  "parentResourceId": "yyy-yyy-yyy",
+  "segments": [
+    {
+      "subtitleFile": "video.zh.srt",
+      "segmentsFile": "video.zh.segments.json"
+    }
+  ],
+  "translations": [
+    {
+      "id": "uuid-for-translation-entry",
+      "fileName": "video.zh.srt.en.1234567890.json",
+      "targetLanguage": "en",
+      "providerId": "openai",
+      "model": "gpt-4",
+      "translatedAt": 1234567890,
+      "startTimestamp": 1234567800
+    }
+  ]
+}
+```
+
+**Key fields:**
+
+- `version` - Metadata schema version
+- `resourceId` - The resource this project belongs to
+- `resourceType` - Type of the resource (e.g., "subtitle")
+- `parentResourceId` - Parent resource ID (for derived resources)
+- `segments` - Array of subtitle-to-segments file mappings
+- `translations` - Array of translation entries (for subtitle resources)
+
+### Subtitle Segments Management
+
+Subtitle resources store their segments data (word-level timestamps) in the project folder's `data/segments/` subdirectory instead of as database resources. This makes segments invisible to users but still queryable.
+
+**Storage location:** `<resourceId>.resproject/data/segments/<filename>.segments.json`
+
+### Audio Waveform Cache
+
+Audio waveform data (for timeline display) is cached in the project folder's `temp/waveforms/` subdirectory. These files are auto-generated and can be safely deleted (they will be regenerated when needed).
+
+**Storage location:** `<resourceId>.resproject/temp/waveforms/<filename>.waveform-<hash>.json`
+
+**How it works:**
+
+1. When a subtitle is created, the system looks for a companion `.segments.json` file
+2. If found, it's **moved** to `<resourceId>.resproject/data/segments/<basename>.segments.json` (not copied - source file is deleted)
+3. The `project.json` is updated with the segments file mapping
+4. Querying segments reads from the project folder, not the database
+5. When subtitle is deleted, the project folder (including segments) is automatically removed
+
+**Segments file naming:** `video.zh.srt` → `video.zh.segments.json`
+
+### Translation Management
+
+Translation files follow the same pattern as segments - stored in project folder instead of database resources:
+
+**How it works:**
+
+1. When translation is performed, files are saved to `<subtitleId>.resproject/data/translations/`
+2. The `project.json` is updated with translation entry metadata
+3. Querying translations reads from the project folder, not the database
+4. Translation history is preserved with timestamp-based file naming
+5. When subtitle is deleted, all translations are automatically removed
+
+**Translation file naming:** `video.zh.srt.en.1234567890.json` (original name + target language + timestamp)
+
+**IPC API for translations** (prefix `ai:`):
+
+- `ai:getResourceTranslations` - Get translations for a subtitle (latest per language)
+- `ai:getAllTranslationHistory` - Get all translation history for a subtitle
+- `ai:updateTranslationSegment` - Update a segment in a translation file
+- `ai:insertTranslationSegment` - Insert a new segment in a translation file
+- `ai:deleteTranslationSegment` - Delete a segment from a translation file
+- `ai:cleanupTranslationResources` - Remove old translation records from database (migration)
 
 ### Implementation
 
@@ -278,29 +387,33 @@ Each resource can have an associated **project directory** for storing task outp
 
 **IPC API** (prefix: `resource:`):
 
-| Method | Description |
-|--------|-------------|
-| `resource:getProjectPath` | Get project directory path (no creation) |
-| `resource:ensureProjectDir` | Ensure project directory exists, return paths |
-| `resource:clearProjectDir` | Clear contents (keep structure), optionally for specific subdirectory |
-| `resource:deleteProjectDir` | Delete project directory entirely |
-| `resource:getProjectStats` | Get size/file count statistics |
-| `resource:createProjectSubDir` | Create custom subdirectory |
+| Method                              | Description                                                           |
+| ----------------------------------- | --------------------------------------------------------------------- |
+| `resource:getProjectPath`           | Get project directory path (no creation)                              |
+| `resource:ensureProjectDir`         | Ensure project directory exists, return paths                         |
+| `resource:clearProjectDir`          | Clear contents (keep structure), optionally for specific subdirectory |
+| `resource:deleteProjectDir`         | Delete project directory entirely                                     |
+| `resource:getProjectStats`          | Get size/file count statistics                                        |
+| `resource:createProjectSubDir`      | Create custom subdirectory                                            |
+| `resource:getSegmentsData`          | Get segments data for subtitle (reads from project folder)            |
+| `resource:updateSegmentsData`       | Update segments data for subtitle (writes to project folder)          |
+| `resource:cleanupSegmentsResources` | Delete old segments-type resources from database                      |
 
 **Usage example:**
+
 ```typescript
 // Renderer process
 const result = await window.YUA.resource['resource:ensureProjectDir']({
   resourceId: 'xxx-xxx-xxx',
   workspaceId: 'ws-xxx',
-  subDirs: ['outputs', 'cache', 'temp', 'data']  // Optional, defaults to all
+  subDirs: ['outputs', 'cache', 'temp', 'data'] // Optional, defaults to all
 });
 
-// result.path: "/workspace/projects/xxx-xxx-xxx"
-// result.subDirs.outputs: "/workspace/projects/xxx-xxx-xxx/outputs"
-// result.subDirs.cache: "/workspace/projects/xxx-xxx-xxx/cache"
-// result.subDirs.temp: "/workspace/projects/xxx-xxx-xxx/temp"
-// result.subDirs.data: "/workspace/projects/xxx-xxx-xxx/data"
+// result.path: "/workspace/projects/xxx-xxx-xxx.resproject"
+// result.subDirs.outputs: "/workspace/projects/xxx-xxx-xxx.resproject/outputs"
+// result.subDirs.cache: "/workspace/projects/xxx-xxx-xxx.resproject/cache"
+// result.subDirs.temp: "/workspace/projects/xxx-xxx-xxx.resproject/temp"
+// result.subDirs.data: "/workspace/projects/xxx-xxx-xxx.resproject/data"
 ```
 
 ### Workflow Integration
@@ -323,12 +436,13 @@ if (ctx.getResourceProjectDirs) {
 - **Permanent delete**: Project directory is automatically cleaned up when a resource is hard-deleted
 - **Soft delete**: Project directory is preserved (resource can be restored)
 - **Subdirectory types**: `outputs`, `cache`, `temp`, `data` are predefined; custom subdirectories can be created
+- **macOS package**: The `.resproject` suffix allows future registration as a custom package type that can be opened by double-clicking
 
 **For AI contributors**: When implementing features that generate files from resources (e.g., video frame extraction, audio processing, AI analysis results), use the project directory instead of creating files alongside the original resource. This keeps the resources folder clean and makes cleanup predictable.
 
 - Use `cache/` for reusable intermediate files (e.g., transcoded audio that can be reused)
 - Use `temp/` for task outputs that are consumed by other processes (e.g., transcription SRT files)
-- Use `data/` for persistent data files that need to be kept (e.g., vocabulary lists, custom dictionaries)
+- Use `data/` for persistent data files that need to be kept (e.g., segments files, vocabulary lists)
 - Use `outputs/` for final export-ready files
 
 ## Troubleshooting

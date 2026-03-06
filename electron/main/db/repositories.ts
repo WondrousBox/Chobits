@@ -770,14 +770,15 @@ export const ResourcesRepo = {
         projectDirsToDelete.set(r.id, r.workspaceId);
       }
     }
-    // 异步清理项目目录
+    // 异步清理项目目录（使用 .resproject 后缀）
     for (const [resourceId, workspaceId] of projectDirsToDelete) {
       try {
         const ws = await WorkspacesRepo.getById(workspaceId);
         if (ws?.rootPath) {
-          const projectPath = path.join(ws.rootPath, 'projects', resourceId);
+          const projectPath = path.join(ws.rootPath, 'projects', `${resourceId}.resproject`);
           if (fscb.existsSync(projectPath)) {
             await fs.rm(projectPath, { recursive: true, force: true });
+            console.log('[deleteByIds] 已清理项目目录:', projectPath);
           }
         }
       } catch (e) {

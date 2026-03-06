@@ -16,11 +16,18 @@ import type { Resource } from './ipc-renderer';
 import {
   clearResourceProjectDir,
   createCustomProjectSubDir,
+  deleteProjectTrack,
   deleteResourceProjectDir,
   ensureResourceProjectDir,
   getResourceProjectPath,
   getResourceProjectStats,
-  type ProjectSubDir
+  type ProjectSubDir,
+  type ProjectTrackEntry,
+  listProjectTracks,
+  readProjectDataJsonSubDir,
+  readProjectMeta,
+  writeProjectDataSubDirFile,
+  writeProjectTrackConfig
 } from './resource-project';
 
 // 存储正在上传的文件流
@@ -100,40 +107,93 @@ export function initResourceHandlers(): void {
   });
 
   // 获取字幕资源的 segments 数据（字级别时间戳）
+  // 从项目文件夹 data/segments/ 子目录读取
   ipcMain.handle('resource:getSegmentsData', async (_event, payload: { subtitleResourceId: string }) => {
     const { subtitleResourceId } = payload || ({} as any);
     if (!subtitleResourceId) return null;
     try {
-      // 查找 segments 类型的子资源
-      const children = await ResourcesRepo.listChildren(subtitleResourceId, 100, 0);
-      const segmentsResource = (children as any[]).find((c: any) => c.type === 'segments');
-      if (!segmentsResource?.filePath) return null;
-      // 读取 segments.json 文件
-      if (!fscb.existsSync(segmentsResource.filePath)) return null;
-      const content = fscb.readFileSync(segmentsResource.filePath, 'utf8');
-      return JSON.parse(content);
+      // 获取字幕资源信息以获取 workspaceId
+      const subtitleResource = await ResourcesRepo.getById(subtitleResourceId);
+      if (!subtitleResource?.workspaceId) return null;
+
+      // 从项目元数据获取 segments 文件信息
+      const meta = await readProjectMeta(subtitleResourceId, subtitleResource.workspaceId);
+      if (!meta?.segments || meta.segments.length === 0) return null;
+
+      // 读取第一个 segments 文件（从 data/segments/ 子目录）
+      // TODO: 后续可以支持根据字幕文件名选择特定的 segments 文件
+      const segmentsEntry = meta.segments[0];
+      const segmentsData = await readProjectDataJsonSubDir<any[]>(subtitleResourceId, subtitleResource.workspaceId, 'segments', segmentsEntry.segmentsFile);
+      return segmentsData;
     } catch (e) {
       console.warn('[resource:getSegmentsData] failed:', e);
       return null;
     }
   });
   // 更新字幕资源的 segments 数据（字级别时间戳）
+  // 写入项目文件夹 data/segments/ 子目录
   ipcMain.handle('resource:updateSegmentsData', async (_event, payload: { subtitleResourceId: string; segmentsData: any[] }) => {
     const { subtitleResourceId, segmentsData } = payload || ({} as any);
     if (!subtitleResourceId || !Array.isArray(segmentsData)) {
       return { success: false, error: 'invalid params' };
     }
     try {
-      const children = await ResourcesRepo.listChildren(subtitleResourceId, 100, 0);
-      const segmentsResource = (children as any[]).find((c: any) => c.type === 'segments');
-      if (!segmentsResource?.filePath) {
-        return { success: false, error: 'segments resource not found' };
+      // 获取字幕资源信息以获取 workspaceId
+      const subtitleResource = await ResourcesRepo.getById(subtitleResourceId);
+      if (!subtitleResource?.workspaceId) {
+        return { success: false, error: 'subtitle resource not found' };
       }
-      await fs.writeFile(segmentsResource.filePath, JSON.stringify(segmentsData, null, 2), 'utf8');
+
+      // 从项目元数据获取 segments 文件信息
+      const meta = await readProjectMeta(subtitleResourceId, subtitleResource.workspaceId);
+      if (!meta?.segments || meta.segments.length === 0) {
+        return { success: false, error: 'segments file not found in project meta' };
+      }
+
+      // 写入第一个 segments 文件（到 data/segments/ 子目录）
+      const segmentsEntry = meta.segments[0];
+      const result = await writeProjectDataSubDirFile(subtitleResourceId, subtitleResource.workspaceId, 'segments', segmentsEntry.segmentsFile, JSON.stringify(segmentsData, null, 2));
+      if (!result.success) {
+        return { success: false, error: result.error };
+      }
+
       console.log('[resource:updateSegmentsData] segments.json updated for', subtitleResourceId);
       return { success: true };
     } catch (e: any) {
       console.warn('[resource:updateSegmentsData] failed:', e);
+      return { success: false, error: e?.message || String(e) };
+    }
+  });
+
+  // 删除数据库中现有的 segments 类型资源
+  // 这些资源已经迁移到项目文件夹管理，不再需要数据库记录
+  ipcMain.handle('resource:cleanupSegmentsResources', async (_event, payload: { subtitleResourceId?: string }) => {
+    const { subtitleResourceId } = payload || {};
+    try {
+      if (subtitleResourceId) {
+        // 删除特定字幕资源的 segments 子资源
+        const children = await ResourcesRepo.listChildren(subtitleResourceId, 100, 0);
+        const segmentsResources = (children as any[]).filter((c: any) => c.type === 'segments');
+        if (segmentsResources.length > 0) {
+          const ids = segmentsResources.map((r: any) => r.id);
+          await ResourcesRepo.deleteByIds(ids);
+          console.log('[resource:cleanupSegmentsResources] 已删除 segments 资源:', ids);
+          return { success: true, deletedCount: ids.length };
+        }
+        return { success: true, deletedCount: 0 };
+      } else {
+        // 删除所有 segments 类型资源
+        const allResources = await ResourcesRepo.list({ type: 'segments' } as any, 10000, 0);
+        if (allResources.length > 0) {
+          const ids = (allResources as any[]).map((r: any) => r.id);
+          await ResourcesRepo.deleteByIds(ids);
+          console.log('[resource:cleanupSegmentsResources] 已删除所有 segments 资源:', ids.length, '个');
+          return { success: true, deletedCount: ids.length };
+        }
+        return { success: true, deletedCount: 0 };
+      }
+    } catch (e: any) {
+      console.warn('[resource:cleanupSegmentsResources] failed:', e);
       return { success: false, error: e?.message || String(e) };
     }
   });
@@ -929,6 +989,8 @@ export function initResourceHandlers(): void {
       status: 'ready'
     } as any);
 
+    if (!newResource) throw new Error('创建字幕编排轨道失败');
+
     return { id: newResource.id, filePath: jsonPath };
   });
 
@@ -956,70 +1018,77 @@ export function initResourceHandlers(): void {
   });
 
   // ---- 独立 TTS 轨道 (tts-track) ----
+  // 存储在项目文件夹的 data/tracks/ 子目录中，不创建数据库记录
 
   ipcMain.handle('resource:createTTSTrack', async (_event, payload: { parentResourceId: string; title: string; voiceName: string; rate: number; pitch: number; autoTrimSilence: boolean }) => {
     const { parentResourceId, title, voiceName, rate, pitch, autoTrimSilence } = payload;
     const parent = await ResourcesRepo.getById(parentResourceId);
     if (!parent) throw new Error('父资源不存在');
+    if (!parent.workspaceId) throw new Error('父资源缺少工作空间 ID');
 
-    const parentDir = parent.filePath ? path.dirname(parent.filePath) : undefined;
-    if (!parentDir) throw new Error('父资源无文件路径，无法确定存储目录');
+    // 生成轨道 ID
+    const trackId = `tts-${Date.now().toString(36)}`;
+    const fileName = `${trackId}.json`;
 
-    const trackId = Date.now().toString(36);
-    const parentBaseName = path.basename(parent.filePath!, path.extname(parent.filePath!));
-    const jsonFileName = `${parentBaseName}.tts-track.${trackId}.json`;
-    const jsonPath = path.join(parentDir, jsonFileName);
+    // 轨道配置内容
+    const trackConfig = {
+      version: 1,
+      resourceId: parentResourceId,
+      type: 'tts-track',
+      startedAt: Date.now(),
+      updatedAt: Date.now(),
+      config: { voiceName, rate, pitch, autoTrimSilence },
+      segments: [] // 存储合成的片段信息
+    };
 
-    const jsonContent = JSON.stringify(
-      {
-        version: 1,
-        resourceId: parentResourceId,
-        type: 'tts-track',
-        startedAt: Date.now(),
-        updatedAt: Date.now(),
-        config: { voiceName, rate, pitch, autoTrimSilence },
-        segments: [] // 存储合成的片段信息
-      },
-      null,
-      2
-    );
-    await fs.writeFile(jsonPath, jsonContent, 'utf8');
-
-    const newResource = await ResourcesRepo.upsert({
-      type: 'tts-track' as any,
-      parentResourceId,
-      workspaceId: parent.workspaceId,
-      folderId: parent.folderId,
+    // 轨道元数据条目
+    const trackEntry: ProjectTrackEntry = {
+      id: trackId,
+      type: 'tts',
+      fileName,
       title,
-      description: `TTS配音轨道: ${title}`,
-      filePath: jsonPath,
-      language: 'tts-track',
-      mimeType: 'application/json',
-      status: 'ready'
-    } as any);
+      createdAt: Date.now()
+    };
 
-    return { id: newResource.id, trackId, filePath: jsonPath };
+    // 写入轨道配置文件并更新元数据
+    const result = await writeProjectTrackConfig(parentResourceId, parent.workspaceId, trackEntry, trackConfig);
+    if (!result.success) {
+      throw new Error(`创建 TTS 轨道失败: ${result.error}`);
+    }
+
+    // 获取文件路径用于返回
+    const filePath = await getResourceProjectPath(parentResourceId, parent.workspaceId);
+    const fullPath = filePath ? path.join(filePath, 'data', 'tracks', fileName) : undefined;
+
+    return { id: trackId, trackId, filePath: fullPath };
   });
 
   ipcMain.handle('resource:getTTSTracks', async (_event, payload: { parentResourceId: string }) => {
-    const children = await ResourcesRepo.listChildren(payload.parentResourceId);
-    const ttsTracks = children.filter((c: any) => c.type === 'tts-track' && c.deletedAt == null);
+    const { parentResourceId } = payload;
+    const parent = await ResourcesRepo.getById(parentResourceId);
+    if (!parent || !parent.workspaceId) return [];
+    const workspaceId = parent.workspaceId;
 
+    // 从项目文件夹读取轨道列表
+    const tracks = await listProjectTracks(parentResourceId, workspaceId, 'tts');
+
+    // 读取每个轨道的配置
     const results = await Promise.all(
-      ttsTracks.map(async (t: any) => {
+      tracks.map(async (t) => {
         let config = { voiceName: 'zh-CN-XiaoxiaoNeural', rate: 20, pitch: 0, autoTrimSilence: true };
         let segments: Array<{ index: number; text: string; startTime: number; endTime: number; md5?: string }> = [];
-        if (t.filePath) {
-          try {
-            const content = await fs.readFile(t.filePath, 'utf8');
-            const json = JSON.parse(content);
-            if (json.config) config = { ...config, ...json.config };
-            segments = json.segments || [];
-          } catch (err) {
-            console.error('[getTTSTracks] 读取文件失败:', t.filePath, err);
-          }
+
+        const trackConfig = await readProjectDataJsonSubDir<any>(parentResourceId, workspaceId, 'tracks', t.fileName);
+        if (trackConfig) {
+          if (trackConfig.config) config = { ...config, ...trackConfig.config };
+          segments = trackConfig.segments || [];
         }
-        return { id: t.id, title: t.title, filePath: t.filePath, config, segments };
+
+        // 获取文件路径
+        const filePath = await getResourceProjectPath(parentResourceId, workspaceId);
+        const fullPath = filePath ? path.join(filePath, 'data', 'tracks', t.fileName) : undefined;
+
+        return { id: t.id, title: t.title, filePath: fullPath, config, segments };
       })
     );
 
@@ -1031,35 +1100,64 @@ export function initResourceHandlers(): void {
     async (
       _event,
       payload: {
-        trackResourceId: string;
+        parentResourceId: string;
+        trackId: string;
+        title?: string;
         config?: { voiceName?: string; rate?: number; pitch?: number; autoTrimSilence?: boolean };
         segments?: Array<{ index: number; text: string; startTime: number; endTime: number; md5?: string }>;
       }
     ) => {
-      const { trackResourceId, config, segments } = payload;
-      const track = await ResourcesRepo.getById(trackResourceId);
-      if (!track || !track.filePath) throw new Error('TTS轨道资源不存在或无文件路径');
+      const { parentResourceId, trackId, title, config, segments } = payload;
+      const parent = await ResourcesRepo.getById(parentResourceId);
+      if (!parent || !parent.workspaceId) throw new Error('父资源不存在或缺少工作空间 ID');
+      const workspaceId = parent.workspaceId;
 
-      let json: any = { version: 1 };
-      try {
-        const content = await fs.readFile(track.filePath, 'utf8');
-        json = JSON.parse(content);
-      } catch {
-        /* ignore */
+      // 获取轨道元数据
+      const meta = await readProjectMeta(parentResourceId, workspaceId);
+      const track = meta?.tracks?.find((t) => t.id === trackId);
+      if (!track) throw new Error('TTS 轨道不存在');
+
+      // 读取现有配置
+      let trackConfig = await readProjectDataJsonSubDir<any>(parentResourceId, workspaceId, 'tracks', track.fileName);
+      if (!trackConfig) {
+        trackConfig = { version: 1, resourceId: parentResourceId, type: 'tts-track' };
       }
 
-      json.updatedAt = Date.now();
+      // 更新配置
+      trackConfig.updatedAt = Date.now();
       if (config) {
-        json.config = { ...json.config, ...config };
+        trackConfig.config = { ...trackConfig.config, ...config };
       }
       if (segments !== undefined) {
-        json.segments = segments;
+        trackConfig.segments = segments;
       }
 
-      await fs.writeFile(track.filePath, JSON.stringify(json, null, 2), 'utf8');
+      // 更新轨道元数据条目
+      const updatedEntry: ProjectTrackEntry = {
+        ...track,
+        title: title || track.title,
+        updatedAt: Date.now()
+      };
+
+      // 写入更新
+      const result = await writeProjectTrackConfig(parentResourceId, workspaceId, updatedEntry, trackConfig);
+      if (!result.success) {
+        throw new Error(`更新 TTS 轨道失败: ${result.error}`);
+      }
+
       return { success: true };
     }
   );
+
+  ipcMain.handle('resource:deleteTTSTrack', async (_event, payload: { parentResourceId: string; trackId: string }) => {
+    const { parentResourceId, trackId } = payload;
+    const parent = await ResourcesRepo.getById(parentResourceId);
+    if (!parent || !parent.workspaceId) throw new Error('父资源不存在或缺少工作空间 ID');
+    const workspaceId = parent.workspaceId;
+
+    const result = await deleteProjectTrack(parentResourceId, workspaceId, trackId);
+    return result;
+  });
 
   // ---- 媒体轨道 (media-track) ----
 
