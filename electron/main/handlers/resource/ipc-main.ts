@@ -21,12 +21,14 @@ import {
   ensureResourceProjectDir,
   getResourceProjectPath,
   getResourceProjectStats,
+  listProjectTracks,
   type ProjectSubDir,
   type ProjectTrackEntry,
-  listProjectTracks,
   readProjectDataJsonSubDir,
   readProjectMeta,
+  readProjectTrackConfig,
   writeProjectDataSubDirFile,
+  writeProjectMeta,
   writeProjectTrackConfig
 } from './resource-project';
 
@@ -948,73 +950,92 @@ export function initResourceHandlers(): void {
   });
 
   // ---- 编排字幕轨道 (subtitle-edit) ----
+  // 存储在项目文件夹的 data/tracks/ 子目录中，不创建数据库记录
 
   ipcMain.handle('resource:createSubtitleEditTrack', async (_event, payload: { parentResourceId: string; title: string }) => {
     const { parentResourceId, title } = payload;
     const parent = await ResourcesRepo.getById(parentResourceId);
     if (!parent) throw new Error('父资源不存在');
+    if (!parent.workspaceId) throw new Error('父资源缺少工作空间 ID');
 
-    const parentDir = parent.filePath ? path.dirname(parent.filePath) : undefined;
-    if (!parentDir) throw new Error('父资源无文件路径，无法确定存储目录');
+    // 生成轨道 ID
+    const trackId = `subtitle-${Date.now().toString(36)}`;
+    const fileName = `${trackId}.json`;
 
-    const trackId = Date.now().toString(36);
-    const parentBaseName = path.basename(parent.filePath!, path.extname(parent.filePath!));
-    const jsonFileName = `${parentBaseName}.subtitle-edit.${trackId}.json`;
-    const jsonPath = path.join(parentDir, jsonFileName);
+    // 轨道配置内容
+    const trackConfig = {
+      version: 1,
+      resourceId: parentResourceId,
+      type: 'subtitle-edit',
+      startedAt: Date.now(),
+      updatedAt: Date.now(),
+      translatedSegments: []
+    };
 
-    const jsonContent = JSON.stringify(
-      {
-        version: 1,
-        resourceId: parentResourceId,
-        targetLanguage: 'subtitle-edit',
-        startedAt: Date.now(),
-        updatedAt: Date.now(),
-        translatedSegments: []
-      },
-      null,
-      2
-    );
-    await fs.writeFile(jsonPath, jsonContent, 'utf8');
-
-    const newResource = await ResourcesRepo.upsert({
-      type: 'subtitle-edit' as any,
-      parentResourceId,
-      workspaceId: parent.workspaceId,
-      folderId: parent.folderId,
+    // 轨道元数据条目
+    const trackEntry: ProjectTrackEntry = {
+      id: trackId,
+      type: 'media', // 使用 media 类型（字幕轨道在时间轴上类似媒体轨道）
+      fileName,
       title,
-      description: `编排字幕轨道: ${title}`,
-      filePath: jsonPath,
-      language: 'subtitle-edit',
-      mimeType: 'application/json',
-      status: 'ready'
-    } as any);
+      createdAt: Date.now()
+    };
 
-    if (!newResource) throw new Error('创建字幕编排轨道失败');
+    // 写入轨道配置文件并更新元数据
+    const result = await writeProjectTrackConfig(parentResourceId, parent.workspaceId, trackEntry, trackConfig);
+    if (!result.success) {
+      throw new Error(`创建编排字幕轨道失败: ${result.error}`);
+    }
 
-    return { id: newResource.id, filePath: jsonPath };
+    // 获取文件路径用于返回
+    const filePath = await getResourceProjectPath(parentResourceId, parent.workspaceId);
+    const fullPath = filePath ? path.join(filePath, 'data', 'tracks', fileName) : undefined;
+
+    return { id: trackId, trackId, filePath: fullPath };
   });
 
   ipcMain.handle('resource:getSubtitleEditTracks', async (_event, payload: { parentResourceId: string }) => {
-    const children = await ResourcesRepo.listChildren(payload.parentResourceId);
-    const editTracks = children.filter((c: any) => c.type === 'subtitle-edit' && c.deletedAt == null);
+    const { parentResourceId } = payload;
+    const parent = await ResourcesRepo.getById(parentResourceId);
+    if (!parent || !parent.workspaceId) return [];
 
+    const workspaceId = parent.workspaceId;
+
+    // 从项目文件夹读取轨道列表（过滤出 subtitle 类型的轨道）
+    const tracks = await listProjectTracks(parentResourceId, workspaceId, 'media');
+
+    // 过滤出以 'subtitle-' 开头的轨道
+    const subtitleTracks = tracks.filter((t) => t.id.startsWith('subtitle-'));
+
+    // 读取每个轨道的配置
     const results = await Promise.all(
-      editTracks.map(async (t: any) => {
+      subtitleTracks.map(async (t) => {
         let segments: Array<{ index: number; text: string; st?: string; et?: string }> = [];
-        if (t.filePath) {
-          try {
-            const content = await fs.readFile(t.filePath, 'utf8');
-            const json = JSON.parse(content);
-            segments = json.translatedSegments || [];
-          } catch (err) {
-            console.error('[getSubtitleEditTracks] 读取文件失败:', t.filePath, err);
-          }
+
+        const trackConfig = await readProjectDataJsonSubDir<any>(parentResourceId, workspaceId, 'tracks', t.fileName);
+        if (trackConfig) {
+          segments = trackConfig.translatedSegments || [];
         }
-        return { id: t.id, title: t.title, filePath: t.filePath, segments };
+
+        // 获取文件路径
+        const filePath = await getResourceProjectPath(parentResourceId, workspaceId);
+        const fullPath = filePath ? path.join(filePath, 'data', 'tracks', t.fileName) : undefined;
+
+        return { id: t.id, trackId: t.id, title: t.title, filePath: fullPath, segments };
       })
     );
 
     return results;
+  });
+
+  ipcMain.handle('resource:deleteSubtitleEditTrack', async (_event, payload: { parentResourceId: string; trackId: string }) => {
+    const { parentResourceId, trackId } = payload;
+    const parent = await ResourcesRepo.getById(parentResourceId);
+    if (!parent || !parent.workspaceId) throw new Error('父资源不存在或缺少工作空间 ID');
+    const workspaceId = parent.workspaceId;
+
+    const result = await deleteProjectTrack(parentResourceId, workspaceId, trackId);
+    return result;
   });
 
   // ---- 独立 TTS 轨道 (tts-track) ----
@@ -1160,98 +1181,81 @@ export function initResourceHandlers(): void {
   });
 
   // ---- 媒体轨道 (media-track) ----
+  // 存储在项目文件夹的 data/tracks/ 子目录中，不创建数据库记录
 
   ipcMain.handle('resource:createMediaTrack', async (_event, payload: { parentResourceId: string; trackId: string; label: string; zIndex: number; color?: string }) => {
     const { parentResourceId, trackId, label, zIndex, color } = payload;
     const parent = await ResourcesRepo.getById(parentResourceId);
     if (!parent) throw new Error('父资源不存在');
+    if (!parent.workspaceId) throw new Error('父资源缺少工作空间 ID');
 
-    const parentDir = parent.filePath ? path.dirname(parent.filePath) : undefined;
-    if (!parentDir) throw new Error('父资源无文件路径，无法确定存储目录');
+    const workspaceId = parent.workspaceId;
+    const fileName = `${trackId}.json`;
 
-    const parentBaseName = path.basename(parent.filePath!, path.extname(parent.filePath!));
-    const jsonFileName = `${parentBaseName}.media-track.${trackId}.json`;
-    const jsonPath = path.join(parentDir, jsonFileName);
+    // 轨道配置内容
+    const trackConfig = {
+      version: 1,
+      resourceId: parentResourceId,
+      trackId,
+      label,
+      segments: [],
+      sources: [],
+      zIndex,
+      visible: true,
+      locked: false,
+      color: color || null,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
 
-    const jsonContent = JSON.stringify(
-      {
-        version: 1,
-        resourceId: parentResourceId,
-        trackId,
-        label,
-        segments: [],
-        sources: [],
-        zIndex,
-        visible: true,
-        locked: false,
-        color: color || null,
-        createdAt: Date.now(),
-        updatedAt: Date.now()
-      },
-      null,
-      2
-    );
-
-    await fs.writeFile(jsonPath, jsonContent, 'utf8');
-
-    const newResource = await ResourcesRepo.upsert({
-      type: 'media-track' as any,
-      parentResourceId,
-      workspaceId: parent.workspaceId,
-      folderId: parent.folderId,
+    // 轨道元数据条目
+    const trackEntry: ProjectTrackEntry = {
+      id: trackId,
+      type: 'media',
+      fileName,
       title: label,
-      description: `媒体轨道: ${label}`,
-      filePath: jsonPath,
-      mimeType: 'application/json',
-      status: 'ready'
-    } as any);
+      createdAt: Date.now()
+    };
 
-    if (!newResource) {
-      throw new Error('创建媒体轨道资源失败');
+    // 写入轨道配置文件并更新元数据
+    const result = await writeProjectTrackConfig(parentResourceId, workspaceId, trackEntry, trackConfig);
+    if (!result.success) {
+      throw new Error(`创建媒体轨道失败: ${result.error}`);
     }
 
-    console.log(`[createMediaTrack] 创建媒体轨道: ${label}, ID: ${newResource.id}`);
-    return { id: newResource.id, trackId, filePath: jsonPath };
+    // 获取文件路径用于返回
+    const filePath = await getResourceProjectPath(parentResourceId, workspaceId);
+    const fullPath = filePath ? path.join(filePath, 'data', 'tracks', fileName) : undefined;
+
+    console.log(`[createMediaTrack] 创建媒体轨道: ${label}, trackId: ${trackId}`);
+    return { id: trackId, trackId, filePath: fullPath };
   });
 
   ipcMain.handle('resource:getMediaTracks', async (_event, payload: { parentResourceId: string }) => {
-    const children = await ResourcesRepo.listChildren(payload.parentResourceId);
-    const mediaTracks = children.filter((c: any) => c.type === 'media-track' && c.deletedAt == null);
+    const { parentResourceId } = payload;
+    const parent = await ResourcesRepo.getById(parentResourceId);
+    if (!parent || !parent.workspaceId) return [];
+
+    const workspaceId = parent.workspaceId;
+
+    // 从项目文件夹读取 media 类型的轨道列表
+    const tracks = await listProjectTracks(parentResourceId, workspaceId, 'media');
 
     const results = await Promise.all(
-      mediaTracks.map(async (t: any) => {
-        let trackData: any = {
-          label: t.title,
-          zIndex: 0,
-          visible: true,
-          locked: false,
-          color: null,
-          segments: [],
-          sources: []
-        };
-
-        if (t.filePath) {
-          try {
-            const content = await fs.readFile(t.filePath, 'utf8');
-            const json = JSON.parse(content);
-            trackData = { ...trackData, ...json };
-          } catch (err) {
-            console.error('[getMediaTracks] 读取文件失败:', t.filePath, err);
-          }
-        }
+      tracks.map(async (t) => {
+        const trackConfig = await readProjectTrackConfig<any>(parentResourceId, workspaceId, t.fileName);
 
         return {
           id: t.id,
-          trackId: trackData.trackId || t.id, // 使用 JSON 中的 trackId，如果没有则使用资源 ID
+          trackId: t.id,
           title: t.title,
-          filePath: t.filePath,
-          label: trackData.label,
-          zIndex: trackData.zIndex ?? 0,
-          visible: trackData.visible ?? true,
-          locked: trackData.locked ?? false,
-          color: trackData.color,
-          segments: trackData.segments || [],
-          sources: trackData.sources || []
+          label: trackConfig?.label || t.title,
+          zIndex: trackConfig?.zIndex ?? 0,
+          visible: trackConfig?.visible ?? true,
+          locked: trackConfig?.locked ?? false,
+          color: trackConfig?.color || null,
+          segments: trackConfig?.segments || [],
+          sources: trackConfig?.sources || []
         };
       })
     );
@@ -1265,7 +1269,8 @@ export function initResourceHandlers(): void {
     async (
       _event,
       payload: {
-        trackResourceId: string;
+        parentResourceId: string;
+        trackId: string;
         label?: string;
         zIndex?: number;
         visible?: boolean;
@@ -1275,40 +1280,54 @@ export function initResourceHandlers(): void {
         sources?: any[];
       }
     ) => {
-      const { trackResourceId, ...updates } = payload;
-      const track = await ResourcesRepo.getById(trackResourceId);
-      if (!track || !track.filePath) throw new Error('媒体轨道资源不存在或无文件路径');
+      const { parentResourceId, trackId, ...updates } = payload;
+      const parent = await ResourcesRepo.getById(parentResourceId);
+      if (!parent || !parent.workspaceId) throw new Error('父资源不存在或缺少工作空间 ID');
 
-      let json: any = { version: 1 };
-      try {
-        const content = await fs.readFile(track.filePath, 'utf8');
-        json = JSON.parse(content);
-      } catch {
-        /* ignore */
+      const workspaceId = parent.workspaceId;
+
+      // 获取轨道元数据
+      const meta = await readProjectMeta(parentResourceId, workspaceId);
+      const track = meta?.tracks?.find((t) => t.id === trackId);
+      if (!track) throw new Error('媒体轨道不存在');
+
+      // 读取现有配置
+      let trackConfig = await readProjectTrackConfig<any>(parentResourceId, workspaceId, track.fileName);
+      if (!trackConfig) {
+        trackConfig = { version: 1, resourceId: parentResourceId, trackId };
       }
 
-      json.updatedAt = Date.now();
-      if (updates.label !== undefined) json.label = updates.label;
-      if (updates.zIndex !== undefined) json.zIndex = updates.zIndex;
-      if (updates.visible !== undefined) json.visible = updates.visible;
-      if (updates.locked !== undefined) json.locked = updates.locked;
-      if (updates.color !== undefined) json.color = updates.color;
-      if (updates.segments !== undefined) json.segments = updates.segments;
-      if (updates.sources !== undefined) json.sources = updates.sources;
+      // 更新配置
+      trackConfig.updatedAt = Date.now();
+      if (updates.label !== undefined) trackConfig.label = updates.label;
+      if (updates.zIndex !== undefined) trackConfig.zIndex = updates.zIndex;
+      if (updates.visible !== undefined) trackConfig.visible = updates.visible;
+      if (updates.locked !== undefined) trackConfig.locked = updates.locked;
+      if (updates.color !== undefined) trackConfig.color = updates.color;
+      if (updates.segments !== undefined) trackConfig.segments = updates.segments;
+      if (updates.sources !== undefined) trackConfig.sources = updates.sources;
 
-      await fs.writeFile(track.filePath, JSON.stringify(json, null, 2), 'utf8');
-
-      // 如果 label 变化，更新资源标题
+      // 更新轨道元数据中的标题
       if (updates.label !== undefined) {
-        await ResourcesRepo.update(trackResourceId, {
-          title: updates.label,
-          description: `媒体轨道: ${updates.label}`
-        });
+        track.title = updates.label;
+        track.updatedAt = Date.now();
+        await writeProjectMeta(parentResourceId, workspaceId, { tracks: meta?.tracks });
       }
 
-      return { success: true };
+      // 写入配置文件
+      const result = await writeProjectDataSubDirFile(parentResourceId, workspaceId, 'tracks', track.fileName, JSON.stringify(trackConfig, null, 2));
+      return { success: result.success, error: result.error };
     }
   );
+
+  ipcMain.handle('resource:deleteMediaTrack', async (_event, payload: { parentResourceId: string; trackId: string }) => {
+    const { parentResourceId, trackId } = payload;
+    const parent = await ResourcesRepo.getById(parentResourceId);
+    if (!parent || !parent.workspaceId) throw new Error('父资源不存在或缺少工作空间 ID');
+
+    const result = await deleteProjectTrack(parentResourceId, parent.workspaceId, trackId);
+    return result;
+  });
 
   // ---- 资源项目目录管理 ----
 

@@ -274,6 +274,12 @@ Project folders use the `.resproject` suffix, which allows macOS to register the
             │   └── video.zh-CN.1234567890.json  # Translation JSON with timestamp
             ├── segments/      # Segments data for subtitles (word-level timestamps)
             │   └── video.zh.segments.json
+            ├── clips/         # Media clip/segment data (timeline markers, cuts)
+            │   └── resourceId.json  # Clip data for media resources
+            ├── tracks/        # Track configuration files (subtitle-edit, tts, media)
+            │   ├── subtitle-xxx.json  # Subtitle edit track config
+            │   ├── tts-xxx.json       # TTS track config
+            │   └── media-xxx.json     # Media track config
             ├── tts/           # TTS synthesized audio files (organized by track)
             │   ├── main/      # Main track TTS audio
             │   │   ├── history-abc12345.json  # TTS synthesis history
@@ -293,6 +299,8 @@ Project folders use the `.resproject` suffix, which allows macOS to register the
 - `data/` - Persistent data files
   - `translations/` - Translation JSON files (for subtitle resources)
   - `segments/` - Segments data with word-level timestamps (for subtitle resources)
+  - `clips/` - Media clip/segment data (timeline markers, cuts) for media resources
+  - `tracks/` - Track configuration files (subtitle-edit, tts, media tracks) - **not stored in database**
   - `tts/` - TTS synthesized audio files, organized by track (`main/` for main track, `<langCode>/` for translation tracks)
 
 ### Project Metadata (project.json)
@@ -323,6 +331,22 @@ The `project.json` file stores metadata about the project:
       "translatedAt": 1234567890,
       "startTimestamp": 1234567800
     }
+  ],
+  "tracks": [
+    {
+      "id": "subtitle-abc123",
+      "type": "media",
+      "fileName": "subtitle-abc123.json",
+      "title": "编排字幕 1",
+      "createdAt": 1234567890
+    },
+    {
+      "id": "tts-def456",
+      "type": "tts",
+      "fileName": "tts-def456.json",
+      "title": "TTS 轨道 1",
+      "createdAt": 1234567890
+    }
   ]
 }
 ```
@@ -335,6 +359,7 @@ The `project.json` file stores metadata about the project:
 - `parentResourceId` - Parent resource ID (for derived resources)
 - `segments` - Array of subtitle-to-segments file mappings
 - `translations` - Array of translation entries (for subtitle resources)
+- `tracks` - Array of track entries (subtitle-edit, tts, media tracks) stored in `data/tracks/`
 
 ### Subtitle Segments Management
 
@@ -381,6 +406,49 @@ Translation files follow the same pattern as segments - stored in project folder
 - `ai:deleteTranslationSegment` - Delete a segment from a translation file
 - `ai:cleanupTranslationResources` - Remove old translation records from database (migration)
 
+### Track Management
+
+Tracks (subtitle-edit, TTS, media tracks) are stored in the project folder's `data/tracks/` subdirectory instead of as database resources. This makes tracks invisible to users in the resource list while still being fully manageable through the timeline UI.
+
+**Storage location:** `<resourceId>.resproject/data/tracks/<trackId>.json`
+
+**Track types:**
+
+| Track Type        | ID Prefix    | Description                                    |
+| ----------------- | ------------ | ---------------------------------------------- |
+| Subtitle Edit     | `subtitle-`  | Manual subtitle editing/arrangement tracks     |
+| TTS Track         | `tts-`       | Independent TTS tracks with voice config       |
+| Media Track       | `media-`     | Media overlay tracks (video/audio layers)      |
+
+**How it works:**
+
+1. When a track is created, config file is saved to `data/tracks/<trackId>.json`
+2. The `project.json` is updated with track entry metadata
+3. Track config contains all track-specific settings (segments, voice config, etc.)
+4. When track is deleted, config file is removed and `project.json` is updated
+5. When parent resource is deleted, entire project folder (including tracks) is removed
+
+**IPC API for tracks** (prefix `resource:`):
+
+| Method                              | Description                                           |
+| ----------------------------------- | ----------------------------------------------------- |
+| `resource:createSubtitleEditTrack`  | Create a subtitle edit track                          |
+| `resource:getSubtitleEditTracks`    | List all subtitle edit tracks for a resource          |
+| `resource:deleteSubtitleEditTrack`  | Delete a subtitle edit track                          |
+| `resource:createTTSTrack`           | Create an independent TTS track                       |
+| `resource:getTTSTracks`             | List all TTS tracks for a resource                    |
+| `resource:updateTTSTrack`           | Update TTS track configuration                        |
+| `resource:deleteTTSTrack`           | Delete a TTS track (config + audio files)             |
+| `resource:createMediaTrack`         | Create a media overlay track                          |
+| `resource:getMediaTracks`           | List all media tracks for a resource                  |
+| `resource:updateMediaTrack`         | Update media track configuration                      |
+| `resource:deleteMediaTrack`         | Delete a media track                                  |
+
+**Important:** Tracks do NOT create database resource records. They exist only as files in the project folder. This means:
+- Tracks don't appear in resource lists or search
+- Tracks don't have cascade delete issues with parent resources
+- Tracks are automatically cleaned up when parent resource's project folder is deleted
+
 ### Implementation
 
 **Location**: `electron/main/handlers/resource/resource-project.ts`
@@ -398,6 +466,17 @@ Translation files follow the same pattern as segments - stored in project folder
 | `resource:getSegmentsData`          | Get segments data for subtitle (reads from project folder)            |
 | `resource:updateSegmentsData`       | Update segments data for subtitle (writes to project folder)          |
 | `resource:cleanupSegmentsResources` | Delete old segments-type resources from database                      |
+| `resource:createSubtitleEditTrack`  | Create a subtitle edit track in `data/tracks/`                        |
+| `resource:getSubtitleEditTracks`    | List subtitle edit tracks                                             |
+| `resource:deleteSubtitleEditTrack`  | Delete a subtitle edit track                                          |
+| `resource:createTTSTrack`           | Create a TTS track in `data/tracks/`                                  |
+| `resource:getTTSTracks`             | List TTS tracks                                                       |
+| `resource:updateTTSTrack`           | Update TTS track configuration                                        |
+| `resource:deleteTTSTrack`           | Delete a TTS track (config + audio files)                             |
+| `resource:createMediaTrack`         | Create a media track in `data/tracks/`                                |
+| `resource:getMediaTracks`           | List media tracks                                                     |
+| `resource:updateMediaTrack`         | Update media track configuration                                      |
+| `resource:deleteMediaTrack`         | Delete a media track                                                  |
 
 **Usage example:**
 
@@ -442,7 +521,11 @@ if (ctx.getResourceProjectDirs) {
 
 - Use `cache/` for reusable intermediate files (e.g., transcoded audio that can be reused)
 - Use `temp/` for task outputs that are consumed by other processes (e.g., transcription SRT files)
-- Use `data/` for persistent data files that need to be kept (e.g., segments files, vocabulary lists)
+- Use `data/` for persistent data files that need to be kept
+  - `data/segments/` - Segments data with word-level timestamps
+  - `data/translations/` - Translation JSON files
+  - `data/clips/` - Media clip/segment data (timeline markers, cuts)
+  - `data/tracks/` - Track configuration files (subtitle-edit, tts, media tracks) - **do NOT create database resources for tracks**
 - Use `outputs/` for final export-ready files
 
 ## Troubleshooting

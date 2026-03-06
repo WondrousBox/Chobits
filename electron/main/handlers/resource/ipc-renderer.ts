@@ -116,13 +116,15 @@ export type ResourceIpcParams = {
     ],
     { success: boolean; data?: Resource; error?: string }
   >;
-  /** 创建编排字幕轨道（subtitle-edit 子资源） */
-  'resource:createSubtitleEditTrack': IpcParams<[{ parentResourceId: string; title: string }], { id: string; filePath: string }>;
+  /** 创建编排字幕轨道（存储在项目文件夹 data/tracks/ 中） */
+  'resource:createSubtitleEditTrack': IpcParams<[{ parentResourceId: string; title: string }], { id: string; trackId: string; filePath: string }>;
   /** 获取编排字幕轨道列表 */
   'resource:getSubtitleEditTracks': IpcParams<
     [{ parentResourceId: string }],
-    Array<{ id: string; title: string; filePath: string; segments: Array<{ index: number; text: string; st?: string; et?: string }> }>
+    Array<{ id: string; trackId: string; title: string; filePath: string; segments: Array<{ index: number; text: string; st?: string; et?: string }> }>
   >;
+  /** 删除编排字幕轨道（删除配置文件、更新项目元数据） */
+  'resource:deleteSubtitleEditTrack': IpcParams<[{ parentResourceId: string; trackId: string }], { success: boolean; error?: string }>;
   /** 创建独立 TTS 轨道（tts-track 子资源） */
   'resource:createTTSTrack': IpcParams<
     [{ parentResourceId: string; title: string; voiceName: string; rate: number; pitch: number; autoTrimSilence: boolean }],
@@ -143,14 +145,18 @@ export type ResourceIpcParams = {
   'resource:updateTTSTrack': IpcParams<
     [
       {
-        trackResourceId: string;
+        parentResourceId: string;
+        trackId: string;
+        title?: string;
         config?: { voiceName?: string; rate?: number; pitch?: number; autoTrimSilence?: boolean };
         segments?: Array<{ index: number; text: string; startTime: number; endTime: number; md5?: string }>;
       }
     ],
-    { success: boolean }
+    { success: boolean; error?: string }
   >;
-  /** 创建媒体轨道（media-track 子资源） */
+  /** 删除 TTS 轨道（删除配置文件、音频目录、更新项目元数据） */
+  'resource:deleteTTSTrack': IpcParams<[{ parentResourceId: string; trackId: string }], { success: boolean; error?: string }>;
+  /** 创建媒体轨道（存储在项目文件夹 data/tracks/ 中） */
   'resource:createMediaTrack': IpcParams<[{ parentResourceId: string; trackId: string; label: string; zIndex: number; color?: string }], { id: string; trackId: string; filePath: string }>;
   /** 获取媒体轨道列表 */
   'resource:getMediaTracks': IpcParams<
@@ -159,7 +165,6 @@ export type ResourceIpcParams = {
       id: string;
       trackId: string;
       title: string;
-      filePath: string;
       label: string;
       zIndex: number;
       visible: boolean;
@@ -173,7 +178,8 @@ export type ResourceIpcParams = {
   'resource:updateMediaTrack': IpcParams<
     [
       {
-        trackResourceId: string;
+        parentResourceId: string;
+        trackId: string;
         label?: string;
         zIndex?: number;
         visible?: boolean;
@@ -183,8 +189,10 @@ export type ResourceIpcParams = {
         sources?: any[];
       }
     ],
-    { success: boolean }
+    { success: boolean; error?: string }
   >;
+  /** 删除媒体轨道（删除配置文件、更新项目元数据） */
+  'resource:deleteMediaTrack': IpcParams<[{ parentResourceId: string; trackId: string }], { success: boolean; error?: string }>;
   // ---- 资源项目目录管理 ----
   /** 获取资源项目目录路径（不创建目录） */
   'resource:getProjectPath': IpcParams<
@@ -261,12 +269,15 @@ const methods: Array<keyof ResourceIpcParams> = [
   'resource:saveScreenshot',
   'resource:createSubtitleEditTrack',
   'resource:getSubtitleEditTracks',
+  'resource:deleteSubtitleEditTrack',
   'resource:createTTSTrack',
   'resource:getTTSTracks',
   'resource:updateTTSTrack',
+  'resource:deleteTTSTrack',
   'resource:createMediaTrack',
   'resource:getMediaTracks',
   'resource:updateMediaTrack',
+  'resource:deleteMediaTrack',
   // 资源项目目录
   'resource:getProjectPath',
   'resource:ensureProjectDir',
