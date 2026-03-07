@@ -147,3 +147,50 @@ export function hasWordLevelTimestamps(segments: RawSegment[] | null | undefined
   if (!segments || segments.length === 0) return false;
   return segments.some((seg) => seg.children && seg.children.length > 0);
 }
+
+/**
+ * 生成带自定义样式的 ASS 字幕内容（无卡拉OK效果）
+ *
+ * @param segments - 字幕片段数组（AimSegments 格式）
+ * @param style - 字幕样式配置
+ * @returns ASS 字幕文件内容字符串
+ */
+export function generateAss(segments: Array<{ st: string; et: string; text: string }>, style?: SubtitleStyleConfig): string {
+  const effectiveStyle = style || DEFAULT_SUBTITLE_STYLE;
+
+  // 构建 ASS 头部
+  const header = [
+    '[Script Info]',
+    'Title: Subtitle',
+    'ScriptType: v4.00+',
+    'WrapStyle: 0',
+    'ScaledBorderAndShadow: yes',
+    'YCbCr Matrix: TV.709',
+    'PlayResX: 1920',
+    'PlayResY: 1080',
+    '',
+    '[V4+ Styles]',
+    'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
+    buildAssStyleLine(effectiveStyle),
+    '',
+    '[Events]',
+    'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text'
+  ];
+
+  // 构建 Dialogue 事件
+  const dialogues: string[] = [];
+
+  for (const seg of segments) {
+    if (!seg.text) continue;
+
+    const st = utils.convertToSeconds(seg.st);
+    const et = utils.convertToSeconds(seg.et);
+    const startTime = secondsToAssTime(st);
+    const endTime = secondsToAssTime(et);
+    const text = seg.text.replace(/\r?\n/g, '\\N');
+
+    dialogues.push(`Dialogue: 0,${startTime},${endTime},Default,NTP,0000,0000,0000,,${text}`);
+  }
+
+  return [...header, ...dialogues, ''].join('\n');
+}

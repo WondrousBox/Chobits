@@ -12,8 +12,9 @@ import { PreviewPanel } from './components/PreviewPanel';
 import { SubtitleConfig } from './components/SubtitleConfig';
 import { TrackSelector } from './components/TrackSelector';
 import { VideoConfig } from './components/VideoConfig';
-import { generateKaraokeAss, hasWordLevelTimestamps, type RawSegment } from './karaokeAss';
+import { generateAss, generateKaraokeAss, hasWordLevelTimestamps, type RawSegment } from './karaokeAss';
 import type {
+  ExportAnnotation,
   ExportConfig,
   ExportProgress,
   ExportRequest,
@@ -45,6 +46,8 @@ interface ExportDialogProps {
   ttsTrackLabels?: Map<string, string>;
   /** 原始 segments 数据（包含 children 字级别时间戳），用于卡拉OK效果 */
   segmentsData?: RawSegment[] | null;
+  /** 标注数据（用于导出标注边栏） */
+  annotations?: ExportAnnotation[];
 }
 
 /**
@@ -70,7 +73,8 @@ export function ExportDialog({
   translationTrackMeta,
   synthesizedItemsByTrack,
   ttsTrackLabels,
-  segmentsData
+  segmentsData,
+  annotations
 }: ExportDialogProps) {
   // Config state
   const [config, setConfig] = useState<ExportConfig>({ ...DEFAULT_EXPORT_CONFIG });
@@ -142,8 +146,18 @@ export function ExportDialog({
       });
     });
 
+    if (annotations && annotations.length > 0) {
+      tracks.push({
+        id: 'annotation-sidebar',
+        label: '词汇标注边栏',
+        type: 'annotation',
+        defaultChecked: false,
+        description: `${annotations.length} 条标注（硬编码到视频边栏）`
+      });
+    }
+
     return tracks;
-  }, [subtitleEntries, translationTracks, translationTrackMeta, synthesizedItemsByTrack, ttsTrackLabels, videoPath]);
+  }, [subtitleEntries, translationTracks, translationTrackMeta, synthesizedItemsByTrack, ttsTrackLabels, videoPath, annotations]);
 
   // Initialize selected tracks
   useEffect(() => {
@@ -242,7 +256,7 @@ export function ExportDialog({
           trackId: 'original',
           label: '原文',
           srtContent: tools.outputSrt({ segments1: iSegments }),
-          assContent: useKaraoke ? generateKaraokeAss(segmentsData!, config.subtitleStyle) : tools.outputAss({ segments1: iSegments })
+          assContent: useKaraoke ? generateKaraokeAss(segmentsData!, config.subtitleStyle) : generateAss(subtitleEntries, config.subtitleStyle)
         });
       }
 
@@ -259,7 +273,7 @@ export function ExportDialog({
               label: meta.label,
               languageCode: meta.languageCode,
               srtContent: tools.outputSrt({ segments1: iSegments }),
-              assContent: tools.outputAss({ segments1: iSegments })
+              assContent: generateAss(track, config.subtitleStyle)
             });
           }
         });
@@ -308,9 +322,14 @@ export function ExportDialog({
       const exportRequest: ExportRequest = {
         resourceId,
         duration,
-        config,
+        config: {
+          ...config,
+          includeAnnotations: config.selectedTrackIds.includes('annotation-sidebar'),
+          annotationSidebarWidthRatio: config.annotationSidebarWidthRatio ?? 0.2
+        },
         subtitleTracks,
         ttsAudioTracks,
+        annotations: config.selectedTrackIds.includes('annotation-sidebar') ? annotations : undefined,
         workspaceId,
         folderId
       };
@@ -338,7 +357,7 @@ export function ExportDialog({
       });
       setExporting(false);
     }
-  }, [videoPath, audioPath, config, duration, resourceId, workspaceId, folderId, subtitleEntries, translationTracks, translationTrackMeta, synthesizedItemsByTrack, ttsTrackLabels, segmentsData]);
+  }, [videoPath, audioPath, config, duration, resourceId, workspaceId, folderId, subtitleEntries, translationTracks, translationTrackMeta, synthesizedItemsByTrack, ttsTrackLabels, segmentsData, annotations]);
 
   return (
     <Dialog open={open} onOpenChange={exporting ? undefined : onOpenChange}>
@@ -416,6 +435,12 @@ export function ExportDialog({
               {progress?.stage === 'done' ? '关闭' : '取消'}
             </Button>
           </DialogClose>
+          {progress?.stage === 'done' && progress?.exportDir && (
+            <Button variant="secondary" onClick={() => window.YUA.file['file:openPath'](progress.exportDir!)}>
+              <TbFolderOpen className="mr-2 h-4 w-4" />
+              打开文件夹
+            </Button>
+          )}
           {progress?.stage !== 'done' && (
             <Button onClick={handleExport} disabled={exporting || config.selectedTrackIds.length === 0 || (!videoPath && !audioPath)}>
               {exporting ? (
@@ -439,4 +464,4 @@ export function ExportDialog({
 
 // Import Loader2 for the loading state
 import { Loader2 } from 'lucide-react';
-import { TbUpload } from 'react-icons/tb';
+import { TbFolderOpen, TbUpload } from 'react-icons/tb';
