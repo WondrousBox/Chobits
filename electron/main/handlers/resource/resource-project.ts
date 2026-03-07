@@ -1001,3 +1001,120 @@ export async function updateSubtitleEditTrackSegments(resourceId: string, worksp
     return { success: false, error: String(error) };
   }
 }
+
+// ========== 标注数据管理 (Annotations) ==========
+// 存储在项目文件夹的 data/annotations/<resourceId>.json 中
+
+/**
+ * 标注数据类型
+ */
+export type AnnotationType = 'highlight' | 'note' | 'vocabulary' | 'comment' | 'custom';
+
+export interface AnnotationItem {
+  /** 唯一标识 (uuid) */
+  id: string;
+  /** 标注的开始时间（秒） */
+  startTime: number;
+  /** 标注的结束时间（秒） */
+  endTime: number;
+  /** 被标注的原文文字 */
+  text: string;
+  /** 所在字幕片段的索引 */
+  segmentIndex: number;
+  /** 选中文字在片段中的起始字符位置 */
+  wordStartIndex: number;
+  /** 选中文字在片段中的结束字符位置 */
+  wordEndIndex: number;
+  /** 标注标题（可选） */
+  title?: string;
+  /** 标注描述（可选） */
+  description?: string;
+  /** 标注类型 */
+  type: AnnotationType;
+  /** 标注颜色 */
+  color?: string;
+  /** 创建时间戳 */
+  createdAt: number;
+  /** 更新时间戳 */
+  updatedAt: number;
+  /** 扩展数据（如生成的单词表、注释内容等） */
+  metadata?: Record<string, unknown>;
+}
+
+export interface AnnotationDataV1 {
+  version: 1;
+  annotations: AnnotationItem[];
+  updatedAt: number;
+}
+
+export type AnnotationData = AnnotationDataV1;
+
+/**
+ * 加载标注数据
+ * @param resourceId 资源ID
+ * @param workspaceId 工作空间ID
+ */
+export async function loadProjectAnnotations(resourceId: string, workspaceId: string): Promise<AnnotationData | null> {
+  try {
+    // 存储路径: data/annotations/<resourceId>.json
+    const data = await readProjectDataJsonSubDir<AnnotationData>(resourceId, workspaceId, 'annotations', `${resourceId}.json`);
+    if (data) {
+      console.log(`[loadProjectAnnotations] 加载标注数据成功: ${resourceId}, ${data.annotations?.length || 0} 条标注`);
+    }
+    return data || null;
+  } catch (error) {
+    console.error(`[loadProjectAnnotations] 加载标注数据失败: ${resourceId}`, error);
+    return null;
+  }
+}
+
+/**
+ * 保存标注数据
+ * @param resourceId 资源ID
+ * @param workspaceId 工作空间ID
+ * @param annotations 标注数据数组
+ */
+export async function saveProjectAnnotations(
+  resourceId: string,
+  workspaceId: string,
+  annotations: AnnotationItem[]
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const data: AnnotationData = {
+      version: 1,
+      annotations,
+      updatedAt: Date.now()
+    };
+    const content = JSON.stringify(data, null, 2);
+    // 存储路径: data/annotations/<resourceId>.json
+    const result = await writeProjectDataSubDirFile(resourceId, workspaceId, 'annotations', `${resourceId}.json`, content);
+    if (!result.success) {
+      return { success: false, error: result.error };
+    }
+    console.log(`[saveProjectAnnotations] 保存标注数据成功: ${resourceId}, ${annotations.length} 条标注`);
+    return { success: true };
+  } catch (error) {
+    console.error(`[saveProjectAnnotations] 保存标注数据失败: ${resourceId}`, error);
+    return { success: false, error: String(error) };
+  }
+}
+
+/**
+ * 删除标注数据
+ * @param resourceId 资源ID
+ * @param workspaceId 工作空间ID
+ */
+export async function deleteProjectAnnotations(resourceId: string, workspaceId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    // 存储路径: data/annotations/<resourceId>.json
+    const filePath = await getProjectDataSubDirFilePath(resourceId, workspaceId, 'annotations', `${resourceId}.json`);
+    if (filePath && fs.existsSync(filePath)) {
+      await fsp.unlink(filePath);
+      console.log(`[deleteProjectAnnotations] 删除标注数据成功: ${resourceId}`);
+    }
+    return { success: true };
+  } catch (error) {
+    console.error(`[deleteProjectAnnotations] 删除标注数据失败: ${resourceId}`, error);
+    return { success: false, error: String(error) };
+  }
+}
