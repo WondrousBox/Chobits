@@ -782,12 +782,7 @@ export async function readProjectTrackConfig<T = unknown>(resourceId: string, wo
  * @param entry 轨道条目信息
  * @param config 轨道配置数据
  */
-export async function writeProjectTrackConfig(
-  resourceId: string,
-  workspaceId: string,
-  entry: ProjectTrackEntry,
-  config: unknown
-): Promise<{ success: boolean; error?: string }> {
+export async function writeProjectTrackConfig(resourceId: string, workspaceId: string, entry: ProjectTrackEntry, config: unknown): Promise<{ success: boolean; error?: string }> {
   try {
     // 写入配置文件
     const content = JSON.stringify(config, null, 2);
@@ -836,8 +831,14 @@ export async function deleteProjectTrack(resourceId: string, workspaceId: string
       return { success: true }; // 没有轨道，视为成功
     }
 
-    // 查找轨道
-    const track = meta.tracks.find((t) => t.id === trackId);
+    // 查找轨道（支持双重前缀容错：如果 trackId 是 "tts-tts-xxx"，也尝试匹配 "tts-xxx"）
+    let track = meta.tracks.find((t) => t.id === trackId);
+    if (!track && trackId.startsWith('tts-tts-')) {
+      // 尝试去掉多余的 "tts-" 前缀
+      const normalizedId = trackId.replace(/^tts-tts-/, 'tts-');
+      console.log(`[deleteProjectTrack] 尝试规范化 ID: ${trackId} -> ${normalizedId}`);
+      track = meta.tracks.find((t) => t.id === normalizedId);
+    }
     if (!track) {
       console.log(`[deleteProjectTrack] 轨道不存在: trackId=${trackId}`);
       return { success: true }; // 轨道不存在，视为成功
@@ -859,7 +860,8 @@ export async function deleteProjectTrack(resourceId: string, workspaceId: string
     if (track.type === 'tts') {
       const projectPath = await getResourceProjectPath(resourceId, workspaceId);
       if (projectPath) {
-        const ttsDir = path.join(projectPath, 'data', 'tts', trackId);
+        // 使用 track.id（规范化后的 ID）来查找音频目录
+        const ttsDir = path.join(projectPath, 'data', 'tts', track.id);
         console.log(`[deleteProjectTrack] TTS 音频目录: ${ttsDir}`);
         if (fs.existsSync(ttsDir)) {
           console.log(`[deleteProjectTrack] 删除 TTS 音频目录: ${ttsDir}`);
@@ -868,8 +870,8 @@ export async function deleteProjectTrack(resourceId: string, workspaceId: string
       }
     }
 
-    // 更新元数据
-    const updatedTracks = meta.tracks.filter((t) => t.id !== trackId);
+    // 更新元数据：使用 track.id（规范化后的 ID）来过滤
+    const updatedTracks = meta.tracks.filter((t) => t.id !== track.id);
     const metaResult = await writeProjectMeta(resourceId, workspaceId, { tracks: updatedTracks });
     if (!metaResult.success) {
       console.log(`[deleteProjectTrack] 更新元数据失败:`, metaResult.error);
@@ -880,6 +882,122 @@ export async function deleteProjectTrack(resourceId: string, workspaceId: string
     return { success: true };
   } catch (error) {
     console.error(`[deleteProjectTrack] 删除失败:`, error);
+    return { success: false, error: String(error) };
+  }
+}
+
+/**
+ * 删除翻译文件并更新项目元数据
+ * @param resourceId 字幕资源ID
+ * @param workspaceId 工作空间ID
+ * @param translationId 翻译条目 ID（project.json 中 translations 数组中的 id）
+ */
+export async function deleteProjectTranslation(resourceId: string, workspaceId: string, translationId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    console.log(`[deleteProjectTranslation] 开始删除翻译: resourceId=${resourceId}, workspaceId=${workspaceId}, translationId=${translationId}`);
+
+    // 获取元数据
+    const meta = await readProjectMeta(resourceId, workspaceId);
+    if (!meta?.translations) {
+      console.log(`[deleteProjectTranslation] 没有翻译元数据`);
+      return { success: true }; // 没有翻译，视为成功
+    }
+
+    // 查找翻译条目
+    const translation = meta.translations.find((t) => t.id === translationId);
+    if (!translation) {
+      console.log(`[deleteProjectTranslation] 翻译不存在: translationId=${translationId}`);
+      return { success: true }; // 翻译不存在，视为成功
+    }
+
+    console.log(`[deleteProjectTranslation] 找到翻译:`, translation);
+
+    // 删除翻译文件
+    const projectPath = await getResourceProjectPath(resourceId, workspaceId);
+    if (projectPath) {
+      const translationFilePath = path.join(projectPath, 'data', 'translations', translation.fileName);
+      console.log(`[deleteProjectTranslation] 翻译文件路径: ${translationFilePath}`);
+      if (fs.existsSync(translationFilePath)) {
+        console.log(`[deleteProjectTranslation] 删除翻译文件: ${translationFilePath}`);
+        await fsp.unlink(translationFilePath);
+      } else {
+        console.log(`[deleteProjectTranslation] 翻译文件不存在`);
+      }
+    }
+
+    // 更新元数据：从 translations 数组中移除
+    const updatedTranslations = meta.translations.filter((t) => t.id !== translationId);
+    const metaResult = await writeProjectMeta(resourceId, workspaceId, { translations: updatedTranslations });
+    if (!metaResult.success) {
+      console.log(`[deleteProjectTranslation] 更新元数据失败:`, metaResult.error);
+      return { success: false, error: metaResult.error };
+    }
+
+    console.log(`[deleteProjectTranslation] 删除成功`);
+    return { success: true };
+  } catch (error) {
+    console.error(`[deleteProjectTranslation] 删除失败:`, error);
+    return { success: false, error: String(error) };
+  }
+}
+
+/**
+ * 字幕编辑轨道片段数据结构
+ */
+export interface SubtitleEditSegment {
+  st: string; // 开始时间，格式 "00:00:00,000"
+  et: string; // 结束时间，格式 "00:00:00,000"
+  text: string; // 文本内容
+  index: number; // 片段索引
+}
+
+/**
+ * 更新字幕编辑轨道的片段数据
+ * @param resourceId 资源ID
+ * @param workspaceId 工作空间ID
+ * @param trackId 轨道 ID
+ * @param segments 更新后的片段数组
+ */
+export async function updateSubtitleEditTrackSegments(resourceId: string, workspaceId: string, trackId: string, segments: SubtitleEditSegment[]): Promise<{ success: boolean; error?: string }> {
+  try {
+    console.log(`[updateSubtitleEditTrackSegments] 更新轨道片段: resourceId=${resourceId}, trackId=${trackId}, segments=${segments.length}`);
+
+    // 获取元数据
+    const meta = await readProjectMeta(resourceId, workspaceId);
+    if (!meta?.tracks) {
+      return { success: false, error: '没有轨道元数据' };
+    }
+
+    // 查找轨道
+    const track = meta.tracks.find((t) => t.id === trackId);
+    if (!track) {
+      return { success: false, error: '轨道不存在' };
+    }
+
+    // 读取现有配置
+    const config = await readProjectTrackConfig<{ translatedSegments?: SubtitleEditSegment[];[key: string]: unknown }>(resourceId, workspaceId, track.fileName);
+    if (!config) {
+      return { success: false, error: '轨道配置文件不存在' };
+    }
+
+    // 更新片段数据
+    config.translatedSegments = segments;
+
+    // 写回配置文件
+    const content = JSON.stringify(config, null, 2);
+    const result = await writeProjectDataSubDirFile(resourceId, workspaceId, 'tracks', track.fileName, content);
+    if (!result.success) {
+      return { success: false, error: result.error };
+    }
+
+    // 更新元数据中的 updatedAt
+    const updatedTracks = meta.tracks.map((t) => (t.id === trackId ? { ...t, updatedAt: Date.now() } : t));
+    await writeProjectMeta(resourceId, workspaceId, { tracks: updatedTracks });
+
+    console.log(`[updateSubtitleEditTrackSegments] 更新成功`);
+    return { success: true };
+  } catch (error) {
+    console.error(`[updateSubtitleEditTrackSegments] 更新失败:`, error);
     return { success: false, error: String(error) };
   }
 }

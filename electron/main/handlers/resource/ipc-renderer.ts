@@ -125,6 +125,13 @@ export type ResourceIpcParams = {
   >;
   /** 删除编排字幕轨道（删除配置文件、更新项目元数据） */
   'resource:deleteSubtitleEditTrack': IpcParams<[{ parentResourceId: string; trackId: string }], { success: boolean; error?: string }>;
+  /** 更新编排字幕轨道片段（更新配置文件中的 translatedSegments） */
+  'resource:updateSubtitleEditTrack': IpcParams<
+    [{ parentResourceId: string; trackId: string; segments: { st: string; et: string; text: string; index: number }[] }],
+    { success: boolean; error?: string }
+  >;
+  /** 删除翻译轨道（删除翻译文件、更新项目元数据） */
+  'resource:deleteTranslation': IpcParams<[{ parentResourceId: string; translationId: string }], { success: boolean; error?: string }>;
   /** 创建独立 TTS 轨道（tts-track 子资源） */
   'resource:createTTSTrack': IpcParams<
     [{ parentResourceId: string; title: string; voiceName: string; rate: number; pitch: number; autoTrimSilence: boolean }],
@@ -270,6 +277,8 @@ const methods: Array<keyof ResourceIpcParams> = [
   'resource:createSubtitleEditTrack',
   'resource:getSubtitleEditTracks',
   'resource:deleteSubtitleEditTrack',
+  'resource:updateSubtitleEditTrack',
+  'resource:deleteTranslation',
   'resource:createTTSTrack',
   'resource:getTTSTracks',
   'resource:updateTTSTrack',

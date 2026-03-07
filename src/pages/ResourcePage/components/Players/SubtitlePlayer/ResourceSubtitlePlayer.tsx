@@ -458,6 +458,57 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     []
   );
 
+  // 编排字幕轨道写回配置文件：待提交的更新（key = trackId-segmentIndex，合并同片段的时间/文本修改）
+  const pendingSubtitleEditUpdatesRef = useRef<Map<string, { parentResourceId: string; trackId: string; editIndex: number; segmentIndex: number; patch: { st?: string; et?: string; text?: string } }>>(
+    new Map()
+  );
+  const debouncedFlushSubtitleEditUpdates = useMemo(
+    () =>
+      debounce(() => {
+        const map = pendingSubtitleEditUpdatesRef.current;
+        if (map.size === 0) return;
+        // 按 trackId 分组更新
+        const trackGroups = new Map<string, { parentResourceId: string; trackId: string; editIndex: number; patches: Map<number, { st?: string; et?: string; text?: string }> }>();
+        map.forEach((value, key) => {
+          const { parentResourceId, trackId, editIndex, segmentIndex, patch } = value;
+          if (!trackGroups.has(trackId)) {
+            trackGroups.set(trackId, { parentResourceId, trackId, editIndex, patches: new Map() });
+          }
+          const group = trackGroups.get(trackId)!;
+          // 合并同一片段的多次修改
+          const existingPatch = group.patches.get(segmentIndex) || {};
+          group.patches.set(segmentIndex, { ...existingPatch, ...patch });
+        });
+        map.clear();
+
+        // 对每个轨道应用更新
+        trackGroups.forEach((group) => {
+          const { parentResourceId, trackId, editIndex, patches } = group;
+          // 获取当前轨道数据并应用 patches
+          const currentTrack = subtitleEditTracks[editIndex] || [];
+          const updatedSegments = currentTrack.map((seg, idx) => {
+            const patch = patches.get(idx);
+            if (patch) {
+              return { ...seg, ...patch };
+            }
+            return seg;
+          });
+          // 转换为带 index 的格式
+          const segmentsWithIndex = updatedSegments.map((s, i) => ({ ...s, index: i }));
+          window.YUA.resource['resource:updateSubtitleEditTrack']({
+            parentResourceId,
+            trackId,
+            segments: segmentsWithIndex
+          })
+            .then((res) => {
+              if (!res.success) console.warn('[SubtitlePlayer] 编排字幕轨道写回失败:', res.error);
+            })
+            .catch((err) => console.error('[SubtitlePlayer] 编排字幕轨道写回失败:', err));
+        });
+      }, 1000),
+    [subtitleEditTracks]
+  );
+
   // 用于清空临时翻译轨道的 ref（因为 clearTypingTexts 在 hook 调用后才可用）
   const clearTypingTextsRef = useRef<(() => void) | null>(null);
 
@@ -586,7 +637,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
       const ttsTracksData: { id: string; label: string; voiceName: string; rate: number; pitch: number; autoTrimSilence: boolean; resourceId: string; configured: boolean }[] = [];
       for (const t of tracks) {
         ttsTracksData.push({
-          id: `tts-${t.id}`, // 使用数据库资源 ID 生成唯一 trackId
+          id: t.id, // 后端返回的 id 已经是 tts-xxx 格式
           label: t.title || '配音',
           voiceName: t.config?.voiceName ?? 'zh-CN-XiaoxiaoNeural',
           rate: t.config?.rate ?? 20,
@@ -1218,10 +1269,10 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
           debouncedFlushTranslationUpdates();
         }
       } else if (trackIndex >= subtitleEditTrackStartIndex) {
-        // 编排字幕轨道
+        // 编排字幕轨道：更新本地 state，防抖后写回轨道配置文件
         const editIndex = trackIndex - subtitleEditTrackStartIndex;
         const meta = subtitleEditTrackMeta[editIndex];
-        if (!meta) return;
+        if (!meta?.trackId || !resource.id) return;
         const updatedTracks = subtitleEditTracks.map((track, idx) => {
           if (idx === editIndex) {
             return track.map((item, i) => (i === segmentIndex ? { ...item, text: newText } : item));
@@ -1229,16 +1280,17 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
           return track;
         });
         setSubtitleEditTracks(updatedTracks);
-        if (meta.resourceId) {
-          const key = `${meta.resourceId}-${segmentIndex}`;
-          const prev = pendingTranslationUpdatesRef.current.get(key);
-          pendingTranslationUpdatesRef.current.set(key, {
-            translationResourceId: meta.resourceId,
-            segmentIndex,
-            patch: { ...prev?.patch, text: newText }
-          });
-          debouncedFlushTranslationUpdates();
-        }
+        // 使用防抖机制保存到轨道配置文件
+        const key = `${meta.trackId}-${segmentIndex}`;
+        const prev = pendingSubtitleEditUpdatesRef.current.get(key);
+        pendingSubtitleEditUpdatesRef.current.set(key, {
+          parentResourceId: resource.id,
+          trackId: meta.trackId,
+          editIndex,
+          segmentIndex,
+          patch: { ...prev?.patch, text: newText }
+        });
+        debouncedFlushSubtitleEditUpdates();
       }
     },
     [
@@ -1252,6 +1304,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
       isLoading,
       debouncedSave,
       debouncedFlushTranslationUpdates,
+      debouncedFlushSubtitleEditUpdates,
       subtitleFormat
     ]
   );
@@ -1367,9 +1420,10 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
           debouncedFlushTranslationUpdates();
         }
       } else if (trackIndex >= subtitleEditTrackStartIndex) {
-        // 编排字幕轨道
+        // 编排字幕轨道：更新本地 state，防抖后写回轨道配置文件
         const editIndex = trackIndex - subtitleEditTrackStartIndex;
         const meta = subtitleEditTrackMeta[editIndex];
+        if (!meta?.trackId || !resource.id) return;
         const newSt = formatTime(newStartTime);
         const newEt = formatTime(newEndTime);
         const updatedTracks = subtitleEditTracks.map((track, idx) => {
@@ -1379,16 +1433,17 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
           return track;
         });
         setSubtitleEditTracks(updatedTracks);
-        if (meta?.resourceId) {
-          const key = `${meta.resourceId}-${segmentIndex}`;
-          const prev = pendingTranslationUpdatesRef.current.get(key);
-          pendingTranslationUpdatesRef.current.set(key, {
-            translationResourceId: meta.resourceId,
-            segmentIndex,
-            patch: { ...prev?.patch, st: newSt, et: newEt }
-          });
-          debouncedFlushTranslationUpdates();
-        }
+        // 使用防抖机制保存到轨道配置文件
+        const key = `${meta.trackId}-${segmentIndex}`;
+        const prev = pendingSubtitleEditUpdatesRef.current.get(key);
+        pendingSubtitleEditUpdatesRef.current.set(key, {
+          parentResourceId: resource.id,
+          trackId: meta.trackId,
+          editIndex,
+          segmentIndex,
+          patch: { ...prev?.patch, st: newSt, et: newEt }
+        });
+        debouncedFlushSubtitleEditUpdates();
       }
     },
     [
@@ -1402,6 +1457,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
       isLoading,
       debouncedSave,
       debouncedFlushTranslationUpdates,
+      debouncedFlushSubtitleEditUpdates,
       subtitleFormat
     ]
   );
@@ -1518,7 +1574,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
       if (trackIndex >= subtitleEditTrackStartIndex) {
         const editIndex = trackIndex - subtitleEditTrackStartIndex;
         const meta = subtitleEditTrackMeta[editIndex];
-        if (!meta?.resourceId) return;
+        if (!meta?.trackId || !resource.id) return;
         const trackSegments = subtitleEditTracks[editIndex] || [];
         let insertIndex = trackSegments.length;
         for (let i = 0; i < trackSegments.length; i++) {
@@ -1527,17 +1583,20 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
             break;
           }
         }
-        const res = await window.YUA.ai.insertTranslationSegment({
-          translationResourceId: meta.resourceId,
-          insertIndex,
-          segment: { st, et, text }
-        });
-        if (!res.success) {
-          console.warn('[SubtitlePlayer] 编排轨道新增片段失败:', res.message);
-          return;
-        }
+        // 创建新的片段数组（带正确的 index）
         const newSeg: AimSegments = { st, et, text };
         const updatedTrack = [...trackSegments.slice(0, insertIndex), newSeg, ...trackSegments.slice(insertIndex)];
+        // 转换为带 index 的格式
+        const segmentsWithIndex = updatedTrack.map((s, i) => ({ ...s, index: i }));
+        const res = await window.YUA.resource['resource:updateSubtitleEditTrack']({
+          parentResourceId: resource.id,
+          trackId: meta.trackId,
+          segments: segmentsWithIndex
+        });
+        if (!res.success) {
+          console.warn('[SubtitlePlayer] 编排轨道新增片段失败:', res.error);
+          return;
+        }
         setSubtitleEditTracks((prev) => prev.map((t, idx) => (idx === editIndex ? updatedTrack : t)));
       }
     },
@@ -1576,20 +1635,27 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
       if (trackIndex >= subtitleEditTrackStartIndex) {
         const editIndex = trackIndex - subtitleEditTrackStartIndex;
         const meta = subtitleEditTrackMeta[editIndex];
-        if (!meta?.resourceId) return;
-        window.YUA.ai
-          .deleteTranslationSegment({ translationResourceId: meta.resourceId, segmentIndex })
+        if (!meta?.trackId || !resource.id) return;
+        const currentTrack = subtitleEditTracks[editIndex] || [];
+        const updatedTrack = currentTrack.filter((_, i) => i !== segmentIndex);
+        // 转换为带 index 的格式
+        const segmentsWithIndex = updatedTrack.map((s, i) => ({ ...s, index: i }));
+        window.YUA.resource['resource:updateSubtitleEditTrack']({
+          parentResourceId: resource.id,
+          trackId: meta.trackId,
+          segments: segmentsWithIndex
+        })
           .then((res) => {
             if (!res.success) {
-              console.warn('[SubtitlePlayer] 编排轨道删除片段失败:', res.message);
+              console.warn('[SubtitlePlayer] 编排轨道删除片段失败:', res.error);
               return;
             }
-            setSubtitleEditTracks((prev) => prev.map((t, idx) => (idx === editIndex ? t.filter((_, i) => i !== segmentIndex) : t)));
+            setSubtitleEditTracks((prev) => prev.map((t, idx) => (idx === editIndex ? updatedTrack : t)));
           })
           .catch((err) => console.error('[SubtitlePlayer] 删除编排片段失败:', err));
       }
     },
-    [subtitleEntries, translationTrackMeta, subtitleEditTrackMeta, subtitleEditTrackStartIndex, resource.id, isLoading, debouncedSave, subtitleFormat]
+    [subtitleEntries, translationTrackMeta, subtitleEditTracks, subtitleEditTrackMeta, subtitleEditTrackStartIndex, resource.id, isLoading, debouncedSave, subtitleFormat]
   );
 
   // 删除字幕轨道（翻译轨道或编排字幕轨道）- 永久删除
@@ -1610,7 +1676,15 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
           return;
         }
         try {
-          await window.YUA.resource.deleteResourcePermanently({ id: meta.resourceId });
+          // 先删除项目文件夹中的翻译文件（data/translations/）和更新 project.json
+          const projectResult = await window.YUA.resource['resource:deleteTranslation']({
+            parentResourceId: resource.id,
+            translationId: meta.resourceId
+          });
+          if (!projectResult.success) {
+            console.warn(`[SubtitlePlayer] 删除翻译项目文件失败: ${projectResult.error}`);
+          }
+          // 翻译数据存储在项目文件夹中，不需要删除数据库记录
           await loadTranslationTracks();
         } catch (error) {
           console.error(`[SubtitlePlayer] 删除翻译轨道失败:`, error);
@@ -1675,6 +1749,17 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
               console.log(`[SubtitlePlayer] 已永久删除 TTS 轨道数据库记录 ${trackConfig.resourceId}`);
             } catch (dbErr) {
               console.error('[SubtitlePlayer] 删除 TTS 轨道数据库记录失败:', dbErr);
+            }
+          }
+        } else {
+          // 从字幕合成的 TTS 轨道（main、语言代码等）：这些轨道不在 project.json 的 tracks 数组中注册
+          // 需要调用 tts:deleteTrackFiles 来删除 data/tts/<trackId>/ 目录中的 history 文件和音频文件
+          if (resource.id) {
+            try {
+              await window.YUA.tts.deleteTrackFiles({ resourceId: resource.id, trackId: ttsTrackId });
+              console.log(`[SubtitlePlayer] 已删除 TTS 轨道文件目录: ${ttsTrackId}`);
+            } catch (ttsErr) {
+              console.error('[SubtitlePlayer] 删除 TTS 轨道文件目录失败:', ttsErr);
             }
           }
         }

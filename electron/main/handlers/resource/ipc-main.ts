@@ -17,6 +17,7 @@ import {
   clearResourceProjectDir,
   createCustomProjectSubDir,
   deleteProjectTrack,
+  deleteProjectTranslation,
   deleteResourceProjectDir,
   ensureResourceProjectDir,
   getResourceProjectPath,
@@ -27,6 +28,7 @@ import {
   readProjectDataJsonSubDir,
   readProjectMeta,
   readProjectTrackConfig,
+  updateSubtitleEditTrackSegments,
   writeProjectDataSubDirFile,
   writeProjectMeta,
   writeProjectTrackConfig
@@ -1038,6 +1040,29 @@ export function initResourceHandlers(): void {
     return result;
   });
 
+  ipcMain.handle('resource:updateSubtitleEditTrack', async (_event, payload: { parentResourceId: string; trackId: string; segments: { st: string; et: string; text: string; index: number }[] }) => {
+    const { parentResourceId, trackId, segments } = payload;
+    const parent = await ResourcesRepo.getById(parentResourceId);
+    if (!parent || !parent.workspaceId) throw new Error('父资源不存在或缺少工作空间 ID');
+    const workspaceId = parent.workspaceId;
+
+    const result = await updateSubtitleEditTrackSegments(parentResourceId, workspaceId, trackId, segments);
+    return result;
+  });
+
+  // ---- 翻译轨道 (translation) ----
+  // 删除翻译文件和更新项目元数据
+
+  ipcMain.handle('resource:deleteTranslation', async (_event, payload: { parentResourceId: string; translationId: string }) => {
+    const { parentResourceId, translationId } = payload;
+    const parent = await ResourcesRepo.getById(parentResourceId);
+    if (!parent || !parent.workspaceId) throw new Error('父资源不存在或缺少工作空间 ID');
+    const workspaceId = parent.workspaceId;
+
+    const result = await deleteProjectTranslation(parentResourceId, workspaceId, translationId);
+    return result;
+  });
+
   // ---- 独立 TTS 轨道 (tts-track) ----
   // 存储在项目文件夹的 data/tracks/ 子目录中，不创建数据库记录
 
@@ -1241,8 +1266,11 @@ export function initResourceHandlers(): void {
     // 从项目文件夹读取 media 类型的轨道列表
     const tracks = await listProjectTracks(parentResourceId, workspaceId, 'media');
 
+    // 排除字幕编辑轨道（以 'subtitle-' 开头的轨道）
+    const mediaOnlyTracks = tracks.filter((t) => !t.id.startsWith('subtitle-'));
+
     const results = await Promise.all(
-      tracks.map(async (t) => {
+      mediaOnlyTracks.map(async (t) => {
         const trackConfig = await readProjectTrackConfig<any>(parentResourceId, workspaceId, t.fileName);
 
         return {
