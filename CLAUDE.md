@@ -302,6 +302,7 @@ Project folders use the `.resproject` suffix, which allows macOS to register the
   - `clips/` - Media clip/segment data (timeline markers, cuts) for media resources
   - `tracks/` - Track configuration files (subtitle-edit, tts, media tracks) - **not stored in database**
   - `tts/` - TTS synthesized audio files, organized by track (`main/` for main track, `<langCode>/` for translation tracks)
+  - `annotations/` - Annotation data files (highlights, notes, vocabulary) - **not stored in database**
 
 ### Project Metadata (project.json)
 
@@ -434,7 +435,9 @@ Tracks (subtitle-edit, TTS, media tracks) are stored in the project folder's `da
 | ----------------------------------- | ----------------------------------------------------- |
 | `resource:createSubtitleEditTrack`  | Create a subtitle edit track                          |
 | `resource:getSubtitleEditTracks`    | List all subtitle edit tracks for a resource          |
+| `resource:updateSubtitleEditTrack`  | Update subtitle-edit track segments                   |
 | `resource:deleteSubtitleEditTrack`  | Delete a subtitle edit track                          |
+| `resource:deleteTranslation`        | Delete a translation file from project folder         |
 | `resource:createTTSTrack`           | Create an independent TTS track                       |
 | `resource:getTTSTracks`             | List all TTS tracks for a resource                    |
 | `resource:updateTTSTrack`           | Update TTS track configuration                        |
@@ -448,6 +451,37 @@ Tracks (subtitle-edit, TTS, media tracks) are stored in the project folder's `da
 - Tracks don't appear in resource lists or search
 - Tracks don't have cascade delete issues with parent resources
 - Tracks are automatically cleaned up when parent resource's project folder is deleted
+
+### Annotation Management
+
+Annotations (highlights, notes, vocabulary) are stored in the project folder's `data/annotations/` subdirectory. This allows users to mark up subtitle content with custom annotations that persist across sessions.
+
+**Storage location:** `<resourceId>.resproject/data/annotations/<resourceId>.json`
+
+**Annotation types:**
+
+| Type          | Color                        | Description                              |
+| ------------- | ---------------------------- | ---------------------------------------- |
+| `highlight`   | Yellow `hsl(48, 95%, 55%)`   | Text highlighting                         |
+| `note`        | Blue `hsl(210, 80%, 60%)`    | General notes                             |
+| `vocabulary`  | Green `hsl(150, 70%, 50%)`   | Vocabulary/word lists                     |
+| `comment`     | Purple `hsl(280, 70%, 60%)`  | Comments                                  |
+| `custom`      | Orange `hsl(30, 80%, 55%)`   | Custom annotations                        |
+
+**How it works:**
+
+1. Annotations are created through the subtitle timeline UI (select text → add annotation)
+2. Data is saved to `data/annotations/<resourceId>.json` in the project folder
+3. Annotations are loaded when the resource is opened in the subtitle player
+4. Annotations are automatically cleaned up when parent resource's project folder is deleted
+
+**IPC API for annotations** (prefix `annotation:`):
+
+| Method                 | Description                                    |
+| ---------------------- | ---------------------------------------------- |
+| `annotation:load`      | Load annotation data for a resource            |
+| `annotation:save`      | Save annotation data for a resource            |
+| `annotation:delete`    | Delete annotation data file                    |
 
 ### Implementation
 
@@ -468,7 +502,9 @@ Tracks (subtitle-edit, TTS, media tracks) are stored in the project folder's `da
 | `resource:cleanupSegmentsResources` | Delete old segments-type resources from database                      |
 | `resource:createSubtitleEditTrack`  | Create a subtitle edit track in `data/tracks/`                        |
 | `resource:getSubtitleEditTracks`    | List subtitle edit tracks                                             |
+| `resource:updateSubtitleEditTrack`  | Update subtitle-edit track segments in config file                    |
 | `resource:deleteSubtitleEditTrack`  | Delete a subtitle edit track                                          |
+| `resource:deleteTranslation`        | Delete a translation file from `data/translations/`                   |
 | `resource:createTTSTrack`           | Create a TTS track in `data/tracks/`                                  |
 | `resource:getTTSTracks`             | List TTS tracks                                                       |
 | `resource:updateTTSTrack`           | Update TTS track configuration                                        |
