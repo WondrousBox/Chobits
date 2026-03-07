@@ -3,7 +3,7 @@
  */
 
 /** 可导出的轨道类型 */
-export type ExportTrackType = 'video' | 'audio' | 'subtitle' | 'tts-audio';
+export type ExportTrackType = 'video' | 'audio' | 'subtitle' | 'tts-audio' | 'annotation';
 
 /** 可导出轨道信息 */
 export interface ExportTrack {
@@ -105,6 +105,10 @@ export interface ExportConfig {
   subtitleStyle?: SubtitleStyleConfig;
   /** 是否启用卡拉OK式字级别高亮（需要 segments 数据） */
   enableKaraoke?: boolean;
+  /** 是否包含标注边栏 */
+  includeAnnotations?: boolean;
+  /** 标注边栏宽度比例（默认 0.2 = 20%） */
+  annotationSidebarWidthRatio?: number;
 }
 
 /** 已导出的文件信息 */
@@ -149,6 +153,8 @@ export interface ExportRequest {
   subtitleTracks: ExportSubtitleTrack[];
   /** TTS音频轨道数据 */
   ttsAudioTracks: ExportTTSAudioTrack[];
+  /** 标注数据（用于导出标注边栏） */
+  annotations?: ExportAnnotation[];
   /** 工作区ID */
   workspaceId?: string;
   /** 文件夹ID */
@@ -195,6 +201,29 @@ export interface ExportTTSSegment {
   trimmedDuration?: number;
   /** 播放速率：块时长 / 音频时长。>1 需减速，<1需加速 */
   playbackRate?: number;
+}
+
+/** 标注类型 */
+export type AnnotationType = 'highlight' | 'note' | 'vocabulary' | 'comment' | 'custom';
+
+/** 导出用标注数据 */
+export interface ExportAnnotation {
+  /** 标注ID */
+  id: string;
+  /** 开始时间（秒） */
+  startTime: number;
+  /** 结束时间（秒） */
+  endTime: number;
+  /** 标注文本 */
+  text: string;
+  /** 标注类型 */
+  type: AnnotationType;
+  /** 标注标题 */
+  title?: string;
+  /** 标注描述 */
+  description?: string;
+  /** 标注颜色 */
+  color?: string;
 }
 
 /** 清晰度预设映射 */

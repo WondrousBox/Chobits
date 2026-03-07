@@ -17,6 +17,7 @@ import { dispatchSubtitleDisplay, type SubtitleDisplayLine, type WordTimestamp }
 import { dispatchTrackSettings, TRACK_TOGGLE_EVENT, type TrackSettingsItem, type TrackTogglePayload } from '../MediaPlayer/trackSettingsEvent';
 import { createAimAdapters } from './adapters';
 import { ExportDialog } from './ExportDialog';
+import type { ExportAnnotation } from './ExportDialog/types';
 import { SubtitlePlayer } from './SubtitleListPlayer/SubtitlePlayer';
 import { aimTracksToTimelineTracks, ClipSequence, formatSecondsToTime, indicesToIds, parseSegmentId, parseTimeToSeconds, SubtitleTimeline, TimelineSegment } from './SubtitleTimeline';
 import { MediaSequence, TTSBatchTextInputPanel } from './SubtitleTimeline';
@@ -2097,6 +2098,20 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
     [onSeek, removeAnnotation, updateAnnotation]
   );
 
+  /** 导出用的标注数据（转换为 ExportAnnotation 格式） */
+  const exportAnnotations = useMemo((): ExportAnnotation[] => {
+    return annotations.map((a) => ({
+      id: a.id,
+      startTime: a.startTime,
+      endTime: a.endTime,
+      text: a.text,
+      type: a.type,
+      title: a.title,
+      description: a.description,
+      color: a.color
+    }));
+  }, [annotations]);
+
   /** 剪辑轨道数据（传给 SubtitleTimeline） */
   const clipTrackData = useMemo((): ClipTrackData | undefined => {
     if (clipSegments.length === 0) return undefined;
@@ -2995,6 +3010,7 @@ export const ResourceSubtitlePlayer: React.FC<ResourceSubtitlePlayerProps> = ({
         synthesizedItemsByTrack={synthesizedItemsByTrack}
         ttsTrackLabels={ttsTrackLabelsForTimeline}
         segmentsData={segmentsData}
+        annotations={exportAnnotations}
       />
     </div>
   );

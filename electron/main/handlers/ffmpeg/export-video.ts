@@ -26,7 +26,8 @@ import { fileURLToPath } from 'node:url';
 import { BrowserWindow } from 'electron';
 import ffmpeg from 'fluent-ffmpeg';
 
-import { ResourcesRepo } from '../../db/repositories';
+import { ResourcesRepo, WorkspacesRepo } from '../../db/repositories';
+import { getResourceProjectPath } from '../resource/resource-project';
 
 // ---------- 类型定义（与渲染进程共享） ----------
 
@@ -38,6 +39,9 @@ interface ExportConfig {
   qualityPreset: 'original' | '4k' | '1080p' | '720p' | '480p';
   crf: number;
   audioBitrate: number;
+  // 标注导出设置
+  includeAnnotations?: boolean;
+  annotationSidebarWidthRatio?: number; // 边栏宽度比例，默认 0.2 (20%)
 }
 
 interface ExportSubtitleTrack {
@@ -64,12 +68,24 @@ interface ExportTTSSegment {
   playbackRate?: number;
 }
 
+interface ExportAnnotation {
+  id: string;
+  startTime: number;
+  endTime: number;
+  text: string;
+  type: 'highlight' | 'note' | 'vocabulary' | 'comment' | 'custom';
+  title?: string;
+  description?: string;
+  color?: string;
+}
+
 interface ExportRequest {
   resourceId: string;
   duration: number;
   config: ExportConfig;
   subtitleTracks: ExportSubtitleTrack[];
   ttsAudioTracks: ExportTTSAudioTrack[];
+  annotations?: ExportAnnotation[];
   workspaceId?: string;
   folderId?: string;
 }
@@ -383,6 +399,80 @@ async function buildTTSAudioTrack(track: ExportTTSAudioTrack, duration: number, 
 }
 
 /**
+ * 生成标注边栏的 FFmpeg 滤镜字符串
+ *
+ * 布局策略：
+ * - 在视频右侧添加一个边栏区域（默认 20% 宽度）
+ * - 边栏背景半透明深色
+ * - 在边栏中显示当前时间段的标注内容
+ *
+ * @param annotations 标注数据数组
+ * @param videoWidth 原始视频宽度
+ * @param videoHeight 原始视频高度
+ * @param sidebarWidthRatio 边栏宽度比例（默认 0.2 = 20%）
+ */
+function buildAnnotationSidebarFilters(annotations: ExportAnnotation[], videoWidth: number, videoHeight: number, sidebarWidthRatio: number = 0.2): string[] {
+  if (!annotations || annotations.length === 0) {
+    return [];
+  }
+
+  const filters: string[] = [];
+  const sidebarWidth = Math.round(videoWidth * sidebarWidthRatio);
+  const mainWidth = videoWidth;
+  const totalWidth = mainWidth + sidebarWidth;
+
+  // 1. 添加右侧边栏（pad 滤镜）
+  // pad=width:height:x:y:color - x=mainWidth 表示在右侧添加
+  filters.push(`pad=${totalWidth}:${videoHeight}:${mainWidth}:0:black@0.7`);
+
+  // 2. 为每个标注生成 drawtext 滤镜（带时间条件）
+  // 按类型分配不同的 Y 位置
+  const typeColors: Record<string, string> = {
+    highlight: 'yellow',
+    note: 'blue',
+    vocabulary: 'green',
+    comment: 'purple',
+    custom: 'orange'
+  };
+
+  const lineHeight = 24;
+  const padding = 10;
+  const maxLines = Math.floor((videoHeight - padding * 2) / lineHeight);
+
+  // 按开始时间排序
+  const sortedAnnotations = [...annotations].sort((a, b) => a.startTime - b.startTime);
+
+  for (let i = 0; i < sortedAnnotations.length; i++) {
+    const ann = sortedAnnotations[i];
+    const startTime = ann.startTime;
+    const endTime = ann.endTime;
+    const color = ann.color || typeColors[ann.type] || 'white';
+
+    // 转义文本中的特殊字符
+    const escapedText = (ann.title || ann.text || '')
+      .replace(/'/g, "'\\''")
+      .replace(/:/g, '\\:')
+      .replace(/\n/g, ' ') // 换行符替换为空格
+      .slice(0, 50); // 限制文本长度
+
+    if (!escapedText) continue;
+
+    // 计算文本位置（在边栏内）
+    const lineIndex = i % Math.min(maxLines, 8); // 最多显示 8 行
+    const y = padding + lineIndex * lineHeight + lineHeight;
+    const x = mainWidth + padding;
+
+    // drawtext 滤镜参数
+    // fontsize=16, fontcolor=white, x/y 位置, enable='between(t,t)' 控制显示时间
+    const textFilter = `drawtext=text='${escapedText}':fontcolor=${color}:fontsize=16:x=${x}:y=${y}:enable='between(t,${startTime},t,${endTime})'`;
+
+    filters.push(textFilter);
+  }
+
+  return filters;
+}
+
+/**
  * Step 4: 最终合并——将视频+字幕+TTS音频合成为输出文件
  *
  * filter 图构建策略:
@@ -402,7 +492,7 @@ async function encodeOutput(
   tempDir: string,
   outputPath: string
 ): Promise<void> {
-  const { config, duration } = request;
+  const { config, duration, annotations } = request;
 
   console.log('[export-encode] 开始构建编码命令');
   console.log('[export-encode] 输入:', videoPath);
@@ -411,6 +501,12 @@ async function encodeOutput(
   console.log('[export-encode] 配置:', JSON.stringify(config));
   console.log('[export-encode] TTS音轨数:', ttsAudioPaths.length);
   console.log('[export-encode] 字幕文件:', JSON.stringify(subtitleFiles));
+  console.log('[export-encode] 标注数量:', annotations?.length || 0);
+
+  // 获取视频尺寸用于计算标注边栏位置
+  const mediaInfo = await getMediaInfo(videoPath);
+  const videoWidth = mediaInfo.width || 1920;
+  const videoHeight = mediaInfo.height || 1080;
 
   const args: string[] = ['-y'];
 
@@ -425,6 +521,9 @@ async function encodeOutput(
 
   // 缩放
   const preset = QUALITY_PRESETS[config.qualityPreset] || {};
+  let targetWidth = preset.width || videoWidth;
+  const targetHeight = preset.height || videoHeight;
+
   if (preset.width && preset.height) {
     const w = preset.width;
     const h = preset.height;
@@ -433,10 +532,62 @@ async function encodeOutput(
     vfParts.push(`pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2`);
   }
 
-  // 硬字幕
+  // 硬字幕（在标注边栏之前）
   if (config.subtitleEmbedMode === 'hardcode' && subtitleFiles.assPaths.length > 0) {
     const escapedPath = escapeFilterPath(subtitleFiles.assPaths[0]);
     vfParts.push(`ass=${escapedPath}`);
+  }
+
+  // 标注边栏（如果启用了标注导出）
+  const includeAnnotations = config.includeAnnotations && annotations && annotations.length > 0;
+  if (includeAnnotations) {
+    const sidebarRatio = config.annotationSidebarWidthRatio || 0.2;
+    const sidebarWidth = Math.round(targetWidth * sidebarRatio);
+    const totalWidth = targetWidth + sidebarWidth;
+
+    // 添加右侧边栏区域
+    vfParts.push(`pad=${totalWidth}:${targetHeight}:${targetWidth}:0:black@0.8`);
+
+    // 为每个标注添加 drawtext 滤镜
+    const typeColors: Record<string, string> = {
+      highlight: 'yellow',
+      note: 'lightblue',
+      vocabulary: 'lightgreen',
+      comment: 'plum',
+      custom: 'orange'
+    };
+
+    // 获取系统字体路径（避免 fontconfig 问题）
+    const fontPath =
+      process.platform === 'win32' ? 'C\\:/Windows/Fonts/arial.ttf' : process.platform === 'darwin' ? '/System/Library/Fonts/Helvetica.ttc' : '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf';
+
+    const lineHeight = 22;
+    const padding = 10;
+    const maxLines = 10;
+
+    const sortedAnnotations = [...annotations].sort((a, b) => a.startTime - b.startTime);
+
+    for (let i = 0; i < Math.min(sortedAnnotations.length, maxLines); i++) {
+      const ann = sortedAnnotations[i];
+      // 直接使用 typeColors，避免 HSL 颜色格式问题
+      const color = typeColors[ann.type] || 'white';
+
+      // 显示文本：优先使用 title，其次 text
+      let displayText = ann.title || ann.text || '';
+      displayText = displayText.replace(/'/g, "\\'").replace(/:/g, '\\:').replace(/\n/g, ' ').slice(0, 40);
+      if (!displayText) continue;
+
+      const y = padding + i * lineHeight + lineHeight;
+      const x = targetWidth + padding;
+
+      // 时间条件：enable='between(t,start,end)'
+      // 使用 fontfile 指定字体文件，避免 fontconfig 加载失败
+      const textFilter = `drawtext=text='${displayText}':fontfile='${fontPath}':fontcolor=${color}:fontsize=14:x=${x}:y=${y}:enable='between(t,${ann.startTime.toFixed(2)},${ann.endTime.toFixed(2)})'`;
+      vfParts.push(textFilter);
+    }
+
+    // 更新目标尺寸为包含边栏的总尺寸
+    targetWidth = totalWidth;
   }
 
   const videoFilterStr = vfParts.join(',');
@@ -549,13 +700,16 @@ async function encodeOutput(
  * Phase 2: 合并轨道为最终视频文件
  */
 export async function executeExport(win: BrowserWindow, request: ExportRequest): Promise<string> {
-  const { duration, config, subtitleTracks, ttsAudioTracks, resourceId } = request;
+  const { duration, config, subtitleTracks, ttsAudioTracks, resourceId, workspaceId: requestWorkspaceId } = request;
 
   // 通过 resourceId 从数据库获取资源信息，逐级查找视频/音频文件路径
   const resource = await ResourcesRepo.getById(resourceId);
   if (!resource) {
     throw new Error(`资源不存在: ${resourceId}`);
   }
+
+  // 获取 workspaceId（优先使用请求中的，否则从资源获取）
+  const workspaceId = requestWorkspaceId || resource.workspaceId;
 
   // 判断文件是否为视频/音频格式
   const isMediaFile = (filePath: string): boolean => {
@@ -621,10 +775,28 @@ export async function executeExport(win: BrowserWindow, request: ExportRequest):
     throw new Error(`ffmpeg 不存在: ${ffmpegPath}`);
   }
 
-  // 导出目录 = 资源文件夹 / export
-  const resourceDir = path.dirname(videoPath);
-  const exportDir = path.join(resourceDir, 'export');
-  ensureDir(exportDir);
+  // 导出目录 = 项目文件夹 / outputs
+  let exportDir: string;
+  if (workspaceId) {
+    const projectPath = await getResourceProjectPath(resourceId, workspaceId);
+    if (projectPath) {
+      exportDir = path.join(projectPath, 'outputs');
+      ensureDir(exportDir);
+      console.log(`[export] 使用项目文件夹导出目录: ${exportDir}`);
+    } else {
+      // 回退到资源文件夹
+      const resourceDir = path.dirname(videoPath);
+      exportDir = path.join(resourceDir, 'export');
+      ensureDir(exportDir);
+      console.log(`[export] 项目文件夹不可用，回退到资源文件夹: ${exportDir}`);
+    }
+  } else {
+    // 没有 workspaceId，使用资源文件夹
+    const resourceDir = path.dirname(videoPath);
+    exportDir = path.join(resourceDir, 'export');
+    ensureDir(exportDir);
+    console.log(`[export] 无 workspaceId，使用资源文件夹: ${exportDir}`);
+  }
 
   // 临时工作目录（用于中间文件，完成后清除）
   const tempId = crypto.createHash('md5').update(`${resourceId}-${Date.now()}`).digest('hex').slice(0, 12);
