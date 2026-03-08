@@ -50,33 +50,23 @@ const resourceQueryInputSchema = z.object({
 });
 
 /**
- * 资源查询输出参数
+ * 资源查询输出参数（精简版，减少 token 占用）
  */
 const resourceQueryOutputSchema = z.object({
   success: z.boolean().describe('是否成功'),
   resources: z
     .array(
       z.object({
-        id: z.string(),
-        type: z.string(),
-        title: z.string().nullable(),
-        description: z.string().nullable(),
-        url: z.string().nullable(),
-        filePath: z.string().nullable(),
-        thumbnailPath: z.string().nullable(),
-        tags: z.string().nullable(),
-        favorite: z.number().nullable(),
-        rating: z.number().nullable(),
-        status: z.string().nullable(),
-        sizeBytes: z.number().nullable(),
-        durationMs: z.number().nullable(),
-        createdAt: z.number().nullable(),
-        updatedAt: z.number().nullable()
+        id: z.string().describe('资源 ID（用于推送卡片等后续操作）'),
+        type: z.string().describe('资源类型'),
+        title: z.string().nullable().describe('资源标题'),
+        durationSec: z.number().nullable().optional().describe('时长（秒），仅视频/音频'),
+        status: z.string().nullable().optional().describe('状态')
       })
     )
     .optional()
-    .describe('资源列表'),
-  total: z.number().optional().describe('总数量（如果需要）'),
+    .describe('资源列表（精简版）'),
+  total: z.number().optional().describe('符合条件的总数量'),
   error: z.string().optional().describe('错误信息（如果失败）')
 });
 
@@ -262,23 +252,15 @@ export const createResourceQueryTool = (boundResourcesRepo?: typeof ResourcesRep
         // 限制返回数量
         const resultResources = resources.slice(0, limit);
 
-        // 格式化返回数据
+        // 格式化返回数据（精简版，只保留 AI 回复用户所需的字段）
         const formattedResources = resultResources.map((r: any) => ({
           id: r.id,
           type: r.type,
           title: r.title,
-          description: r.description,
-          url: r.url,
-          filePath: r.filePath,
-          thumbnailPath: r.thumbnailPath,
-          tags: r.tags,
-          favorite: r.favorite,
-          rating: r.rating,
-          status: r.status,
-          sizeBytes: r.sizeBytes,
-          durationMs: r.durationMs,
-          createdAt: r.createdAt,
-          updatedAt: r.updatedAt
+          // 时长转换为秒（更简洁）
+          ...(r.durationMs ? { durationSec: Math.round(r.durationMs / 1000) } : {}),
+          // 只在非 ready 状态时返回状态
+          ...(r.status && r.status !== 'ready' ? { status: r.status } : {})
         }));
 
         return {
