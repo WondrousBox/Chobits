@@ -1,9 +1,7 @@
 import { BrowserWindow, ipcMain } from 'electron';
 
 import { ChatRepo } from '../common/db';
-import { BasicAgent } from './agents/basic';
-import { RAGAgent } from './agents/rag';
-import { TaggerAgent } from './agents/tagger';
+import { assistantAgent, ragAgent, taggerAgent, translatorAgent } from './agents';
 import { ChatService } from './chat-service';
 import { GlossaryStore } from './glossary-store';
 import { InstancesStore } from './instances-store';
@@ -91,9 +89,12 @@ export function initAIHandlers(win: BrowserWindow): void {
   registerProvider(new DeepSeekProvider());
   registerProvider(new QwenProvider());
   registerProvider(new ZhipuProvider());
-  registerAgent(BasicAgent);
-  registerAgent(RAGAgent);
-  registerAgent(TaggerAgent);
+
+  // Register built-in Mastra Agents
+  registerAgent(assistantAgent);
+  registerAgent(ragAgent);
+  registerAgent(taggerAgent);
+  registerAgent(translatorAgent);
 
   const chat = new ChatService(win);
   chat.registerIpc();

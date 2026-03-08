@@ -1,5 +1,3 @@
-import type { BrowserWindow } from 'electron';
-
 // Core message primitives
 export type Role = 'system' | 'user' | 'assistant' | 'tool';
 
@@ -87,20 +85,8 @@ export interface ProviderAdapter {
   transcribe?(file: File | Blob | Buffer, options?: { model?: string; language?: string; prompt?: string }): Promise<{ text: string }>;
 }
 
-// Agent contracts
-export interface AgentContext {
-  window?: BrowserWindow;
-  emit?: (event: StreamEvent) => void; // agent can emit custom metadata/tool events
-  getProvider: (id?: string) => ProviderAdapter | undefined;
-}
-
-export interface AgentDefinition {
-  id: string;
-  label: string;
-  description?: string;
-  defaultProviderId?: string;
-  handleChat: (ctx: AgentContext, req: ChatRequest, signal?: AbortSignal) => Promise<ChatResponse>;
-}
+// Agent contracts - Removed, now using Mastra Agent
+// AgentContext and AgentDefinition have been migrated to use Mastra Agent directly
 
 export type StartStreamPayload = { requestId: string; eventsChannel: string } & ChatRequest;
 
