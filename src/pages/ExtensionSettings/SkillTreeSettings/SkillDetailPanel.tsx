@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import React, { useState } from 'react';
-import { TbLock, TbX } from 'react-icons/tb';
+import { TbLock, TbMicrophone, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -116,6 +116,29 @@ const SkillDetailPanel: React.FC<SkillDetailPanelProps> = ({ selectedSkillId, sk
 
   // 根据 settingsKey 渲染对应的设置组件
   const renderSettingsContent = (): React.ReactNode => {
+    // 麦克风技能：显示打开录制窗口按钮
+    if (selectedSkillId === 'microphone') {
+      return (
+        <div className="space-y-4">
+          <div className="text-sm text-slate-300">
+            <p>开启麦克风录音后，会显示一个悬浮录制窗口。</p>
+            <p className="mt-2">点击停止按钮后，录音会自动保存为音频资源。</p>
+          </div>
+          <Button
+            onClick={() => window.YUA.window['window:open']('webRecorder')}
+            className="w-full gap-2"
+            style={{
+              backgroundColor: colors.color,
+              borderColor: colors.color
+            }}
+          >
+            <TbMicrophone className="w-4 h-4" />
+            打开麦克风录制窗口
+          </Button>
+        </div>
+      );
+    }
+
     switch (selectedNode.settingsKey) {
       case 'movement':
         return <MovementSettings expanded={true} onExpand={() => { }} />;

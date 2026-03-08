@@ -16,6 +16,7 @@ import type { Resource } from './ipc-renderer';
 import { moveFileToProjectDataSubDir, type ProjectSegmentEntry, readProjectMeta, writeProjectMeta } from './resource-project';
 
 const SCREENSHOT_FOLDER_NAME = '截图';
+const AUDIO_FOLDER_NAME = '录音';
 
 /**
  * 查找字幕文件的伴随 segments.json 文件路径。
@@ -124,6 +125,33 @@ export async function getOrCreateScreenshotFolder(workspaceId: string | undefine
   if (existing?.id) return existing.id;
 
   const row = await FoldersRepo.create({ name: SCREENSHOT_FOLDER_NAME, parentId, workspaceId: wsId } as any);
+  const baseDir = path.join(ws.rootPath, 'resources', 'folders');
+  await fs.mkdir(baseDir, { recursive: true });
+  const dirPath = path.join(baseDir, row.id);
+  await fs.mkdir(dirPath, { recursive: true });
+  eventManager.emit(AppEvent.FOLDER_CREATED, row);
+  return row.id;
+}
+
+/**
+ * 获取或创建「录音」文件夹（主进程）：位于根目录，用于统一存放录音资源。
+ */
+export async function getOrCreateAudioFolder(workspaceId: string | undefined, parentFolderId: string | null | undefined): Promise<string | null> {
+  let ws: any;
+  if (workspaceId) {
+    ws = await WorkspacesRepo.getById(workspaceId);
+  } else {
+    ws = await WorkspacesRepo.getDefault();
+  }
+  if (!ws?.id || !ws.rootPath) return null;
+  const wsId = ws.id;
+  const parentId = parentFolderId ?? null;
+
+  const siblings = await FoldersRepo.list({ workspaceId: wsId, parentId, deletedAt: 0 } as any, 2000, 0);
+  const existing = (siblings as any[]).find((s: any) => s.name === AUDIO_FOLDER_NAME);
+  if (existing?.id) return existing.id;
+
+  const row = await FoldersRepo.create({ name: AUDIO_FOLDER_NAME, parentId, workspaceId: wsId } as any);
   const baseDir = path.join(ws.rootPath, 'resources', 'folders');
   await fs.mkdir(baseDir, { recursive: true });
   const dirPath = path.join(baseDir, row.id);

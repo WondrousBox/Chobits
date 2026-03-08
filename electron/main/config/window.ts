@@ -530,7 +530,7 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
     routeHash: 'web-recorder',
     autoCenterOn: 'parent-display',
     showOnReady: false,
-    openDevTools: false,
+    openDevTools: true, // 开启调试面板，调试完成后改为 false
     options: {
       width: 280,
       height: 48,
