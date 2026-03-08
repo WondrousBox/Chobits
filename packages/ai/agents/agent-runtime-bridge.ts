@@ -2,7 +2,6 @@ import type { AgentInput, LLMChunk, LLMProvider, LLMRequest, LLMResponse, Messag
 import { DefaultAgentRuntime, generateId, RegistryToolProvider } from '@packages/ai-agent';
 
 import type { AgentContext, ChatMessage, ChatRequest, ChatResponse, ProviderAdapter, StreamEvent } from '../types';
-import { WeatherTool } from './tools/weather-tool';
 
 class ProviderLLMAdapter implements LLMProvider {
   constructor(
@@ -184,7 +183,7 @@ export async function runAgentRuntimeChat(ctx: AgentContext, req: ChatRequest, m
 
   const runtime = new DefaultAgentRuntime();
   const tools = new RegistryToolProvider();
-  tools.register(WeatherTool);
+  // 注册工具（目前为空，可以按需添加其他工具）
   const llm = new ProviderLLMAdapter(provider, req);
 
   const input: AgentInput = {

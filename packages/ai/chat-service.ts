@@ -395,12 +395,55 @@ ${JSON.stringify(req, null, 2)}
       const filteredTools = enabledTools !== undefined ? getFilteredTools(enabledTools) : undefined;
 
       // 创建配置好的 Agent 副本
+      const toolsToUse = filteredTools || (baseAgent as any).tools || {};
       const agent = new Agent({
         name: baseAgent.name,
         instructions: (baseAgent as any).instructions || '',
         model,
-        tools: filteredTools || (baseAgent as any).tools || {}
+        tools: toolsToUse
       });
+
+      // ============================================================
+      // 日志：打印传给 AI 的工具定义（分析 token 占用）
+      // ============================================================
+      console.log('\n' + '='.repeat(80));
+      console.log('[Tool Definition Log] 传给 AI 的工具定义:');
+      console.log('='.repeat(80));
+
+      const toolEntries = Object.entries(toolsToUse);
+      console.log(`[Tool Count] 共 ${toolEntries.length} 个工具\n`);
+
+      let totalDescriptionLength = 0;
+      let totalSchemaLength = 0;
+
+      for (const [toolName, tool] of toolEntries) {
+        const t = tool as any;
+        const desc = t.description || '';
+        const id = t.id || toolName;
+
+        // 估算 schema 大小
+        let schemaStr = '';
+        try {
+          schemaStr = JSON.stringify(t.inputSchema || {}, null, 2);
+        } catch {
+          schemaStr = '[无法序列化]';
+        }
+
+        const descLen = desc.length;
+        const schemaLen = schemaStr.length;
+        totalDescriptionLength += descLen;
+        totalSchemaLength += schemaLen;
+
+        console.log(`\n--- Tool: ${toolName} (id: ${id}) ---`);
+        console.log(`[Description] (${descLen} chars):\n${desc}`);
+        console.log(`[InputSchema] (${schemaLen} chars):\n${schemaStr.slice(0, 500)}${schemaStr.length > 500 ? '...(truncated)' : ''}`);
+      }
+
+      console.log('\n' + '-'.repeat(80));
+      console.log(`[Summary] 描述总字符数: ${totalDescriptionLength}`);
+      console.log(`[Summary] Schema 总字符数: ${totalSchemaLength}`);
+      console.log(`[Summary] 估算总大小: ~${Math.ceil((totalDescriptionLength + totalSchemaLength) / 4)} tokens (按 1 token ≈ 4 chars 估算)`);
+      console.log('='.repeat(80) + '\n');
 
       return agent;
     } catch (error) {

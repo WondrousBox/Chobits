@@ -7,35 +7,35 @@
 ```
 tools/
 ├── index.ts                    # 工具集中管理和导出
-├── calculator-tool.ts          # 计算器工具
-├── time-tool.ts               # 时间查询工具
-├── weather-tool.ts            # 天气查询工具
-├── translation-tool.ts        # 字幕翻译工具（需要 toolContext）
-├── summary-tool.ts            # 内容总结工具（需要 toolContext）
-└── resource-query-tool.ts     # 资源查询工具（需要 toolContext）
+├── translation-tool.ts         # 字幕翻译工具（需要 toolContext）
+├── summary-tool.ts             # 内容总结工具（需要 toolContext）
+├── resource-query-tool.ts      # 资源查询工具（需要 toolContext）
+├── push-card-tool.ts           # 推送卡片工具
+├── read-subtitle-tool.ts       # 读取字幕工具
+├── youtube-download-tool.ts    # YouTube 下载工具
+└── youtube-subscribe-tool.ts   # YouTube 订阅工具
 ```
 
 ## 🛠️ 工具分类
-
-### 通用工具（无需外部依赖）
-
-这些工具可以直接传给 Agent 使用，无需 toolContext：
-
-| 工具             | ID            | 功能         | 文件                 |
-| ---------------- | ------------- | ------------ | -------------------- |
-| `weatherTool`    | `get-weather` | 查询城市天气 | `weather-tool.ts`    |
-| `timeTool`       | `get-time`    | 获取当前时间 | `time-tool.ts`       |
-| `calculatorTool` | `calculator`  | 数学计算     | `calculator-tool.ts` |
 
 ### AI 工具（需要 toolContext）
 
 这些工具依赖外部服务，使用时需要通过 toolContext 传入依赖：
 
-| 工具                | ID                    | 功能         | 依赖                       | 文件                     |
-| ------------------- | --------------------- | ------------ | -------------------------- | ------------------------ |
-| `translationTool`   | `translate-subtitles` | 字幕翻译     | TranslationService, chatFn | `translation-tool.ts`    |
-| `summaryTool`       | `summarize-content`   | 内容总结     | SummaryService, chatFn     | `summary-tool.ts`        |
-| `resourceQueryTool` | `query-resources`     | 资源智能查询 | ResourcesRepo              | `resource-query-tool.ts` |
+| 工具                | ID                    | 功能           | 依赖                       | 文件                     |
+| ------------------- | --------------------- | -------------- | -------------------------- | ------------------------ |
+| `translationTool`   | `translate-subtitles` | 字幕翻译       | TranslationService, chatFn | `translation-tool.ts`    |
+| `summaryTool`       | `summarize-content`   | 内容总结       | SummaryService, chatFn     | `summary-tool.ts`        |
+| `resourceQueryTool` | `query-resources`     | 资源智能查询   | ResourcesRepo              | `resource-query-tool.ts` |
+| `pushCardTool`      | `push-card`           | 推送资源卡片   | ChatRepo                   | `push-card-tool.ts`      |
+| `readSubtitleTool`  | `read-subtitle`       | 读取字幕内容   | ResourcesRepo              | `read-subtitle-tool.ts`  |
+
+### YouTube 工具
+
+| 工具                  | ID                  | 功能              | 文件                      |
+| --------------------- | ------------------- | ----------------- | ------------------------- |
+| `youtubeDownloadTool` | `youtube-download`  | 下载 YouTube 视频 | `youtube-download-tool.ts`|
+| `youtubeSubscribeTool`| `youtube-subscribe` | 订阅 YouTube 频道 | `youtube-subscribe-tool.ts`|
 
 ## 🚀 快速开始
 
@@ -43,31 +43,13 @@ tools/
 
 ```typescript
 // 导入所有工具
-import { getAllTools, getBasicTools, getAITools } from '@/packages/ai/tools';
+import { getAllTools, getAITools } from '@/packages/ai/tools';
 
 // 或导入单个工具
-import { weatherTool, translationTool, resourceQueryTool } from '@/packages/ai/tools';
+import { translationTool, resourceQueryTool, pushCardTool } from '@/packages/ai/tools';
 ```
 
-### 2. 使用通用工具
-
-```typescript
-import { Agent } from '@mastra/core';
-import { getBasicTools } from '@/packages/ai/tools';
-
-// 创建 Agent 并传入工具
-const agent = new Agent({
-  name: 'helper',
-  instructions: '你是一个有用的助手',
-  model: { provider: 'OPEN_AI', name: 'gpt-4', toolChoice: 'auto' },
-  tools: getBasicTools()
-});
-
-// Agent 会自动决定何时使用工具
-const result = await agent.stream([{ role: 'user', content: '北京今天天气怎么样？' }]);
-```
-
-### 3. 使用 AI 工具（方式一：直接调用）
+### 2. 使用 AI 工具（方式一：直接调用）
 
 ```typescript
 import { resourceQueryTool } from '@/packages/ai/tools';
@@ -87,7 +69,7 @@ const result = await resourceQueryTool.execute({
 console.log(`找到 ${result.total} 个资源`);
 ```
 
-### 4. 使用 AI 工具（方式二：Agent 自动调用）
+### 3. 使用 AI 工具（方式二：Agent 自动调用）
 
 ```typescript
 import { Agent } from '@mastra/core';
@@ -111,45 +93,6 @@ const result = await agent.stream([{ role: 'user', content: '找今天的视频�
 
 ## 📖 详细文档
 
-### 天气工具
-
-```typescript
-import { weatherTool } from '@/packages/ai/tools';
-
-const result = await weatherTool.execute({
-  context: {
-    city: '北京',
-    unit: 'celsius' // 可选：'celsius' 或 'fahrenheit'
-  }
-});
-// => { city: '北京', temperature: 15, unit: 'celsius', description: '晴朗' }
-```
-
-### 时间工具
-
-```typescript
-import { timeTool } from '@/packages/ai/tools';
-
-// 可读格式
-const result = await timeTool.execute({
-  context: { format: 'readable' }
-});
-// => { time: '2024/1/17 18:30:00' }
-
-// 其他格式：'iso', 'unix', 'date', 'time'
-```
-
-### 计算器工具
-
-```typescript
-import { calculatorTool } from '@/packages/ai/tools';
-
-const result = await calculatorTool.execute({
-  context: { expression: '(10 + 5) * 2 - 8 / 4' }
-});
-// => { result: 28, expression: '(10 + 5) * 2 - 8 / 4' }
-```
-
 ### 翻译工具
 
 ```typescript
@@ -167,14 +110,10 @@ const result = await translationTool.execute({
     translationService: TranslationService,
     chatFn: ChatService.chatStream,
     requestId: 'req-123',
-    conversationId: 'conv-456',
-    conversationRepo: ConversationRepo,
-    messagesRepo: MessagesRepo
+    conversationId: 'conv-456'
   }
 });
 ```
-
-> 详细文档：`docs/tools-usage-guide.md`
 
 ### 总结工具
 
@@ -190,14 +129,10 @@ const result = await summaryTool.execute({
     summaryService: SummaryService,
     chatFn: ChatService.chatStream,
     requestId: 'req-123',
-    conversationId: 'conv-456',
-    conversationRepo: ConversationRepo,
-    messagesRepo: MessagesRepo
+    conversationId: 'conv-456'
   }
 });
 ```
-
-> 详细文档：`docs/tools-usage-guide.md`
 
 ### 资源查询工具
 
@@ -230,31 +165,17 @@ const result = await resourceQueryTool.execute({
 });
 ```
 
-> 详细文档：`docs/resource-query-tool-guide.md`  
-> 快速参考：`docs/resource-query-quick-reference.md`
-
 ## 🔧 工具管理 API
 
 ### `getAllTools()`
 
-获取所有工具（包括通用工具和 AI 工具）
+获取所有工具
 
 ```typescript
 import { getAllTools } from '@/packages/ai/tools';
 
 const tools = getAllTools();
-// => { weatherTool, timeTool, calculatorTool, translationTool, summaryTool, resourceQueryTool }
-```
-
-### `getBasicTools()`
-
-仅获取通用工具（无需 toolContext）
-
-```typescript
-import { getBasicTools } from '@/packages/ai/tools';
-
-const tools = getBasicTools();
-// => { weatherTool, timeTool, calculatorTool }
+// => { translationTool, summaryTool, resourceQueryTool, pushCardTool, youtubeDownloadTool, youtubeSubscribeTool }
 ```
 
 ### `getAITools()`
@@ -265,7 +186,7 @@ const tools = getBasicTools();
 import { getAITools } from '@/packages/ai/tools';
 
 const tools = getAITools();
-// => { translationTool, summaryTool, resourceQueryTool }
+// => { translationTool, summaryTool, resourceQueryTool, pushCardTool }
 ```
 
 ### `getTool(name: string)`
@@ -275,8 +196,8 @@ const tools = getAITools();
 ```typescript
 import { getTool } from '@/packages/ai/tools';
 
-const tool = getTool('weatherTool');
-// => weatherTool 实例
+const tool = getTool('resourceQueryTool');
+// => resourceQueryTool 实例
 ```
 
 ### `getToolById(id: string)`
@@ -286,8 +207,8 @@ const tool = getTool('weatherTool');
 ```typescript
 import { getToolById } from '@/packages/ai/tools';
 
-const tool = getToolById('get-weather');
-// => weatherTool 实例
+const tool = getToolById('query-resources');
+// => resourceQueryTool 实例
 ```
 
 ## 📝 创建新工具
@@ -342,16 +263,16 @@ export const allTools = {
 };
 
 // 4. 更新类型定义
-export type ToolId = 'get-weather' | 'get-time' | 'calculator' | 'translate-subtitles' | 'summarize-content' | 'query-resources' | 'my-tool'; // 添加新工具 ID
+export type ToolId = 'translate-subtitles' | 'summarize-content' | 'query-resources' | 'my-tool'; // 添加新工具 ID
 ```
 
 ## 🎯 最佳实践
 
 ### 1. 工具命名
 
-- **文件名**：使用 `kebab-case`，如 `weather-tool.ts`
-- **变量名**：使用 `camelCase`，如 `weatherTool`
-- **工具 ID**：使用 `kebab-case`，如 `get-weather`
+- **文件名**：使用 `kebab-case`，如 `resource-query-tool.ts`
+- **变量名**：使用 `camelCase`，如 `resourceQueryTool`
+- **工具 ID**：使用 `kebab-case`，如 `query-resources`
 
 ### 2. Schema 定义
 
@@ -408,29 +329,6 @@ execute: async ({ context, toolContext }) => {
   return result;
 };
 ```
-
-### 5. 文档编写
-
-为每个工具添加详细的 JSDoc 注释和使用示例：
-
-````typescript
-/**
- * 天气查询工具
- *
- * 基于 Open-Meteo API 查询指定城市的当前天气
- *
- * @example
- * ```typescript
- * const result = await weatherTool.execute({
- *   context: { city: '北京', unit: 'celsius' }
- * });
- * console.log(`${result.city}: ${result.temperature}°C, ${result.description}`);
- * ```
- */
-export const weatherTool = createTool({
-  /* ... */
-});
-````
 
 ## 📚 相关文档
 
