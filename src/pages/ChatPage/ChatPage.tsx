@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { TbDots, TbEdit, TbLoader2, TbPin, TbPlus, TbRefresh, TbShare, TbTrash } from 'react-icons/tb';
+import { TbChevronRight, TbDots, TbEdit, TbHistory, TbLoader2, TbPin, TbPlus, TbRefresh, TbShare, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { ChatInputWithService, ChatMessageRenderer, ResourceCard } from '@/components/chat';
@@ -31,6 +31,9 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
   const [newTitle, setNewTitle] = useState('');
   // Track conversations that are waiting for AI-generated titles
   const [generatingTitleIds, setGeneratingTitleIds] = useState<Set<string>>(new Set());
+
+  // 控制历史会话列表的显示/隐藏，默认隐藏
+  const [showHistory, setShowHistory] = useState(false);
 
   // Pushed cards from main process
   const [pushedCards, setPushedCards] = useState<Array<ChatCard & { timestamp: number; text?: string }>>([]);
@@ -311,99 +314,113 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
         />
       )}
 
-      {/* 主体：左侧历史列表 + 右侧聊天区 */}
+      {/* 主体：左侧历史列表（可折叠） + 右侧聊天区 */}
       <div className="flex-1 min-h-0 flex overflow-hidden">
-        {/* 左侧：历史会话 */}
-        <div className="w-64 border-r shrink-0 flex flex-col bg-muted">
-          <div className="p-2 flex items-center gap-1 shrink-0">
-            <Button size="icon" variant="outline" className="w-8 h-8 rounded-full" onClick={loadConversations} title="刷新列表">
-              <TbRefresh />
-            </Button>
-            <Button size="sm" className="rounded-full flex-1" onClick={newConversation}>
-              <TbPlus />
-              新对话
-            </Button>
-          </div>
-          <div className="px-2 pb-2 text-xs text-muted-foreground flex items-center justify-between shrink-0">
-            <span>最近会话</span>
-          </div>
-          <div className="flex-1 overflow-auto min-h-0">
-            {loadingConvs && <div className="p-2 text-xs text-muted-foreground">加载中…</div>}
-            {!loadingConvs && conversations.length === 0 && <div className="p-2 text-xs text-muted-foreground">暂无会话，点击“新对话”开始</div>}
-            <div className="flex flex-col">
-              {conversations.map((c) => {
-                const isGenerating = generatingTitleIds.has(c.id);
-                return (
-                  <div
-                    key={c.id}
-                    className={`group flex items-center gap-2 px-2 py-1.5 cursor-pointer rounded-md mx-1 mb-0.5 ${selectedConvId === c.id ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}
-                    onClick={() => selectConversation(c.id)}
-                  >
-                    <div className="flex-1 min-w-0">
-                      {isGenerating ? <div className="h-4 rounded shimmer-title" /> : <div className="truncate text-sm">{c.title || '未命名会话'}</div>}
-                      <div className={`text-xs ${selectedConvId === c.id ? 'text-primary-foreground/70' : 'text-muted-foreground'}`} title={formatDateTime(c.lastMessageAt)}>
-                        {c.messagesCount ?? 0} 条消息{c.lastMessageAt ? ` • ${formatRelativeTime(c.lastMessageAt)}` : ''}
+        {/* 左侧：历史会话（可折叠，默认隐藏） */}
+        {showHistory && (
+          <div className="w-64 border-r shrink-0 flex flex-col bg-muted">
+            <div className="p-2 flex items-center gap-1 shrink-0">
+              <Button size="icon" variant="outline" className="w-8 h-8 rounded-full" onClick={loadConversations} title="刷新列表">
+                <TbRefresh />
+              </Button>
+              <Button size="sm" className="rounded-full flex-1" onClick={newConversation}>
+                <TbPlus />
+                新对话
+              </Button>
+            </div>
+            <div className="px-2 pb-2 text-xs text-muted-foreground flex items-center justify-between shrink-0">
+              <span>最近会话</span>
+            </div>
+            <div className="flex-1 overflow-auto min-h-0">
+              {loadingConvs && <div className="p-2 text-xs text-muted-foreground">加载中…</div>}
+              {!loadingConvs && conversations.length === 0 && <div className="p-2 text-xs text-muted-foreground">暂无会话，点击"新对话"开始</div>}
+              <div className="flex flex-col">
+                {conversations.map((c) => {
+                  const isGenerating = generatingTitleIds.has(c.id);
+                  return (
+                    <div
+                      key={c.id}
+                      className={`group flex items-center gap-2 px-2 py-1.5 cursor-pointer rounded-md mx-1 mb-0.5 ${selectedConvId === c.id ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}
+                      onClick={() => selectConversation(c.id)}
+                    >
+                      <div className="flex-1 min-w-0">
+                        {isGenerating ? <div className="h-4 rounded shimmer-title" /> : <div className="truncate text-sm">{c.title || '未命名会话'}</div>}
+                        <div className={`text-xs ${selectedConvId === c.id ? 'text-primary-foreground/70' : 'text-muted-foreground'}`} title={formatDateTime(c.lastMessageAt)}>
+                          {c.messagesCount ?? 0} 条消息{c.lastMessageAt ? ` • ${formatRelativeTime(c.lastMessageAt)}` : ''}
+                        </div>
                       </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button className="opacity-0 group-hover:opacity-100 w-7 h-7 shrink-0" size="icon" variant="ghost" onClick={(e) => e.stopPropagation()}>
+                            <TbDots className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" side="bottom" className="w-40">
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // Copy conversation to clipboard
+                              const text = `${c.title || '未命名会话'}`;
+                              navigator.clipboard.writeText(text);
+                              toast.success('已复制对话标题');
+                            }}
+                          >
+                            <TbShare className="w-4 h-4 mr-2" />
+                            分享对话内容
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // Toggle pin (placeholder)
+                              toast.info(c.pinned ? '已取消固定' : '已固定会话');
+                            }}
+                          >
+                            <TbPin className="w-4 h-4 mr-2" />
+                            {c.pinned ? '取消固定' : '固定'}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openRenameDialog(c.id);
+                            }}
+                          >
+                            <TbEdit className="w-4 h-4 mr-2" />
+                            重命名
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteConversation(c.id);
+                            }}
+                          >
+                            <TbTrash className="w-4 h-4 mr-2" />
+                            删除
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button className="opacity-0 group-hover:opacity-100 w-7 h-7 shrink-0" size="icon" variant="ghost" onClick={(e) => e.stopPropagation()}>
-                          <TbDots className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" side="bottom" className="w-40">
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            // Copy conversation to clipboard
-                            const text = `${c.title || '未命名会话'}`;
-                            navigator.clipboard.writeText(text);
-                            toast.success('已复制对话标题');
-                          }}
-                        >
-                          <TbShare className="w-4 h-4 mr-2" />
-                          分享对话内容
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            // Toggle pin (placeholder)
-                            toast.info(c.pinned ? '已取消固定' : '已固定会话');
-                          }}
-                        >
-                          <TbPin className="w-4 h-4 mr-2" />
-                          {c.pinned ? '取消固定' : '固定'}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openRenameDialog(c.id);
-                          }}
-                        >
-                          <TbEdit className="w-4 h-4 mr-2" />
-                          重命名
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteConversation(c.id);
-                          }}
-                        >
-                          <TbTrash className="w-4 h-4 mr-2" />
-                          删除
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* 右侧：聊天窗口 */}
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden relative">
+          {/* 展开/收起历史按钮 */}
+          <div className="absolute top-2 left-2 z-10">
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8"
+              onClick={() => setShowHistory(!showHistory)}
+              title={showHistory ? '收起历史' : '展开历史'}
+            >
+              {showHistory ? <TbChevronRight className="w-4 h-4" /> : <TbHistory className="w-4 h-4" />}
+            </Button>
+          </div>
           {!messages ||
             (messages.length === 0 && (
               <div className="h-full flex flex-col items-center justify-center text-muted-foreground">

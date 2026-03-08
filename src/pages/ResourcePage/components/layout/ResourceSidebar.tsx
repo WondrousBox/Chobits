@@ -1,5 +1,5 @@
 import React from 'react';
-import { TbApps, TbFilter, TbHeart, TbLine, TbMessage2, TbSettings, TbTrash } from 'react-icons/tb';
+import { TbApps, TbFilter, TbHeart, TbHome, TbLine, TbSettings, TbTrash } from 'react-icons/tb';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
@@ -55,13 +55,30 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
   const isTasksRoute = location.pathname.includes('/tasks');
   const isWorkflowsRoute = location.pathname.includes('/workflows');
   const isAppsRoute = location.pathname.includes('/apps');
-  const isChatRoute = location.pathname.includes('/chat');
+  const isHomeRoute = location.pathname === '/resources' || location.pathname === '/resources/' || location.pathname === '/resources/home';
 
   return (
     <Sidebar collapsible="none" className="h-full w-80 bg-sidebar border-t">
       <SidebarHeader>
         <WorkspaceSwitcher workspaces={workspaces} currentWorkspaceId={wsFilter} onOpenSettings={() => onOpenSettings('workspace')} />
         <SidebarMenu className="pl-0 my-0">
+          {/* 首页 - 聊天入口，放在工作空间下方 */}
+          <SidebarMenuItem
+            key={'home'}
+            onClick={() => {
+              navigate('/resources/home', { replace: true });
+              setFavoriteFilter(false);
+              setFolderFilter('');
+            }}
+          >
+            <SidebarMenuButton
+              variant={isHomeRoute ? 'outline' : 'default'}
+              className={`h-8 transition-colors ${isHomeRoute ? 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground' : ''}`}
+            >
+              <TbHome />
+              首页
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           {/* 收藏筛选按钮 - 只在存在收藏内容时显示 */}
           {hasFavorites && (
             <SidebarMenuItem
@@ -74,7 +91,7 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
                   // 如果当前不是收藏模式，点击后进入收藏模式
                   setFavoriteFilter(true);
                   setFolderFilter(''); // 取消文件夹选中状态
-                  navigate('/resources', { replace: true }); // 导航回主资源页面
+                  navigate('/resources/browse', { replace: true }); // 导航到资源浏览页面
                 }
               }}
             >
@@ -136,22 +153,6 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem
-            key={'chat'}
-            onClick={() => {
-              navigate('/resources/chat', { replace: true });
-              setFavoriteFilter(false);
-              setFolderFilter('');
-            }}
-          >
-            <SidebarMenuButton
-              variant={isChatRoute ? 'outline' : 'default'}
-              className={`h-8 transition-colors ${isChatRoute ? 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground' : ''}`}
-            >
-              <TbMessage2 />
-              对话
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem
             key={'settings'}
             onClick={() => {
               onOpenSettings();
@@ -175,7 +176,7 @@ const ResourceSidebar: React.FC<ResourceSidebarProps> = ({
             setFolderFilter(folderId);
             saveCurrentFolder(folderId);
             setFavoriteFilter(false);
-            navigate('/resources', { replace: true }); // 导航回主资源页面
+            navigate('/resources/browse', { replace: true }); // 导航到资源浏览页面
           }}
           counts={folderCounts}
           allCount={allCount}
