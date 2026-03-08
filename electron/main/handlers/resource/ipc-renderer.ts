@@ -116,6 +116,18 @@ export type ResourceIpcParams = {
     ],
     { success: boolean; data?: Resource; error?: string }
   >;
+  /** 保存录音：将麦克风录音保存为音频资源文件 */
+  'resource:saveAudioRecording': IpcParams<
+    [
+      {
+        data: ArrayBuffer;
+        workspaceId?: string;
+        folderId?: string | null;
+        title?: string;
+      }
+    ],
+    { success: boolean; data?: Resource; error?: string }
+  >;
   /** 创建编排字幕轨道（存储在项目文件夹 data/tracks/ 中） */
   'resource:createSubtitleEditTrack': IpcParams<[{ parentResourceId: string; title: string }], { id: string; trackId: string; filePath: string }>;
   /** 获取编排字幕轨道列表 */
@@ -274,6 +286,7 @@ const methods: Array<keyof ResourceIpcParams> = [
   'resource:importLocalFiles',
   'resource:importLocalFolders',
   'resource:saveScreenshot',
+  'resource:saveAudioRecording',
   'resource:createSubtitleEditTrack',
   'resource:getSubtitleEditTracks',
   'resource:deleteSubtitleEditTrack',

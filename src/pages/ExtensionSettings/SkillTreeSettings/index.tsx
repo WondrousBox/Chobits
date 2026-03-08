@@ -145,6 +145,20 @@ const SkillTreeSettings: React.FC = () => {
       const skill = skillTreeNodes.find((n) => n.id === skillId);
       if (!skill) return;
 
+      // 麦克风技能：控制 WebRecorder 窗口
+      if (skillId === 'microphone') {
+        if (enabled) {
+          window.YUA.window['window:open']('webRecorder');
+        } else {
+          window.YUA.window['window:close']('webRecorder');
+        }
+        setSkillStatuses((prev) => ({
+          ...prev,
+          [skillId]: enabled ? 'active' : 'unlocked'
+        }));
+        return;
+      }
+
       switch (skill.settingsKey) {
         case 'movement':
           await window.YUA.window.setAutoWalkEnabled(enabled);

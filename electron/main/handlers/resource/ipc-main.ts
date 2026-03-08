@@ -11,7 +11,7 @@ import { AppEvent } from '../../../../packages/event/events';
 import { FoldersRepo, ResourcesRepo, TagsRepo, WorkspacesRepo } from '../../db/repositories';
 // import { sendAppNotice } from '../../../../packages/event';
 import { generateThumbnailForResource } from '../../utils/thumbnail';
-import { addResource, ensureDailyFolder, getOrCreateScreenshotFolder } from '.';
+import { addResource, ensureDailyFolder, getOrCreateAudioFolder, getOrCreateScreenshotFolder } from '.';
 import type { Resource } from './ipc-renderer';
 import {
   clearResourceProjectDir,
@@ -729,6 +729,72 @@ export function initResourceHandlers(): void {
         return result?.data ? { success: true, data: result.data } : { success: false, error: 'add-resource-failed' };
       } catch (e: any) {
         console.warn('resource:saveScreenshot failed', e);
+        return { success: false, error: e?.message || 'unknown-error' };
+      }
+    }
+  );
+
+  // 录音保存：主进程负责查找/创建「录音」文件夹、写入文件、创建资源记录
+  ipcMain.handle(
+    'resource:saveAudioRecording',
+    async (
+      _event,
+      payload: {
+        data: ArrayBuffer;
+        workspaceId?: string;
+        folderId?: string | null;
+        title?: string;
+      }
+    ) => {
+      try {
+        const { data, workspaceId, folderId, title } = payload || ({} as any);
+        if (!data) return { success: false, error: 'invalid-params' };
+
+        let ws: any;
+        if (workspaceId) {
+          ws = await WorkspacesRepo.getById(workspaceId);
+        } else {
+          ws = await WorkspacesRepo.getDefault();
+        }
+        if (!ws?.rootPath) return { success: false, error: 'no-workspace' };
+
+        const audioFolderId = await getOrCreateAudioFolder(workspaceId ?? ws.id, folderId ?? null);
+        if (!audioFolderId) return { success: false, error: 'audio-folder-failed' };
+
+        const baseDir = path.join(ws.rootPath, 'resources', 'folders', audioFolderId);
+        await fs.mkdir(baseDir, { recursive: true });
+
+        const now = new Date();
+        const pad = (n: number) => n.toString().padStart(2, '0');
+        const ts = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+        const baseName = (title || 'recording').replace(/[\\/]+/g, '-').slice(0, 80) || 'recording';
+        const fileName = `${baseName}-${ts}.wav`;
+
+        let target = path.join(baseDir, fileName);
+        const ext = path.extname(fileName);
+        const nameNoExt = path.basename(fileName, ext);
+        let counter = 1;
+        while (fscb.existsSync(target)) {
+          target = path.join(baseDir, `${nameNoExt}(${counter})${ext}`);
+          counter++;
+        }
+
+        const buffer = Buffer.from(data as ArrayBuffer);
+        await fs.writeFile(target, buffer);
+
+        const result = await addResource({
+          resource: {
+            type: 'audio',
+            filePath: target,
+            workspaceId: workspaceId ?? ws.id,
+            folderId: audioFolderId,
+            title: title || `录音 ${ts}`
+          } as any
+        });
+
+        return result?.data ? { success: true, data: result.data } : { success: false, error: 'add-resource-failed' };
+      } catch (e: any) {
+        console.warn('resource:saveAudioRecording failed', e);
         return { success: false, error: e?.message || 'unknown-error' };
       }
     }
