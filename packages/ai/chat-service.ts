@@ -13,7 +13,7 @@ import { getAllInstanceSecrets } from './settings-store';
 import { pushCardToolContext } from './tools/push-card-tool-context';
 import { summaryToolContext } from './tools/summary-tool-context';
 import { translationToolContext } from './tools/translation-tool-context';
-import { AgentDefinition, ChatMessage, ChatRequest, ChatResponse, EmbeddingResponse, StreamEvent } from './types';
+import { ChatMessage, ChatRequest, ChatResponse, EmbeddingResponse, StreamEvent } from './types';
 
 // local UUID fallback if uuid not present
 function safeUuid(): string {
@@ -67,11 +67,9 @@ export class ChatService {
         createdAt: last.createdAt || Date.now()
       } as any);
     }
-    const agent: AgentDefinition | undefined = getAgent(req.agentId);
-    const ctx = {
-      window: win || this.defaultWin,
-      getProvider: (id?: string) => getProvider(id)
-    };
+
+    // 使用 Mastra Agent
+    const agent = await this.getConfiguredAgent(req);
     if (!agent) {
       const prov = getProvider(req.providerId);
       if (!prov?.chat) return { message: { role: 'assistant', content: 'No provider available.' } };
@@ -85,7 +83,18 @@ export class ChatService {
       } as any);
       return { ...resp, metadata: { ...(resp.metadata || {}), conversationId: conv.id } } as any;
     }
-    const resp = await agent.handleChat(ctx, { ...req, stream: false });
+
+    // 使用 Mastra agent.generate() 进行非流式调用
+    const messages = req.messages || [];
+    const input = messages.map(m => `${m.role}: ${m.content}`).join('\n');
+    const result = await agent.generate(input, { maxSteps: 10 });
+
+    const resp: ChatResponse = {
+      message: { role: 'assistant', content: result.text, createdAt: Date.now() },
+      providerId: req.providerId,
+      agentId: req.agentId
+    };
+
     await ChatRepo.addMessage(conv.id, {
       role: 'assistant',
       content: resp.message?.content || '',
@@ -99,23 +108,29 @@ export class ChatService {
   async chatEphemeral(win: BrowserWindow | undefined, req: ChatRequest): Promise<ChatResponse> {
     // Still allow instance merge (model, secrets, system prompt), but do NOT persist anything
     const resolved = await this.withInstance(req);
-    const agent: AgentDefinition | undefined = getAgent(resolved.agentId);
-    const ctx = {
-      window: win || this.defaultWin,
-      getProvider: (id?: string) => getProvider(id)
-    };
+    const agent = await this.getConfiguredAgent(resolved);
 
-    const requestParams = { ...resolved, stream: false };
     if (!agent) {
       const prov = getProvider(resolved.providerId);
       if (!prov?.chat) return { message: { role: 'assistant', content: 'No provider available.' } } as any;
-      const resp = await prov.chat(requestParams);
+      const resp = await prov.chat({ ...resolved, stream: false });
       // Ensure no conversationId is injected in metadata
       return { ...resp, metadata: { ...(resp.metadata || {}) } } as any;
     }
-    const resp = await agent.handleChat(ctx, requestParams);
-    console.log(resp);
-    return { ...resp, metadata: { ...(resp.metadata || {}) } } as any;
+
+    // 使用 Mastra agent.generate() 进行非流式调用
+    const messages = resolved.messages || [];
+    const input = messages.map(m => `${m.role}: ${m.content}`).join('\n');
+
+    const result = await agent.generate(input, {
+      maxSteps: 10
+    });
+
+    return {
+      message: { role: 'assistant', content: result.text, createdAt: Date.now() },
+      providerId: resolved.providerId,
+      agentId: resolved.agentId
+    };
   }
 
   private async chatStream(sender: WebContents, req: ChatRequest): Promise<{ requestId: string; eventsChannel: string }> {
