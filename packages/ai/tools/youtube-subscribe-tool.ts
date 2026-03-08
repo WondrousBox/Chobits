@@ -141,7 +141,7 @@ const youtubeSubscribeInputSchema = z.object({
   folderId: z.string().optional().describe('下载保存到的文件夹 ID')
 });
 
-// 输出结果 schema
+// 输出结果 schema（精简版，减少 token 消耗）
 const youtubeSubscribeOutputSchema = z.object({
   success: z.boolean().describe('订阅是否成功'),
   subscription: z
@@ -149,29 +149,20 @@ const youtubeSubscribeOutputSchema = z.object({
       id: z.string().describe('订阅资源 ID'),
       title: z.string().describe('频道标题'),
       channelId: z.string().describe('频道 ID'),
-      channelUrl: z.string().describe('频道主页 URL'),
-      feedUrl: z.string().describe('RSS Feed URL'),
-      subscriberCount: z.number().optional().describe('订阅者数量'),
-      totalVideoCount: z.number().optional().describe('视频总数'),
-      thumbnailUrl: z.string().optional().describe('频道缩略图'),
       autoDownload: z.boolean().describe('是否自动下载新视频'),
       itemCount: z.number().optional().describe('当前 Feed 中的视频数量')
     })
     .optional()
-    .describe('订阅信息'),
+    .describe('订阅信息（精简版）'),
   latestVideos: z
     .array(
       z.object({
         title: z.string().describe('视频标题'),
-        link: z.string().describe('视频链接'),
-        publishedAt: z.number().describe('发布时间（时间戳）'),
-        thumbnail: z.string().optional().describe('缩略图 URL'),
-        duration: z.number().optional().describe('时长（毫秒）'),
-        viewCount: z.number().optional().describe('观看次数')
+        link: z.string().describe('视频链接')
       })
     )
     .optional()
-    .describe('最新视频列表（最多 5 个）'),
+    .describe('最新视频标题列表（最多 5 个）'),
   message: z.string().describe('返回消息'),
   error: z.string().optional().describe('错误信息')
 });
@@ -255,13 +246,10 @@ export const createYoutubeSubscribeTool = (): ReturnType<typeof createTool> =>
           });
 
           if (feedResult.success && feedResult.data?.items) {
+            // 只返回标题和链接，减少 token 消耗
             latestVideos = feedResult.data.items.slice(0, 5).map((item: any) => ({
               title: item.title,
-              link: item.link,
-              publishedAt: item.publishedAt,
-              thumbnail: item.thumbnail,
-              duration: item.durationMs,
-              viewCount: item.viewCount
+              link: item.link
             }));
           }
         } catch (error) {
@@ -269,20 +257,15 @@ export const createYoutubeSubscribeTool = (): ReturnType<typeof createTool> =>
           // 不影响订阅创建，只是没有最新视频列表
         }
 
-        // 4. 构建返回结果
+        // 4. 构建返回结果（精简版）
         return {
           success: true,
           subscription: {
             id: resource.id,
             title: resource.title,
             channelId: metadata.channelId || '',
-            channelUrl: metadata.channelUrl || resource.url || '',
-            feedUrl: metadata.feedUrl || '',
-            subscriberCount: metadata.subscriberCount,
-            totalVideoCount: metadata.totalVideoCount,
-            thumbnailUrl: resource.thumbnailPath || metadata.avatarUrl,
             autoDownload,
-            itemCount: metadata.itemCount || latestVideos.length
+            itemCount: latestVideos.length
           },
           latestVideos: latestVideos.length > 0 ? latestVideos : undefined,
           message: `成功订阅频道：${resource.title}${autoDownload ? '（已启用自动下载）' : ''}`

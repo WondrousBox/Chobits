@@ -131,16 +131,14 @@ pushCardTool 使用示例：
 **关于翻译功能的工作流程**：
 当用户需要翻译字幕时，请按照以下步骤操作：
 1. 使用 resourceQueryTool 查找要翻译的字幕文件（获取 resourceId）
-2. 使用 readSubtitleTool 读取字幕文件内容（传入 resourceId，获取 segments 数组）
-3. 使用 translationTool 执行翻译操作（传入 segments、targetLanguage 等参数）
-4. 翻译完成后告知用户结果
+2. 直接使用 translationTool 执行翻译（只需传入 resourceId 和 targetLanguage）
+3. 翻译会在后台异步进行，完成后会通知用户
 
 **关于总结功能的工作流程**：
 当用户需要总结字幕或文本内容时，请按照以下步骤操作：
 1. 使用 resourceQueryTool 查找要总结的字幕文件（获取 resourceId）
-2. 使用 readSubtitleTool 读取字幕文件内容（传入 resourceId，获取 segments 数组）
-3. 使用 summaryTool 执行总结操作（传入 segments 或 content、targetLanguage 等参数）
-4. 总结完成后告知用户结果（包括总结内容、关键点、关键词等）
+2. 直接使用 summaryTool 执行总结（只需传入 resourceId 和 targetLanguage）
+3. 总结会在后台异步进行，完成后会通知用户
 
 **关于 YouTube 下载功能的工作流程**：
 当用户提供 YouTube 链接并要求下载时，请按照以下步骤操作：
@@ -158,9 +156,8 @@ pushCardTool 使用示例：
 
 **重要提示**：
 - 当用户询问资源或想要查看资源时，务必使用 pushCardTool 推送资源卡片
-- 翻译工具需要字幕片段数组（segments）作为输入
-- 总结工具可以接受字幕片段数组（segments）或纯文本（content）作为输入
-- 必须先调用 readSubtitleTool 获取内容，然后才能调用 translationTool 或 summaryTool
+- 翻译和总结工具只需要 resourceId，会自动加载字幕内容，无需先调用 readSubtitleTool
+- readSubtitleTool 主要用于预览字幕内容，翻译/总结前不是必须调用的
 - YouTube 下载和订阅工具可以直接调用，不需要先查询资源
 - 下载任务是异步的，立即返回不代表下载完成
 - 订阅后的视频可以在资源库的"订阅"标签中查看

@@ -79,22 +79,18 @@ const youtubeDownloadInputSchema = z.object({
   folderId: z.string().optional().describe('保存到指定的文件夹 ID。如果不提供，保存到默认位置')
 });
 
-// 输出结果 schema
+// 输出结果 schema（精简版，减少 token 消耗）
 const youtubeDownloadOutputSchema = z.object({
   success: z.boolean().describe('下载任务是否成功启动'),
   videoInfo: z
     .object({
       title: z.string().describe('视频标题'),
-      uploader: z.string().optional().describe('上传者名称'),
       channel: z.string().optional().describe('频道名称'),
       channelId: z.string().optional().describe('频道 ID'),
-      duration: z.number().optional().describe('视频时长（秒）'),
-      viewCount: z.number().optional().describe('观看次数'),
-      thumbnail: z.string().optional().describe('缩略图 URL'),
-      description: z.string().optional().describe('视频描述')
+      duration: z.number().optional().describe('视频时长（秒）')
     })
     .optional()
-    .describe('视频信息'),
+    .describe('视频信息（精简版）'),
   taskId: z.string().optional().describe('下载任务 ID'),
   channelInfo: z
     .object({
@@ -184,13 +180,9 @@ export const createYoutubeDownloadTool = (): ReturnType<typeof createTool> =>
             success: false,
             videoInfo: {
               title: videoInfo.title,
-              uploader: videoInfo.uploader,
               channel: videoInfo.channel,
               channelId: videoInfo.channel_id,
-              duration: videoInfo.duration,
-              viewCount: videoInfo.view_count,
-              thumbnail: videoInfo.thumbnail,
-              description: videoInfo.description
+              duration: videoInfo.duration
             },
             message: '启动下载失败',
             error: downloadResult.error || '下载任务创建失败'
@@ -202,13 +194,9 @@ export const createYoutubeDownloadTool = (): ReturnType<typeof createTool> =>
           success: true,
           videoInfo: {
             title: videoInfo.title,
-            uploader: videoInfo.uploader,
             channel: videoInfo.channel,
             channelId: videoInfo.channel_id,
-            duration: videoInfo.duration,
-            viewCount: videoInfo.view_count,
-            thumbnail: videoInfo.thumbnail,
-            description: videoInfo.description
+            duration: videoInfo.duration
           },
           taskId: downloadResult.data?.taskId,
           message: `已启动下载任务：${videoInfo.title}`
