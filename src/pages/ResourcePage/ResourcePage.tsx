@@ -1,6 +1,6 @@
 import { AppEvent } from '@packages/event/events';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
@@ -421,15 +421,18 @@ const ResourcePage: React.FC = () => {
         />
 
         <Routes>
+          {/* 默认重定向到首页 */}
+          <Route path="" element={<Navigate to="home" replace />} />
+          <Route path="home" element={<ChatPage hideTitleBar />} />
           <Route path="tasks" element={<TaskList workspaceId={wsFilter} />} />
           <Route path="workflows" element={<WorkflowPage />} />
           <Route path="apps" element={<AppsPage />} />
-          <Route path="chat" element={<ChatPage hideTitleBar />} />
           <Route path="recycle" element={<RecycleBinPage hideTitleBar />} />
           <Route path="preview/:resourceId" element={<ResourcePreviewWindow />} />
           <Route path="rss/:resourceId" element={<RssFeedPage />} />
+          {/* 资源浏览路由 */}
           <Route
-            path="*"
+            path="browse/*"
             element={
               <ResourceContent
                 uploadProgress={uploadProgress}
