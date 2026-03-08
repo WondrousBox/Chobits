@@ -10,9 +10,6 @@
 // 导入所有工具
 // ============================================================================
 
-// 通用工具
-export { weatherTool } from './weather-tool';
-
 // AI 工具（需要绑定依赖）
 export { createPushCardTool, pushCardTool } from './push-card-tool';
 export { createReadSubtitleTool, readSubtitleTool } from './read-subtitle-tool';
@@ -30,7 +27,6 @@ import { readSubtitleTool } from './read-subtitle-tool';
 import { resourceQueryTool } from './resource-query-tool';
 import { summaryTool } from './summary-tool';
 import { translationTool } from './translation-tool';
-import { weatherTool } from './weather-tool';
 import { youtubeDownloadTool } from './youtube-download-tool';
 import { youtubeSubscribeTool } from './youtube-subscribe-tool';
 
@@ -41,23 +37,18 @@ import { youtubeSubscribeTool } from './youtube-subscribe-tool';
 /**
  * 所有工具的集合（Map 结构）
  *
- * 通用工具：
- * - weatherTool: 查询城市天气
- *
  * AI 工具（需要绑定依赖）：
  * - readSubtitleTool: 读取字幕文件内容
  * - translationTool: 字幕翻译
  * - summaryTool: 内容总结
  * - resourceQueryTool: 资源智能查询
+ * - pushCardTool: 推送资源卡片
  *
  * YouTube 工具：
  * - youtubeDownloadTool: 下载 YouTube 视频
  * - youtubeSubscribeTool: 订阅 YouTube 频道
  */
 export const allTools = {
-  // 通用工具
-  weatherTool,
-
   // AI 工具
   readSubtitleTool,
   translationTool,
@@ -69,17 +60,6 @@ export const allTools = {
   youtubeDownloadTool,
   youtubeSubscribeTool
 };
-
-/**
- * 获取通用工具列表（无需 toolContext）
- *
- * 这些工具可以直接传给 Agent 使用
- */
-export function getBasicTools() {
-  return {
-    weatherTool
-  };
-}
 
 /**
  * 获取 AI 工具列表（需要 toolContext）
@@ -107,7 +87,7 @@ export function getAllTools() {
 /**
  * 根据名称获取工具
  *
- * @param name - 工具名称（如 'weatherTool', 'translationTool'）
+ * @param name - 工具名称（如 'translationTool', 'resourceQueryTool'）
  * @returns 对应的工具实例，如果不存在则返回 undefined
  */
 export function getTool(name: string) {
@@ -117,18 +97,18 @@ export function getTool(name: string) {
 /**
  * 根据工具 ID 获取工具
  *
- * @param id - 工具 ID（如 'get-weather', 'translate-subtitles'）
+ * @param id - 工具 ID（如 'translate-subtitles', 'query-resources'）
  * @returns 对应的工具实例，如果不存在则返回 undefined
  */
 export function getToolById(id: string) {
   const toolMap: Record<string, any> = {
-    'get-weather': weatherTool,
     'translate-subtitles': translationTool,
     'summarize-content': summaryTool,
     'query-resources': resourceQueryTool,
     'push-card': pushCardTool,
     'youtube-download': youtubeDownloadTool,
-    'youtube-subscribe': youtubeSubscribeTool
+    'youtube-subscribe': youtubeSubscribeTool,
+    'read-subtitle': readSubtitleTool
   };
   return toolMap[id];
 }
@@ -141,7 +121,7 @@ export type ToolName = keyof typeof allTools;
 /**
  * 工具 ID 类型定义
  */
-export type ToolId = 'get-weather' | 'translate-subtitles' | 'summarize-content' | 'query-resources' | 'push-card' | 'youtube-download' | 'youtube-subscribe' | 'read-subtitle';
+export type ToolId = 'translate-subtitles' | 'summarize-content' | 'query-resources' | 'push-card' | 'youtube-download' | 'youtube-subscribe' | 'read-subtitle';
 
 /**
  * 工具信息类型
@@ -159,11 +139,6 @@ export type ToolInfo = {
  */
 export function listToolInfos(): ToolInfo[] {
   return [
-    {
-      id: 'get-weather',
-      name: 'weatherTool',
-      description: weatherTool.description || '查询指定城市的当前天气'
-    },
     {
       id: 'query-resources',
       name: 'resourceQueryTool',

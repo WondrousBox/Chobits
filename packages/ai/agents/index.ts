@@ -9,7 +9,6 @@ import { Agent } from '@mastra/core/agent';
 import { ResourcesRepo } from '../../common/db';
 import { SummaryService } from '../services/summary-service';
 import { TranslationService } from '../services/translation-service';
-import { weatherTool } from '../tools';
 import { createPushCardTool } from '../tools/push-card-tool';
 import { createReadSubtitleTool } from '../tools/read-subtitle-tool';
 import { createResourceQueryTool } from '../tools/resource-query-tool';
@@ -39,7 +38,6 @@ const boundPushCardTool = createPushCardTool();
 
 // 所有可用工具（包括绑定版本）
 const allBoundTools = {
-  weatherTool,
   resourceQueryTool: boundResourceQueryTool,
   readSubtitleTool: boundReadSubtitleTool,
   translationTool: boundTranslationTool,
@@ -51,7 +49,6 @@ const allBoundTools = {
 
 // 工具名称到 ID 的映射
 const toolNameToId: Record<string, string> = {
-  weatherTool: 'get-weather',
   resourceQueryTool: 'query-resources',
   readSubtitleTool: 'read-subtitle',
   translationTool: 'translate-subtitles',
@@ -103,9 +100,6 @@ export const assistantAgent = new Agent({
 
 你的能力包括：
 - 回答问题和提供信息
-- 查询天气信息
-- 获取当前时间
-- 执行数学计算
 - 查询和管理资源（视频、音频、字幕、文档等）
 - 读取字幕文件内容
 - 翻译字幕文件
@@ -115,9 +109,6 @@ export const assistantAgent = new Agent({
 - **订阅 YouTube 频道获取最新视频**
 
 你可以理解并响应各种查询，例如：
-- "北京今天天气怎么样？"
-- "现在几点了？"
-- "帮我算一下 25 * 4"
 - "我最新的字幕文件是什么？"
 - "找今天的视频"
 - "查找收藏的音频"
