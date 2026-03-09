@@ -13,7 +13,7 @@ import { ControlBar } from './components/ControlBar';
 import { HistoryPanel, RecordingHistoryItem } from './components/HistoryPanel';
 import { SegmentList } from './components/SegmentList';
 import { WaveformRef } from './components/Waveform';
-import { useASR } from './hooks/useASR';
+import { AudioSource, useASR } from './hooks/useASR';
 import { RecognizedSegment } from './types';
 import { parseSrtContent } from './utils/srt-parser';
 
@@ -25,6 +25,8 @@ const ASRPage: React.FC = () => {
   const [mode, setMode] = useState<'local' | 'cloud'>('local');
   const [cloudProviderId, setCloudProviderId] = useState<string>('');
   const [cloudModelId, setCloudModelId] = useState<string>('');
+  const [audioSource, setAudioSource] = useState<AudioSource>('system-audio');
+  const [asrEngineReady, setAsrEngineReady] = useState<boolean | null>(null); // null=checking, true=ready, false=not running
   const [isSubtitleMode, setIsSubtitleMode] = useState(false); // 字幕模式（合并了透明和收起功能）
   const [showLeftPanel, setShowLeftPanel] = useState(false); // 默认显示左侧面板
   const [showRightPanel, setShowRightPanel] = useState(true); // 默认显示右侧 AI 面板
@@ -51,6 +53,7 @@ const ASRPage: React.FC = () => {
             mode?: 'local' | 'cloud';
             cloudProviderId?: string;
             cloudModelId?: string;
+            audioSource?: AudioSource;
           }
           | undefined;
         if (!mounted) return;
@@ -59,6 +62,20 @@ const ASRPage: React.FC = () => {
           setMode(payload.mode || 'local');
           setCloudProviderId(payload.cloudProviderId || '');
           setCloudModelId(payload.cloudModelId || '');
+          if (payload.audioSource) {
+            setAudioSource(payload.audioSource);
+          }
+        }
+
+        // 检查 ASR 引擎状态
+        try {
+          const status = await window.YUA.sherpa.getStatus();
+          if (mounted) {
+            setAsrEngineReady(status.running);
+          }
+        } catch (error) {
+          console.error('[ASR] 检查引擎状态失败:', error);
+          if (mounted) setAsrEngineReady(false);
         }
 
         // 检查是否有未完成的录音需要恢复
@@ -122,7 +139,8 @@ const ASRPage: React.FC = () => {
     onAudioLevel,
     mode,
     cloudProviderId,
-    cloudModelId
+    cloudModelId,
+    audioSource
   });
 
   // 处理AI面板的翻译更新
@@ -171,7 +189,7 @@ const ASRPage: React.FC = () => {
     setPreviewSegments([]);
   }, []);
 
-  // 停止 ASR 服务并关闭窗口
+  // 关闭录音窗口（不停止 ASR 识别服务，服务由菜单独立控制）
   const handleStopASRAndClose = useCallback(async (): Promise<void> => {
     setIsLoading(true);
     pendingCloseRef.current = true;
@@ -190,26 +208,22 @@ const ASRPage: React.FC = () => {
         wsRef.current = null;
       }
 
-      // 第三步：停止 ASR 服务
-      if (isASRRunning) {
-        await window.YUA.sherpa.freeInstance();
-        setIsASRRunning(false);
-      }
+      // 注意：不再停止 ASR 识别服务，服务生命周期由右键菜单独立控制
 
-      // 第四步：清理录音流（以防万一）
+      // 第三步：清理录音流（以防万一）
       await window.YUA.sherpa.cleanupStreams();
 
-      // 第五步：清除 localStorage 中的录音记录
+      // 第四步：清除 localStorage 中的录音记录
       localStorage.removeItem('asr-current-recording');
 
-      // 第六步：关闭窗口
+      // 第五步：关闭窗口
       window.YUA.window['window:close:self']();
     } catch (error) {
-      console.error('停止 ASR 失败:', error);
+      console.error('关闭录音窗口失败:', error);
       setIsLoading(false);
       pendingCloseRef.current = false;
     }
-  }, [isASRRunning, isRecording, stopRecording, wsRef, setIsASRRunning]);
+  }, [isRecording, stopRecording, wsRef]);
 
   // 处理窗口关闭请求
   const handleCloseRequest = useCallback(() => {
@@ -268,6 +282,26 @@ const ASRPage: React.FC = () => {
 
     adjustWindowSize();
   }, [isSubtitleMode, showLeftPanel, showRightPanel, baseWidth, leftPanelWidth, rightPanelWidth, baseHeight, subtitleModeHeight]);
+
+  // ASR 引擎未启动时，自动打开 ASRConfig 面板并关闭当前窗口
+  useEffect(() => {
+    if (asrEngineReady === false) {
+      window.YUA.window['window:open']('asrConfig' as any);
+      window.YUA.window['window:close:self']();
+    }
+  }, [asrEngineReady]);
+
+  // 检查中或引擎未就绪时显示 loading
+  if (asrEngineReady !== true) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-muted">
+        <div className="flex flex-col items-center gap-3">
+          <TbLoader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">检查语音识别引擎状态...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>

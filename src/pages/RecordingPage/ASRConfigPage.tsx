@@ -2,7 +2,7 @@ import { PluginDefinition } from '@packages/plugins/types';
 import { AllModels, CommonConfig } from '@packages/sherpa/common';
 import { ScrollArea } from '@radix-ui/react-scroll-area';
 import React, { useCallback, useEffect, useState } from 'react';
-import { TbChevronDown, TbChevronUp, TbLoader2, TbPlayerPlay } from 'react-icons/tb';
+import { TbChevronDown, TbChevronUp, TbLoader2, TbPlayerPlay, TbPlayerStop } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
@@ -191,6 +191,7 @@ const SCENE_CONFIGS: SceneConfig[] = [
 
 const ASRConfigPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
+  const [isASRRunning, setIsASRRunning] = useState(false);
   const [selectedScene, setSelectedScene] = useState<string>('meeting');
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [language, setLanguage] = useState('zh');
@@ -218,6 +219,22 @@ const ASRConfigPage: React.FC = () => {
         setCloudProviders(provs || []);
       } catch (error) {
         console.error('加载 AI Providers 失败:', error);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // 查询 ASR 引擎当前运行状态
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const status = await window.YUA.sherpa.getStatus();
+        if (mounted) setIsASRRunning(status.running);
+      } catch (error) {
+        console.error('查询 ASR 状态失败:', error);
       }
     })();
     return () => {
@@ -513,7 +530,20 @@ const ASRConfigPage: React.FC = () => {
     [cloudProviders]
   );
 
-  // 启动ASR服务并打开测试页面
+  // 停止 ASR 服务
+  const handleStopASR = async (): Promise<void> => {
+    setIsLoading(true);
+    try {
+      await window.YUA.sherpa.freeInstance();
+      setIsASRRunning(false);
+    } catch (error) {
+      console.error('停止 ASR 失败:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 启动ASR服务
   const handleStartASR = async (): Promise<void> => {
     if (activeTab === 'cloud') {
       if (!cloudProviderId || !cloudModelId) return;
@@ -577,14 +607,8 @@ const ASRConfigPage: React.FC = () => {
         return;
       }
 
-      // 启动成功后，打开测试页面并关闭配置页面
-      window.YUA.window['window:open']('asr', {
-        mode: activeTab,
-        cloudProviderId: activeTab === 'cloud' ? cloudProviderId : undefined,
-        cloudModelId: activeTab === 'cloud' ? cloudModelId : undefined
-        // 翻译配置现在由 ASR 页面的 AI 面板控制
-      });
-      window.YUA.window['window:close']('asrConfig');
+      // 启动成功后更新状态
+      setIsASRRunning(true);
     } catch (error) {
       console.error('启动 ASR 失败:', error);
     } finally {
@@ -934,29 +958,45 @@ const ASRConfigPage: React.FC = () => {
 
         <div className="flex gap-2 border-t p-2 px-4">
           <Button variant="outline" className="flex-1 no-drag" onClick={() => window.YUA.window['window:close']('asrConfig')}>
-            取消
+            关闭
           </Button>
-          <Button
-            disabled={
-              isLoading ||
-              (activeTab === 'local' && (!selectedModel || !sherpaModels.find((m) => m.id === selectedModel)?.isInstalled)) ||
-              (activeTab === 'cloud' && (!cloudProviderId || !cloudModelId))
-            }
-            onClick={handleStartASR}
-            className="flex-1 no-drag"
-          >
-            {isLoading ? (
-              <>
-                <TbLoader2 className="animate-spin" />
-                启动中...
-              </>
-            ) : (
-              <>
-                启动
-                <TbPlayerPlay />
-              </>
-            )}
-          </Button>
+          {isASRRunning ? (
+            <Button variant="destructive" disabled={isLoading} onClick={handleStopASR} className="flex-1 no-drag">
+              {isLoading ? (
+                <>
+                  <TbLoader2 className="animate-spin" />
+                  停止中...
+                </>
+              ) : (
+                <>
+                  停止识别
+                  <TbPlayerStop />
+                </>
+              )}
+            </Button>
+          ) : (
+            <Button
+              disabled={
+                isLoading ||
+                (activeTab === 'local' && (!selectedModel || !sherpaModels.find((m) => m.id === selectedModel)?.isInstalled)) ||
+                (activeTab === 'cloud' && (!cloudProviderId || !cloudModelId))
+              }
+              onClick={handleStartASR}
+              className="flex-1 no-drag"
+            >
+              {isLoading ? (
+                <>
+                  <TbLoader2 className="animate-spin" />
+                  启动中...
+                </>
+              ) : (
+                <>
+                  启动语音识别
+                  <TbPlayerPlay />
+                </>
+              )}
+            </Button>
+          )}
         </div>
       </div>
     </>

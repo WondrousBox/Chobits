@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import React, { useState } from 'react';
-import { TbLock, TbMicrophone, TbX } from 'react-icons/tb';
+import { TbEar, TbLock, TbMicrophone, TbPlayerStop, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -135,6 +135,36 @@ const SkillDetailPanel: React.FC<SkillDetailPanelProps> = ({ selectedSkillId, sk
             <TbMicrophone className="w-4 h-4" />
             打开麦克风录制窗口
           </Button>
+        </div>
+      );
+    }
+
+    // 语音识别技能：显示 ASR 服务控制
+    if (selectedSkillId === 'speechRecognition') {
+      return (
+        <div className="space-y-4">
+          <div className="text-sm text-slate-300">
+            <p>启动实时语音识别服务后，可将麦克风或系统音频实时转为文字。</p>
+            <p className="mt-2">服务独立运行，关闭录音窗口不会停止服务。可通过右键菜单或此处控制。</p>
+          </div>
+          {isActive ? (
+            <Button variant="destructive" onClick={() => onToggleSkill(selectedNode.id, false)} className="w-full gap-2">
+              <TbPlayerStop className="w-4 h-4" />
+              停止语音识别服务
+            </Button>
+          ) : (
+            <Button
+              onClick={() => onToggleSkill(selectedNode.id, true)}
+              className="w-full gap-2"
+              style={{
+                backgroundColor: colors.color,
+                borderColor: colors.color
+              }}
+            >
+              <TbEar className="w-4 h-4" />
+              打开语音识别配置
+            </Button>
+          )}
         </div>
       );
     }

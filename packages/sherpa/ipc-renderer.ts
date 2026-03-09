@@ -11,6 +11,11 @@ export const sherpaIpcRenderer = {
     return ipcRenderer.invoke('sherpa:freeInstance');
   },
 
+  // 查询 ASR 引擎运行状态
+  getStatus(): Promise<{ running: boolean }> {
+    return ipcRenderer.invoke('sherpa:getStatus');
+  },
+
   sendData(data: {
     uuid: string;
     workspaceId?: string;

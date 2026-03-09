@@ -4,9 +4,10 @@ import DailyCareSettings from './DailyCareSettings';
 import MovementSettings from './MovementSettings';
 import RecorderSettings from './RecorderSettings';
 import ScreenshotSettings from './ScreenshotSettings';
+import SpeechRecognitionSettings from './SpeechRecognitionSettings';
 import SpriteSettings from './SpriteSettings';
 
-type ExtensionPanel = 'movement' | 'dailyCare' | 'sprite' | 'recorder' | 'screenshot' | null;
+type ExtensionPanel = 'movement' | 'dailyCare' | 'sprite' | 'recorder' | 'screenshot' | 'speechRecognition' | null;
 
 const ExtensionSettings: React.FC = () => {
   const [activePanel, setActivePanel] = useState<ExtensionPanel>('movement');
@@ -21,6 +22,7 @@ const ExtensionSettings: React.FC = () => {
       <DailyCareSettings expanded={activePanel === 'dailyCare'} onExpand={() => handleExpand('dailyCare')} />
       <SpriteSettings expanded={activePanel === 'sprite'} onExpand={() => handleExpand('sprite')} />
       <RecorderSettings expanded={activePanel === 'recorder'} onExpand={() => handleExpand('recorder')} />
+      <SpeechRecognitionSettings expanded={activePanel === 'speechRecognition'} onExpand={() => handleExpand('speechRecognition')} />
       <ScreenshotSettings expanded={activePanel === 'screenshot'} onExpand={() => handleExpand('screenshot')} />
     </div>
   );

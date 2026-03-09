@@ -10,17 +10,17 @@ import { ChatSelectionProvider } from '@/pages/ChatPage/context/ChatSelectionCon
 import ExtensionSettings from '@/pages/ExtensionSettings/ExtensionSettings';
 import SkillTreeSettings from '@/pages/ExtensionSettings/SkillTreeSettings';
 import FileActionsMenu from '@/pages/FileActionsMenu/FileActionsMenu';
+import WebRecorderWindow from '@/pages/RecordingPage/WebRecorderWindow';
 import ResourcePreviewWindow from '@/pages/ResourcePage/ResourcePreviewWindow';
 import { ThemeProvider } from '@/pages/SettingsPage/providers/ThemeProvider';
-import WebRecorderWindow from '@/pages/WebRecorderWindow/WebRecorderWindow';
 
 import { TooltipProvider } from './components/ui/tooltip';
 import AiProviderConfigWindow from './pages/AiProviderConfigWindow/AiProviderConfigWindow';
-import ASRConfigPage from './pages/ASRPage/ASRConfigPage';
-import ASRPage from './pages/ASRPage/ASRPage';
 import AssistantMenuPage from './pages/AssistantMenuPage/AssistantMenuPage';
 import ChatPage from './pages/ChatPage/ChatPage';
 import AssistantPage from './pages/ChatPage/StartPage';
+import ASRConfigPage from './pages/RecordingPage/ASRConfigPage';
+import RecordingPage from './pages/RecordingPage/RecordingPage';
 import ResourcePage from './pages/ResourcePage/ResourcePage';
 import WorkflowPage from './pages/ResourcePage/WorkflowPage';
 import Screenshot from './pages/Screenshot';
@@ -50,7 +50,7 @@ function App(): JSX.Element {
                 <Route path="/" element={<AIAssistant />} />
                 <Route path="/status" element={<StatusPage />} />
                 <Route path="/asr-config" element={<ASRConfigPage />} />
-                <Route path="/asr" element={<ASRPage />} />
+                <Route path="/asr" element={<RecordingPage />} />
                 <Route path="/tts-config" element={<TTSConfigPage />} />
                 <Route path="/tts" element={<TTSPage />} />
                 <Route path="/menu" element={<AssistantMenuPage />} />
