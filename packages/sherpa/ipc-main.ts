@@ -7,6 +7,7 @@ import { BrowserWindow, ipcMain } from 'electron';
 
 import { ResourcesRepo, WorkspacesRepo } from '../../electron/main/db/repositories';
 import { ensureDailyFolder } from '../../electron/main/handlers/resource';
+import { getASRInstance } from './asr-instance-manager';
 import { AllModels, CommonConfig } from './common';
 import { ASR_createInstance, ASR_freeInstance, ASR_sendData, TTS_createInstance, TTS_freeInstance, TTS_generateSpeech } from './index';
 
@@ -87,6 +88,12 @@ export function initSherpaHandlers(): void {
       uuid: 'stream'
     });
     return true;
+  });
+
+  // 查询 ASR 引擎状态
+  ipcMain.handle('sherpa:getStatus', async () => {
+    const instance = getASRInstance('stream');
+    return { running: !!instance };
   });
 
   // 开始录音存储（同时创建音频和字幕流）

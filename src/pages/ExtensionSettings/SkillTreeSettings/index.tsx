@@ -83,6 +83,15 @@ const SkillTreeSettings: React.FC = () => {
           // 截图功能可能未初始化
         }
 
+        // 加载 ASR 语音识别服务状态
+        let asrRunning = false;
+        try {
+          const asrStatus = await window.YUA.sherpa.getStatus();
+          asrRunning = asrStatus.running;
+        } catch {
+          // ASR 服务可能未初始化
+        }
+
         setSkillStatuses((prev) => {
           // 先用等级初始化基础状态
           const baseStatuses = initializeSkillStatuses(currentLevel);
@@ -90,11 +99,12 @@ const SkillTreeSettings: React.FC = () => {
             ...baseStatuses,
             ...prev,
             // 映射到新的技能 ID（覆盖等级检查，因为已经启用）
-            movement: movementEnabled ? 'active' : baseStatuses['movement'] ?? 'unlocked',
-            dailyCare: dailyCareEnabled ? 'active' : baseStatuses['dailyCare'] ?? 'unlocked',
-            microphone: recorderEnabled ? 'active' : baseStatuses['microphone'] ?? 'unlocked',
-            systemAudio: recorderEnabled ? 'active' : baseStatuses['systemAudio'] ?? 'unlocked',
-            screenshot: screenshotEnabled ? 'active' : baseStatuses['screenshot'] ?? 'unlocked',
+            movement: movementEnabled ? 'active' : (baseStatuses['movement'] ?? 'unlocked'),
+            dailyCare: dailyCareEnabled ? 'active' : (baseStatuses['dailyCare'] ?? 'unlocked'),
+            microphone: recorderEnabled ? 'active' : (baseStatuses['microphone'] ?? 'unlocked'),
+            systemAudio: recorderEnabled ? 'active' : (baseStatuses['systemAudio'] ?? 'unlocked'),
+            screenshot: screenshotEnabled ? 'active' : (baseStatuses['screenshot'] ?? 'unlocked'),
+            speechRecognition: asrRunning ? 'active' : (baseStatuses['speechRecognition'] ?? 'locked'),
             spriteManage: 'unlocked', // Sprite 管理始终解锁
             aiChat: 'unlocked' // AI 对话始终解锁
           };
@@ -176,6 +186,15 @@ const SkillTreeSettings: React.FC = () => {
           }
           await window.YUA.recorder.updateConfig({ enabled });
           break;
+        case 'speechRecognition':
+          if (enabled) {
+            // 打开 ASR 配置页面来启动服务
+            window.YUA.window['window:open']('asrConfig');
+          } else {
+            // 停止 ASR 服务
+            await window.YUA.sherpa.freeInstance();
+          }
+          break;
         case 'sprite':
           // Sprite 管理不需要开关
           break;
@@ -213,12 +232,7 @@ const SkillTreeSettings: React.FC = () => {
       <SkillTreeCanvas skillStatuses={skillStatuses} selectedSkill={selectedSkill} onSelectSkill={handleSelectSkill} />
 
       {/* 顶部 HUD 信息栏 */}
-      <motion.div
-        className="fixed top-0 left-0 right-0 z-40 skill-tree-hud"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3, duration: 0.5 }}
-      >
+      <motion.div className="fixed top-0 left-0 right-0 z-40 skill-tree-hud" initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.5 }}>
         <div className="flex items-center justify-between px-6 py-3">
           {/* 左侧：标题 */}
           <div className="flex items-center gap-3">
@@ -264,10 +278,7 @@ const SkillTreeSettings: React.FC = () => {
           {/* 右侧：提示 + 关闭 */}
           <div className="flex items-center gap-3">
             <span className="text-[10px] text-slate-500">按住 Cmd/Ctrl + 滚轮缩放 · 拖拽平移</span>
-            <button
-              onClick={handleClose}
-              className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-slate-700/50 transition-colors group"
-            >
+            <button onClick={handleClose} className="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-slate-700/50 transition-colors group">
               <TbX className="w-4 h-4 text-slate-400 group-hover:text-slate-200 transition-colors" />
             </button>
           </div>

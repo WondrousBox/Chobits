@@ -92,9 +92,7 @@ const WebRecorderWindow: React.FC = () => {
       const deviceList = await navigator.mediaDevices.enumerateDevices();
       console.log('Enumerated devices:', deviceList);
 
-      const audioInputs = deviceList
-        .filter((d) => d.kind === 'audioinput')
-        .map((d) => ({ deviceId: d.deviceId, label: d.label || `麦克风 ${d.deviceId.slice(0, 5)}` }));
+      const audioInputs = deviceList.filter((d) => d.kind === 'audioinput').map((d) => ({ deviceId: d.deviceId, label: d.label || `麦克风 ${d.deviceId.slice(0, 5)}` }));
 
       console.log('Audio input devices:', audioInputs);
 
@@ -268,7 +266,11 @@ const WebRecorderWindow: React.FC = () => {
   };
 
   const formatDuration = (s: number) =>
-    `${Math.floor(s / 60).toString().padStart(2, '0')}:${Math.floor(s % 60).toString().padStart(2, '0')}`;
+    `${Math.floor(s / 60)
+      .toString()
+      .padStart(2, '0')}:${Math.floor(s % 60)
+        .toString()
+        .padStart(2, '0')}`;
 
   // Error UI
   if (error && !isWaitingForDevice) {

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 import RadialMenu, { RadialMenuItem } from '../../components/common/RadialMenu/RadialMenu';
 
@@ -14,6 +14,19 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
   const [isOpen, setIsOpen] = useState(false);
   // 是否正在播放关闭动画
   const [isClosing, setIsClosing] = useState(false);
+  // ASR 服务运行状态
+  const [isASRRunning, setIsASRRunning] = useState(false);
+
+  // 查询 ASR 服务状态
+  const checkASRStatus = useCallback(async () => {
+    try {
+      const status = await window.YUA.sherpa.getStatus();
+      setIsASRRunning(status.running);
+    } catch (error) {
+      console.error('查询 ASR 状态失败:', error);
+      setIsASRRunning(false);
+    }
+  }, []);
 
   const menuItems: RadialMenuItem[] = useMemo(
     () => [
@@ -34,21 +47,50 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         }
       },
       {
-        id: 'web-recorder',
-        label: '录音',
-        icon: '🎙️',
-        shortcut: 'm',
-        action: () => {
-          window.YUA.window['window:open']('webRecorder');
+        id: 'asr-service',
+        label: isASRRunning ? '停止识别服务' : '启动识别服务',
+        icon: isASRRunning ? '⏹️' : '🧠',
+        shortcut: 'a',
+        action: async () => {
+          if (isASRRunning) {
+            // 停止 ASR 服务
+            try {
+              await window.YUA.sherpa.freeInstance();
+              setIsASRRunning(false);
+            } catch (error) {
+              console.error('停止 ASR 服务失败:', error);
+            }
+          } else {
+            // 打开 ASR 配置页面来启动服务
+            window.YUA.window['window:open']('asrConfig');
+          }
         }
       },
       {
-        id: 'asr-config',
-        label: 'ASR 测试',
+        id: 'mic-recording',
+        label: '麦克风识别',
         icon: '🎤',
-        shortcut: 'a',
+        shortcut: 'm',
         action: () => {
-          window.YUA.window['window:open']('asrConfig');
+          window.YUA.window['window:open']('asr' as any, { audioSource: 'microphone' });
+        }
+      },
+      {
+        id: 'system-audio-recording',
+        label: '电脑声音识别',
+        icon: '🔉',
+        shortcut: 'e',
+        action: () => {
+          window.YUA.window['window:open']('asr' as any, { audioSource: 'system-audio' });
+        }
+      },
+      {
+        id: 'web-recorder',
+        label: '纯录制',
+        icon: '🎙️',
+        shortcut: 'p',
+        action: () => {
+          window.YUA.window['window:open']('webRecorder');
         }
       },
       {
@@ -133,7 +175,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
         }
       }
     ],
-    []
+    [isASRRunning]
   );
 
   // 处理菜单关闭请求（播放退出动画后关闭窗口）
@@ -160,7 +202,8 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
       if (data.key !== 'menu') return;
 
       if (data.visible) {
-        // 窗口显示时，播放入场动画
+        // 窗口显示时，查询 ASR 状态并播放入场动画
+        checkASRStatus();
         setIsOpen(true);
         setIsClosing(false);
       }
@@ -172,7 +215,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
     return () => {
       window.ipcRenderer?.off('window:visibility-changed', handleVisibilityChange);
     };
-  }, []);
+  }, [checkASRStatus]);
 
   // 监听窗口失焦事件（替代 closeOnBlur 配置）
   useEffect(() => {

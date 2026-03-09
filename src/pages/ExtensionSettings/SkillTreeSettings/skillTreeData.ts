@@ -163,13 +163,14 @@ export const skillTreeNodes: SkillNode[] = [
   {
     id: 'speechRecognition',
     name: '语音识别',
-    description: '将语音转换为文字',
+    description: '启动实时语音识别服务，将语音转换为文字',
     icon: TbEar,
     branch: 'perception',
     tier: 'beginner',
     column: 1,
     row: 0,
-    prerequisites: ['microphone']
+    prerequisites: ['microphone'],
+    settingsKey: 'speechRecognition'
   },
   // 中级 第1列 - 屏幕录制
   {

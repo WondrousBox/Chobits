@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { PendingSegment, PunctuationSegment, RecognizedSegment } from '../types';
 
+export type AudioSource = 'microphone' | 'system-audio';
+
 interface UseASRProps {
   enableTranslation: boolean;
   translateText: (text: string, onUpdate?: (translation: string) => void) => Promise<void>;
@@ -10,6 +12,7 @@ interface UseASRProps {
   cloudProviderId?: string;
   cloudModelId?: string;
   enableSmallSegments?: boolean; // 是否启用分小段模式（按标点符号拆分）
+  audioSource?: AudioSource; // 音频来源：麦克风或系统音频
 }
 
 // Helper to convert Float32Array to WAV Blob
@@ -57,6 +60,22 @@ function floatTo16BitPCM(output: DataView, offset: number, input: Float32Array):
 
 const SAMPLE_RATE = 16000; // 采样率 16kHz
 
+// 将音频从原始采样率 resample 到目标采样率（简单线性插值）
+function resampleTo16kHz(inputBuffer: Float32Array, inputSampleRate: number): Float32Array {
+  if (inputSampleRate === SAMPLE_RATE) return inputBuffer;
+  const ratio = inputSampleRate / SAMPLE_RATE;
+  const outputLength = Math.round(inputBuffer.length / ratio);
+  const output = new Float32Array(outputLength);
+  for (let i = 0; i < outputLength; i++) {
+    const srcIndex = i * ratio;
+    const srcIndexFloor = Math.floor(srcIndex);
+    const srcIndexCeil = Math.min(srcIndexFloor + 1, inputBuffer.length - 1);
+    const frac = srcIndex - srcIndexFloor;
+    output[i] = inputBuffer[srcIndexFloor] * (1 - frac) + inputBuffer[srcIndexCeil] * frac;
+  }
+  return output;
+}
+
 export const useASR = ({
   enableTranslation,
   translateText,
@@ -64,7 +83,8 @@ export const useASR = ({
   mode = 'local',
   cloudProviderId,
   cloudModelId,
-  enableSmallSegments = true // 默认开启分小段模式
+  enableSmallSegments = true, // 默认开启分小段模式
+  audioSource = 'system-audio'
 }: UseASRProps): {
   isRecording: boolean;
   isASRRunning: boolean;
@@ -97,6 +117,11 @@ export const useASR = ({
   const isASRRunningRef = useRef(true);
   const recognizedTextRef = useRef('');
   const recordingResourceIdRef = useRef<string | null>(null); // 当前录音的资源ID
+
+  // 麦克风模式相关 refs
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
 
   // 更新录音状态 ref
   useEffect(() => {
@@ -182,107 +207,147 @@ export const useASR = ({
     });
   }, [onAudioLevel]);
 
+  // 创建录音存储资源（共用逻辑）
+  const createRecordingResource = useCallback(async (): Promise<void> => {
+    try {
+      console.log('[ASR] 开始调用主进程创建录音资源');
+      const result = await window.YUA.sherpa.startRecording({});
+      console.log('[ASR] 录音资源创建结果:', result);
+
+      if (result.success && result.resourceId) {
+        recordingResourceIdRef.current = result.resourceId;
+        console.log('[ASR] ✅ 录音资源ID已保存到ref:', recordingResourceIdRef.current);
+        const sessionInfo = {
+          resourceId: result.resourceId,
+          startTime: Date.now(),
+          segments: []
+        };
+        localStorage.setItem('asr-current-recording', JSON.stringify(sessionInfo));
+      } else {
+        console.error('[ASR] ❌ 录音资源创建失败:', result.error || '未知错误');
+      }
+    } catch (error) {
+      console.error('[ASR] ❌ 开始录音存储异常:', error);
+    }
+  }, []);
+
+  // 麦克风模式：连接麦克风并开始采集
+  const startMicrophoneRecording = useCallback(async (): Promise<void> => {
+    console.log('[ASR] 开始麦克风录音模式');
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      micStreamRef.current = stream;
+
+      const audioCtx = new AudioContext();
+      audioContextRef.current = audioCtx;
+
+      const source = audioCtx.createMediaStreamSource(stream);
+      // 使用 ScriptProcessorNode 获取原始音频数据（bufferSize=4096）
+      const processor = audioCtx.createScriptProcessor(4096, 1, 1);
+      scriptProcessorRef.current = processor;
+
+      processor.onaudioprocess = async (e) => {
+        if (!isRecordingRef.current || !isASRRunningRef.current) return;
+
+        const inputData = e.inputBuffer.getChannelData(0);
+        // resample 到 16kHz
+        const resampled = resampleTo16kHz(inputData, audioCtx.sampleRate);
+
+        // 计算音频电平
+        let max = 0;
+        for (let i = 0; i < resampled.length; i++) {
+          const abs = Math.abs(resampled[i]);
+          if (abs > max) max = abs;
+        }
+        onAudioLevel?.(max);
+
+        // 发送给 ASR 服务
+        try {
+          await window.YUA.sherpa.sendData({
+            uuid: 'stream',
+            data: resampled,
+            save: isRecordingRef.current && recordingResourceIdRef.current !== null
+          });
+          setTotalSamples((prev) => prev + resampled.length);
+        } catch (error) {
+          console.error('[ASR] 发送麦克风音频数据到 ASR 失败:', error);
+        }
+      };
+
+      source.connect(processor);
+      processor.connect(audioCtx.destination); // 需要连到 destination 才能触发 onaudioprocess
+
+      console.log('[ASR] ✅ 麦克风音频采集已启动，采样率:', audioCtx.sampleRate);
+    } catch (error) {
+      console.error('[ASR] ❌ 启动麦克风失败:', error);
+      throw error;
+    }
+  }, [onAudioLevel]);
+
+  // 麦克风模式：停止采集
+  const stopMicrophoneRecording = useCallback(() => {
+    if (scriptProcessorRef.current) {
+      scriptProcessorRef.current.disconnect();
+      scriptProcessorRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    if (micStreamRef.current) {
+      micStreamRef.current.getTracks().forEach((t) => t.stop());
+      micStreamRef.current = null;
+    }
+    console.log('[ASR] 麦克风音频采集已停止');
+  }, []);
+
   // 开始录音
   const startRecording = useCallback(async (): Promise<void> => {
-    console.log('[ASR] ========== startRecording函数被调用 ==========');
-    console.log('[ASR] ========== 开始录音流程 ==========');
-    console.log('[ASR] isASRRunning:', isASRRunning);
-    console.log('[ASR] isASRRunningRef.current:', isASRRunningRef.current);
+    console.log('[ASR] ========== startRecording ==========, audioSource:', audioSource);
 
     if (!isASRRunning) {
       console.error('[ASR] ❌ ASR服务未运行，无法开始录音');
-      console.error('[ASR] ❌ isASRRunning:', isASRRunning);
-      console.error('[ASR] ❌ isASRRunningRef.current:', isASRRunningRef.current);
       return;
     }
 
-    console.log('[ASR] ✅ ASR服务正在运行，继续执行');
-
     try {
-      console.log('[ASR] 检查WebSocket连接状态');
-      console.log('[ASR] wsRef.current:', wsRef.current);
-      console.log('[ASR] wsRef.current?.readyState:', wsRef.current?.readyState);
-
-      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-        console.log('[ASR] WebSocket未连接，开始连接...');
-        await connectWebSocket();
-        console.log('[ASR] WebSocket连接完成');
-      }
-
-      console.log('[ASR] 检查WebSocket最终状态');
-      console.log('[ASR] wsRef.current:', wsRef.current);
-      console.log('[ASR] wsRef.current?.readyState:', wsRef.current?.readyState);
-      console.log('[ASR] WebSocket.OPEN:', WebSocket.OPEN);
-
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        console.log('[ASR] WebSocket已连接，开始创建录音资源');
-
-        // 开始录音存储
-        try {
-          console.log('[ASR] 开始调用主进程创建录音资源');
-          console.log('[ASR] 当前recordingResourceIdRef.current:', recordingResourceIdRef.current);
-
-          const result = await window.YUA.sherpa.startRecording({});
-          console.log('[ASR] 录音资源创建结果:', result);
-          console.log('[ASR] result.success:', result.success);
-          console.log('[ASR] result.resourceId:', result.resourceId);
-          console.log('[ASR] result.error:', result.error);
-
-          if (result.success && result.resourceId) {
-            recordingResourceIdRef.current = result.resourceId;
-            console.log('[ASR] ✅ 录音资源ID已保存到ref:', recordingResourceIdRef.current);
-            // 保存到localStorage用于恢复（包含 segments 字段用于意外关闭时恢复）
-            const sessionInfo = {
-              resourceId: result.resourceId,
-              startTime: Date.now(),
-              segments: [] // 初始为空，ASRPage 会实时更新
-            };
-            localStorage.setItem('asr-current-recording', JSON.stringify(sessionInfo));
-            console.log('[ASR] ✅ 录音会话信息已保存到localStorage:', sessionInfo);
-
-            // 验证保存是否成功
-            const saved = localStorage.getItem('asr-current-recording');
-            console.log('[ASR] ✅ 验证localStorage保存结果:', saved);
-          } else {
-            console.error('[ASR] ❌ 录音资源创建失败:', result.error || '未知错误');
-            console.error('[ASR] ❌ result对象:', JSON.stringify(result, null, 2));
-          }
-        } catch (error) {
-          console.error('[ASR] ❌ 开始录音存储异常:', error);
-          if (error instanceof Error) {
-            console.error('[ASR] ❌ 错误堆栈:', error.stack);
-          }
+      if (audioSource === 'microphone') {
+        // 麦克风模式
+        await createRecordingResource();
+        await startMicrophoneRecording();
+        setIsRecording(true);
+        setTotalSamples(0);
+        console.log('[ASR] ========== 麦克风录音流程完成 ==========');
+      } else {
+        // 系统音频模式（原有 WebSocket 逻辑）
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+          console.log('[ASR] WebSocket未连接，开始连接...');
+          await connectWebSocket();
         }
 
-        console.log('[ASR] 发送WebSocket start消息');
-        wsRef.current.send('start');
-        setIsRecording(true);
-        console.log('[ASR] 录音状态已设置为true');
-        // 重置采样点数计数器
-        setTotalSamples(0);
-        console.log('[ASR] ========== 开始录音流程完成 ==========');
-      } else {
-        console.error('[ASR] ❌ WebSocket未连接，无法开始录音');
-        console.error('[ASR] ❌ wsRef.current:', wsRef.current);
-        console.error('[ASR] ❌ readyState:', wsRef.current?.readyState);
-        console.error('[ASR] ❌ WebSocket.OPEN常量值:', WebSocket.OPEN);
-        console.error('[ASR] ❌ 条件检查: wsRef.current =', !!wsRef.current, ', readyState === OPEN =', wsRef.current?.readyState === WebSocket.OPEN);
-        console.error('[ASR] ❌ 注意：由于WebSocket未连接，录音资源创建代码未执行！');
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          await createRecordingResource();
+          wsRef.current.send('start');
+          setIsRecording(true);
+          setTotalSamples(0);
+          console.log('[ASR] ========== 系统音频录音流程完成 ==========');
+        } else {
+          console.error('[ASR] ❌ WebSocket未连接，无法开始录音');
+        }
       }
     } catch (error) {
       console.error('[ASR] ❌ 开始录音失败:', error);
-      if (error instanceof Error) {
-        console.error('[ASR] ❌ 错误堆栈:', error.stack);
-      }
     }
-
-    console.log('[ASR] ========== startRecording函数执行完毕 ==========');
-  }, [isASRRunning, connectWebSocket]);
+  }, [isASRRunning, audioSource, connectWebSocket, createRecordingResource, startMicrophoneRecording]);
 
   // 停止录音
   const stopRecording = useCallback(async () => {
     try {
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      // 根据音频源停止对应的采集
+      if (audioSource === 'microphone') {
+        stopMicrophoneRecording();
+      } else if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.send('stop');
       }
 
@@ -353,7 +418,7 @@ export const useASR = ({
       console.error('停止录音失败:', error);
       setIsRecording(false);
     }
-  }, []);
+  }, [audioSource, stopMicrophoneRecording]);
 
   // 继续之前的录音
   const resumeRecording = useCallback(
@@ -621,8 +686,9 @@ export const useASR = ({
         wsRef.current.close();
         wsRef.current = null;
       }
+      stopMicrophoneRecording();
     };
-  }, [stopRecording]);
+  }, [stopRecording, stopMicrophoneRecording]);
 
   // 计算录音时长（秒）
   const recordingDuration = totalSamples / SAMPLE_RATE;
