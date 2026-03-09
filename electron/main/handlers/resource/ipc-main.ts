@@ -1505,6 +1505,9 @@ export function initResourceHandlers(): void {
 
 // Helper function for background import task
 async function runImportTask(win: BrowserWindow, filePaths: string[], workspaceId?: string, folderId?: string): Promise<void> {
+  // 触发精灵动画：开始导入（通过事件解耦）
+  eventManager.emit(AppEvent.SPRITE_RESOURCE_IMPORT_START);
+
   const sendProgress = (current: number, total: number, message: string): void => {
     if (win.isDestroyed()) return;
     win.webContents.send('resource:import-progress', {
@@ -1747,11 +1750,22 @@ async function runImportTask(win: BrowserWindow, filePaths: string[], workspaceI
         console.error('Import file failed', task.path, e);
       }
       processed++;
+      // 更新精灵进度（通过事件解耦）
+      eventManager.emit(AppEvent.SPRITE_RESOURCE_IMPORT_PROGRESS, {
+        progress: Math.round((processed / totalFiles) * 100)
+      });
     }
+
+    // 触发精灵动画：导入完成（通过事件解耦）
+    eventManager.emit(AppEvent.SPRITE_RESOURCE_IMPORT_COMPLETE, { count: totalFiles });
 
     sendDone(totalFiles);
   } catch (e) {
     console.error('Import task failed', e);
+    // 触发精灵动画：导入失败（通过事件解耦）
+    eventManager.emit(AppEvent.SPRITE_RESOURCE_IMPORT_ERROR, {
+      message: e instanceof Error ? e.message : String(e)
+    });
     if (!win.isDestroyed()) {
       win.webContents.send('resource:import-progress', {
         visible: false,

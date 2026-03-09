@@ -482,6 +482,17 @@ export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => 
     await WorkflowStore.updateRun(rec).catch(() => { });
     broadcast('wf:run-status', rec);
 
+    // 触发精灵动画（通过事件解耦）
+    if (rec.status === 'running' && !workflowProgress.has(rec.runId)) {
+      eventManager.emit(AppEvent.SPRITE_WORKFLOW_START);
+    } else if (rec.status === 'completed') {
+      eventManager.emit(AppEvent.SPRITE_WORKFLOW_COMPLETE);
+    } else if (rec.status === 'failed') {
+      eventManager.emit(AppEvent.SPRITE_WORKFLOW_FAIL);
+    } else if (rec.status === 'canceled') {
+      eventManager.emit(AppEvent.SPRITE_WORKFLOW_CANCEL);
+    }
+
     // 处理繁忙状态
     if (rec.status === 'running' && !workflowProgress.has(rec.runId)) {
       // 工作流开始执行

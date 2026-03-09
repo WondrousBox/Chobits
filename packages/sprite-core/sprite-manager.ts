@@ -25,7 +25,7 @@ import path from 'node:path';
 import type { AnimationEntry } from './animation-registry';
 import { AnimationRegistry } from './animation-registry';
 import type { BehaviorContext, BehaviorDefinition } from './behavior-engine';
-import { BehaviorEngine, createAutoWalkBehavior, createBoredBehavior, createFavorDecayBehavior, createRandomMessageBehavior, createSleepyBehavior } from './behavior-engine';
+import { BehaviorEngine, createAutoWalkBehavior, createBoredBehavior, createFavorDecayBehavior, createIdleSleepyBehavior, createRandomMessageBehavior, createSleepyBehavior } from './behavior-engine';
 import { SpriteEventBus } from './event-bus';
 import type { InteractionType } from './interaction-tracker';
 import { InteractionTracker } from './interaction-tracker';
@@ -1028,6 +1028,14 @@ export class SpriteManager {
       this.showToast(undefined, { category: 'reminder' });
     };
     this.behaviorEngine.register(sleepyDef);
+
+    // 长时间闲置困倦（100秒无交互）
+    const idleSleepyDef = createIdleSleepyBehavior();
+    idleSleepyDef.action = (_ctx) => {
+      this.playOnce('sleepy');
+      this.showToast('有点困了呢...', { category: 'info', duration: 2000 });
+    };
+    this.behaviorEngine.register(idleSleepyDef);
 
     // 无聊
     const boredDef = createBoredBehavior();

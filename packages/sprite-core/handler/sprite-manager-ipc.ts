@@ -34,6 +34,7 @@ import type { InteractionType } from '../interaction-tracker';
 import { SpriteManager } from '../sprite-manager';
 import { WindowController } from '../window-controller';
 import { listSprites } from './sprite-assets';
+import { initSpriteEventListener } from './sprite-event-listener';
 
 export async function initSpriteManagerIPC(win: BrowserWindow): Promise<void> {
   // 初始化 SpriteManager
@@ -179,6 +180,9 @@ export async function initSpriteManagerIPC(win: BrowserWindow): Promise<void> {
 
   // ===== 启动引擎 =====
   await mgr.start();
+
+  // ===== 初始化事件监听器（订阅业务事件触发动画） =====
+  const cleanupEventListener = initSpriteEventListener(mgr);
 
   // ===== 事件转发：persona:level-up → 主窗口 =====
   // 渲染进程负责打开窗口和处理数据

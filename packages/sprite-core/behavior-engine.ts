@@ -167,6 +167,26 @@ export function createSleepyBehavior(): BehaviorDefinition {
   };
 }
 
+/** 创建长时间闲置困倦行为 */
+export function createIdleSleepyBehavior(): BehaviorDefinition {
+  return {
+    id: 'idle-sleepy',
+    name: '长时间闲置困倦',
+    enabled: true,
+    priority: 'normal',
+    schedule: { type: 'interval', intervalMs: 15000 }, // 每15秒检查
+    conditions: [
+      (ctx) => ctx.interactionStats.idleDuration > 100000 // 100秒无交互
+    ],
+    probability: 0.5, // 50% 概率触发
+    action: () => {
+      // 通过 EventBus 触发困倦反应
+    },
+    allowedStates: ['idle'],
+    blockedStates: ['dragging', 'walking', 'running', 'sleeping', 'reacting']
+  };
+}
+
 /** 创建无聊行为 */
 export function createBoredBehavior(): BehaviorDefinition {
   return {
