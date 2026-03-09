@@ -4,6 +4,8 @@ import { Agent } from '@mastra/core/agent';
 import { BrowserWindow, ipcMain, WebContents } from 'electron';
 
 import { ChatRepo } from '../common/db';
+import { eventManager } from '../event';
+import { AppEvent } from '../event/events';
 import { getAgent, getFilteredTools } from './agents';
 import { InstancesStore } from './instances-store';
 import { createModel } from './models/index';
@@ -159,7 +161,11 @@ ${JSON.stringify(req, null, 2)}
 
         emit({ type: 'connected' });
 
+        // 触发精灵动画：AI 开始思考（通过事件解耦）
+        eventManager.emit(AppEvent.SPRITE_AI_START, { message: '思考中...' });
+
         if (!agent) {
+          eventManager.emit(AppEvent.SPRITE_AI_ERROR, { message: 'Agent 不可用' });
           emit({ type: 'error', data: { message: 'Agent 不可用' } });
           emit({ type: 'done' });
           return;
@@ -329,6 +335,9 @@ ${JSON.stringify(req, null, 2)}
             });
           }
 
+          // 触发精灵动画：AI 回复完成（通过事件解耦）
+          eventManager.emit(AppEvent.SPRITE_AI_COMPLETE);
+
           emit({ type: 'done' });
         } finally {
           // 清理翻译工具上下文
@@ -340,6 +349,12 @@ ${JSON.stringify(req, null, 2)}
         }
       } catch (error: any) {
         console.error('Stream 错误:', error);
+
+        // 触发精灵动画：AI 出错（通过事件解耦）
+        eventManager.emit(AppEvent.SPRITE_AI_ERROR, {
+          message: error instanceof Error ? error.message : String(error)
+        });
+
         emit({
           type: 'error',
           data: {

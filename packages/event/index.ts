@@ -2,6 +2,7 @@ import { BrowserWindow } from 'electron';
 
 import { APP_EVENT_CHANNEL, AppEvent, AppEventPayload } from './events';
 
+export * from './events';
 export * from './interaction';
 
 type EventHandler = (data: any) => void;
