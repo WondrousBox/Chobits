@@ -25,9 +25,34 @@ type FFmpegIpcParams = {
     { peaks: number[]; duration: number }
   >;
   exportVideo: IpcParams<[any], string>;
+  convertToSpriteAnimation: IpcParams<
+    [
+      Partial<{
+        inputPath: string;
+        outputPath: string;
+        segments?: {
+          start: number;
+          loopStart: number;
+          loopEnd: number;
+          end: number;
+        };
+        chromaKey?: {
+          enabled: boolean;
+          color: string;
+          similarity: number;
+          blend: number;
+        };
+        meta?: {
+          eventType?: string;
+          title?: string;
+        };
+      }>
+    ],
+    string
+  >;
 };
 
-const methods: Array<keyof FFmpegIpcParams> = ['playSprite', 'convertMovToWebmWithAlpha', 'removeBackgroundFromImage', 'extractWaveform', 'exportVideo'];
+const methods: Array<keyof FFmpegIpcParams> = ['playSprite', 'convertMovToWebmWithAlpha', 'removeBackgroundFromImage', 'extractWaveform', 'exportVideo', 'convertToSpriteAnimation'];
 
 export type FFmpegIpcType = { [K in keyof FFmpegIpcParams]: (...args: FFmpegIpcParams[K]['request']) => Promise<FFmpegIpcParams[K]['response']> };
 

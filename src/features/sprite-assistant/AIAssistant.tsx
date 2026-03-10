@@ -15,6 +15,7 @@ import { useDragCollector } from './hooks/useDragCollector';
 import { useFileDropCollector } from './hooks/useFileDropCollector';
 import { MessageProvider, SpriteMessage } from './message';
 import { Renderer } from './renderers';
+import { useSpriteSpeak } from './speak/useSpriteSpeak';
 import PaddingDebugOverlay from './ui/PaddingDebugOverlay';
 import StatusIndicator from './ui/StatusIndicator';
 
@@ -28,6 +29,9 @@ const AIAssistantInner: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const { onMouseDown, isDragging, isDragReady } = useDragCollector();
   const { isFileDragOver, handleDragEnter, handleDragLeave, handleDrop, handleDropFiles } = useFileDropCollector();
+
+  // 全局语音播放
+  useSpriteSpeak();
 
   // 阻止浏览器默认拖放
   useEffect(() => {

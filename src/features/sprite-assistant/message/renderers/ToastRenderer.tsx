@@ -7,11 +7,11 @@
  * - 不同等级的视觉样式
  */
 
+import Messages from '@packages/sprite-core/messages/zh-CN';
 import clsx from 'clsx';
 import React from 'react';
 
 import type { MessageCategory } from '../../types';
-import Messages from '../catalog/zh-CN';
 import type { ToastMessage } from '../types';
 
 interface ToastRendererProps {

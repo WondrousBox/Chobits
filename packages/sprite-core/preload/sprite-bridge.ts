@@ -3,10 +3,12 @@
  *
  * window.YUA.sprite.* 接口
  * 包含原有动画管理 + 新增的交互上报/拖拽/状态订阅
+ * + 语音合成 (speak) 功能
  */
 
 import { ipcRenderer } from 'electron';
 
+import type { SpeakResult, SpriteSpeakConfig } from '../speak/types';
 import type { SpriteAnimation } from '../types';
 
 export type SpriteBridgeType = {
@@ -42,6 +44,15 @@ export type SpriteBridgeType = {
   getAutoWalk(): Promise<boolean>;
   setAutoWalk(enabled: boolean): Promise<boolean>;
 
+  // 语音合成 (Speak)
+  speak(text: string, options?: { showBubble?: boolean; bubbleDuration?: number }): Promise<SpeakResult>;
+  synthesizeSpeech(text: string): Promise<SpeakResult>;
+  getSpeakConfig(): Promise<SpriteSpeakConfig>;
+  setSpeakConfig(config: Partial<SpriteSpeakConfig>): Promise<SpriteSpeakConfig>;
+  resetSpeakConfig(): Promise<SpriteSpeakConfig>;
+  getSpeakCacheStats(): Promise<{ totalEntries: number; totalSizeBytes: number }>;
+  clearSpeakCache(): Promise<{ success: boolean }>;
+
   // 事件订阅
   onPlay(cb: (data: any) => void): () => void;
   onState(cb: (data: any) => void): () => void;
@@ -50,6 +61,8 @@ export type SpriteBridgeType = {
   onConfig(cb: (data: any) => void): () => void;
   onBusyUpdate(cb: (data: any) => void): () => void;
   onBusyClear(cb: () => void): () => void;
+  /** 监听语音播放事件（主进程合成完成后触发） */
+  onSpeak(cb: (data: { text: string; audioPath: string; cacheId: string; volume: number }) => void): () => void;
 };
 
 export const spriteBridge: SpriteBridgeType = {
@@ -94,6 +107,15 @@ export const spriteBridge: SpriteBridgeType = {
   // ── 配置 ─────────────────────────────────────────────────
   getAutoWalk: () => ipcRenderer.invoke('sprite:config:getAutoWalk'),
   setAutoWalk: (enabled) => ipcRenderer.invoke('sprite:config:setAutoWalk', { enabled }),
+
+  // ── 语音合成 (Speak) ──────────────────────────────────────
+  speak: (text, options) => ipcRenderer.invoke('sprite:speak', { text, showBubble: options?.showBubble, bubbleDuration: options?.bubbleDuration }),
+  synthesizeSpeech: (text) => ipcRenderer.invoke('sprite:speak:synthesize', { text }),
+  getSpeakConfig: () => ipcRenderer.invoke('sprite:speak:getConfig'),
+  setSpeakConfig: (config) => ipcRenderer.invoke('sprite:speak:setConfig', config),
+  resetSpeakConfig: () => ipcRenderer.invoke('sprite:speak:resetConfig'),
+  getSpeakCacheStats: () => ipcRenderer.invoke('sprite:speak:getCacheStats'),
+  clearSpeakCache: () => ipcRenderer.invoke('sprite:speak:clearCache'),
 
   // ── 事件订阅 ─────────────────────────────────────────────
   onPlay: (cb) => {
@@ -143,6 +165,13 @@ export const spriteBridge: SpriteBridgeType = {
     ipcRenderer.on('sprite:busy:clear', handler);
     return () => {
       ipcRenderer.off('sprite:busy:clear', handler);
+    };
+  },
+  onSpeak: (cb) => {
+    const handler = (_: any, data: any): void => cb(data);
+    ipcRenderer.on('sprite:speak', handler);
+    return () => {
+      ipcRenderer.off('sprite:speak', handler);
     };
   }
 };

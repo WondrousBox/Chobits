@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { TbTools, TbTrash } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,10 +15,10 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { SpriteAnimation, SpriteEventType } from '@/features/sprite-assistant';
 import { SPRITE_EVENT_TYPES, SpriteEventGroups } from '@/features/sprite-assistant';
 import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
+import SpriteVideoEditor, { type SpriteVideoConfig } from './SpriteVideoEditor';
 
 function baseName(p: string): string {
   const parts = p.replace(/\\/g, '/').split('/');
@@ -105,17 +105,11 @@ export default function SpriteManager({ className }: { className?: string }): JS
   const [query, setQuery] = useState(''); // 搜索框
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({}); // 分类折叠状态
   const [globalCat, setGlobalCat] = useState<string>(''); // 全局导入选择的分类
-  // 工具弹窗状态（统一弹窗，Tab 切换功能）
+  // 工具弹窗状态
   const [toolOpen, setToolOpen] = useState(false);
-  const [toolTab, setToolTab] = useState<'video' | 'image'>('video');
-  // 视频转码状态
-  const [videoInputPath, setVideoInputPath] = useState<string>('');
-  const [videoConverting, setVideoConverting] = useState(false);
-  const [videoMsg, setVideoMsg] = useState<string>('');
-  // 图片抠图状态
-  const [imageInputPath, setImageInputPath] = useState<string>('');
-  const [imageProcessing, setImageProcessing] = useState(false);
-  const [imageMsg, setImageMsg] = useState<string>('');
+  // 精灵导入状态
+  const [spriteConfig, setSpriteConfig] = useState<Partial<SpriteVideoConfig>>({});
+  const [spriteProcessing, setSpriteProcessing] = useState(false);
   // 默认的内置分类：使用全部预设事件类型（不包含 custom）
   const BUILTIN = React.useMemo(() => SPRITE_EVENT_TYPES.filter((c) => c !== 'custom'), []);
 
@@ -244,155 +238,54 @@ export default function SpriteManager({ className }: { className?: string }): JS
           </Button>
         </div>
       </div>
-      {/* 工具弹窗（Tab 切换） */}
+      {/* 精灵导入工具弹窗 */}
       <Dialog open={toolOpen} onOpenChange={setToolOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>精灵工具</DialogTitle>
+            <DialogTitle>精灵视频导入</DialogTitle>
           </DialogHeader>
-          <Tabs value={toolTab} onValueChange={(v) => setToolTab(v as 'video' | 'image')}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="video">视频转码</TabsTrigger>
-              <TabsTrigger value="image">AI 抠图</TabsTrigger>
-            </TabsList>
-
-            {/* 视频转码 Tab */}
-            <TabsContent value="video" className="space-y-3 mt-4">
-              <DialogDescription>将视频转码为 WebM 格式（支持透明通道）。输出将自动保存到同级目录。</DialogDescription>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground shrink-0 w-16">输入视频：</span>
-                <Input
-                  className="flex-1 cursor-pointer"
-                  placeholder="点击选择视频文件..."
-                  value={videoInputPath}
-                  readOnly
-                  onClick={async () => {
-                    const pick = await window.YUA.file['file:pickFile']({
-                      filters: [
-                        { name: 'Videos', extensions: ['mov', 'mp4', 'mkv', 'avi', 'webm', 'm4v', 'ogg', 'ogv'] },
-                        { name: 'All Files', extensions: ['*'] }
-                      ],
-                      multi: false
-                    });
-                    if (!pick.canceled && pick.path) {
-                      setVideoInputPath(pick.path);
-                      setVideoMsg('');
-                    }
-                  }}
-                />
-              </div>
-              {videoInputPath && (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground shrink-0 w-16">输出位置：</span>
-                  <Input className="flex-1 bg-muted/50" value={videoInputPath.replace(/\.[^.\\/]+$/i, '') + '.webm'} readOnly />
-                </div>
-              )}
-              {videoMsg && <div className="text-xs text-muted-foreground p-2 bg-muted rounded">{videoMsg}</div>}
-              <DialogFooter>
-                <div className="flex items-center gap-2 w-full justify-end">
-                  <Button variant="ghost" onClick={() => setToolOpen(false)} disabled={videoConverting}>
-                    关闭
-                  </Button>
-                  <Button
-                    onClick={async () => {
-                      if (!videoInputPath) {
-                        setVideoMsg('请先选择输入视频');
-                        return;
-                      }
-                      const outputPath = videoInputPath.replace(/\.[^.\\/]+$/i, '') + '.webm';
-                      setVideoConverting(true);
-                      setVideoMsg('开始转码…');
-                      try {
-                        const ret = await window.YUA.ffmpeg.convertMovToWebmWithAlpha({ inputPath: videoInputPath, outputPath });
-                        setVideoMsg(ret || '转码完成！');
-                        const parent = dirName(outputPath);
-                        if (parent) {
-                          await window.YUA.file['file:openPath'](parent);
-                        }
-                      } catch (e: any) {
-                        setVideoMsg('转码失败：' + (e?.message || String(e)));
-                      } finally {
-                        setVideoConverting(false);
-                      }
-                    }}
-                    disabled={videoConverting || !videoInputPath}
-                  >
-                    {videoConverting ? '转码中…' : '开始转码'}
-                  </Button>
-                </div>
-              </DialogFooter>
-            </TabsContent>
-
-            {/* AI 抠图 Tab */}
-            <TabsContent value="image" className="space-y-3 mt-4">
-              <DialogDescription>使用 AI 模型自动移除图片背景，无需绿幕。首次使用需要下载模型（约 100MB）。</DialogDescription>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground shrink-0 w-16">输入图片：</span>
-                <Input
-                  className="flex-1 cursor-pointer"
-                  placeholder="点击选择图片文件..."
-                  value={imageInputPath}
-                  readOnly
-                  onClick={async () => {
-                    const pick = await window.YUA.file['file:pickFile']({
-                      filters: [
-                        { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'bmp'] },
-                        { name: 'All Files', extensions: ['*'] }
-                      ],
-                      multi: false
-                    });
-                    if (!pick.canceled && pick.path) {
-                      setImageInputPath(pick.path);
-                      setImageMsg('');
-                    }
-                  }}
-                />
-              </div>
-              {imageInputPath && (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground shrink-0 w-16">输出位置：</span>
-                  <Input className="flex-1 bg-muted/50" value={imageInputPath.replace(/\.[^.\\/]+$/i, '') + '_nobg.png'} readOnly />
-                </div>
-              )}
-              {imageMsg && <div className="text-xs text-muted-foreground p-2 bg-muted rounded">{imageMsg}</div>}
-              <DialogFooter>
-                <div className="flex items-center gap-2 w-full justify-end">
-                  <Button variant="ghost" onClick={() => setToolOpen(false)} disabled={imageProcessing}>
-                    关闭
-                  </Button>
-                  <Button
-                    onClick={async () => {
-                      if (!imageInputPath) {
-                        setImageMsg('请先选择输入图片');
-                        return;
-                      }
-                      const outputPath = imageInputPath.replace(/\.[^.\\/]+$/i, '') + '_nobg.png';
-                      setImageProcessing(true);
-                      setImageMsg('开始处理（首次使用需要下载模型，请耐心等待）…');
-                      try {
-                        const ret = await window.YUA.ffmpeg.removeBackgroundFromImage({
-                          inputPath: imageInputPath,
-                          outputPath
-                        });
-                        setImageMsg('处理完成！');
-                        const parent = dirName(outputPath);
-                        if (parent) {
-                          await window.YUA.file['file:openPath'](parent);
-                        }
-                      } catch (e: any) {
-                        setImageMsg('处理失败：' + (e?.message || String(e)));
-                      } finally {
-                        setImageProcessing(false);
-                      }
-                    }}
-                    disabled={imageProcessing || !imageInputPath}
-                  >
-                    {imageProcessing ? '处理中…' : '开始处理'}
-                  </Button>
-                </div>
-              </DialogFooter>
-            </TabsContent>
-          </Tabs>
+          <SpriteVideoEditor
+            initialConfig={spriteConfig}
+            onConfigChange={setSpriteConfig}
+            isProcessing={spriteProcessing}
+            onProcess={async (config) => {
+              if (!config.inputPath) return;
+              const outputPath = config.inputPath.replace(/\.[^.\\/]+$/i, '') + '.webm';
+              setSpriteProcessing(true);
+              try {
+                await window.YUA.ffmpeg.convertToSpriteAnimation({
+                  inputPath: config.inputPath,
+                  outputPath,
+                  segments: config.segments,
+                  chromaKey: config.chromaKey,
+                  meta: { eventType: config.eventType, title: config.title }
+                });
+                // 注册精灵
+                const id = 'sprite-' + Math.random().toString(36).slice(2, 10);
+                await window.YUA.sprite.register({
+                  filePath: outputPath,
+                  loopStartMs: config.segments?.loopStart,
+                  loopEndMs: config.segments?.loopEnd,
+                  meta: {
+                    id,
+                    title: config.title || '自定义动画',
+                    eventType: config.eventType || undefined
+                  }
+                });
+                await refresh();
+                setToolOpen(false);
+                // 打开输出目录
+                const parent = dirName(outputPath);
+                if (parent) {
+                  await window.YUA.file['file:openPath'](parent);
+                }
+              } catch (e: any) {
+                console.error('精灵导入失败:', e);
+              } finally {
+                setSpriteProcessing(false);
+              }
+            }}
+          />
         </DialogContent>
       </Dialog>
 

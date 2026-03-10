@@ -156,6 +156,14 @@ app.whenReady().then(async () => {
   } catch (e) {
     console.warn('[protocol res] add workspace root failed', e);
   }
+
+  // Add userData/data directory as allowed root for sprite speak cache etc.
+  try {
+    const userDataDir = path.join(app.getPath('userData'), 'data');
+    addAllowedResourceRoot(userDataDir);
+  } catch (e) {
+    console.warn('[protocol res] add userData root failed', e);
+  }
   await createWindow();
   // Initialize workflow system (nodes, plugins, IPC endpoints)
   try {
