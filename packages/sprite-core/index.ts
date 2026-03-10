@@ -67,3 +67,10 @@ export { SpriteManager } from './sprite-manager';
 // ----- WindowController -----
 export type { WindowControllerOptions } from './window-controller';
 export { WindowController } from './window-controller';
+
+// ----- Config -----
+export type { TriggerConfig } from './config/trigger-mapping';
+export { TRIGGER_MAPPING } from './config/trigger-mapping';
+
+// ----- Helper -----
+export { spriteAI, spriteResource, spriteWorkflow, triggerSpriteAnimation } from './helper/trigger-animation';

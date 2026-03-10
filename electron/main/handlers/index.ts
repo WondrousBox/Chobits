@@ -103,5 +103,7 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   initMediaTrackHandlers();
   initAnnotationHandlers();
   initMediaHandlers(win);
-  await initSpriteManagerIPC(win);
+  await initSpriteManagerIPC(win, {
+    addAllowedResourceRoot: (await import('../resource-protocol')).addAllowedResourceRoot
+  });
 }
