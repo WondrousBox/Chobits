@@ -31,6 +31,7 @@
 import { app, BrowserWindow, ipcMain, screen } from 'electron';
 
 import type { InteractionType } from '../interaction-tracker';
+import type { SpeakRequest, SpriteSpeakConfig } from '../speak/types';
 import { SpriteManager } from '../sprite-manager';
 import { WindowController } from '../window-controller';
 import { listSprites } from './sprite-assets';
@@ -156,6 +157,44 @@ export async function initSpriteManagerIPC(win: BrowserWindow): Promise<void> {
   ipcMain.handle('sprite:config:setAutoWalk', (_e, p: { enabled: boolean }) => {
     mgr.setAutoWalkEnabled(p.enabled);
     return p.enabled;
+  });
+
+  // ===== 语音合成 (Speak) =====
+
+  /** 让精灵说话：合成 + 播放 + 显示气泡 */
+  ipcMain.handle('sprite:speak', async (_e, p: SpeakRequest) => {
+    return mgr.speak(p.text, { showBubble: p.showBubble, bubbleDuration: p.bubbleDuration });
+  });
+
+  /** 仅合成语音（不播放，不显示气泡） */
+  ipcMain.handle('sprite:speak:synthesize', async (_e, p: { text: string }) => {
+    return mgr.synthesizeSpeech(p.text);
+  });
+
+  /** 获取语音合成配置 */
+  ipcMain.handle('sprite:speak:getConfig', () => {
+    return mgr.getSpeakConfig();
+  });
+
+  /** 更新语音合成配置 */
+  ipcMain.handle('sprite:speak:setConfig', (_e, p: Partial<SpriteSpeakConfig>) => {
+    return mgr.setSpeakConfig(p);
+  });
+
+  /** 重置语音合成配置 */
+  ipcMain.handle('sprite:speak:resetConfig', () => {
+    return mgr.resetSpeakConfig();
+  });
+
+  /** 获取语音缓存统计 */
+  ipcMain.handle('sprite:speak:getCacheStats', () => {
+    return mgr.getSpeakCacheStats();
+  });
+
+  /** 清空语音缓存 */
+  ipcMain.handle('sprite:speak:clearCache', async () => {
+    await mgr.clearSpeakCache();
+    return { success: true };
   });
 
   // 覆盖旧的 auto-walk IPC（window.ts 中注册的版本只更新本地变量，

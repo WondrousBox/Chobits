@@ -400,4 +400,115 @@ export function initFFmpegHandlers(win: BrowserWindow): void {
       throw new Error(err?.message || String(err) || '导出视频失败');
     }
   });
+
+  /**
+   * 将视频转换为精灵动画（支持片段裁剪和色度键抠图）
+   * @param arg.inputPath - 输入视频路径
+   * @param arg.outputPath - 输出 WebM 路径
+   * @param arg.segments - 片段标记 { start, loopStart, loopEnd, end } (毫秒)
+   * @param arg.chromaKey - 色度键设置 { enabled, color, similarity, blend }
+   * @param arg.meta - 元数据 { eventType, title }
+   */
+  ipcMain.handle(
+    'convertToSpriteAnimation',
+    async (
+      _evt,
+      arg?: {
+        inputPath: string;
+        outputPath: string;
+        segments?: {
+          start: number;
+          loopStart: number;
+          loopEnd: number;
+          end: number;
+        };
+        chromaKey?: {
+          enabled: boolean;
+          color: string;
+          similarity: number;
+          blend: number;
+        };
+        meta?: {
+          eventType?: string;
+          title?: string;
+        };
+      }
+    ) => {
+      const input = arg?.inputPath;
+      const output = arg?.outputPath;
+      if (!input || !output) throw new Error('inputPath 和 outputPath 必须指定');
+
+      const segments = arg?.segments || { start: 0, loopStart: 0, loopEnd: 0, end: 0 };
+      const chromaKey = arg?.chromaKey || { enabled: false, color: '#00ff00', similarity: 40, blend: 15 };
+
+      return await new Promise<string>((resolve, reject) => {
+        try {
+          let cmd = ffmpeg(input);
+
+          // 构建滤镜链
+          const filterParts: string[] = [];
+
+          // 1. 片段裁剪（如果设置了）
+          if (segments.start > 0 || segments.end > 0) {
+            cmd = cmd.setStartTime(segments.start / 1000); // 转换为秒
+            if (segments.end > 0) {
+              const duration = (segments.end - segments.start) / 1000;
+              cmd = cmd.setDuration(duration);
+            }
+          }
+
+          // 2. 色度键抠图（如果启用）
+          if (chromaKey.enabled) {
+            // 解析颜色
+            const hexColor = chromaKey.color.replace('#', '');
+            const r = parseInt(hexColor.slice(0, 2), 16);
+            const g = parseInt(hexColor.slice(2, 4), 16);
+            const b = parseInt(hexColor.slice(4, 6), 16);
+            const colorStr = `0x${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+
+            // 相似度转换为 FFmpeg 的 similarity 参数 (0.0-1.0)
+            const similarity = chromaKey.similarity / 100;
+            // 混合度
+            const blend = chromaKey.blend / 100;
+
+            // chromakey 滤镜：将指定颜色变为透明
+            filterParts.push(`chromakey=${colorStr}:${similarity.toFixed(2)}:${blend.toFixed(2)}`);
+          }
+
+          // 应用滤镜
+          if (filterParts.length > 0) {
+            cmd = cmd.videoFilter(filterParts.join(','));
+          }
+
+          // 输出设置
+          cmd = cmd
+            .videoCodec('libvpx-vp9')
+            .outputOptions([
+              '-pix_fmt', 'yuva420p', // 支持透明通道
+              '-b:v', '0',
+              '-crf', '28', // 质量
+              '-an' // 移除音频
+            ])
+            .output(output)
+            .on('start', (commandLine: string) => {
+              console.log('[ffmpeg][convertToSpriteAnimation] start:', commandLine);
+            })
+            .on('stderr', (line: string) => {
+              console.log('[ffmpeg][convertToSpriteAnimation][stderr]', line);
+            })
+            .on('error', (err: any) => {
+              console.error('[ffmpeg][convertToSpriteAnimation] error:', err);
+              reject(err);
+            })
+            .on('end', () => {
+              console.log('[ffmpeg][convertToSpriteAnimation] end');
+              resolve('success');
+            })
+            .run();
+        } catch (e) {
+          reject(e);
+        }
+      });
+    }
+  );
 }

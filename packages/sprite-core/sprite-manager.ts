@@ -29,8 +29,11 @@ import { BehaviorEngine, createAutoWalkBehavior, createBoredBehavior, createFavo
 import { SpriteEventBus } from './event-bus';
 import type { InteractionType } from './interaction-tracker';
 import { InteractionTracker } from './interaction-tracker';
+import Messages from './messages/zh-CN';
 import type { FavorLevel, MoodType, PersonaState } from './persona-state';
 import { PersonaStateManager } from './persona-state';
+import { SpeakService } from './speak/speak-service';
+import type { SpeakResult, SpriteSpeakConfig, SpriteSpeakPayload } from './speak/types';
 import type { SpriteState, SpriteSubState } from './state-machine';
 import { SpriteStateMachine } from './state-machine';
 import type { MessageCategory, MessageIPCPayload, SpriteAnimation, SpriteConfig, SpriteInitialState, SpritePlayCommand, SpriteStateSnapshot } from './types';
@@ -265,6 +268,11 @@ export class SpriteManager {
   private persistence: PersonaStatePersistence;
   private autoWalkConfig: AutoWalkConfig;
 
+  // 语音合成服务
+  private speakService: SpeakService;
+  /** 防止 speak() → showToast() → speakService.speak() 递归 */
+  private _speakGuard = false;
+
   // Electron 依赖
   private win: SpriteWindow;
   private getScreenSize: () => { width: number; height: number };
@@ -315,6 +323,12 @@ export class SpriteManager {
     // 持久化
     this.persistence = new PersonaStatePersistence(options.dataDir);
     this.autoWalkConfig = new AutoWalkConfig(options.dataDir);
+
+    // 语音合成服务
+    this.speakService = new SpeakService(options.dataDir);
+    this.speakService.setPlayAudioCallback((payload: SpriteSpeakPayload) => {
+      this.sendToRenderer('sprite:speak', payload);
+    });
 
     // 设置状态机变化监听
     this.stateMachine.onChange((newState, oldState, ctx) => {
@@ -388,13 +402,16 @@ export class SpriteManager {
     // 4. 注册默认行为
     this.registerDefaultBehaviors();
 
-    // 5. 启动行为引擎
+    // 5. 初始化语音合成服务
+    await this.speakService.init();
+
+    // 6. 启动行为引擎
     this.behaviorEngine.start();
 
-    // 6. 启动心情衰减
+    // 7. 启动心情衰减
     this.personaState.startMoodDecay();
 
-    // 7. 记录日常登录
+    // 8. 记录日常登录
     const loginResult = this.personaState.recordDailyLogin();
     if (loginResult.isNewDay) {
       this.sendToRenderer('sprite:state', {
@@ -466,6 +483,12 @@ export class SpriteManager {
   // 消息系统
   // ============================================================================
 
+  /**
+   * 不自动朗读的 toast 类别
+   * loading / processing / waiting 属于瞬态状态指示，不需要语音
+   */
+  private static MUTE_CATEGORIES: ReadonlySet<string> = new Set(['loading', 'processing', 'waiting']);
+
   /** 轻量提示 */
   showToast(content?: string, options?: { category?: MessageCategory; duration?: number; level?: string; ctx?: any }): void {
     const payload: MessageIPCPayload = {
@@ -477,6 +500,15 @@ export class SpriteManager {
       ctx: options?.ctx
     };
     this.sendToRenderer('sprite:message', payload);
+
+    // 自动朗读：非静默类别 且 非来自 speak() 的调用
+    if (!this._speakGuard && !SpriteManager.MUTE_CATEGORIES.has(options?.category ?? '')) {
+      // 优先使用直传文案，否则根据 category 从文案目录解析
+      const speakText = content || (options?.category ? Messages.t(options.category, options?.ctx) : '');
+      if (speakText) {
+        this.speakService.speak(speakText).catch(() => { });
+      }
+    }
   }
 
   /** 通知消息 */
@@ -491,6 +523,11 @@ export class SpriteManager {
       level: options?.level as any
     };
     this.sendToRenderer('sprite:message', payload);
+
+    // 自动朗读通知内容
+    if (content && !this._speakGuard) {
+      this.speakService.speak(content).catch(() => { });
+    }
   }
 
   /** 显示忙碌状态 */
@@ -511,6 +548,65 @@ export class SpriteManager {
   /** 清除忙碌状态 */
   clearBusy(): void {
     this.sendToRenderer('sprite:busy:clear', {});
+  }
+
+  // ============================================================================
+  // 语音合成 API (Speak)
+  // ============================================================================
+
+  /**
+   * 让精灵说话
+   * 同时显示文字气泡 + 合成并播放语音
+   * @param text 要说的文本
+   * @param options 可选参数
+   */
+  async speak(text: string, options?: { showBubble?: boolean; bubbleDuration?: number }): Promise<SpeakResult> {
+    const showBubble = options?.showBubble ?? true;
+
+    // 设置 guard，防止 showToast 内再次触发 speakService.speak
+    this._speakGuard = true;
+    try {
+      // 显示文字气泡
+      if (showBubble) {
+        const bubbleDuration = options?.bubbleDuration ?? Math.max(3000, text.length * 200);
+        this.showToast(text, { duration: bubbleDuration, category: 'message' });
+      }
+
+      // 合成并播放语音
+      return await this.speakService.speak(text);
+    } finally {
+      this._speakGuard = false;
+    }
+  }
+
+  /** 仅合成语音（不播放） */
+  async synthesizeSpeech(text: string): Promise<SpeakResult> {
+    return this.speakService.synthesize(text);
+  }
+
+  /** 获取语音合成配置 */
+  getSpeakConfig(): SpriteSpeakConfig {
+    return this.speakService.getConfig();
+  }
+
+  /** 更新语音合成配置 */
+  setSpeakConfig(partial: Partial<SpriteSpeakConfig>): SpriteSpeakConfig {
+    return this.speakService.setConfig(partial);
+  }
+
+  /** 重置语音合成配置 */
+  resetSpeakConfig(): SpriteSpeakConfig {
+    return this.speakService.resetConfig();
+  }
+
+  /** 获取语音缓存统计 */
+  getSpeakCacheStats(): { totalEntries: number; totalSizeBytes: number } {
+    return this.speakService.getCacheStats();
+  }
+
+  /** 清空语音缓存 */
+  async clearSpeakCache(): Promise<void> {
+    await this.speakService.clearCache();
   }
 
   // ============================================================================
