@@ -37,7 +37,13 @@ import { WindowController } from '../window-controller';
 import { listSprites } from './sprite-assets';
 import { initSpriteEventListener } from './sprite-event-listener';
 
-export async function initSpriteManagerIPC(win: BrowserWindow): Promise<void> {
+export interface SpriteManagerDeps {
+  addAllowedResourceRoot: (root: string) => void;
+}
+
+let deps: SpriteManagerDeps;
+
+export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManagerDeps): Promise<void> {
   // 初始化 SpriteManager
   const mgr = SpriteManager.init({
     win: win as any,
@@ -233,6 +239,12 @@ export async function initSpriteManagerIPC(win: BrowserWindow): Promise<void> {
     } catch {
       /* ignore */
     }
+  });
+
+  // ===== 临时资源根目录（用于视频预览等场景） =====
+  ipcMain.handle('sprite:addTempResourceRoot', (_e, root: string) => {
+    deps.addAllowedResourceRoot(root);
+    return { success: true };
   });
 
   // ===== 加载动画并触发初始播放 =====

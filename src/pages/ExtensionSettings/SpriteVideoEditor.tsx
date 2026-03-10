@@ -9,7 +9,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TbColorPicker, TbCut, TbEye, TbEyeOff, TbPlayerPause, TbPlayerPlay, TbReload, TbTrash, TbZoomIn, TbZoomOut } from 'react-icons/tb';
+import { TbColorPicker, TbCut, TbEye, TbEyeOff, TbPlayerPause, TbPlayerPlay, TbReload, TbTrash, TbX, TbZoomIn, TbZoomOut } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,6 +40,11 @@ export interface SpriteVideoConfig {
   chromaKey: ChromaKeySettings;
   eventType?: string;
   title?: string;
+}
+
+// 将文件路径转换为 res:// 协议URL
+function pathToResUrl(filePath: string): string {
+  return `res://local/${encodeURIComponent(filePath.replace(/\\/g, '/'))}`;
 }
 
 // 格式化时间为 mm:ss.ms
@@ -80,9 +85,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, is
   const [zoomLevel, setZoomLevel] = useState<number>(1);
 
   // 片段标记
-  const [segments, setSegments] = useState<SegmentMarkers>(
-    initialConfig?.segments || { start: 0, loopStart: 0, loopEnd: 0, end: 0 }
-  );
+  const [segments, setSegments] = useState<SegmentMarkers>(initialConfig?.segments || { start: 0, loopStart: 0, loopEnd: 0, end: 0 });
 
   // 背景抠图设置
   const [chromaKey, setChromaKey] = useState<ChromaKeySettings>(
@@ -144,7 +147,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, is
       video.pause();
       setIsPlaying(false);
     } else {
-      video.play().catch(() => {});
+      video.play().catch(() => { });
       setIsPlaying(true);
     }
   }, [isPlaying]);
@@ -163,9 +166,19 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, is
   }, []);
 
   // 在当前时间设置标记
-  const setMarkerAtCurrent = useCallback((marker: keyof SegmentMarkers) => {
-    setMarker(marker, currentTime);
-  }, [currentTime, setMarker]);
+  const setMarkerAtCurrent = useCallback(
+    (marker: keyof SegmentMarkers) => {
+      setMarker(marker, currentTime);
+    },
+    [currentTime, setMarker]
+  );
+
+  // 获取文件所在目录
+  const getDirPath = useCallback((filePath: string): string => {
+    const normalized = filePath.replace(/\\/g, '/');
+    const lastSlash = normalized.lastIndexOf('/');
+    return lastSlash >= 0 ? filePath.slice(0, lastSlash) : filePath;
+  }, []);
 
   // 选择文件
   const handleSelectFile = useCallback(async () => {
@@ -177,6 +190,10 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, is
       multi: false
     });
     if (!pick.canceled && pick.path) {
+      // 添加到临时资源根目录（允许通过 res:// 协议访问）
+      const dirPath = getDirPath(pick.path);
+      await window.YUA.sprite.addTempResourceRoot(dirPath);
+
       setInputPath(pick.path);
       // 从文件名提取标题
       const name = pick.path.replace(/\\/g, '/').split('/').pop() || '';
@@ -186,7 +203,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, is
       setCurrentTime(0);
       setIsPlaying(false);
     }
-  }, []);
+  }, [getDirPath]);
 
   // 色度键预览
   useEffect(() => {
@@ -220,11 +237,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, is
         const g = data[i + 1];
         const b = data[i + 2];
 
-        const distance = Math.sqrt(
-          Math.pow(r - targetR, 2) +
-          Math.pow(g - targetG, 2) +
-          Math.pow(b - targetB, 2)
-        );
+        const distance = Math.sqrt(Math.pow(r - targetR, 2) + Math.pow(g - targetG, 2) + Math.pow(b - targetB, 2));
 
         if (distance < threshold) {
           data[i + 3] = 0; // 设置为透明
@@ -254,7 +267,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, is
     if (!video) return;
 
     video.currentTime = segments.loopStart / 1000;
-    video.play().catch(() => {});
+    video.play().catch(() => { });
     setIsPlaying(true);
 
     const checkLoop = () => {
@@ -274,23 +287,44 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, is
     if (!video) return;
 
     video.currentTime = segments.start / 1000;
-    video.play().catch(() => {});
+    video.play().catch(() => { });
     setIsPlaying(true);
   }, [segments]);
+
+  // 清空视频
+  const handleClearVideo = useCallback(() => {
+    setInputPath('');
+    setSegments({ start: 0, loopStart: 0, loopEnd: 0, end: 0 });
+    setCurrentTime(0);
+    setIsPlaying(false);
+    setChromaKey({ enabled: false, color: '#00ff00', similarity: 40, blend: 15 });
+    setTitle('');
+    setEventType('');
+  }, []);
 
   return (
     <div className="space-y-4">
       {/* 文件选择 */}
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-muted-foreground shrink-0 w-16">输入视频：</span>
-        <Input
-          className="flex-1 cursor-pointer"
-          placeholder="点击选择视频文件..."
-          value={inputPath}
-          readOnly
+      {!inputPath ? (
+        // 未选择视频时显示大按钮占位符
+        <button
           onClick={handleSelectFile}
-        />
-      </div>
+          className="w-full h-48 border-2 border-dashed border-muted-foreground/30 rounded-lg flex flex-col items-center justify-center gap-3 hover:border-primary/50 hover:bg-muted/30 transition-colors cursor-pointer"
+        >
+          <div className="text-4xl text-muted-foreground/50">📁</div>
+          <div className="text-sm text-muted-foreground">点击选择视频文件</div>
+          <div className="text-xs text-muted-foreground/60">支持 MOV, MP4, MKV, AVI, WebM 等格式</div>
+        </button>
+      ) : (
+        // 已选择视频时显示路径和清空按钮
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground shrink-0 w-16">输入视频：</span>
+          <Input className="flex-1 bg-muted/50" value={inputPath} readOnly />
+          <Button size="icon" variant="ghost" onClick={handleClearVideo} title="清空重新选择">
+            <TbX />
+          </Button>
+        </div>
+      )}
 
       {inputPath && (
         <>
@@ -302,19 +336,14 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, is
                 <video
                   ref={videoRef}
                   className="max-h-full max-w-full"
-                  src={`file:///${inputPath}`}
+                  src={pathToResUrl(inputPath)}
                   onLoadedMetadata={handleLoadedMetadata}
                   onTimeUpdate={handleTimeUpdate}
                   onEnded={() => setIsPlaying(false)}
                   muted
                   playsInline
                 />
-                {previewChroma && chromaKey.enabled && (
-                  <canvas
-                    ref={canvasRef}
-                    className="absolute inset-0 w-full h-full object-contain"
-                  />
-                )}
+                {previewChroma && chromaKey.enabled && <canvas ref={canvasRef} className="absolute inset-0 w-full h-full object-contain" />}
               </div>
 
               {/* 播放控制 */}
@@ -339,21 +368,11 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, is
             <div className="w-48 space-y-3">
               <div>
                 <Label className="text-xs">动画标题</Label>
-                <Input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="动画名称"
-                  className="h-8"
-                />
+                <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="动画名称" className="h-8" />
               </div>
               <div>
                 <Label className="text-xs">事件类型</Label>
-                <Input
-                  value={eventType}
-                  onChange={(e) => setEventType(e.target.value)}
-                  placeholder="如 idle, walk, click..."
-                  className="h-8"
-                />
+                <Input value={eventType} onChange={(e) => setEventType(e.target.value)} placeholder="如 idle, walk, click..." className="h-8" />
               </div>
             </div>
           </div>
@@ -385,18 +404,11 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, is
               }}
             >
               {/* 播放进度线 */}
-              <div
-                className="absolute top-0 bottom-0 w-0.5 bg-primary z-10"
-                style={{ left: `${(currentTime / duration) * 100}%` }}
-              />
+              <div className="absolute top-0 bottom-0 w-0.5 bg-primary z-10" style={{ left: `${(currentTime / duration) * 100}%` }} />
 
               {/* 片段标记 */}
               {/* 开始标记 */}
-              <div
-                className="absolute top-0 bottom-0 w-1 bg-green-500 cursor-ew-resize"
-                style={{ left: `${(segments.start / duration) * 100}%` }}
-                title={`开始: ${formatTime(segments.start)}`}
-              />
+              <div className="absolute top-0 bottom-0 w-1 bg-green-500 cursor-ew-resize" style={{ left: `${(segments.start / duration) * 100}%` }} title={`开始: ${formatTime(segments.start)}`} />
               {/* 循环开始标记 */}
               <div
                 className="absolute top-0 bottom-0 w-1 bg-blue-500 cursor-ew-resize"
@@ -410,11 +422,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, is
                 title={`循环结束: ${formatTime(segments.loopEnd)}`}
               />
               {/* 结束标记 */}
-              <div
-                className="absolute top-0 bottom-0 w-1 bg-red-500 cursor-ew-resize"
-                style={{ left: `${(segments.end / duration) * 100}%` }}
-                title={`结束: ${formatTime(segments.end)}`}
-              />
+              <div className="absolute top-0 bottom-0 w-1 bg-red-500 cursor-ew-resize" style={{ left: `${(segments.end / duration) * 100}%` }} title={`结束: ${formatTime(segments.end)}`} />
 
               {/* 循环区域高亮 */}
               <div
@@ -431,11 +439,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, is
               <div>
                 <Label className="text-xs text-green-600">开始</Label>
                 <div className="flex items-center gap-1">
-                  <Input
-                    value={formatTime(segments.start)}
-                    onChange={(e) => setMarker('start', parseTime(e.target.value))}
-                    className="h-7 text-xs font-mono"
-                  />
+                  <Input value={formatTime(segments.start)} onChange={(e) => setMarker('start', parseTime(e.target.value))} className="h-7 text-xs font-mono" />
                   <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setMarkerAtCurrent('start')}>
                     <TbCut className="w-3 h-3" />
                   </Button>
@@ -444,11 +448,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, is
               <div>
                 <Label className="text-xs text-blue-600">循环开始</Label>
                 <div className="flex items-center gap-1">
-                  <Input
-                    value={formatTime(segments.loopStart)}
-                    onChange={(e) => setMarker('loopStart', parseTime(e.target.value))}
-                    className="h-7 text-xs font-mono"
-                  />
+                  <Input value={formatTime(segments.loopStart)} onChange={(e) => setMarker('loopStart', parseTime(e.target.value))} className="h-7 text-xs font-mono" />
                   <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setMarkerAtCurrent('loopStart')}>
                     <TbCut className="w-3 h-3" />
                   </Button>
@@ -457,11 +457,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, is
               <div>
                 <Label className="text-xs text-blue-600">循环结束</Label>
                 <div className="flex items-center gap-1">
-                  <Input
-                    value={formatTime(segments.loopEnd)}
-                    onChange={(e) => setMarker('loopEnd', parseTime(e.target.value))}
-                    className="h-7 text-xs font-mono"
-                  />
+                  <Input value={formatTime(segments.loopEnd)} onChange={(e) => setMarker('loopEnd', parseTime(e.target.value))} className="h-7 text-xs font-mono" />
                   <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setMarkerAtCurrent('loopEnd')}>
                     <TbCut className="w-3 h-3" />
                   </Button>
@@ -470,11 +466,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, is
               <div>
                 <Label className="text-xs text-red-600">结束</Label>
                 <div className="flex items-center gap-1">
-                  <Input
-                    value={formatTime(segments.end)}
-                    onChange={(e) => setMarker('end', parseTime(e.target.value))}
-                    className="h-7 text-xs font-mono"
-                  />
+                  <Input value={formatTime(segments.end)} onChange={(e) => setMarker('end', parseTime(e.target.value))} className="h-7 text-xs font-mono" />
                   <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setMarkerAtCurrent('end')}>
                     <TbCut className="w-3 h-3" />
                   </Button>
@@ -487,10 +479,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, is
           <div className="space-y-3 border-t pt-4">
             <div className="flex items-center justify-between">
               <Label className="text-sm">背景抠图（色度键）</Label>
-              <Switch
-                checked={chromaKey.enabled}
-                onCheckedChange={(checked) => setChromaKey((prev) => ({ ...prev, enabled: checked }))}
-              />
+              <Switch checked={chromaKey.enabled} onCheckedChange={(checked) => setChromaKey((prev) => ({ ...prev, enabled: checked }))} />
             </div>
 
             {chromaKey.enabled && (
@@ -498,17 +487,8 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, is
                 <div>
                   <Label className="text-xs">目标颜色</Label>
                   <div className="flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={chromaKey.color}
-                      onChange={(e) => setChromaKey((prev) => ({ ...prev, color: e.target.value }))}
-                      className="w-10 h-8 rounded cursor-pointer border"
-                    />
-                    <Input
-                      value={chromaKey.color}
-                      onChange={(e) => setChromaKey((prev) => ({ ...prev, color: e.target.value }))}
-                      className="h-8 font-mono text-xs"
-                    />
+                    <input type="color" value={chromaKey.color} onChange={(e) => setChromaKey((prev) => ({ ...prev, color: e.target.value }))} className="w-10 h-8 rounded cursor-pointer border" />
+                    <Input value={chromaKey.color} onChange={(e) => setChromaKey((prev) => ({ ...prev, color: e.target.value }))} className="h-8 font-mono text-xs" />
                     {/* 预设颜色 */}
                     <div className="flex gap-1">
                       <button
@@ -537,41 +517,23 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, is
 
                 <div>
                   <Label className="text-xs">相似度阈值: {chromaKey.similarity}%</Label>
-                  <Slider
-                    value={[chromaKey.similarity]}
-                    onValueChange={([v]) => setChromaKey((prev) => ({ ...prev, similarity: v }))}
-                    min={1}
-                    max={100}
-                    className="mt-2"
-                  />
+                  <Slider value={[chromaKey.similarity]} onValueChange={([v]) => setChromaKey((prev) => ({ ...prev, similarity: v }))} min={1} max={100} className="mt-2" />
                 </div>
 
                 <div>
                   <Label className="text-xs">边缘羽化: {chromaKey.blend}%</Label>
-                  <Slider
-                    value={[chromaKey.blend]}
-                    onValueChange={([v]) => setChromaKey((prev) => ({ ...prev, blend: v }))}
-                    min={1}
-                    max={50}
-                    className="mt-2"
-                  />
+                  <Slider value={[chromaKey.blend]} onValueChange={([v]) => setChromaKey((prev) => ({ ...prev, blend: v }))} min={1} max={50} className="mt-2" />
                 </div>
               </div>
             )}
 
             {chromaKey.enabled && (
               <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setPreviewChroma(!previewChroma)}
-                >
+                <Button size="sm" variant="outline" onClick={() => setPreviewChroma(!previewChroma)}>
                   {previewChroma ? <TbEyeOff /> : <TbEye />}
                   {previewChroma ? '隐藏预览' : '预览抠图效果'}
                 </Button>
-                <span className="text-xs text-muted-foreground">
-                  预览效果为模拟显示，实际效果以转码结果为准
-                </span>
+                <span className="text-xs text-muted-foreground">预览效果为模拟显示，实际效果以转码结果为准</span>
               </div>
             )}
           </div>
@@ -580,13 +542,15 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, is
           <div className="flex items-center justify-end gap-2 border-t pt-4">
             <Button
               variant="default"
-              onClick={() => onProcess?.({
-                inputPath,
-                segments,
-                chromaKey,
-                eventType,
-                title
-              })}
+              onClick={() =>
+                onProcess?.({
+                  inputPath,
+                  segments,
+                  chromaKey,
+                  eventType,
+                  title
+                })
+              }
               disabled={isProcessing || !inputPath}
             >
               {isProcessing ? '处理中…' : '转码并导入'}

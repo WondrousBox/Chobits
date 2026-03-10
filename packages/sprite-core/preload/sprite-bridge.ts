@@ -48,6 +48,9 @@ export type SpriteBridgeType = {
   speak(text: string, options?: { showBubble?: boolean; bubbleDuration?: number }): Promise<SpeakResult>;
   synthesizeSpeech(text: string): Promise<SpeakResult>;
   getSpeakConfig(): Promise<SpriteSpeakConfig>;
+
+  // 临时资源根目录（用于视频预览等场景）
+  addTempResourceRoot(root: string): Promise<{ success: boolean }>;
   setSpeakConfig(config: Partial<SpriteSpeakConfig>): Promise<SpriteSpeakConfig>;
   resetSpeakConfig(): Promise<SpriteSpeakConfig>;
   getSpeakCacheStats(): Promise<{ totalEntries: number; totalSizeBytes: number }>;
@@ -116,6 +119,9 @@ export const spriteBridge: SpriteBridgeType = {
   resetSpeakConfig: () => ipcRenderer.invoke('sprite:speak:resetConfig'),
   getSpeakCacheStats: () => ipcRenderer.invoke('sprite:speak:getCacheStats'),
   clearSpeakCache: () => ipcRenderer.invoke('sprite:speak:clearCache'),
+
+  // ── 临时资源根目录 ──────────────────────────────────────
+  addTempResourceRoot: (root) => ipcRenderer.invoke('sprite:addTempResourceRoot', root),
 
   // ── 事件订阅 ─────────────────────────────────────────────
   onPlay: (cb) => {

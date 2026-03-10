@@ -240,7 +240,7 @@ export default function SpriteManager({ className }: { className?: string }): JS
       </div>
       {/* 精灵导入工具弹窗 */}
       <Dialog open={toolOpen} onOpenChange={setToolOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl h-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>精灵视频导入</DialogTitle>
           </DialogHeader>
