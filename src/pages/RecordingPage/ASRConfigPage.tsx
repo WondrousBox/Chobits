@@ -226,13 +226,24 @@ const ASRConfigPage: React.FC = () => {
     };
   }, []);
 
-  // 查询 ASR 引擎当前运行状态
+  // 查询 ASR 引擎当前运行状态 & 加载上次保存的配置
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const status = await window.YUA.sherpa.getStatus();
-        if (mounted) setIsASRRunning(status.running);
+        const [status, savedConfig] = await Promise.all([window.YUA.sherpa.getStatus(), window.YUA.sherpa.getASRConfig()]);
+        if (!mounted) return;
+        setIsASRRunning(status.running);
+        // 用保存的配置作为默认值
+        if (savedConfig) {
+          if (savedConfig.backend) setActiveTab(savedConfig.backend);
+          if (savedConfig.local?.scene) setSelectedScene(savedConfig.local.scene);
+          if (savedConfig.local?.language) setLanguage(savedConfig.local.language);
+          if (savedConfig.local?.model) setSelectedModel(savedConfig.local.model);
+          if (savedConfig.local?.punctuationModel) setSelectedPunctuationModel(savedConfig.local.punctuationModel);
+          if (savedConfig.cloud?.providerId) setCloudProviderId(savedConfig.cloud.providerId);
+          if (savedConfig.cloud?.modelId) setCloudModelId(savedConfig.cloud.modelId);
+        }
       } catch (error) {
         console.error('查询 ASR 状态失败:', error);
       }
@@ -535,6 +546,7 @@ const ASRConfigPage: React.FC = () => {
     setIsLoading(true);
     try {
       await window.YUA.sherpa.freeInstance();
+      await window.YUA.sherpa.saveASRConfig({ enabled: false });
       setIsASRRunning(false);
     } catch (error) {
       console.error('停止 ASR 失败:', error);
@@ -607,7 +619,28 @@ const ASRConfigPage: React.FC = () => {
         return;
       }
 
-      // 启动成功后更新状态
+      // 启动成功后保存配置并更新状态
+      if (activeTab === 'local') {
+        await window.YUA.sherpa.saveASRConfig({
+          enabled: true,
+          backend: 'local',
+          local: {
+            scene: selectedScene,
+            model: selectedModel,
+            language,
+            punctuationModel: selectedPunctuationModel
+          }
+        });
+      } else {
+        await window.YUA.sherpa.saveASRConfig({
+          enabled: true,
+          backend: 'cloud',
+          cloud: {
+            providerId: cloudProviderId,
+            modelId: cloudModelId
+          }
+        });
+      }
       setIsASRRunning(true);
     } catch (error) {
       console.error('启动 ASR 失败:', error);

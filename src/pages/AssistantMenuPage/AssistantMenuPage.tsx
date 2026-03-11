@@ -56,6 +56,7 @@ const AssistantMenuPage: React.FC<AssistantMenuPageProps> = () => {
             // 停止 ASR 服务
             try {
               await window.YUA.sherpa.freeInstance();
+              await window.YUA.sherpa.saveASRConfig({ enabled: false });
               setIsASRRunning(false);
             } catch (error) {
               console.error('停止 ASR 服务失败:', error);
