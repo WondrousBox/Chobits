@@ -6,6 +6,7 @@ export type PreviewMode = 'window' | 'panel';
 // 偏好设置配置接口
 export interface PreferencesConfig {
   previewMode: PreviewMode;
+  webRecorderDeviceId?: string;
 }
 
 export type PreferencesIpcType = typeof preferencesIpcRenderer;
@@ -21,9 +22,7 @@ export const preferencesIpcRenderer = {
   /**
    * 设置配置
    */
-  'preferences:setConfig': async (payload: {
-    config: Partial<PreferencesConfig>;
-  }): Promise<{ ok: boolean; config?: PreferencesConfig; error?: string }> => {
+  'preferences:setConfig': async (payload: { config: Partial<PreferencesConfig> }): Promise<{ ok: boolean; config?: PreferencesConfig; error?: string }> => {
     return await ipcRenderer.invoke('preferences:setConfig', payload);
   },
 
@@ -37,9 +36,25 @@ export const preferencesIpcRenderer = {
   /**
    * 设置预览模式
    */
-  'preferences:setPreviewMode': async (payload: {
-    mode: PreviewMode;
-  }): Promise<{ ok: boolean; config?: PreferencesConfig; error?: string }> => {
+  'preferences:setPreviewMode': async (payload: { mode: PreviewMode }): Promise<{ ok: boolean; config?: PreferencesConfig; error?: string }> => {
     return await ipcRenderer.invoke('preferences:setPreviewMode', payload);
+  },
+
+  /**
+   * 获取 WebRecorder 麦克风设备ID
+   */
+  'preferences:getWebRecorderDeviceId': async (): Promise<{
+    ok: boolean;
+    deviceId?: string;
+    error?: string;
+  }> => {
+    return await ipcRenderer.invoke('preferences:getWebRecorderDeviceId');
+  },
+
+  /**
+   * 设置 WebRecorder 麦克风设备ID
+   */
+  'preferences:setWebRecorderDeviceId': async (payload: { deviceId: string | undefined }): Promise<{ ok: boolean; config?: PreferencesConfig; error?: string }> => {
+    return await ipcRenderer.invoke('preferences:setWebRecorderDeviceId', payload);
   }
 };

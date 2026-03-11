@@ -47,4 +47,25 @@ export function initPreferencesHandlers(): void {
       return { ok: false, error: error.message || String(error) };
     }
   });
+
+  // 获取 WebRecorder 麦克风设备ID
+  ipcMain.handle('preferences:getWebRecorderDeviceId', async () => {
+    try {
+      return { ok: true, deviceId: PreferencesStore.getWebRecorderDeviceId() };
+    } catch (error: any) {
+      console.error('[Preferences] 获取 WebRecorder 麦克风设备ID失败:', error);
+      return { ok: false, error: error.message || String(error) };
+    }
+  });
+
+  // 设置 WebRecorder 麦克风设备ID
+  ipcMain.handle('preferences:setWebRecorderDeviceId', async (_e, payload: { deviceId: string | undefined }) => {
+    try {
+      const config = PreferencesStore.setWebRecorderDeviceId(payload.deviceId);
+      return { ok: true, config };
+    } catch (error: any) {
+      console.error('[Preferences] 设置 WebRecorder 麦克风设备ID失败:', error);
+      return { ok: false, error: error.message || String(error) };
+    }
+  });
 }
