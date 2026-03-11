@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TbAlertCircle, TbMicrophone, TbPlayerRecord, TbPlayerStop, TbPlugConnected, TbX } from 'react-icons/tb';
+import { TbAlertCircle, TbEar, TbMicrophone, TbPlayerRecord, TbPlayerStop, TbPlugConnected, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -36,6 +36,11 @@ function drawWaveformOnCanvas(canvas: HTMLCanvasElement | null, data: number[], 
   });
 }
 
+// 窗口尺寸常量
+const BASE_WIDTH = 280;
+const BASE_HEIGHT = 48;
+const ASR_HEIGHT = 120; // ASR 活跃时的高度
+
 const WebRecorderWindow: React.FC = () => {
   // State
   const [recorder, setRecorder] = useState<WebRecorder | null>(null);
@@ -47,6 +52,12 @@ const WebRecorderWindow: React.FC = () => {
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
   const [isWaitingForDevice, setIsWaitingForDevice] = useState(false);
 
+  // ASR 相关状态
+  const [asrActive, setAsrActive] = useState(false);
+  const [recognizedTexts, setRecognizedTexts] = useState<string[]>([]); // 已确认的文本片段
+  const [progressText, setProgressText] = useState(''); // 实时中间结果
+  const textContainerRef = useRef<HTMLDivElement>(null);
+
   // Refs
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -56,6 +67,28 @@ const WebRecorderWindow: React.FC = () => {
   const previewAnalyserRef = useRef<AnalyserNode | null>(null);
   const previewAnimationIdRef = useRef<number | null>(null);
   const previewLoopFnRef = useRef<(() => void) | null>(null);
+
+  // 检测 ASR 服务状态
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const status = await window.YUA.sherpa.getStatus();
+        if (mounted) setAsrActive(status.running);
+      } catch {
+        // ASR 不可用，保持纯录制模式
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // 动态调整窗口大小
+  useEffect(() => {
+    const targetHeight = asrActive ? ASR_HEIGHT : BASE_HEIGHT;
+    window.YUA.window['window:size:set']('webRecorder', BASE_WIDTH, targetHeight).catch(() => { });
+  }, [asrActive]);
 
   // Initialize recorder once
   useEffect(() => {
@@ -70,7 +103,9 @@ const WebRecorderWindow: React.FC = () => {
       drawWaveformOnCanvas(canvasRef.current, waveformDataRef.current, 56);
     };
     setRecorder(newRecorder);
-    return () => newRecorder.destroy();
+    return () => {
+      newRecorder.destroy();
+    };
   }, []);
 
   // Enumerate devices
@@ -220,12 +255,63 @@ const WebRecorderWindow: React.FC = () => {
     return () => stopPreview();
   }, [stopPreview]);
 
+  // 监听 ASR 识别结果
+  useEffect(() => {
+    if (!asrActive) return;
+
+    const handleASRMessage = (_event: any, d: { type: string; data: any }): void => {
+      if (d.type !== 'sherpa:message') return;
+      const data = d.data;
+      if (!data.text) return;
+
+      if (data.isEndpoint) {
+        // 最终结果：添加到已识别列表
+        setRecognizedTexts((prev) => [...prev, data.text]);
+        setProgressText('');
+      } else {
+        // 实时中间结果
+        setProgressText(data.text);
+      }
+    };
+
+    window.YUA.handleMessage(handleASRMessage, 'webRecorder:sherpa:message');
+    return () => {
+      window.YUA.removeHandler('webRecorder:sherpa:message');
+    };
+  }, [asrActive]);
+
+  // 自动滚动到最新文本
+  useEffect(() => {
+    if (textContainerRef.current) {
+      textContainerRef.current.scrollTop = textContainerRef.current.scrollHeight;
+    }
+  }, [recognizedTexts, progressText]);
+
   // Start recording
   const handleStartRecording = async () => {
     if (!recorder || !selectedDeviceId) return;
     try {
       stopPreview();
-      await recorder.start({ deviceId: selectedDeviceId });
+
+      // 如果 ASR 活跃，注册 onFloat32Data 回调发送数据到 sherpa
+      if (asrActive) {
+        recorder.onFloat32Data = (payload) => {
+          window.YUA.sherpa
+            .sendData({
+              uuid: 'stream',
+              data: payload.data,
+              save: false // 纯识别，不保存
+            })
+            .catch((err) => {
+              console.error('[WebRecorder] 发送音频到 ASR 失败:', err);
+            });
+        };
+        // 清空之前的识别结果
+        setRecognizedTexts([]);
+        setProgressText('');
+      }
+
+      await recorder.start();
       setIsRecording(true);
       setError(null);
     } catch (err: any) {
@@ -241,6 +327,8 @@ const WebRecorderWindow: React.FC = () => {
     if (!recorder) return;
     try {
       recorder.stop();
+      // 清理 onFloat32Data 回调
+      recorder.onFloat32Data = null;
       const blob = recorder.getWAVBlob();
       const arrayBuffer = await blob.arrayBuffer();
       const result = await window.YUA.resource['resource:saveAudioRecording']({
@@ -261,7 +349,10 @@ const WebRecorderWindow: React.FC = () => {
   // Close window
   const handleClose = () => {
     stopPreview();
-    if (recorder) recorder.stop();
+    if (recorder) {
+      recorder.onFloat32Data = null;
+      recorder.stop();
+    }
     window.YUA.window['window:close']('webRecorder');
   };
 
@@ -272,16 +363,36 @@ const WebRecorderWindow: React.FC = () => {
         .toString()
         .padStart(2, '0')}`;
 
+  // ASR 文本显示组件
+  const asrTextPanel = asrActive ? (
+    <div ref={textContainerRef} className="flex-1 min-h-0 overflow-y-auto px-2 py-1 border-t border-border/30">
+      {recognizedTexts.length === 0 && !progressText ? (
+        <div className="flex items-center gap-1 h-full">
+          <TbEar className="w-3 h-3 text-muted-foreground/50 shrink-0" />
+          <span className="text-[10px] text-muted-foreground/50">{isRecording ? '正在识别...' : '语音识别已就绪'}</span>
+        </div>
+      ) : (
+        <p className="text-[10px] leading-[14px] text-foreground/80 break-all">
+          {recognizedTexts.join('')}
+          {progressText && <span className="text-primary/60">{progressText}</span>}
+        </p>
+      )}
+    </div>
+  ) : null;
+
   // Error UI
   if (error && !isWaitingForDevice) {
     return (
-      <div className="flex items-center h-full w-full bg-destructive/10 backdrop-blur-sm rounded-lg border border-destructive/30 shadow-lg overflow-hidden px-3 gap-2">
-        <TbAlertCircle className="w-4 h-4 text-destructive shrink-0" />
-        <div className="flex-1 text-xs text-destructive truncate">{error}</div>
-        <Button variant="ghost" size="icon" className="h-5 w-5 p-0 shrink-0 opacity-60 hover:opacity-100" onClick={handleClose}>
-          <TbX className="h-3 w-3" />
-        </Button>
-        <div className="flex-1 drag-region cursor-move" />
+      <div className="flex flex-col h-full w-full bg-destructive/10 backdrop-blur-sm rounded-lg border border-destructive/30 shadow-lg overflow-hidden">
+        <div className="flex items-center h-12 shrink-0 px-3 gap-2">
+          <TbAlertCircle className="w-4 h-4 text-destructive shrink-0" />
+          <div className="flex-1 text-xs text-destructive truncate">{error}</div>
+          <Button variant="ghost" size="icon" className="h-5 w-5 p-0 shrink-0 opacity-60 hover:opacity-100" onClick={handleClose}>
+            <TbX className="h-3 w-3" />
+          </Button>
+          <div className="flex-1 drag-region cursor-move" />
+        </div>
+        {asrTextPanel}
       </div>
     );
   }
@@ -289,13 +400,16 @@ const WebRecorderWindow: React.FC = () => {
   // Waiting for device UI
   if (isWaitingForDevice || devices.length === 0) {
     return (
-      <div className="flex items-center h-full w-full bg-muted/50 backdrop-blur-sm rounded-lg border shadow-lg overflow-hidden px-3 gap-2">
-        <TbPlugConnected className="w-4 h-4 text-muted-foreground shrink-0 animate-pulse" />
-        <div className="flex-1 text-xs text-muted-foreground">请插入麦克风设备...</div>
-        <Button variant="ghost" size="icon" className="h-5 w-5 p-0 shrink-0 opacity-60 hover:opacity-100" onClick={handleClose}>
-          <TbX className="h-3 w-3" />
-        </Button>
-        <div className="flex-1 drag-region cursor-move" />
+      <div className="flex flex-col h-full w-full bg-muted/50 backdrop-blur-sm rounded-lg border shadow-lg overflow-hidden">
+        <div className="flex items-center h-12 shrink-0 px-3 gap-2">
+          <TbPlugConnected className="w-4 h-4 text-muted-foreground shrink-0 animate-pulse" />
+          <div className="flex-1 text-xs text-muted-foreground">请插入麦克风设备...</div>
+          <Button variant="ghost" size="icon" className="h-5 w-5 p-0 shrink-0 opacity-60 hover:opacity-100" onClick={handleClose}>
+            <TbX className="h-3 w-3" />
+          </Button>
+          <div className="flex-1 drag-region cursor-move" />
+        </div>
+        {asrTextPanel}
       </div>
     );
   }
@@ -303,52 +417,58 @@ const WebRecorderWindow: React.FC = () => {
   // Recording UI
   if (isRecording) {
     return (
-      <div className="flex items-center h-full w-full bg-background/95 backdrop-blur-sm rounded-lg border shadow-lg overflow-hidden px-2 gap-1.5">
-        <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
-        <canvas ref={canvasRef} width={140} height={24} className="w-[140px] h-6 shrink-0" />
-        <div className="text-xs font-mono font-medium text-muted-foreground w-9 text-center shrink-0">{formatDuration(duration)}</div>
-        <Button onClick={handleStop} size="sm" variant="destructive" className="h-6 w-6 p-0 shrink-0">
-          <TbPlayerStop className="h-3.5 w-3.5" />
-        </Button>
-        <Button variant="ghost" size="icon" className="h-5 w-5 p-0 shrink-0 opacity-60 hover:opacity-100" onClick={handleClose}>
-          <TbX className="h-3 w-3" />
-        </Button>
-        <div className="flex-1 drag-region cursor-move" />
+      <div className="flex flex-col h-full w-full bg-background/95 backdrop-blur-sm rounded-lg border shadow-lg overflow-hidden">
+        <div className="flex items-center h-12 shrink-0 px-2 gap-1.5">
+          <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
+          <canvas ref={canvasRef} width={140} height={24} className="w-[140px] h-6 shrink-0" />
+          <div className="text-xs font-mono font-medium text-muted-foreground w-9 text-center shrink-0">{formatDuration(duration)}</div>
+          <Button onClick={handleStop} size="sm" variant="destructive" className="h-6 w-6 p-0 shrink-0">
+            <TbPlayerStop className="h-3.5 w-3.5" />
+          </Button>
+          <Button variant="ghost" size="icon" className="h-5 w-5 p-0 shrink-0 opacity-60 hover:opacity-100" onClick={handleClose}>
+            <TbX className="h-3 w-3" />
+          </Button>
+          <div className="flex-1 drag-region cursor-move" />
+        </div>
+        {asrTextPanel}
       </div>
     );
   }
 
   // Device selection + preview UI
   return (
-    <div className="flex items-center h-full w-full bg-background/95 backdrop-blur-sm rounded-lg border shadow-lg overflow-hidden px-2 gap-2">
-      <Select value={selectedDeviceId} onValueChange={setSelectedDeviceId}>
-        <SelectTrigger className="h-6 w-[120px] text-xs border-0 bg-muted/50">
-          <TbMicrophone className="w-3 h-3 mr-1 shrink-0" />
-          <SelectValue placeholder="选择设备" />
-        </SelectTrigger>
-        <SelectContent>
-          {devices.map((d) => (
-            <SelectItem key={d.deviceId} value={d.deviceId} className="text-xs">
-              {d.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+    <div className="flex flex-col h-full w-full bg-background/95 backdrop-blur-sm rounded-lg border shadow-lg overflow-hidden">
+      <div className="flex items-center h-12 shrink-0 px-2 gap-2">
+        <Select value={selectedDeviceId} onValueChange={setSelectedDeviceId}>
+          <SelectTrigger className="h-6 w-[120px] text-xs border-0 bg-muted/50">
+            <TbMicrophone className="w-3 h-3 mr-1 shrink-0" />
+            <SelectValue placeholder="选择设备" />
+          </SelectTrigger>
+          <SelectContent>
+            {devices.map((d) => (
+              <SelectItem key={d.deviceId} value={d.deviceId} className="text-xs">
+                {d.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-      <div className="flex items-center gap-1">
-        <canvas ref={previewCanvasRef} width={70} height={20} className="w-[70px] h-5 shrink-0" />
-        <Progress value={previewVolume} className="w-8 h-1.5 shrink-0" />
+        <div className="flex items-center gap-1">
+          <canvas ref={previewCanvasRef} width={70} height={20} className="w-[70px] h-5 shrink-0" />
+          <Progress value={previewVolume} className="w-8 h-1.5 shrink-0" />
+        </div>
+
+        <Button onClick={handleStartRecording} size="sm" className="h-6 w-6 p-0 shrink-0 bg-red-500 hover:bg-red-600">
+          <TbPlayerRecord className="h-3.5 w-3.5" />
+        </Button>
+
+        <Button variant="ghost" size="icon" className="h-5 w-5 p-0 shrink-0 opacity-60 hover:opacity-100" onClick={handleClose}>
+          <TbX className="h-3 w-3" />
+        </Button>
+
+        <div className="flex-1 drag-region cursor-move" />
       </div>
-
-      <Button onClick={handleStartRecording} size="sm" className="h-6 w-6 p-0 shrink-0 bg-red-500 hover:bg-red-600">
-        <TbPlayerRecord className="h-3.5 w-3.5" />
-      </Button>
-
-      <Button variant="ghost" size="icon" className="h-5 w-5 p-0 shrink-0 opacity-60 hover:opacity-100" onClick={handleClose}>
-        <TbX className="h-3 w-3" />
-      </Button>
-
-      <div className="flex-1 drag-region cursor-move" />
+      {asrTextPanel}
     </div>
   );
 };
