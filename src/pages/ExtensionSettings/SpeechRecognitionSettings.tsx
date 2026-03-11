@@ -53,6 +53,7 @@ const SpeechRecognitionSettings: React.FC<SpeechRecognitionSettingsProps> = ({ e
       } else {
         // 停止 ASR 服务
         await window.YUA.sherpa.freeInstance();
+        await window.YUA.sherpa.saveASRConfig({ enabled: false });
         setIsRunning(false);
       }
     } catch (error) {

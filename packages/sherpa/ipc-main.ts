@@ -3,13 +3,29 @@ import * as fscb from 'node:fs';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
-import { BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 
 import { ResourcesRepo, WorkspacesRepo } from '../../electron/main/db/repositories';
 import { ensureDailyFolder } from '../../electron/main/handlers/resource';
 import { getASRInstance } from './asr-instance-manager';
 import { AllModels, CommonConfig } from './common';
 import { ASR_createInstance, ASR_freeInstance, ASR_sendData, TTS_createInstance, TTS_freeInstance, TTS_generateSpeech } from './index';
+
+// ASR 配置类型（面向未来多后端扩展）
+export interface ASRConfig {
+  enabled: boolean;
+  backend: 'local' | 'cloud';
+  local: {
+    scene: string;
+    model: string;
+    language: string;
+    punctuationModel: string;
+  };
+  cloud: {
+    providerId: string;
+    modelId: string;
+  };
+}
 
 // 字幕片段接口
 interface SubtitleSegment {
@@ -53,7 +69,116 @@ function segmentToSrtEntry(index: number, segment: SubtitleSegment): string {
   return entry;
 }
 
+// 场景配置映射（与 ASRConfigPage 的 SCENE_CONFIGS 保持一致）
+const SCENE_COMMON_CONFIGS: Record<string, CommonConfig> = {
+  meeting: {
+    enableEndpoint: true
+  },
+  'english-learning': {
+    enableEndpoint: true,
+    rule3MinUtteranceLength: 10
+  },
+  english: {
+    enableEndpoint: true,
+    rule1MinTrailingSilence: 2.4,
+    rule2MinTrailingSilence: 1.2,
+    rule3MinUtteranceLength: 20
+  },
+  chinese: {
+    enableEndpoint: true
+  },
+  multilingual: {
+    enableEndpoint: true
+  }
+};
+
 export function initSherpaHandlers(): void {
+  // ASR config persistence
+  const defaultASRConfig: ASRConfig = {
+    enabled: false,
+    backend: 'local',
+    local: { scene: 'meeting', model: '', language: 'zh', punctuationModel: '' },
+    cloud: { providerId: '', modelId: '' }
+  };
+  const configDir = app.getPath('userData');
+  const asrConfigFile = path.join(configDir, 'data', 'asr-config.json');
+  let asrConfig: ASRConfig = defaultASRConfig;
+
+  // Load config on startup
+  try {
+    if (fscb.existsSync(asrConfigFile)) {
+      const txt = fscb.readFileSync(asrConfigFile, 'utf8');
+      const parsed = JSON.parse(txt);
+      asrConfig = { ...defaultASRConfig, ...parsed, local: { ...defaultASRConfig.local, ...(parsed.local || {}) }, cloud: { ...defaultASRConfig.cloud, ...(parsed.cloud || {}) } };
+    }
+  } catch {
+    asrConfig = defaultASRConfig;
+  }
+
+  function saveASRConfig(): void {
+    try {
+      const dir = path.dirname(asrConfigFile);
+      if (!fscb.existsSync(dir)) {
+        fscb.mkdirSync(dir, { recursive: true });
+      }
+      fscb.writeFileSync(asrConfigFile, JSON.stringify(asrConfig, null, 2), 'utf8');
+    } catch {
+      //
+    }
+  }
+
+  // Auto-start ASR if enabled (fire-and-forget)
+  if (asrConfig.enabled && asrConfig.local.model) {
+    const { scene, model, language, punctuationModel } = asrConfig.local;
+    const commonConfig = SCENE_COMMON_CONFIGS[scene];
+    console.log('[ASR] Auto-starting with saved config, scene:', scene, 'model:', model);
+    ASR_createInstance({
+      uuid: 'stream',
+      model: model as AllModels,
+      language,
+      punctuationModel: punctuationModel || undefined,
+      commonConfig
+    })
+      .then((ins) => {
+        if (ins) {
+          ins.handler = (d) => {
+            BrowserWindow.getAllWindows().forEach((w) => {
+              if (!w.isDestroyed()) {
+                try {
+                  w.webContents.send('renderer-message', { type: 'sherpa:message', data: d });
+                } catch (error) {
+                  console.error('发送 ASR 识别结果失败:', error);
+                }
+              }
+            });
+          };
+          console.log('[ASR] Auto-start succeeded');
+        } else {
+          console.warn('[ASR] Auto-start returned null instance');
+        }
+      })
+      .catch((error) => {
+        console.error('[ASR] Auto-start failed:', error);
+      });
+  }
+
+  // IPC: get ASR config
+  ipcMain.handle('sherpa:getASRConfig', () => {
+    return asrConfig;
+  });
+
+  // IPC: save ASR config
+  ipcMain.handle('sherpa:saveASRConfig', (_, partial: Partial<ASRConfig>) => {
+    asrConfig = {
+      ...asrConfig,
+      ...partial,
+      local: { ...asrConfig.local, ...(partial.local || {}) },
+      cloud: { ...asrConfig.cloud, ...(partial.cloud || {}) }
+    };
+    saveASRConfig();
+    return asrConfig;
+  });
+
   ipcMain.handle('sherpa:createInstance', async (_, data: { model?: AllModels; punctuationModel?: string; language?: string; type?: 'online' | 'offline' | 'vad'; commonConfig?: CommonConfig }) => {
     const ins = await ASR_createInstance({
       uuid: 'stream',

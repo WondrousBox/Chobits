@@ -1,8 +1,17 @@
 import { ipcRenderer } from 'electron';
 
 import { AllModels, CommonConfig } from './common';
+import type { ASRConfig } from './ipc-main';
 
 export const sherpaIpcRenderer = {
+  // ASR 配置持久化
+  getASRConfig(): Promise<ASRConfig> {
+    return ipcRenderer.invoke('sherpa:getASRConfig');
+  },
+
+  saveASRConfig(partial: Partial<ASRConfig>): Promise<ASRConfig> {
+    return ipcRenderer.invoke('sherpa:saveASRConfig', partial);
+  },
   createInstance(data: { model?: AllModels; punctuationModel?: string; language?: string; type?: 'online' | 'offline' | 'vad'; commonConfig?: CommonConfig }): Promise<boolean> {
     return ipcRenderer.invoke('sherpa:createInstance', data);
   },
