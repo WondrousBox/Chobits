@@ -10,6 +10,8 @@ export type PreviewMode = 'window' | 'panel';
 export interface PreferencesConfig {
   // 预览模式
   previewMode: PreviewMode;
+  // WebRecorder 麦克风设备ID
+  webRecorderDeviceId?: string;
 }
 
 // 默认配置
@@ -46,7 +48,8 @@ function read(): StoreShape {
     const data = JSON.parse(raw);
     return {
       preferences: {
-        previewMode: data.preferences?.previewMode || DEFAULT_CONFIG.previewMode
+        previewMode: data.preferences?.previewMode || DEFAULT_CONFIG.previewMode,
+        webRecorderDeviceId: data.preferences?.webRecorderDeviceId
       }
     };
   } catch (error) {
@@ -104,5 +107,19 @@ export const PreferencesStore = {
    */
   setPreviewMode(mode: PreviewMode): PreferencesConfig {
     return this.setConfig({ previewMode: mode });
+  },
+
+  /**
+   * 获取 WebRecorder 麦克风设备ID
+   */
+  getWebRecorderDeviceId(): string | undefined {
+    return this.getConfig().webRecorderDeviceId;
+  },
+
+  /**
+   * 设置 WebRecorder 麦克风设备ID
+   */
+  setWebRecorderDeviceId(deviceId: string | undefined): PreferencesConfig {
+    return this.setConfig({ webRecorderDeviceId: deviceId });
   }
 };
