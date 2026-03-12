@@ -268,4 +268,8 @@ export function initWindowHandlers(win: BrowserWindow): void {
   });
 
   initIpcMain(win);
+
+  // Pre-create menu window in hidden state for faster first-open
+  // This reduces the loading delay when user right-clicks for the first time
+  windowManager.create('menu');
 }
