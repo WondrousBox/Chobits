@@ -9,7 +9,8 @@
       "Bash(pnpm exec tsc --noEmit)",
       "Bash(pnpm tsc --noEmit --skipLibCheck)",
       "Bash(pnpm exec tsc --noEmit --skipLibCheck)",
-      "Bash(pnpm tsc --noEmit)"
+      "Bash(pnpm tsc --noEmit)",
+      "Bash(pnpm exec:*)"
     ]
   }
 }

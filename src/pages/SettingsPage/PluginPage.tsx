@@ -1,4 +1,4 @@
-import { isSystemPresetPlugin, PluginCategory, PluginDefinition } from '@packages/plugins/types';
+import { isPluginCompatibleWithPlatform, isSystemPresetPlugin, PluginCategory, PluginDefinition } from '@packages/plugins/types';
 import { AnimatePresence, motion } from 'framer-motion';
 import React, { useEffect, useMemo, useState } from 'react';
 import { TbBox, TbChevronDown, TbChevronRight, TbFilter, TbLoader, TbSettings, TbWifi, TbX } from 'react-icons/tb';
@@ -43,7 +43,7 @@ import { PluginListItem } from './components/PluginListItem';
 import SelectModelFolder from './components/SelectModelFolder';
 import type { InstalledResource } from './components/types';
 
-interface PluginPageProps {}
+interface PluginPageProps { }
 
 const PluginPage: React.FC<PluginPageProps> = () => {
   const [supported, setSupported] = useState<PluginDefinition[]>([]);
@@ -75,7 +75,9 @@ const PluginPage: React.FC<PluginPageProps> = () => {
         const sup = await window.YUA.pluginResource['plugin-resource:listSupported']();
         const inst = await window.YUA.pluginResource['plugin-resource:list']();
         if (!mounted) return;
-        setSupported(sup);
+        // 过滤掉不兼容当前平台的插件
+        const compatibleSup = sup.filter((plugin: PluginDefinition) => isPluginCompatibleWithPlatform(plugin, window.YUA.platform, window.YUA.arch));
+        setSupported(compatibleSup);
         setInstalled(inst);
       } finally {
         if (mounted) setLoading(false);
@@ -289,15 +291,15 @@ const PluginPage: React.FC<PluginPageProps> = () => {
     const isSystemPreset = isSystemPresetPlugin(resource);
     const installedResource = isSystemPreset
       ? {
-          id: `${resource.pluginId}_${resource.type}_${resource.id}_${resource.version}`,
-          pluginId: resource.pluginId,
-          resourceId: resource.id,
-          type: resource.type,
-          name: resource.name,
-          displayName: resource.displayName,
-          version: resource.version,
-          status: 'installed' as const
-        }
+        id: `${resource.pluginId}_${resource.type}_${resource.id}_${resource.version}`,
+        pluginId: resource.pluginId,
+        resourceId: resource.id,
+        type: resource.type,
+        name: resource.name,
+        displayName: resource.displayName,
+        version: resource.version,
+        status: 'installed' as const
+      }
       : rec;
     return <PluginListItem key={resource.id} resource={resource} installedResource={installedResource} isInstalling={busy} onInstall={install} onCancel={cancel} onRetry={retry} onRemove={remove} />;
   };
@@ -340,11 +342,8 @@ const PluginPage: React.FC<PluginPageProps> = () => {
                 <button
                   key={category.value}
                   onClick={() => setSelectedCategory(selectedCategory === category.value ? null : category.value)}
-                  className={`text-xs px-2 py-1 rounded-md transition-colors ${
-                    selectedCategory === category.value
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground'
-                  }`}
+                  className={`text-xs px-2 py-1 rounded-md transition-colors ${selectedCategory === category.value ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground'
+                    }`}
                 >
                   {category.label}
                 </button>
@@ -416,10 +415,7 @@ const PluginPage: React.FC<PluginPageProps> = () => {
                   {/* 模型列表（可展开） */}
                   {shouldShowModels && (
                     <div className={hasEngines ? 'border-t border-border/70' : ''}>
-                      <button
-                        onClick={() => togglePluginExpanded(pluginId)}
-                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-muted-foreground hover:bg-muted/30 transition-colors"
-                      >
+                      <button onClick={() => togglePluginExpanded(pluginId)} className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-muted-foreground hover:bg-muted/30 transition-colors">
                         {isExpanded ? <TbChevronDown className="h-4 w-4" /> : <TbChevronRight className="h-4 w-4" />}
                         <TbBox className="h-4 w-4" />
                         <span>

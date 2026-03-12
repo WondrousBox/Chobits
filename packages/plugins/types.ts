@@ -76,3 +76,24 @@ export type PluginDefinition = {
 export function isSystemPresetPlugin(plugin: PluginDefinition): boolean {
   return plugin.archiveType === 'none' && (!plugin.platforms || plugin.platforms.length === 0);
 }
+
+/**
+ * 判断插件是否兼容当前平台
+ * @param plugin 插件定义
+ * @param platform 当前平台 ('win32' | 'darwin' | 'linux')
+ * @param arch 当前架构 ('arm64' | 'x64')
+ */
+export function isPluginCompatibleWithPlatform(plugin: PluginDefinition, platform: 'win32' | 'darwin' | 'linux', arch: 'arm64' | 'x64'): boolean {
+  // 如果没有 platforms 数组或为空，检查是否是系统预设插件
+  if (!plugin.platforms || plugin.platforms.length === 0) {
+    return isSystemPresetPlugin(plugin);
+  }
+
+  // 检查是否有匹配当前平台的配置
+  return plugin.platforms.some((p) => {
+    // platform 和 arch 都需要匹配，或者是 'all'
+    const platformMatch = p.platform === platform || p.platform === 'all';
+    const archMatch = p.arch === arch || p.arch === 'all';
+    return platformMatch && archMatch;
+  });
+}
