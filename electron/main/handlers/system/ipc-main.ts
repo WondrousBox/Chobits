@@ -3,6 +3,7 @@ import path from 'node:path';
 
 import { app, ipcMain, shell } from 'electron';
 
+import { backupDatabase, deleteBackup, importBackup, listBackups, restoreBackup } from '../../db';
 import { Env } from '../../utils';
 import { getResourcePath } from '../../utils/resources-path';
 
@@ -41,6 +42,39 @@ export function initSystemHandlers(): void {
       } catch {
         return { ok: false, error: result } as const;
       }
+    } catch (error) {
+      return { ok: false, error: String(error) } as const;
+    }
+  });
+
+  // ---------------- Database Backup ----------------
+  ipcMain.handle('database:backup', async (_event, customPath?: string) => {
+    return backupDatabase(customPath);
+  });
+
+  ipcMain.handle('database:listBackups', async (_event, customPath?: string) => {
+    return listBackups(customPath);
+  });
+
+  ipcMain.handle('database:deleteBackup', async (_event, backupPath: string) => {
+    return deleteBackup(backupPath);
+  });
+
+  ipcMain.handle('database:restoreBackup', async (_event, backupPath: string) => {
+    return restoreBackup(backupPath);
+  });
+
+  ipcMain.handle('database:importBackup', async (_event, sourcePath: string, options?: { restore?: boolean }) => {
+    return importBackup(sourcePath, options);
+  });
+
+  // ---------------- App ----------------
+  ipcMain.handle('app:relaunch', async () => {
+    try {
+      // Relaunch the app and exit current instance
+      app.relaunch();
+      app.exit(0);
+      return { ok: true } as const;
     } catch (error) {
       return { ok: false, error: String(error) } as const;
     }
