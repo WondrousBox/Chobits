@@ -1,3 +1,5 @@
+import type { AimSegments } from '@aim-packages/subtitle';
+
 // Core message primitives
 export type Role = 'system' | 'user' | 'assistant' | 'tool';
 
@@ -11,12 +13,22 @@ export type ChatMessage = {
   createdAt?: number;
 };
 
-export type ChatRequest = {
+export type ProviderPresetFields = {
+  providerPresetId?: string;
+};
+
+export type ProviderScopedRequest = ProviderPresetFields & {
+  providerId: string;
+};
+
+export type OptionalProviderScopedRequest = ProviderPresetFields & {
+  providerId?: string;
+};
+
+export type ChatRequest = ProviderScopedRequest & {
   conversationId?: string;
   messages: ChatMessage[];
   agentId?: string; // which agent to use (optional, can be inferred from preset config)
-  providerId: string; // which provider adapter to use
-  providerInstanceId?: string; // which provider preset to use (legacy field name retained for compatibility)
   stream?: boolean;
   temperature?: number;
   maxTokens?: number;
@@ -45,10 +57,8 @@ export type ChatResponse = {
 };
 
 // Embeddings
-export type EmbeddingRequest = {
+export type EmbeddingRequest = OptionalProviderScopedRequest & {
   texts: string[];
-  providerId?: string;
-  providerInstanceId?: string;
   model?: string;
   normalize?: boolean;
   extras?: Record<string, any>;
@@ -60,21 +70,71 @@ export type TranscribeOptions = {
   prompt?: string;
   secrets?: ProviderSecrets;
 };
-export type TranscriptionRequest = {
-  providerId: string;
-  providerInstanceId?: string;
+export type TranscriptionRequest = ProviderScopedRequest & {
   file: File | Blob | Buffer | ArrayBuffer;
   model?: string;
   language?: string;
   prompt?: string;
 };
-export type ImageGenerationRequest = {
-  providerId: string;
-  providerInstanceId?: string;
+export type ImageGenerationRequest = ProviderScopedRequest & {
   model: string;
   prompt: string;
   size?: string;
   quality?: string;
+};
+export type TranslateRequest = ProviderScopedRequest & {
+  model: string;
+  segments?: AimSegments[];
+  resourceId?: string;
+  targetLanguage: string;
+  sourceLanguage?: string;
+  languageNames: Record<string, string>;
+  metadata?: Record<string, any>;
+  options?: {
+    /** 最大并发请求数 */
+    maxConcurrency?: number;
+    /** 每个分块的最大字符数 */
+    chunkSize?: number;
+    /** 失败后最大重试次数 */
+    maxRetries?: number;
+    /** 自定义提示词模板 */
+    promptTemplate?: string;
+    /** 是否生成 summary */
+    generateSummary?: boolean;
+    /** 术语表/热词词典
+     * 支持格式:
+     * - 数组: Array<{ source: string; target: string; note?: string }>
+     * - 对象: Record<string, string> (source -> target)
+     * - 带说明的对象: Record<string, { target: string; note?: string }>
+     */
+    glossary?: any;
+  };
+};
+export type SummarizeRequest = ProviderScopedRequest & {
+  model: string;
+  content?: string;
+  segments?: any[];
+  resourceId?: string;
+  targetLanguage: string;
+  languageNames: Record<string, string>;
+  options?: {
+    maxChars?: number;
+    extractKeyPoints?: boolean;
+    extractTimeline?: boolean;
+    keywordCount?: number;
+    promptTemplate?: string;
+  };
+  metadata?: Record<string, any>;
+};
+export type MindmapRequest = ProviderScopedRequest & {
+  model: string;
+  content?: string;
+  segments?: any[];
+  resourceId?: string;
+  targetLanguage: string;
+  languageNames?: Record<string, string>;
+  options?: any;
+  metadata?: any;
 };
 export type ProviderPresetRecord = {
   id: string;
@@ -86,6 +146,21 @@ export type ProviderPresetRecord = {
   enabledTools?: string[];
   createdAt?: number;
   updatedAt?: number;
+};
+export type ConversationRecord = {
+  id: string;
+  title?: string | null;
+  workspaceId?: string | null;
+  agentId?: string | null;
+  providerId?: string | null;
+  providerPresetId?: string | null;
+  messagesCount?: number | null;
+  lastMessageAt?: number | null;
+  pinned?: number | null;
+  metadata?: string | null;
+  createdAt?: number | null;
+  updatedAt?: number | null;
+  deletedAt?: number | null;
 };
 export type ProviderCapabilityKey = 'chat' | 'modelListing' | 'embeddings' | 'transcribe' | 'imageGeneration';
 export type ProviderCapabilities = Record<ProviderCapabilityKey, boolean>;
@@ -202,35 +277,7 @@ export type AIApi = {
   chatEphemeral(payload: ChatRequest): Promise<{ message: { role: string; content: string } }>;
   chatStream(payload: ChatRequest, onEvent: (ev: { type: string; data?: any }) => void): Promise<{ requestId: string; dispose: () => void; cancel: () => Promise<any> }>;
   // Subtitle translation: handled in main process, sends messages to all windows
-  translate(payload: {
-    providerId: string;
-    providerInstanceId?: string;
-    model: string;
-    segments?: Array<{ text: string; index: number }>;
-    resourceId?: string;
-    targetLanguage: string;
-    languageNames: Record<string, string>;
-    metadata?: Record<string, any>;
-    options?: {
-      /** 最大并发请求数 */
-      maxConcurrency?: number;
-      /** 每个分块的最大字符数 */
-      chunkSize?: number;
-      /** 失败后最大重试次数 */
-      maxRetries?: number;
-      /** 自定义提示词模板 */
-      promptTemplate?: string;
-      /** 是否生成 summary */
-      generateSummary?: boolean;
-      /** 术语表/热词词典
-       * 支持格式:
-       * - 数组: Array<{ source: string; target: string; note?: string }>
-       * - 对象: Record<string, string> (source -> target)
-       * - 带说明的对象: Record<string, { target: string; note?: string }>
-       */
-      glossary?: any;
-    };
-  }): Promise<{ requestId: string }>;
+  translate(payload: TranslateRequest): Promise<{ requestId: string }>;
   cancelTranslate(requestId: string): Promise<{ ok: boolean }>;
   getTranslationTasks(): Promise<Array<{ requestId: string; providerId: string; model: string; startTime: number; metadata?: Record<string, any> }>>;
   getTranslatedSegments(requestId: string): Promise<any[]>;
@@ -252,7 +299,7 @@ export type AIApi = {
   deletePreset(id: string): Promise<{ ok: boolean }>;
   getPresetSecrets(presetId: string): Promise<Record<string, string>>;
   setPresetSecrets(presetId: string, secrets: Record<string, string>): Promise<{ ok: boolean }>;
-  // Compatibility instance aliases
+  // Compatibility instance aliases. Keep these only until workflow/db/history callers stop depending on them.
   listInstances(providerId?: string): Promise<ProviderPresetRecord[]>;
   createInstance(payload: { providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any>; enabledTools?: string[] }): Promise<ProviderPresetRecord>;
   updateInstance(id: string, patch: any): Promise<ProviderPresetRecord | undefined>;
@@ -265,9 +312,9 @@ export type AIApi = {
   updatePromptTemplate(id: string, patch: any): Promise<any>;
   deletePromptTemplate(id: string): Promise<{ ok: boolean }>;
   // Conversations
-  listConversations(payload?: { includeDeleted?: boolean; limit?: number; offset?: number }): Promise<any[]>;
+  listConversations(payload?: { includeDeleted?: boolean; limit?: number; offset?: number }): Promise<ConversationRecord[]>;
   listMessages(conversationId: string, limit?: number, offset?: number): Promise<any[]>;
-  renameConversation(id: string, title: string): Promise<{ ok: boolean; row?: any }>;
+  renameConversation(id: string, title: string): Promise<{ ok: boolean; row?: ConversationRecord }>;
   deleteConversation(id: string): Promise<{ ok: boolean }>;
   restoreConversation(id: string): Promise<{ ok: boolean }>;
   /** Subscribe to conversation title updates pushed from main process */
@@ -403,41 +450,13 @@ export type AIApi = {
   // ==================== 总结相关 ====================
 
   getResourceSummary(resourceId: string): Promise<any | null>;
-  summarize(payload: {
-    providerId: string;
-    providerInstanceId?: string;
-    model: string;
-    content?: string;
-    segments?: any[];
-    resourceId?: string;
-    targetLanguage: string;
-    languageNames: Record<string, string>;
-    options?: {
-      maxChars?: number;
-      extractKeyPoints?: boolean;
-      extractTimeline?: boolean;
-      keywordCount?: number;
-      promptTemplate?: string;
-    };
-    metadata?: Record<string, any>;
-  }): Promise<{ requestId: string }>;
+  summarize(payload: SummarizeRequest): Promise<{ requestId: string }>;
   cancelSummary(requestId: string): Promise<{ ok: boolean }>;
   getSummaryTasks(): Promise<Array<{ requestId: string; providerId: string; model: string; startTime: number; metadata?: Record<string, any> }>>;
 
   // ==================== 脑图相关 ====================
 
-  generateMindmap(payload: {
-    providerId: string;
-    providerInstanceId?: string;
-    model: string;
-    content?: string;
-    segments?: any[];
-    resourceId?: string;
-    targetLanguage: string;
-    languageNames?: Record<string, string>;
-    options?: any;
-    metadata?: any;
-  }): Promise<{ requestId: string }>;
+  generateMindmap(payload: MindmapRequest): Promise<{ requestId: string }>;
   cancelMindmap(requestId: string): Promise<{ ok: boolean }>;
 
   // ==================== 笔记相关 ====================

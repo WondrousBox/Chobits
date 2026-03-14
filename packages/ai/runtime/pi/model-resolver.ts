@@ -1,4 +1,5 @@
 import { PresetsStore, type ProviderPreset } from '../../instances-store';
+import { resolveProviderPresetId } from '../../provider-preset';
 import { getProviderDefaultModels } from '../../providers/metadata';
 import { getProvider } from '../../registry';
 import { getAllPresetSecrets, getAllSecrets, getFirstApiKey } from '../../settings-store';
@@ -31,7 +32,8 @@ function resolveEnabledToolIds(req: ChatRequest, preset: ProviderPreset | undefi
 }
 
 export async function resolvePiModelConfig(req: ChatRequest): Promise<{ preset?: ProviderPreset; model: ResolvedPiModelConfig }> {
-  const preset = req.providerInstanceId ? PresetsStore.get(req.providerInstanceId) : undefined;
+  const providerPresetId = resolveProviderPresetId(req);
+  const preset = providerPresetId ? PresetsStore.get(providerPresetId) : undefined;
   const rawProviderId = preset?.providerId || req.providerId || 'openai';
   const canonicalProviderId = toCanonicalProviderId(rawProviderId);
 

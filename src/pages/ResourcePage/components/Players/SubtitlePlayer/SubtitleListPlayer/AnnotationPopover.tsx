@@ -181,7 +181,7 @@ export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedTe
               stream: true,
               persist: false,
               providerId,
-              providerInstanceId: presetId
+              providerPresetId: presetId
             },
             (event) => {
               if (event.type === 'delta' && event.data?.text) {

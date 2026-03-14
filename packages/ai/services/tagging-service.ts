@@ -125,7 +125,7 @@ export const TaggingService = {
         ],
         persist: false,
         providerId: best.providerId,
-        providerInstanceId: best.presetId,
+        providerPresetId: best.presetId,
         temperature: 0.2
       });
 
@@ -190,7 +190,7 @@ export const TaggingService = {
           tags = await generatePiTagsForSegment({
             model: best.model,
             providerId: best.providerId,
-            providerInstanceId: best.presetId,
+            providerPresetId: best.presetId,
             segment
           });
         } catch (error) {

@@ -7,11 +7,12 @@
 import { z } from 'zod';
 
 import { executeSubtitleTranslation } from '../ipc-handler-helpers';
+import { normalizeProviderPreset, resolveProviderPresetId } from '../provider-preset';
 import { createTool } from './tool-definition';
 
 export interface TranslationToolRuntimeBinding {
   providerId: string;
-  providerInstanceId?: string;
+  providerPresetId?: string;
   model: string;
 }
 
@@ -51,7 +52,7 @@ const translationOutputSchema = z.object({
 /**
  * 创建翻译工具
  *
- * @param bindings - 显式 runtime 绑定，指定 provider / instance / model
+ * @param bindings - 显式 runtime 绑定，指定 provider / preset / model
  */
 export const createTranslationTool = (bindings?: { runtime?: TranslationToolRuntimeBinding }): ReturnType<typeof createTool> =>
   createTool({
@@ -68,12 +69,14 @@ export const createTranslationTool = (bindings?: { runtime?: TranslationToolRunt
       if (!executionContext) {
         return {
           success: false,
-          error: '翻译工具缺少 runtime 绑定。请使用 createTranslationTool({ runtime: { providerId, model, providerInstanceId? } }) 创建工具。'
+          error: '翻译工具缺少 runtime 绑定。请使用 createTranslationTool({ runtime: { providerId, model, providerPresetId? } }) 创建工具。'
         };
       }
 
       try {
-        const params = {
+        const providerPresetId = resolveProviderPresetId(executionContext);
+
+        const params = normalizeProviderPreset({
           resourceId,
           targetLanguage,
           segments: undefined,
@@ -82,9 +85,9 @@ export const createTranslationTool = (bindings?: { runtime?: TranslationToolRunt
           options,
           metadata: { resourceId },
           providerId: executionContext.providerId,
-          providerInstanceId: executionContext.providerInstanceId,
+          providerPresetId,
           model: executionContext.model
-        };
+        });
 
         // 调用翻译任务（不等待结果）
         executeSubtitleTranslation(params).catch((error) => {

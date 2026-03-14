@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 
-import type { ProviderSecrets } from '../../types';
+import { normalizeProviderPreset } from '../../provider-preset';
+import type { ImageGenerationRequest, ProviderSecrets } from '../../types';
 import { resolvePiModelConfig } from './model-resolver';
 
 export interface GeneratePiImageOptions {
@@ -12,14 +13,7 @@ export interface GeneratePiImageOptions {
   size?: string;
 }
 
-export interface GeneratePiImageRequest {
-  model: string;
-  prompt: string;
-  providerId: string;
-  providerInstanceId?: string;
-  quality?: string;
-  size?: string;
-}
+export type GeneratePiImageRequest = ImageGenerationRequest;
 
 const DEFAULT_IMAGE_BASE_URLS: Record<string, string> = {
   zhipu: 'https://open.bigmodel.cn/api/paas/v4/'
@@ -52,17 +46,17 @@ export class PiImageGenerationService {
   }
 
   async generateImageUrlFromRequest(request: GeneratePiImageRequest): Promise<string> {
-    const { model, prompt, providerId, providerInstanceId, quality, size } = request;
+    const normalizedRequest = normalizeProviderPreset(request);
+    const { model, prompt, quality, size } = normalizedRequest;
     const resolved = await resolvePiModelConfig({
+      ...normalizedRequest,
       extras: model
         ? {
             model
           }
         : undefined,
       messages: [],
-      persist: false,
-      providerId,
-      providerInstanceId
+      persist: false
     });
 
     return this.generateImageUrl({

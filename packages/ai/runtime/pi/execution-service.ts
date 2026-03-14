@@ -1,3 +1,4 @@
+import { normalizeProviderPreset, resolveProviderPresetId } from '../../provider-preset';
 import { supportsProviderCapability } from '../../providers/metadata';
 import { getProvider } from '../../registry';
 import type { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, ImageGenerationRequest, TranscriptionRequest } from '../../types';
@@ -26,7 +27,7 @@ export class PiExecutionService {
   }
 
   async chatEphemeral(req: ChatRequest): Promise<ChatResponse> {
-    return this.sessionService.chatEphemeral(forcePiRuntimeRequest(req));
+    return this.sessionService.chatEphemeral(forcePiRuntimeRequest(normalizeProviderPreset(req)));
   }
 
   async completeText(req: ChatRequest): Promise<string> {
@@ -35,7 +36,7 @@ export class PiExecutionService {
   }
 
   async streamText(req: ChatRequest, onDelta?: (delta: string, accumulated: string) => void, signal?: AbortSignal): Promise<string> {
-    const forcedRequest = forcePiRuntimeRequest(req);
+    const forcedRequest = forcePiRuntimeRequest(normalizeProviderPreset(req));
     const availability = this.getAvailability(forcedRequest);
 
     if (!availability.available) {
@@ -77,14 +78,15 @@ export class PiExecutionService {
   }
 
   async embed(payload: EmbeddingRequest): Promise<EmbeddingResponse> {
-    const resolved = await this.resolveProviderCapability(payload.providerId || 'openai', payload.providerInstanceId);
+    const providerPresetId = resolveProviderPresetId(payload);
+    const resolved = await this.resolveProviderCapability(payload.providerId || 'openai', providerPresetId);
 
     if (!supportsProviderCapability(resolved.provider.id, 'embeddings', resolved.provider) || !resolved.provider.embed) {
       throw new Error(`Provider ${resolved.provider.id} has no embeddings`);
     }
 
     return resolved.provider.embed({
-      ...payload,
+      ...normalizeProviderPreset(payload),
       providerId: resolved.provider.id,
       extras: {
         ...(payload.extras || {}),
@@ -94,7 +96,8 @@ export class PiExecutionService {
   }
 
   async transcribe(payload: TranscriptionRequest): Promise<{ text: string }> {
-    const resolved = await this.resolveProviderCapability(payload.providerId, payload.providerInstanceId);
+    const providerPresetId = resolveProviderPresetId(payload);
+    const resolved = await this.resolveProviderCapability(payload.providerId, providerPresetId);
 
     if (!supportsProviderCapability(resolved.provider.id, 'transcribe', resolved.provider) || !resolved.provider.transcribe) {
       throw new Error(`Provider ${resolved.provider.id} does not support transcription`);
@@ -109,31 +112,36 @@ export class PiExecutionService {
   }
 
   async generateImage(payload: ImageGenerationRequest): Promise<{ imageUrl: string }> {
-    const resolved = await this.resolveProviderCapability(payload.providerId, payload.providerInstanceId);
+    const providerPresetId = resolveProviderPresetId(payload);
+    const resolved = await this.resolveProviderCapability(payload.providerId, providerPresetId);
 
     if (!supportsProviderCapability(resolved.provider.id, 'imageGeneration', resolved.provider)) {
       throw new Error(`Provider ${resolved.provider.id} does not support image generation`);
     }
 
     return {
-      imageUrl: await this.imageGenerationService.generateImageUrlFromRequest({
-        ...payload,
-        providerId: resolved.provider.id,
-        providerInstanceId: resolved.model.presetId || payload.providerInstanceId
-      })
+      imageUrl: await this.imageGenerationService.generateImageUrlFromRequest(
+        normalizeProviderPreset({
+          ...payload,
+          providerId: resolved.provider.id,
+          providerPresetId: resolved.model.presetId || providerPresetId
+        })
+      )
     };
   }
 
   private async resolveProviderCapability(
     providerId: string,
-    providerInstanceId?: string
+    providerPresetId?: string
   ): Promise<{ model: Awaited<ReturnType<typeof resolvePiModelConfig>>['model']; provider: NonNullable<ReturnType<typeof getProvider>> }> {
-    const { model } = await resolvePiModelConfig({
-      messages: [],
-      persist: false,
-      providerId,
-      providerInstanceId
-    });
+    const { model } = await resolvePiModelConfig(
+      normalizeProviderPreset({
+        messages: [],
+        persist: false,
+        providerId,
+        providerPresetId
+      })
+    );
     const provider = getProvider(model.providerId);
 
     if (!provider) {

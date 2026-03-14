@@ -1,12 +1,11 @@
-import type { ChatRequest } from '../../../types';
+import { normalizeProviderPreset, resolveProviderPresetId } from '../../../provider-preset';
+import type { ChatRequest, ProviderScopedRequest } from '../../../types';
 import { PiExecutionService } from '../execution-service';
 
 let piExecutionService: PiExecutionService | undefined;
 
-export interface GeneratePiTagsOptions {
+export interface GeneratePiTagsOptions extends ProviderScopedRequest {
   model?: string;
-  providerId: string;
-  providerInstanceId?: string;
   segment: string;
 }
 
@@ -43,9 +42,10 @@ function getPiExecutionService(): PiExecutionService {
 }
 
 export async function generatePiTagsForSegment(options: GeneratePiTagsOptions): Promise<string[]> {
-  const { model, providerId, providerInstanceId, segment } = options;
+  const { model, providerId, segment } = options;
+  const providerPresetId = resolveProviderPresetId(options);
 
-  const request: ChatRequest = {
+  const request: ChatRequest = normalizeProviderPreset({
     agentId: 'tagger',
     extras: model
       ? {
@@ -61,9 +61,9 @@ export async function generatePiTagsForSegment(options: GeneratePiTagsOptions): 
     ],
     persist: false,
     providerId,
-    providerInstanceId,
+    providerPresetId,
     temperature: 0.2
-  };
+  });
 
   return parseTagListFromResponse(await getPiExecutionService().completeText(request)).slice(0, 5);
 }

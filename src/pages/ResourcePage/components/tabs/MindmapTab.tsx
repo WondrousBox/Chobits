@@ -239,7 +239,7 @@ const MindmapTab: React.FC = () => {
     try {
       const { requestId } = await window.YUA.ai.generateMindmap({
         providerId: selectedProviderId,
-        providerInstanceId: selectedPresetId || undefined,
+        providerPresetId: selectedPresetId || undefined,
         model: selectedModel,
         resourceId: targetResource.id,
         targetLanguage,

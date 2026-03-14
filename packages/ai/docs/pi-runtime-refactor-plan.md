@@ -1205,11 +1205,293 @@
   - 本地存储兼容键
   - 少量历史字段名（如 `providerInstanceId` / `instances` 存储字段）等待后续独立评估。
 
+### Wave 9 第二批已完成
+
+- 新增 `packages/ai/provider-preset.ts`
+  - 提供统一 helper：
+    - `resolveProviderPresetId()`
+    - `withProviderPresetCompat()`
+  - 用于把 `providerPresetId` / `providerInstanceId` 的兼容逻辑从各处零散判断收口到一个位置。
+- `packages/ai/types.ts`
+  - `ChatRequest` / `EmbeddingRequest` / `TranscriptionRequest` / `ImageGenerationRequest` 现在都支持 canonical `providerPresetId`。
+  - renderer `AIApi` 的 `translate()` / `summarize()` / `generateMindmap()` 等请求签名也开始接受 `providerPresetId`。
+- `packages/ai/ipc-renderer.ts`
+  - chat / embed / transcribe / image generation / translate / summarize / mindmap bridge 现在会在发送前统一补齐 preset compat 字段。
+- `packages/ai/chat-service.ts`
+  - 聊天主链路现在开始优先解析 `providerPresetId`，仅在持久化到历史数据库字段时继续回写到 `providerInstanceId`。
+- `packages/ai/runtime/pi/model-resolver.ts`
+  - Pi model resolver 已优先使用 `providerPresetId` 解析预设。
+- `packages/ai/runtime/pi/execution-service.ts`
+  - `chatEphemeral()` / `streamText()` / `embed()` / `transcribe()` / `generateImage()` 内部都开始走 canonical preset 解析。
+- `packages/ai/runtime/pi/task-chat.ts`
+  - task runtime request 已支持 `providerPresetId`。
+- `packages/ai/runtime/pi/tasks/title.ts`
+  - 会话标题生成任务已切到 `providerPresetId` 主语义。
+- `packages/ai/runtime/pi/tasks/tag.ts`
+  - Pi 打标任务已切到 `providerPresetId` 主语义。
+- `packages/ai/runtime/pi/image-generation-service.ts`
+  - 图片生成请求已支持 `providerPresetId`。
+- `packages/ai/ipc-handler-helpers.ts`
+  - 翻译 / 总结 / 脑图任务 payload 与任务 runtime 创建逻辑开始优先传递 `providerPresetId`。
+- `packages/workflow/nodes/ai-workflow-utils.ts`
+  - workflow 内部执行请求已开始补齐 canonical `providerPresetId`，同时继续兼容旧的 `providerInstanceId` 配置键。
+- renderer 主要入口开始优先发送 `providerPresetId`：
+  - `src/pages/ChatPage/ChatPage.tsx`
+  - `src/pages/TaggingPage/TaggingPage.tsx`
+  - `src/pages/ResourcePage/components/AIChatSidebar.tsx`
+  - `src/pages/ResourcePage/components/tabs/TranslateTab.tsx`
+  - `src/pages/ResourcePage/components/tabs/SummaryTab.tsx`
+  - `src/pages/ResourcePage/components/tabs/MindmapTab.tsx`
+  - `src/pages/ResourcePage/components/Players/SubtitlePlayer/SubtitleTranslator.tsx`
+  - `src/pages/ResourcePage/components/Players/SubtitlePlayer/SubtitleListPlayer/AnnotationPopover.tsx`
+  - `src/pages/SettingsPage/components/AiSettings.tsx`
+
+### Wave 9 第二批完成标志
+
+- `providerPresetId` 已经不是“只存在于类型里的新名字”，而是开始贯穿 renderer bridge、chat service、Pi runtime、task helper、workflow helper 的内部主链路。
+- 当前仍保留的 `providerInstanceId` 主要是为了：
+  - IPC/数据库兼容字段
+  - workflow 节点配置键历史兼容
+  - 少量工具/runtime 文档与剩余调用点的渐进迁移
+
+### Wave 9 第三批已完成
+
+- workflow 节点内部语义继续收口到 preset：
+  - `packages/workflow/nodes/ai-chat.ts`
+  - `packages/workflow/nodes/image-generate.ts`
+  - `packages/workflow/nodes/image-understand.ts`
+  - `packages/workflow/nodes/ai-prompt-optimizer.ts`
+  - 节点实现内部现在优先读取 `providerPresetId`，并兼容回退到历史 `providerInstanceId` 配置键。
+- `packages/ai/types.ts`
+  - `AIApi` 中的 `listInstances` / `createInstance` / `updateInstance` / `deleteInstance` / `getInstanceSecrets` / `setInstanceSecrets` 已被明确标注为 compatibility alias，而不是主接口。
+- `packages/ai/ipc-renderer.ts`
+  - renderer bridge 的 instance API 注释也继续收口，强调 preset API 才是 canonical 调用面。
+
+### Wave 9 第三批完成标志
+
+- workflow 节点的“内部实现命名”已经基本不再依赖 `providerInstanceId`，剩下主要是：
+  - 旧 workflow 配置键兼容
+  - 数据库 / IPC 历史字段兼容
+  - tools/runtime 文档与少量 compat 类型声明
+
+### Wave 9 第四批已完成
+
+- `packages/ai/tools/summary-tool.ts`
+  - `SummaryToolRuntimeBinding` 已改成 `providerPresetId` 主语义，`providerInstanceId` 仅作为兼容 alias。
+  - 创建总结任务时会通过 `resolveProviderPresetId()` / `withProviderPresetCompat()` 统一补齐 payload。
+- `packages/ai/tools/translation-tool.ts`
+  - `TranslationToolRuntimeBinding` 已改成 `providerPresetId` 主语义，避免 legacy 工具层继续把 instance 当 canonical 参数。
+  - 创建翻译任务时也开始统一走 preset compat helper。
+- `packages/ai/tools/README.md`
+  - AI 工具依赖说明和示例代码已切到 preset-first 表述，不再把 `providerInstanceId` 当默认示例。
+
+### Wave 9 第四批完成标志
+
+- legacy tools 绑定层已经和 renderer / Pi runtime / workflow helper 的 preset-first 命名对齐。
+- `packages/ai/tools` 当前保留的 `providerInstanceId` 主要只剩兼容字段声明，而不是主调用方式。
+- 这一层收口后，后续可以继续把 cleanup 重心转向：
+  - docs/examples 的零散历史表述
+  - 数据库存储字段是否要做真正迁移
+  - 少量仍需 dual-field 的 IPC/持久化边界
+
+### Wave 9 第五批已完成
+
+- `packages/ai/types.ts`
+  - 抽出了共享的 preset compat 类型：
+    - `ProviderPresetFields`
+    - `ProviderScopedRequest`
+    - `OptionalProviderScopedRequest`
+  - `ChatRequest` / `EmbeddingRequest` / `TranscriptionRequest` / `ImageGenerationRequest` 开始复用这组公共类型，减少多处重复声明。
+  - 新增统一 payload 类型：
+    - `TranslateRequest`
+    - `SummarizeRequest`
+    - `MindmapRequest`
+- `packages/ai/ipc-renderer.ts`
+  - transcribe / image generation / embed / translate / summarize / mindmap 的 bridge 签名已开始复用共享 request 类型。
+- `packages/ai/ipc-main.ts`
+  - transcribe / image generation handler 也开始直接复用共享 request 类型，进一步收口 main/renderer 间的 payload 语义。
+
+### Wave 9 第五批完成标志
+
+- provider preset 的双字段兼容不再只是“多个文件里写着差不多的匿名对象类型”，而是开始收口到共享 request type surface。
+- 后续如果继续删除 `providerInstanceId` alias，可以优先从共享类型切入口评估影响，而不是全仓逐个匿名 payload 排查。
+
+### Wave 9 第六批已完成
+
+- `packages/workflow/nodes/ai-workflow-utils.ts`
+  - workflow 动态配置的 preset 选择项现在开始使用 canonical 配置键 `providerPresetId`，而不是继续把 `providerInstanceId` 当成新配置主键。
+  - `getWorkflowProviderPresetId()` 已抽出，用来统一回读旧工作流里的 `providerInstanceId`。
+  - workflow 内部发给 Pi execution service 的 chat / image request 已改成通过 `withProviderPresetCompat()` 统一补齐兼容字段。
+  - helper 侧的 provider preset 类型声明也开始复用共享的 AI request 类型，而不是重复定义一组几乎相同的字段。
+- 受影响并已对齐的 workflow 节点：
+  - `packages/workflow/nodes/ai-chat.ts`
+  - `packages/workflow/nodes/ai-prompt-optimizer.ts`
+  - `packages/workflow/nodes/image-generate.ts`
+  - `packages/workflow/nodes/image-understand.ts`
+  - 这些节点现在都通过统一 helper 解析 preset，不再各自手写 `providerPresetId || providerInstanceId` 判断。
+
+### Wave 9 第六批完成标志
+
+- workflow 新保存的 AI 节点配置开始收口到 `providerPresetId`。
+- 历史工作流配置仍然可以从 `providerInstanceId` 自动回读并显示，不需要立刻做数据迁移。
+- workflow 侧的 legacy 命名已经从“节点实现和 schema 都依赖 instance”收缩到“少量兼容签名与历史配置读取”。
+
+### Wave 9 第七批已完成
+
+- `packages/ai/types.ts`
+  - `TranslateRequest` 已补上 `sourceLanguage`，让共享 translate request surface 能覆盖内部后台任务场景，不再额外分裂一层字段定义。
+- `packages/ai/chat-service.ts`
+  - embed IPC handler 和内部 `embed()` 已改为直接复用 `EmbeddingRequest`。
+  - 标题生成 fallback request 也开始通过 `withProviderPresetCompat()` 统一补齐兼容字段。
+- `packages/ai/runtime/pi/task-chat.ts`
+  - `CreatePiTaskRuntimeRequest` 已开始复用共享 provider scoped 类型。
+  - 传给 `resolvePiRequest()` 的 task runtime request 改为统一走 preset compat helper，而不是手动回填 `providerInstanceId`。
+- `packages/ai/runtime/pi/image-generation-service.ts`
+  - `GeneratePiImageRequest` 已直接复用 `ImageGenerationRequest`。
+  - 图片生成 request 在内部解析前也会先统一经过 preset compat helper。
+- `packages/ai/ipc-handler-helpers.ts`
+  - `TranslatePayload` / `SummarizePayload` / `MindmapPayload` 已开始基于共享 `TranslateRequest` / `SummarizeRequest` / `MindmapRequest` 叠加任务专属字段，减少内部 payload 定义漂移。
+- `packages/ai/runtime/pi/execution-service.ts`
+  - image generation 和 provider capability resolve 这两条内部链路也改成通过 compat helper 统一构造 request，不再继续手写 `providerInstanceId` 回填。
+
+### Wave 9 第七批完成标志
+
+- Pi 内部 helper 与后台任务 payload 的双字段兼容进一步收口到共享 request surface。
+- 当前还保留的 `providerInstanceId`，已经更集中地退回到：
+  - 数据库存储历史字段
+  - 少量明确标注的 compatibility alias
+  - 个别仍需要兼容旧调用面的边界层
+
+### Wave 9 第八批已完成
+
+- `packages/ai/runtime/pi/tasks/title.ts`
+  - `GeneratePiConversationTitleOptions` 已改为复用共享 provider scoped 类型。
+  - 标题生成 request 现在通过 `withProviderPresetCompat()` 统一补齐兼容字段，不再手写回填 `providerInstanceId`。
+- `packages/ai/runtime/pi/tasks/tag.ts`
+  - `GeneratePiTagsOptions` 也已切到共享 provider scoped 类型。
+  - 打标 request 构造同样改为统一走 compat helper。
+- `packages/ai/ipc-handler-helpers.ts`
+  - `createPreferredTaskChatRuntime()` 已开始复用共享 provider scoped 类型。
+  - translate / summarize / mindmap 三条后台任务链路在进入执行前会先统一标准化 payload，再解析 preset，而不是各自手动解构 legacy alias。
+- `packages/workflow/nodes/ai-workflow-utils.ts`
+  - workflow provider context 已改成对象式引用签名，兼容字段不再继续在函数参数列表中显式展开。
+  - workflow chat / image helper 也统一先走 compat normalization，再做 provider preset 解析。
+
+### Wave 9 第八批完成标志
+
+- task helper / workflow helper 层显式出现 `providerInstanceId` 的位置继续大幅减少。
+- `providerInstanceId` 更清晰地退回成“compat input 被 helper 吸收”的角色，而不是业务函数主签名的一部分。
+
+### Wave 9 第九批已完成
+
+- `packages/ai/runtime/pi/image-generation-service.ts`
+  - 图片生成内部 request 解析已进一步改成直接基于标准化 request 对象，不再显式解构 `providerInstanceId`。
+- `packages/workflow/nodes/ai-workflow-utils.ts`
+  - 动态模型配置 helper 已直接对整个 options 对象做 preset 解析，不再单独展开 `providerInstanceId`。
+- `packages/ai/chat-service.ts`
+  - 会话持久化边界新增 `ensureHistoricalConversationRecord()`，把历史数据库字段 `providerInstanceId` 的写入收口到单一 helper 中，并明确标注这是历史存储字段。
+
+### Wave 9 第九批完成标志
+
+- 在运行时主链路里，`providerInstanceId` 基本已经只剩三类残留：
+  - `provider-preset.ts` 里的 compat helper 本身
+  - 类型/工具绑定中的显式 compatibility alias
+  - 会话历史或 workflow 历史配置等真正的兼容边界
+- 这意味着后续如果还要继续推进，就不再是“全仓命名清理”，而更接近“是否对历史存储和历史配置做正式迁移”的决策阶段。
+
+### Wave 9 第十批已完成
+
+- `electron/main/db/repositories.ts`
+  - `ChatRepo` 现在开始返回带 `providerPresetId` alias 的 conversation 记录，而不是把历史会话 repo 完全锁死在 `providerInstanceId` 语义上。
+  - `ensureConversation()` 也已支持直接接受 `providerPresetId`，内部再映射到历史列名 `provider_instance_id`。
+- `packages/ai/chat-service.ts`
+  - 会话持久化边界已经开始直接传 `providerPresetId` 给 `ChatRepo`，不再在 service 层手写 legacy 列字段。
+- `packages/ai/types.ts`
+  - 新增 `ConversationRecord`，把 conversation surface 的 preset alias 明确成正式类型，而不是继续用 `any`。
+- `packages/ai/ipc-renderer.ts`
+  - `listConversations()` / `renameConversation()` 返回值已开始复用 `ConversationRecord`。
+- `electron/main/db/schema.ts`
+  - 对 `provider_instance_id` 列补上了明确注释，说明它是历史列名，而不是新的运行时主语义。
+
+### Wave 9 第十批完成标志
+
+- 会话历史的“repo / IPC / renderer surface”已经开始对外暴露 `providerPresetId` alias。
+- 现在真正仍然固定在 `providerInstanceId` 上的，已经主要只剩：
+  - schema 里的历史列名本身
+  - `provider-preset.ts` compat helper
+  - workflow 旧配置读取
+  - 少量显式 compatibility alias 类型声明
+- 后续如果继续推进，重点将从“运行时 cleanup”切换为“是否做历史数据正式迁移”的单独议题。
+
+### Wave 9 第十一批已完成
+
+- `electron/main/db/schema.ts`
+  - `conversations` 表字段已正式从 `providerInstanceId` / `provider_instance_id` 切到 `providerPresetId` / `provider_preset_id`。
+- `drizzle/0009_young_chameleon.sql`
+  - 新增数据库迁移，直接执行：
+    - `ALTER TABLE conversations RENAME COLUMN provider_instance_id TO provider_preset_id;`
+- `drizzle/meta/_journal.json`
+  - 已登记新的 `0009_young_chameleon` 迁移。
+- `drizzle/meta/0009_snapshot.json`
+  - schema snapshot 已更新到新的 conversation 列名。
+- `electron/main/db/repositories.ts`
+  - `ChatRepo.ensureConversation()` / `listConversations()` / `renameConversation()` / `restoreConversation()` 等已直接使用 `providerPresetId`。
+  - 会话 repo 不再需要为 DB 字段额外构造 `providerPresetId` alias。
+- `packages/ai/chat-service.ts`
+  - 会话持久化边界已直接向 repo 写入 `providerPresetId`。
+- `packages/ai/types.ts`
+  - `ConversationRecord` 不再保留会话层的 `providerInstanceId` 历史字段。
+
+### Wave 9 第十一批完成标志
+
+- 会话历史数据库链路已经正式完成 preset 命名迁移。
+- `providerInstanceId` 在当前代码库中已不再承担数据库会话字段职责，主要只剩：
+  - 通用 compat helper
+  - workflow 旧配置读取
+  - 少量工具/类型显式兼容声明
+- 这一步完成后，数据库层面的 preset-first 命名已经和运行时主链路保持一致。
+
+### Wave 9 第十二批已完成
+
+- `packages/ai/provider-preset.ts`
+  - `providerInstanceId` 兼容字段已从主 helper 中删除。
+  - `withProviderPresetCompat()` 已收口为纯 canonical helper `normalizeProviderPreset()`。
+- `packages/ai/types.ts`
+  - `ProviderPresetFields` 不再保留 `providerInstanceId` alias。
+- `packages/ai/tools/translation-tool.ts`
+  - `TranslationToolRuntimeBinding` 已移除 `providerInstanceId` 显式兼容字段。
+- `packages/ai/tools/summary-tool.ts`
+  - `SummaryToolRuntimeBinding` 已移除 `providerInstanceId` 显式兼容字段。
+- `packages/workflow/nodes/ai-workflow-utils.ts`
+  - workflow helper 不再回读旧的 `config.providerInstanceId`，新工作流与当前运行时都只认 `providerPresetId`。
+- `packages/ai/chat-service.ts`
+- `packages/ai/runtime/pi/execution-service.ts`
+- `packages/ai/runtime/pi/task-chat.ts`
+- `packages/ai/ipc-main.ts`
+- `packages/ai/ipc-renderer.ts`
+- `packages/ai/ipc-handler-helpers.ts`
+  - 以上主链路已经统一切到 `normalizeProviderPreset()`，不再保留双字段补齐逻辑。
+
+### Wave 9 第十二批完成标志
+
+- 主代码里的 `providerInstanceId` 已全部清除。
+- workflow / tool / task / IPC / chat runtime 的 preset 解析已经完全收口到 canonical `providerPresetId`。
+- `pi-runtime-refactor-plan.md` 中原本标记的“Wave 9 清理收尾项”已经完成。
+
+### 当前计划状态
+
+- 如果按这份实施蓝图的目标看：Wave 1 到 Wave 9 的迁移与命名清理已经完成。
+- 当前仓库已经处于：
+  - Pi-first runtime 稳定主路径
+  - preset-first 命名稳定主路径
+  - Mastra 已退出生产路径
+- 后续再做的事情，将属于新的增量优化，而不是这份 refactor plan 的未完事项。
+
 ### Wave 9 建议方向
 
 - 继续补齐更多 provider 的非聊天能力真接线，例如更多 image provider / realtime / speech 能力。
 - 继续压缩 renderer 里的分散 AI 入口，把更多页面直接接到统一 execution service，而不是各自保留轻量包装层。
-- 继续清理 legacy 命名与兼容代码，评估何时可以正式删除 `instanceId` alias 与旧 payload 兼容分支。
+- 如需进一步产品层收口，可继续评估何时删除 UI / IPC 里的 `instanceId` alias 壳；这已经超出本次 Pi runtime 重构主线。
 
 ## 风险点
 

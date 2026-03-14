@@ -24,8 +24,8 @@ tools/
 
 | 工具                | ID                    | 功能           | 依赖                       | 文件                     |
 | ------------------- | --------------------- | -------------- | -------------------------- | ------------------------ |
-| `translationTool`   | `translate-subtitles` | 字幕翻译       | providerId, model, instance| `translation-tool.ts`    |
-| `summaryTool`       | `summarize-content`   | 内容总结       | providerId, model, instance| `summary-tool.ts`        |
+| `translationTool`   | `translate-subtitles` | 字幕翻译       | providerId, model, preset  | `translation-tool.ts`    |
+| `summaryTool`       | `summarize-content`   | 内容总结       | providerId, model, preset  | `summary-tool.ts`        |
 | `resourceQueryTool` | `query-resources`     | 资源智能查询   | ResourcesRepo              | `resource-query-tool.ts` |
 | `pushCardTool`      | `push-card`           | 推送资源卡片   | conversationId / windowId  | `push-card-tool.ts`      |
 | `readSubtitleTool`  | `read-subtitle`       | 读取字幕内容   | ResourcesRepo              | `read-subtitle-tool.ts`  |
@@ -90,7 +90,7 @@ import { createTranslationTool } from '@/packages/ai/tools';
 const translationTool = createTranslationTool({
   runtime: {
     providerId: 'openai',
-    providerInstanceId: 'instance-1',
+    providerPresetId: 'preset-1',
     model: 'gpt-4o-mini'
   }
 });
@@ -112,7 +112,7 @@ import { createSummaryTool } from '@/packages/ai/tools';
 const summaryTool = createSummaryTool({
   runtime: {
     providerId: 'openai',
-    providerInstanceId: 'instance-1',
+    providerPresetId: 'preset-1',
     model: 'gpt-4o-mini'
   }
 });

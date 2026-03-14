@@ -206,7 +206,7 @@ const SummaryTab: React.FC = () => {
     try {
       const { requestId } = await window.YUA.ai.summarize({
         providerId: selectedProviderId,
-        providerInstanceId: selectedPresetId || undefined,
+        providerPresetId: selectedPresetId || undefined,
         model: selectedModel,
         resourceId: targetResource.id,
         targetLanguage,

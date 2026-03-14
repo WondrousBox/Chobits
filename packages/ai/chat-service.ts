@@ -5,11 +5,12 @@ import { BrowserWindow, ipcMain, WebContents } from 'electron';
 import { ChatRepo } from '../common/db';
 import { eventManager } from '../event';
 import { AppEvent } from '../event/events';
+import { normalizeProviderPreset, resolveProviderPresetId } from './provider-preset';
 import { getProvider } from './registry';
 import { PiExecutionService } from './runtime/pi/execution-service';
 import { PiSessionService } from './runtime/pi/session-service';
 import { generatePiConversationTitle, normalizeGeneratedConversationTitle } from './runtime/pi/tasks/title';
-import { ChatMessage, ChatRequest, ChatResponse, EmbeddingResponse, StreamEvent } from './types';
+import { ChatMessage, ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, StreamEvent } from './types';
 
 // local UUID fallback if uuid not present
 function safeUuid(): string {
@@ -43,12 +44,12 @@ export class ChatService {
   }
 
   registerIpc(): void {
-    ipcMain.handle('ai:chat', async (e, req: ChatRequest) => this.chat(BrowserWindow.fromWebContents(e.sender) || this.defaultWin, req));
-    ipcMain.handle('ai:chatStream', async (e, req: ChatRequest) => this.chatStream(e.sender, req));
+    ipcMain.handle('ai:chat', async (e, req: ChatRequest) => this.chat(BrowserWindow.fromWebContents(e.sender) || this.defaultWin, normalizeProviderPreset(req)));
+    ipcMain.handle('ai:chatStream', async (e, req: ChatRequest) => this.chatStream(e.sender, normalizeProviderPreset(req)));
     ipcMain.handle('ai:cancel', async (_e, payload: { requestId: string }) => this.cancel(payload.requestId));
-    ipcMain.handle('ai:embed', async (_e, payload: { texts: string[]; providerId?: string; providerInstanceId?: string; model?: string; normalize?: boolean }) => this.embed(payload));
+    ipcMain.handle('ai:embed', async (_e, payload: EmbeddingRequest) => this.embed(normalizeProviderPreset(payload)));
     // Stateless chat (no history persistence)
-    ipcMain.handle('ai:chatEphemeral', async (e, req: ChatRequest) => this.chatEphemeral(BrowserWindow.fromWebContents(e.sender) || this.defaultWin, req));
+    ipcMain.handle('ai:chatEphemeral', async (e, req: ChatRequest) => this.chatEphemeral(BrowserWindow.fromWebContents(e.sender) || this.defaultWin, normalizeProviderPreset(req)));
   }
 
   private async chat(win: BrowserWindow | undefined, req: ChatRequest): Promise<ChatResponse> {
@@ -110,16 +111,17 @@ ${JSON.stringify(req, null, 2)}
 
   private async chatWithPi(req: ChatRequest): Promise<ChatResponse> {
     const preview = await this.piSessionService.preview(req);
+    const providerPresetId = resolveProviderPresetId(req);
 
     if (!preview.availability.available) {
       throw new Error(preview.availability.reason || 'Pi runtime packages are not installed yet.');
     }
 
-    const conv = await ChatRepo.ensureConversation({
+    const conv = await this.ensureHistoricalConversationRecord({
       id: req.conversationId,
       agentId: req.agentId || preview.resolved.profile.id,
       providerId: preview.resolved.model.providerId,
-      providerInstanceId: (req as any).providerInstanceId
+      providerPresetId
     });
 
     const lastUserMessage = this.getLastUserMessage(req.messages);
@@ -147,6 +149,7 @@ ${JSON.stringify(req, null, 2)}
 
   private async chatStreamWithPi(sender: WebContents, req: ChatRequest, emit: (event: StreamEvent) => void, ctrl: AbortController): Promise<void> {
     const preview = await this.piSessionService.preview(req);
+    const providerPresetId = resolveProviderPresetId(req);
 
     if (!preview.availability.available) {
       await this.piSessionService.chatStream(req, emit, ctrl.signal);
@@ -158,11 +161,11 @@ ${JSON.stringify(req, null, 2)}
     let conv = undefined;
 
     if (shouldPersist) {
-      conv = await ChatRepo.ensureConversation({
+      conv = await this.ensureHistoricalConversationRecord({
         id: req.conversationId,
         agentId: req.agentId || preview.resolved.profile.id,
         providerId: preview.resolved.model.providerId,
-        providerInstanceId: (req as any).providerInstanceId
+        providerPresetId
       });
     }
 
@@ -265,7 +268,7 @@ ${JSON.stringify(req, null, 2)}
     return { ok: false };
   }
 
-  private async embed(payload: { texts: string[]; providerId?: string; providerInstanceId?: string; model?: string; normalize?: boolean }): Promise<EmbeddingResponse> {
+  private async embed(payload: EmbeddingRequest): Promise<EmbeddingResponse> {
     return this.getPiExecutionService().embed(payload);
   }
 
@@ -280,7 +283,8 @@ ${JSON.stringify(req, null, 2)}
   }
 
   private toPiRequest(req: ChatRequest): ChatRequest {
-    return this.piSessionService.shouldHandle(req) ? req : forcePiRuntime(req);
+    const normalizedRequest = normalizeProviderPreset(req);
+    return this.piSessionService.shouldHandle(normalizedRequest) ? normalizedRequest : forcePiRuntime(normalizedRequest);
   }
 
   private getLastUserMessage(messages?: ChatMessage[]): ChatMessage | undefined {
@@ -299,6 +303,22 @@ ${JSON.stringify(req, null, 2)}
       role: message.role,
       toolCallId: message.toolCallId
     } as any);
+  }
+
+  private async ensureHistoricalConversationRecord(params: {
+    id?: string;
+    agentId: string;
+    providerId: string;
+    providerPresetId?: string;
+  }): Promise<Awaited<ReturnType<typeof ChatRepo.ensureConversation>>> {
+    const { agentId, id, providerId, providerPresetId } = params;
+
+    return ChatRepo.ensureConversation({
+      id,
+      agentId,
+      providerId,
+      providerPresetId
+    });
   }
 
   private async loadConversationContextMessages(conversationId: string): Promise<ChatMessage[] | undefined> {
@@ -349,10 +369,10 @@ ${JSON.stringify(req, null, 2)}
     this.broadcastToAllWindows(CONV_TITLE_UPDATED_CHANNEL, { conversationId, title: null, status: 'generating' });
 
     try {
-      const titleReq: ChatRequest = {
+      const titleReq: ChatRequest = normalizeProviderPreset({
         agentId: 'chat',
         providerId: resolved.providerId,
-        providerInstanceId: (resolved as any).providerInstanceId,
+        providerPresetId: resolveProviderPresetId(resolved),
         extras: resolved.extras?.model
           ? {
               model: resolved.extras.model
@@ -363,7 +383,7 @@ ${JSON.stringify(req, null, 2)}
           { role: 'user', content: `用户: ${userContent}\nAI: ${assistantContent.slice(0, 500)}` }
         ],
         persist: false
-      };
+      });
       let title = '';
       const shouldFallbackToLegacy = !this.piSessionService.getAvailability(titleReq).available;
 
@@ -372,7 +392,7 @@ ${JSON.stringify(req, null, 2)}
           assistantContent,
           model: resolved.extras?.model as string | undefined,
           providerId: resolved.providerId,
-          providerInstanceId: (resolved as any).providerInstanceId,
+          providerPresetId: resolveProviderPresetId(resolved),
           userContent
         });
       } catch (error) {

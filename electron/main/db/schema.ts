@@ -326,10 +326,10 @@ export const conversations = sqliteTable(
     title: text('title'),
     // 归属工作空间（可选）
     workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'set null', onUpdate: 'cascade' }),
-    // 关联的智能体、服务商及其实例（用于回放与统计）
+    // 关联的智能体、服务商及其预设（用于回放与统计）
     agentId: text('agent_id'),
     providerId: text('provider_id'),
-    providerInstanceId: text('provider_instance_id'),
+    providerPresetId: text('provider_preset_id'),
     // 统计/排序字段
     messagesCount: integer('messages_count').default(0),
     lastMessageAt: integer('last_message_at'),

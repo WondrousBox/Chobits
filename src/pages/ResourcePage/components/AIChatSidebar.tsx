@@ -270,7 +270,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
           conversationId,
           messages: history as any,
           providerId,
-          providerInstanceId: presetId,
+          providerPresetId: presetId,
           agentId,
           stream: true
         },
