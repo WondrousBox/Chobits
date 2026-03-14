@@ -1,7 +1,7 @@
 import { NodeConfig, NodeHandler, PortSchema } from '../types';
-import { executeWorkflowImageGenerationRequest, getDynamicModelConfig } from './ai-workflow-utils';
+import { executeWorkflowImageGenerationRequest, getDynamicModelConfig, getWorkflowProviderPresetId } from './ai-workflow-utils';
 
-async function getDynamicConfig(providerId?: string, providerInstanceId?: string): Promise<PortSchema[]> {
+async function getDynamicConfig(providerId?: string, providerPresetId?: string): Promise<PortSchema[]> {
   const config = await getDynamicModelConfig({
     emptyModelDescription: providerId ? `服务商 ${providerId} 暂不支持图片生成模型` : '请先选择服务商',
     modelDescription: '选择图片生成模型',
@@ -9,7 +9,7 @@ async function getDynamicConfig(providerId?: string, providerInstanceId?: string
     modelPredicate: (model) => model.type === 'image' && Boolean(model.capabilities?.image_generation),
     providerCapability: 'imageGeneration',
     providerId,
-    providerInstanceId,
+    providerPresetId,
     required: true,
     warningScope: 'image-generate'
   });
@@ -64,15 +64,15 @@ export const ImageGenerateNode: NodeHandler = {
   },
   async getConfig(config?: NodeConfig): Promise<PortSchema[]> {
     const providerId = config?.providerId as string | undefined;
-    const providerInstanceId = config?.providerInstanceId as string | undefined;
-    return getDynamicConfig(providerId, providerInstanceId);
+    const providerPresetId = getWorkflowProviderPresetId(config);
+    return getDynamicConfig(providerId, providerPresetId);
   },
   async run({ input, config, emit }) {
     const prompt = String(input.prompt || '').trim();
     if (!prompt) throw new Error('缺少提示词');
 
     const providerId = String(config?.providerId || 'zhipu');
-    const providerInstanceId = config?.providerInstanceId ? String(config.providerInstanceId) : undefined;
+    const providerPresetId = getWorkflowProviderPresetId(config);
     const model = String(config?.model || 'cogview-3-flash');
     const size = String(config?.size || '1024x1024');
     const quality = String(config?.quality || 'standard');
@@ -83,7 +83,7 @@ export const ImageGenerateNode: NodeHandler = {
 
     const { imageUrl } = await executeWorkflowImageGenerationRequest({
       emit,
-      providerInstanceId,
+      providerPresetId,
       providerId,
       model,
       prompt,

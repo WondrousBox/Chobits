@@ -64,6 +64,13 @@
       "when": 1768324917677,
       "tag": "0008_safe_silver_samurai",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1773487817867,
+      "tag": "0009_young_chameleon",
+      "breakpoints": true
     }
   ]
 }

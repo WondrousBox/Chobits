@@ -24,6 +24,7 @@ import {
   updateTranslationSegment
 } from './ipc-handler-helpers';
 import { PromptsStore } from './prompts-store';
+import { normalizeProviderPreset } from './provider-preset';
 import { registerBuiltInProviders } from './providers/catalog';
 import { getBuiltinProviderMetadata, getProviderCapabilities, getProviderDefaultModels } from './providers/metadata';
 import { getProvider, listAgents, listProviders } from './registry';
@@ -47,7 +48,7 @@ import {
   updateApiKey
 } from './settings-store';
 import { listToolInfos } from './tools';
-import type { PushedCard } from './types';
+import type { ImageGenerationRequest, PushedCard, TranscriptionRequest } from './types';
 
 export function initAIHandlers(win: BrowserWindow): void {
   // Bootstrapping built-in providers
@@ -175,12 +176,12 @@ export function initAIHandlers(win: BrowserWindow): void {
     return listToolInfos();
   });
 
-  ipcMain.handle('ai:transcribe', async (_e, payload: { providerId: string; providerInstanceId?: string; file: Buffer; model?: string; language?: string; prompt?: string }) => {
-    return piExecutionService.transcribe(payload);
+  ipcMain.handle('ai:transcribe', async (_e, payload: TranscriptionRequest) => {
+    return piExecutionService.transcribe(normalizeProviderPreset(payload));
   });
 
-  ipcMain.handle('ai:generateImage', async (_e, payload: { providerId: string; providerInstanceId?: string; model: string; prompt: string; size?: string; quality?: string }) => {
-    return piExecutionService.generateImage(payload);
+  ipcMain.handle('ai:generateImage', async (_e, payload: ImageGenerationRequest) => {
+    return piExecutionService.generateImage(normalizeProviderPreset(payload));
   });
 
   ipcMain.handle('ai:listModels', async (_e, payload: { providerId: string; presetId?: string; instanceId?: string }) => {

@@ -1,0 +1,1 @@
+ALTER TABLE `conversations` RENAME COLUMN "provider_instance_id" TO "provider_preset_id";

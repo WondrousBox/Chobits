@@ -51,7 +51,7 @@ const TaggingPage: React.FC = () => {
     const payload = {
       agentId: 'tagger',
       providerId,
-      providerInstanceId: presetId,
+      providerPresetId: presetId,
       stream: true,
       messages: [{ role: 'user', content: input }],
       extras: {

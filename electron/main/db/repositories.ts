@@ -1559,7 +1559,7 @@ export const ChatRepo = {
       workspaceId: payload.workspaceId ?? null,
       agentId: payload.agentId ?? null,
       providerId: payload.providerId ?? null,
-      providerInstanceId: payload.providerInstanceId ?? null,
+      providerPresetId: payload.providerPresetId ?? null,
       messagesCount: 0,
       lastMessageAt: now,
       pinned: payload.pinned ?? 0,

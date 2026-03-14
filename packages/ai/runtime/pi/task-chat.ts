@@ -1,4 +1,5 @@
-import type { ChatRequest } from '../../types';
+import { normalizeProviderPreset, resolveProviderPresetId } from '../../provider-preset';
+import type { ChatRequest, ProviderScopedRequest } from '../../types';
 import type { ResolvedPiModelConfig, ResolvedPiRequest } from './contracts';
 import { resolvePiRequest } from './model-resolver';
 
@@ -14,13 +15,11 @@ export type PiTaskChatEvent = { type: 'delta'; data: { text: string } } | { type
 
 export type PiTaskChatFunction = (prompt: string, onEvent: (event: PiTaskChatEvent) => void, abortSignal?: AbortSignal) => Promise<void>;
 
-export interface CreatePiTaskRuntimeRequest {
+export interface CreatePiTaskRuntimeRequest extends ProviderScopedRequest {
   agentId?: string;
   extras?: Record<string, any>;
   maxTokens?: number;
   model?: string;
-  providerId: string;
-  providerInstanceId?: string;
   temperature?: number;
 }
 
@@ -271,20 +270,23 @@ export async function createPiTaskChatRuntime(resolved: ResolvedPiRequest): Prom
 }
 
 export async function createPiTaskChatRuntimeFromRequest(request: CreatePiTaskRuntimeRequest): Promise<{ chatFn: PiTaskChatFunction; modelId: string; resolved: ResolvedPiRequest }> {
-  const resolved = await resolvePiRequest({
-    agentId: request.agentId || 'chat',
-    extras: {
-      ...(request.extras || {}),
-      ...(request.model ? { model: request.model } : {}),
-      runtime: 'pi'
-    },
-    maxTokens: request.maxTokens,
-    messages: [],
-    persist: false,
-    providerId: request.providerId,
-    providerInstanceId: request.providerInstanceId,
-    temperature: request.temperature
-  });
+  const providerPresetId = resolveProviderPresetId(request);
+  const resolved = await resolvePiRequest(
+    normalizeProviderPreset({
+      agentId: request.agentId || 'chat',
+      extras: {
+        ...(request.extras || {}),
+        ...(request.model ? { model: request.model } : {}),
+        runtime: 'pi'
+      },
+      maxTokens: request.maxTokens,
+      messages: [],
+      persist: false,
+      providerId: request.providerId,
+      providerPresetId,
+      temperature: request.temperature
+    })
+  );
   const runtime = await createPiTaskChatRuntime(resolved);
 
   return {

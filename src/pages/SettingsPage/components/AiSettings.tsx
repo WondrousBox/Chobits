@@ -222,7 +222,7 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
     try {
       await window.YUA.ai.chat({
         agentId: 'chat',
-        providerInstanceId: preset.id,
+        providerPresetId: preset.id,
         messages: [
           { role: 'system', content: 'You are a connectivity test.' },
           { role: 'user', content: 'ping' }
@@ -245,12 +245,12 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
     modalMode === 'create'
       ? { name: '', model: '', systemPrompt: '', secrets: {}, enabledTools: [] }
       : {
-        name: editing?.name || '',
-        model: editing?.model || '',
-        systemPrompt: editing?.systemPrompt || '',
-        secrets: editing ? presetSecrets[editing.id] || {} : {},
-        enabledTools: editing?.enabledTools || []
-      };
+          name: editing?.name || '',
+          model: editing?.model || '',
+          systemPrompt: editing?.systemPrompt || '',
+          secrets: editing ? presetSecrets[editing.id] || {} : {},
+          enabledTools: editing?.enabledTools || []
+        };
 
   const modalErrors: Record<string, string> = modalMode === 'create' ? errors.__new__ || {} : editing ? errors[editing.id] || {} : {};
 

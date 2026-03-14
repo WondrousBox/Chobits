@@ -2,11 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { PresetsStore } from '../../ai/instances-store';
+import { normalizeProviderPreset, resolveProviderPresetId } from '../../ai/provider-preset';
 import { getProviderCapabilities } from '../../ai/providers/metadata';
 import { PiExecutionService } from '../../ai/runtime/pi/execution-service';
 import { getAllPresetSecrets, getAllSecrets, getFirstApiKey } from '../../ai/settings-store';
-import type { ChatMessage, ChatRequest, ProviderAdapter, ProviderCapabilityKey, ProviderSecrets } from '../../ai/types';
-import type { PortSchema } from '../types';
+import type { ChatMessage, ChatRequest, ImageGenerationRequest, ProviderAdapter, ProviderCapabilityKey, ProviderPresetFields, ProviderSecrets } from '../../ai/types';
+import type { NodeConfig, PortSchema } from '../types';
 
 type ModelRecord = {
   capabilities?: Record<string, any>;
@@ -23,7 +24,7 @@ export type WorkflowRichContentPart = { type: 'text'; text: string } | { type: '
 export type WorkflowMessageContent = string | WorkflowRichContentPart[];
 export type WorkflowChatMessage = Omit<ChatMessage, 'content'> & { content: WorkflowMessageContent };
 
-export interface DynamicModelConfigOptions {
+export interface DynamicModelConfigOptions extends ProviderPresetFields {
   defaultProviderId?: string;
   emptyModelDescription: string;
   modelDescription: string;
@@ -31,7 +32,6 @@ export interface DynamicModelConfigOptions {
   modelPredicate: (model: ModelRecord) => boolean;
   providerCapability?: ProviderCapabilityKey;
   providerId?: string;
-  providerInstanceId?: string;
   required?: boolean;
   warningScope: string;
 }
@@ -41,36 +41,33 @@ export interface WorkflowProviderContext {
   secrets: ProviderSecrets;
 }
 
-export interface ExecuteWorkflowTextRequestOptions {
+export interface WorkflowProviderReference extends ProviderPresetFields {
+  emit?: WorkflowEmit;
+  providerId: string;
+}
+
+export interface ExecuteWorkflowTextRequestOptions extends ProviderPresetFields {
   emit?: WorkflowEmit;
   maxTokens?: number;
   messages: ChatMessage[];
   model?: string;
   onDelta?: (delta: string, accumulated: string) => void;
   providerId: string;
-  providerInstanceId?: string;
   temperature?: number;
 }
 
-export interface ExecuteWorkflowChatRequestOptions {
+export interface ExecuteWorkflowChatRequestOptions extends ProviderPresetFields {
   emit?: WorkflowEmit;
   maxTokens?: number;
   messages: WorkflowChatMessage[];
   model?: string;
   onDelta?: (delta: string, accumulated: string) => void;
   providerId: string;
-  providerInstanceId?: string;
   temperature?: number;
 }
 
-export interface ExecuteWorkflowImageGenerationRequestOptions {
+export interface ExecuteWorkflowImageGenerationRequestOptions extends ImageGenerationRequest {
   emit?: WorkflowEmit;
-  model: string;
-  prompt: string;
-  providerId: string;
-  providerInstanceId?: string;
-  quality?: string;
-  size?: string;
 }
 
 let piExecutionService: PiExecutionService | undefined;
@@ -78,6 +75,12 @@ let piExecutionService: PiExecutionService | undefined;
 function getPiExecutionService(): PiExecutionService {
   piExecutionService ||= new PiExecutionService();
   return piExecutionService;
+}
+
+export function getWorkflowProviderPresetId(config?: NodeConfig): string | undefined {
+  return resolveProviderPresetId({
+    providerPresetId: typeof config?.providerPresetId === 'string' ? config.providerPresetId : undefined
+  });
 }
 
 export async function getProviderOptions(capability?: ProviderCapabilityKey): Promise<{ value: string; label: string }[]> {
@@ -92,8 +95,9 @@ export async function getProviderOptions(capability?: ProviderCapabilityKey): Pr
 }
 
 export async function getDynamicModelConfig(options: DynamicModelConfigOptions): Promise<PortSchema[]> {
-  const { defaultProviderId = '', emptyModelDescription, modelDescription, modelLabel, modelPredicate, providerCapability, providerId, providerInstanceId, required = true, warningScope } = options;
-  const selectedPreset = providerInstanceId ? PresetsStore.get(providerInstanceId) : undefined;
+  const { defaultProviderId = '', emptyModelDescription, modelDescription, modelLabel, modelPredicate, providerCapability, providerId, required = true, warningScope } = options;
+  const resolvedProviderPresetId = resolveProviderPresetId(options);
+  const selectedPreset = resolvedProviderPresetId ? PresetsStore.get(resolvedProviderPresetId) : undefined;
   const resolvedProviderId = selectedPreset?.providerId || providerId;
 
   const config: PortSchema[] = [
@@ -110,11 +114,11 @@ export async function getDynamicModelConfig(options: DynamicModelConfigOptions):
   ];
 
   config.push({
-    key: 'providerInstanceId',
+    key: 'providerPresetId',
     label: '服务预设',
     type: 'string',
     required: false,
-    default: '',
+    default: resolvedProviderPresetId || '',
     description: resolvedProviderId ? '可选：选择一个服务预设，复用它的模型、系统提示词和秘钥配置' : '请先选择服务商',
     inputType: 'select',
     options: getProviderPresetOptions(resolvedProviderId),
@@ -187,9 +191,11 @@ function getProviderPresetOptions(providerId?: string): Array<{ value: string; l
   return [baseOption, ...presets];
 }
 
-export async function resolveWorkflowProviderContext(providerId: string, emit?: WorkflowEmit, providerInstanceId?: string): Promise<WorkflowProviderContext> {
+export async function resolveWorkflowProviderContext(reference: WorkflowProviderReference): Promise<WorkflowProviderContext> {
   const { getProvider } = await import('../../ai/registry');
-  const providerPreset = providerInstanceId ? PresetsStore.get(providerInstanceId) : undefined;
+  const { emit, providerId } = reference;
+  const resolvedProviderPresetId = resolveProviderPresetId(reference);
+  const providerPreset = resolvedProviderPresetId ? PresetsStore.get(resolvedProviderPresetId) : undefined;
   const resolvedProviderId = providerPreset?.providerId || providerId;
   const provider = getProvider(resolvedProviderId);
 
@@ -200,7 +206,7 @@ export async function resolveWorkflowProviderContext(providerId: string, emit?: 
   const schema = provider.getConfigSchema?.();
   const keys = (schema?.fields || []).map((field) => field.key);
   const providerSecrets = await getAllSecrets(provider.id, keys);
-  const presetSecrets = providerInstanceId ? await getAllPresetSecrets(providerInstanceId, keys) : {};
+  const presetSecrets = resolvedProviderPresetId ? await getAllPresetSecrets(resolvedProviderPresetId, keys) : {};
   const secrets = {
     ...providerSecrets,
     ...presetSecrets
@@ -229,8 +235,10 @@ export async function executeWorkflowTextRequest(options: ExecuteWorkflowTextReq
 }
 
 export async function executeWorkflowChatRequest(options: ExecuteWorkflowChatRequestOptions): Promise<{ runtime: 'legacy' | 'pi'; text: string }> {
-  const { emit, maxTokens, messages, model, onDelta, providerId, providerInstanceId, temperature } = options;
-  const request: ChatRequest = {
+  const normalizedOptions = normalizeProviderPreset(options);
+  const { emit, maxTokens, messages, model, onDelta, providerId, temperature } = normalizedOptions;
+  const resolvedProviderPresetId = resolveProviderPresetId(normalizedOptions);
+  const request: ChatRequest = normalizeProviderPreset({
     agentId: 'chat',
     extras: model
       ? {
@@ -241,9 +249,9 @@ export async function executeWorkflowChatRequest(options: ExecuteWorkflowChatReq
     messages: messages as ChatMessage[],
     persist: false,
     providerId,
-    providerInstanceId,
+    providerPresetId: resolvedProviderPresetId,
     temperature
-  };
+  });
   const availability = getPiExecutionService().getAvailability(request);
 
   if (availability.available) {
@@ -255,14 +263,14 @@ export async function executeWorkflowChatRequest(options: ExecuteWorkflowChatReq
       };
     } catch (error) {
       if (isMissingWorkflowProviderConfigError(error)) {
-        await resolveWorkflowProviderContext(providerId, emit, providerInstanceId).catch(() => undefined);
+        await resolveWorkflowProviderContext({ emit, providerId, providerPresetId: resolvedProviderPresetId }).catch(() => undefined);
       }
 
       throw error;
     }
   }
 
-  const { provider, secrets } = await resolveWorkflowProviderContext(providerId, emit, providerInstanceId);
+  const { provider, secrets } = await resolveWorkflowProviderContext({ emit, providerId, providerPresetId: resolvedProviderPresetId });
 
   if (!provider.chat) {
     throw new Error(availability.reason || `服务商 ${providerId} 不支持对话功能`);
@@ -299,20 +307,24 @@ export async function executeWorkflowChatRequest(options: ExecuteWorkflowChatReq
 }
 
 export async function executeWorkflowImageGenerationRequest(options: ExecuteWorkflowImageGenerationRequestOptions): Promise<{ imageUrl: string }> {
-  const { emit, model, prompt, providerId, providerInstanceId, quality, size } = options;
+  const normalizedOptions = normalizeProviderPreset(options);
+  const { emit, model, prompt, providerId, quality, size } = normalizedOptions;
+  const resolvedProviderPresetId = resolveProviderPresetId(normalizedOptions);
 
   try {
-    return await getPiExecutionService().generateImage({
-      model,
-      prompt,
-      providerId,
-      providerInstanceId,
-      quality,
-      size
-    });
+    return await getPiExecutionService().generateImage(
+      normalizeProviderPreset({
+        model,
+        prompt,
+        providerId,
+        providerPresetId: resolvedProviderPresetId,
+        quality,
+        size
+      })
+    );
   } catch (error) {
     if (isMissingWorkflowProviderConfigError(error)) {
-      await resolveWorkflowProviderContext(providerId, emit, providerInstanceId).catch(() => undefined);
+      await resolveWorkflowProviderContext({ emit, providerId, providerPresetId: resolvedProviderPresetId }).catch(() => undefined);
     }
 
     throw error;

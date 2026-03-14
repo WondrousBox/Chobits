@@ -241,7 +241,7 @@ const TranslateTab: React.FC = () => {
 
       const { requestId } = await window.YUA.ai.translate({
         providerId: selectedProviderId,
-        providerInstanceId: selectedPresetId || undefined,
+        providerPresetId: selectedPresetId || undefined,
         model: selectedModel,
         segments: segmentsData,
         targetLanguage,

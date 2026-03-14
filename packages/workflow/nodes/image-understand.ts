@@ -1,16 +1,16 @@
 import fs from 'node:fs';
 
 import { NodeConfig, NodeHandler, PortSchema } from '../types';
-import { executeWorkflowChatRequest, getDynamicModelConfig, readImageAsRichContent } from './ai-workflow-utils';
+import { executeWorkflowChatRequest, getDynamicModelConfig, getWorkflowProviderPresetId, readImageAsRichContent } from './ai-workflow-utils';
 
-async function getDynamicConfig(providerId?: string, providerInstanceId?: string): Promise<PortSchema[]> {
+async function getDynamicConfig(providerId?: string, providerPresetId?: string): Promise<PortSchema[]> {
   return getDynamicModelConfig({
     emptyModelDescription: providerId ? `服务商 ${providerId} 暂不支持视觉模型` : '请先选择服务商',
     modelDescription: '选择视觉理解模型',
     modelLabel: '模型',
     modelPredicate: (model) => model.type === 'vision' && Boolean(model.capabilities?.vision),
     providerId,
-    providerInstanceId,
+    providerPresetId,
     required: true,
     warningScope: 'image-understand'
   });
@@ -72,8 +72,8 @@ export const ImageUnderstandNode: NodeHandler = {
   },
   async getConfig(config?: NodeConfig): Promise<PortSchema[]> {
     const providerId = config?.providerId as string | undefined;
-    const providerInstanceId = config?.providerInstanceId as string | undefined;
-    return getDynamicConfig(providerId, providerInstanceId);
+    const providerPresetId = getWorkflowProviderPresetId(config);
+    return getDynamicConfig(providerId, providerPresetId);
   },
   async run({ input, config, emit }) {
     const imagePath = String(input.image || '');
@@ -81,7 +81,7 @@ export const ImageUnderstandNode: NodeHandler = {
     if (!fs.existsSync(imagePath)) throw new Error(`图片不存在: ${imagePath}`);
 
     const providerId = String(config?.providerId || 'zhipu');
-    const providerInstanceId = config?.providerInstanceId ? String(config.providerInstanceId) : undefined;
+    const providerPresetId = getWorkflowProviderPresetId(config);
     const model = String(config?.model || 'glm-4v-flash');
 
     emit('node:progress', { progress: 10, message: '读取图片...' });
@@ -136,7 +136,7 @@ export const ImageUnderstandNode: NodeHandler = {
       ],
       model,
       providerId,
-      providerInstanceId
+      providerPresetId
     });
 
     emit('node:progress', { progress: 90, message: '解析结果...' });

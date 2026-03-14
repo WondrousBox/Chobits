@@ -213,7 +213,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
     // 2) 构造上下文（包含历史消息 + 新用户消息）
     const history = [...messages, userMsg].map((m) => ({ role: m.role, content: m.content, createdAt: m.createdAt }));
 
-    const disposer = await window.YUA.ai.chatStream({ conversationId, messages: history as any, providerId, providerInstanceId: presetId, stream: true }, (ev: any) => {
+    const disposer = await window.YUA.ai.chatStream({ conversationId, messages: history as any, providerId, providerPresetId: presetId, stream: true }, (ev: any) => {
       if (ev?.type === 'metadata' && ev.data?.conversationId) {
         setConversationId(ev.data.conversationId);
         setSelectedConvId(ev.data.conversationId);

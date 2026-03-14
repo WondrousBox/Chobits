@@ -6,6 +6,7 @@
 
 import { z } from 'zod';
 
+import { normalizeProviderPreset, resolveProviderPresetId } from '../provider-preset';
 import { createTool } from './tool-definition';
 
 /**
@@ -46,14 +47,14 @@ const summaryOutputSchema = z.object({
 
 export interface SummaryToolRuntimeBinding {
   providerId: string;
-  providerInstanceId?: string;
+  providerPresetId?: string;
   model: string;
 }
 
 /**
  * 创建总结工具
  *
- * @param bindings - 显式 runtime 绑定，指定 provider / instance / model
+ * @param bindings - 显式 runtime 绑定，指定 provider / preset / model
  */
 export const createSummaryTool = (bindings?: { runtime?: SummaryToolRuntimeBinding }): ReturnType<typeof createTool> =>
   createTool({
@@ -82,15 +83,17 @@ export const createSummaryTool = (bindings?: { runtime?: SummaryToolRuntimeBindi
       if (!executionContext) {
         return {
           success: false,
-          error: '总结工具缺少 runtime 绑定。请使用 createSummaryTool({ runtime: { providerId, model, providerInstanceId? } }) 创建工具。'
+          error: '总结工具缺少 runtime 绑定。请使用 createSummaryTool({ runtime: { providerId, model, providerPresetId? } }) 创建工具。'
         };
       }
 
       try {
+        const providerPresetId = resolveProviderPresetId(executionContext);
+
         // 构建总结参数
-        const payload = {
+        const payload = normalizeProviderPreset({
           providerId: executionContext.providerId,
-          providerInstanceId: executionContext.providerInstanceId,
+          providerPresetId,
           model: executionContext.model,
           content: typeof content === 'string' ? content : undefined,
           segments: Array.isArray(content) ? content : undefined,
@@ -98,7 +101,7 @@ export const createSummaryTool = (bindings?: { runtime?: SummaryToolRuntimeBindi
           targetLanguage,
           languageNames,
           options
-        };
+        });
 
         // 导入并调用 executeSummarize
         const { executeSummarize } = await import('../ipc-handler-helpers');

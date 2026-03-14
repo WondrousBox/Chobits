@@ -263,7 +263,7 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
         // 调用主进程的翻译功能
         const { requestId } = await window.YUA.ai.translate({
           providerId,
-          providerInstanceId: selectedPresetId || undefined,
+          providerPresetId: selectedPresetId || undefined,
           model,
           targetLanguage: targetLang,
           languageNames,

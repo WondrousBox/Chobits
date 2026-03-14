@@ -7,11 +7,13 @@ import * as path from 'path';
 
 import { ResourcesRepo, WorkspacesRepo } from '../common/db';
 import { sendAppBusyEnd, sendAppBusyProgress, sendAppBusyStart } from '../event';
+import { normalizeProviderPreset, resolveProviderPresetId } from './provider-preset';
 import { PiSessionService } from './runtime/pi/session-service';
 import { createPiTaskChatRuntimeFromRequest, type PiTaskChatFunction as ChatFunction } from './runtime/pi/task-chat';
 import { MindmapService } from './services/mindmap-service';
 import { SummaryService } from './services/summary-service';
 import { TranslationService } from './services/translation-service';
+import type { MindmapRequest, ProviderScopedRequest, SummarizeRequest, TranslateRequest } from './types';
 
 // ==================== 项目文件夹常量 ====================
 
@@ -639,79 +641,37 @@ export async function loadContentFromResource(resourceId: string): Promise<strin
   }
 }
 
-export type TranslatePayload = {
-  providerId: string;
-  providerInstanceId?: string;
-  model: string;
-  segments?: Array<AimSegments>;
-  resourceId?: string;
-  targetLanguage: string;
-  sourceLanguage?: string;
-  languageNames: Record<string, string>;
-  metadata?: Record<string, any>;
-  requestId?: string;
-  taskLabel?: string;
-  chatFn?: ChatFunction;
-  abortSignal?: AbortSignal;
-  options?: {
-    maxConcurrency?: number;
-    chunkSize?: number;
-    maxRetries?: number;
-    promptTemplate?: string;
-    generateSummary?: boolean;
-    glossary?: any;
-  };
-};
-
-export type SummarizePayload = {
-  providerId: string;
-  providerInstanceId?: string;
-  model: string;
-  content?: string;
-  segments?: any[];
-  resourceId?: string;
-  targetLanguage: string;
-  languageNames: Record<string, string>;
-  requestId?: string;
-  taskLabel?: string;
-  chatFn?: ChatFunction;
-  abortSignal?: AbortSignal;
-  options?: {
-    maxChars?: number;
-    extractKeyPoints?: boolean;
-    extractTimeline?: boolean;
-    keywordCount?: number;
-    promptTemplate?: string;
-  };
-  metadata?: Record<string, any>;
-};
-
-export type MindmapPayload = {
-  providerId: string;
-  providerInstanceId?: string;
-  model: string;
-  content?: string;
-  segments?: any[];
-  resourceId?: string;
-  targetLanguage: string;
-  languageNames?: Record<string, string>;
-  options?: any;
-  metadata?: any;
+export type TranslatePayload = TranslateRequest & {
   requestId?: string;
   taskLabel?: string;
   chatFn?: ChatFunction;
   abortSignal?: AbortSignal;
 };
 
-async function createPreferredTaskChatRuntime(params: {
-  providerId: string;
-  providerInstanceId?: string;
-  model: string;
-  agentId?: string;
-}): Promise<{ chatFn: ChatFunction; modelId: string; runtime: 'pi' }> {
+export type SummarizePayload = SummarizeRequest & {
+  requestId?: string;
+  taskLabel?: string;
+  chatFn?: ChatFunction;
+  abortSignal?: AbortSignal;
+};
+
+export type MindmapPayload = MindmapRequest & {
+  requestId?: string;
+  taskLabel?: string;
+  chatFn?: ChatFunction;
+  abortSignal?: AbortSignal;
+};
+
+async function createPreferredTaskChatRuntime(
+  params: ProviderScopedRequest & {
+    model: string;
+    agentId?: string;
+  }
+): Promise<{ chatFn: ChatFunction; modelId: string; runtime: 'pi' }> {
+  const normalizedParams = normalizeProviderPreset(params);
   const piAvailability = new PiSessionService().getAvailability({
     extras: {
-      model: params.model,
+      model: normalizedParams.model,
       runtime: 'pi'
     }
   });
@@ -721,10 +681,10 @@ async function createPreferredTaskChatRuntime(params: {
   }
 
   const runtime = await createPiTaskChatRuntimeFromRequest({
-    agentId: params.agentId || 'chat',
-    model: params.model,
-    providerId: params.providerId,
-    providerInstanceId: params.providerInstanceId
+    ...normalizedParams,
+    agentId: normalizedParams.agentId || 'chat',
+    model: normalizedParams.model,
+    providerPresetId: resolveProviderPresetId(normalizedParams)
   });
 
   return {
@@ -1189,12 +1149,12 @@ export async function deleteTranslationSegment(opts: { subtitleResourceId: strin
  * @returns 返回 requestId 和 eventsChannel
  */
 export async function executeSubtitleTranslation(payload: TranslatePayload): Promise<{ requestId: string; eventsChannel: string }> {
+  const normalizedPayload = normalizeProviderPreset(payload);
   const {
     abortSignal,
     chatFn: injectedChatFn,
     model,
     providerId,
-    providerInstanceId,
     requestId: incomingRequestId,
     resourceId,
     segments,
@@ -1204,10 +1164,11 @@ export async function executeSubtitleTranslation(payload: TranslatePayload): Pro
     metadata,
     options,
     taskLabel: incomingTaskLabel
-  } = payload;
+  } = normalizedPayload;
   const requestId = incomingRequestId || randomUUID();
   const eventsChannel = `subtitle:translate:${requestId}`;
   const startTimestamp = Date.now(); // 记录翻译任务开始时间戳
+  const resolvedProviderPresetId = resolveProviderPresetId(normalizedPayload);
 
   // 步骤1: 读取文件，加载字幕片段
   let actualSegments: Array<AimSegments> | undefined = segments;
@@ -1258,7 +1219,7 @@ export async function executeSubtitleTranslation(payload: TranslatePayload): Pro
       agentId: 'translator',
       model,
       providerId,
-      providerInstanceId
+      providerPresetId: resolvedProviderPresetId
     });
     effectiveChatFn = runtime.chatFn;
     effectiveModel = runtime.modelId;
@@ -1369,6 +1330,7 @@ export async function executeSubtitleTranslation(payload: TranslatePayload): Pro
  * @returns 返回 requestId 和 eventsChannel
  */
 export async function executeSummarize(payload: SummarizePayload): Promise<{ requestId: string; eventsChannel: string }> {
+  const normalizedPayload = normalizeProviderPreset(payload);
   const {
     abortSignal,
     chatFn: injectedChatFn,
@@ -1378,15 +1340,15 @@ export async function executeSummarize(payload: SummarizePayload): Promise<{ req
     model,
     options,
     providerId,
-    providerInstanceId,
     requestId: incomingRequestId,
     resourceId,
     segments,
     targetLanguage,
     taskLabel: incomingTaskLabel
-  } = payload;
+  } = normalizedPayload;
   const requestId = incomingRequestId || randomUUID();
   const eventsChannel = `summary:${requestId}`;
+  const resolvedProviderPresetId = resolveProviderPresetId(normalizedPayload);
 
   if (abortSignal?.aborted) {
     throw new Error('Aborted');
@@ -1421,7 +1383,7 @@ export async function executeSummarize(payload: SummarizePayload): Promise<{ req
       agentId: 'assistant',
       model,
       providerId,
-      providerInstanceId
+      providerPresetId: resolvedProviderPresetId
     });
     effectiveChatFn = runtime.chatFn;
     effectiveModel = runtime.modelId;
@@ -1492,11 +1454,11 @@ export async function executeSummarize(payload: SummarizePayload): Promise<{ req
  * @returns 返回 requestId 和 eventsChannel
  */
 export async function executeMindmap(payload: MindmapPayload): Promise<{ requestId: string; eventsChannel: string }> {
+  const normalizedPayload = normalizeProviderPreset(payload);
   const {
     abortSignal,
     chatFn: injectedChatFn,
     providerId,
-    providerInstanceId,
     model,
     content,
     segments,
@@ -1507,10 +1469,11 @@ export async function executeMindmap(payload: MindmapPayload): Promise<{ request
     metadata = {},
     requestId: incomingRequestId,
     taskLabel: incomingTaskLabel
-  } = payload;
+  } = normalizedPayload;
   const requestId = incomingRequestId || randomUUID();
   const eventsChannel = `mindmap:${requestId}`;
   const startTimestamp = Date.now(); // 记录开始时间戳
+  const resolvedProviderPresetId = resolveProviderPresetId(normalizedPayload);
 
   if (abortSignal?.aborted) {
     throw new Error('Aborted');
@@ -1547,7 +1510,7 @@ export async function executeMindmap(payload: MindmapPayload): Promise<{ request
       agentId: 'assistant',
       model,
       providerId,
-      providerInstanceId
+      providerPresetId: resolvedProviderPresetId
     });
     effectiveChatFn = runtime.chatFn;
     effectiveModel = runtime.modelId;

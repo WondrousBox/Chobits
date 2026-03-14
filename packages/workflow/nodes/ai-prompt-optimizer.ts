@@ -1,7 +1,7 @@
 import { NodeConfig, NodeHandler, PortSchema } from '../types';
-import { executeWorkflowTextRequest, getDynamicModelConfig } from './ai-workflow-utils';
+import { executeWorkflowTextRequest, getDynamicModelConfig, getWorkflowProviderPresetId } from './ai-workflow-utils';
 
-async function getDynamicConfig(providerId?: string, providerInstanceId?: string): Promise<PortSchema[]> {
+async function getDynamicConfig(providerId?: string, providerPresetId?: string): Promise<PortSchema[]> {
   return getDynamicModelConfig({
     defaultProviderId: 'zhipu',
     emptyModelDescription: providerId ? `服务商 ${providerId} 暂不支持对话模型` : '请先选择服务商',
@@ -9,7 +9,7 @@ async function getDynamicConfig(providerId?: string, providerInstanceId?: string
     modelLabel: '模型',
     modelPredicate: (model) => model.type === 'chat',
     providerId,
-    providerInstanceId,
+    providerPresetId,
     required: false,
     warningScope: 'ai-prompt-optimizer'
   });
@@ -51,15 +51,15 @@ export const AiPromptOptimizerNode: NodeHandler = {
   },
   async getConfig(config?: NodeConfig): Promise<PortSchema[]> {
     const providerId = config?.providerId as string | undefined;
-    const providerInstanceId = config?.providerInstanceId as string | undefined;
-    return getDynamicConfig(providerId, providerInstanceId);
+    const providerPresetId = getWorkflowProviderPresetId(config);
+    return getDynamicConfig(providerId, providerPresetId);
   },
   async run({ input, config, emit }) {
     const prompt = String(input.prompt || '').trim();
     if (!prompt) throw new Error('缺少原始提示词');
 
     const providerId = String(config?.providerId || 'zhipu');
-    const providerInstanceId = config?.providerInstanceId ? String(config.providerInstanceId) : undefined;
+    const providerPresetId = getWorkflowProviderPresetId(config);
     const model = String(config?.model || '');
     const optimizationGoal = input.optimizationGoal ? String(input.optimizationGoal).trim() : '';
 
@@ -97,7 +97,7 @@ export const AiPromptOptimizerNode: NodeHandler = {
       ],
       model,
       providerId,
-      providerInstanceId
+      providerPresetId
     });
 
     emit('node:progress', { progress: 90, message: '处理优化结果...' });
