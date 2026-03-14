@@ -232,13 +232,24 @@ export class MindmapService {
   /**
    * 执行脑图生成
    */
-  static async generateMindmap(emit: MindmapEmitter, request: MindmapRequest): Promise<void> {
+  static async generateMindmap(emit: MindmapEmitter, request: MindmapRequest, externalSignal?: AbortSignal): Promise<void> {
     const { requestId, chatFn, taskLabel, content, targetLanguage, languageNames, metadata, options = {} } = request;
 
     const { maxChars = 10000, maxDepth = 4, promptTemplate } = options;
 
     const abortController = new AbortController();
     mindmapManager.startMindmap(requestId, abortController, taskLabel);
+    const externalAbortHandler = (): void => {
+      abortController.abort();
+    };
+
+    if (externalSignal) {
+      if (externalSignal.aborted) {
+        abortController.abort();
+      } else {
+        externalSignal.addEventListener('abort', externalAbortHandler, { once: true });
+      }
+    }
 
     try {
       emit({ type: 'connected' });
@@ -351,6 +362,10 @@ export class MindmapService {
         });
         mindmapManager.completeMindmap(requestId);
         emit({ type: 'done' });
+      }
+    } finally {
+      if (externalSignal) {
+        externalSignal.removeEventListener('abort', externalAbortHandler);
       }
     }
   }

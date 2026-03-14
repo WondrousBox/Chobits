@@ -1,7 +1,18 @@
+import { getBuiltinProviderMetadata } from './metadata';
 import { OpenAICompatibleProvider } from './openai-compatible';
 
 export class DeepSeekProvider extends OpenAICompatibleProvider {
   constructor() {
-    super({ id: 'deepseek', label: 'DeepSeek', baseUrl: 'https://api.deepseek.com', model: 'deepseek-chat' });
+    const metadata = getBuiltinProviderMetadata('deepseek');
+    if (!metadata) {
+      throw new Error('Missing built-in provider metadata: deepseek');
+    }
+
+    super({
+      id: metadata.id,
+      label: metadata.label,
+      baseUrl: metadata.providerBaseUrl,
+      model: metadata.defaultModel
+    });
   }
 }

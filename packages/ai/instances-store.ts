@@ -4,7 +4,9 @@ import path from 'node:path';
 
 import { app } from 'electron';
 
-export type ProviderInstance = {
+import { toCanonicalProviderId } from './runtime/pi/provider-alias';
+
+export type ProviderPreset = {
   id: string;
   providerId: string;
   name: string;
@@ -12,49 +14,80 @@ export type ProviderInstance = {
   systemPrompt?: string;
   // non-secret config copy (e.g., baseUrl or org)
   config?: Record<string, any>;
-  // enabled tools for this instance (agent functionality)
+  // enabled tools for this preset
   enabledTools?: string[];
   createdAt: number;
   updatedAt: number;
 };
 
-type StoreShape = { instances: ProviderInstance[] };
+export type ProviderInstance = ProviderPreset;
 
-const FILE = path.join(app.getPath('userData'), 'data', 'ai-provider-instances.json');
+type StoreShape = { presets: ProviderPreset[] };
 
-function read(): StoreShape {
+const FILE = path.join(app.getPath('userData'), 'data', 'ai-provider-presets.json');
+const LEGACY_FILE = path.join(app.getPath('userData'), 'data', 'ai-provider-instances.json');
+
+function normalizePreset(preset: ProviderPreset): ProviderPreset {
+  const canonicalProviderId = toCanonicalProviderId(preset.providerId);
+  if (canonicalProviderId === preset.providerId) {
+    return preset;
+  }
+
+  return {
+    ...preset,
+    providerId: canonicalProviderId
+  };
+}
+
+function toStoreShape(data: unknown): StoreShape {
+  const rawPresets = Array.isArray((data as any)?.presets) ? (data as any).presets : Array.isArray((data as any)?.instances) ? (data as any).instances : [];
+
+  return {
+    presets: rawPresets.map(normalizePreset)
+  };
+}
+
+function readFile(file: string): StoreShape | undefined {
   try {
-    const raw = fs.readFileSync(FILE, 'utf8');
-    const data = JSON.parse(raw);
-    return { instances: Array.isArray(data?.instances) ? data.instances : [] };
+    const raw = fs.readFileSync(file, 'utf8');
+    return toStoreShape(JSON.parse(raw));
   } catch {
-    return { instances: [] };
+    return undefined;
   }
 }
+
+function read(): StoreShape {
+  return readFile(FILE) || readFile(LEGACY_FILE) || { presets: [] };
+}
+
 function write(data: StoreShape): void {
   try {
+    const normalizedData = {
+      presets: data.presets.map(normalizePreset)
+    };
     fs.mkdirSync(path.dirname(FILE), { recursive: true });
-    fs.writeFileSync(FILE, JSON.stringify(data, null, 2), 'utf8');
+    fs.writeFileSync(FILE, JSON.stringify(normalizedData, null, 2), 'utf8');
   } catch {
     // ignore write errors
   }
 }
 
-export const InstancesStore = {
-  list(providerId?: string): ProviderInstance[] {
+const presetStore = {
+  list(providerId?: string): ProviderPreset[] {
     const d = read();
-    return providerId ? d.instances.filter((i) => i.providerId === providerId) : d.instances;
+    const canonicalProviderId = providerId ? toCanonicalProviderId(providerId) : undefined;
+    return canonicalProviderId ? d.presets.filter((preset) => preset.providerId === canonicalProviderId) : d.presets;
   },
-  get(id: string): ProviderInstance | undefined {
+  get(id: string): ProviderPreset | undefined {
     const d = read();
-    return d.instances.find((i) => i.id === id);
+    return d.presets.find((preset) => preset.id === id);
   },
-  create(payload: Omit<ProviderInstance, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): ProviderInstance {
+  create(payload: Omit<ProviderPreset, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): ProviderPreset {
     const d = read();
     const now = Date.now();
-    const item: ProviderInstance = {
+    const item: ProviderPreset = {
       id: payload.id || randomUUID(),
-      providerId: payload.providerId,
+      providerId: toCanonicalProviderId(payload.providerId),
       name: payload.name,
       model: payload.model,
       systemPrompt: payload.systemPrompt,
@@ -63,24 +96,32 @@ export const InstancesStore = {
       createdAt: now,
       updatedAt: now
     };
-    d.instances.push(item);
+    d.presets.push(item);
     write(d);
     return item;
   },
-  update(id: string, patch: Partial<Omit<ProviderInstance, 'id' | 'createdAt'>>): ProviderInstance | undefined {
+  update(id: string, patch: Partial<Omit<ProviderPreset, 'id' | 'createdAt'>>): ProviderPreset | undefined {
     const d = read();
-    const idx = d.instances.findIndex((i) => i.id === id);
+    const idx = d.presets.findIndex((preset) => preset.id === id);
     if (idx < 0) return undefined;
-    const next = { ...d.instances[idx], ...patch, updatedAt: Date.now() } as ProviderInstance;
-    d.instances[idx] = next;
+    const next = normalizePreset({
+      ...d.presets[idx],
+      ...patch,
+      ...(patch.providerId ? { providerId: toCanonicalProviderId(patch.providerId) } : {}),
+      updatedAt: Date.now()
+    } as ProviderPreset);
+    d.presets[idx] = next;
     write(d);
     return next;
   },
   delete(id: string): boolean {
     const d = read();
-    const before = d.instances.length;
-    d.instances = d.instances.filter((i) => i.id !== id);
+    const before = d.presets.length;
+    d.presets = d.presets.filter((preset) => preset.id !== id);
     write(d);
-    return d.instances.length !== before;
+    return d.presets.length !== before;
   }
 };
+
+export const PresetsStore = presetStore;
+export const InstancesStore = presetStore;

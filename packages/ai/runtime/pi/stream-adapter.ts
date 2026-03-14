@@ -1,0 +1,127 @@
+import type { ChatMessage, StreamEvent } from '../../types';
+
+type UnknownPiEvent = {
+  type?: string;
+  data?: Record<string, any>;
+  [key: string]: any;
+};
+
+type LegacyStreamEmitter = {
+  connected: () => void;
+  delta: (text: string) => void;
+  metadata: (data: Record<string, any>) => void;
+  toolCall: (name: string, args: any, callId: string) => void;
+  toolResult: (callId: string, result: any) => void;
+  complete: (message: ChatMessage) => void;
+  error: (error: { message: string; code?: string; cause?: any }) => void;
+  done: () => void;
+};
+
+export function createLegacyStreamEmitter(emit: (event: StreamEvent) => void): LegacyStreamEmitter {
+  return {
+    connected() {
+      emit({ type: 'connected' });
+    },
+    delta(text: string) {
+      emit({ type: 'delta', data: { text } });
+    },
+    metadata(data: Record<string, any>) {
+      emit({ type: 'metadata', data });
+    },
+    toolCall(name: string, args: any, callId: string) {
+      emit({ type: 'tool_call', data: { args, callId, name } });
+    },
+    toolResult(callId: string, result: any) {
+      emit({ type: 'tool_result', data: { callId, result } });
+    },
+    complete(message: ChatMessage) {
+      emit({ type: 'message_completed', data: { message } });
+    },
+    error(error: { message: string; code?: string; cause?: any }) {
+      emit({ type: 'error', data: error });
+    },
+    done() {
+      emit({ type: 'done' });
+    }
+  };
+}
+
+export function createLegacyAssistantMessage(content: string, metadata?: Record<string, any>): ChatMessage {
+  return {
+    content,
+    createdAt: Date.now(),
+    metadata,
+    role: 'assistant'
+  };
+}
+
+export function normalizePiError(error: unknown): { message: string; code?: string; cause?: any } {
+  if (error instanceof Error) {
+    return {
+      cause: error,
+      message: error.message
+    };
+  }
+
+  if (typeof error === 'string') {
+    return { message: error };
+  }
+
+  return {
+    cause: error,
+    message: 'Pi runtime execution failed'
+  };
+}
+
+export function coercePiEventToLegacy(event: UnknownPiEvent): StreamEvent | undefined {
+  const eventType = String(event.type || '').toLowerCase();
+  const data = event.data || {};
+
+  if (!eventType) return undefined;
+
+  if (eventType === 'connected') return { type: 'connected' };
+  if (eventType === 'delta' || eventType === 'text-delta' || eventType === 'message.delta') {
+    return { type: 'delta', data: { text: String(data.text || event.text || '') } };
+  }
+  if (eventType === 'tool-call' || eventType === 'tool_call') {
+    return {
+      type: 'tool_call',
+      data: {
+        args: data.args,
+        callId: String(data.callId || data.id || ''),
+        name: String(data.name || '')
+      }
+    };
+  }
+  if (eventType === 'tool-result' || eventType === 'tool_result') {
+    return {
+      type: 'tool_result',
+      data: {
+        callId: String(data.callId || data.id || ''),
+        result: data.result
+      }
+    };
+  }
+  if (eventType === 'message.completed' || eventType === 'message_completed' || eventType === 'completed') {
+    return {
+      type: 'message_completed',
+      data: {
+        message: createLegacyAssistantMessage(String(data.text || data.content || ''), data.metadata)
+      }
+    };
+  }
+  if (eventType === 'metadata') {
+    return { type: 'metadata', data };
+  }
+  if (eventType === 'error') {
+    return {
+      type: 'error',
+      data: normalizePiError(data.error || event.error || data.message || event.message)
+    };
+  }
+  if (eventType === 'done') {
+    return { type: 'done' };
+  }
+
+  return undefined;
+}

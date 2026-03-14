@@ -1,5 +1,6 @@
-import { createTool } from '@mastra/core';
 import { z } from 'zod';
+
+import { createTool } from './tool-definition';
 
 /**
  * YouTube 频道订阅工具

@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import ServicePresetSelect from '@/pages/ChatPage/components/ServicePresetSelect';
 
 import { useResourceTabContext } from './ResourceTabContext';
 
@@ -73,7 +74,7 @@ const loadPreferences = (): Record<string, any> | null => {
   return null;
 };
 
-const savePreferences = (preferences: { selectedProviderId?: string; selectedModel?: string; targetLanguage?: string }): void => {
+const savePreferences = (preferences: { selectedProviderId?: string; selectedPresetId?: string; selectedModel?: string; targetLanguage?: string }): void => {
   try {
     const existing = loadPreferences() || {};
     const updated = { ...existing, ...preferences };
@@ -96,6 +97,7 @@ const TranslateTab: React.FC = () => {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
 
   const [selectedProviderId, setSelectedProviderId] = useState<string>(savedPreferences?.selectedProviderId || '');
+  const [selectedPresetId, setSelectedPresetId] = useState<string>(savedPreferences?.selectedPresetId || '');
   const [selectedModel, setSelectedModel] = useState<string>(savedPreferences?.selectedModel || '');
   const [providerConfigured, setProviderConfigured] = useState<boolean>(false);
   const [targetLanguage, setTargetLanguage] = useState<string>(savedPreferences?.targetLanguage || 'zh');
@@ -108,25 +110,34 @@ const TranslateTab: React.FC = () => {
 
   // 优先使用 activeSubtitle，如果没有则使用 resource
   const targetResource = activeSubtitle || resource;
+  const targetResourceId = targetResource?.id;
 
   // 加载所有翻译历史（不筛选）
-  const loadTranslations = async () => {
-    if (!targetResource?.id) return;
+  const loadTranslations = useCallback(async (): Promise<void> => {
+    if (!targetResourceId) return;
 
     setLoading(true);
     try {
-      const result = await window.YUA.ai.getAllTranslationHistory(targetResource.id);
+      const result = await window.YUA.ai.getAllTranslationHistory(targetResourceId);
       setTranslations(result || []);
     } catch (error) {
       console.error('加载翻译历史失败:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [targetResourceId]);
 
   useEffect(() => {
-    loadTranslations();
-  }, [targetResource?.id]);
+    if (!targetResourceId) return;
+
+    const timer = window.setTimeout(() => {
+      void loadTranslations();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [loadTranslations, targetResourceId]);
 
   // 监听翻译事件
   useEffect(() => {
@@ -151,7 +162,7 @@ const TranslateTab: React.FC = () => {
             setIsTranslating(false);
             setCurrentRequestId(null);
             // 翻译完成后重新加载历史
-            loadTranslations();
+            void loadTranslations();
           }
 
           if (type === 'error') {
@@ -175,14 +186,14 @@ const TranslateTab: React.FC = () => {
     return () => {
       window.ipcRenderer?.off('renderer-message', handler as any);
     };
-  }, []);
+  }, [loadTranslations]);
 
   const handleProviderConfigChange = useCallback((id: string, configured: boolean) => {
     setProviderConfigured(configured);
   }, []);
 
-  const handleOpenConfig = useCallback(async (providerId: string, fields: string[]) => {
-    await window.YUA.window['window:open']('aiProviderConfig' as any, { providerId, fields }, { sameDisplayAsSender: true });
+  const handleOpenConfig = useCallback(async (providerId: string, fields: string[], presetId?: string) => {
+    await window.YUA.window['window:open']('aiProviderConfig' as any, { providerId, presetId, fields }, { sameDisplayAsSender: true });
   }, []);
 
   const handleTranslate = useCallback(async () => {
@@ -230,6 +241,7 @@ const TranslateTab: React.FC = () => {
 
       const { requestId } = await window.YUA.ai.translate({
         providerId: selectedProviderId,
+        providerInstanceId: selectedPresetId || undefined,
         model: selectedModel,
         segments: segmentsData,
         targetLanguage,
@@ -245,7 +257,17 @@ const TranslateTab: React.FC = () => {
       setIsTranslating(false);
       setTranslationProgress(0);
     }
-  }, [selectedProviderId, selectedModel, targetLanguage, targetResource]);
+  }, [selectedPresetId, selectedProviderId, selectedModel, targetLanguage, targetResource]);
+
+  const handleProviderModelChange = useCallback((providerId: string, modelId: string) => {
+    setSelectedProviderId((prevProviderId) => {
+      if (prevProviderId && prevProviderId !== providerId) {
+        setSelectedPresetId('');
+      }
+      return providerId;
+    });
+    setSelectedModel(modelId);
+  }, []);
 
   const handleStopTranslation = useCallback(async () => {
     if (currentRequestId) {
@@ -259,10 +281,11 @@ const TranslateTab: React.FC = () => {
   useEffect(() => {
     savePreferences({
       selectedProviderId,
+      selectedPresetId,
       selectedModel,
       targetLanguage
     });
-  }, [selectedProviderId, selectedModel, targetLanguage]);
+  }, [selectedPresetId, selectedProviderId, selectedModel, targetLanguage]);
 
   if (loading) {
     return <div className="h-full flex items-center justify-center text-muted-foreground text-sm">加载翻译数据中...</div>;
@@ -298,15 +321,29 @@ const TranslateTab: React.FC = () => {
           <PopoverContent align="center" className="w-80">
             <div className="space-y-4">
               <div className="space-y-2">
+                <Label className="text-sm font-medium">模型预设</Label>
+                <ServicePresetSelect
+                  providerId={selectedProviderId}
+                  presetId={selectedPresetId}
+                  onChange={(providerId, presetId) => {
+                    setSelectedProviderId(providerId);
+                    setSelectedPresetId(presetId);
+                  }}
+                  buttonVariant="outline"
+                  buttonSize="default"
+                  className="w-full justify-between"
+                  placeholder="选择服务商 · 预设"
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label className="text-sm font-medium">翻译模型</Label>
                 <ProviderModelSelect
                   ref={providerSelectRef}
                   providerId={selectedProviderId}
+                  presetId={selectedPresetId}
                   modelId={selectedModel}
-                  onChange={(providerId, modelId) => {
-                    setSelectedProviderId(providerId);
-                    setSelectedModel(modelId);
-                  }}
+                  onChange={handleProviderModelChange}
                   placeholder="选择模型"
                   buttonVariant="outline"
                   buttonSize="default"
@@ -388,15 +425,29 @@ const TranslateTab: React.FC = () => {
                 <PopoverContent align="end" className="w-80">
                   <div className="space-y-4">
                     <div className="space-y-2">
+                      <Label className="text-sm font-medium">模型预设</Label>
+                      <ServicePresetSelect
+                        providerId={selectedProviderId}
+                        presetId={selectedPresetId}
+                        onChange={(providerId, presetId) => {
+                          setSelectedProviderId(providerId);
+                          setSelectedPresetId(presetId);
+                        }}
+                        buttonVariant="outline"
+                        buttonSize="default"
+                        className="w-full justify-between"
+                        placeholder="选择服务商 · 预设"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
                       <Label className="text-sm font-medium">翻译模型</Label>
                       <ProviderModelSelect
                         ref={providerSelectRef}
                         providerId={selectedProviderId}
+                        presetId={selectedPresetId}
                         modelId={selectedModel}
-                        onChange={(providerId, modelId) => {
-                          setSelectedProviderId(providerId);
-                          setSelectedModel(modelId);
-                        }}
+                        onChange={handleProviderModelChange}
                         placeholder="选择模型"
                         buttonVariant="outline"
                         buttonSize="default"

@@ -1,5 +1,5 @@
 import { readFile, writeFile } from '@aim-packages/file-utils';
-import { type AimSegments, parser, tools } from '@aim-packages/subtitle';
+import { type AimSegments, parser } from '@aim-packages/subtitle';
 import { randomUUID } from 'crypto';
 import { BrowserWindow } from 'electron';
 import * as fs from 'fs/promises';
@@ -7,13 +7,11 @@ import * as path from 'path';
 
 import { ResourcesRepo, WorkspacesRepo } from '../common/db';
 import { sendAppBusyEnd, sendAppBusyProgress, sendAppBusyStart } from '../event';
-import { getAgent } from './agents';
-import { ChatService } from './chat-service';
-import { createModel } from './models/index';
+import { PiSessionService } from './runtime/pi/session-service';
+import { createPiTaskChatRuntimeFromRequest, type PiTaskChatFunction as ChatFunction } from './runtime/pi/task-chat';
 import { MindmapService } from './services/mindmap-service';
 import { SummaryService } from './services/summary-service';
 import { TranslationService } from './services/translation-service';
-import { getAllSecrets, getFirstApiKey } from './settings-store';
 
 // ==================== 项目文件夹常量 ====================
 
@@ -95,7 +93,7 @@ async function readProjectMeta(resourceId: string, workspaceId: string): Promise
     const metaPath = path.join(projectPath, PROJECT_META_FILE);
     const content = await fs.readFile(metaPath, 'utf-8');
     return JSON.parse(content) as ProjectMeta;
-  } catch (error) {
+  } catch {
     return null;
   }
 }
@@ -643,12 +641,18 @@ export async function loadContentFromResource(resourceId: string): Promise<strin
 
 export type TranslatePayload = {
   providerId: string;
+  providerInstanceId?: string;
   model: string;
   segments?: Array<AimSegments>;
   resourceId?: string;
   targetLanguage: string;
+  sourceLanguage?: string;
   languageNames: Record<string, string>;
   metadata?: Record<string, any>;
+  requestId?: string;
+  taskLabel?: string;
+  chatFn?: ChatFunction;
+  abortSignal?: AbortSignal;
   options?: {
     maxConcurrency?: number;
     chunkSize?: number;
@@ -661,12 +665,17 @@ export type TranslatePayload = {
 
 export type SummarizePayload = {
   providerId: string;
+  providerInstanceId?: string;
   model: string;
   content?: string;
   segments?: any[];
   resourceId?: string;
   targetLanguage: string;
   languageNames: Record<string, string>;
+  requestId?: string;
+  taskLabel?: string;
+  chatFn?: ChatFunction;
+  abortSignal?: AbortSignal;
   options?: {
     maxChars?: number;
     extractKeyPoints?: boolean;
@@ -677,75 +686,51 @@ export type SummarizePayload = {
   metadata?: Record<string, any>;
 };
 
-/**
- * 设置模型实例和Agent
- */
-export interface ModelSetupResult {
-  modelInstance: any;
-  agent: any;
-}
+export type MindmapPayload = {
+  providerId: string;
+  providerInstanceId?: string;
+  model: string;
+  content?: string;
+  segments?: any[];
+  resourceId?: string;
+  targetLanguage: string;
+  languageNames?: Record<string, string>;
+  options?: any;
+  metadata?: any;
+  requestId?: string;
+  taskLabel?: string;
+  chatFn?: ChatFunction;
+  abortSignal?: AbortSignal;
+};
 
-export async function setupModelAndAgent(providerId: string, model: string, agentId: string = 'chat'): Promise<ModelSetupResult> {
-  const chatService = new ChatService();
-
-  // 获取 provider 配置
-  const providerConfig = chatService.getProviderConfig(providerId);
-  if (!providerConfig) {
-    throw new Error(`Provider ${providerId} not found`);
-  }
-
-  // 获取 secrets
-  const fields = providerConfig.fields as Array<{ key: string; required?: boolean }>;
-  const keys = fields.map((f: any) => f.key);
-  const secrets = await getAllSecrets(providerId, keys);
-  const apiKey = getFirstApiKey(secrets.apiKey);
-
-  if (!apiKey && fields.some((f: any) => f.key === 'apiKey' && f.required)) {
-    throw new Error(`Provider ${providerId} 未配置 API Key`);
-  }
-
-  // 创建模型实例
-  const modelConfig = {
-    apiKey: apiKey || '',
-    baseUrl: secrets.baseUrl as string,
-    model: model || providerConfig.defaultModel
-  };
-  const modelInstance = createModel(providerId, modelConfig);
-
-  // 获取 Agent 实例
-  const agent = getAgent(agentId);
-  if (!agent) {
-    throw new Error(`Agent ${agentId} not found`);
-  }
-
-  // 配置 Agent 使用当前模型
-  agent.model = modelInstance;
-
-  return { modelInstance, agent };
-}
-
-/**
- * 创建通用的聊天函数
- */
-export type ChatFunction = (prompt: string, onEvent: (event: any) => void, abortSignal?: AbortSignal) => Promise<void>;
-
-export function createChatFunction(agent: any): ChatFunction {
-  return async (prompt: string, onEvent: (event: any) => void, abortSignal?: AbortSignal): Promise<void> => {
-    try {
-      const stream = await agent.stream(prompt, {
-        maxSteps: 10,
-        abortSignal
-      });
-
-      for await (const chunk of stream.textStream) {
-        if (abortSignal?.aborted) break;
-        onEvent({ type: 'delta', data: { text: chunk } });
-      }
-
-      onEvent({ type: 'message_completed' });
-    } catch (error: any) {
-      onEvent({ type: 'error', data: { message: error?.message || '处理失败' } });
+async function createPreferredTaskChatRuntime(params: {
+  providerId: string;
+  providerInstanceId?: string;
+  model: string;
+  agentId?: string;
+}): Promise<{ chatFn: ChatFunction; modelId: string; runtime: 'pi' }> {
+  const piAvailability = new PiSessionService().getAvailability({
+    extras: {
+      model: params.model,
+      runtime: 'pi'
     }
+  });
+
+  if (!piAvailability.available) {
+    throw new Error(piAvailability.reason || 'Pi task runtime unavailable');
+  }
+
+  const runtime = await createPiTaskChatRuntimeFromRequest({
+    agentId: params.agentId || 'chat',
+    model: params.model,
+    providerId: params.providerId,
+    providerInstanceId: params.providerInstanceId
+  });
+
+  return {
+    chatFn: runtime.chatFn,
+    modelId: runtime.modelId,
+    runtime: 'pi'
   };
 }
 
@@ -1045,7 +1030,7 @@ export async function updateTranslationSegment(opts: {
       targetLanguage?: string;
       startedAt?: number;
       updatedAt?: number;
-      translatedSegments: Array<{ index: number; text: string; st?: string; et?: string;[key: string]: unknown }>;
+      translatedSegments: Array<{ index: number; text: string; st?: string; et?: string; [key: string]: unknown }>;
     };
     if (!Array.isArray(payload.translatedSegments)) {
       return { success: false, message: 'translatedSegments 格式无效' };
@@ -1110,7 +1095,7 @@ export async function insertTranslationSegment(opts: {
     const payload = JSON.parse(content) as {
       version?: number;
       resourceId?: string;
-      translatedSegments: Array<{ index: number; text: string; st?: string; et?: string;[key: string]: unknown }>;
+      translatedSegments: Array<{ index: number; text: string; st?: string; et?: string; [key: string]: unknown }>;
       updatedAt?: number;
     };
     if (!Array.isArray(payload.translatedSegments)) {
@@ -1172,7 +1157,7 @@ export async function deleteTranslationSegment(opts: { subtitleResourceId: strin
 
     const content = await readFile(filePath, 'utf8');
     const payload = JSON.parse(content) as {
-      translatedSegments: Array<{ index: number; text: string; st?: string; et?: string;[key: string]: unknown }>;
+      translatedSegments: Array<{ index: number; text: string; st?: string; et?: string; [key: string]: unknown }>;
       updatedAt?: number;
     };
     if (!Array.isArray(payload.translatedSegments)) {
@@ -1204,10 +1189,24 @@ export async function deleteTranslationSegment(opts: { subtitleResourceId: strin
  * @returns 返回 requestId 和 eventsChannel
  */
 export async function executeSubtitleTranslation(payload: TranslatePayload): Promise<{ requestId: string; eventsChannel: string }> {
-  const { providerId, model, segments, resourceId, targetLanguage, languageNames, metadata, options } = payload;
-  const requestId = randomUUID();
+  const {
+    abortSignal,
+    chatFn: injectedChatFn,
+    model,
+    providerId,
+    providerInstanceId,
+    requestId: incomingRequestId,
+    resourceId,
+    segments,
+    sourceLanguage,
+    targetLanguage,
+    languageNames,
+    metadata,
+    options,
+    taskLabel: incomingTaskLabel
+  } = payload;
+  const requestId = incomingRequestId || randomUUID();
   const eventsChannel = `subtitle:translate:${requestId}`;
-  const taskLabel = `${providerId}/${model}`;
   const startTimestamp = Date.now(); // 记录翻译任务开始时间戳
 
   // 步骤1: 读取文件，加载字幕片段
@@ -1251,11 +1250,20 @@ export async function executeSubtitleTranslation(payload: TranslatePayload): Pro
     }
   }
 
-  // 步骤2: 设置模型和Agent
-  const { agent } = await setupModelAndAgent(providerId, model, 'chat');
-
-  // 步骤3: 创建聊天函数
-  const chatFn = createChatFunction(agent);
+  // 步骤2: 创建聊天函数
+  let effectiveChatFn = injectedChatFn;
+  let effectiveModel = model;
+  if (!effectiveChatFn) {
+    const runtime = await createPreferredTaskChatRuntime({
+      agentId: 'translator',
+      model,
+      providerId,
+      providerInstanceId
+    });
+    effectiveChatFn = runtime.chatFn;
+    effectiveModel = runtime.modelId;
+  }
+  const taskLabel = incomingTaskLabel || `${providerId}/${effectiveModel}`;
 
   // 步骤4: 创建事件发射器，处理翻译回调
   const accumulatedTranslations: Array<{ index: number; text: string }> = [];
@@ -1304,7 +1312,7 @@ export async function executeSubtitleTranslation(payload: TranslatePayload): Pro
             sourceResourceId: effectiveResourceId,
             targetLanguage,
             providerId,
-            model,
+            model: effectiveModel,
             startTimestamp
           });
         }
@@ -1320,7 +1328,7 @@ export async function executeSubtitleTranslation(payload: TranslatePayload): Pro
           sourceResourceId: effectiveResourceId,
           targetLanguage,
           providerId,
-          model,
+          model: effectiveModel,
           startTimestamp
         });
       }
@@ -1331,15 +1339,17 @@ export async function executeSubtitleTranslation(payload: TranslatePayload): Pro
   TranslationService.translateSubtitles(
     {
       requestId,
-      chatFn,
+      chatFn: effectiveChatFn,
       taskLabel,
       segments: actualSegments,
+      sourceLanguage,
       targetLanguage,
       languageNames,
       metadata,
       options
     },
-    emit
+    emit,
+    abortSignal
   ).catch((err: any) => {
     console.error('翻译失败:', err);
     const resourceId = metadata?.resourceId;
@@ -1359,10 +1369,28 @@ export async function executeSubtitleTranslation(payload: TranslatePayload): Pro
  * @returns 返回 requestId 和 eventsChannel
  */
 export async function executeSummarize(payload: SummarizePayload): Promise<{ requestId: string; eventsChannel: string }> {
-  const { providerId, model, content, segments, resourceId, targetLanguage, languageNames, options, metadata = {} } = payload;
-  const requestId = randomUUID();
+  const {
+    abortSignal,
+    chatFn: injectedChatFn,
+    content,
+    languageNames,
+    metadata = {},
+    model,
+    options,
+    providerId,
+    providerInstanceId,
+    requestId: incomingRequestId,
+    resourceId,
+    segments,
+    targetLanguage,
+    taskLabel: incomingTaskLabel
+  } = payload;
+  const requestId = incomingRequestId || randomUUID();
   const eventsChannel = `summary:${requestId}`;
-  const taskLabel = `${providerId}/${model}`;
+
+  if (abortSignal?.aborted) {
+    throw new Error('Aborted');
+  }
 
   // 步骤1: 读取内容
   let actualContent: string | any[] = content as string | any[];
@@ -1385,11 +1413,20 @@ export async function executeSummarize(payload: SummarizePayload): Promise<{ req
     throw new Error('No content provided and unable to load content from resourceId');
   }
 
-  // 步骤2: 设置模型和Agent
-  const { agent } = await setupModelAndAgent(providerId, model, 'chat');
-
-  // 步骤3: 创建聊天函数
-  const chatFn = createChatFunction(agent);
+  // 步骤2: 创建聊天函数
+  let effectiveChatFn = injectedChatFn;
+  let effectiveModel = model;
+  if (!effectiveChatFn) {
+    const runtime = await createPreferredTaskChatRuntime({
+      agentId: 'assistant',
+      model,
+      providerId,
+      providerInstanceId
+    });
+    effectiveChatFn = runtime.chatFn;
+    effectiveModel = runtime.modelId;
+  }
+  const taskLabel = incomingTaskLabel || `${providerId}/${effectiveModel}`;
 
   // 步骤4: 创建事件发射器
   const startTimestamp = Date.now();
@@ -1410,7 +1447,7 @@ export async function executeSummarize(payload: SummarizePayload): Promise<{ req
           summaryData: data,
           targetLanguage,
           providerId,
-          model,
+          model: effectiveModel,
           startTimestamp
         });
       }
@@ -1418,9 +1455,19 @@ export async function executeSummarize(payload: SummarizePayload): Promise<{ req
   });
 
   // 步骤5: 异步处理总结
+  if (abortSignal) {
+    abortSignal.addEventListener(
+      'abort',
+      () => {
+        SummaryService.cancelSummary(requestId);
+      },
+      { once: true }
+    );
+  }
+
   SummaryService.summarize(emit, {
     requestId,
-    chatFn,
+    chatFn: effectiveChatFn,
     taskLabel,
     content: actualContent,
     targetLanguage,
@@ -1444,22 +1491,30 @@ export async function executeSummarize(payload: SummarizePayload): Promise<{ req
  * @param payload 脑图生成参数
  * @returns 返回 requestId 和 eventsChannel
  */
-export async function executeMindmap(payload: {
-  providerId: string;
-  model: string;
-  content?: string;
-  segments?: any[];
-  resourceId?: string;
-  targetLanguage: string;
-  languageNames?: Record<string, string>;
-  options?: any;
-  metadata?: any;
-}): Promise<{ requestId: string; eventsChannel: string }> {
-  const { providerId, model, content, segments, resourceId, targetLanguage, languageNames, options, metadata = {} } = payload;
-  const requestId = randomUUID();
+export async function executeMindmap(payload: MindmapPayload): Promise<{ requestId: string; eventsChannel: string }> {
+  const {
+    abortSignal,
+    chatFn: injectedChatFn,
+    providerId,
+    providerInstanceId,
+    model,
+    content,
+    segments,
+    resourceId,
+    targetLanguage,
+    languageNames,
+    options,
+    metadata = {},
+    requestId: incomingRequestId,
+    taskLabel: incomingTaskLabel
+  } = payload;
+  const requestId = incomingRequestId || randomUUID();
   const eventsChannel = `mindmap:${requestId}`;
-  const taskLabel = `${providerId}/${model}`;
   const startTimestamp = Date.now(); // 记录开始时间戳
+
+  if (abortSignal?.aborted) {
+    throw new Error('Aborted');
+  }
 
   // 步骤1: 读取内容
   let actualContent: string | any[] = content as string | any[];
@@ -1484,13 +1539,22 @@ export async function executeMindmap(payload: {
     throw new Error('No content provided and unable to load content from resourceId');
   }
 
-  // 步骤2: 设置模型和Agent
-  const { agent } = await setupModelAndAgent(providerId, model, 'chat');
+  // 步骤2: 创建聊天函数
+  let effectiveChatFn = injectedChatFn;
+  let effectiveModel = model;
+  if (!effectiveChatFn) {
+    const runtime = await createPreferredTaskChatRuntime({
+      agentId: 'assistant',
+      model,
+      providerId,
+      providerInstanceId
+    });
+    effectiveChatFn = runtime.chatFn;
+    effectiveModel = runtime.modelId;
+  }
+  const taskLabel = incomingTaskLabel || `${providerId}/${effectiveModel}`;
 
-  // 步骤3: 创建聊天函数
-  const chatFn = createChatFunction(agent);
-
-  // 步骤4: 创建事件发射器
+  // 步骤3: 创建事件发射器
   const emit = createEventEmitter({
     requestId,
     eventType: 'mindmap',
@@ -1506,24 +1570,28 @@ export async function executeMindmap(payload: {
           markdown: data.markdown,
           targetLanguage,
           providerId,
-          model,
+          model: effectiveModel,
           startTimestamp
         });
       }
     }
   });
 
-  // 步骤5: 异步处理脑图生成
-  MindmapService.generateMindmap(emit as any, {
-    requestId,
-    chatFn: chatFn as any,
-    taskLabel,
-    content: actualContent,
-    targetLanguage,
-    languageNames,
-    metadata,
-    options
-  }).catch((err: any) => {
+  // 步骤4: 异步处理脑图生成
+  MindmapService.generateMindmap(
+    emit as any,
+    {
+      requestId,
+      chatFn: effectiveChatFn as any,
+      taskLabel,
+      content: actualContent,
+      targetLanguage,
+      languageNames,
+      metadata,
+      options
+    },
+    abortSignal
+  ).catch((err: any) => {
     console.error('生成脑图失败:', err);
     if (err.message === 'Aborted') {
       emit({ type: 'done' });

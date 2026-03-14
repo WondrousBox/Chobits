@@ -1,33 +1,18 @@
 /**
  * 翻译工具
  *
- * 将翻译服务封装成 Mastra Tool，通过上下文注入外部依赖
+ * 将翻译任务封装成统一工具定义，并通过显式 runtime 绑定注入 provider/model 语义
  */
 
-import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 
 import { executeSubtitleTranslation } from '../ipc-handler-helpers';
-import type { TranslationService as TranslationServiceType } from '../services/translation-service';
-import { getTranslationServiceParams, translationToolContext } from './translation-tool-context';
+import { createTool } from './tool-definition';
 
-/**
- * 翻译工具上下文接口
- * 定义需要从外部注入的依赖
- */
-export interface TranslationToolContext {
-  /** 翻译服务实例 */
-  translationService: typeof TranslationServiceType;
-  /** Chat 函数（用于实际的 AI 调用） */
-  chatFn: (prompt: string, onEvent: (event: any) => void, abortSignal?: AbortSignal) => Promise<void>;
-  /** 请求 ID（用于追踪） */
-  requestId: string;
-  /** 任务标签（用于显示，如 'openai/gpt-4'） */
-  taskLabel?: string;
-  /** 元数据（可选，用于传递额外信息如 resourceId） */
-  metadata?: Record<string, any>;
-  /** 中止信号（可选） */
-  abortSignal?: AbortSignal;
+export interface TranslationToolRuntimeBinding {
+  providerId: string;
+  providerInstanceId?: string;
+  model: string;
 }
 
 /**
@@ -66,10 +51,9 @@ const translationOutputSchema = z.object({
 /**
  * 创建翻译工具
  *
- * @param boundTranslationService - 翻译服务实例（可选，如不传入则需要在 toolContext 中提供）
- * @param boundChatFn - Chat 函数（可选）
+ * @param bindings - 显式 runtime 绑定，指定 provider / instance / model
  */
-export const createTranslationTool = (boundTranslationService?: typeof TranslationServiceType): ReturnType<typeof createTool> =>
+export const createTranslationTool = (bindings?: { runtime?: TranslationToolRuntimeBinding }): ReturnType<typeof createTool> =>
   createTool({
     id: 'translate-subtitle',
     description: '翻译字幕文件。自动加载字幕内容并翻译到指定语言。',
@@ -79,34 +63,28 @@ export const createTranslationTool = (boundTranslationService?: typeof Translati
     execute: async ({ context }) => {
       const { resourceId, targetLanguage, sourceLanguage, languageNames = {}, options = {} } = context;
 
-      // 尝试从上下文管理器获取执行上下文
-      const executionContext = translationToolContext.getContext();
+      const executionContext = bindings?.runtime;
 
-      // 如果没有上下文，返回错误
       if (!executionContext) {
         return {
           success: false,
-          error: '翻译工具需要在正确的执行上下文中调用。请确保通过 Agent 聊天调用此工具。'
+          error: '翻译工具缺少 runtime 绑定。请使用 createTranslationTool({ runtime: { providerId, model, providerInstanceId? } }) 创建工具。'
         };
       }
 
       try {
-        // 构建翻译参数
-        const params = getTranslationServiceParams({
+        const params = {
           resourceId,
           targetLanguage,
+          segments: undefined,
           sourceLanguage,
           languageNames,
           options,
-          metadata: { resourceId }
-        });
-
-        if (!params) {
-          return {
-            success: false,
-            error: '无法获取翻译参数'
-          };
-        }
+          metadata: { resourceId },
+          providerId: executionContext.providerId,
+          providerInstanceId: executionContext.providerInstanceId,
+          model: executionContext.model
+        };
 
         // 调用翻译任务（不等待结果）
         executeSubtitleTranslation(params).catch((error) => {
@@ -125,8 +103,3 @@ export const createTranslationTool = (boundTranslationService?: typeof Translati
       }
     }
   });
-
-/**
- * 默认翻译工具实例
- */
-export const translationTool = createTranslationTool();

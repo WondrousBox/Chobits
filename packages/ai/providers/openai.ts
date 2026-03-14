@@ -1,19 +1,58 @@
-import OpenAI from 'openai';
-
-import { loadProviderModelsFromBank } from '../models-loader';
 import { loadProviderSchema } from '../schema-loader';
-import { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, ProviderAdapter, ProviderConfig, ProviderSecrets, StreamEvent } from '../types';
+import {
+  ChatRequest,
+  ChatResponse,
+  EmbeddingRequest,
+  EmbeddingResponse,
+  ProviderAdapter,
+  ProviderCapabilities,
+  ProviderConfig,
+  ProviderDefaultModels,
+  ProviderSecrets,
+  StreamEvent,
+  TranscribeOptions
+} from '../types';
+import { getBuiltinProviderMetadata } from './metadata';
+import { createOpenAIClient, executeOpenAIChat, executeOpenAIEmbedding, executeOpenAITranscription, listOpenAIModels, type OpenAIRuntimeSecrets } from './openai-runtime';
 
-type OpenAISecrets = { apiKey?: string; baseUrl?: string; organization?: string; model?: string };
+type OpenAISecrets = OpenAIRuntimeSecrets;
 
 export class OpenAIProvider implements ProviderAdapter {
+  private readonly metadata = getBuiltinProviderMetadata('openai');
   readonly id = 'openai';
-  readonly label = 'OpenAI';
+  readonly label = this.metadata?.label || 'OpenAI';
   private secrets: OpenAISecrets = {};
+  private readonly defaultModel = this.metadata?.defaultModel || 'gpt-4o-mini';
+  private readonly defaultBaseUrl = this.metadata?.providerBaseUrl;
+  private readonly defaultTranscribeModel = this.metadata?.defaultModels.transcribe || 'gpt-4o-mini-transcribe';
 
   isConfigured(): boolean {
     return !!this.secrets.apiKey;
   }
+
+  getCapabilities(): ProviderCapabilities {
+    return {
+      ...(this.metadata?.capabilities || {
+        chat: true,
+        embeddings: true,
+        imageGeneration: true,
+        modelListing: true,
+        transcribe: true
+      })
+    };
+  }
+
+  getDefaultModels(): ProviderDefaultModels {
+    return {
+      ...(this.metadata?.defaultModels || {
+        chat: this.defaultModel,
+        embeddings: 'text-embedding-3-small',
+        imageGeneration: 'gpt-image-1',
+        transcribe: this.defaultTranscribeModel
+      })
+    };
+  }
+
   getConfigSchema(): ProviderConfig {
     const fallback: ProviderConfig = {
       id: this.id,
@@ -34,109 +73,65 @@ export class OpenAIProvider implements ProviderAdapter {
     return this.secrets;
   }
 
-  private client(override?: Partial<OpenAISecrets>): OpenAI {
-    const cfg: any = {};
-    const s = { ...this.secrets, ...(override || {}) };
-    if (s.apiKey) cfg.apiKey = s.apiKey;
-    if (s.baseUrl) cfg.baseURL = s.baseUrl;
-    if ((s as any).organization) cfg.organization = (s as any).organization;
-    return new OpenAI(cfg);
+  private resolveSecrets(override?: Partial<OpenAISecrets>): OpenAISecrets {
+    return {
+      ...(this.defaultBaseUrl ? { baseUrl: this.defaultBaseUrl } : {}),
+      ...this.secrets,
+      ...(override || {})
+    };
+  }
+
+  private client(override?: Partial<OpenAISecrets>): ReturnType<typeof createOpenAIClient> {
+    return createOpenAIClient(this.resolveSecrets(override));
   }
 
   async chat(req: ChatRequest, onStream?: (event: StreamEvent) => void, signal?: AbortSignal): Promise<ChatResponse> {
     const overrideSecrets = (req.extras as any)?.secrets as Partial<OpenAISecrets> | undefined;
-    const client = this.client(overrideSecrets);
-    const model = (req.extras?.model as string) || overrideSecrets?.model || this.secrets.model || 'gpt-4o-mini';
-    const messages = req.messages.map((m) => ({ role: m.role as any, content: m.content }));
-    const toolDefs = (req.extras as any)?.tools as Array<{ name: string; description: string; parameters: any }> | undefined;
-    const tools = toolDefs?.length ? toolDefs.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } })) : undefined;
-    if (req.stream && onStream) {
-      const stream = await client.chat.completions.create(
-        {
-          model,
-          messages,
-          temperature: req.temperature,
-          max_tokens: req.maxTokens as any,
-          tools,
-          tool_choice: tools?.length ? 'auto' : undefined,
-          stream: true
-        },
-        { signal }
-      );
-      let finalText = '';
-      const toolCalls = new Map<number, { id?: string; name?: string; args: string }>();
-      for await (const part of stream) {
-        const choice = part?.choices?.[0];
-        const delta = choice?.delta?.content;
-        if (delta) {
-          finalText += delta;
-          onStream({ type: 'delta', data: { text: delta } });
-        }
+    const resolvedSecrets = this.resolveSecrets(overrideSecrets);
 
-        const toolDelta = choice?.delta?.tool_calls;
-        if (Array.isArray(toolDelta)) {
-          for (const call of toolDelta) {
-            const index = (call as any)?.index ?? 0;
-            const current = toolCalls.get(index) || { id: undefined, name: undefined, args: '' };
-            if (call?.id) current.id = call.id;
-            if ((call as any)?.function?.name) current.name = (call as any).function.name;
-            if ((call as any)?.function?.arguments) current.args += (call as any).function.arguments;
-            toolCalls.set(index, current);
-          }
-        }
-      }
-
-      for (const entry of toolCalls.values()) {
-        if (!entry.name) continue;
-        let args: any = entry.args;
-        try {
-          args = entry.args ? JSON.parse(entry.args) : {};
-        } catch {
-          // keep raw string
-        }
-        onStream({ type: 'tool_call', data: { name: entry.name, args, callId: entry.id || '' } });
-      }
-
-      onStream({ type: 'message_completed', data: { message: { role: 'assistant', content: finalText, createdAt: Date.now() } } });
-      return { message: { role: 'assistant', content: finalText, createdAt: Date.now() }, providerId: this.id };
-    }
-    const resp = await client.chat.completions.create(
+    return executeOpenAIChat(
       {
-        model,
-        messages,
-        temperature: req.temperature,
-        max_tokens: req.maxTokens as any,
-        tools,
-        tool_choice: tools?.length ? 'auto' : undefined
+        client: this.client(overrideSecrets),
+        request: req,
+        providerId: this.id,
+        defaultModel: this.defaultModel,
+        configuredModel: resolvedSecrets.model
       },
-      { signal }
+      onStream,
+      signal
     );
-    const text = resp?.choices?.[0]?.message?.content || '';
-    return { message: { role: 'assistant', content: text, createdAt: Date.now() }, providerId: this.id };
   }
 
   async embed(req: EmbeddingRequest): Promise<EmbeddingResponse> {
-    const client = this.client((req as any)?.extras?.secrets);
-    const model = (req.model as string) || (req as any)?.extras?.secrets?.model || 'text-embedding-3-small';
-    const res = await client.embeddings.create({ model, input: req.texts });
-    const vectors = res.data.map((d: any) => d.embedding as number[]);
-    const dim = vectors[0]?.length || 0;
-    return { vectors, dim, model, providerId: this.id };
+    const overrideSecrets = (req as any)?.extras?.secrets as Partial<OpenAISecrets> | undefined;
+    const resolvedSecrets = this.resolveSecrets(overrideSecrets);
+
+    return executeOpenAIEmbedding({
+      client: this.client(overrideSecrets),
+      request: req,
+      providerId: this.id,
+      defaultModel: 'text-embedding-3-small',
+      configuredModel: resolvedSecrets.model
+    });
+  }
+
+  async transcribe(file: File | Blob | Buffer | ArrayBuffer, options?: TranscribeOptions): Promise<{ text: string }> {
+    return executeOpenAITranscription({
+      client: this.client(options?.secrets as Partial<OpenAISecrets> | undefined),
+      file,
+      options,
+      providerId: this.id,
+      defaultModel: this.defaultTranscribeModel
+    });
   }
 
   async listModels(opts?: { secrets?: Partial<OpenAISecrets> }): Promise<Array<{ id: string }>> {
-    // Prefer curated JSON if present; otherwise, try live API; finally fallback
-    const curated = await loadProviderModelsFromBank(this.id);
-    if (curated.length) return curated;
-    try {
-      const client = this.client(opts?.secrets);
-      const res: any = await client.models.list();
-      const data = Array.isArray(res?.data) ? res.data : [];
-      const items = data.map((m: any) => ({ id: m.id }));
-      if (items.length) return items;
-    } catch (error) {
-      console.error(error);
-    }
-    return [];
+    const resolvedSecrets = this.resolveSecrets(opts?.secrets);
+    return listOpenAIModels({
+      client: this.client(opts?.secrets),
+      providerId: this.id,
+      configuredModel: resolvedSecrets.model,
+      defaultModel: this.defaultModel
+    });
   }
 }

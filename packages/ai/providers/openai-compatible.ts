@@ -1,14 +1,13 @@
-import OpenAI from 'openai';
-
-import { loadProviderModelsFromBank } from '../models-loader';
 import { loadProviderSchema } from '../schema-loader';
-import { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, ProviderAdapter, ProviderConfig, ProviderSecrets, StreamEvent } from '../types';
+import { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, ProviderAdapter, ProviderCapabilities, ProviderConfig, ProviderDefaultModels, ProviderSecrets, StreamEvent } from '../types';
+import { getBuiltinProviderMetadata } from './metadata';
+import { createOpenAIClient, executeOpenAIChat, executeOpenAIEmbedding, listOpenAIModels, type OpenAIRuntimeSecrets } from './openai-runtime';
 
 export class OpenAICompatibleProvider implements ProviderAdapter {
   readonly id: string;
   readonly label: string;
   private defaults: { baseUrl?: string; model?: string };
-  private secrets: { apiKey?: string; baseUrl?: string; model?: string } = {};
+  private secrets: OpenAIRuntimeSecrets = {};
 
   constructor(opts: { id: string; label: string; baseUrl?: string; model?: string }) {
     this.id = opts.id;
@@ -19,6 +18,29 @@ export class OpenAICompatibleProvider implements ProviderAdapter {
   isConfigured(): boolean {
     return !!this.secrets.apiKey;
   }
+
+  getCapabilities(): ProviderCapabilities {
+    const metadata = getBuiltinProviderMetadata(this.id);
+    return {
+      ...(metadata?.capabilities || {
+        chat: true,
+        embeddings: Boolean(this.embed),
+        imageGeneration: false,
+        modelListing: true,
+        transcribe: Boolean((this as any).transcribe)
+      })
+    };
+  }
+
+  getDefaultModels(): ProviderDefaultModels {
+    const metadata = getBuiltinProviderMetadata(this.id);
+    return {
+      ...(metadata?.defaultModels || {
+        chat: this.defaults.model
+      })
+    };
+  }
+
   getConfigSchema(): ProviderConfig {
     const fallback: ProviderConfig = {
       id: this.id,
@@ -39,113 +61,55 @@ export class OpenAICompatibleProvider implements ProviderAdapter {
     return this.secrets;
   }
 
-  protected client(override?: { apiKey?: string; baseUrl?: string }): OpenAI {
-    const cfg: any = {};
-    const s = { ...this.secrets, ...(override || {}) };
-    if (s.apiKey) cfg.apiKey = s.apiKey;
-    if (s.baseUrl || this.defaults.baseUrl) cfg.baseURL = s.baseUrl || this.defaults.baseUrl;
-    return new OpenAI(cfg);
+  protected resolveSecrets(override?: Partial<OpenAIRuntimeSecrets>): OpenAIRuntimeSecrets {
+    return {
+      ...this.defaults,
+      ...(this.secrets || {}),
+      ...(override || {})
+    };
+  }
+
+  protected client(override?: Partial<OpenAIRuntimeSecrets>): ReturnType<typeof createOpenAIClient> {
+    return createOpenAIClient(this.resolveSecrets(override));
   }
 
   async chat(req: ChatRequest, onStream?: (event: StreamEvent) => void, signal?: AbortSignal): Promise<ChatResponse> {
-    const override = (req.extras as any)?.secrets as any;
-    console.log(req?.messages);
+    const overrideSecrets = (req.extras as any)?.secrets as Partial<OpenAIRuntimeSecrets> | undefined;
+    const resolvedSecrets = this.resolveSecrets(overrideSecrets);
 
-    const client = this.client(override);
-    const model = (req.extras?.model as string) || override?.model || this.secrets.model || this.defaults.model || 'gpt-3.5-turbo';
-    const messages = req.messages.map((m) => ({ role: m.role as any, content: m.content }));
-    const toolDefs = (req.extras as any)?.tools as Array<{ name: string; description: string; parameters: any }> | undefined;
-    const tools = toolDefs?.length ? toolDefs.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } })) : undefined;
-    if (req.stream && onStream) {
-      const stream = await client.chat.completions.create(
-        {
-          model,
-          messages,
-          temperature: req.temperature,
-          max_tokens: req.maxTokens as any,
-          tools,
-          tool_choice: tools?.length ? 'auto' : undefined,
-          stream: true
-        },
-        { signal }
-      );
-      let finalText = '';
-      const toolCalls = new Map<number, { id?: string; name?: string; args: string }>();
-      for await (const part of stream) {
-        const choice = part?.choices?.[0];
-        const delta = choice?.delta?.content;
-        if (delta) {
-          finalText += delta;
-          onStream({ type: 'delta', data: { text: delta } });
-        }
-
-        const toolDelta = choice?.delta?.tool_calls;
-        if (Array.isArray(toolDelta)) {
-          for (const call of toolDelta) {
-            const index = (call as any)?.index ?? 0;
-            const current = toolCalls.get(index) || { id: undefined, name: undefined, args: '' };
-            if (call?.id) current.id = call.id;
-            if ((call as any)?.function?.name) current.name = (call as any).function.name;
-            if ((call as any)?.function?.arguments) current.args += (call as any).function.arguments;
-            toolCalls.set(index, current);
-          }
-        }
-      }
-      for (const entry of toolCalls.values()) {
-        if (!entry.name) continue;
-        let args: any = entry.args;
-        try {
-          args = entry.args ? JSON.parse(entry.args) : {};
-        } catch {
-          // keep raw string
-        }
-        onStream({ type: 'tool_call', data: { name: entry.name, args, callId: entry.id || '' } });
-      }
-      onStream({ type: 'message_completed', data: { message: { role: 'assistant', content: finalText, createdAt: Date.now() } } });
-      console.log(finalText);
-
-      return { message: { role: 'assistant', content: finalText, createdAt: Date.now() }, providerId: this.id };
-    }
-    const resp = await client.chat.completions.create(
+    return executeOpenAIChat(
       {
-        model,
-        messages,
-        temperature: req.temperature,
-        max_tokens: req.maxTokens as any,
-        tools,
-        tool_choice: tools?.length ? 'auto' : undefined
+        client: this.client(overrideSecrets),
+        request: req,
+        providerId: this.id,
+        defaultModel: this.defaults.model || 'gpt-3.5-turbo',
+        configuredModel: resolvedSecrets.model
       },
-      { signal }
+      onStream,
+      signal
     );
-
-    const text = resp?.choices?.[0]?.message?.content || '';
-
-    return { message: { role: 'assistant', content: text, createdAt: Date.now() }, providerId: this.id };
   }
 
   async embed(req: EmbeddingRequest): Promise<EmbeddingResponse> {
-    const client = this.client((req as any)?.extras?.secrets);
-    const model = (req.model as string) || (req as any)?.extras?.secrets?.model || this.secrets.model || 'text-embedding-3-small';
-    const res = await client.embeddings.create({ model, input: req.texts });
-    const vectors = (res as any).data.map((d: any) => d.embedding as number[]);
-    const dim = vectors[0]?.length || 0;
-    return { vectors, dim, model, providerId: this.id };
+    const overrideSecrets = (req as any)?.extras?.secrets as Partial<OpenAIRuntimeSecrets> | undefined;
+    const resolvedSecrets = this.resolveSecrets(overrideSecrets);
+
+    return executeOpenAIEmbedding({
+      client: this.client(overrideSecrets),
+      request: req,
+      providerId: this.id,
+      defaultModel: 'text-embedding-3-small',
+      configuredModel: resolvedSecrets.model
+    });
   }
 
   async listModels(opts?: { secrets?: { apiKey?: string; baseUrl?: string; model?: string } }): Promise<Array<{ id: string }>> {
-    const curated = await loadProviderModelsFromBank(this.id);
-    console.log(curated, this.id);
-
-    if (curated.length) return curated;
-    try {
-      const client = this.client(opts?.secrets);
-      const res: any = await (client as any).models.list();
-      const data = Array.isArray(res?.data) ? res.data : [];
-      return data.map((m: any) => ({ id: m.id }));
-    } catch {
-      // Best-effort fallbacks: use configured/default model if present
-      const ids = [opts?.secrets?.model, this.secrets.model, this.defaults.model].filter(Boolean) as string[];
-      return Array.from(new Set(ids)).map((id) => ({ id }));
-    }
+    const resolvedSecrets = this.resolveSecrets(opts?.secrets);
+    return listOpenAIModels({
+      client: this.client(opts?.secrets),
+      providerId: this.id,
+      configuredModel: resolvedSecrets.model,
+      defaultModel: this.defaults.model
+    });
   }
 }

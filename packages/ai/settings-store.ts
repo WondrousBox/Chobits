@@ -6,6 +6,7 @@ import { app } from 'electron';
 import keytar from 'keytar';
 
 import { SERVICE, SERVICE_INST } from '../common/config';
+import { getProviderAliases, toCanonicalProviderId } from './runtime/pi/provider-alias';
 
 // 配置：是否启用 keytar（默认 false，使用本地文件存储）
 // 如果需要使用 keytar，将此值改为 true
@@ -62,16 +63,80 @@ function writeStorage(providers: Record<string, Record<string, any>>, instances:
   }
 }
 
+function listProviderStorageIds(providerId: string): string[] {
+  const normalizedProviderId = (providerId || '').trim().toLowerCase();
+  const canonicalProviderId = toCanonicalProviderId(normalizedProviderId);
+  const aliasIds = getProviderAliases(canonicalProviderId).map((id) => id.trim().toLowerCase());
+  const otherAliasIds = aliasIds.filter((id) => id && id !== normalizedProviderId && id !== canonicalProviderId);
+
+  return Array.from(new Set([...otherAliasIds, normalizedProviderId, canonicalProviderId].filter(Boolean)));
+}
+
+function readProviderRecord(storage: ReturnType<typeof readStorage>, providerId: string): Record<string, any> {
+  return listProviderStorageIds(providerId).reduce<Record<string, any>>((merged, storageId) => {
+    return {
+      ...merged,
+      ...(storage.providers[storageId] || {})
+    };
+  }, {});
+}
+
+function writeProviderRecord(storage: ReturnType<typeof readStorage>, providerId: string, record: Record<string, any>): void {
+  const canonicalProviderId = toCanonicalProviderId(providerId);
+
+  for (const storageId of listProviderStorageIds(providerId)) {
+    if (storageId !== canonicalProviderId) {
+      delete storage.providers[storageId];
+    }
+  }
+
+  if (Object.keys(record).length > 0) {
+    storage.providers[canonicalProviderId] = record;
+    return;
+  }
+
+  delete storage.providers[canonicalProviderId];
+}
+
+async function deleteProviderKeytarEntries(providerId: string, key?: string): Promise<void> {
+  if (!ENABLE_KEYTAR) return;
+
+  try {
+    const credentials = await keytar.findCredentials(SERVICE);
+    const storageIds = listProviderStorageIds(providerId);
+
+    for (const cred of credentials) {
+      const matched = storageIds.some((storageId) => {
+        const prefix = `${storageId}:`;
+        if (!cred.account.startsWith(prefix)) return false;
+        if (!key) return true;
+        return cred.account === `${storageId}:${key}`;
+      });
+
+      if (matched) {
+        await keytar.deletePassword(SERVICE, cred.account);
+      }
+    }
+  } catch {
+    // ignore keytar errors
+  }
+}
+
 export async function setSecret(providerId: string, key: string, value: string): Promise<void> {
   // 默认使用文件存储
   const storage = readStorage();
-  storage.providers[providerId] = { ...(storage.providers[providerId] || {}), [key]: value };
+  const nextRecord = {
+    ...readProviderRecord(storage, providerId),
+    [key]: value
+  };
+  writeProviderRecord(storage, providerId, nextRecord);
   writeStorage(storage.providers, storage.instances);
 
   // 如果启用了 keytar，也同步到 keytar
   if (ENABLE_KEYTAR) {
     try {
-      await keytar.setPassword(SERVICE, `${providerId}:${key}`, value);
+      await deleteProviderKeytarEntries(providerId, key);
+      await keytar.setPassword(SERVICE, `${toCanonicalProviderId(providerId)}:${key}`, value);
     } catch {
       // ignore keytar errors, file storage is primary
     }
@@ -81,17 +146,20 @@ export async function setSecret(providerId: string, key: string, value: string):
 export async function getSecret(providerId: string, key: string): Promise<string | undefined> {
   // 如果启用了 keytar，优先从 keytar 读取
   if (ENABLE_KEYTAR) {
-    try {
-      const v = await keytar.getPassword(SERVICE, `${providerId}:${key}`);
+    for (const storageId of [...listProviderStorageIds(providerId)].reverse()) {
+      let v: string | null = null;
+      try {
+        v = await keytar.getPassword(SERVICE, `${storageId}:${key}`);
+      } catch {
+        v = null;
+      }
       if (v != null) return v;
-    } catch {
-      // ignore keytar errors, fallback to file storage
     }
   }
 
   // 默认从文件存储读取
   const storage = readStorage();
-  return storage.providers[providerId]?.[key];
+  return readProviderRecord(storage, providerId)?.[key];
 }
 
 export async function getAllSecrets(providerId: string, keys: string[]): Promise<Record<string, string>> {
@@ -112,65 +180,46 @@ export async function setProviderSecrets(providerId: string, secrets: Record<str
 export async function deleteSecret(providerId: string, key: string): Promise<void> {
   // 从文件存储删除
   const storage = readStorage();
-  if (storage.providers[providerId]) {
-    delete storage.providers[providerId][key];
-    writeStorage(storage.providers, storage.instances);
-  }
+  const nextRecord = { ...readProviderRecord(storage, providerId) };
+  delete nextRecord[key];
+  writeProviderRecord(storage, providerId, nextRecord);
+  writeStorage(storage.providers, storage.instances);
 
   // 如果启用了 keytar，也从 keytar 删除
-  if (ENABLE_KEYTAR) {
-    try {
-      await keytar.deletePassword(SERVICE, `${providerId}:${key}`);
-    } catch {
-      // ignore keytar errors
-    }
-  }
+  await deleteProviderKeytarEntries(providerId, key);
 }
 
 export async function clearProviderSecrets(providerId: string): Promise<void> {
   // 从文件存储删除
   const storage = readStorage();
-  if (storage.providers[providerId]) {
-    delete storage.providers[providerId];
-    writeStorage(storage.providers, storage.instances);
-  }
+  writeProviderRecord(storage, providerId, {});
+  writeStorage(storage.providers, storage.instances);
 
   // 如果启用了 keytar，也从 keytar 删除
-  if (ENABLE_KEYTAR) {
-    try {
-      const credentials = await keytar.findCredentials(SERVICE);
-      for (const cred of credentials) {
-        if (cred.account.startsWith(`${providerId}:`)) {
-          await keytar.deletePassword(SERVICE, cred.account);
-        }
-      }
-    } catch {
-      // ignore keytar errors
-    }
-  }
+  await deleteProviderKeytarEntries(providerId);
 }
 
-export async function setInstanceSecret(instanceId: string, key: string, value: string): Promise<void> {
+export async function setPresetSecret(presetId: string, key: string, value: string): Promise<void> {
   // 默认使用文件存储
   const storage = readStorage();
-  storage.instances[instanceId] = { ...(storage.instances[instanceId] || {}), [key]: value };
+  storage.instances[presetId] = { ...(storage.instances[presetId] || {}), [key]: value };
   writeStorage(storage.providers, storage.instances);
 
   // 如果启用了 keytar，也同步到 keytar
   if (ENABLE_KEYTAR) {
     try {
-      await keytar.setPassword(SERVICE_INST, `${instanceId}:${key}`, value);
+      await keytar.setPassword(SERVICE_INST, `${presetId}:${key}`, value);
     } catch {
       // ignore keytar errors, file storage is primary
     }
   }
 }
 
-export async function getInstanceSecret(instanceId: string, key: string): Promise<string | undefined> {
+export async function getPresetSecret(presetId: string, key: string): Promise<string | undefined> {
   // 如果启用了 keytar，优先从 keytar 读取
   if (ENABLE_KEYTAR) {
     try {
-      const v = await keytar.getPassword(SERVICE_INST, `${instanceId}:${key}`);
+      const v = await keytar.getPassword(SERVICE_INST, `${presetId}:${key}`);
       if (v != null) return v;
     } catch {
       // ignore keytar errors, fallback to file storage
@@ -179,47 +228,47 @@ export async function getInstanceSecret(instanceId: string, key: string): Promis
 
   // 默认从文件存储读取
   const storage = readStorage();
-  return storage.instances[instanceId]?.[key];
+  return storage.instances[presetId]?.[key];
 }
 
-export async function getAllInstanceSecrets(instanceId: string, keys: string[]): Promise<Record<string, string>> {
+export async function getAllPresetSecrets(presetId: string, keys: string[]): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
   for (const k of keys) {
-    const v = await getInstanceSecret(instanceId, k);
+    const v = await getPresetSecret(presetId, k);
     if (v != null) out[k] = v;
   }
   return out;
 }
 
-export async function setInstanceSecrets(instanceId: string, secrets: Record<string, string>): Promise<void> {
+export async function setPresetSecrets(presetId: string, secrets: Record<string, string>): Promise<void> {
   for (const [k, v] of Object.entries(secrets)) {
-    if (v != null) await setInstanceSecret(instanceId, k, v);
+    if (v != null) await setPresetSecret(presetId, k, v);
   }
 }
 
-export async function deleteInstanceSecret(instanceId: string, key: string): Promise<void> {
+export async function deletePresetSecret(presetId: string, key: string): Promise<void> {
   // 从文件存储删除
   const storage = readStorage();
-  if (storage.instances[instanceId]) {
-    delete storage.instances[instanceId][key];
+  if (storage.instances[presetId]) {
+    delete storage.instances[presetId][key];
     writeStorage(storage.providers, storage.instances);
   }
 
   // 如果启用了 keytar，也从 keytar 删除
   if (ENABLE_KEYTAR) {
     try {
-      await keytar.deletePassword(SERVICE_INST, `${instanceId}:${key}`);
+      await keytar.deletePassword(SERVICE_INST, `${presetId}:${key}`);
     } catch {
       // ignore keytar errors
     }
   }
 }
 
-export async function clearInstanceSecrets(instanceId: string): Promise<void> {
+export async function clearPresetSecrets(presetId: string): Promise<void> {
   // 从文件存储删除
   const storage = readStorage();
-  if (storage.instances[instanceId]) {
-    delete storage.instances[instanceId];
+  if (storage.instances[presetId]) {
+    delete storage.instances[presetId];
     writeStorage(storage.providers, storage.instances);
   }
 
@@ -228,7 +277,7 @@ export async function clearInstanceSecrets(instanceId: string): Promise<void> {
     try {
       const credentials = await keytar.findCredentials(SERVICE_INST);
       for (const cred of credentials) {
-        if (cred.account.startsWith(`${instanceId}:`)) {
+        if (cred.account.startsWith(`${presetId}:`)) {
           await keytar.deletePassword(SERVICE_INST, cred.account);
         }
       }
@@ -238,8 +287,15 @@ export async function clearInstanceSecrets(instanceId: string): Promise<void> {
   }
 }
 
+export const setInstanceSecret = setPresetSecret;
+export const getInstanceSecret = getPresetSecret;
+export const getAllInstanceSecrets = getAllPresetSecrets;
+export const setInstanceSecrets = setPresetSecrets;
+export const deleteInstanceSecret = deletePresetSecret;
+export const clearInstanceSecrets = clearPresetSecrets;
+
 /**
- * 清理所有存储的 key（包括 provider 和 instance 的所有 secrets）
+ * 清理所有存储的 key（包括 provider 和 preset 的所有 secrets；instances 字段名保留历史兼容）
  */
 export async function clearAllSecrets(): Promise<void> {
   // 清理文件存储
@@ -279,7 +335,7 @@ export async function clearAllSecrets(): Promise<void> {
  */
 export async function getApiKeyRaw(providerId: string, key: string): Promise<ApiKeyKeyValue | undefined> {
   const storage = readStorage();
-  return storage.providers[providerId]?.[key];
+  return readProviderRecord(storage, providerId)?.[key];
 }
 
 /**
@@ -303,10 +359,11 @@ export async function getApiKeys(providerId: string, key: string): Promise<ApiKe
  */
 export async function setApiKeys(providerId: string, key: string, keys: ApiKeyItem[]): Promise<void> {
   const storage = readStorage();
-  if (!storage.providers[providerId]) {
-    storage.providers[providerId] = {};
-  }
-  storage.providers[providerId][key] = keys;
+  const nextRecord = {
+    ...readProviderRecord(storage, providerId),
+    [key]: keys
+  };
+  writeProviderRecord(storage, providerId, nextRecord);
   writeStorage(storage.providers, storage.instances);
 }
 
@@ -316,26 +373,25 @@ export async function setApiKeys(providerId: string, key: string, keys: ApiKeyIt
  */
 export async function addApiKey(providerId: string, key: string, apiKey: ApiKeyItem): Promise<void> {
   const storage = readStorage();
-  if (!storage.providers[providerId]) {
-    storage.providers[providerId] = {};
-  }
+  const nextRecord = { ...readProviderRecord(storage, providerId) };
 
-  const currentValue = storage.providers[providerId][key];
+  const currentValue = nextRecord[key];
 
   if (isApiKeyString(currentValue)) {
     // Convert single string to array format
-    storage.providers[providerId][key] = [
+    nextRecord[key] = [
       { name: 'Default', value: currentValue, isDefault: true },
       { ...apiKey, isDefault: false }
     ];
   } else if (isApiKeyArray(currentValue)) {
     // Already an array, just add the new key
-    storage.providers[providerId][key] = [...currentValue, { ...apiKey, isDefault: false }];
+    nextRecord[key] = [...currentValue, { ...apiKey, isDefault: false }];
   } else {
     // No existing value, create new array with single item
-    storage.providers[providerId][key] = [{ ...apiKey, isDefault: true }];
+    nextRecord[key] = [{ ...apiKey, isDefault: true }];
   }
 
+  writeProviderRecord(storage, providerId, nextRecord);
   writeStorage(storage.providers, storage.instances);
 }
 
@@ -344,27 +400,30 @@ export async function addApiKey(providerId: string, key: string, apiKey: ApiKeyI
  */
 export async function removeApiKey(providerId: string, key: string, apiKeyName: string): Promise<void> {
   const storage = readStorage();
-  const currentValue = storage.providers[providerId]?.[key];
+  const nextRecord = { ...readProviderRecord(storage, providerId) };
+  const currentValue = nextRecord[key];
 
   if (isApiKeyArray(currentValue)) {
     const filtered = currentValue.filter((k) => k.name !== apiKeyName);
 
     if (filtered.length === 0) {
       // No keys left, remove the field entirely
-      delete storage.providers[providerId][key];
+      delete nextRecord[key];
     } else if (filtered.length === 1) {
       // Only one key left, you could keep it as array or convert to string
       // For consistency, keep it as array
-      storage.providers[providerId][key] = filtered;
+      nextRecord[key] = filtered;
     } else {
-      storage.providers[providerId][key] = filtered;
+      nextRecord[key] = filtered;
     }
 
+    writeProviderRecord(storage, providerId, nextRecord);
     writeStorage(storage.providers, storage.instances);
   } else if (isApiKeyString(currentValue)) {
     // If it's a string and we're asked to remove "Default", clear it
     if (apiKeyName === 'Default') {
-      delete storage.providers[providerId][key];
+      delete nextRecord[key];
+      writeProviderRecord(storage, providerId, nextRecord);
       writeStorage(storage.providers, storage.instances);
     }
   }
@@ -375,7 +434,8 @@ export async function removeApiKey(providerId: string, key: string, apiKeyName: 
  */
 export async function updateApiKey(providerId: string, key: string, apiKeyName: string, updates: Partial<Pick<ApiKeyItem, 'name' | 'value' | 'isDefault'>>): Promise<void> {
   const storage = readStorage();
-  const currentValue = storage.providers[providerId]?.[key];
+  const nextRecord = { ...readProviderRecord(storage, providerId) };
+  const currentValue = nextRecord[key];
 
   if (isApiKeyArray(currentValue)) {
     const index = currentValue.findIndex((k) => k.name === apiKeyName);
@@ -389,13 +449,14 @@ export async function updateApiKey(providerId: string, key: string, apiKeyName: 
       }
 
       // Update the key
-      storage.providers[providerId][key] = currentValue.map((k, i) => (i === index ? { ...k, ...updates } : k));
+      nextRecord[key] = currentValue.map((k, i) => (i === index ? { ...k, ...updates } : k));
 
       // If setting a new default, remove isDefault from others
       if (updates.isDefault) {
-        storage.providers[providerId][key] = (storage.providers[providerId][key] as ApiKeyItem[]).map((k, i) => (i === index ? k : { ...k, isDefault: false }));
+        nextRecord[key] = (nextRecord[key] as ApiKeyItem[]).map((k, i) => (i === index ? k : { ...k, isDefault: false }));
       }
 
+      writeProviderRecord(storage, providerId, nextRecord);
       writeStorage(storage.providers, storage.instances);
     }
   } else if (isApiKeyString(currentValue)) {
@@ -403,10 +464,11 @@ export async function updateApiKey(providerId: string, key: string, apiKeyName: 
     if (apiKeyName === 'Default') {
       if (updates.name && updates.name !== 'Default') {
         // Rename: convert to array format
-        storage.providers[providerId][key] = [{ name: updates.name, value: updates.value ?? currentValue, isDefault: updates.isDefault ?? true }];
+        nextRecord[key] = [{ name: updates.name, value: updates.value ?? currentValue, isDefault: updates.isDefault ?? true }];
       } else if (updates.value) {
-        storage.providers[providerId][key] = updates.value;
+        nextRecord[key] = updates.value;
       }
+      writeProviderRecord(storage, providerId, nextRecord);
       writeStorage(storage.providers, storage.instances);
     }
   }

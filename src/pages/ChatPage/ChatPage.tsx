@@ -18,7 +18,7 @@ interface ChatPageProps {
 export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.Element {
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string; createdAt?: number }>>([]);
   const [loading, setLoading] = useState(false);
-  // Provider/instance/agent are managed inside ChatInputBar now
+  // Provider/preset/agent are managed inside ChatInputBar now
   const [conversationId, setConversationId] = useState<string | undefined>(undefined);
   const disposerRef = useRef<{ dispose: () => void; cancel: () => Promise<any> } | null>(null);
   const listEndRef = useRef<HTMLDivElement | null>(null);
@@ -54,7 +54,13 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
     setLoadingConvs(false);
   };
   useEffect(() => {
-    loadConversations();
+    const timer = window.setTimeout(() => {
+      void loadConversations();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
   }, []);
 
   // Select conversation and load its messages
@@ -125,14 +131,14 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
   };
 
   // 使用 ref 保存 start 函数引用，供 IPC 回调使用
-  const startRef = useRef<(params: { content: string; providerId: string; instanceId: string }) => Promise<void>>();
+  const startRef = useRef<(params: { content: string; providerId: string; presetId: string }) => Promise<void>>();
 
   // Listen for initial message from assistant window (on:window:open:ready)
   useEffect(() => {
     const handlePayload = (payload: any): void => {
       if (!payload?.initialMessage) return;
       // 清除缓存 payload，防止关闭后再次打开时重复触发
-      window.ipcRenderer?.invoke('window:payload:clear', 'chat').catch(() => { });
+      window.ipcRenderer?.invoke('window:payload:clear', 'chat').catch(() => {});
       // 重置为新对话状态
       newConversation();
       // 延迟一帧确保状态已重置，再发起对话
@@ -140,7 +146,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
         startRef.current?.({
           content: payload.initialMessage,
           providerId: payload.providerId,
-          instanceId: payload.instanceId
+          presetId: payload.presetId || payload.instanceId
         });
       }, 50);
     };
@@ -191,9 +197,9 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
     return () => dispose();
   }, []);
 
-  const start = async (params: { content: string; providerId: string; instanceId: string }): Promise<void> => {
-    const { content, providerId, instanceId } = params;
-    if (!instanceId || !content.trim()) return;
+  const start = async (params: { content: string; providerId: string; presetId: string }): Promise<void> => {
+    const { content, providerId, presetId } = params;
+    if (!presetId || !content.trim()) return;
 
     // 1) 追加用户消息 + 占位的助手消息
     const userMsg = { role: 'user' as const, content, createdAt: Date.now() };
@@ -207,7 +213,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
     // 2) 构造上下文（包含历史消息 + 新用户消息）
     const history = [...messages, userMsg].map((m) => ({ role: m.role, content: m.content, createdAt: m.createdAt }));
 
-    const disposer = await window.YUA.ai.chatStream({ conversationId, messages: history as any, providerId, providerInstanceId: instanceId, stream: true }, (ev: any) => {
+    const disposer = await window.YUA.ai.chatStream({ conversationId, messages: history as any, providerId, providerInstanceId: presetId, stream: true }, (ev: any) => {
       if (ev?.type === 'metadata' && ev.data?.conversationId) {
         setConversationId(ev.data.conversationId);
         setSelectedConvId(ev.data.conversationId);
@@ -333,7 +339,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
             </div>
             <div className="flex-1 overflow-auto min-h-0">
               {loadingConvs && <div className="p-2 text-xs text-muted-foreground">加载中…</div>}
-              {!loadingConvs && conversations.length === 0 && <div className="p-2 text-xs text-muted-foreground">暂无会话，点击"新对话"开始</div>}
+              {!loadingConvs && conversations.length === 0 && <div className="p-2 text-xs text-muted-foreground">暂无会话，点击“新对话”开始</div>}
               <div className="flex flex-col">
                 {conversations.map((c) => {
                   const isGenerating = generatingTitleIds.has(c.id);
@@ -411,13 +417,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
         <div className="flex-1 min-w-0 flex flex-col overflow-hidden relative">
           {/* 展开/收起历史按钮 */}
           <div className="absolute top-2 left-2 z-10">
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-8 w-8"
-              onClick={() => setShowHistory(!showHistory)}
-              title={showHistory ? '收起历史' : '展开历史'}
-            >
+            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setShowHistory(!showHistory)} title={showHistory ? '收起历史' : '展开历史'}>
               {showHistory ? <TbChevronRight className="w-4 h-4" /> : <TbHistory className="w-4 h-4" />}
             </Button>
           </div>

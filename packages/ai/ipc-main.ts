@@ -1,10 +1,10 @@
 import { BrowserWindow, ipcMain } from 'electron';
 
 import { ChatRepo } from '../common/db';
-import { assistantAgent, ragAgent, taggerAgent, translatorAgent } from './agents';
+import { pushCardToWindows } from './card-push';
 import { ChatService } from './chat-service';
 import { GlossaryStore } from './glossary-store';
-import { InstancesStore } from './instances-store';
+import { PresetsStore } from './instances-store';
 import {
   cancelMindmap,
   cleanupTranslationResources,
@@ -24,14 +24,11 @@ import {
   updateTranslationSegment
 } from './ipc-handler-helpers';
 import { PromptsStore } from './prompts-store';
-import { AnthropicProvider } from './providers/anthropic';
-import { DeepSeekProvider } from './providers/deepseek';
-import { GeminiProvider } from './providers/gemini';
-import { OllamaProvider } from './providers/ollama';
-import { OpenAIProvider } from './providers/openai';
-import { QwenProvider } from './providers/qwen';
-import { ZhipuProvider } from './providers/zhipu';
-import { getProvider, listAgents, listProviders, registerAgent, registerProvider } from './registry';
+import { registerBuiltInProviders } from './providers/catalog';
+import { getBuiltinProviderMetadata, getProviderCapabilities, getProviderDefaultModels } from './providers/metadata';
+import { getProvider, listAgents, listProviders } from './registry';
+import { PiExecutionService } from './runtime/pi/execution-service';
+import { getProviderAliases } from './runtime/pi/provider-alias';
 import { SummaryService } from './services/summary-service';
 import { TaggingService } from './services/tagging-service';
 import { TranslationService } from './services/translation-service';
@@ -39,64 +36,25 @@ import {
   addApiKey,
   clearAllSecrets,
   clearProviderSecrets as clearSecretsStore,
+  getAllPresetSecrets,
   getAllSecrets,
   getApiKeys,
-  getFirstApiKey,
   removeApiKey,
   setApiKeys,
   setDefaultApiKey,
+  setPresetSecrets,
   setProviderSecrets as setSecretsStore,
   updateApiKey
 } from './settings-store';
-import { getAllInstanceSecrets as getAllInstSecrets, setInstanceSecrets as setInstSecrets } from './settings-store';
 import { listToolInfos } from './tools';
 import type { PushedCard } from './types';
 
-/** IPC channel for broadcasting pushed cards to renderer windows */
-export const CARD_PUSHED_CHANNEL = 'ai:card-pushed';
-
-/**
- * Push a card to all renderer windows (or specific window via filter)
- * @param card The card data to push
- * @param targetWindowId Optional specific window ID to target
- */
-export function pushCardToWindows(card: Omit<PushedCard, 'timestamp'>, targetWindowId?: number): void {
-  const payload: PushedCard = {
-    ...card,
-    timestamp: Date.now()
-  };
-
-  BrowserWindow.getAllWindows().forEach((w) => {
-    // If targetWindowId is specified, only send to that window
-    if (targetWindowId !== undefined && w.id !== targetWindowId) return;
-    if (!w.isDestroyed()) {
-      try {
-        w.webContents.send(CARD_PUSHED_CHANNEL, payload);
-      } catch {
-        // window may have been destroyed
-      }
-    }
-  });
-}
-
 export function initAIHandlers(win: BrowserWindow): void {
-  // Bootstrapping built-in provider(s) and agent(s)
-  // Register built-in providers
-  registerProvider(new OpenAIProvider());
-  registerProvider(new AnthropicProvider());
-  registerProvider(new GeminiProvider());
-  registerProvider(new OllamaProvider());
-  registerProvider(new DeepSeekProvider());
-  registerProvider(new QwenProvider());
-  registerProvider(new ZhipuProvider());
-
-  // Register built-in Mastra Agents
-  registerAgent(assistantAgent);
-  registerAgent(ragAgent);
-  registerAgent(taggerAgent);
-  registerAgent(translatorAgent);
+  // Bootstrapping built-in providers
+  registerBuiltInProviders();
 
   const chat = new ChatService(win);
+  const piExecutionService = new PiExecutionService();
   chat.registerIpc();
   // Register AI utility IPCs (e.g., auto-tagging)
   TaggingService.registerIpc();
@@ -114,12 +72,23 @@ export function initAIHandlers(win: BrowserWindow): void {
   ipcMain.handle('ai:getProviders', async () => {
     const providers = listProviders();
     const rows = await Promise.all(
-      providers.map(async (p) => ({
-        id: p.id,
-        label: p.label,
-        configured: !!(await Promise.resolve((p.isConfigured?.() as any) ?? true)),
-        schema: p.getConfigSchema?.()
-      }))
+      providers.map(async (p) => {
+        const metadata = getBuiltinProviderMetadata(p.id);
+        const defaultModels = getProviderDefaultModels(p.id, p);
+        const capabilities = getProviderCapabilities(p.id, p);
+
+        return {
+          id: p.id,
+          aliases: getProviderAliases(p.id),
+          label: p.label,
+          configured: !!(await Promise.resolve((p.isConfigured?.() as any) ?? true)),
+          capabilities,
+          defaultModels,
+          kind: metadata?.kind,
+          defaultModel: metadata?.defaultModel || defaultModels.chat,
+          schema: p.getConfigSchema?.()
+        };
+      })
     );
     return rows;
   });
@@ -206,41 +175,27 @@ export function initAIHandlers(win: BrowserWindow): void {
     return listToolInfos();
   });
 
-  ipcMain.handle('ai:transcribe', async (_e, payload: { providerId: string; file: Buffer; model?: string; language?: string; prompt?: string }) => {
-    const provider = getProvider(payload.providerId);
-    if (!provider) {
-      throw new Error(`Provider ${payload.providerId} not found`);
-    }
-    if (!provider.transcribe) {
-      throw new Error(`Provider ${payload.providerId} does not support transcription`);
-    }
-
-    // Ensure secrets are loaded
-    const secrets = await getAllSecrets(
-      payload.providerId,
-      (provider.getConfigSchema().fields || []).map((f) => f.key)
-    );
-    await Promise.resolve(provider.setSecrets(secrets));
-
-    return await provider.transcribe(payload.file, {
-      model: payload.model,
-      language: payload.language,
-      prompt: payload.prompt
-    });
+  ipcMain.handle('ai:transcribe', async (_e, payload: { providerId: string; providerInstanceId?: string; file: Buffer; model?: string; language?: string; prompt?: string }) => {
+    return piExecutionService.transcribe(payload);
   });
 
-  ipcMain.handle('ai:listModels', async (_e, payload: { providerId: string; instanceId?: string }) => {
+  ipcMain.handle('ai:generateImage', async (_e, payload: { providerId: string; providerInstanceId?: string; model: string; prompt: string; size?: string; quality?: string }) => {
+    return piExecutionService.generateImage(payload);
+  });
+
+  ipcMain.handle('ai:listModels', async (_e, payload: { providerId: string; presetId?: string; instanceId?: string }) => {
     const p = getProvider(payload.providerId);
     if (!p) return [];
     try {
       if (p.listModels) {
         let opts: any = undefined;
-        if (payload.instanceId) {
-          const inst = InstancesStore.get(payload.instanceId);
-          if (inst) {
+        const resolvedPresetId = payload.presetId || payload.instanceId;
+        if (resolvedPresetId) {
+          const preset = PresetsStore.get(resolvedPresetId);
+          if (preset) {
             const schema = p.getConfigSchema?.();
             const keys = (schema?.fields || []).map((f) => f.key);
-            const secrets = await getAllInstSecrets(payload.instanceId, keys);
+            const secrets = await getAllPresetSecrets(resolvedPresetId, keys);
             opts = { secrets };
           }
         }
@@ -253,28 +208,52 @@ export function initAIHandlers(win: BrowserWindow): void {
     }
   });
 
-  // Provider Instances CRUD
+  // Provider Presets CRUD
+  ipcMain.handle('ai:listPresets', async (_e, payload?: { providerId?: string }) => {
+    return PresetsStore.list(payload?.providerId);
+  });
+  ipcMain.handle('ai:createPreset', async (_e, payload: { providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any>; enabledTools?: string[] }) => {
+    return PresetsStore.create(payload as any);
+  });
+  ipcMain.handle('ai:updatePreset', async (_e, payload: { id: string; patch: any }) => {
+    return PresetsStore.update(payload.id, payload.patch);
+  });
+  ipcMain.handle('ai:deletePreset', async (_e, payload: { id: string }) => {
+    return { ok: PresetsStore.delete(payload.id) };
+  });
+  ipcMain.handle('ai:getPresetSecrets', async (_e, payload: { presetId: string }) => {
+    const preset = PresetsStore.get(payload.presetId);
+    const schema = getProvider(preset?.providerId || '')?.getConfigSchema?.();
+    const keys = (schema?.fields || []).map((f) => f.key);
+    return await getAllPresetSecrets(payload.presetId, keys);
+  });
+  ipcMain.handle('ai:setPresetSecrets', async (_e, payload: { presetId: string; secrets: Record<string, string> }) => {
+    await setPresetSecrets(payload.presetId, payload.secrets);
+    return { ok: true };
+  });
+
+  // Compatibility instance aliases
   ipcMain.handle('ai:listInstances', async (_e, payload?: { providerId?: string }) => {
-    return InstancesStore.list(payload?.providerId);
+    return PresetsStore.list(payload?.providerId);
   });
   ipcMain.handle('ai:createInstance', async (_e, payload: { providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any>; enabledTools?: string[] }) => {
-    return InstancesStore.create(payload as any);
+    return PresetsStore.create(payload as any);
   });
   ipcMain.handle('ai:updateInstance', async (_e, payload: { id: string; patch: any }) => {
-    return InstancesStore.update(payload.id, payload.patch);
+    return PresetsStore.update(payload.id, payload.patch);
   });
   ipcMain.handle('ai:deleteInstance', async (_e, payload: { id: string }) => {
-    return { ok: InstancesStore.delete(payload.id) };
+    return { ok: PresetsStore.delete(payload.id) };
   });
-  // Instance secrets
+  // Compatibility preset secret aliases
   ipcMain.handle('ai:getInstanceSecrets', async (_e, payload: { instanceId: string }) => {
-    const inst = InstancesStore.get(payload.instanceId);
-    const schema = getProvider(inst?.providerId || '')?.getConfigSchema?.();
+    const preset = PresetsStore.get(payload.instanceId);
+    const schema = getProvider(preset?.providerId || '')?.getConfigSchema?.();
     const keys = (schema?.fields || []).map((f) => f.key);
-    return await getAllInstSecrets(payload.instanceId, keys);
+    return await getAllPresetSecrets(payload.instanceId, keys);
   });
   ipcMain.handle('ai:setInstanceSecrets', async (_e, payload: { instanceId: string; secrets: Record<string, string> }) => {
-    await setInstSecrets(payload.instanceId, payload.secrets);
+    await setPresetSecrets(payload.instanceId, payload.secrets);
     return { ok: true };
   });
 

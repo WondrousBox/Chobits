@@ -42,6 +42,46 @@
       "type": "embedding",
       "context": 8192,
       "description": "High-quality embeddings"
+    },
+    {
+      "id": "gpt-4o-mini-transcribe",
+      "label": "GPT-4o Mini Transcribe",
+      "type": "audio",
+      "capabilities": { "asr": true, "transcribe": true },
+      "tags": ["audio", "asr", "fast"],
+      "description": "OpenAI 轻量语音转写模型。"
+    },
+    {
+      "id": "gpt-4o-transcribe",
+      "label": "GPT-4o Transcribe",
+      "type": "audio",
+      "capabilities": { "asr": true, "transcribe": true },
+      "tags": ["audio", "asr", "quality"],
+      "description": "OpenAI 高质量语音转写模型。"
+    },
+    {
+      "id": "whisper-1",
+      "label": "Whisper 1",
+      "type": "audio",
+      "capabilities": { "asr": true, "transcribe": true },
+      "tags": ["audio", "asr", "classic"],
+      "description": "经典 Whisper 语音识别模型。"
+    },
+    {
+      "id": "gpt-image-1",
+      "label": "GPT Image 1",
+      "type": "image",
+      "capabilities": { "image_generation": true },
+      "tags": ["image", "latest"],
+      "description": "OpenAI 原生图片生成模型。"
+    },
+    {
+      "id": "dall-e-3",
+      "label": "DALL-E 3",
+      "type": "image",
+      "capabilities": { "image_generation": true },
+      "tags": ["image"],
+      "description": "经典高质量文生图模型。"
     }
   ]
 }

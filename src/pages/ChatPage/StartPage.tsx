@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { UnifiedChatInput } from '@/components/chat';
 import { Button } from '@/components/ui/button';
 
-import ServiceInstanceSelect from './components/ServiceInstanceSelect';
+import ServicePresetSelect from './components/ServicePresetSelect';
 import { useChatSelection } from './context/ChatSelectionContext';
 
 const PLACEHOLDERS = [
@@ -26,10 +26,10 @@ const AssistantPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const contentRootRef = useRef<HTMLDivElement | null>(null);
   const inputBlockRef = useRef<HTMLDivElement | null>(null);
-  // 控制当实例下拉展开时，暂停自动尺寸调整
-  const instanceMenuOpenRef = useRef<boolean>(false);
+  // 控制当预设下拉展开时，暂停自动尺寸调整
+  const presetMenuOpenRef = useRef<boolean>(false);
 
-  const { providerId, instanceId, setProviderId, setInstanceId, getOrderedInstances } = useChatSelection();
+  const { providerId, presetId, setProviderId, setPresetId, getOrderedPresets } = useChatSelection();
 
   const handleToggleRecording = useCallback(async () => {
     try {
@@ -87,14 +87,14 @@ const AssistantPage: React.FC = () => {
 
   // 发送消息：打开聊天独立窗口并传递初始消息
   const handleSend = async (content: string): Promise<void> => {
-    if (!content.trim() || !instanceId) return;
+    if (!content.trim() || !presetId) return;
     setLoading(true);
     try {
       // 打开聊天独立窗口，传递初始消息数据
       await window.YUA.window['window:open']('chat', {
         initialMessage: content,
         providerId,
-        instanceId
+        presetId
       });
       setQuery('');
       // 关闭助手窗口
@@ -139,7 +139,7 @@ const AssistantPage: React.FC = () => {
         if (debounceTimer) window.clearTimeout(debounceTimer);
         debounceTimer = window.setTimeout(async () => {
           if (disposed) return;
-          if (instanceMenuOpenRef.current) return;
+          if (presetMenuOpenRef.current) return;
           await resizeToContent();
         }, 90);
       } catch {
@@ -176,7 +176,7 @@ const AssistantPage: React.FC = () => {
   const handleMenuOpenChange = useCallback(
     async (open: boolean) => {
       try {
-        instanceMenuOpenRef.current = open;
+        presetMenuOpenRef.current = open;
         const html = document.documentElement;
         const currentWidth = window.innerWidth || html.clientWidth;
         const screen = await window.YUA.window['screen:size:get']();
@@ -218,16 +218,16 @@ const AssistantPage: React.FC = () => {
                 onHeightChange={() => resizeToContent()}
                 footerLeft={
                   <div className="shrink-0 no-drag">
-                    <ServiceInstanceSelect
+                    <ServicePresetSelect
                       providerId={providerId}
-                      instanceId={instanceId}
-                      onChange={(pid, iid) => {
+                      presetId={presetId}
+                      onChange={(pid, nextPresetId) => {
                         setProviderId(pid);
-                        setInstanceId(iid);
+                        setPresetId(nextPresetId);
                       }}
                       buttonVariant="outline"
                       buttonSize="sm"
-                      orderInstances={(list, pid) => (getOrderedInstances ? getOrderedInstances(pid) : list)}
+                      orderPresets={(list, pid) => (getOrderedPresets ? getOrderedPresets(pid) : list)}
                       onOpenChange={handleMenuOpenChange}
                     />
                   </div>

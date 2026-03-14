@@ -1,0 +1,242 @@
+import OpenAI from 'openai';
+
+import { loadProviderModelsFromBank } from '../models-loader';
+import type { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, StreamEvent, TranscribeOptions } from '../types';
+
+export type OpenAIRuntimeSecrets = {
+  apiKey?: string;
+  baseUrl?: string;
+  model?: string;
+  organization?: string;
+};
+
+export interface OpenAIChatRuntimeOptions {
+  client: OpenAI;
+  request: ChatRequest;
+  providerId: string;
+  defaultModel: string;
+  configuredModel?: string;
+}
+
+export interface OpenAIEmbeddingRuntimeOptions {
+  client: OpenAI;
+  request: EmbeddingRequest;
+  providerId: string;
+  defaultModel: string;
+  configuredModel?: string;
+}
+
+export interface OpenAITranscriptionRuntimeOptions {
+  client: OpenAI;
+  file: File | Blob | Buffer | ArrayBuffer;
+  providerId: string;
+  defaultModel: string;
+  options?: TranscribeOptions;
+}
+
+export interface OpenAIListModelsOptions {
+  client: OpenAI;
+  providerId: string;
+  configuredModel?: string;
+  defaultModel?: string;
+}
+
+function resolveOpenAIChatModel(request: ChatRequest, configuredModel: string | undefined, defaultModel: string): string {
+  return (request.extras?.model as string) || configuredModel || defaultModel;
+}
+
+function resolveOpenAIEmbeddingModel(request: EmbeddingRequest, configuredModel: string | undefined, defaultModel: string): string {
+  return (request.model as string) || (request as any)?.extras?.secrets?.model || configuredModel || defaultModel;
+}
+
+function resolveOpenAITranscriptionModel(options: TranscribeOptions | undefined, defaultModel: string): string {
+  return options?.model || (options?.secrets as any)?.model || defaultModel;
+}
+
+function normalizeOpenAIAudioFile(file: File | Blob | Buffer | ArrayBuffer): File {
+  if (typeof File !== 'undefined' && file instanceof File) {
+    return file;
+  }
+
+  if (file instanceof Blob) {
+    return new File([file], 'audio.wav', { type: file.type || 'audio/wav' });
+  }
+
+  const bytes = Buffer.isBuffer(file) ? file : Buffer.from(file);
+  return new File([bytes], 'audio.wav', { type: 'audio/wav' });
+}
+
+function normalizeOpenAIModelInfo<T extends { type?: string }>(model: T): T {
+  if (model.type !== 'stt') {
+    return model;
+  }
+
+  return {
+    ...model,
+    type: 'audio'
+  };
+}
+
+function buildOpenAIChatMessages(request: ChatRequest): Array<{ role: string; content: string }> {
+  return request.messages.map((message) => ({
+    role: message.role as string,
+    content: message.content
+  }));
+}
+
+function buildOpenAITools(request: ChatRequest): Array<{ type: 'function'; function: { name: string; description: string; parameters: any } }> | undefined {
+  const toolDefs = (request.extras as any)?.tools as Array<{ name: string; description: string; parameters: any }> | undefined;
+  if (!toolDefs?.length) return undefined;
+
+  return toolDefs.map((tool) => ({
+    type: 'function' as const,
+    function: {
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.parameters
+    }
+  }));
+}
+
+async function streamOpenAIChat(
+  client: OpenAI,
+  request: ChatRequest,
+  providerId: string,
+  model: string,
+  messages: Array<{ role: string; content: string }>,
+  tools: Array<{ type: 'function'; function: { name: string; description: string; parameters: any } }> | undefined,
+  onStream: (event: StreamEvent) => void,
+  signal?: AbortSignal
+): Promise<ChatResponse> {
+  const stream = await client.chat.completions.create(
+    {
+      model,
+      messages,
+      temperature: request.temperature,
+      max_tokens: request.maxTokens as any,
+      tools,
+      tool_choice: tools?.length ? 'auto' : undefined,
+      stream: true
+    },
+    { signal }
+  );
+
+  let finalText = '';
+  const toolCalls = new Map<number, { id?: string; name?: string; args: string }>();
+
+  for await (const part of stream) {
+    const choice = part?.choices?.[0];
+    const delta = choice?.delta?.content;
+    if (delta) {
+      finalText += delta;
+      onStream({ type: 'delta', data: { text: delta } });
+    }
+
+    const toolDelta = choice?.delta?.tool_calls;
+    if (Array.isArray(toolDelta)) {
+      for (const call of toolDelta) {
+        const index = (call as any)?.index ?? 0;
+        const current = toolCalls.get(index) || { id: undefined, name: undefined, args: '' };
+        if (call?.id) current.id = call.id;
+        if ((call as any)?.function?.name) current.name = (call as any).function.name;
+        if ((call as any)?.function?.arguments) current.args += (call as any).function.arguments;
+        toolCalls.set(index, current);
+      }
+    }
+  }
+
+  for (const entry of toolCalls.values()) {
+    if (!entry.name) continue;
+    let args: any = entry.args;
+    try {
+      args = entry.args ? JSON.parse(entry.args) : {};
+    } catch {
+      // keep raw string payload
+    }
+    onStream({ type: 'tool_call', data: { name: entry.name, args, callId: entry.id || '' } });
+  }
+
+  const message = { role: 'assistant' as const, content: finalText, createdAt: Date.now() };
+  onStream({ type: 'message_completed', data: { message } });
+  return { message, providerId };
+}
+
+export function createOpenAIClient(secrets: OpenAIRuntimeSecrets): OpenAI {
+  const cfg: any = {};
+  if (secrets.apiKey) cfg.apiKey = secrets.apiKey;
+  if (secrets.baseUrl) cfg.baseURL = secrets.baseUrl;
+  if (secrets.organization) cfg.organization = secrets.organization;
+  return new OpenAI(cfg);
+}
+
+export async function executeOpenAIChat(options: OpenAIChatRuntimeOptions, onStream?: (event: StreamEvent) => void, signal?: AbortSignal): Promise<ChatResponse> {
+  const messages = buildOpenAIChatMessages(options.request);
+  const tools = buildOpenAITools(options.request);
+  const model = resolveOpenAIChatModel(options.request, options.configuredModel, options.defaultModel);
+
+  if (options.request.stream && onStream) {
+    return streamOpenAIChat(options.client, options.request, options.providerId, model, messages, tools, onStream, signal);
+  }
+
+  const response = await options.client.chat.completions.create(
+    {
+      model,
+      messages,
+      temperature: options.request.temperature,
+      max_tokens: options.request.maxTokens as any,
+      tools,
+      tool_choice: tools?.length ? 'auto' : undefined
+    },
+    { signal }
+  );
+
+  const text = response?.choices?.[0]?.message?.content || '';
+  return {
+    message: { role: 'assistant', content: text, createdAt: Date.now() },
+    providerId: options.providerId
+  };
+}
+
+export async function executeOpenAIEmbedding(options: OpenAIEmbeddingRuntimeOptions): Promise<EmbeddingResponse> {
+  const model = resolveOpenAIEmbeddingModel(options.request, options.configuredModel, options.defaultModel);
+  const response = await options.client.embeddings.create({
+    model,
+    input: options.request.texts
+  });
+  const vectors = response.data.map((item: any) => item.embedding as number[]);
+  const dim = vectors[0]?.length || 0;
+  return { vectors, dim, model, providerId: options.providerId };
+}
+
+export async function executeOpenAITranscription(options: OpenAITranscriptionRuntimeOptions): Promise<{ text: string }> {
+  const model = resolveOpenAITranscriptionModel(options.options, options.defaultModel);
+  const response = await options.client.audio.transcriptions.create({
+    file: normalizeOpenAIAudioFile(options.file),
+    model,
+    language: options.options?.language,
+    prompt: options.options?.prompt
+  });
+
+  return {
+    text: response.text || ''
+  };
+}
+
+export async function listOpenAIModels(options: OpenAIListModelsOptions): Promise<Array<{ id: string }>> {
+  const curated = await loadProviderModelsFromBank(options.providerId);
+  if (curated.length) {
+    return curated.map((model) => normalizeOpenAIModelInfo(model));
+  }
+
+  try {
+    const response: any = await options.client.models.list();
+    const data = Array.isArray(response?.data) ? response.data : [];
+    const items = data.map((model: any) => ({ id: model.id })).filter((model: any) => model.id);
+    if (items.length) return items;
+  } catch {
+    // fall through to configured/default fallback
+  }
+
+  const fallbackIds = [options.configuredModel, options.defaultModel].filter(Boolean) as string[];
+  return Array.from(new Set(fallbackIds)).map((id) => ({ id }));
+}

@@ -1,19 +1,41 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-import { loadProviderModelsFromBank } from '../models-loader';
 import { loadProviderSchema } from '../schema-loader';
-import { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, ProviderAdapter, ProviderConfig, ProviderSecrets, StreamEvent } from '../types';
+import { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, ProviderAdapter, ProviderCapabilities, ProviderConfig, ProviderDefaultModels, ProviderSecrets, StreamEvent } from '../types';
+import { createGeminiClient, executeGeminiChat, type GeminiRuntimeSecrets, listGeminiModels } from './gemini-runtime';
+import { getBuiltinProviderMetadata } from './metadata';
 
-type GeminiSecrets = { apiKey?: string; model?: string };
+type GeminiSecrets = GeminiRuntimeSecrets;
 
 export class GeminiProvider implements ProviderAdapter {
+  private readonly metadata = getBuiltinProviderMetadata('gemini');
   readonly id = 'gemini';
-  readonly label = 'Google Gemini';
+  readonly label = this.metadata?.label || 'Google Gemini';
   private secrets: GeminiSecrets = {};
+  private readonly defaultModel = this.metadata?.defaultModel || 'gemini-1.5-flash';
 
   isConfigured(): boolean {
     return !!this.secrets.apiKey;
   }
+
+  getCapabilities(): ProviderCapabilities {
+    return {
+      ...(this.metadata?.capabilities || {
+        chat: true,
+        embeddings: false,
+        imageGeneration: false,
+        modelListing: true,
+        transcribe: false
+      })
+    };
+  }
+
+  getDefaultModels(): ProviderDefaultModels {
+    return {
+      ...(this.metadata?.defaultModels || {
+        chat: this.defaultModel
+      })
+    };
+  }
+
   getConfigSchema(): ProviderConfig {
     const fallback: ProviderConfig = {
       id: this.id,
@@ -33,43 +55,45 @@ export class GeminiProvider implements ProviderAdapter {
     return this.secrets;
   }
 
-  private modelInstance(model?: string): any {
-    if (!this.secrets.apiKey) {
-      throw new Error('Gemini API key not set');
-    }
-    const genAI = new GoogleGenerativeAI(this.secrets.apiKey);
-    const m = model || this.secrets.model || 'gemini-1.5-flash';
-    return genAI.getGenerativeModel({ model: m }) as any;
+  private resolveSecrets(override?: Partial<GeminiSecrets>): GeminiSecrets {
+    return {
+      ...this.secrets,
+      ...(override || {})
+    };
+  }
+
+  private client(override?: Partial<GeminiSecrets>): ReturnType<typeof createGeminiClient> {
+    return createGeminiClient(this.resolveSecrets(override));
   }
 
   async chat(req: ChatRequest, onStream?: (event: StreamEvent) => void, signal?: AbortSignal): Promise<ChatResponse> {
-    const model = this.modelInstance(req.extras?.model as string | undefined);
-    const content = req.messages.map((m) => ({ role: m.role, parts: [{ text: m.content }] }));
-    if (req.stream && onStream) {
-      const streamResp: any = await (model as any).generateContentStream({ contents: content }, { signal } as any);
-      let full = '';
-      for await (const chunk of streamResp.stream) {
-        const txt = chunk?.text();
-        if (txt) {
-          full += txt;
-          onStream({ type: 'delta', data: { text: txt } });
-        }
-      }
-      onStream({ type: 'message_completed', data: { message: { role: 'assistant', content: full, createdAt: Date.now() } } });
-      return { message: { role: 'assistant', content: full, createdAt: Date.now() }, providerId: this.id };
-    }
-    const resp: any = await (model as any).generateContent({ contents: content }, { signal } as any);
-    const text = resp?.response?.text?.() || '';
-    return { message: { role: 'assistant', content: text, createdAt: Date.now() }, providerId: this.id };
+    const overrideSecrets = (req.extras as any)?.secrets as Partial<GeminiSecrets> | undefined;
+    const resolvedSecrets = this.resolveSecrets(overrideSecrets);
+
+    return executeGeminiChat(
+      {
+        client: this.client(overrideSecrets),
+        request: req,
+        providerId: this.id,
+        defaultModel: this.defaultModel,
+        configuredModel: resolvedSecrets.model
+      },
+      onStream,
+      signal
+    );
   }
 
-  async embed(_req: EmbeddingRequest): Promise<EmbeddingResponse> {
+  async embed(req: EmbeddingRequest): Promise<EmbeddingResponse> {
+    void req;
     throw new Error('Gemini embeddings not implemented');
   }
 
-  async listModels(): Promise<Array<{ id: string }>> {
-    const curated = await loadProviderModelsFromBank(this.id);
-    if (curated.length) return curated;
-    return [];
+  async listModels(opts?: { secrets?: Partial<GeminiSecrets> }): Promise<Array<{ id: string }>> {
+    const resolvedSecrets = this.resolveSecrets(opts?.secrets);
+    return listGeminiModels({
+      providerId: this.id,
+      configuredModel: resolvedSecrets.model,
+      defaultModel: this.defaultModel
+    });
   }
 }

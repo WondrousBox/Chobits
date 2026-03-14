@@ -1,14 +1,12 @@
 /**
  * 总结工具
  *
- * 将总结服务封装成 Mastra Tool，使用全局上下文管理器获取动态依赖
+ * 将总结任务封装成统一工具定义，并通过显式 runtime 绑定注入 provider/model 语义
  */
 
-import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 
-import type { SummaryService as SummaryServiceType } from '../services/summary-service';
-import { summaryToolContext } from './summary-tool-context';
+import { createTool } from './tool-definition';
 
 /**
  * 总结工具输入参数
@@ -46,26 +44,18 @@ const summaryOutputSchema = z.object({
   error: z.string().optional().describe('错误信息（如果失败）')
 });
 
+export interface SummaryToolRuntimeBinding {
+  providerId: string;
+  providerInstanceId?: string;
+  model: string;
+}
+
 /**
  * 创建总结工具
  *
- * @param boundSummaryService - 总结服务实例（在创建时绑定）
- *
- * 使用示例：
- * ```typescript
- * import { SummaryService } from '../summary-service';
- *
- * // 创建绑定了 SummaryService 的工具
- * const summaryTool = createSummaryTool(SummaryService);
- *
- * // 在 Agent 中使用
- * const agent = new Agent({
- *   name: 'summarizer',
- *   tools: { summaryTool }
- * });
- * ```
+ * @param bindings - 显式 runtime 绑定，指定 provider / instance / model
  */
-export const createSummaryTool = (boundSummaryService?: typeof SummaryServiceType): ReturnType<typeof createTool> =>
+export const createSummaryTool = (bindings?: { runtime?: SummaryToolRuntimeBinding }): ReturnType<typeof createTool> =>
   createTool({
     id: 'summarize-content',
     description: `对文本或字幕内容进行总结。这个工具会调用 AI 生成详细的总结报告。
@@ -87,14 +77,12 @@ export const createSummaryTool = (boundSummaryService?: typeof SummaryServiceTyp
     execute: async ({ context }) => {
       const { content, resourceId, targetLanguage, languageNames = {}, options = {} } = context;
 
-      // 尝试从上下文管理器获取执行上下文
-      const executionContext = summaryToolContext.getContext();
+      const executionContext = bindings?.runtime;
 
-      // 如果没有上下文，返回错误
       if (!executionContext) {
         return {
           success: false,
-          error: '总结工具需要在正确的执行上下文中调用。请确保通过 Agent 聊天调用此工具。'
+          error: '总结工具缺少 runtime 绑定。请使用 createSummaryTool({ runtime: { providerId, model, providerInstanceId? } }) 创建工具。'
         };
       }
 
@@ -102,6 +90,7 @@ export const createSummaryTool = (boundSummaryService?: typeof SummaryServiceTyp
         // 构建总结参数
         const payload = {
           providerId: executionContext.providerId,
+          providerInstanceId: executionContext.providerInstanceId,
           model: executionContext.model,
           content: typeof content === 'string' ? content : undefined,
           segments: Array.isArray(content) ? content : undefined,
@@ -132,8 +121,3 @@ export const createSummaryTool = (boundSummaryService?: typeof SummaryServiceTyp
       }
     }
   });
-
-/**
- * 默认总结工具实例（未绑定，需要在使用时绑定 SummaryService）
- */
-export const summaryTool = createSummaryTool();

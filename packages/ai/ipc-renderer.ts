@@ -15,8 +15,8 @@ export const aiBridge = {
   async listTools(): Promise<Array<{ id: string; name: string; description: string }>> {
     return ipcRenderer.invoke('ai:listTools');
   },
-  async listModels(providerId: string, instanceId?: string) {
-    return ipcRenderer.invoke('ai:listModels', { providerId, instanceId });
+  async listModels(providerId: string, presetId?: string) {
+    return ipcRenderer.invoke('ai:listModels', { presetId, providerId });
   },
   async getProviderSecrets(providerId: string) {
     return ipcRenderer.invoke('ai:getProviderSecrets', { providerId });
@@ -49,14 +49,19 @@ export const aiBridge = {
   async clearAllSecrets() {
     return ipcRenderer.invoke('ai:clearAllSecrets');
   },
-  async transcribe(payload: { providerId: string; file: Blob | Buffer; model?: string; language?: string; prompt?: string }) {
+  async transcribe(payload: { providerId: string; providerInstanceId?: string; file: Blob | Buffer | ArrayBuffer; model?: string; language?: string; prompt?: string }) {
     // If file is Blob, convert to Buffer/ArrayBuffer before sending over IPC
     let fileToSend = payload.file;
     if (payload.file instanceof Blob) {
       const arrayBuffer = await payload.file.arrayBuffer();
       fileToSend = Buffer.from(arrayBuffer);
+    } else if (payload.file instanceof ArrayBuffer) {
+      fileToSend = Buffer.from(payload.file);
     }
     return ipcRenderer.invoke('ai:transcribe', { ...payload, file: fileToSend });
+  },
+  async generateImage(payload: { providerId: string; providerInstanceId?: string; model: string; prompt: string; size?: string; quality?: string }) {
+    return ipcRenderer.invoke('ai:generateImage', payload);
   },
   async chat(payload: any) {
     return ipcRenderer.invoke('ai:chat', payload);
@@ -65,6 +70,10 @@ export const aiBridge = {
     return ipcRenderer.invoke('ai:chatEphemeral', payload);
   },
   async chatStream(payload: any, onEvent?: StreamCallback) {
+    payload.extras = {
+      ...(payload.extras || {}),
+      runtime: 'pi' // 强制使用 Pi 运行时以获得更好的流式支持和元数据
+    };
     const res = await ipcRenderer.invoke('ai:chatStream', payload);
     const channel: string = res.eventsChannel;
     const listeners = new Set<StreamCallback>();
@@ -115,27 +124,49 @@ export const aiBridge = {
 
     return api;
   },
-  async embed(payload: { texts: string[]; providerId?: string; model?: string; normalize?: boolean }) {
+  async embed(payload: { texts: string[]; providerId?: string; providerInstanceId?: string; model?: string; normalize?: boolean }) {
     return ipcRenderer.invoke('ai:embed', payload);
   },
-  // Instances
+  // Presets
+  async listPresets(providerId?: string) {
+    return ipcRenderer.invoke('ai:listPresets', { providerId });
+  },
+  async getProviderPresets(providerId?: string) {
+    return ipcRenderer.invoke('ai:listPresets', { providerId });
+  },
+  async createPreset(payload: { providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any>; enabledTools?: string[] }) {
+    return ipcRenderer.invoke('ai:createPreset', payload);
+  },
+  async updatePreset(id: string, patch: any) {
+    return ipcRenderer.invoke('ai:updatePreset', { id, patch });
+  },
+  async deletePreset(id: string) {
+    return ipcRenderer.invoke('ai:deletePreset', { id });
+  },
+  async getPresetSecrets(presetId: string) {
+    return ipcRenderer.invoke('ai:getPresetSecrets', { presetId });
+  },
+  async setPresetSecrets(presetId: string, secrets: Record<string, string>) {
+    return ipcRenderer.invoke('ai:setPresetSecrets', { presetId, secrets });
+  },
+  // Compatibility instance aliases
   async listInstances(providerId?: string) {
-    return ipcRenderer.invoke('ai:listInstances', { providerId });
+    return ipcRenderer.invoke('ai:listPresets', { providerId });
   },
   async createInstance(payload: { providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any>; enabledTools?: string[] }) {
-    return ipcRenderer.invoke('ai:createInstance', payload);
+    return ipcRenderer.invoke('ai:createPreset', payload);
   },
   async updateInstance(id: string, patch: any) {
-    return ipcRenderer.invoke('ai:updateInstance', { id, patch });
+    return ipcRenderer.invoke('ai:updatePreset', { id, patch });
   },
   async deleteInstance(id: string) {
-    return ipcRenderer.invoke('ai:deleteInstance', { id });
+    return ipcRenderer.invoke('ai:deletePreset', { id });
   },
   async getInstanceSecrets(instanceId: string) {
-    return ipcRenderer.invoke('ai:getInstanceSecrets', { instanceId });
+    return ipcRenderer.invoke('ai:getPresetSecrets', { presetId: instanceId });
   },
   async setInstanceSecrets(instanceId: string, secrets: Record<string, string>) {
-    return ipcRenderer.invoke('ai:setInstanceSecrets', { instanceId, secrets });
+    return ipcRenderer.invoke('ai:setPresetSecrets', { presetId: instanceId, secrets });
   },
   // Prompt templates
   async listPromptTemplates() {
@@ -186,6 +217,7 @@ export const aiBridge = {
   // 事件会直接发送到所有窗口，需要监听的地方直接监听 renderer-message 事件即可
   async translate(payload: {
     providerId: string;
+    providerInstanceId?: string;
     model: string;
     segments: Array<AimSegments>;
     targetLanguage: string;
@@ -304,6 +336,7 @@ export const aiBridge = {
   },
   async summarize(payload: {
     providerId: string;
+    providerInstanceId?: string;
     model: string;
     content?: string;
     segments?: any[];
@@ -340,6 +373,7 @@ export const aiBridge = {
   },
   async generateMindmap(payload: {
     providerId: string;
+    providerInstanceId?: string;
     model: string;
     content?: string;
     segments?: any[];

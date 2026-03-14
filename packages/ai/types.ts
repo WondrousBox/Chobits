@@ -14,9 +14,9 @@ export type ChatMessage = {
 export type ChatRequest = {
   conversationId?: string;
   messages: ChatMessage[];
-  agentId?: string; // which agent to use (optional, can be inferred from instance config)
+  agentId?: string; // which agent to use (optional, can be inferred from preset config)
   providerId: string; // which provider adapter to use
-  providerInstanceId?: string; // which provider instance to use
+  providerInstanceId?: string; // which provider preset to use (legacy field name retained for compatibility)
   stream?: boolean;
   temperature?: number;
   maxTokens?: number;
@@ -45,8 +45,71 @@ export type ChatResponse = {
 };
 
 // Embeddings
-export type EmbeddingRequest = { texts: string[]; providerId?: string; model?: string; normalize?: boolean };
+export type EmbeddingRequest = {
+  texts: string[];
+  providerId?: string;
+  providerInstanceId?: string;
+  model?: string;
+  normalize?: boolean;
+  extras?: Record<string, any>;
+};
 export type EmbeddingResponse = { vectors: number[][]; dim: number; model?: string; providerId?: string };
+export type TranscribeOptions = {
+  model?: string;
+  language?: string;
+  prompt?: string;
+  secrets?: ProviderSecrets;
+};
+export type TranscriptionRequest = {
+  providerId: string;
+  providerInstanceId?: string;
+  file: File | Blob | Buffer | ArrayBuffer;
+  model?: string;
+  language?: string;
+  prompt?: string;
+};
+export type ImageGenerationRequest = {
+  providerId: string;
+  providerInstanceId?: string;
+  model: string;
+  prompt: string;
+  size?: string;
+  quality?: string;
+};
+export type ProviderPresetRecord = {
+  id: string;
+  providerId: string;
+  name: string;
+  model?: string;
+  systemPrompt?: string;
+  config?: Record<string, any>;
+  enabledTools?: string[];
+  createdAt?: number;
+  updatedAt?: number;
+};
+export type ProviderCapabilityKey = 'chat' | 'modelListing' | 'embeddings' | 'transcribe' | 'imageGeneration';
+export type ProviderCapabilities = Record<ProviderCapabilityKey, boolean>;
+export type ProviderDefaultModels = {
+  chat?: string;
+  embeddings?: string;
+  transcribe?: string;
+  imageGeneration?: string;
+};
+export type ProviderRecord = {
+  id: string;
+  aliases?: string[];
+  label: string;
+  configured?: boolean;
+  kind?: string;
+  defaultModel?: string;
+  capabilities?: ProviderCapabilities;
+  defaultModels?: ProviderDefaultModels;
+  schema?: {
+    icon?: string;
+    locales?: Record<string, { label?: string; fields?: Record<string, string> }>;
+    fields?: Array<{ key: string; label: string; type: string; required?: boolean; options?: any[] }>;
+  };
+};
 
 // Provider configuration (API keys etc.)
 export type ProviderSecrets = Record<string, string | undefined>; // e.g. { apiKey: 'sk-...' }
@@ -73,6 +136,8 @@ export interface ProviderAdapter {
   readonly label: string;
   isConfigured(): Promise<boolean> | boolean;
   getConfigSchema(): ProviderConfig;
+  getCapabilities?(): ProviderCapabilities;
+  getDefaultModels?(): ProviderDefaultModels;
   setSecrets(secrets: ProviderSecrets): Promise<void> | void;
   getSecrets(): Promise<ProviderSecrets> | ProviderSecrets;
   // Chat
@@ -80,13 +145,12 @@ export interface ProviderAdapter {
   // Embeddings
   embed?(req: EmbeddingRequest): Promise<EmbeddingResponse>;
   // Models: return id + optional metadata; UI will use label if provided
-  listModels?(opts?: { secrets?: ProviderSecrets }): Promise<Array<{ id: string; label?: string;[k: string]: any }>>;
+  listModels?(opts?: { secrets?: ProviderSecrets }): Promise<Array<{ id: string; label?: string; [k: string]: any }>>;
   // ASR
-  transcribe?(file: File | Blob | Buffer, options?: { model?: string; language?: string; prompt?: string }): Promise<{ text: string }>;
+  transcribe?(file: File | Blob | Buffer | ArrayBuffer, options?: TranscribeOptions): Promise<{ text: string }>;
 }
 
-// Agent contracts - Removed, now using Mastra Agent
-// AgentContext and AgentDefinition have been migrated to use Mastra Agent directly
+// Agent contracts are now represented by Pi profiles and provider adapters.
 
 export type StartStreamPayload = { requestId: string; eventsChannel: string } & ChatRequest;
 
@@ -118,10 +182,10 @@ export interface PushedCard {
 }
 
 export type AIApi = {
-  getProviders(): Promise<any[]>;
+  getProviders(): Promise<ProviderRecord[]>;
   getAgents(): Promise<any[]>;
   listTools(): Promise<ToolInfo[]>;
-  listModels(providerId: string, instanceId?: string): Promise<Array<{ id: string; label?: string;[k: string]: any }>>;
+  listModels(providerId: string, presetId?: string): Promise<Array<{ id: string; label?: string; [k: string]: any }>>;
   getProviderSecrets(providerId: string): Promise<Record<string, string>>;
   setProviderSecrets(providerId: string, secrets: Record<string, string>): Promise<{ ok: boolean }>;
   clearProviderSecrets(providerId: string): Promise<{ ok: boolean }>;
@@ -140,6 +204,7 @@ export type AIApi = {
   // Subtitle translation: handled in main process, sends messages to all windows
   translate(payload: {
     providerId: string;
+    providerInstanceId?: string;
     model: string;
     segments?: Array<{ text: string; index: number }>;
     resourceId?: string;
@@ -176,12 +241,21 @@ export type AIApi = {
   getAllTranslationHistory(
     resourceId: string
   ): Promise<Array<{ id: string; language?: string; title?: string; filePath?: string; segments?: Array<{ index: number; text: string }>; createdAt?: number; updatedAt?: number }>>;
-  transcribe(payload: { providerId: string; file: Blob | Buffer; model?: string; language?: string; prompt?: string }): Promise<{ text: string }>;
-  embed(payload: { texts: string[]; providerId?: string; model?: string; normalize?: boolean }): Promise<{ vectors: number[][]; dim: number }>;
-  // Instances
-  listInstances(providerId?: string): Promise<any[]>;
-  createInstance(payload: { providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any>; enabledTools?: string[] }): Promise<any>;
-  updateInstance(id: string, patch: any): Promise<any>;
+  transcribe(payload: TranscriptionRequest): Promise<{ text: string }>;
+  generateImage(payload: ImageGenerationRequest): Promise<{ imageUrl: string }>;
+  embed(payload: EmbeddingRequest): Promise<{ vectors: number[][]; dim: number }>;
+  // Presets
+  listPresets(providerId?: string): Promise<ProviderPresetRecord[]>;
+  getProviderPresets(providerId?: string): Promise<ProviderPresetRecord[]>;
+  createPreset(payload: { providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any>; enabledTools?: string[] }): Promise<ProviderPresetRecord>;
+  updatePreset(id: string, patch: any): Promise<ProviderPresetRecord | undefined>;
+  deletePreset(id: string): Promise<{ ok: boolean }>;
+  getPresetSecrets(presetId: string): Promise<Record<string, string>>;
+  setPresetSecrets(presetId: string, secrets: Record<string, string>): Promise<{ ok: boolean }>;
+  // Compatibility instance aliases
+  listInstances(providerId?: string): Promise<ProviderPresetRecord[]>;
+  createInstance(payload: { providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any>; enabledTools?: string[] }): Promise<ProviderPresetRecord>;
+  updateInstance(id: string, patch: any): Promise<ProviderPresetRecord | undefined>;
   deleteInstance(id: string): Promise<{ ok: boolean }>;
   getInstanceSecrets(instanceId: string): Promise<Record<string, string>>;
   setInstanceSecrets(instanceId: string, secrets: Record<string, string>): Promise<{ ok: boolean }>;
@@ -220,16 +294,16 @@ export type AIApi = {
   >;
   getGlossary(id: string): Promise<
     | {
-      id: string;
-      categoryId: string;
-      name: string;
-      description?: string;
-      entries: Array<{ source: string; target: string; note?: string }>;
-      sourceFile?: string;
-      sourceFormat?: string;
-      createdAt: number;
-      updatedAt: number;
-    }
+        id: string;
+        categoryId: string;
+        name: string;
+        description?: string;
+        entries: Array<{ source: string; target: string; note?: string }>;
+        sourceFile?: string;
+        sourceFormat?: string;
+        createdAt: number;
+        updatedAt: number;
+      }
     | undefined
   >;
   createGlossary(payload: {
@@ -255,16 +329,16 @@ export type AIApi = {
     patch: { categoryId?: string; name?: string; description?: string; entries?: Array<{ source: string; target: string; note?: string }> }
   ): Promise<
     | {
-      id: string;
-      categoryId: string;
-      name: string;
-      description?: string;
-      entries: Array<{ source: string; target: string; note?: string }>;
-      sourceFile?: string;
-      sourceFormat?: string;
-      createdAt: number;
-      updatedAt: number;
-    }
+        id: string;
+        categoryId: string;
+        name: string;
+        description?: string;
+        entries: Array<{ source: string; target: string; note?: string }>;
+        sourceFile?: string;
+        sourceFormat?: string;
+        createdAt: number;
+        updatedAt: number;
+      }
     | undefined
   >;
   deleteGlossary(id: string): Promise<{ ok: boolean }>;
@@ -273,16 +347,16 @@ export type AIApi = {
     entries: Array<{ source: string; target: string; note?: string }>
   ): Promise<
     | {
-      id: string;
-      categoryId: string;
-      name: string;
-      description?: string;
-      entries: Array<{ source: string; target: string; note?: string }>;
-      sourceFile?: string;
-      sourceFormat?: string;
-      createdAt: number;
-      updatedAt: number;
-    }
+        id: string;
+        categoryId: string;
+        name: string;
+        description?: string;
+        entries: Array<{ source: string; target: string; note?: string }>;
+        sourceFile?: string;
+        sourceFormat?: string;
+        createdAt: number;
+        updatedAt: number;
+      }
     | undefined
   >;
   removeGlossaryEntry(
@@ -290,16 +364,16 @@ export type AIApi = {
     source: string
   ): Promise<
     | {
-      id: string;
-      categoryId: string;
-      name: string;
-      description?: string;
-      entries: Array<{ source: string; target: string; note?: string }>;
-      sourceFile?: string;
-      sourceFormat?: string;
-      createdAt: number;
-      updatedAt: number;
-    }
+        id: string;
+        categoryId: string;
+        name: string;
+        description?: string;
+        entries: Array<{ source: string; target: string; note?: string }>;
+        sourceFile?: string;
+        sourceFormat?: string;
+        createdAt: number;
+        updatedAt: number;
+      }
     | undefined
   >;
   updateGlossaryEntry(
@@ -308,16 +382,16 @@ export type AIApi = {
     newEntry: { source: string; target: string; note?: string }
   ): Promise<
     | {
-      id: string;
-      categoryId: string;
-      name: string;
-      description?: string;
-      entries: Array<{ source: string; target: string; note?: string }>;
-      sourceFile?: string;
-      sourceFormat?: string;
-      createdAt: number;
-      updatedAt: number;
-    }
+        id: string;
+        categoryId: string;
+        name: string;
+        description?: string;
+        entries: Array<{ source: string; target: string; note?: string }>;
+        sourceFile?: string;
+        sourceFormat?: string;
+        createdAt: number;
+        updatedAt: number;
+      }
     | undefined
   >;
   parseGlossaryContent(
@@ -331,6 +405,7 @@ export type AIApi = {
   getResourceSummary(resourceId: string): Promise<any | null>;
   summarize(payload: {
     providerId: string;
+    providerInstanceId?: string;
     model: string;
     content?: string;
     segments?: any[];
@@ -353,6 +428,7 @@ export type AIApi = {
 
   generateMindmap(payload: {
     providerId: string;
+    providerInstanceId?: string;
     model: string;
     content?: string;
     segments?: any[];

@@ -1,6 +1,6 @@
 # AI 工具集合
 
-本目录包含所有可供 Mastra Agent 使用的工具定义。
+本目录包含 legacy 兼容层仍在复用的工具定义。
 
 ## 📁 目录结构
 
@@ -18,16 +18,16 @@ tools/
 
 ## 🛠️ 工具分类
 
-### AI 工具（需要 toolContext）
+### AI 工具（需要显式绑定）
 
-这些工具依赖外部服务，使用时需要通过 toolContext 传入依赖：
+这些工具依赖外部服务，使用时需要在创建工具时显式绑定依赖或 runtime：
 
 | 工具                | ID                    | 功能           | 依赖                       | 文件                     |
 | ------------------- | --------------------- | -------------- | -------------------------- | ------------------------ |
-| `translationTool`   | `translate-subtitles` | 字幕翻译       | TranslationService, chatFn | `translation-tool.ts`    |
-| `summaryTool`       | `summarize-content`   | 内容总结       | SummaryService, chatFn     | `summary-tool.ts`        |
+| `translationTool`   | `translate-subtitles` | 字幕翻译       | providerId, model, instance| `translation-tool.ts`    |
+| `summaryTool`       | `summarize-content`   | 内容总结       | providerId, model, instance| `summary-tool.ts`        |
 | `resourceQueryTool` | `query-resources`     | 资源智能查询   | ResourcesRepo              | `resource-query-tool.ts` |
-| `pushCardTool`      | `push-card`           | 推送资源卡片   | ChatRepo                   | `push-card-tool.ts`      |
+| `pushCardTool`      | `push-card`           | 推送资源卡片   | conversationId / windowId  | `push-card-tool.ts`      |
 | `readSubtitleTool`  | `read-subtitle`       | 读取字幕内容   | ResourcesRepo              | `read-subtitle-tool.ts`  |
 
 ### YouTube 工具
@@ -42,51 +42,40 @@ tools/
 ### 1. 导入工具
 
 ```typescript
-// 导入所有工具
-import { getAllTools, getAITools } from '@/packages/ai/tools';
-
-// 或导入单个工具
-import { translationTool, resourceQueryTool, pushCardTool } from '@/packages/ai/tools';
+import { createTranslationTool, createSummaryTool, createPushCardTool, resourceQueryTool } from '@/packages/ai/tools';
 ```
 
 ### 2. 使用 AI 工具（方式一：直接调用）
 
 ```typescript
-import { resourceQueryTool } from '@/packages/ai/tools';
+import { createResourceQueryTool } from '@/packages/ai/tools';
 import { ResourcesRepo } from '@/electron/main/db';
+
+const resourceQueryTool = createResourceQueryTool(ResourcesRepo);
 
 // 直接调用工具
 const result = await resourceQueryTool.execute({
   context: {
     type: 'video',
     timeRange: 'today'
-  },
-  toolContext: {
-    resourcesRepo: ResourcesRepo
   }
 });
 
 console.log(`找到 ${result.total} 个资源`);
 ```
 
-### 3. 使用 AI 工具（方式二：Agent 自动调用）
+### 3. 使用 AI 工具（方式二：兼容执行器自动调用）
 
 ```typescript
-import { Agent } from '@mastra/core';
-import { resourceQueryTool } from '@/packages/ai/tools';
+import { createResourceQueryTool } from '@/packages/ai/tools';
 import { ResourcesRepo } from '@/electron/main/db';
 
-const agent = new Agent({
-  name: 'resource-helper',
-  instructions: '你可以帮助用户查询资源',
-  model: { provider: 'OPEN_AI', name: 'gpt-4', toolChoice: 'auto' },
-  tools: { resourceQueryTool }
-});
+const resourceQueryTool = createResourceQueryTool(ResourcesRepo);
 
-// Agent 会解析用户意图并调用工具
-const result = await agent.stream([{ role: 'user', content: '找今天的视频文件' }], {
-  toolContext: {
-    resourcesRepo: ResourcesRepo
+const result = await resourceQueryTool.execute({
+  context: {
+    type: 'video',
+    timeRange: 'today'
   }
 });
 ```
@@ -96,21 +85,21 @@ const result = await agent.stream([{ role: 'user', content: '找今天的视频�
 ### 翻译工具
 
 ```typescript
-import { translationTool } from '@/packages/ai/tools';
-import { TranslationService } from '@/packages/ai';
-import { ChatService } from '@/packages/ai';
+import { createTranslationTool } from '@/packages/ai/tools';
+
+const translationTool = createTranslationTool({
+  runtime: {
+    providerId: 'openai',
+    providerInstanceId: 'instance-1',
+    model: 'gpt-4o-mini'
+  }
+});
 
 const result = await translationTool.execute({
   context: {
-    segments: [{ id: '1', text: 'Hello world', start: 0, end: 2000 }],
+    resourceId: 'subtitle-resource-id',
     targetLanguage: 'zh-CN',
     sourceLanguage: 'en'
-  },
-  toolContext: {
-    translationService: TranslationService,
-    chatFn: ChatService.chatStream,
-    requestId: 'req-123',
-    conversationId: 'conv-456'
   }
 });
 ```
@@ -118,18 +107,20 @@ const result = await translationTool.execute({
 ### 总结工具
 
 ```typescript
-import { summaryTool } from '@/packages/ai/tools';
+import { createSummaryTool } from '@/packages/ai/tools';
+
+const summaryTool = createSummaryTool({
+  runtime: {
+    providerId: 'openai',
+    providerInstanceId: 'instance-1',
+    model: 'gpt-4o-mini'
+  }
+});
 
 const result = await summaryTool.execute({
   context: {
     content: '长文本内容...',
     targetLanguage: 'zh-CN'
-  },
-  toolContext: {
-    summaryService: SummaryService,
-    chatFn: ChatService.chatStream,
-    requestId: 'req-123',
-    conversationId: 'conv-456'
   }
 });
 ```
@@ -137,17 +128,16 @@ const result = await summaryTool.execute({
 ### 资源查询工具
 
 ```typescript
-import { resourceQueryTool } from '@/packages/ai/tools';
+import { createResourceQueryTool } from '@/packages/ai/tools';
 import { ResourcesRepo } from '@/electron/main/db';
+
+const resourceQueryTool = createResourceQueryTool(ResourcesRepo);
 
 // 查询今天的视频
 const result = await resourceQueryTool.execute({
   context: {
     type: 'video',
     timeRange: 'today'
-  },
-  toolContext: {
-    resourcesRepo: ResourcesRepo
   }
 });
 
@@ -158,34 +148,39 @@ const result = await resourceQueryTool.execute({
     searchText: '.srt',
     sortBy: 'newest',
     limit: 1
-  },
-  toolContext: {
-    resourcesRepo: ResourcesRepo
   }
 });
 ```
 
 ## 🔧 工具管理 API
 
-### `getAllTools()`
+### `getAllTools(bindings?)`
 
 获取所有工具
 
 ```typescript
 import { getAllTools } from '@/packages/ai/tools';
 
-const tools = getAllTools();
+const tools = getAllTools({
+  translationRuntime: { providerId: 'openai', model: 'gpt-4o-mini' },
+  summaryRuntime: { providerId: 'openai', model: 'gpt-4o-mini' },
+  pushCard: { conversationId: 'conv-123', targetWindowId: 1 }
+});
 // => { translationTool, summaryTool, resourceQueryTool, pushCardTool, youtubeDownloadTool, youtubeSubscribeTool }
 ```
 
-### `getAITools()`
+### `getAITools(bindings?)`
 
-仅获取 AI 工具（需要 toolContext）
+仅获取 AI 工具（需要显式绑定）
 
 ```typescript
 import { getAITools } from '@/packages/ai/tools';
 
-const tools = getAITools();
+const tools = getAITools({
+  translationRuntime: { providerId: 'openai', model: 'gpt-4o-mini' },
+  summaryRuntime: { providerId: 'openai', model: 'gpt-4o-mini' },
+  pushCard: { conversationId: 'conv-123', targetWindowId: 1 }
+});
 // => { translationTool, summaryTool, resourceQueryTool, pushCardTool }
 ```
 
@@ -217,7 +212,7 @@ const tool = getToolById('query-resources');
 
 ```typescript
 // tools/my-tool.ts
-import { createTool } from '@mastra/core/tools';
+import { createTool } from './tool-definition';
 import { z } from 'zod';
 
 export const myTool = createTool({
@@ -230,12 +225,9 @@ export const myTool = createTool({
   outputSchema: z.object({
     result: z.string()
   }),
-  execute: async ({ context, toolContext }) => {
+  execute: async ({ context }) => {
     // 从 context 获取输入参数
     const { param1, param2 } = context;
-
-    // 从 toolContext 获取外部依赖（如果需要）
-    const { someService } = toolContext || {};
 
     // 执行工具逻辑
     const result = `处理结果: ${param1}`;

@@ -7,15 +7,18 @@ import TintableSvg from '@/components/common/TintableSvg';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { resolveProviderIdentity } from '@/lib/ai-provider-identity';
 
 type ProviderRow = {
   id: string;
+  aliases?: string[];
   label: string;
   schema?: {
     icon?: string;
     locales?: Record<string, { label?: string; fields?: Record<string, string> }>;
-    fields?: Array<{ key: string; label: string; type: string; required?: boolean; options?: any[] }>;
+    fields?: Array<{ key: string; label: string; type: 'text' | 'password' | 'textarea' | 'select'; required?: boolean; options?: Array<{ label: string; value: string }> }>;
   };
 };
 
@@ -23,11 +26,13 @@ type FieldError = Record<string, string>;
 
 type IncomingPayload = {
   providerId?: string;
+  presetId?: string;
   fields?: string[];
 };
 
 export default function AiProviderConfigWindow(): JSX.Element {
   const [providerId, setProviderId] = useState<string>('zhipu');
+  const [presetId, setPresetId] = useState<string | undefined>(undefined);
   const [limitedFields, setLimitedFields] = useState<string[]>([]);
 
   const [provider, setProvider] = useState<ProviderRow | null>(null);
@@ -36,6 +41,17 @@ export default function AiProviderConfigWindow(): JSX.Element {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  const currentLang = navigator.language?.toLowerCase?.() || 'en';
+  const pickLocale = useCallback(
+    (locales?: Record<string, { label?: string; fields?: Record<string, string> }>): { label?: string; fields?: Record<string, string> } | undefined => {
+      if (!locales) return undefined;
+      const exact = locales[currentLang] || locales[currentLang.replace(/-.+$/, '')];
+      const fallback = locales['zh-CN'] || locales.en || Object.values(locales)[0];
+      return exact || fallback;
+    },
+    [currentLang]
+  );
+
   // 从窗口管理器获取 payload（providerId + fields），并拉取 Provider 信息与已有秘钥
   useEffect(() => {
     let mounted = true;
@@ -43,23 +59,31 @@ export default function AiProviderConfigWindow(): JSX.Element {
       try {
         const payload = (await window.YUA.window['window:payload:get']('aiProviderConfig' as any)) as IncomingPayload | undefined;
         const pid = payload?.providerId || 'zhipu';
+        const targetPresetId = payload?.presetId?.trim() || undefined;
         const flds = Array.isArray(payload?.fields) ? payload.fields!.filter(Boolean) : [];
-        if (!mounted) return;
-        setProviderId(pid);
-        setLimitedFields(flds);
 
         const provs = (await window.YUA.ai.getProviders()) as ProviderRow[];
-        const p = provs.find((x) => x.id === pid) || null;
+        const p = resolveProviderIdentity(provs || [], pid) || null;
+        const resolvedProviderId = p?.id || pid;
         if (!mounted) return;
+        setProviderId(resolvedProviderId);
+        setPresetId(targetPresetId);
+        setLimitedFields(flds);
         setProvider(p);
         if (!p) {
           setLoading(false);
           return;
         }
 
-        const secrets = await window.YUA.ai.getProviderSecrets(pid).catch(() => ({}));
+        const [providerSecrets, presetSecrets] = await Promise.all([
+          window.YUA.ai.getProviderSecrets(resolvedProviderId).catch(() => ({})),
+          targetPresetId ? window.YUA.ai.getPresetSecrets(targetPresetId).catch(() => ({})) : Promise.resolve({})
+        ]);
         if (!mounted) return;
-        setValues(secrets || {});
+        setValues({
+          ...(providerSecrets || {}),
+          ...(presetSecrets || {})
+        });
       } catch {
         // ignore
       } finally {
@@ -91,12 +115,10 @@ export default function AiProviderConfigWindow(): JSX.Element {
 
   const displayLabel = useMemo(() => {
     if (!provider) return providerId;
-    const locales = provider.schema?.locales || {};
-    const currentLang = navigator.language?.toLowerCase?.() || 'en';
-    const exact = locales[currentLang] || locales[currentLang.replace(/-.+$/, '')];
-    const fallback = locales['zh-CN'] || locales['en'] || Object.values(locales)[0];
-    return (exact && exact.label) || (fallback && fallback.label) || provider.label;
-  }, [provider, providerId]);
+    return pickLocale(provider.schema?.locales)?.label || provider.label;
+  }, [pickLocale, provider, providerId]);
+
+  const locale = useMemo(() => pickLocale(provider?.schema?.locales), [pickLocale, provider?.schema?.locales]);
 
   // 自动保存：根据字段变化节流调用 setProviderSecrets
   const debouncedAutoSave = useMemo(
@@ -113,7 +135,11 @@ export default function AiProviderConfigWindow(): JSX.Element {
             });
             if (Object.keys(payload).length === 0) return;
             setSaving(true);
-            await window.YUA.ai.setProviderSecrets(pid, payload);
+            if (presetId) {
+              await window.YUA.ai.setPresetSecrets(presetId, payload);
+            } else {
+              await window.YUA.ai.setProviderSecrets(pid, payload);
+            }
           } catch (e: any) {
             toast.error('自动保存失败', { description: e?.message || String(e) });
           } finally {
@@ -123,7 +149,7 @@ export default function AiProviderConfigWindow(): JSX.Element {
         500,
         { leading: false, trailing: true }
       ),
-    []
+    [presetId]
   );
 
   const handleChange = (key: string, val: string): void => {
@@ -176,9 +202,10 @@ export default function AiProviderConfigWindow(): JSX.Element {
             {provider.schema?.icon && <TintableSvg src={provider.schema.icon} alt={displayLabel} className="w-6 h-6" />}
             <div className="flex flex-col">
               <span className="font-semibold text-sm">{displayLabel}</span>
-              <span className="text-xs text-muted-foreground">配置访问该服务所需的秘钥</span>
+              <span className="text-xs text-muted-foreground">{presetId ? '配置当前预设的覆盖秘钥；未填写字段会继续继承服务商配置' : '配置访问该服务所需的秘钥'}</span>
             </div>
           </div>
+          {presetId && <span className="text-[11px] rounded-full border px-2 py-0.5 text-muted-foreground">预设覆盖</span>}
         </div>
         <div className="space-y-3">
           {displayFields.length === 0 ? (
@@ -187,9 +214,10 @@ export default function AiProviderConfigWindow(): JSX.Element {
             displayFields.map((f) => {
               const value = values[f.key] || '';
               const error = errors[f.key];
-              const label = f.label || f.key;
+              const label = locale?.fields?.[f.key] || f.label || f.key;
               const isPassword = f.type === 'password';
               const isTextarea = f.type === 'textarea';
+              const isSelect = f.type === 'select';
               return (
                 <div key={f.key} className="space-y-1">
                   <Label className="text-xs">
@@ -198,6 +226,19 @@ export default function AiProviderConfigWindow(): JSX.Element {
                   </Label>
                   {isTextarea ? (
                     <Textarea className="h-20 text-xs" value={value} onChange={(e) => handleChange(f.key, e.target.value)} placeholder={label} />
+                  ) : isSelect ? (
+                    <Select value={value} onValueChange={(nextValue) => handleChange(f.key, nextValue)}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder={`选择${label}`} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(f.options || []).map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   ) : (
                     <Input type={isPassword ? 'password' : 'text'} className="h-8 text-xs" value={value} onChange={(e) => handleChange(f.key, e.target.value)} placeholder={label} />
                   )}
@@ -209,6 +250,7 @@ export default function AiProviderConfigWindow(): JSX.Element {
         </div>
 
         <div className="flex justify-end gap-2 mt-2">
+          {saving && <div className="mr-auto text-xs text-muted-foreground">正在自动保存...</div>}
           <Button variant="outline" size="sm" disabled={saving} onClick={handleClose}>
             取消
           </Button>

@@ -5,7 +5,7 @@ import { TbLoader2, TbSend } from 'react-icons/tb';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 
-import ServiceInstanceSelect from '../components/ServiceInstanceSelect';
+import ServicePresetSelect from '../components/ServicePresetSelect';
 import { useChatSelection } from '../context/ChatSelectionContext';
 
 export interface ChatInputProps {
@@ -31,7 +31,7 @@ export interface ChatInputProps {
   autoFocus?: boolean;
   // Optional keydown handler; call e.preventDefault() to stop default submit behavior
   onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>, value: string) => void;
-  // Notify when built-in instance selector menu opens/closes (e.g., to resize small windows)
+  // Notify when built-in preset selector menu opens/closes (e.g., to resize small windows)
   onInstanceMenuOpenChange?: (open: boolean) => void;
 }
 
@@ -52,9 +52,8 @@ export default function ChatInput({
   onKeyDown,
   onInstanceMenuOpenChange
 }: ChatInputProps): JSX.Element {
-  // Standardized chat selection (provider/instance) available for all chat inputs
-  // This makes instance selection a built-in part of ChatInput rather than requiring parent injection
-  const { providerId, instanceId, setProviderId, setInstanceId, getOrderedInstances } = useChatSelection();
+  // Standardized chat selection (provider/preset) available for all chat inputs
+  const { providerId, presetId, setProviderId, setPresetId, getOrderedPresets } = useChatSelection();
 
   const isControlled = useMemo(() => value !== undefined, [value]);
   const [inner, setInner] = useState<string>(defaultValue ?? '');
@@ -136,18 +135,18 @@ export default function ChatInput({
 
       {/* Bottom toolbar */}
       <div className="absolute bottom-2 flex items-center gap-2 overflow-x-auto w-[calc(100%-1rem)] px-2">
-        {/* Built-in: Service Instance selector (standard across all chat inputs) */}
+        {/* Built-in: Service preset selector (standard across all chat inputs) */}
         <div className="shrink-0">
-          <ServiceInstanceSelect
+          <ServicePresetSelect
             providerId={providerId}
-            instanceId={instanceId}
-            onChange={(pid, iid) => {
+            presetId={presetId}
+            onChange={(pid, nextPresetId) => {
               setProviderId(pid);
-              setInstanceId(iid);
+              setPresetId(nextPresetId);
             }}
             buttonVariant="outline"
             buttonSize="sm"
-            orderInstances={(list, pid) => (getOrderedInstances ? getOrderedInstances(pid) : list)}
+            orderPresets={(list, pid) => (getOrderedPresets ? getOrderedPresets(pid) : list)}
             onOpenChange={onInstanceMenuOpenChange}
           />
         </div>

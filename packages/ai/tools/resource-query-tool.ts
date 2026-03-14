@@ -9,10 +9,10 @@
  * - 全文搜索
  */
 
-import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 
 import type { ResourcesRepo as ResourcesRepoType } from '../../../electron/main/db/repositories';
+import { createTool } from './tool-definition';
 
 /**
  * 资源查询工具上下文接口
@@ -281,6 +281,6 @@ export const createResourceQueryTool = (boundResourcesRepo?: typeof ResourcesRep
  * 默认资源查询工具实例（不绑定依赖）
  *
  * 注意：此工具需要在使用时提供 ResourcesRepo
- * 推荐在 agents/index.ts 中使用 createResourceQueryTool(ResourcesRepo) 创建绑定版本
+ * 推荐在 legacy tool factory 或调用点里显式使用 createResourceQueryTool(ResourcesRepo) 创建绑定版本
  */
 export const resourceQueryTool = createResourceQueryTool();

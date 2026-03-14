@@ -1,34 +1,45 @@
 import { utils } from '@aim-packages/subtitle';
-import { BrowserWindow, ipcMain } from 'electron';
+import { ipcMain } from 'electron';
 
-import { getAgent } from '../registry';
+import { ChatService } from '../chat-service';
+import { PresetsStore } from '../instances-store';
 import { getProvider } from '../registry';
+import { PiExecutionService } from '../runtime/pi/execution-service';
+import { generatePiTagsForSegment, parseTagListFromResponse } from '../runtime/pi/tasks/tag';
 import { isFreeProvider, loadSelectionStrategy, scoreCandidate } from '../selection-strategy';
-import { getAllInstanceSecrets } from '../settings-store';
-import { InstancesStore } from '../instances-store';
+import { getAllPresetSecrets } from '../settings-store';
+import type { ChatRequest, ChatResponse } from '../types';
 
-export type BestInstance = {
+export type BestPreset = {
   providerId: string;
-  instanceId?: string;
+  presetId?: string;
   secrets?: Record<string, string>;
   model?: string;
 };
 
-type Candidate = { providerId: string; instanceId: string; updatedAt: number; weight: number; secrets?: Record<string, string>; model?: string };
+type Candidate = { providerId: string; presetId: string; updatedAt: number; weight: number; secrets?: Record<string, string>; model?: string };
 
-const TAGGER_SYSTEM_PROMPT = `你是一个资深文本归纳与主题提取助手。
-目标：从给定文本中提炼出主题/话题标签，尽量短小、泛化，避免冗长描述，控制在一个单词或者短语内。
-最多返回 5 个中文标签，按相关性降序。
-仅返回 JSON 数组，例如：["标签1","标签2"...]；不要包含解释性文字`;
+let piExecutionService: PiExecutionService | undefined;
+let legacyTagChatServicePromise: Promise<{ chatEphemeral(win: undefined, req: ChatRequest): Promise<ChatResponse> }> | undefined;
+
+function getPiExecutionService(): PiExecutionService {
+  piExecutionService ||= new PiExecutionService();
+  return piExecutionService;
+}
+
+function getLegacyTagChatService(): Promise<{ chatEphemeral(win: undefined, req: ChatRequest): Promise<ChatResponse> }> {
+  legacyTagChatServicePromise ||= Promise.resolve(new ChatService());
+  return legacyTagChatServicePromise;
+}
 
 export const TaggingService = {
   /**
-   * 自动选择"最佳聊天实例"的原则说明：
-   * 1) 仅考虑已注册且实现了 chat() 能力的 Provider 对应的实例；
-   * 2) 若该 Provider 的配置 schema 有必填字段，则优先那些"已配置齐所有必填秘钥"的实例；
+   * 自动选择"最佳聊天预设"的原则说明：
+   * 1) 仅考虑已注册且实现了 chat() 能力的 Provider 对应的预设；
+   * 2) 若该 Provider 的配置 schema 有必填字段，则优先那些"已配置齐所有必填秘钥"的预设；
    * 3) 结合最近更新时间（updatedAt）给予轻微加权；
    * 4) 最终按权重与最近更新时间降序排序，取第一名；
-   * 5) 若没有可用实例，则回退到可聊天的 Provider（优先 ollama，再退到第一个可用 Provider）。
+   * 5) 若没有可用预设，则回退到可聊天的 Provider（优先 ollama，再退到第一个可用 Provider）。
    *
    * 同时支持通过用户可编辑的 JSON（位于 userData/ai-selection-strategy.json）预设偏好：
    * - preferredProviders: 按顺序的偏好 Provider 列表（越靠前加分越多）
@@ -38,8 +49,8 @@ export const TaggingService = {
    * - flags.freeOnly: 若为 true，则仅在 freeProviders 范围内选择
    * 如未创建该文件，会自动写入一个默认模板，用户可自行修改以生效。
    */
-  async chooseBestChatInstance(): Promise<BestInstance> {
-    const all = InstancesStore.list();
+  async chooseBestChatPreset(): Promise<BestPreset> {
+    const all = PresetsStore.list();
     const candidates: Candidate[] = [];
     // 读取（并在首次缺失时生成）用户策略
     const strategy = loadSelectionStrategy();
@@ -51,7 +62,7 @@ export const TaggingService = {
       const requiredKeys = fields.filter((f: any) => (f as any).required).map((f: any) => f.key as string);
       let secrets: Record<string, string> = {};
       try {
-        secrets = await getAllInstanceSecrets(inst.id, requiredKeys.length ? requiredKeys : fields.map((f: any) => f.key));
+        secrets = await getAllPresetSecrets(inst.id, requiredKeys.length ? requiredKeys : fields.map((f: any) => f.key));
       } catch {
         secrets = {};
       }
@@ -72,7 +83,7 @@ export const TaggingService = {
       );
       candidates.push({
         providerId: inst.providerId,
-        instanceId: inst.id,
+        presetId: inst.id,
         updatedAt: (inst as any).updatedAt || 1,
         weight,
         secrets: Object.keys(secrets).length ? secrets : undefined,
@@ -81,7 +92,7 @@ export const TaggingService = {
     }
     candidates.sort((a, b) => b.weight - a.weight || b.updatedAt - a.updatedAt);
     const best = candidates[0];
-    if (best) return { providerId: best.providerId, instanceId: best.instanceId, secrets: best.secrets, model: best.model };
+    if (best) return { providerId: best.providerId, presetId: best.presetId, secrets: best.secrets, model: best.model };
     // Fallbacks: pick any provider that supports chat (e.g., Ollama)
     const provFallback = getProvider('ollama') || getProvider();
     return { providerId: provFallback?.id || 'ollama' };
@@ -91,43 +102,34 @@ export const TaggingService = {
    * 从文本中解析标签
    */
   parseTagsFromText(txt: string): string[] {
-    try {
-      const json: any = JSON.parse(txt);
-      if (Array.isArray(json))
-        return json
-          .map((v: any) => String(v))
-          .map((s: string) => s.trim())
-          .filter(Boolean);
-      if (json && Array.isArray(json.tags))
-        return json.tags
-          .map((v: any) => String(v))
-          .map((s: string) => s.trim())
-          .filter(Boolean);
-    } catch {
-      // Ignore
-    }
-    // Fallback: split by commas/newlines
-    return (txt || '')
-      .split(/[\n,、，]/)
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .slice(0, 20);
+    return parseTagListFromResponse(txt);
   },
 
-  /**
-   * 对单个文本片段提取标签
-   */
-  async tagOneSegment(segment: string, agent: any, signal?: AbortSignal): Promise<string[]> {
+  async tagOneSegmentLegacy(segment: string, best: BestPreset): Promise<string[]> {
     try {
-      const result = await agent.generate([
-        { role: 'system', content: TAGGER_SYSTEM_PROMPT },
-        { role: 'user', content: `文本：\n${segment}` }
-      ], {
-        maxSteps: 5,
-        abortSignal: signal
+      const response = await (
+        await getLegacyTagChatService()
+      ).chatEphemeral(undefined, {
+        agentId: 'tagger',
+        extras: best.model
+          ? {
+              model: best.model
+            }
+          : undefined,
+        maxTokens: 256,
+        messages: [
+          {
+            role: 'user',
+            content: `文本：\n${segment}`
+          }
+        ],
+        persist: false,
+        providerId: best.providerId,
+        providerInstanceId: best.presetId,
+        temperature: 0.2
       });
 
-      const txt = result?.text || '';
+      const txt = response?.message?.content || '';
       return this.parseTagsFromText(txt).slice(0, 5);
     } catch {
       return [];
@@ -137,13 +139,6 @@ export const TaggingService = {
   async autoTagText(text: string, opts?: { maxLabels?: number }): Promise<string[]> {
     const textStr = (text || '').trim();
     if (!textStr) return [];
-
-    // 获取 Mastra Agent
-    const agent = getAgent('tagger');
-    if (!agent) {
-      console.warn('TaggerAgent not registered');
-      return [];
-    }
 
     // Chunk long text for better tagging
     let segments = [textStr];
@@ -155,7 +150,6 @@ export const TaggingService = {
     }
 
     const maxLabels = Math.max(1, Math.min(50, Number(opts?.maxLabels) || 8));
-    const maxPerSeg = 5;
 
     // 聚合器
     const agg = new Map<string, { label: string; score: number }>();
@@ -178,9 +172,37 @@ export const TaggingService = {
       else agg.set(key, { label: clean, score: weight });
     };
 
+    const best = await this.chooseBestChatPreset();
+    const legacyFallbackAllowed = !getPiExecutionService().getAvailability({
+      extras: {
+        ...(best.model ? { model: best.model } : {}),
+        runtime: 'pi'
+      }
+    }).available;
+    const usePi = !legacyFallbackAllowed;
+
     // 处理每个片段
     for (const segment of segments) {
-      const tags = await this.tagOneSegment(segment, agent);
+      let tags: string[] = [];
+
+      if (usePi) {
+        try {
+          tags = await generatePiTagsForSegment({
+            model: best.model,
+            providerId: best.providerId,
+            providerInstanceId: best.presetId,
+            segment
+          });
+        } catch (error) {
+          console.warn('[TaggingService] Pi tagging failed:', error);
+          continue;
+        }
+      }
+
+      if (!tags.length && legacyFallbackAllowed) {
+        tags = await this.tagOneSegmentLegacy(segment, best);
+      }
+
       for (const t of tags) uniqPush(t, 1);
     }
 

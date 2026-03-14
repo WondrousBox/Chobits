@@ -1,12 +1,12 @@
 import { utils } from '@aim-packages/subtitle';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
-import ServiceInstanceSelect from '@/pages/ChatPage/components/ServiceInstanceSelect';
+import ServicePresetSelect from '@/pages/ChatPage/components/ServicePresetSelect';
 
 type ProgressMeta = { phase: 'start' | 'progress'; total: number; startIndex?: number; index?: number; segmentTags?: string[]; aggTop?: string[] };
 
@@ -26,12 +26,12 @@ const TaggingPage: React.FC = () => {
   const [finalTags, setFinalTags] = useState<string[] | null>(null);
   const [initialAgg, setInitialAgg] = useState<Record<string, number>>({});
   const [providerId, setProviderId] = useState<string | undefined>(undefined);
-  const [instanceId, setInstanceId] = useState<string | undefined>(undefined);
+  const [presetId, setPresetId] = useState<string | undefined>(undefined);
   const streamRef = useRef<StreamApi | null>(null);
 
-  const canStart = useMemo(() => confirmed && segments.length > 0 && !running && !!providerId && !!instanceId, [confirmed, segments, running, providerId, instanceId]);
+  const canStart = useMemo(() => confirmed && segments.length > 0 && !running && !!providerId && !!presetId, [confirmed, segments, running, providerId, presetId]);
 
-  const doSegment = () => {
+  const doSegment = (): void => {
     const segs = useSmart ? utils.smartChunks(input, maxChars, overlap) : utils.chunkText(input, maxChars, overlap);
     setSegments(segs);
     setConfirmed(false);
@@ -41,9 +41,9 @@ const TaggingPage: React.FC = () => {
     setInitialAgg({});
   };
 
-  // Provider/Instance selection is handled by ServiceInstanceSelect; no manual fetching needed here
+  // Provider/preset selection is handled by ServicePresetSelect; no manual fetching needed here
 
-  const handleStart = async (resume = false) => {
+  const handleStart = async (resume = false): Promise<void> => {
     if (running) return;
     setRunning(true);
     setFinalTags(null);
@@ -51,7 +51,7 @@ const TaggingPage: React.FC = () => {
     const payload = {
       agentId: 'tagger',
       providerId,
-      providerInstanceId: instanceId,
+      providerInstanceId: presetId,
       stream: true,
       messages: [{ role: 'user', content: input }],
       extras: {
@@ -73,7 +73,9 @@ const TaggingPage: React.FC = () => {
           const content = ev.data?.message?.content || '';
           const parsed = JSON.parse(content);
           if (parsed && Array.isArray(parsed.tags)) setFinalTags(parsed.tags);
-        } catch { }
+        } catch {
+          // ignore malformed tool output
+        }
       } else if (ev?.type === 'done') {
         setRunning(false);
         streamRef.current = null;
@@ -85,11 +87,13 @@ const TaggingPage: React.FC = () => {
     streamRef.current = api as any;
   };
 
-  const handlePause = async () => {
+  const handlePause = async (): Promise<void> => {
     if (!running || !streamRef.current) return;
     try {
       await streamRef.current.cancel();
-    } catch { }
+    } catch {
+      // ignore cancellation errors
+    }
     // Capture paused index and aggTop as seed
     setPausedAt(progress.index - 1);
     // Convert aggTop to initialAgg seeds (score=1 each) – best-effort resume
@@ -105,13 +109,13 @@ const TaggingPage: React.FC = () => {
         {/* Controls */}
         <div className="flex items-center">
           <div className="col-span-12 sm:col-span-4 lg:col-span-3">
-            <div className="text-xs text-muted-foreground mb-1">模型服务实例</div>
-            <ServiceInstanceSelect
+            <div className="text-xs text-muted-foreground mb-1">模型服务预设</div>
+            <ServicePresetSelect
               providerId={providerId}
-              instanceId={instanceId}
-              onChange={(pid, iid) => {
+              presetId={presetId}
+              onChange={(pid, nextPresetId) => {
                 setProviderId(pid);
-                setInstanceId(iid);
+                setPresetId(nextPresetId);
               }}
               buttonVariant="outline"
               className="w-full"

@@ -2,13 +2,14 @@ import { throttle } from 'lodash';
 import { Transformer } from 'markmap-lib';
 import { Markmap } from 'markmap-view';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TbBrain, TbPlayerStop, TbRefresh, TbSitemap } from 'react-icons/tb';
+import { TbPlayerStop, TbRefresh, TbSitemap } from 'react-icons/tb';
 
 import { ProviderModelSelect, ProviderModelSelectRef } from '@/components/common/ProviderModelSelect';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import ServicePresetSelect from '@/pages/ChatPage/components/ServicePresetSelect';
 
 import { useResourceTabContext } from './ResourceTabContext';
 
@@ -48,7 +49,7 @@ const loadPreferences = (): Record<string, any> | null => {
   return null;
 };
 
-const savePreferences = (preferences: { selectedProviderId?: string; selectedModel?: string; targetLanguage?: string }): void => {
+const savePreferences = (preferences: { selectedProviderId?: string; selectedPresetId?: string; selectedModel?: string; targetLanguage?: string }): void => {
   try {
     const existing = loadPreferences() || {};
     const updated = { ...existing, ...preferences };
@@ -67,6 +68,7 @@ const MindmapTab: React.FC = () => {
   const savedPreferences = loadPreferences();
 
   const [selectedProviderId, setSelectedProviderId] = useState<string>(savedPreferences?.selectedProviderId || '');
+  const [selectedPresetId, setSelectedPresetId] = useState<string>(savedPreferences?.selectedPresetId || '');
   const [selectedModel, setSelectedModel] = useState<string>(savedPreferences?.selectedModel || '');
   const [providerConfigured, setProviderConfigured] = useState<boolean>(false);
   const [targetLanguage, setTargetLanguage] = useState<string>(savedPreferences?.targetLanguage || 'zh');
@@ -83,13 +85,14 @@ const MindmapTab: React.FC = () => {
 
   // 优先使用 activeSubtitle，如果没有则使用 resource
   const targetResource = activeSubtitle || resource;
+  const targetResourceId = targetResource?.id;
 
   // 加载已保存的脑图
-  const loadMindmap = useCallback(async () => {
-    if (!targetResource?.id) return;
+  const loadMindmap = useCallback(async (): Promise<void> => {
+    if (!targetResourceId) return;
 
     try {
-      const mindmapData = await window.YUA.ai.getResourceMindmap(targetResource.id);
+      const mindmapData = await window.YUA.ai.getResourceMindmap(targetResourceId);
       if (mindmapData && mindmapData.markdown) {
         setMarkdown(mindmapData.markdown);
         setProgress(100);
@@ -97,12 +100,20 @@ const MindmapTab: React.FC = () => {
     } catch (error) {
       console.error('加载脑图失败:', error);
     }
-  }, [targetResource?.id]);
+  }, [targetResourceId]);
 
   // 组件挂载时加载脑图
   useEffect(() => {
-    loadMindmap();
-  }, [loadMindmap]);
+    if (!targetResourceId) return;
+
+    const timer = window.setTimeout(() => {
+      void loadMindmap();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [loadMindmap, targetResourceId]);
 
   // 使用 lodash throttle 创建节流的 setMarkdown 函数
   // 每 300ms 最多执行一次，保证流式生成过程中能看到渲染进度
@@ -154,7 +165,7 @@ const MindmapTab: React.FC = () => {
             setProgress(100);
             setIsGenerating(false);
             // 重新加载脑图以获取保存的版本
-            loadMindmap();
+            void loadMindmap();
           }
 
           if (type === 'error') {
@@ -206,8 +217,8 @@ const MindmapTab: React.FC = () => {
     setProviderConfigured(configured);
   }, []);
 
-  const handleOpenConfig = useCallback(async (providerId: string, fields: string[]) => {
-    await window.YUA.window['window:open']('aiProviderConfig' as any, { providerId, fields }, { sameDisplayAsSender: true });
+  const handleOpenConfig = useCallback(async (providerId: string, fields: string[], presetId?: string) => {
+    await window.YUA.window['window:open']('aiProviderConfig' as any, { providerId, presetId, fields }, { sameDisplayAsSender: true });
   }, []);
 
   const handleGenerate = useCallback(async () => {
@@ -228,6 +239,7 @@ const MindmapTab: React.FC = () => {
     try {
       const { requestId } = await window.YUA.ai.generateMindmap({
         providerId: selectedProviderId,
+        providerInstanceId: selectedPresetId || undefined,
         model: selectedModel,
         resourceId: targetResource.id,
         targetLanguage,
@@ -243,7 +255,17 @@ const MindmapTab: React.FC = () => {
       setIsGenerating(false);
       setProgress(0);
     }
-  }, [selectedProviderId, selectedModel, targetLanguage, targetResource]);
+  }, [selectedPresetId, selectedProviderId, selectedModel, targetLanguage, targetResource]);
+
+  const handleProviderModelChange = useCallback((providerId: string, modelId: string) => {
+    setSelectedProviderId((prevProviderId) => {
+      if (prevProviderId && prevProviderId !== providerId) {
+        setSelectedPresetId('');
+      }
+      return providerId;
+    });
+    setSelectedModel(modelId);
+  }, []);
 
   const handleStop = useCallback(async () => {
     if (currentRequestId) {
@@ -257,10 +279,11 @@ const MindmapTab: React.FC = () => {
   useEffect(() => {
     savePreferences({
       selectedProviderId,
+      selectedPresetId,
       selectedModel,
       targetLanguage
     });
-  }, [selectedProviderId, selectedModel, targetLanguage]);
+  }, [selectedPresetId, selectedProviderId, selectedModel, targetLanguage]);
 
   // 检查是否是视频资源且没有字幕
   const isVideo = resource?.type === 'video';
@@ -292,15 +315,29 @@ const MindmapTab: React.FC = () => {
           <PopoverContent align="center" className="w-80">
             <div className="space-y-4">
               <div className="space-y-2">
+                <Label className="text-sm font-medium">模型预设</Label>
+                <ServicePresetSelect
+                  providerId={selectedProviderId}
+                  presetId={selectedPresetId}
+                  onChange={(providerId, presetId) => {
+                    setSelectedProviderId(providerId);
+                    setSelectedPresetId(presetId);
+                  }}
+                  buttonVariant="outline"
+                  buttonSize="default"
+                  className="w-full justify-between"
+                  placeholder="选择服务商 · 预设"
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label className="text-sm font-medium">AI 模型</Label>
                 <ProviderModelSelect
                   ref={providerSelectRef}
                   providerId={selectedProviderId}
+                  presetId={selectedPresetId}
                   modelId={selectedModel}
-                  onChange={(providerId, modelId) => {
-                    setSelectedProviderId(providerId);
-                    setSelectedModel(modelId);
-                  }}
+                  onChange={handleProviderModelChange}
                   placeholder="选择模型"
                   buttonVariant="outline"
                   buttonSize="default"
@@ -366,7 +403,15 @@ const MindmapTab: React.FC = () => {
             </Button>
           ) : (
             <>
-              <Button size="icon" className="w-8 h-8" variant="ghost" onClick={loadMindmap} title="刷新">
+              <Button
+                size="icon"
+                className="w-8 h-8"
+                variant="ghost"
+                onClick={() => {
+                  void loadMindmap();
+                }}
+                title="刷新"
+              >
                 <TbRefresh />
               </Button>
               <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
@@ -378,15 +423,29 @@ const MindmapTab: React.FC = () => {
                 <PopoverContent align="end" className="w-80">
                   <div className="space-y-4">
                     <div className="space-y-2">
+                      <Label className="text-sm font-medium">模型预设</Label>
+                      <ServicePresetSelect
+                        providerId={selectedProviderId}
+                        presetId={selectedPresetId}
+                        onChange={(providerId, presetId) => {
+                          setSelectedProviderId(providerId);
+                          setSelectedPresetId(presetId);
+                        }}
+                        buttonVariant="outline"
+                        buttonSize="default"
+                        className="w-full justify-between"
+                        placeholder="选择服务商 · 预设"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
                       <Label className="text-sm font-medium">AI 模型</Label>
                       <ProviderModelSelect
                         ref={providerSelectRef}
                         providerId={selectedProviderId}
+                        presetId={selectedPresetId}
                         modelId={selectedModel}
-                        onChange={(providerId, modelId) => {
-                          setSelectedProviderId(providerId);
-                          setSelectedModel(modelId);
-                        }}
+                        onChange={handleProviderModelChange}
                         placeholder="选择模型"
                         buttonVariant="outline"
                         buttonSize="default"

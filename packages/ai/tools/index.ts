@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/explicit-function-return-type */
 /**
- * Mastra 工具集中管理
+ * AI 工具集中管理
  *
- * 这里统一导出所有可供 Agent 使用的工具
+ * 这里统一导出所有可供 profile / session 使用的工具
  * 每个工具都定义在独立的文件中
  */
 
@@ -11,22 +11,28 @@
 // ============================================================================
 
 // AI 工具（需要绑定依赖）
-export { createPushCardTool, pushCardTool } from './push-card-tool';
+export type { PushCardToolContext } from './push-card-tool';
+export { createPushCardTool } from './push-card-tool';
 export { createReadSubtitleTool, readSubtitleTool } from './read-subtitle-tool';
 export { createResourceQueryTool, resourceQueryTool } from './resource-query-tool';
-export { createSummaryTool, summaryTool } from './summary-tool';
-export { createTranslationTool, translationTool } from './translation-tool';
+export type { SummaryToolRuntimeBinding } from './summary-tool';
+export { createSummaryTool } from './summary-tool';
+export type { TranslationToolRuntimeBinding } from './translation-tool';
+export { createTranslationTool } from './translation-tool';
 
 // YouTube 工具
 export { createYoutubeDownloadTool, youtubeDownloadTool } from './youtube-download-tool';
 export { createYoutubeSubscribeTool, youtubeSubscribeTool } from './youtube-subscribe-tool';
 
 // 导入用于类型和工具列表
-import { pushCardTool } from './push-card-tool';
+import type { PushCardToolContext } from './push-card-tool';
+import { createPushCardTool } from './push-card-tool';
 import { readSubtitleTool } from './read-subtitle-tool';
 import { resourceQueryTool } from './resource-query-tool';
-import { summaryTool } from './summary-tool';
-import { translationTool } from './translation-tool';
+import type { SummaryToolRuntimeBinding } from './summary-tool';
+import { createSummaryTool } from './summary-tool';
+import type { TranslationToolRuntimeBinding } from './translation-tool';
+import { createTranslationTool } from './translation-tool';
 import { youtubeDownloadTool } from './youtube-download-tool';
 import { youtubeSubscribeTool } from './youtube-subscribe-tool';
 
@@ -48,40 +54,41 @@ import { youtubeSubscribeTool } from './youtube-subscribe-tool';
  * - youtubeDownloadTool: 下载 YouTube 视频
  * - youtubeSubscribeTool: 订阅 YouTube 频道
  */
-export const allTools = {
-  // AI 工具
-  readSubtitleTool,
-  translationTool,
-  summaryTool,
-  resourceQueryTool,
-  pushCardTool,
-
-  // YouTube 工具
-  youtubeDownloadTool,
-  youtubeSubscribeTool
-};
+export interface LegacyToolBindings {
+  pushCard?: PushCardToolContext;
+  summaryRuntime?: SummaryToolRuntimeBinding;
+  translationRuntime?: TranslationToolRuntimeBinding;
+}
 
 /**
- * 获取 AI 工具列表（需要 toolContext）
+ * 获取 AI 工具列表（需要显式 binding）
  *
- * 这些工具需要外部依赖，使用时需要通过 toolContext 传入
+ * 这些工具在创建时需要通过 bindings 传入 runtime / 上下文依赖
  */
-export function getAITools() {
+export function getAITools(bindings: LegacyToolBindings = {}) {
   return {
-    translationTool,
-    summaryTool,
+    translationTool: createTranslationTool(bindings.translationRuntime ? { runtime: bindings.translationRuntime } : undefined),
+    summaryTool: createSummaryTool(bindings.summaryRuntime ? { runtime: bindings.summaryRuntime } : undefined),
     resourceQueryTool,
-    pushCardTool
+    pushCardTool: createPushCardTool(bindings.pushCard)
   };
 }
 
 /**
  * 获取所有工具列表
  *
- * 注意：AI 工具需要在使用时通过 toolContext 传入依赖
+ * 注意：AI 工具需要在创建时显式传入 bindings
  */
-export function getAllTools() {
-  return allTools;
+export function getAllTools(bindings: LegacyToolBindings = {}) {
+  return {
+    readSubtitleTool,
+    translationTool: createTranslationTool(bindings.translationRuntime ? { runtime: bindings.translationRuntime } : undefined),
+    summaryTool: createSummaryTool(bindings.summaryRuntime ? { runtime: bindings.summaryRuntime } : undefined),
+    resourceQueryTool,
+    pushCardTool: createPushCardTool(bindings.pushCard),
+    youtubeDownloadTool,
+    youtubeSubscribeTool
+  };
 }
 
 /**
@@ -90,8 +97,8 @@ export function getAllTools() {
  * @param name - 工具名称（如 'translationTool', 'resourceQueryTool'）
  * @returns 对应的工具实例，如果不存在则返回 undefined
  */
-export function getTool(name: string) {
-  return (allTools as Record<string, any>)[name];
+export function getTool(name: string, bindings: LegacyToolBindings = {}) {
+  return (getAllTools(bindings) as Record<string, any>)[name];
 }
 
 /**
@@ -100,12 +107,13 @@ export function getTool(name: string) {
  * @param id - 工具 ID（如 'translate-subtitles', 'query-resources'）
  * @returns 对应的工具实例，如果不存在则返回 undefined
  */
-export function getToolById(id: string) {
+export function getToolById(id: string, bindings: LegacyToolBindings = {}) {
+  const allTools = getAllTools(bindings);
   const toolMap: Record<string, any> = {
-    'translate-subtitles': translationTool,
-    'summarize-content': summaryTool,
+    'translate-subtitles': allTools.translationTool,
+    'summarize-content': allTools.summaryTool,
     'query-resources': resourceQueryTool,
-    'push-card': pushCardTool,
+    'push-card': allTools.pushCardTool,
     'youtube-download': youtubeDownloadTool,
     'youtube-subscribe': youtubeSubscribeTool,
     'read-subtitle': readSubtitleTool
@@ -116,7 +124,7 @@ export function getToolById(id: string) {
 /**
  * 工具类型定义
  */
-export type ToolName = keyof typeof allTools;
+export type ToolName = keyof ReturnType<typeof getAllTools>;
 
 /**
  * 工具 ID 类型定义
@@ -142,27 +150,27 @@ export function listToolInfos(): ToolInfo[] {
     {
       id: 'query-resources',
       name: 'resourceQueryTool',
-      description: resourceQueryTool.description || '智能查询资源库中的内容'
+      description: '智能查询资源库中的内容'
     },
     {
       id: 'push-card',
       name: 'pushCardTool',
-      description: pushCardTool.description || '在聊天中推送资源卡片'
+      description: '在聊天中推送资源卡片'
     },
     {
       id: 'read-subtitle',
       name: 'readSubtitleTool',
-      description: readSubtitleTool.description || '读取字幕文件内容'
+      description: '读取字幕文件内容'
     },
     {
       id: 'translate-subtitles',
       name: 'translationTool',
-      description: translationTool.description || '翻译字幕内容'
+      description: '翻译字幕内容'
     },
     {
       id: 'summarize-content',
       name: 'summaryTool',
-      description: summaryTool.description || '总结字幕和文本内容'
+      description: '总结字幕和文本内容'
     },
     {
       id: 'youtube-download',

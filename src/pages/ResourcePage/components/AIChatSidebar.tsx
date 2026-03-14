@@ -1,16 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  TbChevronDown,
-  TbClock,
-  TbDotsVertical,
-  TbLoader2,
-  TbMicrophone,
-  TbPhoto,
-  TbPlus,
-  TbPlayerStop,
-  TbWorld,
-  TbAt
-} from 'react-icons/tb';
+import { TbAt, TbChevronDown, TbClock, TbDotsVertical, TbLoader2, TbMicrophone, TbPhoto, TbPlayerStop, TbPlus, TbWorld } from 'react-icons/tb';
 import ReactMarkdown from 'react-markdown';
 import rehypeHighlight from 'rehype-highlight';
 import remarkGfm from 'remark-gfm';
@@ -35,8 +24,8 @@ interface Conversation {
   messagesCount?: number;
 }
 
-// Provider 实例类型
-interface ProviderInstance {
+// Provider 预设类型
+interface ProviderPreset {
   id: string;
   name: string;
   providerId: string;
@@ -51,7 +40,7 @@ interface Agent {
 // Provider 类型
 interface Provider {
   id: string;
-  name: string;
+  label: string;
 }
 
 interface AIChatSidebarProps {
@@ -75,12 +64,12 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
   const [loading, setLoading] = useState(false);
   const [inputText, setInputText] = useState('');
 
-  // Provider/Instance/Agent 状态
+  // Provider/预设/Agent 状态
   const [providers, setProviders] = useState<Provider[]>([]);
-  const [instancesMap, setInstancesMap] = useState<Record<string, ProviderInstance[]>>({});
+  const [presetsMap, setPresetsMap] = useState<Record<string, ProviderPreset[]>>({});
   const [agents, setAgents] = useState<Agent[]>([]);
   const [providerId, setProviderId] = useState<string>(() => localStorage.getItem('ai-sidebar.providerId') || 'openai');
-  const [instanceId, setInstanceId] = useState<string>(() => localStorage.getItem('ai-sidebar.instanceId') || '');
+  const [presetId, setPresetId] = useState<string>(() => localStorage.getItem('ai-sidebar.presetId') || localStorage.getItem('ai-sidebar.instanceId') || '');
   const [agentId, setAgentId] = useState<string>(() => localStorage.getItem('ai-sidebar.agentId') || 'basic');
 
   // 会话状态
@@ -94,19 +83,12 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
   const listEndRef = useRef<HTMLDivElement | null>(null);
   const assistantIndexRef = useRef<number>(-1);
   const disposerRef = useRef<{ dispose: () => void; cancel: () => Promise<any> } | null>(null);
-  // 用于在异步回调中获取最新的 providerId（避免闭包陷阱）
-  const providerIdRef = useRef<string>(providerId);
 
-  // 保持 ref 与 state 同步
-  useEffect(() => {
-    providerIdRef.current = providerId;
-  }, [providerId]);
-
-  // 当前选中的实例信息
-  const currentInstance = useMemo(() => {
-    const instances = instancesMap[providerId] || [];
-    return instances.find((i) => i.id === instanceId);
-  }, [instancesMap, providerId, instanceId]);
+  // 当前选中的预设信息
+  const currentPreset = useMemo(() => {
+    const presets = presetsMap[providerId] || [];
+    return presets.find((preset) => preset.id === presetId);
+  }, [presetsMap, providerId, presetId]);
 
   // 当前选中的 Agent
   const currentAgent = useMemo(() => {
@@ -118,36 +100,28 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
     localStorage.setItem('ai-sidebar.providerId', providerId);
   }, [providerId]);
   useEffect(() => {
-    localStorage.setItem('ai-sidebar.instanceId', instanceId);
-  }, [instanceId]);
+    localStorage.setItem('ai-sidebar.presetId', presetId);
+    localStorage.setItem('ai-sidebar.instanceId', presetId);
+  }, [presetId]);
   useEffect(() => {
     localStorage.setItem('ai-sidebar.agentId', agentId);
   }, [agentId]);
 
-  // 加载 providers 和 instances
-  const loadProvidersAndInstances = useCallback(async (): Promise<void> => {
+  // 加载 providers 和预设
+  const loadProvidersAndPresets = useCallback(async (): Promise<void> => {
     try {
       const provList = await window.YUA.ai.getProviders();
       setProviders(provList || []);
 
-      const map: Record<string, ProviderInstance[]> = {};
-      for (const p of provList || []) {
-        const instances = await window.YUA.ai.getProviderInstances(p.id);
-        map[p.id] = instances || [];
-      }
-      setInstancesMap(map);
-
-      // 如果当前 instanceId 无效，选择第一个可用的
-      // 使用 providerIdRef 获取最新的 providerId（避免闭包陷阱）
-      setInstanceId((currentInstanceId) => {
-        const currentInstances = map[providerIdRef.current] || [];
-        if (currentInstances.length > 0 && !currentInstances.some((i) => i.id === currentInstanceId)) {
-          return currentInstances[0].id;
-        }
-        return currentInstanceId;
-      });
+      const entries = await Promise.all(
+        (provList || []).map(async (provider: Provider) => {
+          const presets = await window.YUA.ai.listPresets(provider.id);
+          return [provider.id, presets || []] as const;
+        })
+      );
+      setPresetsMap(Object.fromEntries(entries));
     } catch (e) {
-      console.warn('加载 providers 失败:', e);
+      console.warn('加载 providers / presets 失败:', e);
     }
   }, []);
 
@@ -206,10 +180,48 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
 
   // 初始化加载
   useEffect(() => {
-    loadProvidersAndInstances();
-    loadAgents();
-    loadConversations();
-  }, []);
+    const timer = window.setTimeout(() => {
+      void loadProvidersAndPresets();
+      void loadAgents();
+      void loadConversations();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [loadProvidersAndPresets, loadAgents, loadConversations]);
+
+  useEffect(() => {
+    if (!providers.length) return;
+    if (providers.some((provider) => provider.id === providerId)) return;
+
+    const nextProviderId = providers[0].id;
+    const timer = window.setTimeout(() => {
+      setProviderId(nextProviderId);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [providers, providerId]);
+
+  useEffect(() => {
+    const presets = presetsMap[providerId] || [];
+    if (!presets.length) {
+      if (!presetId) return;
+      const timer = window.setTimeout(() => {
+        setPresetId('');
+      }, 0);
+      return () => window.clearTimeout(timer);
+    }
+
+    if (presetId && presets.some((preset) => preset.id === presetId)) {
+      return;
+    }
+
+    const nextPresetId = presets[0].id;
+    const timer = window.setTimeout(() => {
+      setPresetId(nextPresetId);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [presetsMap, providerId, presetId]);
 
   // 自动滚动到底部
   useEffect(() => {
@@ -228,9 +240,9 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
   // 发送消息
   const handleSend = async (): Promise<void> => {
     const content = inputText.trim();
-    if (!content || loading || !instanceId) {
-      if (!instanceId) {
-        toast.error('请先选择一个模型实例');
+    if (!content || loading || !presetId) {
+      if (!presetId) {
+        toast.error('请先选择一个模型预设');
       }
       return;
     }
@@ -258,7 +270,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
           conversationId,
           messages: history as any,
           providerId,
-          providerInstanceId: instanceId,
+          providerInstanceId: presetId,
           agentId,
           stream: true
         },
@@ -333,10 +345,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
       {/* 顶部栏 */}
       <div className="flex items-center justify-between px-4 py-3 shrink-0">
         {/* 左侧：New Chat 标签 */}
-        <button
-          className="px-3 py-1 text-sm font-medium bg-muted hover:bg-muted/80 rounded-md border border-border transition-colors"
-          onClick={newConversation}
-        >
+        <button className="px-3 py-1 text-sm font-medium bg-muted hover:bg-muted/80 rounded-md border border-border transition-colors" onClick={newConversation}>
           New Chat
         </button>
         {/* 右侧：操作按钮 */}
@@ -374,11 +383,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
             ) : (
               <div className="flex flex-col gap-1">
                 {conversations.map((c) => (
-                  <button
-                    key={c.id}
-                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-muted transition-colors"
-                    onClick={() => selectConversation(c.id)}
-                  >
+                  <button key={c.id} className="w-full text-left px-3 py-2 rounded-lg hover:bg-muted transition-colors" onClick={() => selectConversation(c.id)}>
                     <div className="text-sm truncate">{c.title || '未命名会话'}</div>
                     <div className="text-xs text-muted-foreground">
                       {c.messagesCount ?? 0} 条消息
@@ -397,14 +402,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
           <div className="flex flex-col gap-3 p-4">
             {messages.map((m, i) => (
               <div key={i} className={m.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
-                <div
-                  className={
-                    'max-w-[90%] rounded-xl px-3 py-2 ' +
-                    (m.role === 'user'
-                      ? 'bg-primary text-primary-foreground text-sm'
-                      : 'bg-muted text-foreground')
-                  }
-                >
+                <div className={'max-w-[90%] rounded-xl px-3 py-2 ' + (m.role === 'user' ? 'bg-primary text-primary-foreground text-sm' : 'bg-muted text-foreground')}>
                   {m.role === 'assistant' ? (
                     m.content ? (
                       <MarkdownMessage content={m.content} />
@@ -478,26 +476,26 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button className="flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:bg-muted rounded transition-colors">
-                    <span>{currentInstance?.name || '选择模型'}</span>
+                    <span>{currentPreset?.name || '选择预设'}</span>
                     <TbChevronDown className="w-3 h-3" />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="min-w-[160px]">
                   {providers.map((p) => {
-                    const instances = instancesMap[p.id] || [];
-                    if (instances.length === 0) return null;
+                    const presets = presetsMap[p.id] || [];
+                    if (presets.length === 0) return null;
                     return (
                       <React.Fragment key={p.id}>
-                        <div className="px-2 py-1 text-xs text-muted-foreground font-medium">{p.name}</div>
-                        {instances.map((inst) => (
+                        <div className="px-2 py-1 text-xs text-muted-foreground font-medium">{p.label}</div>
+                        {presets.map((preset) => (
                           <DropdownMenuItem
-                            key={inst.id}
+                            key={preset.id}
                             onClick={() => {
                               setProviderId(p.id);
-                              setInstanceId(inst.id);
+                              setPresetId(preset.id);
                             }}
                           >
-                            {inst.name}
+                            {preset.name}
                           </DropdownMenuItem>
                         ))}
                       </React.Fragment>
