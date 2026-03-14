@@ -874,4 +874,237 @@ export async function reembedDocuments(
   return { reembedded, failed };
 }
 
+// ==================== Database Backup ====================
+
+export interface BackupInfo {
+  path: string;
+  fileName: string;
+  size: number;
+  createdAt: Date;
+}
+
+/**
+ * Create a backup of the database using SQLite's online backup API.
+ * This is the safest way to backup a live SQLite database.
+ * @param customPath Optional custom directory path for the backup
+ * @returns The path to the backup file
+ */
+export function backupDatabase(customPath?: string): { ok: true; path: string } | { ok: false; error: string } {
+  if (!db) {
+    return { ok: false, error: 'Database not initialized' };
+  }
+
+  try {
+    const userDir = app.getPath('userData');
+    const dbDir = path.join(userDir, 'data');
+    const backupDir = customPath || path.join(dbDir, 'backups');
+
+    // Ensure backup directory exists
+    ensureDir(backupDir);
+
+    // Generate backup filename with timestamp
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const dbFileName = Env.isDev() ? 'app-dev.db' : 'app.db';
+    const backupFileName = `${dbFileName}.backup.${timestamp}`;
+    const backupPath = path.join(backupDir, backupFileName);
+
+    // Use better-sqlite3's backup method (atomic, safe for live database)
+    db.backup(backupPath);
+
+    console.log(`[db] Database backed up to: ${backupPath}`);
+    return { ok: true, path: backupPath };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error('[db] Backup failed:', errorMsg);
+    return { ok: false, error: errorMsg };
+  }
+}
+
+/**
+ * List all backup files in the backup directory
+ * @param customPath Optional custom backup directory path
+ */
+export function listBackups(customPath?: string): { ok: true; backups: BackupInfo[] } | { ok: false; error: string } {
+  try {
+    const userDir = app.getPath('userData');
+    const dbDir = path.join(userDir, 'data');
+    const backupDir = customPath || path.join(dbDir, 'backups');
+
+    if (!fs.existsSync(backupDir)) {
+      return { ok: true, backups: [] };
+    }
+
+    const dbFileName = Env.isDev() ? 'app-dev.db' : 'app.db';
+    const backupPattern = new RegExp(`^${dbFileName}\\.backup\\.`);
+
+    const files = fs.readdirSync(backupDir);
+    const backups: BackupInfo[] = [];
+
+    for (const file of files) {
+      if (backupPattern.test(file)) {
+        const filePath = path.join(backupDir, file);
+        const stats = fs.statSync(filePath);
+        backups.push({
+          path: filePath,
+          fileName: file,
+          size: stats.size,
+          createdAt: stats.birthtime
+        });
+      }
+    }
+
+    // Sort by creation time, newest first
+    backups.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+    return { ok: true, backups };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    return { ok: false, error: errorMsg };
+  }
+}
+
+/**
+ * Delete a backup file
+ */
+export function deleteBackup(backupPath: string): { ok: true } | { ok: false; error: string } {
+  try {
+    if (!fs.existsSync(backupPath)) {
+      return { ok: false, error: 'Backup file not found' };
+    }
+
+    fs.unlinkSync(backupPath);
+    console.log(`[db] Backup deleted: ${backupPath}`);
+    return { ok: true };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    return { ok: false, error: errorMsg };
+  }
+}
+
+/**
+ * Restore database from a backup file
+ * This will:
+ * 1. Close the current database connection
+ * 2. Rename current db to .old (safety backup)
+ * 3. Copy the backup file to the current db location
+ * 4. The app needs to be restarted to reinitialize the database
+ */
+export async function restoreBackup(backupPath: string): Promise<{ ok: true; requiresRestart: true } | { ok: false; error: string }> {
+  try {
+    if (!fs.existsSync(backupPath)) {
+      return { ok: false, error: 'Backup file not found' };
+    }
+
+    const userDir = app.getPath('userData');
+    const dbDir = path.join(userDir, 'data');
+    const dbFileName = Env.isDev() ? 'app-dev.db' : 'app.db';
+    const dbPath = path.join(dbDir, dbFileName);
+    const oldPath = `${dbPath}.old`;
+
+    // Close current database connection properly
+    if (db) {
+      try {
+        // First, checkpoint WAL to merge all changes into main database
+        // This is critical for Windows which locks files more aggressively
+        console.log('[db] Performing WAL checkpoint before restore...');
+        db.pragma('wal_checkpoint(TRUNCATE)');
+        console.log('[db] WAL checkpoint completed');
+
+        // Now close the connection
+        db.close();
+        db = null;
+        console.log('[db] Database connection closed for restore');
+
+        // Give OS a moment to release file locks (especially important on Windows)
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      } catch (e) {
+        console.warn('[db] Failed to close database:', e);
+      }
+    }
+
+    // Also handle WAL files - delete them before renaming main db
+    const walPath = `${dbPath}-wal`;
+    const shmPath = `${dbPath}-shm`;
+
+    // Try to delete WAL and SHM files first
+    try {
+      if (fs.existsSync(walPath)) {
+        fs.unlinkSync(walPath);
+        console.log('[db] Deleted WAL file');
+      }
+      if (fs.existsSync(shmPath)) {
+        fs.unlinkSync(shmPath);
+        console.log('[db] Deleted SHM file');
+      }
+    } catch (e) {
+      console.warn('[db] Failed to delete WAL/SHM files:', e);
+    }
+
+    // Rename current db to .old (safety backup)
+    if (fs.existsSync(dbPath)) {
+      // Remove old .old file if exists
+      if (fs.existsSync(oldPath)) {
+        fs.unlinkSync(oldPath);
+      }
+      fs.renameSync(dbPath, oldPath);
+      console.log(`[db] Current database renamed to ${oldPath}`);
+    }
+
+    // Copy backup to current db location
+    fs.copyFileSync(backupPath, dbPath);
+    console.log(`[db] Backup restored from ${backupPath}`);
+
+    return { ok: true, requiresRestart: true };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error('[db] Restore failed:', errorMsg);
+    return { ok: false, error: errorMsg };
+  }
+}
+
+/**
+ * Import a backup file from an external location
+ * Copies the file to the backup directory and optionally restores it
+ */
+export async function importBackup(
+  sourcePath: string,
+  options?: { restore?: boolean }
+): Promise<{ ok: true; backupPath: string; requiresRestart?: boolean } | { ok: false; error: string }> {
+  try {
+    if (!fs.existsSync(sourcePath)) {
+      return { ok: false, error: 'Source file not found' };
+    }
+
+    const userDir = app.getPath('userData');
+    const dbDir = path.join(userDir, 'data');
+    const backupDir = path.join(dbDir, 'backups');
+    ensureDir(backupDir);
+
+    // Generate backup filename with timestamp
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const dbFileName = Env.isDev() ? 'app-dev.db' : 'app.db';
+    const backupFileName = `${dbFileName}.backup.${timestamp}.imported`;
+    const backupPath = path.join(backupDir, backupFileName);
+
+    // Copy the file to backup directory
+    fs.copyFileSync(sourcePath, backupPath);
+    console.log(`[db] Backup imported to ${backupPath}`);
+
+    // If restore option is true, restore the backup
+    if (options?.restore) {
+      const restoreResult = await restoreBackup(backupPath);
+      if (!restoreResult.ok) {
+        return restoreResult;
+      }
+      return { ok: true, backupPath, requiresRestart: true };
+    }
+
+    return { ok: true, backupPath };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error('[db] Import failed:', errorMsg);
+    return { ok: false, error: errorMsg };
+  }
+}
+
 export * as Schema from './schema';
