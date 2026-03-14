@@ -6,11 +6,11 @@
  */
 
 import { parser } from '@aim-packages/subtitle';
-import { createTool } from '@mastra/core';
 import * as fs from 'fs/promises';
 import { z } from 'zod';
 
 import { ResourcesRepo as ResourcesRepoType } from '../../common/db';
+import { createTool } from './tool-definition';
 
 /**
  * 字幕片段格式（用于翻译）
@@ -26,7 +26,7 @@ export interface SubtitleSegment {
  * 创建读取字幕工具
  *
  * @param boundResourcesRepo - 绑定的 ResourcesRepo 实例
- * @returns Mastra 工具实例
+ * @returns 工具实例
  *
  * @example
  * ```typescript

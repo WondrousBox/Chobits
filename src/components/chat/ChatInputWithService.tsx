@@ -1,11 +1,11 @@
-import ServiceInstanceSelect from '@/pages/ChatPage/components/ServiceInstanceSelect';
+import ServicePresetSelect from '@/pages/ChatPage/components/ServicePresetSelect';
 import { useChatSelection } from '@/pages/ChatPage/context/ChatSelectionContext';
 
 import UnifiedChatInput, { UnifiedChatInputProps } from './UnifiedChatInput';
 
 export interface ChatInputWithServiceProps extends Omit<UnifiedChatInputProps, 'onSend' | 'footerLeft'> {
-  /** 发送消息回调，包含选择的 provider/instance 信息 */
-  onStart: (params: { content: string; providerId: string; instanceId: string }) => void | Promise<void>;
+  /** 发送消息回调，包含选择的 provider/preset 信息 */
+  onStart: (params: { content: string; providerId: string; presetId: string }) => void | Promise<void>;
   /** 下拉菜单打开状态变化回调 (用于调整窗口大小) */
   onMenuOpenChange?: (open: boolean) => void;
 }
@@ -15,11 +15,11 @@ export interface ChatInputWithServiceProps extends Omit<UnifiedChatInputProps, '
  * 用于 ChatPage 等需要选择 AI 服务的场景
  */
 export default function ChatInputWithService({ onStart, onMenuOpenChange, ...rest }: ChatInputWithServiceProps): JSX.Element {
-  const { providerId, instanceId, setProviderId, setInstanceId, getOrderedInstances } = useChatSelection();
+  const { providerId, presetId, setProviderId, setPresetId, getOrderedPresets } = useChatSelection();
 
   const handleSend = async (content: string): Promise<void> => {
-    if (!instanceId) return;
-    await onStart?.({ content, providerId, instanceId });
+    if (!presetId) return;
+    await onStart?.({ content, providerId, presetId });
   };
 
   return (
@@ -29,16 +29,16 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, ...res
       showSaveButton={false}
       footerLeft={
         <div className="shrink-0 no-drag">
-          <ServiceInstanceSelect
+          <ServicePresetSelect
             providerId={providerId}
-            instanceId={instanceId}
-            onChange={(pid, iid) => {
+            presetId={presetId}
+            onChange={(pid, nextPresetId) => {
               setProviderId(pid);
-              setInstanceId(iid);
+              setPresetId(nextPresetId);
             }}
             buttonVariant="outline"
             buttonSize="sm"
-            orderInstances={(list, pid) => (getOrderedInstances ? getOrderedInstances(pid) : list)}
+            orderPresets={(list, pid) => (getOrderedPresets ? getOrderedPresets(pid) : list)}
             onOpenChange={onMenuOpenChange}
           />
         </div>

@@ -5,18 +5,57 @@ import TintableSvg from '@/components/common/TintableSvg';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import { resolveProviderIdentity } from '@/lib/ai-provider-identity';
 
 // 支持的模型类型
 export type ModelType = 'chat' | 'embedding' | 'audio' | 'image' | 'tooling' | 'video' | 'vision' | 'realtime' | 'tool' | string;
 
+type ProviderRow = {
+  id: string;
+  aliases?: string[];
+  label: string;
+  capabilities?: {
+    chat: boolean;
+    embeddings: boolean;
+    imageGeneration: boolean;
+    modelListing: boolean;
+    transcribe: boolean;
+  };
+  kind?: string;
+  defaultModel?: string;
+  defaultModels?: {
+    chat?: string;
+    embeddings?: string;
+    imageGeneration?: string;
+    transcribe?: string;
+  };
+  schema?: {
+    icon?: string;
+    locales?: Record<string, { label?: string; fields?: Record<string, string> }>;
+    fields?: Array<{ key: string; label: string; type: string; required?: boolean; options?: any[] }>;
+  };
+};
+
+type ModelRow = {
+  id: string;
+  label?: string;
+  type?: string;
+  context?: number;
+  pricing?: any;
+  tags?: string[];
+  description?: string;
+  free?: boolean;
+};
+
 // 暴露给父组件的方法
 export interface ProviderModelSelectRef {
-  openConfig: (providerId?: string) => void;
-  checkConfig: (providerId: string) => Promise<boolean>;
+  openConfig: (providerId?: string, presetId?: string) => void;
+  checkConfig: (providerId: string, presetId?: string) => Promise<boolean>;
 }
 
 export interface ProviderModelSelectProps {
   providerId?: string;
+  presetId?: string;
   modelId?: string;
   onChange: (providerId: string, modelId: string) => void;
   placeholder?: string;
@@ -32,11 +71,11 @@ export interface ProviderModelSelectProps {
   // 是否在二级菜单中显示模型的详细信息（描述、价格、是否免费、上下文大小等）
   showModelDetails?: boolean;
   // 当 providers 加载完成时的回调，用于向父组件传递 providers 数据
-  onProvidersLoaded?: (providers: any[]) => void;
+  onProvidersLoaded?: (providers: ProviderRow[]) => void;
   // 当 provider 配置状态变化时的回调
   onProviderConfigChange?: (providerId: string, isConfigured: boolean) => void;
   // 当需要打开配置窗口时的回调，传入 providerId 和需要配置的字段
-  onOpenConfig?: (providerId: string, requiredFields: string[]) => void;
+  onOpenConfig?: (providerId: string, requiredFields: string[], presetId?: string) => void;
 }
 
 // 类型显示名称
@@ -114,10 +153,43 @@ const renderContextPill = (model?: any): React.ReactNode => {
   return <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-100 text-sky-700 border border-sky-200">{k}k ctx</span>;
 };
 
+const getModelsCacheKey = (providerId?: string, presetId?: string): string => `${providerId || ''}::${presetId || ''}`;
+
+const resolveDefaultModelFromTypes = (provider: ProviderRow | undefined, modelTypes?: ModelType[]): string | undefined => {
+  const defaults = provider?.defaultModels;
+  if (!defaults) {
+    return provider?.defaultModel;
+  }
+
+  const requestedTypes = (modelTypes || []).map((type) => String(type || '').toLowerCase()).filter(Boolean);
+  for (const type of requestedTypes) {
+    if (type === 'embedding' && defaults.embeddings) return defaults.embeddings;
+    if (type === 'audio' && defaults.transcribe) return defaults.transcribe;
+    if (type === 'image' && defaults.imageGeneration) return defaults.imageGeneration;
+    if ((type === 'chat' || type === 'vision' || type === 'realtime' || type === 'tool' || type === 'tooling' || type === 'video') && defaults.chat) {
+      return defaults.chat;
+    }
+  }
+
+  return defaults.chat || provider?.defaultModel;
+};
+
+const resolvePreferredModelId = (provider: ProviderRow | undefined, models: ModelRow[], modelTypes?: ModelType[]): string | undefined => {
+  const filteredModels = filterModelsByType(models, modelTypes) as ModelRow[];
+  const providerDefaultModel = resolveDefaultModelFromTypes(provider, modelTypes);
+  const preferredModel =
+    (providerDefaultModel ? filteredModels.find((model) => model.id === providerDefaultModel) || models.find((model) => model.id === providerDefaultModel) : undefined) ||
+    filteredModels[0] ||
+    models[0];
+
+  return preferredModel?.id;
+};
+
 export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderModelSelectProps>(
   (
     {
       providerId,
+      presetId,
       modelId,
       onChange,
       placeholder = '选择服务商 · 模型',
@@ -134,49 +206,56 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
     },
     ref
   ) => {
-    const [providers, setProviders] = useState<any[]>([]);
-    const [modelsMap, setModelsMap] = useState<Record<string, any[]>>({});
+    const [providers, setProviders] = useState<ProviderRow[]>([]);
+    const [modelsMap, setModelsMap] = useState<Record<string, ModelRow[]>>({});
     const [loadingModels, setLoadingModels] = useState<Record<string, boolean>>({});
     const [searchQuery, setSearchQuery] = useState<string>('');
+    const resolvedProvider = useMemo(() => resolveProviderIdentity(providers, providerId), [providers, providerId]);
+    const resolvedProviderId = resolvedProvider?.id || providerId;
+    const currentModelsCacheKey = useMemo(() => getModelsCacheKey(resolvedProviderId, presetId), [resolvedProviderId, presetId]);
 
     // 加载指定provider的模型列表
     const loadModelsForProvider = useCallback(
-      async (targetProviderId: string) => {
-        if (modelsMap[targetProviderId] || loadingModels[targetProviderId]) {
-          return; // 已经加载过或正在加载
+      async (targetProviderId: string, options?: { forceAutoSelect?: boolean; provider?: ProviderRow }) => {
+        const targetPresetId = targetProviderId === resolvedProviderId ? presetId : undefined;
+        const cacheKey = getModelsCacheKey(targetProviderId, targetPresetId);
+
+        if (modelsMap[cacheKey] || loadingModels[cacheKey]) {
+          return;
         }
 
-        setLoadingModels((prev) => ({ ...prev, [targetProviderId]: true }));
+        setLoadingModels((prev) => ({ ...prev, [cacheKey]: true }));
         try {
-          const modelList = await window.YUA.ai.listModels(targetProviderId);
-          setModelsMap((prev) => ({ ...prev, [targetProviderId]: modelList || [] }));
-          // 如果这是当前选中的provider，自动选择第一个符合条件的模型
-          if (targetProviderId === providerId && modelList && modelList.length > 0 && !modelId) {
-            const filteredModels = filterModelsByType(modelList, modelTypes);
-            if (filteredModels.length > 0) {
-              onChange(targetProviderId, filteredModels[0].id);
-            } else if (modelList.length > 0) {
-              // 如果没有符合条件的模型，选择第一个模型（用于向后兼容）
-              onChange(targetProviderId, modelList[0].id);
+          const modelList = ((await window.YUA.ai.listModels(targetProviderId, targetPresetId)) || []) as ModelRow[];
+          setModelsMap((prev) => ({ ...prev, [cacheKey]: modelList }));
+
+          const shouldAutoSelect = options?.forceAutoSelect || targetProviderId === resolvedProviderId;
+          if (shouldAutoSelect && modelList.length > 0) {
+            const preferredModelId = resolvePreferredModelId(options?.provider || resolveProviderIdentity(providers, targetProviderId), modelList, modelTypes);
+            const visibleModels = ((filterModelsByType(modelList, modelTypes) as ModelRow[]).length > 0 ? (filterModelsByType(modelList, modelTypes) as ModelRow[]) : modelList) as ModelRow[];
+            const hasCurrentModel = !!modelId && visibleModels.some((model) => model.id === modelId);
+
+            if (preferredModelId && (!hasCurrentModel || options?.forceAutoSelect)) {
+              onChange(targetProviderId, preferredModelId);
             }
           }
         } catch (error) {
           console.error(`加载 ${targetProviderId} 的模型列表失败:`, error);
-          setModelsMap((prev) => ({ ...prev, [targetProviderId]: [] }));
+          setModelsMap((prev) => ({ ...prev, [cacheKey]: [] }));
         } finally {
           setLoadingModels((prev) => {
             const next = { ...prev };
-            delete next[targetProviderId];
+            delete next[cacheKey];
             return next;
           });
         }
       },
-      [modelsMap, loadingModels, providerId, modelId, onChange, modelTypes]
+      [loadingModels, modelId, modelTypes, modelsMap, onChange, presetId, providers, resolvedProviderId]
     );
 
     // 检测 Provider 配置状态
     const checkProviderConfig = useCallback(
-      async (targetProviderId: string): Promise<boolean> => {
+      async (targetProviderId: string, targetPresetId?: string): Promise<boolean> => {
         if (!targetProviderId) {
           onProviderConfigChange?.('', false);
           return false;
@@ -184,23 +263,32 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
 
         try {
           const provider = providers.find((p) => p.id === targetProviderId);
-          if (!provider) {
-            onProviderConfigChange?.(targetProviderId, false);
+          const resolved = resolveProviderIdentity(providers, targetProviderId);
+          const resolvedId = resolved?.id || targetProviderId;
+          if (!provider && !resolved) {
+            onProviderConfigChange?.(resolvedId, false);
             return false;
           }
 
           // 获取 provider 的 schema，检查 required 字段
-          const schema = provider.schema;
+          const schema = (provider || resolved)?.schema;
           const requiredFields = schema?.fields?.filter((f: any) => f.required) || [];
 
           if (requiredFields.length === 0) {
             // 如果没有 required 字段，认为已配置
-            onProviderConfigChange?.(targetProviderId, true);
+            onProviderConfigChange?.(resolvedId, true);
             return true;
           }
 
-          // 获取已配置的 secrets
-          const secrets = await window.YUA.ai.getProviderSecrets(targetProviderId).catch(() => ({}));
+          const resolvedPresetId = targetPresetId ?? (resolvedId === resolvedProviderId ? presetId : undefined);
+          const [providerSecrets, presetSecrets] = await Promise.all([
+            window.YUA.ai.getProviderSecrets(resolvedId).catch(() => ({})),
+            resolvedPresetId ? window.YUA.ai.getPresetSecrets(resolvedPresetId).catch(() => ({})) : Promise.resolve({})
+          ]);
+          const secrets = {
+            ...(providerSecrets as Record<string, unknown>),
+            ...(presetSecrets as Record<string, unknown>)
+          };
 
           // 检查所有 required 字段是否都有值
           const allConfigured = requiredFields.every((f: any) => {
@@ -208,7 +296,7 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
             return value && (typeof value === 'string' ? value.trim().length > 0 : true);
           });
 
-          onProviderConfigChange?.(targetProviderId, allConfigured);
+          onProviderConfigChange?.(resolvedId, allConfigured);
           return allConfigured;
         } catch (error) {
           console.error('检测 Provider 配置失败:', error);
@@ -216,32 +304,33 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
           return false;
         }
       },
-      [providers, onProviderConfigChange]
+      [onProviderConfigChange, presetId, providers, resolvedProviderId]
     );
 
     // 当选择 provider 时，检测配置状态
     useEffect(() => {
-      if (providerId && providers.length > 0) {
-        checkProviderConfig(providerId);
+      if (resolvedProviderId && providers.length > 0) {
+        checkProviderConfig(resolvedProviderId);
       }
-    }, [providerId, providers, checkProviderConfig]);
+    }, [resolvedProviderId, providers, checkProviderConfig]);
 
     // 打开配置窗口
     const handleOpenConfig = useCallback(
-      async (targetProviderId?: string) => {
-        const idToUse = targetProviderId || providerId;
+      async (targetProviderId?: string, targetPresetId?: string) => {
+        const idToUse = targetProviderId || resolvedProviderId;
         if (!idToUse) return;
 
-        const provider = providers.find((p) => p.id === idToUse);
+        const provider = resolveProviderIdentity(providers, idToUse);
         if (!provider) return;
 
         const schema = provider.schema;
         const requiredFields = schema?.fields?.filter((f: any) => f.required) || [];
         const fields = requiredFields.map((f: any) => f.key);
+        const resolvedPresetId = targetPresetId ?? (idToUse === resolvedProviderId ? presetId : undefined);
 
-        onOpenConfig?.(idToUse, fields);
+        onOpenConfig?.(idToUse, fields, resolvedPresetId);
       },
-      [providers, onOpenConfig, providerId]
+      [onOpenConfig, presetId, providers, resolvedProviderId]
     );
 
     // 暴露方法给父组件
@@ -264,12 +353,10 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
           setProviders(provs || []);
           // 通知父组件 providers 已加载
           onProvidersLoaded?.(provs || []);
-          // 默认选择第一个provider并加载模型
+          // 默认选择第一个 provider，并优先命中 catalog 里的默认模型
           if (autoLoadFirst && provs && provs.length > 0 && !providerId) {
             const firstProviderId = provs[0].id;
-            if (!modelsMap[firstProviderId] && !loadingModels[firstProviderId]) {
-              loadModelsForProvider(firstProviderId);
-            }
+            void loadModelsForProvider(firstProviderId, { forceAutoSelect: true, provider: provs[0] });
           }
         } catch (error) {
           console.error('加载 AI Providers 失败:', error);
@@ -285,24 +372,25 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
     const handleProviderModelSelect = useCallback(
       (selectedProviderId: string, selectedModelId: string) => {
         onChange(selectedProviderId, selectedModelId);
-        // 如果该服务商的模型还没有加载，先加载
-        if (!modelsMap[selectedProviderId] && !loadingModels[selectedProviderId]) {
-          loadModelsForProvider(selectedProviderId);
+        const selectedCacheKey = getModelsCacheKey(selectedProviderId, selectedProviderId === resolvedProviderId ? presetId : undefined);
+        if (!modelsMap[selectedCacheKey] && !loadingModels[selectedCacheKey]) {
+          void loadModelsForProvider(selectedProviderId);
         }
       },
-      [modelsMap, loadingModels, loadModelsForProvider, onChange]
+      [loadModelsForProvider, loadingModels, modelsMap, onChange, presetId, resolvedProviderId]
     );
 
     // 当有搜索内容时，自动加载所有服务商的模型（如果还没加载）
     useEffect(() => {
       if (searchQuery.trim()) {
         providers.forEach((p) => {
-          if (!modelsMap[p.id] && !loadingModels[p.id]) {
-            loadModelsForProvider(p.id);
+          const cacheKey = getModelsCacheKey(p.id, p.id === resolvedProviderId ? presetId : undefined);
+          if (!modelsMap[cacheKey] && !loadingModels[cacheKey]) {
+            void loadModelsForProvider(p.id);
           }
         });
       }
-    }, [searchQuery, providers, modelsMap, loadingModels, loadModelsForProvider]);
+    }, [searchQuery, providers, modelsMap, loadingModels, loadModelsForProvider, presetId, resolvedProviderId]);
 
     // 搜索匹配的模型
     const searchResults = useMemo(() => {
@@ -311,10 +399,11 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
       }
 
       const query = searchQuery.trim().toLowerCase();
-      const results: Array<{ provider: any; model: any }> = [];
+      const results: Array<{ provider: ProviderRow; model: ModelRow }> = [];
 
       providers.forEach((p) => {
-        const models = filterModelsByType(modelsMap[p.id] || [], modelTypes);
+        const cacheKey = getModelsCacheKey(p.id, p.id === resolvedProviderId ? presetId : undefined);
+        const models = filterModelsByType(modelsMap[cacheKey] || [], modelTypes);
         models.forEach((model) => {
           const modelLabel = (model.label || model.id || '').toLowerCase();
           const providerLabel = (p.label || p.id || '').toLowerCase();
@@ -325,16 +414,16 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
       });
 
       return results;
-    }, [searchQuery, providers, modelsMap, modelTypes]);
+    }, [searchQuery, providers, modelsMap, modelTypes, presetId, resolvedProviderId]);
 
     // 获取当前选中的服务商和模型信息
-    const currentProvider = useMemo(() => providers.find((p) => p.id === providerId), [providers, providerId]);
-    const currentModels = useMemo(() => modelsMap[providerId || ''] || [], [modelsMap, providerId]);
+    const currentProvider = resolvedProvider;
+    const currentModels = useMemo(() => modelsMap[currentModelsCacheKey] || [], [currentModelsCacheKey, modelsMap]);
     const currentModel = useMemo(() => currentModels.find((m) => m.id === modelId), [currentModels, modelId]);
 
     // 显示标签
     const displayLabel = useMemo(() => {
-      if (!providerId || !modelId) {
+      if (!resolvedProviderId || !modelId) {
         return <span className="truncate text-left text-xs text-muted-foreground">{placeholder}</span>;
       }
       const modelLabel = currentModel?.label || currentModel?.id || modelId;
@@ -350,9 +439,15 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
       }
 
       // 如果没有图标，显示服务商名称和模型名称
-      const providerLabel = currentProvider?.label || providerId;
+      const providerLabel = currentProvider?.label || resolvedProviderId;
       return <span className="truncate text-left text-xs">{`${providerLabel} · ${modelLabel}`}</span>;
-    }, [providerId, modelId, currentProvider, currentModel, placeholder]);
+    }, [resolvedProviderId, modelId, currentProvider, currentModel, placeholder, providerId]);
+
+    useEffect(() => {
+      if (!resolvedProviderId) return;
+      if (modelsMap[currentModelsCacheKey] || loadingModels[currentModelsCacheKey]) return;
+      void loadModelsForProvider(resolvedProviderId);
+    }, [currentModelsCacheKey, loadModelsForProvider, loadingModels, modelsMap, resolvedProviderId]);
 
     return (
       <DropdownMenu
@@ -375,7 +470,7 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="搜索模型..."
+              placeholder="搜索服务商或模型..."
               className="h-8 text-xs"
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => e.stopPropagation()}
@@ -403,15 +498,16 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
             </div>
           ) : (
             providers.map((provider) => {
-              const allModels = modelsMap[provider.id] || [];
+              const providerCacheKey = getModelsCacheKey(provider.id, provider.id === resolvedProviderId ? presetId : undefined);
+              const allModels = modelsMap[providerCacheKey] || [];
               const providerModels = filterModelsByType(allModels, modelTypes);
-              const isLoading = loadingModels[provider.id];
+              const isLoading = loadingModels[providerCacheKey];
               return (
                 <DropdownMenuSub
                   key={provider.id}
                   onOpenChange={(open) => {
-                    if (open && !modelsMap[provider.id] && !loadingModels[provider.id]) {
-                      loadModelsForProvider(provider.id);
+                    if (open && !modelsMap[providerCacheKey] && !loadingModels[providerCacheKey]) {
+                      void loadModelsForProvider(provider.id);
                     }
                   }}
                 >

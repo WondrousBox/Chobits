@@ -1,40 +1,41 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
-import { useProvidersInstances } from '../hooks/useProvidersInstances';
+import { useProvidersPresets } from '../hooks/useProvidersInstances';
 
 type Provider = any;
 type Agent = any;
-type Instance = any;
+type Preset = any;
 
 export interface ChatSelectionContextValue {
   providers: Provider[];
   agents: Agent[];
-  instancesMap: Record<string, Instance[]>;
+  presetsMap: Record<string, Preset[]>;
   providerId: string;
-  instanceId: string;
+  presetId: string;
   agentId: string;
   setProviderId: (id: string) => void;
-  setInstanceId: (id: string) => void;
+  setPresetId: (id: string) => void;
   setAgentId: (id: string) => void;
   refresh: () => Promise<void>;
-  getOrderedInstances: (providerId: string) => Instance[];
+  getOrderedPresets: (providerId: string) => Preset[];
 }
 
 const ChatSelectionContext = createContext<ChatSelectionContextValue | null>(null);
 
 const LS_KEYS = {
   providerId: 'chat.sel.providerId',
+  presetId: 'chat.sel.presetId',
   instanceId: 'chat.sel.instanceId',
   agentId: 'chat.sel.agentId',
   recents: 'chat.sel.recents'
 };
 
-export function ChatSelectionProvider({ children }: { children: React.ReactNode }) {
-  // Providers & instances come from shared hook
-  const { providers, instancesMap, refresh: refreshProviders } = useProvidersInstances();
+export function ChatSelectionProvider({ children }: { children: React.ReactNode }): JSX.Element {
+  // Providers & presets come from the shared hook
+  const { providers, presetsMap, refresh: refreshProviders } = useProvidersPresets();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [providerId, setProviderId] = useState<string>(() => localStorage.getItem(LS_KEYS.providerId) || 'openai');
-  const [instanceId, setInstanceId] = useState<string>(() => localStorage.getItem(LS_KEYS.instanceId) || '');
+  const [presetId, setPresetId] = useState<string>(() => localStorage.getItem(LS_KEYS.presetId) || localStorage.getItem(LS_KEYS.instanceId) || '');
   const [agentId, setAgentId] = useState<string>(() => localStorage.getItem(LS_KEYS.agentId) || 'basic');
   const [recents, setRecents] = useState<Record<string, string[]>>(() => {
     try {
@@ -55,11 +56,12 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
   }, [providerId]);
   useEffect(() => {
     try {
-      localStorage.setItem(LS_KEYS.instanceId, instanceId);
+      localStorage.setItem(LS_KEYS.presetId, presetId);
+      localStorage.setItem(LS_KEYS.instanceId, presetId);
     } catch {
       /* noop */
     }
-  }, [instanceId]);
+  }, [presetId]);
   useEffect(() => {
     try {
       localStorage.setItem(LS_KEYS.agentId, agentId);
@@ -75,7 +77,7 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
     }
   }, [recents]);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     try {
       await refreshProviders();
     } catch {
@@ -86,93 +88,129 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
     } catch {
       /* noop */
     }
-  };
+  }, [refreshProviders]);
 
   // Initial fetch
   useEffect(() => {
-    refresh();
-  }, []);
+    const timer = window.setTimeout(() => {
+      void refresh();
+    }, 0);
 
-  // instancesMap is now provided by useProvidersInstances
+    return () => window.clearTimeout(timer);
+  }, [refresh]);
 
   // Ensure current providerId exists; fall back to first provider
   useEffect(() => {
     if (!providers?.length) return;
-    if (!providers.some((p: any) => p.id === providerId)) {
-      setProviderId(providers[0].id);
-    }
-  }, [providers]);
+    if (providers.some((p: any) => p.id === providerId)) return;
 
-  // Order instances by recent usage per provider
-  const getOrderedInstances = (pid: string): Instance[] => {
-    const list = (instancesMap[pid] || []).slice();
-    const rec = recents[pid] || [];
-    if (!list.length) return list;
-    const recIndex: Record<string, number> = {};
-    rec.forEach((id, i) => {
-      recIndex[id] = i;
-    });
-    return list.sort((a: any, b: any) => {
-      const ai = recIndex[a.id];
-      const bi = recIndex[b.id];
-      const aIn = ai !== undefined;
-      const bIn = bi !== undefined;
-      if (aIn && bIn) return ai - bi;
-      if (aIn) return -1;
-      if (bIn) return 1;
-      const an = (a.name || a.id || '').toString();
-      const bn = (b.name || b.id || '').toString();
-      return an.localeCompare(bn);
-    });
-  };
+    const nextProviderId = providers[0].id;
+    const timer = window.setTimeout(() => {
+      setProviderId(nextProviderId);
+    }, 0);
 
-  // If no instance selected for current provider, auto-select first available (ordered)
+    return () => window.clearTimeout(timer);
+  }, [providers, providerId]);
+
+  // Order presets by recent usage per provider
+  const getOrderedPresets = useCallback(
+    (pid: string): Preset[] => {
+      const list = (presetsMap[pid] || []).slice();
+      const rec = recents[pid] || [];
+      if (!list.length) return list;
+      const recIndex: Record<string, number> = {};
+      rec.forEach((id, i) => {
+        recIndex[id] = i;
+      });
+      return list.sort((a: any, b: any) => {
+        const ai = recIndex[a.id];
+        const bi = recIndex[b.id];
+        const aIn = ai !== undefined;
+        const bIn = bi !== undefined;
+        if (aIn && bIn) return ai - bi;
+        if (aIn) return -1;
+        if (bIn) return 1;
+        const an = (a.name || a.id || '').toString();
+        const bn = (b.name || b.id || '').toString();
+        return an.localeCompare(bn);
+      });
+    },
+    [presetsMap, recents]
+  );
+
+  // Keep preset selection valid for the current provider and auto-pick the first available one.
   useEffect(() => {
     if (!providerId) return;
-    if (instanceId) return;
-    const ordered = getOrderedInstances(providerId);
-    if (ordered.length) setInstanceId((ordered[0] as any).id);
-  }, [instancesMap, providerId]);
+    const ordered = getOrderedPresets(providerId);
+    if (!ordered.length) {
+      if (!presetId) return;
+      const timer = window.setTimeout(() => {
+        setPresetId('');
+      }, 0);
+      return () => window.clearTimeout(timer);
+    }
+
+    if (presetId && ordered.some((item: any) => item.id === presetId)) {
+      return;
+    }
+
+    const nextPresetId = (ordered[0] as any).id;
+    const timer = window.setTimeout(() => {
+      setPresetId(nextPresetId);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [getOrderedPresets, providerId, presetId]);
 
   // Ensure agentId is valid; if not, pick first
   useEffect(() => {
     if (!agents?.length) return;
-    if (!agents.some((a: any) => a.id === agentId)) {
-      setAgentId((agents[0] as any).id);
-    }
-  }, [agents]);
+    if (agents.some((a: any) => a.id === agentId)) return;
 
-  // Track recents when user selects an instance
+    const nextAgentId = (agents[0] as any).id;
+    const timer = window.setTimeout(() => {
+      setAgentId(nextAgentId);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [agents, agentId]);
+
+  // Track recents when user selects a preset
   useEffect(() => {
-    if (!providerId || !instanceId) return;
-    setRecents((prev) => {
-      const cur = prev[providerId] || [];
-      const next = [instanceId, ...cur.filter((id) => id !== instanceId)].slice(0, 10);
-      if (cur.length === next.length && cur.every((v, i) => v === next[i])) return prev;
-      return { ...prev, [providerId]: next };
-    });
-  }, [providerId, instanceId]);
+    if (!providerId || !presetId) return;
+    const timer = window.setTimeout(() => {
+      setRecents((prev) => {
+        const cur = prev[providerId] || [];
+        const next = [presetId, ...cur.filter((id) => id !== presetId)].slice(0, 10);
+        if (cur.length === next.length && cur.every((v, i) => v === next[i])) return prev;
+        return { ...prev, [providerId]: next };
+      });
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [providerId, presetId]);
 
   const value = useMemo<ChatSelectionContextValue>(
     () => ({
       providers,
       agents,
-      instancesMap,
+      presetsMap,
       providerId,
-      instanceId,
+      presetId,
       agentId,
       setProviderId,
-      setInstanceId,
+      setPresetId,
       setAgentId,
       refresh,
-      getOrderedInstances
+      getOrderedPresets
     }),
-    [providers, agents, instancesMap, providerId, instanceId, agentId, recents]
+    [providers, agents, presetsMap, providerId, presetId, agentId, refresh, getOrderedPresets]
   );
 
   return <ChatSelectionContext.Provider value={value}>{children}</ChatSelectionContext.Provider>;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useChatSelection(): ChatSelectionContextValue {
   const ctx = useContext(ChatSelectionContext);
   if (!ctx) throw new Error('useChatSelection must be used within ChatSelectionProvider');

@@ -1,13 +1,36 @@
+import type { ProviderSecrets, TranscribeOptions } from '../types';
+import { getBuiltinProviderMetadata } from './metadata';
 import { OpenAICompatibleProvider } from './openai-compatible';
+
+function resolveZhipuAudioTranscriptionUrl(baseUrl?: string): string {
+  const normalizedBaseUrl = String(baseUrl || 'https://open.bigmodel.cn/api/paas/v4/')
+    .trim()
+    .replace(/\/+$/, '');
+  return `${normalizedBaseUrl}/audio/transcriptions`;
+}
 
 export class ZhipuProvider extends OpenAICompatibleProvider {
   constructor() {
-    // 智谱 GLM OpenAI 兼容网关地址可能不同，请在设置中填写
-    super({ id: 'zhipu', baseUrl: 'https://open.bigmodel.cn/api/paas/v4/', label: '智谱 (GLM)', model: 'glm-4-flash' });
+    const metadata = getBuiltinProviderMetadata('zhipu');
+    if (!metadata) {
+      throw new Error('Missing built-in provider metadata: zhipu');
+    }
+
+    super({
+      id: metadata.id,
+      baseUrl: metadata.providerBaseUrl,
+      label: metadata.label,
+      model: metadata.defaultModel
+    });
   }
 
-  async transcribe(file: File | Blob | Buffer, options?: { model?: string; language?: string; prompt?: string }): Promise<{ text: string }> {
-    const secrets = await this.getSecrets();
+  async transcribe(file: File | Blob | Buffer | ArrayBuffer, options?: TranscribeOptions): Promise<{ text: string }> {
+    const providerSecrets = (await this.getSecrets()) as ProviderSecrets;
+    const secrets = {
+      ...providerSecrets,
+      ...(options?.secrets || {})
+    };
+
     if (!secrets.apiKey) {
       throw new Error('Zhipu API key not configured');
     }
@@ -29,7 +52,7 @@ export class ZhipuProvider extends OpenAICompatibleProvider {
     }
 
     try {
-      const response = await fetch('https://open.bigmodel.cn/api/paas/v4/audio/transcriptions', {
+      const response = await fetch(resolveZhipuAudioTranscriptionUrl(secrets.baseUrl), {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${secrets.apiKey}`

@@ -5,12 +5,14 @@ import { z } from 'zod';
 import TintableSvg from '@/components/common/TintableSvg';
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
+import { resolveProviderIdentity } from '@/lib/ai-provider-identity';
 
 import InstanceFormDialog, { InstanceFormValues } from './InstanceFormDialog';
 import ProviderApiKeyManager from './ProviderApiKeyManager';
 
 type ProviderRow = {
   id: string;
+  aliases?: string[];
   label: string;
   configured?: boolean;
   schema?: {
@@ -19,27 +21,27 @@ type ProviderRow = {
     fields?: Array<{ key: string; label: string; type: string; required?: boolean; options?: any[] }>;
   };
 };
-type Instance = { id: string; providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any>; enabledTools?: string[]; createdAt?: number };
+type Preset = { id: string; providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any>; enabledTools?: string[]; createdAt?: number };
 type ModelOpt = { id: string; label?: string; type?: string; context?: number; pricing?: any; tags?: string[]; description?: string; free?: boolean };
 // Templates are now loaded within InstanceFormDialog
 
 export default function AiSettings({ initialProviderId }: { initialProviderId?: string }): JSX.Element {
   const [providers, setProviders] = useState<ProviderRow[]>([]);
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
-  const [instances, setInstances] = useState<Instance[]>([]);
+  const [presets, setPresets] = useState<Preset[]>([]);
   const [models, setModels] = useState<Record<string, ModelOpt[]>>({});
-  const [instanceSecrets, setInstanceSecrets] = useState<Record<string, Record<string, string>>>({});
+  const [presetSecrets, setPresetSecrets] = useState<Record<string, Record<string, string>>>({});
   const [errors, setErrors] = useState<Record<string, Record<string, string>>>({});
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
-  const [editing, setEditing] = useState<Instance | null>(null);
+  const [editing, setEditing] = useState<Preset | null>(null);
 
   // API Key Manager state
   const [apiKeyManagerOpen, setApiKeyManagerOpen] = useState(false);
   const [selectedFieldKey, setSelectedFieldKey] = useState<string | null>(null);
 
-  const selectedProvider = useMemo(() => providers.find((p) => p.id === selectedProviderId) || null, [providers, selectedProviderId]);
+  const selectedProvider = useMemo(() => resolveProviderIdentity(providers, selectedProviderId || undefined) || null, [providers, selectedProviderId]);
   const currentLang = navigator.language?.toLowerCase?.() || 'en';
   const pickLocale = (locales?: Record<string, { label?: string; fields?: Record<string, string> }>): { label?: string; fields?: Record<string, string> } | undefined => {
     if (!locales) return undefined;
@@ -52,8 +54,8 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
     (async () => {
       const provs = await window.YUA.ai.getProviders();
       setProviders(provs || []);
-      const defaultId = initialProviderId && (provs || []).some((p: ProviderRow) => p.id === initialProviderId) ? initialProviderId : provs?.[0]?.id || null;
-      setSelectedProviderId(defaultId);
+      const defaultProvider = (initialProviderId ? resolveProviderIdentity(provs || [], initialProviderId) : undefined) || provs?.[0] || null;
+      setSelectedProviderId(defaultProvider?.id || null);
     })();
   }, [initialProviderId]);
 
@@ -62,8 +64,8 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
   useEffect(() => {
     if (!selectedProviderId) return;
     (async () => {
-      const list = await window.YUA.ai.listInstances(selectedProviderId);
-      setInstances(list || []);
+      const list = await window.YUA.ai.listPresets(selectedProviderId);
+      setPresets(list || []);
       try {
         const ms = await window.YUA.ai.listModels(selectedProviderId);
         if (Array.isArray(ms) && ms.length) setModels((prev) => ({ ...prev, [selectedProviderId]: ms }));
@@ -144,23 +146,23 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
     return z.object(shape);
   };
 
-  const refreshInstanceModels = async (instanceId: string): Promise<void> => {
-    const inst = instances.find((i) => i.id === instanceId);
-    if (!inst) return;
+  const refreshPresetModels = async (presetId: string): Promise<void> => {
+    const preset = presets.find((item) => item.id === presetId);
+    if (!preset) return;
     try {
-      const ms = await window.YUA.ai.listModels(inst.providerId, inst.id);
-      if (Array.isArray(ms) && ms.length) setModels((prev) => ({ ...prev, [inst.providerId]: ms }));
+      const ms = await window.YUA.ai.listModels(preset.providerId, preset.id);
+      if (Array.isArray(ms) && ms.length) setModels((prev) => ({ ...prev, [preset.providerId]: ms }));
     } catch {
       /* ignore */
     }
   };
 
-  const loadInstanceSecrets = async (instanceId: string): Promise<void> => {
-    const s = await window.YUA.ai.getInstanceSecrets(instanceId).catch(() => ({}));
-    setInstanceSecrets((prev) => ({ ...prev, [instanceId]: s || {} }));
+  const loadPresetSecrets = async (presetId: string): Promise<void> => {
+    const secrets = await window.YUA.ai.getPresetSecrets(presetId).catch(() => ({}));
+    setPresetSecrets((prev) => ({ ...prev, [presetId]: secrets || {} }));
   };
 
-  const onCreateInstance = async (vals: InstanceFormValues): Promise<void> => {
+  const onCreatePreset = async (vals: InstanceFormValues): Promise<void> => {
     if (!selectedProvider) return;
     const nameOk = (vals.name || '').trim().length > 0;
     const schema = schemaForProvider(selectedProvider);
@@ -177,7 +179,7 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
       return;
     }
     setErrors((prev) => ({ ...prev, __new__: {} }));
-    const created = await window.YUA.ai.createInstance({
+    const created = await window.YUA.ai.createPreset({
       providerId: selectedProvider.id,
       name: vals.name,
       model: vals.model,
@@ -185,13 +187,13 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
       config: {},
       enabledTools: vals.enabledTools
     });
-    if (created?.id) await window.YUA.ai.setInstanceSecrets(created.id, vals.secrets);
-    const list = await window.YUA.ai.listInstances(selectedProvider.id);
-    setInstances(list || []);
+    if (created?.id) await window.YUA.ai.setPresetSecrets(created.id, vals.secrets);
+    const list = await window.YUA.ai.listPresets(selectedProvider.id);
+    setPresets(list || []);
     setModalOpen(false);
   };
 
-  const onSaveInstance = async (inst: Instance, vals: InstanceFormValues): Promise<void> => {
+  const onSavePreset = async (preset: Preset, vals: InstanceFormValues): Promise<void> => {
     const schema = schemaForProvider(selectedProvider);
     const parsed = schema.safeParse(vals.secrets || {});
     if (!parsed.success) {
@@ -200,26 +202,27 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
         const k = i.path[0] as string;
         errs[k] = i.message;
       });
-      setErrors((prev) => ({ ...prev, [inst.id]: errs }));
+      setErrors((prev) => ({ ...prev, [preset.id]: errs }));
       return;
     }
-    setErrors((prev) => ({ ...prev, [inst.id]: {} }));
-    await window.YUA.ai.updateInstance(inst.id, {
+    setErrors((prev) => ({ ...prev, [preset.id]: {} }));
+    await window.YUA.ai.updatePreset(preset.id, {
       name: vals.name,
       model: vals.model,
       systemPrompt: vals.systemPrompt,
       enabledTools: vals.enabledTools
     });
-    await window.YUA.ai.setInstanceSecrets(inst.id, vals.secrets || {});
-    const list = await window.YUA.ai.listInstances(inst.providerId);
-    setInstances(list || []);
+    await window.YUA.ai.setPresetSecrets(preset.id, vals.secrets || {});
+    const list = await window.YUA.ai.listPresets(preset.providerId);
+    setPresets(list || []);
     setModalOpen(false);
   };
 
-  const onQuickTest = async (inst: Instance): Promise<void> => {
+  const onQuickTest = async (preset: Preset): Promise<void> => {
     try {
       await window.YUA.ai.chat({
-        providerInstanceId: inst.id,
+        agentId: 'chat',
+        providerInstanceId: preset.id,
         messages: [
           { role: 'system', content: 'You are a connectivity test.' },
           { role: 'user', content: 'ping' }
@@ -235,7 +238,7 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
   // prompt setting filtered logic moved into component
 
   const modalModels: ModelOpt[] = (modalMode === 'edit' ? (editing ? models[editing.providerId] || [] : []) : selectedProvider ? models[selectedProvider.id] || [] : []).filter((m) => {
-    return m.type == 'chat';
+    return m.type === 'chat';
   });
 
   const modalInitialValues: InstanceFormValues =
@@ -245,7 +248,7 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
         name: editing?.name || '',
         model: editing?.model || '',
         systemPrompt: editing?.systemPrompt || '',
-        secrets: editing ? instanceSecrets[editing.id] || {} : {},
+        secrets: editing ? presetSecrets[editing.id] || {} : {},
         enabledTools: editing?.enabledTools || []
       };
 
@@ -273,7 +276,7 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
             })}
           </div>
         </div>
-        {/* Right: Instances */}
+        {/* Right: Presets */}
         <div className="h-full flex-1 px-2 overflow-y-auto">
           {selectedProvider ? (
             <div className="space-y-3">
@@ -314,7 +317,7 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
                 </div>
               )}
 
-              {instances.length > 0 ? (
+              {presets.length > 0 ? (
                 <>
                   <div className="flex items-center justify-between">
                     <div></div>
@@ -327,19 +330,19 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
                         setErrors((prev) => ({ ...prev, __new__: {} }));
                       }}
                     >
-                      新建实例
+                      新建预设
                     </Button>
                   </div>
                   <div className="grid gap-2">
-                    {instances.map((inst) => (
-                      <div key={inst.id} className="border rounded p-3">
+                    {presets.map((preset) => (
+                      <div key={preset.id} className="border rounded p-3">
                         <div className="flex items-center justify-between">
                           <div className="font-medium flex items-center gap-2">
-                            <span>{inst.name}</span>
-                            <span className="text-xs text-gray-500">({inst.model || '未选模型'})</span>
+                            <span>{preset.name}</span>
+                            <span className="text-xs text-gray-500">({preset.model || '未选模型'})</span>
                             {(() => {
-                              const ms = models[inst.providerId] || [];
-                              const m = ms.find((x) => x.id === (inst.model || ''));
+                              const ms = models[preset.providerId] || [];
+                              const m = ms.find((x) => x.id === (preset.model || ''));
                               if (!m) return null;
                               return (
                                 <span className="flex items-center gap-1">
@@ -355,26 +358,26 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
                               size="sm"
                               variant="outline"
                               onClick={async () => {
-                                if (!instanceSecrets[inst.id]) await loadInstanceSecrets(inst.id);
-                                await refreshInstanceModels(inst.id);
-                                setEditing(inst);
+                                if (!presetSecrets[preset.id]) await loadPresetSecrets(preset.id);
+                                await refreshPresetModels(preset.id);
+                                setEditing(preset);
                                 setModalMode('edit');
                                 setModalOpen(true);
                               }}
                             >
                               编辑
                             </Button>
-                            <Button size="sm" variant="outline" onClick={() => onQuickTest(inst)}>
+                            <Button size="sm" variant="outline" onClick={() => onQuickTest(preset)}>
                               测试
                             </Button>
                             <Button
                               variant={'destructive'}
                               size="sm"
                               onClick={async () => {
-                                if (!confirm('删除该实例？')) return;
-                                await window.YUA.ai.deleteInstance(inst.id);
-                                const list = await window.YUA.ai.listInstances(inst.providerId);
-                                setInstances(list || []);
+                                if (!confirm('删除该预设？')) return;
+                                await window.YUA.ai.deletePreset(preset.id);
+                                const list = await window.YUA.ai.listPresets(preset.providerId);
+                                setPresets(list || []);
                               }}
                             >
                               删除
@@ -391,8 +394,8 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
                     <EmptyMedia variant="icon">
                       <TbBox />
                     </EmptyMedia>
-                    <EmptyTitle>没有配置</EmptyTitle>
-                    <EmptyDescription>未找到对话设置，点击新建实例来创建</EmptyDescription>
+                    <EmptyTitle>没有预设</EmptyTitle>
+                    <EmptyDescription>未找到 AI 预设，点击新建预设来创建</EmptyDescription>
                   </EmptyHeader>
                   <EmptyContent>
                     <Button
@@ -404,7 +407,7 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
                         setErrors((prev) => ({ ...prev, __new__: {} }));
                       }}
                     >
-                      新建实例
+                      新建预设
                     </Button>
                   </EmptyContent>
                 </Empty>
@@ -421,15 +424,15 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
         <InstanceFormDialog
           open={modalOpen}
           mode={modalMode}
-          title={modalMode === 'create' ? '新建实例' : `编辑实例 · ${editing?.name || ''}`}
+          title={modalMode === 'create' ? '新建预设' : `编辑预设 · ${editing?.name || ''}`}
           provider={selectedProvider!}
           models={modalModels}
           initialValues={modalInitialValues}
           errors={modalErrors}
           onClose={() => setModalOpen(false)}
           onSubmit={(vals) => {
-            if (modalMode === 'create') return onCreateInstance(vals);
-            if (modalMode === 'edit' && editing) return onSaveInstance(editing, vals);
+            if (modalMode === 'create') return onCreatePreset(vals);
+            if (modalMode === 'edit' && editing) return onSavePreset(editing, vals);
           }}
         />
       )}

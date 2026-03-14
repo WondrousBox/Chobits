@@ -3,8 +3,7 @@ import { createPortal } from 'react-dom';
 import { TbHighlight, TbLoader2, TbNote, TbVocabulary, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
-
-import ServiceInstanceSelect from '@/pages/ChatPage/components/ServiceInstanceSelect';
+import ServicePresetSelect from '@/pages/ChatPage/components/ServicePresetSelect';
 import { useChatSelection } from '@/pages/ChatPage/context/ChatSelectionContext';
 
 import type { AddAnnotationParams, AnnotationType } from '../useAnnotations';
@@ -64,11 +63,11 @@ export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedTe
   const contentInputRef = useRef<HTMLTextAreaElement>(null);
 
   // 模型选择
-  const { providerId, instanceId, setProviderId, setInstanceId } = useChatSelection();
+  const { providerId, presetId, setProviderId, setPresetId } = useChatSelection();
 
   // 计算是否需要翻转位置
   useEffect(() => {
-    const checkFlip = () => {
+    const checkFlip = (): void => {
       const spaceBelow = window.innerHeight - selectionRect.bottom;
       // 面板高度：按钮行约 48px，备注表单约 280px，模型选择约 120px
       let neededHeight = 48;
@@ -100,7 +99,7 @@ export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedTe
 
   // 点击外部关闭
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: MouseEvent): void => {
       if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
         onClose();
       }
@@ -124,11 +123,11 @@ export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedTe
 
   // Esc 关闭
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleEscapeKeyDown = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') onClose();
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleEscapeKeyDown);
+    return () => window.removeEventListener('keydown', handleEscapeKeyDown);
   }, [onClose]);
 
   const createAnnotation = useCallback(
@@ -165,7 +164,7 @@ export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedTe
 
   /** 生成单词表 - 调用 AI */
   const handleGenerateVocabulary = useCallback(async () => {
-    if (!providerId || !instanceId) return;
+    if (!providerId || !presetId) return;
 
     setIsGeneratingVocabulary(true);
     try {
@@ -182,7 +181,7 @@ export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedTe
               stream: true,
               persist: false,
               providerId,
-              providerInstanceId: instanceId
+              providerInstanceId: presetId
             },
             (event) => {
               if (event.type === 'delta' && event.data?.text) {
@@ -224,15 +223,15 @@ export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedTe
     } finally {
       setIsGeneratingVocabulary(false);
     }
-  }, [selectedText, startTime, endTime, segmentIndex, wordStartIndex, wordEndIndex, onAdd, onClose, providerId, instanceId]);
+  }, [selectedText, startTime, endTime, segmentIndex, wordStartIndex, wordEndIndex, onAdd, onClose, providerId, presetId]);
 
   const handleFormSubmit = useCallback(() => {
     // 备注类型：内容存到 description 字段
     createAnnotation(annotationType, { description: content.trim() || undefined });
   }, [createAnnotation, annotationType, content]);
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
+  const handleFormKeyDown = useCallback(
+    (e: React.KeyboardEvent): void => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         handleFormSubmit();
@@ -244,15 +243,15 @@ export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedTe
   // 定位样式
   const positionStyle: React.CSSProperties = flipAbove
     ? {
-      // 翻转到上方
-      bottom: window.innerHeight - selectionRect.top + 6,
-      left: selectionRect.left + selectionRect.width / 2
-    }
+        // 翻转到上方
+        bottom: window.innerHeight - selectionRect.top + 6,
+        left: selectionRect.left + selectionRect.width / 2
+      }
     : {
-      // 默认在下方
-      top: selectionRect.bottom + 6,
-      left: selectionRect.left + selectionRect.width / 2
-    };
+        // 默认在下方
+        top: selectionRect.bottom + 6,
+        left: selectionRect.left + selectionRect.width / 2
+      };
 
   // 阻止浮窗内的 mousedown 事件导致 textarea 失焦
   // 但放行表单内的 input/textarea 元素，以保证它们可以正常获得焦点
@@ -321,12 +320,12 @@ export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedTe
               「{selectedText}」
             </div>
             <div className="flex items-center gap-2">
-              <ServiceInstanceSelect
+              <ServicePresetSelect
                 providerId={providerId}
-                instanceId={instanceId}
-                onChange={(pid, iid) => {
+                presetId={presetId}
+                onChange={(pid, nextPresetId) => {
                   setProviderId(pid);
-                  setInstanceId(iid);
+                  setPresetId(nextPresetId);
                 }}
                 buttonVariant="outline"
                 buttonSize="sm"
@@ -337,7 +336,7 @@ export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedTe
               <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setPanelView('actions')}>
                 返回
               </Button>
-              <Button size="sm" className="h-7 text-xs" onClick={handleGenerateVocabulary} disabled={!providerId || !instanceId || isGeneratingVocabulary}>
+              <Button size="sm" className="h-7 text-xs" onClick={handleGenerateVocabulary} disabled={!providerId || !presetId || isGeneratingVocabulary}>
                 {isGeneratingVocabulary ? (
                   <>
                     <TbLoader2 className="w-3 h-3 mr-1 animate-spin" />
@@ -375,6 +374,7 @@ export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedTe
               placeholder="备注内容（可选）"
               value={content}
               onChange={(e) => setContent(e.target.value)}
+              onKeyDown={handleFormKeyDown}
               rows={2}
               className="w-full px-2 py-1.5 text-sm border rounded bg-background text-foreground outline-none focus:ring-1 focus:ring-ring resize-none"
             />

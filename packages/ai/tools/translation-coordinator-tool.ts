@@ -5,11 +5,11 @@
  * 实际的翻译操作由应用程序的翻译功能完成
  */
 
-import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 
 import type { ResourcesRepo as ResourcesRepoType } from '../../../electron/main/db/repositories';
 import { createResourceQueryTool } from './resource-query-tool';
+import { createTool } from './tool-definition';
 
 /**
  * 翻译协调工具输入参数

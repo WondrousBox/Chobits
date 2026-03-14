@@ -1,20 +1,14 @@
 import { randomUUID } from 'node:crypto';
 
-import { Agent } from '@mastra/core/agent';
 import { BrowserWindow, ipcMain, WebContents } from 'electron';
 
 import { ChatRepo } from '../common/db';
 import { eventManager } from '../event';
 import { AppEvent } from '../event/events';
-import { getAgent, getFilteredTools } from './agents';
-import { InstancesStore } from './instances-store';
-import { createModel } from './models/index';
 import { getProvider } from './registry';
-import { getAllSecrets, getFirstApiKey } from './settings-store';
-import { getAllInstanceSecrets } from './settings-store';
-import { pushCardToolContext } from './tools/push-card-tool-context';
-import { summaryToolContext } from './tools/summary-tool-context';
-import { translationToolContext } from './tools/translation-tool-context';
+import { PiExecutionService } from './runtime/pi/execution-service';
+import { PiSessionService } from './runtime/pi/session-service';
+import { generatePiConversationTitle, normalizeGeneratedConversationTitle } from './runtime/pi/tasks/title';
 import { ChatMessage, ChatRequest, ChatResponse, EmbeddingResponse, StreamEvent } from './types';
 
 // local UUID fallback if uuid not present
@@ -26,11 +20,23 @@ function safeUuid(): string {
   }
 }
 
+function forcePiRuntime(req: ChatRequest): ChatRequest {
+  return {
+    ...req,
+    extras: {
+      ...(req.extras || {}),
+      runtime: 'pi'
+    }
+  };
+}
+
 /** IPC channel for broadcasting conversation title updates to all renderer windows */
 const CONV_TITLE_UPDATED_CHANNEL = 'ai:conversation-title-updated';
 
 export class ChatService {
   private controllers = new Map<string, AbortController>();
+  private piExecutionService?: PiExecutionService;
+  private readonly piSessionService = new PiSessionService();
   // Use defaultWin as a fallback when sender window is unavailable
   constructor(private defaultWin?: BrowserWindow) {
     //
@@ -40,99 +46,20 @@ export class ChatService {
     ipcMain.handle('ai:chat', async (e, req: ChatRequest) => this.chat(BrowserWindow.fromWebContents(e.sender) || this.defaultWin, req));
     ipcMain.handle('ai:chatStream', async (e, req: ChatRequest) => this.chatStream(e.sender, req));
     ipcMain.handle('ai:cancel', async (_e, payload: { requestId: string }) => this.cancel(payload.requestId));
-    ipcMain.handle('ai:embed', async (_e, payload: { texts: string[]; providerId?: string; model?: string; normalize?: boolean }) => this.embed(payload));
+    ipcMain.handle('ai:embed', async (_e, payload: { texts: string[]; providerId?: string; providerInstanceId?: string; model?: string; normalize?: boolean }) => this.embed(payload));
     // Stateless chat (no history persistence)
     ipcMain.handle('ai:chatEphemeral', async (e, req: ChatRequest) => this.chatEphemeral(BrowserWindow.fromWebContents(e.sender) || this.defaultWin, req));
   }
 
   private async chat(win: BrowserWindow | undefined, req: ChatRequest): Promise<ChatResponse> {
-    // Merge instance config if provided
-    req = await this.withInstance(req);
-    // Ensure conversation and persist last user message (if any)
-    const conv = await ChatRepo.ensureConversation({
-      id: req.conversationId,
-      agentId: req.agentId,
-      providerId: req.providerId,
-      providerInstanceId: (req as any).providerInstanceId
-    });
-    const last = (req.messages || [])
-      .slice()
-      .reverse()
-      .find((m) => m.role === 'user');
-    if (last) {
-      await ChatRepo.addMessage(conv.id, {
-        role: 'user',
-        content: last.content,
-        name: last.name,
-        toolCallId: last.toolCallId,
-        metadata: last.metadata ? (JSON.stringify(last.metadata) as any) : null,
-        createdAt: last.createdAt || Date.now()
-      } as any);
-    }
-
-    // 使用 Mastra Agent
-    const agent = await this.getConfiguredAgent(req);
-    if (!agent) {
-      const prov = getProvider(req.providerId);
-      if (!prov?.chat) return { message: { role: 'assistant', content: 'No provider available.' } };
-      const resp = await prov.chat({ ...req, stream: false });
-      // persist assistant reply
-      await ChatRepo.addMessage(conv.id, {
-        role: 'assistant',
-        content: resp.message?.content || '',
-        createdAt: resp.message?.createdAt || Date.now(),
-        metadata: resp.metadata ? (JSON.stringify(resp.metadata) as any) : null
-      } as any);
-      return { ...resp, metadata: { ...(resp.metadata || {}), conversationId: conv.id } } as any;
-    }
-
-    // 使用 Mastra agent.generate() 进行非流式调用
-    const messages = req.messages || [];
-    const input = messages.map(m => `${m.role}: ${m.content}`).join('\n');
-    const result = await agent.generate(input, { maxSteps: 10 });
-
-    const resp: ChatResponse = {
-      message: { role: 'assistant', content: result.text, createdAt: Date.now() },
-      providerId: req.providerId,
-      agentId: req.agentId
-    };
-
-    await ChatRepo.addMessage(conv.id, {
-      role: 'assistant',
-      content: resp.message?.content || '',
-      createdAt: resp.message?.createdAt || Date.now(),
-      metadata: resp.metadata ? (JSON.stringify(resp.metadata) as any) : null
-    } as any);
-    return { ...resp, metadata: { ...(resp.metadata || {}), conversationId: conv.id } } as any;
+    void win;
+    return this.chatWithPi(this.toPiRequest(req));
   }
 
   // Ephemeral chat: call provider/agent and return response without touching conversation history
   async chatEphemeral(win: BrowserWindow | undefined, req: ChatRequest): Promise<ChatResponse> {
-    // Still allow instance merge (model, secrets, system prompt), but do NOT persist anything
-    const resolved = await this.withInstance(req);
-    const agent = await this.getConfiguredAgent(resolved);
-
-    if (!agent) {
-      const prov = getProvider(resolved.providerId);
-      if (!prov?.chat) return { message: { role: 'assistant', content: 'No provider available.' } } as any;
-      const resp = await prov.chat({ ...resolved, stream: false });
-      // Ensure no conversationId is injected in metadata
-      return { ...resp, metadata: { ...(resp.metadata || {}) } } as any;
-    }
-
-    // 使用 Mastra agent.generate() 进行非流式调用
-    const messages = resolved.messages || [];
-    const input = messages.map(m => `${m.role}: ${m.content}`).join('\n');
-
-    const result = await agent.generate(input, {
-      maxSteps: 10
-    });
-
-    return {
-      message: { role: 'assistant', content: result.text, createdAt: Date.now() },
-      providerId: resolved.providerId,
-      agentId: resolved.agentId
-    };
+    void win;
+    return this.piSessionService.chatEphemeral(this.toPiRequest(req));
   }
 
   private async chatStream(sender: WebContents, req: ChatRequest): Promise<{ requestId: string; eventsChannel: string }> {
@@ -156,197 +83,7 @@ ${JSON.stringify(req, null, 2)}
     // Start the actual streaming on next tick to avoid missing early events
     setTimeout(async () => {
       try {
-        const resolved = await this.withInstance(req);
-        const agent = await this.getConfiguredAgent(resolved);
-
-        emit({ type: 'connected' });
-
-        // 触发精灵动画：AI 开始思考（通过事件解耦）
-        eventManager.emit(AppEvent.SPRITE_AI_START, { message: '思考中...' });
-
-        if (!agent) {
-          eventManager.emit(AppEvent.SPRITE_AI_ERROR, { message: 'Agent 不可用' });
-          emit({ type: 'error', data: { message: 'Agent 不可用' } });
-          emit({ type: 'done' });
-          return;
-        }
-        console.log('resolved chat request:', resolved);
-
-        const shouldPersist = resolved.persist !== false;
-
-        // ==============================================数据库处理
-        // Ensure conversation and persist the last user message once per request
-        const lastUserMessage = (resolved.messages || [])
-          .slice()
-          .reverse()
-          .find((m) => m.role === 'user');
-        let conv = undefined;
-        if (shouldPersist) {
-          conv = await ChatRepo.ensureConversation({
-            id: resolved.conversationId,
-            agentId: resolved.agentId,
-            providerId: resolved.providerId,
-            providerInstanceId: (resolved as any).providerInstanceId
-          });
-        }
-        if (shouldPersist && lastUserMessage && conv) {
-          try {
-            await ChatRepo.addMessage(conv.id, {
-              role: 'user',
-              content: lastUserMessage.content,
-              name: lastUserMessage.name,
-              toolCallId: lastUserMessage.toolCallId,
-              metadata: lastUserMessage.metadata ? (JSON.stringify(lastUserMessage.metadata) as any) : null,
-              createdAt: lastUserMessage.createdAt || Date.now()
-            } as any);
-          } catch {
-            //
-          }
-        }
-        // ================================================================
-        // ==============================================数据库处理结束
-        // ================================================================
-
-        if (conv) {
-          emit({ type: 'metadata', data: { conversationId: conv.id } });
-        }
-
-        let contextMessages: ChatMessage[] | undefined = (resolved.messages || []).length ? resolved.messages : undefined;
-        if (!contextMessages && shouldPersist && conv?.id) {
-          try {
-            const rows = await ChatRepo.listMessages(conv.id, 2000, 0);
-            if (rows?.length) {
-              contextMessages = rows.map((row) => {
-                let metadata: Record<string, any> | undefined;
-                if (row.metadata) {
-                  try {
-                    metadata = JSON.parse(row.metadata as any);
-                  } catch {
-                    metadata = undefined;
-                  }
-                }
-                return {
-                  role: row.role as ChatMessage['role'],
-                  content: row.content,
-                  name: row.name ?? undefined,
-                  toolCallId: row.toolCallId ?? undefined,
-                  metadata,
-                  createdAt: row.createdAt ?? undefined
-                };
-              });
-            }
-          } catch {
-            // ignore db read errors
-          }
-        }
-
-        let recentMessages;
-
-        if (contextMessages?.length) {
-          const systemMessages = contextMessages.filter((m) => m.role === 'system');
-          const dialogMessages = contextMessages.filter((m) => m.role !== 'system');
-          const recentDialog = dialogMessages.slice(-6);
-          recentMessages = [...systemMessages, ...recentDialog];
-        }
-
-        // 获取模型名称
-        const modelName = (resolved.extras?.model as string) || 'default';
-
-        // 设置翻译工具执行上下文
-        translationToolContext.setContext({
-          chatFn: translationToolContext.createChatFn(agent),
-          emit: translationToolContext.createEmitFn(requestId, 'translation'),
-          requestId,
-          taskLabel: `${resolved.providerId}/${modelName}`,
-          providerId: resolved.providerId,
-          model: modelName
-        });
-
-        // 设置总结工具执行上下文
-        summaryToolContext.setContext({
-          chatFn: summaryToolContext.createChatFn(agent),
-          emit: summaryToolContext.createEmitFn(requestId, 'summary'),
-          requestId,
-          taskLabel: `${resolved.providerId}/${modelName}`,
-          providerId: resolved.providerId,
-          model: modelName
-        });
-
-        // 设置推送卡片工具执行上下文
-        pushCardToolContext.setContext({
-          conversationId: conv?.id
-        });
-
-        try {
-          // 流式调用（使用字符串输入）
-          const streamInput = recentMessages?.length ? recentMessages : lastUserMessage?.content || '';
-          const stream = await agent.stream(streamInput as any, {
-            maxSteps: 10,
-            abortSignal: ctrl.signal
-          });
-
-          let fullText = '';
-
-          for await (const chunk of stream.textStream) {
-            if (ctrl.signal.aborted) break;
-
-            fullText += chunk;
-            emit({ type: 'delta', data: { text: chunk } });
-          }
-
-          const finalResp: ChatResponse = {
-            message: {
-              role: 'assistant',
-              content: fullText,
-              createdAt: Date.now()
-            },
-            providerId: req.providerId,
-            agentId: resolved?.agentId
-            // usage
-          };
-          emit({
-            type: 'message_completed',
-            data: finalResp
-          });
-          if (conv) {
-            // Always send conversationId metadata at end as well (idempotent for renderer)
-            emit({ type: 'metadata', data: { conversationId: conv.id } });
-            // Persist assistant message at the end (regardless of who emitted deltas)
-            try {
-              const msg = finalResp?.message;
-              if (msg) {
-                await ChatRepo.addMessage(conv.id, {
-                  role: 'assistant',
-                  content: msg.content || '',
-                  name: msg.name,
-                  toolCallId: msg.toolCallId,
-                  metadata: msg.metadata ? (JSON.stringify(msg.metadata) as any) : null,
-                  createdAt: msg.createdAt || Date.now()
-                } as any);
-              }
-            } catch {
-              //
-            }
-          }
-          // Auto-generate title for new conversations (title is null)
-          if (conv && !conv.title) {
-            this.generateConversationTitle(conv.id, lastUserMessage?.content || '', fullText, resolved).catch((e) => {
-              console.warn('[ChatService] Auto title generation failed:', e);
-            });
-          }
-
-          // 触发精灵动画：AI 回复完成（通过事件解耦）
-          eventManager.emit(AppEvent.SPRITE_AI_COMPLETE);
-
-          emit({ type: 'done' });
-        } finally {
-          // 清理翻译工具上下文
-          translationToolContext.clearContext();
-          // 清理总结工具上下文
-          summaryToolContext.clearContext();
-          // 清理推送卡片工具上下文
-          pushCardToolContext.clearContext();
-        }
+        await this.chatStreamWithPi(sender, forcePiRuntime(req), emit, ctrl);
       } catch (error: any) {
         console.error('Stream 错误:', error);
 
@@ -371,6 +108,153 @@ ${JSON.stringify(req, null, 2)}
     return { requestId, eventsChannel };
   }
 
+  private async chatWithPi(req: ChatRequest): Promise<ChatResponse> {
+    const preview = await this.piSessionService.preview(req);
+
+    if (!preview.availability.available) {
+      throw new Error(preview.availability.reason || 'Pi runtime packages are not installed yet.');
+    }
+
+    const conv = await ChatRepo.ensureConversation({
+      id: req.conversationId,
+      agentId: req.agentId || preview.resolved.profile.id,
+      providerId: preview.resolved.model.providerId,
+      providerInstanceId: (req as any).providerInstanceId
+    });
+
+    const lastUserMessage = this.getLastUserMessage(req.messages);
+    if (lastUserMessage) {
+      await this.persistConversationMessage(conv.id, lastUserMessage);
+    }
+
+    const resp = await this.piSessionService.chat({
+      ...req,
+      conversationId: conv.id
+    });
+
+    if (resp.message) {
+      await this.persistConversationMessage(conv.id, resp.message);
+    }
+
+    return {
+      ...resp,
+      metadata: {
+        ...(resp.metadata || {}),
+        conversationId: conv.id
+      }
+    } as any;
+  }
+
+  private async chatStreamWithPi(sender: WebContents, req: ChatRequest, emit: (event: StreamEvent) => void, ctrl: AbortController): Promise<void> {
+    const preview = await this.piSessionService.preview(req);
+
+    if (!preview.availability.available) {
+      await this.piSessionService.chatStream(req, emit, ctrl.signal);
+      return;
+    }
+
+    const shouldPersist = req.persist !== false;
+    const lastUserMessage = this.getLastUserMessage(req.messages);
+    let conv = undefined;
+
+    if (shouldPersist) {
+      conv = await ChatRepo.ensureConversation({
+        id: req.conversationId,
+        agentId: req.agentId || preview.resolved.profile.id,
+        providerId: preview.resolved.model.providerId,
+        providerInstanceId: (req as any).providerInstanceId
+      });
+    }
+
+    if (shouldPersist && lastUserMessage && conv) {
+      await this.persistConversationMessage(conv.id, lastUserMessage).catch(() => {
+        //
+      });
+    }
+
+    let contextMessages: ChatMessage[] | undefined = (req.messages || []).length ? req.messages : undefined;
+    if (!contextMessages && shouldPersist && conv?.id) {
+      contextMessages = await this.loadConversationContextMessages(conv.id);
+    }
+
+    const streamMessages = this.selectRecentMessages(contextMessages) || req.messages;
+    const targetWindowId = BrowserWindow.fromWebContents(sender)?.id;
+    const streamRequest: ChatRequest = {
+      ...req,
+      conversationId: conv?.id || req.conversationId,
+      extras: {
+        ...(req.extras || {}),
+        ...(targetWindowId !== undefined ? { piTargetWindowId: targetWindowId } : {})
+      },
+      messages: streamMessages
+    };
+
+    let emittedConversationMetadata = false;
+    let finalMessage: ChatMessage | undefined;
+    let fullText = '';
+    let errorMessage: string | undefined;
+
+    eventManager.emit(AppEvent.SPRITE_AI_START, { message: '思考中...' });
+
+    await this.piSessionService.chatStream(
+      streamRequest,
+      (event) => {
+        if (event.type === 'connected') {
+          emit(event);
+          if (conv && !emittedConversationMetadata) {
+            emit({ type: 'metadata', data: { conversationId: conv.id } });
+            emittedConversationMetadata = true;
+          }
+          return;
+        }
+
+        if (event.type === 'delta' && event.data?.text) {
+          fullText += event.data.text;
+        }
+
+        if (event.type === 'message_completed' && event.data?.message) {
+          finalMessage = event.data.message;
+          if (!fullText && event.data.message.content) {
+            fullText = event.data.message.content;
+          }
+        }
+
+        if (event.type === 'error') {
+          errorMessage = event.data?.message;
+        }
+
+        emit(event);
+      },
+      ctrl.signal
+    );
+
+    if (!finalMessage && fullText) {
+      finalMessage = {
+        content: fullText,
+        createdAt: Date.now(),
+        role: 'assistant'
+      };
+    }
+
+    if (conv && finalMessage) {
+      await this.persistConversationMessage(conv.id, finalMessage).catch(() => {
+        //
+      });
+    }
+
+    if (conv && finalMessage?.content && !conv.title) {
+      this.generateConversationTitle(conv.id, lastUserMessage?.content || '', finalMessage.content, req).catch((e) => {
+        console.warn('[ChatService] Auto title generation failed:', e);
+      });
+    }
+
+    if (errorMessage) {
+      eventManager.emit(AppEvent.SPRITE_AI_ERROR, { message: errorMessage });
+    } else {
+      eventManager.emit(AppEvent.SPRITE_AI_COMPLETE);
+    }
+  }
+
   private cancel(requestId: string): { ok: boolean } {
     const ctrl = this.controllers.get(requestId);
     if (ctrl) {
@@ -381,135 +265,78 @@ ${JSON.stringify(req, null, 2)}
     return { ok: false };
   }
 
-  private async embed(payload: { texts: string[]; providerId?: string; model?: string; normalize?: boolean }): Promise<EmbeddingResponse> {
-    const prov = getProvider(payload.providerId);
-    if (!prov?.embed) throw new Error('Provider has no embeddings');
-    return prov.embed(payload);
-  }
-
-  /**
-   * 获取配置好的 Agent
-   */
-  private async getConfiguredAgent(req: ChatRequest): Promise<Agent | undefined> {
-    const agentId = req.agentId || 'assistant';
-    const baseAgent = getAgent(agentId);
-    if (!baseAgent) return undefined;
-
-    // 获取 provider 配置
-    const providerId = req.providerId || 'openai';
-    const providerConfig = this.getProviderConfig(providerId);
-    if (!providerConfig) return baseAgent;
-
-    // 获取 secrets
-    const fields = providerConfig.fields as Array<{ key: string; required?: boolean }>;
-    const keys = fields.map((f) => f.key);
-    const secrets = await getAllSecrets(providerId, keys);
-    const apiKey = getFirstApiKey(secrets.apiKey);
-
-    if (!apiKey && fields.some((f) => f.key === 'apiKey' && f.required)) {
-      console.warn(`Provider ${providerId} 未配置 API Key`);
-      return baseAgent;
-    }
-
-    // 创建模型实例并配置 Agent
-    try {
-      const modelConfig = {
-        apiKey: apiKey || '',
-        baseUrl: secrets.baseUrl as string,
-        model: (req.extras?.model as string) || providerConfig.defaultModel
-      };
-      const model = createModel(providerId, modelConfig);
-
-      // 根据实例配置的 enabledTools 过滤工具
-      const enabledTools = req.extras?.enabledTools as string[] | undefined;
-      const filteredTools = enabledTools !== undefined ? getFilteredTools(enabledTools) : undefined;
-
-      // 创建配置好的 Agent 副本
-      const toolsToUse = filteredTools || (baseAgent as any).tools || {};
-      const agent = new Agent({
-        name: baseAgent.name,
-        instructions: (baseAgent as any).instructions || '',
-        model,
-        tools: toolsToUse
-      });
-
-      // ============================================================
-      // 日志：打印传给 AI 的工具定义（分析 token 占用）
-      // ============================================================
-      console.log('\n' + '='.repeat(80));
-      console.log('[Tool Definition Log] 传给 AI 的工具定义:');
-      console.log('='.repeat(80));
-
-      const toolEntries = Object.entries(toolsToUse);
-      console.log(`[Tool Count] 共 ${toolEntries.length} 个工具\n`);
-
-      let totalDescriptionLength = 0;
-      let totalSchemaLength = 0;
-
-      for (const [toolName, tool] of toolEntries) {
-        const t = tool as any;
-        const desc = t.description || '';
-        const id = t.id || toolName;
-
-        // 估算 schema 大小
-        let schemaStr = '';
-        try {
-          schemaStr = JSON.stringify(t.inputSchema || {}, null, 2);
-        } catch {
-          schemaStr = '[无法序列化]';
-        }
-
-        const descLen = desc.length;
-        const schemaLen = schemaStr.length;
-        totalDescriptionLength += descLen;
-        totalSchemaLength += schemaLen;
-
-        console.log(`\n--- Tool: ${toolName} (id: ${id}) ---`);
-        console.log(`[Description] (${descLen} chars):\n${desc}`);
-        console.log(`[InputSchema] (${schemaLen} chars):\n${schemaStr.slice(0, 500)}${schemaStr.length > 500 ? '...(truncated)' : ''}`);
-      }
-
-      console.log('\n' + '-'.repeat(80));
-      console.log(`[Summary] 描述总字符数: ${totalDescriptionLength}`);
-      console.log(`[Summary] Schema 总字符数: ${totalSchemaLength}`);
-      console.log(`[Summary] 估算总大小: ~${Math.ceil((totalDescriptionLength + totalSchemaLength) / 4)} tokens (按 1 token ≈ 4 chars 估算)`);
-      console.log('='.repeat(80) + '\n');
-
-      return agent;
-    } catch (error) {
-      console.error('创建模型失败:', error);
-      return baseAgent;
-    }
-  }
-
-  private async withInstance(req: ChatRequest): Promise<ChatRequest> {
-    const instId = (req as any).providerInstanceId as string | undefined;
-    if (!instId) return req;
-    const inst = InstancesStore.get(instId);
-    if (!inst) return req;
-    // Merge instance fields
-    const extras = { ...(req.extras || {}) } as any;
-    if (inst.model && !extras.model) extras.model = inst.model;
-    // Pass enabledTools to extras for agent configuration
-    if (inst.enabledTools?.length) extras.enabledTools = inst.enabledTools;
-    // Load secrets for this instance to allow provider overrides
-    try {
-      const schema = getProvider(inst.providerId)?.getConfigSchema?.();
-      const keys = (schema?.fields || []).map((f) => f.key);
-      const secrets = await getAllInstanceSecrets(instId, keys);
-      if (Object.keys(secrets).length) extras.secrets = secrets;
-    } catch {
-      // Ignore
-    }
-    // Prepend system prompt
-    const messages = [...(req.messages || [])];
-    if (inst.systemPrompt) messages.unshift({ role: 'system', content: inst.systemPrompt });
-    return { ...req, providerId: inst.providerId, messages, extras };
+  private async embed(payload: { texts: string[]; providerId?: string; providerInstanceId?: string; model?: string; normalize?: boolean }): Promise<EmbeddingResponse> {
+    return this.getPiExecutionService().embed(payload);
   }
 
   getProviderConfig(providerId: string): any {
     const prov = getProvider(providerId);
     return prov?.getConfigSchema?.();
+  }
+
+  private getPiExecutionService(): PiExecutionService {
+    this.piExecutionService ||= new PiExecutionService();
+    return this.piExecutionService;
+  }
+
+  private toPiRequest(req: ChatRequest): ChatRequest {
+    return this.piSessionService.shouldHandle(req) ? req : forcePiRuntime(req);
+  }
+
+  private getLastUserMessage(messages?: ChatMessage[]): ChatMessage | undefined {
+    return (messages || [])
+      .slice()
+      .reverse()
+      .find((message) => message.role === 'user');
+  }
+
+  private async persistConversationMessage(conversationId: string, message: ChatMessage): Promise<void> {
+    await ChatRepo.addMessage(conversationId, {
+      content: message.content,
+      createdAt: message.createdAt || Date.now(),
+      metadata: message.metadata ? (JSON.stringify(message.metadata) as any) : null,
+      name: message.name,
+      role: message.role,
+      toolCallId: message.toolCallId
+    } as any);
+  }
+
+  private async loadConversationContextMessages(conversationId: string): Promise<ChatMessage[] | undefined> {
+    try {
+      const rows = await ChatRepo.listMessages(conversationId, 2000, 0);
+      if (!rows?.length) return undefined;
+
+      return rows.map((row) => {
+        let metadata: Record<string, any> | undefined;
+        if (row.metadata) {
+          try {
+            metadata = JSON.parse(row.metadata as any);
+          } catch {
+            metadata = undefined;
+          }
+        }
+
+        return {
+          content: row.content,
+          createdAt: row.createdAt ?? undefined,
+          metadata,
+          name: row.name ?? undefined,
+          role: row.role as ChatMessage['role'],
+          toolCallId: row.toolCallId ?? undefined
+        };
+      });
+    } catch {
+      return undefined;
+    }
+  }
+
+  private selectRecentMessages(messages?: ChatMessage[]): ChatMessage[] | undefined {
+    if (!messages?.length) return undefined;
+
+    const systemMessages = messages.filter((message) => message.role === 'system');
+    const dialogMessages = messages.filter((message) => message.role !== 'system');
+
+    return [...systemMessages, ...dialogMessages.slice(-6)];
   }
 
   /**
@@ -523,17 +350,40 @@ ${JSON.stringify(req, null, 2)}
 
     try {
       const titleReq: ChatRequest = {
+        agentId: 'chat',
         providerId: resolved.providerId,
         providerInstanceId: (resolved as any).providerInstanceId,
+        extras: resolved.extras?.model
+          ? {
+              model: resolved.extras.model
+            }
+          : undefined,
         messages: [
           { role: 'system', content: '你是一个标题生成助手。请根据以下用户和AI的对话内容，生成一个简洁的对话标题（不超过20个字）。只输出标题本身，不要加引号、前缀或解释。' },
           { role: 'user', content: `用户: ${userContent}\nAI: ${assistantContent.slice(0, 500)}` }
         ],
         persist: false
       };
-      const resp = await this.chatEphemeral(this.defaultWin, titleReq);
-      let title = (resp?.message?.content || '').trim().replace(/^["'\u300c]|["'\u300d]$/g, '');
-      if (title && title.length > 30) title = title.slice(0, 30) + '\u2026';
+      let title = '';
+      const shouldFallbackToLegacy = !this.piSessionService.getAvailability(titleReq).available;
+
+      try {
+        title = await generatePiConversationTitle({
+          assistantContent,
+          model: resolved.extras?.model as string | undefined,
+          providerId: resolved.providerId,
+          providerInstanceId: (resolved as any).providerInstanceId,
+          userContent
+        });
+      } catch (error) {
+        if (!shouldFallbackToLegacy) {
+          throw error;
+        }
+
+        console.warn('[ChatService] Pi title generation unavailable, falling back to legacy:', error);
+        const resp = await this.chatEphemeral(this.defaultWin, titleReq);
+        title = normalizeGeneratedConversationTitle(resp?.message?.content || '');
+      }
 
       if (title && title.length > 0) {
         await ChatRepo.renameConversation(conversationId, title);

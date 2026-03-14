@@ -1,41 +1,52 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 export type ProviderRow = {
   id: string;
+  aliases?: string[];
   label: string;
   configured?: boolean;
+  capabilities?: Record<string, boolean>;
+  defaultModels?: Record<string, string | undefined>;
   schema?: { icon?: string; locales?: Record<string, any> };
 };
 
-export type InstanceRow = {
+export type PresetRow = {
   id: string;
   providerId: string;
   name?: string;
   model?: string;
 };
 
-export interface UseProvidersInstancesResult {
+export type InstanceRow = PresetRow;
+export type ProviderPresetRow = PresetRow;
+export type ProviderInstanceRow = InstanceRow;
+
+export interface UseProvidersPresetsResult {
   providers: ProviderRow[];
+  presetsMap: Record<string, PresetRow[]>;
   instancesMap: Record<string, InstanceRow[]>;
   loading: boolean;
   error?: string;
   refresh: () => Promise<void>;
+  getPresets: (providerId: string) => PresetRow[];
   getInstances: (providerId: string) => InstanceRow[];
 }
 
+export type UseProvidersInstancesResult = UseProvidersPresetsResult;
+
 /**
- * Generic hook to load AI providers and their instances.
+ * Generic hook to load AI providers and their presets.
  * - Fetches providers on mount
- * - Fetches instances for each provider when providers change
- * - Provides a simple alphabetical ordering by instance name/id
+ * - Fetches presets for each provider when providers change
+ * - Provides a simple alphabetical ordering by preset name/id
  */
-export function useProvidersInstances(): UseProvidersInstancesResult {
+export function useProvidersPresets(): UseProvidersPresetsResult {
   const [providers, setProviders] = useState<ProviderRow[]>([]);
-  const [instancesMap, setInstancesMap] = useState<Record<string, InstanceRow[]>>({});
+  const [presetsMap, setPresetsMap] = useState<Record<string, PresetRow[]>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     setLoading(true);
     setError(undefined);
     try {
@@ -46,46 +57,76 @@ export function useProvidersInstances(): UseProvidersInstancesResult {
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    refresh();
   }, []);
 
   useEffect(() => {
-    (async () => {
+    void refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPresets = async (): Promise<void> => {
       if (!providers.length) {
-        setInstancesMap({});
+        setPresetsMap({});
         return;
       }
+
+      const listPresets = window.YUA?.ai?.listPresets;
+      const listInstances = window.YUA?.ai?.listInstances;
+      if (!listPresets && !listInstances) {
+        setPresetsMap({});
+        return;
+      }
+
       try {
         const entries = await Promise.all(
           providers.map(async (p) => {
             try {
-              const list = await window.YUA?.ai?.listInstances?.(p.id);
+              const list = listPresets ? await listPresets(p.id) : await listInstances?.(p.id);
               return [p.id, Array.isArray(list) ? list : []] as const;
             } catch {
               return [p.id, []] as const;
             }
           })
         );
-        setInstancesMap(Object.fromEntries(entries));
+
+        if (!cancelled) {
+          setPresetsMap(Object.fromEntries(entries));
+        }
       } catch {
         // ignore
       }
-    })();
+    };
+
+    void loadPresets();
+
+    return () => {
+      cancelled = true;
+    };
   }, [providers]);
 
-  const getInstances = (providerId: string) => {
-    const list = (instancesMap[providerId] || []).slice();
-    return list.sort((a, b) => {
-      const an = (a.name || a.id || '').toString();
-      const bn = (b.name || b.id || '').toString();
-      return an.localeCompare(bn);
-    });
-  };
+  const getPresets = useCallback(
+    (providerId: string) => {
+      const list = (presetsMap[providerId] || []).slice();
+      return list.sort((a, b) => {
+        const an = (a.name || a.id || '').toString();
+        const bn = (b.name || b.id || '').toString();
+        return an.localeCompare(bn);
+      });
+    },
+    [presetsMap]
+  );
 
-  return useMemo(() => ({ providers, instancesMap, loading, error, refresh, getInstances }), [providers, instancesMap, loading, error]);
+  const getInstances = useCallback((providerId: string) => getPresets(providerId), [getPresets]);
+  const instancesMap = presetsMap;
+
+  return useMemo(
+    () => ({ providers, presetsMap, instancesMap, loading, error, refresh, getPresets, getInstances }),
+    [providers, presetsMap, instancesMap, loading, error, refresh, getPresets, getInstances]
+  );
 }
 
-export default useProvidersInstances;
+export const useProvidersInstances = useProvidersPresets;
+
+export default useProvidersPresets;

@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import ServicePresetSelect from '@/pages/ChatPage/components/ServicePresetSelect';
 
 import { useResourceTabContext } from './ResourceTabContext';
 
@@ -61,7 +62,7 @@ const loadPreferences = (): Record<string, any> | null => {
   return null;
 };
 
-const savePreferences = (preferences: { selectedProviderId?: string; selectedModel?: string; targetLanguage?: string }): void => {
+const savePreferences = (preferences: { selectedProviderId?: string; selectedPresetId?: string; selectedModel?: string; targetLanguage?: string }): void => {
   try {
     const existing = loadPreferences() || {};
     const updated = { ...existing, ...preferences };
@@ -80,6 +81,7 @@ const SummaryTab: React.FC = () => {
   const savedPreferences = loadPreferences();
 
   const [selectedProviderId, setSelectedProviderId] = useState<string>(savedPreferences?.selectedProviderId || '');
+  const [selectedPresetId, setSelectedPresetId] = useState<string>(savedPreferences?.selectedPresetId || '');
   const [selectedModel, setSelectedModel] = useState<string>(savedPreferences?.selectedModel || '');
   const [providerConfigured, setProviderConfigured] = useState<boolean>(false);
   const [targetLanguage, setTargetLanguage] = useState<string>(savedPreferences?.targetLanguage || 'zh');
@@ -181,8 +183,8 @@ const SummaryTab: React.FC = () => {
     setProviderConfigured(configured);
   }, []);
 
-  const handleOpenConfig = useCallback(async (providerId: string, fields: string[]) => {
-    await window.YUA.window['window:open']('aiProviderConfig' as any, { providerId, fields }, { sameDisplayAsSender: true });
+  const handleOpenConfig = useCallback(async (providerId: string, fields: string[], presetId?: string) => {
+    await window.YUA.window['window:open']('aiProviderConfig' as any, { providerId, presetId, fields }, { sameDisplayAsSender: true });
   }, []);
 
   const handleSummarize = useCallback(async () => {
@@ -204,6 +206,7 @@ const SummaryTab: React.FC = () => {
     try {
       const { requestId } = await window.YUA.ai.summarize({
         providerId: selectedProviderId,
+        providerInstanceId: selectedPresetId || undefined,
         model: selectedModel,
         resourceId: targetResource.id,
         targetLanguage,
@@ -219,7 +222,17 @@ const SummaryTab: React.FC = () => {
       setIsSummarizing(false);
       setSummaryProgress(0);
     }
-  }, [selectedProviderId, selectedModel, targetLanguage, targetResource]);
+  }, [selectedPresetId, selectedProviderId, selectedModel, targetLanguage, targetResource]);
+
+  const handleProviderModelChange = useCallback((providerId: string, modelId: string) => {
+    setSelectedProviderId((prevProviderId) => {
+      if (prevProviderId && prevProviderId !== providerId) {
+        setSelectedPresetId('');
+      }
+      return providerId;
+    });
+    setSelectedModel(modelId);
+  }, []);
 
   const handleStopSummary = useCallback(async () => {
     if (currentRequestId) {
@@ -234,10 +247,11 @@ const SummaryTab: React.FC = () => {
   useEffect(() => {
     savePreferences({
       selectedProviderId,
+      selectedPresetId,
       selectedModel,
       targetLanguage
     });
-  }, [selectedProviderId, selectedModel, targetLanguage]);
+  }, [selectedPresetId, selectedProviderId, selectedModel, targetLanguage]);
 
   if (loading) {
     return <div className="h-full flex items-center justify-center text-muted-foreground text-sm">加载总结数据中...</div>;
@@ -273,15 +287,29 @@ const SummaryTab: React.FC = () => {
           <PopoverContent align="center" className="w-80">
             <div className="space-y-4">
               <div className="space-y-2">
+                <Label className="text-sm font-medium">模型预设</Label>
+                <ServicePresetSelect
+                  providerId={selectedProviderId}
+                  presetId={selectedPresetId}
+                  onChange={(providerId, presetId) => {
+                    setSelectedProviderId(providerId);
+                    setSelectedPresetId(presetId);
+                  }}
+                  buttonVariant="outline"
+                  buttonSize="default"
+                  className="w-full justify-between"
+                  placeholder="选择服务商 · 预设"
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label className="text-sm font-medium">总结模型</Label>
                 <ProviderModelSelect
                   ref={providerSelectRef}
                   providerId={selectedProviderId}
+                  presetId={selectedPresetId}
                   modelId={selectedModel}
-                  onChange={(providerId, modelId) => {
-                    setSelectedProviderId(providerId);
-                    setSelectedModel(modelId);
-                  }}
+                  onChange={handleProviderModelChange}
                   placeholder="选择模型"
                   buttonVariant="outline"
                   buttonSize="default"
@@ -359,15 +387,29 @@ const SummaryTab: React.FC = () => {
                 <PopoverContent align="end" className="w-80">
                   <div className="space-y-4">
                     <div className="space-y-2">
+                      <Label className="text-sm font-medium">模型预设</Label>
+                      <ServicePresetSelect
+                        providerId={selectedProviderId}
+                        presetId={selectedPresetId}
+                        onChange={(providerId, presetId) => {
+                          setSelectedProviderId(providerId);
+                          setSelectedPresetId(presetId);
+                        }}
+                        buttonVariant="outline"
+                        buttonSize="default"
+                        className="w-full justify-between"
+                        placeholder="选择服务商 · 预设"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
                       <Label className="text-sm font-medium">总结模型</Label>
                       <ProviderModelSelect
                         ref={providerSelectRef}
                         providerId={selectedProviderId}
+                        presetId={selectedPresetId}
                         modelId={selectedModel}
-                        onChange={(providerId, modelId) => {
-                          setSelectedProviderId(providerId);
-                          setSelectedModel(modelId);
-                        }}
+                        onChange={handleProviderModelChange}
                         placeholder="选择模型"
                         buttonVariant="outline"
                         buttonSize="default"

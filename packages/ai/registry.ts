@@ -1,18 +1,43 @@
 /**
- * AI 提供者和代理注册表
+ * AI provider/profile registry
  *
- * 此模块提供了一个全局注册表，用于管理 AI 提供者适配器（ProviderAdapter）和 Mastra Agent。
- * 提供者和代理可以通过注册函数添加到注册表中，并通过查询函数进行检索。
+ * This registry keeps:
+ * - provider adapter instances
+ * - lightweight agent/profile metadata for UI and routing
  */
-import { Agent } from '@mastra/core/agent';
 
+import type { PiExecutionMode } from './runtime/pi/contracts';
+import { listPiAgentProfiles } from './runtime/pi/profile-registry';
+import { toCanonicalProviderId } from './runtime/pi/provider-alias';
 import { ProviderAdapter } from './types';
 
 /** 提供者适配器注册表，键为提供者 ID，值为提供者适配器实例 */
 const providers = new Map<string, ProviderAdapter>();
 
-/** Mastra Agent 注册表，键为 Agent 名称，值为 Agent 实例 */
-const agents = new Map<string, Agent>();
+export interface AgentProfileDescriptor {
+  id: string;
+  label: string;
+  description?: string;
+  executionMode?: PiExecutionMode;
+  supportsToolCalls?: boolean;
+}
+
+/** Agent/profile 注册表，键为 profile ID，值为轻量描述信息 */
+const agentProfiles = new Map<string, AgentProfileDescriptor>();
+
+function ensureDefaultAgentProfiles(): void {
+  if (agentProfiles.size > 0) return;
+
+  for (const profile of listPiAgentProfiles()) {
+    agentProfiles.set(profile.id, {
+      id: profile.id,
+      label: profile.label,
+      description: profile.description,
+      executionMode: profile.executionMode,
+      supportsToolCalls: profile.supportsToolCalls
+    });
+  }
+}
 
 /**
  * 注册一个提供者适配器
@@ -28,7 +53,11 @@ export function registerProvider(adapter: ProviderAdapter): void {
  * @returns 如果提供了 ID 且存在对应的提供者，则返回该提供者适配器；否则返回 undefined
  */
 export function getProvider(id?: string): ProviderAdapter | undefined {
-  if (id) return providers.get(id);
+  if (id) {
+    const exact = providers.get(id);
+    if (exact) return exact;
+    return providers.get(toCanonicalProviderId(id));
+  }
   return undefined;
 }
 
@@ -41,31 +70,26 @@ export function listProviders(): ProviderAdapter[] {
 }
 
 /**
- * 注册一个 Mastra Agent
- * @param agent - 要注册的 Mastra Agent 实例
+ * 注册一个 Agent/Profile 元数据
  */
-export function registerAgent(agent: Agent): void {
-  agents.set(agent.name, agent);
+export function registerAgentProfile(profile: AgentProfileDescriptor): void {
+  ensureDefaultAgentProfiles();
+  agentProfiles.set(profile.id, profile);
 }
 
 /**
- * 根据名称获取 Mastra Agent
- * @param id - Agent 名称（可选，默认返回 'assistant'）
- * @returns 如果存在对应的 Agent，则返回该 Agent 实例；否则返回 undefined
+ * 根据 ID 获取 Agent/Profile 描述信息
  */
-export function getAgent(id?: string): Agent | undefined {
-  if (id) return agents.get(id);
-  return agents.get('assistant');
+export function getAgentProfile(id?: string): AgentProfileDescriptor | undefined {
+  ensureDefaultAgentProfiles();
+  if (id) return agentProfiles.get(id);
+  return agentProfiles.get('assistant');
 }
 
 /**
- * 获取所有已注册的 Agent 列表
- * @returns 所有已注册的 Agent 信息数组
+ * 获取所有可见 Agent/Profile 列表
  */
-export function listAgents(): Array<{ id: string; name: string; description?: string }> {
-  return Array.from(agents.entries()).map(([id, agent]) => ({
-    id,
-    name: agent.name,
-    description: (agent as any).instructions?.slice(0, 100),
-  }));
+export function listAgents(): AgentProfileDescriptor[] {
+  ensureDefaultAgentProfiles();
+  return Array.from(agentProfiles.values());
 }

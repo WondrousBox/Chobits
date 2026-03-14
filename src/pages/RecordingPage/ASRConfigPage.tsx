@@ -14,6 +14,17 @@ interface SherpaModel extends PluginDefinition {
   isInstalled: boolean;
 }
 
+interface CloudProviderRecord {
+  id: string;
+  label: string;
+  capabilities?: {
+    transcribe?: boolean;
+  };
+  schema?: {
+    fields?: Array<{ key: string; required?: boolean }>;
+  };
+}
+
 // 语言代码到中文名称的映射
 const getLanguageName = (code: string): string => {
   const languageMap: Record<string, string> = {
@@ -207,7 +218,7 @@ const ASRConfigPage: React.FC = () => {
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
 
   // 云端模式：加载 AI Providers（仅用于云端转写模式）
-  const [cloudProviders, setCloudProviders] = useState<any[]>([]);
+  const [cloudProviders, setCloudProviders] = useState<CloudProviderRecord[]>([]);
 
   // 加载云端 AI Providers（用于云端转写模式）
   useEffect(() => {
@@ -216,7 +227,8 @@ const ASRConfigPage: React.FC = () => {
       try {
         const provs = await window.YUA.ai.getProviders();
         if (!mounted) return;
-        setCloudProviders(provs || []);
+        const transcribeProviders = ((provs || []) as CloudProviderRecord[]).filter((provider) => provider.capabilities?.transcribe);
+        setCloudProviders(transcribeProviders);
       } catch (error) {
         console.error('加载 AI Providers 失败:', error);
       }
@@ -225,6 +237,13 @@ const ASRConfigPage: React.FC = () => {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!cloudProviders.some((provider) => provider.id === cloudProviderId)) {
+      setCloudProviderId(cloudProviders[0]?.id || '');
+      setCloudModelId('');
+    }
+  }, [cloudProviderId, cloudProviders]);
 
   // 查询 ASR 引擎当前运行状态 & 加载上次保存的配置
   useEffect(() => {
@@ -488,8 +507,8 @@ const ASRConfigPage: React.FC = () => {
         const models = await window.YUA.ai.listModels(cloudProviderId);
         if (!mounted) return;
 
-        // 过滤出 audio 类型的模型，或者没有类型的模型
-        const filteredModels = models.filter((m: any) => !m.type || m.type === 'audio' || m.type === 'realtime');
+        // 过滤出音频转写模型；兼容 model-bank 里的 `stt` 与资源清单里的 `audio`
+        const filteredModels = models.filter((m: any) => !m.type || m.type === 'audio' || m.type === 'realtime' || m.type === 'stt');
 
         setCloudModels(filteredModels);
         // 默认选中第一个模型，或者如果当前选中的模型不在列表中，也选中第一个
@@ -520,16 +539,16 @@ const ASRConfigPage: React.FC = () => {
       if (!providerId) return false;
 
       try {
-        const provider = cloudProviders.find((p: any) => p.id === providerId);
+        const provider = cloudProviders.find((p) => p.id === providerId);
         if (!provider) return false;
 
         const schema = provider.schema;
-        const requiredFields = schema?.fields?.filter((f: any) => f.required) || [];
+        const requiredFields = schema?.fields?.filter((f) => f.required) || [];
 
         if (requiredFields.length === 0) return true;
 
         const secrets = await window.YUA.ai.getProviderSecrets(providerId).catch(() => ({}));
-        return requiredFields.every((f: any) => {
+        return requiredFields.every((f) => {
           const value = (secrets as Record<string, string>)[f.key];
           return value && value.trim().length > 0;
         });
@@ -953,7 +972,7 @@ const ASRConfigPage: React.FC = () => {
                       <SelectValue placeholder="请选择AI服务商" />
                     </SelectTrigger>
                     <SelectContent className="no-drag">
-                      {cloudProviders.map((provider: any) => (
+                      {cloudProviders.map((provider) => (
                         <SelectItem key={provider.id} value={provider.id}>
                           {provider.label || provider.id}
                         </SelectItem>
@@ -983,7 +1002,9 @@ const ASRConfigPage: React.FC = () => {
                   </Select>
                 </div>
 
-                <p className="text-xs text-muted-foreground">选择用于语音转写的 AI 服务商和模型</p>
+                <p className="text-xs text-muted-foreground">
+                  {cloudProviders.length > 0 ? '仅展示当前已经接通转写能力的 AI 服务商' : '当前没有可用的云端转写服务商，请先完成支持 ASR 的 Provider 接线'}
+                </p>
               </div>
             </TabsContent>
           </Tabs>

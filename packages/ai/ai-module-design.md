@@ -39,12 +39,12 @@ AI 模块目前作为独立包位于 `packages/ai` 下，由主进程在启动�
 
 Preload：
 
-- `electron/preload/apis/ai.ts`（约定）：基于 `aiBridge` 暴露 `window.YUA.ai`，包含 getProviders/getAgents/chat/chatStream/embed/cancel 等方法以及实例/模板/历史等扩展接口。
+- `electron/preload/apis/ai.ts`（约定）：基于 `aiBridge` 暴露 `window.YUA.ai`，包含 getProviders/getAgents/chat/chatStream/embed/cancel 等方法以及预设/模板/历史等扩展接口。
 
 Renderer（示例约定，实际路径视实现为准）：
 
 - `src/lib/aiClient.ts`：简单客户端封装，便于在组件/页面中调用 `window.YUA.ai`
-- 设置页/对话页组件：使用 `getProviders`/`listInstances`/`listPromptTemplates`/`listConversations` 等接口渲染配置和会话列表
+- 设置页/对话页组件：使用 `getProviders`/`listPresets`/`listPromptTemplates`/`listConversations` 等接口渲染配置和会话列表
 
 ## 3. 关键接口（Contract）
 
@@ -57,7 +57,7 @@ Renderer（示例约定，实际路径视实现为准）：
   - `messages: ChatMessage[]`
   - `agentId?: string`：使用哪个 Agent（如 `basic` / `rag` / `tagger`）
   - `providerId?: string`：使用哪个 Provider 适配器（如 `openai`）
-  - `providerInstanceId?: string`：使用哪个 Provider 实例（Instance），用于模型/系统提示词/秘钥覆盖
+  - `providerInstanceId?: string`：使用哪个 Provider 预设（兼容字段名保留为 `providerInstanceId`），用于模型/系统提示词/秘钥覆盖
   - `stream?: boolean`
   - `temperature?: number`
   - `maxTokens?: number`
@@ -126,10 +126,10 @@ Renderer（示例约定，实际路径视实现为准）：
 
 `types.ts` 中定义的 `AIApi` 是渲染侧可见的聚合接口（`window.YUA.ai` 的形状），核心能力包括：
 
-- Provider/Agent：
+- Provider/Profile：
   - `getProviders()`
   - `getAgents()`
-  - `listModels(providerId, instanceId?)`
+  - `listModels(providerId, presetId?)`
   - `getProviderSecrets(providerId)`
   - `setProviderSecrets(providerId, secrets)`
   - `clearProviderSecrets(providerId)`
@@ -138,13 +138,14 @@ Renderer（示例约定，实际路径视实现为准）：
   - `chatEphemeral(payload)`
   - `chatStream(payload, onEvent)`
   - `embed({ texts, providerId?, model?, normalize? })`
-- 实例（Instance）管理：
-  - `listInstances(providerId?)`
-  - `createInstance({ providerId, name, model?, systemPrompt?, config? })`
-  - `updateInstance(id, patch)`
-  - `deleteInstance(id)`
-  - `getInstanceSecrets(instanceId)`
-  - `setInstanceSecrets(instanceId, secrets)`
+- 预设（Preset）管理：
+  - `listPresets(providerId?)`
+  - `createPreset({ providerId, name, model?, systemPrompt?, config? })`
+  - `updatePreset(id, patch)`
+  - `deletePreset(id)`
+  - `getPresetSecrets(presetId)`
+  - `setPresetSecrets(presetId, secrets)`
+  - `listInstances` / `createInstance` / `updateInstance` / `deleteInstance` / `getInstanceSecrets` / `setInstanceSecrets` 仅保留兼容 alias
 - Prompt 模板：
   - `listPromptTemplates()`
   - `createPromptTemplate(...)`
@@ -192,18 +193,19 @@ Renderer → Preload → Main：
 - **`ai:clearProviderSecrets`** `({ providerId })` → `{ ok: true }`
   - 清除 keytar 与回退 JSON 中该 Provider 的所有秘钥，并尝试调用 `setSecrets({})`。
 - **`ai:getAgents`** → `[{ id, label, description }]`
-- **`ai:listModels`** `({ providerId, instanceId? })` → `Array<{ id, label? }>`
-  - 若传入 `instanceId`，会按实例配置与秘钥构建 `opts.secrets` 后调用 Provider 的 `listModels(opts)`。
+- **`ai:listModels`** `({ providerId, presetId? })` → `Array<{ id, label? }>`
+  - 若传入 `presetId`，会按预设配置与秘钥构建 `opts.secrets` 后调用 Provider 的 `listModels(opts)`。
 
-### 4.3 Provider 实例（Instance）管理
+### 4.3 Provider 预设（Preset）管理
 
-- **`ai:listInstances`** `({ providerId? })` → `InstancesStore.list(providerId?)`
-- **`ai:createInstance`** `({ providerId, name, model?, systemPrompt?, config? })` → 新建实例记录
-- **`ai:updateInstance`** `({ id, patch })` → 更新实例
-- **`ai:deleteInstance`** `({ id })` → `{ ok: boolean }`
-- **`ai:getInstanceSecrets`** `({ instanceId })` → `{ [field]: value }`
-  - 根据实例关联的 Provider schema 取出所有相关字段，并从 keytar/JSON 读出值。
-- **`ai:setInstanceSecrets`** `({ instanceId, secrets })` → `{ ok: true }`
+- **`ai:listPresets`** `({ providerId? })` → `PresetsStore.list(providerId?)`
+- **`ai:createPreset`** `({ providerId, name, model?, systemPrompt?, config? })` → 新建预设记录
+- **`ai:updatePreset`** `({ id, patch })` → 更新预设
+- **`ai:deletePreset`** `({ id })` → `{ ok: boolean }`
+- **`ai:getPresetSecrets`** `({ presetId })` → `{ [field]: value }`
+  - 根据预设关联的 Provider schema 取出所有相关字段，并从 keytar/JSON 读出值。
+- **`ai:setPresetSecrets`** `({ presetId, secrets })` → `{ ok: true }`
+- `ai:listInstances` / `ai:createInstance` / `ai:updateInstance` / `ai:deleteInstance` / `ai:getInstanceSecrets` / `ai:setInstanceSecrets` 仅保留兼容 alias。
 
 ### 4.4 Prompt 模板与历史会话
 
@@ -219,12 +221,12 @@ Renderer → Preload → Main：
   - **`ai:deleteConversation`** `({ id })` → `{ ok }`（软删除）
   - **`ai:restoreConversation`** `({ id })` → `{ ok }`
 
-### 4.5 自动打标签与实例选择
+### 4.5 自动打标签与预设选择
 
 `TaggingService` 额外提供：
 
 - **`ai:autoTagText`** `({ text, maxLabels? })` → `{ success: true; tags: string[] }`
-  - 内部会调用 `chooseBestChatInstance()` 自动选择一个最合适的聊天实例（参考 Provider 能力、配置是否齐全、最近更新时间及用户策略）。
+  - 内部会调用 `chooseBestChatPreset()` 自动选择一个最合适的聊天预设（参考 Provider 能力、配置是否齐全、最近更新时间及用户策略）。
   - 使用 `TaggerAgent` + chunking，将长文本切分后进行多段分析，再合并成标签列表。
 
 ## 5. 流式对话设计
@@ -298,16 +300,16 @@ Agent 通过 `handleChat(ctx, req, signal)` 实现自定义对话策略，当前
 ## 8. 秘钥与配置存储
 
 - **存储实现**：`settings-store.ts`
-  - 首选使用 keytar，将 Provider/实例秘钥存放在系统密钥链中；
+  - 首选使用 keytar，将 Provider/预设秘钥存放在系统密钥链中；
   - 当 keytar 不可用时，自动回退到 `userData/data/ai-settings.json`，结构：
     - `providers: Record<providerId, Record<key, value>>`
-    - `instances: Record<instanceId, Record<key, value>>`
+    - `instances: Record<presetId, Record<key, value>>`（字段名保留历史兼容）
 - **Provider 配置**：
   - 前端通过 `getProviders` 获取 schema，并动态渲染配置表单；
   - 通过 `setProviderSecrets`/`clearProviderSecrets` 读写秘钥。
-- **实例配置**：
-  - `InstancesStore` 保存实例的基础信息（名称、模型、系统提示词、自定义 config 等）；
-  - 实例秘钥则由 `setInstanceSecrets`/`getInstanceSecrets` 管理，并通过 `withInstance()` 合并到请求的 `extras.secrets` 中。
+- **预设配置**：
+  - `PresetsStore` 保存预设的基础信息（名称、模型、系统提示词、自定义 config 等）；
+  - 预设秘钥则由 `setPresetSecrets`/`getPresetSecrets` 管理，并在运行时与 provider secrets 合并。
 
 ## 9. 安全、稳定性与观测
 

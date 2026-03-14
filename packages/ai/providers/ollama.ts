@@ -1,17 +1,43 @@
-import { loadProviderModelsFromBank } from '../models-loader';
 import { loadProviderSchema } from '../schema-loader';
-import { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, ProviderAdapter, ProviderConfig, ProviderSecrets, StreamEvent } from '../types';
+import { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, ProviderAdapter, ProviderCapabilities, ProviderConfig, ProviderDefaultModels, ProviderSecrets, StreamEvent } from '../types';
+import { getBuiltinProviderMetadata } from './metadata';
+import { createOllamaClient, executeOllamaChat, executeOllamaEmbedding, listOllamaModels, type OllamaRuntimeSecrets } from './ollama-runtime';
 
-type OllamaSecrets = { baseUrl?: string; model?: string };
+type OllamaSecrets = OllamaRuntimeSecrets;
 
 export class OllamaProvider implements ProviderAdapter {
+  private readonly metadata = getBuiltinProviderMetadata('ollama');
   readonly id = 'ollama';
-  readonly label = 'Ollama (local)';
-  private secrets: OllamaSecrets = { baseUrl: 'http://127.0.0.1:11434' };
+  readonly label = this.metadata?.label || 'Ollama (local)';
+  private secrets: OllamaSecrets = {};
+  private readonly defaultModel = this.metadata?.defaultModel || 'llama3.1';
+  private readonly defaultBaseUrl = this.metadata?.providerBaseUrl || 'http://127.0.0.1:11434';
 
   isConfigured(): boolean {
     return true;
   }
+
+  getCapabilities(): ProviderCapabilities {
+    return {
+      ...(this.metadata?.capabilities || {
+        chat: true,
+        embeddings: true,
+        imageGeneration: false,
+        modelListing: true,
+        transcribe: false
+      })
+    };
+  }
+
+  getDefaultModels(): ProviderDefaultModels {
+    return {
+      ...(this.metadata?.defaultModels || {
+        chat: this.defaultModel,
+        embeddings: 'nomic-embed-text'
+      })
+    };
+  }
+
   getConfigSchema(): ProviderConfig {
     const fallback: ProviderConfig = {
       id: this.id,
@@ -31,79 +57,55 @@ export class OllamaProvider implements ProviderAdapter {
     return this.secrets;
   }
 
-  private url(path: string): string {
-    return `${this.secrets.baseUrl || 'http://127.0.0.1:11434'}${path}`;
+  private resolveSecrets(override?: Partial<OllamaSecrets>): OllamaSecrets {
+    return {
+      baseUrl: this.defaultBaseUrl,
+      ...this.secrets,
+      ...(override || {})
+    };
+  }
+
+  private client(override?: Partial<OllamaSecrets>): ReturnType<typeof createOllamaClient> {
+    return createOllamaClient(this.resolveSecrets(override));
   }
 
   async chat(req: ChatRequest, onStream?: (event: StreamEvent) => void, signal?: AbortSignal): Promise<ChatResponse> {
-    const model = (req.extras?.model as string) || this.secrets.model || 'llama3.1';
-    const messages = req.messages.map((m) => ({ role: m.role, content: m.content }));
-    if (req.stream && onStream) {
-      const r = await fetch(this.url('/api/chat'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, messages, stream: true }),
-        signal
-      });
-      let full = '';
-      const reader = r.body?.getReader();
-      const decoder = new TextDecoder();
-      while (reader) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const text = decoder.decode(value, { stream: true });
-        for (const line of text.split('\n')) {
-          if (!line) continue;
-          try {
-            const obj = JSON.parse(line);
-            const delta = obj?.message?.content || '';
-            if (delta) {
-              full += delta;
-              onStream({ type: 'delta', data: { text: delta } });
-            }
-          } catch (error) {
-            console.error(error);
-          }
-        }
-      }
-      onStream({ type: 'message_completed', data: { message: { role: 'assistant', content: full, createdAt: Date.now() } } });
-      return { message: { role: 'assistant', content: full, createdAt: Date.now() }, providerId: this.id };
-    }
-    const r = await fetch(this.url('/api/chat'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, messages, stream: false }),
+    const overrideSecrets = (req.extras as any)?.secrets as Partial<OllamaSecrets> | undefined;
+    const resolvedSecrets = this.resolveSecrets(overrideSecrets);
+
+    return executeOllamaChat(
+      {
+        client: this.client(overrideSecrets),
+        request: req,
+        providerId: this.id,
+        defaultModel: this.defaultModel,
+        configuredModel: resolvedSecrets.model
+      },
+      onStream,
       signal
-    });
-    const data: any = await r.json();
-    const text = data?.message?.content || '';
-    return { message: { role: 'assistant', content: text, createdAt: Date.now() }, providerId: this.id };
+    );
   }
 
   async embed(req: EmbeddingRequest): Promise<EmbeddingResponse> {
-    const model = (req.model as string) || this.secrets.model || 'nomic-embed-text';
-    const r = await fetch(this.url('/api/embeddings'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, input: req.texts })
+    const overrideSecrets = (req as any)?.extras?.secrets as Partial<OllamaSecrets> | undefined;
+    const resolvedSecrets = this.resolveSecrets(overrideSecrets);
+
+    return executeOllamaEmbedding({
+      client: this.client(overrideSecrets),
+      request: req,
+      providerId: this.id,
+      defaultModel: 'nomic-embed-text',
+      configuredModel: resolvedSecrets.model
     });
-    const data: any = await r.json();
-    const vectors = (data?.embeddings || data?.data || []).map((d: any) => d?.embedding || d).filter(Boolean);
-    const dim = vectors[0]?.length || 0;
-    return { vectors, dim, model, providerId: this.id };
   }
 
-  async listModels(): Promise<Array<{ id: string }>> {
-    try {
-      const r = await fetch(this.url('/api/tags'));
-      const data: any = await r.json();
-      const models = Array.isArray(data?.models) ? data.models : Array.isArray(data?.data) ? data.data : [];
-      return models.map((m: any) => ({ id: m.name || m.model || m.id || '' })).filter((m: any) => m.id);
-    } catch {
-      // Prefer curated JSON as fallback
-      const curated = await loadProviderModelsFromBank(this.id);
-      if (curated.length) return curated;
-      return [];
-    }
+  async listModels(opts?: { secrets?: Partial<OllamaSecrets> }): Promise<Array<{ id: string }>> {
+    const resolvedSecrets = this.resolveSecrets(opts?.secrets);
+    return listOllamaModels({
+      client: this.client(opts?.secrets),
+      providerId: this.id,
+      configuredModel: resolvedSecrets.model,
+      defaultModel: this.defaultModel
+    });
   }
 }

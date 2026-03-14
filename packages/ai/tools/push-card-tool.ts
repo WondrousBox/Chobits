@@ -5,13 +5,12 @@
  * 用户点击卡片可以跳转到资源详情页
  */
 
-import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 
 import { ChatRepo } from '../../common/db';
-import { pushCardToWindows } from '../ipc-main';
+import { pushCardToWindows } from '../card-push';
 import type { ChatCardType } from '../types';
-import { pushCardToolContext } from './push-card-tool-context';
+import { createTool } from './tool-definition';
 
 /**
  * 推送卡片上下文接口
@@ -131,10 +130,8 @@ export const createPushCardTool = (context?: PushCardToolContext): ReturnType<ty
         };
       }
 
-      // 获取 conversationId：优先使用传入的 context，否则从全局上下文获取
-      const globalContext = pushCardToolContext.getContext();
-      const conversationId = context?.conversationId || globalContext?.conversationId;
-      const targetWindowId = context?.targetWindowId || globalContext?.targetWindowId;
+      const conversationId = context?.conversationId;
+      const targetWindowId = context?.targetWindowId;
 
       try {
         // 1. 推送卡片到聊天窗口（实时显示）
@@ -186,11 +183,3 @@ export const createPushCardTool = (context?: PushCardToolContext): ReturnType<ty
       }
     }
   });
-
-/**
- * 默认推送卡片工具实例（不绑定上下文）
- *
- * 注意：此工具会从 pushCardToolContext 获取 conversationId
- * 推荐在 ChatService 中设置上下文
- */
-export const pushCardTool = createPushCardTool();
