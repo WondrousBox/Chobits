@@ -299,13 +299,6 @@ export type AIApi = {
   deletePreset(id: string): Promise<{ ok: boolean }>;
   getPresetSecrets(presetId: string): Promise<Record<string, string>>;
   setPresetSecrets(presetId: string, secrets: Record<string, string>): Promise<{ ok: boolean }>;
-  // Compatibility instance aliases. Keep these only until workflow/db/history callers stop depending on them.
-  listInstances(providerId?: string): Promise<ProviderPresetRecord[]>;
-  createInstance(payload: { providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any>; enabledTools?: string[] }): Promise<ProviderPresetRecord>;
-  updateInstance(id: string, patch: any): Promise<ProviderPresetRecord | undefined>;
-  deleteInstance(id: string): Promise<{ ok: boolean }>;
-  getInstanceSecrets(instanceId: string): Promise<Record<string, string>>;
-  setInstanceSecrets(instanceId: string, secrets: Record<string, string>): Promise<{ ok: boolean }>;
   // Prompt templates
   listPromptTemplates(): Promise<any[]>;
   createPromptTemplate(payload: { name: string; type: 'system' | 'user'; content: string; tags?: string[] }): Promise<any>;

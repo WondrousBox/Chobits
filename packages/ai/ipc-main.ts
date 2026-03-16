@@ -184,13 +184,13 @@ export function initAIHandlers(win: BrowserWindow): void {
     return piExecutionService.generateImage(normalizeProviderPreset(payload));
   });
 
-  ipcMain.handle('ai:listModels', async (_e, payload: { providerId: string; presetId?: string; instanceId?: string }) => {
+  ipcMain.handle('ai:listModels', async (_e, payload: { providerId: string; presetId?: string }) => {
     const p = getProvider(payload.providerId);
     if (!p) return [];
     try {
       if (p.listModels) {
         let opts: any = undefined;
-        const resolvedPresetId = payload.presetId || payload.instanceId;
+        const resolvedPresetId = payload.presetId;
         if (resolvedPresetId) {
           const preset = PresetsStore.get(resolvedPresetId);
           if (preset) {
@@ -230,31 +230,6 @@ export function initAIHandlers(win: BrowserWindow): void {
   });
   ipcMain.handle('ai:setPresetSecrets', async (_e, payload: { presetId: string; secrets: Record<string, string> }) => {
     await setPresetSecrets(payload.presetId, payload.secrets);
-    return { ok: true };
-  });
-
-  // Compatibility instance aliases
-  ipcMain.handle('ai:listInstances', async (_e, payload?: { providerId?: string }) => {
-    return PresetsStore.list(payload?.providerId);
-  });
-  ipcMain.handle('ai:createInstance', async (_e, payload: { providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any>; enabledTools?: string[] }) => {
-    return PresetsStore.create(payload as any);
-  });
-  ipcMain.handle('ai:updateInstance', async (_e, payload: { id: string; patch: any }) => {
-    return PresetsStore.update(payload.id, payload.patch);
-  });
-  ipcMain.handle('ai:deleteInstance', async (_e, payload: { id: string }) => {
-    return { ok: PresetsStore.delete(payload.id) };
-  });
-  // Compatibility preset secret aliases
-  ipcMain.handle('ai:getInstanceSecrets', async (_e, payload: { instanceId: string }) => {
-    const preset = PresetsStore.get(payload.instanceId);
-    const schema = getProvider(preset?.providerId || '')?.getConfigSchema?.();
-    const keys = (schema?.fields || []).map((f) => f.key);
-    return await getAllPresetSecrets(payload.instanceId, keys);
-  });
-  ipcMain.handle('ai:setInstanceSecrets', async (_e, payload: { instanceId: string; secrets: Record<string, string> }) => {
-    await setPresetSecrets(payload.instanceId, payload.secrets);
     return { ok: true };
   });
 

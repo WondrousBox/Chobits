@@ -1487,11 +1487,26 @@
   - Mastra 已退出生产路径
 - 后续再做的事情，将属于新的增量优化，而不是这份 refactor plan 的未完事项。
 
-### Wave 9 建议方向
+### 计划完成后的补充收口
+
+- `packages/ai/types.ts`
+- `packages/ai/ipc-main.ts`
+- `packages/ai/ipc-renderer.ts`
+- `packages/ai/settings-store.ts`
+  - AI 侧的 `instance` API alias 与 secrets alias 已删除，renderer/main/preload 面现在只保留 preset 语义。
+- `src/pages/ChatPage/hooks/useProvidersPresets.ts`
+- `src/pages/ChatPage/components/ServicePresetSelect.tsx`
+- `src/pages/ChatPage/context/ChatSelectionContext.tsx`
+- `src/pages/ChatPage/ChatPage.tsx`
+- `src/pages/ResourcePage/components/AIChatSidebar.tsx`
+  - Chat / Resource 页面级状态、hook、组件和窗口 payload 也已经不再回读或回写 `instanceId`。
+- 这部分属于 refactor plan 完成后的产品层收口，不再影响主计划完成度，但现在也已完成。
+
+### 后续增强方向
 
 - 继续补齐更多 provider 的非聊天能力真接线，例如更多 image provider / realtime / speech 能力。
 - 继续压缩 renderer 里的分散 AI 入口，把更多页面直接接到统一 execution service，而不是各自保留轻量包装层。
-- 如需进一步产品层收口，可继续评估何时删除 UI / IPC 里的 `instanceId` alias 壳；这已经超出本次 Pi runtime 重构主线。
+- 如需继续迭代，更适合围绕 provider capability 扩展、页面级体验优化和执行层统一性来推进，而不是再回到本次 Pi runtime 重构本身。
 
 ## 风险点
 

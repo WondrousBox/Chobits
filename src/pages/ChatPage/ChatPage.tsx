@@ -146,7 +146,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
         startRef.current?.({
           content: payload.initialMessage,
           providerId: payload.providerId,
-          presetId: payload.presetId || payload.instanceId
+          presetId: payload.presetId
         });
       }, 50);
     };

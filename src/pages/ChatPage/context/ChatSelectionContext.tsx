@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
-import { useProvidersPresets } from '../hooks/useProvidersInstances';
+import { useProvidersPresets } from '../hooks/useProvidersPresets';
 
 type Provider = any;
 type Agent = any;
@@ -25,7 +25,6 @@ const ChatSelectionContext = createContext<ChatSelectionContextValue | null>(nul
 const LS_KEYS = {
   providerId: 'chat.sel.providerId',
   presetId: 'chat.sel.presetId',
-  instanceId: 'chat.sel.instanceId',
   agentId: 'chat.sel.agentId',
   recents: 'chat.sel.recents'
 };
@@ -35,7 +34,7 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
   const { providers, presetsMap, refresh: refreshProviders } = useProvidersPresets();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [providerId, setProviderId] = useState<string>(() => localStorage.getItem(LS_KEYS.providerId) || 'openai');
-  const [presetId, setPresetId] = useState<string>(() => localStorage.getItem(LS_KEYS.presetId) || localStorage.getItem(LS_KEYS.instanceId) || '');
+  const [presetId, setPresetId] = useState<string>(() => localStorage.getItem(LS_KEYS.presetId) || '');
   const [agentId, setAgentId] = useState<string>(() => localStorage.getItem(LS_KEYS.agentId) || 'basic');
   const [recents, setRecents] = useState<Record<string, string[]>>(() => {
     try {
@@ -57,7 +56,6 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
   useEffect(() => {
     try {
       localStorage.setItem(LS_KEYS.presetId, presetId);
-      localStorage.setItem(LS_KEYS.instanceId, presetId);
     } catch {
       /* noop */
     }

@@ -17,22 +17,14 @@ export type PresetRow = {
   model?: string;
 };
 
-export type InstanceRow = PresetRow;
-export type ProviderPresetRow = PresetRow;
-export type ProviderInstanceRow = InstanceRow;
-
 export interface UseProvidersPresetsResult {
   providers: ProviderRow[];
   presetsMap: Record<string, PresetRow[]>;
-  instancesMap: Record<string, InstanceRow[]>;
   loading: boolean;
   error?: string;
   refresh: () => Promise<void>;
   getPresets: (providerId: string) => PresetRow[];
-  getInstances: (providerId: string) => InstanceRow[];
 }
-
-export type UseProvidersInstancesResult = UseProvidersPresetsResult;
 
 /**
  * Generic hook to load AI providers and their presets.
@@ -73,8 +65,7 @@ export function useProvidersPresets(): UseProvidersPresetsResult {
       }
 
       const listPresets = window.YUA?.ai?.listPresets;
-      const listInstances = window.YUA?.ai?.listInstances;
-      if (!listPresets && !listInstances) {
+      if (!listPresets) {
         setPresetsMap({});
         return;
       }
@@ -83,7 +74,7 @@ export function useProvidersPresets(): UseProvidersPresetsResult {
         const entries = await Promise.all(
           providers.map(async (p) => {
             try {
-              const list = listPresets ? await listPresets(p.id) : await listInstances?.(p.id);
+              const list = await listPresets(p.id);
               return [p.id, Array.isArray(list) ? list : []] as const;
             } catch {
               return [p.id, []] as const;
@@ -118,15 +109,6 @@ export function useProvidersPresets(): UseProvidersPresetsResult {
     [presetsMap]
   );
 
-  const getInstances = useCallback((providerId: string) => getPresets(providerId), [getPresets]);
-  const instancesMap = presetsMap;
-
-  return useMemo(
-    () => ({ providers, presetsMap, instancesMap, loading, error, refresh, getPresets, getInstances }),
-    [providers, presetsMap, instancesMap, loading, error, refresh, getPresets, getInstances]
-  );
+  return useMemo(() => ({ providers, presetsMap, loading, error, refresh, getPresets }), [providers, presetsMap, loading, error, refresh, getPresets]);
 }
-
-export const useProvidersInstances = useProvidersPresets;
-
 export default useProvidersPresets;
