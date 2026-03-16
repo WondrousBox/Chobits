@@ -69,7 +69,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
   const [presetsMap, setPresetsMap] = useState<Record<string, ProviderPreset[]>>({});
   const [agents, setAgents] = useState<Agent[]>([]);
   const [providerId, setProviderId] = useState<string>(() => localStorage.getItem('ai-sidebar.providerId') || 'openai');
-  const [presetId, setPresetId] = useState<string>(() => localStorage.getItem('ai-sidebar.presetId') || localStorage.getItem('ai-sidebar.instanceId') || '');
+  const [presetId, setPresetId] = useState<string>(() => localStorage.getItem('ai-sidebar.presetId') || '');
   const [agentId, setAgentId] = useState<string>(() => localStorage.getItem('ai-sidebar.agentId') || 'basic');
 
   // 会话状态
@@ -101,7 +101,6 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
   }, [providerId]);
   useEffect(() => {
     localStorage.setItem('ai-sidebar.presetId', presetId);
-    localStorage.setItem('ai-sidebar.instanceId', presetId);
   }, [presetId]);
   useEffect(() => {
     localStorage.setItem('ai-sidebar.agentId', agentId);

@@ -157,25 +157,6 @@ export const aiBridge = {
   async setPresetSecrets(presetId: string, secrets: Record<string, string>) {
     return ipcRenderer.invoke('ai:setPresetSecrets', { presetId, secrets });
   },
-  // Compatibility instance aliases. Canonical callers should use the preset APIs above.
-  async listInstances(providerId?: string) {
-    return ipcRenderer.invoke('ai:listPresets', { providerId });
-  },
-  async createInstance(payload: { providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any>; enabledTools?: string[] }) {
-    return ipcRenderer.invoke('ai:createPreset', payload);
-  },
-  async updateInstance(id: string, patch: any) {
-    return ipcRenderer.invoke('ai:updatePreset', { id, patch });
-  },
-  async deleteInstance(id: string) {
-    return ipcRenderer.invoke('ai:deletePreset', { id });
-  },
-  async getInstanceSecrets(instanceId: string) {
-    return ipcRenderer.invoke('ai:getPresetSecrets', { presetId: instanceId });
-  },
-  async setInstanceSecrets(instanceId: string, secrets: Record<string, string>) {
-    return ipcRenderer.invoke('ai:setPresetSecrets', { presetId: instanceId, secrets });
-  },
   // Prompt templates
   async listPromptTemplates() {
     return ipcRenderer.invoke('ai:listPromptTemplates');

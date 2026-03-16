@@ -287,15 +287,8 @@ export async function clearPresetSecrets(presetId: string): Promise<void> {
   }
 }
 
-export const setInstanceSecret = setPresetSecret;
-export const getInstanceSecret = getPresetSecret;
-export const getAllInstanceSecrets = getAllPresetSecrets;
-export const setInstanceSecrets = setPresetSecrets;
-export const deleteInstanceSecret = deletePresetSecret;
-export const clearInstanceSecrets = clearPresetSecrets;
-
 /**
- * 清理所有存储的 key（包括 provider 和 preset 的所有 secrets；instances 字段名保留历史兼容）
+ * 清理所有存储的 key（包括 provider 和 preset 的所有 secrets）
  */
 export async function clearAllSecrets(): Promise<void> {
   // 清理文件存储

@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 
-import type { PresetRow, ProviderRow } from '../hooks/useProvidersInstances';
-import { useProvidersPresets } from '../hooks/useProvidersInstances';
+import type { PresetRow, ProviderRow } from '../hooks/useProvidersPresets';
+import { useProvidersPresets } from '../hooks/useProvidersPresets';
 
 export interface ServicePresetSelectProps {
   providerId?: string;
