@@ -1,5 +1,5 @@
 import { normalizeProviderPreset, resolveProviderPresetId } from '../../provider-preset';
-import { supportsProviderCapability } from '../../providers/metadata';
+import { supportsProviderCapability } from '../../providers/service';
 import { getProvider } from '../../registry';
 import type { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, ImageGenerationRequest, TranscriptionRequest } from '../../types';
 import type { PiRuntimeAvailability } from './contracts';

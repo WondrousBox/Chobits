@@ -1,7 +1,0 @@
-{
-  "models": [
-    { "id": "claude-3-5-sonnet-latest", "label": "Claude 3.5 Sonnet", "type": "chat", "context": 200000, "capabilities": { "vision": true }, "tags": ["general"], "description": "Balanced quality and speed" },
-    { "id": "claude-3-7-sonnet-latest", "label": "Claude 3.7 Sonnet", "type": "chat", "context": 200000, "capabilities": { "vision": true }, "tags": ["latest"], "description": "Newer Claude sonnet" },
-    { "id": "claude-3-5-haiku-latest", "label": "Claude 3.5 Haiku", "type": "chat", "context": 200000, "tags": ["fast", "cheap"], "description": "Fast inference" }
-  ]
-}

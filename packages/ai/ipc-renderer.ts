@@ -2,7 +2,18 @@ import { AimSegments } from '@aim-packages/subtitle';
 import { ipcRenderer } from 'electron';
 
 import { normalizeProviderPreset } from './provider-preset';
-import type { ConversationRecord, EmbeddingRequest, ImageGenerationRequest, MindmapRequest, PushedCard, SummarizeRequest, TranscriptionRequest, TranslateRequest } from './types';
+import type {
+  ConversationRecord,
+  EmbeddingRequest,
+  ImageGenerationRequest,
+  MindmapRequest,
+  ProviderPresetCreatePayload,
+  ProviderPresetUpdatePatch,
+  PushedCard,
+  SummarizeRequest,
+  TranscriptionRequest,
+  TranslateRequest
+} from './types';
 
 export type StreamCallback = (event: { type: string; data?: any }) => void;
 
@@ -139,13 +150,10 @@ export const aiBridge = {
   async listPresets(providerId?: string) {
     return ipcRenderer.invoke('ai:listPresets', { providerId });
   },
-  async getProviderPresets(providerId?: string) {
-    return ipcRenderer.invoke('ai:listPresets', { providerId });
-  },
-  async createPreset(payload: { providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any>; enabledTools?: string[] }) {
+  async createPreset(payload: ProviderPresetCreatePayload) {
     return ipcRenderer.invoke('ai:createPreset', payload);
   },
-  async updatePreset(id: string, patch: any) {
+  async updatePreset(id: string, patch: ProviderPresetUpdatePatch) {
     return ipcRenderer.invoke('ai:updatePreset', { id, patch });
   },
   async deletePreset(id: string) {

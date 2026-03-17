@@ -1,4 +1,4 @@
-import { loadProviderModelsFromBank } from '../models-loader';
+import { listProviderRuntimeModels } from './service';
 import type { ChatMessage, ChatResponse, StreamEvent } from '../types';
 
 export function createAssistantMessage(content: string, createdAt = Date.now()): ChatMessage {
@@ -34,7 +34,7 @@ export async function listProviderModelsFromCuratedOrFallback<T extends { id: st
   defaultModel?: string;
   loadRemoteModels?: () => Promise<T[]>;
 }): Promise<T[]> {
-  const curated = await loadProviderModelsFromBank(options.providerId);
+  const curated = await listProviderRuntimeModels(options.providerId);
   if (curated.length) {
     return dedupeModelEntries(curated as T[]);
   }

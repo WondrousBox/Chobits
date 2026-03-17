@@ -4,7 +4,7 @@ import { ChatRepo } from '../common/db';
 import { pushCardToWindows } from './card-push';
 import { ChatService } from './chat-service';
 import { GlossaryStore } from './glossary-store';
-import { PresetsStore } from './instances-store';
+import { createPreset, deletePreset, getPreset, getPresetSecrets, listPresets, setPresetSecrets, updatePreset } from './preset-service';
 import {
   cancelMindmap,
   cleanupTranslationResources,
@@ -26,10 +26,18 @@ import {
 import { PromptsStore } from './prompts-store';
 import { normalizeProviderPreset } from './provider-preset';
 import { registerBuiltInProviders } from './providers/catalog';
-import { getBuiltinProviderMetadata, getProviderCapabilities, getProviderDefaultModels } from './providers/metadata';
+import { registerProviderPluginDefinitions } from './providers/plugins/loader';
+import {
+  getProviderCapabilities,
+  getProviderDefaultModels,
+  getProviderDefinitionSchema,
+  listProviderSecretKeys,
+  listProviderDefinitionAliases,
+  listProviderDefinitions,
+  supportsProviderCapability
+} from './providers/service';
 import { getProvider, listAgents, listProviders } from './registry';
 import { PiExecutionService } from './runtime/pi/execution-service';
-import { getProviderAliases } from './runtime/pi/provider-alias';
 import { SummaryService } from './services/summary-service';
 import { TaggingService } from './services/tagging-service';
 import { TranslationService } from './services/translation-service';
@@ -37,22 +45,25 @@ import {
   addApiKey,
   clearAllSecrets,
   clearProviderSecrets as clearSecretsStore,
-  getAllPresetSecrets,
   getAllSecrets,
   getApiKeys,
   removeApiKey,
   setApiKeys,
   setDefaultApiKey,
-  setPresetSecrets,
   setProviderSecrets as setSecretsStore,
   updateApiKey
 } from './settings-store';
 import { listToolInfos } from './tools';
-import type { ImageGenerationRequest, PushedCard, TranscriptionRequest } from './types';
+import type { ImageGenerationRequest, ProviderPresetCreatePayload, ProviderPresetUpdatePatch, PushedCard, TranscriptionRequest } from './types';
 
-export function initAIHandlers(win: BrowserWindow): void {
+export async function initAIHandlers(win: BrowserWindow): Promise<void> {
   // Bootstrapping built-in providers
   registerBuiltInProviders();
+  const pluginLoadResult = await registerProviderPluginDefinitions();
+  for (const warning of pluginLoadResult.warnings) {
+    const location = warning.path ? `${warning.path}: ` : '';
+    console.warn(`[ai][provider-plugin] ${location}${warning.message}`);
+  }
 
   const chat = new ChatService(win);
   const piExecutionService = new PiExecutionService();
@@ -71,23 +82,24 @@ export function initAIHandlers(win: BrowserWindow): void {
 
   // Settings & registry inspection
   ipcMain.handle('ai:getProviders', async () => {
-    const providers = listProviders();
+    const definitions = listProviderDefinitions();
     const rows = await Promise.all(
-      providers.map(async (p) => {
-        const metadata = getBuiltinProviderMetadata(p.id);
-        const defaultModels = getProviderDefaultModels(p.id, p);
-        const capabilities = getProviderCapabilities(p.id, p);
+      definitions.map(async (definition) => {
+        const provider = getProvider(definition.id);
+        const defaultModels = getProviderDefaultModels(definition.id, provider);
+        const capabilities = getProviderCapabilities(definition.id, provider);
 
         return {
-          id: p.id,
-          aliases: getProviderAliases(p.id),
-          label: p.label,
-          configured: !!(await Promise.resolve((p.isConfigured?.() as any) ?? true)),
+          id: definition.id,
+          aliases: listProviderDefinitionAliases(definition.id),
+          label: definition.display.label,
+          source: definition.source,
+          configured: provider ? !!(await Promise.resolve((provider.isConfigured?.() as any) ?? true)) : false,
           capabilities,
           defaultModels,
-          kind: metadata?.kind,
-          defaultModel: metadata?.defaultModel || defaultModels.chat,
-          schema: p.getConfigSchema?.()
+          kind: definition.protocol.kind,
+          defaultModel: definition.defaults.models.chat || defaultModels.chat,
+          schema: getProviderDefinitionSchema(definition.id)
         };
       })
     );
@@ -95,9 +107,7 @@ export function initAIHandlers(win: BrowserWindow): void {
   });
 
   ipcMain.handle('ai:getProviderSecrets', async (_e, payload: { providerId: string }) => {
-    const p = getProvider(payload.providerId);
-    const schema = p?.getConfigSchema?.();
-    const keys = (schema?.fields || []).map((f) => f.key);
+    const keys = listProviderSecretKeys(payload.providerId);
     const values = await getAllSecrets(payload.providerId, keys);
     return values;
   });
@@ -185,20 +195,15 @@ export function initAIHandlers(win: BrowserWindow): void {
   });
 
   ipcMain.handle('ai:listModels', async (_e, payload: { providerId: string; presetId?: string }) => {
-    const p = getProvider(payload.providerId);
+    const preset = getPreset(payload.presetId);
+    const resolvedProviderId = preset?.providerId || payload.providerId;
+    const p = getProvider(resolvedProviderId);
     if (!p) return [];
     try {
-      if (p.listModels) {
+      if (supportsProviderCapability(p.id, 'modelListing', p) && p.listModels) {
         let opts: any = undefined;
-        const resolvedPresetId = payload.presetId;
-        if (resolvedPresetId) {
-          const preset = PresetsStore.get(resolvedPresetId);
-          if (preset) {
-            const schema = p.getConfigSchema?.();
-            const keys = (schema?.fields || []).map((f) => f.key);
-            const secrets = await getAllPresetSecrets(resolvedPresetId, keys);
-            opts = { secrets };
-          }
+        if (preset) {
+          opts = { secrets: await getPresetSecrets(preset.id) };
         }
         return await Promise.resolve(p.listModels(opts));
       }
@@ -211,22 +216,19 @@ export function initAIHandlers(win: BrowserWindow): void {
 
   // Provider Presets CRUD
   ipcMain.handle('ai:listPresets', async (_e, payload?: { providerId?: string }) => {
-    return PresetsStore.list(payload?.providerId);
+    return listPresets(payload?.providerId);
   });
-  ipcMain.handle('ai:createPreset', async (_e, payload: { providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any>; enabledTools?: string[] }) => {
-    return PresetsStore.create(payload as any);
+  ipcMain.handle('ai:createPreset', async (_e, payload: ProviderPresetCreatePayload) => {
+    return createPreset(payload);
   });
-  ipcMain.handle('ai:updatePreset', async (_e, payload: { id: string; patch: any }) => {
-    return PresetsStore.update(payload.id, payload.patch);
+  ipcMain.handle('ai:updatePreset', async (_e, payload: { id: string; patch: ProviderPresetUpdatePatch }) => {
+    return updatePreset(payload.id, payload.patch);
   });
   ipcMain.handle('ai:deletePreset', async (_e, payload: { id: string }) => {
-    return { ok: PresetsStore.delete(payload.id) };
+    return { ok: deletePreset(payload.id) };
   });
   ipcMain.handle('ai:getPresetSecrets', async (_e, payload: { presetId: string }) => {
-    const preset = PresetsStore.get(payload.presetId);
-    const schema = getProvider(preset?.providerId || '')?.getConfigSchema?.();
-    const keys = (schema?.fields || []).map((f) => f.key);
-    return await getAllPresetSecrets(payload.presetId, keys);
+    return await getPresetSecrets(payload.presetId);
   });
   ipcMain.handle('ai:setPresetSecrets', async (_e, payload: { presetId: string; secrets: Record<string, string> }) => {
     await setPresetSecrets(payload.presetId, payload.secrets);

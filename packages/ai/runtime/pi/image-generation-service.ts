@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 
 import { normalizeProviderPreset } from '../../provider-preset';
+import { getProviderDefinitionPiBaseUrl } from '../../providers/service';
 import type { ImageGenerationRequest, ProviderSecrets } from '../../types';
 import { resolvePiModelConfig } from './model-resolver';
 
@@ -15,10 +16,6 @@ export interface GeneratePiImageOptions {
 
 export type GeneratePiImageRequest = ImageGenerationRequest;
 
-const DEFAULT_IMAGE_BASE_URLS: Record<string, string> = {
-  zhipu: 'https://open.bigmodel.cn/api/paas/v4/'
-};
-
 export class PiImageGenerationService {
   async generateImageUrl(options: GeneratePiImageOptions): Promise<string> {
     const { model, prompt, providerId, quality = 'standard', secrets, size = '1024x1024' } = options;
@@ -28,7 +25,7 @@ export class PiImageGenerationService {
       throw new Error(`Provider ${providerId} is missing API key for image generation`);
     }
 
-    const baseURL = String(secrets.baseUrl || DEFAULT_IMAGE_BASE_URLS[providerId] || '').trim();
+    const baseURL = String(secrets.baseUrl || getProviderDefinitionPiBaseUrl(providerId) || '').trim();
     const client = new OpenAI({ apiKey, ...(baseURL ? { baseURL } : {}) });
     const response = await client.images.generate({
       model,

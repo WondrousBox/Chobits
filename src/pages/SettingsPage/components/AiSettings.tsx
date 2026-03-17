@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { resolveProviderIdentity } from '@/lib/ai-provider-identity';
 
-import InstanceFormDialog, { InstanceFormValues } from './InstanceFormDialog';
+import PresetFormDialog, { PresetFormValues } from './PresetFormDialog';
 import ProviderApiKeyManager from './ProviderApiKeyManager';
 
 type ProviderRow = {
@@ -21,9 +21,9 @@ type ProviderRow = {
     fields?: Array<{ key: string; label: string; type: string; required?: boolean; options?: any[] }>;
   };
 };
-type Preset = { id: string; providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any>; enabledTools?: string[]; createdAt?: number };
+type Preset = { id: string; providerId: string; name: string; model?: string; systemPrompt?: string; overrides?: Record<string, any>; enabledTools?: string[]; createdAt?: number };
 type ModelOpt = { id: string; label?: string; type?: string; context?: number; pricing?: any; tags?: string[]; description?: string; free?: boolean };
-// Templates are now loaded within InstanceFormDialog
+// Templates are now loaded within PresetFormDialog
 
 export default function AiSettings({ initialProviderId }: { initialProviderId?: string }): JSX.Element {
   const [providers, setProviders] = useState<ProviderRow[]>([]);
@@ -162,7 +162,7 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
     setPresetSecrets((prev) => ({ ...prev, [presetId]: secrets || {} }));
   };
 
-  const onCreatePreset = async (vals: InstanceFormValues): Promise<void> => {
+  const onCreatePreset = async (vals: PresetFormValues): Promise<void> => {
     if (!selectedProvider) return;
     const nameOk = (vals.name || '').trim().length > 0;
     const schema = schemaForProvider(selectedProvider);
@@ -184,7 +184,7 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
       name: vals.name,
       model: vals.model,
       systemPrompt: vals.systemPrompt,
-      config: {},
+      overrides: {},
       enabledTools: vals.enabledTools
     });
     if (created?.id) await window.YUA.ai.setPresetSecrets(created.id, vals.secrets);
@@ -193,7 +193,7 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
     setModalOpen(false);
   };
 
-  const onSavePreset = async (preset: Preset, vals: InstanceFormValues): Promise<void> => {
+  const onSavePreset = async (preset: Preset, vals: PresetFormValues): Promise<void> => {
     const schema = schemaForProvider(selectedProvider);
     const parsed = schema.safeParse(vals.secrets || {});
     if (!parsed.success) {
@@ -241,7 +241,7 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
     return m.type === 'chat';
   });
 
-  const modalInitialValues: InstanceFormValues =
+  const modalInitialValues: PresetFormValues =
     modalMode === 'create'
       ? { name: '', model: '', systemPrompt: '', secrets: {}, enabledTools: [] }
       : {
@@ -421,7 +421,7 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
 
       {/* Shared Create/Edit Modal */}
       {selectedProvider && (
-        <InstanceFormDialog
+        <PresetFormDialog
           open={modalOpen}
           mode={modalMode}
           title={modalMode === 'create' ? '新建预设' : `编辑预设 · ${editing?.name || ''}`}

@@ -2,12 +2,12 @@ import { utils } from '@aim-packages/subtitle';
 import { ipcMain } from 'electron';
 
 import { ChatService } from '../chat-service';
-import { PresetsStore } from '../instances-store';
+import { getPresetSecrets, listPresets } from '../preset-service';
+import { listProviderSecretKeys, listRequiredProviderSecretKeys, supportsProviderCapability } from '../providers/service';
 import { getProvider } from '../registry';
 import { PiExecutionService } from '../runtime/pi/execution-service';
 import { generatePiTagsForSegment, parseTagListFromResponse } from '../runtime/pi/tasks/tag';
 import { isFreeProvider, loadSelectionStrategy, scoreCandidate } from '../selection-strategy';
-import { getAllPresetSecrets } from '../settings-store';
 import type { ChatRequest, ChatResponse } from '../types';
 
 export type BestPreset = {
@@ -50,19 +50,18 @@ export const TaggingService = {
    * 如未创建该文件，会自动写入一个默认模板，用户可自行修改以生效。
    */
   async chooseBestChatPreset(): Promise<BestPreset> {
-    const all = PresetsStore.list();
+    const all = listPresets();
     const candidates: Candidate[] = [];
     // 读取（并在首次缺失时生成）用户策略
     const strategy = loadSelectionStrategy();
     for (const inst of all) {
       const prov = getProvider(inst.providerId);
-      if (!prov || typeof (prov as any).chat !== 'function') continue;
-      const schema = prov.getConfigSchema?.();
-      const fields = Array.isArray(schema?.fields) ? schema!.fields : [];
-      const requiredKeys = fields.filter((f: any) => (f as any).required).map((f: any) => f.key as string);
+      if (!prov || !supportsProviderCapability(inst.providerId, 'chat', prov) || typeof prov.chat !== 'function') continue;
+      const requiredKeys = listRequiredProviderSecretKeys(inst.providerId);
+      const secretKeys = requiredKeys.length ? requiredKeys : listProviderSecretKeys(inst.providerId);
       let secrets: Record<string, string> = {};
       try {
-        secrets = await getAllPresetSecrets(inst.id, requiredKeys.length ? requiredKeys : fields.map((f: any) => f.key));
+        secrets = await getPresetSecrets(inst.id, secretKeys);
       } catch {
         secrets = {};
       }

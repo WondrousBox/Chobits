@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 
-import { loadProviderModelsFromBank } from '../models-loader';
+import { listProviderRuntimeModels } from './service';
 import type { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, StreamEvent, TranscribeOptions } from '../types';
 
 export type OpenAIRuntimeSecrets = {
@@ -223,7 +223,7 @@ export async function executeOpenAITranscription(options: OpenAITranscriptionRun
 }
 
 export async function listOpenAIModels(options: OpenAIListModelsOptions): Promise<Array<{ id: string }>> {
-  const curated = await loadProviderModelsFromBank(options.providerId);
+  const curated = await listProviderRuntimeModels(options.providerId);
   if (curated.length) {
     return curated.map((model) => normalizeOpenAIModelInfo(model));
   }

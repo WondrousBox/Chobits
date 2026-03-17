@@ -1,70 +1,31 @@
-import { loadProviderSchema } from '../schema-loader';
 import {
   ChatRequest,
   ChatResponse,
   EmbeddingRequest,
   EmbeddingResponse,
   ProviderAdapter,
-  ProviderCapabilities,
-  ProviderConfig,
-  ProviderDefaultModels,
   ProviderSecrets,
   StreamEvent,
   TranscribeOptions
 } from '../types';
-import { getBuiltinProviderMetadata } from './metadata';
+import { getBuiltinProviderDefinitionOrThrow, getRequiredBuiltinProviderDefaultModel } from './service';
 import { createOpenAIClient, executeOpenAIChat, executeOpenAIEmbedding, executeOpenAITranscription, listOpenAIModels, type OpenAIRuntimeSecrets } from './openai-runtime';
 
 type OpenAISecrets = OpenAIRuntimeSecrets;
 
 export class OpenAIProvider implements ProviderAdapter {
-  private readonly metadata = getBuiltinProviderMetadata('openai');
-  readonly id = 'openai';
-  readonly label = this.metadata?.label || 'OpenAI';
+  private readonly definition = getBuiltinProviderDefinitionOrThrow('openai');
+  private readonly defaultModels = this.definition.defaults.models;
+  readonly id = this.definition.id;
+  readonly label = this.definition.display.label;
   private secrets: OpenAISecrets = {};
-  private readonly defaultModel = this.metadata?.defaultModel || 'gpt-4o-mini';
-  private readonly defaultBaseUrl = this.metadata?.providerBaseUrl;
-  private readonly defaultTranscribeModel = this.metadata?.defaultModels.transcribe || 'gpt-4o-mini-transcribe';
+  private readonly defaultModel = this.defaultModels.chat;
+  private readonly defaultBaseUrl = this.definition.protocol.baseUrl;
+  private readonly defaultEmbeddingModel = getRequiredBuiltinProviderDefaultModel('openai', 'embeddings');
+  private readonly defaultTranscribeModel = getRequiredBuiltinProviderDefaultModel('openai', 'transcribe');
 
   isConfigured(): boolean {
     return !!this.secrets.apiKey;
-  }
-
-  getCapabilities(): ProviderCapabilities {
-    return {
-      ...(this.metadata?.capabilities || {
-        chat: true,
-        embeddings: true,
-        imageGeneration: true,
-        modelListing: true,
-        transcribe: true
-      })
-    };
-  }
-
-  getDefaultModels(): ProviderDefaultModels {
-    return {
-      ...(this.metadata?.defaultModels || {
-        chat: this.defaultModel,
-        embeddings: 'text-embedding-3-small',
-        imageGeneration: 'gpt-image-1',
-        transcribe: this.defaultTranscribeModel
-      })
-    };
-  }
-
-  getConfigSchema(): ProviderConfig {
-    const fallback: ProviderConfig = {
-      id: this.id,
-      label: this.label,
-      enabled: true,
-      fields: [
-        { key: 'apiKey', label: 'API Key', type: 'password', required: true },
-        { key: 'baseUrl', label: 'Base URL (可选，自定义网关)', type: 'text' },
-        { key: 'model', label: '默认模型（如 gpt-4o-mini）', type: 'text' }
-      ]
-    };
-    return loadProviderSchema(this.id, fallback);
   }
   setSecrets(secrets: ProviderSecrets): void {
     this.secrets = { ...this.secrets, ...(secrets as any) };
@@ -110,7 +71,7 @@ export class OpenAIProvider implements ProviderAdapter {
       client: this.client(overrideSecrets),
       request: req,
       providerId: this.id,
-      defaultModel: 'text-embedding-3-small',
+      defaultModel: this.defaultEmbeddingModel,
       configuredModel: resolvedSecrets.model
     });
   }

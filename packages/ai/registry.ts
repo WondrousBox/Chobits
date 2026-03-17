@@ -8,7 +8,7 @@
 
 import type { PiExecutionMode } from './runtime/pi/contracts';
 import { listPiAgentProfiles } from './runtime/pi/profile-registry';
-import { toCanonicalProviderId } from './runtime/pi/provider-alias';
+import { toCanonicalProviderId } from './providers/service';
 import { ProviderAdapter } from './types';
 
 /** 提供者适配器注册表，键为提供者 ID，值为提供者适配器实例 */
