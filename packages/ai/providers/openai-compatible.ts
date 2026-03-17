@@ -1,58 +1,29 @@
-import { loadProviderSchema } from '../schema-loader';
-import { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, ProviderAdapter, ProviderCapabilities, ProviderConfig, ProviderDefaultModels, ProviderSecrets, StreamEvent } from '../types';
-import { getBuiltinProviderMetadata } from './metadata';
+import { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, ProviderAdapter, ProviderSecrets, StreamEvent } from '../types';
+import { getBuiltinProviderDefinitionOrThrow } from './service';
 import { createOpenAIClient, executeOpenAIChat, executeOpenAIEmbedding, listOpenAIModels, type OpenAIRuntimeSecrets } from './openai-runtime';
+import type { BuiltinProviderId, BuiltinProviderDefinition } from './types';
 
 export class OpenAICompatibleProvider implements ProviderAdapter {
+  private readonly definition: BuiltinProviderDefinition;
   readonly id: string;
   readonly label: string;
   private defaults: { baseUrl?: string; model?: string };
   private secrets: OpenAIRuntimeSecrets = {};
+  private readonly defaultEmbeddingModel?: string;
 
-  constructor(opts: { id: string; label: string; baseUrl?: string; model?: string }) {
-    this.id = opts.id;
-    this.label = opts.label;
-    this.defaults = { baseUrl: opts.baseUrl, model: opts.model };
+  constructor(providerId: BuiltinProviderId) {
+    this.definition = getBuiltinProviderDefinitionOrThrow(providerId);
+    this.id = this.definition.id;
+    this.label = this.definition.display.label;
+    this.defaults = {
+      baseUrl: this.definition.protocol.baseUrl,
+      model: this.definition.defaults.models.chat
+    };
+    this.defaultEmbeddingModel = this.definition.defaults.models.embeddings;
   }
 
   isConfigured(): boolean {
     return !!this.secrets.apiKey;
-  }
-
-  getCapabilities(): ProviderCapabilities {
-    const metadata = getBuiltinProviderMetadata(this.id);
-    return {
-      ...(metadata?.capabilities || {
-        chat: true,
-        embeddings: Boolean(this.embed),
-        imageGeneration: false,
-        modelListing: true,
-        transcribe: Boolean((this as any).transcribe)
-      })
-    };
-  }
-
-  getDefaultModels(): ProviderDefaultModels {
-    const metadata = getBuiltinProviderMetadata(this.id);
-    return {
-      ...(metadata?.defaultModels || {
-        chat: this.defaults.model
-      })
-    };
-  }
-
-  getConfigSchema(): ProviderConfig {
-    const fallback: ProviderConfig = {
-      id: this.id,
-      label: this.label,
-      enabled: true,
-      fields: [
-        { key: 'apiKey', label: 'API Key', type: 'password', required: true },
-        { key: 'baseUrl', label: 'Base URL', type: 'text' },
-        { key: 'model', label: '默认模型', type: 'text' }
-      ]
-    };
-    return loadProviderSchema(this.id, fallback);
   }
   setSecrets(secrets: ProviderSecrets): void {
     this.secrets = { ...this.defaults, ...(this.secrets || {}), ...(secrets as any) };
@@ -82,7 +53,7 @@ export class OpenAICompatibleProvider implements ProviderAdapter {
         client: this.client(overrideSecrets),
         request: req,
         providerId: this.id,
-        defaultModel: this.defaults.model || 'gpt-3.5-turbo',
+        defaultModel: this.definition.defaults.models.chat,
         configuredModel: resolvedSecrets.model
       },
       onStream,
@@ -91,6 +62,14 @@ export class OpenAICompatibleProvider implements ProviderAdapter {
   }
 
   async embed(req: EmbeddingRequest): Promise<EmbeddingResponse> {
+    if (!this.definition.capabilities.embeddings) {
+      throw new Error(`${this.label} embeddings not supported`);
+    }
+
+    if (!this.defaultEmbeddingModel) {
+      throw new Error(`Missing default embeddings model for provider ${this.id}`);
+    }
+
     const overrideSecrets = (req as any)?.extras?.secrets as Partial<OpenAIRuntimeSecrets> | undefined;
     const resolvedSecrets = this.resolveSecrets(overrideSecrets);
 
@@ -98,7 +77,7 @@ export class OpenAICompatibleProvider implements ProviderAdapter {
       client: this.client(overrideSecrets),
       request: req,
       providerId: this.id,
-      defaultModel: 'text-embedding-3-small',
+      defaultModel: this.defaultEmbeddingModel,
       configuredModel: resolvedSecrets.model
     });
   }

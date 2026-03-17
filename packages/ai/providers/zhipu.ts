@@ -1,5 +1,5 @@
 import type { ProviderSecrets, TranscribeOptions } from '../types';
-import { getBuiltinProviderMetadata } from './metadata';
+import { getRequiredBuiltinProviderDefaultModel } from './service';
 import { OpenAICompatibleProvider } from './openai-compatible';
 
 function resolveZhipuAudioTranscriptionUrl(baseUrl?: string): string {
@@ -11,17 +11,7 @@ function resolveZhipuAudioTranscriptionUrl(baseUrl?: string): string {
 
 export class ZhipuProvider extends OpenAICompatibleProvider {
   constructor() {
-    const metadata = getBuiltinProviderMetadata('zhipu');
-    if (!metadata) {
-      throw new Error('Missing built-in provider metadata: zhipu');
-    }
-
-    super({
-      id: metadata.id,
-      baseUrl: metadata.providerBaseUrl,
-      label: metadata.label,
-      model: metadata.defaultModel
-    });
+    super('zhipu');
   }
 
   async transcribe(file: File | Blob | Buffer | ArrayBuffer, options?: TranscribeOptions): Promise<{ text: string }> {
@@ -46,7 +36,7 @@ export class ZhipuProvider extends OpenAICompatibleProvider {
       formData.append('file', file);
     }
 
-    formData.append('model', options?.model || 'glm-asr-2512');
+    formData.append('model', options?.model || getRequiredBuiltinProviderDefaultModel('zhipu', 'transcribe'));
     if (options?.prompt) {
       formData.append('prompt', options.prompt);
     }

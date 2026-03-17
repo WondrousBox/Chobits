@@ -1,5 +1,4 @@
-import type { ProviderPreset } from '../../instances-store';
-import type { ChatMessage, ChatRequest } from '../../types';
+import type { ChatMessage, ChatRequest, ProviderPresetRecord } from '../../types';
 
 export type PiRuntimeId = 'legacy' | 'pi';
 
@@ -41,7 +40,7 @@ export interface ResolvedPiRequest {
   model: ResolvedPiModelConfig;
   messages: ChatMessage[];
   enabledToolIds: string[];
-  preset?: ProviderPreset;
+  preset?: ProviderPresetRecord;
 }
 
 export interface PiToolDescriptor {

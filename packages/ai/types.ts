@@ -28,7 +28,7 @@ export type OptionalProviderScopedRequest = ProviderPresetFields & {
 export type ChatRequest = ProviderScopedRequest & {
   conversationId?: string;
   messages: ChatMessage[];
-  agentId?: string; // which agent to use (optional, can be inferred from preset config)
+  agentId?: string; // which agent to use (optional, can be inferred from preset overrides)
   stream?: boolean;
   temperature?: number;
   maxTokens?: number;
@@ -136,13 +136,35 @@ export type MindmapRequest = ProviderScopedRequest & {
   options?: any;
   metadata?: any;
 };
+export type ProviderPresetOverrides = Record<string, any>;
+export type ProviderPresetCreatePayload = {
+  providerId: string;
+  name: string;
+  model?: string;
+  systemPrompt?: string;
+  overrides?: ProviderPresetOverrides;
+  // Legacy alias kept for compatibility while callers migrate to overrides.
+  config?: ProviderPresetOverrides;
+  enabledTools?: string[];
+};
+export type ProviderPresetUpdatePatch = Partial<{
+  providerId: string;
+  name: string;
+  model: string;
+  systemPrompt: string;
+  overrides: ProviderPresetOverrides;
+  config: ProviderPresetOverrides;
+  enabledTools: string[];
+}>;
 export type ProviderPresetRecord = {
   id: string;
   providerId: string;
   name: string;
   model?: string;
   systemPrompt?: string;
-  config?: Record<string, any>;
+  overrides?: ProviderPresetOverrides;
+  // Legacy alias kept for compatibility while callers migrate to overrides.
+  config?: ProviderPresetOverrides;
   enabledTools?: string[];
   createdAt?: number;
   updatedAt?: number;
@@ -174,6 +196,7 @@ export type ProviderRecord = {
   id: string;
   aliases?: string[];
   label: string;
+  source?: 'builtin' | 'plugin';
   configured?: boolean;
   kind?: string;
   defaultModel?: string;
@@ -210,9 +233,9 @@ export interface ProviderAdapter {
   readonly id: string; // unique ID, e.g. 'openai', 'anthropic', 'ollama'
   readonly label: string;
   isConfigured(): Promise<boolean> | boolean;
-  getConfigSchema(): ProviderConfig;
   getCapabilities?(): ProviderCapabilities;
   getDefaultModels?(): ProviderDefaultModels;
+  getConfigSchema?(): ProviderConfig;
   setSecrets(secrets: ProviderSecrets): Promise<void> | void;
   getSecrets(): Promise<ProviderSecrets> | ProviderSecrets;
   // Chat
@@ -293,9 +316,8 @@ export type AIApi = {
   embed(payload: EmbeddingRequest): Promise<{ vectors: number[][]; dim: number }>;
   // Presets
   listPresets(providerId?: string): Promise<ProviderPresetRecord[]>;
-  getProviderPresets(providerId?: string): Promise<ProviderPresetRecord[]>;
-  createPreset(payload: { providerId: string; name: string; model?: string; systemPrompt?: string; config?: Record<string, any>; enabledTools?: string[] }): Promise<ProviderPresetRecord>;
-  updatePreset(id: string, patch: any): Promise<ProviderPresetRecord | undefined>;
+  createPreset(payload: ProviderPresetCreatePayload): Promise<ProviderPresetRecord>;
+  updatePreset(id: string, patch: ProviderPresetUpdatePatch): Promise<ProviderPresetRecord | undefined>;
   deletePreset(id: string): Promise<{ ok: boolean }>;
   getPresetSecrets(presetId: string): Promise<Record<string, string>>;
   setPresetSecrets(presetId: string, secrets: Record<string, string>): Promise<{ ok: boolean }>;

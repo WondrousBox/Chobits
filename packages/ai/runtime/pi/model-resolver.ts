@@ -1,16 +1,14 @@
-import { PresetsStore, type ProviderPreset } from '../../instances-store';
 import { resolveProviderPresetId } from '../../provider-preset';
-import { getProviderDefaultModels } from '../../providers/metadata';
+import { getPreset, getPresetSecrets } from '../../preset-service';
+import { getProviderDefinitionDefaultModel, listProviderSecretKeys, resolveKnownProviderId, toCanonicalProviderId } from '../../providers/service';
 import { getProvider } from '../../registry';
-import { getAllPresetSecrets, getAllSecrets, getFirstApiKey } from '../../settings-store';
-import type { ChatMessage, ChatRequest } from '../../types';
+import { getAllSecrets, getFirstApiKey } from '../../settings-store';
+import type { ChatMessage, ChatRequest, ProviderPresetRecord } from '../../types';
 import type { ResolvedPiModelConfig, ResolvedPiRequest } from './contracts';
 import { getPiAgentProfile } from './profile-registry';
-import { resolveKnownProviderId, toCanonicalProviderId } from './provider-alias';
 import { isPiRuntimeRequested } from './runtime-switch';
 import { normalizePiToolIds } from './tool-registry';
 
-type ProviderSchemaField = { key: string; required?: boolean };
 type SecretValues = Record<string, string | undefined>;
 
 function prependSystemPrompt(messages: ChatMessage[], systemPrompt?: string): ChatMessage[] {
@@ -22,7 +20,7 @@ function prependSystemPrompt(messages: ChatMessage[], systemPrompt?: string): Ch
   return [{ role: 'system', content: systemPrompt }, ...messages];
 }
 
-function resolveEnabledToolIds(req: ChatRequest, preset: ProviderPreset | undefined, profileDefaultToolIds: string[]): string[] {
+function resolveEnabledToolIds(req: ChatRequest, preset: ProviderPresetRecord | undefined, profileDefaultToolIds: string[]): string[] {
   const extrasToolIds = Array.isArray(req.extras?.enabledTools) ? (req.extras?.enabledTools as string[]) : undefined;
 
   if (extrasToolIds) return normalizePiToolIds(extrasToolIds);
@@ -31,9 +29,9 @@ function resolveEnabledToolIds(req: ChatRequest, preset: ProviderPreset | undefi
   return normalizePiToolIds(profileDefaultToolIds);
 }
 
-export async function resolvePiModelConfig(req: ChatRequest): Promise<{ preset?: ProviderPreset; model: ResolvedPiModelConfig }> {
+export async function resolvePiModelConfig(req: ChatRequest): Promise<{ preset?: ProviderPresetRecord; model: ResolvedPiModelConfig }> {
   const providerPresetId = resolveProviderPresetId(req);
-  const preset = providerPresetId ? PresetsStore.get(providerPresetId) : undefined;
+  const preset = getPreset(providerPresetId);
   const rawProviderId = preset?.providerId || req.providerId || 'openai';
   const canonicalProviderId = toCanonicalProviderId(rawProviderId);
 
@@ -45,14 +43,13 @@ export async function resolvePiModelConfig(req: ChatRequest): Promise<{ preset?:
     throw new Error(`Pi model resolver could not find provider: ${rawProviderId}`);
   }
 
-  const providerConfig = provider.getConfigSchema?.();
-  const fields = ((providerConfig?.fields || []) as ProviderSchemaField[]).map((field) => field.key);
+  const fields = listProviderSecretKeys(provider.id);
   const adapterSecrets = ((await Promise.resolve(provider.getSecrets?.() || {})) as SecretValues) || {};
   const providerSecrets = (await getAllSecrets(provider.id, fields).catch(() => ({}))) as SecretValues;
-  const presetSecrets = (preset ? await getAllPresetSecrets(preset.id, fields).catch(() => ({})) : {}) as SecretValues;
+  const presetSecrets = (await getPresetSecrets(preset?.id, fields).catch(() => ({}))) as SecretValues;
   const mergedSecrets = { ...adapterSecrets, ...providerSecrets, ...presetSecrets };
   const apiKey = getFirstApiKey(mergedSecrets.apiKey);
-  const defaultModel = getProviderDefaultModels(provider.id, provider).chat;
+  const defaultModel = getProviderDefinitionDefaultModel(provider.id, 'chat', '');
   const modelId = ((req.extras?.model as string | undefined) || preset?.model || (mergedSecrets.model as string | undefined) || defaultModel || '').trim();
 
   return {

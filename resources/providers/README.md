@@ -1,24 +1,19 @@
-Model and provider configuration
+Provider resource assets
 
-- <provider>.schema.json: UI schema for provider secrets/config.
-- <provider>.models.json: Curated model list with metadata.
+This directory is no longer a runtime source for provider schema or model metadata.
 
-models.json format (either top-level array or { models: [...] })
+What stays here:
 
-[
-  {
-    "id": "string",
-    "label": "optional display name",
-    "type": "chat|embedding|...",
-    "context": 128000,
-    "pricing": { "prompt": 0.00015, "completion": 0.0006, "unit": "1K tokens", "currency": "USD" },
-    "capabilities": { "vision": true, "function_call": true },
-    "tags": ["fast", "cheap"],
-    "description": "free-form description",
-    "...": "any provider-specific fields"
-  }
-]
+- `icons/`: packaged provider icon assets referenced by builtin provider definitions.
 
-Notes
-- You can add/remove models without touching code; app reads this file at runtime.
-- If the file is missing for a provider, the app will try to query models via API (if supported) or show nothing.
+What moved out:
+
+- Provider schema definitions now live in `packages/ai/providers/builtins/*/definition.ts`.
+- Builtin model catalogs now live in `packages/ai/providers/builtins/*/models.ts`.
+- Business code reads provider metadata through `packages/ai/providers/service.ts`.
+
+Guidelines
+
+- Do not add new `<provider>.schema.json` or `<provider>.models.json` files here.
+- If a builtin provider needs a packaged icon, add the asset under `icons/` and reference it from the provider definition.
+- Plugin providers should contribute metadata through the unified provider definition/registry flow instead of this directory.

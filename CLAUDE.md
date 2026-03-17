@@ -187,9 +187,9 @@ Manages native plugin resources (FFmpeg, Tesseract, Whisper models, etc.) with d
 
 ### New AI Provider
 
-1. Create provider in `packages/ai/providers/` implementing `ProviderAdapter`
-2. Register in `packages/ai/ipc-main.ts` via `registerProvider()`
-3. Add provider schema to `resources/providers/` (optional)
+1. Add builtin provider definition/models under `packages/ai/providers/builtins/<provider>/`
+2. If the provider needs runtime behavior, implement `ProviderAdapter` in `packages/ai/providers/` and wire its factory in `packages/ai/providers/catalog.ts`
+3. Let `ProviderService` expose schema/models/defaults; do not add provider schema JSON back under `resources/providers/`
 
 ## Code Quality
 
@@ -620,7 +620,7 @@ DEBUG_IPC=1 pnpm dev
 - `README.md` - User-facing features and quick start
 - `packages/ai/ai-module-design.md` - AI system design
 - `packages/workflow/README.md` - Workflow system documentation
-- `resources/providers/README.md` - Provider schemas
+- `resources/providers/README.md` - Provider icon assets
 
 ## Documentation Maintenance Rules
 
@@ -650,7 +650,7 @@ When making **feature-level changes** (examples: new workflow node, new AI provi
 1. **Update the module-level doc** closest to the change:
    - AI features → `packages/ai/ai-module-design.md`
    - Workflow features → `packages/workflow/README.md`
-   - Provider schemas → `resources/providers/README.md`
+   - Provider icon assets → `resources/providers/README.md`
    - User-facing features → `README.md`
 2. **If no module doc exists** for the area you changed, consider whether one should be created (e.g., a new `packages/<module>/README.md`).
 3. **Update `CLAUDE.md`** only if the feature change affects architecture awareness (e.g., adds a new handler domain, a new resource type to the enum, or a new event).

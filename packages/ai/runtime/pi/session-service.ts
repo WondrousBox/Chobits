@@ -2,10 +2,10 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
-import { getBuiltinProviderMetadata } from '../../providers/metadata';
 import type { ChatRequest, ChatResponse, StreamEvent } from '../../types';
-import type { PiRuntimeAvailability, PiRuntimePreview, ResolvedPiModelConfig, ResolvedPiRequest } from './contracts';
+import type { PiRuntimeAvailability, PiRuntimePreview, ResolvedPiRequest } from './contracts';
 import { resolvePiRequest } from './model-resolver';
+import { buildPiModel, buildPiModelHeaders } from './provider-model';
 import { isPiRuntimeRequested } from './runtime-switch';
 import { PiSessionFactory } from './session-factory';
 import { createLegacyAssistantMessage, createLegacyStreamEmitter, normalizePiError } from './stream-adapter';
@@ -22,10 +22,8 @@ type PiApi = import('@mariozechner/pi-ai').Api;
 type PiAssistantMessage = import('@mariozechner/pi-ai').AssistantMessage;
 type PiAssistantMessageEvent = import('@mariozechner/pi-ai').AssistantMessageEvent;
 type PiContext = import('@mariozechner/pi-ai').Context;
-type PiKnownProvider = import('@mariozechner/pi-ai').KnownProvider;
 type PiMessage = import('@mariozechner/pi-ai').Message;
 type PiModel = import('@mariozechner/pi-ai').Model<PiApi>;
-type PiOpenAICompletionsCompat = import('@mariozechner/pi-ai').OpenAICompletionsCompat;
 type PiSimpleStreamOptions = import('@mariozechner/pi-ai').SimpleStreamOptions;
 type PiThinkingLevel = import('@mariozechner/pi-ai').ThinkingLevel;
 type PiUserContentBlock = { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string };
@@ -52,23 +50,6 @@ async function loadPiAi(): Promise<PiAiModule> {
   return import('@mariozechner/pi-ai');
 }
 
-function sanitizeBaseUrl(baseUrl?: string): string | undefined {
-  const trimmed = baseUrl?.trim();
-  return trimmed ? trimmed.replace(/\/+$/, '') : undefined;
-}
-
-function resolveFallbackModelId(providerId: string, modelId?: string): string {
-  const trimmed = modelId?.trim();
-  if (trimmed) return trimmed;
-  return getBuiltinProviderMetadata(providerId)?.defaultModel || getBuiltinProviderMetadata('openai')?.defaultModel || 'gpt-4o-mini';
-}
-
-function resolveFallbackBaseUrl(model: ResolvedPiModelConfig): string {
-  const baseUrl = sanitizeBaseUrl(model.baseUrl);
-  if (baseUrl) return baseUrl;
-  return getBuiltinProviderMetadata(model.canonicalProviderId)?.piBaseUrl || getBuiltinProviderMetadata('openai')?.piBaseUrl || 'https://api.openai.com/v1';
-}
-
 function isPlaceholderInstructions(instructions?: string): boolean {
   return !instructions || /will be wired into pi runtime/i.test(instructions);
 }
@@ -76,123 +57,6 @@ function isPlaceholderInstructions(instructions?: string): boolean {
 async function resolveProfileInstructions(resolved: ResolvedPiRequest): Promise<string> {
   const fallback = resolved.profile.instructions?.trim();
   return isPlaceholderInstructions(fallback) ? '' : fallback || '';
-}
-
-function inferReasoningCapability(modelId: string): boolean {
-  return /gpt-5|^o[134]|reason|thinking|claude.*4|gemini-2\.5/i.test(modelId);
-}
-
-function resolvePiApi(model: ResolvedPiModelConfig): PiApi {
-  switch (model.canonicalProviderId) {
-    case 'anthropic':
-      return 'anthropic-messages';
-    case 'gemini':
-      return 'google-generative-ai';
-    case 'openai':
-      if (!model.baseUrl || /api\.openai\.com/i.test(model.baseUrl)) {
-        return 'openai-responses';
-      }
-      return 'openai-completions';
-    default:
-      return 'openai-completions';
-  }
-}
-
-function resolveBuiltinProvider(model: ResolvedPiModelConfig): PiKnownProvider | undefined {
-  switch (model.canonicalProviderId) {
-    case 'anthropic':
-      return 'anthropic';
-    case 'gemini':
-      return 'google';
-    case 'openai':
-      if (!model.baseUrl || /api\.openai\.com/i.test(model.baseUrl)) {
-        return 'openai';
-      }
-      return undefined;
-    default:
-      return undefined;
-  }
-}
-
-function buildOpenAICompat(model: ResolvedPiModelConfig): PiOpenAICompletionsCompat | undefined {
-  if (resolvePiApi(model) !== 'openai-completions') return undefined;
-
-  const compat: PiOpenAICompletionsCompat = {};
-
-  if (model.canonicalProviderId !== 'openai') {
-    compat.supportsDeveloperRole = false;
-  }
-
-  if (model.canonicalProviderId === 'qwen') {
-    compat.thinkingFormat = 'qwen';
-  }
-
-  if (model.canonicalProviderId === 'zhipu') {
-    compat.thinkingFormat = 'zai';
-    compat.supportsDeveloperRole = false;
-  }
-
-  if (model.canonicalProviderId === 'ollama') {
-    compat.supportsUsageInStreaming = false;
-  }
-
-  return Object.keys(compat).length ? compat : undefined;
-}
-
-function buildModelHeaders(model: ResolvedPiModelConfig): Record<string, string> | undefined {
-  if (model.canonicalProviderId !== 'openai') return undefined;
-
-  const organization = model.secrets.organization?.trim();
-  if (!organization) return undefined;
-
-  return {
-    'OpenAI-Organization': organization
-  };
-}
-
-async function buildPiModel(ai: PiAiModule, resolved: ResolvedPiRequest): Promise<PiModel> {
-  const fallbackModelId = resolveFallbackModelId(resolved.model.canonicalProviderId, resolved.model.modelId);
-  const builtinProvider = resolveBuiltinProvider(resolved.model);
-
-  if (builtinProvider) {
-    const builtinModel = ai.getModel(builtinProvider as any, fallbackModelId as any);
-    if (builtinModel) {
-      const headers = buildModelHeaders(resolved.model);
-      return {
-        ...builtinModel,
-        ...(headers ? { headers } : {}),
-        baseUrl: sanitizeBaseUrl(resolved.model.baseUrl) || builtinModel.baseUrl,
-        maxTokens: resolved.request.maxTokens || builtinModel.maxTokens
-      } as PiModel;
-    }
-  }
-
-  const api = resolvePiApi(resolved.model);
-  const headers = buildModelHeaders(resolved.model);
-
-  return {
-    api,
-    baseUrl: resolveFallbackBaseUrl(resolved.model),
-    contextWindow: 128000,
-    cost: {
-      cacheRead: 0,
-      cacheWrite: 0,
-      input: 0,
-      output: 0
-    },
-    ...(headers ? { headers } : {}),
-    id: fallbackModelId,
-    input: ['text'],
-    maxTokens: resolved.request.maxTokens || 8192,
-    name: fallbackModelId,
-    provider: resolved.model.providerId || resolved.model.canonicalProviderId,
-    reasoning: inferReasoningCapability(fallbackModelId),
-    ...(api === 'openai-completions'
-      ? {
-          compat: buildOpenAICompat(resolved.model)
-        }
-      : {})
-  } as PiModel;
 }
 
 function normalizePiText(text: string): string {
@@ -389,7 +253,7 @@ function resolveThinkingLevel(req: ChatRequest): PiThinkingLevel | undefined {
 }
 
 function buildSimpleOptions(resolved: ResolvedPiRequest, signal?: AbortSignal): PiSimpleStreamOptions {
-  const headers = buildModelHeaders(resolved.model);
+  const headers = buildPiModelHeaders(resolved.model);
   const reasoning = resolveThinkingLevel(resolved.request);
 
   return {

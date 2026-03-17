@@ -6,7 +6,7 @@ import { ChatRepo } from '../common/db';
 import { eventManager } from '../event';
 import { AppEvent } from '../event/events';
 import { normalizeProviderPreset, resolveProviderPresetId } from './provider-preset';
-import { getProvider } from './registry';
+import { getProviderDefinitionSchema } from './providers/service';
 import { PiExecutionService } from './runtime/pi/execution-service';
 import { PiSessionService } from './runtime/pi/session-service';
 import { generatePiConversationTitle, normalizeGeneratedConversationTitle } from './runtime/pi/tasks/title';
@@ -273,8 +273,7 @@ ${JSON.stringify(req, null, 2)}
   }
 
   getProviderConfig(providerId: string): any {
-    const prov = getProvider(providerId);
-    return prov?.getConfigSchema?.();
+    return getProviderDefinitionSchema(providerId);
   }
 
   private getPiExecutionService(): PiExecutionService {

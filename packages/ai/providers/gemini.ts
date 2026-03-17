@@ -1,52 +1,19 @@
-import { loadProviderSchema } from '../schema-loader';
-import { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, ProviderAdapter, ProviderCapabilities, ProviderConfig, ProviderDefaultModels, ProviderSecrets, StreamEvent } from '../types';
+import { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, ProviderAdapter, ProviderSecrets, StreamEvent } from '../types';
 import { createGeminiClient, executeGeminiChat, type GeminiRuntimeSecrets, listGeminiModels } from './gemini-runtime';
-import { getBuiltinProviderMetadata } from './metadata';
+import { getBuiltinProviderDefinitionOrThrow } from './service';
 
 type GeminiSecrets = GeminiRuntimeSecrets;
 
 export class GeminiProvider implements ProviderAdapter {
-  private readonly metadata = getBuiltinProviderMetadata('gemini');
-  readonly id = 'gemini';
-  readonly label = this.metadata?.label || 'Google Gemini';
+  private readonly definition = getBuiltinProviderDefinitionOrThrow('gemini');
+  private readonly defaultModels = this.definition.defaults.models;
+  readonly id = this.definition.id;
+  readonly label = this.definition.display.label;
   private secrets: GeminiSecrets = {};
-  private readonly defaultModel = this.metadata?.defaultModel || 'gemini-1.5-flash';
+  private readonly defaultModel = this.defaultModels.chat;
 
   isConfigured(): boolean {
     return !!this.secrets.apiKey;
-  }
-
-  getCapabilities(): ProviderCapabilities {
-    return {
-      ...(this.metadata?.capabilities || {
-        chat: true,
-        embeddings: false,
-        imageGeneration: false,
-        modelListing: true,
-        transcribe: false
-      })
-    };
-  }
-
-  getDefaultModels(): ProviderDefaultModels {
-    return {
-      ...(this.metadata?.defaultModels || {
-        chat: this.defaultModel
-      })
-    };
-  }
-
-  getConfigSchema(): ProviderConfig {
-    const fallback: ProviderConfig = {
-      id: this.id,
-      label: this.label,
-      enabled: true,
-      fields: [
-        { key: 'apiKey', label: 'API Key', type: 'password', required: true },
-        { key: 'model', label: '默认模型（如 gemini-1.5-flash）', type: 'text' }
-      ]
-    };
-    return loadProviderSchema(this.id, fallback);
   }
   setSecrets(secrets: ProviderSecrets): void {
     this.secrets = { ...this.secrets, ...(secrets as any) };

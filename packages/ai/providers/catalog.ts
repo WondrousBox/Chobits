@@ -3,15 +3,11 @@ import type { ProviderAdapter } from '../types';
 import { AnthropicProvider } from './anthropic';
 import { DeepSeekProvider } from './deepseek';
 import { GeminiProvider } from './gemini';
-import { type BuiltinProviderId, type BuiltinProviderMetadata, listBuiltinProviderMetadata } from './metadata';
 import { OllamaProvider } from './ollama';
 import { OpenAIProvider } from './openai';
 import { QwenProvider } from './qwen';
+import type { BuiltinProviderId } from './types';
 import { ZhipuProvider } from './zhipu';
-
-export interface BuiltinProviderDefinition extends BuiltinProviderMetadata {
-  create: () => ProviderAdapter;
-}
 
 const BUILTIN_PROVIDER_FACTORIES: Record<BuiltinProviderId, () => ProviderAdapter> = {
   anthropic: () => new AnthropicProvider(),
@@ -23,15 +19,10 @@ const BUILTIN_PROVIDER_FACTORIES: Record<BuiltinProviderId, () => ProviderAdapte
   zhipu: () => new ZhipuProvider()
 };
 
-export function listBuiltinProviderDefinitions(): BuiltinProviderDefinition[] {
-  return listBuiltinProviderMetadata().map((metadata) => ({
-    ...metadata,
-    create: BUILTIN_PROVIDER_FACTORIES[metadata.id]
-  }));
-}
+const BUILTIN_PROVIDER_ORDER: BuiltinProviderId[] = ['anthropic', 'deepseek', 'gemini', 'ollama', 'openai', 'qwen', 'zhipu'];
 
 export function registerBuiltInProviders(): void {
-  for (const definition of listBuiltinProviderDefinitions()) {
-    registerProvider(definition.create());
+  for (const providerId of BUILTIN_PROVIDER_ORDER) {
+    registerProvider(BUILTIN_PROVIDER_FACTORIES[providerId]());
   }
 }

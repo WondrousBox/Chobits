@@ -1,11 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { PresetsStore } from '../../ai/instances-store';
+import { getPreset, getPresetSecrets, listPresets } from '../../ai/preset-service';
 import { normalizeProviderPreset, resolveProviderPresetId } from '../../ai/provider-preset';
-import { getProviderCapabilities } from '../../ai/providers/metadata';
+import { getProviderCapabilities, listProviderDefinitions, listProviderRuntimeModels, listProviderSecretKeys } from '../../ai/providers/service';
 import { PiExecutionService } from '../../ai/runtime/pi/execution-service';
-import { getAllPresetSecrets, getAllSecrets, getFirstApiKey } from '../../ai/settings-store';
+import { getAllSecrets, getFirstApiKey } from '../../ai/settings-store';
 import type { ChatMessage, ChatRequest, ImageGenerationRequest, ProviderAdapter, ProviderCapabilityKey, ProviderPresetFields, ProviderSecrets } from '../../ai/types';
 import type { NodeConfig, PortSchema } from '../types';
 
@@ -14,7 +14,7 @@ type ModelRecord = {
   description?: string;
   free?: boolean;
   id: string;
-  label: string;
+  label?: string;
   type?: string;
 };
 
@@ -85,10 +85,9 @@ export function getWorkflowProviderPresetId(config?: NodeConfig): string | undef
 
 export async function getProviderOptions(capability?: ProviderCapabilityKey): Promise<{ value: string; label: string }[]> {
   try {
-    const { listProviders } = await import('../../ai/registry');
-    return listProviders()
-      .filter((provider) => !capability || getProviderCapabilities(provider.id, provider)[capability])
-      .map((provider) => ({ value: provider.id, label: provider.label }));
+    return listProviderDefinitions()
+      .filter((definition) => !capability || getProviderCapabilities(definition.id)[capability])
+      .map((definition) => ({ value: definition.id, label: definition.display.label }));
   } catch {
     return [];
   }
@@ -97,7 +96,7 @@ export async function getProviderOptions(capability?: ProviderCapabilityKey): Pr
 export async function getDynamicModelConfig(options: DynamicModelConfigOptions): Promise<PortSchema[]> {
   const { defaultProviderId = '', emptyModelDescription, modelDescription, modelLabel, modelPredicate, providerCapability, providerId, required = true, warningScope } = options;
   const resolvedProviderPresetId = resolveProviderPresetId(options);
-  const selectedPreset = resolvedProviderPresetId ? PresetsStore.get(resolvedProviderPresetId) : undefined;
+  const selectedPreset = getPreset(resolvedProviderPresetId);
   const resolvedProviderId = selectedPreset?.providerId || providerId;
 
   const config: PortSchema[] = [
@@ -179,7 +178,7 @@ function getProviderPresetOptions(providerId?: string): Array<{ value: string; l
     return [baseOption];
   }
 
-  const presets = PresetsStore.list(providerId)
+  const presets = listPresets(providerId)
     .slice()
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .map((preset) => ({
@@ -195,7 +194,7 @@ export async function resolveWorkflowProviderContext(reference: WorkflowProvider
   const { getProvider } = await import('../../ai/registry');
   const { emit, providerId } = reference;
   const resolvedProviderPresetId = resolveProviderPresetId(reference);
-  const providerPreset = resolvedProviderPresetId ? PresetsStore.get(resolvedProviderPresetId) : undefined;
+  const providerPreset = getPreset(resolvedProviderPresetId);
   const resolvedProviderId = providerPreset?.providerId || providerId;
   const provider = getProvider(resolvedProviderId);
 
@@ -203,10 +202,9 @@ export async function resolveWorkflowProviderContext(reference: WorkflowProvider
     throw new Error(`未找到服务商: ${resolvedProviderId}`);
   }
 
-  const schema = provider.getConfigSchema?.();
-  const keys = (schema?.fields || []).map((field) => field.key);
+  const keys = listProviderSecretKeys(provider.id);
   const providerSecrets = await getAllSecrets(provider.id, keys);
-  const presetSecrets = resolvedProviderPresetId ? await getAllPresetSecrets(resolvedProviderPresetId, keys) : {};
+  const presetSecrets = await getPresetSecrets(resolvedProviderPresetId, keys);
   const secrets = {
     ...providerSecrets,
     ...presetSecrets
@@ -342,16 +340,10 @@ export function readImageAsRichContent(imagePath: string): Extract<WorkflowRichC
 
 async function loadProviderModels(providerId: string, predicate: (model: ModelRecord) => boolean, warningScope: string): Promise<Array<{ value: string; label: string }>> {
   try {
-    const modelsPath = path.join(process.env.APP_ROOT || process.cwd(), 'resources', 'providers', `${providerId}.models.json`);
-
-    if (!fs.existsSync(modelsPath)) {
-      return [];
-    }
-
-    const modelsData = JSON.parse(fs.readFileSync(modelsPath, 'utf8')) as { models?: ModelRecord[] };
-    return (modelsData.models || []).filter(predicate).map((model) => ({
+    const models = await listProviderRuntimeModels(providerId);
+    return models.filter(predicate).map((model) => ({
       value: model.id,
-      label: model.label + (model.description ? ` - ${model.description}` : '') + (model.free ? ' (免费)' : '')
+      label: (model.label || model.id) + (model.description ? ` - ${model.description}` : '') + (model.free ? ' (免费)' : '')
     }));
   } catch (error) {
     console.warn(`[${warningScope}] Failed to load models for provider ${providerId}:`, error);

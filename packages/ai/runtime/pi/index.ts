@@ -3,7 +3,6 @@ export * from './execution-service';
 export * from './image-generation-service';
 export * from './model-resolver';
 export * from './profile-registry';
-export * from './provider-alias';
 export * from './runtime-switch';
 export * from './session-factory';
 export * from './session-service';

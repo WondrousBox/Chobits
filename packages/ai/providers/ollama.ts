@@ -1,54 +1,21 @@
-import { loadProviderSchema } from '../schema-loader';
-import { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, ProviderAdapter, ProviderCapabilities, ProviderConfig, ProviderDefaultModels, ProviderSecrets, StreamEvent } from '../types';
-import { getBuiltinProviderMetadata } from './metadata';
+import { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, ProviderAdapter, ProviderSecrets, StreamEvent } from '../types';
+import { getBuiltinProviderDefinitionOrThrow, getRequiredBuiltinProviderDefaultModel } from './service';
 import { createOllamaClient, executeOllamaChat, executeOllamaEmbedding, listOllamaModels, type OllamaRuntimeSecrets } from './ollama-runtime';
 
 type OllamaSecrets = OllamaRuntimeSecrets;
 
 export class OllamaProvider implements ProviderAdapter {
-  private readonly metadata = getBuiltinProviderMetadata('ollama');
-  readonly id = 'ollama';
-  readonly label = this.metadata?.label || 'Ollama (local)';
+  private readonly definition = getBuiltinProviderDefinitionOrThrow('ollama');
+  private readonly defaultModels = this.definition.defaults.models;
+  readonly id = this.definition.id;
+  readonly label = this.definition.display.label;
   private secrets: OllamaSecrets = {};
-  private readonly defaultModel = this.metadata?.defaultModel || 'llama3.1';
-  private readonly defaultBaseUrl = this.metadata?.providerBaseUrl || 'http://127.0.0.1:11434';
+  private readonly defaultModel = this.defaultModels.chat;
+  private readonly defaultBaseUrl = this.definition.protocol.baseUrl;
+  private readonly defaultEmbeddingModel = getRequiredBuiltinProviderDefaultModel('ollama', 'embeddings');
 
   isConfigured(): boolean {
     return true;
-  }
-
-  getCapabilities(): ProviderCapabilities {
-    return {
-      ...(this.metadata?.capabilities || {
-        chat: true,
-        embeddings: true,
-        imageGeneration: false,
-        modelListing: true,
-        transcribe: false
-      })
-    };
-  }
-
-  getDefaultModels(): ProviderDefaultModels {
-    return {
-      ...(this.metadata?.defaultModels || {
-        chat: this.defaultModel,
-        embeddings: 'nomic-embed-text'
-      })
-    };
-  }
-
-  getConfigSchema(): ProviderConfig {
-    const fallback: ProviderConfig = {
-      id: this.id,
-      label: this.label,
-      enabled: true,
-      fields: [
-        { key: 'baseUrl', label: 'Base URL', type: 'text' },
-        { key: 'model', label: '默认模型（如 llama3.1）', type: 'text' }
-      ]
-    };
-    return loadProviderSchema(this.id, fallback);
   }
   setSecrets(secrets: ProviderSecrets): void {
     this.secrets = { ...this.secrets, ...(secrets as any) };
@@ -94,7 +61,7 @@ export class OllamaProvider implements ProviderAdapter {
       client: this.client(overrideSecrets),
       request: req,
       providerId: this.id,
-      defaultModel: 'nomic-embed-text',
+      defaultModel: this.defaultEmbeddingModel,
       configuredModel: resolvedSecrets.model
     });
   }

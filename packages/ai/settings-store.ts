@@ -6,7 +6,7 @@ import { app } from 'electron';
 import keytar from 'keytar';
 
 import { SERVICE, SERVICE_INST } from '../common/config';
-import { getProviderAliases, toCanonicalProviderId } from './runtime/pi/provider-alias';
+import { getProviderAliases, toCanonicalProviderId } from './providers/service';
 
 // 配置：是否启用 keytar（默认 false，使用本地文件存储）
 // 如果需要使用 keytar，将此值改为 true
@@ -122,7 +122,7 @@ async function deleteProviderKeytarEntries(providerId: string, key?: string): Pr
   }
 }
 
-export async function setSecret(providerId: string, key: string, value: string): Promise<void> {
+async function setSecret(providerId: string, key: string, value: string): Promise<void> {
   // 默认使用文件存储
   const storage = readStorage();
   const nextRecord = {
@@ -143,7 +143,7 @@ export async function setSecret(providerId: string, key: string, value: string):
   }
 }
 
-export async function getSecret(providerId: string, key: string): Promise<string | undefined> {
+async function getSecret(providerId: string, key: string): Promise<string | undefined> {
   // 如果启用了 keytar，优先从 keytar 读取
   if (ENABLE_KEYTAR) {
     for (const storageId of [...listProviderStorageIds(providerId)].reverse()) {
@@ -177,18 +177,6 @@ export async function setProviderSecrets(providerId: string, secrets: Record<str
   }
 }
 
-export async function deleteSecret(providerId: string, key: string): Promise<void> {
-  // 从文件存储删除
-  const storage = readStorage();
-  const nextRecord = { ...readProviderRecord(storage, providerId) };
-  delete nextRecord[key];
-  writeProviderRecord(storage, providerId, nextRecord);
-  writeStorage(storage.providers, storage.instances);
-
-  // 如果启用了 keytar，也从 keytar 删除
-  await deleteProviderKeytarEntries(providerId, key);
-}
-
 export async function clearProviderSecrets(providerId: string): Promise<void> {
   // 从文件存储删除
   const storage = readStorage();
@@ -199,7 +187,7 @@ export async function clearProviderSecrets(providerId: string): Promise<void> {
   await deleteProviderKeytarEntries(providerId);
 }
 
-export async function setPresetSecret(presetId: string, key: string, value: string): Promise<void> {
+async function setPresetSecret(presetId: string, key: string, value: string): Promise<void> {
   // 默认使用文件存储
   const storage = readStorage();
   storage.instances[presetId] = { ...(storage.instances[presetId] || {}), [key]: value };
@@ -215,7 +203,7 @@ export async function setPresetSecret(presetId: string, key: string, value: stri
   }
 }
 
-export async function getPresetSecret(presetId: string, key: string): Promise<string | undefined> {
+async function getPresetSecret(presetId: string, key: string): Promise<string | undefined> {
   // 如果启用了 keytar，优先从 keytar 读取
   if (ENABLE_KEYTAR) {
     try {
@@ -243,47 +231,6 @@ export async function getAllPresetSecrets(presetId: string, keys: string[]): Pro
 export async function setPresetSecrets(presetId: string, secrets: Record<string, string>): Promise<void> {
   for (const [k, v] of Object.entries(secrets)) {
     if (v != null) await setPresetSecret(presetId, k, v);
-  }
-}
-
-export async function deletePresetSecret(presetId: string, key: string): Promise<void> {
-  // 从文件存储删除
-  const storage = readStorage();
-  if (storage.instances[presetId]) {
-    delete storage.instances[presetId][key];
-    writeStorage(storage.providers, storage.instances);
-  }
-
-  // 如果启用了 keytar，也从 keytar 删除
-  if (ENABLE_KEYTAR) {
-    try {
-      await keytar.deletePassword(SERVICE_INST, `${presetId}:${key}`);
-    } catch {
-      // ignore keytar errors
-    }
-  }
-}
-
-export async function clearPresetSecrets(presetId: string): Promise<void> {
-  // 从文件存储删除
-  const storage = readStorage();
-  if (storage.instances[presetId]) {
-    delete storage.instances[presetId];
-    writeStorage(storage.providers, storage.instances);
-  }
-
-  // 如果启用了 keytar，也从 keytar 删除
-  if (ENABLE_KEYTAR) {
-    try {
-      const credentials = await keytar.findCredentials(SERVICE_INST);
-      for (const cred of credentials) {
-        if (cred.account.startsWith(`${presetId}:`)) {
-          await keytar.deletePassword(SERVICE_INST, cred.account);
-        }
-      }
-    } catch {
-      // ignore keytar errors
-    }
   }
 }
 

@@ -62,7 +62,7 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
     return existing || null;
   });
   initStatusHandlers(win);
-  initAIHandlers(win);
+  await initAIHandlers(win);
   initRecorderHandlers();
   initSherpaHandlers();
   initTTSHandlers();
