@@ -25,15 +25,13 @@
   - 主进程启动时已接入插件 provider manifest 扫描、校验、注册与告警输出
   - 声明式 plugin provider 已支持复用 `openai/openai-compatible/anthropic/gemini/ollama` driver 自动创建 adapter
   - `runtime.mode = module` 已支持动态模块加载与 adapter 注册
-- 进行中：Phase 5（遗留目录与文档清理）
+- 已完成：Phase 5（遗留目录与文档清理）
   - 已清理：
     - `resources/providers/*.schema.json`
     - `resources/providers/*.models.json`
-    - `packages/ai/model-bank/modelProviders`
-    - `packages/ai/model-bank/aiModels`
-    - `packages/ai/model-bank/const/modelProvider.ts`
+    - 历史 provider/model 目录与相关旧枚举
   - `resources/providers` 目录现在仅保留 `icons/*` 打包资源
-  - `packages/ai/model-bank/index.ts` 已收缩为仅导出共享类型与参数 schema
+  - 共享模型类型与参数 schema 已并入 `packages/ai/providers/model-types.ts` 与 `packages/ai/providers/model-params.ts`
   - `Preset` 已切到 `overrides` 为主语义；`config` 仅保留读写兼容 alias
 
 ## 1. 背景与当前问题
@@ -48,10 +46,8 @@
   - 保存默认模型、能力、base URL、kind。
 - `packages/ai/providers/*.ts`
   - 保存运行时适配逻辑，同时又重复保存默认模型、schema fallback 等信息。
-- `packages/ai/model-bank/modelProviders/*.ts`
-  - 保存 Provider 卡片信息，如名称、官网、`sdkType`、`showModelFetcher` 等。
-- `packages/ai/model-bank/aiModels/*.ts`
-  - 保存另一套更完整的模型定义。
+- 历史 provider/model 目录
+  - 过去保存过 Provider 卡片、内建模型与旧枚举，现已删除。
 - `packages/workflow/nodes/ai-workflow-utils.ts`
   - 直接读取 `resources/providers/*.models.json`，绕过 Provider registry。
 
@@ -101,7 +97,7 @@ Provider 定义负责“声明”，Provider runtime 负责“执行”。多数
 
 ### 3.5 所有消费方走统一入口
 
-Renderer、Workflow、Pi runtime、后台任务、设置页，不允许再直接读取某个 JSON 文件或 model-bank 子目录，而是统一通过 `ProviderService` / `ProviderRegistry` 获取 Provider 信息。
+Renderer、Workflow、Pi runtime、后台任务、设置页，不允许再直接读取任何旧 JSON/旧目录源，而是统一通过 `ProviderService` / `ProviderRegistry` 获取 Provider 信息。
 
 ## 4. 非目标
 
@@ -234,7 +230,7 @@ export interface ProviderDefinition {
 
 ### 6.2 ProviderModelDefinition
 
-模型也需要统一为一套结构，避免 `resources/providers/*.models.json` 和 `model-bank/aiModels` 双维护：
+模型也需要统一为一套结构，避免 `resources/providers/*.models.json` 与历史内建模型源双维护：
 
 ```ts
 export interface ProviderModelDefinition {
@@ -352,14 +348,8 @@ packages/ai/providers/
 - `resources/providers`
   - 第一阶段仅保留图标资源。
   - 第二阶段删除 `*.schema.json`、`*.models.json`。
-- `packages/ai/model-bank/modelProviders`
-  - 迁移后删除，信息并入 `ProviderDefinition.display` 和 `schema`。
-- `packages/ai/model-bank/aiModels`
-  - 已完成删除；builtin 模型清单统一收敛到 `providers/builtins/*/models.ts`。
-- `packages/ai/model-bank/index.ts`
-  - 已不再导出旧模型目录，只保留共享类型与参数 schema。
-- `packages/ai/model-bank/const/modelProvider.ts`
-  - 已完成删除；provider canonical id 统一由 `ProviderDefinition.id` 管理。
+- 历史 provider/model 目录
+  - 已完成删除；其中的 Provider 卡片、builtin 模型、共享模型类型/参数 schema 与旧枚举职责，已分别并入 `ProviderDefinition`、`providers/builtins/*/models.ts`、`providers/model-types.ts`、`providers/model-params.ts` 与 `ProviderDefinition.id`。
 - `packages/ai/providers/metadata.ts` / `packages/ai/providers/aliases.ts`
   - 已完成删除，相关职责已经并入 `ProviderService`。
 - `packages/ai/models-loader.ts` / `packages/ai/schema-loader.ts`
@@ -741,7 +731,7 @@ export function createProviderRuntime(definition: ProviderDefinition): ProviderR
 
 任务：
 
-- `model-bank/aiModels` 逐 provider 迁入 `providers/builtins/*/models.ts`
+- 历史 builtin 模型源逐 provider 迁入 `providers/builtins/*/models.ts`
 - 模型读取先迁到 `ProviderService`，兼容壳后续删除
 - `openai-runtime.ts`、`gemini-runtime.ts`、`provider-runtime-utils.ts` 统一调用 ProviderService
 - 修复 `gemini` / `google` provider id 分叉
@@ -749,8 +739,7 @@ export function createProviderRuntime(definition: ProviderDefinition): ProviderR
 完成标志：
 
 - 列模型只走统一 ProviderService。
-- `model-bank/modelProviders` 不再被主链路依赖。
-- `model-bank/aiModels` 兼容出口已删除。
+- 历史 provider/model 目录不再被主链路依赖。
 
 ### Phase 3：切换业务消费方（已完成）
 
@@ -767,7 +756,7 @@ export function createProviderRuntime(definition: ProviderDefinition): ProviderR
 
 完成标志：
 
-- 业务代码中不再直接读 `resources/providers` 和 `model-bank/modelProviders`
+- 业务代码中不再直接读 `resources/providers` 和历史 provider/model 目录
 - Provider 相关读取统一通过 registry/service
 
 ### Phase 4：引入插件 Provider（已完成主链路）
@@ -791,7 +780,7 @@ export function createProviderRuntime(definition: ProviderDefinition): ProviderR
 - 声明式插件 Provider 已可创建 preset、配置 secrets、列模型、执行 chat。
 - 模块化插件 Provider 已可通过 `runtime.modulePath` + `runtime.exportName` 注册自定义 adapter。
 
-### Phase 5：清理遗留实现（进行中）
+### Phase 5：清理遗留实现（已完成）
 
 目标：
 
@@ -801,10 +790,7 @@ export function createProviderRuntime(definition: ProviderDefinition): ProviderR
 
 - [x] 删除 `resources/providers/*.schema.json`
 - [x] 删除 `resources/providers/*.models.json`
-- [x] 删除 `packages/ai/model-bank/modelProviders`
-- [x] 删除 `packages/ai/model-bank/aiModels`
-- [x] 删除 `packages/ai/model-bank/const/modelProvider.ts`
-- [x] 收缩 `packages/ai/model-bank/index.ts`
+- [x] 删除整个历史 provider/model 目录与相关旧枚举
 - [x] 删除 `metadata.ts`、`aliases.ts`、`schema-loader.ts`、`models-loader.ts`、`runtime/pi/provider-alias.ts`
 - [x] 更新 `ai-module-design.md`
 
@@ -812,7 +798,7 @@ export function createProviderRuntime(definition: ProviderDefinition): ProviderR
 
 - Provider 数据不再需要多处同步维护。
 - `resources/providers` 只保留图标等打包资产，不再承载 schema/models 运行时数据。
-- `model-bank` 仅保留共享模型类型与参数 schema，不再暴露内建 provider 模型目录。
+- 历史模型共享层已完全删除；共享模型类型与参数 schema 已并入 `providers/model-types.ts` 与 `providers/model-params.ts`。
 - 旧的 provider id 枚举不再单独维护，统一收敛到 `ProviderDefinition.id`。
 - 新增 Provider 的最少工作量降到“写 definition + 可选 runtime”。
 
@@ -909,7 +895,7 @@ export function createProviderRuntime(definition: ProviderDefinition): ProviderR
 - Plugin Provider 用 manifest + 可选 runtime module 的方式接入同一个 registry。
 - `Preset` 只保留用户覆盖项。
 - 所有 Provider 读取都必须经过 `ProviderService`。
-- `resources/providers/*.schema.json`、`resources/providers/*.models.json`、`model-bank/modelProviders`、`model-bank/aiModels`、`model-bank/const/modelProvider.ts`、`providers/metadata.ts` 这些并行来源已经退出主链路；`resources/providers` 目录只保留图标资产，`model-bank` 只保留共享类型与参数 schema。
+- 历史并行来源（资源 JSON、旧 provider/model 目录、`providers/metadata.ts` 等）已经退出主链路；`resources/providers` 目录只保留图标资产，共享模型类型与参数 schema 已并入 `providers/model-types.ts` 与 `providers/model-params.ts`。
 
 一句话总结最终形态：
 

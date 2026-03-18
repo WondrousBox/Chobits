@@ -1,12 +1,8 @@
 import type { ProviderAdapter, ProviderCapabilities, ProviderCapabilityKey, ProviderConfig, ProviderDefaultModels } from '../types';
 import { BUILTIN_PROVIDER_DEFINITIONS } from './builtins';
-import {
-  getRegisteredProviderAliases,
-  getRegisteredProviderDefinition,
-  listRegisteredProviderDefinitions,
-  registerProviderDefinition
-} from './registry';
-import type { BuiltinProviderDefinition, BuiltinProviderId, ProviderDefinition, ProviderModelDefinition } from './types';
+import type { ProviderModelDefinition } from './model-types';
+import { getRegisteredProviderAliases, getRegisteredProviderDefinition, listRegisteredProviderDefinitions, registerProviderDefinition } from './registry';
+import type { BuiltinProviderDefinition, BuiltinProviderId, ProviderDefinition } from './types';
 import { isBuiltinProviderDefinition } from './types';
 
 let builtinDefinitionsRegistered = false;
@@ -59,7 +55,9 @@ export function listProviderDefinitionAliases(providerId?: string): string[] {
 }
 
 function normalizeProviderId(providerId?: string): string {
-  return String(providerId || '').trim().toLowerCase();
+  return String(providerId || '')
+    .trim()
+    .toLowerCase();
 }
 
 function cloneProviderModelDefinition(model: ProviderModelDefinition, providerId?: string): ProviderModelDefinition {
@@ -109,7 +107,9 @@ function listModelsForDefinition(definition: ProviderDefinition): ProviderModelD
 }
 
 function resolveRuntimeModelType(providerId: string, model: ProviderModelDefinition): ProviderRuntimeModelInfo['type'] {
-  const rawType = String(model.type || 'chat').trim().toLowerCase();
+  const rawType = String(model.type || 'chat')
+    .trim()
+    .toLowerCase();
 
   if (rawType === 'stt' || rawType === 'tts') {
     return 'audio';
@@ -135,7 +135,11 @@ function resolveRuntimeModelCapabilities(providerId: string, model: ProviderMode
   if (model.abilities?.imageOutput) capabilities.imageOutput = true;
   if (model.abilities?.structuredOutput) capabilities.json = true;
   if (type === 'image') capabilities.image_generation = true;
-  if (String(model.type || '').trim().toLowerCase() === 'stt') {
+  if (
+    String(model.type || '')
+      .trim()
+      .toLowerCase() === 'stt'
+  ) {
     capabilities.asr = true;
     capabilities.transcribe = true;
   }
@@ -199,11 +203,7 @@ function getProviderDefinitionDefaultModels(providerId?: string): ProviderDefaul
   return getProviderDefinition(providerId)?.defaults.models;
 }
 
-export function getProviderDefinitionDefaultModel(
-  providerId: string | undefined,
-  capability: keyof ProviderDefaultModels,
-  fallbackProviderId = 'openai'
-): string | undefined {
+export function getProviderDefinitionDefaultModel(providerId: string | undefined, capability: keyof ProviderDefaultModels, fallbackProviderId = 'openai'): string | undefined {
   return getProviderDefinitionDefaultModels(providerId)?.[capability] || getProviderDefinitionDefaultModels(fallbackProviderId)?.[capability];
 }
 
@@ -322,10 +322,7 @@ export async function listProviderDefinitionModels(providerId?: string): Promise
   return models.flat();
 }
 
-export function getRequiredBuiltinProviderDefaultModel(
-  providerId: BuiltinProviderId,
-  capability: keyof ProviderDefaultModels
-): string {
+export function getRequiredBuiltinProviderDefaultModel(providerId: BuiltinProviderId, capability: keyof ProviderDefaultModels): string {
   const definition = getBuiltinProviderDefinitionOrThrow(providerId);
   const model = definition.defaults.models[capability];
   if (!model) {

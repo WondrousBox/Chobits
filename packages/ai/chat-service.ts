@@ -170,9 +170,7 @@ ${JSON.stringify(req, null, 2)}
     }
 
     if (shouldPersist && lastUserMessage && conv) {
-      await this.persistConversationMessage(conv.id, lastUserMessage).catch(() => {
-        //
-      });
+      await this.persistConversationMessageSafely(conv.id, lastUserMessage, emit, 'user');
     }
 
     let contextMessages: ChatMessage[] | undefined = (req.messages || []).length ? req.messages : undefined;
@@ -240,9 +238,7 @@ ${JSON.stringify(req, null, 2)}
     }
 
     if (conv && finalMessage) {
-      await this.persistConversationMessage(conv.id, finalMessage).catch(() => {
-        //
-      });
+      await this.persistConversationMessageSafely(conv.id, finalMessage, emit, 'assistant');
     }
 
     if (conv && finalMessage?.content && !conv.title) {
@@ -344,8 +340,30 @@ ${JSON.stringify(req, null, 2)}
           toolCallId: row.toolCallId ?? undefined
         };
       });
-    } catch {
+    } catch (error) {
+      console.warn('[ChatService] Failed to load conversation context messages:', error);
       return undefined;
+    }
+  }
+
+  private async persistConversationMessageSafely(conversationId: string, message: ChatMessage, emit: (event: StreamEvent) => void, phase: 'assistant' | 'user'): Promise<boolean> {
+    try {
+      await this.persistConversationMessage(conversationId, message);
+      return true;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.warn(`[ChatService] Failed to persist ${phase} conversation message:`, error);
+      emit({
+        type: 'metadata',
+        data: {
+          conversationId,
+          persistenceWarning: {
+            message: errorMessage,
+            phase
+          }
+        }
+      });
+      return false;
     }
   }
 
@@ -368,6 +386,10 @@ ${JSON.stringify(req, null, 2)}
     this.broadcastToAllWindows(CONV_TITLE_UPDATED_CHANNEL, { conversationId, title: null, status: 'generating' });
 
     try {
+      const titleMessages: ChatMessage[] = [
+        { role: 'system', content: '你是一个标题生成助手。请根据以下用户和AI的对话内容，生成一个简洁的对话标题（不超过20个字）。只输出标题本身，不要加引号、前缀或解释。' },
+        { role: 'user', content: `用户: ${userContent}\nAI: ${assistantContent.slice(0, 500)}` }
+      ];
       const titleReq: ChatRequest = normalizeProviderPreset({
         agentId: 'chat',
         providerId: resolved.providerId,
@@ -377,10 +399,7 @@ ${JSON.stringify(req, null, 2)}
               model: resolved.extras.model
             }
           : undefined,
-        messages: [
-          { role: 'system', content: '你是一个标题生成助手。请根据以下用户和AI的对话内容，生成一个简洁的对话标题（不超过20个字）。只输出标题本身，不要加引号、前缀或解释。' },
-          { role: 'user', content: `用户: ${userContent}\nAI: ${assistantContent.slice(0, 500)}` }
-        ],
+        messages: titleMessages,
         persist: false
       });
       let title = '';

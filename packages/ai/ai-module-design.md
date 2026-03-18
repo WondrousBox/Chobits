@@ -29,8 +29,10 @@ AI 模块目前作为独立包位于 `packages/ai` 下，由主进程在启动�
 - `packages/ai/providers/catalog.ts`：内建 Provider adapter 的启动注册入口
 - `packages/ai/preset-service.ts`：统一 Preset 业务入口，负责预设 CRUD、preset secret 读取/写入与业务侧查询收口
 - `packages/ai/chat-service.ts`：对话服务，负责流式处理、取消、与 IPC 集成，并与 `ChatRepo` 做会话/消息持久化
-- `packages/ai/settings-store.ts`：基于 keytar 的 Provider/预设秘钥存储，带 JSON 文件回退（`userData/data/ai-settings.json`，内部仍兼容历史 `instances` 字段）
-- `packages/ai/presets-store.ts`：Provider 预设（Preset）底层存储，负责基础持久化、历史数据兼容读取与 canonical provider id 归一化
+- `packages/ai/settings-store.ts`：Provider 秘钥与 API key 存储，带 JSON 文件回退（`userData/data/ai-settings.json`）
+- `packages/ai/preset-secrets-store.ts`：Preset secret 底层存储，负责 preset 维度的 keytar / JSON 读写
+- `packages/ai/settings-storage.ts`：`settings-store.ts` 与 `preset-secrets-store.ts` 共享的底层文件存储 helper
+- `packages/ai/presets-store.ts`：Provider 预设（Preset）底层存储 helper，负责基础持久化、历史数据兼容读取与 canonical provider id 归一化
 - `packages/ai/prompts-store.ts`：提示词模板（Prompt Template）存储与 CRUD
 - `packages/ai/services/tagging-service.ts`：自动选预设 + 文本自动打标签服务，暴露 `ai:autoTagText`
 - `packages/ai/ipc-main.ts`：AI 相关 IPC 处理器入口（注册 builtin provider、初始化 ChatService、注册设置/预设/模板/会话等 IPC）
@@ -213,6 +215,7 @@ Renderer → Preload → Main：
 - **`ai:createPreset`** `({ providerId, name, model?, systemPrompt?, overrides?, config? })` → 新建预设记录（`config` 仅保留兼容 alias）
 - **`ai:updatePreset`** `({ id, patch })` → 更新预设
 - **`ai:deletePreset`** `({ id })` → `{ ok: boolean }`
+  - 通过 `PresetService` 删除预设记录，并同步清理该 preset 的 secret 存储。
 - **`ai:getPresetSecrets`** `({ presetId })` → `{ [field]: value }`
   - 通过 `PresetService` 根据预设关联的 Provider schema 取出字段，再从 keytar/JSON 读出值。
 - **`ai:setPresetSecrets`** `({ presetId, secrets })` → `{ ok: true }`
@@ -303,18 +306,19 @@ Provider 适配要点：
 
 ## 8. 秘钥与配置存储
 
-- **存储实现**：`settings-store.ts`
+- **存储实现**：`settings-store.ts` + `preset-secrets-store.ts`
   - 首选使用 keytar，将 Provider/预设秘钥存放在系统密钥链中；
   - 当 keytar 不可用时，自动回退到 `userData/data/ai-settings.json`，结构：
     - `providers: Record<providerId, Record<key, value>>`
     - `instances: Record<presetId, Record<key, value>>`（字段名保留历史兼容）
 - **Provider 配置**：
   - 前端通过 `getProviders` 获取 schema，并动态渲染配置表单；
-  - 通过 `setProviderSecrets`/`clearProviderSecrets` 读写秘钥。
+  - 通过 `settings-store.ts` 暴露的 `setProviderSecrets`/`clearProviderSecrets` 读写秘钥。
 - **预设配置**：
   - `PresetService` 是业务侧唯一的预设读写入口；
-  - `PresetsStore` 仅保存预设的基础信息（名称、模型、系统提示词、自定义 overrides 等）；
-  - 预设秘钥则由 `setPresetSecrets`/`getPresetSecrets` 管理，并在运行时与 provider secrets 合并。
+  - `presets-store.ts` 仅保存预设的基础信息（名称、模型、系统提示词、自定义 overrides 等）；
+  - 预设秘钥底层由 `preset-secrets-store.ts` 管理，并在运行时与 provider secrets 合并；
+  - 删除预设时，`PresetService` 会同步清理对应的 preset secrets。
 
 ## 9. 安全、稳定性与观测
 

@@ -1,12 +1,12 @@
-import { ModelParamsSchema } from '../../../model-bank/standard-parameters';
-import {
-  AIChatModelCard,
-  AIEmbeddingModelCard,
-  AIImageModelCard,
-  AIRealtimeModelCard,
-  AISTTModelCard,
-  AITTSModelCard,
-} from '../../../model-bank/types/aiModel';
+import type { ModelParamsSchema } from '../../model-params';
+import type {
+  ChatProviderModelCard,
+  EmbeddingProviderModelCard,
+  ImageProviderModelCard,
+  RealtimeProviderModelCard,
+  STTProviderModelCard,
+  TTSProviderModelCard,
+} from '../../model-types';
 
 export const gptImage1ParamsSchema: ModelParamsSchema = {
   imageUrls: { default: [] },
@@ -17,7 +17,7 @@ export const gptImage1ParamsSchema: ModelParamsSchema = {
   },
 };
 
-export const openaiChatModels: AIChatModelCard[] = [
+export const openaiChatModels: ChatProviderModelCard[] = [
   {
     abilities: {
       functionCall: true,
@@ -1099,7 +1099,7 @@ export const openaiChatModels: AIChatModelCard[] = [
   },
 ];
 
-export const openaiEmbeddingModels: AIEmbeddingModelCard[] = [
+export const openaiEmbeddingModels: EmbeddingProviderModelCard[] = [
   {
     contextWindowTokens: 8192,
     description: 'The most capable embedding model for English and non-English tasks.',
@@ -1130,7 +1130,7 @@ export const openaiEmbeddingModels: AIEmbeddingModelCard[] = [
 ];
 
 // Text-to-speech models
-export const openaiTTSModels: AITTSModelCard[] = [
+export const openaiTTSModels: TTSProviderModelCard[] = [
   {
     description: 'The latest text-to-speech model optimized for real-time speed.',
     displayName: 'TTS-1',
@@ -1165,7 +1165,7 @@ export const openaiTTSModels: AITTSModelCard[] = [
 ];
 
 // Speech recognition models
-export const openaiSTTModels: AISTTModelCard[] = [
+export const openaiSTTModels: STTProviderModelCard[] = [
   {
     description:
       'A general speech recognition model supporting multilingual ASR, speech translation, and language identification.',
@@ -1218,7 +1218,7 @@ export const openaiSTTModels: AISTTModelCard[] = [
 ];
 
 // Image generation models
-export const openaiImageModels: AIImageModelCard[] = [
+export const openaiImageModels: ImageProviderModelCard[] = [
   {
     description:
       'An enhanced GPT Image 1 model with 4× faster generation, more precise editing, and improved text rendering.',
@@ -1352,7 +1352,7 @@ export const openaiImageModels: AIImageModelCard[] = [
 ];
 
 // GPT-4o and GPT-4o-mini realtime models
-export const openaiRealtimeModels: AIRealtimeModelCard[] = [
+export const openaiRealtimeModels: RealtimeProviderModelCard[] = [
   {
     abilities: {
       functionCall: true,

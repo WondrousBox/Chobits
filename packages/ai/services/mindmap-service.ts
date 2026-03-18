@@ -4,6 +4,8 @@
 
 import { type AimSegments } from '@aim-packages/subtitle';
 
+import { bindAbortControllerToSignal, createTaskRegistry, type ManagedTask } from './task-manager';
+
 /**
  * 脑图进度数据
  */
@@ -113,6 +115,10 @@ export interface MindmapRequest {
   requestId: string;
   /** 聊天函数（必填，用于执行实际的 AI 调用） */
   chatFn: ChatFunction;
+  /** Provider ID（必填，用于任务状态展示） */
+  providerId: string;
+  /** 实际使用的模型 ID（必填，用于任务状态展示） */
+  model: string;
   /** 任务标签（可选，用于显示和任务管理，如 'openai/gpt-4'） */
   taskLabel?: string;
   /** 待分析的内容（可以是文本字符串或字幕片段数组） */
@@ -163,53 +169,33 @@ Please ensure:
 7. Focus on key points without excessive detail
 8. Output ONLY the Markdown formatted outline, no additional explanation or code blocks`;
 
-/**
- * 活跃脑图任务管理
- */
-class MindmapServiceManager {
-  private activeMindmaps = new Map<string, { abortController: AbortController; taskLabel?: string }>();
+type MindmapTaskMetadata = {
+  providerId: string;
+  model: string;
+  metadata?: Record<string, any>;
+};
 
-  /**
-   * 开始脑图任务
-   */
-  startMindmap(requestId: string, abortController: AbortController, taskLabel?: string): void {
-    this.activeMindmaps.set(requestId, { abortController, taskLabel });
-  }
+type ActiveMindmapTaskSnapshot = {
+  requestId: string;
+  taskLabel?: string;
+  startTime: number;
+  providerId: string;
+  model: string;
+  metadata?: Record<string, any>;
+};
 
-  /**
-   * 取消脑图任务
-   */
-  cancelMindmap(requestId: string): boolean {
-    const task = this.activeMindmaps.get(requestId);
-    if (task) {
-      task.abortController.abort();
-      this.activeMindmaps.delete(requestId);
-      return true;
-    }
-    return false;
-  }
+const mindmapTasks = createTaskRegistry<MindmapTaskMetadata>();
 
-  /**
-   * 获取活跃任务列表
-   */
-  getActiveMindmaps(): Array<{ requestId: string; taskLabel?: string; startTime: number }> {
-    const now = Date.now();
-    return Array.from(this.activeMindmaps.entries()).map(([requestId, data]) => ({
-      requestId,
-      taskLabel: data.taskLabel,
-      startTime: now
-    }));
-  }
-
-  /**
-   * 完成脑图任务
-   */
-  completeMindmap(requestId: string): void {
-    this.activeMindmaps.delete(requestId);
-  }
+function toMindmapTaskInfo(task: ManagedTask<MindmapTaskMetadata>): ActiveMindmapTaskSnapshot {
+  return {
+    requestId: task.requestId,
+    taskLabel: task.taskLabel,
+    startTime: task.startTime,
+    providerId: task.providerId,
+    model: task.model,
+    metadata: task.metadata
+  };
 }
-
-const mindmapManager = new MindmapServiceManager();
 
 /**
  * 脑图服务类
@@ -219,37 +205,35 @@ export class MindmapService {
    * 取消脑图任务
    */
   static cancelMindmap(requestId: string): boolean {
-    return mindmapManager.cancelMindmap(requestId);
+    return mindmapTasks.cancel(requestId);
   }
 
   /**
    * 获取所有活跃的脑图任务
    */
-  static getAllActiveMindmaps(): Array<{ requestId: string; taskLabel?: string; startTime: number }> {
-    return mindmapManager.getActiveMindmaps();
+  static getAllActiveMindmaps(): ActiveMindmapTaskSnapshot[] {
+    return mindmapTasks.list().map(toMindmapTaskInfo);
   }
 
   /**
    * 执行脑图生成
    */
   static async generateMindmap(emit: MindmapEmitter, request: MindmapRequest, externalSignal?: AbortSignal): Promise<void> {
-    const { requestId, chatFn, taskLabel, content, targetLanguage, languageNames, metadata, options = {} } = request;
+    const { requestId, chatFn, providerId, model, taskLabel, content, targetLanguage, languageNames, metadata, options = {} } = request;
 
     const { maxChars = 10000, maxDepth = 4, promptTemplate } = options;
 
     const abortController = new AbortController();
-    mindmapManager.startMindmap(requestId, abortController, taskLabel);
-    const externalAbortHandler = (): void => {
-      abortController.abort();
-    };
-
-    if (externalSignal) {
-      if (externalSignal.aborted) {
-        abortController.abort();
-      } else {
-        externalSignal.addEventListener('abort', externalAbortHandler, { once: true });
+    mindmapTasks.start(requestId, {
+      controller: abortController,
+      taskLabel,
+      extra: {
+        providerId,
+        model,
+        metadata
       }
-    }
+    });
+    const cleanupExternalAbort = bindAbortControllerToSignal(abortController, externalSignal);
 
     try {
       emit({ type: 'connected' });
@@ -345,11 +329,11 @@ export class MindmapService {
         }
       });
 
-      mindmapManager.completeMindmap(requestId);
+      mindmapTasks.complete(requestId);
       emit({ type: 'done' });
     } catch (error: any) {
-      if (error.name === 'AbortError') {
-        mindmapManager.completeMindmap(requestId);
+      if (error.name === 'AbortError' || error.message === 'Aborted') {
+        mindmapTasks.complete(requestId);
         emit({ type: 'done' });
       } else {
         const errorMessage = error?.message || '生成脑图失败';
@@ -360,13 +344,11 @@ export class MindmapService {
             code: error?.code
           }
         });
-        mindmapManager.completeMindmap(requestId);
+        mindmapTasks.complete(requestId);
         emit({ type: 'done' });
       }
     } finally {
-      if (externalSignal) {
-        externalSignal.removeEventListener('abort', externalAbortHandler);
-      }
+      cleanupExternalAbort();
     }
   }
 

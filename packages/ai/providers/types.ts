@@ -1,4 +1,5 @@
 import type { ProviderAdapter, ProviderCapabilities, ProviderConfig, ProviderDefaultModels } from '../types';
+import type { ProviderModelDefinition } from './model-types';
 
 export type BuiltinProviderId = 'anthropic' | 'deepseek' | 'gemini' | 'ollama' | 'openai' | 'qwen' | 'zhipu';
 
@@ -7,34 +8,6 @@ export type BuiltinProviderKind = 'anthropic' | 'gemini' | 'ollama' | 'openai' |
 export type ProviderDefinitionSource = 'builtin' | 'plugin';
 
 export type ProviderModelStrategy = 'builtin' | 'remote' | 'hybrid';
-
-export interface ProviderModelAbilities {
-  files?: boolean;
-  functionCall?: boolean;
-  imageOutput?: boolean;
-  reasoning?: boolean;
-  search?: boolean;
-  structuredOutput?: boolean;
-  video?: boolean;
-  vision?: boolean;
-}
-
-export interface ProviderModelDefinition {
-  id: string;
-  providerId?: string;
-  displayName?: string;
-  type?: string;
-  enabled?: boolean;
-  contextWindowTokens?: number;
-  maxOutput?: number;
-  description?: string;
-  releasedAt?: string;
-  tags?: string[];
-  abilities?: ProviderModelAbilities | Record<string, boolean>;
-  pricing?: Record<string, any>;
-  settings?: Record<string, any>;
-  [k: string]: any;
-}
 
 export interface ProviderProtocolDefinition {
   kind: BuiltinProviderKind | 'custom';
@@ -59,12 +32,12 @@ export interface ProviderCatalogDefinition {
   defaultShowBrowserRequest?: boolean;
   disableBrowserRequest?: boolean;
   proxyUrl?:
-    | {
-        desc?: string;
-        placeholder: string;
-        title?: string;
-      }
-    | false;
+  | {
+    desc?: string;
+    placeholder: string;
+    title?: string;
+  }
+  | false;
   showApiKey?: boolean;
   settings?: Record<string, any>;
 }

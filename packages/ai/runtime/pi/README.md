@@ -96,7 +96,8 @@ Preset 是当前唯一的服务级配置复用单元：
 
 - 请求字段统一使用 `providerPresetId`
 - preset 业务读取统一使用 `preset-service.ts`
-- `PresetsStore` 仅保留为底层存储层
+- `presets-store.ts` 仅保留为底层存储层
+- preset secrets 底层存储统一使用 `preset-secrets-store.ts`
 - preset 记录以 `overrides` 为主字段
 - `config` 只在 preset CRUD 边界保留兼容 alias
 

@@ -4,7 +4,6 @@ import { ChatRepo } from '../common/db';
 import { pushCardToWindows } from './card-push';
 import { ChatService } from './chat-service';
 import { GlossaryStore } from './glossary-store';
-import { createPreset, deletePreset, getPreset, getPresetSecrets, listPresets, setPresetSecrets, updatePreset } from './preset-service';
 import {
   cancelMindmap,
   cleanupTranslationResources,
@@ -23,6 +22,7 @@ import {
   TranslatePayload,
   updateTranslationSegment
 } from './ipc-handler-helpers';
+import { createPreset, deletePreset, getPreset, getPresetSecrets, listPresets, setPresetSecrets, updatePreset } from './preset-service';
 import { PromptsStore } from './prompts-store';
 import { normalizeProviderPreset } from './provider-preset';
 import { registerBuiltInProviders } from './providers/catalog';
@@ -31,9 +31,9 @@ import {
   getProviderCapabilities,
   getProviderDefaultModels,
   getProviderDefinitionSchema,
-  listProviderSecretKeys,
   listProviderDefinitionAliases,
   listProviderDefinitions,
+  listProviderSecretKeys,
   supportsProviderCapability
 } from './providers/service';
 import { getProvider, listAgents, listProviders } from './registry';
@@ -225,7 +225,7 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
     return updatePreset(payload.id, payload.patch);
   });
   ipcMain.handle('ai:deletePreset', async (_e, payload: { id: string }) => {
-    return { ok: deletePreset(payload.id) };
+    return { ok: await deletePreset(payload.id) };
   });
   ipcMain.handle('ai:getPresetSecrets', async (_e, payload: { presetId: string }) => {
     return await getPresetSecrets(payload.presetId);
@@ -347,9 +347,9 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
   ipcMain.handle('ai:cancelSummary', async (_e, payload: { requestId: string }) => {
     const success = SummaryService.cancelSummary(payload.requestId);
     if (success) {
-      return { success: true };
+      return { ok: true };
     }
-    return { success: false, message: 'Task not found' };
+    return { ok: false, message: 'Task not found' };
   });
 
   // 获取所有活跃的总结任务
@@ -379,7 +379,7 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
 
   // 取消脑图生成
   ipcMain.handle('ai:cancelMindmap', async (_e, payload: { requestId: string }) => {
-    return cancelMindmap(payload.requestId);
+    return { ok: cancelMindmap(payload.requestId) };
   });
 
   // ==================== 笔记相关 ====================

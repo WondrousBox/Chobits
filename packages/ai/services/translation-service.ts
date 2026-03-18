@@ -1,5 +1,7 @@
 import { type AimSegments, parser, utils } from '@aim-packages/subtitle';
 
+import { bindAbortControllerToSignal, createTaskRegistry, type ManagedTask } from './task-manager';
+
 /**
  * 翻译进度数据
  */
@@ -202,6 +204,10 @@ export interface TranslationRequest {
   requestId: string;
   /** 聊天函数（必填，用于执行实际的 AI 调用） */
   chatFn: ChatFunction;
+  /** Provider ID（必填，用于任务状态展示） */
+  providerId: string;
+  /** 实际使用的模型 ID（必填，用于任务状态展示） */
+  model: string;
   /** 任务标签（可选，用于显示和任务管理，如 'openai/gpt-4'） */
   taskLabel?: string;
   /** 待翻译的片段数组 */
@@ -313,18 +319,36 @@ function formatGlossaryForPrompt(matched: GlossaryEntry[]): string {
   return `\nGlossary/Terminology guidance (please follow these translations for the specific terms):\n${lines.join('\n')}\n`;
 }
 
-interface ActiveTranslation {
-  requestId: string;
-  /** 任务标签（用于显示和任务管理） */
-  taskLabel: string;
-  startTime: number;
-  controller: AbortController;
+type TranslationTaskMetadata = {
+  providerId: string;
+  model: string;
   metadata?: Record<string, any>;
   translatedSegments: AimSegments[];
-}
+};
 
-// 存储翻译任务
-const activeTranslations = new Map<string, ActiveTranslation>();
+type ActiveTranslationSnapshot = {
+  requestId: string;
+  taskLabel: string;
+  startTime: number;
+  providerId: string;
+  model: string;
+  metadata?: Record<string, any>;
+};
+
+const translationTasks = createTaskRegistry<TranslationTaskMetadata>({
+  deleteOnCancel: false
+});
+
+function toActiveTranslationSnapshot(task: ManagedTask<TranslationTaskMetadata>): ActiveTranslationSnapshot {
+  return {
+    requestId: task.requestId,
+    taskLabel: task.taskLabel || 'translation',
+    startTime: task.startTime,
+    metadata: task.metadata,
+    providerId: task.providerId,
+    model: task.model
+  };
+}
 
 // 在这边实现一个翻译函数，目的是用AI来翻译用户传过来的大批量的文本片段，片段的类型已经定义在 AimSegments ，我的思路就是先将这些片段分组，拿到符合长度限制的各个分组之后，再进行翻译。
 // 所以涉及到几个问题：
@@ -363,8 +387,8 @@ export const TranslationService = {
    * 获取所有活跃的翻译任务
    * @returns 活跃任务列表
    */
-  getAllActiveTranslations(): ActiveTranslation[] {
-    return Array.from(activeTranslations.values());
+  getAllActiveTranslations(): ActiveTranslationSnapshot[] {
+    return translationTasks.list().map(toActiveTranslationSnapshot);
   },
 
   /**
@@ -373,7 +397,7 @@ export const TranslationService = {
    * @returns 已翻译的片段列表
    */
   getTranslatedSegments(requestId: string): AimSegments[] {
-    const task = activeTranslations.get(requestId);
+    const task = translationTasks.get(requestId);
     return task?.translatedSegments || [];
   },
 
@@ -383,13 +407,7 @@ export const TranslationService = {
    * @returns 活跃请求 ID 列表
    */
   getActiveRequestsByLabel(taskLabel: string): string[] {
-    const requests: string[] = [];
-    for (const task of activeTranslations.values()) {
-      if (task.taskLabel === taskLabel) {
-        requests.push(task.requestId);
-      }
-    }
-    return requests;
+    return translationTasks.getByLabel(taskLabel);
   },
 
   /**
@@ -398,14 +416,7 @@ export const TranslationService = {
    * @returns 是否成功取消
    */
   cancelTranslation(requestId: string): boolean {
-    const task = activeTranslations.get(requestId);
-    if (task) {
-      task.controller.abort();
-      // Do not delete immediately; let the task cleanup itself in finally block
-      // activeTranslations.delete(requestId);
-      return true;
-    }
-    return false;
+    return translationTasks.cancel(requestId);
   },
 
   /**
@@ -413,12 +424,14 @@ export const TranslationService = {
    * @param requestId 请求 ID
    * @returns 任务信息（包含任务标签、开始时间等）
    */
-  getTaskInfo(requestId: string): { taskLabel: string; startTime: number; metadata?: Record<string, any> } | null {
-    const task = activeTranslations.get(requestId);
+  getTaskInfo(requestId: string): { taskLabel: string; startTime: number; providerId: string; model: string; metadata?: Record<string, any> } | null {
+    const task = translationTasks.get(requestId);
     if (!task) return null;
     return {
-      taskLabel: task.taskLabel,
+      taskLabel: task.taskLabel || 'translation',
       startTime: task.startTime,
+      providerId: task.providerId,
+      model: task.model,
       metadata: task.metadata
     };
   },
@@ -428,7 +441,7 @@ export const TranslationService = {
    * @returns 是否有活跃任务
    */
   hasActiveTranslations(): boolean {
-    return activeTranslations.size > 0;
+    return translationTasks.hasActive();
   },
 
   /**
@@ -439,7 +452,7 @@ export const TranslationService = {
    * @returns 翻译完成后的片段数组
    */
   async translateSubtitles(request: TranslationRequest, emit: TranslationEmitter, externalSignal?: AbortSignal): Promise<AimSegments[]> {
-    const { requestId, chatFn, taskLabel = 'translation', segments, targetLanguage, languageNames = {}, metadata, options = {} } = request;
+    const { requestId, chatFn, providerId, model, taskLabel = 'translation', segments, targetLanguage, languageNames = {}, metadata, options = {} } = request;
 
     // 解构配置选项，使用默认值
     const { maxConcurrency = 3, chunkSize = 1000, maxRetries = 2, promptTemplate, generateSummary = true, glossary } = options;
@@ -449,23 +462,17 @@ export const TranslationService = {
 
     // 创建并注册 AbortController
     const controller = new AbortController();
-    activeTranslations.set(requestId, {
-      requestId,
-      taskLabel,
-      startTime: Date.now(),
+    translationTasks.start(requestId, {
       controller,
-      metadata,
-      translatedSegments: []
-    });
-
-    // 如果提供了外部信号，当外部信号中止时也中止内部控制器
-    if (externalSignal) {
-      if (externalSignal.aborted) {
-        controller.abort();
-      } else {
-        externalSignal.addEventListener('abort', () => controller.abort());
+      taskLabel,
+      extra: {
+        providerId,
+        model,
+        metadata,
+        translatedSegments: []
       }
-    }
+    });
+    const cleanupExternalAbort = bindAbortControllerToSignal(controller, externalSignal);
 
     const signal = controller.signal;
 
@@ -721,10 +728,9 @@ Now translate the following into **{targetLanguage}** and only show me the trans
                 currentChunkSegments.push(...dataWithMetadata);
 
                 // 实时更新任务中的已翻译片段，包含当前 chunk 已解析的部分
-                const task = activeTranslations.get(requestId);
-                if (task) {
-                  task.translatedSegments = [...allParsedSegments, ...currentChunkSegments];
-                }
+                translationTasks.update(requestId, {
+                  translatedSegments: [...allParsedSegments, ...currentChunkSegments]
+                });
 
                 emit({
                   type: 'parsed',
@@ -898,10 +904,9 @@ Now translate the following into **{targetLanguage}** and only show me the trans
         allParsedSegments.push(...currentChunkSegments);
 
         // 更新任务中的已翻译片段
-        const task = activeTranslations.get(requestId);
-        if (task) {
-          task.translatedSegments = [...allParsedSegments];
-        }
+        translationTasks.update(requestId, {
+          translatedSegments: [...allParsedSegments]
+        });
 
         // 发送 chunk-complete 事件，包含该 chunk 的所有翻译结果
         emit({
@@ -954,8 +959,8 @@ Now translate the following into **{targetLanguage}** and only show me the trans
       }
       throw error;
     } finally {
-      // 清理 controller
-      activeTranslations.delete(requestId);
+      cleanupExternalAbort();
+      translationTasks.complete(requestId);
     }
   }
 };

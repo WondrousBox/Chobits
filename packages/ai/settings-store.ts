@@ -1,20 +1,9 @@
-// Secure secrets store using local file storage (with optional keytar support)
-import fs from 'node:fs';
-import path from 'node:path';
-
-import { app } from 'electron';
 import keytar from 'keytar';
 
-import { SERVICE, SERVICE_INST } from '../common/config';
+import { SERVICE } from '../common/config';
+import { clearAllStoredPresetSecrets } from './preset-secrets-store';
 import { getProviderAliases, toCanonicalProviderId } from './providers/service';
-
-// 配置：是否启用 keytar（默认 false，使用本地文件存储）
-// 如果需要使用 keytar，将此值改为 true
-const ENABLE_KEYTAR = false;
-
-const STORAGE_FILE = path.join(app.getPath('userData'), 'data', 'ai-settings.json');
-
-console.log('STORAGE_FILE:', STORAGE_FILE);
+import { ENABLE_KEYTAR, readSettingsStorage as readStorage, writeSettingsStorage as writeStorage } from './settings-storage';
 
 // API key can be either a string (legacy format) or an array of named keys (new format)
 export type ApiKeyKeyValue = string | ApiKeyItem[];
@@ -38,29 +27,6 @@ export function getFirstApiKey(value: unknown): string | undefined {
     return defaultKey?.value || value[0]?.value;
   }
   return undefined;
-}
-
-function readStorage(): { providers: Record<string, Record<string, any>>; instances: Record<string, Record<string, any>> } {
-  try {
-    const raw = fs.readFileSync(STORAGE_FILE, 'utf8');
-    const parsed = JSON.parse(raw) || {};
-    return {
-      providers: parsed.providers || {},
-      instances: parsed.instances || {}
-    };
-  } catch {
-    return { providers: {}, instances: {} };
-  }
-}
-
-function writeStorage(providers: Record<string, Record<string, any>>, instances: Record<string, Record<string, any>>): void {
-  try {
-    const data = { providers, instances };
-    fs.mkdirSync(path.dirname(STORAGE_FILE), { recursive: true });
-    fs.writeFileSync(STORAGE_FILE, JSON.stringify(data, null, 2), 'utf8');
-  } catch {
-    //
-  }
 }
 
 function listProviderStorageIds(providerId: string): string[] {
@@ -187,53 +153,6 @@ export async function clearProviderSecrets(providerId: string): Promise<void> {
   await deleteProviderKeytarEntries(providerId);
 }
 
-async function setPresetSecret(presetId: string, key: string, value: string): Promise<void> {
-  // 默认使用文件存储
-  const storage = readStorage();
-  storage.instances[presetId] = { ...(storage.instances[presetId] || {}), [key]: value };
-  writeStorage(storage.providers, storage.instances);
-
-  // 如果启用了 keytar，也同步到 keytar
-  if (ENABLE_KEYTAR) {
-    try {
-      await keytar.setPassword(SERVICE_INST, `${presetId}:${key}`, value);
-    } catch {
-      // ignore keytar errors, file storage is primary
-    }
-  }
-}
-
-async function getPresetSecret(presetId: string, key: string): Promise<string | undefined> {
-  // 如果启用了 keytar，优先从 keytar 读取
-  if (ENABLE_KEYTAR) {
-    try {
-      const v = await keytar.getPassword(SERVICE_INST, `${presetId}:${key}`);
-      if (v != null) return v;
-    } catch {
-      // ignore keytar errors, fallback to file storage
-    }
-  }
-
-  // 默认从文件存储读取
-  const storage = readStorage();
-  return storage.instances[presetId]?.[key];
-}
-
-export async function getAllPresetSecrets(presetId: string, keys: string[]): Promise<Record<string, string>> {
-  const out: Record<string, string> = {};
-  for (const k of keys) {
-    const v = await getPresetSecret(presetId, k);
-    if (v != null) out[k] = v;
-  }
-  return out;
-}
-
-export async function setPresetSecrets(presetId: string, secrets: Record<string, string>): Promise<void> {
-  for (const [k, v] of Object.entries(secrets)) {
-    if (v != null) await setPresetSecret(presetId, k, v);
-  }
-}
-
 /**
  * 清理所有存储的 key（包括 provider 和 preset 的所有 secrets）
  */
@@ -252,17 +171,9 @@ export async function clearAllSecrets(): Promise<void> {
     } catch {
       // ignore keytar errors
     }
-
-    // 清理 SERVICE_INST 的所有 credentials
-    try {
-      const credentials = await keytar.findCredentials(SERVICE_INST);
-      for (const cred of credentials) {
-        await keytar.deletePassword(SERVICE_INST, cred.account);
-      }
-    } catch {
-      // ignore keytar errors
-    }
   }
+
+  await clearAllStoredPresetSecrets();
 }
 
 // ============================================

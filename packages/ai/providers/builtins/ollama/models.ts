@@ -1,6 +1,6 @@
-import { AIChatModelCard } from '../../../model-bank/types/aiModel';
+import type { ChatProviderModelCard } from '../../model-types';
 
-const ollamaChatModels: AIChatModelCard[] = [
+const ollamaChatModels: ChatProviderModelCard[] = [
   {
     abilities: {
       functionCall: true,

@@ -194,13 +194,14 @@ export function useSubtitleTranslation({ resourceId, subtitleEntriesRef, onTrans
   // 翻译状态管理
   const [translatingChunks, setTranslatingChunks] = useBatchedState<Set<number>>(new Set());
   const [translatedChunks, setTranslatedChunks] = useBatchedState<Set<number>>(new Set());
-  const [chunkSummaries, setChunkSummaries] = useThrottledState<Map<number, string>>(new Map(), 50);
+  const [, setChunkSummaries] = useThrottledState<Map<number, string>>(new Map(), 50);
   const [typingTexts, setTypingTexts] = useThrottledState<AimSegments[]>([], 50);
   const [isTranslationComplete, setIsTranslationComplete] = useState(false);
   const [chunkSummaryInfoMap, setChunkSummaryInfoMap] = useThrottledState<Map<number, ChunkSummaryInfo>>(new Map(), 50);
   const [translationProgress, setTranslationProgress] = useState(0);
   const [isTranslating, setIsTranslating] = useState(false);
-  const [totalSegments, setTotalSegments] = useState(0);
+  const [, setTotalSegments] = useState(0);
+  const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
 
   // Refs
   const activeTranslationRequestIdRef = useRef<string | null>(null);
@@ -242,6 +243,7 @@ export function useSubtitleTranslation({ resourceId, subtitleEntriesRef, onTrans
       setIsTranslating(false);
       setTranslationProgress(0);
       activeTranslationRequestIdRef.current = null;
+      setActiveRequestId(null);
     },
     [setTranslatingChunks, setChunkSummaryInfoMap, onTranslationComplete]
   );
@@ -257,6 +259,7 @@ export function useSubtitleTranslation({ resourceId, subtitleEntriesRef, onTrans
     setIsTranslating(false);
     setTranslationProgress(0);
     activeTranslationRequestIdRef.current = null;
+    setActiveRequestId(null);
     translatingChunkRangesRef.current.clear();
   }, [setTranslatedChunks, setChunkSummaries, setTypingTexts, setTranslatingChunks, setChunkSummaryInfoMap]);
 
@@ -264,6 +267,7 @@ export function useSubtitleTranslation({ resourceId, subtitleEntriesRef, onTrans
   const startTranslation = useCallback(
     (requestId: string) => {
       activeTranslationRequestIdRef.current = requestId;
+      setActiveRequestId(requestId);
       setIsTranslating(true);
       setTranslationProgress(0);
       // 重置翻译相关状态，确保新翻译在新轨道上展示
@@ -531,11 +535,12 @@ export function useSubtitleTranslation({ resourceId, subtitleEntriesRef, onTrans
         const tasks = await window.YUA.ai.getTranslationTasks();
         if (!mounted) return;
 
-        const activeTask = tasks.find((task: any) => task.metadata?.resourceId === resourceId);
+        const activeTask = tasks.find((task) => task.metadata?.resourceId === resourceId);
 
         if (activeTask) {
           console.log('Found active translation task:', activeTask);
           activeTranslationRequestIdRef.current = activeTask.requestId;
+          setActiveRequestId(activeTask.requestId);
           setIsTranslating(true);
 
           try {
@@ -547,7 +552,7 @@ export function useSubtitleTranslation({ resourceId, subtitleEntriesRef, onTrans
               const newChunkSummaries = new Map<number, string>();
               const newTypingTexts: AimSegments[] = currentEntries.map((seg) => ({ ...seg, text: '' }));
 
-              segments.forEach((item: any) => {
+              segments.forEach((item) => {
                 if (item.index !== undefined) {
                   newTranslatedChunks.add(item.index);
                   if (item.text && newTypingTexts[item.index]) {
@@ -642,6 +647,6 @@ export function useSubtitleTranslation({ resourceId, subtitleEntriesRef, onTrans
     stopTranslation,
     resetTranslation,
     clearTypingTexts,
-    activeRequestId: activeTranslationRequestIdRef.current
+    activeRequestId
   };
 }

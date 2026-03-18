@@ -1,7 +1,7 @@
-import { AIChatModelCard } from '../../../model-bank/types/aiModel';
+import type { ChatProviderModelCard } from '../../model-types';
 
 // https://api-docs.deepseek.com/zh-cn/quick_start/pricing
-const deepseekChatModels: AIChatModelCard[] = [
+const deepseekChatModels: ChatProviderModelCard[] = [
   {
     abilities: {
       functionCall: true,

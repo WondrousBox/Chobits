@@ -1,12 +1,12 @@
-import { CHAT_MODEL_IMAGE_GENERATION_PARAMS, ModelParamsSchema } from '../../../model-bank/standard-parameters';
-import { AIChatModelCard, AIImageModelCard } from '../../../model-bank/types';
+import { CHAT_MODEL_IMAGE_GENERATION_PARAMS, type ModelParamsSchema } from '../../model-params';
+import type { ChatProviderModelCard, ImageProviderModelCard } from '../../model-types';
 
 /**
  * gemini implicit caching not extra cost
  * https://openrouter.ai/docs/features/prompt-caching#implicit-caching
  */
 
-const googleChatModels: AIChatModelCard[] = [
+const googleChatModels: ChatProviderModelCard[] = [
   {
     abilities: {
       functionCall: true,
@@ -929,7 +929,7 @@ export const nanoBananaProParameters: ModelParamsSchema = {
 };
 
 /* eslint-disable sort-keys-fix/sort-keys-fix */
-const googleImageModels: AIImageModelCard[] = [
+const googleImageModels: ImageProviderModelCard[] = [
   {
     displayName: 'Nano Banana Pro',
     id: 'gemini-3-pro-image-preview:image',

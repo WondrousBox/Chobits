@@ -49,6 +49,8 @@ const translationCoordinatorOutputSchema = z.object({
   error: z.string().optional().describe('错误信息')
 });
 
+type TranslationCoordinatorOutput = z.infer<typeof translationCoordinatorOutputSchema>;
+
 /**
  * 创建翻译协调工具
  *
@@ -73,7 +75,7 @@ export const createTranslationCoordinatorTool = (boundResourcesRepo?: typeof Res
     inputSchema: translationCoordinatorInputSchema,
     outputSchema: translationCoordinatorOutputSchema,
 
-    execute: async ({ context }) => {
+    execute: async ({ context }): Promise<TranslationCoordinatorOutput> => {
       const { resourceId, resourceType = 'subtitle', targetLanguage, sourceLanguage, queryLatest } = context;
 
       try {
@@ -81,13 +83,16 @@ export const createTranslationCoordinatorTool = (boundResourcesRepo?: typeof Res
 
         // 如果需要查询最新资源
         if (queryLatest && !resourceId) {
-          const queryResult = await resourceQueryTool.execute({
+          const queryResult = (await resourceQueryTool.execute({
             context: {
               type: resourceType,
               sortBy: 'newest',
               limit: 1
             }
-          });
+          })) as {
+            resources?: Array<{ id: string; filePath?: string | null; title?: string | null; type: string }>;
+            success?: boolean;
+          };
 
           if (queryResult.success && queryResult.resources && queryResult.resources.length > 0) {
             foundResource = queryResult.resources[0];

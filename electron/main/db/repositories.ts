@@ -2,7 +2,7 @@ import * as fscb from 'node:fs';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
-import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, like, lte, max } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, like, lte } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 
 import { getDB, getOrm } from '.';
@@ -1576,40 +1576,81 @@ export const ChatRepo = {
    * 新增一条消息，自动维护 seq、会话计数与 lastMessageAt
    */
   async addMessage(conversationId: string, message: Omit<NewChatMessage, 'id' | 'conversationId' | 'seq'>): Promise<ChatMessageRow> {
-    const db = getOrm();
-    // 计算下一个 seq
-    const seqRow = (
-      await db
-        .select({ m: max(chat_messages.seq).as('max') })
-        .from(chat_messages)
-        .where(eq(chat_messages.conversationId, conversationId))
-    )[0] as any;
-    const nextSeq = (seqRow?.m ?? 0) + 1;
-    const now = Date.now();
-    const rows = await db
-      .insert(chat_messages)
-      .values({
-        conversationId,
-        role: message.role,
-        content: message.content,
-        name: message.name ?? null,
-        toolCallId: message.toolCallId ?? null,
-        metadata: message.metadata ?? null,
-        seq: nextSeq,
-        createdAt: (message as any).createdAt ?? now,
-        updatedAt: now
-      } as any)
-      .returning()
-      .all();
+    const rawDb = getDB();
+    if (!rawDb) {
+      throw new Error('[db] Database is not initialized.');
+    }
 
-    // 更新会话计数与时间
-    // Title generation is now handled by the renderer after the first AI reply completes
-    const conv = await db.select().from(conversations).where(eq(conversations.id, conversationId)).limit(1);
-    const prevCount = conv[0]?.messagesCount ?? 0;
-    const countVal = prevCount + 1;
-    const patch: any = { messagesCount: countVal, lastMessageAt: now, updatedAt: now };
-    await db.update(conversations).set(patch).where(eq(conversations.id, conversationId)).run();
-    return rows[0];
+    const now = Date.now();
+    const payload = {
+      content: message.content,
+      conversationId,
+      createdAt: (message as any).createdAt ?? now,
+      metadata: message.metadata ?? null,
+      name: message.name ?? null,
+      role: message.role,
+      toolCallId: message.toolCallId ?? null,
+      updatedAt: now
+    };
+
+    const insertMessage = rawDb.prepare(
+      `INSERT INTO chat_messages (
+        conversation_id,
+        role,
+        content,
+        name,
+        tool_call_id,
+        seq,
+        metadata,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        @conversationId,
+        @role,
+        @content,
+        @name,
+        @toolCallId,
+        (SELECT COALESCE(MAX(seq), 0) + 1 FROM chat_messages WHERE conversation_id = @conversationId),
+        @metadata,
+        @createdAt,
+        @updatedAt
+      )
+      RETURNING
+        id,
+        conversation_id AS conversationId,
+        role,
+        content,
+        name,
+        tool_call_id AS toolCallId,
+        seq,
+        metadata,
+        created_at AS createdAt,
+        updated_at AS updatedAt,
+        deleted_at AS deletedAt`
+    );
+    const updateConversation = rawDb.prepare(
+      `UPDATE conversations
+      SET
+        messages_count = COALESCE(messages_count, 0) + 1,
+        last_message_at = @updatedAt,
+        updated_at = @updatedAt
+      WHERE id = @conversationId`
+    );
+
+    const runInTransaction = rawDb.transaction((params: typeof payload) => {
+      const row = insertMessage.get(params) as ChatMessageRow | undefined;
+      if (!row) {
+        throw new Error(`[db] Failed to insert chat message for conversation ${params.conversationId}.`);
+      }
+      updateConversation.run({
+        conversationId: params.conversationId,
+        updatedAt: params.updatedAt
+      });
+      return row;
+    });
+
+    return ((runInTransaction as any).immediate ? (runInTransaction as any).immediate(payload) : runInTransaction(payload)) as ChatMessageRow;
   },
 
   async listConversations(filter: { includeDeleted?: boolean } = {}, limit = 100, offset = 0): Promise<ConversationRow[]> {

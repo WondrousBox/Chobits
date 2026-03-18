@@ -380,6 +380,7 @@ export const chat_messages = sqliteTable(
     deletedAt: integer('deleted_at')
   },
   (t) => ({
+    uqMsgConvSeq: uniqueIndex('uq_chat_messages_conv_seq').on(t.conversationId, t.seq),
     idxMsgConvSeq: index('idx_chat_messages_conv_seq').on(t.conversationId, t.seq),
     idxMsgConvCreated: index('idx_chat_messages_conv_created').on(t.conversationId, t.createdAt)
   })
