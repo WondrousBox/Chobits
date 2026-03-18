@@ -5,6 +5,8 @@
 import { type AimSegments } from '@aim-packages/subtitle';
 import { JsonOutputParser } from '@langchain/core/output_parsers';
 
+import { bindAbortControllerToSignal, createTaskRegistry, type ManagedTask } from './task-manager';
+
 /**
  * 总结进度数据
  */
@@ -138,6 +140,10 @@ export interface SummaryRequest {
   requestId: string;
   /** 聊天函数（必填，用于执行实际的 AI 调用） */
   chatFn: ChatFunction;
+  /** Provider ID（必填，用于任务状态展示） */
+  providerId: string;
+  /** 实际使用的模型 ID（必填，用于任务状态展示） */
+  model: string;
   /** 任务标签（可选，用于显示和任务管理，如 'openai/gpt-4'） */
   taskLabel?: string;
   /** 待总结的内容（可以是文本字符串或字幕片段数组） */
@@ -214,66 +220,33 @@ Instructions for analysis:
 - **FINAL REMINDER: ALL TEXT OUTPUT (keywords, summary, titles, content, descriptions) MUST BE TRANSLATED TO {language} LANGUAGE**
 - Focus on accuracy, clarity, and maintaining the original meaning while providing structured insights.`;
 
-/**
- * 活跃总结任务管理
- */
-class SummaryServiceManager {
-  private activeSummaries = new Map<string, { abortController: AbortController; taskLabel?: string }>();
+type SummaryTaskMetadata = {
+  providerId: string;
+  model: string;
+  metadata?: Record<string, any>;
+};
 
-  /**
-   * 开始总结任务
-   */
-  startSummary(requestId: string, abortController: AbortController, taskLabel?: string): void {
-    this.activeSummaries.set(requestId, { abortController, taskLabel });
-  }
+type ActiveSummaryTaskSnapshot = {
+  requestId: string;
+  taskLabel?: string;
+  startTime: number;
+  providerId: string;
+  model: string;
+  metadata?: Record<string, any>;
+};
 
-  /**
-   * 取消总结任务
-   */
-  cancelSummary(requestId: string): boolean {
-    const task = this.activeSummaries.get(requestId);
-    if (task) {
-      task.abortController.abort();
-      this.activeSummaries.delete(requestId);
-      return true;
-    }
-    return false;
-  }
+const summaryTasks = createTaskRegistry<SummaryTaskMetadata>();
 
-  /**
-   * 获取活跃任务列表
-   */
-  getActiveSummaries(): Array<{ requestId: string; taskLabel?: string; startTime: number }> {
-    const now = Date.now();
-    return Array.from(this.activeSummaries.entries()).map(([requestId, data]) => ({
-      requestId,
-      taskLabel: data.taskLabel,
-      startTime: now
-    }));
-  }
-
-  /**
-   * 根据任务标签获取活跃任务
-   */
-  getActiveSummariesByLabel(taskLabel: string): string[] {
-    const matches: string[] = [];
-    for (const [requestId, data] of this.activeSummaries.entries()) {
-      if (data.taskLabel === taskLabel) {
-        matches.push(requestId);
-      }
-    }
-    return matches;
-  }
-
-  /**
-   * 完成总结任务
-   */
-  completeSummary(requestId: string): void {
-    this.activeSummaries.delete(requestId);
-  }
+function toSummaryTaskInfo(task: ManagedTask<SummaryTaskMetadata>): ActiveSummaryTaskSnapshot {
+  return {
+    requestId: task.requestId,
+    taskLabel: task.taskLabel,
+    startTime: task.startTime,
+    providerId: task.providerId,
+    model: task.model,
+    metadata: task.metadata
+  };
 }
-
-const summaryManager = new SummaryServiceManager();
 
 /**
  * 总结服务类
@@ -283,33 +256,42 @@ export class SummaryService {
    * 取消总结任务
    */
   static cancelSummary(requestId: string): boolean {
-    return summaryManager.cancelSummary(requestId);
+    return summaryTasks.cancel(requestId);
   }
 
   /**
    * 获取所有活跃的总结任务
    */
-  static getAllActiveSummaries(): Array<{ requestId: string; taskLabel?: string; startTime: number }> {
-    return summaryManager.getActiveSummaries();
+  static getAllActiveSummaries(): ActiveSummaryTaskSnapshot[] {
+    return summaryTasks.list().map(toSummaryTaskInfo);
   }
 
   /**
    * 根据任务标签获取活跃任务
    */
   static getActiveSummariesByLabel(taskLabel: string): string[] {
-    return summaryManager.getActiveSummariesByLabel(taskLabel);
+    return summaryTasks.getByLabel(taskLabel);
   }
 
   /**
    * 执行总结
    */
-  static async summarize(emit: SummaryEmitter, request: SummaryRequest): Promise<void> {
-    const { requestId, chatFn, taskLabel, content, targetLanguage, languageNames, metadata, options = {} } = request;
+  static async summarize(emit: SummaryEmitter, request: SummaryRequest, externalSignal?: AbortSignal): Promise<void> {
+    const { requestId, chatFn, providerId, model, taskLabel, content, targetLanguage, languageNames, metadata, options = {} } = request;
 
     const { maxChars = 5000, extractKeyPoints = true, extractTimeline = true, keywordCount = 3, promptTemplate } = options;
 
     const abortController = new AbortController();
-    summaryManager.startSummary(requestId, abortController, taskLabel);
+    summaryTasks.start(requestId, {
+      controller: abortController,
+      taskLabel,
+      extra: {
+        providerId,
+        model,
+        metadata
+      }
+    });
+    const cleanupExternalAbort = bindAbortControllerToSignal(abortController, externalSignal);
 
     try {
       emit({ type: 'connected' });
@@ -459,11 +441,11 @@ export class SummaryService {
         }
       });
 
-      summaryManager.completeSummary(requestId);
+      summaryTasks.complete(requestId);
       emit({ type: 'done' });
     } catch (error: any) {
-      if (error.name === 'AbortError') {
-        summaryManager.completeSummary(requestId);
+      if (error.name === 'AbortError' || error.message === 'Aborted') {
+        summaryTasks.complete(requestId);
         emit({ type: 'done' });
       } else {
         const errorMessage = error?.message || '生成总结失败';
@@ -474,9 +456,11 @@ export class SummaryService {
             code: error?.code
           }
         });
-        summaryManager.completeSummary(requestId);
+        summaryTasks.complete(requestId);
         emit({ type: 'done' });
       }
+    } finally {
+      cleanupExternalAbort();
     }
   }
 
@@ -498,17 +482,17 @@ export class SummaryService {
         keyPoints:
           extractKeyPoints && Array.isArray(parsed.keyPoints)
             ? parsed.keyPoints.map((kp: any) => ({
-              st: kp.st || '00:00:00.000',
-              title: kp.title || '',
-              content: kp.content || ''
-            }))
+                st: kp.st || '00:00:00.000',
+                title: kp.title || '',
+                content: kp.content || ''
+              }))
             : [],
         timeline:
           extractTimeline && Array.isArray(parsed.timeline)
             ? parsed.timeline.map((tl: any) => ({
-              st: tl.st || '00:00:00.000',
-              description: tl.description || ''
-            }))
+                st: tl.st || '00:00:00.000',
+                description: tl.description || ''
+              }))
             : []
       };
     } catch (error) {

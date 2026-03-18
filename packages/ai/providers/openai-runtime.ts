@@ -1,7 +1,9 @@
-import OpenAI from 'openai';
+import OpenAI, { toFile } from 'openai';
+import type { Uploadable } from 'openai/core/uploads';
+import type { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/chat/completions';
 
-import { listProviderRuntimeModels } from './service';
 import type { ChatRequest, ChatResponse, EmbeddingRequest, EmbeddingResponse, StreamEvent, TranscribeOptions } from '../types';
+import { listProviderRuntimeModels } from './service';
 
 export type OpenAIRuntimeSecrets = {
   apiKey?: string;
@@ -53,17 +55,17 @@ function resolveOpenAITranscriptionModel(options: TranscribeOptions | undefined,
   return options?.model || (options?.secrets as any)?.model || defaultModel;
 }
 
-function normalizeOpenAIAudioFile(file: File | Blob | Buffer | ArrayBuffer): File {
+async function normalizeOpenAIAudioFile(file: File | Blob | Buffer | ArrayBuffer): Promise<Uploadable> {
   if (typeof File !== 'undefined' && file instanceof File) {
     return file;
   }
 
   if (file instanceof Blob) {
-    return new File([file], 'audio.wav', { type: file.type || 'audio/wav' });
+    return toFile(file, 'audio.wav', { type: file.type || 'audio/wav' });
   }
 
   const bytes = Buffer.isBuffer(file) ? file : Buffer.from(file);
-  return new File([bytes], 'audio.wav', { type: 'audio/wav' });
+  return toFile(bytes, 'audio.wav', { type: 'audio/wav' });
 }
 
 function normalizeOpenAIModelInfo<T extends { type?: string }>(model: T): T {
@@ -77,14 +79,37 @@ function normalizeOpenAIModelInfo<T extends { type?: string }>(model: T): T {
   };
 }
 
-function buildOpenAIChatMessages(request: ChatRequest): Array<{ role: string; content: string }> {
-  return request.messages.map((message) => ({
-    role: message.role as string,
-    content: message.content
-  }));
+function buildOpenAIChatMessages(request: ChatRequest): ChatCompletionMessageParam[] {
+  return request.messages.map((message): ChatCompletionMessageParam => {
+    switch (message.role) {
+      case 'system':
+        return {
+          role: 'system',
+          content: message.content
+        };
+      case 'assistant':
+        return {
+          role: 'assistant',
+          content: message.content
+        };
+      case 'tool':
+        return {
+          role: 'tool',
+          content: message.content,
+          tool_call_id: message.toolCallId || message.name || 'tool-call'
+        };
+      case 'user':
+      default:
+        return {
+          role: 'user',
+          content: message.content,
+          ...(message.name ? { name: message.name } : {})
+        };
+    }
+  });
 }
 
-function buildOpenAITools(request: ChatRequest): Array<{ type: 'function'; function: { name: string; description: string; parameters: any } }> | undefined {
+function buildOpenAITools(request: ChatRequest): ChatCompletionTool[] | undefined {
   const toolDefs = (request.extras as any)?.tools as Array<{ name: string; description: string; parameters: any }> | undefined;
   if (!toolDefs?.length) return undefined;
 
@@ -103,8 +128,8 @@ async function streamOpenAIChat(
   request: ChatRequest,
   providerId: string,
   model: string,
-  messages: Array<{ role: string; content: string }>,
-  tools: Array<{ type: 'function'; function: { name: string; description: string; parameters: any } }> | undefined,
+  messages: ChatCompletionMessageParam[],
+  tools: ChatCompletionTool[] | undefined,
   onStream: (event: StreamEvent) => void,
   signal?: AbortSignal
 ): Promise<ChatResponse> {
@@ -211,7 +236,7 @@ export async function executeOpenAIEmbedding(options: OpenAIEmbeddingRuntimeOpti
 export async function executeOpenAITranscription(options: OpenAITranscriptionRuntimeOptions): Promise<{ text: string }> {
   const model = resolveOpenAITranscriptionModel(options.options, options.defaultModel);
   const response = await options.client.audio.transcriptions.create({
-    file: normalizeOpenAIAudioFile(options.file),
+    file: await normalizeOpenAIAudioFile(options.file),
     model,
     language: options.options?.language,
     prompt: options.options?.prompt

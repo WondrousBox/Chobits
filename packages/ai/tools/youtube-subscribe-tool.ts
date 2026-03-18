@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 import { createTool } from './tool-definition';
 
+const isMainProcess = typeof process !== 'undefined' && process.type === 'browser';
+
 /**
  * YouTube 频道订阅工具
  *

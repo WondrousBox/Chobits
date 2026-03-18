@@ -1,12 +1,12 @@
 import path from 'node:path';
 
 import type { ProviderCapabilities, ProviderConfig, ProviderDefaultModels } from '../../types';
+import type { ProviderModelDefinition } from '../model-types';
 import type {
   ProviderCatalogDefinition,
   ProviderCompatibilityDefinition,
   ProviderDefinition,
   ProviderDisplayDefinition,
-  ProviderModelDefinition,
   ProviderModelsDefinition,
   ProviderProtocolDefinition,
   ProviderRuntimeDefinition

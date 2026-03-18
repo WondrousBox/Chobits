@@ -507,7 +507,7 @@ const ASRConfigPage: React.FC = () => {
         const models = await window.YUA.ai.listModels(cloudProviderId);
         if (!mounted) return;
 
-        // 过滤出音频转写模型；兼容 model-bank 里的 `stt` 与资源清单里的 `audio`
+        // 过滤出音频转写模型；兼容历史 `stt` 命名与当前 runtime 的 `audio` 归类
         const filteredModels = models.filter((m: any) => !m.type || m.type === 'audio' || m.type === 'realtime' || m.type === 'stt');
 
         setCloudModels(filteredModels);

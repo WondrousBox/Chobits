@@ -662,6 +662,25 @@ export type MindmapPayload = MindmapRequest & {
   abortSignal?: AbortSignal;
 };
 
+type TaskMetadata = Record<string, any>;
+
+function createEffectiveTaskMetadata(metadata?: TaskMetadata, resourceId?: string): TaskMetadata | undefined {
+  const effectiveResourceId = resourceId || (typeof metadata?.resourceId === 'string' ? metadata.resourceId : undefined);
+  const nextMetadata: TaskMetadata = {
+    ...(metadata || {})
+  };
+
+  if (effectiveResourceId) {
+    nextMetadata.resourceId = effectiveResourceId;
+  }
+
+  return Object.keys(nextMetadata).length > 0 ? nextMetadata : undefined;
+}
+
+function getMetadataResourceId(metadata?: TaskMetadata): string | undefined {
+  return typeof metadata?.resourceId === 'string' ? metadata.resourceId : undefined;
+}
+
 async function createPreferredTaskChatRuntime(
   params: ProviderScopedRequest & {
     model: string;
@@ -1169,10 +1188,11 @@ export async function executeSubtitleTranslation(payload: TranslatePayload): Pro
   const eventsChannel = `subtitle:translate:${requestId}`;
   const startTimestamp = Date.now(); // 记录翻译任务开始时间戳
   const resolvedProviderPresetId = resolveProviderPresetId(normalizedPayload);
+  const effectiveMetadata = createEffectiveTaskMetadata(metadata, resourceId);
 
   // 步骤1: 读取文件，加载字幕片段
   let actualSegments: Array<AimSegments> | undefined = segments;
-  const effectiveResourceId: string | undefined = resourceId || metadata?.resourceId;
+  const effectiveResourceId = getMetadataResourceId(effectiveMetadata);
   let sourceSubtitleFilePath: string | undefined;
   let sourceWorkspaceId: string | undefined; // 保存工作空间 ID
 
@@ -1258,7 +1278,7 @@ export async function executeSubtitleTranslation(payload: TranslatePayload): Pro
           sourceFilePath: sourceSubtitleFilePath,
           translatedSegments: accumulatedTranslations,
           providerId,
-          model,
+          model: effectiveModel,
           targetLanguage,
           startTimestamp
         });
@@ -1306,18 +1326,20 @@ export async function executeSubtitleTranslation(payload: TranslatePayload): Pro
       sourceLanguage,
       targetLanguage,
       languageNames,
-      metadata,
+      providerId,
+      model: effectiveModel,
+      metadata: effectiveMetadata,
       options
     },
     emit,
     abortSignal
   ).catch((err: any) => {
     console.error('翻译失败:', err);
-    const resourceId = metadata?.resourceId;
+    const errorResourceId = getMetadataResourceId(effectiveMetadata);
     if (err.message === 'Aborted') {
-      emit({ type: 'done', data: { resourceId } });
+      emit({ type: 'done', data: { resourceId: errorResourceId } });
     } else {
-      emit({ type: 'error', data: { message: err?.message || '翻译失败', resourceId } });
+      emit({ type: 'error', data: { message: err?.message || '翻译失败', resourceId: errorResourceId } });
     }
   });
 
@@ -1349,6 +1371,8 @@ export async function executeSummarize(payload: SummarizePayload): Promise<{ req
   const requestId = incomingRequestId || randomUUID();
   const eventsChannel = `summary:${requestId}`;
   const resolvedProviderPresetId = resolveProviderPresetId(normalizedPayload);
+  const effectiveMetadata = createEffectiveTaskMetadata(metadata, resourceId);
+  const effectiveResourceId = getMetadataResourceId(effectiveMetadata);
 
   if (abortSignal?.aborted) {
     throw new Error('Aborted');
@@ -1357,9 +1381,9 @@ export async function executeSummarize(payload: SummarizePayload): Promise<{ req
   // 步骤1: 读取内容
   let actualContent: string | any[] = content as string | any[];
 
-  if (!actualContent && resourceId) {
+  if (!actualContent && effectiveResourceId) {
     try {
-      actualContent = await loadContentFromResource(resourceId);
+      actualContent = await loadContentFromResource(effectiveResourceId);
     } catch (error) {
       console.error('[summarize] Failed to load content from resource:', error);
       throw error;
@@ -1392,7 +1416,6 @@ export async function executeSummarize(payload: SummarizePayload): Promise<{ req
 
   // 步骤4: 创建事件发射器
   const startTimestamp = Date.now();
-  const effectiveResourceId = resourceId || metadata?.resourceId;
 
   const emit = createEventEmitter({
     requestId,
@@ -1417,26 +1440,22 @@ export async function executeSummarize(payload: SummarizePayload): Promise<{ req
   });
 
   // 步骤5: 异步处理总结
-  if (abortSignal) {
-    abortSignal.addEventListener(
-      'abort',
-      () => {
-        SummaryService.cancelSummary(requestId);
-      },
-      { once: true }
-    );
-  }
-
-  SummaryService.summarize(emit, {
-    requestId,
-    chatFn: effectiveChatFn,
-    taskLabel,
-    content: actualContent,
-    targetLanguage,
-    languageNames,
-    metadata,
-    options
-  }).catch((err: any) => {
+  SummaryService.summarize(
+    emit,
+    {
+      requestId,
+      chatFn: effectiveChatFn,
+      providerId,
+      model: effectiveModel,
+      taskLabel,
+      content: actualContent,
+      targetLanguage,
+      languageNames,
+      metadata: effectiveMetadata,
+      options
+    },
+    abortSignal
+  ).catch((err: any) => {
     console.error('总结失败:', err);
     if (err.message === 'Aborted') {
       emit({ type: 'done' });
@@ -1474,6 +1493,8 @@ export async function executeMindmap(payload: MindmapPayload): Promise<{ request
   const eventsChannel = `mindmap:${requestId}`;
   const startTimestamp = Date.now(); // 记录开始时间戳
   const resolvedProviderPresetId = resolveProviderPresetId(normalizedPayload);
+  const effectiveMetadata = createEffectiveTaskMetadata(metadata, resourceId);
+  const effectiveResourceId = getMetadataResourceId(effectiveMetadata);
 
   if (abortSignal?.aborted) {
     throw new Error('Aborted');
@@ -1481,11 +1502,10 @@ export async function executeMindmap(payload: MindmapPayload): Promise<{ request
 
   // 步骤1: 读取内容
   let actualContent: string | any[] = content as string | any[];
-  const effectiveResourceId: string | undefined = resourceId || metadata?.resourceId;
 
-  if (!actualContent && resourceId) {
+  if (!actualContent && effectiveResourceId) {
     try {
-      const loaded = await loadSegmentsFromResource(resourceId);
+      const loaded = await loadSegmentsFromResource(effectiveResourceId);
       actualContent = loaded.segments;
     } catch (error) {
       console.error('[mindmap] Failed to load content from resource:', error);
@@ -1546,11 +1566,13 @@ export async function executeMindmap(payload: MindmapPayload): Promise<{ request
     {
       requestId,
       chatFn: effectiveChatFn as any,
+      providerId,
+      model: effectiveModel,
       taskLabel,
       content: actualContent,
       targetLanguage,
       languageNames,
-      metadata,
+      metadata: effectiveMetadata,
       options
     },
     abortSignal

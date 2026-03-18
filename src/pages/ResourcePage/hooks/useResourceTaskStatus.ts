@@ -10,17 +10,17 @@ export interface ResourceTaskStatus {
   progress?: number;
 }
 
-export const useResourceTaskStatus = () => {
+export const useResourceTaskStatus = (): Record<string, ResourceTaskStatus> => {
   const [taskStatuses, setTaskStatuses] = useState<Record<string, ResourceTaskStatus>>({});
 
   useEffect(() => {
     // Initial fetch of active tasks
-    const fetchActiveTasks = async () => {
+    const fetchActiveTasks = async (): Promise<void> => {
       try {
         const tasks = await window.YUA.ai.getTranslationTasks();
         const initialStatuses: Record<string, ResourceTaskStatus> = {};
 
-        tasks.forEach((task: any) => {
+        tasks.forEach((task) => {
           if (task.metadata?.resourceId) {
             initialStatuses[task.metadata.resourceId] = {
               requestId: task.requestId,
@@ -42,7 +42,7 @@ export const useResourceTaskStatus = () => {
 
     fetchActiveTasks();
 
-    const handleMessage = (_event: any, payload: any) => {
+    const handleMessage = (_event: any, payload: any): void => {
       if (payload.type === 'subtitle:translate') {
         const { data } = payload;
         const eventType = data.type;

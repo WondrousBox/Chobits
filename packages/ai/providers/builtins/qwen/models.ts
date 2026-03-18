@@ -1,8 +1,8 @@
-import { AIChatModelCard, AIImageModelCard } from '../../../model-bank/types/aiModel';
+import type { ChatProviderModelCard, ImageProviderModelCard } from '../../model-types';
 
 // https://help.aliyun.com/zh/model-studio/models?spm=a2c4g.11186623
 
-const qwenChatModels: AIChatModelCard[] = [
+const qwenChatModels: ChatProviderModelCard[] = [
   {
     abilities: {
       reasoning: true,
@@ -2179,7 +2179,7 @@ const qwenChatModels: AIChatModelCard[] = [
   },
 ];
 
-const qwenImageModels: AIImageModelCard[] = [
+const qwenImageModels: ImageProviderModelCard[] = [
   {
     description:
       'Qwen Image Edit is an image-to-image model that edits images based on input images and text prompts, enabling precise adjustments and creative transformations.',

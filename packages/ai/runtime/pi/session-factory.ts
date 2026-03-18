@@ -11,18 +11,41 @@ import { createPiCustomTools } from './tools';
 type PiModel = import('@mariozechner/pi-ai').Model<any>;
 type PiAgentThinkingLevel = import('@mariozechner/pi-agent-core').ThinkingLevel;
 
-type PiCodingAuthStorageModule = typeof import('@mariozechner/pi-coding-agent').AuthStorage;
-type PiCodingModelRegistryModule = typeof import('@mariozechner/pi-coding-agent').ModelRegistry;
-type PiCodingResourceLoaderModule = typeof import('@mariozechner/pi-coding-agent').DefaultResourceLoader;
 type PiCodingSdkModule = Pick<typeof import('@mariozechner/pi-coding-agent'), 'createAgentSession'>;
-type PiCodingSessionManagerModule = typeof import('@mariozechner/pi-coding-agent').SessionManager;
-type PiCodingSettingsManagerModule = typeof import('@mariozechner/pi-coding-agent').SettingsManager;
+type PiCodingAuthStorage = {
+  set: (providerId: string, credential: { key: string; type: 'api_key' }) => void;
+};
+type PiCodingAuthStorageClass = {
+  AuthStorage: {
+    inMemory: (data?: Record<string, unknown>) => PiCodingAuthStorage;
+  };
+}['AuthStorage'];
+type PiCodingModelRegistryClass = {
+  ModelRegistry: new (authStorage: PiCodingAuthStorage, modelsPath: string) => unknown;
+}['ModelRegistry'];
+type PiCodingSettingsManager = unknown;
+type PiCodingSettingsManagerClass = {
+  SettingsManager: {
+    inMemory: (settings?: Record<string, unknown>) => PiCodingSettingsManager;
+  };
+}['SettingsManager'];
+type PiCodingResourceLoader = {
+  reload: () => Promise<void>;
+};
+type PiCodingResourceLoaderClass = {
+  DefaultResourceLoader: new (options: Record<string, unknown>) => PiCodingResourceLoader;
+}['DefaultResourceLoader'];
+type PiCodingSessionManagerClass = {
+  SessionManager: {
+    inMemory: (cwd?: string) => unknown;
+  };
+}['SessionManager'];
 type PiCodingCoreModules = {
-  AuthStorage: PiCodingAuthStorageModule;
-  DefaultResourceLoader: PiCodingResourceLoaderModule;
-  ModelRegistry: PiCodingModelRegistryModule;
-  SessionManager: PiCodingSessionManagerModule;
-  SettingsManager: PiCodingSettingsManagerModule;
+  AuthStorage: PiCodingAuthStorageClass;
+  DefaultResourceLoader: PiCodingResourceLoaderClass;
+  ModelRegistry: PiCodingModelRegistryClass;
+  SessionManager: PiCodingSessionManagerClass;
+  SettingsManager: PiCodingSettingsManagerClass;
   createAgentSession: PiCodingSdkModule['createAgentSession'];
 };
 
@@ -62,12 +85,12 @@ async function importPiCodingCoreModule<TModule>(fileName: string): Promise<TMod
 
 async function loadPiCodingCore(): Promise<PiCodingCoreModules> {
   const [authStorageModule, modelRegistryModule, resourceLoaderModule, sdkModule, sessionManagerModule, settingsManagerModule] = await Promise.all([
-    importPiCodingCoreModule<PiCodingAuthStorageModule>('auth-storage.js'),
-    importPiCodingCoreModule<PiCodingModelRegistryModule>('model-registry.js'),
-    importPiCodingCoreModule<PiCodingResourceLoaderModule>('resource-loader.js'),
+    importPiCodingCoreModule<{ AuthStorage: PiCodingAuthStorageClass }>('auth-storage.js'),
+    importPiCodingCoreModule<{ ModelRegistry: PiCodingModelRegistryClass }>('model-registry.js'),
+    importPiCodingCoreModule<{ DefaultResourceLoader: PiCodingResourceLoaderClass }>('resource-loader.js'),
     importPiCodingCoreModule<PiCodingSdkModule>('sdk.js'),
-    importPiCodingCoreModule<PiCodingSessionManagerModule>('session-manager.js'),
-    importPiCodingCoreModule<PiCodingSettingsManagerModule>('settings-manager.js')
+    importPiCodingCoreModule<{ SessionManager: PiCodingSessionManagerClass }>('session-manager.js'),
+    importPiCodingCoreModule<{ SettingsManager: PiCodingSettingsManagerClass }>('settings-manager.js')
   ]);
 
   return {
@@ -80,13 +103,7 @@ async function loadPiCodingCore(): Promise<PiCodingCoreModules> {
   };
 }
 
-function seedRuntimeApiKeys(
-  authStorage: {
-    set: (providerId: string, credential: { key: string; type: 'api_key' }) => void;
-  },
-  resolved: ResolvedPiRequest,
-  model: PiModel
-): void {
+function seedRuntimeApiKeys(authStorage: PiCodingAuthStorage, resolved: ResolvedPiRequest, model: PiModel): void {
   const apiKey = resolved.model.apiKey?.trim();
   if (!apiKey) return;
 
@@ -129,7 +146,7 @@ export class PiSessionFactory {
 
     await resourceLoader.reload();
 
-    const { session } = await createAgentSession({
+    const { session } = await (createAgentSession as any)({
       authStorage,
       customTools,
       cwd,

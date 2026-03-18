@@ -1,5 +1,5 @@
 import { normalizeProviderPreset, resolveProviderPresetId } from '../../../provider-preset';
-import type { ChatRequest, ProviderScopedRequest } from '../../../types';
+import type { ChatMessage, ChatRequest, ProviderScopedRequest } from '../../../types';
 import { PiExecutionService } from '../execution-service';
 
 let piExecutionService: PiExecutionService | undefined;
@@ -44,21 +44,22 @@ function getPiExecutionService(): PiExecutionService {
 export async function generatePiTagsForSegment(options: GeneratePiTagsOptions): Promise<string[]> {
   const { model, providerId, segment } = options;
   const providerPresetId = resolveProviderPresetId(options);
+  const messages: ChatMessage[] = [
+    {
+      role: 'user',
+      content: `文本：\n${segment}`
+    }
+  ];
 
   const request: ChatRequest = normalizeProviderPreset({
     agentId: 'tagger',
     extras: model
       ? {
-          model
-        }
+        model
+      }
       : undefined,
     maxTokens: 256,
-    messages: [
-      {
-        role: 'user',
-        content: `文本：\n${segment}`
-      }
-    ],
+    messages,
     persist: false,
     providerId,
     providerPresetId,

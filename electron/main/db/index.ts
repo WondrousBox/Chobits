@@ -149,41 +149,6 @@ function ensureVecLoaded(): boolean {
   }
 }
 
-/**
- * 从所有维度表中删除指定 rowid 的向量数据
- * 这是一个辅助函数，用于在应用层清理多维度表
- */
-function deleteFromAllVecTables(rowid: number): void {
-  if (!db || !ensureVecLoaded()) return;
-  const existingDims = getExistingVecTableDims();
-  for (const dim of existingDims) {
-    const tableName = getVecTableName(dim);
-    try {
-      db.prepare(`DELETE FROM ${tableName} WHERE rowid = ?`).run(rowid);
-    } catch (e) {
-      // 表可能不存在，忽略错误
-      console.warn(`[vector] Failed to delete from ${tableName}:`, e);
-    }
-  }
-}
-
-/**
- * 将文档的向量数据插入到对应维度的表中
- * 这是一个辅助函数，用于在应用层恢复多维度索引
- */
-function insertIntoVecTableForDim(rowid: number, embedding: Buffer | null, dim: number | null): void {
-  if (!db || !ensureVecLoaded() || !embedding || !dim) return;
-  const tableName = getVecTableName(dim);
-  try {
-    ensureVecTableForDim(dim);
-    // 先删除旧数据，再插入新数据
-    db.prepare(`DELETE FROM ${tableName} WHERE rowid = ?`).run(rowid);
-    db.prepare(`INSERT INTO ${tableName}(rowid, embedding) VALUES (?, ?)`).run(rowid, embedding);
-  } catch (e) {
-    console.warn(`[vector] Failed to insert into ${tableName}:`, e);
-  }
-}
-
 function setupTriggers(): void {
   if (!db) return;
   try {
@@ -311,6 +276,65 @@ END;`);
   }
 }
 
+function repairDuplicateChatMessageSequences(): void {
+  if (!db) return;
+
+  try {
+    const duplicateGroups = db
+      .prepare(
+        `SELECT conversation_id AS conversationId, seq, COUNT(*) AS duplicateCount
+         FROM chat_messages
+         GROUP BY conversation_id, seq
+         HAVING COUNT(*) > 1`
+      )
+      .all() as Array<{ conversationId: string; duplicateCount: number; seq: number }>;
+
+    if (!duplicateGroups.length) {
+      return;
+    }
+
+    console.warn(
+      '[db] Found duplicate chat message seq values, resequencing conversations:',
+      duplicateGroups.map((group) => `${group.conversationId}:${group.seq}x${group.duplicateCount}`).join(', ')
+    );
+
+    db.exec(`WITH ranked AS (
+      SELECT
+        id,
+        ROW_NUMBER() OVER (
+          PARTITION BY conversation_id
+          ORDER BY seq ASC, created_at ASC, rowid ASC
+        ) AS next_seq
+      FROM chat_messages
+    )
+    UPDATE chat_messages
+    SET seq = (
+      SELECT ranked.next_seq
+      FROM ranked
+      WHERE ranked.id = chat_messages.id
+    )
+    WHERE id IN (
+      SELECT ranked.id
+      FROM ranked
+      WHERE ranked.next_seq != chat_messages.seq
+    );`);
+  } catch (error) {
+    console.warn('[db] Failed to repair duplicate chat message seq values', error);
+  }
+}
+
+function ensureChatMessageSequenceIndex(): void {
+  if (!db) return;
+
+  repairDuplicateChatMessageSequences();
+
+  try {
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS uq_chat_messages_conv_seq ON chat_messages (conversation_id, seq);`);
+  } catch (error) {
+    console.warn('[db] Failed to ensure unique chat message sequence index', error);
+  }
+}
+
 /**
  * 迁移旧的 vec_docs 表到新的按维度分表结构
  * 如果存在旧的 vec_docs 表，尝试从 documents 表重建索引到新的维度表
@@ -397,6 +421,7 @@ function initSchema(): void {
   } catch (e) {
     console.warn('[db] failed to run migrations. Ensure you ran "pnpm run db:generate" or "pnpm run db:push" to create ./drizzle', e);
   }
+  ensureChatMessageSequenceIndex();
   // vec_docs_* tables are managed by sqlite-vec extension; created lazily per dimension
   // Each dimension has its own virtual table (e.g., vec_docs_384, vec_docs_768)
   // This allows multiple embedding dimensions to coexist in the same database
@@ -693,7 +718,6 @@ export function deleteVectors(ids: string[]): { deleted: number } {
 export function rebuildVectorsAuto(ids: string[]): { restored: number } {
   const database = getDB();
   if (!database || !ensureVecLoaded()) return { restored: 0 };
-  const d = getOrm();
   let totalRestored = 0;
   const tx = database.transaction((idsInner: string[]) => {
     for (const id of idsInner) {
@@ -789,13 +813,13 @@ export function findDocumentsNeedingReembedding(targetProviderId: string, target
          ORDER BY embed_at DESC`
       )
       .all(...params) as Array<{
-        id: string;
-        content: string;
-        metadata: string | null;
-        currentProviderId: string | null;
-        currentModel: string | null;
-        currentDim: number | null;
-      }>;
+      id: string;
+      content: string;
+      metadata: string | null;
+      currentProviderId: string | null;
+      currentModel: string | null;
+      currentDim: number | null;
+    }>;
 
     return docs.map((doc) => ({
       id: doc.id,
@@ -1066,10 +1090,7 @@ export async function restoreBackup(backupPath: string): Promise<{ ok: true; req
  * Import a backup file from an external location
  * Copies the file to the backup directory and optionally restores it
  */
-export async function importBackup(
-  sourcePath: string,
-  options?: { restore?: boolean }
-): Promise<{ ok: true; backupPath: string; requiresRestart?: boolean } | { ok: false; error: string }> {
+export async function importBackup(sourcePath: string, options?: { restore?: boolean }): Promise<{ ok: true; backupPath: string; requiresRestart?: boolean } | { ok: false; error: string }> {
   try {
     if (!fs.existsSync(sourcePath)) {
       return { ok: false, error: 'Source file not found' };

@@ -1,9 +1,9 @@
-import { AIChatModelCard, AIImageModelCard } from '../../../model-bank/types/aiModel';
+import type { ChatProviderModelCard, ImageProviderModelCard } from '../../model-types';
 
 // price: https://bigmodel.cn/pricing
 // ref: https://docs.bigmodel.cn/cn/guide/start/model-overview
 
-const zhipuChatModels: AIChatModelCard[] = [
+const zhipuChatModels: ChatProviderModelCard[] = [
   {
     abilities: {
       functionCall: true,
@@ -869,7 +869,7 @@ const zhipuChatModels: AIChatModelCard[] = [
   },
 ];
 
-const zhipuImageModels: AIImageModelCard[] = [
+const zhipuImageModels: ImageProviderModelCard[] = [
   // https://bigmodel.cn/dev/api/image-model/cogview
   {
     description:

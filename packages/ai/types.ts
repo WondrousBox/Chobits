@@ -136,6 +136,20 @@ export type MindmapRequest = ProviderScopedRequest & {
   options?: any;
   metadata?: any;
 };
+export type ActiveAiTaskSnapshot = {
+  requestId: string;
+  providerId: string;
+  model: string;
+  startTime: number;
+  taskLabel?: string;
+  metadata?: Record<string, any>;
+};
+export type TranslatedSegmentSnapshot = AimSegments & {
+  index: number;
+  summary?: string;
+  startIndex?: number;
+  endIndex?: number;
+};
 export type ProviderPresetOverrides = Record<string, any>;
 export type ProviderPresetCreatePayload = {
   providerId: string;
@@ -302,8 +316,8 @@ export type AIApi = {
   // Subtitle translation: handled in main process, sends messages to all windows
   translate(payload: TranslateRequest): Promise<{ requestId: string }>;
   cancelTranslate(requestId: string): Promise<{ ok: boolean }>;
-  getTranslationTasks(): Promise<Array<{ requestId: string; providerId: string; model: string; startTime: number; metadata?: Record<string, any> }>>;
-  getTranslatedSegments(requestId: string): Promise<any[]>;
+  getTranslationTasks(): Promise<ActiveAiTaskSnapshot[]>;
+  getTranslatedSegments(requestId: string): Promise<TranslatedSegmentSnapshot[]>;
   getResourceTranslations(resourceId: string): Promise<Array<{ id: string; language?: string; title?: string; filePath?: string; segments?: Array<{ index: number; text: string }> }>>;
   updateTranslationSegment(payload: { translationResourceId: string; segmentIndex: number; patch: { st?: string; et?: string; text?: string } }): Promise<{ success: boolean; message?: string }>;
   insertTranslationSegment(payload: { translationResourceId: string; insertIndex: number; segment: { st: string; et: string; text: string } }): Promise<{ success: boolean; message?: string }>;
@@ -466,8 +480,8 @@ export type AIApi = {
 
   getResourceSummary(resourceId: string): Promise<any | null>;
   summarize(payload: SummarizeRequest): Promise<{ requestId: string }>;
-  cancelSummary(requestId: string): Promise<{ ok: boolean }>;
-  getSummaryTasks(): Promise<Array<{ requestId: string; providerId: string; model: string; startTime: number; metadata?: Record<string, any> }>>;
+  cancelSummary(requestId: string): Promise<{ ok: boolean; message?: string }>;
+  getSummaryTasks(): Promise<ActiveAiTaskSnapshot[]>;
 
   // ==================== 脑图相关 ====================
 

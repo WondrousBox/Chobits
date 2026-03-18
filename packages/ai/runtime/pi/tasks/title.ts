@@ -1,5 +1,5 @@
 import { normalizeProviderPreset, resolveProviderPresetId } from '../../../provider-preset';
-import type { ChatRequest, ProviderScopedRequest } from '../../../types';
+import type { ChatMessage, ChatRequest, ProviderScopedRequest } from '../../../types';
 import { PiExecutionService } from '../execution-service';
 
 const TITLE_SYSTEM_PROMPT = '你是一个标题生成助手。请根据以下用户和AI的对话内容，生成一个简洁的对话标题（不超过20个字）。只输出标题本身，不要加引号、前缀或解释。';
@@ -26,6 +26,10 @@ function getPiExecutionService(): PiExecutionService {
 export async function generatePiConversationTitle(options: GeneratePiConversationTitleOptions): Promise<string> {
   const { assistantContent, maxLength = 30, model, providerId, userContent } = options;
   const providerPresetId = resolveProviderPresetId(options);
+  const messages: ChatMessage[] = [
+    { role: 'system', content: TITLE_SYSTEM_PROMPT },
+    { role: 'user', content: `用户: ${userContent}\nAI: ${assistantContent.slice(0, 500)}` }
+  ];
 
   const request: ChatRequest = normalizeProviderPreset({
     agentId: 'chat',
@@ -35,10 +39,7 @@ export async function generatePiConversationTitle(options: GeneratePiConversatio
         }
       : undefined,
     maxTokens: 64,
-    messages: [
-      { role: 'system', content: TITLE_SYSTEM_PROMPT },
-      { role: 'user', content: `用户: ${userContent}\nAI: ${assistantContent.slice(0, 500)}` }
-    ],
+    messages,
     persist: false,
     providerId,
     providerPresetId,

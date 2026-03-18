@@ -74,73 +74,72 @@ function write(data: StoreShape): void {
     const normalizedData = {
       presets: data.presets.map((preset) => {
         const normalizedPreset = normalizePreset(preset);
-        const { config: _legacyConfig, ...storedPreset } = normalizedPreset;
+        const storedPreset = { ...normalizedPreset };
+        delete storedPreset.config;
         return storedPreset;
       })
     };
     fs.mkdirSync(path.dirname(FILE), { recursive: true });
     fs.writeFileSync(FILE, JSON.stringify(normalizedData, null, 2), 'utf8');
-  } catch {
-    // ignore write errors
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(`[AI presets] Failed to write preset storage ${FILE}: ${reason}`);
   }
 }
 
-const presetStore = {
-  list(providerId?: string): ProviderPresetRecord[] {
-    const d = read();
-    const canonicalProviderId = providerId ? toCanonicalProviderId(providerId) : undefined;
-    return canonicalProviderId ? d.presets.filter((preset) => preset.providerId === canonicalProviderId) : d.presets;
-  },
-  get(id: string): ProviderPresetRecord | undefined {
-    const d = read();
-    return d.presets.find((preset) => preset.id === id);
-  },
-  create(payload: ProviderPresetCreatePayload & { id?: string }): ProviderPresetRecord {
-    const d = read();
-    const now = Date.now();
-    const overrides = resolvePresetOverrides(payload);
-    const item = normalizePreset({
-      id: payload.id || randomUUID(),
-      providerId: toCanonicalProviderId(payload.providerId),
-      name: payload.name,
-      model: payload.model,
-      systemPrompt: payload.systemPrompt,
-      overrides,
-      enabledTools: payload.enabledTools || [],
-      createdAt: now,
-      updatedAt: now
-    });
-    d.presets.push(item);
-    write(d);
-    return item;
-  },
-  update(id: string, patch: ProviderPresetUpdatePatch): ProviderPresetRecord | undefined {
-    const d = read();
-    const idx = d.presets.findIndex((preset) => preset.id === id);
-    if (idx < 0) return undefined;
-    const nextOverrides =
-      hasOwn(patch, 'overrides') || hasOwn(patch, 'config')
-        ? resolvePresetOverrides(patch)
-        : resolvePresetOverrides(d.presets[idx]);
-    const next = normalizePreset({
-      ...d.presets[idx],
-      ...patch,
-      config: nextOverrides,
-      overrides: nextOverrides,
-      ...(patch.providerId ? { providerId: toCanonicalProviderId(patch.providerId) } : {}),
-      updatedAt: Date.now()
-    } as ProviderPresetRecord);
-    d.presets[idx] = next;
-    write(d);
-    return next;
-  },
-  delete(id: string): boolean {
-    const d = read();
-    const before = d.presets.length;
-    d.presets = d.presets.filter((preset) => preset.id !== id);
-    write(d);
-    return d.presets.length !== before;
-  }
-};
+export function listStoredPresets(providerId?: string): ProviderPresetRecord[] {
+  const d = read();
+  const canonicalProviderId = providerId ? toCanonicalProviderId(providerId) : undefined;
+  return canonicalProviderId ? d.presets.filter((preset) => preset.providerId === canonicalProviderId) : d.presets;
+}
 
-export const PresetsStore = presetStore;
+export function getStoredPreset(id: string): ProviderPresetRecord | undefined {
+  const d = read();
+  return d.presets.find((preset) => preset.id === id);
+}
+
+export function createStoredPreset(payload: ProviderPresetCreatePayload & { id?: string }): ProviderPresetRecord {
+  const d = read();
+  const now = Date.now();
+  const overrides = resolvePresetOverrides(payload);
+  const item = normalizePreset({
+    id: payload.id || randomUUID(),
+    providerId: toCanonicalProviderId(payload.providerId),
+    name: payload.name,
+    model: payload.model,
+    systemPrompt: payload.systemPrompt,
+    overrides,
+    enabledTools: payload.enabledTools || [],
+    createdAt: now,
+    updatedAt: now
+  });
+  d.presets.push(item);
+  write(d);
+  return item;
+}
+
+export function updateStoredPreset(id: string, patch: ProviderPresetUpdatePatch): ProviderPresetRecord | undefined {
+  const d = read();
+  const idx = d.presets.findIndex((preset) => preset.id === id);
+  if (idx < 0) return undefined;
+  const nextOverrides = hasOwn(patch, 'overrides') || hasOwn(patch, 'config') ? resolvePresetOverrides(patch) : resolvePresetOverrides(d.presets[idx]);
+  const next = normalizePreset({
+    ...d.presets[idx],
+    ...patch,
+    config: nextOverrides,
+    overrides: nextOverrides,
+    ...(patch.providerId ? { providerId: toCanonicalProviderId(patch.providerId) } : {}),
+    updatedAt: Date.now()
+  } as ProviderPresetRecord);
+  d.presets[idx] = next;
+  write(d);
+  return next;
+}
+
+export function deleteStoredPreset(id: string): boolean {
+  const d = read();
+  const before = d.presets.length;
+  d.presets = d.presets.filter((preset) => preset.id !== id);
+  write(d);
+  return d.presets.length !== before;
+}

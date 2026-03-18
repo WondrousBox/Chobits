@@ -1,9 +1,31 @@
 # Pi Runtime Refactor Plan
 
-更新时间：2026-03-17
+更新时间：2026-03-18
 
 本文档保留原文件名，当前用途已经从“分波次迁移计划”切换为“最终收口说明”。
 Pi runtime 的主链路改造已经完成，后续继续演进时请直接以这里的当前状态为准，而不是再按旧的 Wave 历史记录理解实现。
+
+## 完成情况评估
+
+以本文档描述的重构目标来看，当前可以判定为“架构收口已完成”：
+
+- Pi runtime 已经成为 AI 主运行时，而不是旁路实验分支
+- provider 读取已经统一收口到 `ProviderDefinition` / `ProviderService`
+- preset 语义已经统一收口到 `providerPresetId` + preset-first surface
+- 旧的 instance-era API、metadata shim、runtime alias shim、旧 model-provider 目录都已退出 AI 主链路
+
+需要额外说明的是：
+
+- 当前剩余的 TypeScript 阻塞，已经不再是本文档所描述的 Pi runtime / provider / preset 架构问题
+- 更大范围 `tsc` 仍会被非 AI 文件阻塞，当前已知主要包括：
+  - `electron/main/db/index.ts`
+  - `electron/main/handlers/resource/index.ts`
+
+因此，本文档现在应被理解为：
+
+- Pi runtime 重构目标：已完成
+- AI 主链路统一收口：已完成
+- 仓库级别类型清零：未包含在本文档目标内，仍需单独继续清理
 
 ## 当前结论
 
@@ -107,12 +129,13 @@ Pi runtime 的主链路改造已经完成，后续继续演进时请直接以这
 - `getProviderDefinitionSchema()`
 - `listProviderRuntimeModels()`
 
-不要再直接依赖旧 metadata、旧 resource JSON、旧 model-bank provider card 形态。
+不要再直接依赖旧 metadata、旧 resource JSON、旧 provider/model 历史形态；相关 provider/model 定义已经完全并入 `providers/*`。
 
 ### Preset 读取与存储
 
 - 业务侧统一通过 `preset-service.ts` 读取 preset
-- `PresetsStore` 只保留底层存储职责
+- `presets-store.ts` 只保留底层存储职责
+- preset secrets 底层统一收口到 `preset-secrets-store.ts`
 - preset 记录主语义字段：
   - `providerId`
   - `name`
@@ -146,4 +169,4 @@ Pi runtime 的主链路改造已经完成，后续继续演进时请直接以这
 1. 如果新增 provider 能力，优先放在 `ProviderDefinition` + `ProviderService` 体系里补齐描述，再决定是否需要特殊 runtime adapter。
 2. 如果新增 one-shot/task 类型，优先接入 `PiExecutionService` 或 `task-chat.ts`，避免重新散落出独立执行面。
 3. 如果新增聊天页/资源页入口，统一复用 `useProvidersPresets()`、`ServicePresetSelect` 和 canonical AI request 类型。
-4. `packages/ai/presets-store.ts` 已经完成文件名层面的 preset-first 收口；后续若继续清理，重点将转向更小的 public surface 与类型面。
+4. `packages/ai/presets-store.ts` 现在已经进一步收成 storage helper，`deletePreset` 也会同步清理 preset secrets；后续若继续清理，重点将转向更小的 public surface 与类型面。
