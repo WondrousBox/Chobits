@@ -1730,6 +1730,17 @@ export const ChatRepo = {
       tx.delete(recycle_bin).where(inArray(recycle_bin.entityId, ids)).run?.();
     });
     return deleted;
+  },
+
+  /** 永久删除单个会话（不经过回收站） */
+  async deleteConversation(id: string): Promise<boolean> {
+    if (!id) return false;
+    const db = getOrm();
+    (db as any).transaction((tx: any) => {
+      tx.delete(conversations).where(eq(conversations.id, id)).run?.();
+      tx.delete(recycle_bin).where(eq(recycle_bin.entityId, id)).run?.();
+    });
+    return true;
   }
 };
 

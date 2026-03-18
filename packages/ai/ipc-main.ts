@@ -261,6 +261,10 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
     const row = await ChatRepo.restoreConversation(payload.id);
     return row ? { ok: true } : { ok: false };
   });
+  ipcMain.handle('ai:hardDeleteConversation', async (_e, payload: { id: string }) => {
+    const ok = await ChatRepo.deleteConversation(payload.id);
+    return { ok };
+  });
 
   // 获取所有活跃的翻译任务
   ipcMain.handle('ai:getTranslationTasks', async () => {
