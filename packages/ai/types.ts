@@ -346,6 +346,7 @@ export type AIApi = {
   renameConversation(id: string, title: string): Promise<{ ok: boolean; row?: ConversationRecord }>;
   deleteConversation(id: string): Promise<{ ok: boolean }>;
   restoreConversation(id: string): Promise<{ ok: boolean }>;
+  hardDeleteConversation(id: string): Promise<{ ok: boolean }>;
   /** Subscribe to conversation title updates pushed from main process */
   onConversationTitleUpdated(callback: (data: { conversationId: string; title: string | null; status: 'generating' | 'done' | 'error' }) => void): () => void;
   /** Subscribe to card push events from main process */

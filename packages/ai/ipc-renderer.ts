@@ -194,6 +194,9 @@ export const aiBridge = {
   async restoreConversation(id: string) {
     return ipcRenderer.invoke('ai:restoreConversation', { id });
   },
+  async hardDeleteConversation(id: string) {
+    return ipcRenderer.invoke('ai:hardDeleteConversation', { id });
+  },
   /** Subscribe to conversation title updates pushed from main process */
   onConversationTitleUpdated(callback: (data: { conversationId: string; title: string | null; status: 'generating' | 'done' | 'error' }) => void) {
     const handler = (_: any, data: any): void => callback(data);

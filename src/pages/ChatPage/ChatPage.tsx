@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { ChatInputWithService, ChatMessageRenderer, ResourceCard } from '@/components/chat';
 import type { ChatCard } from '@/components/chat/types';
 import DragAbleTitle from '@/components/common/DragAbleTitle';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -34,6 +35,10 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
 
   // 控制历史会话列表的显示/隐藏，默认隐藏
   const [showHistory, setShowHistory] = useState(false);
+
+  // 删除确认弹窗状态
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingConvId, setDeletingConvId] = useState<string | null>(null);
 
   // Pushed cards from main process
   const [pushedCards, setPushedCards] = useState<Array<ChatCard & { timestamp: number; text?: string }>>([]);
@@ -99,34 +104,28 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
     await loadConversations();
   };
 
-  // Soft delete a conversation with undo via toast
-  const deleteConversation = async (id: string): Promise<void> => {
+  // 打开删除确认弹窗
+  const openDeleteDialog = (id: string): void => {
+    setDeletingConvId(id);
+    setDeleteDialogOpen(true);
+  };
+
+  // 确认永久删除会话
+  const confirmDeleteConversation = async (): Promise<void> => {
+    if (!deletingConvId) return;
+    const id = deletingConvId;
     const prevSelected = selectedConvId;
     try {
-      await window.YUA.ai.deleteConversation(id);
-      // Optimistic: remove from list immediately
+      await window.YUA.ai.hardDeleteConversation(id);
       setConversations((prev) => prev.filter((c) => c.id !== id));
       if (prevSelected === id) newConversation();
-
-      toast.success('已删除会话', {
-        description: '你可以在几秒内撤回该操作',
-        action: {
-          label: '撤回',
-          onClick: async () => {
-            await window.YUA.ai.restoreConversation(id);
-            await loadConversations();
-            // If this conversation was focused before, reselect it
-            if (prevSelected === id) {
-              await selectConversation(id);
-            }
-          }
-        },
-        duration: 5000
-      });
+      toast.success('已删除会话');
     } catch (e: any) {
       console.error(e);
-      // Let parent surface errors
       toast.error('删除失败');
+    } finally {
+      setDeleteDialogOpen(false);
+      setDeletingConvId(null);
     }
   };
 
@@ -138,7 +137,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
     const handlePayload = (payload: any): void => {
       if (!payload?.initialMessage) return;
       // 清除缓存 payload，防止关闭后再次打开时重复触发
-      window.ipcRenderer?.invoke('window:payload:clear', 'chat').catch(() => {});
+      window.ipcRenderer?.invoke('window:payload:clear', 'chat').catch(() => { });
       // 重置为新对话状态
       newConversation();
       // 延迟一帧确保状态已重置，再发起对话
@@ -397,7 +396,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
                             className="text-destructive focus:text-destructive"
                             onClick={(e) => {
                               e.stopPropagation();
-                              deleteConversation(c.id);
+                              openDeleteDialog(c.id);
                             }}
                           >
                             <TbTrash className="w-4 h-4 mr-2" />
@@ -497,6 +496,22 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 删除确认弹窗 */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除对话</AlertDialogTitle>
+            <AlertDialogDescription>确定要删除此对话吗？此操作无法撤销。</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={confirmDeleteConversation}>
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
