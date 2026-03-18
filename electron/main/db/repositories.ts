@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import * as fscb from 'node:fs';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
@@ -1583,6 +1584,7 @@ export const ChatRepo = {
 
     const now = Date.now();
     const payload = {
+      id: randomUUID(),
       content: message.content,
       conversationId,
       createdAt: (message as any).createdAt ?? now,
@@ -1595,6 +1597,7 @@ export const ChatRepo = {
 
     const insertMessage = rawDb.prepare(
       `INSERT INTO chat_messages (
+        id,
         conversation_id,
         role,
         content,
@@ -1606,6 +1609,7 @@ export const ChatRepo = {
         updated_at
       )
       VALUES (
+        @id,
         @conversationId,
         @role,
         @content,
