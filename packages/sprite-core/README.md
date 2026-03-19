@@ -505,6 +505,163 @@ interface SpriteBridgeType {
 
 ---
 
+## 9.4 语音合成 API (Speak)
+
+精灵语音合成功能，支持文字转语音并自动播放。
+
+### 核心 API
+
+#### `speak(text, options?)` - 让精灵说话并播放
+
+**最常用的方法**，一行代码完成：语音合成 → 精灵显示气泡 → 播放音频
+
+```typescript
+// 基础用法
+await window.YUA.sprite.speak('你好，我是你的桌面助手！');
+
+// 带选项
+await window.YUA.sprite.speak('欢迎使用', {
+  showBubble: true,     // 是否显示文字气泡 (默认 true)
+  bubbleDuration: 3000  // 气泡显示时长 (ms)
+});
+
+// 异步提示 (不等待播放完成)
+window.YUA.sprite.speak('操作已完成')
+  .catch(console.error);
+```
+
+**返回值**:
+```typescript
+interface SpeakResult {
+  success: boolean;    // 是否成功
+  cacheId?: string;    // 缓存 ID
+  audioPath?: string;  // 音频文件路径
+  fromCache?: boolean; // 是否来自缓存
+  error?: string;      // 错误信息
+}
+```
+
+#### `synthesizeSpeech(text)` - 只合成不播放
+
+只生成音频文件，不触发播放。
+
+```typescript
+const result = await window.YUA.sprite.synthesizeSpeech('预合成这段文字');
+if (result.success) {
+  console.log('音频路径:', result.audioPath);
+}
+```
+
+### 配置管理
+
+```typescript
+// 获取当前配置
+const config = await window.YUA.sprite.getSpeakConfig();
+
+// 设置配置
+await window.YUA.sprite.setSpeakConfig({
+  enabled: true,
+  voiceName: 'zh-CN-YunxiNeural',  // 语音名称
+  rate: 20,                         // 语速 (-100 ~ 200)
+  pitch: 0,                         // 音高 (-100 ~ 200)
+  volume: 1                         // 音量 (0 ~ 1)
+});
+
+// 重置为默认配置
+await window.YUA.sprite.resetSpeakConfig();
+```
+
+**配置类型**:
+```typescript
+interface SpriteSpeakConfig {
+  enabled: boolean;      // 是否启用语音合成
+  serviceType: 'Edge';   // TTS 服务类型
+  voiceName: string;     // 语音名称 (如 zh-CN-XiaoxiaoNeural)
+  rate: number;          // 语速 (-100 ~ 200)
+  pitch: number;         // 音高 (-100 ~ 200)
+  volume: number;        // 音量 (0 ~ 1)
+}
+```
+
+### 缓存管理
+
+```typescript
+// 获取缓存统计
+const stats = await window.YUA.sprite.getSpeakCacheStats();
+// { totalEntries: 10, totalSizeBytes: 1024000 }
+
+// 清空缓存
+await window.YUA.sprite.clearSpeakCache();
+```
+
+### 事件监听
+
+#### `onSpeak(callback)` - 监听语音播放事件
+
+当音频合成完成、即将播放时触发。**注意**: 此事件由精灵窗口监听并播放，普通组件通常不需要监听。
+
+```typescript
+const unsubscribe = window.YUA.sprite.onSpeak((data) => {
+  console.log('文字:', data.text);
+  console.log('音频路径:', data.audioPath);
+  console.log('缓存ID:', data.cacheId);
+  console.log('音量:', data.volume);
+});
+
+// 取消监听
+unsubscribe();
+```
+
+### 工作流程
+
+```
+渲染进程                              主进程                    精灵窗口
+    │                                   │                         │
+    │  window.YUA.sprite.speak('你好') │                         │
+    │ ─────────────────────────────────►│                         │
+    │                                   │                         │
+    │                            合成音频 (Edge TTS)              │
+    │                            缓存检查/存储                    │
+    │                                   │                         │
+    │                                   │  sprite:speak 事件      │
+    │                                   │ ───────────────────────►│
+    │                                   │                         │
+    │                                   │                   <audio>.play()
+    │                                   │                   显示气泡
+    │                                   │                         │
+    │  返回 SpeakResult                 │                         │
+    │ ◄─────────────────────────────────│                         │
+```
+
+### 常见用法
+
+```typescript
+// 1. 简单提示 (推荐)
+await window.YUA.sprite.speak('操作已完成');
+
+// 2. 错误提示
+try {
+  // ... 某些操作
+} catch (error) {
+  await window.YUA.sprite.speak('操作失败，请重试');
+}
+
+// 3. 异步提示 (不等待)
+window.YUA.sprite.speak('欢迎使用')
+  .catch(console.error);
+```
+
+### 相关文件
+
+| 文件 | 说明 |
+|------|------|
+| `packages/sprite-core/preload/sprite-bridge.ts` | Preload 桥接，暴露 API |
+| `packages/sprite-core/speak/speak-service.ts` | 语音合成服务 (主进程) |
+| `packages/sprite-core/speak/types.ts` | 类型定义 |
+| `src/features/sprite-assistant/speak/useSpriteSpeak.ts` | 精灵窗口音频播放 Hook |
+
+---
+
 ## 10. 动画配置文件
 
 ### 10.1 文件位置
