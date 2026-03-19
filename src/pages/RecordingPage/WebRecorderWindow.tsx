@@ -106,6 +106,7 @@ const WebRecorderWindow: React.FC = () => {
   const previewLoopFnRef = useRef<(() => void) | null>(null);
   const savedDeviceIdRef = useRef<string | null>(null);
   const saveDeviceSelectionAndRecordRef = useRef<((deviceId: string) => Promise<void>) | null>(null);
+  const hasSpokenNoDeviceRef = useRef(false); // 是否已经提示过没有麦克风
 
   // 检测 ASR 服务状态
   useEffect(() => {
@@ -196,6 +197,11 @@ const WebRecorderWindow: React.FC = () => {
 
       if (audioInputs.length === 0) {
         setIsWaitingForDevice(true);
+        // 语音提示没有检测到麦克风
+        if (!hasSpokenNoDeviceRef.current) {
+          hasSpokenNoDeviceRef.current = true;
+          window.YUA.sprite.speak('未检测到麦克风设备，请插入麦克风后重试').catch(console.error);
+        }
       } else {
         setIsWaitingForDevice(false);
         // Check if saved device exists in the list using ref for latest value
@@ -226,6 +232,11 @@ const WebRecorderWindow: React.FC = () => {
         setIsWaitingForDevice(true);
         setError(null);
         setDevices([]);
+        // 语音提示没有检测到麦克风
+        if (!hasSpokenNoDeviceRef.current) {
+          hasSpokenNoDeviceRef.current = true;
+          window.YUA.sprite.speak('未检测到麦克风设备，请插入麦克风后重试').catch(console.error);
+        }
       } else if (err.name === 'NotReadableError') {
         setError('麦克风被其他程序占用');
         setIsWaitingForDevice(false);
