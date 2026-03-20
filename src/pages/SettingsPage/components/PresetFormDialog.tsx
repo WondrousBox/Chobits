@@ -1,6 +1,6 @@
 import { DialogDescription } from '@radix-ui/react-dialog';
 import { useEffect, useState } from 'react';
-import { TbChevronDown, TbChevronRight, TbPlus, TbStarFilled, TbTool } from 'react-icons/tb';
+import { TbChevronDown, TbChevronRight, TbTool } from 'react-icons/tb';
 
 import TintableSvg from '@/components/common/TintableSvg';
 import { Button } from '@/components/ui/button';
@@ -8,8 +8,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-
-import ApiKeyManager from './ApiKeyManager';
 
 // Lightweight local types to avoid cross-file coupling
 export type ProviderRow = {
@@ -23,7 +21,6 @@ export type ProviderRow = {
 };
 export type ModelOpt = { id: string; label?: string; type?: string; context?: number; pricing?: any; tags?: string[]; description?: string; free?: boolean };
 export type Template = { id: string; name: string; type: 'system' | 'user'; content: string };
-export type ApiKeyItem = { name: string; value: string; isDefault?: boolean };
 export type ToolInfo = { id: string; name: string; description: string };
 
 export type PresetFormValues = {
@@ -50,13 +47,8 @@ export function PresetFormDialog(props: {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [availableTools, setAvailableTools] = useState<ToolInfo[]>([]);
   const [toolsExpanded, setToolsExpanded] = useState(false);
-  const [apiKeyManagerOpen, setApiKeyManagerOpen] = useState(false);
-  const [selectedFieldKey, setSelectedFieldKey] = useState<string | null>(null);
-  const [apiKeysCache, setApiKeysCache] = useState<Record<string, ApiKeyItem[]>>({});
 
-  // Initialize form values when dialog is opened via onOpenChange to avoid lint warning on setState in effect
-
-  // Fetch prompt templates, API keys, and available tools when dialog opens
+  // Fetch prompt templates and available tools when dialog opens
   useEffect(() => {
     if (!open) return;
     (async () => {
@@ -74,29 +66,8 @@ export function PresetFormDialog(props: {
       } catch {
         setAvailableTools([]);
       }
-
-      // Load API keys for password fields
-      const passwordFields = (provider.schema?.fields || []).filter((f) => f.type === 'password');
-      const cache: Record<string, ApiKeyItem[]> = {};
-      for (const field of passwordFields) {
-        try {
-          const keys = await window.YUA.ai.getProviderApiKeys(provider.id, field.key);
-          cache[field.key] = keys || [];
-
-          // If no API key is selected and there's a default key, auto-select it
-          if (!values.secrets?.[field.key] && keys && keys.length > 0) {
-            const defaultKey = keys.find((k) => k.isDefault) || keys[0];
-            if (defaultKey) {
-              setValues((v) => ({ ...v, secrets: { ...(v.secrets || {}), [field.key]: defaultKey.value } }));
-            }
-          }
-        } catch {
-          cache[field.key] = [];
-        }
-      }
-      setApiKeysCache(cache);
     })();
-  }, [open, provider.id]);
+  }, [open]);
 
   const currentLang = (typeof navigator !== 'undefined' ? navigator.language?.toLowerCase?.() : 'en') || 'en';
   const pickLocale = (locales?: Record<string, { label?: string; fields?: Record<string, string> }>): { label?: string; fields?: Record<string, string> } | undefined => {
@@ -210,62 +181,15 @@ export function PresetFormDialog(props: {
             </label>
             {(provider.schema?.fields || []).map((f) => {
               const label = locale?.fields?.[f.key] || f.label;
-              const apiKeyOptions = apiKeysCache[f.key] || [];
 
-              if (f.type === 'password') {
-                // Render API Key selector for password fields
-                return (
-                  <label key={f.key} className="grid gap-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">{label}</span>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 px-2 text-xs"
-                        onClick={() => {
-                          setSelectedFieldKey(f.key);
-                          setApiKeyManagerOpen(true);
-                        }}
-                      >
-                        <TbPlus className="w-3 h-3 mr-1" />
-                        新增
-                      </Button>
-                    </div>
-                    <Select value={values.secrets?.[f.key] || ''} onValueChange={(val) => setValues((v) => ({ ...v, secrets: { ...(v.secrets || {}), [f.key]: val } }))}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder={apiKeyOptions.length > 0 ? '选择 API Key' : '请先添加 API Key'} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {apiKeyOptions.length === 0 ? (
-                          <div className="px-2 py-1.5 text-sm text-muted-foreground text-center">暂无 API Key，请点击上方&ldquo;新增&rdquo;按钮</div>
-                        ) : (
-                          apiKeyOptions.map((key) => (
-                            <SelectItem key={key.name} value={key.value}>
-                              <div className="flex items-center gap-2">
-                                <span>{key.name}</span>
-                                {key.isDefault && (
-                                  <span className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200">
-                                    <TbStarFilled className="w-3 h-3" />
-                                    默认
-                                  </span>
-                                )}
-                              </div>
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
-                    {!!errors?.[f.key] && <span className="text-xs text-red-600">{errors[f.key]}</span>}
-                  </label>
-                );
-              }
-
-              // Render regular input for non-password fields
               return (
                 <label key={f.key} className="grid gap-1">
                   <span className="text-sm text-muted-foreground">{label}</span>
-                  <Input type="text" value={values.secrets?.[f.key] || ''} onChange={(e) => setValues((v) => ({ ...v, secrets: { ...(v.secrets || {}), [f.key]: e.target.value } }))} />
+                  <Input
+                    type={f.type === 'password' ? 'password' : 'text'}
+                    value={values.secrets?.[f.key] || ''}
+                    onChange={(e) => setValues((v) => ({ ...v, secrets: { ...(v.secrets || {}), [f.key]: e.target.value } }))}
+                  />
                   {!!errors?.[f.key] && <span className="text-xs text-red-600">{errors[f.key]}</span>}
                 </label>
               );
@@ -404,32 +328,6 @@ export function PresetFormDialog(props: {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* API Key Manager */}
-      {selectedFieldKey && (
-        <ApiKeyManager
-          open={apiKeyManagerOpen}
-          providerId={provider.id}
-          providerLabel={provider.label}
-          fieldKey={selectedFieldKey}
-          fieldLabel={locale?.fields?.[selectedFieldKey] || provider.schema?.fields?.find((f) => f.key === selectedFieldKey)?.label || selectedFieldKey}
-          onClose={async () => {
-            // Reload the API keys and update the form value with the default key
-            const keys = await window.YUA.ai.getProviderApiKeys(provider.id, selectedFieldKey);
-            const defaultKey = keys.find((k) => k.isDefault) || keys[0];
-
-            // Update cache
-            setApiKeysCache((prev) => ({ ...prev, [selectedFieldKey]: keys || [] }));
-
-            // Update form value
-            if (defaultKey) {
-              setValues((v) => ({ ...v, secrets: { ...(v.secrets || {}), [selectedFieldKey]: defaultKey.value } }));
-            }
-
-            setApiKeyManagerOpen(false);
-          }}
-        />
-      )}
     </>
   );
 }
