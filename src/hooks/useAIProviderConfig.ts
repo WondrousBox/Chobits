@@ -13,14 +13,14 @@ export function useAIProviderConfig(): void {
       const fields: string[] = Array.isArray(payload?.fields) && payload.fields.length ? payload.fields : ['apiKey'];
       console.log('[AI Provider Config] 检测到缺少配置，准备打开配置窗口:', { providerId: pid, fields });
 
-      // 使用统一的窗口管理器打开配置窗口，并通过 payload 传递需要配置的字段
-      window.YUA.window['window:open']('aiProviderConfig' as any, { providerId: pid, fields }, { sameDisplayAsSender: true })
+      // 预设已经成为 AI 配置的主入口，这里直接引导用户前往设置页管理预设
+      window.YUA.window['window:open']('settings' as any, { category: 'ai', aiProviderId: pid }, { sameDisplayAsSender: true })
         .then(() => {
-          console.log('[AI Provider Config] 配置窗口已打开');
+          console.log('[AI Provider Config] 已打开 AI 设置页');
         })
         .catch((err: any) => {
-          console.error('[AI Provider Config] 打开配置窗口失败:', err);
-          toast.error(`无法打开配置窗口: ${err?.message || '未知错误'}`);
+          console.error('[AI Provider Config] 打开 AI 设置页失败:', err);
+          toast.error(`无法打开 AI 设置页: ${err?.message || '未知错误'}`);
         });
     };
 

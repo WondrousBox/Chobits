@@ -1,15 +1,11 @@
-import { DialogDescription } from '@radix-ui/react-dialog';
 import { useEffect, useState } from 'react';
-import { TbChevronDown, TbChevronRight, TbTool } from 'react-icons/tb';
+import { TbChevronDown, TbChevronRight } from 'react-icons/tb';
 
 import TintableSvg from '@/components/common/TintableSvg';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-// Lightweight local types to avoid cross-file coupling
 export type ProviderRow = {
   id: string;
   label: string;
@@ -19,55 +15,52 @@ export type ProviderRow = {
     fields?: Array<{ key: string; label: string; type: string; required?: boolean; options?: any[] }>;
   };
 };
+
 export type ModelOpt = { id: string; label?: string; type?: string; context?: number; pricing?: any; tags?: string[]; description?: string; free?: boolean };
 export type Template = { id: string; name: string; type: 'system' | 'user'; content: string };
-export type ToolInfo = { id: string; name: string; description: string };
 
 export type PresetFormValues = {
-  name: string;
-  model?: string;
   systemPrompt?: string;
   secrets: Record<string, string>;
-  enabledTools?: string[];
 };
 
 export function PresetFormDialog(props: {
-  open: boolean;
-  mode: 'create' | 'edit';
   title?: string;
   provider: ProviderRow;
   models: ModelOpt[];
   initialValues: PresetFormValues;
   errors?: Record<string, string>;
-  onClose: () => void;
-  onSubmit: (values: PresetFormValues) => void;
+  submitLabel?: string;
+  cancelLabel?: string;
+  onCancel?: () => void;
+  onDelete?: () => void;
+  onSubmit: (values: PresetFormValues) => void | Promise<void>;
 }): JSX.Element {
-  const { open, title, provider, models, initialValues, errors, onClose, onSubmit } = props;
-  const [values, setValues] = useState<PresetFormValues>(initialValues);
+  const { title, provider, models, initialValues, errors, submitLabel = '保存', cancelLabel = '取消', onCancel, onDelete, onSubmit } = props;
+  const [values, setValues] = useState<PresetFormValues>(() => initialValues);
   const [templates, setTemplates] = useState<Template[]>([]);
-  const [availableTools, setAvailableTools] = useState<ToolInfo[]>([]);
-  const [toolsExpanded, setToolsExpanded] = useState(false);
+  const [modelsExpanded, setModelsExpanded] = useState(false);
 
-  // Fetch prompt templates and available tools when dialog opens
   useEffect(() => {
-    if (!open) return;
+    let cancelled = false;
+
     (async () => {
       try {
         const tmpl = await window.YUA.ai.listPromptTemplates().catch(() => []);
-        setTemplates(tmpl || []);
+        if (!cancelled) {
+          setTemplates(tmpl || []);
+        }
       } catch {
-        setTemplates([]);
-      }
-
-      // Load available tools
-      try {
-        const tools = await window.YUA.ai.listTools().catch(() => []);
-        setAvailableTools(tools || []);
-      } catch {
-        setAvailableTools([]);
+        if (!cancelled) {
+          setTemplates([]);
+        }
       }
     })();
-  }, [open]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const currentLang = (typeof navigator !== 'undefined' ? navigator.language?.toLowerCase?.() : 'en') || 'en';
   const pickLocale = (locales?: Record<string, { label?: string; fields?: Record<string, string> }>): { label?: string; fields?: Record<string, string> } | undefined => {
@@ -79,10 +72,8 @@ export function PresetFormDialog(props: {
 
   const locale = pickLocale(provider.schema?.locales);
 
-  // Note: appendTemplate previously supported chip-append. No longer used.
-
   const isFree = (m: ModelOpt): boolean => {
-    return (m as any)?.free === true || (Array.isArray(m.tags) && m.tags.includes('free'));
+    return (m as { free?: boolean; tags?: string[] })?.free === true || (Array.isArray(m.tags) && m.tags.includes('free'));
   };
 
   const typeColorClasses = (t?: string): string => {
@@ -110,7 +101,7 @@ export function PresetFormDialog(props: {
   };
 
   const renderContextPill = (m: ModelOpt): JSX.Element | null => {
-    const k = m?.context ? Math.round((m.context as number) / 1000) : 0;
+    const k = m.context ? Math.round((m.context as number) / 1000) : 0;
     if (!k) return null;
     return <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-100 text-sky-700 border border-sky-200">{k}k ctx</span>;
   };
@@ -139,196 +130,137 @@ export function PresetFormDialog(props: {
     }
   };
 
-  const filteredSortedModels = (() => {
-    const base = models;
-    return [...base].sort((a, b) => {
-      const fa = isFree(a) ? 1 : 0;
-      const fb = isFree(b) ? 1 : 0;
-      if (fb !== fa) return fb - fa; // 免费优先
-      const la = (a.label || a.id || '').toLowerCase();
-      const lb = (b.label || b.id || '').toLowerCase();
-      return la.localeCompare(lb);
-    });
-  })();
-
-  const selectedModel = models.find((m) => m.id === (values.model || ''));
+  const filteredSortedModels = [...models].sort((a, b) => {
+    const fa = isFree(a) ? 1 : 0;
+    const fb = isFree(b) ? 1 : 0;
+    if (fb !== fa) return fb - fa;
+    const la = (a.label || a.id || '').toLowerCase();
+    const lb = (b.label || b.id || '').toLowerCase();
+    return la.localeCompare(lb);
+  });
 
   return (
-    <>
-      <Dialog
-        open={open}
-        onOpenChange={(o) => {
-          if (!o) {
-            onClose();
-          } else {
-            setValues(initialValues);
-          }
-        }}
-      >
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {provider.schema?.icon && <TintableSvg src={provider.schema?.icon || ''} alt={provider.label} className="w-10 h-10" />}
-              <span>{title || pickLocale(provider.schema?.locales)?.label || provider.label}</span>
-            </DialogTitle>
-            <DialogDescription className="h-0"></DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="grid gap-1">
-              <span className="text-sm text-muted-foreground">名称</span>
-              <Input value={values.name} onChange={(e) => setValues((v) => ({ ...v, name: e.target.value }))} />
-              {!!errors?.name && <span className="text-xs text-red-600">{errors.name}</span>}
-            </label>
-            {(provider.schema?.fields || []).map((f) => {
-              const label = locale?.fields?.[f.key] || f.label;
-
-              return (
-                <label key={f.key} className="grid gap-1">
-                  <span className="text-sm text-muted-foreground">{label}</span>
-                  <Input
-                    type={f.type === 'password' ? 'password' : 'text'}
-                    value={values.secrets?.[f.key] || ''}
-                    onChange={(e) => setValues((v) => ({ ...v, secrets: { ...(v.secrets || {}), [f.key]: e.target.value } }))}
-                  />
-                  {!!errors?.[f.key] && <span className="text-xs text-red-600">{errors[f.key]}</span>}
-                </label>
-              );
-            })}
-            <label className="grid gap-1">
-              <span className="text-sm text-muted-foreground">模型</span>
-              <Select value={values.model || ''} onValueChange={(val) => setValues((v) => ({ ...v, model: val }))}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="选择模型" />
-                </SelectTrigger>
-                <SelectContent>
-                  {filteredSortedModels.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      <div className="flex items-center gap-2">
-                        <span>{m.label || m.id}</span>
-                        {isFree(m) && <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 border border-green-200">免费</span>}
-                        {m.type && <span className={`text-[10px] px-1.5 py-0.5 rounded border ${typeColorClasses(m.type)}`}>{typeDisplay(m.type)}</span>}
-                        {renderContextPill(m)}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {!!selectedModel && (
-                <div className="mt-1 text-xs text-muted-foreground flex flex-wrap items-center gap-2">
-                  {isFree(selectedModel) && <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 border border-green-200">免费</span>}
-                  {selectedModel.type && <span className={`text-[10px] px-1.5 py-0.5 rounded border ${typeColorClasses(selectedModel.type)}`}>{typeDisplay(selectedModel.type)}</span>}
-                  {renderContextPill(selectedModel)}
-                  {selectedModel.description && <span className="truncate max-w-full">{selectedModel.description}</span>}
-                  {Array.isArray(selectedModel.tags) && selectedModel.tags.length > 0 && (
-                    <span className="flex items-center gap-1 flex-wrap">
-                      {selectedModel.tags.slice(0, 6).map((t) => (
-                        <span key={t} className="text-[10px] px-1 py-0.5 rounded border border-gray-200 text-gray-600 bg-gray-50">
-                          {t}
-                        </span>
-                      ))}
-                    </span>
-                  )}
-                </div>
-              )}
-            </label>
-
-            <label className="grid gap-1">
-              <span className="text-sm text-muted-foreground">系统提示词</span>
-              <Select
-                value={templates.find((t) => t.type === 'system' && t.content === (values.systemPrompt || ''))?.id || ''}
-                onValueChange={(val) => {
-                  const t = templates.find((x) => x.id === val);
-                  if (t) setValues((v) => ({ ...v, systemPrompt: t.content }));
-                }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder={templates.length ? '选择模板' : '暂无模板，请先创建提示词模板'} />
-                </SelectTrigger>
-                <SelectContent>
-                  {templates.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </label>
+    <div className="rounded-xl border bg-background p-4 space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 min-w-0">
+          {provider.schema?.icon && <TintableSvg src={provider.schema.icon || ''} alt={provider.label} className="w-8 h-8 shrink-0" />}
+          <div className="min-w-0">
+            <div className="font-medium truncate">{title || pickLocale(provider.schema?.locales)?.label || provider.label}</div>
+            <div className="text-xs text-muted-foreground truncate">填写并保存后会立即生效</div>
           </div>
+        </div>
+      </div>
 
-          <div className="grid gap-1">{!!values.systemPrompt && <pre className="rounded border p-2 bg-muted/30 min-h-[60px] whitespace-pre-wrap text-xs">{values.systemPrompt}</pre>}</div>
+      <div className="grid gap-4 md:grid-cols-2">
+        {(provider.schema?.fields || []).map((field) => {
+          const label = locale?.fields?.[field.key] || field.label;
 
-          {/* 工具配置 */}
-          <div className="space-y-2">
-            <Button
-              type="button"
-              variant="ghost"
-              className="flex w-full items-center justify-between px-2 py-2 text-sm text-muted-foreground hover:text-foreground"
-              onClick={() => setToolsExpanded(!toolsExpanded)}
-            >
-              <span className="flex items-center gap-2">
-                <TbTool className="w-4 h-4" />
-                工具配置 ({(values.enabledTools || []).length}/{availableTools.length} 个已启用)
-              </span>
-              <span className="flex items-center gap-1 text-xs">
-                {toolsExpanded ? <TbChevronDown className="w-4 h-4" /> : <TbChevronRight className="w-4 h-4" />}
-                {toolsExpanded ? '收起' : '展开'}
-              </span>
-            </Button>
-            {toolsExpanded && (
-              <div className="mt-2 space-y-2">
-                <div className="grid gap-2 max-h-48 overflow-y-auto rounded border p-3 bg-muted/30">
-                  {availableTools.length === 0 ? (
-                    <div className="text-sm text-muted-foreground text-center py-2">暂无可用工具</div>
-                  ) : (
-                    availableTools.map((tool) => {
-                      const isChecked = (values.enabledTools || []).includes(tool.id);
-                      return (
-                        <label key={tool.id} className="flex items-start gap-3 cursor-pointer hover:bg-muted/50 rounded p-2 -mx-1">
-                          <Checkbox
-                            checked={isChecked}
-                            onCheckedChange={(checked) => {
-                              setValues((v) => {
-                                const current = v.enabledTools || [];
-                                const next = checked ? [...current, tool.id] : current.filter((id) => id !== tool.id);
-                                return { ...v, enabledTools: next };
-                              });
-                            }}
-                            className="mt-0.5"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium">{tool.name}</div>
-                            <div className="text-xs text-muted-foreground truncate">{tool.description}</div>
-                          </div>
-                        </label>
-                      );
-                    })
-                  )}
-                </div>
-                <div className="flex justify-between text-xs text-muted-foreground px-1">
-                  <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setValues((v) => ({ ...v, enabledTools: availableTools.map((t) => t.id) }))}>
-                    全选
-                  </Button>
-                  <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setValues((v) => ({ ...v, enabledTools: [] }))}>
-                    清空
-                  </Button>
-                </div>
+          return (
+            <label key={field.key} className="grid gap-1">
+              <span className="text-sm text-muted-foreground">{label}</span>
+              <Input
+                type={field.type === 'password' ? 'password' : 'text'}
+                value={values.secrets?.[field.key] || ''}
+                onChange={(e) => setValues((v) => ({ ...v, secrets: { ...(v.secrets || {}), [field.key]: e.target.value } }))}
+              />
+              {!!errors?.[field.key] && <span className="text-xs text-red-600">{errors[field.key]}</span>}
+            </label>
+          );
+        })}
+        <label className="grid gap-1">
+          <span className="text-sm text-muted-foreground">系统提示词</span>
+          <Select
+            value={templates.find((template) => template.type === 'system' && template.content === (values.systemPrompt || ''))?.id || ''}
+            onValueChange={(val) => {
+              const template = templates.find((item) => item.id === val);
+              if (template) {
+                setValues((v) => ({ ...v, systemPrompt: template.content }));
+              }
+            }}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder={templates.length ? '选择模板' : '暂无模板，请先创建提示词模板'} />
+            </SelectTrigger>
+            <SelectContent>
+              {templates.map((template) => (
+                <SelectItem key={template.id} value={template.id}>
+                  {template.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </label>
+      </div>
+
+      {!!values.systemPrompt && <pre className="rounded border p-2 bg-muted/30 min-h-[60px] whitespace-pre-wrap text-xs">{values.systemPrompt}</pre>}
+
+      <div className="space-y-2">
+        <Button
+          type="button"
+          variant="ghost"
+          className="flex w-full items-center justify-between px-2 py-2 text-sm text-muted-foreground hover:text-foreground"
+          onClick={() => setModelsExpanded((expanded) => !expanded)}
+        >
+          <span>支持的 Provider 模型 ({filteredSortedModels.length})</span>
+          <span className="flex items-center gap-1 text-xs">
+            {modelsExpanded ? <TbChevronDown className="w-4 h-4" /> : <TbChevronRight className="w-4 h-4" />}
+            {modelsExpanded ? '收起' : '展开'}
+          </span>
+        </Button>
+
+        {modelsExpanded && (
+          <div className="rounded-lg border bg-muted/30 p-3">
+            {filteredSortedModels.length === 0 ? (
+              <div className="text-sm text-muted-foreground">当前还没有可读取到的模型列表</div>
+            ) : (
+              <div className="grid gap-2 max-h-60 overflow-y-auto">
+                {filteredSortedModels.map((model) => (
+                  <div key={model.id} className="rounded-lg border bg-background/80 p-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium">{model.label || model.id}</span>
+                      {isFree(model) && <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-100 text-green-700 border border-green-200">免费</span>}
+                      {model.type && <span className={`text-[10px] px-1.5 py-0.5 rounded border ${typeColorClasses(model.type)}`}>{typeDisplay(model.type)}</span>}
+                      {renderContextPill(model)}
+                    </div>
+                    {!!model.description && <div className="mt-1 text-xs text-muted-foreground">{model.description}</div>}
+                    {Array.isArray(model.tags) && model.tags.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {model.tags.slice(0, 6).map((tag) => (
+                          <span key={tag} className="text-[10px] px-1 py-0.5 rounded border border-gray-200 text-gray-600 bg-gray-50">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
+            <div className="mt-2 text-xs text-muted-foreground">这里只做查看，实际使用时在聊天里选择模型。</div>
           </div>
+        )}
+      </div>
 
-          <DialogFooter>
-            <div className="flex w-full justify-end gap-2">
-              <Button variant={'outline'} onClick={onClose}>
-                取消
-              </Button>
-              <Button variant={'default'} onClick={() => onSubmit(values)}>
-                保存
-              </Button>
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          {onDelete && (
+            <Button variant="destructive" onClick={onDelete}>
+              删除
+            </Button>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {onCancel && (
+            <Button variant="outline" onClick={onCancel}>
+              {cancelLabel}
+            </Button>
+          )}
+          <Button variant="default" onClick={() => onSubmit(values)}>
+            {submitLabel}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 

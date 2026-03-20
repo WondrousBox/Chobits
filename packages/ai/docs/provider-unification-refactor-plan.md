@@ -272,7 +272,6 @@ export interface ProviderPresetRecord {
   id: string;
   providerId: string;
   name: string;
-  model?: string;
   systemPrompt?: string;
   enabledTools?: string[];
   overrides?: Record<string, any>;

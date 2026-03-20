@@ -62,7 +62,7 @@ Renderer（示例约定，实际路径视实现为准）：
   - `messages: ChatMessage[]`
   - `agentId?: string`：使用哪个 Pi profile（如 `assistant` / `rag` / `tagger` / `translator`）
   - `providerId?: string`：使用哪个 Provider 适配器（如 `openai`）
-  - `providerPresetId?: string`：使用哪个 Provider 预设，用于模型/系统提示词/秘钥覆盖
+  - `providerPresetId?: string`：使用哪个 Provider 预设，用于系统提示词/秘钥覆盖
   - `stream?: boolean`
   - `temperature?: number`
   - `maxTokens?: number`
@@ -316,7 +316,7 @@ Provider 适配要点：
   - 通过 `settings-store.ts` 暴露的 `setProviderSecrets`/`clearProviderSecrets` 读写秘钥。
 - **预设配置**：
   - `PresetService` 是业务侧唯一的预设读写入口；
-  - `presets-store.ts` 仅保存预设的基础信息（名称、模型、系统提示词、自定义 overrides 等）；
+  - `presets-store.ts` 仅保存预设的基础信息（名称、系统提示词、自定义 overrides 等）；
   - 预设秘钥底层由 `preset-secrets-store.ts` 管理，并在运行时与 provider secrets 合并；
   - 删除预设时，`PresetService` 会同步清理对应的 preset secrets。
 

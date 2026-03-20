@@ -118,7 +118,7 @@ export async function getDynamicModelConfig(options: DynamicModelConfigOptions):
     type: 'string',
     required: false,
     default: resolvedProviderPresetId || '',
-    description: resolvedProviderId ? '可选：选择一个服务预设，复用它的模型、系统提示词和秘钥配置' : '请先选择服务商',
+    description: resolvedProviderId ? '可选：选择一个服务预设，复用它的系统提示词和秘钥配置' : '请先选择服务商',
     inputType: 'select',
     options: getProviderPresetOptions(resolvedProviderId),
     searchable: true
@@ -126,7 +126,7 @@ export async function getDynamicModelConfig(options: DynamicModelConfigOptions):
 
   if (resolvedProviderId) {
     const models = await loadProviderModels(resolvedProviderId, modelPredicate, warningScope);
-    const defaultModelValue = resolveDefaultWorkflowModel(models, selectedPreset?.model);
+    const defaultModelValue = resolveDefaultWorkflowModel(models);
 
     if (models.length > 0) {
       config.push({
@@ -180,11 +180,11 @@ function getProviderPresetOptions(providerId?: string): Array<{ value: string; l
 
   const presets = listPresets(providerId)
     .slice()
-    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
     .map((preset) => ({
       value: preset.id,
       label: preset.name,
-      description: preset.model ? `${preset.providerId} / ${preset.model}` : preset.providerId
+      description: preset.providerId
     }));
 
   return [baseOption, ...presets];
@@ -369,12 +369,7 @@ function isMissingWorkflowProviderConfigError(error: unknown): boolean {
   return /missing api key|未配置.*api key|未配置必要秘钥|未配置 API Key/i.test(message);
 }
 
-function resolveDefaultWorkflowModel(models: Array<{ value: string; label: string }>, preferredModelId?: string): string {
-  const trimmedPreferredModel = preferredModelId?.trim();
-  if (trimmedPreferredModel && models.some((model) => model.value === trimmedPreferredModel)) {
-    return trimmedPreferredModel;
-  }
-
+function resolveDefaultWorkflowModel(models: Array<{ value: string; label: string }>): string {
   return models[0]?.value || '';
 }
 

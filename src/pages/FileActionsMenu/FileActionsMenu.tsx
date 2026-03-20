@@ -186,11 +186,12 @@ const FileActionsMenu: React.FC = () => {
 
           const preferences = loadPreferences();
           const providerId = preferences?.selectedProviderId || '';
+          const presetId = preferences?.selectedPresetId || '';
           const model = preferences?.selectedModel || '';
           const targetLanguage = preferences?.targetLanguage || 'en';
           const translationMode = preferences?.translationMode || 'ai';
 
-          if (translationMode !== 'ai' || !providerId || !model) {
+          if (translationMode !== 'ai' || !providerId || !presetId) {
             console.warn('[FileActionsMenu] AI translation not configured, opening preview instead');
             await window.YUA.window['window:open']('resourcePreview', {
               current: primary
@@ -200,6 +201,7 @@ const FileActionsMenu: React.FC = () => {
 
           await window.YUA.ai.translate({
             providerId,
+            providerPresetId: presetId,
             model,
             resourceId: primary.id,
             targetLanguage,

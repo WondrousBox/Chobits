@@ -14,10 +14,9 @@ export type BestPreset = {
   providerId: string;
   presetId?: string;
   secrets?: Record<string, string>;
-  model?: string;
 };
 
-type Candidate = { providerId: string; presetId: string; updatedAt: number; weight: number; secrets?: Record<string, string>; model?: string };
+type Candidate = { providerId: string; presetId: string; updatedAt: number; weight: number; secrets?: Record<string, string> };
 
 let piExecutionService: PiExecutionService | undefined;
 let legacyTagChatServicePromise: Promise<{ chatEphemeral(win: undefined, req: ChatRequest): Promise<ChatResponse> }> | undefined;
@@ -44,7 +43,7 @@ export const TaggingService = {
    * 同时支持通过用户可编辑的 JSON（位于 userData/ai-selection-strategy.json）预设偏好：
    * - preferredProviders: 按顺序的偏好 Provider 列表（越靠前加分越多）
    * - freeProviders: 认为"免费/本地"的 Provider 列表（如 ollama）
-   * - providerWeights / modelWeights: 针对特定 Provider/Model 的微调权重
+   * - providerWeights: 针对特定 Provider 的微调权重
    * - boosts.recentHalfLifeHours / recentBase: 控制"最近使用"加分的衰减
    * - flags.freeOnly: 若为 true，则仅在 freeProviders 范围内选择
    * 如未创建该文件，会自动写入一个默认模板，用户可自行修改以生效。
@@ -74,7 +73,6 @@ export const TaggingService = {
       weight += scoreCandidate(
         {
           providerId: inst.providerId,
-          model: (inst as any).model,
           updatedAt: (inst as any).updatedAt || 1,
           hasAllRequired
         },
@@ -85,13 +83,12 @@ export const TaggingService = {
         presetId: inst.id,
         updatedAt: (inst as any).updatedAt || 1,
         weight,
-        secrets: Object.keys(secrets).length ? secrets : undefined,
-        model: (inst as any).model
+        secrets: Object.keys(secrets).length ? secrets : undefined
       });
     }
     candidates.sort((a, b) => b.weight - a.weight || b.updatedAt - a.updatedAt);
     const best = candidates[0];
-    if (best) return { providerId: best.providerId, presetId: best.presetId, secrets: best.secrets, model: best.model };
+    if (best) return { providerId: best.providerId, presetId: best.presetId, secrets: best.secrets };
     // Fallbacks: pick any provider that supports chat (e.g., Ollama)
     const provFallback = getProvider('ollama') || getProvider();
     return { providerId: provFallback?.id || 'ollama' };
@@ -110,11 +107,6 @@ export const TaggingService = {
         await getLegacyTagChatService()
       ).chatEphemeral(undefined, {
         agentId: 'tagger',
-        extras: best.model
-          ? {
-              model: best.model
-            }
-          : undefined,
         maxTokens: 256,
         messages: [
           {
@@ -174,7 +166,6 @@ export const TaggingService = {
     const best = await this.chooseBestChatPreset();
     const legacyFallbackAllowed = !getPiExecutionService().getAvailability({
       extras: {
-        ...(best.model ? { model: best.model } : {}),
         runtime: 'pi'
       }
     }).available;
@@ -187,7 +178,6 @@ export const TaggingService = {
       if (usePi) {
         try {
           tags = await generatePiTagsForSegment({
-            model: best.model,
             providerId: best.providerId,
             providerPresetId: best.presetId,
             segment

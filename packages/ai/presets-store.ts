@@ -8,6 +8,7 @@ import { toCanonicalProviderId } from './providers/service';
 import type { ProviderPresetCreatePayload, ProviderPresetOverrides, ProviderPresetRecord, ProviderPresetUpdatePatch } from './types';
 
 type StoreShape = { presets: ProviderPresetRecord[] };
+type LegacyProviderPresetRecord = ProviderPresetRecord & { model?: string };
 
 const FILE = path.join(app.getPath('userData'), 'data', 'ai-provider-presets.json');
 const LEGACY_FILE = path.join(app.getPath('userData'), 'data', 'ai-provider-instances.json');
@@ -36,15 +37,20 @@ function resolvePresetOverrides(preset: { overrides?: ProviderPresetOverrides; c
   return undefined;
 }
 
-function normalizePreset(preset: ProviderPresetRecord): ProviderPresetRecord {
+function normalizePreset(preset: LegacyProviderPresetRecord): ProviderPresetRecord {
   const canonicalProviderId = toCanonicalProviderId(preset.providerId);
   const overrides = resolvePresetOverrides(preset);
 
   return {
-    ...preset,
+    id: preset.id,
     providerId: canonicalProviderId,
+    name: preset.name,
+    ...(preset.systemPrompt ? { systemPrompt: preset.systemPrompt } : {}),
     config: overrides,
-    overrides
+    overrides,
+    ...(Array.isArray(preset.enabledTools) ? { enabledTools: [...preset.enabledTools] } : {}),
+    ...(typeof preset.createdAt === 'number' ? { createdAt: preset.createdAt } : {}),
+    ...(typeof preset.updatedAt === 'number' ? { updatedAt: preset.updatedAt } : {})
   };
 }
 
@@ -106,7 +112,6 @@ export function createStoredPreset(payload: ProviderPresetCreatePayload & { id?:
     id: payload.id || randomUUID(),
     providerId: toCanonicalProviderId(payload.providerId),
     name: payload.name,
-    model: payload.model,
     systemPrompt: payload.systemPrompt,
     overrides,
     enabledTools: payload.enabledTools || [],

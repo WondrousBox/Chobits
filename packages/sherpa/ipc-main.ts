@@ -23,6 +23,7 @@ export interface ASRConfig {
   };
   cloud: {
     providerId: string;
+    providerPresetId: string;
     modelId: string;
   };
 }
@@ -98,7 +99,7 @@ export function initSherpaHandlers(): void {
     enabled: false,
     backend: 'local',
     local: { scene: 'meeting', model: '', language: 'zh', punctuationModel: '' },
-    cloud: { providerId: '', modelId: '' }
+    cloud: { providerId: '', providerPresetId: '', modelId: '' }
   };
   const configDir = app.getPath('userData');
   const asrConfigFile = path.join(configDir, 'data', 'asr-config.json');
@@ -526,7 +527,7 @@ export function initSherpaHandlers(): void {
               } else {
                 // 字幕文件为空，删除它
                 console.log('[Sherpa] 字幕文件为空，删除它');
-                await fs.unlink(stream.subtitleFilePath).catch(() => { });
+                await fs.unlink(stream.subtitleFilePath).catch(() => {});
               }
             } catch (error) {
               console.log('[Sherpa] 字幕文件不存在或无法访问:', error);
@@ -914,7 +915,7 @@ export function initSherpaHandlers(): void {
     ): Promise<{ success: boolean; outputPath?: string; duration?: number; error?: string; requestId: string }> => {
       return new Promise((resolve) => {
         try {
-          const ins = TTS_createInstance({
+          TTS_createInstance({
             uuid: `tts-file-${data.requestId}`,
             model: 'kokoro-multi-lang-v1_0' // 默认模型，可以从参数中传入
           }).then((instance) => {
