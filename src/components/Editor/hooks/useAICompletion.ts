@@ -1,5 +1,7 @@
 import { useCallback, useRef } from 'react';
 
+import { resolveModelFirstSelection } from '@/lib/ai-model-first';
+
 import type { AICompletionCallbacks, AICompletionContext, AICompletionHandler } from '../UnifiedEditor/types';
 
 /**
@@ -70,13 +72,38 @@ export function useAICompletion(options: AICompletionOptions = {}): AICompletion
       }
 
       let fullText = '';
-
-      // 使用 window.YUA.ai.chatStream 进行流式调用
-      window.YUA.ai
-        .chatStream(
-          {
+      void (async () => {
+        const resolvedSelection = model
+          ? await resolveModelFirstSelection({
             providerId,
-            providerPresetId,
+            modelId: model,
+            preferredPresetId: providerPresetId
+          })
+          : providerPresetId
+            ? {
+              providerId,
+              modelId: '',
+              providerPresetId
+            }
+            : null;
+
+        if (!resolvedSelection) {
+          callbacks.onError?.(new Error('当前服务商还没有可用预设，请先完成 AI 配置'));
+          return;
+        }
+
+        const extras: Record<string, unknown> = {
+          temperature,
+          max_tokens: maxTokens
+        };
+        if (resolvedSelection.modelId) {
+          extras.model = resolvedSelection.modelId;
+        }
+
+        const api = await window.YUA.ai.chatStream(
+          {
+            providerId: resolvedSelection.providerId,
+            providerPresetId: resolvedSelection.providerPresetId,
             agentId,
             messages: [
               { role: 'system', content: systemPrompt },
@@ -84,11 +111,7 @@ export function useAICompletion(options: AICompletionOptions = {}): AICompletion
             ],
             stream: true,
             persist: false, // 不持久化会话
-            extras: {
-              model,
-              temperature,
-              max_tokens: maxTokens
-            }
+            extras
           },
           (event: { type: string; data?: { text?: string; message?: { content: string } } }) => {
             switch (event.type) {
@@ -112,13 +135,12 @@ export function useAICompletion(options: AICompletionOptions = {}): AICompletion
                 break;
             }
           }
-        )
-        .then((api: { cancel: () => void; dispose: () => void }) => {
-          streamApiRef.current = api;
-        })
-        .catch((err: Error) => {
-          callbacks.onError?.(err);
-        });
+        );
+
+        streamApiRef.current = api;
+      })().catch((err: Error) => {
+        callbacks.onError?.(err);
+      });
 
       // 返回取消函数
       return () => {
@@ -158,12 +180,38 @@ export function createAICompletionHandler(options: AICompletionOptions = {}): AI
     }
 
     let fullText = '';
-
-    window.YUA.ai
-      .chatStream(
-        {
+    void (async () => {
+      const resolvedSelection = model
+        ? await resolveModelFirstSelection({
           providerId,
-          providerPresetId,
+          modelId: model,
+          preferredPresetId: providerPresetId
+        })
+        : providerPresetId
+          ? {
+            providerId,
+            modelId: '',
+            providerPresetId
+          }
+          : null;
+
+      if (!resolvedSelection) {
+        callbacks.onError?.(new Error('当前服务商还没有可用预设，请先完成 AI 配置'));
+        return;
+      }
+
+      const extras: Record<string, unknown> = {
+        temperature,
+        max_tokens: maxTokens
+      };
+      if (resolvedSelection.modelId) {
+        extras.model = resolvedSelection.modelId;
+      }
+
+      streamApi = await window.YUA.ai.chatStream(
+        {
+          providerId: resolvedSelection.providerId,
+          providerPresetId: resolvedSelection.providerPresetId,
           agentId,
           messages: [
             { role: 'system', content: systemPrompt },
@@ -171,11 +219,7 @@ export function createAICompletionHandler(options: AICompletionOptions = {}): AI
           ],
           stream: true,
           persist: false,
-          extras: {
-            model,
-            temperature,
-            max_tokens: maxTokens
-          }
+          extras
         },
         (event: { type: string; data?: { text?: string; message?: { content: string } } }) => {
           switch (event.type) {
@@ -198,13 +242,10 @@ export function createAICompletionHandler(options: AICompletionOptions = {}): AI
               break;
           }
         }
-      )
-      .then((api: { cancel: () => void; dispose: () => void }) => {
-        streamApi = api;
-      })
-      .catch((err: Error) => {
-        callbacks.onError?.(err);
-      });
+      );
+    })().catch((err: Error) => {
+      callbacks.onError?.(err);
+    });
 
     return () => {
       if (streamApi) {

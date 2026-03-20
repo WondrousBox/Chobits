@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { TbHighlight, TbLoader2, TbNote, TbVocabulary, TbX } from 'react-icons/tb';
+import { toast } from 'sonner';
 
+import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
 import { Button } from '@/components/ui/button';
-import ServicePresetSelect from '@/pages/ChatPage/components/ServicePresetSelect';
+import { resolveModelFirstSelection } from '@/lib/ai-model-first';
 import { useChatSelection } from '@/pages/ChatPage/context/ChatSelectionContext';
 
 import type { AddAnnotationParams, AnnotationType } from '../useAnnotations';
@@ -63,7 +65,7 @@ export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedTe
   const contentInputRef = useRef<HTMLTextAreaElement>(null);
 
   // 模型选择
-  const { providerId, presetId, setProviderId, setPresetId } = useChatSelection();
+  const { providerId, modelId, presetId, setProviderId, setModelId, setPresetId } = useChatSelection();
 
   // 计算是否需要翻转位置
   useEffect(() => {
@@ -164,7 +166,20 @@ export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedTe
 
   /** 生成单词表 - 调用 AI */
   const handleGenerateVocabulary = useCallback(async () => {
-    if (!providerId || !presetId) return;
+    if (!providerId || !modelId) return;
+
+    const resolvedSelection = await resolveModelFirstSelection({
+      providerId,
+      modelId,
+      preferredPresetId: presetId
+    });
+    if (!resolvedSelection) {
+      toast.error('当前服务商还没有可用预设，请先完成 AI 配置');
+      return;
+    }
+    if (resolvedSelection.providerPresetId !== presetId) {
+      setPresetId(resolvedSelection.providerPresetId);
+    }
 
     setIsGeneratingVocabulary(true);
     try {
@@ -180,8 +195,11 @@ export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedTe
               ],
               stream: true,
               persist: false,
-              providerId,
-              providerPresetId: presetId
+              providerId: resolvedSelection.providerId,
+              providerPresetId: resolvedSelection.providerPresetId,
+              extras: {
+                model: resolvedSelection.modelId
+              }
             },
             (event) => {
               if (event.type === 'delta' && event.data?.text) {
@@ -223,7 +241,7 @@ export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedTe
     } finally {
       setIsGeneratingVocabulary(false);
     }
-  }, [selectedText, startTime, endTime, segmentIndex, wordStartIndex, wordEndIndex, onAdd, onClose, providerId, presetId]);
+  }, [selectedText, startTime, endTime, segmentIndex, wordStartIndex, wordEndIndex, onAdd, onClose, providerId, modelId, presetId, setPresetId]);
 
   const handleFormSubmit = useCallback(() => {
     // 备注类型：内容存到 description 字段
@@ -320,23 +338,26 @@ export const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ selectedTe
               「{selectedText}」
             </div>
             <div className="flex items-center gap-2">
-              <ServicePresetSelect
+              <ProviderModelSelect
                 providerId={providerId}
-                presetId={presetId}
-                onChange={(pid, nextPresetId) => {
+                presetId={presetId || undefined}
+                modelId={modelId || undefined}
+                onChange={(pid, nextModelId) => {
                   setProviderId(pid);
-                  setPresetId(nextPresetId);
+                  setModelId(nextModelId);
                 }}
                 buttonVariant="outline"
                 buttonSize="sm"
                 placeholder="选择模型"
+                autoLoadFirst
+                modelTypes={['chat']}
               />
             </div>
             <div className="flex items-center justify-end gap-2">
               <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setPanelView('actions')}>
                 返回
               </Button>
-              <Button size="sm" className="h-7 text-xs" onClick={handleGenerateVocabulary} disabled={!providerId || !presetId || isGeneratingVocabulary}>
+              <Button size="sm" className="h-7 text-xs" onClick={handleGenerateVocabulary} disabled={!providerId || !modelId || isGeneratingVocabulary}>
                 {isGeneratingVocabulary ? (
                   <>
                     <TbLoader2 className="w-3 h-3 mr-1 animate-spin" />

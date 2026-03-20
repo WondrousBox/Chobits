@@ -327,6 +327,7 @@ export type AIApi = {
   embed(payload: EmbeddingRequest): Promise<{ vectors: number[][]; dim: number }>;
   // Presets
   listPresets(providerId?: string): Promise<ProviderPresetRecord[]>;
+  resolveUsablePreset(providerId: string, preferredPresetId?: string): Promise<ProviderPresetRecord | null>;
   createPreset(payload: ProviderPresetCreatePayload): Promise<ProviderPresetRecord>;
   updatePreset(id: string, patch: ProviderPresetUpdatePatch): Promise<ProviderPresetRecord | undefined>;
   deletePreset(id: string): Promise<{ ok: boolean }>;

@@ -10,7 +10,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import ServicePresetSelect from '@/pages/ChatPage/components/ServicePresetSelect';
+import { resolveModelFirstSelection } from '@/lib/ai-model-first';
 
 // 语言代码到中文名称的映射
 const languageNames: Record<string, string> = {
@@ -260,11 +260,24 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
       setIsTranslationPopoverOpen(false);
 
       try {
+        const resolvedSelection = await resolveModelFirstSelection({
+          providerId,
+          modelId: model,
+          preferredPresetId: selectedPresetId
+        });
+        if (!resolvedSelection) {
+          providerSelectRef.current?.openConfig(providerId);
+          return;
+        }
+        if (resolvedSelection.providerPresetId !== selectedPresetId) {
+          setSelectedPresetId(resolvedSelection.providerPresetId);
+        }
+
         // 调用主进程的翻译功能
         const { requestId } = await window.YUA.ai.translate({
-          providerId,
-          providerPresetId: selectedPresetId || undefined,
-          model,
+          providerId: resolvedSelection.providerId,
+          providerPresetId: resolvedSelection.providerPresetId,
+          model: resolvedSelection.modelId,
           targetLanguage: targetLang,
           languageNames,
           resourceId,
@@ -279,9 +292,9 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
         // 记录到历史
         addToHistory({
           mode: 'ai',
-          providerId,
-          presetId: selectedPresetId || undefined,
-          model,
+          providerId: resolvedSelection.providerId,
+          presetId: resolvedSelection.providerPresetId,
+          model: resolvedSelection.modelId,
           targetLanguage: targetLang
         });
 
@@ -353,22 +366,6 @@ export const SubtitleTranslator: React.FC<SubtitleTranslatorProps> = ({ subtitle
           </TabsList>
 
           <TabsContent value="ai" className="space-y-4 mt-0">
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">模型预设</Label>
-              <ServicePresetSelect
-                providerId={selectedProviderId}
-                presetId={selectedPresetId}
-                onChange={(providerId, presetId) => {
-                  setSelectedProviderId(providerId);
-                  setSelectedPresetId(presetId);
-                }}
-                buttonVariant="outline"
-                buttonSize="default"
-                className="w-full justify-between"
-                placeholder="选择服务商 · 预设"
-              />
-            </div>
-
             <div className="space-y-2">
               <Label className="text-sm font-medium">翻译模型</Label>
               <ProviderModelSelect

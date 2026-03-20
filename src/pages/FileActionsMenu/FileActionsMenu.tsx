@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
+import { resolveModelFirstSelection } from '@/lib/ai-model-first';
 import { runWorkflow as runWorkflowUtil } from '@/lib/workflow-runner';
 
 import { Resource } from '../../../electron/main/handlers/resource/ipc-renderer';
@@ -191,7 +192,7 @@ const FileActionsMenu: React.FC = () => {
           const targetLanguage = preferences?.targetLanguage || 'en';
           const translationMode = preferences?.translationMode || 'ai';
 
-          if (translationMode !== 'ai' || !providerId || !presetId) {
+          if (translationMode !== 'ai' || !providerId || !model) {
             console.warn('[FileActionsMenu] AI translation not configured, opening preview instead');
             await window.YUA.window['window:open']('resourcePreview', {
               current: primary
@@ -199,10 +200,23 @@ const FileActionsMenu: React.FC = () => {
             return;
           }
 
-          await window.YUA.ai.translate({
+          const resolvedSelection = await resolveModelFirstSelection({
             providerId,
-            providerPresetId: presetId,
-            model,
+            modelId: model,
+            preferredPresetId: presetId
+          });
+          if (!resolvedSelection) {
+            console.warn('[FileActionsMenu] AI translation preset unavailable, opening preview instead');
+            await window.YUA.window['window:open']('resourcePreview', {
+              current: primary
+            });
+            return;
+          }
+
+          await window.YUA.ai.translate({
+            providerId: resolvedSelection.providerId,
+            providerPresetId: resolvedSelection.providerPresetId,
+            model: resolvedSelection.modelId,
             resourceId: primary.id,
             targetLanguage,
             languageNames: {

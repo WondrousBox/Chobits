@@ -3,9 +3,9 @@ import { TbMicrophone, TbMicrophoneOff, TbX } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { UnifiedChatInput } from '@/components/chat';
+import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
 import { Button } from '@/components/ui/button';
 
-import ServicePresetSelect from './components/ServicePresetSelect';
 import { useChatSelection } from './context/ChatSelectionContext';
 
 const PLACEHOLDERS = [
@@ -26,10 +26,10 @@ const AssistantPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const contentRootRef = useRef<HTMLDivElement | null>(null);
   const inputBlockRef = useRef<HTMLDivElement | null>(null);
-  // 控制当预设下拉展开时，暂停自动尺寸调整
-  const presetMenuOpenRef = useRef<boolean>(false);
+  // 控制当模型下拉展开时，暂停自动尺寸调整
+  const modelMenuOpenRef = useRef<boolean>(false);
 
-  const { providerId, presetId, setProviderId, setPresetId, getOrderedPresets } = useChatSelection();
+  const { providerId, modelId, presetId, setProviderId, setModelId, setPresetId } = useChatSelection();
 
   const handleToggleRecording = useCallback(async () => {
     try {
@@ -87,14 +87,24 @@ const AssistantPage: React.FC = () => {
 
   // 发送消息：打开聊天独立窗口并传递初始消息
   const handleSend = async (content: string): Promise<void> => {
-    if (!content.trim() || !presetId) return;
+    if (!content.trim() || !providerId || !modelId) return;
     setLoading(true);
     try {
+      const resolvedPreset = await window.YUA.ai.resolveUsablePreset(providerId, presetId || undefined);
+      if (!resolvedPreset?.id) {
+        toast.error('当前服务商还没有可用预设，请先到 AI 设置中完成配置');
+        return;
+      }
+      if (resolvedPreset.id !== presetId) {
+        setPresetId(resolvedPreset.id);
+      }
+
       // 打开聊天独立窗口，传递初始消息数据
       await window.YUA.window['window:open']('chat', {
         initialMessage: content,
         providerId,
-        presetId
+        modelId,
+        preferredPresetId: resolvedPreset.id
       });
       setQuery('');
       // 关闭助手窗口
@@ -139,7 +149,7 @@ const AssistantPage: React.FC = () => {
         if (debounceTimer) window.clearTimeout(debounceTimer);
         debounceTimer = window.setTimeout(async () => {
           if (disposed) return;
-          if (presetMenuOpenRef.current) return;
+          if (modelMenuOpenRef.current) return;
           await resizeToContent();
         }, 90);
       } catch {
@@ -176,7 +186,7 @@ const AssistantPage: React.FC = () => {
   const handleMenuOpenChange = useCallback(
     async (open: boolean) => {
       try {
-        presetMenuOpenRef.current = open;
+        modelMenuOpenRef.current = open;
         const html = document.documentElement;
         const currentWidth = window.innerWidth || html.clientWidth;
         const screen = await window.YUA.window['screen:size:get']();
@@ -218,16 +228,19 @@ const AssistantPage: React.FC = () => {
                 onHeightChange={() => resizeToContent()}
                 footerLeft={
                   <div className="shrink-0 no-drag">
-                    <ServicePresetSelect
+                    <ProviderModelSelect
                       providerId={providerId}
-                      presetId={presetId}
-                      onChange={(pid, nextPresetId) => {
+                      presetId={presetId || undefined}
+                      modelId={modelId || undefined}
+                      onChange={(pid, nextModelId) => {
                         setProviderId(pid);
-                        setPresetId(nextPresetId);
+                        setModelId(nextModelId);
                       }}
                       buttonVariant="outline"
                       buttonSize="sm"
-                      orderPresets={(list, pid) => (getOrderedPresets ? getOrderedPresets(pid) : list)}
+                      placeholder="选择模型"
+                      autoLoadFirst
+                      modelTypes={['chat']}
                       onOpenChange={handleMenuOpenChange}
                     />
                   </div>

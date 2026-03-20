@@ -1,6 +1,6 @@
 import { createStoredPreset, deleteStoredPreset, getStoredPreset, listStoredPresets, updateStoredPreset } from './presets-store';
 import { clearStoredPresetSecrets, getStoredPresetSecrets, setStoredPresetSecrets } from './preset-secrets-store';
-import { listProviderSecretKeys } from './providers/service';
+import { listProviderSecretKeys, listRequiredProviderSecretKeys, toCanonicalProviderId } from './providers/service';
 import type { ProviderPresetCreatePayload, ProviderPresetRecord, ProviderPresetUpdatePatch } from './types';
 
 function normalizePresetId(presetId?: string): string | undefined {
@@ -15,6 +15,44 @@ export function listPresets(providerId?: string): ProviderPresetRecord[] {
 export function getPreset(presetId?: string): ProviderPresetRecord | undefined {
   const normalizedPresetId = normalizePresetId(presetId);
   return normalizedPresetId ? getStoredPreset(normalizedPresetId) : undefined;
+}
+
+function isSameProvider(left?: string, right?: string): boolean {
+  return toCanonicalProviderId(left) === toCanonicalProviderId(right);
+}
+
+export async function isPresetUsable(presetOrId?: ProviderPresetRecord | string): Promise<boolean> {
+  const preset = typeof presetOrId === 'string' ? getPreset(presetOrId) : presetOrId;
+  if (!preset) {
+    return false;
+  }
+
+  const requiredKeys = listRequiredProviderSecretKeys(preset.providerId);
+  if (!requiredKeys.length) {
+    return true;
+  }
+
+  const secrets = await getStoredPresetSecrets(preset.id, requiredKeys);
+  return requiredKeys.every((key) => {
+    const value = secrets[key];
+    return typeof value === 'string' && value.trim().length > 0;
+  });
+}
+
+export async function resolveUsablePreset(providerId: string, preferredPresetId?: string): Promise<ProviderPresetRecord | undefined> {
+  const preferredPreset = getPreset(preferredPresetId);
+  if (preferredPreset && isSameProvider(preferredPreset.providerId, providerId) && (await isPresetUsable(preferredPreset))) {
+    return preferredPreset;
+  }
+
+  const presets = listPresets().filter((preset) => isSameProvider(preset.providerId, providerId));
+  for (const preset of presets) {
+    if (await isPresetUsable(preset)) {
+      return preset;
+    }
+  }
+
+  return undefined;
 }
 
 export function createPreset(payload: ProviderPresetCreatePayload): ProviderPresetRecord {

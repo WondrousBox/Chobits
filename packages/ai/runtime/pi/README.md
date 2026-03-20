@@ -103,10 +103,10 @@ Preset 是当前唯一的服务级配置复用单元：
 
 ### Renderer / Workflow
 
-Renderer 和 workflow 的主链路都应直接复用 preset-first surface：
+Renderer 和 workflow 的主链路都应直接复用统一 surface：
 
 - `useProvidersPresets()`
-- `ServicePresetSelect`
+- `ProviderModelSelect`
 - `ChatSelectionContext`
 - `normalizeProviderPreset()`
 - `resolveProviderPresetId()`
@@ -116,7 +116,7 @@ Renderer 和 workflow 的主链路都应直接复用 preset-first surface：
 1. 新增 provider 能力时，不要在 Pi runtime 里重复维护 metadata，统一回到 `ProviderDefinition` / `ProviderService`。
 2. 新增后台任务时，优先复用 `PiExecutionService` 或 `task-chat.ts`。
 3. 新增工具时，优先放到 `tools/*`，并在 `tool-registry.ts` / `tools/index.ts` 接线。
-4. 新增页面级 provider/preset 选择时，直接接 canonical preset 选择面，不要再额外包一层命名兼容。
+4. 新增页面级 provider/model 选择时，直接接 `ProviderModelSelect`，并在发送前解析隐藏 preset，不要再额外包一层命名兼容。
 
 ## 当前状态总结
 

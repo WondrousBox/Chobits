@@ -150,6 +150,9 @@ export const aiBridge = {
   async listPresets(providerId?: string) {
     return ipcRenderer.invoke('ai:listPresets', { providerId });
   },
+  async resolveUsablePreset(providerId: string, preferredPresetId?: string) {
+    return ipcRenderer.invoke('ai:resolveUsablePreset', { providerId, preferredPresetId });
+  },
   async createPreset(payload: ProviderPresetCreatePayload) {
     return ipcRenderer.invoke('ai:createPreset', payload);
   },

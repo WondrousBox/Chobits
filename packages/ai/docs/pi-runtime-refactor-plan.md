@@ -110,12 +110,12 @@ Pi runtime 的主链路改造已经完成，后续继续演进时请直接以这
   - 动态配置、模型列表、provider context 读取都已经接到 canonical preset 语义
 - `src/pages/ChatPage/hooks/useProvidersPresets.ts`
   - 聊天页共享 provider/preset hook
-- `src/pages/ChatPage/components/ServicePresetSelect.tsx`
-  - 聊天页 canonical preset 选择器
+- `src/components/common/ProviderModelSelect.tsx`
+  - 聊天页 / 资源页 / 录音页共享的 provider + model 选择器
 - `src/pages/ChatPage/context/ChatSelectionContext.tsx`
-  - 页面级聊天选择状态已经统一围绕 provider + preset + agent 建模
+  - 页面级聊天选择状态围绕 provider + model + hidden preset + agent 建模
 - `src/pages/ResourcePage/components/AIChatSidebar.tsx`
-  - 资源页聊天入口已经直接消费 preset 语义
+  - 资源页聊天入口已经直接消费 model-first 语义
 
 ## 统一约定
 
@@ -168,5 +168,5 @@ Pi runtime 的主链路改造已经完成，后续继续演进时请直接以这
 
 1. 如果新增 provider 能力，优先放在 `ProviderDefinition` + `ProviderService` 体系里补齐描述，再决定是否需要特殊 runtime adapter。
 2. 如果新增 one-shot/task 类型，优先接入 `PiExecutionService` 或 `task-chat.ts`，避免重新散落出独立执行面。
-3. 如果新增聊天页/资源页入口，统一复用 `useProvidersPresets()`、`ServicePresetSelect` 和 canonical AI request 类型。
+3. 如果新增聊天页/资源页入口，统一复用 `ProviderModelSelect`、隐藏 preset resolver 和 canonical AI request 类型。
 4. `packages/ai/presets-store.ts` 现在已经进一步收成 storage helper，`deletePreset` 也会同步清理 preset secrets；后续若继续清理，重点将转向更小的 public surface 与类型面。

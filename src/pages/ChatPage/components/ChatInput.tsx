@@ -2,10 +2,10 @@ import clsx from 'clsx';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { TbLoader2, TbSend } from 'react-icons/tb';
 
+import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 
-import ServicePresetSelect from '../components/ServicePresetSelect';
 import { useChatSelection } from '../context/ChatSelectionContext';
 
 export interface ChatInputProps {
@@ -52,8 +52,8 @@ export default function ChatInput({
   onKeyDown,
   onInstanceMenuOpenChange
 }: ChatInputProps): JSX.Element {
-  // Standardized chat selection (provider/preset) available for all chat inputs
-  const { providerId, presetId, setProviderId, setPresetId, getOrderedPresets } = useChatSelection();
+  // Standardized chat selection (provider/model/hidden preset) available for all chat inputs
+  const { providerId, modelId, presetId, setProviderId, setModelId } = useChatSelection();
 
   const isControlled = useMemo(() => value !== undefined, [value]);
   const [inner, setInner] = useState<string>(defaultValue ?? '');
@@ -135,18 +135,19 @@ export default function ChatInput({
 
       {/* Bottom toolbar */}
       <div className="absolute bottom-2 flex items-center gap-2 overflow-x-auto w-[calc(100%-1rem)] px-2">
-        {/* Built-in: Service preset selector (standard across all chat inputs) */}
+        {/* Built-in: provider/model selector (standard across all chat inputs) */}
         <div className="shrink-0">
-          <ServicePresetSelect
+          <ProviderModelSelect
             providerId={providerId}
             presetId={presetId}
-            onChange={(pid, nextPresetId) => {
+            modelId={modelId}
+            onChange={(pid, nextModelId) => {
               setProviderId(pid);
-              setPresetId(nextPresetId);
+              setModelId(nextModelId);
             }}
+            placeholder="选择服务商 · 模型"
             buttonVariant="outline"
             buttonSize="sm"
-            orderPresets={(list, pid) => (getOrderedPresets ? getOrderedPresets(pid) : list)}
             onOpenChange={onInstanceMenuOpenChange}
           />
         </div>

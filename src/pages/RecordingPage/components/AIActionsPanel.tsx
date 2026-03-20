@@ -1,13 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { TbBrain, TbCheck, TbChevronDown, TbLanguage, TbListDetails, TbLoader2, TbSparkles, TbVocabulary, TbX } from 'react-icons/tb';
 
+import { ProviderModelSelect, ProviderModelSelectRef } from '@/components/common/ProviderModelSelect';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import ServicePresetSelect from '@/pages/ChatPage/components/ServicePresetSelect';
-import { useProvidersPresets } from '@/pages/ChatPage/hooks/useProvidersPresets';
+import { resolveModelFirstSelection } from '@/lib/ai-model-first';
 
 import { RecognizedSegment } from '../types';
 
@@ -20,12 +20,13 @@ interface AIActionsPanelProps {
 export interface TranslationConfig {
   providerId: string;
   presetId?: string;
+  modelId?: string;
   targetLanguage: string;
 }
 
 const STORAGE_KEY = 'recording-ai-actions-preferences';
 
-const loadPreferences = (): { selectedProviderId?: string; selectedPresetId?: string } => {
+const loadPreferences = (): { selectedProviderId?: string; selectedPresetId?: string; selectedModelId?: string } => {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
@@ -51,11 +52,12 @@ const TARGET_LANGUAGES = [
 
 export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTransparent = false, onTranslationUpdate }) => {
   // AI 配置状态
-  const { providers, presetsMap, loading: loadingProviders } = useProvidersPresets();
   const [selectedProviderId, setSelectedProviderId] = useState<string>(() => loadPreferences().selectedProviderId || '');
   const [selectedPresetId, setSelectedPresetId] = useState<string>(() => loadPreferences().selectedPresetId || '');
+  const [selectedModel, setSelectedModel] = useState<string>(() => loadPreferences().selectedModelId || '');
   const [providerConfigured, setProviderConfigured] = useState<boolean>(false);
   const [showProviderConfig, setShowProviderConfig] = useState(true); // 是否显示服务配置表单
+  const providerSelectRef = useRef<ProviderModelSelectRef>(null);
 
   // 翻译状态
   const [enableTranslation, setEnableTranslation] = useState(false);
@@ -91,18 +93,12 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
 
   // 获取所有文本
   const allText = segments.map((s) => s.text).join(' ');
-
-  // 获取当前选择的预设名称
-  const currentProvider = useMemo(() => providers.find((provider) => provider.id === selectedProviderId), [providers, selectedProviderId]);
-  const currentPreset = useMemo(
-    () => (selectedProviderId && selectedPresetId ? (presetsMap[selectedProviderId] || []).find((preset) => preset.id === selectedPresetId) : undefined),
-    [presetsMap, selectedPresetId, selectedProviderId]
-  );
-  const getPresetLabel = useCallback(() => {
-    if (currentPreset?.name) return currentPreset.name;
-    if (selectedPresetId) return selectedPresetId;
-    return currentProvider?.label || currentProvider?.id || '未选择';
-  }, [currentPreset?.name, currentProvider?.id, currentProvider?.label, selectedPresetId]);
+  const canUseAI = !!selectedProviderId && !!selectedModel && providerConfigured;
+  const getSelectionLabel = useCallback(() => {
+    if (selectedModel) return selectedModel;
+    if (selectedProviderId) return selectedProviderId;
+    return '未选择';
+  }, [selectedModel, selectedProviderId]);
 
   useEffect(() => {
     try {
@@ -110,115 +106,25 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
         STORAGE_KEY,
         JSON.stringify({
           selectedProviderId,
-          selectedPresetId
+          selectedPresetId,
+          selectedModelId: selectedModel
         })
       );
     } catch (error) {
       console.error('保存录音页 AI 预设失败:', error);
     }
-  }, [selectedPresetId, selectedProviderId]);
-
-  useEffect(() => {
-    if (loadingProviders) {
-      return;
-    }
-
-    if (!selectedProviderId) {
-      if (selectedPresetId) {
-        setSelectedPresetId('');
-      }
-      setProviderConfigured(false);
-      return;
-    }
-
-    const providerExists = providers.some((provider) => provider.id === selectedProviderId);
-    if (!providerExists) {
-      setSelectedProviderId('');
-      setSelectedPresetId('');
-      setProviderConfigured(false);
-      setShowProviderConfig(true);
-      return;
-    }
-
-    if (!selectedPresetId) {
-      setProviderConfigured(false);
-      setShowProviderConfig(true);
-      return;
-    }
-
-    if (!(selectedProviderId in presetsMap)) {
-      return;
-    }
-
-    const presetExists = (presetsMap[selectedProviderId] || []).some((preset) => preset.id === selectedPresetId);
-    if (!presetExists) {
-      setSelectedPresetId('');
-      setProviderConfigured(false);
-      setShowProviderConfig(true);
-    }
-  }, [loadingProviders, presetsMap, providers, selectedPresetId, selectedProviderId]);
-
-  // 检测Provider配置状态
-  const checkProviderConfig = useCallback(
-    async (providerId: string, presetId: string): Promise<boolean> => {
-      if (!providerId || !presetId) {
-        setProviderConfigured(false);
-        return false;
-      }
-
-      try {
-        const provider = providers.find((p) => p.id === providerId);
-        if (!provider) {
-          setProviderConfigured(false);
-          return false;
-        }
-
-        const schema = provider.schema as { fields?: Array<{ key: string; required?: boolean }> } | undefined;
-        const requiredFields = schema?.fields?.filter((f: any) => f.required) || [];
-
-        if (requiredFields.length === 0) {
-          setProviderConfigured(true);
-          if (presetId === selectedPresetId) {
-            setShowProviderConfig(false);
-          }
-          return true;
-        }
-
-        const secrets = await window.YUA.ai.getPresetSecrets(presetId).catch(() => ({}));
-        const allConfigured = requiredFields.every((f: any) => {
-          const value = (secrets as Record<string, string>)[f.key];
-          return value && value.trim().length > 0;
-        });
-
-        setProviderConfigured(allConfigured);
-        // 如果已配置，自动收起配置表单
-        if (allConfigured && presetId === selectedPresetId) {
-          setShowProviderConfig(false);
-        }
-        return allConfigured;
-      } catch (error) {
-        console.error('检测Provider配置失败:', error);
-        setProviderConfigured(false);
-        return false;
-      }
-    },
-    [providers, selectedPresetId]
-  );
-
-  // 当选择provider或providers变化时，检测配置
-  useEffect(() => {
-    if (selectedProviderId && selectedPresetId && providers.length > 0) {
-      checkProviderConfig(selectedProviderId, selectedPresetId);
-    } else {
-      setProviderConfigured(false);
-    }
-  }, [selectedPresetId, selectedProviderId, providers, checkProviderConfig]);
+  }, [selectedModel, selectedPresetId, selectedProviderId]);
 
   // 监听窗口focus事件，重新检测配置
   useEffect(() => {
     const handleFocus = (): void => {
-      if (selectedProviderId && selectedPresetId) {
-        checkProviderConfig(selectedProviderId, selectedPresetId);
+      if (selectedProviderId) {
+        void providerSelectRef.current?.checkConfig(selectedProviderId, selectedPresetId).then((configured) => {
+          setProviderConfigured(!!configured);
+          if (configured) {
+            setShowProviderConfig(false);
+          }
+        });
       }
     };
 
@@ -226,7 +132,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
     return () => {
       window.removeEventListener('focus', handleFocus);
     };
-  }, [selectedPresetId, selectedProviderId, checkProviderConfig]);
+  }, [selectedPresetId, selectedProviderId]);
 
   // 打开配置窗口
   const handleOpenProviderConfig = useCallback(async () => {
@@ -235,24 +141,39 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
         await window.YUA.window['window:open']('settings' as any, { category: 'ai' });
         return;
       }
-
-      const provider = providers.find((p) => p.id === selectedProviderId);
-      if (!provider) return;
-
-      const schema = provider.schema as { fields?: Array<{ key: string; required?: boolean }> } | undefined;
-      const requiredFields = schema?.fields?.filter((f: any) => f.required) || [];
-      const fields = requiredFields.map((f: any) => f.key);
-
-      if (!selectedPresetId) {
-        await window.YUA.window['window:open']('settings' as any, { category: 'ai', aiProviderId: selectedProviderId });
-        return;
-      }
-
-      await window.YUA.window['window:open']('aiProviderConfig' as any, { providerId: selectedProviderId, presetId: selectedPresetId, fields }, { sameDisplayAsSender: true });
+      providerSelectRef.current?.openConfig(selectedProviderId, selectedPresetId);
     } catch (error) {
       console.error('打开配置窗口失败:', error);
     }
-  }, [selectedPresetId, selectedProviderId, providers]);
+  }, [selectedPresetId, selectedProviderId]);
+
+  const resolveActiveSelection = useCallback(async () => {
+    if (!selectedProviderId || !selectedModel) {
+      return null;
+    }
+
+    const isConfigured = await providerSelectRef.current?.checkConfig(selectedProviderId, selectedPresetId);
+    if (!isConfigured) {
+      providerSelectRef.current?.openConfig(selectedProviderId, selectedPresetId);
+      return null;
+    }
+
+    const resolvedSelection = await resolveModelFirstSelection({
+      providerId: selectedProviderId,
+      modelId: selectedModel,
+      preferredPresetId: selectedPresetId
+    });
+    if (!resolvedSelection) {
+      providerSelectRef.current?.openConfig(selectedProviderId, selectedPresetId);
+      return null;
+    }
+
+    if (resolvedSelection.providerPresetId !== selectedPresetId) {
+      setSelectedPresetId(resolvedSelection.providerPresetId);
+    }
+
+    return resolvedSelection;
+  }, [selectedModel, selectedPresetId, selectedProviderId]);
 
   /**
    * 解析翻译结果里的 <word>...</word>：
@@ -301,7 +222,10 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
 
   // 顺序翻译所有未翻译的segments
   const translateAllSegments = useCallback(async () => {
-    if (translatingRef.current || !providerConfigured) return;
+    if (translatingRef.current) return;
+
+    const resolvedSelection = await resolveActiveSelection();
+    if (!resolvedSelection) return;
 
     translatingRef.current = true;
     translationAbortRef.current = false;
@@ -338,10 +262,13 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
               .chatStream(
                 {
                   messages: [{ role: 'user', content: prompt }],
-                  providerId: selectedProviderId,
-                  providerPresetId: selectedPresetId || undefined,
+                  providerId: resolvedSelection.providerId,
+                  providerPresetId: resolvedSelection.providerPresetId,
                   stream: true,
-                  persist: false
+                  persist: false,
+                  extras: {
+                    model: resolvedSelection.modelId
+                  }
                 },
                 (ev: any) => {
                   if (translationAbortRef.current) {
@@ -391,18 +318,18 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
       translatingRef.current = false;
       setIsTranslating(false);
     }
-  }, [segments, providerConfigured, onTranslationUpdate, selectedProviderId, selectedPresetId, targetLanguage, parseTranslationResult, appendAdvancedWords]);
+  }, [appendAdvancedWords, onTranslationUpdate, parseTranslationResult, resolveActiveSelection, segments, targetLanguage]);
 
   // 监听segments变化，继续翻译新增的
   useEffect(() => {
-    if (enableTranslation && providerConfigured && !translatingRef.current) {
+    if (enableTranslation && canUseAI && !translatingRef.current) {
       // 检查是否有未翻译的
       const hasUntranslated = segments.some((s) => !s.translation);
       if (hasUntranslated) {
-        translateAllSegments();
+        void translateAllSegments();
       }
     }
-  }, [segments, enableTranslation, providerConfigured, translateAllSegments]);
+  }, [canUseAI, enableTranslation, segments, translateAllSegments]);
 
   // 点击翻译按钮
   const handleTranslationClick = useCallback(() => {
@@ -422,7 +349,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
     setShowLanguageSelect(false);
     setEnableTranslation(true);
     // 开始翻译
-    translateAllSegments();
+    void translateAllSegments();
   }, [translateAllSegments]);
 
   // 取消语言选择
@@ -432,7 +359,11 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
 
   // AI操作：总结
   const handleSummarize = async (): Promise<void> => {
-    if (!allText || !providerConfigured) return;
+    if (!allText) return;
+
+    const resolvedSelection = await resolveActiveSelection();
+    if (!resolvedSelection) return;
+
     setIsProcessing('summarize');
 
     const messageId = `summarize-${Date.now()}`;
@@ -455,10 +386,13 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
       await window.YUA.ai.chatStream(
         {
           messages: [{ role: 'user', content: prompt }],
-          providerId: selectedProviderId,
-          providerPresetId: selectedPresetId || undefined,
+          providerId: resolvedSelection.providerId,
+          providerPresetId: resolvedSelection.providerPresetId,
           stream: true,
-          persist: false
+          persist: false,
+          extras: {
+            model: resolvedSelection.modelId
+          }
         },
         (ev: any) => {
           if (ev.type === 'delta' && ev.data?.text) {
@@ -486,7 +420,10 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
 
   // AI操作：逐个获取高级词汇的解释（自动解释新增词汇）
   const explainNewWords = useCallback(async () => {
-    if (explainingRef.current || !vocabularyEnabled || !providerConfigured) return;
+    if (explainingRef.current || !vocabularyEnabled) return;
+
+    const resolvedSelection = await resolveActiveSelection();
+    if (!resolvedSelection) return;
 
     // 找出未解释的词汇
     const wordsToExplain = advancedWords.filter((word) => !explainedWords.has(word));
@@ -522,10 +459,13 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
             .chatStream(
               {
                 messages: [{ role: 'user', content: prompt }],
-                providerId: selectedProviderId,
-                providerPresetId: selectedPresetId || undefined,
+                providerId: resolvedSelection.providerId,
+                providerPresetId: resolvedSelection.providerPresetId,
                 stream: true,
-                persist: false
+                persist: false,
+                extras: {
+                  model: resolvedSelection.modelId
+                }
               },
               (ev: any) => {
                 if (vocabularyAbortRef.current) {
@@ -560,17 +500,17 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
       explainingRef.current = false;
       setIsExplainingVocabulary(false);
     }
-  }, [advancedWords, explainedWords, vocabularyEnabled, providerConfigured, selectedProviderId, selectedPresetId]);
+  }, [advancedWords, explainedWords, resolveActiveSelection, vocabularyEnabled]);
 
   // 监听 advancedWords 变化，自动解释新增词汇
   useEffect(() => {
-    if (vocabularyEnabled && providerConfigured && !explainingRef.current) {
+    if (vocabularyEnabled && canUseAI && !explainingRef.current) {
       const hasNewWords = advancedWords.some((word) => !explainedWords.has(word));
       if (hasNewWords) {
-        explainNewWords();
+        void explainNewWords();
       }
     }
-  }, [advancedWords, vocabularyEnabled, providerConfigured, explainedWords, explainNewWords]);
+  }, [advancedWords, canUseAI, explainedWords, explainNewWords, vocabularyEnabled]);
 
   // 点击词汇按钮
   const handleExtractVocabulary = useCallback(() => {
@@ -583,13 +523,17 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
       setVocabularyEnabled(true);
       vocabularyAbortRef.current = false;
       // 开始解释
-      explainNewWords();
+      void explainNewWords();
     }
   }, [vocabularyEnabled, explainNewWords]);
 
   // AI操作：高光内容
   const handleHighlights = async (): Promise<void> => {
-    if (!allText || !providerConfigured) return;
+    if (!allText) return;
+
+    const resolvedSelection = await resolveActiveSelection();
+    if (!resolvedSelection) return;
+
     setIsProcessing('highlights');
 
     const messageId = `highlights-${Date.now()}`;
@@ -612,10 +556,13 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
       await window.YUA.ai.chatStream(
         {
           messages: [{ role: 'user', content: prompt }],
-          providerId: selectedProviderId,
-          providerPresetId: selectedPresetId || undefined,
+          providerId: resolvedSelection.providerId,
+          providerPresetId: resolvedSelection.providerPresetId,
           stream: true,
-          persist: false
+          persist: false,
+          extras: {
+            model: resolvedSelection.modelId
+          }
         },
         (ev: any) => {
           if (ev.type === 'delta' && ev.data?.text) {
@@ -714,17 +661,13 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
     <div className="flex flex-col h-full border-l bg-background no-drag">
       {/* 头部：AI服务配置 */}
       <div className={`px-3 py-2 border-b ${isTransparent ? 'border-border/50' : ''}`}>
-        {loadingProviders ? (
-          <div className="flex items-center justify-center py-2">
-            <TbLoader2 className="h-4 w-4 animate-spin" />
-          </div>
-        ) : showProviderConfig ? (
+        {showProviderConfig ? (
           // 展开的配置表单
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-xs font-medium flex items-center gap-1">
                 <TbBrain className="h-3.5 w-3.5" />
-                AI 预设
+                AI 模型
               </Label>
               {providerConfigured && (
                 <Button size="sm" variant="ghost" className="h-5 text-xs px-1" onClick={() => setShowProviderConfig(false)}>
@@ -732,39 +675,49 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
                 </Button>
               )}
             </div>
-            <ServicePresetSelect
+            <ProviderModelSelect
+              ref={providerSelectRef}
               providerId={selectedProviderId}
               presetId={selectedPresetId}
-              onChange={(providerId, presetId) => {
-                setSelectedProviderId(providerId);
-                setSelectedPresetId(presetId);
+              modelId={selectedModel}
+              onChange={(providerId, modelId) => {
+                setSelectedProviderId((prevProviderId) => {
+                  if (prevProviderId && prevProviderId !== providerId) {
+                    setSelectedPresetId('');
+                  }
+                  return providerId;
+                });
+                setSelectedModel(modelId);
                 setShowProviderConfig(true);
               }}
-              placeholder="选择 AI 预设"
+              onProviderConfigChange={(_providerId, configured) => {
+                setProviderConfigured(configured);
+              }}
+              placeholder="选择 AI 模型"
               buttonVariant="outline"
               buttonSize="default"
               className="w-full justify-between rounded-md h-8 px-3 text-xs"
             />
-            {!selectedPresetId && (
+            {!selectedModel && (
               <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
-                <span>请先选择或创建预设</span>
+                <span>请先选择一个模型</span>
                 <Button size="sm" variant="link" className="h-auto p-0 text-xs" onClick={handleOpenProviderConfig}>
                   去设置
                 </Button>
               </div>
             )}
-            {selectedPresetId && !providerConfigured && (
+            {selectedModel && !providerConfigured && (
               <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
-                <span>需要配置预设密钥</span>
+                <span>需要完成服务商配置</span>
                 <Button size="sm" variant="link" className="h-auto p-0 text-xs" onClick={handleOpenProviderConfig}>
                   去配置
                 </Button>
               </div>
             )}
-            {selectedPresetId && providerConfigured && (
+            {selectedModel && providerConfigured && (
               <div className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
                 <TbCheck className="h-3.5 w-3.5" />
-                <span>预设可用</span>
+                <span>模型可用</span>
               </div>
             )}
           </div>
@@ -773,7 +726,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
           <Button variant="ghost" size="sm" className="w-full h-7 justify-between text-xs" onClick={() => setShowProviderConfig(true)}>
             <span className="flex items-center gap-1">
               <TbBrain className="h-3.5 w-3.5" />
-              {getPresetLabel()}
+              {getSelectionLabel()}
             </span>
             <TbChevronDown className="h-3.5 w-3.5" />
           </Button>
@@ -903,7 +856,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
           {/* 翻译按钮 */}
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button size="icon" variant={enableTranslation ? 'default' : 'outline'} className="h-8 w-8" onClick={handleTranslationClick} disabled={!providerConfigured || isProcessing !== null}>
+              <Button size="icon" variant={enableTranslation ? 'default' : 'outline'} className="h-8 w-8" onClick={handleTranslationClick} disabled={!canUseAI || isProcessing !== null}>
                 {isTranslating ? <TbLoader2 className="h-4 w-4 animate-spin" /> : <TbLanguage className="h-4 w-4" />}
               </Button>
             </TooltipTrigger>
@@ -913,7 +866,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
           {/* 总结按钮 */}
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button size="icon" variant="outline" className="h-8 w-8" onClick={handleSummarize} disabled={!providerConfigured || !allText || isProcessing !== null}>
+              <Button size="icon" variant="outline" className="h-8 w-8" onClick={handleSummarize} disabled={!canUseAI || !allText || isProcessing !== null}>
                 {isProcessing === 'summarize' ? <TbLoader2 className="h-4 w-4 animate-spin" /> : <TbSparkles className="h-4 w-4" />}
               </Button>
             </TooltipTrigger>
@@ -928,7 +881,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
                 variant={vocabularyEnabled ? 'default' : 'outline'}
                 className="h-8 w-8"
                 onClick={handleExtractVocabulary}
-                disabled={!providerConfigured || (isProcessing !== null && !vocabularyEnabled)}
+                disabled={!canUseAI || (isProcessing !== null && !vocabularyEnabled)}
               >
                 {isExplainingVocabulary ? <TbLoader2 className="h-4 w-4 animate-spin" /> : <TbVocabulary className="h-4 w-4" />}
               </Button>
@@ -947,7 +900,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
           {/* 高光按钮 */}
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button size="icon" variant="outline" className="h-8 w-8" onClick={handleHighlights} disabled={!providerConfigured || !allText || isProcessing !== null}>
+              <Button size="icon" variant="outline" className="h-8 w-8" onClick={handleHighlights} disabled={!canUseAI || !allText || isProcessing !== null}>
                 {isProcessing === 'highlights' ? <TbLoader2 className="h-4 w-4 animate-spin" /> : <TbListDetails className="h-4 w-4" />}
               </Button>
             </TooltipTrigger>

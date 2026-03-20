@@ -5,7 +5,7 @@ import ChatInput from './ChatInput';
 
 export interface ChatInputBarProps {
   // Triggered when user hits send (Enter or button)
-  onStart: (params: { content: string; providerId: string; presetId: string; agentId: string }) => void | Promise<void>;
+  onStart: (params: { content: string; providerId: string; modelId: string; preferredPresetId: string; agentId: string }) => void | Promise<void>;
   // Triggered when user clicks stop
   onStop?: () => void;
   // Loading indicates a streaming/processing state
@@ -17,14 +17,14 @@ export interface ChatInputBarProps {
 }
 
 export default function ChatInputBar({ onStart, onStop, loading, placeholder, className }: ChatInputBarProps): JSX.Element {
-  // consume shared provider/preset/agent state
-  const { agents, providerId, presetId, agentId, setAgentId } = useChatSelection();
+  // consume shared provider/model/hidden-preset/agent state
+  const { agents, providerId, modelId, presetId, agentId, setAgentId } = useChatSelection();
 
   return (
     <ChatInput
       onStart={async (content) => {
-        if (!presetId) return; // require preset for chat mode
-        await onStart?.({ content, providerId, presetId, agentId });
+        if (!providerId || !modelId) return;
+        await onStart?.({ content, providerId, modelId, preferredPresetId: presetId, agentId });
       }}
       onStop={onStop}
       loading={loading}
