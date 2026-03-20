@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import ServicePresetSelect from '@/pages/ChatPage/components/ServicePresetSelect';
+import { resolveModelFirstSelection } from '@/lib/ai-model-first';
 
 import { useResourceTabContext } from './ResourceTabContext';
 
@@ -198,6 +198,19 @@ const SummaryTab: React.FC = () => {
       return;
     }
 
+    const resolvedSelection = await resolveModelFirstSelection({
+      providerId: selectedProviderId,
+      modelId: selectedModel,
+      preferredPresetId: selectedPresetId
+    });
+    if (!resolvedSelection) {
+      providerSelectRef.current?.openConfig(selectedProviderId);
+      return;
+    }
+    if (resolvedSelection.providerPresetId !== selectedPresetId) {
+      setSelectedPresetId(resolvedSelection.providerPresetId);
+    }
+
     setSummaryResult(null);
     setParsingJson('');
     setSummaryProgress(0);
@@ -205,9 +218,9 @@ const SummaryTab: React.FC = () => {
 
     try {
       const { requestId } = await window.YUA.ai.summarize({
-        providerId: selectedProviderId,
-        providerPresetId: selectedPresetId || undefined,
-        model: selectedModel,
+        providerId: resolvedSelection.providerId,
+        providerPresetId: resolvedSelection.providerPresetId,
+        model: resolvedSelection.modelId,
         resourceId: targetResource.id,
         targetLanguage,
         languageNames,
@@ -286,22 +299,6 @@ const SummaryTab: React.FC = () => {
           </PopoverTrigger>
           <PopoverContent align="center" className="w-80">
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">模型预设</Label>
-                <ServicePresetSelect
-                  providerId={selectedProviderId}
-                  presetId={selectedPresetId}
-                  onChange={(providerId, presetId) => {
-                    setSelectedProviderId(providerId);
-                    setSelectedPresetId(presetId);
-                  }}
-                  buttonVariant="outline"
-                  buttonSize="default"
-                  className="w-full justify-between"
-                  placeholder="选择服务商 · 预设"
-                />
-              </div>
-
               <div className="space-y-2">
                 <Label className="text-sm font-medium">总结模型</Label>
                 <ProviderModelSelect
@@ -386,22 +383,6 @@ const SummaryTab: React.FC = () => {
                 </PopoverTrigger>
                 <PopoverContent align="end" className="w-80">
                   <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium">模型预设</Label>
-                      <ServicePresetSelect
-                        providerId={selectedProviderId}
-                        presetId={selectedPresetId}
-                        onChange={(providerId, presetId) => {
-                          setSelectedProviderId(providerId);
-                          setSelectedPresetId(presetId);
-                        }}
-                        buttonVariant="outline"
-                        buttonSize="default"
-                        className="w-full justify-between"
-                        placeholder="选择服务商 · 预设"
-                      />
-                    </div>
-
                     <div className="space-y-2">
                       <Label className="text-sm font-medium">总结模型</Label>
                       <ProviderModelSelect

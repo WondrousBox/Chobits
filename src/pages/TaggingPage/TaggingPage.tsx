@@ -1,12 +1,13 @@
 import { utils } from '@aim-packages/subtitle';
 import React, { useMemo, useRef, useState } from 'react';
 
+import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
-import ServicePresetSelect from '@/pages/ChatPage/components/ServicePresetSelect';
+import { resolveModelFirstSelection } from '@/lib/ai-model-first';
 
 type ProgressMeta = { phase: 'start' | 'progress'; total: number; startIndex?: number; index?: number; segmentTags?: string[]; aggTop?: string[] };
 
@@ -27,9 +28,10 @@ const TaggingPage: React.FC = () => {
   const [initialAgg, setInitialAgg] = useState<Record<string, number>>({});
   const [providerId, setProviderId] = useState<string | undefined>(undefined);
   const [presetId, setPresetId] = useState<string | undefined>(undefined);
+  const [modelId, setModelId] = useState<string | undefined>(undefined);
   const streamRef = useRef<StreamApi | null>(null);
 
-  const canStart = useMemo(() => confirmed && segments.length > 0 && !running && !!providerId && !!presetId, [confirmed, segments, running, providerId, presetId]);
+  const canStart = useMemo(() => confirmed && segments.length > 0 && !running && !!providerId && !!modelId, [confirmed, segments, running, providerId, modelId]);
 
   const doSegment = (): void => {
     const segs = useSmart ? utils.smartChunks(input, maxChars, overlap) : utils.chunkText(input, maxChars, overlap);
@@ -41,20 +43,31 @@ const TaggingPage: React.FC = () => {
     setInitialAgg({});
   };
 
-  // Provider/preset selection is handled by ServicePresetSelect; no manual fetching needed here
+  // Provider selection is model-first; preset is resolved lazily on execution.
 
   const handleStart = async (resume = false): Promise<void> => {
     if (running) return;
+    const resolvedSelection = await resolveModelFirstSelection({
+      providerId,
+      modelId,
+      preferredPresetId: presetId
+    });
+    if (!resolvedSelection) return;
+    if (resolvedSelection.providerPresetId !== presetId) {
+      setPresetId(resolvedSelection.providerPresetId);
+    }
+
     setRunning(true);
     setFinalTags(null);
     const startIndex = resume && pausedAt != null ? pausedAt + 1 : 0;
     const payload = {
       agentId: 'tagger',
-      providerId,
-      providerPresetId: presetId,
+      providerId: resolvedSelection.providerId,
+      providerPresetId: resolvedSelection.providerPresetId,
       stream: true,
       messages: [{ role: 'user', content: input }],
       extras: {
+        model: resolvedSelection.modelId,
         segments: segments.map((s) => s.content),
         maxLabels,
         startIndex,
@@ -109,16 +122,22 @@ const TaggingPage: React.FC = () => {
         {/* Controls */}
         <div className="flex items-center">
           <div className="col-span-12 sm:col-span-4 lg:col-span-3">
-            <div className="text-xs text-muted-foreground mb-1">模型服务预设</div>
-            <ServicePresetSelect
+            <div className="text-xs text-muted-foreground mb-1">模型</div>
+            <ProviderModelSelect
               providerId={providerId}
               presetId={presetId}
-              onChange={(pid, nextPresetId) => {
+              modelId={modelId}
+              onChange={(pid, nextModelId) => {
                 setProviderId(pid);
-                setPresetId(nextPresetId);
+                if (pid !== providerId) {
+                  setPresetId('');
+                }
+                setModelId(nextModelId);
               }}
               buttonVariant="outline"
               className="w-full"
+              autoLoadFirst
+              modelTypes={['chat']}
             />
           </div>
           <div className="col-span-4">

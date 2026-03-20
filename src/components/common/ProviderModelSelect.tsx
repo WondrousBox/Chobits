@@ -76,6 +76,8 @@ export interface ProviderModelSelectProps {
   onProviderConfigChange?: (providerId: string, isConfigured: boolean) => void;
   // 当需要打开配置窗口时的回调，传入 providerId 和需要配置的字段
   onOpenConfig?: (providerId: string, requiredFields: string[], presetId?: string) => void;
+  // 过滤可见的 provider
+  providerFilter?: (provider: ProviderRow) => boolean;
 }
 
 // 类型显示名称
@@ -202,7 +204,8 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
       showModelDetails = false,
       onProvidersLoaded,
       onProviderConfigChange,
-      onOpenConfig
+      onOpenConfig,
+      providerFilter
     },
     ref
   ) => {
@@ -210,7 +213,14 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
     const [modelsMap, setModelsMap] = useState<Record<string, ModelRow[]>>({});
     const [loadingModels, setLoadingModels] = useState<Record<string, boolean>>({});
     const [searchQuery, setSearchQuery] = useState<string>('');
-    const resolvedProvider = useMemo(() => resolveProviderIdentity(providers, providerId), [providers, providerId]);
+    const availableProviders = useMemo(
+      () => (providerFilter ? providers.filter((provider) => providerFilter(provider)) : providers),
+      [providerFilter, providers]
+    );
+    const resolvedProvider = useMemo(
+      () => resolveProviderIdentity(availableProviders, providerId) || resolveProviderIdentity(providers, providerId),
+      [availableProviders, providerId, providers]
+    );
     const resolvedProviderId = resolvedProvider?.id || providerId;
     const currentModelsCacheKey = useMemo(() => getModelsCacheKey(resolvedProviderId, presetId), [resolvedProviderId, presetId]);
 
@@ -231,7 +241,11 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
 
           const shouldAutoSelect = options?.forceAutoSelect || targetProviderId === resolvedProviderId;
           if (shouldAutoSelect && modelList.length > 0) {
-            const preferredModelId = resolvePreferredModelId(options?.provider || resolveProviderIdentity(providers, targetProviderId), modelList, modelTypes);
+            const preferredModelId = resolvePreferredModelId(
+              options?.provider || resolveProviderIdentity(availableProviders, targetProviderId) || resolveProviderIdentity(providers, targetProviderId),
+              modelList,
+              modelTypes
+            );
             const visibleModels = ((filterModelsByType(modelList, modelTypes) as ModelRow[]).length > 0 ? (filterModelsByType(modelList, modelTypes) as ModelRow[]) : modelList) as ModelRow[];
             const hasCurrentModel = !!modelId && visibleModels.some((model) => model.id === modelId);
 
@@ -250,7 +264,7 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
           });
         }
       },
-      [loadingModels, modelId, modelTypes, modelsMap, onChange, presetId, providers, resolvedProviderId]
+      [availableProviders, loadingModels, modelId, modelTypes, modelsMap, onChange, presetId, providers, resolvedProviderId]
     );
 
     // 检测 Provider 配置状态
@@ -263,7 +277,7 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
 
         try {
           const provider = providers.find((p) => p.id === targetProviderId);
-          const resolved = resolveProviderIdentity(providers, targetProviderId);
+          const resolved = resolveProviderIdentity(availableProviders, targetProviderId) || resolveProviderIdentity(providers, targetProviderId);
           const resolvedId = resolved?.id || targetProviderId;
           if (!provider && !resolved) {
             onProviderConfigChange?.(resolvedId, false);
@@ -280,13 +294,14 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
             return true;
           }
 
-          const resolvedPresetId = targetPresetId ?? (resolvedId === resolvedProviderId ? presetId : undefined);
-          if (!resolvedPresetId) {
+          const preferredPresetId = targetPresetId ?? (resolvedId === resolvedProviderId ? presetId : undefined);
+          const resolvedPreset = await window.YUA.ai.resolveUsablePreset(resolvedId, preferredPresetId);
+          if (!resolvedPreset?.id) {
             onProviderConfigChange?.(resolvedId, false);
             return false;
           }
 
-          const secrets = (await window.YUA.ai.getPresetSecrets(resolvedPresetId).catch(() => ({}))) as Record<string, unknown>;
+          const secrets = (await window.YUA.ai.getPresetSecrets(resolvedPreset.id).catch(() => ({}))) as Record<string, unknown>;
 
           // 检查所有 required 字段是否都有值
           const allConfigured = requiredFields.every((f: any) => {
@@ -302,7 +317,7 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
           return false;
         }
       },
-      [onProviderConfigChange, presetId, providers, resolvedProviderId]
+      [availableProviders, onProviderConfigChange, presetId, providers, resolvedProviderId]
     );
 
     // 当选择 provider 时，检测配置状态
@@ -318,13 +333,15 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
         const idToUse = targetProviderId || resolvedProviderId;
         if (!idToUse) return;
 
-        const provider = resolveProviderIdentity(providers, idToUse);
+        const provider = resolveProviderIdentity(availableProviders, idToUse) || resolveProviderIdentity(providers, idToUse);
         if (!provider) return;
 
         const schema = provider.schema;
         const requiredFields = schema?.fields?.filter((f: any) => f.required) || [];
         const fields = requiredFields.map((f: any) => f.key);
-        const resolvedPresetId = targetPresetId ?? (idToUse === resolvedProviderId ? presetId : undefined);
+        const preferredPresetId = targetPresetId ?? (idToUse === resolvedProviderId ? presetId : undefined);
+        const resolvedPreset = await window.YUA.ai.resolveUsablePreset(idToUse, preferredPresetId);
+        const resolvedPresetId = resolvedPreset?.id;
 
         if (!resolvedPresetId) {
           void window.YUA.window['window:open']('settings' as any, { category: 'ai', aiProviderId: idToUse });
@@ -338,7 +355,7 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
 
         void window.YUA.window['window:open']('aiProviderConfig' as any, { providerId: idToUse, presetId: resolvedPresetId, fields }, { sameDisplayAsSender: true });
       },
-      [onOpenConfig, presetId, providers, resolvedProviderId]
+      [availableProviders, onOpenConfig, presetId, providers, resolvedProviderId]
     );
 
     // 暴露方法给父组件
@@ -359,12 +376,13 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
           const provs = await window.YUA.ai.getProviders();
           if (!mounted) return;
           setProviders(provs || []);
+          const visibleProviders = providerFilter ? (provs || []).filter((provider) => providerFilter(provider)) : provs || [];
           // 通知父组件 providers 已加载
-          onProvidersLoaded?.(provs || []);
+          onProvidersLoaded?.(visibleProviders);
           // 默认选择第一个 provider，并优先命中 catalog 里的默认模型
-          if (autoLoadFirst && provs && provs.length > 0 && !providerId) {
-            const firstProviderId = provs[0].id;
-            void loadModelsForProvider(firstProviderId, { forceAutoSelect: true, provider: provs[0] });
+          if (autoLoadFirst && visibleProviders.length > 0 && !providerId) {
+            const firstProviderId = visibleProviders[0].id;
+            void loadModelsForProvider(firstProviderId, { forceAutoSelect: true, provider: visibleProviders[0] });
           }
         } catch (error) {
           console.error('加载 AI Providers 失败:', error);
@@ -391,14 +409,14 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
     // 当有搜索内容时，自动加载所有服务商的模型（如果还没加载）
     useEffect(() => {
       if (searchQuery.trim()) {
-        providers.forEach((p) => {
+        availableProviders.forEach((p) => {
           const cacheKey = getModelsCacheKey(p.id, p.id === resolvedProviderId ? presetId : undefined);
           if (!modelsMap[cacheKey] && !loadingModels[cacheKey]) {
             void loadModelsForProvider(p.id);
           }
         });
       }
-    }, [searchQuery, providers, modelsMap, loadingModels, loadModelsForProvider, presetId, resolvedProviderId]);
+    }, [searchQuery, availableProviders, modelsMap, loadingModels, loadModelsForProvider, presetId, resolvedProviderId]);
 
     // 搜索匹配的模型
     const searchResults = useMemo(() => {
@@ -409,7 +427,7 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
       const query = searchQuery.trim().toLowerCase();
       const results: Array<{ provider: ProviderRow; model: ModelRow }> = [];
 
-      providers.forEach((p) => {
+      availableProviders.forEach((p) => {
         const cacheKey = getModelsCacheKey(p.id, p.id === resolvedProviderId ? presetId : undefined);
         const models = filterModelsByType(modelsMap[cacheKey] || [], modelTypes);
         models.forEach((model) => {
@@ -422,7 +440,7 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
       });
 
       return results;
-    }, [searchQuery, providers, modelsMap, modelTypes, presetId, resolvedProviderId]);
+    }, [searchQuery, availableProviders, modelsMap, modelTypes, presetId, resolvedProviderId]);
 
     // 获取当前选中的服务商和模型信息
     const currentProvider = resolvedProvider;
@@ -505,7 +523,7 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
               )}
             </div>
           ) : (
-            providers.map((provider) => {
+            availableProviders.map((provider) => {
               const providerCacheKey = getModelsCacheKey(provider.id, provider.id === resolvedProviderId ? presetId : undefined);
               const allModels = modelsMap[providerCacheKey] || [];
               const providerModels = filterModelsByType(allModels, modelTypes);

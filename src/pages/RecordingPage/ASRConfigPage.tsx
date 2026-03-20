@@ -4,26 +4,16 @@ import { ScrollArea } from '@radix-ui/react-scroll-area';
 import React, { useCallback, useEffect, useState } from 'react';
 import { TbChevronDown, TbChevronUp, TbLoader2, TbPlayerPlay, TbPlayerStop } from 'react-icons/tb';
 
+import { ProviderModelSelect, ProviderModelSelectRef } from '@/components/common/ProviderModelSelect';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import ServicePresetSelect from '@/pages/ChatPage/components/ServicePresetSelect';
+import { resolveModelFirstSelection } from '@/lib/ai-model-first';
 
 interface SherpaModel extends PluginDefinition {
   isInstalled: boolean;
-}
-
-interface CloudProviderRecord {
-  id: string;
-  label: string;
-  capabilities?: {
-    transcribe?: boolean;
-  };
-  schema?: {
-    fields?: Array<{ key: string; required?: boolean }>;
-  };
 }
 
 // 语言代码到中文名称的映射
@@ -214,43 +204,10 @@ const ASRConfigPage: React.FC = () => {
   const [cloudProviderId, setCloudProviderId] = useState<string>('');
   const [cloudProviderPresetId, setCloudProviderPresetId] = useState<string>('');
   const [cloudModelId, setCloudModelId] = useState<string>('');
-  const [cloudModels, setCloudModels] = useState<any[]>([]);
-  const [loadingCloudModels, setLoadingCloudModels] = useState(false);
+  const [availableCloudProviderIds, setAvailableCloudProviderIds] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState('local');
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
-
-  // 云端模式：加载 AI Providers（仅用于云端转写模式）
-  const [cloudProviders, setCloudProviders] = useState<CloudProviderRecord[]>([]);
-
-  // 加载云端 AI Providers（用于云端转写模式）
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const provs = await window.YUA.ai.getProviders();
-        if (!mounted) return;
-        const transcribeProviders = ((provs || []) as CloudProviderRecord[]).filter((provider) => provider.capabilities?.transcribe);
-        setCloudProviders(transcribeProviders);
-      } catch (error) {
-        console.error('加载 AI Providers 失败:', error);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (cloudProviders.length === 0) {
-      return;
-    }
-
-    if (!cloudProviders.some((provider) => provider.id === cloudProviderId)) {
-      setCloudProviderId('');
-      setCloudProviderPresetId('');
-      setCloudModelId('');
-    }
-  }, [cloudProviderId, cloudProviders]);
+  const cloudProviderSelectRef = React.useRef<ProviderModelSelectRef>(null);
 
   // 查询 ASR 引擎当前运行状态 & 加载上次保存的配置
   useEffect(() => {
@@ -501,74 +458,17 @@ const ASRConfigPage: React.FC = () => {
     }
   }, [selectedModel, sherpaModels, language, showAdvancedSettings]);
 
-  // 加载云端模型列表
   useEffect(() => {
-    if (!cloudProviderId || !cloudProviderPresetId) {
-      setCloudModels([]);
-      setCloudModelId('');
+    if (!cloudProviderId || availableCloudProviderIds.length === 0) {
       return;
     }
 
-    let mounted = true;
-    (async () => {
-      try {
-        setLoadingCloudModels(true);
-        const models = await window.YUA.ai.listModels(cloudProviderId, cloudProviderPresetId);
-        if (!mounted) return;
-
-        // 过滤出音频转写模型；兼容历史 `stt` 命名与当前 runtime 的 `audio` 归类
-        const filteredModels = models.filter((m: any) => !m.type || m.type === 'audio' || m.type === 'realtime' || m.type === 'stt');
-
-        setCloudModels(filteredModels);
-        // 默认选中第一个模型，或者如果当前选中的模型不在列表中，也选中第一个
-        if (filteredModels.length > 0) {
-          const currentModelExists = filteredModels.some((m: any) => m.id === cloudModelId);
-          if (!cloudModelId || !currentModelExists) {
-            setCloudModelId(filteredModels[0].id);
-          }
-        } else {
-          setCloudModelId('');
-        }
-      } catch (error) {
-        console.error('加载云端模型失败:', error);
-        if (mounted) setCloudModels([]);
-      } finally {
-        if (mounted) setLoadingCloudModels(false);
-      }
-    })();
-
-    return () => {
-      mounted = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cloudProviderId, cloudProviderPresetId]); // cloudModelId is intentionally omitted to avoid loop
-
-  // 检测云端Provider配置状态
-  const checkCloudProviderConfig = useCallback(
-    async (providerId: string, presetId: string): Promise<boolean> => {
-      if (!providerId || !presetId) return false;
-
-      try {
-        const provider = cloudProviders.find((p) => p.id === providerId);
-        if (!provider) return false;
-
-        const schema = provider.schema;
-        const requiredFields = schema?.fields?.filter((f) => f.required) || [];
-
-        if (requiredFields.length === 0) return true;
-
-        const secrets = await window.YUA.ai.getPresetSecrets(presetId).catch(() => ({}));
-        return requiredFields.every((f) => {
-          const value = (secrets as Record<string, string>)[f.key];
-          return value && value.trim().length > 0;
-        });
-      } catch (error) {
-        console.error('检测Provider配置失败:', error);
-        return false;
-      }
-    },
-    [cloudProviders]
-  );
+    if (!availableCloudProviderIds.includes(cloudProviderId)) {
+      setCloudProviderId('');
+      setCloudProviderPresetId('');
+      setCloudModelId('');
+    }
+  }, [availableCloudProviderIds, cloudProviderId]);
 
   const handleOpenCloudProviderConfig = useCallback(async (): Promise<void> => {
     try {
@@ -576,23 +476,39 @@ const ASRConfigPage: React.FC = () => {
         await window.YUA.window['window:open']('settings' as any, { category: 'ai' });
         return;
       }
-
-      const provider = cloudProviders.find((item) => item.id === cloudProviderId);
-      if (!provider) return;
-
-      const requiredFields = provider.schema?.fields?.filter((field) => field.required) || [];
-      const fields = requiredFields.map((field) => field.key);
-
-      if (!cloudProviderPresetId) {
-        await window.YUA.window['window:open']('settings' as any, { category: 'ai', aiProviderId: cloudProviderId });
-        return;
-      }
-
-      await window.YUA.window['window:open']('aiProviderConfig' as any, { providerId: cloudProviderId, presetId: cloudProviderPresetId, fields }, { sameDisplayAsSender: true });
+      cloudProviderSelectRef.current?.openConfig(cloudProviderId, cloudProviderPresetId);
     } catch (error) {
       console.error('打开云端转写预设配置失败:', error);
     }
-  }, [cloudProviderId, cloudProviderPresetId, cloudProviders]);
+  }, [cloudProviderId, cloudProviderPresetId]);
+
+  const resolveCloudSelection = useCallback(async () => {
+    if (!cloudProviderId || !cloudModelId) {
+      return null;
+    }
+
+    const isConfigured = await cloudProviderSelectRef.current?.checkConfig(cloudProviderId, cloudProviderPresetId);
+    if (!isConfigured) {
+      cloudProviderSelectRef.current?.openConfig(cloudProviderId, cloudProviderPresetId);
+      return null;
+    }
+
+    const resolvedSelection = await resolveModelFirstSelection({
+      providerId: cloudProviderId,
+      modelId: cloudModelId,
+      preferredPresetId: cloudProviderPresetId
+    });
+    if (!resolvedSelection) {
+      cloudProviderSelectRef.current?.openConfig(cloudProviderId, cloudProviderPresetId);
+      return null;
+    }
+
+    if (resolvedSelection.providerPresetId !== cloudProviderPresetId) {
+      setCloudProviderPresetId(resolvedSelection.providerPresetId);
+    }
+
+    return resolvedSelection;
+  }, [cloudModelId, cloudProviderId, cloudProviderPresetId]);
 
   // 停止 ASR 服务
   const handleStopASR = async (): Promise<void> => {
@@ -610,12 +526,17 @@ const ASRConfigPage: React.FC = () => {
 
   // 启动ASR服务
   const handleStartASR = async (): Promise<void> => {
-    if (activeTab === 'cloud') {
-      if (!cloudProviderId || !cloudProviderPresetId || !cloudModelId) return;
+    let resolvedCloudSelection:
+      | {
+        providerId: string;
+        providerPresetId: string;
+        modelId: string;
+      }
+      | null = null;
 
-      const isConfigured = await checkCloudProviderConfig(cloudProviderId, cloudProviderPresetId);
-      if (!isConfigured) {
-        await handleOpenCloudProviderConfig();
+    if (activeTab === 'cloud') {
+      resolvedCloudSelection = await resolveCloudSelection();
+      if (!resolvedCloudSelection) {
         return;
       }
     } else {
@@ -689,9 +610,9 @@ const ASRConfigPage: React.FC = () => {
           enabled: true,
           backend: 'cloud',
           cloud: {
-            providerId: cloudProviderId,
-            providerPresetId: cloudProviderPresetId,
-            modelId: cloudModelId
+            providerId: resolvedCloudSelection?.providerId || cloudProviderId,
+            providerPresetId: resolvedCloudSelection?.providerPresetId || cloudProviderPresetId,
+            modelId: resolvedCloudSelection?.modelId || cloudModelId
           }
         });
       }
@@ -984,7 +905,7 @@ const ASRConfigPage: React.FC = () => {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label className="no-drag">服务预设</Label>
+                    <Label className="no-drag">服务商与模型</Label>
                     {cloudProviderId && (
                       <div className="flex items-center gap-2">
                         <Button size="sm" variant="outline" className="h-6 text-xs px-2 no-drag" onClick={() => void handleOpenCloudProviderConfig()}>
@@ -993,47 +914,34 @@ const ASRConfigPage: React.FC = () => {
                       </div>
                     )}
                   </div>
-                  <ServicePresetSelect
+                  <ProviderModelSelect
+                    ref={cloudProviderSelectRef}
                     providerId={cloudProviderId}
                     presetId={cloudProviderPresetId}
-                    onChange={(providerId, presetId) => {
-                      setCloudProviderId(providerId);
-                      setCloudProviderPresetId(presetId);
-                      setCloudModelId('');
+                    modelId={cloudModelId}
+                    onChange={(providerId, modelId) => {
+                      setCloudProviderId((prevProviderId) => {
+                        if (prevProviderId && prevProviderId !== providerId) {
+                          setCloudProviderPresetId('');
+                        }
+                        return providerId;
+                      });
+                      setCloudModelId(modelId);
                     }}
                     providerFilter={(provider) => !!provider.capabilities?.transcribe}
-                    placeholder="请选择云端转写预设"
+                    modelTypes={['audio', 'realtime', 'stt']}
+                    onProvidersLoaded={(providers) => {
+                      setAvailableCloudProviderIds(providers.map((provider) => provider.id));
+                    }}
+                    placeholder="请选择云端转写模型"
                     buttonVariant="outline"
                     buttonSize="default"
                     className="w-full justify-between rounded-md no-drag"
                   />
-                  {!cloudProviderPresetId && <div className="text-xs text-amber-600 dark:text-amber-400">请选择一个支持转写的预设后再选择模型</div>}
+                  {!cloudModelId && <div className="text-xs text-amber-600 dark:text-amber-400">请选择一个支持转写的模型后再启动云端转写</div>}
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="no-drag">模型</Label>
-                  <Select value={cloudModelId} onValueChange={setCloudModelId} disabled={!cloudProviderId || !cloudProviderPresetId || loadingCloudModels}>
-                    <SelectTrigger className="no-drag">
-                      <SelectValue placeholder={loadingCloudModels ? '加载中...' : '请选择模型'} />
-                    </SelectTrigger>
-                    <SelectContent className="no-drag">
-                      {cloudModels.length === 0 && !loadingCloudModels && (
-                        <SelectItem value="__no_models__" disabled>
-                          暂无可用模型
-                        </SelectItem>
-                      )}
-                      {cloudModels.map((model) => (
-                        <SelectItem key={model.id} value={model.id}>
-                          {model.label || model.id}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <p className="text-xs text-muted-foreground">
-                  {cloudProviders.length > 0 ? '仅展示当前已经接通转写能力的 AI 服务商' : '当前没有可用的云端转写服务商，请先完成支持 ASR 的 Provider 接线'}
-                </p>
+                <p className="text-xs text-muted-foreground">仅展示当前声明了转写能力的 AI 服务商和模型</p>
               </div>
             </TabsContent>
           </Tabs>
@@ -1062,7 +970,7 @@ const ASRConfigPage: React.FC = () => {
               disabled={
                 isLoading ||
                 (activeTab === 'local' && (!selectedModel || !sherpaModels.find((m) => m.id === selectedModel)?.isInstalled)) ||
-                (activeTab === 'cloud' && (!cloudProviderId || !cloudProviderPresetId || !cloudModelId))
+                (activeTab === 'cloud' && (!cloudProviderId || !cloudModelId))
               }
               onClick={handleStartASR}
               className="flex-1 no-drag"

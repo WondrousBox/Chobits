@@ -12,11 +12,14 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Input } from '@/components/ui/input';
 import { formatDateTime, formatRelativeTime } from '@/lib/time';
 
+import { useChatSelection } from './context/ChatSelectionContext';
+
 interface ChatPageProps {
   hideTitleBar?: boolean;
 }
 
 export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.Element {
+  const { providerId, modelId, presetId, setProviderId, setModelId, setPresetId } = useChatSelection();
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string; createdAt?: number }>>([]);
   const [loading, setLoading] = useState(false);
   // Provider/preset/agent are managed inside ChatInputBar now
@@ -130,7 +133,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
   };
 
   // 使用 ref 保存 start 函数引用，供 IPC 回调使用
-  const startRef = useRef<(params: { content: string; providerId: string; presetId: string }) => Promise<void>>();
+  const startRef = useRef<(params: { content: string; providerId?: string; modelId?: string; preferredPresetId?: string }) => Promise<void>>();
 
   // Listen for initial message from assistant window (on:window:open:ready)
   useEffect(() => {
@@ -142,10 +145,20 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
       newConversation();
       // 延迟一帧确保状态已重置，再发起对话
       setTimeout(() => {
+        if (payload.providerId) {
+          setProviderId(payload.providerId);
+        }
+        if (payload.modelId) {
+          setModelId(payload.modelId);
+        }
+        if (payload.preferredPresetId || payload.presetId) {
+          setPresetId(payload.preferredPresetId || payload.presetId);
+        }
         startRef.current?.({
           content: payload.initialMessage,
           providerId: payload.providerId,
-          presetId: payload.presetId
+          modelId: payload.modelId,
+          preferredPresetId: payload.preferredPresetId || payload.presetId
         });
       }, 50);
     };
@@ -196,9 +209,25 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
     return () => dispose();
   }, []);
 
-  const start = async (params: { content: string; providerId: string; presetId: string }): Promise<void> => {
-    const { content, providerId, presetId } = params;
-    if (!presetId || !content.trim()) return;
+  const start = async (params: { content: string; providerId?: string; modelId?: string; preferredPresetId?: string }): Promise<void> => {
+    const content = params.content;
+    const selectedProviderId = params.providerId || providerId;
+    const selectedModelId = params.modelId || modelId;
+    const preferredPresetId = params.preferredPresetId || presetId;
+
+    if (!content.trim() || !selectedProviderId || !selectedModelId) return;
+
+    const resolvedPreset = await window.YUA.ai.resolveUsablePreset(selectedProviderId, preferredPresetId);
+    if (!resolvedPreset?.id) {
+      toast.error('当前服务商还没有可用预设，请先到 AI 设置中完成配置');
+      return;
+    }
+
+    setProviderId(selectedProviderId);
+    setModelId(selectedModelId);
+    if (resolvedPreset.id !== preferredPresetId) {
+      setPresetId(resolvedPreset.id);
+    }
 
     // 1) 追加用户消息 + 占位的助手消息
     const userMsg = { role: 'user' as const, content, createdAt: Date.now() };
@@ -212,59 +241,71 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
     // 2) 构造上下文（包含历史消息 + 新用户消息）
     const history = [...messages, userMsg].map((m) => ({ role: m.role, content: m.content, createdAt: m.createdAt }));
 
-    const disposer = await window.YUA.ai.chatStream({ conversationId, messages: history as any, providerId, providerPresetId: presetId, stream: true }, (ev: any) => {
-      if (ev?.type === 'metadata' && ev.data?.conversationId) {
-        setConversationId(ev.data.conversationId);
-        setSelectedConvId(ev.data.conversationId);
-        // Refresh conversation list so the new conversation appears in sidebar
-        loadConversations();
+    const disposer = await window.YUA.ai.chatStream(
+      {
+        conversationId,
+        messages: history as any,
+        providerId: selectedProviderId,
+        providerPresetId: resolvedPreset.id,
+        stream: true,
+        extras: {
+          model: selectedModelId
+        }
+      },
+      (ev: any) => {
+        if (ev?.type === 'metadata' && ev.data?.conversationId) {
+          setConversationId(ev.data.conversationId);
+          setSelectedConvId(ev.data.conversationId);
+          // Refresh conversation list so the new conversation appears in sidebar
+          loadConversations();
+        }
+        if (ev?.type === 'delta' && ev.data?.text) {
+          const delta: string = ev.data.text;
+          setMessages((prev) => {
+            const idx = assistantIndexRef.current;
+            if (idx < 0 || idx >= prev.length) return prev;
+            const copy = prev.slice();
+            const m = copy[idx];
+            copy[idx] = { ...m, content: (m.content || '') + delta };
+            return copy;
+          });
+        }
+        if (ev?.type === 'message_completed' && ev.data?.message?.content) {
+          // Ensure final content reflected, in case no deltas were sent
+          const full: string = ev.data.message.content;
+          setMessages((prev) => {
+            const idx = assistantIndexRef.current;
+            if (idx < 0 || idx >= prev.length) return prev;
+            const copy = prev.slice();
+            const m = copy[idx];
+            copy[idx] = { ...m, content: full, createdAt: ev.data.message.createdAt || m.createdAt };
+            return copy;
+          });
+          setLoading(false);
+          // capture conversationId from completed metadata if present
+          const metaConvId = ev.data?.message?.metadata?.conversationId;
+          if (metaConvId && !conversationId) setConversationId(metaConvId);
+        }
+        if (ev?.type === 'message_completed') {
+          setLoading(false);
+          disposerRef.current?.dispose?.();
+          disposerRef.current = null;
+          // Refresh conversation list to show updated message count
+          loadConversations();
+        }
+        if (ev?.type === 'error') {
+          setMessages((prev) => {
+            const idx = assistantIndexRef.current;
+            if (idx < 0 || idx >= prev.length) return prev;
+            const copy = prev.slice();
+            const m = copy[idx];
+            copy[idx] = { ...m, content: (m.content || '') + `\n[错误] ${ev.data?.message || ''}` };
+            return copy;
+          });
+          setLoading(false);
+        }
       }
-      if (ev?.type === 'delta' && ev.data?.text) {
-        const delta: string = ev.data.text;
-        setMessages((prev) => {
-          const idx = assistantIndexRef.current;
-          if (idx < 0 || idx >= prev.length) return prev;
-          const copy = prev.slice();
-          const m = copy[idx];
-          copy[idx] = { ...m, content: (m.content || '') + delta };
-          return copy;
-        });
-      }
-      if (ev?.type === 'message_completed' && ev.data?.message?.content) {
-        // Ensure final content reflected, in case no deltas were sent
-        const full: string = ev.data.message.content;
-        setMessages((prev) => {
-          const idx = assistantIndexRef.current;
-          if (idx < 0 || idx >= prev.length) return prev;
-          const copy = prev.slice();
-          const m = copy[idx];
-          copy[idx] = { ...m, content: full, createdAt: ev.data.message.createdAt || m.createdAt };
-          return copy;
-        });
-        setLoading(false);
-        // capture conversationId from completed metadata if present
-        const metaConvId = ev.data?.message?.metadata?.conversationId;
-        if (metaConvId && !conversationId) setConversationId(metaConvId);
-      }
-      if (ev?.type === 'message_completed') {
-        setLoading(false);
-        disposerRef.current?.dispose?.();
-        disposerRef.current = null;
-        // Refresh conversation list to show updated message count
-        loadConversations();
-      }
-      if (ev?.type === 'error') {
-        setMessages((prev) => {
-          const idx = assistantIndexRef.current;
-          if (idx < 0 || idx >= prev.length) return prev;
-          const copy = prev.slice();
-          const m = copy[idx];
-          copy[idx] = { ...m, content: (m.content || '') + `\n[错误] ${ev.data?.message || ''}` };
-          return copy;
-        });
-        setLoading(false);
-      }
-    });
+    );
     disposerRef.current = disposer;
   };
 

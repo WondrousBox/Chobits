@@ -50,6 +50,7 @@ Renderer（示例约定，实际路径视实现为准）：
 
 - `src/lib/aiClient.ts`：简单客户端封装，便于在组件/页面中调用 `window.YUA.ai`
 - 设置页/对话页组件：使用 `getProviders`/`listPresets`/`listPromptTemplates`/`listConversations` 等接口渲染配置和会话列表
+  - 主聊天入口正向 model-first 迁移：界面选择 `provider + model`，发送前再解析隐藏 preset
 
 ## 3. 关键接口（Contract）
 
@@ -360,6 +361,16 @@ Provider 适配要点：
    - `runtime.mode = module` 已支持动态模块加载，并在主进程启动阶段异步注册自定义 adapter。
 
 ## 12. 使用说明（Quick Try）
+
+## 13. Model-First Chat Supplement
+
+- 主聊天入口开始从 preset-first 迁移到 model-first surface。
+- UI 层优先选择 `providerId + modelId`，不再把 preset 作为主入口选择项。
+- 发送前通过 `ai:resolveUsablePreset({ providerId, preferredPresetId? })` 解析真正可用的 `providerPresetId`。
+- 聊天请求推荐形态为：
+  - `providerId`: 当前模型所属 Provider
+  - `providerPresetId`: 发送前解析得到的可用 preset
+  - `extras.model`: 用户当前显式选择的模型 ID
 
 以下示例基于预期的 `window.YUA.ai` 接口（由 Preload 暴露）：
 

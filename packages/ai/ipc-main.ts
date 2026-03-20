@@ -22,7 +22,7 @@ import {
   TranslatePayload,
   updateTranslationSegment
 } from './ipc-handler-helpers';
-import { createPreset, deletePreset, getPreset, getPresetSecrets, listPresets, setPresetSecrets, updatePreset } from './preset-service';
+import { createPreset, deletePreset, getPreset, getPresetSecrets, listPresets, resolveUsablePreset, setPresetSecrets, updatePreset } from './preset-service';
 import { PromptsStore } from './prompts-store';
 import { normalizeProviderPreset } from './provider-preset';
 import { registerBuiltInProviders } from './providers/catalog';
@@ -56,28 +56,8 @@ import {
 import { listToolInfos } from './tools';
 import type { ImageGenerationRequest, ProviderPresetCreatePayload, ProviderPresetUpdatePatch, PushedCard, TranscriptionRequest } from './types';
 
-async function hasUsablePreset(providerId: string, schema?: { fields?: Array<{ key: string; required?: boolean }> }): Promise<boolean> {
-  const presets = listPresets(providerId);
-  if (!presets.length) {
-    return false;
-  }
-
-  const requiredFields = (schema?.fields || []).filter((field) => field.required).map((field) => field.key);
-  if (!requiredFields.length) {
-    return true;
-  }
-
-  const presetStates = await Promise.all(
-    presets.map(async (preset) => {
-      const secrets = (await getPresetSecrets(preset.id, requiredFields).catch(() => ({}))) as Record<string, string>;
-      return requiredFields.every((fieldKey) => {
-        const value = secrets[fieldKey];
-        return typeof value === 'string' && value.trim().length > 0;
-      });
-    })
-  );
-
-  return presetStates.some(Boolean);
+async function hasUsablePreset(providerId: string): Promise<boolean> {
+  return !!(await resolveUsablePreset(providerId));
 }
 
 export async function initAIHandlers(win: BrowserWindow): Promise<void> {
@@ -119,7 +99,7 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
           aliases: listProviderDefinitionAliases(definition.id),
           label: definition.display.label,
           source: definition.source,
-          configured: await hasUsablePreset(definition.id, schema),
+          configured: await hasUsablePreset(definition.id),
           capabilities,
           defaultModels,
           kind: definition.protocol.kind,
@@ -242,6 +222,9 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
   // Provider Presets CRUD
   ipcMain.handle('ai:listPresets', async (_e, payload?: { providerId?: string }) => {
     return listPresets(payload?.providerId);
+  });
+  ipcMain.handle('ai:resolveUsablePreset', async (_e, payload: { providerId: string; preferredPresetId?: string }) => {
+    return (await resolveUsablePreset(payload.providerId, payload.preferredPresetId)) || null;
   });
   ipcMain.handle('ai:createPreset', async (_e, payload: ProviderPresetCreatePayload) => {
     return createPreset(payload);

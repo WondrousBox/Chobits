@@ -5,8 +5,10 @@ import rehypeHighlight from 'rehype-highlight';
 import remarkGfm from 'remark-gfm';
 import { toast } from 'sonner';
 
+import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { resolveModelFirstSelection } from '@/lib/ai-model-first';
 import { formatRelativeTime } from '@/lib/time';
 
 // 消息类型
@@ -24,21 +26,8 @@ interface Conversation {
   messagesCount?: number;
 }
 
-// Provider 预设类型
-interface ProviderPreset {
-  id: string;
-  name: string;
-  providerId: string;
-}
-
 // Agent 类型
 interface Agent {
-  id: string;
-  label: string;
-}
-
-// Provider 类型
-interface Provider {
   id: string;
   label: string;
 }
@@ -64,11 +53,10 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
   const [loading, setLoading] = useState(false);
   const [inputText, setInputText] = useState('');
 
-  // Provider/预设/Agent 状态
-  const [providers, setProviders] = useState<Provider[]>([]);
-  const [presetsMap, setPresetsMap] = useState<Record<string, ProviderPreset[]>>({});
+  // Provider/模型/Agent 状态
   const [agents, setAgents] = useState<Agent[]>([]);
   const [providerId, setProviderId] = useState<string>(() => localStorage.getItem('ai-sidebar.providerId') || 'openai');
+  const [modelId, setModelId] = useState<string>(() => localStorage.getItem('ai-sidebar.modelId') || '');
   const [presetId, setPresetId] = useState<string>(() => localStorage.getItem('ai-sidebar.presetId') || '');
   const [agentId, setAgentId] = useState<string>(() => localStorage.getItem('ai-sidebar.agentId') || 'basic');
 
@@ -84,12 +72,6 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
   const assistantIndexRef = useRef<number>(-1);
   const disposerRef = useRef<{ dispose: () => void; cancel: () => Promise<any> } | null>(null);
 
-  // 当前选中的预设信息
-  const currentPreset = useMemo(() => {
-    const presets = presetsMap[providerId] || [];
-    return presets.find((preset) => preset.id === presetId);
-  }, [presetsMap, providerId, presetId]);
-
   // 当前选中的 Agent
   const currentAgent = useMemo(() => {
     return agents.find((a) => a.id === agentId);
@@ -100,29 +82,14 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
     localStorage.setItem('ai-sidebar.providerId', providerId);
   }, [providerId]);
   useEffect(() => {
+    localStorage.setItem('ai-sidebar.modelId', modelId);
+  }, [modelId]);
+  useEffect(() => {
     localStorage.setItem('ai-sidebar.presetId', presetId);
   }, [presetId]);
   useEffect(() => {
     localStorage.setItem('ai-sidebar.agentId', agentId);
   }, [agentId]);
-
-  // 加载 providers 和预设
-  const loadProvidersAndPresets = useCallback(async (): Promise<void> => {
-    try {
-      const provList = await window.YUA.ai.getProviders();
-      setProviders(provList || []);
-
-      const entries = await Promise.all(
-        (provList || []).map(async (provider: Provider) => {
-          const presets = await window.YUA.ai.listPresets(provider.id);
-          return [provider.id, presets || []] as const;
-        })
-      );
-      setPresetsMap(Object.fromEntries(entries));
-    } catch (e) {
-      console.warn('加载 providers / presets 失败:', e);
-    }
-  }, []);
 
   // 加载 agents
   const loadAgents = useCallback(async (): Promise<void> => {
@@ -180,47 +147,12 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
   // 初始化加载
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      void loadProvidersAndPresets();
       void loadAgents();
       void loadConversations();
     }, 0);
 
     return () => window.clearTimeout(timer);
-  }, [loadProvidersAndPresets, loadAgents, loadConversations]);
-
-  useEffect(() => {
-    if (!providers.length) return;
-    if (providers.some((provider) => provider.id === providerId)) return;
-
-    const nextProviderId = providers[0].id;
-    const timer = window.setTimeout(() => {
-      setProviderId(nextProviderId);
-    }, 0);
-
-    return () => window.clearTimeout(timer);
-  }, [providers, providerId]);
-
-  useEffect(() => {
-    const presets = presetsMap[providerId] || [];
-    if (!presets.length) {
-      if (!presetId) return;
-      const timer = window.setTimeout(() => {
-        setPresetId('');
-      }, 0);
-      return () => window.clearTimeout(timer);
-    }
-
-    if (presetId && presets.some((preset) => preset.id === presetId)) {
-      return;
-    }
-
-    const nextPresetId = presets[0].id;
-    const timer = window.setTimeout(() => {
-      setPresetId(nextPresetId);
-    }, 0);
-
-    return () => window.clearTimeout(timer);
-  }, [presetsMap, providerId, presetId]);
+  }, [loadAgents, loadConversations]);
 
   // 自动滚动到底部
   useEffect(() => {
@@ -239,11 +171,24 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
   // 发送消息
   const handleSend = async (): Promise<void> => {
     const content = inputText.trim();
-    if (!content || loading || !presetId) {
-      if (!presetId) {
-        toast.error('请先选择一个模型预设');
+    if (!content || loading || !providerId || !modelId) {
+      if (!providerId || !modelId) {
+        toast.error('请先选择一个模型');
       }
       return;
+    }
+
+    const resolvedSelection = await resolveModelFirstSelection({
+      providerId,
+      modelId,
+      preferredPresetId: presetId
+    });
+    if (!resolvedSelection) {
+      toast.error('当前服务商还没有可用预设，请先完成 AI 配置');
+      return;
+    }
+    if (resolvedSelection.providerPresetId !== presetId) {
+      setPresetId(resolvedSelection.providerPresetId);
     }
 
     // 添加用户消息和占位的助手消息
@@ -268,10 +213,13 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
         {
           conversationId,
           messages: history as any,
-          providerId,
-          providerPresetId: presetId,
+          providerId: resolvedSelection.providerId,
+          providerPresetId: resolvedSelection.providerPresetId,
           agentId,
-          stream: true
+          stream: true,
+          extras: {
+            model: resolvedSelection.modelId
+          }
         },
         (ev: any) => {
           if (ev?.type === 'metadata' && ev.data?.conversationId) {
@@ -471,37 +419,24 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              {/* 模型选择 */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className="flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:bg-muted rounded transition-colors">
-                    <span>{currentPreset?.name || '选择预设'}</span>
-                    <TbChevronDown className="w-3 h-3" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="min-w-[160px]">
-                  {providers.map((p) => {
-                    const presets = presetsMap[p.id] || [];
-                    if (presets.length === 0) return null;
-                    return (
-                      <React.Fragment key={p.id}>
-                        <div className="px-2 py-1 text-xs text-muted-foreground font-medium">{p.label}</div>
-                        {presets.map((preset) => (
-                          <DropdownMenuItem
-                            key={preset.id}
-                            onClick={() => {
-                              setProviderId(p.id);
-                              setPresetId(preset.id);
-                            }}
-                          >
-                            {preset.name}
-                          </DropdownMenuItem>
-                        ))}
-                      </React.Fragment>
-                    );
-                  })}
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <ProviderModelSelect
+                providerId={providerId}
+                presetId={presetId || undefined}
+                modelId={modelId || undefined}
+                onChange={(nextProviderId, nextModelId) => {
+                  setProviderId(nextProviderId);
+                  if (nextProviderId !== providerId) {
+                    setPresetId('');
+                  }
+                  setModelId(nextModelId);
+                }}
+                buttonVariant="ghost"
+                buttonSize="sm"
+                className="h-auto px-2 py-1 text-xs text-muted-foreground hover:bg-muted rounded transition-colors"
+                placeholder="选择模型"
+                autoLoadFirst
+                modelTypes={['chat']}
+              />
             </div>
 
             {/* 右侧：功能图标 */}
