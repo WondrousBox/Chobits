@@ -14,7 +14,6 @@ export type PresetRow = {
   id: string;
   providerId: string;
   name?: string;
-  model?: string;
 };
 
 export interface UseProvidersPresetsResult {
@@ -53,6 +52,17 @@ export function useProvidersPresets(): UseProvidersPresetsResult {
 
   useEffect(() => {
     void refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    const handleFocus = (): void => {
+      void refresh();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [refresh]);
 
   useEffect(() => {

@@ -52,7 +52,7 @@ export default function AiProviderConfigWindow(): JSX.Element {
     [currentLang]
   );
 
-  // 从窗口管理器获取 payload（providerId + fields），并拉取 Provider 信息与已有秘钥
+  // 从窗口管理器获取 payload（providerId + presetId + fields），并拉取对应作用域下的已有秘钥
   useEffect(() => {
     let mounted = true;
     const bootstrap = async (): Promise<void> => {
@@ -75,15 +75,10 @@ export default function AiProviderConfigWindow(): JSX.Element {
           return;
         }
 
-        const [providerSecrets, presetSecrets] = await Promise.all([
-          window.YUA.ai.getProviderSecrets(resolvedProviderId).catch(() => ({})),
-          targetPresetId ? window.YUA.ai.getPresetSecrets(targetPresetId).catch(() => ({})) : Promise.resolve({})
-        ]);
         if (!mounted) return;
-        setValues({
-          ...(providerSecrets || {}),
-          ...(presetSecrets || {})
-        });
+        const scopedSecrets = targetPresetId ? await window.YUA.ai.getPresetSecrets(targetPresetId).catch(() => ({})) : await window.YUA.ai.getProviderSecrets(resolvedProviderId).catch(() => ({}));
+        if (!mounted) return;
+        setValues((scopedSecrets || {}) as Record<string, string>);
       } catch {
         // ignore
       } finally {
@@ -195,17 +190,17 @@ export default function AiProviderConfigWindow(): JSX.Element {
 
   return (
     <div className="w-full h-full">
-      <DragAbleTitle title={<span>🔑 服务商配置</span>} />
+      <DragAbleTitle title={<span>{presetId ? '🔑 预设秘钥配置' : '🔑 服务商配置'}</span>} />
       <div className="w-full h-[calc(100%-36px)] px-4 box-border">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             {provider.schema?.icon && <TintableSvg src={provider.schema.icon} alt={displayLabel} className="w-6 h-6" />}
             <div className="flex flex-col">
               <span className="font-semibold text-sm">{displayLabel}</span>
-              <span className="text-xs text-muted-foreground">{presetId ? '配置当前预设的覆盖秘钥；未填写字段会继续继承服务商配置' : '配置访问该服务所需的秘钥'}</span>
+              <span className="text-xs text-muted-foreground">{presetId ? '配置当前预设所需的秘钥；仅当前预设会使用这些配置' : '配置访问该服务所需的秘钥（兼容旧入口）'}</span>
             </div>
           </div>
-          {presetId && <span className="text-[11px] rounded-full border px-2 py-0.5 text-muted-foreground">预设覆盖</span>}
+          {presetId && <span className="text-[11px] rounded-full border px-2 py-0.5 text-muted-foreground">预设秘钥</span>}
         </div>
         <div className="space-y-3">
           {displayFields.length === 0 ? (

@@ -281,14 +281,12 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
           }
 
           const resolvedPresetId = targetPresetId ?? (resolvedId === resolvedProviderId ? presetId : undefined);
-          const [providerSecrets, presetSecrets] = await Promise.all([
-            window.YUA.ai.getProviderSecrets(resolvedId).catch(() => ({})),
-            resolvedPresetId ? window.YUA.ai.getPresetSecrets(resolvedPresetId).catch(() => ({})) : Promise.resolve({})
-          ]);
-          const secrets = {
-            ...(providerSecrets as Record<string, unknown>),
-            ...(presetSecrets as Record<string, unknown>)
-          };
+          if (!resolvedPresetId) {
+            onProviderConfigChange?.(resolvedId, false);
+            return false;
+          }
+
+          const secrets = (await window.YUA.ai.getPresetSecrets(resolvedPresetId).catch(() => ({}))) as Record<string, unknown>;
 
           // 检查所有 required 字段是否都有值
           const allConfigured = requiredFields.every((f: any) => {
@@ -328,7 +326,17 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
         const fields = requiredFields.map((f: any) => f.key);
         const resolvedPresetId = targetPresetId ?? (idToUse === resolvedProviderId ? presetId : undefined);
 
-        onOpenConfig?.(idToUse, fields, resolvedPresetId);
+        if (!resolvedPresetId) {
+          void window.YUA.window['window:open']('settings' as any, { category: 'ai', aiProviderId: idToUse });
+          return;
+        }
+
+        if (onOpenConfig) {
+          void onOpenConfig(idToUse, fields, resolvedPresetId);
+          return;
+        }
+
+        void window.YUA.window['window:open']('aiProviderConfig' as any, { providerId: idToUse, presetId: resolvedPresetId, fields }, { sameDisplayAsSender: true });
       },
       [onOpenConfig, presetId, providers, resolvedProviderId]
     );

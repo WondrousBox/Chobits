@@ -154,7 +154,6 @@ export type ProviderPresetOverrides = Record<string, any>;
 export type ProviderPresetCreatePayload = {
   providerId: string;
   name: string;
-  model?: string;
   systemPrompt?: string;
   overrides?: ProviderPresetOverrides;
   // Legacy alias kept for compatibility while callers migrate to overrides.
@@ -164,7 +163,6 @@ export type ProviderPresetCreatePayload = {
 export type ProviderPresetUpdatePatch = Partial<{
   providerId: string;
   name: string;
-  model: string;
   systemPrompt: string;
   overrides: ProviderPresetOverrides;
   config: ProviderPresetOverrides;
@@ -174,7 +172,6 @@ export type ProviderPresetRecord = {
   id: string;
   providerId: string;
   name: string;
-  model?: string;
   systemPrompt?: string;
   overrides?: ProviderPresetOverrides;
   // Legacy alias kept for compatibility while callers migrate to overrides.

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TbBrain, TbCheck, TbChevronDown, TbLanguage, TbListDetails, TbLoader2, TbSparkles, TbVocabulary, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
@@ -6,6 +6,8 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import ServicePresetSelect from '@/pages/ChatPage/components/ServicePresetSelect';
+import { useProvidersPresets } from '@/pages/ChatPage/hooks/useProvidersPresets';
 
 import { RecognizedSegment } from '../types';
 
@@ -17,8 +19,23 @@ interface AIActionsPanelProps {
 
 export interface TranslationConfig {
   providerId: string;
+  presetId?: string;
   targetLanguage: string;
 }
+
+const STORAGE_KEY = 'recording-ai-actions-preferences';
+
+const loadPreferences = (): { selectedProviderId?: string; selectedPresetId?: string } => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (error) {
+    console.error('读取录音页 AI 预设失败:', error);
+  }
+  return {};
+};
 
 // 目标语言选项
 const TARGET_LANGUAGES = [
@@ -34,10 +51,10 @@ const TARGET_LANGUAGES = [
 
 export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTransparent = false, onTranslationUpdate }) => {
   // AI 配置状态
-  const [providers, setProviders] = useState<any[]>([]);
-  const [selectedProviderId, setSelectedProviderId] = useState<string>('');
+  const { providers, presetsMap, loading: loadingProviders } = useProvidersPresets();
+  const [selectedProviderId, setSelectedProviderId] = useState<string>(() => loadPreferences().selectedProviderId || '');
+  const [selectedPresetId, setSelectedPresetId] = useState<string>(() => loadPreferences().selectedPresetId || '');
   const [providerConfigured, setProviderConfigured] = useState<boolean>(false);
-  const [loadingProviders, setLoadingProviders] = useState(true);
   const [showProviderConfig, setShowProviderConfig] = useState(true); // 是否显示服务配置表单
 
   // 翻译状态
@@ -75,39 +92,76 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
   // 获取所有文本
   const allText = segments.map((s) => s.text).join(' ');
 
-  // 获取当前选择的服务商名称
-  const getProviderLabel = useCallback(() => {
-    const provider = providers.find((p) => p.id === selectedProviderId);
-    return provider?.label || provider?.id || '未选择';
-  }, [providers, selectedProviderId]);
+  // 获取当前选择的预设名称
+  const currentProvider = useMemo(() => providers.find((provider) => provider.id === selectedProviderId), [providers, selectedProviderId]);
+  const currentPreset = useMemo(
+    () => (selectedProviderId && selectedPresetId ? (presetsMap[selectedProviderId] || []).find((preset) => preset.id === selectedPresetId) : undefined),
+    [presetsMap, selectedPresetId, selectedProviderId]
+  );
+  const getPresetLabel = useCallback(() => {
+    if (currentPreset?.name) return currentPreset.name;
+    if (selectedPresetId) return selectedPresetId;
+    return currentProvider?.label || currentProvider?.id || '未选择';
+  }, [currentPreset?.name, currentProvider?.id, currentProvider?.label, selectedPresetId]);
 
-  // 加载 AI Providers
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        setLoadingProviders(true);
-        const provs = await window.YUA.ai.getProviders();
-        if (!mounted) return;
-        setProviders(provs || []);
-        if (provs && provs.length > 0) {
-          setSelectedProviderId((prev) => prev || provs[0].id);
-        }
-      } catch (error) {
-        console.error('加载 AI Providers 失败:', error);
-      } finally {
-        if (mounted) setLoadingProviders(false);
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          selectedProviderId,
+          selectedPresetId
+        })
+      );
+    } catch (error) {
+      console.error('保存录音页 AI 预设失败:', error);
+    }
+  }, [selectedPresetId, selectedProviderId]);
+
+  useEffect(() => {
+    if (loadingProviders) {
+      return;
+    }
+
+    if (!selectedProviderId) {
+      if (selectedPresetId) {
+        setSelectedPresetId('');
       }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
+      setProviderConfigured(false);
+      return;
+    }
+
+    const providerExists = providers.some((provider) => provider.id === selectedProviderId);
+    if (!providerExists) {
+      setSelectedProviderId('');
+      setSelectedPresetId('');
+      setProviderConfigured(false);
+      setShowProviderConfig(true);
+      return;
+    }
+
+    if (!selectedPresetId) {
+      setProviderConfigured(false);
+      setShowProviderConfig(true);
+      return;
+    }
+
+    if (!(selectedProviderId in presetsMap)) {
+      return;
+    }
+
+    const presetExists = (presetsMap[selectedProviderId] || []).some((preset) => preset.id === selectedPresetId);
+    if (!presetExists) {
+      setSelectedPresetId('');
+      setProviderConfigured(false);
+      setShowProviderConfig(true);
+    }
+  }, [loadingProviders, presetsMap, providers, selectedPresetId, selectedProviderId]);
 
   // 检测Provider配置状态
   const checkProviderConfig = useCallback(
-    async (providerId: string): Promise<boolean> => {
-      if (!providerId) {
+    async (providerId: string, presetId: string): Promise<boolean> => {
+      if (!providerId || !presetId) {
         setProviderConfigured(false);
         return false;
       }
@@ -119,15 +173,18 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
           return false;
         }
 
-        const schema = provider.schema;
+        const schema = provider.schema as { fields?: Array<{ key: string; required?: boolean }> } | undefined;
         const requiredFields = schema?.fields?.filter((f: any) => f.required) || [];
 
         if (requiredFields.length === 0) {
           setProviderConfigured(true);
+          if (presetId === selectedPresetId) {
+            setShowProviderConfig(false);
+          }
           return true;
         }
 
-        const secrets = await window.YUA.ai.getProviderSecrets(providerId).catch(() => ({}));
+        const secrets = await window.YUA.ai.getPresetSecrets(presetId).catch(() => ({}));
         const allConfigured = requiredFields.every((f: any) => {
           const value = (secrets as Record<string, string>)[f.key];
           return value && value.trim().length > 0;
@@ -135,7 +192,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
 
         setProviderConfigured(allConfigured);
         // 如果已配置，自动收起配置表单
-        if (allConfigured) {
+        if (allConfigured && presetId === selectedPresetId) {
           setShowProviderConfig(false);
         }
         return allConfigured;
@@ -145,23 +202,23 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
         return false;
       }
     },
-    [providers]
+    [providers, selectedPresetId]
   );
 
   // 当选择provider或providers变化时，检测配置
   useEffect(() => {
-    if (selectedProviderId && providers.length > 0) {
-      checkProviderConfig(selectedProviderId);
+    if (selectedProviderId && selectedPresetId && providers.length > 0) {
+      checkProviderConfig(selectedProviderId, selectedPresetId);
     } else {
       setProviderConfigured(false);
     }
-  }, [selectedProviderId, providers, checkProviderConfig]);
+  }, [selectedPresetId, selectedProviderId, providers, checkProviderConfig]);
 
   // 监听窗口focus事件，重新检测配置
   useEffect(() => {
     const handleFocus = (): void => {
-      if (selectedProviderId) {
-        checkProviderConfig(selectedProviderId);
+      if (selectedProviderId && selectedPresetId) {
+        checkProviderConfig(selectedProviderId, selectedPresetId);
       }
     };
 
@@ -169,25 +226,33 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
     return () => {
       window.removeEventListener('focus', handleFocus);
     };
-  }, [selectedProviderId, checkProviderConfig]);
+  }, [selectedPresetId, selectedProviderId, checkProviderConfig]);
 
   // 打开配置窗口
   const handleOpenProviderConfig = useCallback(async () => {
-    if (!selectedProviderId) return;
-
     try {
+      if (!selectedProviderId) {
+        await window.YUA.window['window:open']('settings' as any, { category: 'ai' });
+        return;
+      }
+
       const provider = providers.find((p) => p.id === selectedProviderId);
       if (!provider) return;
 
-      const schema = provider.schema;
+      const schema = provider.schema as { fields?: Array<{ key: string; required?: boolean }> } | undefined;
       const requiredFields = schema?.fields?.filter((f: any) => f.required) || [];
       const fields = requiredFields.map((f: any) => f.key);
 
-      await window.YUA.window['window:open']('aiProviderConfig' as any, { providerId: selectedProviderId, fields }, { sameDisplayAsSender: true });
+      if (!selectedPresetId) {
+        await window.YUA.window['window:open']('settings' as any, { category: 'ai', aiProviderId: selectedProviderId });
+        return;
+      }
+
+      await window.YUA.window['window:open']('aiProviderConfig' as any, { providerId: selectedProviderId, presetId: selectedPresetId, fields }, { sameDisplayAsSender: true });
     } catch (error) {
       console.error('打开配置窗口失败:', error);
     }
-  }, [selectedProviderId, providers]);
+  }, [selectedPresetId, selectedProviderId, providers]);
 
   /**
    * 解析翻译结果里的 <word>...</word>：
@@ -274,6 +339,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
                 {
                   messages: [{ role: 'user', content: prompt }],
                   providerId: selectedProviderId,
+                  providerPresetId: selectedPresetId || undefined,
                   stream: true,
                   persist: false
                 },
@@ -325,7 +391,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
       translatingRef.current = false;
       setIsTranslating(false);
     }
-  }, [segments, providerConfigured, onTranslationUpdate, selectedProviderId, targetLanguage, parseTranslationResult, appendAdvancedWords]);
+  }, [segments, providerConfigured, onTranslationUpdate, selectedProviderId, selectedPresetId, targetLanguage, parseTranslationResult, appendAdvancedWords]);
 
   // 监听segments变化，继续翻译新增的
   useEffect(() => {
@@ -390,6 +456,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
         {
           messages: [{ role: 'user', content: prompt }],
           providerId: selectedProviderId,
+          providerPresetId: selectedPresetId || undefined,
           stream: true,
           persist: false
         },
@@ -456,6 +523,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
               {
                 messages: [{ role: 'user', content: prompt }],
                 providerId: selectedProviderId,
+                providerPresetId: selectedPresetId || undefined,
                 stream: true,
                 persist: false
               },
@@ -492,7 +560,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
       explainingRef.current = false;
       setIsExplainingVocabulary(false);
     }
-  }, [advancedWords, explainedWords, vocabularyEnabled, providerConfigured, selectedProviderId]);
+  }, [advancedWords, explainedWords, vocabularyEnabled, providerConfigured, selectedProviderId, selectedPresetId]);
 
   // 监听 advancedWords 变化，自动解释新增词汇
   useEffect(() => {
@@ -545,6 +613,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
         {
           messages: [{ role: 'user', content: prompt }],
           providerId: selectedProviderId,
+          providerPresetId: selectedPresetId || undefined,
           stream: true,
           persist: false
         },
@@ -655,7 +724,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
             <div className="flex items-center justify-between">
               <Label className="text-xs font-medium flex items-center gap-1">
                 <TbBrain className="h-3.5 w-3.5" />
-                AI 服务
+                AI 预设
               </Label>
               {providerConfigured && (
                 <Button size="sm" variant="ghost" className="h-5 text-xs px-1" onClick={() => setShowProviderConfig(false)}>
@@ -663,30 +732,39 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
                 </Button>
               )}
             </div>
-            <Select value={selectedProviderId} onValueChange={setSelectedProviderId}>
-              <SelectTrigger className="h-8 text-xs">
-                <SelectValue placeholder="选择 AI 服务商" />
-              </SelectTrigger>
-              <SelectContent>
-                {providers.map((provider) => (
-                  <SelectItem key={provider.id} value={provider.id} className="text-xs">
-                    {provider.label || provider.id}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedProviderId && !providerConfigured && (
+            <ServicePresetSelect
+              providerId={selectedProviderId}
+              presetId={selectedPresetId}
+              onChange={(providerId, presetId) => {
+                setSelectedProviderId(providerId);
+                setSelectedPresetId(presetId);
+                setShowProviderConfig(true);
+              }}
+              placeholder="选择 AI 预设"
+              buttonVariant="outline"
+              buttonSize="default"
+              className="w-full justify-between rounded-md h-8 px-3 text-xs"
+            />
+            {!selectedPresetId && (
               <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
-                <span>需要配置 API Key</span>
+                <span>请先选择或创建预设</span>
+                <Button size="sm" variant="link" className="h-auto p-0 text-xs" onClick={handleOpenProviderConfig}>
+                  去设置
+                </Button>
+              </div>
+            )}
+            {selectedPresetId && !providerConfigured && (
+              <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
+                <span>需要配置预设密钥</span>
                 <Button size="sm" variant="link" className="h-auto p-0 text-xs" onClick={handleOpenProviderConfig}>
                   去配置
                 </Button>
               </div>
             )}
-            {selectedProviderId && providerConfigured && (
+            {selectedPresetId && providerConfigured && (
               <div className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
                 <TbCheck className="h-3.5 w-3.5" />
-                <span>已配置</span>
+                <span>预设可用</span>
               </div>
             )}
           </div>
@@ -695,7 +773,7 @@ export const AIActionsPanel: React.FC<AIActionsPanelProps> = ({ segments, isTran
           <Button variant="ghost" size="sm" className="w-full h-7 justify-between text-xs" onClick={() => setShowProviderConfig(true)}>
             <span className="flex items-center gap-1">
               <TbBrain className="h-3.5 w-3.5" />
-              {getProviderLabel()}
+              {getPresetLabel()}
             </span>
             <TbChevronDown className="h-3.5 w-3.5" />
           </Button>

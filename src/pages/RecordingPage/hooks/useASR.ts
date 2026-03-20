@@ -10,6 +10,7 @@ interface UseASRProps {
   onAudioLevel?: (level: number) => void;
   mode?: 'local' | 'cloud';
   cloudProviderId?: string;
+  cloudProviderPresetId?: string;
   cloudModelId?: string;
   enableSmallSegments?: boolean; // 是否启用分小段模式（按标点符号拆分）
   audioSource?: AudioSource; // 音频来源：麦克风或系统音频
@@ -82,6 +83,7 @@ export const useASR = ({
   onAudioLevel,
   mode = 'local',
   cloudProviderId,
+  cloudProviderPresetId,
   cloudModelId,
   enableSmallSegments = true, // 默认开启分小段模式
   audioSource = 'system-audio'
@@ -493,7 +495,7 @@ export const useASR = ({
       if (d.type !== 'sherpa:message') return;
 
       // 处理 VAD 片段 (云端模式)
-      if (mode === 'cloud' && data.samples && cloudProviderId) {
+      if (mode === 'cloud' && data.samples && cloudProviderId && cloudProviderPresetId) {
         try {
           // 转换音频数据
           const samples = new Float32Array(data.samples);
@@ -508,6 +510,7 @@ export const useASR = ({
           // 调用云端识别
           const result = await window.YUA.ai.transcribe({
             providerId: cloudProviderId,
+            providerPresetId: cloudProviderPresetId,
             file: wavBuffer as any,
             model: cloudModelId,
             language: 'zh', // TODO: 支持多语言配置
@@ -664,7 +667,7 @@ export const useASR = ({
     return () => {
       window.YUA.removeHandler('sherpa:message');
     };
-  }, [enableTranslation, translateText, mode, cloudProviderId, cloudModelId, enableSmallSegments]);
+  }, [enableTranslation, translateText, mode, cloudProviderId, cloudProviderPresetId, cloudModelId, enableSmallSegments]);
 
   // 自动开始录音
   useEffect(() => {

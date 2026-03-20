@@ -8,6 +8,8 @@ import type { AICompletionCallbacks, AICompletionContext, AICompletionHandler } 
 export interface AICompletionOptions {
   /** AI Provider ID (如 'openai', 'anthropic' 等) */
   providerId?: string;
+  /** Provider 预设 ID */
+  providerPresetId?: string;
   /** Agent ID (默认 'assistant') */
   agentId?: string;
   /** 模型 ID (如 'gpt-4o', 'claude-3-sonnet' 等) */
@@ -52,7 +54,7 @@ const DEFAULT_SYSTEM_PROMPT = `你是一个专业的写作助手。用户会给�
  * ```
  */
 export function useAICompletion(options: AICompletionOptions = {}): AICompletionHandler {
-  const { providerId = 'openai', agentId = 'assistant', model, systemPrompt = DEFAULT_SYSTEM_PROMPT, temperature = 0.7, maxTokens = 1000 } = options;
+  const { providerId = 'openai', providerPresetId, agentId = 'assistant', model, systemPrompt = DEFAULT_SYSTEM_PROMPT, temperature = 0.7, maxTokens = 1000 } = options;
 
   const streamApiRef = useRef<{ cancel: () => void; dispose: () => void } | null>(null);
 
@@ -74,6 +76,7 @@ export function useAICompletion(options: AICompletionOptions = {}): AICompletion
         .chatStream(
           {
             providerId,
+            providerPresetId,
             agentId,
             messages: [
               { role: 'system', content: systemPrompt },
@@ -126,7 +129,7 @@ export function useAICompletion(options: AICompletionOptions = {}): AICompletion
         }
       };
     },
-    [providerId, agentId, model, systemPrompt, temperature, maxTokens]
+    [providerId, providerPresetId, agentId, model, systemPrompt, temperature, maxTokens]
   );
 
   return handleAIComplete;
@@ -140,7 +143,7 @@ export function useAICompletion(options: AICompletionOptions = {}): AICompletion
  * @returns AICompletionHandler 函数
  */
 export function createAICompletionHandler(options: AICompletionOptions = {}): AICompletionHandler {
-  const { providerId = 'openai', agentId = 'assistant', model, systemPrompt = DEFAULT_SYSTEM_PROMPT, temperature = 0.7, maxTokens = 1000 } = options;
+  const { providerId = 'openai', providerPresetId, agentId = 'assistant', model, systemPrompt = DEFAULT_SYSTEM_PROMPT, temperature = 0.7, maxTokens = 1000 } = options;
 
   let streamApi: { cancel: () => void; dispose: () => void } | null = null;
 
@@ -160,6 +163,7 @@ export function createAICompletionHandler(options: AICompletionOptions = {}): AI
       .chatStream(
         {
           providerId,
+          providerPresetId,
           agentId,
           messages: [
             { role: 'system', content: systemPrompt },

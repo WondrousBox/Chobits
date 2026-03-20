@@ -19,6 +19,7 @@ export interface ServicePresetSelectProps {
   placeholder?: string;
   searchEnabled?: boolean;
   orderPresets?: (presets: PresetRow[], providerId: string) => PresetRow[];
+  providerFilter?: (provider: ProviderRow) => boolean;
   onOpenChange?: (open: boolean) => void;
 }
 
@@ -27,10 +28,26 @@ export interface ServicePresetSelectProps {
  * Data is sourced from useProvidersPresets(); ordering can be customized via orderPresets.
  */
 export default function ServicePresetSelect(props: ServicePresetSelectProps): JSX.Element {
-  const { providerId, presetId, onChange, className, buttonVariant = 'outline', buttonSize = 'sm', placeholder = '选择服务商 · 预设', searchEnabled = true, orderPresets, onOpenChange } = props;
+  const {
+    providerId,
+    presetId,
+    onChange,
+    className,
+    buttonVariant = 'outline',
+    buttonSize = 'sm',
+    placeholder = '选择服务商 · 预设',
+    searchEnabled = true,
+    orderPresets,
+    providerFilter,
+    onOpenChange
+  } = props;
 
   const { providers, presetsMap, getPresets } = useProvidersPresets();
   const [query, setQuery] = useState('');
+  const visibleProviders = useMemo(() => {
+    if (!providerFilter) return providers;
+    return providers.filter((provider) => providerFilter(provider));
+  }, [providerFilter, providers]);
 
   const currentProvider = useMemo(() => providers.find((provider) => provider.id === providerId), [providers, providerId]);
   const currentPresets = useMemo(() => (providerId ? presetsMap[providerId] || [] : []), [presetsMap, providerId]);
@@ -67,7 +84,7 @@ export default function ServicePresetSelect(props: ServicePresetSelectProps): JS
   const trimmed = query.trim().toLowerCase();
   const filteredResults =
     searchEnabled && trimmed
-      ? providers.flatMap((provider: ProviderRow) =>
+      ? visibleProviders.flatMap((provider: ProviderRow) =>
           resolveOrderedPresets(provider.id)
             .filter((preset: PresetRow) => {
               const name = (preset.name || '').toString().toLowerCase();
@@ -105,7 +122,7 @@ export default function ServicePresetSelect(props: ServicePresetSelectProps): JS
             )}
           </div>
         ) : (
-          providers.map((provider) => {
+          visibleProviders.map((provider) => {
             const presets = resolveOrderedPresets(provider.id);
             return (
               <DropdownMenuSub key={provider.id}>
@@ -141,6 +158,8 @@ export default function ServicePresetSelect(props: ServicePresetSelectProps): JS
             );
           })
         )}
+        {!searchEnabled && visibleProviders.length === 0 && <div className="px-2 py-2 text-xs text-muted-foreground">暂无可用预设</div>}
+        {searchEnabled && !trimmed && visibleProviders.length === 0 && <div className="px-2 py-2 text-xs text-muted-foreground">暂无可用预设</div>}
       </DropdownMenuContent>
     </DropdownMenu>
   );

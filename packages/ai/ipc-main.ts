@@ -56,6 +56,30 @@ import {
 import { listToolInfos } from './tools';
 import type { ImageGenerationRequest, ProviderPresetCreatePayload, ProviderPresetUpdatePatch, PushedCard, TranscriptionRequest } from './types';
 
+async function hasUsablePreset(providerId: string, schema?: { fields?: Array<{ key: string; required?: boolean }> }): Promise<boolean> {
+  const presets = listPresets(providerId);
+  if (!presets.length) {
+    return false;
+  }
+
+  const requiredFields = (schema?.fields || []).filter((field) => field.required).map((field) => field.key);
+  if (!requiredFields.length) {
+    return true;
+  }
+
+  const presetStates = await Promise.all(
+    presets.map(async (preset) => {
+      const secrets = (await getPresetSecrets(preset.id, requiredFields).catch(() => ({}))) as Record<string, string>;
+      return requiredFields.every((fieldKey) => {
+        const value = secrets[fieldKey];
+        return typeof value === 'string' && value.trim().length > 0;
+      });
+    })
+  );
+
+  return presetStates.some(Boolean);
+}
+
 export async function initAIHandlers(win: BrowserWindow): Promise<void> {
   // Bootstrapping built-in providers
   registerBuiltInProviders();
@@ -88,18 +112,19 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
         const provider = getProvider(definition.id);
         const defaultModels = getProviderDefaultModels(definition.id, provider);
         const capabilities = getProviderCapabilities(definition.id, provider);
+        const schema = getProviderDefinitionSchema(definition.id);
 
         return {
           id: definition.id,
           aliases: listProviderDefinitionAliases(definition.id),
           label: definition.display.label,
           source: definition.source,
-          configured: provider ? !!(await Promise.resolve((provider.isConfigured?.() as any) ?? true)) : false,
+          configured: await hasUsablePreset(definition.id, schema),
           capabilities,
           defaultModels,
           kind: definition.protocol.kind,
           defaultModel: definition.defaults.models.chat || defaultModels.chat,
-          schema: getProviderDefinitionSchema(definition.id)
+          schema
         };
       })
     );

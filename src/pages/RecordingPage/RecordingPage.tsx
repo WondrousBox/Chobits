@@ -24,6 +24,7 @@ const ASRPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [mode, setMode] = useState<'local' | 'cloud'>('local');
   const [cloudProviderId, setCloudProviderId] = useState<string>('');
+  const [cloudProviderPresetId, setCloudProviderPresetId] = useState<string>('');
   const [cloudModelId, setCloudModelId] = useState<string>('');
   const [audioSource, setAudioSource] = useState<AudioSource>('system-audio');
   const [asrEngineReady, setAsrEngineReady] = useState<boolean | null>(null); // null=checking, true=ready, false=not running
@@ -50,17 +51,19 @@ const ASRPage: React.FC = () => {
       try {
         const payload = (await window.YUA.window['window:payload:get']('asr' as any)) as
           | {
-            mode?: 'local' | 'cloud';
-            cloudProviderId?: string;
-            cloudModelId?: string;
-            audioSource?: AudioSource;
-          }
+              mode?: 'local' | 'cloud';
+              cloudProviderId?: string;
+              cloudProviderPresetId?: string;
+              cloudModelId?: string;
+              audioSource?: AudioSource;
+            }
           | undefined;
         if (!mounted) return;
         if (payload) {
           // 翻译配置现在由 AI 面板控制，不再从 payload 获取
           setMode(payload.mode || 'local');
           setCloudProviderId(payload.cloudProviderId || '');
+          setCloudProviderPresetId(payload.cloudProviderPresetId || '');
           setCloudModelId(payload.cloudModelId || '');
           if (payload.audioSource) {
             setAudioSource(payload.audioSource);
@@ -120,25 +123,13 @@ const ASRPage: React.FC = () => {
   }, []);
 
   // 翻译功能已移至 AIActionsPanel，这里禁用内置翻译
-  const {
-    isRecording,
-    isASRRunning,
-    setIsASRRunning,
-    recognizedSegments,
-    pendingSegments,
-    progressText,
-    recordingDuration,
-    startRecording,
-    stopRecording,
-    resumeRecording,
-    wsRef,
-    updateSegmentTranslation
-  } = useASR({
+  const { isRecording, isASRRunning, recognizedSegments, pendingSegments, progressText, recordingDuration, startRecording, stopRecording, resumeRecording, wsRef, updateSegmentTranslation } = useASR({
     enableTranslation: false,
-    translateText: async () => { },
+    translateText: async () => {},
     onAudioLevel,
     mode,
     cloudProviderId,
+    cloudProviderPresetId,
     cloudModelId,
     audioSource
   });

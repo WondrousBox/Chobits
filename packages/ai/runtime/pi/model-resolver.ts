@@ -1,5 +1,5 @@
-import { resolveProviderPresetId } from '../../provider-preset';
 import { getPreset, getPresetSecrets } from '../../preset-service';
+import { resolveProviderPresetId } from '../../provider-preset';
 import { getProviderDefinitionDefaultModel, listProviderSecretKeys, resolveKnownProviderId, toCanonicalProviderId } from '../../providers/service';
 import { getProvider } from '../../registry';
 import { getAllSecrets, getFirstApiKey } from '../../settings-store';
@@ -50,7 +50,7 @@ export async function resolvePiModelConfig(req: ChatRequest): Promise<{ preset?:
   const mergedSecrets = { ...adapterSecrets, ...providerSecrets, ...presetSecrets };
   const apiKey = getFirstApiKey(mergedSecrets.apiKey);
   const defaultModel = getProviderDefinitionDefaultModel(provider.id, 'chat', '');
-  const modelId = ((req.extras?.model as string | undefined) || preset?.model || (mergedSecrets.model as string | undefined) || defaultModel || '').trim();
+  const modelId = ((req.extras?.model as string | undefined) || (mergedSecrets.model as string | undefined) || defaultModel || '').trim();
 
   return {
     preset,

@@ -9,6 +9,7 @@ import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import ServicePresetSelect from '@/pages/ChatPage/components/ServicePresetSelect';
 
 interface SherpaModel extends PluginDefinition {
   isInstalled: boolean;
@@ -211,6 +212,7 @@ const ASRConfigPage: React.FC = () => {
   const [punctuationModels, setPunctuationModels] = useState<SherpaModel[]>([]);
   const [loadingModels, setLoadingModels] = useState(true);
   const [cloudProviderId, setCloudProviderId] = useState<string>('');
+  const [cloudProviderPresetId, setCloudProviderPresetId] = useState<string>('');
   const [cloudModelId, setCloudModelId] = useState<string>('');
   const [cloudModels, setCloudModels] = useState<any[]>([]);
   const [loadingCloudModels, setLoadingCloudModels] = useState(false);
@@ -239,8 +241,13 @@ const ASRConfigPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    if (cloudProviders.length === 0) {
+      return;
+    }
+
     if (!cloudProviders.some((provider) => provider.id === cloudProviderId)) {
-      setCloudProviderId(cloudProviders[0]?.id || '');
+      setCloudProviderId('');
+      setCloudProviderPresetId('');
       setCloudModelId('');
     }
   }, [cloudProviderId, cloudProviders]);
@@ -261,6 +268,7 @@ const ASRConfigPage: React.FC = () => {
           if (savedConfig.local?.model) setSelectedModel(savedConfig.local.model);
           if (savedConfig.local?.punctuationModel) setSelectedPunctuationModel(savedConfig.local.punctuationModel);
           if (savedConfig.cloud?.providerId) setCloudProviderId(savedConfig.cloud.providerId);
+          if (savedConfig.cloud?.providerPresetId) setCloudProviderPresetId(savedConfig.cloud.providerPresetId);
           if (savedConfig.cloud?.modelId) setCloudModelId(savedConfig.cloud.modelId);
         }
       } catch (error) {
@@ -409,6 +417,7 @@ const ASRConfigPage: React.FC = () => {
     return () => {
       mounted = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 当场景改变时，自动应用场景配置
@@ -494,7 +503,7 @@ const ASRConfigPage: React.FC = () => {
 
   // 加载云端模型列表
   useEffect(() => {
-    if (!cloudProviderId) {
+    if (!cloudProviderId || !cloudProviderPresetId) {
       setCloudModels([]);
       setCloudModelId('');
       return;
@@ -504,7 +513,7 @@ const ASRConfigPage: React.FC = () => {
     (async () => {
       try {
         setLoadingCloudModels(true);
-        const models = await window.YUA.ai.listModels(cloudProviderId);
+        const models = await window.YUA.ai.listModels(cloudProviderId, cloudProviderPresetId);
         if (!mounted) return;
 
         // 过滤出音频转写模型；兼容历史 `stt` 命名与当前 runtime 的 `audio` 归类
@@ -531,12 +540,13 @@ const ASRConfigPage: React.FC = () => {
     return () => {
       mounted = false;
     };
-  }, [cloudProviderId]); // cloudModelId is intentionally omitted to avoid loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cloudProviderId, cloudProviderPresetId]); // cloudModelId is intentionally omitted to avoid loop
 
   // 检测云端Provider配置状态
   const checkCloudProviderConfig = useCallback(
-    async (providerId: string): Promise<boolean> => {
-      if (!providerId) return false;
+    async (providerId: string, presetId: string): Promise<boolean> => {
+      if (!providerId || !presetId) return false;
 
       try {
         const provider = cloudProviders.find((p) => p.id === providerId);
@@ -547,7 +557,7 @@ const ASRConfigPage: React.FC = () => {
 
         if (requiredFields.length === 0) return true;
 
-        const secrets = await window.YUA.ai.getProviderSecrets(providerId).catch(() => ({}));
+        const secrets = await window.YUA.ai.getPresetSecrets(presetId).catch(() => ({}));
         return requiredFields.every((f) => {
           const value = (secrets as Record<string, string>)[f.key];
           return value && value.trim().length > 0;
@@ -559,6 +569,30 @@ const ASRConfigPage: React.FC = () => {
     },
     [cloudProviders]
   );
+
+  const handleOpenCloudProviderConfig = useCallback(async (): Promise<void> => {
+    try {
+      if (!cloudProviderId) {
+        await window.YUA.window['window:open']('settings' as any, { category: 'ai' });
+        return;
+      }
+
+      const provider = cloudProviders.find((item) => item.id === cloudProviderId);
+      if (!provider) return;
+
+      const requiredFields = provider.schema?.fields?.filter((field) => field.required) || [];
+      const fields = requiredFields.map((field) => field.key);
+
+      if (!cloudProviderPresetId) {
+        await window.YUA.window['window:open']('settings' as any, { category: 'ai', aiProviderId: cloudProviderId });
+        return;
+      }
+
+      await window.YUA.window['window:open']('aiProviderConfig' as any, { providerId: cloudProviderId, presetId: cloudProviderPresetId, fields }, { sameDisplayAsSender: true });
+    } catch (error) {
+      console.error('打开云端转写预设配置失败:', error);
+    }
+  }, [cloudProviderId, cloudProviderPresetId, cloudProviders]);
 
   // 停止 ASR 服务
   const handleStopASR = async (): Promise<void> => {
@@ -577,11 +611,11 @@ const ASRConfigPage: React.FC = () => {
   // 启动ASR服务
   const handleStartASR = async (): Promise<void> => {
     if (activeTab === 'cloud') {
-      if (!cloudProviderId || !cloudModelId) return;
+      if (!cloudProviderId || !cloudProviderPresetId || !cloudModelId) return;
 
-      const isConfigured = await checkCloudProviderConfig(cloudProviderId);
+      const isConfigured = await checkCloudProviderConfig(cloudProviderId, cloudProviderPresetId);
       if (!isConfigured) {
-        window.YUA.window['window:open']('aiProviderConfig' as any, { providerId: cloudProviderId }, { sameDisplayAsSender: true });
+        await handleOpenCloudProviderConfig();
         return;
       }
     } else {
@@ -656,6 +690,7 @@ const ASRConfigPage: React.FC = () => {
           backend: 'cloud',
           cloud: {
             providerId: cloudProviderId,
+            providerPresetId: cloudProviderPresetId,
             modelId: cloudModelId
           }
         });
@@ -949,41 +984,35 @@ const ASRConfigPage: React.FC = () => {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label className="no-drag">AI 服务商</Label>
+                    <Label className="no-drag">服务预设</Label>
                     {cloudProviderId && (
                       <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-6 text-xs px-2 no-drag"
-                          onClick={() => {
-                            // 复用配置检查逻辑，这里临时借用 selectedProviderId 的逻辑
-                            // 实际应该为 cloudProviderId 单独处理配置检查
-                            window.YUA.window['window:open']('aiProviderConfig' as any, { providerId: cloudProviderId }, { sameDisplayAsSender: true });
-                          }}
-                        >
+                        <Button size="sm" variant="outline" className="h-6 text-xs px-2 no-drag" onClick={() => void handleOpenCloudProviderConfig()}>
                           配置
                         </Button>
                       </div>
                     )}
                   </div>
-                  <Select value={cloudProviderId} onValueChange={setCloudProviderId}>
-                    <SelectTrigger className="no-drag">
-                      <SelectValue placeholder="请选择AI服务商" />
-                    </SelectTrigger>
-                    <SelectContent className="no-drag">
-                      {cloudProviders.map((provider) => (
-                        <SelectItem key={provider.id} value={provider.id}>
-                          {provider.label || provider.id}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <ServicePresetSelect
+                    providerId={cloudProviderId}
+                    presetId={cloudProviderPresetId}
+                    onChange={(providerId, presetId) => {
+                      setCloudProviderId(providerId);
+                      setCloudProviderPresetId(presetId);
+                      setCloudModelId('');
+                    }}
+                    providerFilter={(provider) => !!provider.capabilities?.transcribe}
+                    placeholder="请选择云端转写预设"
+                    buttonVariant="outline"
+                    buttonSize="default"
+                    className="w-full justify-between rounded-md no-drag"
+                  />
+                  {!cloudProviderPresetId && <div className="text-xs text-amber-600 dark:text-amber-400">请选择一个支持转写的预设后再选择模型</div>}
                 </div>
 
                 <div className="space-y-2">
                   <Label className="no-drag">模型</Label>
-                  <Select value={cloudModelId} onValueChange={setCloudModelId} disabled={!cloudProviderId || loadingCloudModels}>
+                  <Select value={cloudModelId} onValueChange={setCloudModelId} disabled={!cloudProviderId || !cloudProviderPresetId || loadingCloudModels}>
                     <SelectTrigger className="no-drag">
                       <SelectValue placeholder={loadingCloudModels ? '加载中...' : '请选择模型'} />
                     </SelectTrigger>
@@ -1033,7 +1062,7 @@ const ASRConfigPage: React.FC = () => {
               disabled={
                 isLoading ||
                 (activeTab === 'local' && (!selectedModel || !sherpaModels.find((m) => m.id === selectedModel)?.isInstalled)) ||
-                (activeTab === 'cloud' && (!cloudProviderId || !cloudModelId))
+                (activeTab === 'cloud' && (!cloudProviderId || !cloudProviderPresetId || !cloudModelId))
               }
               onClick={handleStartASR}
               className="flex-1 no-drag"
