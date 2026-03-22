@@ -9,10 +9,13 @@ export interface ChatSelectionContextValue {
   modelId: string;
   presetId: string;
   agentId: string;
+  codingWorkspaceRoot: string;
+  codingWorkspaceLabel: string;
   setProviderId: (id: string) => void;
   setModelId: (id: string) => void;
   setPresetId: (id: string) => void;
   setAgentId: (id: string) => void;
+  setCodingWorkspace: (workspace: { root: string; label?: string } | null) => void;
   refresh: () => Promise<void>;
 }
 
@@ -22,7 +25,9 @@ const LS_KEYS = {
   providerId: 'chat.sel.providerId',
   modelId: 'chat.sel.modelId',
   presetId: 'chat.sel.presetId',
-  agentId: 'chat.sel.agentId'
+  agentId: 'chat.sel.agentId',
+  codingWorkspaceRoot: 'chat.sel.codingWorkspaceRoot',
+  codingWorkspaceLabel: 'chat.sel.codingWorkspaceLabel'
 };
 
 export function ChatSelectionProvider({ children }: { children: React.ReactNode }): JSX.Element {
@@ -31,7 +36,9 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
   const [providerId, setProviderIdState] = useState<string>(() => localStorage.getItem(LS_KEYS.providerId) || 'openai');
   const [modelId, setModelId] = useState<string>(() => localStorage.getItem(LS_KEYS.modelId) || '');
   const [presetId, setPresetIdState] = useState<string>(() => localStorage.getItem(LS_KEYS.presetId) || '');
-  const [agentId, setAgentId] = useState<string>(() => localStorage.getItem(LS_KEYS.agentId) || 'basic');
+  const [agentId, setAgentId] = useState<string>(() => localStorage.getItem(LS_KEYS.agentId) || 'assistant');
+  const [codingWorkspaceRoot, setCodingWorkspaceRootState] = useState<string>(() => localStorage.getItem(LS_KEYS.codingWorkspaceRoot) || '');
+  const [codingWorkspaceLabel, setCodingWorkspaceLabelState] = useState<string>(() => localStorage.getItem(LS_KEYS.codingWorkspaceLabel) || '');
 
   // Persist selections
   useEffect(() => {
@@ -78,6 +85,28 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
       /* noop */
     }
   }, [agentId]);
+  useEffect(() => {
+    try {
+      if (codingWorkspaceRoot) {
+        localStorage.setItem(LS_KEYS.codingWorkspaceRoot, codingWorkspaceRoot);
+      } else {
+        localStorage.removeItem(LS_KEYS.codingWorkspaceRoot);
+      }
+    } catch {
+      /* noop */
+    }
+  }, [codingWorkspaceRoot]);
+  useEffect(() => {
+    try {
+      if (codingWorkspaceLabel) {
+        localStorage.setItem(LS_KEYS.codingWorkspaceLabel, codingWorkspaceLabel);
+      } else {
+        localStorage.removeItem(LS_KEYS.codingWorkspaceLabel);
+      }
+    } catch {
+      /* noop */
+    }
+  }, [codingWorkspaceLabel]);
 
   // One-time cleanup for the removed preset-ordering compatibility state.
   useEffect(() => {
@@ -151,6 +180,17 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
     setPresetIdState(id);
   }, []);
 
+  const setCodingWorkspace = useCallback((workspace: { root: string; label?: string } | null) => {
+    if (!workspace?.root?.trim()) {
+      setCodingWorkspaceRootState('');
+      setCodingWorkspaceLabelState('');
+      return;
+    }
+
+    setCodingWorkspaceRootState(workspace.root.trim());
+    setCodingWorkspaceLabelState(workspace.label?.trim() || '');
+  }, []);
+
   const value = useMemo<ChatSelectionContextValue>(
     () => ({
       agents,
@@ -158,13 +198,16 @@ export function ChatSelectionProvider({ children }: { children: React.ReactNode 
       modelId,
       presetId,
       agentId,
+      codingWorkspaceRoot,
+      codingWorkspaceLabel,
       setProviderId,
       setModelId,
       setPresetId,
       setAgentId,
+      setCodingWorkspace,
       refresh
     }),
-    [agents, providerId, modelId, presetId, agentId, setProviderId, setPresetId, refresh]
+    [agents, providerId, modelId, presetId, agentId, codingWorkspaceRoot, codingWorkspaceLabel, setProviderId, setPresetId, setCodingWorkspace, refresh]
   );
 
   return <ChatSelectionContext.Provider value={value}>{children}</ChatSelectionContext.Provider>;

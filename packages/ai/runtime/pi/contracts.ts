@@ -4,9 +4,9 @@ export type PiRuntimeId = 'legacy' | 'pi';
 
 export type PiExecutionMode = 'session' | 'one-shot';
 
-export type PiProfileId = 'chat' | 'assistant' | 'rag' | 'tagger' | 'translator' | (string & {});
+export type PiProfileId = 'chat' | 'assistant' | 'coder' | 'rag' | 'tagger' | 'translator' | (string & {});
 
-export type PiToolCategory = 'query' | 'content' | 'background-task' | 'ui-side-effect' | 'integration';
+export type PiToolCategory = 'query' | 'content' | 'background-task' | 'ui-side-effect' | 'integration' | 'file' | 'shell';
 
 export type PiToolStatus = 'legacy-only' | 'scaffolded' | 'ready-for-pi-runtime';
 
@@ -32,6 +32,13 @@ export interface ResolvedPiModelConfig {
   secrets: Record<string, string>;
 }
 
+export interface PiCodingWorkspaceContext {
+  rootPath: string;
+  label?: string;
+  mode: 'safe';
+  source: 'manual';
+}
+
 export interface ResolvedPiRequest {
   runtime: PiRuntimeId;
   runtimeRequested: boolean;
@@ -41,6 +48,7 @@ export interface ResolvedPiRequest {
   messages: ChatMessage[];
   enabledToolIds: string[];
   preset?: ProviderPresetRecord;
+  coding?: PiCodingWorkspaceContext;
 }
 
 export interface PiToolDescriptor {

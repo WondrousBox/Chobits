@@ -120,7 +120,7 @@ function seedRuntimeApiKeys(authStorage: PiCodingAuthStorage, resolved: Resolved
 export class PiSessionFactory {
   async createCodingSession(options: CreatePiCodingSessionOptions): Promise<PiCodingSessionHandle> {
     const { AuthStorage, DefaultResourceLoader, ModelRegistry, SessionManager, SettingsManager, createAgentSession } = await loadPiCodingCore();
-    const cwd = process.cwd();
+    const cwd = options.resolved.coding?.rootPath?.trim() || process.cwd();
     const authStorage = AuthStorage.inMemory();
     seedRuntimeApiKeys(authStorage, options.resolved, options.model);
     const customTools = createPiCustomTools(options.resolved.enabledToolIds, createPiSessionToolContext(options.resolved));

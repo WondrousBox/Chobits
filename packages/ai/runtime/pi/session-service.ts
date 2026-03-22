@@ -363,6 +363,37 @@ function toChatResponse(message: PiAssistantMessage, resolved: ResolvedPiRequest
   };
 }
 
+const CODING_WORKSPACE_REQUIRED_MESSAGE =
+  '当前是代码助手模式，但还没有选择项目目录。请先点击“选择项目”指定一个代码仓库，然后我就可以帮你读写和修改代码。';
+
+function getCodingWorkspaceRequiredMessage(resolved: ResolvedPiRequest): string | undefined {
+  if (resolved.profile.id !== 'coder') return undefined;
+  if (resolved.coding?.rootPath?.trim()) return undefined;
+  return CODING_WORKSPACE_REQUIRED_MESSAGE;
+}
+
+function createCodingWorkspaceRequiredResponse(resolved: ResolvedPiRequest): ChatResponse {
+  return {
+    agentId: resolved.profile.id,
+    message: {
+      content: CODING_WORKSPACE_REQUIRED_MESSAGE,
+      createdAt: Date.now(),
+      metadata: {
+        profileId: resolved.profile.id,
+        runtime: 'pi'
+      },
+      role: 'assistant'
+    },
+    metadata: {
+      model: resolved.model.modelId,
+      profileId: resolved.profile.id,
+      providerId: resolved.model.providerId,
+      runtime: 'pi'
+    },
+    providerId: resolved.model.providerId
+  };
+}
+
 export class PiSessionService {
   private readonly sessionFactory = new PiSessionFactory();
 
@@ -401,6 +432,10 @@ export class PiSessionService {
 
   async chat(req: ChatRequest): Promise<ChatResponse> {
     const preview = await this.preview(req);
+    const codingWorkspaceMessage = getCodingWorkspaceRequiredMessage(preview.resolved);
+    if (codingWorkspaceMessage) {
+      return createCodingWorkspaceRequiredResponse(preview.resolved);
+    }
     this.assertAvailable(preview.availability);
 
     const ai = await loadPiAi();
@@ -439,6 +474,21 @@ export class PiSessionService {
     const legacy = createLegacyStreamEmitter(emit);
 
     legacy.connected();
+
+    const codingWorkspaceMessage = getCodingWorkspaceRequiredMessage(preview.resolved);
+    if (codingWorkspaceMessage) {
+      legacy.metadata({
+        enabledToolIds: preview.resolved.enabledToolIds,
+        model: preview.resolved.model.modelId,
+        profileId: preview.resolved.profile.id,
+        providerId: preview.resolved.model.providerId,
+        runtime: 'pi',
+        workspaceRequired: true
+      });
+      legacy.complete(createLegacyAssistantMessage(codingWorkspaceMessage, { runtime: 'pi', workspaceRequired: true }));
+      legacy.done();
+      return;
+    }
 
     if (!preview.availability.available) {
       legacy.metadata({

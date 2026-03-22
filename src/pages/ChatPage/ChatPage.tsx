@@ -19,7 +19,8 @@ interface ChatPageProps {
 }
 
 export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.Element {
-  const { providerId, modelId, presetId, setProviderId, setModelId, setPresetId } = useChatSelection();
+  const { providerId, modelId, presetId, agentId, codingWorkspaceRoot, codingWorkspaceLabel, setProviderId, setModelId, setPresetId, setAgentId, setCodingWorkspace } =
+    useChatSelection();
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string; createdAt?: number }>>([]);
   const [loading, setLoading] = useState(false);
   // Provider/preset/agent are managed inside ChatInputBar now
@@ -133,7 +134,17 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
   };
 
   // 使用 ref 保存 start 函数引用，供 IPC 回调使用
-  const startRef = useRef<(params: { content: string; providerId?: string; modelId?: string; preferredPresetId?: string }) => Promise<void>>();
+  const startRef = useRef<
+    (params: {
+      content: string;
+      providerId?: string;
+      modelId?: string;
+      preferredPresetId?: string;
+      agentId?: string;
+      codingWorkspaceRoot?: string;
+      codingWorkspaceLabel?: string;
+    }) => Promise<void>
+  >();
 
   // Listen for initial message from assistant window (on:window:open:ready)
   useEffect(() => {
@@ -154,11 +165,23 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
         if (payload.preferredPresetId || payload.presetId) {
           setPresetId(payload.preferredPresetId || payload.presetId);
         }
+        if (payload.agentId) {
+          setAgentId(payload.agentId);
+        }
+        if (typeof payload.codingWorkspaceRoot === 'string' && payload.codingWorkspaceRoot.trim()) {
+          setCodingWorkspace({
+            root: payload.codingWorkspaceRoot,
+            label: typeof payload.codingWorkspaceLabel === 'string' ? payload.codingWorkspaceLabel : undefined
+          });
+        }
         startRef.current?.({
           content: payload.initialMessage,
           providerId: payload.providerId,
           modelId: payload.modelId,
-          preferredPresetId: payload.preferredPresetId || payload.presetId
+          preferredPresetId: payload.preferredPresetId || payload.presetId,
+          agentId: payload.agentId,
+          codingWorkspaceRoot: payload.codingWorkspaceRoot,
+          codingWorkspaceLabel: payload.codingWorkspaceLabel
         });
       }, 50);
     };
@@ -209,11 +232,22 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
     return () => dispose();
   }, []);
 
-  const start = async (params: { content: string; providerId?: string; modelId?: string; preferredPresetId?: string }): Promise<void> => {
+  const start = async (params: {
+    content: string;
+    providerId?: string;
+    modelId?: string;
+    preferredPresetId?: string;
+    agentId?: string;
+    codingWorkspaceRoot?: string;
+    codingWorkspaceLabel?: string;
+  }): Promise<void> => {
     const content = params.content;
     const selectedProviderId = params.providerId || providerId;
     const selectedModelId = params.modelId || modelId;
     const preferredPresetId = params.preferredPresetId || presetId;
+    const selectedAgentId = params.agentId || agentId;
+    const selectedCodingWorkspaceRoot = params.codingWorkspaceRoot || codingWorkspaceRoot;
+    const selectedCodingWorkspaceLabel = params.codingWorkspaceLabel || codingWorkspaceLabel;
 
     if (!content.trim() || !selectedProviderId || !selectedModelId) return;
 
@@ -245,11 +279,18 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
       {
         conversationId,
         messages: history as any,
+        agentId: selectedAgentId,
         providerId: selectedProviderId,
         providerPresetId: resolvedPreset.id,
         stream: true,
         extras: {
-          model: selectedModelId
+          model: selectedModelId,
+          ...(selectedAgentId === 'coder' && selectedCodingWorkspaceRoot
+            ? {
+                codingWorkspaceRoot: selectedCodingWorkspaceRoot,
+                codingWorkspaceLabel: selectedCodingWorkspaceLabel || undefined
+              }
+            : {})
         }
       },
       (ev: any) => {

@@ -4,7 +4,7 @@ import { getProviderDefinitionDefaultModel, listProviderSecretKeys, resolveKnown
 import { getProvider } from '../../registry';
 import { getAllSecrets, getFirstApiKey } from '../../settings-store';
 import type { ChatMessage, ChatRequest, ProviderPresetRecord } from '../../types';
-import type { ResolvedPiModelConfig, ResolvedPiRequest } from './contracts';
+import type { PiCodingWorkspaceContext, ResolvedPiModelConfig, ResolvedPiRequest } from './contracts';
 import { getPiAgentProfile } from './profile-registry';
 import { isPiRuntimeRequested } from './runtime-switch';
 import { normalizePiToolIds } from './tool-registry';
@@ -27,6 +27,20 @@ function resolveEnabledToolIds(req: ChatRequest, preset: ProviderPresetRecord | 
   if (preset?.enabledTools?.length) return normalizePiToolIds(preset.enabledTools);
 
   return normalizePiToolIds(profileDefaultToolIds);
+}
+
+function resolveCodingWorkspace(req: ChatRequest): PiCodingWorkspaceContext | undefined {
+  const rootPath = typeof req.extras?.codingWorkspaceRoot === 'string' ? req.extras.codingWorkspaceRoot.trim() : '';
+  if (!rootPath) return undefined;
+
+  const label = typeof req.extras?.codingWorkspaceLabel === 'string' ? req.extras.codingWorkspaceLabel.trim() : '';
+
+  return {
+    mode: 'safe',
+    rootPath,
+    source: 'manual',
+    ...(label ? { label } : {})
+  };
 }
 
 export async function resolvePiModelConfig(req: ChatRequest): Promise<{ preset?: ProviderPresetRecord; model: ResolvedPiModelConfig }> {
@@ -77,6 +91,7 @@ export async function resolvePiRequest(req: ChatRequest): Promise<ResolvedPiRequ
   const messages = prependSystemPrompt(req.messages || [], preset?.systemPrompt);
 
   return {
+    coding: resolveCodingWorkspace(req),
     enabledToolIds: resolveEnabledToolIds(req, preset, profile.defaultToolIds),
     messages,
     model,
