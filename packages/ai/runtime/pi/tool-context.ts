@@ -1,9 +1,10 @@
 import { ChatRepo, ResourcesRepo } from '../../../common/db';
 import { pushCardToWindows } from '../../card-push';
-import type { ResolvedPiRequest } from './contracts';
+import type { PiCodingWorkspaceContext, ResolvedPiRequest } from './contracts';
 
 export interface PiSessionToolContext {
   chatRepo: typeof ChatRepo;
+  coding?: PiCodingWorkspaceContext;
   conversationId?: string;
   pushCardToWindows: typeof pushCardToWindows;
   resolved: ResolvedPiRequest;
@@ -29,6 +30,7 @@ function resolveTargetWindowId(resolved: ResolvedPiRequest): number | undefined 
 export function createPiSessionToolContext(resolved: ResolvedPiRequest): PiSessionToolContext {
   return {
     chatRepo: ChatRepo,
+    coding: resolved.coding,
     conversationId: resolveConversationId(resolved),
     pushCardToWindows,
     resolved,

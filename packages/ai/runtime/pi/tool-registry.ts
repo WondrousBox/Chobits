@@ -3,6 +3,55 @@ import type { PiToolDescriptor } from './contracts';
 type ToolSeed = Omit<PiToolDescriptor, 'id'>;
 
 const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
+  'file-edit': {
+    category: 'file',
+    description: 'Edit a text file inside the selected coding workspace by replacing exact text.',
+    compatName: 'fileEditTool',
+    name: 'fileEditTool',
+    status: 'ready-for-pi-runtime'
+  },
+  'file-glob': {
+    category: 'file',
+    description: 'Find files or directories inside the selected coding workspace using a glob pattern.',
+    compatName: 'fileGlobTool',
+    name: 'fileGlobTool',
+    status: 'ready-for-pi-runtime'
+  },
+  'file-grep': {
+    category: 'file',
+    description: 'Search inside workspace files for matching text.',
+    compatName: 'fileGrepTool',
+    name: 'fileGrepTool',
+    status: 'ready-for-pi-runtime'
+  },
+  'file-list': {
+    category: 'file',
+    description: 'List files and directories inside the selected coding workspace.',
+    compatName: 'fileListTool',
+    name: 'fileListTool',
+    status: 'ready-for-pi-runtime'
+  },
+  'file-read': {
+    category: 'file',
+    description: 'Read a text file from the selected coding workspace.',
+    compatName: 'fileReadTool',
+    name: 'fileReadTool',
+    status: 'ready-for-pi-runtime'
+  },
+  'file-write': {
+    category: 'file',
+    description: 'Write a text file inside the selected coding workspace.',
+    compatName: 'fileWriteTool',
+    name: 'fileWriteTool',
+    status: 'ready-for-pi-runtime'
+  },
+  'shell-exec': {
+    category: 'shell',
+    description: 'Run a restricted verification command inside the selected coding workspace.',
+    compatName: 'shellExecTool',
+    name: 'shellExecTool',
+    status: 'ready-for-pi-runtime'
+  },
   'push-card': {
     category: 'ui-side-effect',
     description: '在聊天中推送资源卡片',
@@ -53,6 +102,8 @@ const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
     status: 'ready-for-pi-runtime'
   }
 };
+
+export const DEFAULT_CODER_TOOL_IDS = ['file-list', 'file-read', 'file-glob', 'file-grep', 'file-write', 'file-edit', 'shell-exec'];
 
 export const DEFAULT_SESSION_TOOL_IDS = ['query-resources', 'read-subtitle', 'translate-subtitles', 'summarize-content', 'push-card', 'youtube-download', 'youtube-subscribe'];
 

@@ -25,6 +25,12 @@ export type OptionalProviderScopedRequest = ProviderPresetFields & {
   providerId?: string;
 };
 
+export type ChatRequestExtras = Record<string, any> & {
+  codingWorkspaceRoot?: string;
+  codingWorkspaceLabel?: string;
+  codingMode?: 'safe';
+};
+
 export type ChatRequest = ProviderScopedRequest & {
   conversationId?: string;
   messages: ChatMessage[];
@@ -33,7 +39,7 @@ export type ChatRequest = ProviderScopedRequest & {
   temperature?: number;
   maxTokens?: number;
   abortId?: string; // used to cancel via IPC
-  extras?: Record<string, any>; // agent/provider specific
+  extras?: ChatRequestExtras; // agent/provider specific
   requestId?: string; // for streaming identification
   persist?: boolean; // whether to persist conversation/messages (default true)
 };

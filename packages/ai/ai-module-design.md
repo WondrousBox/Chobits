@@ -420,6 +420,17 @@ console.log(res.tags);
 - [ ] 插件发现与第三方 Provider/profile 注册规范
 - [ ] 更丰富的 profile / execution 模板（如多工具协同、结构化输出、评审等）
 
+## 13.1 Coding Profile Notes
+
+- Pi profiles now include a `coder` profile for repository-aware editing sessions.
+- The main chat page and the resource AI sidebar both pass `agentId` together with `extras.codingWorkspaceRoot` and `extras.codingWorkspaceLabel` when `coder` is active.
+- `packages/ai/runtime/pi/model-resolver.ts` resolves that workspace into `ResolvedPiRequest.coding`.
+- `packages/ai/runtime/pi/session-factory.ts` uses the selected workspace root as the Pi session `cwd`.
+- `packages/ai/runtime/pi/session-service.ts` blocks `coder` requests that do not have a selected workspace and returns a fixed assistant message instead of relying on model behavior.
+- Workspace-scoped file and search tools live under `packages/ai/runtime/pi/coding/` and `packages/ai/runtime/pi/tools/file-*.ts`.
+- `packages/ai/runtime/pi/coding/shell-service.ts` adds a restricted verification runner for `git`, `tsc`, and `vitest`.
+- These tools are restricted to the selected workspace root and reject escaping paths, including symlink-based escapes.
+
 ---
 
 如需扩展 Provider/profile 或调整 IPC 协议，请优先修改本模块的类型定义（`types.ts`）与本设计文档，确保渲染端与主进程统一升级。

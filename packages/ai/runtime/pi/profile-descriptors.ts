@@ -1,5 +1,5 @@
 import type { PiExecutionMode } from './contracts';
-import { DEFAULT_SESSION_TOOL_IDS } from './tool-registry';
+import { DEFAULT_CODER_TOOL_IDS, DEFAULT_SESSION_TOOL_IDS } from './tool-registry';
 
 export interface PiProfileDescriptor {
   id: string;
@@ -98,6 +98,23 @@ pushCardTool 使用示例：
     defaultToolIds: [],
     executionMode: 'session',
     supportsToolCalls: false
+  },
+  coder: {
+    id: 'coder',
+    label: 'Coder',
+    description: 'Workspace-aware coding assistant for reading and editing project files.',
+    instructions: `You are a careful coding assistant working inside a user-selected project directory.
+Use the available file tools to inspect the repository before making changes.
+Prefer fileGrepTool and fileGlobTool to locate code before reading files in detail.
+Only operate inside the selected coding workspace.
+Prefer small, targeted edits and preserve the user's existing structure and style.
+Read the relevant files before writing.
+Use shellExecTool only for verification commands after inspection or edits.
+If a requested change is risky or ambiguous, explain the tradeoff clearly and ask for clarification.
+Respond in Chinese unless the user asks for another language.`,
+    defaultToolIds: DEFAULT_CODER_TOOL_IDS,
+    executionMode: 'session',
+    supportsToolCalls: true
   },
   rag: {
     id: 'rag',
