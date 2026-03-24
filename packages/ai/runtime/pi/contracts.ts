@@ -4,7 +4,7 @@ export type PiRuntimeId = 'legacy' | 'pi';
 
 export type PiExecutionMode = 'session' | 'one-shot';
 
-export type PiProfileId = 'chat' | 'assistant' | 'coder' | 'rag' | 'tagger' | 'translator' | (string & {});
+export type PiProfileId = 'chat' | 'assistant' | 'coder' | (string & {});
 
 export type PiToolCategory = 'query' | 'content' | 'background-task' | 'ui-side-effect' | 'integration' | 'file' | 'shell';
 

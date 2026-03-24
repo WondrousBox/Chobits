@@ -461,7 +461,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
                 <DropdownMenuTrigger asChild>
                   <button type="button" className="flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:bg-muted rounded transition-colors">
                     <span className="text-primary">@</span>
-                    <span>{currentAgent?.label || 'Agent'}</span>
+                    <span>{currentAgent?.label || '模式'}</span>
                     <TbChevronDown className="w-3 h-3" />
                   </button>
                 </DropdownMenuTrigger>

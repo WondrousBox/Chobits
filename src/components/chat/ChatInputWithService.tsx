@@ -23,8 +23,7 @@ export interface ChatInputWithServiceProps extends Omit<UnifiedChatInputProps, '
 }
 
 export default function ChatInputWithService({ onStart, onMenuOpenChange, ...rest }: ChatInputWithServiceProps): JSX.Element {
-  const { agents, providerId, modelId, presetId, agentId, codingWorkspaceRoot, codingWorkspaceLabel, setProviderId, setModelId, setAgentId, setCodingWorkspace } =
-    useChatSelection();
+  const { agents, providerId, modelId, presetId, agentId, codingWorkspaceRoot, codingWorkspaceLabel, setProviderId, setModelId, setAgentId, setCodingWorkspace } = useChatSelection();
 
   const isCoder = agentId === 'coder';
 
@@ -59,9 +58,9 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, ...res
       agentId,
       ...(isCoder && codingWorkspaceRoot
         ? {
-            codingWorkspaceRoot,
-            codingWorkspaceLabel: codingWorkspaceLabel || undefined
-          }
+          codingWorkspaceRoot,
+          codingWorkspaceLabel: codingWorkspaceLabel || undefined
+        }
         : {})
     });
   };
@@ -74,8 +73,8 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, ...res
       footerLeft={
         <div className="flex items-center gap-2 shrink-0 no-drag">
           <Select value={agentId} onValueChange={setAgentId}>
-            <SelectTrigger className="h-8 max-w-28 rounded-full text-xs text-muted-foreground">
-              <SelectValue placeholder="选择 Agent" />
+            <SelectTrigger className="h-8 max-w-32 rounded-full text-xs text-muted-foreground">
+              <SelectValue placeholder="选择模式" />
             </SelectTrigger>
             <SelectContent className="text-xs">
               {agents.map((agent) => (
@@ -102,14 +101,7 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, ...res
           />
           {isCoder && (
             <>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 max-w-44 rounded-full text-xs"
-                onClick={handlePickWorkspace}
-                title={codingWorkspaceRoot || '选择项目目录'}
-              >
+              <Button type="button" variant="outline" size="sm" className="h-8 max-w-44 rounded-full text-xs" onClick={handlePickWorkspace} title={codingWorkspaceRoot || '选择项目目录'}>
                 <TbFolderCode className="mr-1 h-4 w-4" />
                 <span className="truncate">{codingWorkspaceLabel || '选择项目'}</span>
               </Button>

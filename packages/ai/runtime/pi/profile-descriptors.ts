@@ -12,10 +12,21 @@ export interface PiProfileDescriptor {
 }
 
 const PI_PROFILE_DESCRIPTORS: Record<string, PiProfileDescriptor> = {
+  chat: {
+    id: 'chat',
+    label: '普通对话模式',
+    description: '轻量纯对话模式，不主动调用工具。',
+    instructions: `你是一个友好的中文对话助手。
+优先直接回答用户的问题，保持清晰、自然、简洁。
+除非用户明确要求，否则不要假设存在额外上下文或工具结果。`,
+    defaultToolIds: [],
+    executionMode: 'session',
+    supportsToolCalls: false
+  },
   assistant: {
     id: 'assistant',
-    label: 'Assistant',
-    description: '主聊天助手，支持资源查询、翻译、总结和 YouTube 工具。',
+    label: 'Agent模式',
+    description: '通用智能体模式，支持资源查询、翻译、总结和 YouTube 工具。',
     instructions: `你是一个智能助手，可以帮助用户完成各种任务。
 
 你的能力包括：
@@ -90,19 +101,10 @@ pushCardTool 使用示例：
     executionMode: 'session',
     supportsToolCalls: true
   },
-  chat: {
-    id: 'chat',
-    label: 'Chat',
-    description: '最小对话 profile，用于无工具对话。',
-    instructions: '',
-    defaultToolIds: [],
-    executionMode: 'session',
-    supportsToolCalls: false
-  },
   coder: {
     id: 'coder',
-    label: 'Coder',
-    description: 'Workspace-aware coding assistant for reading and editing project files.',
+    label: '代码模式',
+    description: '面向选定项目目录的代码助手，可读写和搜索代码。',
     instructions: `You are a careful coding assistant working inside a user-selected project directory.
 Use the available file tools to inspect the repository before making changes.
 Prefer fileGrepTool and fileGlobTool to locate code before reading files in detail.
@@ -115,62 +117,6 @@ Respond in Chinese unless the user asks for another language.`,
     defaultToolIds: DEFAULT_CODER_TOOL_IDS,
     executionMode: 'session',
     supportsToolCalls: true
-  },
-  rag: {
-    id: 'rag',
-    label: 'RAG',
-    description: '基于检索上下文回答问题的严谨助手。',
-    instructions: `你是一个严谨的知识助手，专门基于检索到的上下文信息回答问题。
-
-工作原则：
-1. 优先使用提供的"检索上下文"信息回答问题
-2. 如果上下文信息不足以回答问题，请明确说明
-3. 不要编造或猜测未在上下文中提及的信息
-4. 引用信息时，尽量指明来源
-
-回答时请使用中文，保持准确和客观。`,
-    defaultToolIds: DEFAULT_SESSION_TOOL_IDS,
-    executionMode: 'session',
-    supportsToolCalls: true
-  },
-  tagger: {
-    id: 'tagger',
-    label: 'Tagger',
-    description: '文本标签抽取助手。',
-    instructions: `你是一个资深文本归纳与主题提取助手。
-
-目标：从给定文本中提炼出主题/话题标签。
-
-要求：
-- 标签应尽量短小、泛化，避免冗长描述
-- 控制在一个单词或短语内
-- 最多返回 5 个中文标签
-- 按相关性降序排列
-- 仅返回 JSON 数组格式，例如：["标签1","标签2","标签3"]
-- 不要包含任何解释性文字`,
-    defaultToolIds: [],
-    executionMode: 'one-shot',
-    supportsToolCalls: false
-  },
-  translator: {
-    id: 'translator',
-    label: 'Translator',
-    description: '字幕和文本翻译助手。',
-    instructions: `你是一个专业的翻译助手，专门负责字幕和文本的翻译工作。
-
-翻译原则：
-1. 保持原文的语气和风格
-2. 确保翻译流畅自然，符合目标语言的表达习惯
-3. 专有名词和术语保持一致性
-4. 如有术语表，严格按照术语表翻译
-5. 注意上下文的连贯性
-
-输出格式：
-- 按照要求的格式输出翻译结果
-- 不要添加额外的解释或注释`,
-    defaultToolIds: [],
-    executionMode: 'one-shot',
-    supportsToolCalls: false
   }
 };
 

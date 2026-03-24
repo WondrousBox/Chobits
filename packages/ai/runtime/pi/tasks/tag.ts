@@ -1,6 +1,7 @@
 import { normalizeProviderPreset, resolveProviderPresetId } from '../../../provider-preset';
 import type { ChatMessage, ChatRequest, ProviderScopedRequest } from '../../../types';
 import { PiExecutionService } from '../execution-service';
+import { buildTaggingUserPrompt, TAGGING_SYSTEM_PROMPT } from './tag-prompt';
 
 let piExecutionService: PiExecutionService | undefined;
 
@@ -46,13 +47,17 @@ export async function generatePiTagsForSegment(options: GeneratePiTagsOptions): 
   const providerPresetId = resolveProviderPresetId(options);
   const messages: ChatMessage[] = [
     {
+      role: 'system',
+      content: TAGGING_SYSTEM_PROMPT
+    },
+    {
       role: 'user',
-      content: `文本：\n${segment}`
+      content: buildTaggingUserPrompt(segment)
     }
   ];
 
   const request: ChatRequest = normalizeProviderPreset({
-    agentId: 'tagger',
+    agentId: 'chat',
     extras: model
       ? {
         model

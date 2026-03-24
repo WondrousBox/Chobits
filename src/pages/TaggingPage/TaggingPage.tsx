@@ -1,6 +1,8 @@
 import { utils } from '@aim-packages/subtitle';
 import React, { useMemo, useRef, useState } from 'react';
 
+import { TAGGING_SYSTEM_PROMPT } from '@packages/ai/runtime/pi/tasks/tag-prompt';
+
 import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { Button } from '@/components/ui/button';
@@ -61,11 +63,14 @@ const TaggingPage: React.FC = () => {
     setFinalTags(null);
     const startIndex = resume && pausedAt != null ? pausedAt + 1 : 0;
     const payload = {
-      agentId: 'tagger',
+      agentId: 'chat',
       providerId: resolvedSelection.providerId,
       providerPresetId: resolvedSelection.providerPresetId,
       stream: true,
-      messages: [{ role: 'user', content: input }],
+      messages: [
+        { role: 'system', content: TAGGING_SYSTEM_PROMPT },
+        { role: 'user', content: input }
+      ],
       extras: {
         model: resolvedSelection.modelId,
         segments: segments.map((s) => s.content),

@@ -7,7 +7,7 @@
 - 支持可扩展的服务商（OpenAI、Anthropic、Gemini、Ollama、DeepSeek、Qwen、智谱等，以及兼容 OpenAI 协议的自定义服务）
 - 对话与消息持久化逻辑在主进程实现，渲染进程仅通过 IPC 调用
 - 支持流式对话返回（token 级增量）与可取消（Abort）
-- 支持基于 Pi profile 的对话/one-shot 执行模式（如 `assistant`、`rag`、`tagger`、`translator`）
+- 支持基于 Pi profile 的对话执行模式；当前聊天 UI 只暴露 `chat`、`assistant`、`coder` 三种模式
 - 统一的 Provider/预设配置与秘钥持久化（keytar + JSON 回退）
 
 ## 1. 总览与原则
@@ -61,7 +61,7 @@ Renderer（示例约定，实际路径视实现为准）：
 - **ChatRequest**：
   - `conversationId?: string`
   - `messages: ChatMessage[]`
-  - `agentId?: string`：使用哪个 Pi profile（如 `assistant` / `rag` / `tagger` / `translator`）
+  - `agentId?: string`：使用哪个 Pi profile（如 `chat` / `assistant` / `coder`）
   - `providerId?: string`：使用哪个 Provider 适配器（如 `openai`）
   - `providerPresetId?: string`：使用哪个 Provider 预设，用于系统提示词/秘钥覆盖
   - `stream?: boolean`
