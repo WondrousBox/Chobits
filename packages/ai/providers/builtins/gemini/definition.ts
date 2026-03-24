@@ -11,21 +11,18 @@ const geminiSchema: ProviderConfig = {
     en: {
       label: 'Google Gemini',
       fields: {
-        apiKey: 'API Key',
-        model: 'Default model (e.g., gemini-1.5-flash)'
+        apiKey: 'API Key'
       }
     },
     'zh-CN': {
       label: 'Google Gemini',
       fields: {
-        apiKey: 'API Key',
-        model: '默认模型（如 gemini-1.5-flash）'
+        apiKey: 'API Key'
       }
     }
   },
   fields: [
-    { key: 'apiKey', label: 'API Key', type: 'password', required: true },
-    { key: 'model', label: '默认模型（如 gemini-1.5-flash）', type: 'text' }
+    { key: 'apiKey', label: 'API Key', type: 'password', required: true }
   ]
 };
 

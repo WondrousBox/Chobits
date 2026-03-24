@@ -12,23 +12,20 @@ const anthropicSchema: ProviderConfig = {
       label: 'Anthropic (Claude)',
       fields: {
         apiKey: 'API Key',
-        baseUrl: 'Base URL (optional)',
-        model: 'Default model (e.g., claude-3-5-sonnet-latest)'
+        baseUrl: 'Base URL (optional)'
       }
     },
     'zh-CN': {
       label: 'Anthropic（Claude）',
       fields: {
         apiKey: 'API Key',
-        baseUrl: 'Base URL（可选，自定义网关）',
-        model: '默认模型（如 claude-3-5-sonnet-latest）'
+        baseUrl: 'Base URL（可选，自定义网关）'
       }
     }
   },
   fields: [
     { key: 'apiKey', label: 'API Key', type: 'password', required: true },
-    { key: 'baseUrl', label: 'Base URL (可选，自定义网关)', type: 'text' },
-    { key: 'model', label: '默认模型（如 claude-3-5-sonnet-latest）', type: 'text' }
+    { key: 'baseUrl', label: 'Base URL (可选，自定义网关)', type: 'text' }
   ]
 };
 

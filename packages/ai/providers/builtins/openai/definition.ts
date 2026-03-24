@@ -12,23 +12,20 @@ const openaiSchema: ProviderConfig = {
       label: 'OpenAI',
       fields: {
         apiKey: 'API Key',
-        baseUrl: 'Base URL (optional)',
-        model: 'Default model (e.g., gpt-4o-mini)'
+        baseUrl: 'Base URL (optional)'
       }
     },
     'zh-CN': {
       label: 'OpenAI',
       fields: {
         apiKey: 'API Key',
-        baseUrl: 'Base URL（可选，自定义网关）',
-        model: '默认模型（如 gpt-4o-mini）'
+        baseUrl: 'Base URL（可选，自定义网关）'
       }
     }
   },
   fields: [
     { key: 'apiKey', label: 'API Key', type: 'password', required: true },
-    { key: 'baseUrl', label: 'Base URL (可选，自定义网关)', type: 'text' },
-    { key: 'model', label: '默认模型（如 gpt-4o-mini）', type: 'text' }
+    { key: 'baseUrl', label: 'Base URL (可选，自定义网关)', type: 'text' }
   ]
 };
 

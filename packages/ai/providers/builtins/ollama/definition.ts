@@ -11,21 +11,18 @@ const ollamaSchema: ProviderConfig = {
     en: {
       label: 'Ollama (local)',
       fields: {
-        baseUrl: 'Base URL',
-        model: 'Default model (e.g., llama3.1)'
+        baseUrl: 'Base URL'
       }
     },
     'zh-CN': {
       label: 'Ollama（本地）',
       fields: {
-        baseUrl: 'Base URL',
-        model: '默认模型（如 llama3.1）'
+        baseUrl: 'Base URL'
       }
     }
   },
   fields: [
-    { key: 'baseUrl', label: 'Base URL', type: 'text' },
-    { key: 'model', label: '默认模型（如 llama3.1）', type: 'text' }
+    { key: 'baseUrl', label: 'Base URL', type: 'text' }
   ]
 };
 

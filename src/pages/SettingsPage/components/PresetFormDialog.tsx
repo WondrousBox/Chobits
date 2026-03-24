@@ -1,10 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { TbChevronDown, TbChevronRight } from 'react-icons/tb';
 
 import TintableSvg from '@/components/common/TintableSvg';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export type ProviderRow = {
   id: string;
@@ -17,10 +16,8 @@ export type ProviderRow = {
 };
 
 export type ModelOpt = { id: string; label?: string; type?: string; context?: number; pricing?: any; tags?: string[]; description?: string; free?: boolean };
-export type Template = { id: string; name: string; type: 'system' | 'user'; content: string };
 
 export type PresetFormValues = {
-  systemPrompt?: string;
   secrets: Record<string, string>;
 };
 
@@ -38,29 +35,7 @@ export function PresetFormDialog(props: {
 }): JSX.Element {
   const { title, provider, models, initialValues, errors, submitLabel = '保存', cancelLabel = '取消', onCancel, onDelete, onSubmit } = props;
   const [values, setValues] = useState<PresetFormValues>(() => initialValues);
-  const [templates, setTemplates] = useState<Template[]>([]);
   const [modelsExpanded, setModelsExpanded] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const tmpl = await window.YUA.ai.listPromptTemplates().catch(() => []);
-        if (!cancelled) {
-          setTemplates(tmpl || []);
-        }
-      } catch {
-        if (!cancelled) {
-          setTemplates([]);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const currentLang = (typeof navigator !== 'undefined' ? navigator.language?.toLowerCase?.() : 'en') || 'en';
   const pickLocale = (locales?: Record<string, { label?: string; fields?: Record<string, string> }>): { label?: string; fields?: Record<string, string> } | undefined => {
@@ -167,32 +142,7 @@ export function PresetFormDialog(props: {
             </label>
           );
         })}
-        <label className="grid gap-1">
-          <span className="text-sm text-muted-foreground">系统提示词</span>
-          <Select
-            value={templates.find((template) => template.type === 'system' && template.content === (values.systemPrompt || ''))?.id || ''}
-            onValueChange={(val) => {
-              const template = templates.find((item) => item.id === val);
-              if (template) {
-                setValues((v) => ({ ...v, systemPrompt: template.content }));
-              }
-            }}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder={templates.length ? '选择模板' : '暂无模板，请先创建提示词模板'} />
-            </SelectTrigger>
-            <SelectContent>
-              {templates.map((template) => (
-                <SelectItem key={template.id} value={template.id}>
-                  {template.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </label>
       </div>
-
-      {!!values.systemPrompt && <pre className="rounded border p-2 bg-muted/30 min-h-[60px] whitespace-pre-wrap text-xs">{values.systemPrompt}</pre>}
 
       <div className="space-y-2">
         <Button
