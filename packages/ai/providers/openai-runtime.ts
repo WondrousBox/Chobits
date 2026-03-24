@@ -191,6 +191,10 @@ export function createOpenAIClient(secrets: OpenAIRuntimeSecrets): OpenAI {
   if (secrets.apiKey) cfg.apiKey = secrets.apiKey;
   if (secrets.baseUrl) cfg.baseURL = secrets.baseUrl;
   if (secrets.organization) cfg.organization = secrets.organization;
+  // Provide a dummy key when none is configured so the constructor doesn't throw.
+  // Actual API calls will still fail; this only allows curated-model listing to work
+  // without a configured key.
+  if (!cfg.apiKey) cfg.apiKey = 'not-configured';
   return new OpenAI(cfg);
 }
 

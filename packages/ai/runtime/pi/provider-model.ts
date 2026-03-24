@@ -1,8 +1,4 @@
-import {
-  getProviderDefinition,
-  getProviderDefinitionDefaultModel,
-  getProviderDefinitionPiBaseUrl
-} from '../../providers/service';
+import { getProviderDefinition, getProviderDefinitionDefaultModel, getProviderDefinitionPiBaseUrl } from '../../providers/service';
 import type { ResolvedPiModelConfig, ResolvedPiRequest } from './contracts';
 
 type PiAiModule = typeof import('@mariozechner/pi-ai');
@@ -82,7 +78,7 @@ export function buildPiOpenAICompat(model: ResolvedPiModelConfig): PiOpenAICompl
     compat.thinkingFormat = 'qwen';
   }
 
-  if (model.canonicalProviderId === 'zhipu') {
+  if (model.canonicalProviderId === 'zhipu' || model.canonicalProviderId === 'zai') {
     compat.thinkingFormat = 'zai';
     compat.supportsDeveloperRole = false;
   }
@@ -144,8 +140,8 @@ export async function buildPiModel(ai: PiAiModule, resolved: ResolvedPiRequest):
     reasoning: inferPiReasoningCapability(fallbackModelId),
     ...(api === 'openai-completions'
       ? {
-          compat: buildPiOpenAICompat(resolved.model)
-        }
+        compat: buildPiOpenAICompat(resolved.model)
+      }
       : {})
   } as PiModel;
 }

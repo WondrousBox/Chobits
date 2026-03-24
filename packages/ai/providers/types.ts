@@ -1,7 +1,7 @@
 import type { ProviderAdapter, ProviderCapabilities, ProviderConfig, ProviderDefaultModels } from '../types';
 import type { ProviderModelDefinition } from './model-types';
 
-export type BuiltinProviderId = 'anthropic' | 'deepseek' | 'gemini' | 'ollama' | 'openai' | 'qwen' | 'zhipu';
+export type BuiltinProviderId = 'anthropic' | 'deepseek' | 'gemini' | 'ollama' | 'openai' | 'qwen' | 'zai' | 'zhipu';
 
 export type BuiltinProviderKind = 'anthropic' | 'gemini' | 'ollama' | 'openai' | 'openai-compatible';
 
