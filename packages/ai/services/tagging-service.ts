@@ -6,6 +6,7 @@ import { getPresetSecrets, listPresets } from '../preset-service';
 import { listProviderSecretKeys, listRequiredProviderSecretKeys, supportsProviderCapability } from '../providers/service';
 import { getProvider } from '../registry';
 import { PiExecutionService } from '../runtime/pi/execution-service';
+import { buildTaggingUserPrompt, TAGGING_SYSTEM_PROMPT } from '../runtime/pi/tasks/tag-prompt';
 import { generatePiTagsForSegment, parseTagListFromResponse } from '../runtime/pi/tasks/tag';
 import { isFreeProvider, loadSelectionStrategy, scoreCandidate } from '../selection-strategy';
 import type { ChatRequest, ChatResponse } from '../types';
@@ -106,12 +107,16 @@ export const TaggingService = {
       const response = await (
         await getLegacyTagChatService()
       ).chatEphemeral(undefined, {
-        agentId: 'tagger',
+        agentId: 'chat',
         maxTokens: 256,
         messages: [
           {
+            role: 'system',
+            content: TAGGING_SYSTEM_PROMPT
+          },
+          {
             role: 'user',
-            content: `文本：\n${segment}`
+            content: buildTaggingUserPrompt(segment)
           }
         ],
         persist: false,

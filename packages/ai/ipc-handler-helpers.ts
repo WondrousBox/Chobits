@@ -1236,7 +1236,7 @@ export async function executeSubtitleTranslation(payload: TranslatePayload): Pro
   let effectiveModel = model;
   if (!effectiveChatFn) {
     const runtime = await createPreferredTaskChatRuntime({
-      agentId: 'translator',
+      agentId: 'chat',
       model,
       providerId,
       providerPresetId: resolvedProviderPresetId
