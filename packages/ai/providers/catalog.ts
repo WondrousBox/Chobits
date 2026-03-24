@@ -7,6 +7,7 @@ import { OllamaProvider } from './ollama';
 import { OpenAIProvider } from './openai';
 import { QwenProvider } from './qwen';
 import type { BuiltinProviderId } from './types';
+import { ZaiProvider } from './zai';
 import { ZhipuProvider } from './zhipu';
 
 const BUILTIN_PROVIDER_FACTORIES: Record<BuiltinProviderId, () => ProviderAdapter> = {
@@ -16,10 +17,11 @@ const BUILTIN_PROVIDER_FACTORIES: Record<BuiltinProviderId, () => ProviderAdapte
   ollama: () => new OllamaProvider(),
   openai: () => new OpenAIProvider(),
   qwen: () => new QwenProvider(),
+  zai: () => new ZaiProvider(),
   zhipu: () => new ZhipuProvider()
 };
 
-const BUILTIN_PROVIDER_ORDER: BuiltinProviderId[] = ['anthropic', 'deepseek', 'gemini', 'ollama', 'openai', 'qwen', 'zhipu'];
+const BUILTIN_PROVIDER_ORDER: BuiltinProviderId[] = ['anthropic', 'deepseek', 'gemini', 'ollama', 'openai', 'qwen', 'zai', 'zhipu'];
 
 export function registerBuiltInProviders(): void {
   for (const providerId of BUILTIN_PROVIDER_ORDER) {

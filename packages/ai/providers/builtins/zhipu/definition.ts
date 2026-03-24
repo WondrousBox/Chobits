@@ -20,8 +20,7 @@ export const zhipuDefinition: BuiltinProviderDefinition = {
   source: 'builtin',
   display: {
     label: '智谱 (GLM)',
-    description:
-      'ZhiPu AI provides an open platform for multimodal and language models across text processing, image understanding, and coding assistance.',
+    description: 'ZhiPu AI provides an open platform for multimodal and language models across text processing, image understanding, and coding assistance.',
     icon: 'providers/icons/zhipu-color.svg',
     website: 'https://zhipuai.cn'
   },
@@ -51,7 +50,7 @@ export const zhipuDefinition: BuiltinProviderDefinition = {
   },
   defaults: {
     models: {
-      chat: 'glm-4-flash',
+      chat: 'glm-4.5-flash',
       embeddings: 'embedding-3',
       imageGeneration: 'cogview-3-flash',
       transcribe: 'glm-asr'

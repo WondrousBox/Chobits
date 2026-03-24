@@ -5,6 +5,7 @@ import { geminiDefinition } from './gemini/definition';
 import { ollamaDefinition } from './ollama/definition';
 import { openaiDefinition } from './openai/definition';
 import { qwenDefinition } from './qwen/definition';
+import { zaiDefinition } from './zai/definition';
 import { zhipuDefinition } from './zhipu/definition';
 
 export const BUILTIN_PROVIDER_DEFINITIONS: BuiltinProviderDefinition[] = [
@@ -14,15 +15,8 @@ export const BUILTIN_PROVIDER_DEFINITIONS: BuiltinProviderDefinition[] = [
   ollamaDefinition,
   openaiDefinition,
   qwenDefinition,
+  zaiDefinition,
   zhipuDefinition
 ];
 
-export {
-  anthropicDefinition,
-  deepseekDefinition,
-  geminiDefinition,
-  ollamaDefinition,
-  openaiDefinition,
-  qwenDefinition,
-  zhipuDefinition
-};
+export { anthropicDefinition, deepseekDefinition, geminiDefinition, ollamaDefinition, openaiDefinition, qwenDefinition, zaiDefinition, zhipuDefinition };
