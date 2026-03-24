@@ -124,12 +124,10 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
   };
 
   const emptyPresetValues = (): PresetFormValues => ({
-    systemPrompt: '',
     secrets: {}
   });
 
   const presetFormValues = (preset: Preset): PresetFormValues => ({
-    systemPrompt: preset.systemPrompt || '',
     secrets: presetSecrets[preset.id] || {}
   });
 
@@ -158,7 +156,6 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
     const created = await window.YUA.ai.createPreset({
       providerId: selectedProvider.id,
       name: buildPresetName(selectedProvider),
-      systemPrompt: vals.systemPrompt,
       overrides: {}
     });
     if (created?.id) await window.YUA.ai.setPresetSecrets(created.id, vals.secrets);
@@ -184,9 +181,6 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
       return;
     }
     setErrors((prev) => ({ ...prev, [preset.id]: {} }));
-    await window.YUA.ai.updatePreset(preset.id, {
-      systemPrompt: vals.systemPrompt
-    });
     await window.YUA.ai.setPresetSecrets(preset.id, vals.secrets || {});
     const list = await window.YUA.ai.listPresets(preset.providerId);
     setPresets(list || []);
@@ -277,7 +271,6 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-medium">{preset.name}</span>
                             </div>
-                            <div className="mt-1 text-xs text-muted-foreground">{preset.systemPrompt ? '已设置系统提示词' : '未设置系统提示词'}</div>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <Button
@@ -345,9 +338,9 @@ export default function AiSettings({ initialProviderId }: { initialProviderId?: 
                   onCancel={
                     presets.length > 0
                       ? () => {
-                          setShowCreateForm(false);
-                          setErrors((prev) => ({ ...prev, __new__: {} }));
-                        }
+                        setShowCreateForm(false);
+                        setErrors((prev) => ({ ...prev, __new__: {} }));
+                      }
                       : undefined
                   }
                   onSubmit={onCreatePreset}

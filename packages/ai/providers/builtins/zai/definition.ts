@@ -9,8 +9,7 @@ const zaiSchema: ProviderConfig = {
     icon: 'providers/icons/zhipu-color.svg',
     fields: [
         { key: 'apiKey', label: 'API Key', type: 'password', required: true },
-        { key: 'baseUrl', label: 'Base URL (可选)', type: 'text' },
-        { key: 'model', label: '默认模型（如 glm-4.7）', type: 'text' }
+        { key: 'baseUrl', label: 'Base URL (可选)', type: 'text' }
     ]
 };
 

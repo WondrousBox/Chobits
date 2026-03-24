@@ -9,8 +9,7 @@ const qwenSchema: ProviderConfig = {
   icon: 'providers/icons/qwen-color.svg',
   fields: [
     { key: 'apiKey', label: 'API Key', type: 'password', required: true },
-    { key: 'baseUrl', label: 'Base URL (可选，OpenAI兼容网关)', type: 'text' },
-    { key: 'model', label: '默认模型（如 qwen2.5）', type: 'text' }
+    { key: 'baseUrl', label: 'Base URL (可选，OpenAI兼容网关)', type: 'text' }
   ]
 };
 
