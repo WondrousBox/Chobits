@@ -26,6 +26,16 @@ export class ScreenshotManager {
     ipcMain.handle('screenshot:save', (_, { dataURL }) => this.save(dataURL));
     ipcMain.handle('screenshot:close', () => this.close());
     ipcMain.handle('screenshot:reset-other-selections', (event) => this.resetOtherSelections(event.sender));
+    ipcMain.handle('screenshot:ready', (event) => this.showWindow(event.sender));
+  }
+
+  showWindow(senderWebContents: Electron.WebContents): void {
+    const win = BrowserWindow.fromWebContents(senderWebContents);
+    if (win) {
+      win.show();
+      win.setAlwaysOnTop(true, 'screen-saver');
+      win.focus();
+    }
   }
 
   resetOtherSelections(senderWebContents: Electron.WebContents): void {
@@ -71,25 +81,15 @@ export class ScreenshotManager {
       }
     }
 
-    // Capture all screens first
+    // Get source IDs for all screens (we only need the IDs, not thumbnails).
+    // The renderer will use getUserMedia with chromeMediaSourceId to capture
+    // at native physical resolution, which avoids macOS DPI scaling issues
+    // with desktopCapturer thumbnails on mixed-DPI multi-monitor setups.
     let sources: Electron.DesktopCapturerSource[] = [];
     try {
-      // Calculate max size needed
-      const maxSize = displays.reduce(
-        (acc, display) => {
-          return {
-            width: Math.max(acc.width, display.size.width * display.scaleFactor),
-            height: Math.max(acc.height, display.size.height * display.scaleFactor)
-          };
-        },
-        { width: 0, height: 0 }
-      );
-
-      // Get sources for all screens.
-      // We need to make sure we get high enough resolution for all.
       sources = await desktopCapturer.getSources({
         types: ['screen'],
-        thumbnailSize: maxSize
+        thumbnailSize: { width: 1, height: 1 } // We don't need thumbnails
       });
     } catch (e) {
       console.error('Failed to capture screens:', e);
@@ -142,9 +142,9 @@ export class ScreenshotManager {
       const pageUrl = process.env.VITE_DEV_SERVER_URL ? `${process.env.VITE_DEV_SERVER_URL}#/screenshot` : `file://${path.join(__dirname, '../../dist/index.html')}#/screenshot`;
 
       window.loadURL(pageUrl).then(() => {
-        window.show();
-        window.setAlwaysOnTop(true, 'screen-saver');
-        window.focus();
+        // Don't show the window yet — the renderer will capture the screen first
+        // using getUserMedia, then call screenshot:ready to show the window.
+        // This ensures the screenshot doesn't include the overlay window itself.
 
         // Find the source for this display
         const source =
@@ -154,10 +154,13 @@ export class ScreenshotManager {
           sources[0]; // Worst case fallback
 
         if (source) {
-          // Resize thumbnail if needed to match display scale?
-          // Actually desktopCapturer returns the thumbnail.
-          // If we requested a large size, it should be fine.
-          window.webContents.send('screenshot:captured', source.thumbnail.toDataURL());
+          // Send source ID + display info so the renderer can capture at native resolution
+          window.webContents.send('screenshot:capture-source', {
+            sourceId: source.id,
+            scaleFactor: display.scaleFactor,
+            width: display.size.width,
+            height: display.size.height
+          });
         }
       });
 
