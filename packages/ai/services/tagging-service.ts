@@ -6,8 +6,8 @@ import { getPresetSecrets, listPresets } from '../preset-service';
 import { listProviderSecretKeys, listRequiredProviderSecretKeys, supportsProviderCapability } from '../providers/service';
 import { getProvider } from '../registry';
 import { PiExecutionService } from '../runtime/pi/execution-service';
-import { buildTaggingUserPrompt, TAGGING_SYSTEM_PROMPT } from '../runtime/pi/tasks/tag-prompt';
 import { generatePiTagsForSegment, parseTagListFromResponse } from '../runtime/pi/tasks/tag';
+import { buildTaggingUserPrompt, TAGGING_SYSTEM_PROMPT } from '../runtime/pi/tasks/tag-prompt';
 import { isFreeProvider, loadSelectionStrategy, scoreCandidate } from '../selection-strategy';
 import type { ChatRequest, ChatResponse } from '../types';
 
