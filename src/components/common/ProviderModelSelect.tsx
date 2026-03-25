@@ -213,14 +213,8 @@ export const ProviderModelSelect = forwardRef<ProviderModelSelectRef, ProviderMo
     const [modelsMap, setModelsMap] = useState<Record<string, ModelRow[]>>({});
     const [loadingModels, setLoadingModels] = useState<Record<string, boolean>>({});
     const [searchQuery, setSearchQuery] = useState<string>('');
-    const availableProviders = useMemo(
-      () => (providerFilter ? providers.filter((provider) => providerFilter(provider)) : providers),
-      [providerFilter, providers]
-    );
-    const resolvedProvider = useMemo(
-      () => resolveProviderIdentity(availableProviders, providerId) || resolveProviderIdentity(providers, providerId),
-      [availableProviders, providerId, providers]
-    );
+    const availableProviders = useMemo(() => (providerFilter ? providers.filter((provider) => providerFilter(provider)) : providers), [providerFilter, providers]);
+    const resolvedProvider = useMemo(() => resolveProviderIdentity(availableProviders, providerId) || resolveProviderIdentity(providers, providerId), [availableProviders, providerId, providers]);
     const resolvedProviderId = resolvedProvider?.id || providerId;
     const currentModelsCacheKey = useMemo(() => getModelsCacheKey(resolvedProviderId, presetId), [resolvedProviderId, presetId]);
 
