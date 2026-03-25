@@ -50,12 +50,57 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 let win: BrowserWindow | null = null;
+let splashWin: BrowserWindow | null = null;
 const preload = path.join(__dirname, '../preload/index.mjs');
 const indexHtml = path.join(RENDERER_DIST, 'index.html');
 
 // 获取主窗口的函数
 export function getMainWindow(): BrowserWindow | null {
   return win && !win.isDestroyed() ? win : null;
+}
+
+function updateSplashStatus(text: string): void {
+  if (splashWin && !splashWin.isDestroyed()) {
+    splashWin.webContents.executeJavaScript(`document.getElementById('status-text').textContent = ${JSON.stringify(text)}`).catch(() => { });
+  }
+}
+
+function createSplashWindow(): Promise<void> {
+  return new Promise((resolve) => {
+    const windowsDir = getResourcePath('windows');
+    const splashHtml = path.join(windowsDir!, 'splash.html');
+
+    splashWin = new BrowserWindow({
+      width: 320,
+      height: 320,
+      frame: false,
+      resizable: false,
+      skipTaskbar: true,
+      alwaysOnTop: true,
+      center: true,
+      show: false,
+      backgroundColor: '#0a0e1a',
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true
+      }
+    });
+
+    splashWin.loadFile(splashHtml);
+    splashWin.once('ready-to-show', () => {
+      if (splashWin && !splashWin.isDestroyed()) {
+        splashWin.show();
+      }
+      resolve();
+    });
+  });
+}
+
+function closeSplashWindow(): void {
+  if (splashWin && !splashWin.isDestroyed()) {
+    splashWin.close();
+  }
+  splashWin = null;
 }
 
 async function createWindow(): Promise<void> {
@@ -96,10 +141,9 @@ async function createWindow(): Promise<void> {
     win.loadFile(indexHtml);
   }
 
+  // 主窗口显示由 splash 流程控制，不在此自动 show
   win.once('ready-to-show', () => {
-    if (!win || win.isDestroyed()) return;
-    win.show();
-    if (VITE_DEV_SERVER_URL) win.webContents.openDevTools({ mode: 'detach' });
+    if (VITE_DEV_SERVER_URL) win?.webContents.openDevTools({ mode: 'detach' });
   });
 
   // Test actively push message to the Electron-Renderer
@@ -121,7 +165,9 @@ async function createWindow(): Promise<void> {
   win.webContents.on('render-process-gone', (event, details) => {
     logger.log.error('webContents: render-process-gone', details);
     win?.destroy();
-    createWindow();
+    createWindow().then(() => {
+      if (win && !win.isDestroyed()) win.show();
+    });
   });
 
   // Auto update
@@ -129,7 +175,12 @@ async function createWindow(): Promise<void> {
 }
 
 app.whenReady().then(async () => {
+  // Show splash window first, wait until it's visible
+  const splashStartTime = Date.now();
+  await createSplashWindow();
+
   // Setup custom resource protocol (modern protocol.handle API)
+  updateSplashStatus('正在初始化协议');
   try {
     await setupResourceProtocol();
   } catch (e) {
@@ -137,6 +188,7 @@ app.whenReady().then(async () => {
   }
 
   // Initialize yt-dlp service with cookie manager
+  updateSplashStatus('正在初始化服务');
   try {
     ytdlpService.initialize({ cookieManager });
     console.log('[ytdlp] Service initialized');
@@ -145,6 +197,7 @@ app.whenReady().then(async () => {
   }
 
   // Add workspace root if exists
+  updateSplashStatus('正在加载工作区');
   try {
     const { WorkspacesRepo } = await import('./db/repositories');
     const ws = await WorkspacesRepo.getDefault();
@@ -164,21 +217,61 @@ app.whenReady().then(async () => {
   } catch (e) {
     console.warn('[protocol res] add userData root failed', e);
   }
+
+  updateSplashStatus('正在创建窗口');
   await createWindow();
+
   // Initialize workflow system (nodes, plugins, IPC endpoints)
+  updateSplashStatus('正在加载工作流引擎');
   try {
     initWorkflowSystem({ getWorkflowDefinitionsPath: () => getResourcePath('workflows') || '' });
   } catch (e) {
     console.warn('[workflow] init failed', e);
   }
+
   // Initialize scheduler
+  updateSplashStatus('正在启动调度器');
   try {
     await initScheduler();
   } catch (e) {
     console.warn('[scheduler] init failed', e);
   }
+
   // Register all global shortcuts (assistant toggle, devtools, etc.)
+  updateSplashStatus('正在注册快捷键');
   registerGlobalShortcuts(getMainWindow);
+
+  // --- Wait for renderer to be fully ready ---
+  updateSplashStatus('正在加载界面');
+
+  // 1) Renderer signals ready after React mounts (via IPC)
+  const rendererReady = new Promise<void>((resolve) => {
+    ipcMain.handle('app:renderer-ready', () => {
+      resolve();
+      // Unregister handler after first invocation (avoid duplicate registration on window recreation)
+      queueMicrotask(() => ipcMain.removeHandler('app:renderer-ready'));
+    });
+  });
+
+  // 2) Minimum 2 seconds splash display
+  const MIN_SPLASH_MS = 2000;
+  const minSplashTime = new Promise<void>((resolve) => {
+    const remaining = Math.max(0, MIN_SPLASH_MS - (Date.now() - splashStartTime));
+    setTimeout(resolve, remaining);
+  });
+
+  // 3) Safety timeout: don't block forever if renderer crashes (15s)
+  const safetyTimeout = new Promise<void>((resolve) => setTimeout(resolve, 15000));
+
+  // Wait for (renderer ready OR safety timeout) AND minimum splash time
+  await Promise.all([Promise.race([rendererReady, safetyTimeout]), minSplashTime]);
+
+  // All ready — show main window, then close splash
+  updateSplashStatus('即将就绪');
+  if (win && !win.isDestroyed()) {
+    win.show();
+  }
+  closeSplashWindow();
 
   // Emit App Started Event
   eventManager.emit(AppEvent.APP_STARTED);
@@ -213,7 +306,9 @@ app.on('activate', () => {
   if (allWindows.length) {
     allWindows[0].focus();
   } else {
-    createWindow();
+    createWindow().then(() => {
+      if (win && !win.isDestroyed()) win.show();
+    });
   }
 });
 

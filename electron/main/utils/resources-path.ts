@@ -1,12 +1,11 @@
 import os from 'node:os';
-import path from 'node:path';
 
 import { app } from 'electron';
 
 import { getRealPath } from '.';
 
 export function getResourcePath(
-  binName: 'ffmpeg' | 'recorder' | 'sherpa' | 'ffprobe' | 'yt-dlp' | 'sprites' | 'resources' | 'plugins' | 'providers' | 'logs' | 'workflows' | 'bun'
+  binName: 'ffmpeg' | 'recorder' | 'sherpa' | 'ffprobe' | 'yt-dlp' | 'sprites' | 'resources' | 'plugins' | 'providers' | 'logs' | 'workflows' | 'bun' | 'windows'
 ): string | undefined {
   switch (binName) {
     case 'ffmpeg':
@@ -43,6 +42,8 @@ export function getResourcePath(
       return getRealPath(`../workflows/preset.json`, `./resources/workflows/preset.json`);
     case 'logs':
       return app.getPath('logs');
+    case 'windows':
+      return getRealPath(`../windows`, `./resources/windows`);
     case 'recorder':
       return getRealPath(
         `../recorder/${os.platform()}/${os.arch()}/${os.platform() === 'darwin' ? 'recorder' : 'recorder.exe'}`,

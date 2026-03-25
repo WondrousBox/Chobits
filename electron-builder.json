@@ -63,6 +63,10 @@
     {
       "from": "resources/7zip/${platform}/${arch}",
       "to": "./7zip/${platform}/${arch}"
+    },
+    {
+      "from": "resources/windows",
+      "to": "./windows"
     }
   ],
   "mac": {
