@@ -19,6 +19,9 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   </React.StrictMode>
 );
 
+// Notify main process that renderer is mounted and ready
+window.ipcRenderer.invoke('app:renderer-ready').catch(() => { });
+
 postMessage({ payload: 'removeLoading' }, '*');
 
 window.ipcRenderer.on('main-process-message', (_event, ...args) => {
