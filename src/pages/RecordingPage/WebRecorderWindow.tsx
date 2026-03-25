@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TbAlertCircle, TbCheck, TbEar, TbPlayerStop, TbX } from 'react-icons/tb';
+import { TbAlertCircle, TbCaretUpDown, TbCheck, TbEar, TbPlayerStop, TbX } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import type { ProgressPayload } from '@/lib/web-recorder';
 import { WebRecorder } from '@/lib/web-recorder';
 
@@ -75,7 +75,7 @@ function drawVolumeOnCanvas(canvas: HTMLCanvasElement | null, volume: number): v
 // 窗口尺寸常量
 const BASE_WIDTH = 280;
 const BASE_HEIGHT = 48;
-const ASR_HEIGHT = 120; // ASR 活跃时的高度
+const DROPDOWN_EXTRA_HEIGHT = 160; // 下拉菜单展开时额外高度
 
 const WebRecorderWindow: React.FC = () => {
   // State
@@ -87,6 +87,7 @@ const WebRecorderWindow: React.FC = () => {
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
   const [savedDeviceId, setSavedDeviceId] = useState<string | null>(null);
   const [showDeviceSelector, setShowDeviceSelector] = useState(false);
+  const [selectDeviceOpen, setSelectDeviceOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isWaitingForDevice, setIsWaitingForDevice] = useState(false);
 
@@ -94,7 +95,6 @@ const WebRecorderWindow: React.FC = () => {
   const [asrActive, setAsrActive] = useState(false);
   const [recognizedTexts, setRecognizedTexts] = useState<string[]>([]); // 已确认的文本片段
   const [progressText, setProgressText] = useState(''); // 实时中间结果
-  const textContainerRef = useRef<HTMLDivElement>(null);
 
   // Refs
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -124,11 +124,12 @@ const WebRecorderWindow: React.FC = () => {
     };
   }, []);
 
-  // 动态调整窗口大小
+  // 动态调整窗口大小（设备选择器显示时额外增高以容纳下拉菜单）
   useEffect(() => {
-    const targetHeight = asrActive ? ASR_HEIGHT : BASE_HEIGHT;
-    window.YUA.window['window:size:set']('webRecorder', BASE_WIDTH, targetHeight).catch(() => { });
-  }, [asrActive]);
+    const targetHeight = showDeviceSelector && selectDeviceOpen ? BASE_HEIGHT + DROPDOWN_EXTRA_HEIGHT : BASE_HEIGHT;
+    console.log('window size:', BASE_WIDTH, targetHeight);
+    window.YUA.window['window:size:set']('webRecorder', BASE_WIDTH, targetHeight);
+  }, [showDeviceSelector, selectDeviceOpen]);
 
   // Initialize recorder once
   useEffect(() => {
@@ -360,13 +361,6 @@ const WebRecorderWindow: React.FC = () => {
     };
   }, [asrActive]);
 
-  // 自动滚动到最新文本
-  useEffect(() => {
-    if (textContainerRef.current) {
-      textContainerRef.current.scrollTop = textContainerRef.current.scrollHeight;
-    }
-  }, [recognizedTexts, progressText]);
-
   // Save device selection and start recording immediately
   const saveDeviceSelectionAndRecord = useCallback(
     async (deviceId: string) => {
@@ -458,17 +452,16 @@ const WebRecorderWindow: React.FC = () => {
 
   // ASR 文本显示组件
   const asrTextPanel = asrActive ? (
-    <div ref={textContainerRef} className="flex-1 min-h-0 overflow-y-auto px-2 py-1 border-t border-border/30">
+    <div className="flex-1 min-h-0 overflow-y-auto px-2 py-1 border-t border-border/30">
       {recognizedTexts.length === 0 && !progressText ? (
-        <div className="flex items-center gap-1 h-full">
-          <TbEar className="w-3 h-3 text-muted-foreground/50 shrink-0" />
-          <span className="text-[10px] text-muted-foreground/50">{isRecording ? '正在识别...' : '语音识别已就绪'}</span>
-        </div>
+        <span className="flex items-center gap-1 h-full">
+          <span className="text-xs text-muted-foreground/50">{isRecording ? '正在识别...' : '语音识别已就绪'}</span>
+        </span>
       ) : (
-        <p className="text-[10px] leading-[14px] text-foreground/80 break-all">
+        <span className="text-xs text-foreground/80 whitespace-nowrap">
           {recognizedTexts.join('')}
           {progressText && <span className="text-primary/60">{progressText}</span>}
-        </p>
+        </span>
       )}
     </div>
   ) : null;
@@ -520,7 +513,11 @@ const WebRecorderWindow: React.FC = () => {
       <div className="flex flex-col h-full w-full bg-background/95 backdrop-blur-sm rounded-lg border shadow-lg overflow-hidden">
         <div className="flex items-center h-12 shrink-0 px-2 gap-1.5">
           <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
-          <canvas ref={canvasRef} width={140} height={24} className="w-[140px] h-6 shrink-0" />
+
+          <div className="w-[140px] relative">
+            <div className="absolute left-0 top-0 right-0 bottom-0 text-right overflow-hidden">{asrTextPanel}</div>
+            <canvas ref={canvasRef} width={140} height={24} className="w-[140px] h-6 shrink-0" />
+          </div>
           <div className="text-xs font-mono font-medium text-muted-foreground w-9 text-center shrink-0">{formatDuration(duration)}</div>
           <Button onClick={handleStop} size="sm" variant="destructive" className="h-6 w-6 p-0 shrink-0">
             <TbPlayerStop className="h-3.5 w-3.5" />
@@ -530,7 +527,6 @@ const WebRecorderWindow: React.FC = () => {
           </Button>
           <div className="flex-1 drag-region cursor-move" />
         </div>
-        {asrTextPanel}
       </div>
     );
   }
@@ -540,18 +536,23 @@ const WebRecorderWindow: React.FC = () => {
     return (
       <div className="flex flex-col drag-region h-full w-full bg-background/95 backdrop-blur-sm rounded-lg border shadow-lg overflow-hidden">
         <div className="flex items-center h-12 shrink-0 px-2 gap-1">
-          <Select value={selectedDeviceId} onValueChange={setSelectedDeviceId}>
-            <SelectTrigger className="h-6 w-6 flex-1 text-xs no-drag">
-              <SelectValue placeholder="选择设备" />
-            </SelectTrigger>
-            <SelectContent>
-              {devices.map((d) => (
-                <SelectItem key={d.deviceId} value={d.deviceId} className="text-xs">
-                  {d.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <DropdownMenu open={selectDeviceOpen} onOpenChange={setSelectDeviceOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size={'sm'} className="flex-1 no-drag">
+                <div className="truncate w-0 flex-1">{devices.find((d) => d.deviceId === selectedDeviceId)?.label || '选择设备'}</div>
+                <TbCaretUpDown />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="no-drag">
+              <DropdownMenuRadioGroup value={selectedDeviceId} onValueChange={setSelectedDeviceId}>
+                {devices.map((d) => (
+                  <DropdownMenuRadioItem key={d.deviceId} value={d.deviceId} className="text-xs">
+                    {d.label}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <canvas ref={previewCanvasRef} width={32} height={32} className="w-8 h-8 shrink-0" />
 
@@ -563,7 +564,6 @@ const WebRecorderWindow: React.FC = () => {
             <TbX />
           </Button>
         </div>
-        {asrTextPanel}
       </div>
     );
   }
