@@ -32,22 +32,84 @@ const Screenshot: React.FC = () => {
   const [currentAnnotation, setCurrentAnnotation] = useState<Annotation | null>(null);
   const [color, setColor] = useState('#ff0000');
 
+  // The scale factor of the display this screenshot window is on
+  const [displayScaleFactor, setDisplayScaleFactor] = useState<number>(1);
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    const handleCapture = (_: any, dataURL: string) => {
-      setImageSrc(dataURL);
-      const img = new Image();
-      img.onload = () => {
-        setImgSize({ w: img.naturalWidth, h: img.naturalHeight });
-      };
-      img.src = dataURL;
+    // Capture the screen using getUserMedia at native physical resolution.
+    // This avoids the macOS DPI scaling issue with desktopCapturer thumbnails
+    // on mixed-DPI multi-monitor setups.
+    const handleCaptureSource = async (_: any, info: { sourceId: string; scaleFactor: number; width: number; height: number }) => {
+      const { sourceId, scaleFactor, width, height } = info;
+      if (scaleFactor > 0) {
+        setDisplayScaleFactor(scaleFactor);
+      }
+
+      const physicalWidth = width * scaleFactor;
+      const physicalHeight = height * scaleFactor;
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            mandatory: {
+              chromeMediaSource: 'desktop',
+              chromeMediaSourceId: sourceId,
+              minWidth: physicalWidth,
+              maxWidth: physicalWidth,
+              minHeight: physicalHeight,
+              maxHeight: physicalHeight
+            }
+          } as any
+        });
+
+        const video = document.createElement('video');
+        video.srcObject = stream;
+        video.muted = true;
+        await video.play();
+
+        // Wait for the video to have actual frame data
+        await new Promise<void>((resolve) => {
+          const check = () => {
+            if (video.videoWidth > 0 && video.videoHeight > 0) {
+              resolve();
+            } else {
+              requestAnimationFrame(check);
+            }
+          };
+          check();
+        });
+
+        // Draw the video frame to an offscreen canvas at full physical resolution
+        const offscreen = document.createElement('canvas');
+        offscreen.width = video.videoWidth;
+        offscreen.height = video.videoHeight;
+        const offCtx = offscreen.getContext('2d');
+        if (offCtx) {
+          offCtx.drawImage(video, 0, 0);
+        }
+
+        // Stop the stream immediately
+        stream.getTracks().forEach((t) => t.stop());
+        video.srcObject = null;
+
+        const dataURL = offscreen.toDataURL('image/png');
+        setImageSrc(dataURL);
+        setImgSize({ w: offscreen.width, h: offscreen.height });
+
+        // Signal main process that capture is done — it will now show the window
+        window.ipcRenderer.invoke('screenshot:ready');
+      } catch (err) {
+        console.error('[screenshot] getUserMedia capture failed:', err);
+      }
     };
 
-    window.ipcRenderer.on('screenshot:captured', handleCapture);
+    window.ipcRenderer.on('screenshot:capture-source', handleCaptureSource);
 
     return () => {
-      window.ipcRenderer.off('screenshot:captured', handleCapture);
+      window.ipcRenderer.off('screenshot:capture-source', handleCaptureSource);
     };
   }, []);
 
@@ -256,9 +318,13 @@ const Screenshot: React.FC = () => {
   const processSave = async (action: 'save' | 'copy') => {
     if (!selection || !imageSrc) return;
 
+    // Use the display's scale factor so the output image is at physical pixel resolution.
+    // This ensures crisp output on all displays regardless of DPI.
+    const dpr = displayScaleFactor;
+
     const canvas = document.createElement('canvas');
-    canvas.width = selection.w;
-    canvas.height = selection.h;
+    canvas.width = selection.w * dpr;
+    canvas.height = selection.h * dpr;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
@@ -269,14 +335,14 @@ const Screenshot: React.FC = () => {
     const scaleX = img.naturalWidth / window.innerWidth;
     const scaleY = img.naturalHeight / window.innerHeight;
 
-    // Draw background image cropped
-    ctx.drawImage(img, selection.x * scaleX, selection.y * scaleY, selection.w * scaleX, selection.h * scaleY, 0, 0, selection.w, selection.h);
+    // Draw background image cropped at full physical resolution
+    ctx.drawImage(img, selection.x * scaleX, selection.y * scaleY, selection.w * scaleX, selection.h * scaleY, 0, 0, selection.w * dpr, selection.h * dpr);
 
     // Draw annotations cropped
-    // We need to draw them relative to the selection
-    // The annotations are in screen coordinates.
-    // So we translate the context by -selection.x, -selection.y
+    // The annotations are in CSS/screen coordinates.
+    // Scale the context to match the physical pixel output, then translate for selection offset.
     ctx.save();
+    ctx.scale(dpr, dpr);
     ctx.translate(-selection.x, -selection.y);
 
     // Re-draw annotations on this new canvas
@@ -473,7 +539,7 @@ const Screenshot: React.FC = () => {
               whiteSpace: 'nowrap'
             }}
           >
-            {selection.w} × {selection.h}
+            {Math.round(selection.w * displayScaleFactor)} × {Math.round(selection.h * displayScaleFactor)}
           </div>
         </div>
       )}
