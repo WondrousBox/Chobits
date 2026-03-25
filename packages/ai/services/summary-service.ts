@@ -482,17 +482,17 @@ export class SummaryService {
         keyPoints:
           extractKeyPoints && Array.isArray(parsed.keyPoints)
             ? parsed.keyPoints.map((kp: any) => ({
-                st: kp.st || '00:00:00.000',
-                title: kp.title || '',
-                content: kp.content || ''
-              }))
+              st: kp.st || '00:00:00.000',
+              title: kp.title || '',
+              content: kp.content || ''
+            }))
             : [],
         timeline:
           extractTimeline && Array.isArray(parsed.timeline)
             ? parsed.timeline.map((tl: any) => ({
-                st: tl.st || '00:00:00.000',
-                description: tl.description || ''
-              }))
+              st: tl.st || '00:00:00.000',
+              description: tl.description || ''
+            }))
             : []
       };
     } catch (error) {
