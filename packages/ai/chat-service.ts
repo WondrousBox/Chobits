@@ -250,7 +250,7 @@ ${JSON.stringify(req, null, 2)}
     if (errorMessage) {
       eventManager.emit(AppEvent.SPRITE_AI_ERROR, { message: errorMessage });
     } else {
-      eventManager.emit(AppEvent.SPRITE_AI_COMPLETE);
+      eventManager.emit(AppEvent.SPRITE_AI_COMPLETE, { conversationId: conv?.id });
     }
   }
 
@@ -396,8 +396,8 @@ ${JSON.stringify(req, null, 2)}
         providerPresetId: resolveProviderPresetId(resolved),
         extras: resolved.extras?.model
           ? {
-              model: resolved.extras.model
-            }
+            model: resolved.extras.model
+          }
           : undefined,
         messages: titleMessages,
         persist: false

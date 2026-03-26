@@ -7,6 +7,10 @@ import { createPiFileGrepTool } from './file-grep';
 import { createPiFileListTool } from './file-list';
 import { createPiFileReadTool } from './file-read';
 import { createPiFileWriteTool } from './file-write';
+import { createPiMemoryGetTool } from './memory-get';
+import { createPiMemorySaveTool } from './memory-save';
+import { createPiMemorySearchTool } from './memory-search';
+import { createPiMemoryTopicsTool } from './memory-topics';
 import { createPiPushCardTool } from './push-card';
 import { createPiReadSubtitleTool } from './read-subtitle';
 import { createPiResourceQueryTool } from './resource-query';
@@ -32,7 +36,11 @@ const PI_CUSTOM_TOOL_FACTORIES: Record<string, PiToolFactory> = {
   'summarize-content': createPiSummaryTool,
   'translate-subtitles': createPiTranslationTool,
   'youtube-download': createPiYoutubeDownloadTool,
-  'youtube-subscribe': createPiYoutubeSubscribeTool
+  'youtube-subscribe': createPiYoutubeSubscribeTool,
+  'memory-search': createPiMemorySearchTool,
+  'memory-get': createPiMemoryGetTool,
+  'memory-save': createPiMemorySaveTool,
+  'memory-topics': createPiMemoryTopicsTool
 };
 
 export function createPiCustomTools(enabledToolIds: string[], toolContext: PiSessionToolContext): ToolDefinition[] {

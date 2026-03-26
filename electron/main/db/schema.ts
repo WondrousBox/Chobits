@@ -381,7 +381,6 @@ export const chat_messages = sqliteTable(
   },
   (t) => ({
     uqMsgConvSeq: uniqueIndex('uq_chat_messages_conv_seq').on(t.conversationId, t.seq),
-    idxMsgConvSeq: index('idx_chat_messages_conv_seq').on(t.conversationId, t.seq),
     idxMsgConvCreated: index('idx_chat_messages_conv_created').on(t.conversationId, t.createdAt)
   })
 );
@@ -602,3 +601,363 @@ export const rss_feed_items = sqliteTable(
 
 export type RssFeedItemRow = InferSelectModel<typeof rss_feed_items>;
 export type NewRssFeedItem = InferInsertModel<typeof rss_feed_items>;
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Memory System Tables
+// 记忆系统表。Markdown 为事实源，数据库只存结构索引与关系。
+// 所有新表使用 memory_ 前缀，与现有表完全隔离。
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/**
+ * memory_notes — 记忆 Note 索引
+ * 存储每个 Memory Note 的 Frontmatter 镜像，是检索主入口。
+ */
+export const memory_notes = sqliteTable(
+  'memory_notes',
+  {
+    // ━━ 身份 ━━
+    id: text('id').primaryKey(), // 与 Frontmatter id 一致，如 mem_2026-03-26_xxx_a1b2c3
+    version: integer('version').notNull().default(1), // 修订版本号
+
+    // ━━ 归属 ━━
+    workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+    date: text('date').notNull(), // YYYY-MM-DD
+    timeRangeStart: integer('time_range_start'), // 毫秒时间戳
+    timeRangeEnd: integer('time_range_end'),
+
+    // ━━ 文件路径 ━━
+    filePath: text('file_path').notNull(), // workspace 相对路径
+    fileChecksum: text('file_checksum'), // 文件内容 sha256
+
+    // ━━ 主题 ━━
+    topics: text('topics').notNull(), // JSON string[]
+    parentTopicId: text('parent_topic_id').references((): AnySQLiteColumn => memory_topics.id, { onDelete: 'set null' }),
+    relatedTopicIds: text('related_topic_ids'), // JSON string[]
+
+    // ━━ 关键词与实体（冗余存储用于快速过滤） ━━
+    keywords: text('keywords').notNull(), // JSON string[]
+    aliases: text('aliases'), // JSON string[]
+    entities: text('entities'), // JSON Entity[]
+
+    // ━━ 摘要 ━━
+    summary: text('summary').notNull(),
+
+    // ━━ 溯源 ━━
+    sourceConversationIds: text('source_conversation_ids').notNull(), // JSON string[]
+    sourceMessageRange: text('source_message_range'), // JSON MessageRange[]
+
+    // ━━ 权重 ━━
+    importance: real('importance').notNull().default(0.5), // 0.0 ~ 1.0
+    stability: real('stability').notNull().default(0.5), // 0.0 ~ 1.0
+
+    // ━━ 统计 ━━
+    sectionCount: integer('section_count').default(0),
+    charCount: integer('char_count').default(0),
+    tokenEstimate: integer('token_estimate').default(0),
+
+    // ━━ 生命周期 ━━
+    createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`),
+    updatedAt: integer('updated_at').default(sql`(unixepoch('now')*1000)`),
+    deletedAt: integer('deleted_at')
+  },
+  (t) => ({
+    idxMemNotesWorkspace: index('idx_mem_notes_workspace').on(t.workspaceId),
+    idxMemNotesDate: index('idx_mem_notes_date').on(t.date),
+    idxMemNotesImportance: index('idx_mem_notes_importance').on(t.importance),
+    idxMemNotesStability: index('idx_mem_notes_stability').on(t.stability),
+    idxMemNotesParentTopic: index('idx_mem_notes_parent_topic').on(t.parentTopicId),
+    idxMemNotesCreated: index('idx_mem_notes_created').on(t.createdAt),
+    idxMemNotesDeleted: index('idx_mem_notes_deleted').on(t.deletedAt),
+    uqMemNotesFilePath: uniqueIndex('uq_mem_notes_file_path').on(t.filePath)
+  })
+);
+
+export type MemoryNoteRow = InferSelectModel<typeof memory_notes>;
+export type NewMemoryNote = InferInsertModel<typeof memory_notes>;
+
+/**
+ * memory_sections — 段落索引
+ * 存储 note 内每个 ## / ### 段落的结构信息，用于 section 级渐进召回。
+ */
+export const memory_sections = sqliteTable(
+  'memory_sections',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    noteId: text('note_id')
+      .references(() => memory_notes.id, { onDelete: 'cascade', onUpdate: 'cascade' })
+      .notNull(),
+
+    // ━━ 标题信息 ━━
+    heading: text('heading').notNull(), // 标题路径，如 "Key Facts" 或 "Key Facts > 技术选型"
+    headingLevel: integer('heading_level').notNull(), // 2 = ##, 3 = ###
+    sectionOrder: integer('section_order').notNull(), // 段落在 note 内的顺序（从 0 开始）
+
+    // ━━ 内容摘要 ━━
+    summary: text('summary'), // 段落摘要（从 blockquote 提取）
+    keywords: text('keywords'), // JSON string[]，段落级关键词
+
+    // ━━ 定位 ━━
+    lineStart: integer('line_start').notNull(), // 起始行号（1-based）
+    lineEnd: integer('line_end').notNull(), // 结束行号（1-based）
+    charCount: integer('char_count').default(0),
+
+    // ━━ 生命周期 ━━
+    createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`),
+    updatedAt: integer('updated_at').default(sql`(unixepoch('now')*1000)`)
+  },
+  (t) => ({
+    idxMemSectionsNote: index('idx_mem_sections_note').on(t.noteId),
+    idxMemSectionsHeading: index('idx_mem_sections_heading').on(t.heading),
+    idxMemSectionsOrder: index('idx_mem_sections_order').on(t.noteId, t.sectionOrder)
+  })
+);
+
+export type MemorySectionRow = InferSelectModel<typeof memory_sections>;
+export type NewMemorySection = InferInsertModel<typeof memory_sections>;
+
+/**
+ * memory_topics — 主题节点
+ * 图谱的核心节点表。支持层级（父子主题）和别名。
+ */
+export const memory_topics = sqliteTable(
+  'memory_topics',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => `topic_${randomUUID().slice(0, 8)}`),
+
+    // ━━ 标识 ━━
+    label: text('label').notNull(), // 规范化主题名，如 "AI Agent"
+    slug: text('slug').notNull(), // URL-safe slug，如 "ai-agent"
+    aliases: text('aliases'), // JSON string[]，别名列表
+    description: text('description'), // 主题简述（1~2 句）
+
+    // ━━ 层级 ━━
+    parentId: text('parent_id').references((): AnySQLiteColumn => memory_topics.id, { onDelete: 'set null' }),
+
+    // ━━ 关联关键词 ━━
+    keywords: text('keywords'), // JSON string[]，强关联关键词
+
+    // ━━ 归属 ━━
+    workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+
+    // ━━ 活跃度与统计 ━━
+    noteCount: integer('note_count').default(0),
+    heat: real('heat').default(0), // 近期活跃度分（0.0~1.0）
+    centralityHint: real('centrality_hint').default(0), // 图中心度提示
+    firstSeenAt: integer('first_seen_at'),
+    lastSeenAt: integer('last_seen_at'),
+
+    // ━━ 生命周期 ━━
+    createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`),
+    updatedAt: integer('updated_at').default(sql`(unixepoch('now')*1000)`),
+    deletedAt: integer('deleted_at')
+  },
+  (t) => ({
+    uqMemTopicsSlugWs: uniqueIndex('uq_mem_topics_slug_ws').on(t.slug, t.workspaceId),
+    idxMemTopicsLabel: index('idx_mem_topics_label').on(t.label),
+    idxMemTopicsParent: index('idx_mem_topics_parent').on(t.parentId),
+    idxMemTopicsWorkspace: index('idx_mem_topics_workspace').on(t.workspaceId),
+    idxMemTopicsHeat: index('idx_mem_topics_heat').on(t.heat),
+    idxMemTopicsLastSeen: index('idx_mem_topics_last_seen').on(t.lastSeenAt)
+  })
+);
+
+export type MemoryTopicRow = InferSelectModel<typeof memory_topics>;
+export type NewMemoryTopic = InferInsertModel<typeof memory_topics>;
+
+/**
+ * memory_edges — 图谱边
+ * 支持多种关系类型，连接 topic、note、section 三类节点。
+ */
+export const memory_edges = sqliteTable(
+  'memory_edges',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+
+    // ━━ 端点 ━━
+    sourceType: text('source_type', { enum: ['topic', 'note', 'section'] }).notNull(),
+    sourceId: text('source_id').notNull(),
+    targetType: text('target_type', { enum: ['topic', 'note', 'section'] }).notNull(),
+    targetId: text('target_id').notNull(),
+
+    // ━━ 关系描述 ━━
+    relationType: text('relation_type', {
+      enum: ['parent_topic_of', 'belongs_to_topic', 'related_to_topic', 'related_to_note', 'contains_section', 'derived_from_conversation', 'shares_keyword', 'references_note']
+    }).notNull(),
+
+    // ━━ 权重与证据 ━━
+    weight: real('weight').default(1.0),
+    evidenceNoteId: text('evidence_note_id'),
+    evidenceSnippet: text('evidence_snippet'),
+    origin: text('origin', {
+      enum: ['llm_extracted', 'rule_inferred', 'user_manual']
+    }).default('llm_extracted'),
+
+    // ━━ 归属 ━━
+    workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+
+    // ━━ 生命周期 ━━
+    createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`),
+    updatedAt: integer('updated_at').default(sql`(unixepoch('now')*1000)`)
+  },
+  (t) => ({
+    idxMemEdgesSource: index('idx_mem_edges_source').on(t.sourceType, t.sourceId),
+    idxMemEdgesTarget: index('idx_mem_edges_target').on(t.targetType, t.targetId),
+    idxMemEdgesRelation: index('idx_mem_edges_relation').on(t.relationType),
+    uqMemEdgesLink: uniqueIndex('uq_mem_edges_link').on(t.sourceType, t.sourceId, t.targetType, t.targetId, t.relationType),
+    idxMemEdgesWorkspace: index('idx_mem_edges_workspace').on(t.workspaceId)
+  })
+);
+
+export type MemoryEdgeRow = InferSelectModel<typeof memory_edges>;
+export type NewMemoryEdge = InferInsertModel<typeof memory_edges>;
+
+/**
+ * memory_keywords — 关键词规范化表
+ * 每个关键词/实体/别名一条记录。支持同义映射与主题亲和度。
+ */
+export const memory_keywords = sqliteTable(
+  'memory_keywords',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+
+    // ━━ 关键词本体 ━━
+    canonical: text('canonical').notNull(), // 规范形式
+    aliases: text('aliases'), // JSON string[]
+    language: text('language'), // 主要语言
+
+    // ━━ 实体类型 ━━
+    entityType: text('entity_type', {
+      enum: ['person', 'product', 'technology', 'organization', 'concept', 'location', 'event', 'keyword', 'other']
+    }).default('keyword'),
+
+    // ━━ 主题亲和 ━━
+    primaryTopicId: text('primary_topic_id').references(() => memory_topics.id, { onDelete: 'set null' }),
+
+    // ━━ 统计 ━━
+    occurrenceCount: integer('occurrence_count').default(0),
+    lastSeenAt: integer('last_seen_at'),
+
+    // ━━ 归属 ━━
+    workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+
+    // ━━ 生命周期 ━━
+    createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`),
+    updatedAt: integer('updated_at').default(sql`(unixepoch('now')*1000)`)
+  },
+  (t) => ({
+    uqMemKeywordsCanonicalWs: uniqueIndex('uq_mem_keywords_canonical_ws').on(t.canonical, t.workspaceId),
+    idxMemKeywordsEntityType: index('idx_mem_keywords_entity_type').on(t.entityType),
+    idxMemKeywordsTopic: index('idx_mem_keywords_topic').on(t.primaryTopicId),
+    idxMemKeywordsWorkspace: index('idx_mem_keywords_workspace').on(t.workspaceId),
+    idxMemKeywordsOccurrence: index('idx_mem_keywords_occurrence').on(t.occurrenceCount)
+  })
+);
+
+export type MemoryKeywordRow = InferSelectModel<typeof memory_keywords>;
+export type NewMemoryKeyword = InferInsertModel<typeof memory_keywords>;
+
+/**
+ * memory_note_keywords — Note ↔ Keyword 关联表
+ * 多对多关系。一个 note 有多个关键词，一个关键词出现在多个 note 中。
+ */
+export const memory_note_keywords = sqliteTable(
+  'memory_note_keywords',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+    noteId: text('note_id')
+      .references(() => memory_notes.id, { onDelete: 'cascade', onUpdate: 'cascade' })
+      .notNull(),
+    keywordId: text('keyword_id')
+      .references(() => memory_keywords.id, { onDelete: 'cascade', onUpdate: 'cascade' })
+      .notNull(),
+
+    // ━━ 来源层级 ━━
+    scope: text('scope', {
+      enum: ['note', 'section']
+    }).default('note'),
+    sectionId: text('section_id').references(() => memory_sections.id, { onDelete: 'set null' }),
+
+    // ━━ 权重 ━━
+    relevance: real('relevance').default(1.0),
+
+    createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`)
+  },
+  (t) => ({
+    uqMemNoteKeyword: uniqueIndex('uq_mem_note_keyword').on(t.noteId, t.keywordId, t.sectionId),
+    idxMemNoteKeywordsNote: index('idx_mem_note_keywords_note').on(t.noteId),
+    idxMemNoteKeywordsKeyword: index('idx_mem_note_keywords_keyword').on(t.keywordId),
+    idxMemNoteKeywordsSection: index('idx_mem_note_keywords_section').on(t.sectionId)
+  })
+);
+
+export type MemoryNoteKeywordRow = InferSelectModel<typeof memory_note_keywords>;
+export type NewMemoryNoteKeyword = InferInsertModel<typeof memory_note_keywords>;
+
+/**
+ * memory_sync_jobs — 记忆提取任务
+ * 跟踪每次记忆提取/索引任务的状态，支持断点续做和调试。
+ */
+export const memory_sync_jobs = sqliteTable(
+  'memory_sync_jobs',
+  {
+    id: text('id')
+      .primaryKey()
+      .$defaultFn(() => randomUUID()),
+
+    // ━━ 任务类型 ━━
+    jobType: text('job_type', {
+      enum: ['daily_extraction', 'conversation_close', 'manual_reindex', 'file_change_reindex']
+    }).notNull(),
+
+    // ━━ 任务范围 ━━
+    workspaceId: text('workspace_id').references(() => workspaces.id, { onDelete: 'set null', onUpdate: 'cascade' }),
+    targetDate: text('target_date'), // YYYY-MM-DD
+    targetConversationIds: text('target_conversation_ids'), // JSON string[]
+
+    // ━━ 状态 ━━
+    status: text('status', {
+      enum: ['pending', 'running', 'completed', 'failed', 'cancelled']
+    })
+      .notNull()
+      .default('pending'),
+    progress: text('progress'), // JSON：{ current, total, stage }
+    errorMessage: text('error_message'),
+
+    // ━━ 结果统计 ━━
+    notesCreated: integer('notes_created').default(0),
+    notesUpdated: integer('notes_updated').default(0),
+    topicsCreated: integer('topics_created').default(0),
+    edgesCreated: integer('edges_created').default(0),
+    keywordsCreated: integer('keywords_created').default(0),
+
+    // ━━ AI 调用元数据 ━━
+    providerId: text('provider_id'),
+    model: text('model'),
+    tokensUsed: integer('tokens_used').default(0),
+
+    // ━━ 生命周期 ━━
+    startedAt: integer('started_at'),
+    completedAt: integer('completed_at'),
+    createdAt: integer('created_at').default(sql`(unixepoch('now')*1000)`)
+  },
+  (t) => ({
+    idxMemSyncJobsStatus: index('idx_mem_sync_jobs_status').on(t.status),
+    idxMemSyncJobsType: index('idx_mem_sync_jobs_type').on(t.jobType),
+    idxMemSyncJobsWorkspace: index('idx_mem_sync_jobs_workspace').on(t.workspaceId),
+    idxMemSyncJobsDate: index('idx_mem_sync_jobs_date').on(t.targetDate),
+    idxMemSyncJobsCreated: index('idx_mem_sync_jobs_created').on(t.createdAt)
+  })
+);
+
+export type MemorySyncJobRow = InferSelectModel<typeof memory_sync_jobs>;
+export type NewMemorySyncJob = InferInsertModel<typeof memory_sync_jobs>;
