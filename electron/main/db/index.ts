@@ -339,6 +339,35 @@ function ensureChatMessageSequenceIndex(): void {
  * 迁移旧的 vec_docs 表到新的按维度分表结构
  * 如果存在旧的 vec_docs 表，尝试从 documents 表重建索引到新的维度表
  */
+/**
+ * 创建记忆系统 FTS5 虚拟表（contentless 模式）
+ * FTS5 虚拟表不在 Drizzle schema 中定义（Drizzle 不支持 FTS5 声明），
+ * 通过 raw SQL 在 initSchema 中创建。
+ */
+function ensureMemoryFTS(): void {
+  if (!db) return;
+  try {
+    db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS memory_notes_fts USING fts5(
+        entry_id,
+        entry_type,
+        note_id,
+        title,
+        summary,
+        keywords,
+        aliases,
+        entities,
+        body,
+        content='',
+        tokenize='unicode61 remove_diacritics 2'
+      );
+    `);
+    console.log('[memory] FTS5 virtual table ensured');
+  } catch (e) {
+    console.warn('[memory] Failed to create memory_notes_fts virtual table:', e);
+  }
+}
+
 function migrateOldVecTable(): void {
   if (!db || !ensureVecLoaded()) return;
   try {
@@ -428,6 +457,8 @@ function initSchema(): void {
   setupTriggers();
   // 迁移旧的 vec_docs 表（如果存在）
   migrateOldVecTable();
+  // 创建记忆系统 FTS5 虚拟表
+  ensureMemoryFTS();
 }
 
 /**

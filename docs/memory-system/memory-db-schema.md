@@ -698,3 +698,51 @@ function ensureMemoryFTS(db: BetterSqlite3.Database): void {
 
 所有新表使用 `memory_` 前缀，与现有 documents、resources、conversations 等表完全隔离。
 不修改任何现有表结构。
+
+---
+
+## 8. 记忆生命周期：对话删除联动
+
+### 8.1 设计原则
+
+记忆 note 通过 `sourceConversationIds` 字段溯源到原始对话。当对话被删除时，
+关联的记忆数据需要同步清理，避免产生"幽灵记忆"（引用已不存在的对话）。
+
+**核心策略：按来源对话数量分情况处理**
+
+| 场景       | 条件                                           | 处理方式                                                          |
+| ---------- | ---------------------------------------------- | ----------------------------------------------------------------- |
+| 单一来源   | note 的 `sourceConversationIds` 只包含被删对话 | **完整删除**：DB 索引 + FTS + 边 + 关键词关联 + Markdown 文件     |
+| 多来源保留 | note 的 `sourceConversationIds` 还包含其他对话 | **部分更新**：仅从 `sourceConversationIds` 移除被删 ID，note 保留 |
+| 来源清空   | 移除后 `sourceConversationIds` 变为空数组      | **完整删除**（同单一来源）                                        |
+
+### 8.2 完整删除的级联清理顺序
+
+当 note 需要完整删除时，按以下顺序执行：
+
+```
+1. 删除 FTS 条目           → memory_notes_fts WHERE note_id = ?
+2. 删除图谱边              → memory_edges WHERE source/target = note
+3. 删除 note-keyword 关联  → memory_note_keywords WHERE note_id = ?
+4. 硬删除 note 行          → memory_notes WHERE id = ?（cascade 自动删 sections）
+5. 删除 Markdown 文件      → unlink <workspace>/memory/daily/YYYY/MM/xxx.md
+```
+
+### 8.3 触发点
+
+对话删除有三条路径，全部需要触发记忆清理：
+
+| 删除路径                    | 触发位置                                   | 清理方式                                   |
+| --------------------------- | ------------------------------------------ | ------------------------------------------ |
+| `ai:hardDeleteConversation` | `packages/ai/ipc-main.ts`                  | 异步调用 `cleanupMemoryForConversations()` |
+| `trash:purge`               | `electron/main/handlers/trash/ipc-main.ts` | 先收集 conversation IDs → purge → 异步清理 |
+| `trash:empty`               | `electron/main/handlers/trash/ipc-main.ts` | 先收集 conversation IDs → empty → 异步清理 |
+
+> **注意**：`ai:deleteConversation`（软删除）**不**触发记忆清理。
+> 只有物理删除才清理记忆，与资源的回收站设计保持一致。
+
+### 8.4 实现位置
+
+- `MemoryNoteRepo.removeConversationSource(convId)` — 从 notes 的 `sourceConversationIds` 中移除指定 ID，返回 `{ updated, orphaned }`
+- `cleanupMemoryForConversations(convIds)` — 独立模块 `electron/main/handlers/memory/memory-cleanup.ts`，串联分类 + 级联删除
+- `fullDeleteMemoryNote(noteId, workspaceId, filePath)` — 执行上述 5 步级联清理

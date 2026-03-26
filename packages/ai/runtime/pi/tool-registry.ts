@@ -100,12 +100,52 @@ const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
     compatName: 'youtubeSubscribeTool',
     name: 'youtubeSubscribeTool',
     status: 'ready-for-pi-runtime'
+  },
+  'memory-search': {
+    category: 'query',
+    description: '搜索长期记忆，回忆过去对话中的要点、决策和偏好',
+    compatName: 'memorySearchTool',
+    name: 'memorySearchTool',
+    status: 'ready-for-pi-runtime'
+  },
+  'memory-get': {
+    category: 'content',
+    description: '读取记忆 note 的具体段落内容',
+    compatName: 'memoryGetTool',
+    name: 'memoryGetTool',
+    status: 'ready-for-pi-runtime'
+  },
+  'memory-topics': {
+    category: 'query',
+    description: '浏览记忆主题图谱，查看主题层级和关联',
+    compatName: 'memoryTopicsTool',
+    name: 'memoryTopicsTool',
+    status: 'ready-for-pi-runtime'
+  },
+  'memory-save': {
+    category: 'content',
+    description: '将用户明确要求记住的信息保存到长期记忆',
+    compatName: 'memorySaveTool',
+    name: 'memorySaveTool',
+    status: 'ready-for-pi-runtime'
   }
 };
 
 export const DEFAULT_CODER_TOOL_IDS = ['file-list', 'file-read', 'file-glob', 'file-grep', 'file-write', 'file-edit', 'shell-exec'];
 
-export const DEFAULT_SESSION_TOOL_IDS = ['query-resources', 'read-subtitle', 'translate-subtitles', 'summarize-content', 'push-card', 'youtube-download', 'youtube-subscribe'];
+export const DEFAULT_SESSION_TOOL_IDS = [
+  'query-resources',
+  'read-subtitle',
+  'translate-subtitles',
+  'summarize-content',
+  'push-card',
+  'youtube-download',
+  'youtube-subscribe',
+  'memory-search',
+  'memory-get',
+  'memory-topics',
+  'memory-save'
+];
 
 function createToolDescriptor(toolId: string): PiToolDescriptor | undefined {
   const meta = DEFAULT_TOOL_METADATA[toolId];

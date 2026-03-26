@@ -1,5 +1,6 @@
 import { BrowserWindow, ipcMain } from 'electron';
 
+import { cleanupMemoryForConversations as cleanupMemoryForDeletedConversations } from '../../electron/main/handlers/memory/memory-cleanup';
 import { ChatRepo } from '../common/db';
 import { pushCardToWindows } from './card-push';
 import { ChatService } from './chat-service';
@@ -271,6 +272,8 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
   });
   ipcMain.handle('ai:hardDeleteConversation', async (_e, payload: { id: string }) => {
     const ok = await ChatRepo.deleteConversation(payload.id);
+    // 异步清理关联记忆（不阻塞删除操作）
+    cleanupMemoryForDeletedConversations([payload.id]);
     return { ok };
   });
 

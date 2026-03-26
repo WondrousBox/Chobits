@@ -14,6 +14,7 @@ import { initScreenshotHandlers } from '../screenshot';
 import { initSkillTreeHandlers } from '../skillTreeWindow';
 import { getResourcePath } from '../utils/resources-path';
 import { initAnnotationHandlers } from './annotation/ipc-main';
+import { initMemoryHandlers } from './memory/ipc-main';
 import { initAutomationHandlers } from './automation/ipc-main';
 import { initClipHandlers } from './clip/ipc-main';
 import { initDownloadHandlers } from './downloader/ipc-main';
@@ -103,6 +104,7 @@ export async function initHandlers(win: BrowserWindow): Promise<void> {
   initMediaTrackHandlers();
   initAnnotationHandlers();
   initMediaHandlers(win);
+  initMemoryHandlers();
   await initSpriteManagerIPC(win, {
     addAllowedResourceRoot: (await import('../resource-protocol')).addAllowedResourceRoot
   });

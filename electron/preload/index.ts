@@ -29,6 +29,7 @@ import { themeIpcRenderer } from '../main/handlers/theme/ipc-renderer';
 import { trashIpcRenderer } from '../main/handlers/trash/ipc-renderer';
 import { workspaceIpcRenderer } from '../main/handlers/workspace/ipc-renderer';
 import { arch, isLinux, isMac, isMacIntel, isWindows, platform } from '../main/utils/os';
+import { memoryApi } from './apis/memory';
 import { personaApi } from './apis/persona';
 import { shortcutsBridge } from './apis/shortcuts';
 import { statusBridge } from './apis/status';
@@ -99,6 +100,7 @@ contextBridge.exposeInMainWorld('YUA', {
   mediaTrack: createMediaTrackIpcRenderer(ipcRenderer),
   annotation: createAnnotationIpcRenderer(ipcRenderer),
   media: mediaIpcRenderer,
+  memory: memoryApi,
   events: {
     on: (callback: (payload: AppEventPayload) => void) => {
       const subscription = (_event: any, payload: AppEventPayload): void => callback(payload);

@@ -1330,3 +1330,59 @@ interface MemoryPreferences {
   maxTokensPerExtraction: number;
 }
 ```
+
+---
+
+## 15. 对话删除 → 记忆清理
+
+### 15.1 问题
+
+当用户删除对话后，从该对话提取的记忆如果继续保留，会产生"幽灵记忆"——
+引用已不存在的对话，且可能包含用户希望遗忘的信息。
+
+### 15.2 清理策略
+
+```
+对话被物理删除
+       │
+       ▼
+  ┌────────────────────────┐
+  │ MemoryNoteRepo          │
+  │ .removeConversationSource│
+  └───────────┬────────────┘
+              │
+    ┌─────────┴─────────┐
+    ▼                   ▼
+  还有其他来源？       所有来源被删？
+  sourceConvIds.len>0  sourceConvIds.len=0
+    │                   │
+    ▼                   ▼
+  更新 note            完整删除
+  移除被删 ID          ┌─────────────────┐
+                      │ fullDeleteNote   │
+                      │ 1. 删 FTS        │
+                      │ 2. 删图谱边      │
+                      │ 3. 删关键词关联  │
+                      │ 4. 删 note 行    │
+                      │ 5. 删 MD 文件    │
+                      └─────────────────┘
+```
+
+### 15.3 触发点
+
+| 路径                        | 时机             | 方式                              |
+| --------------------------- | ---------------- | --------------------------------- |
+| `ai:hardDeleteConversation` | 用户直接硬删会话 | 异步 fire-and-forget              |
+| `trash:purge`               | 从回收站清除     | 先收集 convIds → purge → 异步清理 |
+| `trash:empty`               | 清空回收站       | 先收集 convIds → empty → 异步清理 |
+
+> **软删除不清理**：`ai:deleteConversation`（移入回收站）不触发记忆清理，
+> 与资源回收站设计一致——只有物理删除才是真正的删除意图。
+
+### 15.4 实现文件
+
+```
+electron/main/handlers/memory/memory-cleanup.ts  ← 独立模块，无循环依赖
+├── cleanupMemoryForConversations(convIds)        ← 主入口
+└── fullDeleteMemoryNote(noteId, wsId, filePath)  ← 5 步级联
+```
