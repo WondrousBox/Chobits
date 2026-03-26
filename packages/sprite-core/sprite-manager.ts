@@ -297,6 +297,9 @@ export class SpriteManager {
   // 不立即切换动画，等 outro 播完再发送 idle 动画
   private _pendingIdleAfterOutro = false;
 
+  // 欢迎消息只在首次 rendererReady 时发送
+  private _welcomeSent = false;
+
   // 单例
   private static instance: SpriteManager | null = null;
 
@@ -930,10 +933,13 @@ export class SpriteManager {
       this.sendToRenderer('sprite:play', initial.currentAnimation);
     }
 
-    // 发送欢迎消息
-    setTimeout(() => {
-      this.showToast(undefined, { category: 'welcome' });
-    }, 500);
+    // 发送欢迎消息（仅首次，避免其他窗口 ready 时重复播放）
+    if (!this._welcomeSent) {
+      this._welcomeSent = true;
+      setTimeout(() => {
+        this.showToast(undefined, { category: 'welcome' });
+      }, 500);
+    }
   }
 
   // ============================================================================
