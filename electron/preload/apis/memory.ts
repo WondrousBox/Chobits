@@ -22,5 +22,7 @@ export const memoryApi = {
 
   cleanupForConversations: (params: { conversationIds: string[] }) => ipcRenderer.invoke('memory:cleanupForConversations', params),
 
+  clearAll: (params?: { workspaceId?: string }) => ipcRenderer.invoke('memory:clearAll', params),
+
   stats: (params?: { workspaceId?: string }) => ipcRenderer.invoke('memory:stats', params)
 };

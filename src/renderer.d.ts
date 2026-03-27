@@ -25,6 +25,7 @@ import type { ShortcutsBridgeType } from '../electron/preload/apis/shortcuts';
 import type { StatusBridgeType } from '../electron/preload/apis/status';
 import type { WindowBridgeType } from '../electron/preload/apis/window';
 import type { AIApi } from '../packages/ai/types';
+import type { memoryApi } from '../electron/preload/apis/memory';
 import type { AppEventPayload } from '../packages/event/events';
 import type { RecorderIpcRendererType } from '../packages/recorder/ipc-renderer';
 import type { SherpaIpcRendererType } from '../packages/sherpa/ipc-renderer';
@@ -77,6 +78,7 @@ declare global {
       clip: ClipIpcRenderer;
       annotation: AnnotationIpcRenderer;
       media: MediaIpcType;
+      memory: typeof memoryApi;
       events: {
         on: (callback: (payload: AppEventPayload) => void) => () => void;
       };

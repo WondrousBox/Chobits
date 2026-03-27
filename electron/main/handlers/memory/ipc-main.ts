@@ -11,7 +11,7 @@ import { MemoryEdgeRepo, MemoryFTSRepo, MemoryKeywordRepo, MemoryNoteKeywordRepo
 import { WorkspacesRepo } from '../../db/repositories';
 import { memoryExtractionQueue } from './extraction-queue';
 import { initMemoryExtractionWorker } from './extraction-worker';
-import { cleanupMemoryForConversations } from './memory-cleanup';
+import { cleanupMemoryForConversations, clearAllMemory } from './memory-cleanup';
 
 // ━━ DB Deps Adapter ━━
 
@@ -255,6 +255,17 @@ export function initMemoryHandlers(): void {
       }
     }
   );
+
+  // ━━ Clear All Memory ━━
+
+  ipcMain.handle('memory:clearAll', async (_event, params?: { workspaceId?: string }) => {
+    try {
+      return await clearAllMemory(params?.workspaceId);
+    } catch (e: any) {
+      console.error('[Memory] clearAll failed:', e);
+      return { tablesCleared: [], filesDeleted: 0, errors: [e?.message] };
+    }
+  });
 
   // 初始化提取 worker（注册 executor + 事件监听）
   initMemoryExtractionWorker();

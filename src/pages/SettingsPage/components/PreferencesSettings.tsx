@@ -1,10 +1,12 @@
 import React from 'react';
 
+import { DownloaderSettings } from '@/features/download';
+
 import AppearanceSettings from './AppearanceSettings';
 import DatabaseBackupSettings from './DatabaseBackupSettings';
-import { DownloaderSettings } from '@/features/download';
 import FolderSetting from './FolderSetting';
 import KeyManagementSettings from './KeyManagementSettings';
+import MemoryManagementSettings from './MemoryManagementSettings';
 import PreviewSettings from './PreviewSettings';
 
 const PreferencesSettings: React.FC = () => {
@@ -15,6 +17,7 @@ const PreferencesSettings: React.FC = () => {
       <FolderSetting />
       <DownloaderSettings />
       <DatabaseBackupSettings />
+      <MemoryManagementSettings />
       <KeyManagementSettings />
     </div>
   );
