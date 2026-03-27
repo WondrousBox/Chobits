@@ -7,7 +7,6 @@
 
 import { z } from 'zod';
 
-import { ChatRepo } from '../../common/db';
 import { pushCardToWindows } from '../card-push';
 import type { ChatCardType } from '../types';
 import { createTool } from './tool-definition';
@@ -134,7 +133,7 @@ export const createPushCardTool = (context?: PushCardToolContext): ReturnType<ty
       const targetWindowId = context?.targetWindowId;
 
       try {
-        // 1. 推送卡片到聊天窗口（实时显示）
+        // 推送卡片到其他窗口（如 sprite），聊天窗口通过 tool_call 事件内联显示
         pushCardToWindows(
           {
             type: type as ChatCardType,
@@ -146,31 +145,8 @@ export const createPushCardTool = (context?: PushCardToolContext): ReturnType<ty
           targetWindowId
         );
 
-        // 2. 持久化卡片到消息历史（如果有 conversationId）
-        if (conversationId) {
-          try {
-            // 构造消息内容：使用卡片标记格式，这样 ChatMessageRenderer 可以解析
-            const cardToken = `[card:${type}:${cardId}]`;
-            const messageContent = text ? `${text}\n\n${cardToken}` : cardToken;
-
-            // 存储到数据库
-            await ChatRepo.addMessage(conversationId, {
-              role: 'assistant',
-              content: messageContent,
-              createdAt: Date.now(),
-              metadata: JSON.stringify({
-                card: {
-                  type,
-                  resourceId,
-                  data
-                }
-              })
-            });
-          } catch (dbError) {
-            console.warn('[pushCardTool] 持久化卡片失败:', dbError);
-            // 不影响推送成功
-          }
-        }
+        // 卡片数据已随 tool_call 的 args 持久化到 metadata.toolCalls
+        // 不再创建独立的 assistant 消息，避免重复
 
         return {
           success: true

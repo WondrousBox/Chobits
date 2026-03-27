@@ -49,6 +49,7 @@ export function createPiPushCardTool(toolContext: PiSessionToolContext): ToolDef
       }
 
       try {
+        // 推送卡片到其他窗口（如 sprite），聊天窗口通过 tool_call 事件内联显示
         toolContext.pushCardToWindows(
           {
             conversationId: toolContext.conversationId,
@@ -60,40 +61,12 @@ export function createPiPushCardTool(toolContext: PiSessionToolContext): ToolDef
           toolContext.targetWindowId
         );
 
-        let persisted = false;
-        let warning: string | undefined;
-
-        if (toolContext.conversationId) {
-          try {
-            const cardToken = `[card:${type}:${cardId}]`;
-            const messageContent = text ? `${text}\n\n${cardToken}` : cardToken;
-
-            await toolContext.chatRepo.addMessage(toolContext.conversationId, {
-              role: 'assistant',
-              content: messageContent,
-              createdAt: Date.now(),
-              metadata: JSON.stringify({
-                card: {
-                  data,
-                  resourceId,
-                  type
-                }
-              })
-            });
-
-            persisted = true;
-          } catch (error: any) {
-            warning = error?.message || '卡片已推送，但写入会话历史失败';
-            console.warn('[pi:pushCardTool] failed to persist card message:', error);
-          }
-        }
-
+        // 卡片数据已随 tool_call 的 args 持久化到 metadata.toolCalls
+        // 不再创建独立的 assistant 消息，避免重复
         return createJsonToolResult({
           success: true,
           cardId,
-          conversationId: toolContext.conversationId,
-          persisted,
-          warning
+          conversationId: toolContext.conversationId
         });
       } catch (error: any) {
         return createJsonToolResult({
