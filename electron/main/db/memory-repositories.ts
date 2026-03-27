@@ -3,18 +3,18 @@ import { and, desc, eq, gte, inArray, isNull, like, lte, sql } from 'drizzle-orm
 import { getDB, getOrm } from '.';
 import {
   memory_edges,
-  type MemoryEdgeRow,
   memory_keywords,
-  type MemoryKeywordRow,
   memory_note_keywords,
-  type MemoryNoteKeywordRow,
   memory_notes,
-  type MemoryNoteRow,
   memory_sections,
-  type MemorySectionRow,
   memory_sync_jobs,
-  type MemorySyncJobRow,
   memory_topics,
+  type MemoryEdgeRow,
+  type MemoryKeywordRow,
+  type MemoryNoteKeywordRow,
+  type MemoryNoteRow,
+  type MemorySectionRow,
+  type MemorySyncJobRow,
   type MemoryTopicRow,
   type NewMemoryEdge,
   type NewMemoryKeyword,
@@ -124,9 +124,7 @@ export const MemoryNoteRepo = {
     return db
       .select()
       .from(memory_notes)
-      .where(
-        and(eq(memory_notes.workspaceId, workspaceId), isNull(memory_notes.deletedAt), gte(memory_notes.date, cutoffDate), gte(memory_notes.importance, minImportance))
-      )
+      .where(and(eq(memory_notes.workspaceId, workspaceId), isNull(memory_notes.deletedAt), gte(memory_notes.date, cutoffDate), gte(memory_notes.importance, minImportance)))
       .orderBy(desc(memory_notes.importance), desc(memory_notes.date))
       .limit(limit);
   },
@@ -135,7 +133,11 @@ export const MemoryNoteRepo = {
     if (!ids.length) return 0;
     const db = getOrm();
     const now = Date.now();
-    const res = await db.update(memory_notes).set({ deletedAt: now, updatedAt: now } as any).where(inArray(memory_notes.id, ids)).run();
+    const res = await db
+      .update(memory_notes)
+      .set({ deletedAt: now, updatedAt: now } as any)
+      .where(inArray(memory_notes.id, ids))
+      .run();
     return (res as any).changes ?? 0;
   },
 
@@ -228,7 +230,11 @@ export const MemorySectionRepo = {
     (db as any).transaction((tx: any) => {
       tx.delete(memory_sections).where(eq(memory_sections.noteId, noteId)).run();
       for (const sec of sections) {
-        const rows = tx.insert(memory_sections).values({ ...sec, noteId } as any).returning().all();
+        const rows = tx
+          .insert(memory_sections)
+          .values({ ...sec, noteId } as any)
+          .returning()
+          .all();
         if (rows[0]) results.push(rows[0]);
       }
     });
@@ -372,6 +378,19 @@ export const MemoryTopicRepo = {
     return this.getById(id);
   },
 
+  /** 列出工作空间内所有主题（用于图谱全局可视化） */
+  async listAll(workspaceId?: string, limit = 200): Promise<MemoryTopicRow[]> {
+    const db = getOrm();
+    const wheres: any[] = [isNull(memory_topics.deletedAt)];
+    if (workspaceId) wheres.push(eq(memory_topics.workspaceId, workspaceId));
+    return db
+      .select()
+      .from(memory_topics)
+      .where(and(...wheres))
+      .orderBy(desc(memory_topics.heat))
+      .limit(limit);
+  },
+
   async count(workspaceId?: string): Promise<number> {
     const db = getOrm();
     const wheres: any[] = [isNull(memory_topics.deletedAt)];
@@ -460,6 +479,18 @@ export const MemoryEdgeRepo = {
          LIMIT ?`
       )
       .all(...topicIds, limit) as MemoryEdgeRow[];
+  },
+
+  /** 列出工作空间内所有边（用于图谱全局可视化） */
+  async listAll(workspaceId?: string, limit = 500): Promise<MemoryEdgeRow[]> {
+    const db = getOrm();
+    const wheres: any[] = [];
+    if (workspaceId) wheres.push(eq(memory_edges.workspaceId, workspaceId));
+    return db
+      .select()
+      .from(memory_edges)
+      .where(wheres.length ? and(...wheres) : undefined)
+      .limit(limit);
   },
 
   async count(workspaceId?: string): Promise<number> {
@@ -578,7 +609,11 @@ export const MemoryNoteKeywordRepo = {
 export const MemorySyncJobRepo = {
   async create(job: NewMemorySyncJob): Promise<MemorySyncJobRow | undefined> {
     const db = getOrm();
-    const rows = await db.insert(memory_sync_jobs).values(job as any).returning().all();
+    const rows = await db
+      .insert(memory_sync_jobs)
+      .values(job as any)
+      .returning()
+      .all();
     return rows[0];
   },
 
@@ -599,12 +634,20 @@ export const MemorySyncJobRepo = {
 
   async updateProgress(id: string, progress: string): Promise<void> {
     const db = getOrm();
-    await db.update(memory_sync_jobs).set({ progress } as any).where(eq(memory_sync_jobs.id, id)).run();
+    await db
+      .update(memory_sync_jobs)
+      .set({ progress } as any)
+      .where(eq(memory_sync_jobs.id, id))
+      .run();
   },
 
   async findByStatus(status: string): Promise<MemorySyncJobRow[]> {
     const db = getOrm();
-    return db.select().from(memory_sync_jobs).where(eq(memory_sync_jobs.status, status as any)).orderBy(desc(memory_sync_jobs.createdAt));
+    return db
+      .select()
+      .from(memory_sync_jobs)
+      .where(eq(memory_sync_jobs.status, status as any))
+      .orderBy(desc(memory_sync_jobs.createdAt));
   },
 
   async getLatest(workspaceId?: string): Promise<MemorySyncJobRow | undefined> {
@@ -657,11 +700,7 @@ export const MemoryFTSRepo = {
   },
 
   /** 插入 section 级 FTS 条目 */
-  insertSectionEntry(
-    sectionId: string,
-    noteId: string,
-    data: { title: string; summary: string; keywords: string; aliases: string; entities: string; body: string }
-  ): void {
+  insertSectionEntry(sectionId: string, noteId: string, data: { title: string; summary: string; keywords: string; aliases: string; entities: string; body: string }): void {
     const rawDb = getDB();
     if (!rawDb) return;
     rawDb
@@ -711,9 +750,7 @@ export const MemoryFTSRepo = {
     if (!rawDb) return;
     const db = getOrm();
 
-    const allNotes = rawDb
-      .prepare('SELECT * FROM memory_notes WHERE deleted_at IS NULL AND id != ?')
-      .all(excludeNoteId) as MemoryNoteRow[];
+    const allNotes = rawDb.prepare('SELECT * FROM memory_notes WHERE deleted_at IS NULL AND id != ?').all(excludeNoteId) as MemoryNoteRow[];
 
     for (const note of allNotes) {
       const topics = safeJsonParse(note.topics, []);
@@ -730,9 +767,7 @@ export const MemoryFTSRepo = {
         body: note.summary || ''
       });
 
-      const sections = rawDb
-        .prepare('SELECT * FROM memory_sections WHERE note_id = ? ORDER BY section_order')
-        .all(note.id) as MemorySectionRow[];
+      const sections = rawDb.prepare('SELECT * FROM memory_sections WHERE note_id = ? ORDER BY section_order').all(note.id) as MemorySectionRow[];
 
       for (const sec of sections) {
         const secKw = safeJsonParse(sec.keywords, []);
@@ -784,7 +819,10 @@ export const MemoryFTSRepo = {
   },
 
   /** FTS5 全文搜索 */
-  search(query: string, opts: { entryType?: 'note' | 'section'; noteIds?: string[]; limit?: number } = {}): Array<{
+  search(
+    query: string,
+    opts: { entryType?: 'note' | 'section'; noteIds?: string[]; limit?: number } = {}
+  ): Array<{
     entry_id: string;
     entry_type: string;
     note_id: string;

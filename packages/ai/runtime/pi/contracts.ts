@@ -6,7 +6,7 @@ export type PiExecutionMode = 'session' | 'one-shot';
 
 export type PiProfileId = 'chat' | 'assistant' | 'coder' | (string & {});
 
-export type PiToolCategory = 'query' | 'content' | 'background-task' | 'ui-side-effect' | 'integration' | 'file' | 'shell';
+export type PiToolCategory = 'query' | 'content' | 'background-task' | 'ui-side-effect' | 'integration' | 'file' | 'shell' | 'meta';
 
 export type PiToolStatus = 'legacy-only' | 'scaffolded' | 'ready-for-pi-runtime';
 

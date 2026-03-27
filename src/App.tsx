@@ -19,6 +19,7 @@ import AiProviderConfigWindow from './pages/AiProviderConfigWindow/AiProviderCon
 import AssistantMenuPage from './pages/AssistantMenuPage/AssistantMenuPage';
 import ChatPage from './pages/ChatPage/ChatPage';
 import AssistantPage from './pages/ChatPage/StartPage';
+import MemoryGraphPage from './pages/MemoryGraphPage/MemoryGraphPage';
 import ASRConfigPage from './pages/RecordingPage/ASRConfigPage';
 import RecordingPage from './pages/RecordingPage/RecordingPage';
 import ResourcePage from './pages/ResourcePage/ResourcePage';
@@ -90,6 +91,7 @@ function App(): JSX.Element {
                 <Route path="/skill-tree" element={<SkillTreeSettings />} />
                 <Route path="/level-up" element={<LevelUpPage />} />
                 <Route path="/web-recorder" element={<WebRecorderWindow />} />
+                <Route path="/memory-graph" element={<MemoryGraphPage />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
               <Toaster />

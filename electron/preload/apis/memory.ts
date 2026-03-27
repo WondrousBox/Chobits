@@ -18,7 +18,7 @@ export const memoryApi = {
 
   deleteNote: (noteId: string) => ipcRenderer.invoke('memory:deleteNote', noteId),
 
-  graphData: (params?: { topicId?: string; workspaceId?: string }) => ipcRenderer.invoke('memory:graphData', params),
+  graphData: (params?: { topicId?: string; workspaceId?: string; includeNotes?: boolean; maxTopics?: number; maxEdges?: number }) => ipcRenderer.invoke('memory:graphData', params),
 
   cleanupForConversations: (params: { conversationIds: string[] }) => ipcRenderer.invoke('memory:cleanupForConversations', params),
 

@@ -9,12 +9,13 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
 import { createPiTaskChatRuntimeFromRequest, type PiTaskChatFunction } from '../../../../packages/ai/runtime/pi/task-chat';
+import { buildWriteDbOps } from '../../../../packages/ai/runtime/pi/tools/memory-db-deps';
 import { runExtractionPipeline } from '../../../../packages/ai/services/memory-extraction-service';
 import { parseFrontmatter } from '../../../../packages/ai/services/memory-note-parser';
 import type { ExtractionResult, MemoryChatFn, MemoryNoteFrontmatter } from '../../../../packages/ai/services/memory-types';
 import { eventManager } from '../../../../packages/event';
 import { AppEvent } from '../../../../packages/event/events';
-import { MemoryEdgeRepo, MemoryFTSRepo, MemoryKeywordRepo, MemoryNoteKeywordRepo, MemoryNoteRepo, MemorySectionRepo, MemoryTopicRepo } from '../../db/memory-repositories';
+import { MemoryNoteRepo, MemoryTopicRepo } from '../../db/memory-repositories';
 import { ChatRepo, WorkspacesRepo } from '../../db/repositories';
 import { memoryExtractionQueue, type QueuedJob } from './extraction-queue';
 
@@ -45,68 +46,6 @@ function adaptChatFn(piChatFn: PiTaskChatFunction): MemoryChatFn {
       signal
     );
     return fullText;
-  };
-}
-
-// ━━ DB Operations ━━
-
-// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-function buildDbOps() {
-  return {
-    upsertNote: (note: any) => MemoryNoteRepo.upsert(note),
-    rebuildSections: (noteId: string, sections: any[]) => MemorySectionRepo.rebuildForNote(noteId, sections),
-    upsertTopic: async (topic: any) => {
-      // 先查是否已有
-      const existing = await MemoryTopicRepo.findBySlug(topic.slug, topic.workspaceId);
-      if (existing) {
-        await MemoryTopicRepo.updateHeat(existing.id, 0.05);
-        return null; // 不算新建
-      }
-      return MemoryTopicRepo.upsert({
-        id: `topic_${topic.slug}`,
-        ...topic,
-        createdAt: Date.now(),
-        updatedAt: Date.now()
-      });
-    },
-    upsertEdges: (edges: any[]) =>
-      MemoryEdgeRepo.bulkUpsert(
-        edges.map((e) => ({
-          ...e,
-          weight: 1.0,
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        }))
-      ),
-    upsertKeywords: async (noteId: string, keywords: string[], entities: any[], workspaceId: string) => {
-      let created = 0;
-      const links: any[] = [];
-      for (const kw of keywords) {
-        const canonical = kw.toLowerCase().trim();
-        if (!canonical) continue;
-        const row = await MemoryKeywordRepo.upsertCanonical({
-          id: `kw_${canonical.replace(/[^a-z0-9\u4e00-\u9fff]+/g, '_').slice(0, 40)}`,
-          canonical,
-          workspaceId,
-          aliases: null,
-          entityType: entities.find((e: any) => e.name?.toLowerCase() === canonical)?.type ?? null,
-          occurrenceCount: 1,
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        });
-        if (row) {
-          created++;
-          links.push({ keywordId: row.id, noteId, weight: 1.0, createdAt: Date.now() });
-        }
-      }
-      if (links.length) {
-        await MemoryNoteKeywordRepo.rebuildForNote(noteId, links);
-      }
-      return created;
-    },
-    rebuildFTS: (noteId: string, noteData: any, sections: any[]) => {
-      MemoryFTSRepo.rebuildForNote(noteId, noteData, sections);
-    }
   };
 }
 
@@ -251,7 +190,7 @@ async function executeJob(job: QueuedJob, signal: AbortSignal): Promise<Extracti
         return conv ? { id: conv.id, title: conv.title } : undefined;
       },
       findExistingNote,
-      dbOps: buildDbOps()
+      dbOps: buildWriteDbOps()
     });
 
     eventManager.emit(AppEvent.MEMORY_EXTRACTION_COMPLETED, {

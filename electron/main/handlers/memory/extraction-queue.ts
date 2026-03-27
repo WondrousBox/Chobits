@@ -6,8 +6,8 @@
 
 import { randomUUID } from 'node:crypto';
 
-import { MemorySyncJobRepo } from '../../db/memory-repositories';
 import type { ExtractionJobParams, ExtractionResult, MemorySyncJobType } from '../../../../packages/ai/services/memory-types';
+import { MemorySyncJobRepo } from '../../db/memory-repositories';
 
 export type QueuedJob = ExtractionJobParams & {
   id: string;
@@ -32,9 +32,7 @@ export class MemoryExtractionQueue {
   /** 入队一个提取任务 */
   async enqueue(params: ExtractionJobParams): Promise<string> {
     // 去重：同一类型 + 同日期 + 同 workspace 不重复入队
-    const duplicate = this.queue.find(
-      (j) => j.jobType === params.jobType && j.targetDate === params.targetDate && j.workspaceId === params.workspaceId && j.status === 'queued'
-    );
+    const duplicate = this.queue.find((j) => j.jobType === params.jobType && j.targetDate === params.targetDate && j.workspaceId === params.workspaceId && j.status === 'queued');
     if (duplicate) return duplicate.id;
 
     const id = randomUUID();
@@ -74,7 +72,7 @@ export class MemoryExtractionQueue {
     const inQueue = this.queue.findIndex((j) => j.id === jobId);
     if (inQueue >= 0) {
       this.queue.splice(inQueue, 1);
-      MemorySyncJobRepo.updateStatus(jobId, 'cancelled').catch(() => {});
+      MemorySyncJobRepo.updateStatus(jobId, 'cancelled').catch(() => { });
       return true;
     }
     if (this.running?.id === jobId) {
@@ -90,9 +88,7 @@ export class MemoryExtractionQueue {
     queued: QueuedJob[];
   } {
     return {
-      running: this.running
-        ? { ...this.running, abortController: undefined }
-        : null,
+      running: this.running ? { ...this.running, abortController: undefined } : null,
       queued: this.queue.map((j) => ({ ...j, abortController: undefined }))
     };
   }
@@ -112,7 +108,7 @@ export class MemoryExtractionQueue {
     next.abortController = new AbortController();
 
     const startedAt = Date.now();
-    await MemorySyncJobRepo.updateStatus(next.id, 'running', { startedAt } as any).catch(() => {});
+    await MemorySyncJobRepo.updateStatus(next.id, 'running', { startedAt } as any).catch(() => { });
 
     try {
       const result = await this.executor(next, next.abortController.signal);
@@ -125,19 +121,19 @@ export class MemoryExtractionQueue {
         topicsCreated: result.stats.topicsCreated,
         edgesCreated: result.stats.edgesCreated,
         keywordsCreated: result.stats.keywordsCreated
-      } as any).catch(() => {});
+      } as any).catch(() => { });
 
       console.log(`[MemoryQueue] Job ${next.id} completed:`, result.stats);
     } catch (err: any) {
       if (err?.name === 'AbortError' || next.abortController.signal.aborted) {
         next.status = 'cancelled';
-        await MemorySyncJobRepo.updateStatus(next.id, 'cancelled').catch(() => {});
+        await MemorySyncJobRepo.updateStatus(next.id, 'cancelled').catch(() => { });
         console.log(`[MemoryQueue] Job ${next.id} cancelled`);
       } else {
         next.status = 'error';
         await MemorySyncJobRepo.updateStatus(next.id, 'failed', {
           errorMessage: err?.message || String(err)
-        } as any).catch(() => {});
+        } as any).catch(() => { });
         console.error(`[MemoryQueue] Job ${next.id} failed:`, err);
       }
     } finally {

@@ -17,6 +17,7 @@ export interface QueryAnalysisResult {
   keywordTerms: string[];
   timeHint?: { type: 'recent' | 'range' | 'specific'; days?: number; start?: string; end?: string };
   actionHint?: 'recall' | 'decision' | 'open_loop' | 'evidence' | 'general';
+  broadRecall?: boolean;
   originalQuery: string;
 }
 
@@ -117,7 +118,11 @@ export interface MemoryTopicsResult {
 
 export interface RetrievalDbDeps {
   // Topic
-  searchTopics: (term: string, workspaceId?: string, limit?: number) => Promise<Array<{ id: string; label: string; slug: string; heat: number; noteCount: number; aliases?: string | null; description?: string | null }>>;
+  searchTopics: (
+    term: string,
+    workspaceId?: string,
+    limit?: number
+  ) => Promise<Array<{ id: string; label: string; slug: string; heat: number; noteCount: number; aliases?: string | null; description?: string | null }>>;
   getTopicById: (id: string) => Promise<any>;
   listTopicChildren: (parentId: string) => Promise<any[]>;
   listTopicRoots: (workspaceId?: string, limit?: number) => Promise<any[]>;
@@ -140,6 +145,92 @@ export interface RetrievalDbDeps {
   // Workspace
   getWorkspaceRoot: (workspaceId: string) => Promise<string | null>;
 }
+
+// ━━ Stop Words (filtered from search terms) ━━
+
+const STOP_WORDS = new Set([
+  // Chinese stop words
+  '我',
+  '你',
+  '他',
+  '她',
+  '它',
+  '我们',
+  '你们',
+  '他们',
+  '我和你',
+  '你和我',
+  '咱们',
+  '咱',
+  '的',
+  '了',
+  '吗',
+  '呢',
+  '吧',
+  '啊',
+  '哦',
+  '嗯',
+  '是',
+  '在',
+  '有',
+  '没有',
+  '不',
+  '也',
+  '都',
+  '就',
+  '什么',
+  '哪些',
+  '哪个',
+  '怎么',
+  '如何',
+  '为何',
+  '这',
+  '那',
+  '这些',
+  '那些',
+  '这个',
+  '那个',
+  '一些',
+  '一下',
+  '一个',
+  '和',
+  '与',
+  '或',
+  '及',
+  '过',
+  '话题',
+  '内容',
+  '东西',
+  '事情',
+  '事',
+  // English stop words
+  'i',
+  'me',
+  'my',
+  'you',
+  'your',
+  'we',
+  'us',
+  'our',
+  'the',
+  'a',
+  'an',
+  'is',
+  'are',
+  'was',
+  'were',
+  'what',
+  'which',
+  'who',
+  'how',
+  'about',
+  'have',
+  'has',
+  'had',
+  'do',
+  'did',
+  'does'
+]);
 
 // ━━ Stage 1: Query Analysis ━━
 
@@ -181,7 +272,7 @@ export function analyzeQuery(query: string): QueryAnalysisResult {
 
   // 动作词提取
   const actionPatterns: Array<{ regex: RegExp; hint: QueryAnalysisResult['actionHint'] }> = [
-    { regex: /聊过|讨论过|谈到|提到|mentioned|discussed/i, hint: 'recall' },
+    { regex: /聊过|聊了|讨论过|谈到|提到|mentioned|discussed/i, hint: 'recall' },
     { regex: /决定|定了|确认|decided|confirmed/i, hint: 'decision' },
     { regex: /待|要做|未完成|todo|pending|没做完/i, hint: 'open_loop' },
     { regex: /证据|依据|原因|为什么|evidence|why/i, hint: 'evidence' }
@@ -199,11 +290,17 @@ export function analyzeQuery(query: string): QueryAnalysisResult {
   const tokens = remaining
     .split(/[\s,，、;；]+/)
     .map((t) => t.trim())
-    .filter((t) => t.length > 0);
+    .filter((t) => t.length > 0)
+    .filter((t) => !STOP_WORDS.has(t));
 
   // 所有 token 同时作为 topicTerms 和 keywordTerms（由后续阶段区分）
   result.topicTerms = tokens;
   result.keywordTerms = tokens;
+
+  // 广泛召回标记：当无有效搜索词时，标记为广泛召回（列出最近记忆）
+  if (tokens.length === 0) {
+    result.broadRecall = true;
+  }
 
   return result;
 }
@@ -284,13 +381,7 @@ export async function recallTopics(analysis: QueryAnalysisResult, workspaceId: s
 
 // ━━ Stage 3: Note Recall ━━
 
-export async function recallNotes(
-  analysis: QueryAnalysisResult,
-  topicResult: TopicRecallResult,
-  workspaceId: string,
-  db: RetrievalDbDeps,
-  maxResults = 10
-): Promise<NoteRecallResult> {
+export async function recallNotes(analysis: QueryAnalysisResult, topicResult: TopicRecallResult, workspaceId: string, db: RetrievalDbDeps, maxResults = 10): Promise<NoteRecallResult> {
   const candidateMap = new Map<string, NoteCandidate>();
 
   // Route A: 图谱关联 note
@@ -341,6 +432,16 @@ export async function recallNotes(
     }
   }
 
+  // Route D: 广泛召回兜底——当没有具体搜索词时，返回最近的记忆
+  if (analysis.broadRecall && candidateMap.size === 0) {
+    const recentNotes = await db.listNotesByWorkspace(workspaceId, maxResults * 2, 0);
+    for (const note of recentNotes) {
+      if (!candidateMap.has(note.id)) {
+        candidateMap.set(note.id, noteToCandidate(note, { metadataScore: 0.3 }));
+      }
+    }
+  }
+
   // 融合排序
   const candidates = Array.from(candidateMap.values()).map((c) => {
     c.finalScore = computeFinalScore(c, analysis);
@@ -356,12 +457,7 @@ export async function recallNotes(
 
 // ━━ Stage 4: Section Recall ━━
 
-export async function recallSections(
-  analysis: QueryAnalysisResult,
-  noteIds: string[],
-  db: RetrievalDbDeps,
-  maxResults = 20
-): Promise<SectionCandidate[]> {
+export async function recallSections(analysis: QueryAnalysisResult, noteIds: string[], db: RetrievalDbDeps, maxResults = 20): Promise<SectionCandidate[]> {
   if (!noteIds.length) return [];
   const candidates: SectionCandidate[] = [];
 
@@ -489,11 +585,7 @@ export async function targetedRead(
 
 // ━━ Stage 6: Context Assembly ━━
 
-export function assembleContext(
-  topicResult: TopicRecallResult,
-  noteResult: NoteRecallResult,
-  readResult: TargetedReadResult
-): string {
+export function assembleContext(topicResult: TopicRecallResult, noteResult: NoteRecallResult, readResult: TargetedReadResult): string {
   const parts: string[] = [];
 
   // 第一层：主题概览
@@ -639,10 +731,7 @@ export async function get(noteId: string, db: RetrievalDbDeps, opts: { section?:
 /**
  * browseTopics — 主题图谱浏览
  */
-export async function browseTopics(
-  db: RetrievalDbDeps,
-  opts: { topicId?: string; action?: 'children' | 'related' | 'notes'; workspaceId?: string; limit?: number } = {}
-): Promise<MemoryTopicsResult> {
+export async function browseTopics(db: RetrievalDbDeps, opts: { topicId?: string; action?: 'children' | 'related' | 'notes'; workspaceId?: string; limit?: number } = {}): Promise<MemoryTopicsResult> {
   const limit = opts.limit ?? 10;
   const result: MemoryTopicsResult = {};
 
@@ -712,12 +801,7 @@ export async function browseTopics(
 /**
  * searchWithContent — 搜索并自动读取命中段落的正文（一步到位的 search+read）
  */
-export async function searchWithContent(
-  query: string,
-  workspaceId: string,
-  db: RetrievalDbDeps,
-  maxChars = 4000
-): Promise<string> {
+export async function searchWithContent(query: string, workspaceId: string, db: RetrievalDbDeps, maxChars = 4000): Promise<string> {
   const analysis = analyzeQuery(query);
   const topicResult = await recallTopics(analysis, workspaceId, db);
   const noteResult = await recallNotes(analysis, topicResult, workspaceId, db, 10);
@@ -769,10 +853,7 @@ function resolveTimeRange(hint: QueryAnalysisResult['timeHint']): { start: strin
   return { start: '', end: '' };
 }
 
-function noteToCandidate(
-  note: any,
-  scores: { ftsScore?: number; graphScore?: number; metadataScore?: number } = {}
-): NoteCandidate {
+function noteToCandidate(note: any, scores: { ftsScore?: number; graphScore?: number; metadataScore?: number } = {}): NoteCandidate {
   return {
     noteId: note.id,
     summary: note.summary || '',
@@ -807,13 +888,7 @@ function computeFinalScore(candidate: NoteCandidate, analysis: QueryAnalysisResu
     actionScore = candidate.topics.some((t) => t.toLowerCase().includes('open')) ? 1.0 : 0;
   }
 
-  return (
-    W_FTS * candidate.ftsScore +
-    W_GRAPH * candidate.graphScore +
-    W_IMPORTANCE * candidate.importance +
-    W_RECENCY * recencyScore +
-    W_ACTION * actionScore
-  );
+  return W_FTS * candidate.ftsScore + W_GRAPH * candidate.graphScore + W_IMPORTANCE * candidate.importance + W_RECENCY * recencyScore + W_ACTION * actionScore;
 }
 
 function safeJsonParse(json: string | null | undefined, fallback: any[] = []): any[] {

@@ -215,20 +215,47 @@ export function initMemoryHandlers(): void {
     }
   });
 
-  ipcMain.handle('memory:graphData', async (_event, params?: { topicId?: string; workspaceId?: string }) => {
-    try {
-      // 预留：返回图谱可视化数据
-      const topics = params?.topicId ? await MemoryTopicRepo.listChildren(params.topicId) : await MemoryTopicRepo.listRoots(params?.workspaceId, 50);
+  ipcMain.handle(
+    'memory:graphData',
+    async (
+      _event,
+      params?: {
+        topicId?: string;
+        workspaceId?: string;
+        includeNotes?: boolean;
+        maxTopics?: number;
+        maxEdges?: number;
+      }
+    ) => {
+      try {
+        const maxTopics = params?.maxTopics ?? 200;
+        const maxEdges = params?.maxEdges ?? 500;
 
-      const topicIds = topics.map((t: any) => t.id);
-      const edges = topicIds.length > 0 ? await MemoryEdgeRepo.findAdjacentTopics(topicIds, 100) : [];
+        // 获取主题节点
+        const topics = params?.topicId ? await MemoryTopicRepo.listChildren(params.topicId) : await MemoryTopicRepo.listAll(params?.workspaceId, maxTopics);
 
-      return { topics, edges };
-    } catch (e: any) {
-      console.error('[Memory] graphData failed:', e);
-      return { topics: [], edges: [] };
+        // 如果指定了 topicId，也包含该主题本身
+        if (params?.topicId) {
+          const self = await MemoryTopicRepo.getById(params.topicId);
+          if (self) topics.unshift(self);
+        }
+
+        // 获取所有边
+        const edges = await MemoryEdgeRepo.listAll(params?.workspaceId, maxEdges);
+
+        // 可选：获取关联的 notes
+        let notes: any[] = [];
+        if (params?.includeNotes) {
+          notes = await MemoryNoteRepo.listByWorkspace(params?.workspaceId ?? '', 100, 0);
+        }
+
+        return { topics, edges, notes };
+      } catch (e: any) {
+        console.error('[Memory] graphData failed:', e);
+        return { topics: [], edges: [], notes: [] };
+      }
     }
-  });
+  );
 
   // ━━ Stats ━━
 
@@ -244,17 +271,14 @@ export function initMemoryHandlers(): void {
 
   // ━━ Conversation Delete → Memory Cleanup ━━
 
-  ipcMain.handle(
-    'memory:cleanupForConversations',
-    async (_event, params: { conversationIds: string[] }) => {
-      try {
-        return await cleanupMemoryForConversations(params.conversationIds);
-      } catch (e: any) {
-        console.error('[Memory] cleanupForConversations failed:', e);
-        return { updated: 0, deleted: 0, errors: [e?.message] };
-      }
+  ipcMain.handle('memory:cleanupForConversations', async (_event, params: { conversationIds: string[] }) => {
+    try {
+      return await cleanupMemoryForConversations(params.conversationIds);
+    } catch (e: any) {
+      console.error('[Memory] cleanupForConversations failed:', e);
+      return { updated: 0, deleted: 0, errors: [e?.message] };
     }
-  );
+  });
 
   // ━━ Clear All Memory ━━
 
