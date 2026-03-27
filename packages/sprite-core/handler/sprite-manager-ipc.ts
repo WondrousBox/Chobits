@@ -234,6 +234,16 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     });
   });
 
+  // ===== 按动画 ID 测试播放 =====
+  ipcMain.handle('sprite:triggerById', (_e, p: { animationId: string; message?: string; duration?: number; durationMs?: number; silent?: boolean }) => {
+    return mgr.triggerById(p.animationId, {
+      message: p.message,
+      duration: p.duration,
+      durationMs: p.durationMs,
+      silent: p.silent
+    });
+  });
+
   // ===== 启动引擎 =====
   await mgr.start();
 

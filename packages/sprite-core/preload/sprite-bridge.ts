@@ -60,6 +60,8 @@ export type SpriteBridgeType = {
 
   // 统一事件触发
   trigger(eventType: string, options?: { message?: string; duration?: number; durationMs?: number; ctx?: any; silent?: boolean }): Promise<void>;
+  // 按动画 ID 测试播放（开发调试用）
+  testAnimation(animationId: string, options?: { message?: string; duration?: number; durationMs?: number; silent?: boolean }): Promise<boolean>;
 
   // 临时资源根目录（用于视频预览等场景）
   addTempResourceRoot(root: string): Promise<{ success: boolean }>;
@@ -135,6 +137,7 @@ export const spriteBridge: SpriteBridgeType = {
 
   // ── 统一事件触发 ───────────────────────────────────────
   trigger: (eventType, options) => ipcRenderer.invoke('sprite:trigger', { eventType, ...options }),
+  testAnimation: (animationId, options) => ipcRenderer.invoke('sprite:triggerById', { animationId, ...options }),
 
   // ── 临时资源根目录 ──────────────────────────────────────
   addTempResourceRoot: (root) => ipcRenderer.invoke('sprite:addTempResourceRoot', root),

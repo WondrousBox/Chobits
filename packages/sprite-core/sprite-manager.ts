@@ -556,6 +556,51 @@ export class SpriteManager {
     }
   }
 
+  /**
+   * 按动画 ID 直接播放指定动画（用于开发测试）。
+   * 不经过 eventType 查找，直接从 AnimationRegistry 取出并播放。
+   */
+  triggerById(animationId: string, options?: { message?: string; duration?: number; durationMs?: number; silent?: boolean }): boolean {
+    const anim = this.animationRegistry.get(animationId);
+    if (!anim) return false;
+
+    this.currentAnimation = {
+      animationId: anim.id,
+      source: anim.source,
+      playback: anim.playback
+        ? {
+          width: anim.playback.width,
+          height: anim.playback.height,
+          padding: anim.playback.padding,
+          loop: anim.playback.loop,
+          loopStartMs: anim.playback.loopStartMs,
+          loopEndMs: anim.playback.loopEndMs,
+          durationMs: options?.durationMs ?? anim.playback.durationMs,
+          autoIdle: anim.playback.autoIdle ?? true
+        }
+        : { durationMs: options?.durationMs ?? 2000, autoIdle: true }
+    };
+
+    if (anim.playback) {
+      const pb = anim.playback;
+      if (pb.width != null) this.spriteConfig.width = pb.width;
+      if (pb.height != null) this.spriteConfig.height = pb.height;
+      if (pb.padding != null) this.spriteConfig.padding = pb.padding;
+    }
+
+    this.sendToRenderer('sprite:play', this.currentAnimation);
+
+    if (!options?.silent) {
+      const eventType = anim.eventTypes?.[0];
+      const text = options?.message || (eventType ? getSpriteEventText(eventType) : undefined);
+      if (text) {
+        this.showToast(text, { duration: options?.duration });
+      }
+    }
+
+    return true;
+  }
+
   /** 获取当前主状态 */
   getState(): SpriteState {
     return this.stateMachine.getState();

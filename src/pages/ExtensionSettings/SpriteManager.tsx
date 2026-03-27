@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { TbTools, TbTrash } from 'react-icons/tb';
+import { TbPlayerPlay, TbTools, TbTrash } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -166,6 +166,19 @@ export default function SpriteManager({ className }: { className?: string }): JS
     }
   };
 
+  const [testingId, setTestingId] = useState<string | null>(null);
+
+  const onTestPlay = async (item: SpriteAnimation): Promise<void> => {
+    setTestingId(item.meta.id);
+    try {
+      await window.YUA.sprite.testAnimation(item.meta.id);
+    } catch (e) {
+      console.warn('sprite:triggerById failed', e);
+    } finally {
+      setTimeout(() => setTestingId(null), 1500);
+    }
+  };
+
   // 按分类分组
   const filteredList = React.useMemo(() => {
     if (!query.trim()) return list;
@@ -301,6 +314,12 @@ export default function SpriteManager({ className }: { className?: string }): JS
                   <div className="text-[10px] text-muted-foreground/70">({grouped[cat]?.length || 0})</div>
                 </div>
                 <div className="flex items-center gap-2">
+                  {cat !== 'uncategorized' && (
+                    <Button size="sm" variant="ghost" onClick={() => window.YUA.sprite.trigger(cat)} title={`触发 ${cat} 事件：播放动画 + 显示气泡`}>
+                      <TbPlayerPlay className="h-3 w-3 mr-1" />
+                      测试
+                    </Button>
+                  )}
                   <Button size="sm" variant="outline" onClick={() => onImport(cat)} disabled={addingMap[cat]}>
                     {addingMap[cat] ? '导入中…' : '添加'}
                   </Button>
@@ -318,8 +337,19 @@ export default function SpriteManager({ className }: { className?: string }): JS
                         <div key={item.meta.id} className="group bg-card border border-border rounded-lg flex flex-col gap-2 w-full max-w-[240px] shadow-sm hover:shadow-md transition-shadow">
                           <div className="relative rounded-md overflow-hidden flex justify-center">
                             {src ? <SpritePreview src={src} type={type} width={PW} height={PH} /> : <div style={{ width: PW, height: PH }} className="rounded-md bg-muted" />}
-                            {/* 顶部右上角删除按钮（hover 显示） */}
+                            {/* 顶部操作按钮（hover 显示） */}
                             <div className="absolute top-1 right-1 z-20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                              {/* 测试播放按钮 */}
+                              <Button
+                                size="icon"
+                                variant="secondary"
+                                className="w-8 h-8"
+                                onClick={() => onTestPlay(item)}
+                                disabled={testingId === item.meta.id}
+                                title="测试播放：在桌面精灵上预览此动画"
+                              >
+                                <TbPlayerPlay className="h-4 w-4" />
+                              </Button>
                               {!item.meta.eventType && (
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
