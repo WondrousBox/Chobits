@@ -16,9 +16,7 @@
             width: 100vw;
             height: 100vh;
             overflow: hidden;
-            background: radial-gradient(ellipse at 30% 40%, rgba(59, 130, 246, 0.08) 0%, transparent 50%),
-                radial-gradient(ellipse at 70% 60%, rgba(168, 85, 247, 0.06) 0%, transparent 50%),
-                linear-gradient(135deg, #0a0e1a 0%, #0f172a 40%, #111827 70%, #0a0e1a 100%);
+            background: radial-gradient(ellipse at center, #0a0e1a 0%, rgba(10, 14, 26, 0.92) 25%, rgba(15, 23, 42, 0.6) 50%, rgba(17, 24, 39, 0.2) 75%, transparent 100%);
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -29,12 +27,13 @@
             user-select: none;
         }
 
-        /* Vignette overlay */
+        /* Subtle color accent overlays */
         body::before {
             content: '';
             position: fixed;
             inset: 0;
-            background: radial-gradient(ellipse at center, transparent 40%, rgba(0, 0, 0, 0.4) 100%);
+            background: radial-gradient(ellipse at 35% 40%, rgba(59, 130, 246, 0.06) 0%, transparent 45%),
+                radial-gradient(ellipse at 65% 55%, rgba(168, 85, 247, 0.05) 0%, transparent 45%);
             pointer-events: none;
             z-index: 0;
         }
@@ -124,6 +123,31 @@
             letter-spacing: 1px;
             min-height: 16px;
             transition: opacity 0.3s;
+        }
+
+        /* Fast-scrolling log line (like archive extraction progress) */
+        .splash-log {
+            position: fixed;
+            bottom: 16px;
+            left: 24px;
+            right: 24px;
+            height: 14px;
+            overflow: hidden;
+            z-index: 2;
+        }
+
+        .splash-log-text {
+            font-size: 10px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            color: rgba(100, 116, 139, 0.7);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: opacity 0.15s;
+        }
+
+        .splash-log-text.flash {
+            color: rgba(148, 163, 184, 0.9);
         }
 
         /* Dot loading indicator */
@@ -318,14 +342,22 @@
         </div>
     </div>
 
+    <!-- Fast log line at bottom -->
+    <div class="splash-log">
+        <div class="splash-log-text" id="log-text"></div>
+    </div>
+
     <script>
-        // Listen for status updates from main process
-        window.addEventListener('message', (e) => {
-            if (e.data && e.data.type === 'splash-status') {
-                const el = document.getElementById('status-text');
-                if (el) el.textContent = e.data.text;
-            }
-        });
+        // Fast log text updater — brief flash then dim
+        const logEl = document.getElementById('log-text');
+        let logTimer = null;
+        function updateLog(text) {
+            if (!logEl) return;
+            logEl.textContent = text;
+            logEl.classList.add('flash');
+            clearTimeout(logTimer);
+            logTimer = setTimeout(() => logEl.classList.remove('flash'), 200);
+        }
     </script>
 </body>
 
