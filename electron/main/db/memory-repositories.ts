@@ -676,10 +676,79 @@ export const MemoryFTSRepo = {
   deleteByNote(noteId: string): void {
     const rawDb = getDB();
     if (!rawDb) return;
-    rawDb.prepare(`DELETE FROM memory_notes_fts WHERE note_id = ?`).run(noteId);
+    // contentless FTS5 不支持 DELETE FROM，需要用 rebuild 方式清除指定 note
+    // 先收集该 note 的所有条目 rowid，然后用 DROP+CREATE 重建（开销较大），
+    // 但由于 contentless 表无法按行删除，这里标记后由 rebuildAll 统一处理
+    // 实际对于 contentless FTS5 表，只能 DROP+CREATE 或 使用 'delete-all' 后全量重插
+    this._dropAndRecreate(rawDb);
+    // 重插除了目标 note 之外的所有条目
+    this._reinsertAllExcept(rawDb, noteId);
   },
 
-  /** 重建某 note 的 FTS 索引（先删后插） */
+  /** Drop 并重建 FTS 虚拟表 */
+  _dropAndRecreate(rawDb: ReturnType<typeof getDB>): void {
+    if (!rawDb) return;
+    rawDb.exec('DROP TABLE IF EXISTS memory_notes_fts');
+    rawDb.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS memory_notes_fts USING fts5(
+        entry_id,
+        entry_type,
+        note_id,
+        title,
+        summary,
+        keywords,
+        aliases,
+        entities,
+        body,
+        content='',
+        tokenize='unicode61 remove_diacritics 2'
+      );
+    `);
+  },
+
+  /** 重新插入除指定 noteId 外的所有 FTS 条目 */
+  _reinsertAllExcept(rawDb: ReturnType<typeof getDB>, excludeNoteId: string): void {
+    if (!rawDb) return;
+    const db = getOrm();
+
+    const allNotes = rawDb
+      .prepare('SELECT * FROM memory_notes WHERE deleted_at IS NULL AND id != ?')
+      .all(excludeNoteId) as MemoryNoteRow[];
+
+    for (const note of allNotes) {
+      const topics = safeJsonParse(note.topics, []);
+      const kw = safeJsonParse(note.keywords, []);
+      const aliases = safeJsonParse(note.aliases, []);
+      const entities = safeJsonParse(note.entities, []);
+
+      this.insertNoteEntry(note.id, {
+        title: topics.join(' '),
+        summary: note.summary || '',
+        keywords: kw.join(' '),
+        aliases: aliases.join(' '),
+        entities: entities.map((e: any) => e?.name || e).join(' '),
+        body: note.summary || ''
+      });
+
+      const sections = rawDb
+        .prepare('SELECT * FROM memory_sections WHERE note_id = ? ORDER BY section_order')
+        .all(note.id) as MemorySectionRow[];
+
+      for (const sec of sections) {
+        const secKw = safeJsonParse(sec.keywords, []);
+        this.insertSectionEntry(sec.id, note.id, {
+          title: sec.heading,
+          summary: sec.summary || '',
+          keywords: secKw.join(' '),
+          aliases: '',
+          entities: '',
+          body: sec.summary || ''
+        });
+      }
+    }
+  },
+
+  /** 重建某 note 的 FTS 索引（contentless FTS5 不支持按行删除，需全量重建） */
   rebuildForNote(
     noteId: string,
     noteData: { title: string; summary: string; keywords: string; aliases: string; entities: string; body: string },
@@ -695,22 +764,23 @@ export const MemoryFTSRepo = {
   ): void {
     const rawDb = getDB();
     if (!rawDb) return;
-    rawDb.transaction(() => {
-      rawDb.prepare(`DELETE FROM memory_notes_fts WHERE note_id = ?`).run(noteId);
-      rawDb
-        .prepare(
-          `INSERT INTO memory_notes_fts(entry_id, entry_type, note_id, title, summary, keywords, aliases, entities, body)
-           VALUES (?, 'note', ?, ?, ?, ?, ?, ?, ?)`
-        )
-        .run(noteId, noteId, noteData.title, noteData.summary, noteData.keywords, noteData.aliases, noteData.entities, noteData.body);
-      const stmt = rawDb.prepare(
+    // contentless FTS5 不支持 DELETE WHERE，需要 DROP + CREATE 后全量重插
+    this._dropAndRecreate(rawDb);
+    this._reinsertAllExcept(rawDb, noteId); // 重插除目标 note 外的所有现有 notes
+    // 插入/覆盖当前 note 的新数据
+    rawDb
+      .prepare(
         `INSERT INTO memory_notes_fts(entry_id, entry_type, note_id, title, summary, keywords, aliases, entities, body)
+           VALUES (?, 'note', ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(noteId, noteId, noteData.title, noteData.summary, noteData.keywords, noteData.aliases, noteData.entities, noteData.body);
+    const stmt = rawDb.prepare(
+      `INSERT INTO memory_notes_fts(entry_id, entry_type, note_id, title, summary, keywords, aliases, entities, body)
          VALUES (?, 'section', ?, ?, ?, ?, ?, ?, ?)`
-      );
-      for (const sec of sections) {
-        stmt.run(sec.id, noteId, sec.title, sec.summary, sec.keywords, sec.aliases, sec.entities, sec.body);
-      }
-    })();
+    );
+    for (const sec of sections) {
+      stmt.run(sec.id, noteId, sec.title, sec.summary, sec.keywords, sec.aliases, sec.entities, sec.body);
+    }
   },
 
   /** FTS5 全文搜索 */
@@ -753,7 +823,8 @@ export const MemoryFTSRepo = {
   truncate(): void {
     const rawDb = getDB();
     if (!rawDb) return;
-    rawDb.prepare(`DELETE FROM memory_notes_fts`).run();
+    // contentless FTS5 表不支持 DELETE FROM，需 DROP + CREATE
+    this._dropAndRecreate(rawDb);
   },
 
   /** 重建全部 FTS 索引（从 memory_notes + memory_sections 表重建） */
