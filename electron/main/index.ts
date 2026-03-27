@@ -65,21 +65,29 @@ function updateSplashStatus(text: string): void {
   }
 }
 
+function updateSplashLog(text: string): void {
+  if (splashWin && !splashWin.isDestroyed()) {
+    splashWin.webContents.executeJavaScript(`typeof updateLog==='function'&&updateLog(${JSON.stringify(text)})`).catch(() => { });
+  }
+}
+
 function createSplashWindow(): Promise<void> {
   return new Promise((resolve) => {
     const windowsDir = getResourcePath('windows');
     const splashHtml = path.join(windowsDir!, 'splash.html');
 
     splashWin = new BrowserWindow({
-      width: 320,
-      height: 320,
+      width: 480,
+      height: 480,
       frame: false,
       resizable: false,
       skipTaskbar: true,
       alwaysOnTop: true,
       center: true,
       show: false,
-      backgroundColor: '#0a0e1a',
+      transparent: true,
+      backgroundColor: '#00000000',
+      hasShadow: false,
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true
@@ -157,8 +165,9 @@ async function createWindow(): Promise<void> {
     return { action: 'deny' };
   });
 
+  updateSplashLog('initializing IPC handlers');
   await initHandlers(win);
-  // (workspace resource root addition moved to app.whenReady after protocol setup)
+  updateSplashLog('IPC handlers registered');
 
   // https://github.com/electron/electron/issues/7049
   // https://www.electronjs.org/docs/latest/breaking-changes#removed-crashed-event-on-webcontents-and-webview
@@ -181,16 +190,20 @@ app.whenReady().then(async () => {
 
   // Setup custom resource protocol (modern protocol.handle API)
   updateSplashStatus('正在初始化协议');
+  updateSplashLog('setup res:// protocol handler');
   try {
     await setupResourceProtocol();
+    updateSplashLog('res:// protocol ready');
   } catch (e) {
     console.warn('[protocol res] setup failed', e);
   }
 
   // Initialize yt-dlp service with cookie manager
   updateSplashStatus('正在初始化服务');
+  updateSplashLog('initializing yt-dlp service');
   try {
     ytdlpService.initialize({ cookieManager });
+    updateSplashLog('yt-dlp service ready');
     console.log('[ytdlp] Service initialized');
   } catch (e) {
     console.warn('[ytdlp] Service initialization failed', e);
@@ -198,6 +211,7 @@ app.whenReady().then(async () => {
 
   // Add workspace root if exists
   updateSplashStatus('正在加载工作区');
+  updateSplashLog('loading default workspace');
   try {
     const { WorkspacesRepo } = await import('./db/repositories');
     const ws = await WorkspacesRepo.getDefault();
@@ -205,12 +219,14 @@ app.whenReady().then(async () => {
       const resRoot = path.join(ws.rootPath, 'resources');
       addAllowedResourceRoot(resRoot);
       addWorkspaceResourceRoot(ws.id, resRoot);
+      updateSplashLog(`workspace root: ${ws.rootPath}`);
     }
   } catch (e) {
     console.warn('[protocol res] add workspace root failed', e);
   }
 
   // Add userData/data directory as allowed root for sprite speak cache etc.
+  updateSplashLog('registering userData resource root');
   try {
     const userDataDir = path.join(app.getPath('userData'), 'data');
     addAllowedResourceRoot(userDataDir);
@@ -218,40 +234,53 @@ app.whenReady().then(async () => {
     console.warn('[protocol res] add userData root failed', e);
   }
 
+  // Register renderer-ready handler BEFORE creating the window, so the handler
+  // is already in place when the renderer loads and calls invoke('app:renderer-ready').
+  // Otherwise there's a race: if the renderer mounts React before we reach the
+  // handler registration below, the invoke call fails with "No handler registered".
+  const rendererReady = new Promise<void>((resolve) => {
+    ipcMain.handle('app:renderer-ready', () => {
+      resolve();
+      // Keep handler registered — in dev mode Vite HMR full-reloads re-run
+      // main.tsx which calls invoke again; removing the handler causes
+      // "No handler registered" errors on subsequent calls.
+      // resolve() on an already-resolved Promise is a harmless no-op.
+    });
+  });
+
   updateSplashStatus('正在创建窗口');
+  updateSplashLog('creating main BrowserWindow');
   await createWindow();
+  updateSplashLog('main window created, loading IPC handlers');
 
   // Initialize workflow system (nodes, plugins, IPC endpoints)
   updateSplashStatus('正在加载工作流引擎');
+  updateSplashLog('registering workflow nodes & plugins');
   try {
     initWorkflowSystem({ getWorkflowDefinitionsPath: () => getResourcePath('workflows') || '' });
+    updateSplashLog('workflow engine ready');
   } catch (e) {
     console.warn('[workflow] init failed', e);
   }
 
   // Initialize scheduler
   updateSplashStatus('正在启动调度器');
+  updateSplashLog('starting task scheduler');
   try {
     await initScheduler();
+    updateSplashLog('scheduler ready');
   } catch (e) {
     console.warn('[scheduler] init failed', e);
   }
 
   // Register all global shortcuts (assistant toggle, devtools, etc.)
   updateSplashStatus('正在注册快捷键');
+  updateSplashLog('registering global shortcuts');
   registerGlobalShortcuts(getMainWindow);
 
   // --- Wait for renderer to be fully ready ---
   updateSplashStatus('正在加载界面');
-
-  // 1) Renderer signals ready after React mounts (via IPC)
-  const rendererReady = new Promise<void>((resolve) => {
-    ipcMain.handle('app:renderer-ready', () => {
-      resolve();
-      // Unregister handler after first invocation (avoid duplicate registration on window recreation)
-      queueMicrotask(() => ipcMain.removeHandler('app:renderer-ready'));
-    });
-  });
+  updateSplashLog('waiting for renderer React mount...');
 
   // 2) Minimum 2 seconds splash display
   const MIN_SPLASH_MS = 2000;
