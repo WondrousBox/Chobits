@@ -133,6 +133,156 @@ export function initSpriteEventListener(mgr: SpriteManager): () => void {
     }
   });
 
+  // ===== 下载事件 =====
+
+  handlers.push({
+    event: AppEvent.SPRITE_DOWNLOAD_START,
+    handler: (data) => {
+      mgr.trigger('download', { message: data?.message || '下载中...' });
+    }
+  });
+
+  handlers.push({
+    event: AppEvent.SPRITE_DOWNLOAD_COMPLETE,
+    handler: (data) => {
+      mgr.trigger('success', { message: data?.message || '下载完成！' });
+    }
+  });
+
+  handlers.push({
+    event: AppEvent.SPRITE_DOWNLOAD_FAIL,
+    handler: (data) => {
+      mgr.trigger('error', { message: data?.message || data?.error || '下载失败' });
+    }
+  });
+
+  // ===== 插件事件 =====
+
+  handlers.push({
+    event: AppEvent.SPRITE_PLUGIN_INSTALL,
+    handler: (data) => {
+      mgr.trigger('install', { message: data?.message || '插件安装完成！' });
+    }
+  });
+
+  handlers.push({
+    event: AppEvent.SPRITE_PLUGIN_REMOVE,
+    handler: (data) => {
+      mgr.trigger('remove', { message: data?.message || '插件已移除' });
+    }
+  });
+
+  handlers.push({
+    event: AppEvent.SPRITE_PLUGIN_UPDATE,
+    handler: (data) => {
+      mgr.trigger('update', { message: data?.message || '插件已更新！' });
+    }
+  });
+
+  // ===== 系统生命周期事件 =====
+
+  handlers.push({
+    event: AppEvent.SPRITE_SYSTEM_READY,
+    handler: () => {
+      // 仅播放出场动画，欢迎文案由 handleRendererReady 发送（避免重复）
+      mgr.trigger('appear', { durationMs: 1500, silent: true });
+    }
+  });
+
+  handlers.push({
+    event: AppEvent.SPRITE_SYSTEM_QUIT,
+    handler: () => {
+      mgr.trigger('disappear', { silent: true });
+    }
+  });
+
+  handlers.push({
+    event: AppEvent.SPRITE_SYSTEM_FOCUS,
+    handler: () => {
+      mgr.trigger('wake', { duration: 1500 });
+    }
+  });
+
+  handlers.push({
+    event: AppEvent.SPRITE_SYSTEM_BLUR,
+    handler: () => {
+      mgr.trigger('sleep', { silent: true });
+    }
+  });
+
+  // ===== 网络事件 =====
+
+  handlers.push({
+    event: AppEvent.SPRITE_NETWORK_CONNECT,
+    handler: (data) => {
+      mgr.trigger('connect', { message: data?.message });
+    }
+  });
+
+  handlers.push({
+    event: AppEvent.SPRITE_NETWORK_DISCONNECT,
+    handler: (data) => {
+      mgr.trigger('disconnect', { message: data?.message });
+    }
+  });
+
+  handlers.push({
+    event: AppEvent.SPRITE_NETWORK_TIMEOUT,
+    handler: (data) => {
+      mgr.trigger('timeout', { message: data?.message });
+    }
+  });
+
+  // ===== 媒体处理事件 =====
+
+  handlers.push({
+    event: AppEvent.SPRITE_MEDIA_PROCESS_START,
+    handler: (data) => {
+      mgr.showBusy(data?.message || '媒体处理中...', 0);
+      mgr.trigger('processing', { silent: true });
+    }
+  });
+
+  handlers.push({
+    event: AppEvent.SPRITE_MEDIA_PROCESS_COMPLETE,
+    handler: (data) => {
+      mgr.clearBusy();
+      mgr.trigger('success', { message: data?.message || '媒体处理完成！' });
+    }
+  });
+
+  // ===== RSS 事件 =====
+
+  handlers.push({
+    event: AppEvent.SPRITE_RSS_REFRESH,
+    handler: (data) => {
+      mgr.trigger('sync', { message: data?.message || '正在刷新订阅...' });
+    }
+  });
+
+  handlers.push({
+    event: AppEvent.SPRITE_RSS_NEW_CONTENT,
+    handler: (data) => {
+      mgr.trigger('curious', { message: data?.message || '有新内容更新了~' });
+    }
+  });
+
+  // ===== 回收站事件 =====
+
+  handlers.push({
+    event: AppEvent.SPRITE_TRASH_DELETE,
+    handler: (data) => {
+      mgr.trigger('remove', { message: data?.message || '已移到回收站' });
+    }
+  });
+
+  handlers.push({
+    event: AppEvent.SPRITE_TRASH_RESTORE,
+    handler: (data) => {
+      mgr.trigger('success', { message: data?.message || '已从回收站恢复！' });
+    }
+  });
+
   // 注册所有事件监听器
   handlers.forEach(({ event, handler }) => {
     eventManager.on(event, handler);

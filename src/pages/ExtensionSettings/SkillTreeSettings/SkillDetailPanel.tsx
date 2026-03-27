@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import DailyCareSettings from '../DailyCareSettings';
 import MovementSettings from '../MovementSettings';
 import RecorderSettings from '../RecorderSettings';
+import SpeakSettings from '../SpeakSettings';
 import SpriteSettings from '../SpriteSettings';
 import ShortcutKeyDisplay from './ShortcutKeyDisplay';
 import SkillActivationAnimation from './SkillActivationAnimation';
@@ -171,13 +172,15 @@ const SkillDetailPanel: React.FC<SkillDetailPanelProps> = ({ selectedSkillId, sk
 
     switch (selectedNode.settingsKey) {
       case 'movement':
-        return <MovementSettings expanded={true} onExpand={() => { }} />;
+        return <MovementSettings />;
+      case 'speak':
+        return <SpeakSettings />;
       case 'dailyCare':
-        return <DailyCareSettings expanded={true} onExpand={() => { }} />;
+        return <DailyCareSettings />;
       case 'sprite':
-        return <SpriteSettings expanded={true} onExpand={() => { }} />;
+        return <SpriteSettings />;
       case 'recorder':
-        return <RecorderSettings expanded={true} onExpand={() => { }} />;
+        return <RecorderSettings />;
       default:
         return (
           <div className="text-center text-slate-400 py-8">

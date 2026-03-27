@@ -25,11 +25,24 @@ import path from 'node:path';
 import type { AnimationEntry } from './animation-registry';
 import { AnimationRegistry } from './animation-registry';
 import type { BehaviorContext, BehaviorDefinition } from './behavior-engine';
-import { BehaviorEngine, createAutoWalkBehavior, createBoredBehavior, createFavorDecayBehavior, createIdleSleepyBehavior, createRandomMessageBehavior, createSleepyBehavior } from './behavior-engine';
+import {
+  BehaviorEngine,
+  createActionBehavior,
+  createAmbientBehavior,
+  createAutoWalkBehavior,
+  createBoredBehavior,
+  createEmotionBehavior,
+  createFavorDecayBehavior,
+  createIdleSleepyBehavior,
+  createRandomMessageBehavior,
+  createSeasonalBehavior,
+  createSleepyBehavior
+} from './behavior-engine';
 import { SpriteEventBus } from './event-bus';
 import type { InteractionType } from './interaction-tracker';
 import { InteractionTracker } from './interaction-tracker';
 import Messages from './messages/zh-CN';
+import { getSpriteEventText } from './messages/zh-CN';
 import type { FavorLevel, MoodType, PersonaState } from './persona-state';
 import { PersonaStateManager } from './persona-state';
 import { SpeakService } from './speak/speak-service';
@@ -472,6 +485,77 @@ export class SpriteManager {
     return this.stateMachine.playOnce(subState, options);
   }
 
+  // ============================================================================
+  // 统一事件触发
+  // ============================================================================
+
+  /**
+   * 统一触发精灵事件
+   *
+   * 根据 eventType 尝试播放对应动画 + 显示气泡文案。
+   * 如果 AnimationRegistry 中没有匹配动画，则仅显示气泡文字。
+   * 这是为所有 SpriteEventType 提供统一触发入口的核心方法。
+   *
+   * @param eventType SpriteEventType 事件类型（如 'happy', 'jump', 'appear' 等）
+   * @param options 可选参数
+   *   - message: 自定义气泡文案（覆盖默认文案查找）
+   *   - duration: toast 持续时间
+   *   - durationMs: 动画持续时间
+   *   - ctx: 文案模板上下文
+   *   - silent: 不显示 toast（仅播放动画）
+   */
+  trigger(
+    eventType: string,
+    options?: {
+      message?: string;
+      duration?: number;
+      durationMs?: number;
+      ctx?: any;
+      silent?: boolean;
+    }
+  ): void {
+    // 1. 尝试查找并播放动画
+    const anim = this.animationRegistry.findByEvent({ eventType });
+    if (anim) {
+      // 有动画 → 直接发送播放指令到渲染进程
+      // 不走 playOnce('custom') 避免 mapStateToEventType 找不到正确映射
+      this.currentAnimation = {
+        animationId: anim.id,
+        source: anim.source,
+        playback: anim.playback
+          ? {
+            width: anim.playback.width,
+            height: anim.playback.height,
+            padding: anim.playback.padding,
+            loop: anim.playback.loop,
+            loopStartMs: anim.playback.loopStartMs,
+            loopEndMs: anim.playback.loopEndMs,
+            durationMs: options?.durationMs ?? anim.playback.durationMs,
+            autoIdle: anim.playback.autoIdle ?? true
+          }
+          : { durationMs: options?.durationMs ?? 2000, autoIdle: true }
+      };
+
+      // 同步更新精灵尺寸配置
+      if (anim.playback) {
+        const pb = anim.playback;
+        if (pb.width != null) this.spriteConfig.width = pb.width;
+        if (pb.height != null) this.spriteConfig.height = pb.height;
+        if (pb.padding != null) this.spriteConfig.padding = pb.padding;
+      }
+
+      this.sendToRenderer('sprite:play', this.currentAnimation);
+    }
+
+    // 2. 显示气泡文案（除非 silent）
+    if (!options?.silent) {
+      const text = options?.message || getSpriteEventText(eventType, options?.ctx);
+      if (text) {
+        this.showToast(text, { duration: options?.duration });
+      }
+    }
+  }
+
   /** 获取当前主状态 */
   getState(): SpriteState {
     return this.stateMachine.getState();
@@ -627,6 +711,8 @@ export class SpriteManager {
         subState: this.getSubState(),
         personaSnapshot: this.personaState.getState()
       });
+      // 等级提升特效
+      this.trigger('powerUp', { message: `升级了！当前等级 ${result.newLevel} ⭐` });
     }
     return result;
   }
@@ -663,6 +749,8 @@ export class SpriteManager {
     const result = this.personaState.unlockAchievement(id);
     if (result) {
       this.persistence.markDirty();
+      // 成就解锁特效
+      this.trigger('sparkle', { message: '成就解锁！✨' });
     }
     return result;
   }
@@ -1159,6 +1247,86 @@ export class SpriteManager {
       this.changeFavor(-1, 'idle-decay');
     };
     this.behaviorEngine.register(decayDef);
+
+    // ===== 情感自发行为 =====
+    const emotionDef = createEmotionBehavior();
+    emotionDef.action = (ctx) => {
+      // 根据好感度选择情感类型
+      const favor = ctx.personaState.favor;
+      const highFavorEmotions = ['happy', 'joy', 'excited', 'proud', 'curious'];
+      const midFavorEmotions = ['curious', 'surprised', 'shy', 'thinking'];
+      const lowFavorEmotions = ['bored', 'annoyed', 'confused', 'tired'];
+
+      let pool: string[];
+      if (favor >= 60) {
+        pool = highFavorEmotions;
+      } else if (favor >= 30) {
+        pool = midFavorEmotions;
+      } else {
+        pool = lowFavorEmotions;
+      }
+      const picked = pool[Math.floor(Math.random() * pool.length)];
+      this.trigger(picked);
+    };
+    this.behaviorEngine.register(emotionDef);
+
+    // ===== 动作自发行为 =====
+    const actionDef = createActionBehavior();
+    actionDef.action = (ctx) => {
+      const favor = ctx.personaState.favor;
+      // 基础动作（任意好感度可触发）
+      const baseActions = ['sit', 'stand', 'wave', 'nod', 'point', 'lookLeft', 'lookRight'];
+      // 高好感度解锁动作
+      const highFavorActions = ['dance', 'spin', 'jump'];
+
+      const pool = favor >= 60 ? [...baseActions, ...highFavorActions] : baseActions;
+      const picked = pool[Math.floor(Math.random() * pool.length)];
+      this.trigger(picked);
+    };
+    this.behaviorEngine.register(actionDef);
+
+    // ===== 氛围自发行为 =====
+    const ambientDef = createAmbientBehavior();
+    ambientDef.action = () => {
+      const ambientEvents = ['breath', 'blink', 'float'];
+      const picked = ambientEvents[Math.floor(Math.random() * ambientEvents.length)];
+      this.trigger(picked, { silent: true }); // 氛围动画不显示文案
+    };
+    this.behaviorEngine.register(ambientDef);
+
+    // ===== 季节/节日行为 =====
+    const seasonalDef = createSeasonalBehavior();
+    seasonalDef.action = () => {
+      const now = new Date();
+      const month = now.getMonth() + 1; // 1-12
+      const day = now.getDate();
+
+      // 节日优先
+      if (month === 12 && day >= 24 && day <= 26) {
+        this.trigger('christmas');
+        return;
+      }
+      if (month === 10 && day === 31) {
+        this.trigger('halloween');
+        return;
+      }
+      if (month === 1 && day === 1) {
+        this.trigger('newYear');
+        return;
+      }
+
+      // 季节
+      if (month >= 3 && month <= 5) {
+        this.trigger('spring');
+      } else if (month >= 6 && month <= 8) {
+        this.trigger('summer');
+      } else if (month >= 9 && month <= 11) {
+        this.trigger('autumn');
+      } else {
+        this.trigger('winter');
+      }
+    };
+    this.behaviorEngine.register(seasonalDef);
   }
 
   /** 获取持久化用的状态行 */

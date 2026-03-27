@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { AppEvent, eventManager } from '@packages/event';
 import type { BrowserWindow } from 'electron';
 import { ipcMain } from 'electron';
 import { app } from 'electron';
@@ -147,6 +148,7 @@ export function initFFmpegHandlers(win: BrowserWindow): void {
     const input = arg?.inputPath;
     const output = arg?.outputPath;
     if (!input || !output) throw new Error('inputPath 和 outputPath 必须指定');
+    eventManager.emit(AppEvent.SPRITE_MEDIA_PROCESS_START, { type: 'convertMovToWebm' });
     return await new Promise<string>((resolve, reject) => {
       try {
         ffmpeg(input)
@@ -161,10 +163,12 @@ export function initFFmpegHandlers(win: BrowserWindow): void {
           })
           .on('error', (err: any) => {
             console.error('[ffmpeg] error:', err);
+            eventManager.emit(AppEvent.SPRITE_MEDIA_PROCESS_COMPLETE, { success: false });
             reject(err);
           })
           .on('end', () => {
             console.log('[ffmpeg] end');
+            eventManager.emit(AppEvent.SPRITE_MEDIA_PROCESS_COMPLETE, { success: true });
             resolve('success');
           })
           .run();
@@ -199,14 +203,17 @@ export function initFFmpegHandlers(win: BrowserWindow): void {
       return await new Promise<string>((resolve, reject) => {
         const remover = new AIRemoveBackground(modelId);
 
+        eventManager.emit(AppEvent.SPRITE_MEDIA_PROCESS_START, { type: 'removeBackground' });
         remover
           .processImage(input, output)
           .then(() => {
             console.log('[AI抠图] 图片处理完成');
+            eventManager.emit(AppEvent.SPRITE_MEDIA_PROCESS_COMPLETE, { success: true });
             resolve('success');
           })
           .catch((error: any) => {
             console.error('[AI抠图] 图片处理错误:', error);
+            eventManager.emit(AppEvent.SPRITE_MEDIA_PROCESS_COMPLETE, { success: false });
             reject(error);
           });
       });
@@ -484,9 +491,12 @@ export function initFFmpegHandlers(win: BrowserWindow): void {
           cmd = cmd
             .videoCodec('libvpx-vp9')
             .outputOptions([
-              '-pix_fmt', 'yuva420p', // 支持透明通道
-              '-b:v', '0',
-              '-crf', '28', // 质量
+              '-pix_fmt',
+              'yuva420p', // 支持透明通道
+              '-b:v',
+              '0',
+              '-crf',
+              '28', // 质量
               '-an' // 移除音频
             ])
             .output(output)

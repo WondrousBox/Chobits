@@ -99,5 +99,108 @@ export const TRIGGER_MAPPING: Record<string, TriggerConfig> = {
   },
   'translate:complete': {
     eventType: 'success'
+  },
+
+  // 下载场景
+  'download:start': {
+    eventType: 'download',
+    showToast: true,
+    toastCategory: 'download'
+  },
+  'download:complete': {
+    eventType: 'success',
+    showToast: true,
+    toastCategory: 'success'
+  },
+  'download:fail': {
+    eventType: 'error',
+    showToast: true,
+    toastCategory: 'error'
+  },
+
+  // 插件场景
+  'plugin:install': {
+    eventType: 'install',
+    showToast: true,
+    toastCategory: 'install'
+  },
+  'plugin:remove': {
+    eventType: 'remove',
+    showToast: true,
+    toastCategory: 'remove'
+  },
+  'plugin:update': {
+    eventType: 'update',
+    showToast: true,
+    toastCategory: 'update'
+  },
+
+  // 系统生命周期
+  'system:ready': {
+    eventType: 'appear',
+    showToast: true,
+    toastCategory: 'welcome'
+  },
+  'system:quit': {
+    eventType: 'disappear'
+  },
+  'system:focus': {
+    eventType: 'wake'
+  },
+  'system:blur': {
+    eventType: 'sleep'
+  },
+
+  // 网络状态
+  'network:connect': {
+    eventType: 'connect',
+    showToast: true,
+    toastCategory: 'connect'
+  },
+  'network:disconnect': {
+    eventType: 'disconnect',
+    showToast: true,
+    toastCategory: 'disconnect'
+  },
+  'network:timeout': {
+    eventType: 'timeout',
+    showToast: true,
+    toastCategory: 'timeout'
+  },
+
+  // 媒体处理
+  'media:process:start': {
+    eventType: 'processing',
+    showToast: true,
+    toastCategory: 'processing'
+  },
+  'media:process:complete': {
+    eventType: 'success',
+    showToast: true,
+    toastCategory: 'success'
+  },
+
+  // RSS
+  'rss:refresh': {
+    eventType: 'sync',
+    showToast: true,
+    toastCategory: 'sync'
+  },
+  'rss:new-content': {
+    eventType: 'curious',
+    showToast: true,
+    toastCategory: 'message'
+  },
+
+  // 回收站
+  'trash:delete': {
+    eventType: 'remove',
+    showToast: true,
+    toastCategory: 'remove'
+  },
+  'trash:restore': {
+    eventType: 'success',
+    showToast: true,
+    toastCategory: 'success'
   }
 };

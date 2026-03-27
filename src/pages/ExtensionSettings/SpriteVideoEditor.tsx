@@ -8,14 +8,30 @@
  * 4. 转码为 WebM（含透明通道）
  */
 
+import { ChevronsUpDown } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { TbColorPicker, TbCut, TbEye, TbEyeOff, TbPlayerPause, TbPlayerPlay, TbReload, TbTrash, TbX, TbZoomIn, TbZoomOut } from 'react-icons/tb';
+import { TbPlayerPause, TbPlayerPlay, TbPlus, TbX, TbZoomIn, TbZoomOut } from 'react-icons/tb';
 
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
+import { SpriteEventGroups } from '@/features/sprite-assistant';
+
+// 三段预览阶段
+type PreviewPhase = 'idle' | 'intro' | 'loop' | 'outro';
 
 // 片段标记类型
 export interface SegmentMarkers {
@@ -66,14 +82,28 @@ function parseTime(str: string): number {
   return minutes * 60 * 1000 + seconds * 1000 + ms;
 }
 
+// 根据百分比位置计算边缘对齐的 transform
+function getEdgeAwareTransform(percent: number): string {
+  if (percent < 0.08) return 'translateX(0)';
+  if (percent > 0.92) return 'translateX(-100%)';
+  return 'translateX(-50%)';
+}
+
+// 计算拖拽时光标的透明度（拖拽时其他光标降低透明度）
+function getMarkerOpacity(markerKey: keyof SegmentMarkers, draggingMarker: keyof SegmentMarkers | null): number {
+  if (!draggingMarker) return 1;
+  return markerKey === draggingMarker ? 1 : 0.3;
+}
+
 interface SpriteVideoEditorProps {
   initialConfig?: Partial<SpriteVideoConfig>;
   onConfigChange?: (config: SpriteVideoConfig) => void;
   onProcess?: (config: SpriteVideoConfig) => Promise<void>;
+  onImportComplete?: () => void;
   isProcessing?: boolean;
 }
 
-export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, isProcessing }: SpriteVideoEditorProps): JSX.Element {
+export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, onImportComplete, isProcessing }: SpriteVideoEditorProps): JSX.Element {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -101,8 +131,60 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, is
   const [eventType, setEventType] = useState<string>(initialConfig?.eventType || '');
   const [title, setTitle] = useState<string>(initialConfig?.title || '');
 
-  // 预览模式
-  const [previewChroma, setPreviewChroma] = useState<boolean>(false);
+  // 预览模式 — 启用色度键后自动开启
+  const previewChroma = chromaKey.enabled;
+
+  // 三段预览状态
+  const [previewPhase, setPreviewPhase] = useState<PreviewPhase>('idle');
+  const [loopCount, setLoopCount] = useState<number>(0);
+  const previewPhaseRef = useRef<PreviewPhase>('idle');
+  const loopCountRef = useRef<number>(0);
+  const previewRafRef = useRef<number>(0);
+
+  // 时间轴拖拽状态
+  const [draggingMarker, setDraggingMarker] = useState<keyof SegmentMarkers | null>(null);
+  const timelineRef = useRef<HTMLDivElement>(null);
+
+  // 内部处理状态
+  const [internalProcessing, setInternalProcessing] = useState(false);
+  const [processProgress, setProcessProgress] = useState(0);
+  const processingFlag = isProcessing || internalProcessing;
+
+  // 时间轴悬停状态（用于添加循环片段）
+  const [hoverPosition, setHoverPosition] = useState<number | null>(null);
+
+  // 判断是否有循环片段
+  const hasLoop = segments.loopEnd > segments.loopStart;
+
+  // 移除循环片段
+  const removeLoop = useCallback(() => {
+    setSegments((prev) => ({
+      ...prev,
+      loopStart: prev.start,
+      loopEnd: prev.start
+    }));
+  }, []);
+
+  // 添加循环片段（在指定位置，默认在中间）
+  const addLoop = useCallback(
+    (position?: number) => {
+      const loopDuration = Math.min(3000, (segments.end - segments.start) / 3); // 默认3秒或1/3时长
+      const center = position ?? (segments.start + segments.end) / 2;
+      const halfLoop = loopDuration / 2;
+      let loopStart = Math.max(segments.start, center - halfLoop);
+      let loopEnd = loopStart + loopDuration;
+      if (loopEnd > segments.end) {
+        loopEnd = segments.end;
+        loopStart = Math.max(segments.start, loopEnd - loopDuration);
+      }
+      setSegments((prev) => ({
+        ...prev,
+        loopStart,
+        loopEnd
+      }));
+    },
+    [segments.start, segments.end]
+  );
 
   // 更新配置
   useEffect(() => {
@@ -160,18 +242,26 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, is
     setCurrentTime(ms);
   }, []);
 
-  // 设置片段标记
+  // 设置片段标记（带约束：start <= loopStart <= loopEnd <= end）
   const setMarker = useCallback((marker: keyof SegmentMarkers, value: number) => {
-    setSegments((prev) => ({ ...prev, [marker]: value }));
+    setSegments((prev) => {
+      const next = { ...prev, [marker]: value };
+      // 约束：start <= loopStart <= loopEnd <= end
+      if (next.start > next.loopStart) {
+        if (marker === 'start') next.loopStart = next.start;
+        else next.start = next.loopStart;
+      }
+      if (next.loopStart > next.loopEnd) {
+        if (marker === 'loopStart') next.loopEnd = next.loopStart;
+        else next.loopStart = next.loopEnd;
+      }
+      if (next.loopEnd > next.end) {
+        if (marker === 'loopEnd') next.end = next.loopEnd;
+        else next.loopEnd = next.end;
+      }
+      return next;
+    });
   }, []);
-
-  // 在当前时间设置标记
-  const setMarkerAtCurrent = useCallback(
-    (marker: keyof SegmentMarkers) => {
-      setMarker(marker, currentTime);
-    },
-    [currentTime, setMarker]
-  );
 
   // 获取文件所在目录
   const getDirPath = useCallback((filePath: string): string => {
@@ -205,55 +295,53 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, is
     }
   }, [getDirPath]);
 
-  // 色度键预览
+  // 色度键预览（始终跟随视频帧更新，含暂停帧）
   useEffect(() => {
     if (!previewChroma || !chromaKey.enabled || !videoRef.current || !canvasRef.current) return;
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return;
 
     let animationId: number;
+    let lastTime = -1;
     const draw = () => {
-      if (video.paused || video.ended) {
+      // 总是绘制（含暂停帧），但跳过重复帧
+      const t = video.currentTime;
+      if (t !== lastTime || lastTime < 0) {
+        lastTime = t;
+        canvas.width = video.videoWidth || 320;
+        canvas.height = video.videoHeight || 240;
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        return;
-      }
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // 应用色度键效果（简化版预览）
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imageData.data;
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
 
-      // 解析目标颜色
-      const targetR = parseInt(chromaKey.color.slice(1, 3), 16);
-      const targetG = parseInt(chromaKey.color.slice(3, 5), 16);
-      const targetB = parseInt(chromaKey.color.slice(5, 7), 16);
-      const threshold = (chromaKey.similarity / 100) * 255;
+        const targetR = parseInt(chromaKey.color.slice(1, 3), 16);
+        const targetG = parseInt(chromaKey.color.slice(3, 5), 16);
+        const targetB = parseInt(chromaKey.color.slice(5, 7), 16);
+        const threshold = (chromaKey.similarity / 100) * 255;
 
-      for (let i = 0; i < data.length; i += 4) {
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          const distance = Math.sqrt((r - targetR) ** 2 + (g - targetG) ** 2 + (b - targetB) ** 2);
 
-        const distance = Math.sqrt(Math.pow(r - targetR, 2) + Math.pow(g - targetG, 2) + Math.pow(b - targetB, 2));
-
-        if (distance < threshold) {
-          data[i + 3] = 0; // 设置为透明
-        } else if (distance < threshold + chromaKey.blend) {
-          // 边缘羽化
-          const alpha = ((distance - threshold) / chromaKey.blend) * 255;
-          data[i + 3] = Math.min(data[i + 3], alpha);
+          if (distance < threshold) {
+            data[i + 3] = 0;
+          } else if (distance < threshold + chromaKey.blend) {
+            const alpha = ((distance - threshold) / chromaKey.blend) * 255;
+            data[i + 3] = Math.min(data[i + 3], alpha);
+          }
         }
-      }
 
-      ctx.putImageData(imageData, 0, 0);
+        ctx.putImageData(imageData, 0, 0);
+      }
       animationId = requestAnimationFrame(draw);
     };
 
-    canvas.width = video.videoWidth || 320;
-    canvas.height = video.videoHeight || 240;
     draw();
 
     return () => {
@@ -261,10 +349,23 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, is
     };
   }, [previewChroma, chromaKey]);
 
-  // 预览循环动画（播放 loopStart 到 loopEnd）
+  // 停止三段预览
+  const stopThreePhasePreview = useCallback(() => {
+    if (previewRafRef.current) {
+      cancelAnimationFrame(previewRafRef.current);
+      previewRafRef.current = 0;
+    }
+    previewPhaseRef.current = 'idle';
+    setPreviewPhase('idle');
+    loopCountRef.current = 0;
+    setLoopCount(0);
+  }, []);
+
+  // 预览循环动画（播放 loopStart 到 loopEnd，无限循环）
   const previewLoop = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
+    stopThreePhasePreview();
 
     video.currentTime = segments.loopStart / 1000;
     video.play().catch(() => { });
@@ -279,20 +380,108 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, is
       }
     };
     requestAnimationFrame(checkLoop);
-  }, [segments]);
+  }, [segments, stopThreePhasePreview]);
 
-  // 预览完整动画（start → end）
+  // 预览完整动画（三段式：intro → loop×3 → outro）
   const previewFull = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
+    stopThreePhasePreview();
+
+    const hasLoop = segments.loopStart < segments.loopEnd;
 
     video.currentTime = segments.start / 1000;
     video.play().catch(() => { });
     setIsPlaying(true);
-  }, [segments]);
+
+    if (!hasLoop) {
+      // 无循环段：直接播放 start → end
+      previewPhaseRef.current = 'intro';
+      setPreviewPhase('intro');
+      return;
+    }
+
+    previewPhaseRef.current = 'intro';
+    setPreviewPhase('intro');
+    loopCountRef.current = 0;
+    setLoopCount(0);
+
+    const MAX_LOOPS = 3;
+    const check = () => {
+      if (!video || video.paused) {
+        stopThreePhasePreview();
+        return;
+      }
+      const ms = video.currentTime * 1000;
+      const phase = previewPhaseRef.current;
+
+      if (phase === 'intro' && ms >= segments.loopStart) {
+        previewPhaseRef.current = 'loop';
+        setPreviewPhase('loop');
+        loopCountRef.current = 1;
+        setLoopCount(1);
+      } else if (phase === 'loop' && ms >= segments.loopEnd - 30) {
+        if (loopCountRef.current < MAX_LOOPS) {
+          loopCountRef.current += 1;
+          setLoopCount(loopCountRef.current);
+          video.currentTime = segments.loopStart / 1000;
+        } else {
+          // 循环完成，进入 outro
+          previewPhaseRef.current = 'outro';
+          setPreviewPhase('outro');
+          video.currentTime = segments.loopEnd / 1000;
+        }
+      } else if (phase === 'outro' && ms >= segments.end - 30) {
+        video.pause();
+        setIsPlaying(false);
+        stopThreePhasePreview();
+        return;
+      }
+
+      previewRafRef.current = requestAnimationFrame(check);
+    };
+    previewRafRef.current = requestAnimationFrame(check);
+  }, [segments, stopThreePhasePreview]);
+
+  // 清理三段预览 RAF
+  useEffect(() => {
+    return () => {
+      if (previewRafRef.current) cancelAnimationFrame(previewRafRef.current);
+    };
+  }, []);
+
+  // 时间轴拖拽
+  const handleTimelineMouseDown = useCallback(
+    (marker: keyof SegmentMarkers, e: React.MouseEvent) => {
+      e.stopPropagation();
+      setDraggingMarker(marker);
+
+      const onMouseMove = (ev: MouseEvent) => {
+        const tl = timelineRef.current;
+        if (!tl) return;
+        const rect = tl.getBoundingClientRect();
+        const x = ev.clientX - rect.left;
+        const percent = Math.max(0, Math.min(1, x / rect.width));
+        const ms = percent * duration;
+        setMarker(marker, Math.round(ms));
+        seekTo(Math.round(ms));
+      };
+
+      const onMouseUp = () => {
+        setDraggingMarker(null);
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', onMouseUp);
+      };
+
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+    },
+    [duration, setMarker, seekTo]
+  );
 
   // 清空视频
   const handleClearVideo = useCallback(() => {
+    stopThreePhasePreview();
     setInputPath('');
     setSegments({ start: 0, loopStart: 0, loopEnd: 0, end: 0 });
     setCurrentTime(0);
@@ -300,12 +489,169 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, is
     setChromaKey({ enabled: false, color: '#00ff00', similarity: 40, blend: 15 });
     setTitle('');
     setEventType('');
-  }, []);
+  }, [stopThreePhasePreview]);
+
+  // Canvas 录制导出：播放视频并实时应用色度键，通过 MediaRecorder 录制为 WebM VP9 with Alpha
+  const recordCanvasWithChromaKey = useCallback((): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const video = videoRef.current;
+      if (!video) return reject(new Error('No video element'));
+
+      const w = video.videoWidth;
+      const h = video.videoHeight;
+      if (!w || !h) return reject(new Error('Video dimensions not available'));
+
+      // 创建录制用 canvas
+      const recordCanvas = document.createElement('canvas');
+      recordCanvas.width = w;
+      recordCanvas.height = h;
+      const ctx = recordCanvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return reject(new Error('Cannot get canvas context'));
+
+      // 设置 MediaRecorder（VP9 支持 Alpha 通道）
+      const mimeType = 'video/webm;codecs=vp9';
+      if (typeof MediaRecorder !== 'undefined' && !MediaRecorder.isTypeSupported(mimeType)) {
+        return reject(new Error('MediaRecorder VP9 not supported'));
+      }
+
+      const stream = recordCanvas.captureStream(30);
+      const recorder = new MediaRecorder(stream, {
+        mimeType,
+        videoBitsPerSecond: 4_000_000
+      });
+      const chunks: Blob[] = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunks.push(e.data);
+      };
+      recorder.onstop = () => {
+        resolve(new Blob(chunks, { type: 'video/webm' }));
+      };
+      recorder.onerror = () => reject(new Error('MediaRecorder error'));
+
+      // 解析色度键参数
+      const targetR = parseInt(chromaKey.color.slice(1, 3), 16);
+      const targetG = parseInt(chromaKey.color.slice(3, 5), 16);
+      const targetB = parseInt(chromaKey.color.slice(5, 7), 16);
+      const threshold = (chromaKey.similarity / 100) * 255;
+      const blendRange = chromaKey.blend;
+      const totalDuration = segments.end - segments.start;
+
+      // 开始录制
+      recorder.start(100); // 每 100ms 输出一次数据
+
+      // 开始播放
+      video.currentTime = segments.start / 1000;
+      video.muted = true;
+      video.play().catch(reject);
+
+      const drawFrame = () => {
+        const currentMs = video.currentTime * 1000;
+
+        if (currentMs >= segments.end - 16 || video.paused || video.ended) {
+          video.pause();
+          // 延迟停止录制确保最后一帧被捕获
+          setTimeout(() => recorder.stop(), 100);
+          return;
+        }
+
+        // 更新进度
+        setProcessProgress(Math.min(1, (currentMs - segments.start) / totalDuration));
+
+        // 绘制帧并应用色度键
+        ctx.drawImage(video, 0, 0, w, h);
+        const imageData = ctx.getImageData(0, 0, w, h);
+        const data = imageData.data;
+
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          const distance = Math.sqrt((r - targetR) ** 2 + (g - targetG) ** 2 + (b - targetB) ** 2);
+
+          if (distance < threshold) {
+            data[i + 3] = 0;
+          } else if (distance < threshold + blendRange) {
+            const alpha = ((distance - threshold) / blendRange) * 255;
+            data[i + 3] = Math.min(data[i + 3], alpha);
+          }
+        }
+
+        ctx.putImageData(imageData, 0, 0);
+        requestAnimationFrame(drawFrame);
+      };
+
+      requestAnimationFrame(drawFrame);
+    });
+  }, [chromaKey, segments]);
+
+  // 处理并导入精灵动画
+  const handleImport = useCallback(async () => {
+    if (!inputPath || processingFlag) return;
+    stopThreePhasePreview();
+    setInternalProcessing(true);
+    setProcessProgress(0);
+
+    try {
+      const id = 'sprite-' + Math.random().toString(36).slice(2, 10);
+      // 调整 loop 时间点为相对于裁剪后视频的开始位置
+      const adjustedLoopStart = hasLoop ? segments.loopStart - segments.start : undefined;
+      const adjustedLoopEnd = hasLoop ? segments.loopEnd - segments.start : undefined;
+      const trimmedDuration = segments.end - segments.start;
+
+      if (chromaKey.enabled) {
+        // Canvas 路径：实时录制色度键处理结果为 WebM VP9 with Alpha
+        const blob = await recordCanvasWithChromaKey();
+        const arrayBuffer = await blob.arrayBuffer();
+        await window.YUA.sprite.registerFromData({
+          data: arrayBuffer,
+          meta: {
+            id,
+            title: title || '自定义动画',
+            eventType: (eventType as any) || undefined
+          },
+          loopStartMs: adjustedLoopStart,
+          loopEndMs: adjustedLoopEnd,
+          durationMs: trimmedDuration
+        });
+      } else {
+        // FFmpeg 路径：仅裁剪 + 转码 WebM VP9
+        if (onProcess) {
+          await onProcess({ inputPath, segments, chromaKey, eventType, title });
+          return; // onProcess 负责后续流程
+        }
+        // Fallback: 直接调用 FFmpeg + 注册
+        const outputPath = inputPath.replace(/\.[^.\\/]+$/i, '') + '.sprite.webm';
+        await window.YUA.ffmpeg.convertToSpriteAnimation({
+          inputPath,
+          outputPath,
+          segments,
+          chromaKey: { enabled: false, color: '#00ff00', similarity: 0, blend: 0 }
+        });
+        await window.YUA.sprite.register({
+          filePath: outputPath,
+          loopStartMs: adjustedLoopStart,
+          loopEndMs: adjustedLoopEnd,
+          durationMs: trimmedDuration,
+          meta: {
+            id,
+            title: title || '自定义动画',
+            eventType: (eventType as any) || undefined
+          }
+        });
+      }
+
+      onImportComplete?.();
+    } catch (e: any) {
+      console.error('精灵导入失败:', e);
+    } finally {
+      setInternalProcessing(false);
+      setProcessProgress(0);
+    }
+  }, [inputPath, processingFlag, segments, chromaKey, eventType, title, hasLoop, stopThreePhasePreview, recordCanvasWithChromaKey, onProcess, onImportComplete]);
 
   return (
-    <div className="space-y-4">
-      {/* 文件选择 */}
-      {!inputPath ? (
+    <div className="h-full">
+      {!inputPath && (
         // 未选择视频时显示大按钮占位符
         <button
           onClick={handleSelectFile}
@@ -315,249 +661,454 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, is
           <div className="text-sm text-muted-foreground">点击选择视频文件</div>
           <div className="text-xs text-muted-foreground/60">支持 MOV, MP4, MKV, AVI, WebM 等格式</div>
         </button>
-      ) : (
-        // 已选择视频时显示路径和清空按钮
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground shrink-0 w-16">输入视频：</span>
-          <Input className="flex-1 bg-muted/50" value={inputPath} readOnly />
-          <Button size="icon" variant="ghost" onClick={handleClearVideo} title="清空重新选择">
-            <TbX />
-          </Button>
-        </div>
       )}
 
-      {inputPath && (
-        <>
-          {/* 视频预览区域 */}
-          <div className="flex gap-4">
-            {/* 视频播放器 */}
-            <div className="flex-1">
-              <div className="relative bg-black rounded-lg overflow-hidden aspect-[3/4] max-h-[300px] flex items-center justify-center">
-                <video
-                  ref={videoRef}
-                  className="max-h-full max-w-full"
-                  src={pathToResUrl(inputPath)}
-                  onLoadedMetadata={handleLoadedMetadata}
-                  onTimeUpdate={handleTimeUpdate}
-                  onEnded={() => setIsPlaying(false)}
-                  muted
-                  playsInline
-                />
-                {previewChroma && chromaKey.enabled && <canvas ref={canvasRef} className="absolute inset-0 w-full h-full object-contain" />}
-              </div>
-
-              {/* 播放控制 */}
-              <div className="flex items-center gap-2 mt-2">
-                <Button size="sm" variant="outline" onClick={togglePlay}>
-                  {isPlaying ? <TbPlayerPause /> : <TbPlayerPlay />}
-                </Button>
-                <span className="text-xs text-muted-foreground font-mono">
-                  {formatTime(currentTime)} / {formatTime(duration)}
-                </span>
-                <div className="flex-1" />
-                <Button size="sm" variant="outline" onClick={previewLoop} title="预览循环片段">
-                  循环预览
-                </Button>
-                <Button size="sm" variant="outline" onClick={previewFull} title="预览完整动画">
-                  完整预览
-                </Button>
-              </div>
-            </div>
-
-            {/* 元数据设置 */}
-            <div className="w-48 space-y-3">
-              <div>
-                <Label className="text-xs">动画标题</Label>
-                <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="动画名称" className="h-8" />
-              </div>
-              <div>
-                <Label className="text-xs">事件类型</Label>
-                <Input value={eventType} onChange={(e) => setEventType(e.target.value)} placeholder="如 idle, walk, click..." className="h-8" />
-              </div>
-            </div>
-          </div>
-
-          {/* 时间轴 */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs">片段标记</Label>
-              <div className="flex items-center gap-1">
-                <Button size="sm" variant="ghost" onClick={() => setZoomLevel((z) => Math.max(0.5, z - 0.5))}>
-                  <TbZoomOut />
-                </Button>
-                <span className="text-xs text-muted-foreground">{zoomLevel}x</span>
-                <Button size="sm" variant="ghost" onClick={() => setZoomLevel((z) => Math.min(4, z + 0.5))}>
-                  <TbZoomIn />
-                </Button>
-              </div>
-            </div>
-
-            {/* 时间轴可视化 */}
-            <div
-              className="relative h-16 bg-muted rounded-lg overflow-hidden cursor-pointer"
-              style={{ width: `${100 * zoomLevel}%`, minWidth: '100%' }}
-              onClick={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const percent = x / rect.width;
-                seekTo(percent * duration);
-              }}
-            >
-              {/* 播放进度线 */}
-              <div className="absolute top-0 bottom-0 w-0.5 bg-primary z-10" style={{ left: `${(currentTime / duration) * 100}%` }} />
-
-              {/* 片段标记 */}
-              {/* 开始标记 */}
-              <div className="absolute top-0 bottom-0 w-1 bg-green-500 cursor-ew-resize" style={{ left: `${(segments.start / duration) * 100}%` }} title={`开始: ${formatTime(segments.start)}`} />
-              {/* 循环开始标记 */}
-              <div
-                className="absolute top-0 bottom-0 w-1 bg-blue-500 cursor-ew-resize"
-                style={{ left: `${(segments.loopStart / duration) * 100}%` }}
-                title={`循环开始: ${formatTime(segments.loopStart)}`}
-              />
-              {/* 循环结束标记 */}
-              <div
-                className="absolute top-0 bottom-0 w-1 bg-blue-500 cursor-ew-resize"
-                style={{ left: `${(segments.loopEnd / duration) * 100}%` }}
-                title={`循环结束: ${formatTime(segments.loopEnd)}`}
-              />
-              {/* 结束标记 */}
-              <div className="absolute top-0 bottom-0 w-1 bg-red-500 cursor-ew-resize" style={{ left: `${(segments.end / duration) * 100}%` }} title={`结束: ${formatTime(segments.end)}`} />
-
-              {/* 循环区域高亮 */}
-              <div
-                className="absolute top-0 bottom-0 bg-blue-500/20"
-                style={{
-                  left: `${(segments.loopStart / duration) * 100}%`,
-                  width: `${((segments.loopEnd - segments.loopStart) / duration) * 100}%`
-                }}
-              />
-            </div>
-
-            {/* 标记时间输入 */}
-            <div className="grid grid-cols-4 gap-2">
-              <div>
-                <Label className="text-xs text-green-600">开始</Label>
-                <div className="flex items-center gap-1">
-                  <Input value={formatTime(segments.start)} onChange={(e) => setMarker('start', parseTime(e.target.value))} className="h-7 text-xs font-mono" />
-                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setMarkerAtCurrent('start')}>
-                    <TbCut className="w-3 h-3" />
+      <div
+        className="overflow-hidden"
+        style={{
+          height: 'calc(100% - 52px)'
+        }}
+      >
+        {inputPath && (
+          <>
+            <div className="relative">
+              <div className={`flex gap-2 ${previewChroma ? '' : ''}`}>
+                <div className="absolute top-2 right-2 z-10">
+                  <Button size="icon" onClick={handleClearVideo}>
+                    <TbX />
                   </Button>
                 </div>
-              </div>
-              <div>
-                <Label className="text-xs text-blue-600">循环开始</Label>
-                <div className="flex items-center gap-1">
-                  <Input value={formatTime(segments.loopStart)} onChange={(e) => setMarker('loopStart', parseTime(e.target.value))} className="h-7 text-xs font-mono" />
-                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setMarkerAtCurrent('loopStart')}>
-                    <TbCut className="w-3 h-3" />
-                  </Button>
+                {/* 原始视频 */}
+                <div className="relative bg-black rounded-lg overflow-hidden aspect-[3/4] max-h-[300px] flex items-center justify-center flex-1">
+                  {/* 阶段指示器 */}
+                  {previewPhase !== 'idle' && (
+                    <div className="absolute top-2 left-2 z-20 flex items-center gap-1">
+                      <span
+                        className={`px-2 py-0.5 rounded text-xs font-semibold text-white ${previewPhase === 'intro' ? 'bg-green-500' : previewPhase === 'loop' ? 'bg-blue-500' : previewPhase === 'outro' ? 'bg-red-500' : 'bg-gray-500'
+                          }`}
+                      >
+                        {previewPhase === 'intro' ? 'Intro' : previewPhase === 'loop' ? `Loop ${loopCount}/3` : previewPhase === 'outro' ? 'Outro' : ''}
+                      </span>
+                    </div>
+                  )}
+                  <video
+                    ref={videoRef}
+                    className="max-h-full max-w-full"
+                    src={pathToResUrl(inputPath)}
+                    onLoadedMetadata={handleLoadedMetadata}
+                    onTimeUpdate={handleTimeUpdate}
+                    onEnded={() => {
+                      setIsPlaying(false);
+                      stopThreePhasePreview();
+                    }}
+                    muted
+                    playsInline
+                  />
                 </div>
-              </div>
-              <div>
-                <Label className="text-xs text-blue-600">循环结束</Label>
-                <div className="flex items-center gap-1">
-                  <Input value={formatTime(segments.loopEnd)} onChange={(e) => setMarker('loopEnd', parseTime(e.target.value))} className="h-7 text-xs font-mono" />
-                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setMarkerAtCurrent('loopEnd')}>
-                    <TbCut className="w-3 h-3" />
+                {/* 抠图预览（启用色度键后自动显示） */}
+                {previewChroma && (
+                  <div
+                    className="relative rounded-lg overflow-hidden aspect-[3/4] max-h-[300px] flex items-center justify-center flex-1"
+                    style={{
+                      backgroundImage:
+                        'linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)',
+                      backgroundSize: '16px 16px',
+                      backgroundPosition: '0 0, 0 8px, 8px -8px, -8px 0px'
+                    }}
+                  >
+                    <canvas ref={canvasRef} className="max-h-full max-w-full object-contain" />
+                  </div>
+                )}
+                {/* 播放控制 */}
+                <div className="flex items-center gap-2 mt-2 absolute bottom-0 left-0 right-0 p-2 bg-background/10">
+                  <Button size="icon" variant="outline" className="w-8 h-8" onClick={togglePlay}>
+                    {isPlaying ? <TbPlayerPause /> : <TbPlayerPlay />}
                   </Button>
-                </div>
-              </div>
-              <div>
-                <Label className="text-xs text-red-600">结束</Label>
-                <div className="flex items-center gap-1">
-                  <Input value={formatTime(segments.end)} onChange={(e) => setMarker('end', parseTime(e.target.value))} className="h-7 text-xs font-mono" />
-                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setMarkerAtCurrent('end')}>
-                    <TbCut className="w-3 h-3" />
+                  <span className="text-xs text-muted-foreground font-mono">
+                    {formatTime(currentTime)} / {formatTime(duration)}
+                  </span>
+                  <div className="flex-1" />
+                  <Button size="sm" variant="outline" onClick={previewLoop} title="预览循环片段（无限循环）">
+                    循环预览
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={previewFull} title="预览完整动画（循环3次后结束）">
+                    完整预览
                   </Button>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* 背景抠图设置 */}
-          <div className="space-y-3 border-t pt-4">
-            <div className="flex items-center justify-between">
-              <Label className="text-sm">背景抠图（色度键）</Label>
-              <Switch checked={chromaKey.enabled} onCheckedChange={(checked) => setChromaKey((prev) => ({ ...prev, enabled: checked }))} />
-            </div>
+            {/* 时间轴 */}
+            <div className="w-full">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">片段标记</Label>
+                <div className="flex items-center gap-1">
+                  <Button size="sm" variant="ghost" onClick={() => setZoomLevel((z) => Math.max(0.5, z - 0.5))}>
+                    <TbZoomOut />
+                  </Button>
+                  <span className="text-xs text-muted-foreground">{zoomLevel}x</span>
+                  <Button size="sm" variant="ghost" onClick={() => setZoomLevel((z) => Math.min(4, z + 0.5))}>
+                    <TbZoomIn />
+                  </Button>
+                </div>
+              </div>
 
-            {chromaKey.enabled && (
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <Label className="text-xs">目标颜色</Label>
-                  <div className="flex items-center gap-2">
-                    <input type="color" value={chromaKey.color} onChange={(e) => setChromaKey((prev) => ({ ...prev, color: e.target.value }))} className="w-10 h-8 rounded cursor-pointer border" />
-                    <Input value={chromaKey.color} onChange={(e) => setChromaKey((prev) => ({ ...prev, color: e.target.value }))} className="h-8 font-mono text-xs" />
-                    {/* 预设颜色 */}
-                    <div className="flex gap-1">
-                      <button
-                        className="w-6 h-6 rounded bg-green-500 border-2 border-transparent hover:border-white"
-                        onClick={() => setChromaKey((prev) => ({ ...prev, color: '#00ff00' }))}
-                        title="绿色幕布"
+              {/* 时间轴容器 */}
+              <div style={{ width: `${100 * zoomLevel}%`, minWidth: '100%' }}>
+                {/* 上方标签行 - 跟随光标位置 */}
+                <div className="relative h-5 mb-1 overflow-visible">
+                  {/* 开始标签 - 如果与循环开始相同则隐藏 */}
+                  {!(hasLoop && segments.start === segments.loopStart) && (
+                    <div
+                      className="absolute text-[10px] text-green-600 font-medium whitespace-nowrap"
+                      style={{
+                        left: `${(segments.start / duration) * 100}%`,
+                        transform: getEdgeAwareTransform(segments.start / duration),
+                        opacity: getMarkerOpacity('start', draggingMarker)
+                      }}
+                    >
+                      开始
+                    </div>
+                  )}
+                  {/* 循环开始标签 */}
+                  {hasLoop && (
+                    <div
+                      className="absolute text-[10px] text-blue-600 font-medium whitespace-nowrap"
+                      style={{
+                        left: `${(segments.loopStart / duration) * 100}%`,
+                        transform: getEdgeAwareTransform(segments.loopStart / duration),
+                        opacity: getMarkerOpacity('loopStart', draggingMarker)
+                      }}
+                    >
+                      循环开始
+                    </div>
+                  )}
+                  {/* 循环区域中间 - 删除按钮 */}
+                  {hasLoop && (
+                    <div
+                      className="absolute flex items-center justify-center z-20"
+                      style={{ left: `${((segments.loopStart + segments.loopEnd) / 2 / duration) * 100}%`, transform: 'translateX(-50%)' }}
+                    >
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeLoop();
+                        }}
+                        title="移除循环片段"
+                      >
+                        <TbX />
+                      </Button>
+                    </div>
+                  )}
+                  {/* 循环结束标签 */}
+                  {hasLoop && (
+                    <div
+                      className="absolute text-[10px] text-blue-600 font-medium whitespace-nowrap"
+                      style={{
+                        left: `${(segments.loopEnd / duration) * 100}%`,
+                        transform: getEdgeAwareTransform(segments.loopEnd / duration),
+                        opacity: getMarkerOpacity('loopEnd', draggingMarker)
+                      }}
+                    >
+                      循环结束
+                    </div>
+                  )}
+                  {/* 结束标签 - 如果与循环结束相同则隐藏 */}
+                  {!(hasLoop && segments.end === segments.loopEnd) && (
+                    <div
+                      className="absolute text-[10px] text-red-600 font-medium whitespace-nowrap"
+                      style={{
+                        left: `${(segments.end / duration) * 100}%`,
+                        transform: getEdgeAwareTransform(segments.end / duration),
+                        opacity: getMarkerOpacity('end', draggingMarker)
+                      }}
+                    >
+                      结束
+                    </div>
+                  )}
+                </div>
+
+                {/* 中间时间轴 */}
+                <div
+                  ref={timelineRef}
+                  className="relative h-6 bg-muted rounded-lg overflow-hidden cursor-pointer"
+                  onClick={(e) => {
+                    if (draggingMarker) return;
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const percent = x / rect.width;
+                    // 如果没有循环片段，点击添加循环片段
+                    if (!hasLoop && duration > 0) {
+                      const clickTime = percent * duration;
+                      addLoop(clickTime);
+                    } else {
+                      seekTo(percent * duration);
+                    }
+                  }}
+                  onMouseMove={(e) => {
+                    if (hasLoop) return;
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    setHoverPosition(x / rect.width);
+                  }}
+                  onMouseLeave={() => setHoverPosition(null)}
+                >
+                  {/* Intro 区域（start → loopStart）*/}
+                  {duration > 0 && hasLoop && (
+                    <div
+                      className="absolute top-0 bottom-0 bg-green-500/10"
+                      style={{
+                        left: `${(segments.start / duration) * 100}%`,
+                        width: `${((segments.loopStart - segments.start) / duration) * 100}%`
+                      }}
+                    />
+                  )}
+                  {/* 循环区域高亮（loopStart → loopEnd）*/}
+                  {hasLoop && (
+                    <div
+                      className="absolute top-0 bottom-0 bg-blue-500/20"
+                      style={{
+                        left: `${(segments.loopStart / duration) * 100}%`,
+                        width: `${((segments.loopEnd - segments.loopStart) / duration) * 100}%`
+                      }}
+                    />
+                  )}
+                  {/* Outro 区域（loopEnd → end）*/}
+                  {duration > 0 && hasLoop && (
+                    <div
+                      className="absolute top-0 bottom-0 bg-red-500/10"
+                      style={{
+                        left: `${(segments.loopEnd / duration) * 100}%`,
+                        width: `${((segments.end - segments.loopEnd) / duration) * 100}%`
+                      }}
+                    />
+                  )}
+
+                  {/* 播放进度线 */}
+                  <div className="absolute top-0 bottom-0 w-0.5 bg-primary z-10" style={{ left: `${(currentTime / duration) * 100}%` }} />
+
+                  {/* 片段标记（可拖拽） */}
+                  {/* 开始光标 - 如果与循环开始相同则隐藏 */}
+                  {!(hasLoop && segments.start === segments.loopStart) && (
+                    <div
+                      className="absolute top-0 bottom-0 w-1.5 bg-green-500 cursor-ew-resize z-20 hover:w-2"
+                      style={{
+                        left: `${(segments.start / duration) * 100}%`,
+                        transform: 'translateX(-50%)',
+                        opacity: getMarkerOpacity('start', draggingMarker)
+                      }}
+                      onMouseDown={(e) => handleTimelineMouseDown('start', e)}
+                    />
+                  )}
+                  {hasLoop && (
+                    <>
+                      <div
+                        className="absolute top-0 bottom-0 w-1.5 bg-blue-500 cursor-ew-resize z-20 hover:w-2"
+                        style={{
+                          left: `${(segments.loopStart / duration) * 100}%`,
+                          transform: 'translateX(-50%)',
+                          opacity: getMarkerOpacity('loopStart', draggingMarker)
+                        }}
+                        onMouseDown={(e) => handleTimelineMouseDown('loopStart', e)}
                       />
-                      <button
-                        className="w-6 h-6 rounded bg-blue-500 border-2 border-transparent hover:border-white"
-                        onClick={() => setChromaKey((prev) => ({ ...prev, color: '#0000ff' }))}
-                        title="蓝色幕布"
+                      <div
+                        className="absolute top-0 bottom-0 w-1.5 bg-blue-500 cursor-ew-resize z-20 hover:w-2"
+                        style={{
+                          left: `${(segments.loopEnd / duration) * 100}%`,
+                          transform: 'translateX(-50%)',
+                          opacity: getMarkerOpacity('loopEnd', draggingMarker)
+                        }}
+                        onMouseDown={(e) => handleTimelineMouseDown('loopEnd', e)}
                       />
-                      <button
-                        className="w-6 h-6 rounded bg-black border-2 border-transparent hover:border-white"
-                        onClick={() => setChromaKey((prev) => ({ ...prev, color: '#000000' }))}
-                        title="黑色背景"
-                      />
-                      <button
-                        className="w-6 h-6 rounded bg-white border-2 border-gray-300 hover:border-blue-500"
-                        onClick={() => setChromaKey((prev) => ({ ...prev, color: '#ffffff' }))}
-                        title="白色背景"
+                    </>
+                  )}
+                  {/* 结束光标 - 如果与循环结束相同则隐藏 */}
+                  {!(hasLoop && segments.end === segments.loopEnd) && (
+                    <div
+                      className="absolute top-0 bottom-0 w-1.5 bg-red-500 cursor-ew-resize z-20 hover:w-2"
+                      style={{
+                        left: `${(segments.end / duration) * 100}%`,
+                        transform: 'translateX(-50%)',
+                        opacity: getMarkerOpacity('end', draggingMarker)
+                      }}
+                      onMouseDown={(e) => handleTimelineMouseDown('end', e)}
+                    />
+                  )}
+
+                  {/* 悬停时显示添加循环片段的图标 */}
+                  {!hasLoop && hoverPosition !== null && (
+                    <div className="absolute top-1/2 z-30 pointer-events-none" style={{ left: `${hoverPosition * 100}%`, transform: 'translate(-50%, -50%)' }}>
+                      <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs">
+                        <TbPlus />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 下方时间输入行 - 跟随光标位置 */}
+                <div className="relative h-7 mt-1 overflow-visible">
+                  {/* 开始时间 - 如果与循环开始相同则隐藏 */}
+                  {!(hasLoop && segments.start === segments.loopStart) && (
+                    <div
+                      className="absolute"
+                      style={{
+                        left: `${(segments.start / duration) * 100}%`,
+                        transform: getEdgeAwareTransform(segments.start / duration),
+                        opacity: getMarkerOpacity('start', draggingMarker)
+                      }}
+                    >
+                      <Input value={formatTime(segments.start)} onChange={(e) => setMarker('start', parseTime(e.target.value))} className="h-6 w-16 text-[10px] font-mono text-center px-1" />
+                    </div>
+                  )}
+                  {/* 循环开始时间 */}
+                  {hasLoop && (
+                    <div
+                      className="absolute"
+                      style={{
+                        left: `${(segments.loopStart / duration) * 100}%`,
+                        transform: getEdgeAwareTransform(segments.loopStart / duration),
+                        opacity: getMarkerOpacity('loopStart', draggingMarker)
+                      }}
+                    >
+                      <Input
+                        value={formatTime(segments.loopStart)}
+                        onChange={(e) => setMarker('loopStart', parseTime(e.target.value))}
+                        className="h-6 w-16 text-[10px] font-mono text-center px-1 text-blue-600"
                       />
                     </div>
+                  )}
+                  {/* 循环结束时间 */}
+                  {hasLoop && (
+                    <div
+                      className="absolute"
+                      style={{
+                        left: `${(segments.loopEnd / duration) * 100}%`,
+                        transform: getEdgeAwareTransform(segments.loopEnd / duration),
+                        opacity: getMarkerOpacity('loopEnd', draggingMarker)
+                      }}
+                    >
+                      <Input
+                        value={formatTime(segments.loopEnd)}
+                        onChange={(e) => setMarker('loopEnd', parseTime(e.target.value))}
+                        className="h-6 w-16 text-[10px] font-mono text-center px-1 text-blue-600"
+                      />
+                    </div>
+                  )}
+                  {/* 结束时间 - 如果与循环结束相同则隐藏 */}
+                  {!(hasLoop && segments.end === segments.loopEnd) && (
+                    <div
+                      className="absolute"
+                      style={{
+                        left: `${(segments.end / duration) * 100}%`,
+                        transform: getEdgeAwareTransform(segments.end / duration),
+                        opacity: getMarkerOpacity('end', draggingMarker)
+                      }}
+                    >
+                      <Input value={formatTime(segments.end)} onChange={(e) => setMarker('end', parseTime(e.target.value))} className="h-6 w-16 text-[10px] font-mono text-center px-1 text-red-600" />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* 背景抠图设置 */}
+            <div className="space-y-3 border-t pt-4">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm">背景抠图（色度键）</Label>
+                <Switch checked={chromaKey.enabled} onCheckedChange={(checked) => setChromaKey((prev) => ({ ...prev, enabled: checked }))} />
+              </div>
+
+              {chromaKey.enabled && (
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <Label className="text-xs">目标颜色</Label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={chromaKey.color}
+                        onChange={(e) => setChromaKey((prev) => ({ ...prev, color: e.target.value }))}
+                        className="w-8 h-8 rounded cursor-pointer border shrink-0"
+                      />
+                      <Input value={chromaKey.color} onChange={(e) => setChromaKey((prev) => ({ ...prev, color: e.target.value }))} className="h-8 font-mono text-xs" />
+                      {/* 预设颜色 */}
+                      <div className="flex gap-1">
+                        <button
+                          className="w-6 h-6 rounded bg-green-500 border-2 border-transparent hover:border-white"
+                          onClick={() => setChromaKey((prev) => ({ ...prev, color: '#00ff00' }))}
+                          title="绿色幕布"
+                        />
+                        <button
+                          className="w-6 h-6 rounded bg-blue-500 border-2 border-transparent hover:border-white"
+                          onClick={() => setChromaKey((prev) => ({ ...prev, color: '#0000ff' }))}
+                          title="蓝色幕布"
+                        />
+                        <button
+                          className="w-6 h-6 rounded bg-black border-2 border-transparent hover:border-white"
+                          onClick={() => setChromaKey((prev) => ({ ...prev, color: '#000000' }))}
+                          title="黑色背景"
+                        />
+                        <button
+                          className="w-6 h-6 rounded bg-white border-2 border-gray-300 hover:border-blue-500"
+                          onClick={() => setChromaKey((prev) => ({ ...prev, color: '#ffffff' }))}
+                          title="白色背景"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs">相似度阈值: {chromaKey.similarity}%</Label>
+                    <Slider value={[chromaKey.similarity]} onValueChange={([v]) => setChromaKey((prev) => ({ ...prev, similarity: v }))} min={1} max={100} className="mt-2" />
+                  </div>
+
+                  <div>
+                    <Label className="text-xs">边缘羽化: {chromaKey.blend}%</Label>
+                    <Slider value={[chromaKey.blend]} onValueChange={([v]) => setChromaKey((prev) => ({ ...prev, blend: v }))} min={1} max={50} className="mt-2" />
                   </div>
                 </div>
-
-                <div>
-                  <Label className="text-xs">相似度阈值: {chromaKey.similarity}%</Label>
-                  <Slider value={[chromaKey.similarity]} onValueChange={([v]) => setChromaKey((prev) => ({ ...prev, similarity: v }))} min={1} max={100} className="mt-2" />
-                </div>
-
-                <div>
-                  <Label className="text-xs">边缘羽化: {chromaKey.blend}%</Label>
-                  <Slider value={[chromaKey.blend]} onValueChange={([v]) => setChromaKey((prev) => ({ ...prev, blend: v }))} min={1} max={50} className="mt-2" />
-                </div>
-              </div>
-            )}
-
-            {chromaKey.enabled && (
-              <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" onClick={() => setPreviewChroma(!previewChroma)}>
-                  {previewChroma ? <TbEyeOff /> : <TbEye />}
-                  {previewChroma ? '隐藏预览' : '预览抠图效果'}
+              )}
+            </div>
+          </>
+        )}
+      </div>
+      {/* 处理按钮 */}
+      <div className="flex items-center w-full gap-2 border-t pt-4">
+        {inputPath && (
+          <>
+            <Input className="flex-1" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="动画名称" />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline">
+                  {eventType || '选择分类…'}
+                  <ChevronsUpDown />
                 </Button>
-                <span className="text-xs text-muted-foreground">预览效果为模拟显示，实际效果以转码结果为准</span>
-              </div>
-            )}
-          </div>
-
-          {/* 处理按钮 */}
-          <div className="flex items-center justify-end gap-2 border-t pt-4">
-            <Button
-              variant="default"
-              onClick={() =>
-                onProcess?.({
-                  inputPath,
-                  segments,
-                  chromaKey,
-                  eventType,
-                  title
-                })
-              }
-              disabled={isProcessing || !inputPath}
-            >
-              {isProcessing ? '处理中…' : '转码并导入'}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="max-h-[400px] overflow-y-auto">
+                <DropdownMenuItem onClick={() => setEventType('')}>未分类</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>动画事件</DropdownMenuLabel>
+                {Object.entries(SpriteEventGroups).map(([group, items]) => (
+                  <DropdownMenuSub key={group}>
+                    <DropdownMenuSubTrigger>{group}</DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      {items.map((ev) => (
+                        <DropdownMenuItem key={ev} onClick={() => setEventType(ev)}>
+                          {ev}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button variant="default" onClick={handleImport} disabled={processingFlag || !inputPath}>
+              {processingFlag ? (chromaKey.enabled ? `录制中… ${Math.round(processProgress * 100)}%` : '处理中…') : chromaKey.enabled ? '录制并导入' : '转码并导入'}
             </Button>
-          </div>
-        </>
-      )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

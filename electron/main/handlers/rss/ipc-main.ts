@@ -1,6 +1,7 @@
 import http from 'node:http';
 import https from 'node:https';
 
+import { AppEvent, eventManager } from '@packages/event';
 import { ipcMain } from 'electron';
 
 import { ResourcesRepo, RssFeedItemsRepo, WorkspacesRepo } from '../../db/repositories';
@@ -528,6 +529,7 @@ export function initRssHandlers(): void {
    * 获取 RSS Feed 内容（从网络获取最新数据并更新缓存）
    */
   ipcMain.handle('rss:fetchFeed', async (_event, params: FetchRssFeedParams) => {
+    eventManager.emit(AppEvent.SPRITE_RSS_REFRESH);
     try {
       const { resourceId, forceRefresh } = params;
       const resource = await ResourcesRepo.getById(resourceId);
@@ -634,6 +636,11 @@ export function initRssHandlers(): void {
         items: allItems,
         totalItems: allItems.length
       };
+
+      // 通知精灵有新内容
+      if (feed.items.length > 0) {
+        eventManager.emit(AppEvent.SPRITE_RSS_NEW_CONTENT, { message: `RSS 更新了 ${feed.items.length} 条内容` });
+      }
 
       return { success: true, data: completeFeed, cached: false };
     } catch (error: any) {

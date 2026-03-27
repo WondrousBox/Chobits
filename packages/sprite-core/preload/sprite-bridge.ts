@@ -17,6 +17,15 @@ export type SpriteBridgeType = {
   listByEvent(eventType?: string): Promise<SpriteAnimation[]>;
   get(id: string): Promise<SpriteAnimation | undefined>;
   register(anim: Partial<SpriteAnimation> & { filePath?: string }): Promise<SpriteAnimation>;
+  registerFromData(payload: {
+    data: ArrayBuffer;
+    meta?: Partial<SpriteAnimation['meta']>;
+    loopStartMs?: number;
+    loopEndMs?: number;
+    durationMs?: number;
+    width?: number;
+    height?: number;
+  }): Promise<SpriteAnimation>;
   remove(id: string, deleteFile?: boolean): Promise<{ ok: boolean }>;
   updateMeta(id: string, meta: Partial<SpriteAnimation['meta']>): Promise<{ ok: boolean; item?: SpriteAnimation }>;
 
@@ -49,6 +58,9 @@ export type SpriteBridgeType = {
   synthesizeSpeech(text: string): Promise<SpeakResult>;
   getSpeakConfig(): Promise<SpriteSpeakConfig>;
 
+  // 统一事件触发
+  trigger(eventType: string, options?: { message?: string; duration?: number; durationMs?: number; ctx?: any; silent?: boolean }): Promise<void>;
+
   // 临时资源根目录（用于视频预览等场景）
   addTempResourceRoot(root: string): Promise<{ success: boolean }>;
   setSpeakConfig(config: Partial<SpriteSpeakConfig>): Promise<SpriteSpeakConfig>;
@@ -74,6 +86,7 @@ export const spriteBridge: SpriteBridgeType = {
   listByEvent: (eventType) => ipcRenderer.invoke('sprite:listByEvent', { eventType }),
   get: (id) => ipcRenderer.invoke('sprite:get', { id }),
   register: (anim) => ipcRenderer.invoke('sprite:register', anim),
+  registerFromData: (payload) => ipcRenderer.invoke('sprite:registerFromData', payload),
   remove: (id, deleteFile) => ipcRenderer.invoke('sprite:remove', { id, deleteFile }),
   updateMeta: (id, meta) => ipcRenderer.invoke('sprite:updateMeta', { id, meta }),
 
@@ -119,6 +132,9 @@ export const spriteBridge: SpriteBridgeType = {
   resetSpeakConfig: () => ipcRenderer.invoke('sprite:speak:resetConfig'),
   getSpeakCacheStats: () => ipcRenderer.invoke('sprite:speak:getCacheStats'),
   clearSpeakCache: () => ipcRenderer.invoke('sprite:speak:clearCache'),
+
+  // ── 统一事件触发 ───────────────────────────────────────
+  trigger: (eventType, options) => ipcRenderer.invoke('sprite:trigger', { eventType, ...options }),
 
   // ── 临时资源根目录 ──────────────────────────────────────
   addTempResourceRoot: (root) => ipcRenderer.invoke('sprite:addTempResourceRoot', root),

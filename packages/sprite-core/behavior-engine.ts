@@ -239,6 +239,82 @@ export function createFavorDecayBehavior(): BehaviorDefinition {
   };
 }
 
+// ============ 自发行为：情感/动作/氛围/季节/特效 ============
+
+/** 创建情感自发行为 — 闲置时随机触发情感表达 */
+export function createEmotionBehavior(): BehaviorDefinition {
+  return {
+    id: 'idle-emotion',
+    name: '闲置情感表达',
+    enabled: true,
+    priority: 'low',
+    schedule: { type: 'random', minMs: 180000, maxMs: 300000 }, // 3-5分钟
+    conditions: [
+      (ctx) => ctx.spriteState === 'idle',
+      (ctx) => ctx.interactionStats.idleDuration > 60000 // 至少 1 分钟无交互
+    ],
+    probability: 0.6,
+    action: () => { }, // 由 SpriteManager 注册时覆盖
+    allowedStates: ['idle', 'bored'],
+    blockedStates: ['dragging', 'walking', 'running', 'sleeping', 'reacting']
+  };
+}
+
+/** 创建动作自发行为 — 闲置时随机触发小动作 */
+export function createActionBehavior(): BehaviorDefinition {
+  return {
+    id: 'idle-action',
+    name: '闲置小动作',
+    enabled: true,
+    priority: 'low',
+    schedule: { type: 'random', minMs: 300000, maxMs: 600000 }, // 5-10分钟
+    conditions: [
+      (ctx) => ctx.spriteState === 'idle',
+      (ctx) => ctx.interactionStats.idleDuration > 120000 // 至少 2 分钟无交互
+    ],
+    probability: 0.5,
+    action: () => { },
+    allowedStates: ['idle', 'bored'],
+    blockedStates: ['dragging', 'walking', 'running', 'sleeping', 'reacting']
+  };
+}
+
+/** 创建氛围自发行为 — idle 时的微动画补充（呼吸/眨眼/漂浮） */
+export function createAmbientBehavior(): BehaviorDefinition {
+  return {
+    id: 'idle-ambient',
+    name: '闲置氛围动画',
+    enabled: true,
+    priority: 'low',
+    schedule: { type: 'random', minMs: 30000, maxMs: 60000 }, // 30-60秒
+    conditions: [
+      (ctx) => ctx.spriteState === 'idle'
+    ],
+    probability: 0.7,
+    action: () => { },
+    allowedStates: ['idle'],
+    blockedStates: ['dragging', 'walking', 'running', 'sleeping', 'reacting']
+  };
+}
+
+/** 创建季节行为 — 根据日期触发季节/节日事件 */
+export function createSeasonalBehavior(): BehaviorDefinition {
+  return {
+    id: 'seasonal-greeting',
+    name: '季节/节日问候',
+    enabled: true,
+    priority: 'normal',
+    schedule: { type: 'interval', intervalMs: 3600000 }, // 每小时检查
+    conditions: [
+      (ctx) => ctx.spriteState === 'idle'
+    ],
+    probability: 1,
+    action: () => { },
+    allowedStates: ['idle'],
+    dailyLimit: 1 // 每天最多一次
+  };
+}
+
 // ============ BehaviorEngine 实现 ============
 
 export class BehaviorEngine {

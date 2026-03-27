@@ -1,56 +1,39 @@
-import { AnimatePresence, motion } from 'framer-motion';
 import React from 'react';
-import { TbChevronDown, TbMoodKid } from 'react-icons/tb';
+import { TbMoodKid } from 'react-icons/tb';
 
-import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 import SpriteManager from './SpriteManager';
 
-type SpriteSettingsProps = {
-  expanded: boolean;
-  onExpand: () => void;
-};
+/* ─── Hook (no state for sprite — always available) ─── */
 
-const SpriteSettings: React.FC<SpriteSettingsProps> = ({ expanded, onExpand }) => {
-  return (
-    <div className="space-y-3">
-      <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-              <TbMoodKid className="h-6 w-6" />
-            </div>
-            <div>
-              <div className="text-base font-semibold text-foreground">精灵管理</div>
-              <div className="text-sm text-muted-foreground">导入/删除动画，设为当前精灵</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className={`w-8 h-8 transition-transform ${expanded ? 'rotate-180' : ''}`} onClick={onExpand}>
-              <TbChevronDown className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
+export function useSpriteSettings() {
+  return {};
+}
 
-        <AnimatePresence initial={false}>
-          {expanded && (
-            <motion.div
-              key="sprite-settings-body"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.25, ease: 'easeInOut' }}
-              className="overflow-hidden"
-            >
-              <div className="pt-4">
-                <SpriteManager />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+export type SpriteSettingsState = ReturnType<typeof useSpriteSettings>;
+
+/* ─── Left-panel item (no switch — category 2) ─── */
+export const SpriteItem: React.FC<{
+  state: SpriteSettingsState;
+  selected: boolean;
+  onSelect: () => void;
+}> = ({ selected, onSelect }) => (
+  <div onClick={onSelect} className={cn('flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors hover:bg-accent/50', selected && 'bg-accent ring-1 ring-primary/30')}>
+    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary shrink-0">
+      <TbMoodKid className="h-5 w-5" />
     </div>
-  );
-};
+    <div className="flex-1 min-w-0">
+      <div className="text-sm font-medium text-foreground">精灵管理</div>
+      <div className="text-xs text-muted-foreground line-clamp-1">导入/删除动画，设为当前精灵</div>
+    </div>
+  </div>
+);
+
+/* ─── Right-panel detail ─── */
+export const SpriteDetailContent: React.FC<{ state: SpriteSettingsState }> = () => <SpriteManager />;
+
+/* ─── Default: self-contained detail (for SkillDetailPanel) ─── */
+const SpriteSettings: React.FC = () => <SpriteManager />;
 
 export default SpriteSettings;
