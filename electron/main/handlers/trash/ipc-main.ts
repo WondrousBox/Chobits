@@ -1,5 +1,7 @@
 import { ipcMain } from 'electron';
 
+import { AppEvent, eventManager } from '@packages/event';
+
 import { RecycleBinRepo } from '../../db/repositories';
 import { cleanupMemoryForConversations } from '../memory/memory-cleanup';
 
@@ -9,6 +11,9 @@ export function initTrashHandlers(): void {
   });
   ipcMain.handle('trash:restore', async (_e, payload: { recycleIds: string[] }) => {
     const restored = await RecycleBinRepo.restoreEntitiesByRecycleIds(payload.recycleIds || []);
+    if (restored > 0) {
+      eventManager.emit(AppEvent.SPRITE_TRASH_RESTORE, { message: `已恢复 ${restored} 个项目` });
+    }
     return { restored };
   });
   ipcMain.handle('trash:purge', async (_e, payload: { recycleIds: string[] }) => {
@@ -20,6 +25,9 @@ export function initTrashHandlers(): void {
       cleanupMemoryForConversations(convIds).catch((e) =>
         console.warn('[Trash] Memory cleanup after purge failed:', e)
       );
+    }
+    if (deleted > 0) {
+      eventManager.emit(AppEvent.SPRITE_TRASH_DELETE, { message: `已清除 ${deleted} 个项目` });
     }
     return { deleted };
   });
@@ -33,6 +41,9 @@ export function initTrashHandlers(): void {
       cleanupMemoryForConversations(convIds).catch((e) =>
         console.warn('[Trash] Memory cleanup after empty failed:', e)
       );
+    }
+    if (deleted > 0) {
+      eventManager.emit(AppEvent.SPRITE_TRASH_DELETE, { message: '回收站已清空' });
     }
     return { deleted };
   });

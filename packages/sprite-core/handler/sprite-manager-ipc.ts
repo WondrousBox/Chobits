@@ -223,6 +223,17 @@ export async function initSpriteManagerIPC(win: BrowserWindow, deps: SpriteManag
     return enabled;
   });
 
+  // ===== 统一事件触发 =====
+  ipcMain.handle('sprite:trigger', (_e, p: { eventType: string; message?: string; duration?: number; durationMs?: number; ctx?: any; silent?: boolean }) => {
+    mgr.trigger(p.eventType, {
+      message: p.message,
+      duration: p.duration,
+      durationMs: p.durationMs,
+      ctx: p.ctx,
+      silent: p.silent
+    });
+  });
+
   // ===== 启动引擎 =====
   await mgr.start();
 

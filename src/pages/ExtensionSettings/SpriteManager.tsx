@@ -18,19 +18,13 @@ import { Input } from '@/components/ui/input';
 import type { SpriteAnimation, SpriteEventType } from '@/features/sprite-assistant';
 import { SPRITE_EVENT_TYPES, SpriteEventGroups } from '@/features/sprite-assistant';
 import { makeResSrc } from '@/pages/ResourcePage/utils/resourceProtocol';
+
 import SpriteVideoEditor, { type SpriteVideoConfig } from './SpriteVideoEditor';
 
 function baseName(p: string): string {
   const parts = p.replace(/\\/g, '/').split('/');
   const last = parts[parts.length - 1] || '';
   return last;
-}
-
-function dirName(p: string): string {
-  if (!p) return '';
-  const norm = p.replace(/\\/g, '/');
-  const idx = norm.lastIndexOf('/');
-  return idx >= 0 ? p.slice(0, idx) : p;
 }
 
 // 小型预览组件：只有在 hover 时才真正挂载 <video>，离开时卸载，避免同时占用大量资源
@@ -240,52 +234,56 @@ export default function SpriteManager({ className }: { className?: string }): JS
       </div>
       {/* 精灵导入工具弹窗 */}
       <Dialog open={toolOpen} onOpenChange={setToolOpen}>
-        <DialogContent className="max-w-4xl h-[600px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl h-[600px] max-h-[90vh] overflow-none">
           <DialogHeader>
             <DialogTitle>精灵视频导入</DialogTitle>
           </DialogHeader>
-          <SpriteVideoEditor
-            initialConfig={spriteConfig}
-            onConfigChange={setSpriteConfig}
-            isProcessing={spriteProcessing}
-            onProcess={async (config) => {
-              if (!config.inputPath) return;
-              const outputPath = config.inputPath.replace(/\.[^.\\/]+$/i, '') + '.webm';
-              setSpriteProcessing(true);
-              try {
-                await window.YUA.ffmpeg.convertToSpriteAnimation({
-                  inputPath: config.inputPath,
-                  outputPath,
-                  segments: config.segments,
-                  chromaKey: config.chromaKey,
-                  meta: { eventType: config.eventType, title: config.title }
-                });
-                // 注册精灵
-                const id = 'sprite-' + Math.random().toString(36).slice(2, 10);
-                await window.YUA.sprite.register({
-                  filePath: outputPath,
-                  loopStartMs: config.segments?.loopStart,
-                  loopEndMs: config.segments?.loopEnd,
-                  meta: {
-                    id,
-                    title: config.title || '自定义动画',
-                    eventType: config.eventType || undefined
-                  }
-                });
+          <div className="overflow-hidden h-full w-full">
+            <SpriteVideoEditor
+              initialConfig={spriteConfig}
+              onConfigChange={setSpriteConfig}
+              isProcessing={spriteProcessing}
+              onImportComplete={async () => {
                 await refresh();
                 setToolOpen(false);
-                // 打开输出目录
-                const parent = dirName(outputPath);
-                if (parent) {
-                  await window.YUA.file['file:openPath'](parent);
+              }}
+              onProcess={async (config) => {
+                // FFmpeg 路径（无色度键时）
+                if (!config.inputPath) return;
+                const outputPath = config.inputPath.replace(/\.[^.\\/]+$/i, '') + '.sprite.webm';
+                setSpriteProcessing(true);
+                try {
+                  await window.YUA.ffmpeg.convertToSpriteAnimation({
+                    inputPath: config.inputPath,
+                    outputPath,
+                    segments: config.segments,
+                    chromaKey: { enabled: false, color: '#00ff00', similarity: 0, blend: 0 },
+                    meta: { eventType: config.eventType, title: config.title }
+                  });
+                  // 注册精灵（调整 loop 时间为相对于裁剪后的起始）
+                  const id = 'sprite-' + Math.random().toString(36).slice(2, 10);
+                  const hasLoop = config.segments.loopEnd > config.segments.loopStart;
+                  await window.YUA.sprite.register({
+                    filePath: outputPath,
+                    loopStartMs: hasLoop ? config.segments.loopStart - config.segments.start : undefined,
+                    loopEndMs: hasLoop ? config.segments.loopEnd - config.segments.start : undefined,
+                    durationMs: config.segments.end - config.segments.start,
+                    meta: {
+                      id,
+                      title: config.title || '自定义动画',
+                      eventType: config.eventType || undefined
+                    }
+                  });
+                  await refresh();
+                  setToolOpen(false);
+                } catch (e: any) {
+                  console.error('精灵导入失败:', e);
+                } finally {
+                  setSpriteProcessing(false);
                 }
-              } catch (e: any) {
-                console.error('精灵导入失败:', e);
-              } finally {
-                setSpriteProcessing(false);
-              }
-            }}
-          />
+              }}
+            />
+          </div>
         </DialogContent>
       </Dialog>
 

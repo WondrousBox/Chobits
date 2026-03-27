@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { ProxyAgent } from '@aim-packages/downloader';
 import { createDownloader } from '@aim-packages/downloader';
 import { windowManager } from '@aim-packages/window-manager';
+import { AppEvent, eventManager } from '@packages/event';
 import { BrowserWindow, ipcMain, net, screen } from 'electron';
 
 import { DownloadProgress, PluginResource, pluginResourceManager } from '.';
@@ -269,6 +270,7 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
       console.warn('[pluginResource] open download window failed', error);
     }
 
+    eventManager.emit(AppEvent.SPRITE_PLUGIN_INSTALL, { name: resource.name || resource.id });
     return { ok: true, data: resource };
   });
 
@@ -319,6 +321,9 @@ export function initPluginResourceHandlers(win: BrowserWindow, options?: InitOpt
   // 删除资源（从store中移除，不删除文件）
   ipcMain.handle('plugin-resource:remove', async (_e, payload: { id: string }) => {
     const removed = PluginResourceStore.remove(payload.id);
+    if (removed) {
+      eventManager.emit(AppEvent.SPRITE_PLUGIN_REMOVE, { name: payload.id });
+    }
     return { ok: removed };
   });
 

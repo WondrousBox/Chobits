@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import type { Downloader, ProxyAgent } from '@aim-packages/downloader';
+import { AppEvent, eventManager } from '@packages/event';
 import { app } from 'electron';
 
 import { DOWNLOAD_FOLDER_NAME } from '../common/config';
@@ -462,6 +463,7 @@ export class PluginResourceManager extends EventEmitter {
         totalBytes: task.resource.sizeBytes
       });
       console.log('[PluginDL] installed', { id: task.resource.id, installPath: task.resource.installPath });
+      eventManager.emit(AppEvent.SPRITE_DOWNLOAD_COMPLETE, { name: task.resource.name || task.resource.id });
     } catch (err: any) {
       if (err.name === 'AbortError') {
         task.resource.status = 'cancelled';
@@ -476,6 +478,7 @@ export class PluginResourceManager extends EventEmitter {
         });
         console.error('[PluginDL] failed', { id: task.resource.id, error: task.resource.lastError });
         this.emitProgress(task.resource.id, { status: 'failed', error: task.resource.lastError });
+        eventManager.emit(AppEvent.SPRITE_DOWNLOAD_FAIL, { name: task.resource.name || task.resource.id });
       }
       // 清理下载文件（如果存在）
       // 可能还在.download状态（下载失败或 hash 验证失败），也可能已经重命名为最终文件（但后续处理失败）

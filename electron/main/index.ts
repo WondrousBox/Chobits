@@ -159,6 +159,9 @@ async function createWindow(): Promise<void> {
     win?.webContents.send('main-process-message', new Date().toLocaleString());
   });
 
+  win.on('focus', () => eventManager.emit(AppEvent.SPRITE_SYSTEM_FOCUS));
+  win.on('blur', () => eventManager.emit(AppEvent.SPRITE_SYSTEM_BLUR));
+
   // Make all links open with the browser, not with the application
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https:')) shell.openExternal(url);
@@ -304,6 +307,7 @@ app.whenReady().then(async () => {
 
   // Emit App Started Event
   eventManager.emit(AppEvent.APP_STARTED);
+  eventManager.emit(AppEvent.SPRITE_SYSTEM_READY);
 });
 
 process.on('uncaughtException', function (error) {
@@ -342,6 +346,7 @@ app.on('activate', () => {
 });
 
 app.on('will-quit', async () => {
+  eventManager.emit(AppEvent.SPRITE_SYSTEM_QUIT);
   // Ensure shortcuts are fully unregistered on app quit
   unregisterGlobalShortcuts();
   // Flush workflow store

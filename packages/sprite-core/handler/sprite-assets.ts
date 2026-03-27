@@ -153,8 +153,9 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
     return foundDef ? ({ ...foundDef, meta: { ...foundDef.meta, deletable: false } } as SpriteAnimation) : undefined;
   });
 
-  ipcMain.handle('sprite:register', async (_e, payload: { animation?: Partial<SpriteAnimation> & { filePath?: string } }) => {
-    const anim = payload?.animation || {};
+  ipcMain.handle('sprite:register', async (_e, payload: (Partial<SpriteAnimation> & { filePath?: string }) | { animation?: Partial<SpriteAnimation> & { filePath?: string } }) => {
+    // Support both direct payload and wrapped { animation } format
+    const anim: Partial<SpriteAnimation> & { filePath?: string } = (payload as any)?.animation || payload || {};
     const srcPath = anim.filePath;
     const id = anim.meta?.id || randomUUID();
     const title = anim.meta?.title || id;
@@ -223,6 +224,68 @@ export function initSpriteHandlers(injectedDeps: SpriteAssetsDeps): void {
     await writeUserIndex(idx);
     return newItem;
   });
+
+  // 从 ArrayBuffer 数据注册精灵（用于 Canvas 录制导出）
+  ipcMain.handle(
+    'sprite:registerFromData',
+    async (
+      _e,
+      payload: {
+        data: ArrayBuffer | Buffer;
+        meta?: Partial<SpriteAnimation['meta']>;
+        loopStartMs?: number;
+        loopEndMs?: number;
+        durationMs?: number;
+        width?: number;
+        height?: number;
+      }
+    ) => {
+      const { data, meta, loopStartMs, loopEndMs, durationMs, width, height } = payload || ({} as any);
+      if (!data || !(data instanceof ArrayBuffer || Buffer.isBuffer(data))) {
+        throw new Error('[sprite:registerFromData] data is required (ArrayBuffer or Buffer)');
+      }
+
+      const id = meta?.id || randomUUID();
+      const title = meta?.title || id;
+      const spritesDir = await getUserSpritesDir();
+
+      const baseName = `${id}.webm`;
+      let finalPath = path.join(spritesDir, baseName);
+      let counter = 1;
+      while (fscb.existsSync(finalPath)) {
+        finalPath = path.join(spritesDir, `${id}-${counter}.webm`);
+        counter++;
+      }
+
+      // Write buffer to file
+      const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
+      await fs.writeFile(finalPath, buf);
+
+      const newItem: SpriteAnimation = {
+        meta: { id, title, description: meta?.description, tags: meta?.tags, coverSrc: meta?.coverSrc, eventType: meta?.eventType },
+        source: { localPath: finalPath, type: 'video/webm' },
+        width: width ?? 180,
+        height: height ?? 240,
+        padding: 100,
+        autoplay: true,
+        muted: true,
+        playsInline: true,
+        loop: false,
+        autoIdle: true,
+        loopStartMs,
+        loopEndMs,
+        durationMs
+      };
+      (newItem.meta as any).deletable = true;
+
+      const idx = await readIndex(spritesDir);
+      const existedIdx = idx.items.findIndex((i) => i.meta.id === id);
+      if (existedIdx >= 0) idx.items.splice(existedIdx, 1, newItem);
+      else idx.items.push(newItem);
+      await writeUserIndex(idx);
+      return newItem;
+    }
+  );
 
   ipcMain.handle('sprite:remove', async (_e, payload: { id: string; deleteFile?: boolean }) => {
     const { id, deleteFile } = payload || ({} as any);
