@@ -124,9 +124,16 @@ const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
   },
   'memory-save': {
     category: 'content',
-    description: '将用户明确要求记住的信息保存到长期记忆',
+    description: '将重要信息保存到长期记忆（用户要求记住或对话中出现重要内容时自主保存）',
     compatName: 'memorySaveTool',
     name: 'memorySaveTool',
+    status: 'ready-for-pi-runtime'
+  },
+  'toolbox-lookup': {
+    category: 'meta',
+    description: '查找工具箱中的技能使用说明，了解工具的使用方法和工作流程',
+    compatName: 'toolboxLookupTool',
+    name: 'toolboxLookupTool',
     status: 'ready-for-pi-runtime'
   }
 };
@@ -144,7 +151,8 @@ export const DEFAULT_SESSION_TOOL_IDS = [
   'memory-search',
   'memory-get',
   'memory-topics',
-  'memory-save'
+  'memory-save',
+  'toolbox-lookup'
 ];
 
 function createToolDescriptor(toolId: string): PiToolDescriptor | undefined {

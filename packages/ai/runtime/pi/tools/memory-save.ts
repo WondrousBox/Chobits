@@ -1,15 +1,12 @@
-import * as fs from 'node:fs/promises';
-import * as path from 'node:path';
-
 import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
-import { MemoryEdgeRepo, MemoryFTSRepo, MemoryKeywordRepo, MemoryNoteKeywordRepo, MemoryNoteRepo, MemorySectionRepo, MemoryTopicRepo, WorkspacesRepo } from '@packages/common/db';
+import { WorkspacesRepo } from '@packages/common/db';
 import { Type } from '@sinclair/typebox';
 
-import { parseSections } from '../../../services/memory-note-parser';
-import { buildNotePath, generateNoteId, renderNoteMarkdown } from '../../../services/memory-note-writer';
+import { writeMemory } from '../../../services/memory-extraction-service';
+import { buildNotePath, generateNoteId } from '../../../services/memory-note-writer';
 import type { MemoryNoteFrontmatter, MergedNote } from '../../../services/memory-types';
 import type { PiSessionToolContext } from '../tool-context';
-import { resolveWorkspaceId } from './memory-db-deps';
+import { buildWriteDbOps, resolveWorkspaceId } from './memory-db-deps';
 import { createJsonToolResult } from './result';
 
 const memorySaveParameters = Type.Object({
@@ -24,7 +21,8 @@ export function createPiMemorySaveTool(toolContext: PiSessionToolContext): ToolD
   return {
     name: 'memorySaveTool',
     label: 'memorySaveTool',
-    description: '将用户明确要求记住的信息保存到长期记忆。当用户说"记住"、"帮我记一下"、"保存这个"等意图时使用。不要用于临时信息，只保存用户明确想要长期保留的内容。',
+    description:
+      '将重要信息保存到长期记忆。两种使用场景：1) 用户明确要求记住（说"记住"、"帮我记一下"等）；2) 对话中出现了值得长期记录的重要内容（如用户偏好、重要决策、项目计划、技术方案等），应主动保存。不要保存临时闲聊或通用知识问答。',
     parameters: memorySaveParameters,
 
     async execute(_toolCallId, input) {
@@ -74,129 +72,7 @@ export function createPiMemorySaveTool(toolContext: PiSessionToolContext): ToolD
           filePath
         };
 
-        // Write markdown file
-        const absolutePath = path.join(ws.rootPath, filePath);
-        await fs.mkdir(path.dirname(absolutePath), { recursive: true });
-        const markdownContent = renderNoteMarkdown(merged);
-        await fs.writeFile(absolutePath, markdownContent, 'utf-8');
-
-        // Parse sections for DB
-        const parsedSections = parseSections(markdownContent, noteId);
-
-        // Write to DB
-        await MemoryNoteRepo.upsert({
-          id: noteId,
-          version: 1,
-          workspaceId,
-          date,
-          filePath,
-          topics: JSON.stringify([input.topic]),
-          keywords: JSON.stringify(input.keywords),
-          summary,
-          sourceConversationIds: JSON.stringify(conversationId ? [conversationId] : []),
-          importance: input.importance ?? 0.7,
-          stability: 0.8,
-          sectionCount: parsedSections.length,
-          charCount: markdownContent.length,
-          tokenEstimate: Math.round(markdownContent.length / 2.5),
-          createdAt: now,
-          updatedAt: now
-        });
-
-        // Rebuild sections
-        await MemorySectionRepo.rebuildForNote(
-          noteId,
-          parsedSections.map((sec, idx) => ({
-            noteId,
-            heading: sec.heading,
-            headingLevel: sec.headingLevel,
-            sectionOrder: idx,
-            summary: sec.summary,
-            keywords: sec.keywords?.length ? JSON.stringify(sec.keywords) : null,
-            lineStart: sec.lineStart,
-            lineEnd: sec.lineEnd,
-            charCount: sec.charCount
-          }))
-        );
-
-        // Upsert topic
-        const existing = await MemoryTopicRepo.findBySlug(topicSlug, workspaceId);
-        if (existing) {
-          await MemoryTopicRepo.updateHeat(existing.id, 0.1);
-        } else {
-          await MemoryTopicRepo.upsert({
-            id: `topic_${topicSlug}`,
-            label: input.topic,
-            slug: topicSlug,
-            workspaceId,
-            heat: 1.0,
-            noteCount: 1,
-            firstSeenAt: now,
-            lastSeenAt: now,
-            createdAt: now,
-            updatedAt: now
-          });
-        }
-
-        // Upsert edges (topic → note)
-        await MemoryEdgeRepo.bulkUpsert([
-          {
-            sourceType: 'topic',
-            sourceId: `topic_${topicSlug}`,
-            targetType: 'note',
-            targetId: noteId,
-            relationType: 'belongs_to_topic',
-            workspaceId,
-            weight: 1.0,
-            createdAt: now,
-            updatedAt: now
-          }
-        ]);
-
-        // Upsert keywords
-        const links: any[] = [];
-        for (const kw of input.keywords) {
-          const canonical = kw.toLowerCase().trim();
-          if (!canonical) continue;
-          const row = await MemoryKeywordRepo.upsertCanonical({
-            id: `kw_${canonical.replace(/[^a-z0-9\u4e00-\u9fff]+/g, '_').slice(0, 40)}`,
-            canonical,
-            workspaceId,
-            aliases: null,
-            entityType: null,
-            occurrenceCount: 1,
-            createdAt: now,
-            updatedAt: now
-          });
-          if (row) {
-            links.push({ keywordId: row.id, noteId, weight: 1.0, createdAt: now });
-          }
-        }
-        if (links.length) {
-          await MemoryNoteKeywordRepo.rebuildForNote(noteId, links);
-        }
-
-        // Rebuild FTS index
-        MemoryFTSRepo.rebuildForNote(
-          noteId,
-          {
-            title: input.topic,
-            summary,
-            keywords: input.keywords.join(' '),
-            aliases: '',
-            entities: '',
-            body: input.content
-          },
-          parsedSections.map((sec) => ({
-            id: `${noteId}_sec_${sec.heading.replace(/\s+/g, '_').toLowerCase()}`,
-            title: sec.heading,
-            summary: sec.summary,
-            keywords: (sec.keywords || []).join(' '),
-            aliases: '',
-            entities: '',
-            body: sec.summary
-          }))
-        );
+        await writeMemory(merged, { workspaceRoot: ws.rootPath }, buildWriteDbOps());
 
         return createJsonToolResult({
           success: true,

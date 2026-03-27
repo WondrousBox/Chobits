@@ -7,8 +7,8 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
-import { buildNotePath, buildSectionsMap, generateNoteId, renderNoteMarkdown } from './memory-note-writer';
 import { parseSections } from './memory-note-parser';
+import { buildNotePath, buildSectionsMap, generateNoteId, renderNoteMarkdown } from './memory-note-writer';
 import type {
   CollectedConversation,
   CollectInput,
@@ -181,11 +181,7 @@ export async function splitTopics(collected: CollectOutput, ctx: ExtractionConte
 /**
  * Step 3: Extract — 对每个主题块调用 LLM 结构化提取
  */
-export async function extractMemory(
-  cluster: TopicCluster,
-  collected: CollectOutput,
-  ctx: ExtractionContext
-): Promise<MemoryExtractionOutput | null> {
+export async function extractMemory(cluster: TopicCluster, collected: CollectOutput, ctx: ExtractionContext): Promise<MemoryExtractionOutput | null> {
   // 筛选相关消息
   const relevantMessages = collected.conversations.flatMap((c) => {
     const ranges = cluster.messageRanges.filter((r) => r.conversationId === c.conversationId);
@@ -286,18 +282,16 @@ export function mergeMemory(
  * Step 5: Write — 落盘 + 建索引
  * 返回写入统计。数据库操作需由调用方传入（避免直接依赖 electron/main/db）。
  */
-export async function writeMemory(
-  merged: MergedNote,
-  ctx: ExtractionContext,
-  dbOps: {
-    upsertNote: (note: any) => Promise<any>;
-    rebuildSections: (noteId: string, sections: any[]) => Promise<any>;
-    upsertTopic: (topic: any) => Promise<any>;
-    upsertEdges: (edges: any[]) => Promise<number>;
-    upsertKeywords: (noteId: string, keywords: string[], entities: any[], workspaceId: string) => Promise<number>;
-    rebuildFTS: (noteId: string, noteData: any, sections: any[]) => void;
-  }
-): Promise<WriteStats> {
+export interface WriteDbOps {
+  upsertNote: (note: any) => Promise<any>;
+  rebuildSections: (noteId: string, sections: any[]) => Promise<any>;
+  upsertTopic: (topic: any) => Promise<any>;
+  upsertEdges: (edges: any[]) => Promise<number>;
+  upsertKeywords: (noteId: string, keywords: string[], entities: any[], workspaceId: string) => Promise<number>;
+  rebuildFTS: (noteId: string, noteData: any, sections: any[]) => void;
+}
+
+export async function writeMemory(merged: MergedNote, ctx: { workspaceRoot: string }, dbOps: WriteDbOps): Promise<WriteStats> {
   const stats: WriteStats = { notesCreated: 0, notesUpdated: 0, topicsCreated: 0, edgesCreated: 0, keywordsCreated: 0 };
 
   // 5a. 写 Markdown 文件（事务外）
@@ -386,12 +380,7 @@ export async function writeMemory(
   stats.edgesCreated += await dbOps.upsertEdges(edges);
 
   // 5f. upsert keywords
-  stats.keywordsCreated += await dbOps.upsertKeywords(
-    merged.noteId,
-    merged.frontmatter.keywords,
-    merged.frontmatter.entities || [],
-    merged.frontmatter.workspaceId
-  );
+  stats.keywordsCreated += await dbOps.upsertKeywords(merged.noteId, merged.frontmatter.keywords, merged.frontmatter.entities || [], merged.frontmatter.workspaceId);
 
   // 5g. rebuild FTS
   const topics = merged.frontmatter.topics;
@@ -504,10 +493,7 @@ function dedup<T>(arr: T[]): T[] {
   return [...new Set(arr)];
 }
 
-function mergeEntities(
-  existing: Array<{ name: string; type: string }>,
-  incoming: Array<{ name: string; type: string }>
-): Array<{ name: string; type: string }> {
+function mergeEntities(existing: Array<{ name: string; type: string }>, incoming: Array<{ name: string; type: string }>): Array<{ name: string; type: string }> {
   const map = new Map<string, { name: string; type: string }>();
   for (const e of existing) map.set(e.name.toLowerCase(), e);
   for (const e of incoming) map.set(e.name.toLowerCase(), e);

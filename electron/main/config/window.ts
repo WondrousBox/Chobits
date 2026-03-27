@@ -23,6 +23,7 @@ declare module '@aim-packages/window-manager' {
     skillTree: void;
     levelUp: void;
     webRecorder: void;
+    memoryGraph: void;
   }
 }
 
@@ -544,6 +545,34 @@ const defaultWindowConfigs: Record<WindowKey, WindowConfig> = {
       show: false,
       backgroundColor: '#00000000',
       webPreferences: { nodeIntegration: true, contextIsolation: true }
+    }
+  },
+  memoryGraph: {
+    routeHash: 'memory-graph',
+    autoCenterOn: 'parent-display',
+    showOnReady: true,
+    openDevTools: false,
+    options: {
+      width: 1100,
+      height: 750,
+      minWidth: 700,
+      minHeight: 500,
+      frame: false,
+      transparent: false,
+      resizable: true,
+      show: false,
+      backgroundColor: '#00000000',
+      webPreferences: { nodeIntegration: true, contextIsolation: true }
+    },
+    platformOverlays: {
+      darwin: {
+        options: {
+          titleBarStyle: 'hiddenInset',
+          titleBarOverlay: true,
+          trafficLightPosition: { x: 20, y: HEADER_COMMANDS_HEIGHT / 2 - MACOS_TRAFFIC_LIGHTS_HEIGHT / 2 },
+          frame: true
+        }
+      }
     }
   }
 };

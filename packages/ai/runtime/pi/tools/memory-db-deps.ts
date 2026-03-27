@@ -3,8 +3,9 @@
  * Adapts the concrete repository implementations to the RetrievalDbDeps interface.
  */
 
-import { MemoryEdgeRepo, MemoryFTSRepo, MemoryKeywordRepo, MemoryNoteRepo, MemorySectionRepo, MemoryTopicRepo, WorkspacesRepo } from '@packages/common/db';
+import { MemoryEdgeRepo, MemoryFTSRepo, MemoryKeywordRepo, MemoryNoteKeywordRepo, MemoryNoteRepo, MemorySectionRepo, MemoryTopicRepo, WorkspacesRepo } from '@packages/common/db';
 
+import type { WriteDbOps } from '../../../services/memory-extraction-service';
 import type { RetrievalDbDeps } from '../../../services/memory-retrieval-service';
 
 export function buildRetrievalDbDeps(): RetrievalDbDeps {
@@ -27,6 +28,64 @@ export function buildRetrievalDbDeps(): RetrievalDbDeps {
     getWorkspaceRoot: async (workspaceId) => {
       const ws = await WorkspacesRepo.getById(workspaceId);
       return ws?.rootPath ?? null;
+    }
+  };
+}
+
+export function buildWriteDbOps(): WriteDbOps {
+  return {
+    upsertNote: (note: any) => MemoryNoteRepo.upsert(note),
+    rebuildSections: (noteId: string, sections: any[]) => MemorySectionRepo.rebuildForNote(noteId, sections),
+    upsertTopic: async (topic: any) => {
+      const existing = await MemoryTopicRepo.findBySlug(topic.slug, topic.workspaceId);
+      if (existing) {
+        await MemoryTopicRepo.updateHeat(existing.id, 0.05);
+        return null;
+      }
+      return MemoryTopicRepo.upsert({
+        id: `topic_${topic.slug}`,
+        ...topic,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      });
+    },
+    upsertEdges: (edges: any[]) =>
+      MemoryEdgeRepo.bulkUpsert(
+        edges.map((e) => ({
+          ...e,
+          weight: 1.0,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        }))
+      ),
+    upsertKeywords: async (noteId: string, keywords: string[], entities: any[], workspaceId: string) => {
+      let created = 0;
+      const links: any[] = [];
+      for (const kw of keywords) {
+        const canonical = kw.toLowerCase().trim();
+        if (!canonical) continue;
+        const row = await MemoryKeywordRepo.upsertCanonical({
+          id: `kw_${canonical.replace(/[^a-z0-9\u4e00-\u9fff]+/g, '_').slice(0, 40)}`,
+          canonical,
+          workspaceId,
+          aliases: null,
+          entityType: entities.find((e: any) => e.name?.toLowerCase() === canonical)?.type ?? null,
+          occurrenceCount: 1,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        });
+        if (row) {
+          created++;
+          links.push({ keywordId: row.id, noteId, weight: 1.0, createdAt: Date.now() });
+        }
+      }
+      if (links.length) {
+        await MemoryNoteKeywordRepo.rebuildForNote(noteId, links);
+      }
+      return created;
+    },
+    rebuildFTS: (noteId: string, noteData: any, sections: any[]) => {
+      MemoryFTSRepo.rebuildForNote(noteId, noteData, sections);
     }
   };
 }

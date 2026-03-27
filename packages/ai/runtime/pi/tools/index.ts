@@ -16,6 +16,7 @@ import { createPiReadSubtitleTool } from './read-subtitle';
 import { createPiResourceQueryTool } from './resource-query';
 import { createPiShellExecTool } from './shell-exec';
 import { createPiSummaryTool } from './summary';
+import { createPiToolboxLookupTool } from './toolbox-lookup';
 import { createPiTranslationTool } from './translation';
 import { createPiYoutubeDownloadTool } from './youtube-download';
 import { createPiYoutubeSubscribeTool } from './youtube-subscribe';
@@ -40,7 +41,8 @@ const PI_CUSTOM_TOOL_FACTORIES: Record<string, PiToolFactory> = {
   'memory-search': createPiMemorySearchTool,
   'memory-get': createPiMemoryGetTool,
   'memory-save': createPiMemorySaveTool,
-  'memory-topics': createPiMemoryTopicsTool
+  'memory-topics': createPiMemoryTopicsTool,
+  'toolbox-lookup': createPiToolboxLookupTool
 };
 
 export function createPiCustomTools(enabledToolIds: string[], toolContext: PiSessionToolContext): ToolDefinition[] {
