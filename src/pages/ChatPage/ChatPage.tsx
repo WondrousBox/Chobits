@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { TbChevronRight, TbDots, TbEdit, TbHistory, TbLoader2, TbPin, TbPlus, TbRefresh, TbShare, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
-import { ChatInputWithService, ChatMessageRenderer, ResourceCard } from '@/components/chat';
-import type { ChatCard } from '@/components/chat/types';
+import { ChatInputWithService, ChatMessageRenderer } from '@/components/chat';
+import type { ToolActivity } from '@/components/chat/ToolCallActivity';
+import ToolCallActivity from '@/components/chat/ToolCallActivity';
 import DragAbleTitle from '@/components/common/DragAbleTitle';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
@@ -19,9 +20,8 @@ interface ChatPageProps {
 }
 
 export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.Element {
-  const { providerId, modelId, presetId, agentId, codingWorkspaceRoot, codingWorkspaceLabel, setProviderId, setModelId, setPresetId, setAgentId, setCodingWorkspace } =
-    useChatSelection();
-  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string; createdAt?: number }>>([]);
+  const { providerId, modelId, presetId, agentId, codingWorkspaceRoot, codingWorkspaceLabel, setProviderId, setModelId, setPresetId, setAgentId, setCodingWorkspace } = useChatSelection();
+  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string; createdAt?: number; activities?: ToolActivity[] }>>([]);
   const [loading, setLoading] = useState(false);
   // Provider/preset/agent are managed inside ChatInputBar now
   const [conversationId, setConversationId] = useState<string | undefined>(undefined);
@@ -43,9 +43,6 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
   // 删除确认弹窗状态
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingConvId, setDeletingConvId] = useState<string | null>(null);
-
-  // Pushed cards from main process
-  const [pushedCards, setPushedCards] = useState<Array<ChatCard & { timestamp: number; text?: string }>>([]);
 
   const currentConversation = useMemo(() => conversations.find((c) => c.id === conversationId) || null, [conversations, conversationId]);
 
@@ -78,7 +75,20 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
     setConversationId(id);
     try {
       const rows = await window.YUA.ai.listMessages(id, 2000, 0);
-      const mapped = (rows || []).map((r: any) => ({ role: r.role, content: r.content, createdAt: r.createdAt }));
+      const mapped = (rows || []).map((r: any) => {
+        let activities: ToolActivity[] | undefined;
+        if (r.metadata) {
+          try {
+            const meta = typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata;
+            if (Array.isArray(meta?.toolCalls)) {
+              activities = meta.toolCalls.map((tc: any) => ({ callId: tc.callId, name: tc.name, args: tc.args, status: 'done' as const, result: tc.result }));
+            }
+          } catch {
+            /* ignore parse errors */
+          }
+        }
+        return { role: r.role, content: r.content, createdAt: r.createdAt, ...(activities ? { activities } : {}) };
+      });
       setMessages(mapped);
     } catch {
       // Let parent surface errors
@@ -134,17 +144,10 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
   };
 
   // 使用 ref 保存 start 函数引用，供 IPC 回调使用
-  const startRef = useRef<
-    (params: {
-      content: string;
-      providerId?: string;
-      modelId?: string;
-      preferredPresetId?: string;
-      agentId?: string;
-      codingWorkspaceRoot?: string;
-      codingWorkspaceLabel?: string;
-    }) => Promise<void>
-  >();
+  const startRef =
+    useRef<
+      (params: { content: string; providerId?: string; modelId?: string; preferredPresetId?: string; agentId?: string; codingWorkspaceRoot?: string; codingWorkspaceLabel?: string }) => Promise<void>
+    >();
 
   // Listen for initial message from assistant window (on:window:open:ready)
   useEffect(() => {
@@ -287,9 +290,9 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
           model: selectedModelId,
           ...(selectedAgentId === 'coder' && selectedCodingWorkspaceRoot
             ? {
-                codingWorkspaceRoot: selectedCodingWorkspaceRoot,
-                codingWorkspaceLabel: selectedCodingWorkspaceLabel || undefined
-              }
+              codingWorkspaceRoot: selectedCodingWorkspaceRoot,
+              codingWorkspaceLabel: selectedCodingWorkspaceLabel || undefined
+            }
             : {})
         }
       },
@@ -299,6 +302,29 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
           setSelectedConvId(ev.data.conversationId);
           // Refresh conversation list so the new conversation appears in sidebar
           loadConversations();
+        }
+        if (ev?.type === 'tool_call' && ev.data) {
+          setMessages((prev) => {
+            const idx = assistantIndexRef.current;
+            if (idx < 0 || idx >= prev.length) return prev;
+            const copy = prev.slice();
+            const m = copy[idx];
+            const existing = m.activities || [];
+            const activity: ToolActivity = { callId: ev.data.callId, name: ev.data.name, args: ev.data.args, status: 'calling' };
+            copy[idx] = { ...m, activities: [...existing, activity] };
+            return copy;
+          });
+        }
+        if (ev?.type === 'tool_result' && ev.data) {
+          setMessages((prev) => {
+            const idx = assistantIndexRef.current;
+            if (idx < 0 || idx >= prev.length) return prev;
+            const copy = prev.slice();
+            const m = copy[idx];
+            const updated = (m.activities || []).map((a) => (a.callId === ev.data.callId ? { ...a, status: 'done' as const, result: ev.data.result } : a));
+            copy[idx] = { ...m, activities: updated };
+            return copy;
+          });
         }
         if (ev?.type === 'delta' && ev.data?.text) {
           const delta: string = ev.data.text;
@@ -354,23 +380,6 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
   useEffect(() => {
     startRef.current = start;
   });
-
-  // Listen for card push events from main process
-  useEffect(() => {
-    const dispose = window.YUA.ai.onCardPushed((card) => {
-      // Only accept cards for current conversation or broadcast (no conversationId)
-      if (card.conversationId && card.conversationId !== conversationId) return;
-
-      // Add card to the pushed cards list
-      setPushedCards((prev) => [...prev, { type: card.type, resourceId: card.resourceId, data: card.data, timestamp: card.timestamp, text: card.text }]);
-
-      // Optional: show a toast notification
-      if (card.text) {
-        toast.info('收到资源卡片', { description: card.text });
-      }
-    });
-    return () => dispose();
-  }, [conversationId]);
 
   const stop = async (): Promise<void> => {
     try {
@@ -515,9 +524,23 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
                 <div className="flex flex-col gap-2">
                   {messages.map((m, i) => (
                     <div key={i} className={m.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
-                      <div className={'max-w-[80%] rounded-2xl px-3 py-2 break-words ' + (m.role === 'user' ? 'bg-primary text-primary-foreground whitespace-pre-wrap' : 'bg-muted text-foreground')}>
+                      <div
+                        className={
+                          m.role === 'user'
+                            ? 'max-w-[80%] rounded-2xl px-3 py-2 break-words bg-primary text-primary-foreground whitespace-pre-wrap'
+                            : 'w-full rounded-2xl px-3 py-2 break-words text-foreground'
+                        }
+                      >
                         {m.role === 'assistant' ? (
-                          <ChatMessageRenderer content={m.content || ''} compactCards />
+                          <>
+                            {m.activities && m.activities.length > 0 && <ToolCallActivity activities={m.activities} />}
+                            {m.content || (loading && i === messages.length - 1) ? <ChatMessageRenderer content={m.content || ''} compactCards /> : null}
+                            {!m.content && loading && i === messages.length - 1 && (!m.activities || m.activities.length === 0) && (
+                              <span className="inline-flex items-center gap-2 text-muted-foreground">
+                                <TbLoader2 className="h-4 w-4 animate-spin" /> 正在思考...
+                              </span>
+                            )}
+                          </>
                         ) : (
                           m.content ||
                           (loading && i === messages.length - 1 ? (
@@ -531,19 +554,6 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
                       </div>
                     </div>
                   ))}
-                  {/* Pushed cards from main process */}
-                  {pushedCards.length > 0 && (
-                    <div className="flex flex-col gap-2 pt-2">
-                      {pushedCards.map((card, i) => (
-                        <div key={`pushed-${i}-${card.timestamp}`} className="flex justify-start">
-                          <div>
-                            {card.text && <div className="text-xs text-muted-foreground mb-1">{card.text}</div>}
-                            <ResourceCard resourceId={card.resourceId} data={card.data} cardType={card.type} compact />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                   <div ref={listEndRef} />
                 </div>
                 <div className="h-96"></div>

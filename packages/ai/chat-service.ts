@@ -194,6 +194,7 @@ ${JSON.stringify(req, null, 2)}
     let finalMessage: ChatMessage | undefined;
     let fullText = '';
     let errorMessage: string | undefined;
+    const collectedToolCalls: Array<{ callId: string; name: string; args?: any; result?: any }> = [];
 
     eventManager.emit(AppEvent.SPRITE_AI_START, { message: '思考中...' });
 
@@ -220,6 +221,15 @@ ${JSON.stringify(req, null, 2)}
           }
         }
 
+        if (event.type === 'tool_call' && event.data) {
+          collectedToolCalls.push({ callId: event.data.callId, name: event.data.name, args: event.data.args });
+        }
+
+        if (event.type === 'tool_result' && event.data) {
+          const tc = collectedToolCalls.find((t) => t.callId === event.data.callId);
+          if (tc) tc.result = event.data.result;
+        }
+
         if (event.type === 'error') {
           errorMessage = event.data?.message;
         }
@@ -235,6 +245,10 @@ ${JSON.stringify(req, null, 2)}
         createdAt: Date.now(),
         role: 'assistant'
       };
+    }
+
+    if (finalMessage && collectedToolCalls.length > 0) {
+      finalMessage = { ...finalMessage, metadata: { ...finalMessage.metadata, toolCalls: collectedToolCalls } };
     }
 
     if (conv && finalMessage) {
