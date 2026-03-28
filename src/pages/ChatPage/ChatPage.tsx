@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { TbChevronRight, TbDots, TbEdit, TbHistory, TbLoader2, TbPin, TbPlus, TbRefresh, TbShare, TbTrash } from 'react-icons/tb';
+import { TbArrowDown, TbChevronRight, TbDots, TbEdit, TbHistory, TbLoader2, TbPin, TbPlus, TbRefresh, TbShare, TbTrash } from 'react-icons/tb';
 import { toast } from 'sonner';
 
 import { ChatInputWithService, ChatMessageRenderer } from '@/components/chat';
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import { useAutoScroll } from '@/hooks/useAutoScroll';
 import { formatDateTime, formatRelativeTime } from '@/lib/time';
 
 import { useChatSelection } from './context/ChatSelectionContext';
@@ -26,7 +27,6 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
   // Provider/preset/agent are managed inside ChatInputBar now
   const [conversationId, setConversationId] = useState<string | undefined>(undefined);
   const disposerRef = useRef<{ dispose: () => void; cancel: () => Promise<any> } | null>(null);
-  const listEndRef = useRef<HTMLDivElement | null>(null);
   const assistantIndexRef = useRef<number>(-1);
   const [conversations, setConversations] = useState<any[]>([]);
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
@@ -274,6 +274,8 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
       return next;
     });
     setLoading(true);
+    // User sent a message → force auto-scroll to bottom
+    resetAutoScroll();
 
     // 2) 构造上下文（包含历史消息 + 新用户消息）
     const history = [...messages, userMsg].map((m) => ({ role: m.role, content: m.content, createdAt: m.createdAt }));
@@ -391,10 +393,8 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
     setLoading(false);
   };
 
-  // 新消息或增量时，滚动到底部
-  useEffect(() => {
-    listEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [messages, loading]);
+  // Smart auto-scroll: only scrolls when user is at bottom
+  const { containerRef: scrollContainerRef, showScrollButton, scrollToBottom, resetAutoScroll } = useAutoScroll([messages, loading]);
 
   return (
     <div className="w-full h-full bg-background text-foreground overflow-hidden flex flex-col">
@@ -520,10 +520,10 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
             ))}
           {messages.length > 0 && (
             <>
-              <div className="flex-1 overflow-auto p-2 min-h-0">
+              <div ref={scrollContainerRef} className="flex-1 overflow-auto p-2 min-h-0">
                 <div className="flex flex-col gap-2">
                   {messages.map((m, i) => (
-                    <div key={i} className={m.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
+                    <div key={i} className={`${m.role === 'user' ? 'flex justify-end' : 'flex justify-start'} ${i === messages.length - 1 ? 'mb-24' : ''}`}>
                       <div
                         className={
                           m.role === 'user'
@@ -554,10 +554,18 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
                       </div>
                     </div>
                   ))}
-                  <div ref={listEndRef} />
                 </div>
-                <div className="h-96"></div>
               </div>
+              {/* Scroll-to-bottom button */}
+              {showScrollButton && (
+                <button
+                  className="absolute bottom-24 right-6 z-20 flex items-center justify-center w-9 h-9 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-opacity"
+                  onClick={() => scrollToBottom(true)}
+                  title="滚动到底部"
+                >
+                  <TbArrowDown className="w-5 h-5" />
+                </button>
+              )}
               <div className="absolute bottom-0 left-0 right-0 flex justify-center">
                 <ChatInputWithService loading={loading} onStart={start} onStop={stop} />
               </div>
