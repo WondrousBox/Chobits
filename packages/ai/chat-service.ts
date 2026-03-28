@@ -70,13 +70,6 @@ export class ChatService {
     const ctrl = new AbortController();
     this.controllers.set(requestId, ctrl);
 
-    console.log(`
-=========================================================
-Starting chat stream
-${JSON.stringify(req, null, 2)}
-=========================================================
-`);
-
     const emit = (event: StreamEvent): void => {
       (sender || this.defaultWin?.webContents)?.send(eventsChannel, event);
     };
@@ -84,6 +77,12 @@ ${JSON.stringify(req, null, 2)}
     // Start the actual streaming on next tick to avoid missing early events
     setTimeout(async () => {
       try {
+        console.log(`
+=========================================================
+Starting chat stream
+${JSON.stringify(forcePiRuntime(req), null, 2)}
+=========================================================
+`);
         await this.chatStreamWithPi(sender, forcePiRuntime(req), emit, ctrl);
       } catch (error: any) {
         console.error('Stream 错误:', error);

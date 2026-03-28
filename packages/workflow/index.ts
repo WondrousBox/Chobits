@@ -67,6 +67,12 @@ export async function getWorkflow(id: string): Promise<WorkflowDefinition | unde
   return WorkflowStore.get(id);
 }
 
+export async function listAllWorkflowDefinitions(): Promise<WorkflowDefinition[]> {
+  const preset = getWorkflowDefinitionsPathFn ? await WorkflowStore.loadPresetWorkflows(getWorkflowDefinitionsPathFn()) : [];
+  const custom = await WorkflowStore.list();
+  return [...preset, ...custom];
+}
+
 export function initWorkflowSystem(options: { getWorkflowDefinitionsPath: () => string }): void {
   const { getWorkflowDefinitionsPath } = options || {};
   if (!getWorkflowDefinitionsPath) {
