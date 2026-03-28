@@ -50,6 +50,8 @@ export type StreamEvent =
   | { type: 'message_completed'; data: { message: ChatMessage } }
   | { type: 'tool_call'; data: { name: string; args: any; callId: string } }
   | { type: 'tool_result'; data: { callId: string; result: any } }
+  | { type: 'tool_progress'; data: { callId: string; progress: number; message?: string } }
+  | { type: 'thinking_delta'; data: { text: string } }
   | { type: 'metadata'; data: Record<string, any> }
   | { type: 'error'; data: { message: string; code?: string; cause?: any } }
   | { type: 'done' };
@@ -260,7 +262,7 @@ export interface ProviderAdapter {
   // Embeddings
   embed?(req: EmbeddingRequest): Promise<EmbeddingResponse>;
   // Models: return id + optional metadata; UI will use label if provided
-  listModels?(opts?: { secrets?: ProviderSecrets }): Promise<Array<{ id: string; label?: string; [k: string]: any }>>;
+  listModels?(opts?: { secrets?: ProviderSecrets }): Promise<Array<{ id: string; label?: string;[k: string]: any }>>;
   // ASR
   transcribe?(file: File | Blob | Buffer | ArrayBuffer, options?: TranscribeOptions): Promise<{ text: string }>;
 }
@@ -300,7 +302,7 @@ export type AIApi = {
   getProviders(): Promise<ProviderRecord[]>;
   getAgents(): Promise<any[]>;
   listTools(): Promise<ToolInfo[]>;
-  listModels(providerId: string, presetId?: string): Promise<Array<{ id: string; label?: string; [k: string]: any }>>;
+  listModels(providerId: string, presetId?: string): Promise<Array<{ id: string; label?: string;[k: string]: any }>>;
   getProviderSecrets(providerId: string): Promise<Record<string, string>>;
   setProviderSecrets(providerId: string, secrets: Record<string, string>): Promise<{ ok: boolean }>;
   clearProviderSecrets(providerId: string): Promise<{ ok: boolean }>;
@@ -375,16 +377,16 @@ export type AIApi = {
   >;
   getGlossary(id: string): Promise<
     | {
-        id: string;
-        categoryId: string;
-        name: string;
-        description?: string;
-        entries: Array<{ source: string; target: string; note?: string }>;
-        sourceFile?: string;
-        sourceFormat?: string;
-        createdAt: number;
-        updatedAt: number;
-      }
+      id: string;
+      categoryId: string;
+      name: string;
+      description?: string;
+      entries: Array<{ source: string; target: string; note?: string }>;
+      sourceFile?: string;
+      sourceFormat?: string;
+      createdAt: number;
+      updatedAt: number;
+    }
     | undefined
   >;
   createGlossary(payload: {
@@ -410,16 +412,16 @@ export type AIApi = {
     patch: { categoryId?: string; name?: string; description?: string; entries?: Array<{ source: string; target: string; note?: string }> }
   ): Promise<
     | {
-        id: string;
-        categoryId: string;
-        name: string;
-        description?: string;
-        entries: Array<{ source: string; target: string; note?: string }>;
-        sourceFile?: string;
-        sourceFormat?: string;
-        createdAt: number;
-        updatedAt: number;
-      }
+      id: string;
+      categoryId: string;
+      name: string;
+      description?: string;
+      entries: Array<{ source: string; target: string; note?: string }>;
+      sourceFile?: string;
+      sourceFormat?: string;
+      createdAt: number;
+      updatedAt: number;
+    }
     | undefined
   >;
   deleteGlossary(id: string): Promise<{ ok: boolean }>;
@@ -428,16 +430,16 @@ export type AIApi = {
     entries: Array<{ source: string; target: string; note?: string }>
   ): Promise<
     | {
-        id: string;
-        categoryId: string;
-        name: string;
-        description?: string;
-        entries: Array<{ source: string; target: string; note?: string }>;
-        sourceFile?: string;
-        sourceFormat?: string;
-        createdAt: number;
-        updatedAt: number;
-      }
+      id: string;
+      categoryId: string;
+      name: string;
+      description?: string;
+      entries: Array<{ source: string; target: string; note?: string }>;
+      sourceFile?: string;
+      sourceFormat?: string;
+      createdAt: number;
+      updatedAt: number;
+    }
     | undefined
   >;
   removeGlossaryEntry(
@@ -445,16 +447,16 @@ export type AIApi = {
     source: string
   ): Promise<
     | {
-        id: string;
-        categoryId: string;
-        name: string;
-        description?: string;
-        entries: Array<{ source: string; target: string; note?: string }>;
-        sourceFile?: string;
-        sourceFormat?: string;
-        createdAt: number;
-        updatedAt: number;
-      }
+      id: string;
+      categoryId: string;
+      name: string;
+      description?: string;
+      entries: Array<{ source: string; target: string; note?: string }>;
+      sourceFile?: string;
+      sourceFormat?: string;
+      createdAt: number;
+      updatedAt: number;
+    }
     | undefined
   >;
   updateGlossaryEntry(
@@ -463,16 +465,16 @@ export type AIApi = {
     newEntry: { source: string; target: string; note?: string }
   ): Promise<
     | {
-        id: string;
-        categoryId: string;
-        name: string;
-        description?: string;
-        entries: Array<{ source: string; target: string; note?: string }>;
-        sourceFile?: string;
-        sourceFormat?: string;
-        createdAt: number;
-        updatedAt: number;
-      }
+      id: string;
+      categoryId: string;
+      name: string;
+      description?: string;
+      entries: Array<{ source: string; target: string; note?: string }>;
+      sourceFile?: string;
+      sourceFormat?: string;
+      createdAt: number;
+      updatedAt: number;
+    }
     | undefined
   >;
   parseGlossaryContent(

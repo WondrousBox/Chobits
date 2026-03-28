@@ -5,7 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { AgentSession } from '@mariozechner/pi-coding-agent';
 
 import type { ResolvedPiRequest } from './contracts';
-import { createPiSessionToolContext } from './tool-context';
+import { createPiSessionToolContext, type PiSessionToolContext } from './tool-context';
 import { createPiCustomTools } from './tools';
 
 type PiModel = import('@mariozechner/pi-ai').Model<any>;
@@ -58,6 +58,7 @@ export interface CreatePiCodingSessionOptions {
 
 export interface PiCodingSessionHandle {
   session: AgentSession;
+  toolContext: PiSessionToolContext;
   dispose: () => void;
 }
 
@@ -123,7 +124,8 @@ export class PiSessionFactory {
     const cwd = options.resolved.coding?.rootPath?.trim() || process.cwd();
     const authStorage = AuthStorage.inMemory();
     seedRuntimeApiKeys(authStorage, options.resolved, options.model);
-    const customTools = createPiCustomTools(options.resolved.enabledToolIds, createPiSessionToolContext(options.resolved));
+    const toolContext = createPiSessionToolContext(options.resolved);
+    const customTools = createPiCustomTools(options.resolved.enabledToolIds, toolContext);
 
     const modelRegistry = new ModelRegistry(authStorage, '');
     const settingsManager = SettingsManager.inMemory({
@@ -163,7 +165,8 @@ export class PiSessionFactory {
       dispose: () => {
         session.dispose();
       },
-      session
+      session,
+      toolContext
     };
   }
 }

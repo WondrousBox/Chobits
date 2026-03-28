@@ -6,6 +6,43 @@ import type { WorkflowDefinition } from '../../../../workflow/types';
 import type { PiSessionToolContext } from '../tool-context';
 import { createJsonToolResult } from './result';
 
+/**
+ * 从 resourceId 解析资源的 workspaceId 和 folderId，
+ * 作为工作流执行上下文的 metadata。
+ * 如果资源不存在或无法获取，则回退到默认工作空间。
+ */
+async function resolveWorkflowMetadata(toolContext: PiSessionToolContext, workflowInput?: Record<string, any>): Promise<Record<string, any>> {
+  const metadata: Record<string, any> = {};
+  const resourceId = workflowInput?.resourceId;
+
+  if (resourceId) {
+    try {
+      const resource = await toolContext.resourcesRepo.getById(resourceId);
+      if (resource) {
+        if (resource.workspaceId) metadata.workspaceId = resource.workspaceId;
+        if (resource.folderId) metadata.folderId = resource.folderId;
+      }
+    } catch (e) {
+      console.warn('[workflowRunTool] Failed to resolve resource metadata:', e);
+    }
+  }
+
+  // 如果仍然没有 workspaceId，回退到默认工作空间并创建/查找当天文件夹
+  if (!metadata.workspaceId) {
+    try {
+      const { WorkspacesRepo } = await import('../../../../common/db');
+      const ws = await WorkspacesRepo.getDefault();
+      if (ws?.id) {
+        metadata.workspaceId = ws.id;
+      }
+    } catch (e) {
+      console.warn('[workflowRunTool] Failed to resolve default workspace:', e);
+    }
+  }
+
+  return metadata;
+}
+
 // ============================================================================
 // 辅助函数：提取工作流摘要信息（供 AI 查找使用）
 // ============================================================================
@@ -49,6 +86,11 @@ const workflowRunParameters = Type.Object({
   }),
   query: Type.Optional(Type.String({ description: 'search 时的搜索关键词（如"转写"、"字幕"、"OCR"、"关键帧"等），匹配工作流名称和描述' })),
   workflowId: Type.Optional(Type.String({ description: 'run 时必填，要执行的工作流 ID（从 list/search 结果中获取）' })),
+  waitForCompletion: Type.Optional(
+    Type.Boolean({
+      description: '仅 run 时有效。true（默认）=等待工作流执行完成并返回结果，适合需要后续处理的场景；false=立即返回，工作流在后台异步执行'
+    })
+  ),
   input: Type.Optional(
     Type.Object(
       {},
@@ -73,9 +115,7 @@ const workflowRunParameters = Type.Object({
 // 工具实现
 // ============================================================================
 
-export function createPiWorkflowRunTool(_toolContext: PiSessionToolContext): ToolDefinition<typeof workflowRunParameters> {
-  void _toolContext;
-
+export function createPiWorkflowRunTool(toolContext: PiSessionToolContext): ToolDefinition<typeof workflowRunParameters> {
   return {
     name: 'workflowRunTool',
     label: 'workflowRunTool',
@@ -84,8 +124,9 @@ export function createPiWorkflowRunTool(_toolContext: PiSessionToolContext): Too
     parameters: workflowRunParameters,
 
     async execute(_toolCallId, input) {
-      const { action, query, workflowId, input: workflowInput, configOverrides } = input;
-      console.log('[workflowRunTool] called:', { action, query, workflowId });
+      const { action, query, workflowId, input: workflowInput, configOverrides, waitForCompletion } = input;
+      const shouldWait = waitForCompletion !== false; // default: true
+      console.log('[workflowRunTool] called:', { action, query, workflowId, waitForCompletion: shouldWait });
 
       if (action === 'list') {
         try {
@@ -139,14 +180,52 @@ export function createPiWorkflowRunTool(_toolContext: PiSessionToolContext): Too
             runInput.__configOverrides__ = configOverrides;
           }
 
-          const rec = await runWorkflow(def, runInput);
-          return createJsonToolResult({
-            success: true,
+          // 解析工作空间和文件夹上下文，确保资源创建节点能正常保存
+          const metadata = await resolveWorkflowMetadata(toolContext, runInput);
+          console.log('[workflowRunTool] run metadata:', metadata);
+
+          // 构建进度回调：通过 toolContext.reportProgress 将进度推送到 UI
+          const onProgress = toolContext.reportProgress
+            ? (progress: number, message?: string) => {
+              toolContext.reportProgress!(_toolCallId, progress, message);
+            }
+            : undefined;
+
+          const rec = await runWorkflow(def, runInput, metadata, onProgress);
+
+          if (!shouldWait) {
+            // 异步模式：返回启动状态即可
+            return createJsonToolResult({
+              success: true,
+              runId: rec.runId,
+              workflowId: rec.workflowId,
+              status: rec.status,
+              message: `工作流"${def.name}"已启动执行，运行 ID: ${rec.runId}`
+            });
+          }
+
+          // 等待模式：返回完整执行结果
+          const result: Record<string, any> = {
+            success: rec.status === 'completed',
             runId: rec.runId,
             workflowId: rec.workflowId,
             status: rec.status,
-            message: `工作流"${def.name}"已启动执行，运行 ID: ${rec.runId}`
-          });
+            duration: rec.duration
+          };
+
+          if (rec.status === 'completed') {
+            result.message = `工作流"${def.name}"执行完成，耗时 ${rec.duration ? Math.round(rec.duration / 1000) + '秒' : '未知'}`;
+            if (rec.output && Object.keys(rec.output).length > 0) {
+              result.output = rec.output;
+            }
+          } else if (rec.status === 'failed') {
+            result.message = `工作流"${def.name}"执行失败`;
+            result.error = rec.error;
+          } else {
+            result.message = `工作流"${def.name}"执行结束，状态: ${rec.status}`;
+          }
+
+          return createJsonToolResult(result);
         } catch (error: any) {
           return createJsonToolResult({ success: false, error: error?.message || '执行工作流失败' });
         }

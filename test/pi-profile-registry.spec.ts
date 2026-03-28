@@ -10,7 +10,7 @@ describe('listPiAgentProfiles', () => {
         label: profile.label
       }))
     ).toEqual([
-      { id: 'chat', label: '普通对话模式' },
+      { id: 'chat', label: '对话模式' },
       { id: 'assistant', label: 'Agent模式' },
       { id: 'coder', label: '代码模式' }
     ]);

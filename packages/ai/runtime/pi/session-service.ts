@@ -169,6 +169,22 @@ function extractAssistantText(message: PiAssistantMessage): string {
     .join('');
 }
 
+/**
+ * 从 PiAssistantMessage 中提取 thinking 块，用于持久化到消息 metadata。
+ * 保留 thinkingSignature 以满足 Anthropic 多轮对话中回传 thinking 块的要求。
+ */
+function extractThinkingBlocks(message: PiAssistantMessage): Array<{ type: 'thinking'; thinking: string; thinkingSignature?: string; redacted?: boolean }> | undefined {
+  const blocks = message.content
+    .filter((b): b is Extract<PiAssistantMessage['content'][number], { type: 'thinking' }> => b.type === 'thinking')
+    .map((b) => {
+      const block: { type: 'thinking'; thinking: string; thinkingSignature?: string; redacted?: boolean } = { type: 'thinking', thinking: b.thinking };
+      if (b.thinkingSignature) block.thinkingSignature = b.thinkingSignature;
+      if (b.redacted) block.redacted = b.redacted;
+      return block;
+    });
+  return blocks.length > 0 ? blocks : undefined;
+}
+
 function mapChatHistoryMessage(message: ChatRequest['messages'][number], model: PiModel): PiMessage | undefined {
   const rawContent = message.content as unknown;
   const textContent = extractTextContent(rawContent);
@@ -183,7 +199,14 @@ function mapChatHistoryMessage(message: ChatRequest['messages'][number], model: 
   }
 
   if (message.role === 'assistant') {
-    return createAssistantHistoryMessage(model, textContent, timestamp);
+    const assistantMsg = createAssistantHistoryMessage(model, textContent, timestamp);
+    // 从 metadata 恢复 thinking 块，用于多轮对话中回传给 LLM
+    const thinkingBlocks = (message.metadata as Record<string, any> | undefined)?.thinkingBlocks;
+    if (thinkingBlocks && Array.isArray(thinkingBlocks)) {
+      // Thinking 块应在 text 块之前（与模型响应顺序一致）
+      assistantMsg.content = [...thinkingBlocks, ...assistantMsg.content];
+    }
+    return assistantMsg;
   }
 
   if (message.role === 'tool' && message.toolCallId) {
@@ -600,7 +623,11 @@ export class PiSessionService {
       return { error: err, usedSession: false };
     }
 
-    const { dispose, session } = sessionHandle;
+    const { dispose, session, toolContext } = sessionHandle;
+    // Wire tool progress reporting to stream emitter
+    toolContext.reportProgress = (callId: string, progress: number, message?: string) => {
+      legacy.toolProgress(callId, progress, message);
+    };
     const emittedToolCalls = new Set<string>();
     let sawEvents = false;
     let terminalEmitted = false;
@@ -746,12 +773,14 @@ export class PiSessionService {
       return;
     }
 
+    const thinkingBlocks = extractThinkingBlocks(message);
     legacy.complete(
       createLegacyAssistantMessage(extractAssistantText(message), {
         model: resolved.model.modelId || message.model,
         piProvider: message.provider,
         piStopReason: message.stopReason,
-        runtime: 'pi'
+        runtime: 'pi',
+        ...(thinkingBlocks ? { thinkingBlocks } : {})
       })
     );
     legacy.done();
@@ -763,6 +792,9 @@ export class PiSessionService {
     switch (assistantEvent.type) {
       case 'text_delta':
         legacy.delta(assistantEvent.delta);
+        return;
+      case 'thinking_delta':
+        legacy.thinkingDelta(assistantEvent.delta);
         return;
       case 'toolcall_end':
         if (!emittedToolCalls.has(assistantEvent.toolCall.id)) {
@@ -780,20 +812,26 @@ export class PiSessionService {
       case 'text_delta':
         legacy.delta(event.delta);
         return 'continue';
+      case 'thinking_delta':
+        legacy.thinkingDelta(event.delta);
+        return 'continue';
       case 'toolcall_end':
         legacy.toolCall(event.toolCall.name, event.toolCall.arguments, event.toolCall.id);
         return 'continue';
-      case 'done':
+      case 'done': {
+        const thinkingBlocks = extractThinkingBlocks(event.message);
         legacy.complete(
           createLegacyAssistantMessage(extractAssistantText(event.message), {
             model: resolved.model.modelId || event.message.model,
             piProvider: event.message.provider,
             piStopReason: event.reason,
-            runtime: 'pi'
+            runtime: 'pi',
+            ...(thinkingBlocks ? { thinkingBlocks } : {})
           })
         );
         legacy.done();
         return 'done';
+      }
       case 'error':
         legacy.error({
           cause: event.error,

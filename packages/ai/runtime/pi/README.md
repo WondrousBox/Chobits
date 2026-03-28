@@ -3,7 +3,7 @@
 更新时间：2026-03-21
 
 `packages/ai/runtime/pi` 是当前 Chobits AI 运行时里负责 Pi 接入的主目录。它不再只是实验代码，而是已经参与真实聊天、任务执行、工具调用和 coder session 的正式模块。
-当前聊天 UI 只暴露 3 个用户可选模式：`chat`（普通对话模式）、`assistant`（Agent模式）和 `coder`（代码模式）。
+当前聊天 UI 只暴露 3 个用户可选模式：`chat`（对话模式）、`assistant`（Agent模式）和 `coder`（代码模式）。
 
 ## 目录职责
 

@@ -3,6 +3,7 @@ import { TbArrowDown, TbChevronRight, TbDots, TbEdit, TbHistory, TbLoader2, TbPi
 import { toast } from 'sonner';
 
 import { ChatInputWithService, ChatMessageRenderer } from '@/components/chat';
+import ThinkingActivity from '@/components/chat/ThinkingActivity';
 import type { ToolActivity } from '@/components/chat/ToolCallActivity';
 import ToolCallActivity from '@/components/chat/ToolCallActivity';
 import DragAbleTitle from '@/components/common/DragAbleTitle';
@@ -22,7 +23,7 @@ interface ChatPageProps {
 
 export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.Element {
   const { providerId, modelId, presetId, agentId, codingWorkspaceRoot, codingWorkspaceLabel, setProviderId, setModelId, setPresetId, setAgentId, setCodingWorkspace } = useChatSelection();
-  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string; createdAt?: number; activities?: ToolActivity[] }>>([]);
+  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string; createdAt?: number; activities?: ToolActivity[]; thinking?: string; isThinking?: boolean }>>([]);
   const [loading, setLoading] = useState(false);
   // Provider/preset/agent are managed inside ChatInputBar now
   const [conversationId, setConversationId] = useState<string | undefined>(undefined);
@@ -328,6 +329,27 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
             return copy;
           });
         }
+        if (ev?.type === 'tool_progress' && ev.data) {
+          setMessages((prev) => {
+            const idx = assistantIndexRef.current;
+            if (idx < 0 || idx >= prev.length) return prev;
+            const copy = prev.slice();
+            const m = copy[idx];
+            const updated = (m.activities || []).map((a) => (a.callId === ev.data.callId ? { ...a, progress: ev.data.progress, progressMessage: ev.data.message } : a));
+            copy[idx] = { ...m, activities: updated };
+            return copy;
+          });
+        }
+        if (ev?.type === 'thinking_delta' && ev.data?.text) {
+          setMessages((prev) => {
+            const idx = assistantIndexRef.current;
+            if (idx < 0 || idx >= prev.length) return prev;
+            const copy = prev.slice();
+            const m = copy[idx];
+            copy[idx] = { ...m, thinking: (m.thinking || '') + ev.data.text, isThinking: true };
+            return copy;
+          });
+        }
         if (ev?.type === 'delta' && ev.data?.text) {
           const delta: string = ev.data.text;
           setMessages((prev) => {
@@ -335,7 +357,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
             if (idx < 0 || idx >= prev.length) return prev;
             const copy = prev.slice();
             const m = copy[idx];
-            copy[idx] = { ...m, content: (m.content || '') + delta };
+            copy[idx] = { ...m, content: (m.content || '') + delta, isThinking: false };
             return copy;
           });
         }
@@ -347,7 +369,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
             if (idx < 0 || idx >= prev.length) return prev;
             const copy = prev.slice();
             const m = copy[idx];
-            copy[idx] = { ...m, content: full, createdAt: ev.data.message.createdAt || m.createdAt };
+            copy[idx] = { ...m, content: full, createdAt: ev.data.message.createdAt || m.createdAt, isThinking: false };
             return copy;
           });
           setLoading(false);
@@ -533,6 +555,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
                       >
                         {m.role === 'assistant' ? (
                           <>
+                            {m.thinking && <ThinkingActivity thinking={m.thinking} isThinking={!!m.isThinking} />}
                             {m.activities && m.activities.length > 0 && <ToolCallActivity activities={m.activities} />}
                             {m.content || (loading && i === messages.length - 1) ? <ChatMessageRenderer content={m.content || ''} compactCards /> : null}
                             {!m.content && loading && i === messages.length - 1 && (!m.activities || m.activities.length === 0) && (

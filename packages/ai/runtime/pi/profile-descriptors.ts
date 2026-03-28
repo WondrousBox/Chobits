@@ -14,7 +14,7 @@ export interface PiProfileDescriptor {
 const PI_PROFILE_DESCRIPTORS: Record<string, PiProfileDescriptor> = {
   chat: {
     id: 'chat',
-    label: '普通对话模式',
+    label: '对话模式',
     description: '轻量纯对话模式，不主动调用工具。',
     instructions: `你是一个友好的中文对话助手。
 优先直接回答用户的问题，保持清晰、自然、简洁。

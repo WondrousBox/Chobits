@@ -53,9 +53,26 @@ import type { NodeConfig, WorkflowDefinition, WorkflowRunRecord } from './types'
 let getWorkflowDefinitionsPathFn: () => string;
 let globalEngine: WorkflowEngine | undefined;
 
-export async function runWorkflow(def: WorkflowDefinition, input?: any): Promise<WorkflowRunRecord> {
+export async function runWorkflow(def: WorkflowDefinition, input?: any, metadata?: Record<string, any>, onProgress?: (progress: number, message?: string) => void): Promise<WorkflowRunRecord> {
   if (!globalEngine) throw new Error('Workflow engine not initialized');
-  return globalEngine.run(def, input || {});
+
+  let handler: ((rec: WorkflowRunRecord) => void) | undefined;
+  if (onProgress) {
+    handler = (rec: WorkflowRunRecord) => {
+      if (rec.workflowId === def.id && rec.progress !== undefined) {
+        onProgress(rec.progress, rec.progressMessage);
+      }
+    };
+    globalEngine.onTyped('run:status', handler);
+  }
+
+  try {
+    return await globalEngine.run(def, input || {}, metadata);
+  } finally {
+    if (handler && globalEngine) {
+      globalEngine.off('run:status', handler);
+    }
+  }
 }
 
 export async function getWorkflow(id: string): Promise<WorkflowDefinition | undefined> {

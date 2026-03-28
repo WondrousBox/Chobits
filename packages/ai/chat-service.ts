@@ -192,6 +192,7 @@ ${JSON.stringify(forcePiRuntime(req), null, 2)}
     let emittedConversationMetadata = false;
     let finalMessage: ChatMessage | undefined;
     let fullText = '';
+    let thinkingText = '';
     let errorMessage: string | undefined;
     const collectedToolCalls: Array<{ callId: string; name: string; args?: any; result?: any }> = [];
 
@@ -211,6 +212,10 @@ ${JSON.stringify(forcePiRuntime(req), null, 2)}
 
         if (event.type === 'delta' && event.data?.text) {
           fullText += event.data.text;
+        }
+
+        if (event.type === 'thinking_delta' && event.data?.text) {
+          thinkingText += event.data.text;
         }
 
         if (event.type === 'message_completed' && event.data?.message) {
@@ -242,7 +247,8 @@ ${JSON.stringify(forcePiRuntime(req), null, 2)}
       finalMessage = {
         content: fullText,
         createdAt: Date.now(),
-        role: 'assistant'
+        role: 'assistant',
+        ...(thinkingText ? { metadata: { thinkingBlocks: [{ type: 'thinking', thinking: thinkingText }] } } : {})
       };
     }
 
