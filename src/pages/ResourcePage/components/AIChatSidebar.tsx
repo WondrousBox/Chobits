@@ -5,6 +5,8 @@ import rehypeHighlight from 'rehype-highlight';
 import remarkGfm from 'remark-gfm';
 import { toast } from 'sonner';
 
+import type { ToolActivity } from '@/components/chat/ToolCallActivity';
+import ToolCallActivity from '@/components/chat/ToolCallActivity';
 import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -16,6 +18,7 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   createdAt?: number;
+  activities?: ToolActivity[];
 }
 
 interface Conversation {
@@ -149,11 +152,19 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
     setShowHistory(false);
     try {
       const rows = await window.YUA.ai.listMessages(id, 2000, 0);
-      const mapped = (rows || []).map((row: any) => ({
-        role: row.role,
-        content: row.content,
-        createdAt: row.createdAt
-      }));
+      const mapped = (rows || []).map((row: any) => {
+        let activities: ToolActivity[] | undefined;
+        const meta = typeof row.metadata === 'string' ? JSON.parse(row.metadata || '{}') : row.metadata;
+        if (meta && Array.isArray(meta?.toolCalls)) {
+          activities = meta.toolCalls.map((tc: any) => ({ callId: tc.callId, name: tc.name, args: tc.args, status: 'done' as const, result: tc.result }));
+        }
+        return {
+          role: row.role,
+          content: row.content,
+          createdAt: row.createdAt,
+          ...(activities ? { activities } : {})
+        };
+      });
       setMessages(mapped);
     } catch (error) {
       console.warn('Failed to load conversation messages:', error);
@@ -263,15 +274,40 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
             model: resolvedSelection.modelId,
             ...(isCoder && codingWorkspaceRoot
               ? {
-                  codingWorkspaceRoot,
-                  codingWorkspaceLabel: codingWorkspaceLabel || undefined
-                }
+                codingWorkspaceRoot,
+                codingWorkspaceLabel: codingWorkspaceLabel || undefined
+              }
               : {})
           }
         },
         (event: any) => {
           if (event?.type === 'metadata' && event.data?.conversationId) {
             setConversationId(event.data.conversationId);
+          }
+
+          if (event?.type === 'tool_call' && event.data) {
+            setMessages((prev) => {
+              const idx = assistantIndexRef.current;
+              if (idx < 0 || idx >= prev.length) return prev;
+              const copy = prev.slice();
+              const m = copy[idx];
+              const existing = m.activities || [];
+              const activity: ToolActivity = { callId: event.data.callId, name: event.data.name, args: event.data.args, status: 'calling' };
+              copy[idx] = { ...m, activities: [...existing, activity] };
+              return copy;
+            });
+          }
+
+          if (event?.type === 'tool_result' && event.data) {
+            setMessages((prev) => {
+              const idx = assistantIndexRef.current;
+              if (idx < 0 || idx >= prev.length) return prev;
+              const copy = prev.slice();
+              const m = copy[idx];
+              const updated = (m.activities || []).map((a) => (a.callId === event.data.callId ? { ...a, status: 'done' as const, result: event.data.result } : a));
+              copy[idx] = { ...m, activities: updated };
+              return copy;
+            });
           }
 
           if (event?.type === 'delta' && event.data?.text) {
@@ -407,24 +443,29 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
               <div key={index} className={message.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
                 <div className={`max-w-[90%] rounded-xl px-3 py-2 ${message.role === 'user' ? 'bg-primary text-primary-foreground text-sm' : 'bg-muted text-foreground'}`}>
                   {message.role === 'assistant' ? (
-                    message.content ? (
-                      <MarkdownMessage content={message.content} />
-                    ) : loading && index === messages.length - 1 ? (
-                      <div className="inline-flex items-center gap-2 text-muted-foreground text-sm">
-                        <TbLoader2 className="h-4 w-4 animate-spin" /> 正在思考...
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            void handleStop();
-                          }}
-                          className="ml-2 p-1 rounded hover:bg-background/50 transition-colors"
-                          title="停止生成"
-                        >
-                          <TbPlayerStop className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ) : null
+                    <>
+                      {message.activities && message.activities.length > 0 && <ToolCallActivity activities={message.activities} />}
+                      {message.content ? (
+                        <MarkdownMessage content={message.content} />
+                      ) : loading && index === messages.length - 1 ? (
+                        !message.activities?.length && (
+                          <div className="inline-flex items-center gap-2 text-muted-foreground text-sm">
+                            <TbLoader2 className="h-4 w-4 animate-spin" /> 正在思考...
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void handleStop();
+                              }}
+                              className="ml-2 p-1 rounded hover:bg-background/50 transition-colors"
+                              title="停止生成"
+                            >
+                              <TbPlayerStop className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        )
+                      ) : null}
+                    </>
                   ) : (
                     <span className="whitespace-pre-wrap break-words">{message.content}</span>
                   )}

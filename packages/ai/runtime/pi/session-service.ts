@@ -134,11 +134,11 @@ function createAssistantHistoryMessage(model: PiModel, content: string, createdA
     api: model.api,
     content: content
       ? [
-          {
-            text: normalizePiText(content),
-            type: 'text'
-          }
-        ]
+        {
+          text: normalizePiText(content),
+          type: 'text'
+        }
+      ]
       : [],
     model: model.id,
     provider: model.provider,
@@ -190,11 +190,11 @@ function mapChatHistoryMessage(message: ChatRequest['messages'][number], model: 
     return {
       content: textContent
         ? [
-            {
-              text: textContent,
-              type: 'text'
-            }
-          ]
+          {
+            text: textContent,
+            type: 'text'
+          }
+        ]
         : [],
       details: message.metadata,
       isError: false,
@@ -363,8 +363,7 @@ function toChatResponse(message: PiAssistantMessage, resolved: ResolvedPiRequest
   };
 }
 
-const CODING_WORKSPACE_REQUIRED_MESSAGE =
-  '当前是代码助手模式，但还没有选择项目目录。请先点击“选择项目”指定一个代码仓库，然后我就可以帮你读写和修改代码。';
+const CODING_WORKSPACE_REQUIRED_MESSAGE = '当前是代码助手模式，但还没有选择项目目录。请先点击“选择项目”指定一个代码仓库，然后我就可以帮你读写和修改代码。';
 
 function getCodingWorkspaceRequiredMessage(resolved: ResolvedPiRequest): string | undefined {
   if (resolved.profile.id !== 'coder') return undefined;

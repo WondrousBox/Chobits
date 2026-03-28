@@ -28,17 +28,19 @@ export function createPiToolboxLookupTool(_toolContext: PiSessionToolContext): T
 
     async execute(_toolCallId, input) {
       const { action, query } = input;
-      console.log('toolboxLookupTool called with action:', action, 'query:', query);
+      console.log('[toolbox] lookup called:', { action, query: query || '(empty)' });
 
       if (action === 'list') {
         const skills = listToolboxSkills();
         if (!skills.length) {
+          console.log('[toolbox] list → 工具箱为空');
           return createJsonToolResult({
             success: true,
             skills: [],
             message: '工具箱为空'
           });
         }
+        console.log('[toolbox] list →', skills.map((s) => s.name).join(', '));
         return createJsonToolResult({
           success: true,
           skills: skills.map((s) => ({
@@ -51,6 +53,7 @@ export function createPiToolboxLookupTool(_toolContext: PiSessionToolContext): T
 
       if (action === 'get') {
         if (!query) {
+          console.log('[toolbox] get → 缺少技能名称');
           return createJsonToolResult({
             success: false,
             error: 'get 操作需要提供技能名称（query 参数）'
@@ -58,12 +61,14 @@ export function createPiToolboxLookupTool(_toolContext: PiSessionToolContext): T
         }
         const skill = getToolboxSkill(query);
         if (!skill) {
+          console.log('[toolbox] get → 未找到:', query);
           return createJsonToolResult({
             success: false,
             error: `未找到名为"${query}"的技能`,
             availableSkills: listToolboxSkills().map((s) => s.name)
           });
         }
+        console.log('[toolbox] get →', skill.name, `(${skill.triggers.length} 触发词, ${skill.tools.length} 工具)`);
         return createJsonToolResult({
           success: true,
           name: skill.name,
@@ -73,6 +78,7 @@ export function createPiToolboxLookupTool(_toolContext: PiSessionToolContext): T
 
       // action === 'search'
       if (!query) {
+        console.log('[toolbox] search → 缺少查询');
         return createJsonToolResult({
           success: false,
           error: 'search 操作需要提供搜索查询（query 参数）'
@@ -81,6 +87,7 @@ export function createPiToolboxLookupTool(_toolContext: PiSessionToolContext): T
 
       const results = searchToolbox(query);
       if (!results.length) {
+        console.log('[toolbox] search → 无匹配:', query);
         return createJsonToolResult({
           success: true,
           results: [],
@@ -89,6 +96,7 @@ export function createPiToolboxLookupTool(_toolContext: PiSessionToolContext): T
         });
       }
 
+      console.log('[toolbox] search →', query, '命中:', results.map((s) => s.name).join(', '));
       return createJsonToolResult({
         success: true,
         results: results.map((s) => ({

@@ -18,6 +18,7 @@ import { createPiShellExecTool } from './shell-exec';
 import { createPiSummaryTool } from './summary';
 import { createPiToolboxLookupTool } from './toolbox-lookup';
 import { createPiTranslationTool } from './translation';
+import { createPiWorkflowRunTool } from './workflow-run';
 import { createPiYoutubeDownloadTool } from './youtube-download';
 import { createPiYoutubeSubscribeTool } from './youtube-subscribe';
 
@@ -42,7 +43,8 @@ const PI_CUSTOM_TOOL_FACTORIES: Record<string, PiToolFactory> = {
   'memory-get': createPiMemoryGetTool,
   'memory-save': createPiMemorySaveTool,
   'memory-topics': createPiMemoryTopicsTool,
-  'toolbox-lookup': createPiToolboxLookupTool
+  'toolbox-lookup': createPiToolboxLookupTool,
+  'workflow-run': createPiWorkflowRunTool
 };
 
 export function createPiCustomTools(enabledToolIds: string[], toolContext: PiSessionToolContext): ToolDefinition[] {

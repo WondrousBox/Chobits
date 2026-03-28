@@ -29,9 +29,11 @@ export function createLegacyStreamEmitter(emit: (event: StreamEvent) => void): L
       emit({ type: 'metadata', data });
     },
     toolCall(name: string, args: any, callId: string) {
+      console.log(`[AI Tool] 调用工具: ${name}`, { callId, args: typeof args === 'string' ? args.slice(0, 200) : args });
       emit({ type: 'tool_call', data: { args, callId, name } });
     },
     toolResult(callId: string, result: any) {
+      console.log(`[AI Tool] 工具返回: ${callId}`, typeof result === 'object' ? { success: result?.success, error: result?.error } : result);
       emit({ type: 'tool_result', data: { callId, result } });
     },
     complete(message: ChatMessage) {

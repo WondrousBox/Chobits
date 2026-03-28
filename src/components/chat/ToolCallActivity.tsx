@@ -45,6 +45,40 @@ function formatValue(val: any, max = 2000): { text: string; lang?: string } {
 
 const CARD_TOOL_NAMES = new Set(['pushCardTool', 'push-card']);
 
+const TOOL_DISPLAY_NAMES: Record<string, string> = {
+  toolboxLookupTool: '查阅工具箱',
+  resourceQueryTool: '查询资源',
+  translationTool: '翻译字幕',
+  summaryTool: '总结内容',
+  readSubtitleTool: '读取字幕',
+  youtubeDownloadTool: '下载视频',
+  youtubeSubscribeTool: '订阅频道',
+  memorySearchTool: '搜索记忆',
+  memoryGetTool: '获取记忆',
+  memoryTopicsTool: '浏览记忆主题',
+  memorySaveTool: '保存记忆',
+  workflowRunTool: '执行工作流'
+};
+
+function getToolDisplayName(name: string, args?: any): string {
+  if (name === 'toolboxLookupTool' && args) {
+    const a = typeof args === 'string' ? JSON.parse(args) : args;
+    const action = a?.action;
+    const query = a?.query;
+    if (action === 'search' && query) return `查阅工具箱：搜索"${query}"`;
+    if (action === 'get' && query) return `查阅工具箱：获取"${query}"`;
+    if (action === 'list') return '查阅工具箱：列出技能';
+  }
+  if (name === 'workflowRunTool' && args) {
+    const a = typeof args === 'string' ? JSON.parse(args) : args;
+    const action = a?.action;
+    if (action === 'list') return '查找工作流：列出全部';
+    if (action === 'search' && a?.query) return `查找工作流：搜索"${a.query}"`;
+    if (action === 'run' && a?.workflowId) return `执行工作流：${a.workflowId}`;
+  }
+  return TOOL_DISPLAY_NAMES[name] || name;
+}
+
 const CardToolItem: React.FC<{ activity: ToolActivity }> = ({ activity }) => {
   const args = typeof activity.args === 'string' ? JSON.parse(activity.args) : activity.args;
   if (!args) return null;
@@ -60,14 +94,15 @@ const ToolCallItem: React.FC<{ activity: ToolActivity }> = ({ activity }) => {
   if (CARD_TOOL_NAMES.has(activity.name)) return <CardToolItem activity={activity} />;
 
   const [expanded, setExpanded] = useState(false);
+  const displayName = getToolDisplayName(activity.name, activity.args);
 
   return (
     <div className="text-xs border border-border/50 rounded-lg overflow-hidden">
-      <button className="flex items-center gap-1.5 w-full px-2 py-1 hover:bg-muted/50 transition-colors text-left" onClick={() => setExpanded(!expanded)}>
+      <button className="flex items-center gap-1.5 px-2 py-1 hover:bg-muted/50 transition-colors text-left" onClick={() => setExpanded(!expanded)}>
         {activity.status === 'calling' ? <TbLoader2 className="h-3 w-3 animate-spin text-blue-500 shrink-0" /> : <TbCheck className="h-3 w-3 text-green-500 shrink-0" />}
         <TbTool className="h-3 w-3 text-muted-foreground shrink-0" />
-        <span className="text-muted-foreground truncate">{activity.status === 'calling' ? `调用 ${activity.name} ...` : `${activity.name} 完成`}</span>
-        <span className="ml-auto shrink-0">{expanded ? <TbChevronDown className="h-3 w-3" /> : <TbChevronRight className="h-3 w-3" />}</span>
+        <span className="text-muted-foreground truncate">{activity.status === 'calling' ? `${displayName} ...` : `${displayName} 完成`}</span>
+        {expanded ? <TbChevronDown className="h-3 w-3" /> : <TbChevronRight className="h-3 w-3" />}
       </button>
       {expanded && (
         <div className="px-2 py-1 bg-muted/30 border-t border-border/50 space-y-1 max-h-64 overflow-auto">
