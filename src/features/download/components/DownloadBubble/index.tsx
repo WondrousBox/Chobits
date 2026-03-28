@@ -1,5 +1,3 @@
-import './styles.scss';
-
 import React, { useMemo } from 'react';
 import { TbAlertCircle, TbCheck, TbClock, TbDownload, TbPlayerStop, TbX } from 'react-icons/tb';
 
@@ -17,7 +15,7 @@ const CircularProgress: React.FC<{
   size?: number;
   strokeWidth?: number;
   status?: string;
-}> = ({ percent, size = 88, strokeWidth = 5, status = 'downloading' }) => {
+}> = ({ percent, size = 56, strokeWidth = 4, status = 'downloading' }) => {
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (percent / 100) * circumference;
@@ -26,7 +24,7 @@ const CircularProgress: React.FC<{
   const glowId = `dl-progress-glow-${status}`;
 
   return (
-    <svg width={size} height={size} className="dl-bubble__ring" viewBox={`0 0 ${size} ${size}`}>
+    <svg width={size} height={size} className="absolute inset-0" viewBox={`0 0 ${size} ${size}`}>
       <defs>
         <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
           {status === 'completed' ? (
@@ -72,7 +70,7 @@ const CircularProgress: React.FC<{
         strokeDashoffset={offset}
         transform={`rotate(-90 ${size / 2} ${size / 2})`}
         filter={`url(#${glowId})`}
-        className="dl-bubble__ring-progress"
+        style={{ transition: 'stroke-dashoffset 0.6s cubic-bezier(0.4, 0, 0.2, 1)' }}
       />
     </svg>
   );
@@ -98,7 +96,7 @@ export interface DownloadBubbleProps {
   className?: string;
   /** If true, the component renders nothing when there are no tasks */
   hideWhenEmpty?: boolean;
-  /** Ball size in px (default 88) */
+  /** Ball size in px (default 56) */
   size?: number;
 }
 
@@ -112,7 +110,7 @@ export interface DownloadBubbleProps {
  *  - As the root component of the floating download window
  *  - Embedded in any page as a child component
  */
-const DownloadBubble: React.FC<DownloadBubbleProps> = ({ hookOptions, className, hideWhenEmpty = true, size = 88 }) => {
+const DownloadBubble: React.FC<DownloadBubbleProps> = ({ hookOptions, className, hideWhenEmpty = true, size = 56 }) => {
   const { tasks, activeTasks, completedTasks, failedTasks, overallProgress, cancelTask } = useDownloadTasks(hookOptions);
 
   // Determine the dominant status
@@ -139,46 +137,55 @@ const DownloadBubble: React.FC<DownloadBubbleProps> = ({ hookOptions, className,
   };
 
   return (
-    <div className={cn('dl-bubble', className)}>
+    <div className={cn('flex flex-col select-none w-full', className)}>
       {/* ---------- Ball + info row ---------- */}
-      <div className="dl-bubble__head">
+      <div className="flex items-center gap-2.5 px-2.5 py-1.5">
         {/* Circular progress ball */}
-        <div className={cn('dl-bubble__ball', `dl-bubble__ball--${dominantStatus}`)}>
-          <CircularProgress percent={displayPercent} size={size} strokeWidth={5} status={dominantStatus} />
+        <div className={cn('group relative shrink-0 rounded-full')} style={{ width: size, height: size }}>
+          <CircularProgress percent={displayPercent} size={size} strokeWidth={4} status={dominantStatus} />
 
-          <div className="dl-bubble__ball-inner">
+          <div className="absolute inset-1 rounded-full overflow-hidden bg-card border border-border/30">
             {/* Center content: percent / icon */}
-            <div className="dl-bubble__ball-content">
+            <div className="absolute inset-0 flex items-center justify-center z-[1] transition-opacity duration-200 group-hover:opacity-30">
               {dominantStatus === 'downloading' ? (
                 <>
-                  <span className="dl-bubble__ball-percent">{displayPercent.toFixed(0)}</span>
-                  <span className="dl-bubble__ball-percent-sign">%</span>
+                  <span className="text-[15px] font-extrabold leading-none bg-gradient-to-br from-blue-400 to-violet-400 bg-clip-text text-transparent">{displayPercent.toFixed(0)}</span>
+                  <span className="text-[9px] font-semibold mt-px bg-gradient-to-br from-blue-400 to-violet-400 bg-clip-text text-transparent">%</span>
                 </>
               ) : dominantStatus === 'completed' ? (
-                <TbCheck className="w-7 h-7 text-emerald-400" />
+                <TbCheck className="w-5 h-5 text-emerald-400" />
               ) : dominantStatus === 'failed' ? (
-                <TbAlertCircle className="w-7 h-7 text-red-400" />
+                <TbAlertCircle className="w-5 h-5 text-red-400" />
               ) : (
-                <TbDownload className="w-6 h-6 text-muted-foreground" />
+                <TbDownload className="w-4 h-4 text-muted-foreground" />
               )}
             </div>
 
             {/* Stop button overlay – visible on hover when downloading */}
             {(dominantStatus === 'downloading' || dominantStatus === 'idle') && currentTask && (
-              <button className="dl-bubble__ball-stop" onClick={handleStop} title="停止下载">
-                <TbPlayerStop className="w-5 h-5" />
+              <button
+                className="absolute inset-0 z-[2] flex items-center justify-center rounded-full border-none bg-card/85 text-red-400 opacity-0 transition-all duration-200 hover:bg-red-100/90 hover:text-red-500 group-hover:opacity-100"
+                onClick={handleStop}
+                title="停止下载"
+                style={{ WebkitAppRegion: 'no-drag', cursor: 'pointer' } as React.CSSProperties}
+              >
+                <TbPlayerStop className="w-4 h-4" />
               </button>
             )}
           </div>
         </div>
 
         {/* Info strip next to ball */}
-        <div className="dl-bubble__head-info">
-          <div className="dl-bubble__head-title">
+        <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+          <div className="text-xs font-semibold text-foreground flex items-center gap-1">
             {activeTasks.length > 0 ? (
               <>
                 下载中
-                {activeTasks.length > 1 && <span className="dl-bubble__badge">{activeTasks.length}</span>}
+                {activeTasks.length > 1 && (
+                  <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold text-white bg-gradient-to-br from-indigo-400 to-indigo-500">
+                    {activeTasks.length}
+                  </span>
+                )}
               </>
             ) : completedTasks.length > 0 ? (
               '下载完成'
@@ -190,31 +197,34 @@ const DownloadBubble: React.FC<DownloadBubbleProps> = ({ hookOptions, className,
           </div>
 
           {currentTask && dominantStatus === 'downloading' && (
-            <div className="dl-bubble__head-detail">
+            <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
               {currentTask.progress.downloadSpeed && (
-                <span className="dl-bubble__speed">
+                <span className="inline-flex items-center gap-0.5 whitespace-nowrap text-primary/85 font-medium">
                   <TbDownload className="w-3 h-3" />
                   {formatSpeed(currentTask.progress.downloadSpeed)}
                 </span>
               )}
               {currentTask.progress.eta && (
-                <span className="dl-bubble__eta">
+                <span className="inline-flex items-center gap-0.5 whitespace-nowrap">
                   <TbClock className="w-3 h-3" />
                   {currentTask.progress.eta}
                 </span>
               )}
-              {currentTask.progress.totalSize && <span className="dl-bubble__size">{currentTask.progress.totalSize}</span>}
+              {currentTask.progress.totalSize && <span className="inline-flex items-center gap-0.5 whitespace-nowrap">{currentTask.progress.totalSize}</span>}
             </div>
           )}
 
           {currentTask && (
-            <div className="dl-bubble__head-filename" title={currentTask.filename || currentTask.videoInfo?.title || currentTask.url}>
+            <div
+              className="text-[10px] text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap max-w-[180px]"
+              title={currentTask.filename || currentTask.videoInfo?.title || currentTask.url}
+            >
               {currentTask.filename || currentTask.videoInfo?.title || currentTask.url}
             </div>
           )}
 
           {currentTask?.status === 'failed' && currentTask.error && (
-            <div className="dl-bubble__error">
+            <div className="flex items-center gap-0.5 text-[10px] text-red-400 mt-px">
               <TbX className="w-3 h-3 flex-shrink-0" />
               <span>{currentTask.error.slice(0, 60)}</span>
             </div>
