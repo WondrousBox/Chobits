@@ -12,6 +12,8 @@ type LegacyStreamEmitter = {
   metadata: (data: Record<string, any>) => void;
   toolCall: (name: string, args: any, callId: string) => void;
   toolResult: (callId: string, result: any) => void;
+  toolProgress: (callId: string, progress: number, message?: string) => void;
+  thinkingDelta: (text: string) => void;
   complete: (message: ChatMessage) => void;
   error: (error: { message: string; code?: string; cause?: any }) => void;
   done: () => void;
@@ -35,6 +37,12 @@ export function createLegacyStreamEmitter(emit: (event: StreamEvent) => void): L
     toolResult(callId: string, result: any) {
       console.log(`[AI Tool] 工具返回: ${callId}`, typeof result === 'object' ? { success: result?.success, error: result?.error } : result);
       emit({ type: 'tool_result', data: { callId, result } });
+    },
+    toolProgress(callId: string, progress: number, message?: string) {
+      emit({ type: 'tool_progress', data: { callId, progress, message } });
+    },
+    thinkingDelta(text: string) {
+      emit({ type: 'thinking_delta', data: { text } });
     },
     complete(message: ChatMessage) {
       emit({ type: 'message_completed', data: { message } });
@@ -120,6 +128,9 @@ export function coercePiEventToLegacy(event: UnknownPiEvent): StreamEvent | unde
       type: 'error',
       data: normalizePiError(data.error || event.error || data.message || event.message)
     };
+  }
+  if (eventType === 'thinking-delta' || eventType === 'thinking_delta') {
+    return { type: 'thinking_delta', data: { text: String(data.text || data.delta || event.delta || '') } };
   }
   if (eventType === 'done') {
     return { type: 'done' };

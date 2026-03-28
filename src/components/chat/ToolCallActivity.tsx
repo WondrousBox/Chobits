@@ -15,6 +15,8 @@ export interface ToolActivity {
   args?: any;
   status: 'calling' | 'done';
   result?: any;
+  progress?: number;
+  progressMessage?: string;
 }
 
 interface ToolCallActivityProps {
@@ -95,13 +97,28 @@ const ToolCallItem: React.FC<{ activity: ToolActivity }> = ({ activity }) => {
 
   const [expanded, setExpanded] = useState(false);
   const displayName = getToolDisplayName(activity.name, activity.args);
+  const hasProgress = activity.status === 'calling' && activity.progress !== undefined && activity.progress > 0;
 
   return (
     <div className="text-xs border border-border/50 rounded-lg overflow-hidden">
       <button className="flex items-center gap-1.5 px-2 py-1 hover:bg-muted/50 transition-colors text-left" onClick={() => setExpanded(!expanded)}>
-        {activity.status === 'calling' ? <TbLoader2 className="h-3 w-3 animate-spin text-blue-500 shrink-0" /> : <TbCheck className="h-3 w-3 text-green-500 shrink-0" />}
+        {activity.status === 'calling' ? (
+          hasProgress ? (
+            <CircularProgress size={12} progress={activity.progress!} />
+          ) : (
+            <TbLoader2 className="h-3 w-3 animate-spin text-blue-500 shrink-0" />
+          )
+        ) : (
+          <TbCheck className="h-3 w-3 text-green-500 shrink-0" />
+        )}
         <TbTool className="h-3 w-3 text-muted-foreground shrink-0" />
-        <span className="text-muted-foreground truncate">{activity.status === 'calling' ? `${displayName} ...` : `${displayName} 完成`}</span>
+        <span className="text-muted-foreground truncate">
+          {activity.status === 'calling'
+            ? hasProgress
+              ? `${displayName} ${Math.round(activity.progress!)}%${activity.progressMessage ? ` - ${activity.progressMessage}` : ''}`
+              : `${displayName} ...`
+            : `${displayName} 完成`}
+        </span>
         {expanded ? <TbChevronDown className="h-3 w-3" /> : <TbChevronRight className="h-3 w-3" />}
       </button>
       {expanded && (
@@ -111,6 +128,31 @@ const ToolCallItem: React.FC<{ activity: ToolActivity }> = ({ activity }) => {
         </div>
       )}
     </div>
+  );
+};
+
+const CircularProgress: React.FC<{ size: number; progress: number }> = ({ size, progress }) => {
+  const strokeWidth = 1.5;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (Math.min(100, Math.max(0, progress)) / 100) * circumference;
+
+  return (
+    <svg width={size} height={size} className="shrink-0 -rotate-90" viewBox={`0 0 ${size} ${size}`}>
+      <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="currentColor" strokeWidth={strokeWidth} className="text-muted-foreground/30" />
+      <circle
+        cx={size / 2}
+        cy={size / 2}
+        r={radius}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={strokeWidth}
+        strokeDasharray={circumference}
+        strokeDashoffset={offset}
+        strokeLinecap="round"
+        className="text-blue-500 transition-all duration-300"
+      />
+    </svg>
   );
 };
 

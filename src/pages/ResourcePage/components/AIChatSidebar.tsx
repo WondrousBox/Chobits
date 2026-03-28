@@ -5,6 +5,7 @@ import rehypeHighlight from 'rehype-highlight';
 import remarkGfm from 'remark-gfm';
 import { toast } from 'sonner';
 
+import ThinkingActivity from '@/components/chat/ThinkingActivity';
 import type { ToolActivity } from '@/components/chat/ToolCallActivity';
 import ToolCallActivity from '@/components/chat/ToolCallActivity';
 import { ProviderModelSelect } from '@/components/common/ProviderModelSelect';
@@ -19,6 +20,8 @@ interface Message {
   content: string;
   createdAt?: number;
   activities?: ToolActivity[];
+  thinking?: string;
+  isThinking?: boolean;
 }
 
 interface Conversation {
@@ -310,6 +313,29 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
             });
           }
 
+          if (event?.type === 'tool_progress' && event.data) {
+            setMessages((prev) => {
+              const idx = assistantIndexRef.current;
+              if (idx < 0 || idx >= prev.length) return prev;
+              const copy = prev.slice();
+              const m = copy[idx];
+              const updated = (m.activities || []).map((a) => (a.callId === event.data.callId ? { ...a, progress: event.data.progress, progressMessage: event.data.message } : a));
+              copy[idx] = { ...m, activities: updated };
+              return copy;
+            });
+          }
+
+          if (event?.type === 'thinking_delta' && event.data?.text) {
+            setMessages((prev) => {
+              const idx = assistantIndexRef.current;
+              if (idx < 0 || idx >= prev.length) return prev;
+              const copy = prev.slice();
+              const m = copy[idx];
+              copy[idx] = { ...m, thinking: (m.thinking || '') + event.data.text, isThinking: true };
+              return copy;
+            });
+          }
+
           if (event?.type === 'delta' && event.data?.text) {
             const delta = String(event.data.text);
             setMessages((prev) => {
@@ -318,7 +344,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
 
               const copy = prev.slice();
               const message = copy[idx];
-              copy[idx] = { ...message, content: (message.content || '') + delta };
+              copy[idx] = { ...message, content: (message.content || '') + delta, isThinking: false };
               return copy;
             });
           }
@@ -334,7 +360,8 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
               copy[idx] = {
                 ...message,
                 content: full,
-                createdAt: event.data.message.createdAt || message.createdAt
+                createdAt: event.data.message.createdAt || message.createdAt,
+                isThinking: false
               };
               return copy;
             });
@@ -420,11 +447,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
             ) : (
               <div className="flex flex-col gap-1">
                 {conversations.map((conversation) => (
-                  <button
-                    key={conversation.id}
-                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-muted transition-colors"
-                    onClick={() => void selectConversation(conversation.id)}
-                  >
+                  <button key={conversation.id} className="w-full text-left px-3 py-2 rounded-lg hover:bg-muted transition-colors" onClick={() => void selectConversation(conversation.id)}>
                     <div className="text-sm truncate">{conversation.title || '未命名会话'}</div>
                     <div className="text-xs text-muted-foreground">
                       {conversation.messagesCount ?? 0} 条消息
@@ -444,6 +467,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
                 <div className={`max-w-[90%] rounded-xl px-3 py-2 ${message.role === 'user' ? 'bg-primary text-primary-foreground text-sm' : 'bg-muted text-foreground'}`}>
                   {message.role === 'assistant' ? (
                     <>
+                      {message.thinking && <ThinkingActivity thinking={message.thinking} isThinking={!!message.isThinking} />}
                       {message.activities && message.activities.length > 0 && <ToolCallActivity activities={message.activities} />}
                       {message.content ? (
                         <MarkdownMessage content={message.content} />
@@ -546,12 +570,7 @@ const AIChatSidebar: React.FC<AIChatSidebarProps> = ({ onClose }) => {
                     <span className="truncate">{codingWorkspaceLabel || '选择项目'}</span>
                   </button>
                   {codingWorkspaceRoot && (
-                    <button
-                      type="button"
-                      className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
-                      onClick={clearCodingWorkspace}
-                      title="清除项目目录"
-                    >
+                    <button type="button" className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors" onClick={clearCodingWorkspace} title="清除项目目录">
                       <TbX className="h-3.5 w-3.5" />
                     </button>
                   )}

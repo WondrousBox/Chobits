@@ -92,7 +92,7 @@ export default function ChatInputWithService({ onStart, onMenuOpenChange, ...res
               setProviderId(pid);
               setModelId(nextModelId);
             }}
-            buttonVariant="outline"
+            buttonVariant="ghost"
             buttonSize="sm"
             placeholder="选择模型"
             autoLoadFirst

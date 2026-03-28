@@ -7,6 +7,7 @@ export interface PiSessionToolContext {
   coding?: PiCodingWorkspaceContext;
   conversationId?: string;
   pushCardToWindows: typeof pushCardToWindows;
+  reportProgress?: (callId: string, progress: number, message?: string) => void;
   resolved: ResolvedPiRequest;
   resourcesRepo: typeof ResourcesRepo;
   targetWindowId?: number;
