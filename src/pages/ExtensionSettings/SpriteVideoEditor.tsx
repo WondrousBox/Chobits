@@ -41,6 +41,13 @@ export interface SegmentMarkers {
   end: number; // 结束时间 (ms)
 }
 
+// 片段倍速设置
+export interface SegmentSpeeds {
+  intro: number; // 开始片段倍速 (1.0 = 原速)
+  loop: number; // 循环片段倍速
+  outro: number; // 结束片段倍速
+}
+
 // 背景抠图设置
 export interface ChromaKeySettings {
   enabled: boolean;
@@ -49,11 +56,23 @@ export interface ChromaKeySettings {
   blend: number; // 混合/边缘羽化 1-100
 }
 
+// 输出设置
+export interface OutputSettings {
+  fps: number; // 帧率
+  width: number; // 输出宽度
+  height: number; // 输出高度
+}
+
+// 默认输出设置
+const DEFAULT_OUTPUT: OutputSettings = { fps: 8, width: 360, height: 480 };
+
 // 编辑器配置
 export interface SpriteVideoConfig {
   inputPath: string;
   segments: SegmentMarkers;
   chromaKey: ChromaKeySettings;
+  speeds: SegmentSpeeds;
+  output: OutputSettings;
   eventType?: string;
   title?: string;
 }
@@ -87,6 +106,35 @@ function getEdgeAwareTransform(percent: number): string {
   if (percent < 0.08) return 'translateX(0)';
   if (percent > 0.92) return 'translateX(-100%)';
   return 'translateX(-50%)';
+}
+
+// 倍速预设
+const SPEED_PRESETS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
+
+// 片段倍速选择行
+function SpeedRow({ label, color, originalDuration, speed, onChange }: { label: string; color: string; originalDuration: number; speed: number; onChange: (speed: number) => void }) {
+  const adjusted = originalDuration > 0 ? originalDuration / speed : 0;
+  return (
+    <div className="flex items-center gap-2">
+      <span className={`text-[11px] font-medium w-8 shrink-0 ${color}`}>{label}</span>
+      <div className="flex gap-0.5">
+        {SPEED_PRESETS.map((preset) => (
+          <button
+            key={preset}
+            className={`px-1.5 py-0.5 text-[10px] rounded transition-colors ${speed === preset ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-accent text-muted-foreground'}`}
+            onClick={() => onChange(preset)}
+          >
+            {preset}x
+          </button>
+        ))}
+      </div>
+      {originalDuration > 0 && speed !== 1 && (
+        <span className="text-[10px] text-muted-foreground">
+          {formatTime(originalDuration)} → {formatTime(adjusted)}
+        </span>
+      )}
+    </div>
+  );
 }
 
 // 计算拖拽时光标的透明度（拖拽时其他光标降低透明度）
@@ -126,6 +174,12 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
       blend: 15
     }
   );
+
+  // 片段倍速
+  const [speeds, setSpeeds] = useState<SegmentSpeeds>(initialConfig?.speeds || { intro: 1, loop: 1, outro: 1 });
+
+  // 输出设置
+  const [output, setOutput] = useState<OutputSettings>(initialConfig?.output || { ...DEFAULT_OUTPUT });
 
   // 元数据
   const [eventType, setEventType] = useState<string>(initialConfig?.eventType || '');
@@ -193,11 +247,13 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
         inputPath,
         segments,
         chromaKey,
+        speeds,
+        output,
         eventType,
         title
       });
     }
-  }, [inputPath, segments, chromaKey, eventType, title, onConfigChange]);
+  }, [inputPath, segments, chromaKey, speeds, output, eventType, title, onConfigChange]);
 
   // 视频加载完成
   const handleLoadedMetadata = useCallback(() => {
@@ -359,6 +415,8 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
     setPreviewPhase('idle');
     loopCountRef.current = 0;
     setLoopCount(0);
+    // 恢复默认播放速度
+    if (videoRef.current) videoRef.current.playbackRate = 1;
   }, []);
 
   // 预览循环动画（播放 loopStart 到 loopEnd，无限循环）
@@ -368,6 +426,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
     stopThreePhasePreview();
 
     video.currentTime = segments.loopStart / 1000;
+    video.playbackRate = speeds.loop;
     video.play().catch(() => { });
     setIsPlaying(true);
 
@@ -380,7 +439,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
       }
     };
     requestAnimationFrame(checkLoop);
-  }, [segments, stopThreePhasePreview]);
+  }, [segments, speeds, stopThreePhasePreview]);
 
   // 预览完整动画（三段式：intro → loop×3 → outro）
   const previewFull = useCallback(() => {
@@ -391,6 +450,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
     const hasLoop = segments.loopStart < segments.loopEnd;
 
     video.currentTime = segments.start / 1000;
+    video.playbackRate = hasLoop ? speeds.intro : speeds.intro;
     video.play().catch(() => { });
     setIsPlaying(true);
 
@@ -420,6 +480,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
         setPreviewPhase('loop');
         loopCountRef.current = 1;
         setLoopCount(1);
+        video.playbackRate = speeds.loop;
       } else if (phase === 'loop' && ms >= segments.loopEnd - 30) {
         if (loopCountRef.current < MAX_LOOPS) {
           loopCountRef.current += 1;
@@ -430,6 +491,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
           previewPhaseRef.current = 'outro';
           setPreviewPhase('outro');
           video.currentTime = segments.loopEnd / 1000;
+          video.playbackRate = speeds.outro;
         }
       } else if (phase === 'outro' && ms >= segments.end - 30) {
         video.pause();
@@ -441,7 +503,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
       previewRafRef.current = requestAnimationFrame(check);
     };
     previewRafRef.current = requestAnimationFrame(check);
-  }, [segments, stopThreePhasePreview]);
+  }, [segments, speeds, stopThreePhasePreview]);
 
   // 清理三段预览 RAF
   useEffect(() => {
@@ -487,6 +549,8 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
     setCurrentTime(0);
     setIsPlaying(false);
     setChromaKey({ enabled: false, color: '#00ff00', similarity: 40, blend: 15 });
+    setSpeeds({ intro: 1, loop: 1, outro: 1 });
+    setOutput({ ...DEFAULT_OUTPUT });
     setTitle('');
     setEventType('');
   }, [stopThreePhasePreview]);
@@ -501,10 +565,12 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
       const h = video.videoHeight;
       if (!w || !h) return reject(new Error('Video dimensions not available'));
 
-      // 创建录制用 canvas
+      // 创建录制用 canvas（使用输出尺寸）
+      const outW = output.width || w;
+      const outH = output.height || h;
       const recordCanvas = document.createElement('canvas');
-      recordCanvas.width = w;
-      recordCanvas.height = h;
+      recordCanvas.width = outW;
+      recordCanvas.height = outH;
       const ctx = recordCanvas.getContext('2d', { willReadFrequently: true });
       if (!ctx) return reject(new Error('Cannot get canvas context'));
 
@@ -514,7 +580,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
         return reject(new Error('MediaRecorder VP9 not supported'));
       }
 
-      const stream = recordCanvas.captureStream(30);
+      const stream = recordCanvas.captureStream(output.fps || 8);
       const recorder = new MediaRecorder(stream, {
         mimeType,
         videoBitsPerSecond: 4_000_000
@@ -534,32 +600,53 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
       const targetB = parseInt(chromaKey.color.slice(5, 7), 16);
       const threshold = (chromaKey.similarity / 100) * 255;
       const blendRange = chromaKey.blend;
-      const totalDuration = segments.end - segments.start;
+      const hasLoopSeg = segments.loopStart < segments.loopEnd;
+
+      // 计算预期录制总时长（墙钟时间），用于进度条
+      const introDur = hasLoopSeg ? (segments.loopStart - segments.start) / speeds.intro : (segments.end - segments.start) / speeds.intro;
+      const loopDur = hasLoopSeg ? (segments.loopEnd - segments.loopStart) / speeds.loop : 0;
+      const outroDur = hasLoopSeg ? (segments.end - segments.loopEnd) / speeds.outro : 0;
+      const expectedWallTime = introDur + loopDur + outroDur;
+      const recordStartTime = Date.now();
 
       // 开始录制
       recorder.start(100); // 每 100ms 输出一次数据
 
-      // 开始播放
+      // 设置初始倍速并开始播放
       video.currentTime = segments.start / 1000;
       video.muted = true;
+      video.playbackRate = speeds.intro;
       video.play().catch(reject);
 
       const drawFrame = () => {
         const currentMs = video.currentTime * 1000;
 
+        // 根据当前位置动态调整倍速
+        if (hasLoopSeg) {
+          if (currentMs < segments.loopStart) {
+            video.playbackRate = speeds.intro;
+          } else if (currentMs < segments.loopEnd) {
+            video.playbackRate = speeds.loop;
+          } else {
+            video.playbackRate = speeds.outro;
+          }
+        }
+
         if (currentMs >= segments.end - 16 || video.paused || video.ended) {
           video.pause();
+          video.playbackRate = 1;
           // 延迟停止录制确保最后一帧被捕获
           setTimeout(() => recorder.stop(), 100);
           return;
         }
 
-        // 更新进度
-        setProcessProgress(Math.min(1, (currentMs - segments.start) / totalDuration));
+        // 更新进度（基于墙钟时间）
+        const elapsed = Date.now() - recordStartTime;
+        setProcessProgress(Math.min(1, elapsed / expectedWallTime));
 
         // 绘制帧并应用色度键
-        ctx.drawImage(video, 0, 0, w, h);
-        const imageData = ctx.getImageData(0, 0, w, h);
+        ctx.drawImage(video, 0, 0, outW, outH);
+        const imageData = ctx.getImageData(0, 0, outW, outH);
         const data = imageData.data;
 
         for (let i = 0; i < data.length; i += 4) {
@@ -582,7 +669,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
 
       requestAnimationFrame(drawFrame);
     });
-  }, [chromaKey, segments]);
+  }, [chromaKey, segments, speeds, output]);
 
   // 处理并导入精灵动画
   const handleImport = useCallback(async () => {
@@ -593,13 +680,19 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
 
     try {
       const id = 'sprite-' + Math.random().toString(36).slice(2, 10);
-      // 调整 loop 时间点为相对于裁剪后视频的开始位置
-      const adjustedLoopStart = hasLoop ? segments.loopStart - segments.start : undefined;
-      const adjustedLoopEnd = hasLoop ? segments.loopEnd - segments.start : undefined;
-      const trimmedDuration = segments.end - segments.start;
+
+      // 根据倍速计算调整后的时间点和持续时间
+      const introDuration = hasLoop ? (segments.loopStart - segments.start) / speeds.intro : (segments.end - segments.start) / speeds.intro;
+      const loopDuration = hasLoop ? (segments.loopEnd - segments.loopStart) / speeds.loop : 0;
+      const outroDuration = hasLoop ? (segments.end - segments.loopEnd) / speeds.outro : 0;
+
+      const adjustedLoopStart = hasLoop ? introDuration : undefined;
+      const adjustedLoopEnd = hasLoop ? introDuration + loopDuration : undefined;
+      const trimmedDuration = introDuration + loopDuration + outroDuration;
 
       if (chromaKey.enabled) {
         // Canvas 路径：实时录制色度键处理结果为 WebM VP9 with Alpha
+        // 倍速已通过 video.playbackRate 在录制时应用
         const blob = await recordCanvasWithChromaKey();
         const arrayBuffer = await blob.arrayBuffer();
         await window.YUA.sprite.registerFromData({
@@ -614,9 +707,9 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
           durationMs: trimmedDuration
         });
       } else {
-        // FFmpeg 路径：仅裁剪 + 转码 WebM VP9
+        // FFmpeg 路径：裁剪 + 倍速 + 转码 WebM VP9
         if (onProcess) {
-          await onProcess({ inputPath, segments, chromaKey, eventType, title });
+          await onProcess({ inputPath, segments, chromaKey, speeds, output, eventType, title });
           return; // onProcess 负责后续流程
         }
         // Fallback: 直接调用 FFmpeg + 注册
@@ -625,6 +718,8 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
           inputPath,
           outputPath,
           segments,
+          speeds,
+          output,
           chromaKey: { enabled: false, color: '#00ff00', similarity: 0, blend: 0 }
         });
         await window.YUA.sprite.register({
@@ -647,7 +742,7 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
       setInternalProcessing(false);
       setProcessProgress(0);
     }
-  }, [inputPath, processingFlag, segments, chromaKey, eventType, title, hasLoop, stopThreePhasePreview, recordCanvasWithChromaKey, onProcess, onImportComplete]);
+  }, [inputPath, processingFlag, segments, speeds, output, chromaKey, eventType, title, hasLoop, stopThreePhasePreview, recordCanvasWithChromaKey, onProcess, onImportComplete]);
 
   return (
     <div className="h-full">
@@ -1013,6 +1108,47 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
               </div>
             </div>
 
+            {/* 片段倍速设置 */}
+            <div className="space-y-2 border-t pt-3">
+              <Label className="text-xs">片段倍速</Label>
+              <div className="space-y-1.5">
+                {hasLoop ? (
+                  <>
+                    {/* Intro 倍速 */}
+                    {segments.loopStart > segments.start && (
+                      <SpeedRow
+                        label="开始"
+                        color="text-green-600"
+                        originalDuration={segments.loopStart - segments.start}
+                        speed={speeds.intro}
+                        onChange={(v) => setSpeeds((prev) => ({ ...prev, intro: v }))}
+                      />
+                    )}
+                    {/* Loop 倍速 */}
+                    <SpeedRow
+                      label="循环"
+                      color="text-blue-600"
+                      originalDuration={segments.loopEnd - segments.loopStart}
+                      speed={speeds.loop}
+                      onChange={(v) => setSpeeds((prev) => ({ ...prev, loop: v }))}
+                    />
+                    {/* Outro 倍速 */}
+                    {segments.end > segments.loopEnd && (
+                      <SpeedRow
+                        label="结束"
+                        color="text-red-600"
+                        originalDuration={segments.end - segments.loopEnd}
+                        speed={speeds.outro}
+                        onChange={(v) => setSpeeds((prev) => ({ ...prev, outro: v }))}
+                      />
+                    )}
+                  </>
+                ) : (
+                  <SpeedRow label="全部" color="text-foreground" originalDuration={segments.end - segments.start} speed={speeds.intro} onChange={(v) => setSpeeds({ intro: v, loop: v, outro: v })} />
+                )}
+              </div>
+            </div>
+
             {/* 背景抠图设置 */}
             <div className="space-y-3 border-t pt-4">
               <div className="flex items-center justify-between">
@@ -1069,6 +1205,40 @@ export function SpriteVideoEditor({ initialConfig, onConfigChange, onProcess, on
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* 输出设置 */}
+            <div className="space-y-2 border-t pt-3">
+              <Label className="text-xs">输出设置</Label>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1">
+                  <Label className="text-[11px] text-muted-foreground shrink-0">宽</Label>
+                  <Input
+                    type="number"
+                    value={output.width}
+                    onChange={(e) => setOutput((prev) => ({ ...prev, width: Math.max(1, parseInt(e.target.value) || 0) }))}
+                    className="h-7 w-16 text-xs text-center"
+                  />
+                </div>
+                <div className="flex items-center gap-1">
+                  <Label className="text-[11px] text-muted-foreground shrink-0">高</Label>
+                  <Input
+                    type="number"
+                    value={output.height}
+                    onChange={(e) => setOutput((prev) => ({ ...prev, height: Math.max(1, parseInt(e.target.value) || 0) }))}
+                    className="h-7 w-16 text-xs text-center"
+                  />
+                </div>
+                <div className="flex items-center gap-1">
+                  <Label className="text-[11px] text-muted-foreground shrink-0">FPS</Label>
+                  <Input
+                    type="number"
+                    value={output.fps}
+                    onChange={(e) => setOutput((prev) => ({ ...prev, fps: Math.max(1, Math.min(60, parseInt(e.target.value) || 0)) }))}
+                    className="h-7 w-14 text-xs text-center"
+                  />
+                </div>
+              </div>
             </div>
           </>
         )}

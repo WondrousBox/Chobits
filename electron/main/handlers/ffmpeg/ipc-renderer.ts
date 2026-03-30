@@ -36,11 +36,21 @@ type FFmpegIpcParams = {
           loopEnd: number;
           end: number;
         };
+        speeds?: {
+          intro: number;
+          loop: number;
+          outro: number;
+        };
         chromaKey?: {
           enabled: boolean;
           color: string;
           similarity: number;
           blend: number;
+        };
+        output?: {
+          fps: number;
+          width: number;
+          height: number;
         };
         meta?: {
           eventType?: string;
