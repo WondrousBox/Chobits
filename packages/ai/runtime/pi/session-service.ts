@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 
 import type { ChatRequest, ChatResponse, StreamEvent } from '../../types';
+import { waitForUserChoice } from '../../user-choice-registry';
 import type { PiRuntimeAvailability, PiRuntimePreview, ResolvedPiRequest } from './contracts';
 import { resolvePiRequest } from './model-resolver';
 import { buildPiModel, buildPiModelHeaders } from './provider-model';
@@ -628,6 +629,11 @@ export class PiSessionService {
     toolContext.reportProgress = (callId: string, progress: number, message?: string) => {
       legacy.toolProgress(callId, progress, message);
     };
+    // Wire user choice support
+    toolContext.emitUserChoiceRequest = (request) => {
+      legacy.userChoiceRequest(request);
+    };
+    toolContext.waitForUserChoiceResponse = (choiceId) => waitForUserChoice(choiceId);
     const emittedToolCalls = new Set<string>();
     let sawEvents = false;
     let terminalEmitted = false;

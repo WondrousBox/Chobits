@@ -56,6 +56,7 @@ import {
 } from './settings-store';
 import { listToolInfos } from './tools';
 import type { ImageGenerationRequest, ProviderPresetCreatePayload, ProviderPresetUpdatePatch, PushedCard, TranscriptionRequest } from './types';
+import { registerUserChoiceIpc } from './user-choice-registry';
 
 async function hasUsablePreset(providerId: string): Promise<boolean> {
   return !!(await resolveUsablePreset(providerId));
@@ -75,6 +76,8 @@ export async function initAIHandlers(win: BrowserWindow): Promise<void> {
   chat.registerIpc();
   // Register AI utility IPCs (e.g., auto-tagging)
   TaggingService.registerIpc();
+  // Register user choice IPC (for ask-user tool)
+  registerUserChoiceIpc();
 
   // 取消翻译任务
   ipcMain.handle('ai:cancelTranslate', async (_e, payload: { requestId: string }) => {

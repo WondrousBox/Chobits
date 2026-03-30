@@ -1,5 +1,6 @@
 import { ChatRepo, ResourcesRepo } from '../../../common/db';
 import { pushCardToWindows } from '../../card-push';
+import type { UserChoiceRequest, UserChoiceResponse } from '../../types';
 import type { PiCodingWorkspaceContext, ResolvedPiRequest } from './contracts';
 
 export interface PiSessionToolContext {
@@ -11,6 +12,10 @@ export interface PiSessionToolContext {
   resolved: ResolvedPiRequest;
   resourcesRepo: typeof ResourcesRepo;
   targetWindowId?: number;
+  /** Emit a user choice request to the stream (set by session-service) */
+  emitUserChoiceRequest?: (request: UserChoiceRequest) => void;
+  /** Wait for user's choice response (set by session-service, resolves when user responds) */
+  waitForUserChoiceResponse?: (choiceId: string) => Promise<UserChoiceResponse>;
 }
 
 function resolveConversationId(resolved: ResolvedPiRequest): string | undefined {

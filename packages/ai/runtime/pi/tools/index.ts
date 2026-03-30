@@ -1,6 +1,7 @@
 import type { ToolDefinition } from '@mariozechner/pi-coding-agent';
 
 import type { PiSessionToolContext } from '../tool-context';
+import { createPiAskUserTool } from './ask-user';
 import { createPiFileEditTool } from './file-edit';
 import { createPiFileGlobTool } from './file-glob';
 import { createPiFileGrepTool } from './file-grep';
@@ -25,6 +26,7 @@ import { createPiYoutubeSubscribeTool } from './youtube-subscribe';
 type PiToolFactory = (toolContext: PiSessionToolContext) => ToolDefinition<any>;
 
 const PI_CUSTOM_TOOL_FACTORIES: Record<string, PiToolFactory> = {
+  'ask-user': createPiAskUserTool,
   'file-edit': createPiFileEditTool,
   'file-glob': createPiFileGlobTool,
   'file-grep': createPiFileGrepTool,

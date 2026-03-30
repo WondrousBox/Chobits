@@ -1,4 +1,4 @@
-import type { ChatMessage, StreamEvent } from '../../types';
+import type { ChatMessage, StreamEvent, UserChoiceRequest } from '../../types';
 
 type UnknownPiEvent = {
   type?: string;
@@ -14,6 +14,7 @@ type LegacyStreamEmitter = {
   toolResult: (callId: string, result: any) => void;
   toolProgress: (callId: string, progress: number, message?: string) => void;
   thinkingDelta: (text: string) => void;
+  userChoiceRequest: (request: UserChoiceRequest) => void;
   complete: (message: ChatMessage) => void;
   error: (error: { message: string; code?: string; cause?: any }) => void;
   done: () => void;
@@ -43,6 +44,9 @@ export function createLegacyStreamEmitter(emit: (event: StreamEvent) => void): L
     },
     thinkingDelta(text: string) {
       emit({ type: 'thinking_delta', data: { text } });
+    },
+    userChoiceRequest(request: UserChoiceRequest) {
+      emit({ type: 'user_choice_request', data: request });
     },
     complete(message: ChatMessage) {
       emit({ type: 'message_completed', data: { message } });

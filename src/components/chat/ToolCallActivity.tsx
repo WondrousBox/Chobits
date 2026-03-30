@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { TbCheck, TbChevronDown, TbChevronRight, TbLoader2, TbTool } from 'react-icons/tb';
 
 import { ResourceCard } from './cards';
+import UserChoiceCard from './UserChoiceCard';
 
 export interface ToolActivity {
   callId: string;
@@ -17,19 +18,25 @@ export interface ToolActivity {
   result?: any;
   progress?: number;
   progressMessage?: string;
+  /** ask-user tool: 绑定的选择请求 */
+  choiceRequest?: import('@packages/ai/types').UserChoiceRequest;
+  /** ask-user tool: 用户已提交的答案 */
+  choiceAnswers?: Record<string, string[]>;
 }
 
 interface ToolCallActivityProps {
   activities: ToolActivity[];
+  /** Callback when user submits a choice for an askUserTool activity */
+  onUserChoiceSubmit?: (choiceId: string, answers: Record<string, string[]>) => void;
 }
 
-const ToolCallActivity: React.FC<ToolCallActivityProps> = ({ activities }) => {
+const ToolCallActivity: React.FC<ToolCallActivityProps> = ({ activities, onUserChoiceSubmit }) => {
   if (activities.length === 0) return null;
 
   return (
     <div className="flex flex-col gap-1 mb-1">
       {activities.map((a) => (
-        <ToolCallItem key={a.callId} activity={a} />
+        <ToolCallItem key={a.callId} activity={a} onUserChoiceSubmit={onUserChoiceSubmit} />
       ))}
     </div>
   );
@@ -46,6 +53,7 @@ function formatValue(val: any, max = 2000): { text: string; lang?: string } {
 }
 
 const CARD_TOOL_NAMES = new Set(['pushCardTool', 'push-card']);
+const ASK_USER_TOOL_NAMES = new Set(['askUserTool', 'ask-user']);
 
 const TOOL_DISPLAY_NAMES: Record<string, string> = {
   toolboxLookupTool: '查阅工具箱',
@@ -59,7 +67,8 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   memoryGetTool: '获取记忆',
   memoryTopicsTool: '浏览记忆主题',
   memorySaveTool: '保存记忆',
-  workflowRunTool: '执行工作流'
+  workflowRunTool: '执行工作流',
+  askUserTool: '等待用户选择'
 };
 
 function getToolDisplayName(name: string, args?: any): string {
@@ -92,8 +101,30 @@ const CardToolItem: React.FC<{ activity: ToolActivity }> = ({ activity }) => {
   );
 };
 
-const ToolCallItem: React.FC<{ activity: ToolActivity }> = ({ activity }) => {
+const AskUserToolItem: React.FC<{ activity: ToolActivity; onSubmit?: (choiceId: string, answers: Record<string, string[]>) => void }> = ({ activity, onSubmit }) => {
+  const request = activity.choiceRequest;
+  if (!request) {
+    // No choice data yet — show loading indicator
+    return (
+      <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
+        <TbLoader2 className="h-3 w-3 animate-spin text-blue-500" />
+        <span>准备选项...</span>
+      </div>
+    );
+  }
+
+  const submitted = activity.status === 'done';
+
+  return (
+    <div className="py-0.5">
+      <UserChoiceCard request={request} onSubmit={(answers) => onSubmit?.(request.choiceId, answers)} submitted={submitted} submittedAnswers={activity.choiceAnswers} />
+    </div>
+  );
+};
+
+const ToolCallItem: React.FC<{ activity: ToolActivity; onUserChoiceSubmit?: (choiceId: string, answers: Record<string, string[]>) => void }> = ({ activity, onUserChoiceSubmit }) => {
   if (CARD_TOOL_NAMES.has(activity.name)) return <CardToolItem activity={activity} />;
+  if (ASK_USER_TOOL_NAMES.has(activity.name)) return <AskUserToolItem activity={activity} onSubmit={onUserChoiceSubmit} />;
 
   const [expanded, setExpanded] = useState(false);
   const displayName = getToolDisplayName(activity.name, activity.args);

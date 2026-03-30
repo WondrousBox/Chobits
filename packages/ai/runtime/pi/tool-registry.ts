@@ -3,6 +3,13 @@ import type { PiToolDescriptor } from './contracts';
 type ToolSeed = Omit<PiToolDescriptor, 'id'>;
 
 const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
+  'ask-user': {
+    category: 'ui-side-effect',
+    description: '向用户展示交互式选项卡，等待用户做出选择',
+    compatName: 'askUserTool',
+    name: 'askUserTool',
+    status: 'ready-for-pi-runtime'
+  },
   'file-edit': {
     category: 'file',
     description: 'Edit a text file inside the selected coding workspace by replacing exact text.',
@@ -145,7 +152,7 @@ const DEFAULT_TOOL_METADATA: Record<string, ToolSeed> = {
   }
 };
 
-export const DEFAULT_CODER_TOOL_IDS = ['file-list', 'file-read', 'file-glob', 'file-grep', 'file-write', 'file-edit', 'shell-exec'];
+export const DEFAULT_CODER_TOOL_IDS = ['file-list', 'file-read', 'file-glob', 'file-grep', 'file-write', 'file-edit', 'shell-exec', 'ask-user'];
 
 export const DEFAULT_SESSION_TOOL_IDS = [
   'query-resources',
@@ -160,7 +167,8 @@ export const DEFAULT_SESSION_TOOL_IDS = [
   'memory-topics',
   'memory-save',
   'toolbox-lookup',
-  'workflow-run'
+  'workflow-run',
+  'ask-user'
 ];
 
 function createToolDescriptor(toolId: string): PiToolDescriptor | undefined {

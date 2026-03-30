@@ -12,7 +12,8 @@ import type {
   PushedCard,
   SummarizeRequest,
   TranscriptionRequest,
-  TranslateRequest
+  TranslateRequest,
+  UserChoiceResponse
 } from './types';
 
 export type StreamCallback = (event: { type: string; data?: any }) => void;
@@ -211,6 +212,10 @@ export const aiBridge = {
     const handler = (_: any, card: PushedCard): void => callback(card);
     ipcRenderer.on('ai:card-pushed', handler);
     return () => ipcRenderer.removeListener('ai:card-pushed', handler);
+  },
+  /** Send user's choice response back to main process (for ask-user tool) */
+  async sendUserChoiceResponse(response: UserChoiceResponse) {
+    return ipcRenderer.invoke('ai:userChoiceResponse', response);
   },
   // Utilities
   async autoTagText(text: string, maxLabels?: number): Promise<{ success: true; tags: string[] }> {
