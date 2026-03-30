@@ -44,6 +44,52 @@ export type ChatRequest = ProviderScopedRequest & {
   persist?: boolean; // whether to persist conversation/messages (default true)
 };
 
+// ==================== 交互式选项 ====================
+
+/** 单个选项 */
+export interface UserChoiceOption {
+  /** 选项唯一标识（返回给 agent） */
+  value: string;
+  /** 显示文本 */
+  label: string;
+  /** 可选的描述 */
+  description?: string;
+}
+
+/** 一道选择题 */
+export interface UserChoiceQuestion {
+  /** 题目唯一 ID */
+  id: string;
+  /** 题目标题 */
+  title: string;
+  /** 可选的说明文本 */
+  description?: string;
+  /** 选项列表 */
+  options: UserChoiceOption[];
+  /** 是否多选，默认 false（单选） */
+  multiple?: boolean;
+}
+
+/** 由 agent 推送给 UI 的选择请求 */
+export interface UserChoiceRequest {
+  /** 本次选择请求的唯一 ID，UI 回传时需带上 */
+  choiceId: string;
+  /** 关联的 tool call ID */
+  toolCallId: string;
+  /** 一组题目，支持多题滑动（swipe） */
+  questions: UserChoiceQuestion[];
+  /** 可选的顶部提示文本 */
+  prompt?: string;
+}
+
+/** 用户的回答 */
+export interface UserChoiceResponse {
+  /** 对应的选择请求 ID */
+  choiceId: string;
+  /** 每题的回答，key 为 questionId，value 为选中的 value 数组 */
+  answers: Record<string, string[]>;
+}
+
 export type StreamEvent =
   | { type: 'connected' }
   | { type: 'delta'; data: { text?: string; toolCall?: any } }
@@ -52,6 +98,7 @@ export type StreamEvent =
   | { type: 'tool_result'; data: { callId: string; result: any } }
   | { type: 'tool_progress'; data: { callId: string; progress: number; message?: string } }
   | { type: 'thinking_delta'; data: { text: string } }
+  | { type: 'user_choice_request'; data: UserChoiceRequest }
   | { type: 'metadata'; data: Record<string, any> }
   | { type: 'error'; data: { message: string; code?: string; cause?: any } }
   | { type: 'done' };
@@ -357,6 +404,8 @@ export type AIApi = {
   onConversationTitleUpdated(callback: (data: { conversationId: string; title: string | null; status: 'generating' | 'done' | 'error' }) => void): () => void;
   /** Subscribe to card push events from main process */
   onCardPushed(callback: (card: PushedCard) => void): () => void;
+  /** Send user's choice response back to main process (for ask-user tool) */
+  sendUserChoiceResponse(response: UserChoiceResponse): Promise<{ success: boolean; error?: string }>;
   // Glossary management
   listGlossaryCategories(): Promise<Array<{ id: string; name: string; description?: string; createdAt: number; updatedAt: number }>>;
   createGlossaryCategory(payload: { name: string; description?: string }): Promise<{ id: string; name: string; description?: string; createdAt: number; updatedAt: number }>;

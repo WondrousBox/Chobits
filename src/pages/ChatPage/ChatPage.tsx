@@ -340,6 +340,18 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
             return copy;
           });
         }
+        if (ev?.type === 'user_choice_request' && ev.data) {
+          // Attach choice request data to the matching askUserTool activity
+          setMessages((prev) => {
+            const idx = assistantIndexRef.current;
+            if (idx < 0 || idx >= prev.length) return prev;
+            const copy = prev.slice();
+            const m = copy[idx];
+            const updated = (m.activities || []).map((a) => (a.callId === ev.data.toolCallId ? { ...a, choiceRequest: ev.data } : a));
+            copy[idx] = { ...m, activities: updated };
+            return copy;
+          });
+        }
         if (ev?.type === 'thinking_delta' && ev.data?.text) {
           setMessages((prev) => {
             const idx = assistantIndexRef.current;
@@ -398,6 +410,26 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
       }
     );
     disposerRef.current = disposer;
+  };
+
+  // Handle user choice submission for ask-user tool
+  const handleUserChoiceSubmit = async (choiceId: string, answers: Record<string, string[]>): Promise<void> => {
+    // Immediately mark the activity as submitted in UI
+    setMessages((prev) => {
+      const idx = assistantIndexRef.current;
+      if (idx < 0 || idx >= prev.length) return prev;
+      const copy = prev.slice();
+      const m = copy[idx];
+      const updated = (m.activities || []).map((a) => (a.choiceRequest?.choiceId === choiceId ? { ...a, choiceAnswers: answers } : a));
+      copy[idx] = { ...m, activities: updated };
+      return copy;
+    });
+    // Send response to main process to unblock the tool
+    try {
+      await window.YUA.ai.sendUserChoiceResponse({ choiceId, answers });
+    } catch (e) {
+      console.error('[ChatPage] Failed to send user choice response:', e);
+    }
   };
 
   // Keep startRef in sync so the IPC handler can call it
@@ -556,7 +588,7 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
                         {m.role === 'assistant' ? (
                           <>
                             {m.thinking && <ThinkingActivity thinking={m.thinking} isThinking={!!m.isThinking} />}
-                            {m.activities && m.activities.length > 0 && <ToolCallActivity activities={m.activities} />}
+                            {m.activities && m.activities.length > 0 && <ToolCallActivity activities={m.activities} onUserChoiceSubmit={handleUserChoiceSubmit} />}
                             {m.content || (loading && i === messages.length - 1) ? <ChatMessageRenderer content={m.content || ''} compactCards /> : null}
                             {!m.content && loading && i === messages.length - 1 && (!m.activities || m.activities.length === 0) && (
                               <span className="inline-flex items-center gap-2 text-muted-foreground">
