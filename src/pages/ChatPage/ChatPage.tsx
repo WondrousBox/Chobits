@@ -82,7 +82,27 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
           try {
             const meta = typeof r.metadata === 'string' ? JSON.parse(r.metadata) : r.metadata;
             if (Array.isArray(meta?.toolCalls)) {
-              activities = meta.toolCalls.map((tc: any) => ({ callId: tc.callId, name: tc.name, args: tc.args, status: 'done' as const, result: tc.result }));
+              activities = meta.toolCalls.map((tc: any) => {
+                const base: ToolActivity = { callId: tc.callId, name: tc.name, args: tc.args, status: 'done' as const, result: tc.result };
+                // Reconstruct choiceRequest/choiceAnswers for askUserTool from persisted args/result
+                if (tc.name === 'askUserTool' || tc.name === 'ask-user') {
+                  const parsedArgs = typeof tc.args === 'string' ? JSON.parse(tc.args) : tc.args;
+                  // result may be wrapped as { content, details } (AgentToolResult) or flat
+                  const resultDetails = tc.result?.details || tc.result;
+                  if (parsedArgs?.questions && resultDetails?.choiceId) {
+                    base.choiceRequest = {
+                      choiceId: resultDetails.choiceId,
+                      toolCallId: tc.callId,
+                      questions: parsedArgs.questions,
+                      prompt: parsedArgs.prompt
+                    };
+                    if (resultDetails.answers) {
+                      base.choiceAnswers = resultDetails.answers;
+                    }
+                  }
+                }
+                return base;
+              });
             }
           } catch {
             /* ignore parse errors */
@@ -429,6 +449,33 @@ export default function ChatPage({ hideTitleBar = false }: ChatPageProps): JSX.E
       await window.YUA.ai.sendUserChoiceResponse({ choiceId, answers });
     } catch (e) {
       console.error('[ChatPage] Failed to send user choice response:', e);
+    }
+
+    // Handle topic switch: if user chose __new_conversation__, start a new conversation
+    // with the last user message automatically resent
+    const topicAnswer = answers['topic_switch'];
+    if (topicAnswer?.includes('__new_conversation__')) {
+      // Find the last user message (the one that triggered the topic change)
+      const lastUserMsg = [...messages].reverse().find((m) => m.role === 'user');
+      if (lastUserMsg?.content) {
+        const savedContent = lastUserMsg.content;
+        // Wait a short moment for the agent to finish responding, then switch
+        setTimeout(() => {
+          // Stop current stream if still running
+          disposerRef.current?.cancel().catch(() => {
+            /* ignore */
+          });
+          disposerRef.current?.dispose?.();
+          disposerRef.current = null;
+          setLoading(false);
+          // Reset to new conversation
+          newConversation();
+          // Auto-send the saved message in the new conversation after state reset
+          setTimeout(() => {
+            startRef.current?.({ content: savedContent });
+          }, 100);
+        }, 500);
+      }
     }
   };
 
